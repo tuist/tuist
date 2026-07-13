@@ -26,7 +26,14 @@ defmodule Tuist.IngestRepo.Migrations.CreateCommandEventsByNameRanAtMv do
   `ran_at`-ordered queries (e.g. ModuleCacheLive recent runs, the `/runs` API
   without a name filter), which rely on read-in-order over `ran_at` directly.
 
-  The `idx_name` bloom filter is dropped here because `name` leads the sort key.
+  No secondary indexes are defined. `command_events_by_ran_at` carries
+  minmax/bloom indexes (is_ci, user_id, cacheable_targets_count) because its
+  `(project_id, ran_at)` working set is a whole project (millions of rows). Here
+  `(project_id, name)` already isolates a small contiguous range, so the runs
+  list's secondary filters (`is_ci`/`user_id` via "ran by", status, branch, …)
+  are cheap to apply as plain predicates over it; skip indexes would add write
+  and storage cost for negligible pruning. This also lets the view use the
+  implicit `SELECT *` schema instead of restating every column.
   """
 
   use Ecto.Migration
@@ -37,54 +44,9 @@ defmodule Tuist.IngestRepo.Migrations.CreateCommandEventsByNameRanAtMv do
   def up do
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
     execute """
-    CREATE MATERIALIZED VIEW IF NOT EXISTS command_events_by_name_ran_at (
-      `id` UUID,
-      `legacy_id` UInt64,
-      `name` String,
-      `subcommand` Nullable(String),
-      `command_arguments` Nullable(String),
-      `duration` Int32,
-      `client_id` String,
-      `tuist_version` String,
-      `swift_version` String,
-      `macos_version` String,
-      `project_id` Int64,
-      `created_at` DateTime64(6),
-      `updated_at` DateTime64(6),
-      `cacheable_targets` Array(String),
-      `local_cache_target_hits` Array(String),
-      `remote_cache_target_hits` Array(String),
-      `is_ci` Bool,
-      `test_targets` Array(String),
-      `local_test_target_hits` Array(String),
-      `remote_test_target_hits` Array(String),
-      `status` Nullable(Int32),
-      `error_message` Nullable(String),
-      `user_id` Nullable(Int32),
-      `remote_cache_target_hits_count` Nullable(Int32),
-      `remote_test_target_hits_count` Nullable(Int32),
-      `git_commit_sha` Nullable(String),
-      `git_ref` Nullable(String),
-      `preview_id` Nullable(UUID),
-      `git_branch` Nullable(String),
-      `ran_at` DateTime64(6),
-      `build_run_id` Nullable(UUID),
-      `cacheable_targets_count` UInt32,
-      `local_cache_hits_count` UInt32,
-      `remote_cache_hits_count` UInt32,
-      `test_targets_count` UInt32,
-      `local_test_hits_count` UInt32,
-      `remote_test_hits_count` UInt32,
-      `hit_rate` Nullable(Float32),
-      `test_run_id` Nullable(UUID),
-      `cache_endpoint` String,
-      INDEX idx_is_ci is_ci TYPE minmax GRANULARITY 128,
-      INDEX idx_user_id user_id TYPE minmax GRANULARITY 32,
-      INDEX idx_cacheable_targets_count cacheable_targets_count TYPE minmax GRANULARITY 16
-    )
+    CREATE MATERIALIZED VIEW IF NOT EXISTS command_events_by_name_ran_at
     ENGINE = MergeTree
     ORDER BY (project_id, name, ran_at)
-    SETTINGS index_granularity = 8192
     POPULATE
     AS SELECT * FROM command_events
     """
