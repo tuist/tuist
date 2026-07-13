@@ -83,13 +83,30 @@ if [ -z "${SA_TOKEN}" ]; then
 fi
 
 if [ -x /opt/tuist/runner-shell-agent.py ]; then
-  echo "$(date -u +%FT%TZ) dispatch-poll: starting runner-shell-agent"
-  (
-    /opt/tuist/runner-shell-agent.py
-    rc=$?
-    echo "$(date -u +%FT%TZ) dispatch-poll: runner-shell-agent exited (rc=${rc})"
-  ) &
-  echo "$(date -u +%FT%TZ) dispatch-poll: runner-shell-agent pid=$!"
+  shell_agent_python=""
+  if shell_agent_python="$(command -v python3 2>/dev/null)"; then
+    :
+  elif [ -x /usr/bin/python3 ]; then
+    shell_agent_python=/usr/bin/python3
+  elif [ -x /usr/bin/xcrun ] && shell_agent_python="$(/usr/bin/xcrun -f python3 2>/dev/null)"; then
+    :
+  fi
+
+  if [ -n "${shell_agent_python}" ]; then
+    echo "$(date -u +%FT%TZ) dispatch-poll: starting runner-shell-agent with ${shell_agent_python}"
+    (
+      trap - EXIT
+      while true; do
+        "${shell_agent_python}" /opt/tuist/runner-shell-agent.py
+        rc=$?
+        echo "$(date -u +%FT%TZ) dispatch-poll: runner-shell-agent exited (rc=${rc}); restarting in 2s"
+        sleep 2
+      done
+    ) &
+    echo "$(date -u +%FT%TZ) dispatch-poll: runner-shell-agent supervisor pid=$!"
+  else
+    echo "$(date -u +%FT%TZ) dispatch-poll: python3 missing; runner-shell-agent disabled"
+  fi
 else
   echo "$(date -u +%FT%TZ) dispatch-poll: runner-shell-agent missing or not executable"
 fi
