@@ -10,6 +10,7 @@ defmodule Tuist.Runners.InteractiveSessionsTest do
   alias Tuist.Runners.InteractiveSession
   alias Tuist.Runners.InteractiveSessionConnection
   alias Tuist.Runners.InteractiveSessions
+  alias Tuist.Runners.RunnerSessions
   alias Tuist.Runners.Workers.CloseDisconnectedInteractiveSessionWorker
 
   defp job(account, attrs \\ %{}) do
@@ -133,6 +134,29 @@ defmodule Tuist.Runners.InteractiveSessionsTest do
       assert Repo.get!(InteractiveSession, first.id).pod_name == "live-vnc-pod"
     end
 
+    test "refreshes an existing VNC session to the live runner-session pod" do
+      account = account_fixture()
+      user = user_fixture()
+      workflow_job_id = 70_005
+      job = job(account, %{workflow_job_id: workflow_job_id, pod_name: "stale-vnc-runner-session-pod"})
+
+      assert {:ok, first} = InteractiveSessions.request_vnc(job, account, user)
+
+      assert {:ok, _runner_session} =
+               RunnerSessions.open(%{
+                 workflow_job_id: workflow_job_id,
+                 account_id: account.id,
+                 fleet_name: first.fleet_name,
+                 pod_name: "live-vnc-runner-session-pod",
+                 started_at: DateTime.utc_now()
+               })
+
+      assert {:ok, second} = InteractiveSessions.request_vnc(job, account, user)
+
+      assert second.id == first.id
+      assert second.pod_name == "live-vnc-runner-session-pod"
+    end
+
     test "rejects non-macOS jobs" do
       account = account_fixture()
       user = user_fixture()
@@ -200,6 +224,35 @@ defmodule Tuist.Runners.InteractiveSessionsTest do
       assert session.fleet_name == "linux-amd64"
     end
 
+    test "uses the live runner-session pod when creating a shell session without a claim" do
+      account = account_fixture()
+      user = user_fixture()
+      workflow_job_id = 70_113
+
+      assert {:ok, _runner_session} =
+               RunnerSessions.open(%{
+                 workflow_job_id: workflow_job_id,
+                 account_id: account.id,
+                 fleet_name: "macos-xcode-26-5",
+                 pod_name: "live-macos-shell-pod",
+                 started_at: DateTime.utc_now()
+               })
+
+      assert {:ok, %InteractiveSession{} = session} =
+               InteractiveSessions.request_shell(
+                 job(account, %{
+                   workflow_job_id: workflow_job_id,
+                   pod_name: "stale-macos-shell-pod",
+                   fleet_name: "macos-xcode-26-5"
+                 }),
+                 account,
+                 user
+               )
+
+      assert session.pod_name == "live-macos-shell-pod"
+      assert session.fleet_name == "macos-xcode-26-5"
+    end
+
     test "rotates the token for duplicate shell requests" do
       account = account_fixture()
       user = user_fixture()
@@ -262,6 +315,37 @@ defmodule Tuist.Runners.InteractiveSessionsTest do
       assert InteractiveSessions.current_shell_for_pod("live-shell-agent-pod").id == session.id
       assert Repo.get!(InteractiveSession, session.id).pod_name == "live-shell-agent-pod"
       assert {:ok, same_session} = InteractiveSessions.validate_shell_pod(session.id, "live-shell-agent-pod")
+      assert same_session.id == session.id
+    end
+
+    test "resolves a stale shell session through the open runner session" do
+      account = account_fixture()
+      user = user_fixture()
+      workflow_job_id = 70_114
+
+      {:ok, session} =
+        InteractiveSessions.request_shell(
+          job(account, %{
+            workflow_job_id: workflow_job_id,
+            pod_name: "stale-macos-shell-agent-pod",
+            fleet_name: "macos-xcode-26-5"
+          }),
+          account,
+          user
+        )
+
+      assert {:ok, _runner_session} =
+               RunnerSessions.open(%{
+                 workflow_job_id: workflow_job_id,
+                 account_id: account.id,
+                 fleet_name: "macos-xcode-26-5",
+                 pod_name: "live-macos-shell-agent-pod",
+                 started_at: DateTime.utc_now()
+               })
+
+      assert InteractiveSessions.current_shell_for_pod("live-macos-shell-agent-pod").id == session.id
+      assert Repo.get!(InteractiveSession, session.id).pod_name == "live-macos-shell-agent-pod"
+      assert {:ok, same_session} = InteractiveSessions.validate_shell_pod(session.id, "live-macos-shell-agent-pod")
       assert same_session.id == session.id
     end
 

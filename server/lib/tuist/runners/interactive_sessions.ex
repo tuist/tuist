@@ -18,6 +18,7 @@ defmodule Tuist.Runners.InteractiveSessions do
   alias Tuist.Runners.Claims
   alias Tuist.Runners.InteractiveSession
   alias Tuist.Runners.InteractiveSessionConnection
+  alias Tuist.Runners.RunnerSessions
   alias Tuist.Runners.Workers.CloseDisconnectedInteractiveSessionWorker
 
   require Logger
@@ -47,7 +48,7 @@ defmodule Tuist.Runners.InteractiveSessions do
       case current_for_job(account_id, workflow_job_id, :vnc) do
         %InteractiveSession{} = session ->
           session
-          |> refresh_pod_from_claim()
+          |> refresh_pod_from_binding()
           |> refresh_token(user_id)
 
         nil ->
@@ -65,7 +66,7 @@ defmodule Tuist.Runners.InteractiveSessions do
       case current_for_job(account_id, workflow_job_id, :shell) do
         %InteractiveSession{} = session ->
           session
-          |> refresh_pod_from_claim()
+          |> refresh_pod_from_binding()
           |> refresh_token(user_id)
 
         nil ->
@@ -91,7 +92,7 @@ defmodule Tuist.Runners.InteractiveSessions do
 
   def current_shell_for_pod(pod_name) when is_binary(pod_name) and pod_name != "" do
     now = now()
-    claim = claim_for_pod(pod_name)
+    binding = binding_for_pod(pod_name)
 
     InteractiveSession
     |> where(
@@ -99,11 +100,11 @@ defmodule Tuist.Runners.InteractiveSessions do
       session.kind == :shell and is_nil(session.closed_at) and
         session.expires_at > ^now
     )
-    |> where_session_belongs_to_pod_or_claim(pod_name, claim)
+    |> where_session_belongs_to_pod_or_binding(pod_name, binding)
     |> order_by([session], desc: session.inserted_at)
     |> limit(1)
     |> Repo.one()
-    |> refresh_pod_from_claim(pod_name, claim)
+    |> refresh_pod_from_binding(pod_name, binding)
   end
 
   def current_shell_for_pod(_pod_name), do: nil
@@ -148,7 +149,7 @@ defmodule Tuist.Runners.InteractiveSessions do
 
   def validate_shell_pod(session_id, pod_name) when is_integer(session_id) and is_binary(pod_name) and pod_name != "" do
     now = now()
-    claim = claim_for_pod(pod_name)
+    binding = binding_for_pod(pod_name)
 
     InteractiveSession
     |> where(
@@ -156,11 +157,11 @@ defmodule Tuist.Runners.InteractiveSessions do
       session.id == ^session_id and session.kind == :shell and
         is_nil(session.closed_at) and session.expires_at > ^now
     )
-    |> where_session_belongs_to_pod_or_claim(pod_name, claim)
+    |> where_session_belongs_to_pod_or_binding(pod_name, binding)
     |> Repo.one()
     |> case do
       %InteractiveSession{} = session ->
-        case refresh_pod_from_claim(session, pod_name, claim) do
+        case refresh_pod_from_binding(session, pod_name, binding) do
           %InteractiveSession{} = refreshed -> {:ok, refreshed}
           nil -> {:error, :not_found}
         end
@@ -623,13 +624,13 @@ defmodule Tuist.Runners.InteractiveSessions do
   defp create_session(job, user_id, kind) do
     {token, hash} = build_token()
     now = now()
-    claim = claim_for_job(job)
+    binding = binding_for_job(job)
 
     attrs = %{
       account_id: job.account_id,
       workflow_job_id: job.workflow_job_id,
-      pod_name: session_pod_name(job, claim),
-      fleet_name: session_fleet_name(job, claim),
+      pod_name: session_pod_name(job, binding),
+      fleet_name: session_fleet_name(job, binding),
       kind: kind,
       state: :requested,
       token_hash: hash,
@@ -649,7 +650,7 @@ defmodule Tuist.Runners.InteractiveSessions do
         case current_for_job(job.account_id, job.workflow_job_id, kind) do
           %InteractiveSession{} = session ->
             session
-            |> refresh_pod_from_claim()
+            |> refresh_pod_from_binding()
             |> refresh_token(user_id)
 
           nil ->
@@ -658,31 +659,31 @@ defmodule Tuist.Runners.InteractiveSessions do
     end
   end
 
-  defp refresh_pod_from_claim(%InteractiveSession{} = session) do
-    refresh_pod_from_claim(session, nil, claim_for_workflow_job(session.workflow_job_id))
+  defp refresh_pod_from_binding(%InteractiveSession{} = session) do
+    refresh_pod_from_binding(session, nil, binding_for_session(session))
   end
 
-  defp refresh_pod_from_claim(nil, _pod_name, _claim), do: nil
+  defp refresh_pod_from_binding(nil, _pod_name, _binding), do: nil
 
-  defp refresh_pod_from_claim(%InteractiveSession{} = session, pod_name, claim) do
+  defp refresh_pod_from_binding(%InteractiveSession{} = session, pod_name, binding) do
     cond do
-      is_nil(claim) ->
+      is_nil(binding) ->
         session
 
-      not claim_matches_session?(claim, session) ->
+      not binding_matches_session?(binding, session) ->
         session
 
-      session.pod_name == claim.pod_name and session.fleet_name == claim.fleet_name ->
+      session.pod_name == binding.pod_name and session.fleet_name == binding.fleet_name ->
         session
 
-      is_binary(pod_name) and pod_name != "" and pod_name != claim.pod_name ->
+      is_binary(pod_name) and pod_name != "" and pod_name != binding.pod_name ->
         session
 
       true ->
         session
         |> InteractiveSession.changeset(%{
-          pod_name: claim.pod_name,
-          fleet_name: claim.fleet_name,
+          pod_name: binding.pod_name,
+          fleet_name: binding.fleet_name,
           updated_at: now()
         })
         |> Repo.update()
@@ -691,7 +692,7 @@ defmodule Tuist.Runners.InteractiveSessions do
             updated
 
           {:error, changeset} ->
-            Logger.warning("runners: failed to reconcile interactive session pod from live claim",
+            Logger.warning("runners: failed to reconcile interactive session pod from live binding",
               session_id: session.id,
               workflow_job_id: session.workflow_job_id,
               changeset_errors: inspect(changeset.errors)
@@ -723,41 +724,62 @@ defmodule Tuist.Runners.InteractiveSessions do
 
   defp refresh_token(nil, _user_id), do: {:error, :not_found}
 
-  defp claim_for_pod(pod_name) do
+  defp binding_for_pod(pod_name) do
     case Claims.by_pod_name(pod_name) do
-      {:ok, claim} -> claim
-      :error -> nil
+      {:ok, binding} ->
+        binding
+
+      :error ->
+        runner_session_for_pod(pod_name)
     end
   end
 
-  defp claim_for_workflow_job(workflow_job_id) do
+  defp claim_for_workflow_job(workflow_job_id) when is_integer(workflow_job_id) do
     case Claims.by_workflow_job_id(workflow_job_id) do
-      {:ok, claim} -> claim
+      {:ok, binding} -> binding
       :error -> nil
     end
   end
 
-  defp claim_for_job(%{workflow_job_id: workflow_job_id, account_id: account_id}) do
+  defp binding_for_job(%{workflow_job_id: workflow_job_id, account_id: account_id}) do
     case claim_for_workflow_job(workflow_job_id) do
-      %{account_id: ^account_id} = claim -> claim
-      _claim -> nil
+      %{account_id: ^account_id} = binding -> binding
+      _binding -> runner_session_for_workflow_job(workflow_job_id, account_id)
     end
   end
 
-  defp claim_matches_session?(claim, %InteractiveSession{} = session) do
-    session.workflow_job_id == claim.workflow_job_id and session.account_id == claim.account_id
+  defp binding_for_session(%InteractiveSession{} = session) do
+    binding_for_job(%{workflow_job_id: session.workflow_job_id, account_id: session.account_id})
   end
 
-  defp where_session_belongs_to_pod_or_claim(query, pod_name, nil) do
+  defp runner_session_for_pod(pod_name) do
+    case RunnerSessions.live_for_pod(pod_name) do
+      {:ok, binding} -> binding
+      :error -> nil
+    end
+  end
+
+  defp runner_session_for_workflow_job(workflow_job_id, account_id) do
+    case RunnerSessions.live_for_workflow_job(workflow_job_id, account_id) do
+      {:ok, binding} -> binding
+      :error -> nil
+    end
+  end
+
+  defp binding_matches_session?(binding, %InteractiveSession{} = session) do
+    session.workflow_job_id == binding.workflow_job_id and session.account_id == binding.account_id
+  end
+
+  defp where_session_belongs_to_pod_or_binding(query, pod_name, nil) do
     where(query, [session], session.pod_name == ^pod_name)
   end
 
-  defp where_session_belongs_to_pod_or_claim(query, pod_name, claim) do
+  defp where_session_belongs_to_pod_or_binding(query, pod_name, binding) do
     where(
       query,
       [session],
       session.pod_name == ^pod_name or
-        (session.workflow_job_id == ^claim.workflow_job_id and session.account_id == ^claim.account_id)
+        (session.workflow_job_id == ^binding.workflow_job_id and session.account_id == ^binding.account_id)
     )
   end
 
