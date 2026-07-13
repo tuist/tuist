@@ -8,6 +8,32 @@ global:
   nodeSelector: {}
   tolerations: []
 
+# Grace-period garbage collector for orphaned Hetzner block volumes (PVs left
+# Released by CNPG rebuilds, StatefulSet teardowns, etc. under the hcloud-volumes
+# Retain default). Ships to every cluster the chart is applied to. Safe to leave
+# on: dryRun only logs. After reviewing a run's logs in Grafana Cloud, set
+# dryRun=false (per env) to arm actual reaping. See templates/released-pv-reaper.yaml.
+pvReaper:
+  enabled: true
+  # dryRun logs the PVs it would reap without deleting anything. Flip to false
+  # per environment once the dry-run logs look right.
+  dryRun: true
+  schedule: "0 3 * * *"
+  # Only reap PVs that have been Released longer than this. The grace window is
+  # the recovery window for an accidental PVC deletion (default 7 days).
+  graceHours: 168
+  # Scoped to this StorageClass so node-local (scw-local-nvme) and non-CSI
+  # volumes are never touched.
+  storageClass: hcloud-volumes
+  # kubectl + jq in one image (Docker Hub, same registry as other chart images).
+  image: alpine/k8s:1.31.1
+  resources:
+    requests:
+      cpu: "25m"
+      memory: "32Mi"
+    limits:
+      memory: "64Mi"
+
 kuraController:
   enabled: false
   namespace: kura
