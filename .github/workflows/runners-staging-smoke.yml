@@ -35,6 +35,7 @@ on:
           - benchmark
           - populate
           - warm-bench
+          - dir-vs-disk
       run_label:
         description: "Short label for this run's cache-volume marker (e.g. a, b)"
         required: false
@@ -281,6 +282,52 @@ jobs:
           else
             echo "SIGNTEST_VERDICT=INCONCLUSIVE wB=$wB wC=$wC (B should have hit on the freshly-warmed clean dir)"
           fi
+
+      - name: Dir-vs-disk — virtio-fs vs virtio-blk for the cache (spec #76)
+        if: ${{ inputs.mode == 'dir-vs-disk' }}
+        shell: bash --noprofile --norc {0}
+        run: |
+          set +e
+          # virtio-fs = the writable status --dir share; virtio-blk = the --disk cache volume.
+          # Both back onto the same host SSD, so the delta isolates the virtualization layer,
+          # which is the question for the post-dispatch shared-dir materialization model (spec #76).
+          VFS="/Volumes/My Shared Files/status"
+          VBLK="${TUIST_XDG_CACHE_HOME:-/Volumes/tuist-cache}"
+          echo "virtio-fs (--dir status): $VFS"
+          echo "virtio-blk (--disk cache): $VBLK"
+          if ! { [ -d "$VFS" ] && touch "$VFS/.w" 2>/dev/null; }; then echo "ABORT: virtio-fs share not writable/absent"; exit 0; fi
+          if ! { [ -d "$VBLK" ] && touch "$VBLK/.w" 2>/dev/null; }; then echo "ABORT: virtio-blk cache not writable/absent"; exit 0; fi
+          rm -f "$VFS/.w" "$VBLK/.w"
+          trap 'rm -rf "$VFS/seqtest.bin" "$VFS/small" "$VFS/xattr.bin" "$VBLK/seqtest.bin" "$VBLK/small" "$VBLK/xattr.bin" 2>/dev/null' EXIT
+          freem=$(df -m "$VFS" 2>/dev/null | awk 'NR==2{print $4}')
+          SZ=256; [ "${freem:-0}" -lt 2048 ] && SZ=64
+          NF=1000
+          echo "sequential dataset=${SZ}MB  small-files=${NF}x8KB  (vfs free=${freem}MB)"
+          ms(){ python3 -c 'import time;print(int(time.time()*1000))'; }
+          mbps(){ python3 -c "print(round($1*1000/max(1,$2),1))"; }
+          seqw(){ s=$(ms); dd if=/dev/zero of="$1/seqtest.bin" bs=1048576 count=$SZ 2>/dev/null; sync; e=$(ms); echo $((e-s)); }
+          seqr(){ sudo purge >/dev/null 2>&1; s=$(ms); dd if="$1/seqtest.bin" of=/dev/null bs=1048576 2>/dev/null; e=$(ms); echo $((e-s)); }
+          smallw(){ d="$1/small"; rm -rf "$d"; mkdir -p "$d"; s=$(ms); i=0; while [ $i -lt $NF ]; do printf '%8192s' '' > "$d/f$i"; i=$((i+1)); done; sync; e=$(ms); echo $((e-s)); }
+          smallr(){ sudo purge >/dev/null 2>&1; s=$(ms); cat "$1/small"/f* > /dev/null 2>&1; e=$(ms); echo $((e-s)); }
+          xtest(){ printf 'hi' > "$1/xattr.bin"; xattr -w tuist.cloud.metadata "sig-check-123" "$1/xattr.bin" 2>/dev/null; got=$(xattr -p tuist.cloud.metadata "$1/xattr.bin" 2>/dev/null); [ "$got" = "sig-check-123" ] && echo "PASS" || echo "FAIL(got=${got// /_})"; }
+          measure(){ echo "$(mbps $SZ "$(seqw "$1")") $(mbps $SZ "$(seqr "$1")") $(smallw "$1") $(smallr "$1") $(xtest "$1")"; }
+          read DISK_W DISK_R DISK_SW DISK_SR DISK_X <<< "$(measure "$VBLK")"
+          read FS_W FS_R FS_SW FS_SR FS_X <<< "$(measure "$VFS")"
+          echo "DISK (virtio-blk): seqW=${DISK_W} seqR=${DISK_R} MB/s | smallW=${DISK_SW} smallR=${DISK_SR} ms | xattr=${DISK_X}"
+          echo "FS   (virtio-fs) : seqW=${FS_W} seqR=${FS_R} MB/s | smallW=${FS_SW} smallR=${FS_SR} ms | xattr=${FS_X}"
+          echo "=== VERDICT ==="
+          python3 - "$DISK_R" "$FS_R" "$DISK_SR" "$FS_SR" "$FS_X" <<'PY'
+          import sys
+          dsr,fsr,dsm,fsm,fx = float(sys.argv[1]),float(sys.argv[2]),int(sys.argv[3]),int(sys.argv[4]),sys.argv[5]
+          seq_ratio = dsr/fsr if fsr else float('inf')
+          small_ratio = fsm/dsm if dsm else float('inf')
+          print(f"SEQ_READ: virtio-fs is {seq_ratio:.1f}x slower than virtio-blk ({fsr} vs {dsr} MB/s)")
+          print(f"SMALL_READ: virtio-fs is {small_ratio:.1f}x slower than virtio-blk ({fsm} vs {dsm} ms)")
+          print(f"XATTR on virtio-fs: {fx}")
+          ok = fx == "PASS" and seq_ratio <= 2.0 and small_ratio <= 3.0
+          print("DIRVSDISK_VERDICT=" + ("VIABLE — virtio-fs within tolerance and xattr survives; Approach B worth a full generate test" if ok else "MARGINAL/NO — virtio-fs too slow or xattr lost; favor Approach D (per-account warm pools)"))
+          PY
+          echo "=== dir-vs-disk done ==="
 
       - name: Populate — tuist cache warm (spec #76)
         if: ${{ inputs.mode == 'populate' }}
