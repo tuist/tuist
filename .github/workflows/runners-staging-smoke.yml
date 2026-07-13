@@ -37,6 +37,7 @@ on:
           - warm-bench
           - dir-vs-disk
           - gen-fs-vs-disk
+          - clone-bench
       run_label:
         description: "Short label for this run's cache-volume marker (e.g. a, b)"
         required: false
@@ -393,6 +394,47 @@ jobs:
           echo "=== signature-fail warnings per gen (should be 0 if the copy kept xattrs) ==="
           for l in cold blkwarm1 blkwarm2 fswarm1 fswarm2; do echo "  $l: reqwarn=$(grep -c 'requires using' "/tmp/g_$l.log" 2>/dev/null)"; done
           echo "=== gen-fs-vs-disk done ==="
+
+      - name: Clone-bench — clonefile speed for post-dispatch materialization (spec #76)
+        if: ${{ inputs.mode == 'clone-bench' }}
+        shell: bash --noprofile --norc {0}
+        run: |
+          # How long does the host take to materialize an account's master into a VM's
+          # branch dir (the "cache-ready wait" the guest incurs)? clonefile is CoW — cost
+          # is driven by file COUNT (metadata), not bytes. Measured guest-side on the
+          # virtio-blk cache mount = conservative upper bound; host-native APFS is faster.
+          set +e
+          VOL="${TUIST_XDG_CACHE_HOME:-/Volumes/tuist-cache}"
+          SRC="$VOL/clonebench-src"; DST1="$VOL/clonebench-clone"; DST2="$VOL/clonebench-copy"
+          trap 'rm -rf "$SRC" "$DST1" "$DST2" 2>/dev/null' EXIT
+          rm -rf "$SRC" "$DST1" "$DST2"; mkdir -p "$SRC"
+          ms(){ python3 -c 'import time;print(int(time.time()*1000))'; }
+          echo "=== build synthetic cache-shaped tree on the cache volume ==="
+          NDIR=300; NSMALL=20; BIGMB=8
+          gs=$(ms); i=0
+          while [ $i -lt $NDIR ]; do
+            d="$SRC/xcf$i/arch"; mkdir -p "$d"
+            dd if=/dev/urandom of="$d/binary" bs=1048576 count=$BIGMB 2>/dev/null
+            j=0; while [ $j -lt $NSMALL ]; do printf '%512s' '' > "$SRC/xcf$i/h$j.h"; j=$((j+1)); done
+            i=$((i+1))
+          done
+          files=$(find "$SRC" -type f | wc -l | tr -d ' '); sz=$(du -sh "$SRC" 2>/dev/null | awk '{print $1}')
+          echo "TREE: files=${files} dirs=${NDIR} size=${sz} built_in_ms=$(( $(ms)-gs ))"
+          echo "=== clonefile() syscall on the directory — the host-native materialization path ==="
+          python3 - "$SRC" "$DST1" <<'PY'
+          import ctypes, ctypes.util, time, sys
+          libc = ctypes.CDLL(ctypes.util.find_library('c'), use_errno=True)
+          libc.clonefile.restype = ctypes.c_int
+          libc.clonefile.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int]
+          s = time.time(); rc = libc.clonefile(sys.argv[1].encode(), sys.argv[2].encode(), 0); e = time.time()
+          print(f"CLONEFILE_SYSCALL_MS={int((e-s)*1000)} rc={rc}" + ("" if rc == 0 else f" errno={ctypes.get_errno()}"))
+          PY
+          echo "=== cp -cR (clonefile CLI proxy) ==="
+          s=$(ms); cp -cR "$SRC" "$DST2" 2>/dev/null; r=$?; echo "CP_CLONE_MS=$(( $(ms)-s )) rc=$r"
+          rm -rf "$DST2"
+          echo "=== cp -R (plain byte copy, cross-volume-equivalent cost, for contrast) ==="
+          s=$(ms); cp -R "$SRC" "$DST2" 2>/dev/null; r=$?; echo "CP_PLAIN_MS=$(( $(ms)-s )) rc=$r"
+          echo "=== clone-bench done ==="
 
       - name: Populate — tuist cache warm (spec #76)
         if: ${{ inputs.mode == 'populate' }}
