@@ -420,7 +420,7 @@ struct SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             environments = environmentVariables(arguments.environmentVariables)
         }
 
-        let localPackagePaths = localPackagePaths(graphTraverser: graphTraverser)
+        let localPackageProducts = graphTraverser.consumedLocalPackageProducts()
         let codeCoverageTargets = try testAction.codeCoverageTargets
             .compactMap { (target: TargetReference) -> XCScheme.BuildableReference? in
                 if let graphTarget = graphTraverser.target(
@@ -433,10 +433,11 @@ struct SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
                         rootPath: rootPath
                     )
                 }
-                // Coverage targets can reference targets of local Swift packages, which are
+                // Coverage targets can reference products of local Swift packages, which are
                 // not part of the graph. Xcode resolves them through the package directory
-                // used as the referenced container.
-                if localPackagePaths.contains(target.projectPath) {
+                // used as the referenced container. Only names matching a consumed package
+                // product are emitted; other names would produce an empty coverage report.
+                if localPackageProducts[target.projectPath]?.contains(target.name) == true {
                     return packageTargetBuildableReference(target: target, rootPath: rootPath)
                 }
                 return nil
@@ -1103,27 +1104,13 @@ struct SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         )
     }
 
-    /// Returns the paths of the local Swift packages declared by the graph projects.
-    ///
-    /// - Parameter graphTraverser: Tuist graph traverser.
-    /// - Returns: Set of local package directories.
-    private func localPackagePaths(graphTraverser: GraphTraversing) -> Set<AbsolutePath> {
-        Set(
-            graphTraverser.projects.values
-                .flatMap(\.packages)
-                .compactMap { package -> AbsolutePath? in
-                    guard case let .local(path) = package else { return nil }
-                    return path
-                }
-        )
-    }
-
-    /// Creates a buildable reference for a target that belongs to a local Swift package.
-    /// Package targets are not part of the generated projects, so the reference points to
-    /// the package directory the same way Xcode does when the target is selected manually.
+    /// Creates a buildable reference for a product of a local Swift package.
+    /// Package products are not part of the generated projects, so the reference points to
+    /// the package directory the same way Xcode does when the product is selected manually.
     ///
     /// - Parameters:
-    ///     - target: The target reference, with the package directory as its project path.
+    ///     - target: The target reference, with the package directory as its project path
+    ///       and a package product as its name.
     ///     - rootPath: Path to the project or workspace.
     private func packageTargetBuildableReference(
         target: TargetReference,

@@ -215,7 +215,7 @@ struct GraphLinterTests {
             path: path,
             name: "TuistProject",
             targets: [
-                Target.test(name: "App"),
+                Target.test(name: "App", dependencies: [.package(product: "PackageTarget", type: .runtime)]),
                 Target.test(name: "AppTests"),
             ],
             packages: [.local(path: packagePath)]
@@ -249,6 +249,67 @@ struct GraphLinterTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedXcodeController
+    ) func lint_when_scheme_codeCoverageTarget_is_not_a_consumed_localPackage_product() async throws {
+        // Given
+        let path: AbsolutePath = "/project"
+        let packagePath: AbsolutePath = "/package"
+
+        let scheme = Scheme.test(
+            name: "SomeScheme",
+            buildAction: .init(targets: [TargetReference(projectPath: path, name: "App")]),
+            testAction: .test(
+                targets: [TestableTarget(target: TargetReference(projectPath: path, name: "AppTests"))],
+                coverage: true,
+                // The name of the package target backing the product, not the product itself.
+                codeCoverageTargets: [TargetReference(projectPath: packagePath, name: "PackageTargetCore")]
+            ),
+            runAction: nil,
+            archiveAction: nil,
+            profileAction: nil,
+            analyzeAction: nil
+        )
+        let project = Project.test(
+            path: path,
+            name: "TuistProject",
+            targets: [
+                Target.test(name: "App", dependencies: [.package(product: "PackageTarget", type: .runtime)]),
+                Target.test(name: "AppTests"),
+            ],
+            packages: [.local(path: packagePath)]
+        )
+
+        let workspace = Workspace.test(
+            path: path,
+            name: "TuistWorkspace",
+            projects: [path],
+            schemes: [scheme]
+        )
+
+        let graph = Graph.test(
+            path: path,
+            workspace: workspace,
+            projects: [path: project]
+        )
+
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let result = try await subject.lint(graphTraverser: graphTraverser, configGeneratedProjectOptions: .test())
+
+        // Then
+        #expect(
+            result ==
+                [LintingIssue(
+                    reason: "Cannot find targets PackageTargetCore (../package)  defined in SomeScheme",
+                    severity: .warning,
+                    category: .schemeTargetNotFound
+                )]
+        )
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedXcodeController
     ) func lint_when_localPackage_reference_is_not_exclusive_to_codeCoverage() async throws {
         // Given
         let path: AbsolutePath = "/project"
@@ -275,7 +336,7 @@ struct GraphLinterTests {
             path: path,
             name: "TuistProject",
             targets: [
-                Target.test(name: "App"),
+                Target.test(name: "App", dependencies: [.package(product: "PackageTarget", type: .runtime)]),
                 Target.test(name: "AppTests"),
             ],
             packages: [.local(path: packagePath)]

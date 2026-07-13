@@ -519,6 +519,33 @@ struct GenerateAcceptanceTestiOSAppWithLocalSwiftPackage {
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self)
     }
+
+    @Test(.withFixture("generated_ios_app_with_local_swift_package"), .inTemporaryDirectory)
+    func ios_app_with_local_swift_package_product_code_coverage() async throws {
+        // Given
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let xcodeprojPath = fixtureDirectory.appending(component: "App.xcodeproj")
+
+        // When
+        try await run(GenerateCommand.self)
+
+        // Then
+        let xcodeproj = try XcodeProj(pathString: xcodeprojPath.pathString)
+        let scheme = try #require(
+            xcodeproj.sharedData?.schemes.first { $0.name == "AppWithPackageCoverage" }
+        )
+        #expect(scheme.testAction?.onlyGenerateCoverageForSpecifiedTargets == true)
+        let coverageBuildables = try #require(scheme.testAction?.codeCoverageTargets)
+
+        // The product name is a valid coverage buildable and is kept. The name of the
+        // package target backing it is not, so it is dropped.
+        #expect(coverageBuildables.count == 1)
+        let reference = try #require(coverageBuildables.first)
+        #expect(reference.blueprintName == "LibraryC")
+        #expect(reference.buildableName == "LibraryC")
+        #expect(reference.blueprintIdentifier == "LibraryC")
+        #expect(reference.referencedContainer == "container:Packages/PackageA")
+    }
 }
 
 struct GenerateAcceptanceTestiOSAppWithObjCStaticFrameworkPackage {
