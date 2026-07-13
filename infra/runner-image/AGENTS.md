@@ -45,6 +45,10 @@ runtime — no service, sudo entry, or auto-login targets it.
   forwards a PTY in the runner VM over the server-owned WebSocket
   tunnel, so dashboard terminal access and `tuist runner ssh` attach to
   the same ephemeral job environment.
+- Homebrew `python` — installed in this layer for the trusted shell
+  bridge. The Xcode base does not promise Python for customer workflows,
+  but `/opt/tuist/runner-shell-agent.py` needs `python3` available in the
+  runner login shell.
 - `/Users/runner/Library/LaunchAgents/dev.tuist.runner.plist` —
   the LaunchAgent that auto-runs `inject-env.sh` then
   `dispatch-poll.sh` once runner's user session starts at boot.

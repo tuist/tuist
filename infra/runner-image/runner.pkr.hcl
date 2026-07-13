@@ -183,6 +183,19 @@ build {
     ]
   }
 
+  # Python powers the trusted interactive shell bridge. The Xcode base
+  # intentionally doesn't promise Python for customer jobs, so install
+  # Homebrew's default `python` formula in this runner layer and assert
+  # that the runtime user can resolve `python3` through its login shell.
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      "/bin/zsh -lc 'brew list python >/dev/null 2>&1 || brew install python'",
+      "/bin/zsh -lc 'python3 --version'",
+      "sudo -u runner /bin/zsh -lc 'command -v python3 >/dev/null'"
+    ]
+  }
+
   # The runner auto-login opens a real desktop session so launchd can
   # run the GitHub Actions agent. On fresh macOS images that first
   # desktop can be intercepted by Setup Assistant's "Update Mac
