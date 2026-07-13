@@ -93,6 +93,7 @@ fn main() {
         proxy.reclaim_idle();
         proxy.maintain_token(TOKEN_REFRESH_LEAD);
         proxy.refresh_snapshots();
+        proxy.refresh_view_keys();
         let stats = proxy.stats_line();
         if !stats.is_empty() {
             tuist_cas_plugin::log_line(&format!("proxy stats: {stats}"));

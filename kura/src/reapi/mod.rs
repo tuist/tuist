@@ -1133,10 +1133,10 @@ impl ActionCache for ReapiService {
         let principal = self.authorize_request(&request, extension.clone()).await?;
         let bytes = action_result.encode_to_vec();
         let targets = replication_targets(&self.state).await;
-        let manifest = self
+        let (manifest, applied) = self
             .state
             .store
-            .persist_inline_artifact_from_bytes_and_enqueue(
+            .persist_inline_artifact_from_bytes_damped_and_enqueue(
                 ArtifactProducer::Reapi,
                 namespace_id,
                 &key,
@@ -1157,7 +1157,11 @@ impl ActionCache for ReapiService {
         // update is billed: an action result is a mutable entry whose content
         // changes across updates, so there is no CAS-style "already present"
         // dedupe — matching the HTTP key-value path, which bills each put.
-        self.record_reapi_upload(request.metadata(), namespace_id, manifest.size);
+        // A damped refresh (identical bytes, fresh version) applies nothing
+        // and bills nothing.
+        if applied {
+            self.record_reapi_upload(request.metadata(), namespace_id, manifest.size);
+        }
         Ok(response)
     }
 }
