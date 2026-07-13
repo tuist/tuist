@@ -1071,6 +1071,26 @@ pub async fn process_outbox(state: &SharedState) -> Result<(), String> {
                             started_at.elapsed(),
                         );
                         state.store.delete_outbox_message(&message_key)?;
+                        // A metadata-lane message enqueued mid-pass sorts
+                        // before the cursor, so without this re-check it
+                        // would wait out the rest of a bulk backlog (a cache
+                        // populate parks the sibling's fresh action-cache
+                        // entries for the ~30 minutes its blobs take to
+                        // ship). Jump back only for a target that is not
+                        // backed off, so a parked failing backlog does not
+                        // get re-scanned after every delivery.
+                        if let Some((head_key, head)) = state.store.next_outbox_message(None)?
+                            && head_key.as_slice()
+                                < crate::store::OUTBOX_BULK_LANE_PREFIX.as_bytes()
+                            && after
+                                .as_deref()
+                                .is_some_and(|cursor| head_key.as_slice() < cursor)
+                            && !state
+                                .replication_target_backed_off(&head.target, Instant::now())
+                                .await
+                        {
+                            after = None;
+                        }
                     }
                     Err(error) => {
                         state.metrics.record_replication(
