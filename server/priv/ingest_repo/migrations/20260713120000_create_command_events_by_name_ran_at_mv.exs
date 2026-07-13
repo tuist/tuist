@@ -1,8 +1,8 @@
 defmodule Tuist.IngestRepo.Migrations.CreateCommandEventsByNameRanAtMv do
   @moduledoc """
-  Creates `command_events_by_name_ran_at`, a materialized view sorted by
-  `(project_id, name, ran_at)` for the name-filtered "recent runs" list queries
-  (cache runs, generate runs, the `/runs` API when a name filter is present).
+  Creates `command_events_by_name_ran_at`, sorted by `(project_id, name, ran_at)`
+  for the name-filtered "recent runs" list queries (cache runs, generate runs,
+  the `/runs` API when a name filter is present).
 
   These queries filter a single `name` (e.g. `name = 'cache'`) and page by
   `ran_at DESC`. `command_events_by_ran_at` is sorted by `(project_id, ran_at)`
@@ -17,10 +17,10 @@ defmodule Tuist.IngestRepo.Migrations.CreateCommandEventsByNameRanAtMv do
   reverse read-in-order regardless of how sparse the command is. The same
   production page reads ~75K rows / ~127 MiB (~209ms) against this layout.
 
-  The view is intentionally NOT partitioned. `command_events` is partitioned by
-  `toYYYYMM(ran_at)`, which fans a reverse read-in-order scan across every
-  monthly part (a tail granule each); an unpartitioned view keeps the
-  `(project_id, name)` range in one contiguous run of parts.
+  The target table is intentionally NOT partitioned. `command_events` is
+  partitioned by `toYYYYMM(ran_at)`, which fans a reverse read-in-order scan
+  across every monthly part (a tail granule each); an unpartitioned table keeps
+  the `(project_id, name)` range in one contiguous run of parts.
 
   `command_events_by_ran_at` (project_id, ran_at) is kept for the no-name
   `ran_at`-ordered queries (e.g. ModuleCacheLive recent runs, the `/runs` API
@@ -32,8 +32,29 @@ defmodule Tuist.IngestRepo.Migrations.CreateCommandEventsByNameRanAtMv do
   `(project_id, name)` already isolates a small contiguous range, so the runs
   list's secondary filters (`is_ci`/`user_id` via "ran by", status, branch, …)
   are cheap to apply as plain predicates over it; skip indexes would add write
-  and storage cost for negligible pruning. This also lets the view use the
-  implicit `SELECT *` schema instead of restating every column.
+  and storage cost for negligible pruning.
+
+  ## Gap-free backfill (no POPULATE)
+
+  `POPULATE` is avoided on purpose: it snapshots existing rows at CREATE time but
+  does NOT capture rows inserted while it runs, and `command_events` is ingested
+  continuously. Those rows would stay in `command_events` yet be permanently
+  absent from every name-filtered list and count once reads route here. Instead:
+
+    1. Create the empty target table (`EMPTY AS SELECT *` copies the column types
+       from `command_events` without its data, indexes, or projections).
+    2. Create the materialized view with `TO` and no `POPULATE`. From this point
+       every insert into `command_events` is written to the target synchronously.
+    3. Backfill the history with an `id` anti-join. ClickHouse evaluates the
+       outer scan and the anti-join subquery against the set of parts present
+       when the INSERT starts, so:
+         - rows inserted before the view existed → scanned, not yet in the
+           target → inserted once;
+         - rows the view already captured (created between steps 2 and 3) → in
+           the target → excluded by the anti-join;
+         - rows inserted while the backfill runs → not in the scan snapshot, but
+           captured by the view → inserted once.
+       No row is dropped and none is duplicated.
   """
 
   use Ecto.Migration
@@ -44,16 +65,32 @@ defmodule Tuist.IngestRepo.Migrations.CreateCommandEventsByNameRanAtMv do
   def up do
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
     execute """
-    CREATE MATERIALIZED VIEW IF NOT EXISTS command_events_by_name_ran_at
+    CREATE TABLE IF NOT EXISTS command_events_by_name_ran_at
     ENGINE = MergeTree
     ORDER BY (project_id, name, ran_at)
-    POPULATE
+    EMPTY AS SELECT * FROM command_events
+    """
+
+    # excellent_migrations:safety-assured-for-next-line raw_sql_executed
+    execute """
+    CREATE MATERIALIZED VIEW IF NOT EXISTS command_events_by_name_ran_at_mv
+    TO command_events_by_name_ran_at
     AS SELECT * FROM command_events
+    """
+
+    # excellent_migrations:safety-assured-for-next-line raw_sql_executed
+    execute """
+    INSERT INTO command_events_by_name_ran_at
+    SELECT * FROM command_events
+    WHERE id NOT IN (SELECT id FROM command_events_by_name_ran_at)
     """
   end
 
   def down do
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
-    execute "DROP VIEW IF EXISTS command_events_by_name_ran_at SYNC"
+    execute "DROP VIEW IF EXISTS command_events_by_name_ran_at_mv SYNC"
+
+    # excellent_migrations:safety-assured-for-next-line raw_sql_executed
+    execute "DROP TABLE IF EXISTS command_events_by_name_ran_at SYNC"
   end
 end
