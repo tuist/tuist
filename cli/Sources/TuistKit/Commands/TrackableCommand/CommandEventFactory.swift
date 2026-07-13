@@ -13,13 +13,16 @@ import XcodeGraph
 public struct CommandEventFactory {
     private let machineEnvironment: MachineEnvironmentRetrieving
     private let gitController: GitControlling
+    private let environment: Environmenting
 
     public init(
         machineEnvironment: MachineEnvironmentRetrieving = MachineEnvironment.shared,
-        gitController: GitControlling = GitController()
+        gitController: GitControlling = GitController(),
+        environment: Environmenting = Environment.current
     ) {
         self.machineEnvironment = machineEnvironment
         self.gitController = gitController
+        self.environment = environment
     }
 
     public func make(
@@ -49,7 +52,7 @@ public struct CommandEventFactory {
             swiftVersion: try await SwiftVersionProvider.current.swiftVersion(),
             macOSVersion: machineEnvironment.macOSVersion,
             machineHardwareName: machineEnvironment.hardwareName,
-            isCI: Environment.current.isCI,
+            isCI: environment.isCI,
             status: info.status,
             gitCommitSHA: gitInfo.sha,
             gitRef: gitInfo.ref,
@@ -63,7 +66,8 @@ public struct CommandEventFactory {
             testRunId: info.testRunId,
             generationId: info.generationId,
             cacheEndpoint: info.cacheEndpoint,
-            moduleCacheOutputs: info.moduleCacheOutputs
+            moduleCacheOutputs: info.moduleCacheOutputs,
+            environment: environment.redactedTuistVariables
         )
     }
 

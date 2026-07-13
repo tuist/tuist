@@ -102,10 +102,38 @@ public protocol Environmenting: Sendable {
 }
 
 private let truthyValues = ["1", "true", "TRUE", "yes", "YES"]
+private let sensitiveEnvironmentVariableNameComponents: Set<String> = [
+    "CREDENTIAL",
+    "CREDENTIALS",
+    "KEY",
+    "KEYS",
+    "LICENSE",
+    "PASSPHRASE",
+    "PASSPHRASES",
+    "PASSWORD",
+    "PASSWORDS",
+    "SECRET",
+    "SECRETS",
+    "TOKEN",
+    "TOKENS",
+]
 
 extension Environmenting {
     public var tuistVariables: [String: String] {
         variables.filter { $0.key.hasPrefix("TUIST_") || $0.key == "CI" }
+    }
+
+    public var redactedTuistVariables: [String: String] {
+        variables.reduce(into: [:]) { result, variable in
+            guard variable.key.hasPrefix("TUIST_") else { return }
+
+            let nameComponents = Set(variable.key.uppercased().split(separator: "_").map(String.init))
+            result[variable.key] = if nameComponents.isDisjoint(with: sensitiveEnvironmentVariableNameComponents) {
+                variable.value
+            } else {
+                "[redacted]"
+            }
+        }
     }
 
     public func isVariableTruthy(_ name: String) -> Bool {

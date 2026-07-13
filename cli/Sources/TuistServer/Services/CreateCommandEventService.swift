@@ -81,6 +81,9 @@
                             client_id: commandEvent.clientId,
                             command_arguments: commandEvent.commandArguments,
                             duration: commandEvent.durationInMs,
+                            environment: commandEvent.environment.isEmpty ? nil : .init(
+                                additionalProperties: commandEvent.environment
+                            ),
                             error_message: errorMessage,
                             git_branch: commandEvent.gitBranch,
                             git_commit_sha: commandEvent.gitCommitSHA,

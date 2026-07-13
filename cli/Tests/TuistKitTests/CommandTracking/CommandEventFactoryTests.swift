@@ -7,6 +7,7 @@ import Path
 import Testing
 import TuistConstants
 import TuistCore
+import TuistEnvironment
 import TuistGit
 import TuistSupport
 @testable import TuistKit
@@ -28,11 +29,56 @@ struct CommandEventFactoryTests {
 
         subject = CommandEventFactory(
             machineEnvironment: machineEnvironment,
-            gitController: gitController
+            gitController: gitController,
+            environment: Environment(variables: [:])
         )
     }
 
     // MARK: - Tests
+
+    @Test(.withMockedSwiftVersionProvider, .inTemporaryDirectory) func make_includesRedactedTuistEnvironment() async throws {
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let info = TrackableCommandInfo(
+            runId: "run-id",
+            name: "install",
+            subcommand: nil,
+            commandArguments: ["install"],
+            durationInMs: 100,
+            status: .success,
+            graph: nil,
+            graphBinaryBuildDuration: nil,
+            binaryCacheItems: [:],
+            selectiveTestingCacheItems: [:],
+            targetContentHashSubhashes: [:],
+            previewId: nil,
+            resultBundlePath: nil,
+            ranAt: Date(),
+            buildRunId: nil,
+            testRunId: nil,
+            generationId: nil,
+            cacheEndpoint: "",
+            moduleCacheOutputs: []
+        )
+        let subject = CommandEventFactory(
+            machineEnvironment: machineEnvironment,
+            gitController: gitController,
+            environment: Environment(variables: [
+                "TUIST_TOKEN": "secret-token",
+                "TUIST_USE_SWIFTERPM": "1",
+            ])
+        )
+
+        given(gitController)
+            .gitInfo(workingDirectory: .value(path))
+            .willReturn(.test())
+
+        let event = try await subject.make(from: info, path: path)
+
+        #expect(event.environment == [
+            "TUIST_TOKEN": "[redacted]",
+            "TUIST_USE_SWIFTERPM": "1",
+        ])
+    }
 
     @Test(.withMockedSwiftVersionProvider, .inTemporaryDirectory) func tagCommand_tagsExpectedCommand() async throws {
         // Given

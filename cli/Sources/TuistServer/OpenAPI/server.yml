@@ -2716,6 +2716,12 @@ components:
           type: integer
           x-struct:
           x-validate:
+        end_cursor:
+          description: Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. Always `nil` when using page-based pagination.
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
         has_next_page:
           description: Whether there are more pages available.
           type: boolean
@@ -2731,8 +2737,15 @@ components:
           type: integer
           x-struct:
           x-validate:
+        start_cursor:
+          description: Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. Always `nil` when using page-based pagination.
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
         total_count:
-          description: Total number of items.
+          description: Total number of items. Always `nil` when using cursor-based pagination.
+          nullable: true
           type: integer
           x-struct:
           x-validate:
@@ -2745,7 +2758,6 @@ components:
         - has_next_page
         - has_previous_page
         - page_size
-        - total_count
       title: PaginationMetadata
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.PaginationMetadata
@@ -2857,6 +2869,12 @@ components:
       title: ProjectToken
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.ProjectToken
+      x-validate:
+    GenerationsIndexBefore:
+      description: Cursor for backward pagination. Pass the `start_cursor` from a previous response to fetch the previous (newer) page.
+      title: GenerationsIndexBefore
+      type: string
+      x-struct:
       x-validate:
     ArtifactUploadURL:
       description: The URL to upload an artifact.
@@ -3809,8 +3827,7 @@ components:
       x-struct:
       x-validate:
     GenerationsIndexPage:
-      default: 1
-      description: The page number to return.
+      description: Deprecated and ignored. Offset pagination has been removed in favor of cursor pagination; use `after`/`before`. This parameter is still accepted so older clients degrade gracefully instead of erroring.
       minimum: 1
       title: GenerationsIndexPage
       type: integer
@@ -4212,6 +4229,12 @@ components:
         - hit_remote
         - miss
       title: CacheTaskStatus
+      type: string
+      x-struct:
+      x-validate:
+    GenerationsIndexAfter:
+      description: Cursor for forward pagination. Pass the `end_cursor` from a previous response to fetch the next (older) page. Omit both `after` and `before` to fetch the first page.
+      title: GenerationsIndexAfter
       type: string
       x-struct:
       x-validate:
@@ -8668,6 +8691,14 @@ paths:
       callbacks: {}
       operationId: listBundles
       parameters:
+        - description: Filter bundles by git branch.
+          in: query
+          name: git_branch
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
         - description: Page number for pagination.
           in: query
           name: page
@@ -8690,14 +8721,6 @@ paths:
           required: false
           schema:
             type: integer
-            x-struct:
-            x-validate:
-        - description: Filter bundles by git branch.
-          in: query
-          name: git_branch
-          required: false
-          schema:
-            type: string
             x-struct:
             x-validate:
         - description: The handle of the project.
@@ -9167,6 +9190,15 @@ paths:
                 duration:
                   description: The duration of the command.
                   type: integer
+                  x-struct:
+                  x-validate:
+                environment:
+                  additionalProperties:
+                    type: string
+                    x-struct:
+                    x-validate:
+                  description: The redacted TUIST_* environment variables present when the command ran.
+                  type: object
                   x-struct:
                   x-validate:
                 error_message:
@@ -18965,16 +18997,36 @@ paths:
             type: integer
             x-struct:
             x-validate:
-        - description: ''
+        - deprecated: true
+          description: ''
           in: query
           name: page
           required: false
           schema:
-            default: 1
-            description: The page number to return.
+            description: Deprecated and ignored. Offset pagination has been removed in favor of cursor pagination; use `after`/`before`. This parameter is still accepted so older clients degrade gracefully instead of erroring.
             minimum: 1
             title: GenerationsIndexPage
             type: integer
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: after
+          required: false
+          schema:
+            description: Cursor for forward pagination. Pass the `end_cursor` from a previous response to fetch the next (older) page. Omit both `after` and `before` to fetch the first page.
+            title: GenerationsIndexAfter
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: before
+          required: false
+          schema:
+            description: Cursor for backward pagination. Pass the `start_cursor` from a previous response to fetch the previous (newer) page.
+            title: GenerationsIndexBefore
+            type: string
             x-struct:
             x-validate:
       responses:

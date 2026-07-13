@@ -6,6 +6,30 @@ import Testing
 @testable import TuistTesting
 
 struct EnvironmentTests {
+    @Test() func redactedTuistVariables_includesTuistVariablesAndRedactsSensitiveValues() {
+        let subject = Environment(variables: [
+            "CI": "true",
+            "OTHER": "ignored",
+            "TUIST_AUTH_PASSWORD": "password",
+            "TUIST_LICENSE": "license",
+            "TUIST_CONFIG_GITHUB_API_TOKEN": "token",
+            "TUIST_ACCOUNT_TOKENS_NAME": "tokens",
+            "TUIST_SIGNING_KEY": "key",
+            "TUIST_lowercase_secret": "secret",
+            "TUIST_USE_SWIFTERPM": "1",
+        ])
+
+        #expect(subject.redactedTuistVariables == [
+            "TUIST_AUTH_PASSWORD": "[redacted]",
+            "TUIST_LICENSE": "[redacted]",
+            "TUIST_CONFIG_GITHUB_API_TOKEN": "[redacted]",
+            "TUIST_ACCOUNT_TOKENS_NAME": "[redacted]",
+            "TUIST_SIGNING_KEY": "[redacted]",
+            "TUIST_lowercase_secret": "[redacted]",
+            "TUIST_USE_SWIFTERPM": "1",
+        ])
+    }
+
     // MARK: - Cache Directory Tests
 
     @Test() func cacheDirectory_withTuistXDGCacheHome() throws {

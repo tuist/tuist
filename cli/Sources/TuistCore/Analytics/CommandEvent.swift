@@ -28,6 +28,7 @@ public struct CommandEvent: Codable, Equatable {
     public let generationId: String?
     public let cacheEndpoint: String
     public let moduleCacheOutputs: [ModuleCacheOutput]
+    public let environment: [String: String]
 
     public enum Status: Codable, Equatable {
         case success, failure(String)
@@ -59,6 +60,7 @@ public struct CommandEvent: Codable, Equatable {
         case generationId = "generation_id"
         case cacheEndpoint
         case moduleCacheOutputs
+        case environment
     }
 
     public init(
@@ -86,7 +88,8 @@ public struct CommandEvent: Codable, Equatable {
         testRunId: String?,
         generationId: String?,
         cacheEndpoint: String,
-        moduleCacheOutputs: [ModuleCacheOutput] = []
+        moduleCacheOutputs: [ModuleCacheOutput] = [],
+        environment: [String: String] = [:]
     ) {
         self.runId = runId
         self.name = name
@@ -113,6 +116,7 @@ public struct CommandEvent: Codable, Equatable {
         self.generationId = generationId
         self.cacheEndpoint = cacheEndpoint
         self.moduleCacheOutputs = moduleCacheOutputs
+        self.environment = environment
     }
 
     #if MOCKING
@@ -140,7 +144,8 @@ public struct CommandEvent: Codable, Equatable {
             testRunId: String? = nil,
             generationId: String? = nil,
             cacheEndpoint: String = "",
-            moduleCacheOutputs: [ModuleCacheOutput] = []
+            moduleCacheOutputs: [ModuleCacheOutput] = [],
+            environment: [String: String] = [:]
         ) -> CommandEvent {
             CommandEvent(
                 runId: runId,
@@ -167,7 +172,8 @@ public struct CommandEvent: Codable, Equatable {
                 testRunId: testRunId,
                 generationId: generationId,
                 cacheEndpoint: cacheEndpoint,
-                moduleCacheOutputs: moduleCacheOutputs
+                moduleCacheOutputs: moduleCacheOutputs,
+                environment: environment
             )
         }
     #endif

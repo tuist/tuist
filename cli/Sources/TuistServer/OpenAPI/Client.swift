@@ -2652,6 +2652,13 @@ public struct Client: APIProtocol {
                     in: &request,
                     style: .form,
                     explode: true,
+                    name: "git_branch",
+                    value: input.query.git_branch
+                )
+                try converter.setQueryItemAsURI(
+                    in: &request,
+                    style: .form,
+                    explode: true,
                     name: "page",
                     value: input.query.page
                 )
@@ -2661,13 +2668,6 @@ public struct Client: APIProtocol {
                     explode: true,
                     name: "page_size",
                     value: input.query.page_size
-                )
-                try converter.setQueryItemAsURI(
-                    in: &request,
-                    style: .form,
-                    explode: true,
-                    name: "git_branch",
-                    value: input.query.git_branch
                 )
                 converter.setAcceptHeader(
                     in: &request.headerFields,
@@ -13601,6 +13601,20 @@ public struct Client: APIProtocol {
                     explode: true,
                     name: "page",
                     value: input.query.page
+                )
+                try converter.setQueryItemAsURI(
+                    in: &request,
+                    style: .form,
+                    explode: true,
+                    name: "after",
+                    value: input.query.after
+                )
+                try converter.setQueryItemAsURI(
+                    in: &request,
+                    style: .form,
+                    explode: true,
+                    name: "before",
+                    value: input.query.before
                 )
                 converter.setAcceptHeader(
                     in: &request.headerFields,

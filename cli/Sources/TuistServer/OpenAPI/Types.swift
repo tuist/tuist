@@ -6481,6 +6481,10 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/PaginationMetadata/current_page`.
             public var current_page: Swift.Int?
+            /// Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. Always `nil` when using page-based pagination.
+            ///
+            /// - Remark: Generated from `#/components/schemas/PaginationMetadata/end_cursor`.
+            public var end_cursor: Swift.String?
             /// Whether there are more pages available.
             ///
             /// - Remark: Generated from `#/components/schemas/PaginationMetadata/has_next_page`.
@@ -6493,10 +6497,14 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/PaginationMetadata/page_size`.
             public var page_size: Swift.Int
-            /// Total number of items.
+            /// Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. Always `nil` when using page-based pagination.
+            ///
+            /// - Remark: Generated from `#/components/schemas/PaginationMetadata/start_cursor`.
+            public var start_cursor: Swift.String?
+            /// Total number of items. Always `nil` when using cursor-based pagination.
             ///
             /// - Remark: Generated from `#/components/schemas/PaginationMetadata/total_count`.
-            public var total_count: Swift.Int
+            public var total_count: Swift.Int?
             /// Total number of pages. Always `nil` when using cursor-based pagination.
             ///
             /// - Remark: Generated from `#/components/schemas/PaginationMetadata/total_pages`.
@@ -6505,31 +6513,39 @@ public enum Components {
             ///
             /// - Parameters:
             ///   - current_page: Current page number. Always `nil` when using cursor-based pagination.
+            ///   - end_cursor: Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. Always `nil` when using page-based pagination.
             ///   - has_next_page: Whether there are more pages available.
             ///   - has_previous_page: Whether there are previous pages available.
             ///   - page_size: Number of items per page.
-            ///   - total_count: Total number of items.
+            ///   - start_cursor: Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. Always `nil` when using page-based pagination.
+            ///   - total_count: Total number of items. Always `nil` when using cursor-based pagination.
             ///   - total_pages: Total number of pages. Always `nil` when using cursor-based pagination.
             public init(
                 current_page: Swift.Int? = nil,
+                end_cursor: Swift.String? = nil,
                 has_next_page: Swift.Bool,
                 has_previous_page: Swift.Bool,
                 page_size: Swift.Int,
-                total_count: Swift.Int,
+                start_cursor: Swift.String? = nil,
+                total_count: Swift.Int? = nil,
                 total_pages: Swift.Int? = nil
             ) {
                 self.current_page = current_page
+                self.end_cursor = end_cursor
                 self.has_next_page = has_next_page
                 self.has_previous_page = has_previous_page
                 self.page_size = page_size
+                self.start_cursor = start_cursor
                 self.total_count = total_count
                 self.total_pages = total_pages
             }
             public enum CodingKeys: String, CodingKey {
                 case current_page
+                case end_cursor
                 case has_next_page
                 case has_previous_page
                 case page_size
+                case start_cursor
                 case total_count
                 case total_pages
             }
@@ -6676,6 +6692,10 @@ public enum Components {
                 case inserted_at
             }
         }
+        /// Cursor for backward pagination. Pass the `start_cursor` from a previous response to fetch the previous (newer) page.
+        ///
+        /// - Remark: Generated from `#/components/schemas/GenerationsIndexBefore`.
+        public typealias GenerationsIndexBefore = Swift.String
         /// The URL to upload an artifact.
         ///
         /// - Remark: Generated from `#/components/schemas/ArtifactUploadURL`.
@@ -8061,7 +8081,7 @@ public enum Components {
                 case xcode_version
             }
         }
-        /// The page number to return.
+        /// Deprecated and ignored. Offset pagination has been removed in favor of cursor pagination; use `after`/`before`. This parameter is still accepted so older clients degrade gracefully instead of erroring.
         ///
         /// - Remark: Generated from `#/components/schemas/GenerationsIndexPage`.
         public typealias GenerationsIndexPage = Swift.Int
@@ -8564,6 +8584,10 @@ public enum Components {
             case hit_remote = "hit_remote"
             case miss = "miss"
         }
+        /// Cursor for forward pagination. Pass the `end_cursor` from a previous response to fetch the next (older) page. Omit both `after` and `before` to fetch the first page.
+        ///
+        /// - Remark: Generated from `#/components/schemas/GenerationsIndexAfter`.
+        public typealias GenerationsIndexAfter = Swift.String
         /// - Remark: Generated from `#/components/schemas/CASOutputType`.
         @frozen public enum CASOutputType: String, Codable, Hashable, Sendable, CaseIterable {
             case swift = "swift"
@@ -18879,6 +18903,10 @@ public enum Operations {
             public var path: Operations.listBundles.Input.Path
             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query`.
             public struct Query: Sendable, Hashable {
+                /// Filter bundles by git branch.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/git_branch`.
+                public var git_branch: Swift.String?
                 /// Page number for pagination.
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page`.
@@ -18887,24 +18915,20 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page_size`.
                 public var page_size: Swift.Int?
-                /// Filter bundles by git branch.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/git_branch`.
-                public var git_branch: Swift.String?
                 /// Creates a new `Query`.
                 ///
                 /// - Parameters:
+                ///   - git_branch: Filter bundles by git branch.
                 ///   - page: Page number for pagination.
                 ///   - page_size: Number of items per page.
-                ///   - git_branch: Filter bundles by git branch.
                 public init(
+                    git_branch: Swift.String? = nil,
                     page: Swift.Int? = nil,
-                    page_size: Swift.Int? = nil,
-                    git_branch: Swift.String? = nil
+                    page_size: Swift.Int? = nil
                 ) {
+                    self.git_branch = git_branch
                     self.page = page
                     self.page_size = page_size
-                    self.git_branch = git_branch
                 }
             }
             public var query: Operations.listBundles.Input.Query
@@ -20902,6 +20926,30 @@ public enum Operations {
                     ///
                     /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/duration`.
                     public var duration: Swift.Int
+                    /// The redacted TUIST_* environment variables present when the command ran.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/environment`.
+                    public struct environmentPayload: Codable, Hashable, Sendable {
+                        /// A container of undocumented properties.
+                        public var additionalProperties: [String: Swift.String]
+                        /// Creates a new `environmentPayload`.
+                        ///
+                        /// - Parameters:
+                        ///   - additionalProperties: A container of undocumented properties.
+                        public init(additionalProperties: [String: Swift.String] = .init()) {
+                            self.additionalProperties = additionalProperties
+                        }
+                        public init(from decoder: any Decoder) throws {
+                            additionalProperties = try decoder.decodeAdditionalProperties(knownKeys: [])
+                        }
+                        public func encode(to encoder: any Encoder) throws {
+                            try encoder.encodeAdditionalProperties(additionalProperties)
+                        }
+                    }
+                    /// The redacted TUIST_* environment variables present when the command ran.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/environment`.
+                    public var environment: Operations.createCommandEvent.Input.Body.jsonPayload.environmentPayload?
                     /// The error message of the command.
                     ///
                     /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/error_message`.
@@ -21694,6 +21742,7 @@ public enum Operations {
                     ///   - client_id: The client id of the command.
                     ///   - command_arguments: The arguments of the command.
                     ///   - duration: The duration of the command.
+                    ///   - environment: The redacted TUIST_* environment variables present when the command ran.
                     ///   - error_message: The error message of the command.
                     ///   - git_branch: The git branch.
                     ///   - git_commit_sha: The commit SHA.
@@ -21719,6 +21768,7 @@ public enum Operations {
                         client_id: Swift.String,
                         command_arguments: [Swift.String]? = nil,
                         duration: Swift.Int,
+                        environment: Operations.createCommandEvent.Input.Body.jsonPayload.environmentPayload? = nil,
                         error_message: Swift.String? = nil,
                         git_branch: Swift.String? = nil,
                         git_commit_sha: Swift.String? = nil,
@@ -21744,6 +21794,7 @@ public enum Operations {
                         self.client_id = client_id
                         self.command_arguments = command_arguments
                         self.duration = duration
+                        self.environment = environment
                         self.error_message = error_message
                         self.git_branch = git_branch
                         self.git_commit_sha = git_commit_sha
@@ -21770,6 +21821,7 @@ public enum Operations {
                         case client_id
                         case command_arguments
                         case duration
+                        case environment
                         case error_message
                         case git_branch
                         case git_commit_sha
@@ -50552,7 +50604,16 @@ public enum Operations {
                 ///
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/generations/GET/query/page`.
+                @available(*, deprecated)
                 public var page: Swift.Int?
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/generations/GET/query/after`.
+                public var after: Swift.String?
+                ///
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/generations/GET/query/before`.
+                public var before: Swift.String?
                 /// Creates a new `Query`.
                 ///
                 /// - Parameters:
@@ -50561,18 +50622,24 @@ public enum Operations {
                 ///   - git_commit_sha: Filter by git commit SHA.
                 ///   - page_size:
                 ///   - page:
+                ///   - after:
+                ///   - before:
                 public init(
                     git_ref: Swift.String? = nil,
                     git_branch: Swift.String? = nil,
                     git_commit_sha: Swift.String? = nil,
                     page_size: Swift.Int? = nil,
-                    page: Swift.Int? = nil
+                    page: Swift.Int? = nil,
+                    after: Swift.String? = nil,
+                    before: Swift.String? = nil
                 ) {
                     self.git_ref = git_ref
                     self.git_branch = git_branch
                     self.git_commit_sha = git_commit_sha
                     self.page_size = page_size
                     self.page = page
+                    self.after = after
+                    self.before = before
                 }
             }
             public var query: Operations.listGenerations.Input.Query
