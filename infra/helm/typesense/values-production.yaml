@@ -14,7 +14,6 @@ ingress:
 runtimeSecrets:
   externalSecret:
     enabled: true
-    item: SEARCH
 
 networkPolicy:
   enabled: true

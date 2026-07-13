@@ -16,7 +16,12 @@ agent search service will delegate to in a follow-up.
 - `Ingress` exposes `search.tuist.dev` through ingress-nginx with a
   cert-manager certificate; external-dns publishes the record.
 - `TYPESENSE_API_KEY` and `GITHUB_TOKEN` come from 1Password via an
-  ExternalSecret in production, or inline for CI and dev.
+  ExternalSecret in production (or inline for CI and dev). The ExternalSecret
+  reads two items through the per-env `onepassword` ClusterSecretStore, which is
+  scoped to the `tuist-k8s-<env>` vault: `TYPESENSE_API_KEY/password` and
+  `SEARCH_GITHUB_TOKEN/password`. These mirror the item names in the `cache`
+  vault that the Kamal deployment reads directly; copy them into the per-env
+  vault (do not move them while the Kamal box is still live).
 
 ## Collections
 
