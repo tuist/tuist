@@ -134,7 +134,8 @@ struct PBXProjectMapperTests {
 
         let package = XCRemoteSwiftPackageReference(
             repositoryURL: "https://github.com/example/package.git",
-            versionRequirement: .upToNextMajorVersion("1.0.0")
+            versionRequirement: .upToNextMajorVersion("1.0.0"),
+            traits: ["FeatureA"]
         )
         pbxProj.add(object: package)
         try xcodeProj.mainPBXProject().remotePackages.append(package)
@@ -145,12 +146,13 @@ struct PBXProjectMapperTests {
 
         // Then
         #expect(project.packages.count == 1)
-        guard case let .remote(url, requirement) = project.packages[0] else {
+        guard case let .remote(url, requirement, traits) = project.packages[0] else {
             Issue.record("Expected remote package")
             return
         }
         #expect(url == "https://github.com/example/package.git")
         #expect(requirement == .upToNextMajor("1.0.0"))
+        #expect(traits == ["FeatureA"])
     }
 
     @Test("Maps a project with known regions")

@@ -385,9 +385,9 @@ public struct GraphLoader: GraphLoading {
 extension Package {
     fileprivate var name: String {
         switch self {
-        case let .local(path: path):
+        case let .local(path: path, traits: _):
             return path.pathString
-        case let .remote(url: url, requirement: _):
+        case let .remote(url: url, requirement: _, traits: _):
             return url
         }
     }

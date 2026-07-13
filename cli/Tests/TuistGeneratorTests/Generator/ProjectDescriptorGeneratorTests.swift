@@ -638,7 +638,7 @@ struct ProjectDescriptorGeneratorTests {
             sourceRootPath: projectPath,
             name: "Project",
             targets: [target, .test(name: "B", dependencies: [.package(product: "A", type: .runtime)])],
-            packages: [.local(path: localPackagePath)]
+            packages: [.local(path: localPackagePath, traits: ["FeatureA"])]
         )
         let graphTarget = GraphTarget(path: project.path, target: target, project: project)
         let graph = Graph.test(
@@ -678,6 +678,7 @@ struct ProjectDescriptorGeneratorTests {
         #expect(localSwiftPackageReferencePaths == [
             "../LocalPackages/LocalPackageA",
         ])
+        #expect(rootObject.localPackages.first?.traits == ["FeatureA"])
         #expect(remotePackageNames.isEmpty == true)
         #expect(remoteSwiftPackageReferenceNames.isEmpty == true)
     }
@@ -699,7 +700,7 @@ struct ProjectDescriptorGeneratorTests {
             path: temporaryPath,
             name: "Project",
             targets: [target, .test(name: "B", dependencies: [.package(product: "A", type: .runtime)])],
-            packages: [.remote(url: "A", requirement: .exact("0.1"))]
+            packages: [.remote(url: "A", requirement: .exact("0.1"), traits: [])]
         )
 
         let graphTarget = GraphTarget.test(path: project.path, target: target, project: project)
@@ -737,5 +738,6 @@ struct ProjectDescriptorGeneratorTests {
         #expect(remoteSwiftPackageReferenceNames == [
             "A",
         ])
+        #expect(rootObject.remotePackages.first?.traits == [])
     }
 }

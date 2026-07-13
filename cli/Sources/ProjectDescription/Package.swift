@@ -1,13 +1,16 @@
 /// A dependency of a Swift package.
 ///
+/// Set `traits` to `nil` to use the package's default traits, or pass an empty array to disable all default traits.
+/// Requires Xcode 26.4 or later.
+///
 /// A package dependency can be either:
 ///     - remote: A Git URL to the source of the package,
 ///     and a requirement for the version of the package.
 ///     - local: A relative path to the package.
 public enum Package: Equatable, Codable, Sendable {
-    case remote(url: String, requirement: Requirement)
-    case registry(identifier: String, requirement: Requirement)
-    case local(path: Path)
+    case remote(url: String, requirement: Requirement, traits: [String]? = nil)
+    case registry(identifier: String, requirement: Requirement, traits: [String]? = nil)
+    case local(path: Path, traits: [String]? = nil)
 
     private enum Kind: String, Codable {
         case remote
@@ -52,8 +55,9 @@ public enum Package: Equatable, Codable, Sendable {
     /// - Parameters:
     ///     - url: The valid Git URL of the package.
     ///     - version: The minimum version requirement.
-    public static func package(url: String, from version: Version) -> Package {
-        .package(url: url, .upToNextMajor(from: version))
+    ///     - traits: The package traits to enable.
+    public static func package(url: String, from version: Version, traits: [String]? = nil) -> Package {
+        .package(url: url, .upToNextMajor(from: version), traits: traits)
     }
 
     /// Add a remote package dependency given a version requirement.
@@ -61,8 +65,9 @@ public enum Package: Equatable, Codable, Sendable {
     /// - Parameters:
     ///     - url: The valid Git URL of the package.
     ///     - requirement: A dependency requirement. See static methods on `Package.Requirement` for available options.
-    public static func package(url: String, _ requirement: Package.Requirement) -> Package {
-        .remote(url: url, requirement: requirement)
+    ///     - traits: The package traits to enable.
+    public static func package(url: String, _ requirement: Package.Requirement, traits: [String]? = nil) -> Package {
+        .remote(url: url, requirement: requirement, traits: traits)
     }
 
     /// Add a package dependency starting with a specific minimum version, up to
@@ -76,8 +81,9 @@ public enum Package: Equatable, Codable, Sendable {
     /// - Parameters:
     ///     - url: The valid Git URL of the package.
     ///     - range: The custom version range requirement.
-    public static func package(url: String, _ range: Range<Version>) -> Package {
-        .remote(url: url, requirement: .range(from: range.lowerBound, to: range.upperBound))
+    ///     - traits: The package traits to enable.
+    public static func package(url: String, _ range: Range<Version>, traits: [String]? = nil) -> Package {
+        .remote(url: url, requirement: .range(from: range.lowerBound, to: range.upperBound), traits: traits)
     }
 
     /// Add a package dependency starting with a specific minimum version, going
@@ -91,7 +97,8 @@ public enum Package: Equatable, Codable, Sendable {
     /// - Parameters:
     ///     - url: The valid Git URL of the package.
     ///     - range: The closed version range requirement.
-    public static func package(url: String, _ range: ClosedRange<Version>) -> Package {
+    ///     - traits: The package traits to enable.
+    public static func package(url: String, _ range: ClosedRange<Version>, traits: [String]? = nil) -> Package {
         // Increase upperbound's patch version by one.
         let upper = range.upperBound
         let upperBound = Version(
@@ -99,7 +106,7 @@ public enum Package: Equatable, Codable, Sendable {
             prereleaseIdentifiers: upper.prereleaseIdentifiers,
             buildMetadataIdentifiers: upper.buildMetadataIdentifiers
         )
-        return .package(url: url, range.lowerBound ..< upperBound)
+        return .package(url: url, range.lowerBound ..< upperBound, traits: traits)
     }
 
     /// Add a dependency to a local package on the filesystem.
@@ -109,9 +116,11 @@ public enum Package: Equatable, Codable, Sendable {
     /// are especially useful during development of a new package or when working
     /// on multiple tightly coupled packages.
     ///
-    /// - Parameter path: The path of the package.
-    public static func package(path: Path) -> Package {
-        .local(path: path)
+    /// - Parameters:
+    ///   - path: The path of the package.
+    ///   - traits: The package traits to enable.
+    public static func package(path: Path, traits: [String]? = nil) -> Package {
+        .local(path: path, traits: traits)
     }
 
     /// Adds a package dependency that uses the version requirement, starting with the given minimum version,
@@ -134,10 +143,11 @@ public enum Package: Equatable, Codable, Sendable {
     /// - Parameters:
     ///   - id: The identity of the package.
     ///   - version: The minimum version requirement.
+    ///   - traits: The package traits to enable.
     ///
     /// - Returns: A `Package` instance.
-    public static func package(id: String, from version: Version) -> Package {
-        .registry(identifier: id, requirement: .upToNextMajor(from: version))
+    public static func package(id: String, from version: Version, traits: [String]? = nil) -> Package {
+        .registry(identifier: id, requirement: .upToNextMajor(from: version), traits: traits)
     }
 
     /// Adds a package dependency that uses the exact version requirement.
@@ -156,10 +166,11 @@ public enum Package: Equatable, Codable, Sendable {
     /// - Parameters:
     ///   - id: The identity of the package.
     ///   - version: The exact version of the dependency for this requirement.
+    ///   - traits: The package traits to enable.
     ///
     /// - Returns: A `Package` instance.
-    public static func package(id: String, exact version: Version) -> Package {
-        .registry(identifier: id, requirement: .exact(version))
+    public static func package(id: String, exact version: Version, traits: [String]? = nil) -> Package {
+        .registry(identifier: id, requirement: .exact(version), traits: traits)
     }
 
     /// Adds a package dependency starting with a specific minimum version, up to
@@ -189,10 +200,11 @@ public enum Package: Equatable, Codable, Sendable {
     /// - Parameters:
     ///   - id: The identity of the package.
     ///   - range: The custom version range requirement.
+    ///   - traits: The package traits to enable.
     ///
     /// - Returns: A `Package` instance.
-    public static func package(id: String, _ range: Range<Version>) -> Package {
-        .registry(identifier: id, requirement: .range(from: range.lowerBound, to: range.upperBound))
+    public static func package(id: String, _ range: Range<Version>, traits: [String]? = nil) -> Package {
+        .registry(identifier: id, requirement: .range(from: range.lowerBound, to: range.upperBound), traits: traits)
     }
 
     /// Adds a package dependency starting with a specific minimum version, going
@@ -208,9 +220,10 @@ public enum Package: Equatable, Codable, Sendable {
     /// - Parameters:
     ///   - id: The identity of the package.
     ///   - range: The closed version range requirement.
+    ///   - traits: The package traits to enable.
     ///
     /// - Returns: A `Package` instance.
-    public static func package(id: String, _ range: ClosedRange<Version>) -> Package {
+    public static func package(id: String, _ range: ClosedRange<Version>, traits: [String]? = nil) -> Package {
         // Increase upper-bound's patch version by one.
         let upper = range.upperBound
         let upperBound = Version(
@@ -218,7 +231,7 @@ public enum Package: Equatable, Codable, Sendable {
             prereleaseIdentifiers: upper.prereleaseIdentifiers,
             buildMetadataIdentifiers: upper.buildMetadataIdentifiers
         )
-        return .registry(identifier: id, requirement: .range(from: range.lowerBound, to: upperBound))
+        return .registry(identifier: id, requirement: .range(from: range.lowerBound, to: upperBound), traits: traits)
     }
 
     // Mark common APIs used by mistake as unavailable to provide better error messages.

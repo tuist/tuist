@@ -16,7 +16,8 @@ struct XCPackageMapperTests {
         // Given
         let package = XCRemoteSwiftPackageReference(
             repositoryURL: "https://github.com/example/package.git",
-            versionRequirement: .upToNextMajorVersion("1.0.0")
+            versionRequirement: .upToNextMajorVersion("1.0.0"),
+            traits: ["FeatureA"]
         )
 
         // When
@@ -27,7 +28,8 @@ struct XCPackageMapperTests {
             result
                 == .remote(
                     url: "https://github.com/example/package.git",
-                    requirement: .upToNextMajor("1.0.0")
+                    requirement: .upToNextMajor("1.0.0"),
+                    traits: ["FeatureA"]
                 )
         )
     }
@@ -140,7 +142,7 @@ struct XCPackageMapperTests {
     func mapLocalPackage() async throws {
         // Given
         let xcodeProj = try await XcodeProj.test()
-        let localPackage = XCLocalSwiftPackageReference(relativePath: "Packages/Example")
+        let localPackage = XCLocalSwiftPackageReference(relativePath: "Packages/Example", traits: [])
 
         // When
         let result = try mapper.map(package: localPackage, sourceDirectory: xcodeProj.srcPath)
@@ -149,7 +151,7 @@ struct XCPackageMapperTests {
         let expectedPath = xcodeProj.srcPath.appending(
             try RelativePath(validating: "Packages/Example")
         )
-        #expect(result == .local(path: expectedPath))
+        #expect(result == .local(path: expectedPath, traits: []))
     }
 
     @Test("Throws an error if remote package has no repository URL")
@@ -175,7 +177,7 @@ struct XCPackageMapperTests {
 extension Package {
     fileprivate var requirement: Requirement? {
         switch self {
-        case let .remote(_, requirement):
+        case let .remote(_, requirement, _):
             return requirement
         case .local:
             return nil
