@@ -65,11 +65,13 @@ defmodule TuistWeb.ProjectAutomationsLive do
     |> assign(create_automation_form_window: "30d")
     |> assign(create_automation_form_rolling_window_size: "100")
     |> assign(create_automation_form_events: ["marked_flaky"])
+    |> assign(create_automation_form_trigger_states: [])
     |> assign(create_automation_form_trigger_actions: [default_add_label_action()])
     |> assign(create_automation_form_recovery_enabled: false)
     |> assign(create_automation_form_recovery_window_type: "last_days")
     |> assign(create_automation_form_recovery_window: "14d")
     |> assign(create_automation_form_recovery_rolling_window_size: "100")
+    |> assign(create_automation_form_recovery_states: [])
     |> assign(create_automation_form_recovery_actions: [default_remove_label_action()])
   end
 
@@ -121,11 +123,13 @@ defmodule TuistWeb.ProjectAutomationsLive do
       window: automation.trigger_config["window"] || "30d",
       rolling_window_size: to_string(automation.trigger_config["rolling_window_size"] || 100),
       events: parse_events(automation.trigger_config["events"]),
+      trigger_states: parse_states(automation.trigger_config["test_case_states"]),
       trigger_actions: automation.trigger_actions,
       recovery_enabled: automation.recovery_enabled,
       recovery_window_type: parse_window_type(automation.recovery_config["window_type"]),
       recovery_window: automation.recovery_config["window"] || "14d",
       recovery_rolling_window_size: to_string(automation.recovery_config["rolling_window_size"] || 100),
+      recovery_states: parse_states(automation.recovery_config["test_case_states"]),
       recovery_actions: automation.recovery_actions,
       enabled: automation.enabled
     }
@@ -136,6 +140,12 @@ defmodule TuistWeb.ProjectAutomationsLive do
   end
 
   defp parse_events(_), do: ["marked_flaky"]
+
+  defp parse_states(states) when is_list(states) do
+    Enum.filter(Alert.valid_states(), &(&1 in states))
+  end
+
+  defp parse_states(_), do: []
 
   defp parse_comparison(comparison) when comparison in @comparisons, do: comparison
   defp parse_comparison(_), do: "gte"
@@ -172,11 +182,13 @@ defmodule TuistWeb.ProjectAutomationsLive do
         |> assign(create_automation_form_window: form.window)
         |> assign(create_automation_form_rolling_window_size: form.rolling_window_size)
         |> assign(create_automation_form_events: form.events)
+        |> assign(create_automation_form_trigger_states: form.trigger_states)
         |> assign(create_automation_form_trigger_actions: form.trigger_actions)
         |> assign(create_automation_form_recovery_enabled: form.recovery_enabled)
         |> assign(create_automation_form_recovery_window_type: form.recovery_window_type)
         |> assign(create_automation_form_recovery_window: form.recovery_window)
         |> assign(create_automation_form_recovery_rolling_window_size: form.recovery_rolling_window_size)
+        |> assign(create_automation_form_recovery_states: form.recovery_states)
         |> assign(create_automation_form_recovery_actions: form.recovery_actions)
         |> push_event("open-modal", %{id: "create-automation-modal"})
 
@@ -233,6 +245,16 @@ defmodule TuistWeb.ProjectAutomationsLive do
       end
 
     {:noreply, assign(socket, create_automation_form_events: next)}
+  end
+
+  def handle_event("toggle_create_automation_form_trigger_state", %{"data" => state}, socket) do
+    states = toggle_state(socket.assigns.create_automation_form_trigger_states, state)
+    {:noreply, assign(socket, create_automation_form_trigger_states: states)}
+  end
+
+  def handle_event("toggle_create_automation_form_recovery_state", %{"data" => state}, socket) do
+    states = toggle_state(socket.assigns.create_automation_form_recovery_states, state)
+    {:noreply, assign(socket, create_automation_form_recovery_states: states)}
   end
 
   def handle_event("update_create_automation_form_threshold", %{"value" => value}, socket) do
@@ -512,23 +534,37 @@ defmodule TuistWeb.ProjectAutomationsLive do
   end
 
   defp trigger_config_for(metric, assigns) do
-    build_trigger_config(
-      parse_threshold(metric, assigns.create_automation_form_threshold),
+    metric
+    |> parse_threshold(assigns.create_automation_form_threshold)
+    |> build_trigger_config(
       assigns.create_automation_form_comparison,
       assigns.create_automation_form_window_type,
       assigns.create_automation_form_window,
       assigns.create_automation_form_rolling_window_size
     )
+    |> maybe_put_test_case_states(assigns.create_automation_form_trigger_states)
   end
 
   defp recovery_config_for("test_updated", _assigns), do: %{}
 
   defp recovery_config_for(_metric, assigns) do
-    build_recovery_config(
-      assigns.create_automation_form_recovery_window_type,
+    assigns.create_automation_form_recovery_window_type
+    |> build_recovery_config(
       assigns.create_automation_form_recovery_window,
       assigns.create_automation_form_recovery_rolling_window_size
     )
+    |> maybe_put_test_case_states(assigns.create_automation_form_recovery_states)
+  end
+
+  defp maybe_put_test_case_states(config, states) when is_list(states) and states != [] do
+    Map.put(config, "test_case_states", states)
+  end
+
+  defp maybe_put_test_case_states(config, _states), do: config
+
+  defp toggle_state(states, state) do
+    next = if state in states, do: List.delete(states, state), else: [state | states]
+    Enum.filter(Alert.valid_states(), &(&1 in next))
   end
 
   defp build_trigger_config(threshold, comparison, "rolling", _window, rolling_window_size) do
@@ -635,6 +671,22 @@ defmodule TuistWeb.ProjectAutomationsLive do
     do: dgettext("dashboard_projects", "Fires when a test is skipped entirely.")
 
   def test_updated_event_description(_), do: ""
+
+  def test_case_states, do: Alert.valid_states()
+
+  def test_case_state_label("enabled"), do: dgettext("dashboard_projects", "Enabled")
+  def test_case_state_label("muted"), do: dgettext("dashboard_projects", "Muted")
+  def test_case_state_label("skipped"), do: dgettext("dashboard_projects", "Skipped")
+  def test_case_state_label(_), do: dgettext("dashboard_projects", "Unknown")
+
+  def test_case_state_description("enabled"), do: dgettext("dashboard_projects", "The test runs and its failures count.")
+
+  def test_case_state_description("muted"),
+    do: dgettext("dashboard_projects", "The test runs but its failures are ignored.")
+
+  def test_case_state_description("skipped"), do: dgettext("dashboard_projects", "The test is skipped entirely.")
+
+  def test_case_state_description(_), do: ""
 
   def comparison_label("gte"), do: dgettext("dashboard_projects", "Greater or equal")
   def comparison_label("gt"), do: dgettext("dashboard_projects", "Greater than")

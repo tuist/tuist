@@ -309,6 +309,34 @@
                     </label>
                   </div>
                 </div>
+                <div
+                  :if={not event_driven_monitor_type?(@create_automation_form_metric)}
+                  data-part="form-row"
+                >
+                  <label data-part="label">
+                    {dgettext("dashboard_projects", "Only when test is")}
+                    <span data-part="hint">
+                      {dgettext("dashboard_projects", "(any state if none selected)")}
+                    </span>
+                  </label>
+                  <div id="create-automation-trigger-states" data-part="event-checkbox-list">
+                    <label
+                      :for={state <- test_case_states()}
+                      id={"create-automation-trigger-state-#{state}"}
+                      data-part="event-checkbox"
+                      phx-click="toggle_create_automation_form_trigger_state"
+                      phx-value-data={state}
+                    >
+                      <.checkbox_control checked={state in @create_automation_form_trigger_states} />
+                      <div data-part="body">
+                        <span data-part="label">{test_case_state_label(state)}</span>
+                        <span data-part="description">
+                          {test_case_state_description(state)}
+                        </span>
+                      </div>
+                    </label>
+                  </div>
+                </div>
               </div>
 
               <.line_divider />
@@ -687,6 +715,33 @@
                         phx-keyup="update_create_automation_form_recovery_rolling_window_size"
                         phx-debounce="300"
                       />
+                    </div>
+                  </div>
+                  <div data-part="form-row">
+                    <label data-part="label">
+                      {dgettext("dashboard_projects", "Only when test is")}
+                      <span data-part="hint">
+                        {dgettext("dashboard_projects", "(any state if none selected)")}
+                      </span>
+                    </label>
+                    <div id="create-automation-recovery-states" data-part="event-checkbox-list">
+                      <label
+                        :for={state <- test_case_states()}
+                        id={"create-automation-recovery-state-#{state}"}
+                        data-part="event-checkbox"
+                        phx-click="toggle_create_automation_form_recovery_state"
+                        phx-value-data={state}
+                      >
+                        <.checkbox_control checked={
+                          state in @create_automation_form_recovery_states
+                        } />
+                        <div data-part="body">
+                          <span data-part="label">{test_case_state_label(state)}</span>
+                          <span data-part="description">
+                            {test_case_state_description(state)}
+                          </span>
+                        </div>
+                      </label>
                     </div>
                   </div>
                   <div
