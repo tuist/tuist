@@ -4,7 +4,7 @@
 ///     - remote: A Git URL to the source of the package,
 ///     and a requirement for the version of the package.
 ///     - local: A relative path to the package.
-public enum Package: Equatable, Hashable, Codable, Sendable {
+public enum Package: Equatable, Codable, Sendable {
     case remote(url: String, requirement: Requirement)
     case registry(identifier: String, requirement: Requirement)
     case local(path: Path)
@@ -15,7 +15,7 @@ public enum Package: Equatable, Hashable, Codable, Sendable {
         case local
     }
 
-    public enum Requirement: Codable, Equatable, Hashable, Sendable {
+    public enum Requirement: Codable, Equatable, Sendable {
         case upToNextMajor(from: Version)
         case upToNextMinor(from: Version)
         case range(from: Version, to: Version)

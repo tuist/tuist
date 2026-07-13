@@ -1,6 +1,6 @@
 import Foundation
 
-public enum Requirement: Equatable, Hashable, Codable, Sendable {
+public enum Requirement: Equatable, Codable, Sendable {
     case upToNextMajor(String)
     case upToNextMinor(String)
     case range(from: String, to: String)

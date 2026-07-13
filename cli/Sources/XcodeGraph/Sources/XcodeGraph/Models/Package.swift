@@ -1,7 +1,7 @@
 import Foundation
 import Path
 
-public enum Package: Equatable, Hashable, Codable, Sendable {
+public enum Package: Equatable, Codable, Sendable {
     case remote(url: String, requirement: Requirement)
     case local(path: AbsolutePath)
 }

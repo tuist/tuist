@@ -16,8 +16,8 @@ struct PackageManifestMapperTests {
             name: "Project",
             packages: [localPackage, remotePackage],
             packageTraits: [
-                localPackage: ["FeatureA"],
-                remotePackage: [],
+                .init(package: localPackage, traits: ["FeatureA"]),
+                .init(package: remotePackage, traits: []),
             ]
         )
 
@@ -36,9 +36,9 @@ struct PackageManifestMapperTests {
             name: "Project",
             packages: [localPackage, remotePackage, registryPackage],
             packageTraits: [
-                localPackage: ["FeatureA"],
-                remotePackage: [],
-                registryPackage: ["FeatureB"],
+                .init(package: localPackage, traits: ["FeatureA"]),
+                .init(package: remotePackage, traits: []),
+                .init(package: registryPackage, traits: ["FeatureB"]),
             ]
         )
         let mappedProject = try await XcodeGraph.Project.from(
@@ -53,9 +53,12 @@ struct PackageManifestMapperTests {
         )
 
         #expect(mappedProject.packageTraits == [
-            .local(path: "/Project/Package"): ["FeatureA"],
-            .remote(url: "https://example.com/package.git", requirement: .upToNextMajor("1.0.0")): [],
-            .remote(url: "example.package", requirement: .exact("1.0.0")): ["FeatureB"],
+            .init(package: .local(path: "/Project/Package"), traits: ["FeatureA"]),
+            .init(
+                package: .remote(url: "https://example.com/package.git", requirement: .upToNextMajor("1.0.0")),
+                traits: []
+            ),
+            .init(package: .remote(url: "example.package", requirement: .exact("1.0.0")), traits: ["FeatureB"]),
         ])
     }
 }

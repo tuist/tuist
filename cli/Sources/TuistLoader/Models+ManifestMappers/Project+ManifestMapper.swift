@@ -64,9 +64,12 @@ extension XcodeGraph.Project {
             .sorted(by: { $0.path < $1.path })
         let packages = try manifest.packages.map { try XcodeGraph.Package.from(manifest: $0, generatorPaths: generatorPaths) }
         let packageTraits = try manifest.packageTraits.map { packageTraits in
-            try Dictionary(uniqueKeysWithValues: packageTraits.map { package, traits in
-                (try XcodeGraph.Package.from(manifest: package, generatorPaths: generatorPaths), traits)
-            })
+            try packageTraits.map {
+                XcodeGraph.PackageTraitSelection(
+                    package: try XcodeGraph.Package.from(manifest: $0.package, generatorPaths: generatorPaths),
+                    traits: $0.traits
+                )
+            }
         }
         let ideTemplateMacros = try manifest.fileHeaderTemplate
             .map { try IDETemplateMacros.from(manifest: $0, generatorPaths: generatorPaths) }

@@ -92,18 +92,18 @@ struct PBXProjectMapper: PBXProjectMapping {
 
         // Map remote and local packages
         let packageMapper = XCPackageMapper()
-        var packageTraits: [Package: [String]] = [:]
+        var packageTraits: [PackageTraitSelection] = []
         let remotePackages = try pbxProject.remotePackages.map { packageReference in
             let package = try packageMapper.map(package: packageReference)
             if let traits = packageReference.traits {
-                packageTraits[package] = traits
+                packageTraits.append(.init(package: package, traits: traits))
             }
             return package
         }
         let localPackages = try pbxProject.localPackages.map { packageReference in
             let package = try packageMapper.map(package: packageReference, sourceDirectory: sourceDirectory)
             if let traits = packageReference.traits {
-                packageTraits[package] = traits
+                packageTraits.append(.init(package: package, traits: traits))
             }
             return package
         } + localPackagePaths.map { .local(path: $0) }

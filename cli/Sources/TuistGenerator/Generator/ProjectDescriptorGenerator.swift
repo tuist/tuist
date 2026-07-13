@@ -313,7 +313,7 @@ struct ProjectDescriptorGenerator: ProjectDescriptorGenerating {
 
         Logger.current.debug("Processing \(project.packages.count) packages for project \(project.name)")
         for package in project.packages {
-            let traits = project.packageTraits?[package]
+            let traits = project.packageTraits?.first(where: { $0.package == package })?.traits
             switch package {
             case let .local(path):
                 Logger.current.debug("Processing local package at \(path.pathString) for project \(project.name)")

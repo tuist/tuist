@@ -8,7 +8,7 @@ let project = Project(
         featurePackage,
     ],
     packageTraits: [
-        featurePackage: ["NativeIntegration"],
+        .init(package: featurePackage, traits: ["NativeIntegration"]),
     ],
     targets: [
         .target(

@@ -640,7 +640,7 @@ struct ProjectDescriptorGeneratorTests {
             name: "Project",
             targets: [target, .test(name: "B", dependencies: [.package(product: "A", type: .runtime)])],
             packages: [package],
-            packageTraits: [package: ["FeatureA"]]
+            packageTraits: [.init(package: package, traits: ["FeatureA"])]
         )
         let graphTarget = GraphTarget(path: project.path, target: target, project: project)
         let graph = Graph.test(
@@ -704,7 +704,7 @@ struct ProjectDescriptorGeneratorTests {
             name: "Project",
             targets: [target, .test(name: "B", dependencies: [.package(product: "A", type: .runtime)])],
             packages: [package],
-            packageTraits: [package: []]
+            packageTraits: [.init(package: package, traits: [])]
         )
 
         let graphTarget = GraphTarget.test(path: project.path, target: target, project: project)

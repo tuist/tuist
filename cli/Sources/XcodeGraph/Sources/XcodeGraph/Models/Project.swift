@@ -53,8 +53,8 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
     /// Project swift packages.
     public var packages: [Package]
 
-    /// Trait selections keyed by package. A missing package uses its default traits.
-    public var packageTraits: [Package: [String]]?
+    /// Trait selections for native packages. A missing package uses its default traits.
+    public var packageTraits: [PackageTraitSelection]?
 
     /// Project schemes
     public var schemes: [Scheme]
@@ -169,7 +169,7 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
         filesGroup: ProjectGroup,
         targets: [Target],
         packages: [Package],
-        packageTraits: [Package: [String]]?,
+        packageTraits: [PackageTraitSelection]?,
         schemes: [Scheme],
         ideTemplateMacros: IDETemplateMacros?,
         additionalFiles: [FileElement],
@@ -244,7 +244,7 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
             filesGroup: ProjectGroup = .group(name: "Project"),
             targets: [Target] = [Target.test()],
             packages: [Package] = [],
-            packageTraits: [Package: [String]]? = nil,
+            packageTraits: [PackageTraitSelection]? = nil,
             schemes: [Scheme] = [],
             ideTemplateMacros: IDETemplateMacros? = nil,
             additionalFiles: [FileElement] = [],
@@ -293,7 +293,7 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
             filesGroup: ProjectGroup = .group(name: "Project"),
             targets: [Target] = [],
             packages: [Package] = [],
-            packageTraits: [Package: [String]]? = nil,
+            packageTraits: [PackageTraitSelection]? = nil,
             schemes: [Scheme] = [],
             ideTemplateMacros: IDETemplateMacros? = nil,
             additionalFiles: [FileElement] = [],

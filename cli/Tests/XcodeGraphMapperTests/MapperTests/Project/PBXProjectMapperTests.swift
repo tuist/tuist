@@ -152,7 +152,8 @@ struct PBXProjectMapperTests {
         }
         #expect(url == "https://github.com/example/package.git")
         #expect(requirement == .upToNextMajor("1.0.0"))
-        #expect(project.packageTraits?[project.packages[0]] == ["FeatureA"])
+        #expect(project.packageTraits?.first?.package == project.packages[0])
+        #expect(project.packageTraits?.first?.traits == ["FeatureA"])
     }
 
     @Test("Maps a project with known regions")
