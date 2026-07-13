@@ -165,7 +165,7 @@ defmodule TuistWeb.GenerateRunsLive do
     options = %{
       filters: [
         %{field: :project_id, op: :==, value: project_id},
-        %{field: :name, op: :in, value: ["generate"]}
+        %{field: :name, op: :==, value: "generate"}
         | build_flop_filters(Keyword.get(attrs, :filters, []))
       ],
       order_by: [Keyword.get(attrs, :order_by, :ran_at)],
