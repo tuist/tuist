@@ -319,6 +319,48 @@ defmodule Tuist.CommandEventsTest do
                command_event_one.id |> CommandEvents.get_command_event_by_id() |> elem(1)
              ]
     end
+
+    test "returns name-filtered events ordered by ran_at desc" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+
+      cache_event_old =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          name: "cache",
+          ran_at: ~U[2024-03-04 01:00:00Z]
+        )
+
+      # A non-matching command interleaved in time must be excluded even though
+      # it is more recent than the older cache event.
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "generate",
+        ran_at: ~U[2024-03-05 02:00:00Z]
+      )
+
+      cache_event_new =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          name: "cache",
+          ran_at: ~U[2024-03-06 03:00:00Z]
+        )
+
+      # When
+      {events, _meta} =
+        CommandEvents.list_command_events(%{
+          filters: [
+            %{field: :project_id, op: :==, value: project.id},
+            %{field: :name, op: :in, value: ["cache"]}
+          ],
+          order_by: [:ran_at],
+          order_directions: [:desc],
+          first: 10
+        })
+
+      # Then
+      assert Enum.map(events, & &1.id) == [cache_event_new.id, cache_event_old.id]
+    end
   end
 
   describe "list_test_runs/1" do
