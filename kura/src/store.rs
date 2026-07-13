@@ -532,6 +532,21 @@ impl Store {
         Ok(self.manifest(&artifact_id)?.is_some())
     }
 
+    /// The stored manifest for a logical artifact key, if any.
+    pub fn manifest_for_key(
+        &self,
+        producer: ArtifactProducer,
+        namespace_id: &str,
+        key: &str,
+    ) -> Result<Option<ArtifactManifest>, String> {
+        self.manifest(&artifact_storage_id(
+            producer,
+            &self.tenant_id,
+            namespace_id,
+            key,
+        ))
+    }
+
     pub fn manifest(&self, artifact_id: &str) -> Result<Option<ArtifactManifest>, String> {
         if let Some(manifest) = self.manifest_cache_get(artifact_id) {
             self.io.metrics().record_manifest_cache_lookup("hit");

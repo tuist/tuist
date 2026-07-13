@@ -983,6 +983,53 @@ impl ActionCache for ReapiService {
             Some(&mut materialization_budget),
         )
         .await?;
+        // Presence gate, the per-key counterpart of the snapshot reconcile's:
+        // an entry whose output blobs were evicted is unserveable by
+        // construction — the compiler replaying it hard-fails the build on
+        // the first missing object (a production cold build died on its very
+        // first resolve this way), while a not-found here is an ordinary miss
+        // the client recompiles from and republishes with fresh blobs.
+        // Entries older than the snapshot index's scan cap are exactly the
+        // ones its reconcile-time gate and cascade never examine, so without
+        // this they serve dead forever. Mostly existence-cache hits.
+        let evicted = action_result.output_files.iter().find_map(|file| {
+            let digest = file.digest.as_ref()?;
+            let node_key = blob_key(&digest_key(digest).ok()?);
+            let exists = self
+                .state
+                .store
+                .artifact_manifest_exists(ArtifactProducer::Reapi, namespace_id, &node_key)
+                .unwrap_or(true);
+            (!exists).then(|| digest.hash.clone())
+        });
+        if let Some(missing) = evicted {
+            // Delete the dead entry past the replication grace window (a
+            // freshly replicated entry's blobs may still be in flight), so
+            // the next publish recreates it instead of every reader paying
+            // this lookup again.
+            if let Ok(Some(manifest)) =
+                self.state
+                    .store
+                    .manifest_for_key(ArtifactProducer::Reapi, namespace_id, &key)
+                && crate::utils::now_ms().saturating_sub(manifest.version_ms)
+                    > SNAPSHOT_CASCADE_GRACE_MS
+            {
+                match self.state.store.delete_artifact_metadata(&[manifest]) {
+                    Ok(()) => tracing::info!(
+                        namespace_id,
+                        key,
+                        missing,
+                        "deleted an action-cache entry whose output blob was evicted"
+                    ),
+                    Err(error) => {
+                        tracing::warn!("dead action-cache entry delete failed: {error}")
+                    }
+                }
+            }
+            return Err(Status::not_found(
+                "action result references evicted output blobs",
+            ));
+        }
         // Everything this RPC returns is egress: the stored action result plus
         // any stdout/stderr/output-file blobs inlined below, so all of it is
         // accumulated for the usage rollup.
@@ -2555,6 +2602,117 @@ mod tests {
             "a young stranded entry is kept — its blobs may still be mid-replication"
         );
         assert!(exists(&live_key));
+    }
+
+    #[tokio::test]
+    async fn per_key_serve_gates_entries_with_evicted_outputs() {
+        let context = test_context(|_| {}).await;
+        let service = ReapiService {
+            snapshot_cache: Default::default(),
+            state: context.state.clone(),
+        };
+        let store = &context.state.store;
+        let uploads = context.state.config.tmp_dir.join("uploads");
+        std::fs::create_dir_all(&uploads).expect("uploads dir should create");
+
+        async fn write_artifact(
+            store: &crate::store::Store,
+            uploads: &std::path::Path,
+            key: &str,
+            bytes: &[u8],
+            version_ms: u64,
+        ) {
+            let path = uploads.join(key.replace('/', "-"));
+            std::fs::write(&path, bytes).expect("source should write");
+            store
+                .apply_replicated_artifact_from_path(
+                    ArtifactProducer::Reapi,
+                    "ios",
+                    key,
+                    "application/octet-stream",
+                    &path,
+                    version_ms,
+                )
+                .await
+                .expect("artifact should persist");
+        }
+        fn entry_bytes(blob_hash: [u8; 32]) -> Vec<u8> {
+            reapi::ActionResult {
+                output_files: vec![reapi::OutputFile {
+                    path: hex::encode([0xAB, 0xCD]),
+                    digest: Some(reapi::Digest {
+                        hash: hex::encode(blob_hash),
+                        size_bytes: 7,
+                    }),
+                    ..Default::default()
+                }],
+                ..Default::default()
+            }
+            .encode_to_vec()
+        }
+        fn get_request(action_hash: [u8; 32]) -> Request<reapi::GetActionResultRequest> {
+            Request::new(reapi::GetActionResultRequest {
+                instance_name: "ios".into(),
+                action_digest: Some(reapi::Digest {
+                    hash: hex::encode(action_hash),
+                    size_bytes: 10,
+                }),
+                ..Default::default()
+            })
+        }
+
+        let now = crate::utils::now_ms();
+        let old = now - 2 * SNAPSHOT_CASCADE_GRACE_MS;
+        let live_blob = [0x11u8; 32];
+        let missing_blob = [0x22u8; 32];
+        let live_blob_key = blob_key(&format!("{}/7", hex::encode(live_blob)));
+        let live_action = [0x44u8; 32];
+        let dead_action = [0x55u8; 32];
+        let young_dead_action = [0x66u8; 32];
+        let live_key = format!("action_cache/{}/10", hex::encode(live_action));
+        let dead_key = format!("action_cache/{}/10", hex::encode(dead_action));
+        let young_dead_key = format!("action_cache/{}/10", hex::encode(young_dead_action));
+        write_artifact(store, &uploads, &live_blob_key, b"payload", old).await;
+        write_artifact(store, &uploads, &live_key, &entry_bytes(live_blob), old).await;
+        write_artifact(store, &uploads, &dead_key, &entry_bytes(missing_blob), old).await;
+        write_artifact(
+            store,
+            &uploads,
+            &young_dead_key,
+            &entry_bytes(missing_blob),
+            now,
+        )
+        .await;
+
+        service
+            .get_action_result(get_request(live_action))
+            .await
+            .expect("an entry with present outputs serves");
+
+        let status = service
+            .get_action_result(get_request(dead_action))
+            .await
+            .expect_err("an entry with evicted outputs must not serve");
+        assert_eq!(status.code(), tonic::Code::NotFound);
+        let exists = |key: &str| {
+            store
+                .artifact_manifest_exists(ArtifactProducer::Reapi, "ios", key)
+                .expect("existence check should succeed")
+        };
+        assert!(
+            !exists(&dead_key),
+            "a dead entry past the grace window is deleted on serve"
+        );
+
+        let status = service
+            .get_action_result(get_request(young_dead_action))
+            .await
+            .expect_err("a young dead entry must not serve either");
+        assert_eq!(status.code(), tonic::Code::NotFound);
+        assert!(
+            exists(&young_dead_key),
+            "a young dead entry is kept — its blobs may still be mid-replication"
+        );
     }
 
     #[tokio::test]
