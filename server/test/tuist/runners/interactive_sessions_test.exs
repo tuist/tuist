@@ -157,6 +157,35 @@ defmodule Tuist.Runners.InteractiveSessionsTest do
       assert second.pod_name == "live-vnc-runner-session-pod"
     end
 
+    test "refreshes an existing VNC session to the current job pod when no live binding exists" do
+      account = account_fixture()
+      user = user_fixture()
+      workflow_job_id = 70_006
+
+      assert {:ok, first} =
+               InteractiveSessions.request_vnc(
+                 job(account, %{
+                   workflow_job_id: workflow_job_id,
+                   pod_name: "stale-vnc-current-job-pod"
+                 }),
+                 account,
+                 user
+               )
+
+      current_job =
+        job(account, %{
+          workflow_job_id: workflow_job_id,
+          pod_name: "live-vnc-current-job-pod",
+          fleet_name: first.fleet_name
+        })
+
+      assert {:ok, second} = InteractiveSessions.request_vnc(current_job, account, user)
+
+      assert second.id == first.id
+      assert second.pod_name == "live-vnc-current-job-pod"
+      assert Repo.get!(InteractiveSession, first.id).pod_name == "live-vnc-current-job-pod"
+    end
+
     test "rejects non-macOS jobs" do
       account = account_fixture()
       user = user_fixture()
@@ -347,6 +376,37 @@ defmodule Tuist.Runners.InteractiveSessionsTest do
       assert Repo.get!(InteractiveSession, session.id).pod_name == "live-macos-shell-agent-pod"
       assert {:ok, same_session} = InteractiveSessions.validate_shell_pod(session.id, "live-macos-shell-agent-pod")
       assert same_session.id == session.id
+    end
+
+    test "refreshes an existing shell session to the current job pod when no live binding exists" do
+      account = account_fixture()
+      user = user_fixture()
+      workflow_job_id = 70_115
+
+      assert {:ok, first} =
+               InteractiveSessions.request_shell(
+                 job(account, %{
+                   workflow_job_id: workflow_job_id,
+                   pod_name: "stale-shell-current-job-pod",
+                   fleet_name: "linux-amd64"
+                 }),
+                 account,
+                 user
+               )
+
+      current_job =
+        job(account, %{
+          workflow_job_id: workflow_job_id,
+          pod_name: "live-shell-current-job-pod",
+          fleet_name: first.fleet_name
+        })
+
+      assert {:ok, second} = InteractiveSessions.request_shell(current_job, account, user)
+
+      assert second.id == first.id
+      assert second.pod_name == "live-shell-current-job-pod"
+      assert Repo.get!(InteractiveSession, first.id).pod_name == "live-shell-current-job-pod"
+      assert InteractiveSessions.current_shell_for_pod("live-shell-current-job-pod").id == first.id
     end
 
     test "rejects unsupported platforms" do

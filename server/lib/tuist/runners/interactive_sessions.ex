@@ -48,7 +48,7 @@ defmodule Tuist.Runners.InteractiveSessions do
       case current_for_job(account_id, workflow_job_id, :vnc) do
         %InteractiveSession{} = session ->
           session
-          |> refresh_pod_from_binding()
+          |> refresh_pod_from_job(job)
           |> refresh_token(user_id)
 
         nil ->
@@ -66,7 +66,7 @@ defmodule Tuist.Runners.InteractiveSessions do
       case current_for_job(account_id, workflow_job_id, :shell) do
         %InteractiveSession{} = session ->
           session
-          |> refresh_pod_from_binding()
+          |> refresh_pod_from_job(job)
           |> refresh_token(user_id)
 
         nil ->
@@ -663,6 +663,12 @@ defmodule Tuist.Runners.InteractiveSessions do
     refresh_pod_from_binding(session, nil, binding_for_session(session))
   end
 
+  defp refresh_pod_from_job(%InteractiveSession{} = session, job) do
+    binding = binding_for_job(job)
+
+    refresh_pod_from_candidate(session, session_pod_name(job, binding), session_fleet_name(job, binding))
+  end
+
   defp refresh_pod_from_binding(nil, _pod_name, _binding), do: nil
 
   defp refresh_pod_from_binding(%InteractiveSession{} = session, pod_name, binding) do
@@ -702,6 +708,36 @@ defmodule Tuist.Runners.InteractiveSessions do
         end
     end
   end
+
+  defp refresh_pod_from_candidate(%InteractiveSession{} = session, pod_name, fleet_name)
+       when is_binary(pod_name) and pod_name != "" and is_binary(fleet_name) and fleet_name != "" do
+    if session.pod_name == pod_name and session.fleet_name == fleet_name do
+      session
+    else
+      session
+      |> InteractiveSession.changeset(%{
+        pod_name: pod_name,
+        fleet_name: fleet_name,
+        updated_at: now()
+      })
+      |> Repo.update()
+      |> case do
+        {:ok, updated} ->
+          updated
+
+        {:error, changeset} ->
+          Logger.warning("runners: failed to reconcile interactive session pod from current job",
+            session_id: session.id,
+            workflow_job_id: session.workflow_job_id,
+            changeset_errors: inspect(changeset.errors)
+          )
+
+          session
+      end
+    end
+  end
+
+  defp refresh_pod_from_candidate(%InteractiveSession{} = session, _pod_name, _fleet_name), do: session
 
   defp refresh_token(%InteractiveSession{} = session, user_id) do
     {token, hash} = build_token()
