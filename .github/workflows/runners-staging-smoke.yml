@@ -248,10 +248,39 @@ jobs:
           [ -d "$DD/Build/Products/Release/ProjectDescription.framework" ] && echo "ProjectDescription.framework: present" || echo "ProjectDescription.framework: MISSING (manifest load may fail)"
           "$EE" version 2>&1 | head -2 | sed 's/^/  version: /'
           strings "$EE" 2>/dev/null | grep -qE "CacheSigningGrant|tuist-runner-cache" && echo "EE grant code: PRESENT in binary" || echo "EE grant code: NOT in strings"
-          echo "=== timed generate with the EE tuist (cwd=tuist-src) ==="
-          g(){ s=$(python3 -c 'import time;print(int(time.time()*1000))'); "$EE" generate tuist ProjectDescription --no-open >/tmp/g_$1.log 2>&1; r=$?; e=$(python3 -c 'import time;print(int(time.time()*1000))'); echo "WBENCH_GEN_$1_MS=$((e-s)) rc=$r"; grep -iE "requires using|cache binaries|authentication|downloaded" /tmp/g_$1.log | tail -2 | sed "s/^/  $1: /"; [ "$r" != 0 ] && tail -8 /tmp/g_$1.log | sed "s/^/  $1-err: /"; }
-          g gen1; g gen2
-          echo "WBENCH_BINARIES after=$(count "$bin")"
+          echo "=== A/B/C/D signature-scope discriminator (spec #76) ==="
+          # Use a FRESH cache home ON the volume, unpoisoned by the release-CLI populate.
+          VOLHOME="${TUIST_XDG_CACHE_HOME:-/Volumes/tuist-cache}"
+          CLEAN="$VOLHOME/spec76-signtest"
+          rm -rf "$CLEAN"; mkdir -p "$CLEAN"
+          export TUIST_XDG_CACHE_HOME="$CLEAN"
+          bin="$CLEAN/tuist/Binaries"
+          echo "SIGNTEST_HOME=$CLEAN (fresh, on the volume)"
+          [ -n "${TUIST_CACHE_SIGNING_GRANT:-}" ] && echo "grant available for A/B/D" || echo "WARN: no grant in env — discriminator meaningless"
+          g(){ # $1=label  $2=on|off (whether the grant env is visible to this generate)
+            local pfx=""; [ "$2" = off ] && pfx="env -u TUIST_CACHE_SIGNING_GRANT"
+            local s; s=$(python3 -c 'import time;print(int(time.time()*1000))')
+            $pfx "$EE" generate tuist ProjectDescription --no-open >/tmp/g_$1.log 2>&1; local r=$?
+            local e; e=$(python3 -c 'import time;print(int(time.time()*1000))')
+            local w; w=$(grep -c "requires using" /tmp/g_$1.log 2>/dev/null); w=${w:-0}
+            echo "WBENCH_GEN_$1 ms=$((e-s)) rc=$r grant=$2 requires_using=$w binaries=$(count "$bin")"
+            grep -iE "requires using|cache binaries|downloaded" /tmp/g_$1.log | tail -1 | sed "s/^/    $1: /"
+            [ "$r" != 0 ] && tail -6 /tmp/g_$1.log | sed "s/^/    $1-err: /"
+          }
+          g A on    # warm the clean dir WITH the grant
+          g B on    # re-generate WITH grant  -> expect HIT (no 'requires using')
+          g C off   # re-generate as raw MAC  -> DISCRIMINATOR (a different VM's identity)
+          g D on    # re-generate WITH grant  -> symmetric confirm
+          wB=$(grep -c "requires using" /tmp/g_B.log 2>/dev/null); wB=${wB:-0}
+          wC=$(grep -c "requires using" /tmp/g_C.log 2>/dev/null); wC=${wC:-0}
+          echo "=== VERDICT ==="
+          if [ "$wB" -eq 0 ] && [ "$wC" -gt 0 ]; then
+            echo "SIGNTEST_VERDICT=GRANT_ACTIVE — grant-signed binaries validate WITH the grant (B hit) but the raw-MAC validator rejects them (C miss). Signature is account-scoped => portable across the account's VMs."
+          elif [ "$wB" -eq 0 ] && [ "$wC" -eq 0 ]; then
+            echo "SIGNTEST_VERDICT=GRANT_INACTIVE — dropping the grant (C) still validated => signature is the VM MAC, not the account scope. Grant not compiled/active in this build."
+          else
+            echo "SIGNTEST_VERDICT=INCONCLUSIVE wB=$wB wC=$wC (B should have hit on the freshly-warmed clean dir)"
+          fi
 
       - name: Populate — tuist cache warm (spec #76)
         if: ${{ inputs.mode == 'populate' }}
