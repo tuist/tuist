@@ -94,6 +94,10 @@ CACHE_SHARE="/Volumes/My Shared Files/cache"
 CACHE_MOUNT=""
 CACHE_INVENTORY_BEFORE=""
 STATUS_SHARE="/Volumes/My Shared Files/status"
+# Presigned PUT URL for this account's master archive (from the dispatch
+# response); the HEAD report endpoint is the dispatch URL's sibling.
+VOLUME_HEAD_UPLOAD=""
+VOLUME_HEAD_REPORT_URL="${TUIST_RUNNER_DISPATCH_URL%/dispatch}/volume-head"
 
 # cache_inventory hashes the SORTED ENTRY NAMES (not mtimes) under the cache
 # subtrees whose churn means the job actually changed the cache: binaries
@@ -173,6 +177,50 @@ report_cache_dirty() {
   echo "$(date -u +%FT%TZ) dispatch-poll: cache dirty=${dirty} reported to host"
 }
 
+# stage_volume_head writes the account's cache-volume HEAD (from the dispatch
+# response) into the status share so the host can converge a stale master toward
+# it before materializing, and remembers the presigned upload URL for publishing
+# this job's result. Best-effort: an absent block just means no convergence.
+stage_volume_head() {
+  [ -d "${STATUS_SHARE}" ] || return 0
+  local gen digest download
+  gen=$(sed -n 's/.*"generation"[[:space:]]*:[[:space:]]*\([0-9]*\).*/\1/p' /tmp/dispatch.json)
+  digest=$(sed -n 's/.*"digest"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' /tmp/dispatch.json)
+  download=$(sed -n 's/.*"download_url"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' /tmp/dispatch.json)
+  VOLUME_HEAD_UPLOAD=$(sed -n 's/.*"upload_url"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' /tmp/dispatch.json)
+  [ -n "${download}" ] || return 0
+  printf '{"generation":%s,"digest":"%s","download_url":"%s"}' \
+    "${gen:-0}" "${digest}" "${download}" >"${STATUS_SHARE}/volume-head.json" 2>/dev/null || true
+}
+
+# report_volume_head publishes this job's warm set as the account's new HEAD:
+# only on a successful, cache-changing job it archives the cache (ditto zip
+# preserves the artifact-signature xattrs, so the master is portable to the
+# account's other hosts as-is), uploads it to the presigned master URL, and
+# bumps the account's HEAD to the new inventory digest. Best-effort; never
+# blocks teardown.
+report_volume_head() {
+  local rc="${1:-1}"
+  [ "${rc}" = "0" ] || return 0
+  [ -n "${CACHE_MOUNT}" ] && [ -n "${VOLUME_HEAD_UPLOAD}" ] || return 0
+  local after
+  after=$(cache_inventory)
+  [ "${after}" != "${CACHE_INVENTORY_BEFORE}" ] || return 0
+  local archive="/tmp/master-archive.zip"
+  rm -f "${archive}"
+  ditto -c -k --sequesterRsrc --keepParent "${CACHE_MOUNT}/tuist" "${archive}" 2>/dev/null || return 0
+  if ! curl -fsSL -X PUT --upload-file "${archive}" "${VOLUME_HEAD_UPLOAD}" >/dev/null 2>&1; then
+    echo "$(date -u +%FT%TZ) dispatch-poll: master upload failed; HEAD not advanced"
+    rm -f "${archive}"
+    return 0
+  fi
+  curl -fsSL -X POST \
+    -H "Authorization: Bearer ${SA_TOKEN}" -H "Content-Type: application/json" \
+    --data "{\"tree_digest\":\"${after}\"}" "${VOLUME_HEAD_REPORT_URL}" >/dev/null 2>&1 || true
+  echo "$(date -u +%FT%TZ) dispatch-poll: published volume HEAD (digest=${after})"
+  rm -f "${archive}"
+}
+
 # Mount before polling: the volume is attached at boot, independent of which
 # account dispatch later assigns, so it is ready well before the first job.
 mount_cache_volume
@@ -241,6 +289,9 @@ while true; do
         echo "$(date -u +%FT%TZ) dispatch-poll: cache signing grant delivered"
         export TUIST_CACHE_SIGNING_GRANT="${cache_grant}"
       fi
+      # Stage the account's volume HEAD for the host to converge a stale master
+      # toward before it materializes into this VM's branch.
+      stage_volume_head
       echo "$(date -u +%FT%TZ) dispatch-poll: dispatched, starting runner"
       # Dispatch bound this VM to an account; the host is clonefiling that
       # account's cache master into the branch share now. Wait (bounded) for
@@ -292,6 +343,9 @@ while true; do
       # the branch to the account's new master (or discard it). Before the
       # metrics tail + VM halt, while the mounted volume is still readable.
       report_cache_dirty
+      # On a successful, cache-changing job, publish this warm set as the
+      # account's new volume HEAD so other hosts converge toward it.
+      report_volume_head "${rc}"
       # Final metrics sample before the EXIT trap halts the VM. The
       # looping sampler is killed mid-sleep by the shutdown, so the last
       # interval — including "Complete job" — otherwise has no data point
