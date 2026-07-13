@@ -6,17 +6,30 @@ import (
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+
+	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/credentials"
 )
 
 func TestDesiredKubeletConfigHash(t *testing.T) {
-	if desiredKubeletConfigHash() != desiredKubeletConfigHash() {
+	ca1 := []byte("cluster-ca-one")
+	ca2 := []byte("cluster-ca-two")
+	if desiredKubeletConfigHash(ca1) != desiredKubeletConfigHash(ca1) {
 		t.Fatal("desiredKubeletConfigHash must be stable across calls")
 	}
-	if desiredKubeletConfigHash() == "" {
+	if desiredKubeletConfigHash(ca1) == "" {
 		t.Fatal("desiredKubeletConfigHash must not be empty")
 	}
-	// The hashed config is the post-fix one — clientCAFile set, serverTLSBootstrap
-	// unset — so existing (pre-fix) nodes drift and get re-pushed.
+	// The CA bundle is part of the fingerprint, so a CA rotation changes the hash
+	// and re-pushes a fresh ca.crt onto already-stamped nodes.
+	if desiredKubeletConfigHash(ca1) == desiredKubeletConfigHash(ca2) {
+		t.Fatal("desiredKubeletConfigHash must change when the CA bundle changes")
+	}
+	// The hashed config is the post-fix one (clientCAFile set, serverTLSBootstrap
+	// unset), so existing (pre-fix) nodes drift and get re-pushed.
 	cfg := kubeletConfigContent("", kubeletClientCAPath)
 	if !strings.Contains(cfg, "clientCAFile: "+kubeletClientCAPath) {
 		t.Fatalf("expected clientCAFile in the hashed config, got:\n%s", cfg)
@@ -77,13 +90,35 @@ func TestRenderKubeletConfigRepushScript_NoCA(t *testing.T) {
 }
 
 func TestReconcileLinuxKubeletConfigDrift_NoOpWhenStamped(t *testing.T) {
-	node := &corev1.Node{}
-	node.Annotations = map[string]string{kubeletConfigHashAnnotation: desiredKubeletConfigHash()}
+	const ns = "tuist-fleet"
+	ca := []byte("-----BEGIN CERTIFICATE-----\nMIIBstampCAbytes\n-----END CERTIFICATE-----\n")
 
-	// A matching stamp short-circuits before any client / credentials / SSH use,
-	// so nil dependencies are safe here — that's the point: the steady-state
-	// reconcile does no work.
-	requeue, err := reconcileLinuxKubeletConfigDrift(context.Background(), nil, nil, nil, "m", "fleet", "ubuntu", node)
+	scheme := runtime.NewScheme()
+	if err := corev1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := rbacv1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	// A pre-populated node-identity token secret lets EnsureNodeIdentity return
+	// the CA without a real token controller (the SA + binding are created by the
+	// idempotent ensures against the fake client).
+	tokenSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Namespace: ns, Name: "tart-kubelet-m-token"},
+		Type:       corev1.SecretTypeServiceAccountToken,
+		Data:       map[string][]byte{"token": []byte("tok"), "ca.crt": ca},
+	}
+	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(tokenSecret).Build()
+	cm := &credentials.Manager{Client: c, Namespace: ns, NodeIdentityClusterRole: linuxNodeIdentityClusterRole}
+
+	node := &corev1.Node{}
+	node.Annotations = map[string]string{kubeletConfigHashAnnotation: desiredKubeletConfigHash(ca)}
+
+	// The node is stamped with the current CA's hash, so the drift check reads the
+	// identity, matches, and returns before discovering DNS or dialing SSH (the
+	// nil apiReader is safe precisely because the converged path stops at the
+	// compare).
+	requeue, err := reconcileLinuxKubeletConfigDrift(context.Background(), c, nil, cm, "m", "fleet", "ubuntu", node)
 	if err != nil || requeue {
 		t.Fatalf("expected no-op (requeue=false, err=nil) when the node is already stamped, got requeue=%v err=%v", requeue, err)
 	}

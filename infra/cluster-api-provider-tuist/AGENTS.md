@@ -12,9 +12,10 @@ machine kinds:
   has no user-data channel); adopts a pre-ordered box and
   **reinstalls it (wipe) on release**.
 - `DediboxMachine` — Scaleway Dedibox bare metal (eu-central); adopts a
-  pre-prepped box, left installed on release.
+  pre-prepped box and reinstalls it (wipe) back to the pool on release.
 - `OVHDedicatedMachine` — OVHcloud US bare metal (us-east / us-west);
-  adopts a pre-prepped box, left installed on release.
+  adopts a pre-prepped box and reinstalls it (wipe) back to the pool on
+  release.
 
 All bootstrap with an operator-minted kubelet identity + SSH self-join,
 then wait for `Node.Ready`. The three Linux kinds share the
@@ -297,10 +298,10 @@ values: `adoptTag` (Dedibox) or `adoptDisplayNamePrefix` (OVH, a prefix match).
 Production today: tag `tuist-kura-production` (eu-central), displayName prefixes
 `tuist-kura-ovh-production-us-east` / `-us-west` (OVH).
 
-Release (`reconcileDelete`) drops the Node + identity + TOFU pin but **leaves the
-box installed** (it is a monthly contract, not a reinstall-on-release); a released
-box keeps its OS + key, so re-marking it back into the pool re-claims it with no
-re-prep.
+Release (`reconcileDelete`) drops the Node + identity + TOFU pin and **reinstalls
+the box back into the pool**. It stays a monthly contract (release is not a contract
+termination), but the reinstall wipes the OS to a clean, claimable state — any
+node-local volume is lost and the host key rotates, so the next claim re-TOFUs it.
 
 ### Scale up
 ```bash

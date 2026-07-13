@@ -35,16 +35,19 @@ const KubeletConfigDriftResyncInterval = 10 * time.Minute
 const kubeletConfigHashAnnotation = "tuist.dev/kubelet-config-hash"
 
 // desiredKubeletConfigHash fingerprints the kubelet config the drift loop
-// manages — deliberately rendered with an EMPTY clusterDNS so a transient
-// kube-dns read blip can't churn the hash (which would otherwise trigger a
-// re-push that rewrites config.yaml with a missing clusterDNS). The re-push
-// itself always writes the freshly-discovered clusterDNS; only the drift
-// *fingerprint* is clusterDNS-independent. clientCAFile is always present
-// post-fix, so the hash reflects the serving-cert mode (serverTLSBootstrap
-// unset) + clientCAFile that the drift loop exists to roll out.
-func desiredKubeletConfigHash() string {
-	sum := sha256.Sum256([]byte(kubeletConfigContent("", kubeletClientCAPath)))
-	return hex.EncodeToString(sum[:])
+// manages: the config.yaml plus the cluster CA bundle written as ca.crt
+// (clientCAFile). Folding the CA in means a CA rotation changes the hash, so an
+// already-stamped node re-pushes a fresh ca.crt instead of trusting a stale one
+// forever. Rendered with an EMPTY clusterDNS so a transient kube-dns read blip
+// can't churn the hash (which would otherwise trigger a re-push that rewrites
+// config.yaml with a missing clusterDNS); the re-push itself always writes the
+// freshly-discovered clusterDNS, only the drift fingerprint is clusterDNS-
+// independent.
+func desiredKubeletConfigHash(clusterCAPEM []byte) string {
+	h := sha256.New()
+	h.Write([]byte(kubeletConfigContent("", kubeletClientCAPath)))
+	h.Write(clusterCAPEM)
+	return hex.EncodeToString(h.Sum(nil))
 }
 
 // renderKubeletConfigRepushScript renders the minimal, idempotent bash script
@@ -104,19 +107,22 @@ func stampKubeletConfigHash(ctx context.Context, c client.Client, node *corev1.N
 }
 
 // reconcileLinuxKubeletConfigDrift brings an already-Ready self-join node onto
-// the current kubelet config (self-signed serving cert + clientCAFile) without
-// re-provisioning it. The Linux kinds have no other re-push path, so without
-// this a config change (like the serving-cert fix) would only reach nodes
-// created after the change; this makes the change converge onto existing nodes
-// on the next reconcile after the operator image rolls.
+// the current kubelet config (self-signed serving cert + clientCAFile + cluster
+// CA) without re-provisioning it. The Linux kinds have no other re-push path, so
+// without this a config change (like the serving-cert fix) or a cluster CA
+// rotation would only reach nodes created after the change; this makes the change
+// converge onto existing nodes on the next reconcile after the operator image
+// rolls.
 //
-// It is a no-op (cheap: one annotation lookup, no API/SSH calls) once the Node's
-// stamped hash matches. On drift it discovers clusterDNS, mints the identity CA,
-// resolves the fleet SSH key + pinned host key, pipes the small re-push script
-// over SSH, restarts kubelet, then stamps the Node.
+// It reads the node identity every reconcile so the desired hash reflects the
+// current cluster CA; EnsureNodeIdentity is idempotent, so on a converged node
+// this is a few cached reads plus one hash compare, then it returns. On drift it
+// discovers clusterDNS, resolves the fleet SSH key + pinned host key, pipes the
+// small re-push script over SSH, persists any newly observed host key, restarts
+// kubelet, then stamps the Node.
 //
 // Returns requeue=true when it did work or deferred (so the caller re-observes),
-// false when there was nothing to do. Errors are transient — the caller requeues
+// false when there was nothing to do. Errors are transient: the caller requeues
 // with backoff and the next reconcile retries; a persistently unreachable node
 // just keeps retrying, exactly like the bootstrap path.
 func reconcileLinuxKubeletConfigDrift(
@@ -128,12 +134,21 @@ func reconcileLinuxKubeletConfigDrift(
 	node *corev1.Node,
 ) (requeue bool, err error) {
 	logger := log.FromContext(ctx)
-	if node.Annotations[kubeletConfigHashAnnotation] == desiredKubeletConfigHash() {
+
+	// Mint (idempotently read) the node identity up front: its CA is what the
+	// re-push writes as ca.crt, and folding it into the desired hash is what lets
+	// a CA rotation re-push onto an already-stamped node.
+	identity, err := cm.EnsureNodeIdentity(ctx, machineName, linuxNodeIdentityClusterRole)
+	if err != nil {
+		return false, fmt.Errorf("mint node identity for drift check: %w", err)
+	}
+	desired := desiredKubeletConfigHash(identity.CA)
+	if node.Annotations[kubeletConfigHashAnnotation] == desired {
 		return false, nil
 	}
 
 	// The re-push rewrites config.yaml wholesale, so it must carry the current
-	// clusterDNS — never drop a node's in-cluster DNS because of a transient
+	// clusterDNS: never drop a node's in-cluster DNS because of a transient
 	// kube-dns read. Defer (requeue) until it resolves; in practice it does
 	// immediately, and the fix lands on the next reconcile.
 	clusterDNS := discoverClusterDNS(ctx, apiReader)
@@ -147,10 +162,6 @@ func reconcileLinuxKubeletConfigDrift(
 		return true, nil
 	}
 
-	identity, err := cm.EnsureNodeIdentity(ctx, machineName, linuxNodeIdentityClusterRole)
-	if err != nil {
-		return false, fmt.Errorf("mint node identity for re-push: %w", err)
-	}
 	privateKey, err := cm.EnsureFleetSSHKey(ctx, fleet)
 	if err != nil {
 		return false, fmt.Errorf("fleet ssh key for re-push: %w", err)
@@ -168,10 +179,21 @@ func reconcileLinuxKubeletConfigDrift(
 		ClusterCAPEM:  identity.CA,
 		BootstrapUser: bootstrapUser,
 	})
-	if sshErr := bootstrapOverSSH(ctx, bootstrapUser, host, privateKey, script, hk); sshErr != nil {
+	sshErr := bootstrapOverSSH(ctx, bootstrapUser, host, privateKey, script, hk)
+	// Persist a newly TOFU'd host key before stamping, so a repair that first-
+	// contacts an unpinned box restores the pin (matching the bootstrap path).
+	// Observed() returns the pinned value on a mismatch, so this only writes a
+	// genuinely new observation and never overwrites a good pin. Runs even on an
+	// SSH failure: the key was still observed.
+	if observed := hk.Observed(); observed != "" && observed != known {
+		if perr := cm.SetMachineHostFingerprint(ctx, machineName, observed); perr != nil {
+			logger.Error(perr, "persist host fingerprint after re-push; will retry", "node", node.Name)
+		}
+	}
+	if sshErr != nil {
 		return false, fmt.Errorf("re-push kubelet config over ssh to %s: %w", host, sshErr)
 	}
-	if stampErr := stampKubeletConfigHash(ctx, c, node, desiredKubeletConfigHash()); stampErr != nil {
+	if stampErr := stampKubeletConfigHash(ctx, c, node, desired); stampErr != nil {
 		return false, fmt.Errorf("stamp kubelet config hash: %w", stampErr)
 	}
 	logger.Info("re-pushed kubelet config and restarted kubelet", "node", node.Name, "host", host)
