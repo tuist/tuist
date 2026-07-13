@@ -139,6 +139,9 @@ func TestColdFirstJobSeedsMaster(t *testing.T) {
 	if err != nil || warm {
 		t.Fatalf("cold Materialize = %v, %v; want false, nil", warm, err)
 	}
+	// The reconciler records the dispatched account on the attachment (what
+	// maybeMaterializeVolume does); Finalize checks it before promoting.
+	att.SourceAccount = "42"
 	if branchTuistExists(att) {
 		t.Fatal("cold branch should have no materialized cache")
 	}
@@ -166,6 +169,7 @@ func TestWarmMaterializeAndPromote(t *testing.T) {
 	if err != nil || !warm {
 		t.Fatalf("warm Materialize = %v, %v; want true, nil", warm, err)
 	}
+	att.SourceAccount = "42"
 	// The account's cached artifact is now visible in the branch.
 	got, err := os.ReadFile(filepath.Join(att.BranchPath, cacheHomeSubdir, "Binaries", "marker"))
 	if err != nil || string(got) != "42" {
@@ -180,8 +184,8 @@ func TestWarmMaterializeAndPromote(t *testing.T) {
 }
 
 // A VM dispatched to account 99 only ever materializes account 99's master —
-// account 42's cache is structurally unreachable, so there is no cross-account
-// exposure and no misprediction to guard.
+// account 42's cache is unreachable because materialize is keyed to the
+// dispatched account, so there is no cross-account exposure.
 func TestMaterializeIsAccountScoped(t *testing.T) {
 	m, _ := newTestManager(t, 100)
 	seedMaster(t, m, "42")
@@ -191,6 +195,7 @@ func TestMaterializeIsAccountScoped(t *testing.T) {
 	if err != nil || warm {
 		t.Fatalf("Materialize(99) = %v, %v; want cold (false), nil", warm, err)
 	}
+	att.SourceAccount = "99"
 	if branchTuistExists(att) {
 		t.Fatal("account 99's VM must not see account 42's cache")
 	}
@@ -203,6 +208,32 @@ func TestMaterializeIsAccountScoped(t *testing.T) {
 	}
 	if !masterExists(m, "42") {
 		t.Fatal("account 42's master must survive untouched")
+	}
+}
+
+// Defense in depth for the cross-account fix: if a branch materialized for one
+// account is ever finalized against a different account (a stale label from a
+// failed dispatch that then won a claim for another account), Finalize must
+// discard rather than promote the first account's artifacts into the second's
+// master.
+func TestFinalizeRejectsAccountMismatch(t *testing.T) {
+	m, _ := newTestManager(t, 100)
+	seedMaster(t, m, "A")
+
+	att := mustAllocate(t, m, "vm-mismatch")
+	if _, err := m.Materialize(att, "A"); err != nil {
+		t.Fatalf("Materialize(A): %v", err)
+	}
+	att.SourceAccount = "A" // materialized from A...
+	writeBranchCache(t, att, "from-A")
+
+	// ...but finalized as if the VM ran account B.
+	out, err := m.Finalize(att, "B", true, true)
+	if err != nil || out != VolumeOutcomeDiscarded {
+		t.Fatalf("Finalize(B) with SourceAccount A = %s, %v; want discarded", out, err)
+	}
+	if masterExists(m, "B") {
+		t.Fatal("account A's cache must not be promoted into account B's master")
 	}
 }
 
@@ -301,6 +332,7 @@ func TestFinalizeReleasesReservation(t *testing.T) {
 	m := NewVolumeManager(root, 1, be)                                  // 1 GiB cap
 
 	a1 := mustAllocate(t, m, "vm1")
+	a1.SourceAccount = "42"
 	writeBranchCache(t, a1, "x")
 	if out, _ := m.Finalize(a1, "42", true, true); out != VolumeOutcomePromoted {
 		t.Fatalf("promote = %s", out)
@@ -340,9 +372,9 @@ func TestEvictToWatermark(t *testing.T) {
 	}
 }
 
-// SweepBranches (review finding 4): branches are per-job scratch, so any that
-// survive a kubelet restart are orphans that must be removed on startup, and
-// the reservation counter reset.
+// SweepBranches: branches whose VM is gone after a kubelet restart are orphans
+// that must be removed on startup, with the reservation counter reset to the
+// number that survived (zero here — nothing was reattached).
 func TestSweepBranches(t *testing.T) {
 	m, _ := newTestManager(t, 100)
 	a1 := mustAllocate(t, m, "vm1")
@@ -369,6 +401,45 @@ func TestSweepBranches(t *testing.T) {
 	}
 	if !masterExists(m, "42") {
 		t.Fatal("sweep must not remove masters")
+	}
+}
+
+// A branch belonging to a VM that survived the restart (ReattachBranch) must be
+// kept by the sweep — removing a virtio-fs-mounted branch would corrupt the
+// running job — while a sibling orphan branch is still reaped, and liveBranches
+// reflects only the retained one.
+func TestSweepBranchesRetainsReattached(t *testing.T) {
+	m, _ := newTestManager(t, 100)
+	live := mustAllocate(t, m, "vm-live")
+	orphan := mustAllocate(t, m, "vm-orphan")
+	writeBranchCache(t, live, "warm")
+	writeBranchCache(t, orphan, "stale")
+
+	// Simulate recovery of the still-running VM after a kubelet restart.
+	att, ok := m.ReattachBranch(ReservedTuistCacheVolume, "vm-live")
+	if !ok || !att.Attached || !att.Materialized {
+		t.Fatalf("ReattachBranch = %+v, %v; want attached+materialized", att, ok)
+	}
+
+	if err := m.SweepBranches(); err != nil {
+		t.Fatalf("SweepBranches: %v", err)
+	}
+	if _, err := os.Stat(live.BranchPath); err != nil {
+		t.Fatal("live VM's branch must be retained across the sweep")
+	}
+	if _, err := os.Stat(orphan.BranchPath); !os.IsNotExist(err) {
+		t.Fatal("orphan branch should be swept")
+	}
+	if m.liveBranches != 1 {
+		t.Fatalf("liveBranches after sweep = %d; want 1 (only the retained branch)", m.liveBranches)
+	}
+}
+
+// ReattachBranch declines when the feature is off or the branch is gone.
+func TestReattachBranchAbsent(t *testing.T) {
+	m, _ := newTestManager(t, 100)
+	if att, ok := m.ReattachBranch(ReservedTuistCacheVolume, "never-existed"); ok || att.Attached {
+		t.Fatalf("ReattachBranch of a missing branch = %+v, %v; want zero, false", att, ok)
 	}
 }
 

@@ -21,6 +21,16 @@ import (
 // promote a cache-volume branch to the right master.
 const runnerAccountLabel = "tuist.dev/runner-account"
 
+// RunnerAccountFromPod returns the account id the server stamped on a Pod at
+// dispatch, or "" when unset. Exported so state recovery in package main can
+// reconstruct a recovered VM's SourceAccount without duplicating the label key.
+func RunnerAccountFromPod(pod *corev1.Pod) string {
+	if pod == nil {
+		return ""
+	}
+	return pod.Labels[runnerAccountLabel]
+}
+
 // dirtyMarkerFile is the file the guest writes into the writable status share
 // at job end: "1" when the job changed the cache (artifacts added/evicted,
 // manifests or helpers compiled), "0" for a pure-hit/read-only job. Its
@@ -197,8 +207,10 @@ func downloadAndExtract(url, dst string) error {
 // finalizeVolume promotes or discards the entry's cache-volume branch and
 // marks it consumed so the call is idempotent across the multiple teardown
 // paths (terminal transition, Pod deletion, best-effort cleanup). cleanExit
-// reflects whether `tart run` exited cleanly; combined with the guest's dirty
-// marker it decides promotion.
+// reflects whether `tart run` exited cleanly (the VM halted, not the job's
+// conclusion); the guest's dirty marker carries the actual job result — it is
+// "1" only when the runner exited 0 AND the cache changed — so promotion needs
+// both a clean VM halt and a marker that says the job succeeded and was dirty.
 func (r *Reconciler) finalizeVolume(entry *Entry, actualAccount string, cleanExit bool) {
 	if r.Volumes == nil || entry == nil || !entry.Volume.Attached {
 		return

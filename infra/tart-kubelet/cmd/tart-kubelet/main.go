@@ -302,7 +302,7 @@ func main() {
 	// VM, and stop+delete it as stale — killing a healthy workload on
 	// every kubelet update. We do this synchronously, before
 	// mgr.Start, using a fresh non-cached client.
-	if err := recoverState(cfg, scheme, tartClient, store, nodeName); err != nil {
+	if err := recoverState(cfg, scheme, tartClient, store, volumes, nodeName); err != nil {
 		setupLog.Error(err, "state recovery failed; reconciles may treat existing VMs as stale")
 	}
 
@@ -668,6 +668,7 @@ func recoverState(
 	scheme *runtime.Scheme,
 	tartClient *tart.Client,
 	store *podagent.Store,
+	volumes *podagent.VolumeManager,
 	nodeName string,
 ) error {
 	c, err := client.New(cfg, client.Options{Scheme: scheme})
@@ -723,7 +724,7 @@ func recoverState(
 			now := metav1.Now()
 			startTS = &now
 		}
-		store.Put(pod.Namespace, pod.Name, &podagent.Entry{
+		entry := &podagent.Entry{
 			VMName: vmName,
 			// Pod.Status.StartTime is when the API server first saw the
 			// Pod, not when we started the clone — observing
@@ -733,7 +734,21 @@ func recoverState(
 			// observation for recovered entries.
 			StartTS:      *startTS,
 			BootObserved: true,
-		})
+		}
+		// Reattach the cache-volume branch this VM is still virtio-fs-mounting
+		// so the startup SweepBranches keeps it (not reap it out from under the
+		// running job) and Finalize can still promote its warm set. SourceAccount
+		// comes from the server-stamped label so the promote lands in the right
+		// master; a missing branch (feature off / never materialized) leaves the
+		// entry on the cold path.
+		if att, ok := volumes.ReattachBranch(podagent.ReservedTuistCacheVolume, vmName); ok {
+			att.SourceAccount = podagent.RunnerAccountFromPod(pod)
+			entry.Volume = att
+			if statusDir, sdErr := tartClient.StatusDir(vmName); sdErr == nil {
+				entry.VolumeStatusDir = statusDir
+			}
+		}
+		store.Put(pod.Namespace, pod.Name, entry)
 		matched++
 	}
 	setupLog.Info("recovered VM state", "node", nodeName, "tart_vms", len(vms), "matched_pods", matched)

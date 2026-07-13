@@ -75,11 +75,16 @@ defmodule Tuist.Runners.VolumeAffinities do
   @doc """
   Picks the candidate a polling runner on `node_name` should be handed
   from a top-K list of queued candidates (ordered oldest-enqueued first):
-  the oldest one whose account is affine to the node AND whose enqueue
-  time is within `tolerance_seconds` of the queue head, else the head.
+  the oldest one whose account is affine to the node, UNLESS the queue head
+  has itself been waiting longer than `tolerance_seconds`, in which case the
+  head is returned so it can't be passed over indefinitely.
 
-  The tolerance bounds how long any job can be passed over, so affinity is
-  a preference, never a delay past the bound. Returns nil for an empty
+  The tolerance bounds how long the head can be delayed by affinity, measured
+  from now — not the enqueue gap between the chosen candidate and the head.
+  Comparing candidate-vs-head only bounds how far apart the two were enqueued,
+  which a burst of affine jobs enqueued within the window can exploit to starve
+  the head for far longer than the tolerance. Bounding head age from now caps
+  the head's worst-case delay at `tolerance_seconds`. Returns nil for an empty
   list.
   """
   def select_candidate(candidates, node_name, tolerance_seconds, volume_name \\ @reserved_tuist_cache)
@@ -89,13 +94,17 @@ defmodule Tuist.Runners.VolumeAffinities do
   def select_candidate([head | _] = candidates, node_name, tolerance_seconds, volume_name) do
     affine = affine_account_ids(node_name, volume_name)
 
-    if MapSet.size(affine) == 0 do
-      head
-    else
-      Enum.find(candidates, head, fn candidate ->
-        MapSet.member?(affine, candidate.account_id) and
-          within_tolerance?(candidate.enqueued_at, head.enqueued_at, tolerance_seconds)
-      end)
+    cond do
+      MapSet.size(affine) == 0 ->
+        head
+
+      head_overdue?(head, tolerance_seconds) ->
+        head
+
+      true ->
+        Enum.find(candidates, head, fn candidate ->
+          MapSet.member?(affine, candidate.account_id)
+        end)
     end
   end
 
@@ -112,11 +121,13 @@ defmodule Tuist.Runners.VolumeAffinities do
     deleted
   end
 
-  defp within_tolerance?(%DateTime{} = enqueued_at, %DateTime{} = head_enqueued_at, tolerance_seconds) do
-    DateTime.diff(enqueued_at, head_enqueued_at, :second) <= tolerance_seconds
+  # The head is overdue once it has been queued longer than the tolerance,
+  # measured from now. Past that point affinity must stop passing it over.
+  defp head_overdue?(%{enqueued_at: %DateTime{} = head_enqueued_at}, tolerance_seconds) do
+    DateTime.diff(DateTime.utc_now(), head_enqueued_at, :second) > tolerance_seconds
   end
 
-  # Defensive: if a candidate carries no enqueue time, don't let it win
-  # affinity (fall back to the head).
-  defp within_tolerance?(_enqueued_at, _head_enqueued_at, _tolerance_seconds), do: false
+  # Defensive: a head with no enqueue time can't be aged, so never treat it as
+  # overdue — affinity may still prefer an affine candidate.
+  defp head_overdue?(_head, _tolerance_seconds), do: false
 end

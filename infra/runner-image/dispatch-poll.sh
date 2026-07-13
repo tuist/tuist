@@ -139,42 +139,77 @@ mount_cache_volume() {
   echo "$(date -u +%FT%TZ) dispatch-poll: cache share at ${CACHE_MOUNT}; TUIST_XDG_CACHE_HOME set (budget=${TUIST_CACHE_MAX_BYTES:-none})"
 }
 
+# CACHE_READY_TIMEOUT bounds the wait for the host's cache-ready signal. It must
+# exceed the host's worst-case materialization: a stale-master convergence can
+# download a full master archive (host-side curl bounded at 120s) before the
+# clonefile. A too-short wait (the old 30s) would race that download — the guest
+# would start on the share while the host later atomically swaps the branch dir
+# underneath the running job, dropping in-flight writes. Common case (fresh
+# clonefile, no convergence) signals in well under a second, so this ceiling
+# only bites when the host is genuinely still working.
+CACHE_READY_TIMEOUT=180
+
 # wait_for_cache_ready blocks (bounded) until the host signals it has
 # materialized the dispatched account's cache master into the branch share (or
 # determined there is none — a cold first job). Called after dispatch, before
 # the runner starts, so the guest never reads or writes the cache while the host
-# is still clonefiling into it. A timeout degrades to whatever is in the share
-# (cold path) — it never blocks the job. Also snapshots the pre-job inventory
-# once the cache is in place so report_cache_dirty can tell a real change from a
-# pure-hit run.
+# is still clonefiling into it. Also snapshots the pre-job inventory once the
+# cache is in place so report_cache_dirty can tell a real change from a pure-hit
+# run.
+#
+# On timeout the host may STILL be materializing and could swap the branch dir
+# out from under a running job, so the guest must not keep using the share:
+# it detaches to a local, private cold cache dir (a late host swap of the now-
+# abandoned branch is then harmless) and clears CACHE_MOUNT so the promote/HEAD
+# reports no-op for this cold job. Never blocks the job.
 wait_for_cache_ready() {
   [ -n "${CACHE_MOUNT}" ] || return 0
   local waited=0
-  while [ "${waited}" -lt 30 ]; do
+  while [ "${waited}" -lt "${CACHE_READY_TIMEOUT}" ]; do
     if [ -f "${STATUS_SHARE}/cache-ready" ]; then
       echo "$(date -u +%FT%TZ) dispatch-poll: cache-ready after ${waited}s"
-      break
+      CACHE_INVENTORY_BEFORE=$(cache_inventory)
+      return 0
     fi
     sleep 1
     waited=$((waited + 1))
   done
-  [ -f "${STATUS_SHARE}/cache-ready" ] || echo "$(date -u +%FT%TZ) dispatch-poll: cache-ready not signalled within 30s; cold path"
-  CACHE_INVENTORY_BEFORE=$(cache_inventory)
+  echo "$(date -u +%FT%TZ) dispatch-poll: cache-ready not signalled within ${CACHE_READY_TIMEOUT}s; detaching to a local cold cache"
+  local local_cache="/Users/runner/.tuist-cache-cold"
+  mkdir -p "${local_cache}/tuist" 2>/dev/null || true
+  export TUIST_XDG_CACHE_HOME="${local_cache}"
+  unset TUIST_CACHE_MAX_BYTES
+  # Abandon the share: no promote, no HEAD publish, no inventory diff.
+  CACHE_MOUNT=""
+  CACHE_INVENTORY_BEFORE=""
 }
 
 # report_cache_dirty writes the guest's dirty marker into the writable status
-# share so the reconciler can decide promote-vs-discard. "1" iff the cache
-# inventory changed during the job; "0" for a pure-hit / read-only job. The
-# marker's presence is itself the "job completed" signal — its absence
-# (crash) makes the reconciler discard the branch.
+# share so the reconciler can decide promote-vs-discard. "1" iff the job
+# succeeded (runner rc == 0) AND the cache inventory changed; "0" for a
+# read-only / pure-hit job OR a job whose runner exited non-zero (infra failure,
+# cancellation, runner crash). The marker's presence is itself the "job
+# completed" signal — its absence (VM crash before this point) makes the
+# reconciler discard the branch.
+#
+# Gating on rc carries the job result to the host so a failed run never promotes
+# its branch to the account's master — the host's own `tart run` clean-exit
+# signal reflects the VM halting, not the job's conclusion, so it can't make
+# this call on its own. (rc is the runner-process exit: it catches infra/runner
+# failures and cancellations; a job whose steps fail while the runner exits 0
+# still promotes, which is acceptable — those artifacts are content-addressed
+# and signature-validated, so they warm rather than corrupt.) Mirrors the rc
+# gate in report_volume_head so local promote and HEAD publish agree.
 report_cache_dirty() {
   [ -n "${CACHE_MOUNT}" ] || return 0
   [ -d "${STATUS_SHARE}" ] || return 0
-  local after dirty=0
+  local rc="${1:-1}" after dirty=0
   after=$(cache_inventory)
-  [ "${after}" != "${CACHE_INVENTORY_BEFORE}" ] && dirty=1
+  if [ "${rc}" = "0" ] && [ "${after}" != "${CACHE_INVENTORY_BEFORE}" ]; then
+    dirty=1
+  fi
   printf '%s' "${dirty}" > "${STATUS_SHARE}/cache-dirty" 2>/dev/null || true
-  echo "$(date -u +%FT%TZ) dispatch-poll: cache dirty=${dirty} reported to host"
+  echo "$(date -u +%FT%TZ) dispatch-poll: cache dirty=${dirty} (rc=${rc}) reported to host"
 }
 
 # stage_volume_head writes the account's cache-volume HEAD (from the dispatch
@@ -339,10 +374,11 @@ while true; do
       # writes nothing to the ingest path.
       ./run.sh --jitconfig "${jit}" --disableupdate
       rc=$?
-      # Report whether the job changed the cache so the reconciler can promote
-      # the branch to the account's new master (or discard it). Before the
-      # metrics tail + VM halt, while the mounted volume is still readable.
-      report_cache_dirty
+      # Report whether the job succeeded AND changed the cache so the reconciler
+      # can promote the branch to the account's new master (or discard it).
+      # Before the metrics tail + VM halt, while the mounted volume is still
+      # readable. rc gates promotion — a failed run never advances the master.
+      report_cache_dirty "${rc}"
       # On a successful, cache-changing job, publish this warm set as the
       # account's new volume HEAD so other hosts converge toward it.
       report_volume_head "${rc}"

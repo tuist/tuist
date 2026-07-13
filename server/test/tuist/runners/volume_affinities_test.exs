@@ -58,24 +58,44 @@ defmodule Tuist.Runners.VolumeAffinitiesTest do
       assert VolumeAffinities.select_candidate([head, affine], "mac-01", 30) == head
     end
 
-    test "prefers the affine account's job within the tolerance", %{account: account, other: other} do
+    test "prefers the affine account's job while the head is within the tolerance", %{
+      account: account,
+      other: other
+    } do
       VolumeAffinities.record("mac-01", account.id)
       now = DateTime.utc_now()
       head = %{account_id: other.id, enqueued_at: now}
       affine = %{account_id: account.id, enqueued_at: DateTime.add(now, 10, :second)}
 
-      # 10s newer than head, within a 30s tolerance -> affinity wins.
+      # Head was just enqueued (not overdue) -> affinity wins.
       assert VolumeAffinities.select_candidate([head, affine], "mac-01", 30) == affine
     end
 
-    test "falls back to the head when the affine job is past the tolerance", %{account: account, other: other} do
+    test "affinity wins regardless of the enqueue gap to the head, as long as the head is fresh",
+         %{account: account, other: other} do
       VolumeAffinities.record("mac-01", account.id)
       now = DateTime.utc_now()
       head = %{account_id: other.id, enqueued_at: now}
-      affine = %{account_id: account.id, enqueued_at: DateTime.add(now, 60, :second)}
+      # Far newer than the head, but the head itself has waited ~0s, so the
+      # bound is on head age (from now), not the candidate-vs-head gap.
+      affine = %{account_id: account.id, enqueued_at: DateTime.add(now, 300, :second)}
 
-      # 60s newer than head, past a 30s tolerance -> head wins (affinity
-      # never delays a job past the tolerance).
+      assert VolumeAffinities.select_candidate([head, affine], "mac-01", 30) == affine
+    end
+
+    test "falls back to the head once the head has waited past the tolerance", %{
+      account: account,
+      other: other
+    } do
+      VolumeAffinities.record("mac-01", account.id)
+      now = DateTime.utc_now()
+      # Head was enqueued 60s ago, exceeding the 30s tolerance: it must be
+      # handed out now even though an affine candidate exists. This is the
+      # burst-starvation bound — a run of affine jobs can't pass the head over
+      # indefinitely, because the head's own age caps the delay.
+      head = %{account_id: other.id, enqueued_at: DateTime.add(now, -60, :second)}
+      affine = %{account_id: account.id, enqueued_at: DateTime.add(now, -50, :second)}
+
       assert VolumeAffinities.select_candidate([head, affine], "mac-01", 30) == head
     end
 

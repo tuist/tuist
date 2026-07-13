@@ -8,6 +8,7 @@ defmodule Tuist.RunnersTest do
   alias Tuist.Kubernetes.Client, as: K8sClient
   alias Tuist.Runners
   alias Tuist.Runners.CacheGrant
+  alias Tuist.Runners.Catalog
   alias Tuist.Runners.Claims
   alias Tuist.Runners.Dispatch
   alias Tuist.Runners.Jobs
@@ -291,6 +292,10 @@ defmodule Tuist.RunnersTest do
       test_pid = self()
       stub_dispatch_path(account, candidate, test_pid, node_name: "mac-07")
 
+      # Affinity is macOS-only (only the Mac fleet holds cache masters), so the
+      # fleet must resolve to :macos for record/select to run at all.
+      stub(Catalog, :fleet_platform, fn _ -> :macos end)
+
       expect(VolumeAffinities, :record, fn "mac-07", account_id ->
         send(test_pid, {:affinity_recorded, account_id})
         :ok
@@ -304,6 +309,19 @@ defmodule Tuist.RunnersTest do
       assert {:ok, _} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
       assert_receive {:affinity_recorded, recorded_account_id}
       assert recorded_account_id == account.id
+    end
+
+    test "does not record volume affinity for a non-macOS fleet" do
+      account = account_fixture()
+      candidate = candidate_with_label(account, "tuist-default")
+      stub_dispatch_path(account, candidate, self(), node_name: "linux-01")
+
+      # Linux runners hold no cache masters, so affinity must not reorder or
+      # record for them — the plain oldest-queued head is dispatched.
+      stub(Catalog, :fleet_platform, fn _ -> :linux end)
+      reject(&VolumeAffinities.record/2)
+
+      assert {:ok, %{workflow_job_id: 90_001}} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
     end
 
     test "keeps generated GitHub runner names within the API limit" do

@@ -30,11 +30,14 @@ import (
 //   - On job end Finalize promotes the branch back to the account's master
 //     (job succeeded AND the cache changed) or discards it.
 //
-// Because the account is known before any bytes are materialized, one
-// account's cache can never reach a VM that runs another account's job — the
-// cross-account exposure and single-account-per-host problems of a predict-
-// at-boot model are structurally absent. Masters are disposable: deleting one
-// costs at most a single cold job for that account on that host.
+// Because the account is materialized only after dispatch commits (the server
+// stamps the trigger label only once a claim fully succeeds), one account's
+// cache does not reach a VM that runs another account's job — the cross-account
+// exposure and single-account-per-host problems of a predict-at-boot model are
+// avoided. Finalize additionally refuses to promote a branch whose materialized
+// SourceAccount differs from the account the job ran, as defense in depth
+// against a stale label. Masters are disposable: deleting one costs at most a
+// single cold job for that account on that host.
 //
 // The host disk is fenced in layers: the runner-cache root is its own quota-
 // bounded APFS volume (provisioned at host bootstrap), admission reserves the
@@ -134,6 +137,13 @@ type VolumeManager struct {
 	// finalized. Admission reserves CapGiB per live branch so concurrent
 	// sparse clones cannot collectively overrun the quota volume.
 	liveBranches int
+
+	// retained is the set of branch dirs (keyed by VM name) that belong to
+	// VMs still running after a kubelet restart. ReattachBranch adds to it
+	// during state recovery; the startup SweepBranches keeps exactly these
+	// and reaps the rest, so a restart never pulls a virtio-fs-mounted cache
+	// out from under a live job.
+	retained map[string]bool
 
 	// ReconcileInterval is how often the background watermark evictor +
 	// observability sampler runs. Defaults to 5m.
@@ -368,10 +378,18 @@ func (m *VolumeManager) ReplaceMaster(account, volume, src string) error {
 
 // Finalize promotes or discards a branch after the job ends and releases its
 // reservation. Promotion is last-writer-wins and happens only when the job
-// succeeded, the guest reported the cache actually changed (dirty), and the
-// account is known. A read-only, failed, crashed (no marker), or never-
-// dispatched branch discards. Because the branch was materialized from the
-// job's own account, there is no cross-account case to guard.
+// succeeded, the guest reported the cache actually changed (dirty), the account
+// is known, AND that account matches the one the branch was materialized from.
+// A read-only, failed, crashed (no marker), or never-dispatched branch
+// discards.
+//
+// The SourceAccount == account guard is the defense-in-depth half of the
+// cross-account fix: the server only stamps the materialize-trigger label after
+// a dispatch commits, so in the normal path SourceAccount always equals the
+// account the job ran. If a stale label from a failed dispatch ever let a
+// branch materialized for account A reach a job the label now says is account
+// B, promoting into B's master would leak A's artifacts — so a mismatch
+// discards instead of promoting.
 func (m *VolumeManager) Finalize(att VolumeAttachment, account string, jobSucceeded, dirty bool) (VolumeOutcome, error) {
 	if !m.Enabled() || !att.Attached {
 		return VolumeOutcomeNone, nil
@@ -389,7 +407,7 @@ func (m *VolumeManager) Finalize(att VolumeAttachment, account string, jobSuccee
 	}
 
 	branchTree := filepath.Join(att.BranchPath, cacheHomeSubdir)
-	if !jobSucceeded || !dirty || account == "" {
+	if !jobSucceeded || !dirty || account == "" || att.SourceAccount != account {
 		return discard()
 	}
 	if _, err := os.Stat(branchTree); err != nil {
@@ -432,29 +450,76 @@ func (m *VolumeManager) Finalize(att VolumeAttachment, account string, jobSuccee
 	return VolumeOutcomePromoted, nil
 }
 
-// SweepBranches removes every per-VM branch directory. Called once on startup:
-// branches are ephemeral per-job scratch, so any that survive a kubelet
-// restart belong to VMs that are gone and would otherwise leak disk (their
-// Finalize can never run). No-op when the feature is off.
+// ReattachBranch reconstructs the attachment for a VM whose branch survived a
+// kubelet restart (its Tart VM is still running, virtio-fs-mounting the branch)
+// and marks the branch to be preserved by the startup SweepBranches. Returns
+// (zero, false) when the feature is off or the branch is gone. The caller sets
+// SourceAccount from the Pod's runner-account label so the recovered job's
+// warm set still promotes into the right master on completion.
+func (m *VolumeManager) ReattachBranch(volume, vm string) (VolumeAttachment, bool) {
+	if !m.Enabled() {
+		return VolumeAttachment{}, false
+	}
+	if volume == "" {
+		volume = ReservedTuistCacheVolume
+	}
+	branch := m.branchDir(vm)
+	if _, err := os.Stat(branch); err != nil {
+		return VolumeAttachment{}, false
+	}
+
+	m.mu.Lock()
+	if m.retained == nil {
+		m.retained = map[string]bool{}
+	}
+	m.retained[vm] = true
+	m.mu.Unlock()
+
+	materialized := false
+	if _, err := os.Stat(filepath.Join(branch, cacheHomeSubdir)); err == nil {
+		materialized = true
+	}
+	return VolumeAttachment{
+		Attached:     true,
+		VolumeName:   volume,
+		BranchPath:   branch,
+		Materialized: materialized,
+	}, true
+}
+
+// SweepBranches reaps per-VM branch directories on startup, keeping only those
+// ReattachBranch marked as belonging to a VM that survived the restart. Swept
+// branches are dead per-job scratch whose VM is gone (their Finalize can never
+// run) and would otherwise leak disk; retained branches are still virtio-fs-
+// mounted by a live job, so removing them would corrupt that job's cache.
+// liveBranches is reset to the retained count so admission accounting matches
+// what actually survived. No-op when the feature is off.
 func (m *VolumeManager) SweepBranches() error {
 	if !m.Enabled() {
 		return nil
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.liveBranches = 0
-	// Convergence scratch is per-job too, so it can't survive a restart either.
+	// Convergence scratch is per-job too, so it can't survive a restart either
+	// (a live VM's convergence completed before its job started).
 	_ = os.RemoveAll(filepath.Join(m.Root, "_converge"))
 	entries, err := os.ReadDir(m.branchesRoot())
 	if err != nil {
 		if os.IsNotExist(err) {
+			m.liveBranches = 0
 			return nil
 		}
 		return err
 	}
+	kept := 0
 	for _, e := range entries {
+		if m.retained[e.Name()] {
+			kept++
+			continue
+		}
 		_ = os.RemoveAll(filepath.Join(m.branchesRoot(), e.Name()))
 	}
+	m.liveBranches = kept
 	return nil
 }
 

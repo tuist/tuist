@@ -426,11 +426,25 @@ func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
 	// liveness via IsRunning, exactly like recoverState's recovered
 	// entries. BootObserved is set because we didn't witness this boot.
 	if running, _ := r.Tart.IsRunning(ctx, vmName); running {
-		r.Store.Put(pod.Namespace, pod.Name, &Entry{
+		entry := &Entry{
 			VMName:       vmName,
 			StartTS:      metav1.Now(),
 			BootObserved: true,
-		})
+		}
+		// Same reattach as recoverState: this VM survived a restart with its
+		// cache branch still mounted, so rebind the branch (unless the startup
+		// sweep already reaped it because recovery missed this VM) so Finalize
+		// can promote its warm set instead of losing it.
+		if r.Volumes != nil {
+			if att, ok := r.Volumes.ReattachBranch(ReservedTuistCacheVolume, vmName); ok {
+				att.SourceAccount = pod.Labels[runnerAccountLabel]
+				entry.Volume = att
+				if statusDir, sdErr := r.Tart.StatusDir(vmName); sdErr == nil {
+					entry.VolumeStatusDir = statusDir
+				}
+			}
+		}
+		r.Store.Put(pod.Namespace, pod.Name, entry)
 		return nil
 	}
 

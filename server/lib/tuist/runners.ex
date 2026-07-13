@@ -116,6 +116,17 @@ defmodule Tuist.Runners do
     )
   end
 
+  # Volume affinity is a macOS-only concern: only the Mac fleet keeps per-account
+  # cache masters on its hosts. Gating on platform keeps the Linux fleet (and any
+  # other volumeless fleet) out of affinity recording and queue reordering, so a
+  # host that holds no volume never has its queue scored for one. The macOS host
+  # capability itself is the runner-cache volume; the server can't see a host's
+  # per-host `gib`, so platform is the capability proxy — a `gib:0` macOS host
+  # just records harmless affinity that materialize never acts on.
+  defp volume_affinity_enabled?(fleet_name) do
+    Catalog.fleet_platform(fleet_name) == :macos
+  end
+
   # Presigned-URL lifetime for the cache-volume master archive. Comfortably
   # covers a job: the download is used at materialize, the upload at job end.
   @volume_master_url_ttl_seconds 6 * 60 * 60
@@ -274,10 +285,15 @@ defmodule Tuist.Runners do
       {:ok, candidate} ->
         case Claims.attempt(candidate.workflow_job_id, candidate.account_id, fleet_name, sa_name) do
           {:ok, claim} ->
-            # Record the affinity signal on every claim win: a volume for
-            # this account exists (or is about to) where its jobs ran, so
-            # future jobs of this account prefer this node.
-            VolumeAffinities.record(node_name, candidate.account_id)
+            # Record the affinity signal on every claim win, but only for fleets
+            # that actually hold volumes (macOS): a volume for this account
+            # exists (or is about to) where its jobs ran, so future jobs of this
+            # account prefer this node. Volumeless fleets record nothing so their
+            # queues are never reordered for masters that don't exist.
+            if volume_affinity_enabled?(fleet_name) do
+              VolumeAffinities.record(node_name, candidate.account_id)
+            end
+
             Jobs.record_claimed(candidate, sa_name, claim.claimed_at)
             serve_claim(namespace, sa_name, fleet_name, candidate, claim)
 
@@ -327,12 +343,18 @@ defmodule Tuist.Runners do
   defp pick_affine_candidate(fleet_name, node_name, excluded_workflow_job_ids) do
     case Jobs.pick_queued_top_k(fleet_name, [], excluded_workflow_job_ids, volume_affinity_top_k()) do
       {:ok, candidates} ->
-        {:ok,
-         VolumeAffinities.select_candidate(
-           candidates,
-           node_name,
-           volume_affinity_age_tolerance_seconds()
-         )}
+        if volume_affinity_enabled?(fleet_name) do
+          {:ok,
+           VolumeAffinities.select_candidate(
+             candidates,
+             node_name,
+             volume_affinity_age_tolerance_seconds()
+           )}
+        else
+          # No volumes on this fleet: hand out the plain oldest-queued head, no
+          # affinity scoring or reordering.
+          {:ok, List.first(candidates)}
+        end
 
       {:error, :empty} ->
         {:error, :empty}
@@ -360,10 +382,17 @@ defmodule Tuist.Runners do
         with {:ok, %{dispatch_label: pool_dispatch_label, runner_labels: runner_labels}} <-
                Dispatch.pool_summary_by_name(fleet_name),
              dispatch_label = pick_dispatch_label(candidate, pool_dispatch_label),
-             :ok <- stamp_owner_labels(namespace, pod_name, account),
+             :ok <- stamp_owner_label(namespace, pod_name, account),
              {:ok, jit, runner_name} <- mint_jit(account, sa_name, dispatch_label, runner_labels),
              :ok <- Claims.mark_running(candidate.workflow_job_id, runner_name),
              :ok <- record_running_safe(candidate.workflow_job_id, runner_name) do
+          # Stamp the account label only now that dispatch has fully committed.
+          # It is the host's cache-materialize trigger, so stamping it before the
+          # commit would let a failed dispatch strand a stale account on a Pod
+          # that later runs a different one (cross-account cache exposure). See
+          # stamp_account_label/3.
+          stamp_account_label(namespace, pod_name, account)
+
           # Open the per-Pod billing session only after dispatch
           # commits — JIT minted, PG marked running, CH state
           # transitioned. Opening earlier (e.g. at claim-win in
@@ -496,16 +525,26 @@ defmodule Tuist.Runners do
       end
   end
 
-  defp stamp_owner_labels(namespace, pod_name, account) do
-    patch = %{
-      "metadata" => %{
-        "labels" => %{
-          @owner_label => account.name,
-          @account_label => Integer.to_string(account.id)
-        }
-      }
-    }
+  # The owner label gates dispatch egress (see the @owner_label_stamp_attempts
+  # note) so it is stamped as soon as the claim is won, before the JIT mint.
+  defp stamp_owner_label(namespace, pod_name, account) do
+    patch = %{"metadata" => %{"labels" => %{@owner_label => account.name}}}
+    patch_pod_labels(namespace, pod_name, patch, @owner_label_stamp_attempts)
+  end
 
+  # The account label is the host's cache-materialize trigger: tart-kubelet
+  # clonefiles this account's cache master into the VM's branch when it observes
+  # the label. It is stamped only after the dispatch fully commits, NOT alongside
+  # the owner label. Stamping it pre-commit would let a dispatch that fails after
+  # the stamp (mint or ClickHouse error → release_safely re-queues the job while
+  # the Pod keeps polling) leave a stale account on a Pod that later wins a claim
+  # for a DIFFERENT account — the host would then run the second account's job on
+  # the first account's materialized cache. Post-commit stamping guarantees only
+  # the account the VM actually runs ever triggers materialization. Best-effort:
+  # a stamp failure degrades to a cold (unmaterialized) job, never a
+  # wrong-account one.
+  defp stamp_account_label(namespace, pod_name, account) do
+    patch = %{"metadata" => %{"labels" => %{@account_label => Integer.to_string(account.id)}}}
     patch_pod_labels(namespace, pod_name, patch, @owner_label_stamp_attempts)
   end
 
