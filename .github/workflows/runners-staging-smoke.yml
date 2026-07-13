@@ -36,6 +36,7 @@ on:
           - populate
           - warm-bench
           - dir-vs-disk
+          - gen-fs-vs-disk
       run_label:
         description: "Short label for this run's cache-volume marker (e.g. a, b)"
         required: false
@@ -328,6 +329,70 @@ jobs:
           print("DIRVSDISK_VERDICT=" + ("VIABLE — virtio-fs within tolerance and xattr survives; Approach B worth a full generate test" if ok else "MARGINAL/NO — virtio-fs too slow or xattr lost; favor Approach D (per-account warm pools)"))
           PY
           echo "=== dir-vs-disk done ==="
+
+      - name: Gen fs-vs-disk — warm generate on virtio-fs vs virtio-blk (spec #76)
+        if: ${{ inputs.mode == 'gen-fs-vs-disk' }}
+        shell: bash --noprofile --norc {0}
+        env:
+          TUIST_URL: https://staging.tuist.dev
+          TUIST_TOKEN: ${{ secrets.TUIST_STAGING_CACHE_TOKEN }}
+        run: |
+          # End-to-end answer to "does virtio-fs retain the generate warmth despite slower raw I/O?"
+          # Warm a cache on the block device with the released CLI (its own MAC signs it, so it
+          # validates on THIS VM), copy it to a virtio-fs location with xattrs preserved, then time
+          # PURGED warm generates against each (purged = realistic cold page cache on a fresh VM).
+          set +e -o pipefail
+          VBLK="${TUIST_XDG_CACHE_HOME:-/Volumes/tuist-cache}"
+          VFS="/Volumes/My Shared Files/status"
+          BLK_HOME="$VBLK/gentest-blk"; FS_HOME="$VFS/gentest-fs"
+          trap 'rm -rf "$BLK_HOME" "$FS_HOME" 2>/dev/null' EXIT
+          rm -rf "$BLK_HOME" "$FS_HOME"; mkdir -p "$BLK_HOME" "$FS_HOME"
+          echo "BLK_HOME=$BLK_HOME"; echo "FS_HOME=$FS_HOME"
+          if ! command -v mise >/dev/null 2>&1; then curl -fsSL https://mise.run|sh; export PATH="$HOME/.local/bin:$PATH"; fi
+          rm -rf tuist-bench; git clone --quiet --filter=blob:none https://github.com/tuist/tuist tuist-bench; cd tuist-bench
+          mise install >/dev/null 2>&1 || mise install
+          echo "tuist $(mise exec -- tuist version 2>/dev/null || echo '?')"
+          mise exec -- tuist install >/dev/null 2>&1 || true
+          ms(){ python3 -c 'import time;print(int(time.time()*1000))'; }
+          : > /tmp/genresults
+          gen(){ # $1=label $2=cachehome  (page cache purged first)
+            sudo purge >/dev/null 2>&1
+            local s e rc; s=$(ms)
+            env TUIST_XDG_CACHE_HOME="$2" mise exec -- tuist generate tuist ProjectDescription --no-open >"/tmp/g_$1.log" 2>&1; rc=$?
+            e=$(ms); echo "$1 $((e-s)) $rc" >> /tmp/genresults
+            echo "GEN_$1_MS=$((e-s)) rc=$rc  binaries=$(ls -1 "$2/tuist/Binaries" 2>/dev/null|wc -l|tr -d ' ')  reqwarn=$(grep -c 'requires using' "/tmp/g_$1.log" 2>/dev/null)"
+          }
+          echo "=== COLD: warm BLK_HOME (pull + MAC-sign) — this is the cold/recompile baseline ==="
+          gen cold "$BLK_HOME"
+          echo "=== copy warm cache BLK_HOME -> FS_HOME (ditto preserves xattrs; setup, untimed) ==="
+          cs=$(ms); ditto "$BLK_HOME/tuist" "$FS_HOME/tuist" 2>/dev/null; echo "copy_ms=$(( $(ms)-cs ))  fs_binaries=$(ls -1 "$FS_HOME/tuist/Binaries" 2>/dev/null|wc -l|tr -d ' ')"
+          sample=$(find "$FS_HOME/tuist/Binaries" -type f 2>/dev/null | head -1)
+          [ -n "$sample" ] && echo "post-copy signature xattr on a copied binary: $(xattr -p tuist.cloud.metadata "$sample" 2>/dev/null | head -c 24 || echo MISSING)"
+          echo "=== WARM on virtio-blk (purged) x2 ==="; gen blkwarm1 "$BLK_HOME"; gen blkwarm2 "$BLK_HOME"
+          echo "=== WARM on virtio-fs  (purged) x2 ==="; gen fswarm1 "$FS_HOME"; gen fswarm2 "$FS_HOME"
+          echo "=== RETENTION ==="
+          python3 - <<'PY'
+          d={}
+          for line in open('/tmp/genresults'):
+              p=line.split()
+              if len(p)>=2:
+                  try: d[p[0]]=int(p[1])
+                  except: pass
+          cold=d.get('cold'); blk=min(d.get('blkwarm1',10**9),d.get('blkwarm2',10**9)); fs=min(d.get('fswarm1',10**9),d.get('fswarm2',10**9))
+          print(f"cold={cold}ms  blk_warm={blk}ms  fs_warm={fs}ms")
+          if cold and blk<cold and fs<10**9:
+              saved_blk=cold-blk; saved_fs=cold-fs
+              ret=saved_fs/saved_blk*100 if saved_blk>0 else 0
+              print(f"warmth saved: block-device={saved_blk}ms, virtio-fs={saved_fs}ms")
+              print(f"GEN_RETENTION={ret:.0f}%  (virtio-fs keeps {ret:.0f}% of the block-device warmth win)")
+              v = "VIABLE — virtio-fs retains most of the generate warmth" if ret>=75 else ("MARGINAL — meaningful loss" if ret>=50 else "NO — virtio-fs gives back most of the warmth")
+              print("GENFS_VERDICT="+v)
+          else:
+              print("GENFS_VERDICT=INCONCLUSIVE (a run failed or no warm delta)")
+          PY
+          echo "=== signature-fail warnings per gen (should be 0 if the copy kept xattrs) ==="
+          for l in cold blkwarm1 blkwarm2 fswarm1 fswarm2; do echo "  $l: reqwarn=$(grep -c 'requires using' "/tmp/g_$l.log" 2>/dev/null)"; done
+          echo "=== gen-fs-vs-disk done ==="
 
       - name: Populate — tuist cache warm (spec #76)
         if: ${{ inputs.mode == 'populate' }}
