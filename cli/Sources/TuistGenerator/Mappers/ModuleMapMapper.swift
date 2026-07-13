@@ -411,13 +411,13 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
             to: settings[Self.otherSwiftFlagsSetting],
             onlyExistingKeys: onlyExistingKeys
         ),
-           let updated = Self.updatedOtherSwiftFlags(
-               targetID: targetID,
-               oldOtherSwiftFlags: settings[Self.otherSwiftFlagsSetting],
-               dependenciesDerivedDirectory: dependenciesDerivedDirectory,
-               xcodeProjParent: xcodeProjParent,
-               combinedModuleMapPath: combinedModuleMapPath
-           )
+            let updated = Self.updatedOtherSwiftFlags(
+                targetID: targetID,
+                oldOtherSwiftFlags: settings[Self.otherSwiftFlagsSetting],
+                dependenciesDerivedDirectory: dependenciesDerivedDirectory,
+                xcodeProjParent: xcodeProjParent,
+                combinedModuleMapPath: combinedModuleMapPath
+            )
         {
             settings[Self.otherSwiftFlagsSetting] = updated
         }
@@ -426,13 +426,13 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
             to: settings[Self.otherCFlagsSetting],
             onlyExistingKeys: onlyExistingKeys
         ),
-           let updated = Self.updatedOtherCFlags(
-               targetID: targetID,
-               oldOtherCFlags: settings[Self.otherCFlagsSetting],
-               dependenciesDerivedDirectory: dependenciesDerivedDirectory,
-               xcodeProjParent: xcodeProjParent,
-               combinedModuleMapPath: combinedModuleMapPath
-           )
+            let updated = Self.updatedOtherCFlags(
+                targetID: targetID,
+                oldOtherCFlags: settings[Self.otherCFlagsSetting],
+                dependenciesDerivedDirectory: dependenciesDerivedDirectory,
+                xcodeProjParent: xcodeProjParent,
+                combinedModuleMapPath: combinedModuleMapPath
+            )
         {
             settings[Self.otherCFlagsSetting] = updated
         }
@@ -441,13 +441,13 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
             to: settings[Self.headerSearchPaths],
             onlyExistingKeys: onlyExistingKeys
         ),
-           let updated = Self.updatedHeaderSearchPaths(
-               targetID: targetID,
-               oldHeaderSearchPaths: settings[Self.headerSearchPaths],
-               targetToDependenciesMetadata: targetToDependenciesMetadata,
-               dependenciesDerivedDirectory: dependenciesDerivedDirectory,
-               xcodeProjParent: xcodeProjParent
-           )
+            let updated = Self.updatedHeaderSearchPaths(
+                targetID: targetID,
+                oldHeaderSearchPaths: settings[Self.headerSearchPaths],
+                targetToDependenciesMetadata: targetToDependenciesMetadata,
+                dependenciesDerivedDirectory: dependenciesDerivedDirectory,
+                xcodeProjParent: xcodeProjParent
+            )
         {
             settings[Self.headerSearchPaths] = updated
         }
@@ -455,8 +455,8 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
         return settings
     }
 
-    // A configuration value containing $(inherited) already receives the base flags, so adding the
-    // flag there again would duplicate it in the generated Xcode project.
+    /// A configuration value containing $(inherited) already receives the base flags, so adding the
+    /// flag there again would duplicate it in the generated Xcode project.
     private static func shouldApplyModuleMapFlags(
         to setting: SettingsDictionary.Value?,
         onlyExistingKeys: Bool
