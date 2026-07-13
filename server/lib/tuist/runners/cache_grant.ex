@@ -1,7 +1,6 @@
 defmodule Tuist.Runners.CacheGrant do
   @moduledoc """
-  Mints the per-account cache-signing grant delivered to runner jobs
-  (spec #76).
+  Mints the per-account cache-signing grant delivered to runner jobs.
 
   A grant is a compact EdDSA-signed token whose `scope` claim
   (`account-<id>`) the runner's Tuist EE CLI substitutes for the machine

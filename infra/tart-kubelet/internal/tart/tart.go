@@ -259,7 +259,7 @@ type RunOptions struct {
 
 	// Disks are additional block devices attached via `tart run --disk
 	// <path>`, on top of the VM's root disk. The per-account cache volume
-	// (spec #76) attaches its per-VM branch image here. The list is plural
+	// attaches its per-VM branch image here. The list is plural
 	// from day one so generic user-declared volumes (spec #69) compose
 	// without a wrapper change; v1 passes at most one.
 	Disks []string

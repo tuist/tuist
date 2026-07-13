@@ -146,7 +146,7 @@ server:
     license:
       item: ""
       field: password
-    # Cache-signing grant private key (spec #76): a PEM Ed25519 key the
+    # Cache-signing grant private key: a PEM Ed25519 key the
     # server signs runner cache grants with. Leave item empty to disable
     # grant minting (dispatch omits the grant; CLI falls back to the MAC
     # default). The 1Password item's `password` field holds the PEM.
@@ -1099,7 +1099,7 @@ macosFleet:
     hostCPU: 8
     hostMemoryMB: 14336
     maxPods: 3
-  # Per-account cache volumes (spec #76). When gib > 0, bootstrap
+  # Per-account cache volumes. When gib > 0, bootstrap
   # provisions a quota-bounded APFS volume of that many GiB on each Mac
   # mini to hold per-account cache-volume images, and turns the feature on
   # in tart-kubelet (--runner-cache-root). The quota is the aggregate

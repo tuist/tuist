@@ -76,7 +76,7 @@ jobs:
           # set by Tart and the host CPU model leaks via sysctl.
           sysctl -n machdep.cpu.brand_string
 
-      - name: Cache volume — host/guest diagnostics (spec #76)
+      - name: Cache volume — host/guest diagnostics
         run: |
           set -uo pipefail
           echo "=== dispatch-poll.sh mount-gate log (guest side) ==="
@@ -88,10 +88,10 @@ jobs:
           echo "=== APFS volumes by label ==="
           diskutil list 2>/dev/null | grep -i "tuist" || echo "(no tuist-* APFS volume visible in the guest)"
 
-      - name: Cache volume — state + marker persistence (spec #76)
+      - name: Cache volume — state + marker persistence
         run: |
           set -uo pipefail
-          echo "=== per-account cache volume (spec #76) — guest-side state ==="
+          echo "=== per-account cache volume — guest-side state ==="
           echo "TUIST_XDG_CACHE_HOME  = ${TUIST_XDG_CACHE_HOME:-<unset>}"
           echo "TUIST_CACHE_MAX_BYTES = ${TUIST_CACHE_MAX_BYTES:-<unset>}"
           if [ -n "${TUIST_CACHE_SIGNING_GRANT:-}" ]; then
@@ -125,7 +125,7 @@ jobs:
           echo "  wrote ${marker}"
           du -sh "${root}/tuist/"* 2>/dev/null | sed 's/^/  /' || true
 
-      - name: Benchmark — tuist generate tuist (spec #76)
+      - name: Benchmark — tuist generate tuist
         if: ${{ inputs.mode == 'benchmark' }}
         run: |
           set -euo pipefail

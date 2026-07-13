@@ -269,7 +269,7 @@ type Config struct {
 
 	// RunnerCacheVolumeGiB, when > 0, provisions a dedicated quota-bounded
 	// APFS volume (mounted at /Volumes/tuist-runner-cache) that holds the
-	// per-account cache-volume images (spec #76), and passes
+	// per-account cache-volume images, and passes
 	// `--runner-cache-root` to tart-kubelet so the feature turns on. The
 	// quota is the aggregate ceiling for ALL cache volumes on the host: it
 	// is the filesystem-enforced bound that statically encodes the priority
@@ -801,7 +801,7 @@ func renderLaunchdPlist(cfg Config) string {
 	if cfg.VNCRelayPort > 0 {
 		vncRelayPortArg = fmt.Sprintf("\n    <string>--vnc-relay-port=%d</string>", cfg.VNCRelayPort)
 	}
-	// Turn on per-account cache volumes (spec #76) when the fleet provisioned
+	// Turn on per-account cache volumes when the fleet provisioned
 	// a runner-cache volume. --runner-cache-root points at the auto-mounted
 	// quota volume; --cache-volume-cap-gib carries the per-master cap when
 	// the fleet overrides tart-kubelet's default.
@@ -1575,7 +1575,7 @@ const runnerCacheVolumeName = "tuist-runner-cache"
 const runnerCacheMountPoint = "/Volumes/" + runnerCacheVolumeName
 
 // installRunnerCacheVolume provisions the quota-bounded APFS volume that holds
-// per-account cache-volume images (spec #76). No-op when the fleet hasn't
+// per-account cache-volume images. No-op when the fleet hasn't
 // opted in (RunnerCacheVolumeGiB == 0). Idempotent: it skips when the volume
 // is already mounted, so re-provisioning never grows/shrinks a live volume.
 //

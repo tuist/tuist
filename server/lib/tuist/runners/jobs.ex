@@ -252,8 +252,8 @@ defmodule Tuist.Runners.Jobs do
 
   @doc """
   Like `pick_queued/3` but returns up to `k` oldest queued candidates
-  (deterministically ordered), for dispatch-time volume-affinity scoring
-  (spec #76). The server prefers the oldest candidate whose account is
+  (deterministically ordered), for dispatch-time volume-affinity scoring.
+  The server prefers the oldest candidate whose account is
   affine to the polling runner's node, within an age tolerance of the
   head; the deterministic ordering keeps concurrent pollers converging on
   the same set. Returns `{:ok, [candidate]}` (possibly one) or

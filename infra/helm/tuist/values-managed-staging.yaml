@@ -99,7 +99,7 @@ server:
 
   appUrl: https://staging.tuist.dev
 
-  # Cache-signing grant key (spec #76): sync the Ed25519 PEM from the
+  # Cache-signing grant key: sync the Ed25519 PEM from the
   # TUIST_CACHE_GRANT_PRIVATE_KEY 1Password item so dispatch mints
   # account-scoped cache grants for runner jobs.
   externalSecrets:
@@ -450,7 +450,7 @@ ovhFleet:
 macosFleet:
   enabled: true
   replicas: 1
-  # Per-account cache volumes (spec #76), validated on staging first.
+  # Per-account cache volumes, validated on staging first.
   # 40 GiB quota holds ~2 masters at the 20 GiB default cap — enough for
   # the 1-2 accounts staging runs. Operator-wide, so it also provisions a
   # (harmless, unused) volume on the xcresult host.

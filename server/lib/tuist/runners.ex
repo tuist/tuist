@@ -92,7 +92,7 @@ defmodule Tuist.Runners do
   @drain_eligible_label "tuist.dev/drain-eligible"
   @max_claim_attempts_per_dispatch 16
 
-  # Dispatch-time volume affinity (spec #76). `pick_queued` fetches the K
+  # Dispatch-time volume affinity. `pick_queued` fetches the K
   # oldest queued jobs; the server hands the polling runner the oldest one
   # affine to its node only if that job's enqueue time is within the age
   # tolerance of the queue head, else the head. Both are configuration,
@@ -345,7 +345,7 @@ defmodule Tuist.Runners do
              workflow_job_id: candidate.workflow_job_id,
              fleet_on_cluster_network: Catalog.fleet_on_cluster_network?(fleet_name),
              fleet_platform: Catalog.fleet_platform(fleet_name),
-             # Per-account cache-signing grant (spec #76). nil when grant
+             # Per-account cache-signing grant. nil when grant
              # minting is unconfigured; the runner then falls back to the
              # MAC default and only the binaries cache re-pulls.
              cache_signing_grant: CacheGrant.mint(candidate.account_id)

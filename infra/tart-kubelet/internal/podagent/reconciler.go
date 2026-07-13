@@ -110,7 +110,7 @@ type Reconciler struct {
 	// — when nil, the reconciler just surfaces the error.
 	GC *Collector
 
-	// Volumes manages per-account cache-volume images (spec #76). Optional
+	// Volumes manages per-account cache-volume images. Optional
 	// — when nil or disabled (no runner-cache root provisioned on this
 	// host), every VM boots on the status-quo cold path and the volume
 	// lifecycle no-ops.
@@ -454,7 +454,7 @@ func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
 	// pull/clone time the boot histogram (which starts at `tart run`) can't.
 	podProvisionDelaySeconds.WithLabelValues(pool).Observe(time.Since(pod.CreationTimestamp.Time).Seconds())
 
-	// Per-account cache volume (spec #76). Allocate an EMPTY per-VM branch dir
+	// Per-account cache volume. Allocate an EMPTY per-VM branch dir
 	// and share it into the guest as a writable virtio-fs mount at the cache
 	// root — no account data, no prediction. The dispatched account's master
 	// is clonefiled into the branch after the server stamps the runner-account
@@ -1407,7 +1407,7 @@ type Entry struct {
 	VNCRelayTokenHash string
 
 	// Volume is the per-account cache-volume branch attached to this VM at
-	// boot (spec #76). Zero value (Attached false) means the VM booted on
+	// boot. Zero value (Attached false) means the VM booted on
 	// the cold path; the finalize + cleanup steps then no-op.
 	Volume VolumeAttachment
 	// VolumeStatusDir is the host path of the writable share the guest

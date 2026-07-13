@@ -271,7 +271,7 @@ defmodule Tuist.RunnersTest do
       refute "shape-linux-4vcpu-16gb" in labels
     end
 
-    test "includes the minted cache signing grant in the dispatch result (spec #76)" do
+    test "includes the minted cache signing grant in the dispatch result" do
       account = account_fixture()
       candidate = candidate_with_label(account, "tuist-default")
       stub_dispatch_path(account, candidate, self())
@@ -285,7 +285,7 @@ defmodule Tuist.RunnersTest do
                Runners.dispatch_for_sa("tuist-runners", "pod-1")
     end
 
-    test "records volume affinity for the polling node on a successful claim (spec #76)" do
+    test "records volume affinity for the polling node on a successful claim" do
       account = account_fixture()
       candidate = candidate_with_label(account, "tuist-default")
       test_pid = self()

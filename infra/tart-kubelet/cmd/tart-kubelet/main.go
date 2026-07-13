@@ -116,7 +116,7 @@ func main() {
 	flag.IntVar(&vncRelayPort, "vnc-relay-port", envIntOr("TART_KUBELET_VNC_RELAY_PORT", 0),
 		"Host port to bind and advertise for dashboard VNC relays. 0 chooses an ephemeral port. Managed tailnet deployments use a fixed port that is declared on the per-Mac Tailscale egress Service.")
 	flag.StringVar(&runnerCacheRoot, "runner-cache-root", envOr("TART_KUBELET_RUNNER_CACHE_ROOT", ""),
-		"Mount point of the quota-bounded APFS volume that holds per-account cache-volume images (spec #76). "+
+		"Mount point of the quota-bounded APFS volume that holds per-account cache-volume images. "+
 			"Empty (default) disables cache volumes entirely: every VM boots on the status-quo cold path. "+
 			"Host bootstrap sets this to the runner-cache volume it provisions (e.g. /var/lib/tart-cache).")
 	flag.IntVar(&cacheVolumeCapGiB, "cache-volume-cap-gib", envIntOr("TART_KUBELET_CACHE_VOLUME_CAP_GIB", 20),
@@ -280,7 +280,7 @@ func main() {
 		}
 	}
 
-	// Per-account cache volumes (spec #76). Only active when the host was
+	// Per-account cache volumes. Only active when the host was
 	// provisioned with a runner-cache root; otherwise a disabled manager
 	// no-ops and every VM boots on the cold path. Registered as a manager
 	// Runnable so its watermark evictor + observability sampler run on a

@@ -1,7 +1,7 @@
 defmodule Tuist.Repo.Migrations.CreateRunnerVolumeAffinities do
   use Ecto.Migration
 
-  # Dispatch-time volume affinity (spec #76). One row per
+  # Dispatch-time volume affinity. One row per
   # (node_name, account_id, volume_name) recording when a job of that
   # account last ran on that Mac host. It is the "this host recently ran
   # this account, so it likely holds its cache volume" signal: dispatch

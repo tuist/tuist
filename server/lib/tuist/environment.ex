@@ -500,7 +500,7 @@ defmodule Tuist.Environment do
 
   @doc """
   PEM-encoded Ed25519 PRIVATE key the server uses to sign per-account
-  cache-signing grants delivered to runner jobs (spec #76). The runner's
+  cache-signing grants delivered to runner jobs. The runner's
   Tuist EE CLI verifies the grant OFFLINE with the matching public half
   baked into the binary, then scopes cached-artifact signatures to the
   account instead of the machine MAC so a warm cache volume's binaries

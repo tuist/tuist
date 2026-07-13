@@ -90,7 +90,7 @@ public struct GenerateService {
         let path = try await self.path(path)
 
         #if canImport(TuistCacheEE)
-            /// Byte budget for the LRU self-prune (spec #76). On a runner the
+            /// Byte budget for the LRU self-prune. On a runner the
             /// dispatch-poll sets this to ~80% of the mounted cache volume so an
             /// oversized working set degrades to a hot tier instead of churning
             /// at ENOSPC; unset elsewhere, so the prune stays age/count-only.

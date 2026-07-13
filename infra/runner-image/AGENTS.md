@@ -34,7 +34,7 @@ runtime — no service, sudo entry, or auto-login targets it.
   Succeeded — the watcher's GC + warm-pool refill are gated on
   that transition.
   `dispatch-poll.sh` also drives the **per-account cache-volume** flow
-  (spec #76, Approach B — materialize after dispatch). tart-kubelet attaches
+  (Approach B — materialize after dispatch). tart-kubelet attaches
   an *empty* per-VM branch directory as a writable virtio-fs share at
   `/Volumes/My Shared Files/cache`; on boot the guest points
   `TUIST_XDG_CACHE_HOME` at it and reads the host-staged per-branch byte

@@ -337,7 +337,7 @@ spec:
             - --tartkubelet-max-pods={{ .Values.macosFleet.tartKubelet.maxPods | default 3 }}
             {{- with .Values.macosFleet.runnerCacheVolume }}
             {{- if .gib }}
-            # Per-account cache volumes (spec #76): bootstrap provisions a
+            # Per-account cache volumes: bootstrap provisions a
             # quota-bounded APFS volume of this many GiB on each Mac mini
             # (the aggregate ceiling that keeps cache volumes from ever
             # starving the VM image path) and turns the feature on in

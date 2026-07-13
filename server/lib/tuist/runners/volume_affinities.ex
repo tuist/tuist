@@ -1,6 +1,6 @@
 defmodule Tuist.Runners.VolumeAffinities do
   @moduledoc """
-  Dispatch-time volume affinity (spec #76): the query API over
+  Dispatch-time volume affinity: the query API over
   `runner_volume_affinities`.
 
   Affinity is a pure dispatch-scoring policy over the shared warm pool — no

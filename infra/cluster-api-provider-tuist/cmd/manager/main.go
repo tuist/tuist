@@ -203,7 +203,7 @@ func main() {
 			"macosFleet.vmCachePrivateNetwork.cidr.")
 	flag.IntVar(&runnerCacheVolumeGiB, "runner-cache-volume-gib", 0,
 		"When > 0, bootstrap provisions a quota-bounded APFS volume of this many GiB on each Mac mini "+
-			"to hold per-account cache-volume images (spec #76) and turns the feature on in tart-kubelet. "+
+			"to hold per-account cache-volume images and turns the feature on in tart-kubelet. "+
 			"This quota is the aggregate ceiling for all cache volumes on the host — the filesystem bound "+
 			"that keeps cache volumes from ever starving the VM image path. 0 (default) leaves the feature "+
 			"off. Flows from the chart's macosFleet.runnerCacheVolume.gib.")

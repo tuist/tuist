@@ -13,7 +13,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
-// Per-account cache volumes for the macOS runner fleet (spec #76).
+// Per-account cache volumes for the macOS runner fleet.
 //
 // A VolumeManager owns the lifecycle of per-account cache masters kept as
 // APFS directory trees under a single quota-bounded runner-cache root. The

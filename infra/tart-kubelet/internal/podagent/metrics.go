@@ -124,7 +124,7 @@ var vmProvisionWorkSeconds = prometheus.NewHistogramVec(
 )
 
 // cacheVolumeOutcomeTotal counts how per-account cache-volume branches end
-// their lives (spec #76): promoted (became the account's new master),
+// their lives: promoted (became the account's new master),
 // discarded (read-only/clean/failed/never-dispatched job), or none (no volume
 // was attached — feature off or admission declined). promoted/(promoted+
 // discarded) is the warmth-capture rate.

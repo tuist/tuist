@@ -83,7 +83,7 @@ if [ -z "${SA_TOKEN}" ]; then
   exit 1
 fi
 
-# Per-account cache volume (spec #76, Approach B). tart-kubelet attaches an
+# Per-account cache volume (Approach B). tart-kubelet attaches an
 # EMPTY per-VM branch directory as a writable virtio-fs share at boot; after
 # dispatch binds this VM to an account, the host clonefiles that account's cache
 # master into the branch and writes a cache-ready marker. The guest points the
@@ -230,7 +230,7 @@ while true; do
         echo "$(date -u +%FT%TZ) dispatch-poll: routing cache to runner-local endpoint ${cache_endpoint}"
         export TUIST_CACHE_ENDPOINT="${cache_endpoint}"
       fi
-      # Server-signed cache grant (spec #76): a short-lived token scoping cache
+      # Server-signed cache grant: a short-lived token scoping cache
       # artifact signatures to this account instead of the machine MAC, so a
       # warm volume's binaries validate as local hits across VMs. Same value-
       # safety as the JIT (a base64url token, no embedded quotes). The Tuist EE

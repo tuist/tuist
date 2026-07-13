@@ -167,7 +167,7 @@ type ScalewayAppleSiliconMachineReconciler struct {
 	TartKubeletMaxPods      int
 
 	// RunnerCacheVolumeGiB / CacheVolumeMasterCapGiB turn on per-account
-	// cache volumes (spec #76) on the Mac fleet: bootstrap provisions a
+	// cache volumes on the Mac fleet: bootstrap provisions a
 	// quota-bounded APFS volume of RunnerCacheVolumeGiB and passes
 	// --runner-cache-root (+ optional per-master cap) to tart-kubelet. 0
 	// leaves the feature off. See the bootstrap.Config fields of the same
@@ -778,7 +778,7 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			HostCPU:            hostCPUFor(machine, r.TartKubeletHostCPU),
 			HostMemoryMB:       hostMemoryMBFor(machine, r.TartKubeletHostMemoryMB),
 			MaxPods:            r.TartKubeletMaxPods,
-			// Per-account cache volumes (spec #76) must ride the drift loop
+			// Per-account cache volumes must ride the drift loop
 			// too: the volume flag + provisioning land on already-bootstrapped
 			// minis via UpdateTartKubelet, not first-boot Run. Omitting these
 			// left the plist without --runner-cache-root (tart-kubelet booted

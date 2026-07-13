@@ -1,6 +1,6 @@
 defmodule Tuist.Runners.VolumeAffinity do
   @moduledoc """
-  Dispatch-time volume affinity record (spec #76): "account X last ran a
+  Dispatch-time volume affinity record: "account X last ran a
   job on host `node_name` at `last_run_at`, so that host likely holds X's
   cache volume." See
   `priv/repo/migrations/20260710190000_create_runner_volume_affinities.exs`

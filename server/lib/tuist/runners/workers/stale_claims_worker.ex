@@ -77,7 +77,7 @@ defmodule Tuist.Runners.Workers.StaleClaimsWorker do
     end
 
     # Opportunistically prune volume-affinity rows past their retention
-    # window (spec #76). Cheap indexed range delete, usually 0 rows;
+    # window. Cheap indexed range delete, usually 0 rows;
     # piggybacks on this periodic runner-maintenance sweep rather than
     # adding a separate cron entry.
     VolumeAffinities.prune()
