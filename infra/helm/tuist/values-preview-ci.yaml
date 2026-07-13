@@ -1,0 +1,24 @@
+# Placeholder hostnames and content used only to render the complete preview
+# overlay during continuous integration. The deploy workflow supplies the real
+# per-preview values at runtime.
+server:
+  appUrl: https://preview-validation.preview.tuist.dev
+  ingress:
+    enabled: true
+    host: preview-validation.preview.tuist.dev
+
+registry:
+  publicHost: registry-preview-validation.preview.tuist.dev
+  serverUrl: https://preview-validation.preview.tuist.dev
+  ingress:
+    enabled: true
+    host: registry-preview-validation.preview.tuist.dev
+
+kuraRuntime:
+  instance:
+    name: preview-validation-kura
+    publicHost: kura-preview-validation.preview.tuist.dev
+    extensionScript: |
+      function authenticate()
+        return { deny = { status = 401, message = "Validation only" } }
+      end

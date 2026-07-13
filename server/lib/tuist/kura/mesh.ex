@@ -26,6 +26,19 @@ defmodule Tuist.Kura.Mesh do
   alias X509.Certificate.Extension
 
   @kura_namespace "kura"
+  # Mesh heartbeat cadence the control plane advertises back to enrolled
+  # nodes. Independent from the registration heartbeat: registration advertises
+  # the node's client-facing endpoint (public plane), the mesh heartbeat proves
+  # mesh-membership liveness (peer plane).
+  @mesh_heartbeat_interval_seconds 60
+  # How long an enrolled node may go without a mesh heartbeat (an enrollment
+  # also counts as proof of life) before it is withheld from the mesh. This is
+  # the mesh's entire safety margin: the moment a peer is withheld, every
+  # node's next heartbeat drops it from the dynamic view and its queued
+  # replication messages are dropped immediately, so the window stays many
+  # missed heartbeats wide to keep a blip from costing a full re-bootstrap
+  # on recovery.
+  @stale_peer_after_minutes 30
   # There is no CRL/OCSP in Kura's peer verifier, so a node is revoked by no
   # longer re-signing its CSR and letting the leaf expire: the leaf lifetime is
   # the revocation latency. Nodes re-enroll on each boot today, so the leaf is
@@ -33,6 +46,9 @@ defmodule Tuist.Kura.Mesh do
   # support zero-downtime in-process rotation.
   @leaf_validity_days 30
   @leaf_renew_after_seconds 1_296_000
+
+  def mesh_heartbeat_interval_seconds, do: @mesh_heartbeat_interval_seconds
+  def stale_peer_after_minutes, do: @stale_peer_after_minutes
 
   @doc """
   Reads the account's controller-managed peer CA (the `kura-<handle>-peer-ca`
@@ -54,9 +70,9 @@ defmodule Tuist.Kura.Mesh do
 
   defp account_cluster_opts(%Account{} = account) do
     account.id
-    |> Kura.list_servers_for_account()
-    |> Enum.find_value({:error, :ca_unavailable}, fn server ->
-      case Regions.get(server.region) do
+    |> Kura.server_regions_for_account()
+    |> Enum.find_value({:error, :ca_unavailable}, fn region_id ->
+      case Regions.get(region_id) do
         %Regions{provisioner_config: config} -> {:ok, Map.get(config, :kubernetes_client, [])}
         _ -> nil
       end
@@ -88,7 +104,12 @@ defmodule Tuist.Kura.Mesh do
          ca_certificate_pem: certificate.ca_certificate_pem,
          not_after: certificate.not_after,
          renew_after_seconds: @leaf_renew_after_seconds,
-         peers: mesh_peers(account, exclude: node_url)
+         peers: mesh_peers(account, exclude: node_url),
+         # Split out so the node can seed only platform-stable endpoints into
+         # its static peer config; volatile (self-hosted) membership flows
+         # exclusively through the heartbeat channel, so removals propagate
+         # without a restart.
+         managed_peers: managed_peer_urls(account)
        }}
     end
   end
@@ -152,7 +173,10 @@ defmodule Tuist.Kura.Mesh do
   def self_hosted_peer_urls(%Account{} = account) do
     Repo.all(
       from(e in AccountCacheEndpoint,
-        where: e.account_id == ^account.id and e.technology == :kura_self_hosted_peer,
+        where:
+          e.account_id == ^account.id and e.technology == :kura_self_hosted_peer and
+            is_nil(e.deactivated_at),
+        order_by: e.url,
         select: e.url
       )
     )
@@ -160,9 +184,9 @@ defmodule Tuist.Kura.Mesh do
 
   defp managed_peer_urls(%Account{} = account) do
     account.id
-    |> Kura.list_servers_for_account()
-    |> Enum.map(fn server ->
-      case Regions.get(server.region) do
+    |> Kura.server_regions_for_account()
+    |> Enum.map(fn region_id ->
+      case Regions.get(region_id) do
         %Regions{} = region -> Regions.peer_public_url(account.name, region)
         _ -> nil
       end
@@ -170,10 +194,91 @@ defmodule Tuist.Kura.Mesh do
     |> Enum.reject(&is_nil/1)
   end
 
+  @doc """
+  Records a mesh heartbeat from an enrolled self-hosted node: refreshes the
+  liveness marker (`updated_at`) of the node's peer row, but only while the
+  row is active. Returns the node's mesh view — whether it is currently a
+  member and the current peer list, so heartbeats double as the peer-refresh
+  channel (otherwise peers only refresh at certificate renewal).
+
+  A deactivated, purged, or never-enrolled node is told `mesh_member: false`
+  and recovers by re-enrolling — enrollment is the only path that creates or
+  restores membership, and a recovery re-enrollment is the node's signal to
+  re-bootstrap the data it missed while out of the mesh.
+
+  The membership check and the marker bump are a single statement so a
+  concurrent sweep or purge cannot be overwritten (or answered for) between a
+  read and a write.
+  """
+  def heartbeat_node(%Account{} = account, node_url) when is_binary(node_url) do
+    {count, _} =
+      Repo.update_all(
+        from(e in AccountCacheEndpoint,
+          where:
+            e.account_id == ^account.id and e.technology == :kura_self_hosted_peer and
+              e.url == ^node_url and is_nil(e.deactivated_at)
+        ),
+        set: [updated_at: now()]
+      )
+
+    %{mesh_member: count > 0, peers: mesh_peers(account, exclude: node_url)}
+  end
+
+  @doc """
+  Sweeps self-hosted peers that stopped sending mesh heartbeats. Peers whose
+  liveness marker is older than the staleness window are deactivated —
+  withheld from the mesh but kept, so a recovery re-enrollment from the
+  returning node reactivates the row in place. Rows deactivated for longer
+  than the peer-certificate lifetime are deleted: the node's leaf can no
+  longer be valid, so rejoining requires re-enrollment (which recreates the
+  row) anyway.
+
+  Returns `%{deactivated: endpoints, purged: endpoints}`.
+
+  Both statements re-check their predicate atomically (single
+  `UPDATE`/`DELETE` with `RETURNING`), so a heartbeat or enrollment landing
+  concurrently is never overwritten by a stale read.
+
+  Deactivation cascades on its own: the peer disappears from enrollment and
+  heartbeat responses, so every node's next heartbeat drops it from the
+  dynamic peer set and its queued outbox messages are pruned after the grace
+  window.
+  """
+  def sweep_stale_self_hosted_peers(opts \\ []) do
+    stale_after_minutes = Keyword.get(opts, :stale_after_minutes, @stale_peer_after_minutes)
+    now = now()
+    cutoff = DateTime.add(now, -stale_after_minutes * 60, :second)
+
+    {_count, deactivated} =
+      Repo.update_all(
+        from(e in AccountCacheEndpoint,
+          where:
+            e.technology == :kura_self_hosted_peer and is_nil(e.deactivated_at) and
+              e.updated_at < ^cutoff,
+          select: e
+        ),
+        set: [deactivated_at: now]
+      )
+
+    purge_cutoff = DateTime.add(now, -@leaf_validity_days * 24 * 60 * 60, :second)
+
+    {_count, purged} =
+      Repo.delete_all(
+        from(e in AccountCacheEndpoint,
+          where: e.technology == :kura_self_hosted_peer and e.deactivated_at < ^purge_cutoff,
+          select: e
+        )
+      )
+
+    %{deactivated: deactivated || [], purged: purged || []}
+  end
+
   # The enrolled node's internal peer URL, recorded only for mesh discovery.
   # It is never a client-facing cache endpoint (that is the node's advertised
   # HTTP URL, reported via registration heartbeats), so it is stored under the
   # `kura_self_hosted_peer` technology and excluded from CLI endpoint lookup.
+  # Re-enrollment bumps `updated_at` (the row's liveness marker for the stale
+  # sweep) and reactivates a row deactivated while the node was away.
   defp register_node_endpoint(%Account{} = account, node_url) do
     %AccountCacheEndpoint{}
     |> AccountCacheEndpoint.create_changeset(%{
@@ -181,7 +286,10 @@ defmodule Tuist.Kura.Mesh do
       url: node_url,
       technology: :kura_self_hosted_peer
     })
-    |> Repo.insert(on_conflict: :nothing, conflict_target: [:account_id, :technology, :url])
+    |> Repo.insert(
+      on_conflict: [set: [updated_at: now(), deactivated_at: nil]],
+      conflict_target: [:account_id, :technology, :url]
+    )
   end
 
   defp parse_csr(csr_pem) when is_binary(csr_pem) do
@@ -215,4 +323,6 @@ defmodule Tuist.Kura.Mesh do
     |> DateTime.add(days * 24 * 60 * 60, :second)
     |> DateTime.truncate(:second)
   end
+
+  defp now, do: DateTime.truncate(DateTime.utc_now(), :second)
 end

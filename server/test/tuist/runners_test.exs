@@ -236,9 +236,10 @@ defmodule Tuist.RunnersTest do
         {:ok, %{installation_id: 42, client_url: "https://github.com"}}
       end)
 
-      expect(GitHubClient, :generate_jit_config, fn _installation, _login, %{labels: labels, name: runner_name} ->
+      expect(GitHubClient, :generate_jit_config, fn _installation, login, %{labels: labels, name: runner_name} ->
         send(test_pid, {:jit_labels, labels})
         send(test_pid, {:jit_runner_name, runner_name})
+        send(test_pid, {:jit_login, login})
         {:ok, %{encoded_jit_config: "jit-blob", runner_name: runner_name}}
       end)
 
@@ -322,6 +323,24 @@ defmodule Tuist.RunnersTest do
       reject(&VolumeAffinities.record/2)
 
       assert {:ok, %{workflow_job_id: 90_001}} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+    end
+
+    test "registers the runner under the repo's GitHub org login, not the Tuist account handle" do
+      account = account_fixture()
+      # The Tuist handle differs from the GitHub org that owns the repo.
+      # The org-scoped JIT endpoint must be hit with the GitHub org login
+      # (repo owner), or GitHub 404s and the job churns.
+      candidate =
+        account
+        |> candidate_with_label("tuist-default")
+        |> Map.put(:repository, "octo-github-org/mobile-app")
+
+      stub_dispatch_path(account, candidate, self())
+
+      assert {:ok, _} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+
+      assert_receive {:jit_login, "octo-github-org"}
+      refute account.name == "octo-github-org"
     end
 
     test "keeps generated GitHub runner names within the API limit" do

@@ -613,15 +613,25 @@ func parseDFCapacityPercent(out []byte) (int, error) {
 // pgrep against the actual command line is the only reading that
 // flips the moment the VM exits.
 //
+// The name is anchored to an argument boundary: pgrep -f does an
+// unanchored regex match over the whole command line, so a bare
+// `tart run <name>` query would also match a running `tart run <name>-2`
+// (both are valid VMNameForPod outputs) — reporting a stopped VM as live
+// and, in the GC, keeping its disk pinned forever. A running VM's command
+// line is `tart run <name>[ <flags>…]`, so the name is followed by
+// end-of-line or a space; `($| )` pins exactly that. QuoteMeta keeps a
+// name containing a regex metacharacter (e.g. a '.') literal.
+//
 // Returns false (no error) when no matching process exists; returns
 // an error only on unexpected pgrep failures.
 func (c *Client) IsRunning(ctx context.Context, name string) (bool, error) {
-	cmd := exec.CommandContext(ctx, "pgrep", "-f", fmt.Sprintf("tart run %s", name))
+	pattern := fmt.Sprintf(`tart run %s($| )`, regexp.QuoteMeta(name))
+	cmd := exec.CommandContext(ctx, "pgrep", "-f", pattern)
 	if err := cmd.Run(); err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 1 {
 			return false, nil
 		}
-		return false, fmt.Errorf("pgrep tart run %s: %w", name, err)
+		return false, fmt.Errorf("pgrep %q: %w", pattern, err)
 	}
 	return true, nil
 }

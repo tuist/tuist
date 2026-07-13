@@ -195,12 +195,18 @@ async fn run_with_config(
     spawn_runtime_metrics_task(state.clone());
     spawn_drain_signal_task(state.clone());
     spawn_multipart_janitor_task(state.clone());
+    spawn_action_cache_expiry_task(state.clone());
     spawn_tmp_dir_metrics_task(state.clone());
     spawn_geoip_refresh_task(state.clone());
     spawn_segment_promotion_task(state.clone());
 
     // When the node enrolled on boot, keep its peer certificate fresh in-process
-    // so a short leaf does not require a restart.
+    // so a short leaf does not require a restart, and prove mesh-membership
+    // liveness to the control plane (which also refreshes the peer list at
+    // heartbeat cadence instead of at certificate renewal). Managed pods don't
+    // enroll; they sync the peer view read-only, with serving gated on the
+    // first successful fetch so a pod booting blind never accepts writes
+    // without enqueuing replication for peers it cannot see.
     if let Some(enrollment) = enrollment
         && state.config.peer_tls.is_some()
     {
@@ -208,6 +214,15 @@ async fn run_with_config(
             .dynamic_peers
             .store(std::sync::Arc::new(enrollment.peers.clone()));
         spawn_cert_renewal_task(state.clone(), enrollment.renew_after_seconds);
+        crate::mesh_heartbeat::spawn(
+            state.clone(),
+            crate::mesh_heartbeat::MeshHeartbeatConfig::from_enrollment(&enrollment),
+        );
+    } else if state.config.peer_tls.is_some()
+        && let Some(config) = crate::mesh_heartbeat::MeshPeersSyncConfig::from_config(&state.config)
+    {
+        state.runtime.require_peer_view();
+        crate::mesh_heartbeat::spawn_peers_sync(state.clone(), config);
     }
 
     let address = SocketAddr::from((Ipv4Addr::UNSPECIFIED, state.config.port));
@@ -611,6 +626,48 @@ fn spawn_runtime_metrics_task(state: Arc<AppState>) {
     );
 }
 
+/// Expires REAPI action-cache entries whose write time predates the TTL.
+/// Clients publish new keys on every source change and nothing else removes
+/// the stale ones, so this recency sweep is what bounds a namespace's
+/// keyspace (and with it the snapshot reconcile scan and index memory). An
+/// expired entry that is still genuinely used costs its next cold reader one
+/// recompile + republish, which refreshes it for the whole fleet. Node-local
+/// by design: peers apply the same rule over the replicated version_ms and
+/// converge on their own. The manifest-keyspace walk is a full scan, so it
+/// runs on the blocking pool at a long interval.
+fn spawn_action_cache_expiry_task(state: Arc<AppState>) {
+    use crate::constants::{
+        REAPI_ACTION_CACHE_EXPIRY_INTERVAL_MS, REAPI_ACTION_CACHE_EXPIRY_MAX_DELETES,
+        REAPI_ACTION_CACHE_TTL_MS,
+    };
+    let interval = Duration::from_millis(REAPI_ACTION_CACHE_EXPIRY_INTERVAL_MS);
+    tokio::spawn(
+        async move {
+            loop {
+                tokio::time::sleep(interval).await;
+                let sweep_state = state.clone();
+                let cutoff_ms = crate::utils::now_ms().saturating_sub(REAPI_ACTION_CACHE_TTL_MS);
+                let expired = tokio::task::spawn_blocking(move || {
+                    sweep_state.store.expire_stale_action_cache_entries(
+                        cutoff_ms,
+                        REAPI_ACTION_CACHE_EXPIRY_MAX_DELETES,
+                    )
+                })
+                .await;
+                match expired {
+                    Ok(Ok(0)) => {}
+                    Ok(Ok(expired)) => {
+                        info!(expired, cutoff_ms, "expired stale action-cache entries");
+                    }
+                    Ok(Err(error)) => warn!("action-cache expiry sweep failed: {error}"),
+                    Err(error) => warn!("action-cache expiry task panicked: {error}"),
+                }
+            }
+        }
+        .in_current_span(),
+    );
+}
+
 fn spawn_multipart_janitor_task(state: Arc<AppState>) {
     let interval = Duration::from_millis(state.config.multipart_janitor_interval_ms);
     let ttl_ms = state.config.multipart_upload_ttl_ms;
@@ -715,7 +772,7 @@ fn spawn_cert_renewal_task(state: Arc<AppState>, initial_renew_after_seconds: u6
             loop {
                 tokio::time::sleep(Duration::from_secs(renew_after)).await;
                 match crate::enrollment::renew().await {
-                    Ok(outcome) => match apply_renewed_certs(&state, &outcome).await {
+                    Ok(outcome) => match apply_renewed_enrollment(&state, &outcome).await {
                         Ok(()) => {
                             info!("renewed peer certificate");
                             renew_after = outcome.renew_after_seconds.max(60);
@@ -736,7 +793,7 @@ fn spawn_cert_renewal_task(state: Arc<AppState>, initial_renew_after_seconds: u6
     );
 }
 
-async fn apply_renewed_certs(
+pub(crate) async fn apply_renewed_enrollment(
     state: &Arc<AppState>,
     outcome: &crate::enrollment::EnrollmentOutcome,
 ) -> Result<(), String> {

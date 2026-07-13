@@ -382,8 +382,9 @@ defmodule Tuist.Runners do
         with {:ok, %{dispatch_label: pool_dispatch_label, runner_labels: runner_labels}} <-
                Dispatch.pool_summary_by_name(fleet_name),
              dispatch_label = pick_dispatch_label(candidate, pool_dispatch_label),
+             github_org = github_org_login(candidate, account),
              :ok <- stamp_owner_label(namespace, pod_name, account),
-             {:ok, jit, runner_name} <- mint_jit(account, sa_name, dispatch_label, runner_labels),
+             {:ok, jit, runner_name} <- mint_jit(account, github_org, sa_name, dispatch_label, runner_labels),
              :ok <- Claims.mark_running(candidate.workflow_job_id, runner_name),
              :ok <- record_running_safe(candidate.workflow_job_id, runner_name) do
           # Stamp the account label only now that dispatch has fully committed.
@@ -578,7 +579,25 @@ defmodule Tuist.Runners do
     end
   end
 
-  defp mint_jit(account, sa_name, dispatch_label, runner_labels) do
+  # The GitHub org login to register the runner under — the owner of
+  # the repo whose workflow_job we're serving. This is NOT
+  # `account.name`: a Tuist account handle can differ from the GitHub
+  # org login it's connected to, and the org-scoped JIT endpoint
+  # (`/orgs/<org>/actions/runners/generate-jitconfig`) 404s on the
+  # wrong login, stranding every job in a claim→mint-fail→requeue
+  # loop. The installation's org owns the repo, so the repo owner is
+  # the correct login; fall back to `account.name` only when the
+  # candidate carries no repository (synthetic rows).
+  defp github_org_login(%{repository: repository}, account) when is_binary(repository) do
+    case String.split(repository, "/", parts: 2) do
+      [owner, _repo] when owner != "" -> owner
+      _ -> account.name
+    end
+  end
+
+  defp github_org_login(_candidate, account), do: account.name
+
+  defp mint_jit(account, github_org, sa_name, dispatch_label, runner_labels) do
     # GitHub's `create JIT config` API caps `name` at 64 characters.
     # Earlier versions prefixed `tuist-<account.name>-` — for macOS
     # pools that fit, but the Linux pool name is longer
@@ -619,7 +638,7 @@ defmodule Tuist.Runners do
 
     with {:ok, installation} <- VCS.get_github_app_installation_for_account(account.id),
          {:ok, %{encoded_jit_config: jit, runner_name: runner_name}} <-
-           GitHubClient.generate_jit_config(installation, account.name, %{
+           GitHubClient.generate_jit_config(installation, github_org, %{
              name: runner_name,
              labels: runner_labels ++ [dispatch_label],
              work_folder: work_folder
@@ -641,6 +660,7 @@ defmodule Tuist.Runners do
       {:error, reason} ->
         Logger.error("runners: GitHub jit mint failed",
           account: account.name,
+          org: github_org,
           runner: runner_name,
           reason: inspect(reason)
         )

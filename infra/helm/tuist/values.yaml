@@ -8,6 +8,32 @@ global:
   nodeSelector: {}
   tolerations: []
 
+# Grace-period garbage collector for orphaned Hetzner block volumes (PVs left
+# Released by CNPG rebuilds, StatefulSet teardowns, etc. under the hcloud-volumes
+# Retain default). Ships to every cluster the chart is applied to. Safe to leave
+# on: dryRun only logs. After reviewing a run's logs in Grafana Cloud, set
+# dryRun=false (per env) to arm actual reaping. See templates/released-pv-reaper.yaml.
+pvReaper:
+  enabled: true
+  # dryRun logs the PVs it would reap without deleting anything. Flip to false
+  # per environment once the dry-run logs look right.
+  dryRun: true
+  schedule: "0 3 * * *"
+  # Only reap PVs that have been Released longer than this. The grace window is
+  # the recovery window for an accidental PVC deletion (default 7 days).
+  graceHours: 168
+  # Scoped to this StorageClass so node-local (scw-local-nvme) and non-CSI
+  # volumes are never touched.
+  storageClass: hcloud-volumes
+  # kubectl + jq in one image (Docker Hub, same registry as other chart images).
+  image: alpine/k8s:1.31.1
+  resources:
+    requests:
+      cpu: "25m"
+      memory: "32Mi"
+    limits:
+      memory: "64Mi"
+
 kuraController:
   enabled: false
   namespace: kura
@@ -92,6 +118,37 @@ kuraRuntime:
   image:
     repository: ghcr.io/tuist/kura
     tag: ""
+  # An optional per-release KuraInstance, rendered into `instance.namespace`
+  # (the cluster-wide namespace the controller watches). Off by default:
+  # managed environments provision Kura through the server's reconciler, which
+  # authors the CR itself, so the chart must not also own one. Previews turn it
+  # on through values-preview-kura.yaml.
+  instance:
+    enabled: false
+    # Defaults to "<release>-kura".
+    name: ""
+    namespace: kura
+    # Own the CR by the release's namespace so that deleting the preview
+    # namespace garbage-collects it (and its controller-created children in the
+    # kura namespace). Self-healing cleanup for previews; keep off if the CR's
+    # namespace equals the release namespace or the CR should outlive it.
+    ownerReferenceToReleaseNamespace: true
+    accountHandle: ""
+    tenantID: ""
+    region: ""
+    replicas: 1
+    # When true, no public endpoint is reconciled and publicHost is not
+    # required: the cache is reachable only in-cluster.
+    private: false
+    publicHost: ""
+    ingressClassName: nginx
+    storageSize: 10Gi
+    labels: {}
+    nodeSelector: {}
+    tolerations: []
+    # Lua extension, normally supplied with
+    # `--set-file kuraRuntime.instance.extensionScript=<path>`.
+    extensionScript: ""
 
 server:
   enabled: true
@@ -392,6 +449,11 @@ server:
     # migrations complete before new pods roll out. Disable for self-hosted
     # topologies that prefer a post-install Job instead.
     asHook: false
+    # Only meaningful when asHook is false. Suffixes the Job name with the
+    # release revision so an upgrade creates a new Job and Helm prunes the old
+    # one, instead of failing on the immutable `spec.template`. Off by default
+    # to keep the Job name stable for existing self-hosted installs.
+    namePerRevision: false
 
 processor:
   # Oban-backed xcactivitylog processor. Runs the same Docker image as the

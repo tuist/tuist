@@ -331,7 +331,7 @@ defmodule TuistWeb.ProjectsLive do
 
   defp create_project_form(assigns) do
     ~H"""
-    <.form id={@id} for={@form} phx-submit="create-project">
+    <.form id={@id} for={@form} phx-change="validate-project" phx-submit="create-project">
       <.modal
         id={"#{@id}-modal"}
         title={dgettext("dashboard_projects", "Create project")}
@@ -360,6 +360,8 @@ defmodule TuistWeb.ProjectsLive do
             id={"#{@id}-input"}
             field={@form[:name]}
             label={dgettext("dashboard_projects", "Name")}
+            show_required
+            required
           />
           <div style="display: flex; flex-direction: column; gap: var(--noora-spacing-2);">
             <.label
@@ -390,7 +392,11 @@ defmodule TuistWeb.ProjectsLive do
               />
             </:action>
             <:action>
-              <.button label={dgettext("dashboard_projects", "Create")} type="submit" />
+              <.button
+                label={dgettext("dashboard_projects", "Create")}
+                type="submit"
+                form={@id}
+              />
             </:action>
           </.modal_footer>
         </:footer>
@@ -423,6 +429,16 @@ defmodule TuistWeb.ProjectsLive do
 
   def handle_event("select_build_system", %{"value" => [value]}, socket) do
     {:noreply, assign(socket, selected_build_system: value)}
+  end
+
+  def handle_event("validate-project", %{"project" => params}, socket) do
+    form =
+      params
+      |> Project.create_changeset()
+      |> Map.put(:action, :validate)
+      |> to_form()
+
+    {:noreply, assign(socket, form: form)}
   end
 
   def handle_event("create-project", %{"project" => %{"name" => name}}, socket) do

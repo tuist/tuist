@@ -461,6 +461,7 @@ defmodule TuistWeb.Router do
     get "/oauth-protected-resource", WellKnownController, :oauth_protected_resource
     get "/oauth-protected-resource/*resource_path", WellKnownController, :oauth_protected_resource
     get "/mcp/server-card.json", WellKnownController, :mcp_server_card
+    get "/registry.json", WellKnownController, :registry_discovery, metadata: %{robots_txt: false}
     get "/apple-app-site-association", WellKnownController, :apple_app_site_association
     get "/assetlinks.json", WellKnownController, :assetlinks
   end
@@ -765,6 +766,8 @@ defmodule TuistWeb.Router do
 
     post "/kura/usage", KuraUsageController, :create
     post "/kura/mesh/enroll", KuraMeshController, :enroll
+    post "/kura/mesh/heartbeat", KuraMeshController, :heartbeat
+    get "/kura/mesh/peers", KuraMeshController, :peers
     post "/kura/mesh/registrations", KuraMeshController, :register
   end
 

@@ -72,10 +72,31 @@ defmodule Tuist.Registry.Swift.SyncWorker do
         end
 
       {:error, reason} ->
-        Logger.error("Failed to fetch SPI package list: #{inspect(reason)}")
-        {:error, reason}
+        if transient_fetch_error?(reason) do
+          # A transport/protocol blip talking to GitHub (connection closed
+          # mid-flight, timeout, DNS hiccup). This is a cron worker that
+          # fires every 10 minutes, so the next tick retries for free.
+          # Retrying the Oban job instead just replays the same failure up
+          # to max_attempts and pages Sentry each time for something
+          # un-actionable. Discard quietly; the warning keeps it in logs.
+          Logger.warning("Skipping SPI package list fetch after transient error: #{inspect(reason)}")
+          {:discard, reason}
+        else
+          # HTTP-status failures (403 rate/abuse limit, 5xx, an auth or
+          # scope problem) can be persistent and are worth surfacing, so
+          # they stay a hard error that retries and reports.
+          Logger.error("Failed to fetch SPI package list: #{inspect(reason)}")
+          {:error, reason}
+        end
     end
   end
+
+  # Transport and protocol errors arrive as Req exception structs; a real
+  # HTTP response maps to a `{:http_error, status}` tuple upstream and is
+  # deliberately excluded here so 403s and 5xx keep surfacing.
+  defp transient_fetch_error?(%Req.TransportError{}), do: true
+  defp transient_fetch_error?(%Req.HTTPError{}), do: true
+  defp transient_fetch_error?(_reason), do: false
 
   defp sync_package(%{scope: scope, name: name, repository_full_handle: full_handle}, token) do
     lock_key = {:package, scope, name}

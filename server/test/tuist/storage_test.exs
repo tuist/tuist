@@ -256,6 +256,32 @@ defmodule Tuist.StorageTest do
       # Then
       assert_received {^event_name, ^event_ref, %{}, %{object_key: ^object_key}}
     end
+
+    test "overrides the download filename" do
+      url = "https://tuist.io/download-url"
+      object_key = UUIDv7.generate()
+      bucket_name = UUIDv7.generate()
+      config = %{test: :config}
+      content_disposition = ~s(attachment; filename="result_bundle.aar")
+
+      expect(Environment, :s3_bucket_name, fn -> bucket_name end)
+      expect(ExAws.Config, :new, fn :s3 -> config end)
+
+      expect(ExAws.S3, :presigned_url, fn ^config,
+                                          :get,
+                                          ^bucket_name,
+                                          ^object_key,
+                                          [
+                                            query_params: [
+                                              {"response-content-disposition", ^content_disposition}
+                                            ],
+                                            expires_in: 3600
+                                          ] ->
+        {:ok, url}
+      end)
+
+      assert Storage.generate_download_url(object_key, :test, content_disposition: content_disposition) == url
+    end
   end
 
   describe "generate_upload_url/2" do
@@ -492,6 +518,28 @@ defmodule Tuist.StorageTest do
 
       # Then
       assert_received {^event_name, ^event_ref, %{duration: duration}, %{object_key: ^object_key}}
+
+      assert is_number(duration)
+    end
+  end
+
+  describe "get_object_range/3" do
+    test "obtains only the requested object bytes" do
+      event_name = Tuist.Telemetry.event_name_storage_get_object_range()
+      event_ref = :telemetry_test.attach_event_handlers(self(), [event_name])
+      object_key = UUIDv7.generate()
+      bucket_name = UUIDv7.generate()
+      config = %{test: :config}
+      operation = %S3{body: UUIDv7.generate()}
+
+      expect(Environment, :s3_bucket_name, fn -> bucket_name end)
+      expect(ExAws.Config, :new, fn :s3 -> config end)
+      expect(ExAws.S3, :get_object, fn ^bucket_name, ^object_key, [range: "bytes=0-1"] -> operation end)
+      expect(ExAws, :request, fn ^operation, _opts -> {:ok, %{body: "pb"}} end)
+
+      assert Storage.get_object_range(object_key, 0..1, :test) == {:ok, "pb"}
+
+      assert_received {^event_name, ^event_ref, %{duration: duration}, %{object_key: ^object_key, range: 0..1}}
 
       assert is_number(duration)
     end

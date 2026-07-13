@@ -42,6 +42,7 @@ defmodule Tuist.Oban.RuntimeConfig do
     {"@daily", Tuist.Billing.Workers.SyncStripeMetersWorker},
     {"* * * * *", Tuist.Kura.Reconciler},
     {"*/5 * * * *", Tuist.Kura.Workers.ExpiredRegistrationsWorker},
+    {"*/5 * * * *", Tuist.Kura.Workers.StaleSelfHostedPeersWorker},
     {"* * * * *", Tuist.Runners.Workers.StaleClaimsWorker},
     {"* * * * *", Tuist.Runners.Workers.OrphanedRunnersWorker},
     {"* * * * *", Tuist.Runners.Workers.OrphanedStampedPodsWorker},

@@ -13,9 +13,9 @@
 # infra/k8s/onboarding.md §8 for the one-time setup.
 #
 # The Kura controller is *not* installed by the per-preview release: it lives
-# in the cluster-wide `kura` namespace and is installed once per cluster by
+# in the cluster-wide `kura` namespace and is reconciled once per cluster by
 # `mise -C infra run k8s:install-kura-platform` (see
-# .github/workflows/preview-deploy.yml). That keeps a single
+# .github/workflows/preview-platform-reconcile.yml). That keeps a single
 # controller managing every preview's KuraInstance — no per-release
 # ownership of cluster-scoped resources, no Helm collisions when two
 # previews coexist, and uninstalling one preview never touches another's
@@ -26,8 +26,15 @@
 # deploy workflow before `helm upgrade`. server.kuraIntrospection.use-
 # SharedSecret routes the helper to that copy.
 #
-# Required deploy-time image pin:
-#   --set kuraRuntime.image.tag=<release>
+# The per-preview KuraInstance is rendered by this chart (see
+# templates/kura-instance.yaml) into the cluster-wide `kura` namespace, so Helm
+# owns it: `helm upgrade` patches it in place and `helm uninstall` reaps it.
+#
+# Required deploy-time pins (the deploy workflow supplies all of them):
+#   --set      kuraRuntime.image.tag=<release>
+#   --set      kuraRuntime.instance.name=<release>-kura
+#   --set      kuraRuntime.instance.publicHost=kura-<slug>.preview.tuist.dev
+#   --set-file kuraRuntime.instance.extensionScript=kura/ops/helm/kura/hooks/tuist.lua
 global:
   commonLabels:
     tuist.dev/environment: preview
@@ -59,11 +66,29 @@ server:
 
 # kuraController stays disabled in the per-preview release. The
 # cluster-wide controller is installed by
-# `mise -C infra run k8s:install-kura-platform` (called from the deploy
-# workflow). Avoids two ondemand previews fighting for ownership of the
-# kura namespace's shared resources.
+# `mise -C infra run k8s:install-kura-platform`, called from
+# .github/workflows/preview-platform-reconcile.yml. Avoids two ondemand
+# previews fighting for ownership of the kura namespace's shared resources.
 
 kuraRuntime:
   image:
     repository: ghcr.io/tuist/kura
     tag: ""
+  instance:
+    enabled: true
+    namespace: kura
+    accountHandle: tuist
+    tenantID: tuist
+    region: preview
+    replicas: 1
+    ingressClassName: nginx
+    storageSize: 10Gi
+    # Preview app pods and Kura runtime pods share the tainted preview worker
+    # pool rather than getting a dedicated Kura node pool.
+    nodeSelector:
+      role: preview
+    tolerations:
+      - key: role
+        operator: Equal
+        value: preview
+        effect: NoSchedule

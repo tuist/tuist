@@ -2108,7 +2108,13 @@ defmodule Tuist.Accounts do
     end
   end
 
-  defp kura_cache_endpoint_urls(%Account{} = account) do
+  @doc """
+  The Kura cache endpoint URLs the CLI resolves for this account.
+  Public so runner dispatch (`Tuist.Kura.runner_cache_endpoint_url/2`)
+  derives its in-cluster fallback from the exact candidate set the CLI
+  sees, rather than a parallel query that could drift.
+  """
+  def kura_cache_endpoint_urls(%Account{} = account) do
     static_urls = account |> kura_cache_endpoints() |> Enum.map(& &1.url)
     registered_urls = registered_kura_endpoint_urls(account)
 

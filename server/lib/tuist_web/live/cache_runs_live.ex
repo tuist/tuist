@@ -249,7 +249,7 @@ defmodule TuistWeb.CacheRunsLive do
   defp list_cache_runs(project_id, attrs) do
     flop_filters = [
       %{field: :project_id, op: :==, value: project_id},
-      %{field: :name, op: :in, value: ["cache"]}
+      %{field: :name, op: :==, value: "cache"}
       | build_flop_filters(Keyword.get(attrs, :filters, []))
     ]
 
