@@ -212,7 +212,7 @@ jobs:
           bs=$(python3 -c 'import time;print(int(time.time()))')
           DD=/tmp/eedd; rm -rf "$DD"
           TUIST_EE=1 mise exec -- tuist install >/tmp/inst.log 2>&1; echo "install rc=$?"
-          TUIST_EE=1 TUIST_FORCE_STATIC_LINKING=1 mise exec -- tuist generate --no-binary-cache --no-open >/tmp/genws.log 2>&1; echo "GENWS rc=$?"; tail -4 /tmp/genws.log
+          TUIST_EE=1 mise exec -- tuist generate --no-binary-cache --no-open >/tmp/genws.log 2>&1; echo "GENWS rc=$?"; tail -4 /tmp/genws.log
           TUIST_EE=1 mise exec -- tuist xcodebuild build -configuration Release -workspace Tuist.xcworkspace -scheme tuist -derivedDataPath "$DD" -destination "platform=macOS" ARCHS=arm64 ONLY_ACTIVE_ARCH=YES SKIP_INSTALL=NO CODE_SIGN_IDENTITY="" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO > /tmp/xcb.log 2>&1; brc=$?
           echo "BUILD rc=${brc} seconds=$(( $(python3 -c 'import time;print(int(time.time()))') - bs ))"
           if [ "$brc" != 0 ]; then echo "=== xcodebuild error lines ==="; grep -iE "error:|BUILD FAILED|No such module|Undefined symbol|Command .* failed|linker command failed|cannot find" /tmp/xcb.log | head -20; echo "=== xcb log tail ==="; tail -25 /tmp/xcb.log; fi
