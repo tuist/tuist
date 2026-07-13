@@ -292,13 +292,19 @@ build {
     destination = "/tmp/runner-shell-agent.py"
   }
 
+  provisioner "file" {
+    source      = "${path.root}/runner-shell-agent-supervisor.sh"
+    destination = "/tmp/runner-shell-agent-supervisor.sh"
+  }
+
   provisioner "shell" {
     inline = [
       "echo 'admin' | sudo -S install -m 0755 /tmp/inject-env.sh /opt/tuist/inject-env.sh",
       "echo 'admin' | sudo -S install -m 0755 /tmp/dispatch-poll.sh /opt/tuist/dispatch-poll.sh",
       "echo 'admin' | sudo -S install -m 0755 /tmp/metrics-poll.sh /opt/tuist/metrics-poll.sh",
       "echo 'admin' | sudo -S install -m 0755 /tmp/runner-shell-agent.py /opt/tuist/runner-shell-agent.py",
-      "rm -f /tmp/inject-env.sh /tmp/dispatch-poll.sh /tmp/metrics-poll.sh /tmp/runner-shell-agent.py"
+      "echo 'admin' | sudo -S install -m 0755 /tmp/runner-shell-agent-supervisor.sh /opt/tuist/runner-shell-agent-supervisor.sh",
+      "rm -f /tmp/inject-env.sh /tmp/dispatch-poll.sh /tmp/metrics-poll.sh /tmp/runner-shell-agent.py /tmp/runner-shell-agent-supervisor.sh"
     ]
   }
 
@@ -342,6 +348,11 @@ build {
     destination = "/tmp/dev.tuist.runner.plist"
   }
 
+  provisioner "file" {
+    source      = "${path.root}/runner-shell-agent.launchd.plist"
+    destination = "/tmp/dev.tuist.runner-shell-agent.plist"
+  }
+
   # Install as a LaunchAgent under runner's home so it loads
   # inside runner's user session (auto-login above guarantees the
   # session exists at boot). User-owned (runner:staff, 0644) per
@@ -356,7 +367,8 @@ build {
       "sudo mkdir -p /Users/runner/Library/LaunchAgents",
       "sudo chown runner:staff /Users/runner/Library /Users/runner/Library/LaunchAgents",
       "sudo install -m 0644 -o runner -g staff /tmp/dev.tuist.runner.plist /Users/runner/Library/LaunchAgents/dev.tuist.runner.plist",
-      "rm -f /tmp/dev.tuist.runner.plist",
+      "sudo install -m 0644 -o runner -g staff /tmp/dev.tuist.runner-shell-agent.plist /Users/runner/Library/LaunchAgents/dev.tuist.runner-shell-agent.plist",
+      "rm -f /tmp/dev.tuist.runner.plist /tmp/dev.tuist.runner-shell-agent.plist",
       "sudo mkdir -p /var/log/tuist-runner",
       "sudo chown runner:staff /var/log/tuist-runner"
     ]

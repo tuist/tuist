@@ -82,7 +82,9 @@ if [ -z "${SA_TOKEN}" ]; then
   exit 1
 fi
 
-if [ -x /opt/tuist/runner-shell-agent.py ]; then
+if [ "${TUIST_RUNNER_SHELL_AGENT_MANAGED_BY_LAUNCHD:-0}" = "1" ]; then
+  echo "$(date -u +%FT%TZ) dispatch-poll: runner-shell-agent managed by launchd"
+elif [ -x /opt/tuist/runner-shell-agent.py ]; then
   shell_agent_python=""
   if shell_agent_python="$(command -v python3 2>/dev/null)"; then
     :

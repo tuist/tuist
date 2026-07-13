@@ -40,11 +40,18 @@ runtime — no service, sudo entry, or auto-login targets it.
   `…/pods/<pod>/metrics` with the same SA token, dying with the VM when
   the job ends. Best-effort; never blocks the job.
 - `/opt/tuist/runner-shell-agent.py` — interactive shell bridge.
-  `dispatch-poll.sh` starts it in the background after loading the
-  projected token. It polls the server for authorized shell sessions and
+  `runner-shell-agent-supervisor.sh` runs it under a dedicated launchd
+  agent after `/etc/tuist.env` and `/etc/tuist-sa-token` are
+  materialized. It polls the server for authorized shell sessions and
   forwards a PTY in the runner VM over the server-owned WebSocket
   tunnel, so dashboard terminal access and `tuist runner ssh` attach to
   the same ephemeral job environment.
+- `/opt/tuist/runner-shell-agent-supervisor.sh` and
+  `/Users/runner/Library/LaunchAgents/dev.tuist.runner-shell-agent.plist`
+  — launchd-managed shell bridge supervisor. It owns restart behavior
+  independently from `dispatch-poll.sh` so the GitHub runner can keep
+  claiming/running jobs even if the trusted shell bridge exits and needs
+  to be restarted.
 - Homebrew `python` — installed in this layer for the trusted shell
   bridge. The Xcode base does not promise Python for customer workflows,
   but `/opt/tuist/runner-shell-agent.py` needs `python3` available in the
