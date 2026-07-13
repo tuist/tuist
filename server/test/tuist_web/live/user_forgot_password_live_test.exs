@@ -18,6 +18,13 @@ defmodule TuistWeb.UserForgotPasswordLiveTest do
       assert html =~ "Forgot your password?"
     end
 
+    test "redirects to log in when email auth is disabled", %{conn: conn} do
+      stub(Environment, :email_auth_enabled?, fn -> false end)
+
+      assert {:error, {:redirect, %{to: to}}} = live(conn, ~p"/users/reset_password")
+      assert to == ~p"/users/log_in"
+    end
+
     test "redirects if already logged in", %{conn: conn} do
       user = user_fixture(preload: [:account])
 

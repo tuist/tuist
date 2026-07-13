@@ -845,6 +845,33 @@ defmodule Tuist.Environment do
     truthy?(System.get_env("TUIST_GITHUB_AUTH_ENABLED", "1"))
   end
 
+  # Email/password sign-in and self-serve registration are built in and have no
+  # "configured?" concept, so this lever lets a self-hosted operator turn them
+  # off entirely (for example on an SSO-only instance). It gates the login form,
+  # registration, and the password-reset flow, both in the UI and server-side.
+  # There is deliberately no lockout guard: disabling this while no OAuth/SSO
+  # provider is usable leaves the instance without a login method.
+  def email_auth_enabled? do
+    truthy?(System.get_env("TUIST_EMAIL_AUTH_ENABLED", "1"))
+  end
+
+  # Google, Okta, and Apple sign-in are shown whenever the provider is
+  # configured. These levers, mirroring `github_auth_enabled?/0`, let a
+  # self-hosted operator keep a provider configured while removing it as a
+  # sign-in option (button hidden and, for the Ueberauth providers, the sign-in
+  # callback closed).
+  def google_auth_enabled? do
+    truthy?(System.get_env("TUIST_GOOGLE_AUTH_ENABLED", "1"))
+  end
+
+  def okta_auth_enabled? do
+    truthy?(System.get_env("TUIST_OKTA_AUTH_ENABLED", "1"))
+  end
+
+  def apple_auth_enabled? do
+    truthy?(System.get_env("TUIST_APPLE_AUTH_ENABLED", "1"))
+  end
+
   def github_app_configured?(secrets \\ secrets()) do
     github_app_name(secrets) != nil and github_oauth_configured?(secrets) and
       github_app_private_key(secrets) != nil
