@@ -6,12 +6,17 @@ defmodule TuistWeb.RunnerInteractiveShellControllerTest do
   alias Tuist.Accounts
   alias Tuist.Runners.InteractiveSessions
 
-  defp websocket_headers(conn, token) do
+  defp websocket_upgrade_headers(conn) do
     %{conn | host: "www.example.com", req_headers: [{"host", "www.example.com"} | conn.req_headers]}
     |> put_req_header("connection", "upgrade")
     |> put_req_header("upgrade", "websocket")
     |> put_req_header("sec-websocket-key", 16 |> :crypto.strong_rand_bytes() |> Base.encode64())
     |> put_req_header("sec-websocket-version", "13")
+  end
+
+  defp websocket_headers(conn, token) do
+    conn
+    |> websocket_upgrade_headers()
     |> put_req_header("sec-websocket-protocol", token)
   end
 
@@ -42,6 +47,21 @@ defmodule TuistWeb.RunnerInteractiveShellControllerTest do
       |> log_in_user(user)
       |> websocket_headers(session.token)
       |> get(~p"/#{account.name}/runners/interactive/shell")
+
+    assert conn.state == :upgraded
+  end
+
+  test "upgrades the API route with user auth and a shell token header", %{conn: conn} do
+    user = user_fixture()
+    account = user.account
+    session = shell_session(account, user)
+
+    conn =
+      conn
+      |> put_req_header("authorization", "Bearer #{user.token}")
+      |> put_req_header("x-tuist-runner-shell-token", session.token)
+      |> websocket_upgrade_headers()
+      |> get(~p"/api/runners/interactive/shell/connect")
 
     assert conn.state == :upgraded
   end

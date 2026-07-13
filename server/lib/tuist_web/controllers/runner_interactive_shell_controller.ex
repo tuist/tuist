@@ -38,14 +38,25 @@ defmodule TuistWeb.RunnerInteractiveShellController do
   end
 
   def shell_token(conn) do
+    header_token =
+      conn
+      |> get_req_header("x-tuist-runner-shell-token")
+      |> Enum.find(&Regex.match?(@token_protocol_pattern, &1))
+
     conn
     |> get_req_header("sec-websocket-protocol")
     |> Enum.flat_map(&String.split(&1, ","))
     |> Enum.map(&String.trim/1)
     |> Enum.find(&Regex.match?(@token_protocol_pattern, &1))
     |> case do
-      token when is_binary(token) -> {:ok, token}
-      nil -> {:error, :missing_token}
+      token when is_binary(token) ->
+        {:ok, token}
+
+      nil ->
+        case header_token do
+          token when is_binary(token) -> {:ok, token}
+          nil -> {:error, :missing_token}
+        end
     end
   end
 

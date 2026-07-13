@@ -44,6 +44,6 @@ struct RunnerSSHCommandService: RunnerSSHCommandServicing {
             token: token.value
         )
 
-        try await terminalClient.attach(to: session)
+        try await terminalClient.attach(to: session, authenticationToken: token.value)
     }
 }

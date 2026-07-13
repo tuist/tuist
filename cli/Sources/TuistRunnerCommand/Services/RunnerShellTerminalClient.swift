@@ -22,7 +22,7 @@ enum RunnerShellTerminalClientError: LocalizedError, Equatable {
 }
 
 protocol RunnerShellTerminalClienting {
-    func attach(to session: RunnerShellSession) async throws
+    func attach(to session: RunnerShellSession, authenticationToken: String) async throws
 }
 
 struct RunnerShellTerminalClient: RunnerShellTerminalClienting {
@@ -32,12 +32,12 @@ struct RunnerShellTerminalClient: RunnerShellTerminalClienting {
         self.urlSession = urlSession
     }
 
-    func attach(to session: RunnerShellSession) async throws {
+    func attach(to session: RunnerShellSession, authenticationToken: String) async throws {
         let terminalMode = try TerminalRawMode()
-        let webSocketTask = urlSession.webSocketTask(
-            with: session.websocketURL,
-            protocols: [session.websocketProtocol]
-        )
+        var request = URLRequest(url: session.websocketURL)
+        request.setValue("Bearer \(authenticationToken)", forHTTPHeaderField: "Authorization")
+        request.setValue(session.websocketProtocol, forHTTPHeaderField: "x-tuist-runner-shell-token")
+        let webSocketTask = urlSession.webSocketTask(with: request)
         let inputForwarder = StandardInputForwarder(webSocketTask: webSocketTask)
         let resizeObserver = TerminalResizeObserver {
             Task {
