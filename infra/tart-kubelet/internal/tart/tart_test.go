@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -108,6 +109,64 @@ func TestCleanupVMUserData(t *testing.T) {
 	}
 	if _, err := os.Stat(target); !os.IsNotExist(err) {
 		t.Fatalf("expected target removed, got err=%v", err)
+	}
+}
+
+// Regression for the substring liveness bug: pgrep -f matches over the
+// whole command line, so an unanchored `tart run <name>` query would also
+// match a running `tart run <name>-2` — reporting a stopped VM as live and,
+// in the GC, pinning its disk forever. Both names are valid VMNameForPod
+// outputs. IsRunning must anchor the name to an argument boundary.
+func TestIsRunningRequiresExactNameBoundary(t *testing.T) {
+	if _, err := exec.LookPath("pgrep"); err != nil {
+		t.Skip("pgrep not available on this host")
+	}
+
+	const base = "tuist-runners-runner-team-job"
+	const longer = base + "-2"
+
+	decoyCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	// Command line: `/bin/sh -c 'sleep 30; :' tart run <longer>`. The
+	// compound `-c` body keeps sh from exec-replacing itself with `sleep`,
+	// so the `tart run …` argv survives for pgrep to read.
+	decoy := exec.CommandContext(decoyCtx, "/bin/sh", "-c", "sleep 30; :", "tart", "run", longer)
+	if err := decoy.Start(); err != nil {
+		t.Fatalf("start decoy: %v", err)
+	}
+	defer func() {
+		cancel()
+		_ = decoy.Wait()
+	}()
+
+	c := &Client{}
+	ctx := context.Background()
+
+	// Wait until the decoy is visible to pgrep — this also asserts the
+	// exact longer name is correctly found (the positive boundary case).
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		running, err := c.IsRunning(ctx, longer)
+		if err != nil {
+			t.Fatalf("IsRunning(%q): %v", longer, err)
+		}
+		if running {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("decoy %q never became visible to pgrep", longer)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	// The core regression: the shorter name must NOT match the running
+	// longer-named process.
+	running, err := c.IsRunning(ctx, base)
+	if err != nil {
+		t.Fatalf("IsRunning(%q): %v", base, err)
+	}
+	if running {
+		t.Fatalf("IsRunning(%q) reported live, but only %q is running", base, longer)
 	}
 }
 

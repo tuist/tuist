@@ -33,13 +33,13 @@ use crate::{
     constants::{
         CAS_CAPACITY_DEFAULT_DISK_PERCENT, CAS_CAPACITY_MAX_DISK_PERCENT, DESIRED_CURRENT_SEGMENTS,
         DESIRED_NEW_SEGMENTS, DESIRED_OLD_SEGMENTS, MAX_DESIRED_SEGMENTS, MAX_MODULE_TOTAL_BYTES,
-        MAX_SEGMENT_BYTES, ROCKSDB_BYTES_PER_SYNC, ROCKSDB_CF_KEY_VALUE, ROCKSDB_CF_MANIFESTS,
-        ROCKSDB_CF_MULTIPART_UPLOADS, ROCKSDB_CF_NAMESPACE_ARTIFACTS,
-        ROCKSDB_CF_NAMESPACE_TOMBSTONES, ROCKSDB_CF_OUTBOX, ROCKSDB_CF_SEGMENT_ARTIFACTS,
-        ROCKSDB_CF_SEGMENT_STATE, ROCKSDB_CF_USAGE_OUTBOX, ROCKSDB_HARD_PENDING_COMPACTION_BYTES,
-        ROCKSDB_LEVEL0_SLOWDOWN_TRIGGER, ROCKSDB_LEVEL0_STOP_TRIGGER,
-        ROCKSDB_SOFT_PENDING_COMPACTION_BYTES, ROCKSDB_WAL_BYTES_PER_SYNC,
-        SEGMENT_FREE_SPACE_MARGIN,
+        MAX_SEGMENT_BYTES, REAPI_ACTION_CACHE_REFRESH_DAMPING_MS, ROCKSDB_BYTES_PER_SYNC,
+        ROCKSDB_CF_KEY_VALUE, ROCKSDB_CF_MANIFESTS, ROCKSDB_CF_MULTIPART_UPLOADS,
+        ROCKSDB_CF_NAMESPACE_ARTIFACTS, ROCKSDB_CF_NAMESPACE_TOMBSTONES, ROCKSDB_CF_OUTBOX,
+        ROCKSDB_CF_SEGMENT_ARTIFACTS, ROCKSDB_CF_SEGMENT_STATE, ROCKSDB_CF_USAGE_OUTBOX,
+        ROCKSDB_HARD_PENDING_COMPACTION_BYTES, ROCKSDB_LEVEL0_SLOWDOWN_TRIGGER,
+        ROCKSDB_LEVEL0_STOP_TRIGGER, ROCKSDB_SOFT_PENDING_COMPACTION_BYTES,
+        ROCKSDB_WAL_BYTES_PER_SYNC, SEGMENT_FREE_SPACE_MARGIN,
     },
     failpoints::{FailpointName, FailpointSet},
     io::{IoController, PersistentFile},
@@ -530,6 +530,21 @@ impl Store {
             return Ok(true);
         }
         Ok(self.manifest(&artifact_id)?.is_some())
+    }
+
+    /// The stored manifest for a logical artifact key, if any.
+    pub fn manifest_for_key(
+        &self,
+        producer: ArtifactProducer,
+        namespace_id: &str,
+        key: &str,
+    ) -> Result<Option<ArtifactManifest>, String> {
+        self.manifest(&artifact_storage_id(
+            producer,
+            &self.tenant_id,
+            namespace_id,
+            key,
+        ))
     }
 
     pub fn manifest(&self, artifact_id: &str) -> Result<Option<ArtifactManifest>, String> {
@@ -1858,6 +1873,44 @@ impl Store {
         }
     }
 
+    /// Persist an inline artifact, treating a byte-identical re-publish of an
+    /// entry whose stored version is younger than the refresh damping window
+    /// as already applied (returns the existing manifest, writes and
+    /// replicates nothing). Clients refresh action-cache entries back into
+    /// the snapshot's ranked wire view by re-publishing their unchanged
+    /// manifests; without damping, every cold machine in a fleet would bump
+    /// the same entries' versions (and replicate the rewrites) on the same
+    /// day.
+    pub async fn persist_inline_artifact_from_bytes_damped_and_enqueue(
+        &self,
+        producer: ArtifactProducer,
+        namespace_id: &str,
+        key: &str,
+        content_type: &str,
+        bytes: &[u8],
+        replication_targets: &[String],
+    ) -> Result<(ArtifactManifest, bool), String> {
+        let artifact_id = artifact_storage_id(producer, &self.tenant_id, namespace_id, key);
+        if let Some(existing) = self.manifest_from_db(&artifact_id)?
+            && existing.inline
+            && manifest_version_ms(&existing).saturating_add(REAPI_ACTION_CACHE_REFRESH_DAMPING_MS)
+                > now_ms()
+            && self.inline_bytes(&artifact_id)?.as_deref() == Some(bytes)
+        {
+            return Ok((existing, false));
+        }
+        self.persist_inline_artifact_from_bytes_and_enqueue(
+            producer,
+            namespace_id,
+            key,
+            content_type,
+            bytes,
+            replication_targets,
+        )
+        .await
+        .map(|manifest| (manifest, true))
+    }
+
     pub async fn persist_inline_artifact_from_bytes_and_enqueue(
         &self,
         producer: ArtifactProducer,
@@ -2302,7 +2355,7 @@ impl Store {
 
     #[cfg(test)]
     pub fn enqueue(&self, message: OutboxMessage) -> Result<(), String> {
-        let key = format!("{:020}-{}", now_ms(), Uuid::now_v7());
+        let key = outbox_message_key(&message);
         let value = serde_json::to_vec(&message)
             .map_err(|error| format!("failed to encode outbox message: {error}"))?;
         let mut batch = WriteBatch::default();
@@ -2831,7 +2884,7 @@ impl Store {
         batch: &mut WriteBatch,
         message: OutboxMessage,
     ) -> Result<(), String> {
-        let key = format!("{:020}-{}", now_ms(), Uuid::now_v7());
+        let key = outbox_message_key(&message);
         let value = serde_json::to_vec(&message)
             .map_err(|error| format!("failed to encode outbox message: {error}"))?;
         batch.put_cf(self.cf(ROCKSDB_CF_OUTBOX), key.as_bytes(), value);
@@ -3658,6 +3711,23 @@ fn persisted_version_ms(version_ms: u64) -> u64 {
     }
 }
 
+/// Every outbox key at or past this prefix belongs to the bulk lane. Keys are
+/// ordered `"0-…"` (metadata lane) < `"0000…"` (legacy unprefixed zero-padded
+/// timestamps, drained between the lanes across a rolling upgrade) < `"1-…"`
+/// (bulk lane), so a fresh action-cache entry replicates ahead of a blob
+/// backlog instead of waiting out gigabytes of it — measured as ~30 minutes
+/// of cross-pod snapshot staleness during a cache populate.
+pub const OUTBOX_BULK_LANE_PREFIX: &str = "1-";
+
+fn outbox_message_key(message: &OutboxMessage) -> String {
+    let lane = if message.operation.is_bulk() {
+        "1"
+    } else {
+        "0"
+    };
+    format!("{lane}-{:020}-{}", now_ms(), Uuid::now_v7())
+}
+
 fn encode_manifest_record(manifest: &ArtifactManifest) -> Result<Vec<u8>, String> {
     if manifest.is_segment_backed() {
         return SegmentLocationRecord::from_manifest(manifest).map(|record| record.encode());
@@ -3907,6 +3977,70 @@ mod tests {
             "segment store held {segments_bytes} bytes, expected ~{artifact_len} (one copy); \
              concurrent same-key applies amplified on-disk data"
         );
+    }
+
+    #[tokio::test]
+    async fn damped_persist_skips_identical_republish_of_a_fresh_entry() {
+        let (_temp_dir, _config, store) = temp_store();
+        let day = 24 * 60 * 60 * 1000;
+
+        // Seed the entry with an aged version (a replicated apply preserves
+        // the origin's version), so the first damped refresh applies.
+        store
+            .apply_replicated_inline_artifact_from_bytes(
+                ArtifactProducer::Reapi,
+                "ios",
+                "action_cache/aa/10",
+                "application/x-protobuf",
+                b"graph",
+                now_ms() - 2 * day,
+            )
+            .await
+            .expect("seed should persist");
+
+        let (refreshed, applied) = store
+            .persist_inline_artifact_from_bytes_damped_and_enqueue(
+                ArtifactProducer::Reapi,
+                "ios",
+                "action_cache/aa/10",
+                "application/x-protobuf",
+                b"graph",
+                &[],
+            )
+            .await
+            .expect("aged refresh should persist");
+        assert!(applied, "an aged identical re-publish applies");
+
+        let (damped, applied) = store
+            .persist_inline_artifact_from_bytes_damped_and_enqueue(
+                ArtifactProducer::Reapi,
+                "ios",
+                "action_cache/aa/10",
+                "application/x-protobuf",
+                b"graph",
+                &[],
+            )
+            .await
+            .expect("damped refresh should succeed");
+        assert!(
+            !applied,
+            "an identical re-publish inside the window is damped"
+        );
+        assert_eq!(damped.version_ms, refreshed.version_ms);
+
+        let (changed, applied) = store
+            .persist_inline_artifact_from_bytes_damped_and_enqueue(
+                ArtifactProducer::Reapi,
+                "ios",
+                "action_cache/aa/10",
+                "application/x-protobuf",
+                b"graph-v2",
+                &[],
+            )
+            .await
+            .expect("changed publish should persist");
+        assert!(applied, "changed content always applies");
+        assert!(changed.version_ms >= refreshed.version_ms);
     }
 
     #[tokio::test]
@@ -5646,6 +5780,61 @@ mod tests {
                 .expect("failed to read outbox messages")
                 .is_empty()
         );
+    }
+
+    #[test]
+    fn outbox_drains_metadata_before_earlier_bulk_messages() {
+        let (_temp_dir, _config, store) = temp_store();
+
+        // Bulk first (earlier timestamp), metadata second: the metadata-lane
+        // key must still sort first so an inline action-cache entry is not
+        // parked behind a segment-blob backlog.
+        store
+            .enqueue(OutboxMessage {
+                target: "http://peer".into(),
+                operation: ReplicationOperation::UpsertArtifact {
+                    producer: ArtifactProducer::Reapi,
+                    namespace_id: "ios".into(),
+                    key: "blob/aabb".into(),
+                    content_type: "application/octet-stream".into(),
+                    artifact_id: "blob-artifact".into(),
+                    inline: false,
+                    version_ms: 1,
+                },
+            })
+            .expect("failed to enqueue bulk message");
+        store
+            .enqueue(OutboxMessage {
+                target: "http://peer".into(),
+                operation: ReplicationOperation::UpsertArtifact {
+                    producer: ArtifactProducer::Reapi,
+                    namespace_id: "ios".into(),
+                    key: "action_cache/ccdd".into(),
+                    content_type: "application/x-protobuf".into(),
+                    artifact_id: "entry-artifact".into(),
+                    inline: true,
+                    version_ms: 2,
+                },
+            })
+            .expect("failed to enqueue metadata message");
+
+        let messages = store
+            .outbox_messages()
+            .expect("failed to read outbox messages");
+        let keys: Vec<&str> = messages
+            .iter()
+            .map(|(key, _)| std::str::from_utf8(key).expect("outbox key should be utf-8"))
+            .collect();
+        assert!(
+            keys[0].starts_with("0-") && keys[1].starts_with(OUTBOX_BULK_LANE_PREFIX),
+            "expected metadata lane before bulk lane, got {keys:?}"
+        );
+        let (_, first) = &messages[0];
+        assert!(!first.operation.is_bulk());
+        // Legacy unprefixed keys (zero-padded timestamps) drain between the
+        // lanes across a rolling upgrade.
+        let legacy = format!("{:020}-legacy", crate::utils::now_ms());
+        assert!(keys[0] < legacy.as_str() && legacy.as_str() < keys[1]);
     }
 
     #[test]

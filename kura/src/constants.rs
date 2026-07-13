@@ -45,6 +45,13 @@ pub const DEFAULT_MULTIPART_JANITOR_INTERVAL_MS: u64 = 10 * 60 * 1000;
 pub const REAPI_ACTION_CACHE_TTL_MS: u64 = 30 * 24 * 60 * 60 * 1000;
 pub const REAPI_ACTION_CACHE_EXPIRY_INTERVAL_MS: u64 = 6 * 60 * 60 * 1000;
 pub const REAPI_ACTION_CACHE_EXPIRY_MAX_DELETES: usize = 100_000;
+// Clients re-publish an entry's unchanged manifest when a per-key lookup
+// reveals it fell out of the snapshot's size-capped wire view (the view ranks
+// by version, which publish-dedup never refreshes). The damping window keeps
+// a fleet of cold machines from stampeding version bumps for the same entry:
+// an identical re-publish only applies when the stored version has aged past
+// it — one refresh per entry per window fleet-wide.
+pub const REAPI_ACTION_CACHE_REFRESH_DAMPING_MS: u64 = 24 * 60 * 60 * 1000;
 // Not a cap on total bootstrap runtime — it is the maximum time a bootstrap may
 // go *without forward progress* (a fetched page or applied artifact) before it
 // is abandoned and retried. A large cold pull that keeps making progress runs to

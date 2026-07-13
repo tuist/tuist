@@ -40,12 +40,24 @@ run-name: "Preview ${{ inputs.action || github.event.action || 'deploy' }} ${{ i
 #                      namespace=preview-ondemand-<slug>,
 #                      host=<slug>.preview.tuist.dev
 #
-# Kura image tags: when the deploying ref touches `infra/kura-controller/**`
-# or `kura/**` the workflow builds + pushes a `sha-<short>` image and
-# the deploy uses it. When the ref does not touch those paths the
-# deploy uses `latest` (last main build) — so server-only PRs don't pay
-# the ~10 min Rust build cost while Kura-touching PRs validate the
-# PR's actual Kura bits.
+# Scope: this workflow owns only per-preview state. The cluster-wide platform
+# chart and the single Kura controller are reconciled by
+# preview-platform-reconcile.yml, so a server-only PR never upgrades
+# cert-manager and two concurrent previews never race on a shared Helm release.
+# The deploy fails fast if that reconcile has never run against the cluster.
+#
+# Kura: each preview gets its own KuraInstance, rendered by the chart
+# (infra/helm/tuist/templates/kura-instance.yaml) into the cluster-wide `kura`
+# namespace that the controller watches. Helm owns it, so `helm upgrade`
+# patches it and `helm uninstall` reaps it. Previews run the controller from
+# `main`; only the Kura *runtime* is built per PR, when the ref touches
+# `kura/**`. Otherwise the runtime resolves to the latest `kura@` release
+# reachable from the trusted platform ref.
+#
+# That resolution is checked against GHCR before being pinned, because a
+# reachable release tag is not necessarily a pushed image. When the newest
+# candidate has no image the deploy walks back and says so; when none do, it
+# fails fast instead of ImagePullBackOff-ing behind the `--atomic` timeout.
 #
 # Required GitHub Environment secret (server-k8s-preview):
 #   KUBECONFIG  - base64 kubeconfig for the preview workload cluster.
@@ -102,11 +114,9 @@ env:
   REGISTRY: ghcr.io
   IMAGE_NAME: tuist/tuist
   REGISTRY_IMAGE_NAME: tuist/registry
-  KURA_CONTROLLER_IMAGE_NAME: tuist/kura-controller
   KURA_RUNTIME_IMAGE_NAME: tuist/kura
   HELM_CHART_PATH: infra/helm/tuist
   PREVIEW_BASE_DOMAIN: preview.tuist.dev
-  KURA_INSTANCE_REPLICAS: "1"
 
 jobs:
   resolve:
@@ -283,16 +293,15 @@ jobs:
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
-  # Detect whether the deploying ref touches Kura paths. Drives the
-  # conditional `build-kura-*` jobs below; the deploy uses sha-<short>
-  # tags when the PR built fresh images, otherwise `latest` from main.
+  # Detect whether the deploying ref touches Kura paths. Fresh images are
+  # built only for the affected component; deploy resolves immutable images
+  # from the trusted platform ref for everything else.
   paths-changed:
     name: Detect Kura path changes
     needs: resolve
     if: needs.resolve.outputs.action == 'deploy'
     runs-on: ubuntu-latest
     outputs:
-      kura_controller: ${{ steps.f.outputs.kura_controller }}
       kura_runtime: ${{ steps.f.outputs.kura_runtime }}
     steps:
       - uses: actions/checkout@v4
@@ -309,16 +318,11 @@ jobs:
             BASE="$(git merge-base origin/main "$REF" 2>/dev/null || true)"
           fi
           if [ -z "$BASE" ]; then
-            # No base — Slack/manual dispatch against a SHA without a PR.
-            # Build the Kura images so the preview validates the SHA.
-            echo "kura_controller=true" >> "$GITHUB_OUTPUT"
+            # No base: build the Kura runtime so the preview validates the SHA.
             echo "kura_runtime=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           CHANGED="$(git diff --name-only "$BASE" "$REF" || true)"
-          echo "$CHANGED" | grep -qE '^infra/kura-controller/' \
-            && echo "kura_controller=true" >> "$GITHUB_OUTPUT" \
-            || echo "kura_controller=false" >> "$GITHUB_OUTPUT"
           echo "$CHANGED" | grep -qE '^kura/' \
             && echo "kura_runtime=true" >> "$GITHUB_OUTPUT" \
             || echo "kura_runtime=false" >> "$GITHUB_OUTPUT"
@@ -389,35 +393,6 @@ jobs:
           tags: ${{ env.REGISTRY }}/${{ env.REGISTRY_IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
           build-args: |
             MIX_ENV=prod
-
-  build-kura-controller:
-    name: Build kura-controller image
-    needs: [resolve, paths-changed]
-    if: |
-      needs.resolve.outputs.action == 'deploy'
-      && needs.paths-changed.outputs.kura_controller == 'true'
-    runs-on: tuist-linux
-    timeout-minutes: 20
-    outputs:
-      image_tag: ${{ steps.tag.outputs.image_tag }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ needs.resolve.outputs.ref }}
-      - id: tag
-        run: echo "image_tag=sha-${{ needs.resolve.outputs.short_sha }}" >> "$GITHUB_OUTPUT"
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ./infra/kura-controller/Dockerfile
-          push: true
-          tags: ${{ env.REGISTRY }}/${{ env.KURA_CONTROLLER_IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
 
   build-kura-runtime:
     name: Build kura runtime image
@@ -491,13 +466,12 @@ jobs:
 
   deploy:
     name: Deploy ${{ needs.resolve.outputs.release }}
-    needs: [resolve, paths-changed, build-server, build-registry, build-kura-controller, build-kura-runtime]
+    needs: [resolve, paths-changed, build-server, build-registry, build-kura-runtime]
     if: |
       always()
       && needs.resolve.outputs.action == 'deploy'
       && needs.build-server.result == 'success'
       && needs.build-registry.result == 'success'
-      && (needs.build-kura-controller.result == 'success' || needs.build-kura-controller.result == 'skipped')
       && (needs.build-kura-runtime.result == 'success' || needs.build-kura-runtime.result == 'skipped')
     runs-on: tuist-linux
     environment:
@@ -519,8 +493,7 @@ jobs:
       REGISTRY_IMAGE_TAG: ${{ needs.build-registry.outputs.image_tag }}
       REGISTRY_GITHUB_TOKEN: ${{ github.token }}
       EXPIRES_AT: ${{ needs.resolve.outputs.expires_at }}
-      KURA_CONTROLLER_TAG: ${{ needs.build-kura-controller.outputs.image_tag || 'latest' }}
-      KURA_RUNTIME_TAG: ${{ needs.build-kura-runtime.outputs.image_tag || 'latest' }}
+      KURA_RUNTIME_TAG: ${{ needs.build-kura-runtime.outputs.image_tag }}
       KURA_INSTANCE: ${{ needs.resolve.outputs.release }}-kura
       KURA_HOST: kura-${{ needs.resolve.outputs.slug }}.preview.tuist.dev
     steps:
@@ -533,31 +506,118 @@ jobs:
         with:
           install_args: "helm kubectl jq"
           cache: "false"
+      - name: Resolve immutable Kura runtime image tag
+        if: env.KURA_RUNTIME_TAG == ''
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          # A `kura@<semver>` tag reachable from the platform ref does not imply
+          # a pushed image: `release-kura-docker` publishes `kura:<semver>` only
+          # when a release is cut. Pinning a tag that was never pushed leaves the
+          # pod in ImagePullBackOff until `--atomic` times out and rolls back,
+          # ~20 min after the fact. Probe the registry instead and walk back to
+          # the newest release that has an image, so the deploy either runs a
+          # real image or fails immediately with an actionable error.
+          # Only a 404 means "never pushed". Treating a 5xx or an auth failure
+          # as absent would silently walk back and pin a stale runtime, so
+          # anything other than 200/404 aborts the deploy.
+          manifest_status() {
+            local repository="$1" reference="$2" token
+            token="$(
+              curl -fsSL -u "${GITHUB_ACTOR}:${GITHUB_TOKEN}" \
+                "https://ghcr.io/token?service=ghcr.io&scope=repository:${repository}:pull" \
+                | jq -r '.token // empty'
+            )" || { echo "000"; return; }
+            [ -n "$token" ] || { echo "000"; return; }
+            curl -s -o /dev/null -I -w '%{http_code}' \
+              -H "Authorization: Bearer ${token}" \
+              -H "Accept: application/vnd.oci.image.index.v1+json,application/vnd.oci.image.manifest.v1+json,application/vnd.docker.distribution.manifest.list.v2+json,application/vnd.docker.distribution.manifest.v2+json" \
+              "https://ghcr.io/v2/${repository}/manifests/${reference}" \
+              || echo "000"
+          }
+
+          # Echoes the first reference that has a published manifest, walking
+          # the candidates newest-first. Empty output means none of them do; a
+          # non-zero return means the registry could not be consulted at all.
+          resolve_published_tag() {
+            local repository="$1" reference status
+            shift
+            for reference in "$@"; do
+              [ -n "$reference" ] || continue
+              status="$(manifest_status "$repository" "$reference")"
+              case "$status" in
+                200)
+                  printf '%s' "$reference"
+                  return 0
+                  ;;
+                404)
+                  echo "::notice::${repository}:${reference} is not in the registry; trying the preceding candidate." >&2
+                  ;;
+                *)
+                  echo "::error::Registry lookup for ${repository}:${reference} failed with HTTP ${status}. Refusing to guess an older image." >&2
+                  return 2
+                  ;;
+              esac
+            done
+            return 0
+          }
+
+          if [ -z "${KURA_RUNTIME_TAG:-}" ]; then
+            runtime_candidates=()
+            while IFS= read -r version; do
+              [ -n "$version" ] || continue
+              runtime_candidates+=("$version")
+            done < <(
+              git tag --merged HEAD --list 'kura@*' \
+                | sed 's/^kura@//' \
+                | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' \
+                | sort -rV
+            )
+            KURA_RUNTIME_TAG="$(
+              resolve_published_tag \
+                "$KURA_RUNTIME_IMAGE_NAME" "${runtime_candidates[@]:-}"
+            )"
+          fi
+          if [ -z "${KURA_RUNTIME_TAG:-}" ]; then
+            echo "::error::No kura@<semver> release reachable from the platform ref has a published runtime image. Cut a Kura release, or dispatch the preview with a platform_ref that has one."
+            exit 1
+          fi
+
+          echo "KURA_RUNTIME_TAG=$KURA_RUNTIME_TAG" >> "$GITHUB_ENV"
+          echo "Using Kura runtime $KURA_RUNTIME_TAG"
       - name: Load kubeconfig
         run: |
           mkdir -p "$(dirname "$KUBECONFIG")"
           echo "${{ secrets.KUBECONFIG }}" | base64 -d > "$KUBECONFIG"
           chmod 600 "$KUBECONFIG"
       - name: Re-apply preview node label
+        # Node-scoped and idempotent, so it is safe from a per-preview job and
+        # keeps a freshly joined worker schedulable without waiting for the
+        # next platform reconcile. Cluster-wide *releases* are reconciled by
+        # preview-platform-reconcile.yml, not here.
         run: |
           kubectl label nodes -l '!node-role.kubernetes.io/control-plane' role=preview --overwrite
-      - name: Verify platform bootstrap
+      - name: Verify preview platform
+        # The platform chart and the cluster-wide Kura controller are owned by
+        # preview-platform-reconcile.yml. Fail fast with something actionable
+        # rather than letting `helm --atomic` time out on a KuraInstance no
+        # controller will ever reconcile.
         run: |
           set -euo pipefail
           if ! kubectl -n platform get secret cloudflare-api-token >/dev/null 2>&1; then
             echo "::error::Missing platform/cloudflare-api-token in the preview cluster. Restore the cluster bootstrap secret before deploying previews."
             exit 1
           fi
-      - name: Reconcile platform chart
-        run: |
-          set -euo pipefail
-          mise -C infra run k8s:install-platform "$KUBECONFIG" tuist-preview
-      - name: Reconcile Kura platform (cluster-wide controller)
-        env:
-          KURA_CONTROLLER_IMAGE_TAG: ${{ env.KURA_CONTROLLER_TAG }}
-        run: |
-          set -euo pipefail
-          mise -C infra run k8s:install-kura-platform "$KUBECONFIG"
+          controllers="$(
+            kubectl -n kura get deployment \
+              -l app.kubernetes.io/component=kura-controller -o name 2>/dev/null | wc -l | tr -d ' '
+          )"
+          if [ "$controllers" -lt 1 ]; then
+            echo "::error::No Kura controller in the preview cluster. Run the 'Preview Platform Reconcile' workflow (workflow_dispatch) before deploying previews."
+            exit 1
+          fi
       - name: Checkout preview source
         uses: actions/checkout@v4
         with:
@@ -599,16 +659,26 @@ jobs:
           kubectl -n kura get secret kura-shared-secrets -o json \
             | jq 'del(.metadata.namespace, .metadata.resourceVersion, .metadata.uid, .metadata.creationTimestamp, .metadata.ownerReferences, .metadata.labels, .metadata.annotations)' \
             | kubectl -n "$NAMESPACE" apply -f -
-      - name: Delete stale migration Job (if any)
-        # The chart renders server-migrate as a regular Job (preview keeps
-        # migrationJob.asHook=false so the embedded Postgres/ClickHouse get
-        # to come up — see values-preview.yaml). Kubernetes won't let us
-        # mutate the prior Job's spec.template on a re-deploy with a new
-        # image tag, so we delete the stale Job first and let helm
-        # re-create it.
+      - name: Adopt a pre-existing KuraInstance into the Helm release
+        # Transitional. Previews created before the KuraInstance moved into the
+        # chart have a CR with no Helm ownership metadata, and `helm upgrade`
+        # refuses to take over such a resource. Stamp the metadata so Helm
+        # adopts it in place instead of erroring. Remove once no preview
+        # predating that change is still alive (max TTL is 168h).
         run: |
-          kubectl -n "$NAMESPACE" delete job "${RELEASE}-tuist-server-migrate" --ignore-not-found
+          set -euo pipefail
+          if kubectl -n kura get kurainstance "$KURA_INSTANCE" >/dev/null 2>&1; then
+            kubectl -n kura label kurainstance "$KURA_INSTANCE" \
+              app.kubernetes.io/managed-by=Helm --overwrite
+            kubectl -n kura annotate kurainstance "$KURA_INSTANCE" \
+              "meta.helm.sh/release-name=$RELEASE" \
+              "meta.helm.sh/release-namespace=$NAMESPACE" --overwrite
+          fi
       - name: helm upgrade --install
+        # The preview's KuraInstance is a chart resource (templates/kura-instance.yaml)
+        # rendered into the cluster-wide `kura` namespace, so Helm owns its
+        # lifecycle. Its static shape lives in values-preview-kura.yaml; only
+        # the per-preview identity is set here.
         run: |
           set -euo pipefail
           helm upgrade --install "$RELEASE" "$HELM_CHART_PATH" \
@@ -626,6 +696,11 @@ jobs:
             --set "server.ingress.host=$HOST" \
             --set "server.appUrl=https://$HOST" \
             --set "kuraRuntime.image.tag=$KURA_RUNTIME_TAG" \
+            --set "kuraRuntime.instance.name=$KURA_INSTANCE" \
+            --set "kuraRuntime.instance.publicHost=$KURA_HOST" \
+            --set-string "kuraRuntime.instance.labels.tuist\.dev/slug=$SLUG" \
+            --set-string "kuraRuntime.instance.labels.tuist\.dev/preview-source=$SOURCE" \
+            --set-file "kuraRuntime.instance.extensionScript=kura/ops/helm/kura/hooks/tuist.lua" \
             --set "server.kuraEndpointUrls[0]=https://$KURA_HOST" \
             --atomic --timeout 20m --wait
       - name: Finalize namespace labels
@@ -636,48 +711,6 @@ jobs:
             ARGS=("tuist.dev/expires-at=$EXPIRES_AT" "tuist.dev/state=ready" --overwrite)
           fi
           kubectl label namespace "$NAMESPACE" "${ARGS[@]}"
-      - name: Create KuraInstance
-        run: |
-          set -euo pipefail
-          {
-            cat <<EOF
-          apiVersion: kura.tuist.dev/v1alpha1
-          kind: KuraInstance
-          metadata:
-            name: ${KURA_INSTANCE}
-            namespace: kura
-            labels:
-              tuist.dev/preview-source: ${SOURCE}
-              tuist.dev/slug: ${SLUG}
-          spec:
-            # Single-tenant preview KuraInstance. The seed step below
-            # runs the regular development seed, whose demo content lives
-            # under the tuist organization, so server tokens and the runtime
-            # hook agree on the same tenant.
-            accountHandle: tuist
-            tenantID: tuist
-            region: preview
-            image: ghcr.io/tuist/kura:${KURA_RUNTIME_TAG}
-            replicas: ${KURA_INSTANCE_REPLICAS}
-            publicHost: ${KURA_HOST}
-            ingressClassName: nginx
-            storageSize: 10Gi
-            extraEnv:
-              - name: KURA_CONTROL_PLANE_URL
-                value: http://${RELEASE}-tuist-server.${NAMESPACE}.svc.cluster.local:80
-              - name: KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL
-                value: http://${RELEASE}-tuist-server.${NAMESPACE}.svc.cluster.local:80
-            nodeSelector:
-              role: preview
-            tolerations:
-              - key: role
-                operator: Equal
-                value: preview
-                effect: NoSchedule
-            extensionScript: |
-          EOF
-            sed 's/^/    /' kura/ops/helm/kura/hooks/tuist.lua
-          } | kubectl apply -f -
       - name: Wait for KuraInstance
         run: |
           set -euo pipefail
@@ -765,6 +798,193 @@ jobs:
         if: failure()
         run: |
           set +e
+          KURA_NAMESPACE=kura
+          KURA_SELECTOR="app.kubernetes.io/name=kura,app.kubernetes.io/instance=${KURA_INSTANCE}"
+          KURA_CONTROLLER_SELECTOR="app.kubernetes.io/component=kura-controller"
+
+          echo "::group::KuraInstance status"
+          kubectl -n "$KURA_NAMESPACE" get kurainstance "$KURA_INSTANCE" -o json \
+            | jq '{
+                metadata: (.metadata | {
+                  name,
+                  generation,
+                  creationTimestamp,
+                  deletionTimestamp,
+                  finalizers
+                }),
+                desired: (.spec | {
+                  image,
+                  replicas,
+                  publicHost,
+                  ingressClassName,
+                  storageClassName,
+                  storageSize,
+                  nodeSelector,
+                  tolerations
+                }),
+                status
+              }' || true
+          echo "::endgroup::"
+
+          echo "::group::Kura controller"
+          kubectl -n "$KURA_NAMESPACE" get deployment,pod \
+            -l "$KURA_CONTROLLER_SELECTOR" -o wide || true
+          kubectl -n "$KURA_NAMESPACE" get deployment \
+            -l "$KURA_CONTROLLER_SELECTOR" -o json \
+            | jq '[.items[] | {
+                metadata: (.metadata | {name, generation, creationTimestamp}),
+                desired: {
+                  replicas: .spec.replicas,
+                  strategy: .spec.strategy,
+                  containers: [
+                    .spec.template.spec.containers[]
+                    | {name, image, imagePullPolicy, resources, livenessProbe, readinessProbe}
+                  ]
+                },
+                status
+              }]' || true
+          echo "::endgroup::"
+
+          echo "::group::Kura workload resources"
+          kubectl -n "$KURA_NAMESPACE" get \
+            statefulset,pod,persistentvolumeclaim,service,ingress,certificates.cert-manager.io \
+            -l "$KURA_SELECTOR" -o wide || true
+
+          kubectl -n "$KURA_NAMESPACE" get statefulset \
+            -l "$KURA_SELECTOR" -o json \
+            | jq '[.items[] | {
+                metadata: (.metadata | {name, generation, creationTimestamp}),
+                desired: {
+                  replicas: .spec.replicas,
+                  serviceName: .spec.serviceName,
+                  podManagementPolicy: .spec.podManagementPolicy,
+                  updateStrategy: .spec.updateStrategy,
+                  storage: [
+                    .spec.volumeClaimTemplates[]
+                    | {metadata: (.metadata | {name, labels}), spec}
+                  ],
+                  containers: [
+                    .spec.template.spec.containers[]
+                    | {name, image, imagePullPolicy, resources, livenessProbe, readinessProbe}
+                  ]
+                },
+                status
+              }]' || true
+
+          kubectl -n "$KURA_NAMESPACE" get pod \
+            -l "$KURA_SELECTOR" -o json \
+            | jq '[.items[] | {
+                metadata: (.metadata | {name, creationTimestamp, deletionTimestamp}),
+                placement: {
+                  nodeName: .spec.nodeName,
+                  nodeSelector: .spec.nodeSelector,
+                  tolerations: .spec.tolerations
+                },
+                status
+              }]' || true
+
+          for resource in \
+            persistentvolumeclaim \
+            service \
+            ingress \
+            certificates.cert-manager.io; do
+            kubectl -n "$KURA_NAMESPACE" describe "$resource" \
+              -l "$KURA_SELECTOR" || true
+          done
+
+          while IFS= read -r volume; do
+            [ -n "$volume" ] || continue
+            kubectl get persistentvolume "$volume" -o wide || true
+            kubectl describe persistentvolume "$volume" || true
+          done < <(
+            kubectl -n "$KURA_NAMESPACE" get persistentvolumeclaim \
+              -l "$KURA_SELECTOR" \
+              -o jsonpath='{range .items[*]}{.spec.volumeName}{"\n"}{end}' \
+              2>/dev/null
+          )
+          echo "::endgroup::"
+
+          echo "::group::Kura events"
+          kubectl -n "$KURA_NAMESPACE" get events -o json \
+            | jq -r --arg instance "$KURA_INSTANCE" '
+                [.items[]
+                  | (.involvedObject.name // "") as $name
+                  | select(
+                      ($name | contains($instance))
+                      or ($name | contains("kura-platform-tuist-kura-controller"))
+                    )
+                  | {
+                      time: (
+                        .eventTime
+                        // .lastTimestamp
+                        // .firstTimestamp
+                        // .metadata.creationTimestamp
+                      ),
+                      type,
+                      reason,
+                      message,
+                      count: (.series.count // .count),
+                      kind: .involvedObject.kind,
+                      name: .involvedObject.name
+                    }
+                ]
+                | sort_by(.time)
+                | (
+                    ["TIME", "TYPE", "REASON", "OBJECT", "COUNT", "MESSAGE"],
+                    (.[] | [
+                      .time,
+                      .type,
+                      .reason,
+                      (.kind + "/" + .name),
+                      (.count // 1),
+                      .message
+                    ])
+                  )
+                | @tsv
+              ' || true
+          echo "::endgroup::"
+
+          echo "::group::Kura image digests"
+          echo "controller"
+          kubectl -n "$KURA_NAMESPACE" get pods \
+            -l "$KURA_CONTROLLER_SELECTOR" \
+            -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{range .status.containerStatuses[*]}  {.name}{" image="}{.image}{" imageID="}{.imageID}{" ready="}{.ready}{" restarts="}{.restartCount}{"\n"}{end}{end}' || true
+          echo
+          echo "runtime"
+          kubectl -n "$KURA_NAMESPACE" get pods \
+            -l "$KURA_SELECTOR" \
+            -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{range .status.containerStatuses[*]}  {.name}{" image="}{.image}{" imageID="}{.imageID}{" ready="}{.ready}{" restarts="}{.restartCount}{"\n"}{end}{end}' || true
+          echo
+          echo "::endgroup::"
+
+          echo "::group::Kura controller logs"
+          while IFS= read -r pod; do
+            echo "--- $pod current ---"
+            kubectl -n "$KURA_NAMESPACE" logs "$pod" -c manager \
+              --since=30m --tail=500 --timestamps || true
+            echo "--- $pod previous ---"
+            kubectl -n "$KURA_NAMESPACE" logs "$pod" -c manager \
+              --previous --tail=500 --timestamps || true
+          done < <(
+            kubectl -n "$KURA_NAMESPACE" get pods \
+              -l "$KURA_CONTROLLER_SELECTOR" -o name 2>/dev/null
+          )
+          echo "::endgroup::"
+
+          echo "::group::Kura runtime logs"
+          while IFS= read -r pod; do
+            echo "--- $pod current ---"
+            kubectl -n "$KURA_NAMESPACE" logs "$pod" -c kura \
+              --tail=500 --timestamps || true
+            echo "--- $pod previous ---"
+            kubectl -n "$KURA_NAMESPACE" logs "$pod" -c kura \
+              --previous --tail=500 --timestamps || true
+          done < <(
+            kubectl -n "$KURA_NAMESPACE" get pods \
+              -l "$KURA_SELECTOR" -o name 2>/dev/null
+          )
+          echo "::endgroup::"
+
           echo "::group::pods"
           kubectl -n "$NAMESPACE" get pods -o wide || true
           echo "::endgroup::"
@@ -809,6 +1029,12 @@ jobs:
           echo "${{ secrets.KUBECONFIG }}" | base64 -d > "$KUBECONFIG"
           chmod 600 "$KUBECONFIG"
       - name: Delete KuraInstance, helm uninstall, drop namespace
+        # The KuraInstance lives in the `kura` namespace; deleting it first lets
+        # the controller GC its StatefulSet/PVC/Service/Ingress (owner refs) and
+        # synchronously waits out the finalizer. `helm uninstall` then clears the
+        # release, and dropping the namespace removes everything preview-scoped.
+        # Backstop: the KuraInstance is also owned by this namespace, so even if
+        # the explicit delete fails, dropping the namespace garbage-collects it.
         run: |
           set -euo pipefail
           kubectl -n kura delete kurainstance "${RELEASE}-kura" --ignore-not-found --wait=true --timeout 5m || true
