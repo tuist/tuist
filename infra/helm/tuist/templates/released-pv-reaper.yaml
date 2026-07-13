@@ -90,24 +90,44 @@ data:
     # A PV is reapable only if it is Released (its PVC was deleted), still Retain
     # (not already being reaped), on the target StorageClass, and has carried a
     # phase-transition timestamp older than the grace window. A PV missing that
-    # timestamp is skipped, never assumed old.
-    pvs=$(kubectl get pv -o json | jq -r \
-      --arg sc "$STORAGE_CLASS" --argjson grace "$grace_seconds" '
-      .items[]
-      | select(.status.phase == "Released")
+    # timestamp is skipped, never assumed old. The same predicate is applied
+    # twice: once to pick candidates, once to re-validate each PV immediately
+    # before acting.
+    predicate='
+      select(.status.phase == "Released")
       | select(.spec.persistentVolumeReclaimPolicy == "Retain")
       | select(.spec.storageClassName == $sc)
       | select(.status.lastPhaseTransitionTime != null)
-      | select((.status.lastPhaseTransitionTime | fromdateiso8601) < (now - $grace))
-      | .metadata.name')
-    count=$(printf '%s\n' "$pvs" | grep -c . || true)
+      | select((.status.lastPhaseTransitionTime | fromdateiso8601) < (now - $grace))'
+    # Candidates as "<name> <uid>" pairs; the UID lets us detect a PV that was
+    # deleted and recreated under the same name between scan and action.
+    candidates=$(kubectl get pv -o json | jq -r \
+      --arg sc "$STORAGE_CLASS" --argjson grace "$grace_seconds" \
+      ".items[] | ${predicate} | \"\(.metadata.name) \(.metadata.uid)\"")
+    count=$(printf '%s\n' "$candidates" | grep -c . || true)
     echo "released-pv-reaper: ${count} PV(s) Released longer than ${GRACE_HOURS}h"
     if [ "$count" -eq 0 ]; then
       exit 0
     fi
-    printf '%s\n' "$pvs" | while IFS= read -r pv; do
+    printf '%s\n' "$candidates" | while IFS=' ' read -r pv uid; do
       [ -z "$pv" ] && continue
-      claim=$(kubectl get pv "$pv" -o jsonpath='{.spec.claimRef.namespace}/{.spec.claimRef.name}' 2>/dev/null || echo '?')
+      # Re-fetch and re-validate right before acting. kubectl delete performs no
+      # resource-version check, so a PV recovered (re-bound) or replaced since the
+      # scan could otherwise be wrongly deleted. Skip unless it is the same object
+      # (UID) and still matches every reap condition.
+      current=$(kubectl get pv "$pv" -o json 2>/dev/null || true)
+      if [ -z "$current" ]; then
+        echo "released-pv-reaper: skip ${pv} (gone since scan)"
+        continue
+      fi
+      still=$(printf '%s' "$current" | jq -r \
+        --arg sc "$STORAGE_CLASS" --argjson grace "$grace_seconds" --arg uid "$uid" \
+        "select(.metadata.uid == \$uid) | ${predicate} | .metadata.name" 2>/dev/null || true)
+      if [ "$still" != "$pv" ]; then
+        echo "released-pv-reaper: skip ${pv} (changed since scan)"
+        continue
+      fi
+      claim=$(printf '%s' "$current" | jq -r '((.spec.claimRef.namespace // "?") + "/" + (.spec.claimRef.name // "?"))')
       if [ "$DRY_RUN" = "true" ]; then
         echo "released-pv-reaper: [dry-run] would reap ${pv} (was ${claim})"
       else

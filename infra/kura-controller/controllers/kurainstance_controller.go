@@ -1621,18 +1621,24 @@ func (r *KuraInstanceReconciler) reconcileStaleDataStorage(ctx context.Context, 
 	}
 	log.FromContext(ctx).Info("recreating Kura StatefulSet for stale data storage", "reason", reason)
 
-	// Delete the StatefulSet first so it stops backing the stale PVCs, then the
-	// PVCs themselves. Both deletions are idempotent; staleDataStorageReason keeps
+	// Reap the backing volumes rather than strand them: the default
+	// hcloud-volumes StorageClass retains the Hetzner volume when its PVC is
+	// deleted, so flip each bound PV to Delete first. This must run BEFORE the
+	// StatefulSet delete: whenDeleted: Delete owner-references the PVCs to the
+	// StatefulSet, so a foreground delete can garbage-collect the PVCs (and
+	// release their PVs under Retain) before reclaimDataVolumes lists them,
+	// which would strand exactly the volumes this is meant to reclaim. Flipping
+	// while the PVCs are still Bound guarantees the CSI driver deletes the
+	// Hetzner volume once the PVC is removed.
+	if err := r.reclaimDataVolumes(ctx, instance); err != nil {
+		return false, err
+	}
+	// Delete the StatefulSet so it stops backing the stale PVCs, then the PVCs
+	// themselves. Both deletions are idempotent; staleDataStorageReason keeps
 	// returning a reason (so the caller keeps requeuing) until the objects are
 	// gone, which is what stops the recreated StatefulSet from adopting them.
 	sts := &appsv1.StatefulSet{ObjectMeta: metav1.ObjectMeta{Name: instance.Name, Namespace: instance.Namespace}}
 	if err := r.Delete(ctx, sts, client.PropagationPolicy(metav1.DeletePropagationForeground)); err != nil && !apierrors.IsNotFound(err) {
-		return false, err
-	}
-	// Reap the backing volumes rather than strand them: the default
-	// hcloud-volumes StorageClass retains the Hetzner volume when its PVC is
-	// deleted, so flip each bound PV to Delete before removing the PVC below.
-	if err := r.reclaimDataVolumes(ctx, instance); err != nil {
 		return false, err
 	}
 	for ordinal := int32(0); ordinal < replicas(instance); ordinal++ {
