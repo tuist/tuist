@@ -51,6 +51,10 @@ const SNAPSHOT_DELTA_INTERVAL: Duration = Duration::from_secs(120);
 const SNAPSHOT_FETCH_WAIT: Duration = Duration::from_secs(20);
 const SNAPSHOT_FULL_INTERVAL: Duration = Duration::from_secs(30 * 60);
 const SNAPSHOT_RETRY_INTERVAL: Duration = Duration::from_secs(60 * 60);
+// Failed fetches retry much sooner than definitive not-found: the server
+// answers UNAVAILABLE while it builds a large namespace's snapshot index,
+// and timeouts/transport errors are transient by the same token.
+const SNAPSHOT_ERROR_RETRY_INTERVAL: Duration = Duration::from_secs(60);
 const SNAPSHOT_IDLE_EVICT: Duration = Duration::from_secs(60 * 60);
 const SNAPSHOT_MAX_INSTANCES: usize = 8;
 // The bulk-warm budget, in value-graph nodes (each node is one blob fetch).
@@ -305,6 +309,14 @@ enum SnapshotState {
     },
     Absent {
         checked: Instant,
+        /// How long to sit on the per-key path before refetching. An hour
+        /// when the server definitively has no snapshot support (not-found);
+        /// one minute when the fetch ERRORED — errors are transient by
+        /// nature (kura answers UNAVAILABLE while a large namespace's
+        /// first-ever index build runs, and it completes within a few of
+        /// these ticks), and an hour of per-key traffic was the cost of
+        /// treating them as permanent.
+        retry_after: Duration,
     },
 }
 
@@ -1698,16 +1710,19 @@ impl Proxy {
                     ));
                     SnapshotState::Absent {
                         checked: Instant::now(),
+                        retry_after: SNAPSHOT_RETRY_INTERVAL,
                     }
                 }
             },
             Ok(None) => SnapshotState::Absent {
                 checked: Instant::now(),
+                retry_after: SNAPSHOT_RETRY_INTERVAL,
             },
             Err(message) => {
                 crate::log_line(&format!("snapshot fetch failed for {instance}: {message}"));
                 SnapshotState::Absent {
                     checked: Instant::now(),
+                    retry_after: SNAPSHOT_ERROR_RETRY_INTERVAL,
                 }
             }
         }
@@ -1770,9 +1785,10 @@ impl Proxy {
                             });
                         }
                     }
-                    SnapshotState::Absent { checked }
-                        if now.duration_since(*checked) > SNAPSHOT_RETRY_INTERVAL =>
-                    {
+                    SnapshotState::Absent {
+                        checked,
+                        retry_after,
+                    } if now.duration_since(*checked) > *retry_after => {
                         plans.push(Plan::Full {
                             instance: instance.clone(),
                         });
