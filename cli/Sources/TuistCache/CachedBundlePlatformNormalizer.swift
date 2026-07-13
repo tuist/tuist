@@ -31,12 +31,12 @@ public struct CachedBundlePlatformNormalizer {
         ).collect()
 
         for infoPlist in Set(infoPlists) {
-            try removeSupportedPlatforms(from: infoPlist)
+            try await removeSupportedPlatforms(from: infoPlist)
         }
     }
 
-    private func removeSupportedPlatforms(from infoPlistPath: AbsolutePath) throws {
-        let data = try Data(contentsOf: infoPlistPath.url)
+    private func removeSupportedPlatforms(from infoPlistPath: AbsolutePath) async throws {
+        let data = try await fileSystem.readFile(at: infoPlistPath)
 
         var format = PropertyListSerialization.PropertyListFormat.binary
         guard var dictionary = try PropertyListSerialization.propertyList(
