@@ -38,6 +38,33 @@ automountServiceAccountToken: false
 typesense:
   dataDir: /data
   enableCors: true
+  # The read-only, search-only API key the docs website and the search_tuist MCP
+  # tool use. It is public by design (shipped to browsers), not a secret. A
+  # bootstrap Job registers it on the instance with the admin key, because
+  # Typesense stores non-bootstrap keys inside its own data rather than reading
+  # them from config.
+  searchKey: "RgIpKytJBtSQf9CoYKxIfVxh8ma5kzs6"
+
+# Registers the read-only search key on the instance after each deploy. It is
+# idempotent: it only creates the key if a search key with the same value is not
+# already present, so a fresh data volume self-heals without a manual step.
+keyBootstrap:
+  enabled: true
+  backoffLimit: 3
+
+# Recurring DocSearch crawl of the public docs site and community forum into the
+# `tuist` and `forum-topics` collections. Runs the typesense/docsearch-scraper
+# image against the in-cluster Service, reading the crawl configs from the
+# `docsearch-configs` ConfigMap (created by the deploy workflow from
+# search/config/docsearch*.json so those files stay the single source).
+scraper:
+  enabled: true
+  image: typesense/docsearch-scraper
+  schedule: "30 4 * * *"
+  concurrencyPolicy: Forbid
+  activeDeadlineSeconds: 3600
+  configMapName: docsearch-configs
+  resources: {}
 
 # TYPESENSE_API_KEY and GITHUB_TOKEN. Provided inline for CI and dev, or synced
 # from 1Password via an ExternalSecret in production.

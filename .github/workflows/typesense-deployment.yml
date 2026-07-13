@@ -120,6 +120,15 @@ jobs:
 
           echo "IMAGE_TAG=$IMAGE_TAG" >> "$GITHUB_ENV"
           echo "Deploying image tag $IMAGE_TAG"
+      - name: Sync DocSearch scraper configs
+        # The scraper CronJob reads its crawl configs from this ConfigMap.
+        # search/config/docsearch*.json stays the single source of truth.
+        run: |
+          kubectl create namespace "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
+          kubectl -n "$NAMESPACE" create configmap docsearch-configs \
+            --from-file=docsearch.json=search/config/docsearch.json \
+            --from-file=docsearch-forum.json=search/config/docsearch-forum.json \
+            --dry-run=client -o yaml | kubectl apply -f -
       - name: helm upgrade --install
         run: |
           helm upgrade --install "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
