@@ -731,6 +731,9 @@ async fn reconcile_snapshot_index(
             to_load.push((hash, version, manifest));
         }
     }
+    let changed_count = to_load.len();
+    let mut loads_failed = 0_usize;
+    let mut invalid = 0_usize;
     let mut loading =
         futures_util::stream::iter(to_load.into_iter().map(|(hash, version, manifest)| {
             let state = state.clone();
@@ -745,6 +748,7 @@ async fn reconcile_snapshot_index(
     while let Some((hash, version_ms, manifest, action_result)) = loading.next().await {
         current.insert(hash, (version_ms, manifest));
         let Some(action_result) = action_result else {
+            loads_failed += 1;
             continue;
         };
         let mut nodes = Vec::with_capacity(action_result.output_files.len());
@@ -769,6 +773,8 @@ async fn reconcile_snapshot_index(
             index
                 .entries
                 .insert(hash, SnapshotIndexEntry { version_ms, nodes });
+        } else {
+            invalid += 1;
         }
     }
     drop(loading);
@@ -826,6 +832,11 @@ async fn reconcile_snapshot_index(
     // and nothing said whether builds were running, how much they scanned, or
     // what the index held afterwards — this is the Loki breadcrumb that turns
     // that from archaeology into a query.
+    // `changed` counts entries whose scanned version differed from the cached
+    // index; a load or parse failure there silently retains the entry's OLD
+    // version, which is exactly the shape of a frozen watermark — these
+    // counters are what distinguish "nothing new was published" from "new
+    // versions were published but every reload failed".
     tracing::info!(
         namespace_id,
         entries = index.entries.len(),
@@ -836,6 +847,9 @@ async fn reconcile_snapshot_index(
             .map(|entry| entry.version_ms)
             .max()
             .unwrap_or(0),
+        changed = changed_count,
+        loads_failed,
+        invalid,
         elapsed_ms = started.elapsed().as_millis() as u64,
         "action-cache snapshot index reconciled"
     );
