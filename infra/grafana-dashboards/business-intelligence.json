@@ -485,248 +485,6 @@
           }
         }
       },
-      "panel-13": {
-        "kind": "Panel",
-        "spec": {
-          "id": 13,
-          "title": "Accounts by Build Runs",
-          "description": "",
-          "links": [],
-          "data": {
-            "kind": "QueryGroup",
-            "spec": {
-              "queries": [
-                {
-                  "kind": "PanelQuery",
-                  "spec": {
-                    "query": {
-                      "kind": "DataQuery",
-                      "group": "grafana-postgresql-datasource",
-                      "version": "v0",
-                      "datasource": {
-                        "name": "denpzjx6h7280b"
-                      },
-                      "spec": {
-                        "editorMode": "code",
-                        "format": "table",
-                        "rawQuery": true,
-                        "rawSql": "SELECT\n  a.name AS account_name,\n  a.billing_email AS billing_email,\n  COUNT(br.id) AS build_run_count\nFROM\n  public.accounts a\n  LEFT JOIN public.projects p ON p.account_id = a.id\n  LEFT JOIN public.build_runs br ON br.project_id = p.id\nWHERE\n  $__timeFilter(a.created_at)\nGROUP BY\n  a.name, a.billing_email\nORDER BY\n  build_run_count DESC;"
-                      }
-                    },
-                    "refId": "A",
-                    "hidden": false
-                  }
-                }
-              ],
-              "transformations": [],
-              "queryOptions": {}
-            }
-          },
-          "vizConfig": {
-            "kind": "VizConfig",
-            "group": "table",
-            "version": "13.0.0-22478626928",
-            "spec": {
-              "options": {
-                "cellHeight": "sm",
-                "showHeader": true
-              },
-              "fieldConfig": {
-                "defaults": {
-                  "thresholds": {
-                    "mode": "absolute",
-                    "steps": [
-                      {
-                        "value": 0,
-                        "color": "green"
-                      },
-                      {
-                        "value": 80,
-                        "color": "red"
-                      }
-                    ]
-                  },
-                  "custom": {
-                    "align": "auto",
-                    "cellOptions": {
-                      "type": "auto"
-                    },
-                    "footer": {
-                      "reducers": []
-                    },
-                    "inspect": false
-                  }
-                },
-                "overrides": [
-                  {
-                    "matcher": {
-                      "id": "byName",
-                      "options": "account_name"
-                    },
-                    "properties": [
-                      {
-                        "id": "displayName",
-                        "value": "Account"
-                      }
-                    ]
-                  },
-                  {
-                    "matcher": {
-                      "id": "byName",
-                      "options": "billing_email"
-                    },
-                    "properties": [
-                      {
-                        "id": "displayName",
-                        "value": "Billing Email"
-                      }
-                    ]
-                  },
-                  {
-                    "matcher": {
-                      "id": "byName",
-                      "options": "build_run_count"
-                    },
-                    "properties": [
-                      {
-                        "id": "displayName",
-                        "value": "Build Runs"
-                      }
-                    ]
-                  }
-                ]
-              }
-            }
-          }
-        }
-      },
-      "panel-14": {
-        "kind": "Panel",
-        "spec": {
-          "id": 14,
-          "title": "Accounts by Package Downloads",
-          "description": "",
-          "links": [],
-          "data": {
-            "kind": "QueryGroup",
-            "spec": {
-              "queries": [
-                {
-                  "kind": "PanelQuery",
-                  "spec": {
-                    "query": {
-                      "kind": "DataQuery",
-                      "group": "grafana-postgresql-datasource",
-                      "version": "v0",
-                      "datasource": {
-                        "name": "denpzjx6h7280b"
-                      },
-                      "spec": {
-                        "editorMode": "code",
-                        "format": "table",
-                        "rawQuery": true,
-                        "rawSql": "SELECT\n  a.name AS account_name,\n  a.billing_email AS billing_email,\n  CASE \n    WHEN a.organization_id IS NOT NULL THEN 'Organization'\n    ELSE 'Individual'\n  END AS account_type,\n  COUNT(pde.id) AS package_download_count\nFROM\n  public.accounts a\n  LEFT JOIN public.package_download_events pde ON pde.account_id = a.id\nWHERE\n  $__timeFilter(a.created_at)\nGROUP BY\n  a.name, a.billing_email, a.organization_id\nORDER BY\n  package_download_count DESC;"
-                      }
-                    },
-                    "refId": "A",
-                    "hidden": false
-                  }
-                }
-              ],
-              "transformations": [],
-              "queryOptions": {}
-            }
-          },
-          "vizConfig": {
-            "kind": "VizConfig",
-            "group": "table",
-            "version": "12.4.0-20781422371.patch3",
-            "spec": {
-              "options": {
-                "cellHeight": "sm",
-                "showHeader": true
-              },
-              "fieldConfig": {
-                "defaults": {
-                  "thresholds": {
-                    "mode": "absolute",
-                    "steps": [
-                      {
-                        "value": 0,
-                        "color": "green"
-                      },
-                      {
-                        "value": 80,
-                        "color": "red"
-                      }
-                    ]
-                  },
-                  "custom": {
-                    "align": "auto",
-                    "cellOptions": {
-                      "type": "auto"
-                    },
-                    "footer": {
-                      "reducers": []
-                    },
-                    "inspect": false
-                  }
-                },
-                "overrides": [
-                  {
-                    "matcher": {
-                      "id": "byName",
-                      "options": "account_name"
-                    },
-                    "properties": [
-                      {
-                        "id": "displayName",
-                        "value": "Account"
-                      }
-                    ]
-                  },
-                  {
-                    "matcher": {
-                      "id": "byName",
-                      "options": "billing_email"
-                    },
-                    "properties": [
-                      {
-                        "id": "displayName",
-                        "value": "Billing Email"
-                      }
-                    ]
-                  },
-                  {
-                    "matcher": {
-                      "id": "byName",
-                      "options": "account_type"
-                    },
-                    "properties": [
-                      {
-                        "id": "displayName",
-                        "value": "Type"
-                      }
-                    ]
-                  },
-                  {
-                    "matcher": {
-                      "id": "byName",
-                      "options": "package_download_count"
-                    },
-                    "properties": [
-                      {
-                        "id": "displayName",
-                        "value": "Package Downloads"
-                      }
-                    ]
-                  }
-                ]
-              }
-            }
-          }
-        }
-      },
       "panel-17": {
         "kind": "Panel",
         "spec": {
@@ -1035,13 +793,35 @@
         "kind": "Panel",
         "spec": {
           "id": 20,
-          "title": "Warm new accounts",
-          "description": "",
+          "title": "Most active accounts by runs",
+          "description": "Accounts with the most CLI/CI runs (command events) in the selected range. Sourced from ClickHouse command_events joined to the Postgres account map.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
             "spec": {
               "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "grafana-clickhouse-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "dexgs9hv7rjswd"
+                      },
+                      "spec": {
+                        "editorType": "sql",
+                        "format": 1,
+                        "queryType": "table",
+                        "range": true,
+                        "rawSql": "SELECT project_id,\n  count() AS runs,\n  countIf(is_ci) AS ci_runs,\n  countIf(NOT is_ci) AS local_runs\nFROM command_events\nWHERE $__timeFilter(ran_at)\nGROUP BY project_id\nORDER BY runs DESC"
+                      }
+                    },
+                    "refId": "A",
+                    "hidden": false
+                  }
+                },
                 {
                   "kind": "PanelQuery",
                   "spec": {
@@ -1056,15 +836,102 @@
                         "editorMode": "code",
                         "format": "table",
                         "rawQuery": true,
-                        "rawSql": "SELECT\n  a.name AS account_name,\n  a.billing_email AS billing_email,\n  COUNT(c.id) AS command_event_count\nFROM\n  public.accounts a\n  LEFT JOIN public.projects p ON p.account_id = a.id\n  LEFT JOIN public.command_events c ON c.project_id = p.id\nWHERE\n  $__timeFilter(a.created_at)\nGROUP BY\n  a.name, a.billing_email\nORDER BY\n  command_event_count DESC;"
+                        "rawSql": "SELECT p.id AS project_id, a.name AS account_handle,\n  CASE WHEN a.organization_id IS NOT NULL THEN 'Organization' ELSE 'Individual' END AS account_type,\n  a.billing_email AS billing_email\nFROM public.projects p JOIN public.accounts a ON p.account_id = a.id"
                       }
                     },
-                    "refId": "A",
+                    "refId": "B",
                     "hidden": false
                   }
                 }
               ],
-              "transformations": [],
+              "transformations": [
+                {
+                  "kind": "Transformation",
+                  "group": "joinByField",
+                  "spec": {
+                    "options": {
+                      "byField": "project_id",
+                      "mode": "outer"
+                    }
+                  }
+                },
+                {
+                  "kind": "Transformation",
+                  "group": "groupBy",
+                  "spec": {
+                    "options": {
+                      "fields": {
+                        "account_handle": {
+                          "aggregations": [
+                            "groupby"
+                          ],
+                          "operation": "groupby"
+                        },
+                        "account_type": {
+                          "aggregations": [
+                            "groupby"
+                          ],
+                          "operation": "groupby"
+                        },
+                        "billing_email": {
+                          "aggregations": [
+                            "groupby"
+                          ],
+                          "operation": "groupby"
+                        },
+                        "runs": {
+                          "aggregations": [
+                            "sum"
+                          ],
+                          "operation": "aggregate"
+                        },
+                        "ci_runs": {
+                          "aggregations": [
+                            "sum"
+                          ],
+                          "operation": "aggregate"
+                        },
+                        "local_runs": {
+                          "aggregations": [
+                            "sum"
+                          ],
+                          "operation": "aggregate"
+                        }
+                      }
+                    }
+                  }
+                },
+                {
+                  "kind": "Transformation",
+                  "group": "organize",
+                  "spec": {
+                    "options": {
+                      "excludeByName": {},
+                      "indexByName": {},
+                      "renameByName": {
+                        "runs (sum)": "runs",
+                        "ci_runs (sum)": "ci_runs",
+                        "local_runs (sum)": "local_runs"
+                      }
+                    }
+                  }
+                },
+                {
+                  "kind": "Transformation",
+                  "group": "sortBy",
+                  "spec": {
+                    "options": {
+                      "fields": {},
+                      "sort": [
+                        {
+                          "desc": true,
+                          "field": "runs"
+                        }
+                      ]
+                    }
+                  }
+                }
+              ],
               "queryOptions": {}
             }
           },
@@ -1075,7 +942,13 @@
             "spec": {
               "options": {
                 "cellHeight": "sm",
-                "showHeader": true
+                "showHeader": true,
+                "sortBy": [
+                  {
+                    "desc": true,
+                    "displayName": "Runs"
+                  }
+                ]
               },
               "fieldConfig": {
                 "defaults": {
@@ -1085,10 +958,6 @@
                       {
                         "value": 0,
                         "color": "green"
-                      },
-                      {
-                        "value": 80,
-                        "color": "red"
                       }
                     ]
                   },
@@ -1107,12 +976,28 @@
                   {
                     "matcher": {
                       "id": "byName",
-                      "options": "account_name"
+                      "options": "account_handle"
                     },
                     "properties": [
                       {
                         "id": "displayName",
                         "value": "Account"
+                      },
+                      {
+                        "id": "custom.width",
+                        "value": 220
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "account_type"
+                    },
+                    "properties": [
+                      {
+                        "id": "displayName",
+                        "value": "Type"
                       }
                     ]
                   },
@@ -1125,18 +1010,58 @@
                       {
                         "id": "displayName",
                         "value": "Billing Email"
+                      },
+                      {
+                        "id": "custom.width",
+                        "value": 240
                       }
                     ]
                   },
                   {
                     "matcher": {
                       "id": "byName",
-                      "options": "command_event_count"
+                      "options": "runs"
                     },
                     "properties": [
                       {
                         "id": "displayName",
                         "value": "Runs"
+                      },
+                      {
+                        "id": "custom.align",
+                        "value": "right"
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "ci_runs"
+                    },
+                    "properties": [
+                      {
+                        "id": "displayName",
+                        "value": "CI runs"
+                      },
+                      {
+                        "id": "custom.align",
+                        "value": "right"
+                      }
+                    ]
+                  },
+                  {
+                    "matcher": {
+                      "id": "byName",
+                      "options": "local_runs"
+                    },
+                    "properties": [
+                      {
+                        "id": "displayName",
+                        "value": "Local runs"
+                      },
+                      {
+                        "id": "custom.align",
+                        "value": "right"
                       }
                     ]
                   }
@@ -3422,369 +3347,6 @@
           }
         }
       },
-      "panel-120": {
-        "kind": "Panel",
-        "spec": {
-          "id": 120,
-          "title": "Package registry - downloads over time",
-          "description": "Swift package download events over time. Set Granularity (day/week/month) and widen the time range to see the trend.",
-          "links": [],
-          "data": {
-            "kind": "QueryGroup",
-            "spec": {
-              "queries": [
-                {
-                  "kind": "PanelQuery",
-                  "spec": {
-                    "query": {
-                      "kind": "DataQuery",
-                      "group": "grafana-postgresql-datasource",
-                      "version": "v0",
-                      "datasource": {
-                        "name": "denpzjx6h7280b"
-                      },
-                      "spec": {
-                        "editorMode": "code",
-                        "format": "time_series",
-                        "rawQuery": true,
-                        "rawSql": "SELECT date_trunc('$bucket', inserted_at) AS time, 'Downloads' AS label, count(*) AS value\nFROM public.package_download_events\nWHERE $__timeFilter(inserted_at)\nGROUP BY 1\nORDER BY time"
-                      }
-                    },
-                    "refId": "A",
-                    "hidden": false
-                  }
-                }
-              ],
-              "transformations": [],
-              "queryOptions": {}
-            }
-          },
-          "vizConfig": {
-            "kind": "VizConfig",
-            "group": "timeseries",
-            "version": "13.0.0-22478626928",
-            "spec": {
-              "options": {
-                "legend": {
-                  "calcs": [],
-                  "displayMode": "list",
-                  "placement": "bottom",
-                  "showLegend": true
-                },
-                "tooltip": {
-                  "hideZeros": false,
-                  "mode": "multi",
-                  "sort": "none"
-                }
-              },
-              "fieldConfig": {
-                "defaults": {
-                  "unit": "short",
-                  "thresholds": {
-                    "mode": "absolute",
-                    "steps": [
-                      {
-                        "value": 0,
-                        "color": "green"
-                      }
-                    ]
-                  },
-                  "color": {
-                    "mode": "palette-classic"
-                  },
-                  "custom": {
-                    "axisBorderShow": false,
-                    "axisCenteredZero": false,
-                    "axisColorMode": "text",
-                    "axisLabel": "",
-                    "axisPlacement": "auto",
-                    "barAlignment": 0,
-                    "barWidthFactor": 0.6,
-                    "drawStyle": "line",
-                    "fillOpacity": 12,
-                    "gradientMode": "none",
-                    "hideFrom": {
-                      "legend": false,
-                      "tooltip": false,
-                      "viz": false
-                    },
-                    "insertNulls": false,
-                    "lineInterpolation": "smooth",
-                    "lineWidth": 2,
-                    "pointSize": 5,
-                    "scaleDistribution": {
-                      "type": "linear"
-                    },
-                    "showPoints": "auto",
-                    "showValues": false,
-                    "spanNulls": true,
-                    "stacking": {
-                      "group": "A",
-                      "mode": "none"
-                    },
-                    "thresholdsStyle": {
-                      "mode": "off"
-                    }
-                  }
-                },
-                "overrides": []
-              }
-            }
-          }
-        }
-      },
-      "panel-121": {
-        "kind": "Panel",
-        "spec": {
-          "id": 121,
-          "title": "Package registry - active accounts over time",
-          "description": "Distinct accounts downloading packages over time. Set Granularity (day/week/month) and widen the time range to see the trend.",
-          "links": [],
-          "data": {
-            "kind": "QueryGroup",
-            "spec": {
-              "queries": [
-                {
-                  "kind": "PanelQuery",
-                  "spec": {
-                    "query": {
-                      "kind": "DataQuery",
-                      "group": "grafana-postgresql-datasource",
-                      "version": "v0",
-                      "datasource": {
-                        "name": "denpzjx6h7280b"
-                      },
-                      "spec": {
-                        "editorMode": "code",
-                        "format": "time_series",
-                        "rawQuery": true,
-                        "rawSql": "SELECT date_trunc('$bucket', inserted_at) AS time, 'Accounts' AS label,\n  count(DISTINCT account_id) AS value\nFROM public.package_download_events\nWHERE $__timeFilter(inserted_at)\nGROUP BY 1\nORDER BY time"
-                      }
-                    },
-                    "refId": "A",
-                    "hidden": false
-                  }
-                }
-              ],
-              "transformations": [],
-              "queryOptions": {}
-            }
-          },
-          "vizConfig": {
-            "kind": "VizConfig",
-            "group": "timeseries",
-            "version": "13.0.0-22478626928",
-            "spec": {
-              "options": {
-                "legend": {
-                  "calcs": [],
-                  "displayMode": "list",
-                  "placement": "bottom",
-                  "showLegend": true
-                },
-                "tooltip": {
-                  "hideZeros": false,
-                  "mode": "multi",
-                  "sort": "none"
-                }
-              },
-              "fieldConfig": {
-                "defaults": {
-                  "unit": "short",
-                  "thresholds": {
-                    "mode": "absolute",
-                    "steps": [
-                      {
-                        "value": 0,
-                        "color": "green"
-                      }
-                    ]
-                  },
-                  "color": {
-                    "mode": "palette-classic"
-                  },
-                  "custom": {
-                    "axisBorderShow": false,
-                    "axisCenteredZero": false,
-                    "axisColorMode": "text",
-                    "axisLabel": "",
-                    "axisPlacement": "auto",
-                    "barAlignment": 0,
-                    "barWidthFactor": 0.6,
-                    "drawStyle": "line",
-                    "fillOpacity": 12,
-                    "gradientMode": "none",
-                    "hideFrom": {
-                      "legend": false,
-                      "tooltip": false,
-                      "viz": false
-                    },
-                    "insertNulls": false,
-                    "lineInterpolation": "smooth",
-                    "lineWidth": 2,
-                    "pointSize": 5,
-                    "scaleDistribution": {
-                      "type": "linear"
-                    },
-                    "showPoints": "auto",
-                    "showValues": false,
-                    "spanNulls": true,
-                    "stacking": {
-                      "group": "A",
-                      "mode": "none"
-                    },
-                    "thresholdsStyle": {
-                      "mode": "off"
-                    }
-                  }
-                },
-                "overrides": []
-              }
-            }
-          }
-        }
-      },
-      "panel-122": {
-        "kind": "Panel",
-        "spec": {
-          "id": 122,
-          "title": "Package registry - top accounts by downloads",
-          "description": "Accounts with the most package downloads in the selected range (time-filtered on the download event).",
-          "links": [],
-          "data": {
-            "kind": "QueryGroup",
-            "spec": {
-              "queries": [
-                {
-                  "kind": "PanelQuery",
-                  "spec": {
-                    "query": {
-                      "kind": "DataQuery",
-                      "group": "grafana-postgresql-datasource",
-                      "version": "v0",
-                      "datasource": {
-                        "name": "denpzjx6h7280b"
-                      },
-                      "spec": {
-                        "editorMode": "code",
-                        "format": "table",
-                        "rawQuery": true,
-                        "rawSql": "SELECT a.name AS account_name, a.billing_email,\n  CASE WHEN a.organization_id IS NOT NULL THEN 'Organization' ELSE 'Individual' END AS account_type,\n  count(pde.id) AS package_downloads\nFROM public.package_download_events pde\nJOIN public.accounts a ON a.id = pde.account_id\nWHERE $__timeFilter(pde.inserted_at)\nGROUP BY a.name, a.billing_email, a.organization_id\nORDER BY package_downloads DESC"
-                      }
-                    },
-                    "refId": "A",
-                    "hidden": false
-                  }
-                }
-              ],
-              "transformations": [],
-              "queryOptions": {}
-            }
-          },
-          "vizConfig": {
-            "kind": "VizConfig",
-            "group": "table",
-            "version": "13.0.0-22478626928",
-            "spec": {
-              "options": {
-                "cellHeight": "sm",
-                "showHeader": true,
-                "sortBy": [
-                  {
-                    "desc": true,
-                    "displayName": "Package downloads"
-                  }
-                ]
-              },
-              "fieldConfig": {
-                "defaults": {
-                  "thresholds": {
-                    "mode": "absolute",
-                    "steps": [
-                      {
-                        "value": 0,
-                        "color": "green"
-                      }
-                    ]
-                  },
-                  "custom": {
-                    "align": "auto",
-                    "cellOptions": {
-                      "type": "auto"
-                    },
-                    "footer": {
-                      "reducers": []
-                    },
-                    "inspect": false
-                  }
-                },
-                "overrides": [
-                  {
-                    "matcher": {
-                      "id": "byName",
-                      "options": "account_name"
-                    },
-                    "properties": [
-                      {
-                        "id": "displayName",
-                        "value": "Account"
-                      },
-                      {
-                        "id": "custom.width",
-                        "value": 220
-                      }
-                    ]
-                  },
-                  {
-                    "matcher": {
-                      "id": "byName",
-                      "options": "account_type"
-                    },
-                    "properties": [
-                      {
-                        "id": "displayName",
-                        "value": "Type"
-                      }
-                    ]
-                  },
-                  {
-                    "matcher": {
-                      "id": "byName",
-                      "options": "billing_email"
-                    },
-                    "properties": [
-                      {
-                        "id": "displayName",
-                        "value": "Billing Email"
-                      },
-                      {
-                        "id": "custom.width",
-                        "value": 240
-                      }
-                    ]
-                  },
-                  {
-                    "matcher": {
-                      "id": "byName",
-                      "options": "package_downloads"
-                    },
-                    "properties": [
-                      {
-                        "id": "displayName",
-                        "value": "Package downloads"
-                      },
-                      {
-                        "id": "custom.align",
-                        "value": "right"
-                      }
-                    ]
-                  }
-                ]
-              }
-            }
-          }
-        }
-      },
       "panel-130": {
         "kind": "Panel",
         "spec": {
@@ -5714,72 +5276,6 @@
           {
             "kind": "RowsLayoutRow",
             "spec": {
-              "title": "Package Registry",
-              "collapse": true,
-              "layout": {
-                "kind": "GridLayout",
-                "spec": {
-                  "items": [
-                    {
-                      "kind": "GridLayoutItem",
-                      "spec": {
-                        "x": 0,
-                        "y": 0,
-                        "width": 12,
-                        "height": 8,
-                        "element": {
-                          "kind": "ElementReference",
-                          "name": "panel-14"
-                        }
-                      }
-                    },
-                    {
-                      "kind": "GridLayoutItem",
-                      "spec": {
-                        "x": 12,
-                        "y": 0,
-                        "width": 12,
-                        "height": 8,
-                        "element": {
-                          "kind": "ElementReference",
-                          "name": "panel-120"
-                        }
-                      }
-                    },
-                    {
-                      "kind": "GridLayoutItem",
-                      "spec": {
-                        "x": 0,
-                        "y": 8,
-                        "width": 12,
-                        "height": 8,
-                        "element": {
-                          "kind": "ElementReference",
-                          "name": "panel-121"
-                        }
-                      }
-                    },
-                    {
-                      "kind": "GridLayoutItem",
-                      "spec": {
-                        "x": 12,
-                        "y": 8,
-                        "width": 12,
-                        "height": 8,
-                        "element": {
-                          "kind": "ElementReference",
-                          "name": "panel-122"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          {
-            "kind": "RowsLayoutRow",
-            "spec": {
               "title": "Inspected builds",
               "collapse": true,
               "layout": {
@@ -5795,7 +5291,7 @@
                         "height": 8,
                         "element": {
                           "kind": "ElementReference",
-                          "name": "panel-13"
+                          "name": "panel-130"
                         }
                       }
                     },
@@ -5808,7 +5304,7 @@
                         "height": 8,
                         "element": {
                           "kind": "ElementReference",
-                          "name": "panel-130"
+                          "name": "panel-131"
                         }
                       }
                     },
@@ -5817,20 +5313,7 @@
                       "spec": {
                         "x": 0,
                         "y": 8,
-                        "width": 12,
-                        "height": 8,
-                        "element": {
-                          "kind": "ElementReference",
-                          "name": "panel-131"
-                        }
-                      }
-                    },
-                    {
-                      "kind": "GridLayoutItem",
-                      "spec": {
-                        "x": 12,
-                        "y": 8,
-                        "width": 12,
+                        "width": 24,
                         "height": 8,
                         "element": {
                           "kind": "ElementReference",
