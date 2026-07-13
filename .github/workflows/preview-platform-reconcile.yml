@@ -98,16 +98,18 @@ jobs:
       - name: Resolve immutable Kura controller image tag
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          IMAGE_WORKFLOW_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           set -euo pipefail
 
           # The controller image is published only on push-to-main, so a
           # revision reachable from HEAD is not necessarily a pushed image
           # (a `main` push that batches commits tags the image with the push
-          # tip, not the controller commit). Probe GHCR and walk back rather
-          # than pinning a tag that would ImagePullBackOff. Only a 404 means
-          # "never pushed"; any other status aborts instead of silently
-          # deploying an older controller.
+          # tip, not the controller commit). Probe the completed image
+          # workflow's head first, then walk back through controller changes
+          # for manual and platform-only runs rather than pinning a tag that
+          # would ImagePullBackOff. Only a 404 means "never pushed"; any other
+          # status aborts instead of silently deploying an older controller.
           manifest_status() {
             local repository="$1" reference="$2" token
             token="$(
@@ -124,6 +126,9 @@ jobs:
           }
 
           candidates=()
+          if [ -n "$IMAGE_WORKFLOW_HEAD_SHA" ]; then
+            candidates+=("sha-${IMAGE_WORKFLOW_HEAD_SHA:0:12}")
+          fi
           while IFS= read -r revision; do
             [ -n "$revision" ] || continue
             candidates+=("sha-${revision:0:12}")
@@ -148,7 +153,7 @@ jobs:
           done
 
           if [ -z "$KURA_CONTROLLER_IMAGE_TAG" ]; then
-            echo "::error::None of the last 20 Kura controller revisions on main have a published image."
+            echo "::error::Neither the image workflow head nor any of the last 20 Kura controller revisions on main have a published image."
             exit 1
           fi
 
