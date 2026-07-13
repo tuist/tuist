@@ -121,9 +121,12 @@ rules:
   # PVs are cluster-scoped too: reconcileStaleDataStorage reads a bound data
   # PVC's PersistentVolume to detect a node-local volume pinned (node affinity)
   # to a node that no longer exists — a reprovisioned bare-metal fleet node.
+  # update/patch let reclaimDataVolumes flip a data PV to reclaimPolicy Delete
+  # before the operator tears its PVC down, so the CSI driver reaps the Hetzner
+  # volume instead of stranding it under the hcloud-volumes Retain default.
   - apiGroups: [""]
     resources: [persistentvolumes]
-    verbs: [get, list, watch]
+    verbs: [get, list, watch, update, patch]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding

@@ -184,7 +184,7 @@ func terminationGracePeriodSeconds() int64 {
 // +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch
 // +kubebuilder:rbac:groups="",resources=nodes,verbs=get;list;watch
 // +kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=get;list;watch;update;patch;delete
-// +kubebuilder:rbac:groups="",resources=persistentvolumes,verbs=get;list;watch
+// +kubebuilder:rbac:groups="",resources=persistentvolumes,verbs=get;list;watch;update;patch
 // +kubebuilder:rbac:groups=networking.k8s.io,resources=ingresses;networkpolicies,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=policy,resources=poddisruptionbudgets,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=cert-manager.io,resources=certificates,verbs=get;list;watch;create;update;patch;delete
@@ -202,6 +202,15 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	}
 
 	if !instance.DeletionTimestamp.IsZero() {
+		// The StatefulSet's Delete retention policy drops the data PVCs when the
+		// StatefulSet is garbage-collected with the instance, but the default
+		// hcloud-volumes StorageClass retains the underlying Hetzner volume. Flip
+		// the bound PVs to Delete first so the CSI driver reaps the block storage
+		// instead of stranding it. Must run before the finalizer is removed, while
+		// the PVCs still exist to resolve their PVs.
+		if err := r.reclaimDataVolumes(ctx, instance); err != nil {
+			return ctrl.Result{}, err
+		}
 		controllerutil.RemoveFinalizer(instance, KuraInstanceFinalizer)
 		return ctrl.Result{}, r.Update(ctx, instance)
 	}
@@ -1560,6 +1569,46 @@ func (r *KuraInstanceReconciler) reconcileDataPersistentVolumeClaims(ctx context
 	return nil
 }
 
+// reclaimDataVolumes flips the bound PersistentVolume of each of the instance's
+// data PVCs to reclaimPolicy Delete, so the CSI driver reaps the underlying
+// volume when the PVC is later removed. The cluster-default hcloud-volumes
+// StorageClass provisions PVs with reclaimPolicy Retain (a deliberately
+// conservative default that expects the owning operator to garbage-collect
+// explicitly). Without this, every operator-driven teardown of a data PVC — on
+// instance deletion and on a stale-storage recreate — orphans a Hetzner block
+// volume that keeps billing forever. Kura data is a regenerable cache, so
+// reclaiming the volume is safe. Node-local (scw-local-nvme) PVs are already
+// Delete, so the patch is a no-op there.
+func (r *KuraInstanceReconciler) reclaimDataVolumes(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
+	pvcs := &corev1.PersistentVolumeClaimList{}
+	if err := r.List(ctx, pvcs, client.InNamespace(instance.Namespace), client.MatchingLabels(selectorLabels(instance))); err != nil {
+		return err
+	}
+	dataPrefix := fmt.Sprintf("data-%s-", instance.Name)
+	for i := range pvcs.Items {
+		pvc := &pvcs.Items[i]
+		if !strings.HasPrefix(pvc.Name, dataPrefix) || pvc.Spec.VolumeName == "" {
+			continue
+		}
+		pv := &corev1.PersistentVolume{}
+		if err := r.Get(ctx, types.NamespacedName{Name: pvc.Spec.VolumeName}, pv); err != nil {
+			if apierrors.IsNotFound(err) {
+				continue
+			}
+			return err
+		}
+		if pv.Spec.PersistentVolumeReclaimPolicy == corev1.PersistentVolumeReclaimDelete {
+			continue
+		}
+		before := pv.DeepCopy()
+		pv.Spec.PersistentVolumeReclaimPolicy = corev1.PersistentVolumeReclaimDelete
+		if err := r.Patch(ctx, pv, client.MergeFrom(before)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // reconcileStaleDataStorage recreates the StatefulSet when its data PVCs can
 // never bind on the current infrastructure. It reports true while the cleanup is
 // still in flight; the caller requeues and skips the rest of the reconcile until
@@ -1572,8 +1621,20 @@ func (r *KuraInstanceReconciler) reconcileStaleDataStorage(ctx context.Context, 
 	}
 	log.FromContext(ctx).Info("recreating Kura StatefulSet for stale data storage", "reason", reason)
 
-	// Delete the StatefulSet first so it stops backing the stale PVCs, then the
-	// PVCs themselves. Both deletions are idempotent; staleDataStorageReason keeps
+	// Reap the backing volumes rather than strand them: the default
+	// hcloud-volumes StorageClass retains the Hetzner volume when its PVC is
+	// deleted, so flip each bound PV to Delete first. This must run BEFORE the
+	// StatefulSet delete: whenDeleted: Delete owner-references the PVCs to the
+	// StatefulSet, so a foreground delete can garbage-collect the PVCs (and
+	// release their PVs under Retain) before reclaimDataVolumes lists them,
+	// which would strand exactly the volumes this is meant to reclaim. Flipping
+	// while the PVCs are still Bound guarantees the CSI driver deletes the
+	// Hetzner volume once the PVC is removed.
+	if err := r.reclaimDataVolumes(ctx, instance); err != nil {
+		return false, err
+	}
+	// Delete the StatefulSet so it stops backing the stale PVCs, then the PVCs
+	// themselves. Both deletions are idempotent; staleDataStorageReason keeps
 	// returning a reason (so the caller keeps requeuing) until the objects are
 	// gone, which is what stops the recreated StatefulSet from adopting them.
 	sts := &appsv1.StatefulSet{ObjectMeta: metav1.ObjectMeta{Name: instance.Name, Namespace: instance.Namespace}}
