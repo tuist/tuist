@@ -522,12 +522,20 @@ struct BuildPhaseGenerator: BuildPhaseGenerating {
             }
         }
 
-        let copyLines = executableNames.map {
-            """
-            if [[ -f "$BUILD_DIR/$CONFIGURATION/\($0)" ]]; then
+        // The executable is copied to a temporary file and moved over the destination
+        // rather than overwritten in place with `cp -f`: macOS invalidates the cached
+        // code-signature state of an executable that is modified in place, and kills
+        // subsequent spawns with SIGKILL (Code Signature Invalid), which surfaces as
+        // "external macro implementation ... produced malformed response". The atomic
+        // rename gives the destination a fresh inode, avoiding the invalidation.
+        let copyLines = executableNames.map { executableName in
+            let sourcePath = "$BUILD_DIR/$CONFIGURATION/\(executableName)"
+            let destinationPath = "$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/\(executableName)"
+            return """
+            if [[ -f "\(sourcePath)" ]]; then
                 mkdir -p "$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/"
-                if [[ "$BUILD_DIR/$CONFIGURATION/\($0)" != "$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/\($0)" ]]; then
-                    cp -f "$BUILD_DIR/$CONFIGURATION/\($0)" "$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/\($0)"
+                if [[ "\(sourcePath)" != "\(destinationPath)" ]]; then
+                    cp "\(sourcePath)" "\(destinationPath).tmp" && mv -f "\(destinationPath).tmp" "\(destinationPath)"
                 fi
             fi
             """

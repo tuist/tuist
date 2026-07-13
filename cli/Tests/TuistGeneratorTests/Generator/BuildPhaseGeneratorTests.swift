@@ -2203,7 +2203,7 @@ struct BuildPhaseGeneratorTests {
         #expect(buildPhase != nil)
 
         let expectedScript =
-            "if [[ -f \"$BUILD_DIR/$CONFIGURATION/macro\" ]]; then\n    mkdir -p \"$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/\"\n    if [[ \"$BUILD_DIR/$CONFIGURATION/macro\" != \"$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/macro\" ]]; then\n        cp -f \"$BUILD_DIR/$CONFIGURATION/macro\" \"$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/macro\"\n    fi\nfi"
+            "if [[ -f \"$BUILD_DIR/$CONFIGURATION/macro\" ]]; then\n    mkdir -p \"$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/\"\n    if [[ \"$BUILD_DIR/$CONFIGURATION/macro\" != \"$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/macro\" ]]; then\n        cp \"$BUILD_DIR/$CONFIGURATION/macro\" \"$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/macro.tmp\" && mv -f \"$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/macro.tmp\" \"$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/macro\"\n    fi\nfi"
         #expect(buildPhase?.shellScript?.contains(expectedScript) == true)
         #expect(
             buildPhase?.inputPaths ==
