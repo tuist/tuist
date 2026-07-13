@@ -345,7 +345,7 @@
         "kind": "Panel",
         "spec": {
           "id": 12,
-          "title": "Bundles per Day (CI over Total)",
+          "title": "Bundles over time (CI over Total)",
           "description": "",
           "links": [],
           "data": {
@@ -366,7 +366,7 @@
                         "editorMode": "code",
                         "format": "time_series",
                         "rawQuery": true,
-                        "rawSql": "SELECT\n  date_trunc('day', b.inserted_at) AS time,\n  'Total' AS label,\n  COUNT(*) AS value\nFROM public.bundles b\nWHERE $__timeFilter(b.inserted_at)\nGROUP BY 1\n\nUNION ALL\n\nSELECT\n  date_trunc('day', b.inserted_at) AS time,\n  'CI' AS label,\n  COUNT(*) AS value\nFROM public.bundles b\nWHERE b.git_ref IS NOT NULL AND $__timeFilter(b.inserted_at)\nGROUP BY 1\n\nORDER BY time, label;"
+                        "rawSql": "SELECT\n  date_trunc('$bucket', b.inserted_at) AS time,\n  'Total' AS label,\n  COUNT(*) AS value\nFROM public.bundles b\nWHERE $__timeFilter(b.inserted_at)\nGROUP BY 1\n\nUNION ALL\n\nSELECT\n  date_trunc('$bucket', b.inserted_at) AS time,\n  'CI' AS label,\n  COUNT(*) AS value\nFROM public.bundles b\nWHERE b.git_ref IS NOT NULL AND $__timeFilter(b.inserted_at)\nGROUP BY 1\n\nORDER BY time, label;"
                       }
                     },
                     "refId": "A",
@@ -2584,8 +2584,8 @@
         "kind": "Panel",
         "spec": {
           "id": 100,
-          "title": "Module cache - remote cache hits per day",
-          "description": "Remote binary-cache target hits per day (sum of remote_cache_target_hits across runs). Widen the time range (top-right) to see the trend.",
+          "title": "Module cache - remote cache hits over time",
+          "description": "Remote binary-cache target hits over time (sum of remote_cache_target_hits across runs). Set Granularity (day/week/month) and widen the time range to see the trend.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -2606,7 +2606,7 @@
                         "format": 1,
                         "queryType": "table",
                         "range": true,
-                        "rawSql": "SELECT toStartOfDay(ran_at) AS time,\n  sum(remote_cache_hits_count) AS \"Remote cache hits\"\nFROM command_events\nWHERE $__timeFilter(ran_at)\nGROUP BY time\nORDER BY time"
+                        "rawSql": "SELECT toStartOfInterval(ran_at, INTERVAL 1 $bucket) AS time,\n  sum(remote_cache_hits_count) AS \"Remote cache hits\"\nFROM command_events\nWHERE $__timeFilter(ran_at)\nGROUP BY time\nORDER BY time"
                       }
                     },
                     "refId": "A",
@@ -2696,8 +2696,8 @@
         "kind": "Panel",
         "spec": {
           "id": 101,
-          "title": "Module cache - active projects per day",
-          "description": "Distinct projects with remote cache hits, and distinct projects with caching enabled, per day. Widen the time range (top-right) to see the trend.",
+          "title": "Module cache - active projects over time",
+          "description": "Distinct projects with remote cache hits, and distinct projects with caching enabled, over time. Set Granularity (day/week/month) and widen the time range to see the trend.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -2718,7 +2718,7 @@
                         "format": 1,
                         "queryType": "table",
                         "range": true,
-                        "rawSql": "SELECT toStartOfDay(ran_at) AS time,\n  uniqExactIf(project_id, remote_cache_hits_count > 0) AS \"Projects with cache hits\",\n  uniqExactIf(project_id, cacheable_targets_count > 0) AS \"Projects with caching enabled\"\nFROM command_events\nWHERE $__timeFilter(ran_at)\nGROUP BY time\nORDER BY time"
+                        "rawSql": "SELECT toStartOfInterval(ran_at, INTERVAL 1 $bucket) AS time,\n  uniqExactIf(project_id, remote_cache_hits_count > 0) AS \"Projects with cache hits\",\n  uniqExactIf(project_id, cacheable_targets_count > 0) AS \"Projects with caching enabled\"\nFROM command_events\nWHERE $__timeFilter(ran_at)\nGROUP BY time\nORDER BY time"
                       }
                     },
                     "refId": "A",
@@ -3090,8 +3090,8 @@
         "kind": "Panel",
         "spec": {
           "id": 110,
-          "title": "Xcode cache - CAS operations per day",
-          "description": "Content-addressable storage upload/download operations per day. Widen the time range (top-right) to see the trend.",
+          "title": "Xcode cache - CAS operations over time",
+          "description": "Content-addressable storage upload/download operations over time. Set Granularity (day/week/month) and widen the time range to see the trend.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -3112,7 +3112,7 @@
                         "format": 1,
                         "queryType": "table",
                         "range": true,
-                        "rawSql": "SELECT toStartOfDay(inserted_at) AS time,\n  countIf(action = 'upload') AS \"Uploads\",\n  countIf(action = 'download') AS \"Downloads\"\nFROM cas_events\nWHERE $__timeFilter(inserted_at)\nGROUP BY time\nORDER BY time"
+                        "rawSql": "SELECT toStartOfInterval(inserted_at, INTERVAL 1 $bucket) AS time,\n  countIf(action = 'upload') AS \"Uploads\",\n  countIf(action = 'download') AS \"Downloads\"\nFROM cas_events\nWHERE $__timeFilter(inserted_at)\nGROUP BY time\nORDER BY time"
                       }
                     },
                     "refId": "A",
@@ -3202,8 +3202,8 @@
         "kind": "Panel",
         "spec": {
           "id": 111,
-          "title": "Xcode cache - CAS data transferred per day",
-          "description": "Bytes uploaded/downloaded to the compilation-cache CAS per day. Widen the time range (top-right) to see the trend.",
+          "title": "Xcode cache - CAS data transferred over time",
+          "description": "Bytes uploaded/downloaded to the compilation-cache CAS over time. Set Granularity (day/week/month) and widen the time range to see the trend.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -3224,7 +3224,7 @@
                         "format": 1,
                         "queryType": "table",
                         "range": true,
-                        "rawSql": "SELECT toStartOfDay(inserted_at) AS time,\n  sumIf(size, action = 'upload') AS \"Upload bytes\",\n  sumIf(size, action = 'download') AS \"Download bytes\"\nFROM cas_events\nWHERE $__timeFilter(inserted_at)\nGROUP BY time\nORDER BY time"
+                        "rawSql": "SELECT toStartOfInterval(inserted_at, INTERVAL 1 $bucket) AS time,\n  sumIf(size, action = 'upload') AS \"Upload bytes\",\n  sumIf(size, action = 'download') AS \"Download bytes\"\nFROM cas_events\nWHERE $__timeFilter(inserted_at)\nGROUP BY time\nORDER BY time"
                       }
                     },
                     "refId": "A",
@@ -3314,8 +3314,8 @@
         "kind": "Panel",
         "spec": {
           "id": 112,
-          "title": "Xcode cache - active projects per day",
-          "description": "Distinct projects performing CAS operations per day. Widen the time range (top-right) to see the trend.",
+          "title": "Xcode cache - active projects over time",
+          "description": "Distinct projects performing CAS operations over time. Set Granularity (day/week/month) and widen the time range to see the trend.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -3336,7 +3336,7 @@
                         "format": 1,
                         "queryType": "table",
                         "range": true,
-                        "rawSql": "SELECT toStartOfDay(inserted_at) AS time,\n  uniqExact(project_id) AS \"Active projects\"\nFROM cas_events\nWHERE $__timeFilter(inserted_at)\nGROUP BY time\nORDER BY time"
+                        "rawSql": "SELECT toStartOfInterval(inserted_at, INTERVAL 1 $bucket) AS time,\n  uniqExact(project_id) AS \"Active projects\"\nFROM cas_events\nWHERE $__timeFilter(inserted_at)\nGROUP BY time\nORDER BY time"
                       }
                     },
                     "refId": "A",
@@ -3426,8 +3426,8 @@
         "kind": "Panel",
         "spec": {
           "id": 120,
-          "title": "Package registry - downloads per day",
-          "description": "Swift package download events per day. Widen the time range (top-right) to see the trend.",
+          "title": "Package registry - downloads over time",
+          "description": "Swift package download events over time. Set Granularity (day/week/month) and widen the time range to see the trend.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -3447,7 +3447,7 @@
                         "editorMode": "code",
                         "format": "time_series",
                         "rawQuery": true,
-                        "rawSql": "SELECT date_trunc('day', inserted_at) AS time, 'Downloads' AS label, count(*) AS value\nFROM public.package_download_events\nWHERE $__timeFilter(inserted_at)\nGROUP BY 1\nORDER BY time"
+                        "rawSql": "SELECT date_trunc('$bucket', inserted_at) AS time, 'Downloads' AS label, count(*) AS value\nFROM public.package_download_events\nWHERE $__timeFilter(inserted_at)\nGROUP BY 1\nORDER BY time"
                       }
                     },
                     "refId": "A",
@@ -3537,8 +3537,8 @@
         "kind": "Panel",
         "spec": {
           "id": 121,
-          "title": "Package registry - active accounts per day",
-          "description": "Distinct accounts downloading packages per day. Widen the time range (top-right) to see the trend.",
+          "title": "Package registry - active accounts over time",
+          "description": "Distinct accounts downloading packages over time. Set Granularity (day/week/month) and widen the time range to see the trend.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -3558,7 +3558,7 @@
                         "editorMode": "code",
                         "format": "time_series",
                         "rawQuery": true,
-                        "rawSql": "SELECT date_trunc('day', inserted_at) AS time, 'Accounts' AS label,\n  count(DISTINCT account_id) AS value\nFROM public.package_download_events\nWHERE $__timeFilter(inserted_at)\nGROUP BY 1\nORDER BY time"
+                        "rawSql": "SELECT date_trunc('$bucket', inserted_at) AS time, 'Accounts' AS label,\n  count(DISTINCT account_id) AS value\nFROM public.package_download_events\nWHERE $__timeFilter(inserted_at)\nGROUP BY 1\nORDER BY time"
                       }
                     },
                     "refId": "A",
@@ -3789,8 +3789,8 @@
         "kind": "Panel",
         "spec": {
           "id": 130,
-          "title": "Builds - build runs per day (CI vs total)",
-          "description": "Inspected build runs per day, total and CI-only. Widen the time range (top-right) to see the trend.",
+          "title": "Builds - build runs over time (CI vs total)",
+          "description": "Inspected build runs over time, total and CI-only. Set Granularity (day/week/month) and widen the time range to see the trend.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -3811,7 +3811,7 @@
                         "format": 1,
                         "queryType": "table",
                         "range": true,
-                        "rawSql": "SELECT toStartOfDay(inserted_at) AS time,\n  count() AS \"Total\",\n  countIf(is_ci) AS \"CI\"\nFROM build_runs\nWHERE $__timeFilter(inserted_at)\nGROUP BY time\nORDER BY time"
+                        "rawSql": "SELECT toStartOfInterval(inserted_at, INTERVAL 1 $bucket) AS time,\n  count() AS \"Total\",\n  countIf(is_ci) AS \"CI\"\nFROM build_runs\nWHERE $__timeFilter(inserted_at)\nGROUP BY time\nORDER BY time"
                       }
                     },
                     "refId": "A",
@@ -3901,8 +3901,8 @@
         "kind": "Panel",
         "spec": {
           "id": 131,
-          "title": "Builds - active projects & accounts per day",
-          "description": "Distinct accounts and projects with inspected builds per day. Widen the time range (top-right) to see the trend.",
+          "title": "Builds - active projects & accounts over time",
+          "description": "Distinct accounts and projects with inspected builds over time. Set Granularity (day/week/month) and widen the time range to see the trend.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -3923,7 +3923,7 @@
                         "format": 1,
                         "queryType": "table",
                         "range": true,
-                        "rawSql": "SELECT toStartOfDay(inserted_at) AS time,\n  uniqExact(account_id) AS \"Accounts\",\n  uniqExact(project_id) AS \"Projects\"\nFROM build_runs\nWHERE $__timeFilter(inserted_at)\nGROUP BY time\nORDER BY time"
+                        "rawSql": "SELECT toStartOfInterval(inserted_at, INTERVAL 1 $bucket) AS time,\n  uniqExact(account_id) AS \"Accounts\",\n  uniqExact(project_id) AS \"Projects\"\nFROM build_runs\nWHERE $__timeFilter(inserted_at)\nGROUP BY time\nORDER BY time"
                       }
                     },
                     "refId": "A",
@@ -4239,8 +4239,8 @@
         "kind": "Panel",
         "spec": {
           "id": 150,
-          "title": "Bundles - active projects & accounts per day",
-          "description": "Distinct projects and accounts uploading bundles per day. Widen the time range (top-right) to see the trend.",
+          "title": "Bundles - active projects & accounts over time",
+          "description": "Distinct projects and accounts uploading bundles over time. Set Granularity (day/week/month) and widen the time range to see the trend.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -4260,7 +4260,7 @@
                         "editorMode": "code",
                         "format": "time_series",
                         "rawQuery": true,
-                        "rawSql": "SELECT date_trunc('day', b.inserted_at) AS time, 'Projects' AS label,\n  count(DISTINCT b.project_id) AS value\nFROM public.bundles b\nWHERE $__timeFilter(b.inserted_at)\nGROUP BY 1\nUNION ALL\nSELECT date_trunc('day', b.inserted_at) AS time, 'Accounts' AS label,\n  count(DISTINCT p.account_id) AS value\nFROM public.bundles b JOIN public.projects p ON p.id = b.project_id\nWHERE $__timeFilter(b.inserted_at)\nGROUP BY 1\nORDER BY time, label"
+                        "rawSql": "SELECT date_trunc('$bucket', b.inserted_at) AS time, 'Projects' AS label,\n  count(DISTINCT b.project_id) AS value\nFROM public.bundles b\nWHERE $__timeFilter(b.inserted_at)\nGROUP BY 1\nUNION ALL\nSELECT date_trunc('$bucket', b.inserted_at) AS time, 'Accounts' AS label,\n  count(DISTINCT p.account_id) AS value\nFROM public.bundles b JOIN public.projects p ON p.id = b.project_id\nWHERE $__timeFilter(b.inserted_at)\nGROUP BY 1\nORDER BY time, label"
                       }
                     },
                     "refId": "A",
@@ -4350,8 +4350,8 @@
         "kind": "Panel",
         "spec": {
           "id": 140,
-          "title": "Previews - previews per day",
-          "description": "Previews created per day. Widen the time range (top-right) to see the trend.",
+          "title": "Previews - previews over time",
+          "description": "Previews created over time. Set Granularity (day/week/month) and widen the time range to see the trend.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -4371,7 +4371,7 @@
                         "editorMode": "code",
                         "format": "time_series",
                         "rawQuery": true,
-                        "rawSql": "SELECT date_trunc('day', inserted_at) AS time, 'Previews' AS label, count(*) AS value\nFROM public.previews\nWHERE $__timeFilter(inserted_at)\nGROUP BY 1\nORDER BY time"
+                        "rawSql": "SELECT date_trunc('$bucket', inserted_at) AS time, 'Previews' AS label, count(*) AS value\nFROM public.previews\nWHERE $__timeFilter(inserted_at)\nGROUP BY 1\nORDER BY time"
                       }
                     },
                     "refId": "A",
@@ -4461,8 +4461,8 @@
         "kind": "Panel",
         "spec": {
           "id": 141,
-          "title": "Previews - active projects & accounts per day",
-          "description": "Distinct projects and accounts creating previews per day. Widen the time range (top-right) to see the trend.",
+          "title": "Previews - active projects & accounts over time",
+          "description": "Distinct projects and accounts creating previews over time. Set Granularity (day/week/month) and widen the time range to see the trend.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -4482,7 +4482,7 @@
                         "editorMode": "code",
                         "format": "time_series",
                         "rawQuery": true,
-                        "rawSql": "SELECT date_trunc('day', pr.inserted_at) AS time, 'Projects' AS label,\n  count(DISTINCT pr.project_id) AS value\nFROM public.previews pr\nWHERE $__timeFilter(pr.inserted_at)\nGROUP BY 1\nUNION ALL\nSELECT date_trunc('day', pr.inserted_at) AS time, 'Accounts' AS label,\n  count(DISTINCT p.account_id) AS value\nFROM public.previews pr JOIN public.projects p ON p.id = pr.project_id\nWHERE $__timeFilter(pr.inserted_at)\nGROUP BY 1\nORDER BY time, label"
+                        "rawSql": "SELECT date_trunc('$bucket', pr.inserted_at) AS time, 'Projects' AS label,\n  count(DISTINCT pr.project_id) AS value\nFROM public.previews pr\nWHERE $__timeFilter(pr.inserted_at)\nGROUP BY 1\nUNION ALL\nSELECT date_trunc('$bucket', pr.inserted_at) AS time, 'Accounts' AS label,\n  count(DISTINCT p.account_id) AS value\nFROM public.previews pr JOIN public.projects p ON p.id = pr.project_id\nWHERE $__timeFilter(pr.inserted_at)\nGROUP BY 1\nORDER BY time, label"
                       }
                     },
                     "refId": "A",
@@ -4572,8 +4572,8 @@
         "kind": "Panel",
         "spec": {
           "id": 160,
-          "title": "Tests - test runs per day (CI vs total)",
-          "description": "Test runs per day, total and CI-only. Widen the time range (top-right) to see the trend.",
+          "title": "Tests - test runs over time (CI vs total)",
+          "description": "Test runs over time, total and CI-only. Set Granularity (day/week/month) and widen the time range to see the trend.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -4594,7 +4594,7 @@
                         "format": 1,
                         "queryType": "table",
                         "range": true,
-                        "rawSql": "SELECT toStartOfDay(ran_at) AS time,\n  count() AS \"Total\",\n  countIf(is_ci) AS \"CI\"\nFROM test_runs\nWHERE $__timeFilter(ran_at)\nGROUP BY time\nORDER BY time"
+                        "rawSql": "SELECT toStartOfInterval(ran_at, INTERVAL 1 $bucket) AS time,\n  count() AS \"Total\",\n  countIf(is_ci) AS \"CI\"\nFROM test_runs\nWHERE $__timeFilter(ran_at)\nGROUP BY time\nORDER BY time"
                       }
                     },
                     "refId": "A",
@@ -4684,8 +4684,8 @@
         "kind": "Panel",
         "spec": {
           "id": 161,
-          "title": "Tests - active projects & accounts per day",
-          "description": "Distinct accounts and projects running tests per day. Widen the time range (top-right) to see the trend.",
+          "title": "Tests - active projects & accounts over time",
+          "description": "Distinct accounts and projects running tests over time. Set Granularity (day/week/month) and widen the time range to see the trend.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -4706,7 +4706,7 @@
                         "format": 1,
                         "queryType": "table",
                         "range": true,
-                        "rawSql": "SELECT toStartOfDay(ran_at) AS time,\n  uniqExact(account_id) AS \"Accounts\",\n  uniqExact(project_id) AS \"Projects\"\nFROM test_runs\nWHERE $__timeFilter(ran_at)\nGROUP BY time\nORDER BY time"
+                        "rawSql": "SELECT toStartOfInterval(ran_at, INTERVAL 1 $bucket) AS time,\n  uniqExact(account_id) AS \"Accounts\",\n  uniqExact(project_id) AS \"Projects\"\nFROM test_runs\nWHERE $__timeFilter(ran_at)\nGROUP BY time\nORDER BY time"
                       }
                     },
                     "refId": "A",
@@ -4796,8 +4796,8 @@
         "kind": "Panel",
         "spec": {
           "id": 170,
-          "title": "Runners - jobs per day (by outcome)",
-          "description": "Dispatched runner jobs per day, split by conclusion. Widen the time range (top-right) to see the trend.",
+          "title": "Runners - jobs over time (by outcome)",
+          "description": "Dispatched runner jobs over time, split by conclusion. Set Granularity (day/week/month) and widen the time range to see the trend.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -4818,7 +4818,7 @@
                         "format": 1,
                         "queryType": "table",
                         "range": true,
-                        "rawSql": "SELECT toStartOfDay(enqueued_at) AS time,\n  count() AS \"Total\",\n  countIf(conclusion = 'success') AS \"Success\",\n  countIf(conclusion = 'failure') AS \"Failure\",\n  countIf(conclusion = 'cancelled') AS \"Cancelled\"\nFROM runner_jobs\nWHERE $__timeFilter(enqueued_at)\nGROUP BY time\nORDER BY time"
+                        "rawSql": "SELECT toStartOfInterval(enqueued_at, INTERVAL 1 $bucket) AS time,\n  count() AS \"Total\",\n  countIf(conclusion = 'success') AS \"Success\",\n  countIf(conclusion = 'failure') AS \"Failure\",\n  countIf(conclusion = 'cancelled') AS \"Cancelled\"\nFROM runner_jobs\nWHERE $__timeFilter(enqueued_at)\nGROUP BY time\nORDER BY time"
                       }
                     },
                     "refId": "A",
@@ -4908,8 +4908,8 @@
         "kind": "Panel",
         "spec": {
           "id": 171,
-          "title": "Runners - adoption: accounts & repositories per day",
-          "description": "Distinct accounts and repositories dispatching runner jobs per day. Widen the time range (top-right) to see the trend.",
+          "title": "Runners - adoption: accounts & repositories over time",
+          "description": "Distinct accounts and repositories dispatching runner jobs over time. Set Granularity (day/week/month) and widen the time range to see the trend.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -4930,7 +4930,7 @@
                         "format": 1,
                         "queryType": "table",
                         "range": true,
-                        "rawSql": "SELECT toStartOfDay(enqueued_at) AS time,\n  uniqExact(account_id) AS \"Accounts\",\n  uniqExact(repository) AS \"Repositories\"\nFROM runner_jobs\nWHERE $__timeFilter(enqueued_at)\nGROUP BY time\nORDER BY time"
+                        "rawSql": "SELECT toStartOfInterval(enqueued_at, INTERVAL 1 $bucket) AS time,\n  uniqExact(account_id) AS \"Accounts\",\n  uniqExact(repository) AS \"Repositories\"\nFROM runner_jobs\nWHERE $__timeFilter(enqueued_at)\nGROUP BY time\nORDER BY time"
                       }
                     },
                     "refId": "A",
@@ -5020,8 +5020,8 @@
         "kind": "Panel",
         "spec": {
           "id": 172,
-          "title": "Runners - compute minutes per day",
-          "description": "Total runner compute time per day (sum of started_at to completed_at across jobs). Widen the time range (top-right) to see the trend.",
+          "title": "Runners - compute minutes over time",
+          "description": "Total runner compute time over time (sum of started_at to completed_at across jobs). Set Granularity (day/week/month) and widen the time range to see the trend.",
           "links": [],
           "data": {
             "kind": "QueryGroup",
@@ -5042,7 +5042,7 @@
                         "format": 1,
                         "queryType": "table",
                         "range": true,
-                        "rawSql": "SELECT toStartOfDay(enqueued_at) AS time,\n  round(sum(if(started_at IS NOT NULL AND completed_at IS NOT NULL AND completed_at > started_at, dateDiff('second', started_at, completed_at), 0)) / 60.0, 1) AS \"Compute minutes\"\nFROM runner_jobs\nWHERE $__timeFilter(enqueued_at)\nGROUP BY time\nORDER BY time"
+                        "rawSql": "SELECT toStartOfInterval(enqueued_at, INTERVAL 1 $bucket) AS time,\n  round(sum(if(started_at IS NOT NULL AND completed_at IS NOT NULL AND completed_at > started_at, dateDiff('second', started_at, completed_at), 0)) / 60.0, 1) AS \"Compute minutes\"\nFROM runner_jobs\nWHERE $__timeFilter(enqueued_at)\nGROUP BY time\nORDER BY time"
                       }
                     },
                     "refId": "A",
@@ -6247,6 +6247,42 @@
       "fiscalYearStartMonth": 0
     },
     "title": "Tuist Business Intelligence",
-    "variables": []
+    "variables": [
+      {
+        "kind": "CustomVariable",
+        "spec": {
+          "name": "bucket",
+          "label": "Granularity",
+          "description": "Time bucket for the over-time panels",
+          "query": "day,week,month",
+          "current": {
+            "text": "day",
+            "value": "day"
+          },
+          "options": [
+            {
+              "selected": true,
+              "text": "day",
+              "value": "day"
+            },
+            {
+              "selected": false,
+              "text": "week",
+              "value": "week"
+            },
+            {
+              "selected": false,
+              "text": "month",
+              "value": "month"
+            }
+          ],
+          "multi": false,
+          "includeAll": false,
+          "allowCustomValue": false,
+          "hide": "dontHide",
+          "skipUrlSync": false
+        }
+      }
+    ]
   }
 }
