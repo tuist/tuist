@@ -33,13 +33,11 @@ defmodule Tuist.Runners.Jobs do
 
   ## Idempotency
 
-  Webhook retries of `workflow_job.queued` INSERT another row
-  with the same `workflow_job_id`. RMT merge collapses them; both
-  rows carry the same `queued` state so the merge is a no-op
-  visible to clients. `workflow_job.waiting` uses `enqueue_if_missing/1`
-  because GitHub can emit it while waiting for self-hosted capacity;
-  it should create a missing row without regressing an already-claimed
-  job back to queued.
+  Webhook retries of `workflow_job.queued` and `workflow_job.waiting`
+  use `enqueue_if_missing/1`. GitHub can redeliver those events after
+  later lifecycle events (especially cancellation), so they must create
+  a missing row without regressing an already-claimed, running, or
+  completed job back to queued.
 
   ## Read pattern (no `FINAL`)
 
@@ -219,6 +217,36 @@ defmodule Tuist.Runners.Jobs do
       nil -> enqueue(attrs)
       %Job{} -> :ok
     end
+  end
+
+  @doc """
+  Records a completed job even when the queued row was never accepted.
+
+  GitHub can deliver `workflow_job.completed` before its matching
+  `queued` delivery. Writing this terminal row gives later `queued`
+  redeliveries something to see so they cannot resurrect canceled work.
+  """
+  def record_completed(attrs, conclusion) when is_map(attrs) and is_binary(conclusion) do
+    now = DateTime.utc_now()
+
+    row =
+      attrs
+      |> Map.put(:status, "completed")
+      |> Map.put(:conclusion, conclusion)
+      |> Map.put_new(:enqueued_at, now)
+      |> Map.put(:completed_at, now)
+      |> Map.put(:updated_at, now)
+
+    insert_row!(row)
+
+    :telemetry.execute(
+      Telemetry.event_name_job_completed(),
+      %{count: 1, run_time_ms: 0, queue_time_ms: 0, total_time_ms: 0},
+      %{fleet: Map.get(row, :fleet_name, ""), conclusion: normalise_conclusion(conclusion)}
+    )
+
+    broadcast_status_change(Map.get(attrs, :account_id), "completed")
+    :ok
   end
 
   @doc """
