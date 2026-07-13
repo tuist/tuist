@@ -30,6 +30,22 @@ defmodule TuistWeb.WellKnownController do
     json(conn, AgentSkillsDiscovery.index())
   end
 
+  @doc """
+  Advertises the Swift package registry base URL for this deployment so
+  the CLI can configure SwiftPM against `registry.tuist.dev` instead of
+  hardcoding the legacy `<server>/api/registry/swift` path. 404s when the
+  deployment exposes no registry (self-hosted).
+  """
+  def swift_registry(conn, _params) do
+    case Tuist.Registry.url() do
+      nil ->
+        send_resp(conn, :not_found, "")
+
+      base ->
+        json(conn, %{"url" => base <> "/swift", "loginAPIPath" => "/swift/login"})
+    end
+  end
+
   def openai_apps_challenge(conn, _params) do
     if Environment.tuist_hosted?() do
       conn

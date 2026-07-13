@@ -102,6 +102,27 @@ defmodule TuistWeb.WellKnownControllerTest do
     end
   end
 
+  describe "GET /.well-known/tuist-registry.json" do
+    test "returns the registry base URL when configured", %{conn: conn} do
+      stub(Tuist.Registry, :url, fn -> "https://registry.tuist.dev" end)
+
+      conn = get(conn, "/.well-known/tuist-registry.json")
+
+      assert json_response(conn, 200) == %{
+               "url" => "https://registry.tuist.dev/swift",
+               "loginAPIPath" => "/swift/login"
+             }
+    end
+
+    test "404s when the deployment exposes no registry", %{conn: conn} do
+      stub(Tuist.Registry, :url, fn -> nil end)
+
+      conn = get(conn, "/.well-known/tuist-registry.json")
+
+      assert response(conn, 404) == ""
+    end
+  end
+
   describe "GET /.well-known/mcp/server-card.json" do
     test "returns the MCP server card", %{conn: conn} do
       conn = get(conn, "/.well-known/mcp/server-card.json")

@@ -76,6 +76,11 @@ server:
     # env's config the release runs as.
     - name: TUIST_DEPLOY_ENV
       value: prod
+    # Registry base URL advertised at /.well-known/tuist-registry.json so
+    # the CLI configures SwiftPM against registry.tuist.dev instead of the
+    # legacy tuist.dev/api/registry path.
+    - name: TUIST_REGISTRY_URL
+      value: https://registry.tuist.dev
     # Enables the server-owned registry sync writer. Cache still writes
     # too until it is turned off as a separate step; the two coordinate
     # through the shared S3 sync lock, so dual-writing is safe.
