@@ -23,6 +23,7 @@ defmodule TuistWeb.RunnerInteractiveShellController do
          {:ok, session} <- InteractiveSessions.validate_token(token, account, current_user),
          :ok <- validate_shell_session(session) do
       conn
+      |> put_resp_header("sec-websocket-protocol", token)
       |> WebSockAdapter.upgrade(
         RunnerShellClientWebSock,
         %{session: %{session | token: token}},

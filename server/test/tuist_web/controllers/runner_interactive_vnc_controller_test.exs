@@ -46,6 +46,7 @@ defmodule TuistWeb.RunnerInteractiveVNCControllerTest do
       |> get(~p"/#{account.name}/runners/interactive/vnc")
 
     assert conn.state == :upgraded
+    assert get_resp_header(conn, "sec-websocket-protocol") == [session.token]
   end
 
   test "404s when the WebSocket protocol token is missing", %{conn: conn} do

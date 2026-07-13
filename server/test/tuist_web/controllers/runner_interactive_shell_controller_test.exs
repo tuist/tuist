@@ -49,6 +49,7 @@ defmodule TuistWeb.RunnerInteractiveShellControllerTest do
       |> get(~p"/#{account.name}/runners/interactive/shell")
 
     assert conn.state == :upgraded
+    assert get_resp_header(conn, "sec-websocket-protocol") == [session.token]
   end
 
   test "upgrades the API route with user auth and a shell token header", %{conn: conn} do
