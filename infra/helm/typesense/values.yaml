@@ -72,9 +72,13 @@ ingress:
   tlsSecretName: ""
   annotations: {}
 
-# Daily DocC and GitHub reindex. The DocSearch website scraper is not included;
-# like the current deployment, it runs separately because it needs to crawl the
-# public site from its own container.
+# Daily reindex of the two collections the bundled indexers own: the DocC API
+# reference (`projectdescription`, via index-docc) and `github-issues` (via
+# index-github). The `tuist` and `forum-topics` collections that the public docs
+# and forum UI query are produced by the DocSearch scraper, not by these
+# indexers. The scraper is a separate crawler container and is not part of this
+# chart; it must be run against this service to populate those two collections
+# before the DNS cutover. See AGENTS.md.
 indexers:
   enabled: true
   schedule: "0 4 * * *"
