@@ -49,9 +49,10 @@ runtime — no service, sudo entry, or auto-login targets it.
 - `/opt/tuist/runner-shell-agent-supervisor.sh` and
   `/Users/runner/Library/LaunchAgents/dev.tuist.runner-shell-agent.plist`
   — launchd-managed shell bridge supervisor. It owns restart behavior
-  independently from `dispatch-poll.sh` so the GitHub runner can keep
-  claiming/running jobs even if the trusted shell bridge exits and needs
-  to be restarted.
+  independently from `dispatch-poll.sh`. The dispatch loop also starts
+  the same supervisor as a fallback after the pod env/token exists; the
+  supervisor lock keeps launchd and dispatch from running duplicate
+  bridge loops.
 - Homebrew `python` — installed in this layer for the trusted shell
   bridge. The Xcode base does not promise Python for customer workflows,
   but `/opt/tuist/runner-shell-agent.py` needs `python3` available in the

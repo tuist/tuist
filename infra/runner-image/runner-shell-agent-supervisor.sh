@@ -11,6 +11,13 @@ exec >>"${LOG}" 2>&1
 
 echo "$(date -u +%FT%TZ) runner-shell-agent-supervisor: starting"
 
+LOCK_DIR=/tmp/tuist-runner-shell-agent.lock
+while ! mkdir "${LOCK_DIR}" 2>/dev/null; do
+  echo "$(date -u +%FT%TZ) runner-shell-agent-supervisor: another supervisor is active; waiting"
+  sleep 30
+done
+trap 'rmdir "${LOCK_DIR}" 2>/dev/null || true' EXIT
+
 while true; do
   if [ -f /etc/tuist.env ] && [ -f /etc/tuist-sa-token ]; then
     # shellcheck disable=SC1091
