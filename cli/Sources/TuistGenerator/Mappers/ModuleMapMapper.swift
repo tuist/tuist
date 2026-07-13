@@ -407,7 +407,10 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
     ) -> SettingsDictionary {
         var settings = settings
 
-        if !onlyExistingKeys || settings[Self.otherSwiftFlagsSetting] != nil,
+        if Self.shouldApplyModuleMapFlags(
+            to: settings[Self.otherSwiftFlagsSetting],
+            onlyExistingKeys: onlyExistingKeys
+        ),
            let updated = Self.updatedOtherSwiftFlags(
                targetID: targetID,
                oldOtherSwiftFlags: settings[Self.otherSwiftFlagsSetting],
@@ -419,7 +422,10 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
             settings[Self.otherSwiftFlagsSetting] = updated
         }
 
-        if !onlyExistingKeys || settings[Self.otherCFlagsSetting] != nil,
+        if Self.shouldApplyModuleMapFlags(
+            to: settings[Self.otherCFlagsSetting],
+            onlyExistingKeys: onlyExistingKeys
+        ),
            let updated = Self.updatedOtherCFlags(
                targetID: targetID,
                oldOtherCFlags: settings[Self.otherCFlagsSetting],
@@ -431,7 +437,10 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
             settings[Self.otherCFlagsSetting] = updated
         }
 
-        if !onlyExistingKeys || settings[Self.headerSearchPaths] != nil,
+        if Self.shouldApplyModuleMapFlags(
+            to: settings[Self.headerSearchPaths],
+            onlyExistingKeys: onlyExistingKeys
+        ),
            let updated = Self.updatedHeaderSearchPaths(
                targetID: targetID,
                oldHeaderSearchPaths: settings[Self.headerSearchPaths],
@@ -444,6 +453,26 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
         }
 
         return settings
+    }
+
+    // A configuration value containing $(inherited) already receives the base flags, so adding the
+    // flag there again would duplicate it in the generated Xcode project.
+    private static func shouldApplyModuleMapFlags(
+        to setting: SettingsDictionary.Value?,
+        onlyExistingKeys: Bool
+    ) -> Bool {
+        !onlyExistingKeys || (setting != nil && !inheritsBaseSetting(setting))
+    }
+
+    private static func inheritsBaseSetting(_ setting: SettingsDictionary.Value?) -> Bool {
+        switch setting {
+        case let .string(value):
+            value.contains("$(inherited)")
+        case let .array(values):
+            values.contains("$(inherited)")
+        case nil:
+            false
+        }
     }
 
     private static func updatedHeaderSearchPaths(
