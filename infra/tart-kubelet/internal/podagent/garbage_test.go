@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -147,4 +148,86 @@ func TestRunOnceSparesRunningVMs(t *testing.T) {
 			t.Fatal("golden was reaped despite an unreadable liveness signal")
 		}
 	})
+}
+
+// End-to-end regression for the substring liveness bug at the orphan
+// branch, exercising the real Tart.IsRunning (no override). A stopped
+// orphan `X` must be reaped even while a differently-named `X-2` runs —
+// before IsRunning anchored the name, pgrep's substring match reported `X`
+// live off the `X-2` process and the GC skipped it every pass. Both names
+// are valid VMNameForPod outputs.
+func TestRunOnceReapsOrphanDespiteSimilarlyNamedRunningVM(t *testing.T) {
+	if _, err := exec.LookPath("pgrep"); err != nil {
+		t.Skip("pgrep not available on this host")
+	}
+
+	const orphan = "tuist-runners-runner-team-job"
+	const running = orphan + "-2"
+	const node = "mini-1"
+
+	dir := t.TempDir()
+	deletes := filepath.Join(dir, "deletes.txt")
+	bin := filepath.Join(dir, "faketart")
+	body := fmt.Sprintf("#!/bin/sh\n"+
+		"if [ \"$1\" = \"list\" ]; then\n"+
+		"  printf '%%s' '[{\"Name\":\"%s\",\"Source\":\"local\",\"State\":\"running\",\"CPU\":4,\"Memory\":8192,\"Size\":72}]'\n"+
+		"elif [ \"$1\" = \"delete\" ]; then\n"+
+		"  printf '%%s\\n' \"$2\" >> %q\n"+
+		"fi\n", orphan, deletes)
+	if err := os.WriteFile(bin, []byte(body), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	// A live `tart run <orphan>-2` decoy. The compound `-c` body keeps sh
+	// from exec-replacing itself, so the argv survives for pgrep to read.
+	decoyCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	decoy := exec.CommandContext(decoyCtx, "/bin/sh", "-c", "sleep 30; :", "tart", "run", running)
+	if err := decoy.Start(); err != nil {
+		t.Fatalf("start decoy: %v", err)
+	}
+	defer func() {
+		cancel()
+		_ = decoy.Wait()
+	}()
+
+	tartClient := &tart.Client{Binary: bin, UserDataDir: dir}
+	// Wait until the decoy is visible so the test can't pass just because
+	// pgrep hasn't caught up to the process yet.
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		isUp, err := tartClient.IsRunning(context.Background(), running)
+		if err != nil {
+			t.Fatalf("IsRunning(%q): %v", running, err)
+		}
+		if isUp {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("decoy never became visible to pgrep")
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	scheme := runtime.NewScheme()
+	if err := corev1.AddToScheme(scheme); err != nil {
+		t.Fatalf("add core scheme: %v", err)
+	}
+	// No Pods scheduled here, so the orphan is unreferenced.
+	k := fake.NewClientBuilder().WithScheme(scheme).
+		WithIndex(&corev1.Pod{}, "spec.nodeName", func(o client.Object) []string {
+			return []string{o.(*corev1.Pod).Spec.NodeName}
+		}).Build()
+
+	// IsRunning left nil so live() uses the real Tart.IsRunning.
+	c := &Collector{K8s: k, Tart: tartClient, NodeName: node}
+	c.RunOnce(context.Background())
+
+	b, err := os.ReadFile(deletes)
+	if err != nil {
+		t.Fatalf("read deletes: %v", err)
+	}
+	if !strings.Contains(string(b), orphan) {
+		t.Fatalf("orphan %q was not reaped despite only %q running", orphan, running)
+	}
 }
