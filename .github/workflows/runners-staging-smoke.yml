@@ -12,7 +12,8 @@ name: Runners Staging Smoke Test
 #   3. The runner VM polls /api/internal/runners/dispatch on
 #      staging.tuist.dev, claims the JIT, registers as a runner.
 #   4. GH dispatches this job to the registered runner.
-#   5. The job runs on the runner VM.
+#   5. The job runs on the runner VM, and the per-account cache
+#      volume (spec #76) materializes + persists across runs.
 #   6. After completion the Pod terminates and the reconciler's
 #      next 60 s tick creates a replacement.
 #   7. When the account runs a private runner-cache Kura node, the
@@ -25,19 +26,6 @@ name: Runners Staging Smoke Test
 on:
   workflow_dispatch:
     inputs:
-      mode:
-        description: "validate (marker persistence) or benchmark (tuist generate timing)"
-        required: false
-        default: "validate"
-        type: choice
-        options:
-          - validate
-          - benchmark
-          - populate
-          - warm-bench
-          - dir-vs-disk
-          - gen-fs-vs-disk
-          - clone-bench
       run_label:
         description: "Short label for this run's cache-volume marker (e.g. a, b)"
         required: false
@@ -47,9 +35,6 @@ on:
   # hook (would burn a runner slot on every PR), but during the
   # staging bring-up we want edits to the smoke definition to
   # re-validate against the live fleet without manual dispatch.
-  # The `paths` filter scopes the auto-fire to changes to this
-  # file alone; every other push to the branch needs an explicit
-  # `gh workflow run runners-staging-smoke.yml`.
   push:
     branches:
       - feat/runners-shape-2
@@ -65,11 +50,9 @@ permissions: {}
 jobs:
   smoke:
     # Single-label form. `tuist-staging-macos` is the pool's unique
-    # dispatch label and is sufficient to pick a runner — no need
-    # to also list `self-hosted` (which is advertised on the
-    # runner but isn't an authorization boundary).
+    # dispatch label and is sufficient to pick a runner.
     runs-on: tuist-staging-macos
-    timeout-minutes: 150
+    timeout-minutes: 30
     steps:
       - name: Show environment
         run: |
@@ -77,21 +60,18 @@ jobs:
           echo "macOS:       $(sw_vers -productVersion)"
           echo "Architecture: $(uname -m)"
           echo "Xcode path:  $(xcode-select -p)"
-          # Confirm we're inside a Tart VM. The VM's hostname is
-          # set by Tart and the host CPU model leaks via sysctl.
+          # Confirm we're inside a Tart VM. The host CPU model leaks via sysctl.
           sysctl -n machdep.cpu.brand_string
 
       - name: Cache volume — host/guest diagnostics (spec #76)
         run: |
           set -uo pipefail
-          echo "=== dispatch-poll.sh mount-gate log (guest side) ==="
-          sudo cat /var/log/tuist-runner/poll.log 2>/dev/null | grep -iE "cache|volume|mount|xdg|dirty|budget" || echo "(no cache lines in poll.log)"
-          echo "=== volumes.json staged by host? (env share) ==="
-          cat "/Volumes/My Shared Files/env/volumes.json" 2>/dev/null || echo "(no volumes.json — host did not stage a cache volume this boot)"
-          echo "=== attached block devices (diskutil list) ==="
-          diskutil list 2>/dev/null | head -50 || true
-          echo "=== APFS volumes by label ==="
-          diskutil list 2>/dev/null | grep -i "tuist" || echo "(no tuist-* APFS volume visible in the guest)"
+          echo "=== dispatch-poll.sh cache lines (guest side) ==="
+          sudo cat /var/log/tuist-runner/poll.log 2>/dev/null | grep -iE "cache|ready|xdg|dirty|budget|share" || echo "(no cache lines in poll.log)"
+          echo "=== cache share attached? (virtio-fs --dir cache) ==="
+          ls -la "/Volumes/My Shared Files/cache" 2>/dev/null || echo "(no cache share — host attached no cache volume this boot)"
+          echo "=== status share (cache-ready / dirty markers) ==="
+          ls -la "/Volumes/My Shared Files/status" 2>/dev/null || true
 
       - name: Cache volume — state + marker persistence (spec #76)
         run: |
@@ -104,23 +84,21 @@ jobs:
           else
             echo "TUIST_CACHE_SIGNING_GRANT = absent (grant off / MAC fallback)"
           fi
-          echo "=== mounts ==="; /sbin/mount | grep -i "tuist-cache" || echo "(no tuist-cache mount)"
-          ls -la /Volumes/ 2>/dev/null || true
 
           root="${TUIST_XDG_CACHE_HOME:-}"
           if [ -z "${root}" ]; then
-            echo "::warning::VOLUME NOT MOUNTED — job is on the cold path (no cache volume this boot)."
+            echo "::warning::cache volume not present — job is on the cold path this boot."
             exit 0
           fi
-          echo "=== df of the cache volume ==="; df -h "${root}" || true
+          echo "=== df of the cache share ==="; df -h "${root}" || true
 
           bindir="${root}/tuist/Binaries"
-          echo "=== markers present BEFORE this run (persisted from a prior run) ==="
+          echo "=== markers present BEFORE this run (materialized from the account's master) ==="
           if ls -1 "${bindir}" 2>/dev/null | grep -q "validation-marker"; then
             ls -1 "${bindir}" | grep "validation-marker" | sed 's/^/  found: /'
-            echo "RESULT: a prior run's marker PERSISTED -> attach + mount + dirty-gate + promote + clone-from-master WORKS."
+            echo "RESULT: a prior run's marker was materialized here -> materialize + dirty-gate + promote WORKS."
           else
-            echo "  (none — expected on the first run / cold volume)"
+            echo "  (none — expected on a first run / cold materialize for this account)"
           fi
 
           echo "=== writing this run's marker (adds a Binaries entry -> dirty=1 -> promote) ==="
@@ -128,353 +106,14 @@ jobs:
           marker="${bindir}/validation-marker-${{ inputs.run_label }}-${{ github.run_id }}"
           printf 'run %s at %s\n' "${{ github.run_id }}" "$(date -u +%FT%TZ)" > "${marker}"
           echo "  wrote ${marker}"
-          du -sh "${root}/tuist/"* 2>/dev/null | sed 's/^/  /' || true
-
-      - name: Verify cache-signing grant against baked pubkey (spec #76)
-        run: |
-          set +e
-          if [ -z "${TUIST_CACHE_SIGNING_GRANT:-}" ]; then echo "grant absent — skipping verification"; exit 0; fi
-          python3 -c "import cryptography" 2>/dev/null || pip3 install --quiet cryptography 2>/dev/null || pip3 install --quiet --break-system-packages cryptography 2>/dev/null || pip3 install --quiet --user cryptography 2>/dev/null
-          python3 <<'PY'
-          import base64, json, os, time
-          from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
-          from cryptography.exceptions import InvalidSignature
-          tok = os.environ["TUIST_CACHE_SIGNING_GRANT"]
-          # Same public key baked into TuistCacheEE's CacheSigningGrantVerifier.
-          pub = base64.b64decode("KYXwBJW/2DSAldaOXMiaova/emzkOlBHMhYJkz63UA8=")
-          h, p, s = tok.split(".")
-          b64u = lambda x: base64.urlsafe_b64decode(x + "=" * (-len(x) % 4))
-          hdr = json.loads(b64u(h)); c = json.loads(b64u(p))
-          try:
-              Ed25519PublicKey.from_public_bytes(pub).verify(b64u(s), f"{h}.{p}".encode())
-              sig = "VALID"
-          except InvalidSignature:
-              sig = "INVALID"
-          ok = (sig == "VALID" and hdr.get("alg") == "EdDSA" and c.get("iss") == "tuist-runners"
-                and c.get("aud") == "tuist-runner-cache" and c.get("scope") and c["exp"] > time.time())
-          print(f"GRANT_CHECK signature={sig} alg={hdr.get('alg')} iss={c.get('iss')} aud={c.get('aud')} scope={c.get('scope')} exp_in_s={int(c['exp']-time.time())}")
-          print("GRANT_VERDICT " + ("ACCEPTED (verifier would substitute this scope for the MAC)" if ok else "REJECTED"))
-          PY
-
-      - name: Benchmark — tuist generate tuist (spec #76)
-        if: ${{ inputs.mode == 'benchmark' }}
-        shell: bash --noprofile --norc {0}
-        env:
-          # Point generate at staging + auth with a tuist/tuist staging project
-          # token so it actually pulls cached binaries (the binary-pull path the
-          # volume warms). Without this, generate skips the remote cache and the
-          # metadata phase never runs — see the earlier binary-less runs.
-          TUIST_URL: https://staging.tuist.dev
-          TUIST_TOKEN: ${{ secrets.TUIST_STAGING_CACHE_TOKEN }}
-        run: |
-          # No errexit: this step captures rc explicitly and tolerates
-          # missing dirs (cold volume) in its count() helper. GitHub's
-          # default `bash -eo pipefail` would abort on the first `ls` of a
-          # not-yet-existing Manifests/ dir.
-          set +e -o pipefail
-          root="${TUIST_XDG_CACHE_HOME:-$HOME/.cache}"
-          man="${root}/tuist/Manifests"; bin="${root}/tuist/Binaries"
-          count() { ls -1 "$1" 2>/dev/null | wc -l | tr -d ' '; }
-          bytes() { du -sk "$1" 2>/dev/null | awk '{print $1}'; }
-
-          # Self-label the arm from the volume's pre-existing warmth: a warm
-          # volume already carries compiled manifests from a prior job.
-          man_before=$(count "$man"); bin_before=$(count "$bin")
-          arm="cold"; [ "${man_before:-0}" -gt 0 ] && arm="warm"
-          echo "BENCH_ARM=${arm}  (manifests_before=${man_before} binaries_before=${bin_before})"
-          echo "BENCH_XDG=${TUIST_XDG_CACHE_HOME:-<unset,ephemeral-disk>}"
-          echo "BENCH_GRANT=$([ -n "${TUIST_CACHE_SIGNING_GRANT:-}" ] && echo present || echo absent)"
-
-          if ! command -v mise >/dev/null 2>&1; then
-            curl -fsSL https://mise.run | sh; export PATH="${HOME}/.local/bin:${PATH}"
-          fi
-          rm -rf tuist-bench
-          git clone --quiet --filter=blob:none https://github.com/tuist/tuist tuist-bench
-          cd tuist-bench
-          mise install >/dev/null 2>&1 || mise install
-          echo "tuist $(mise exec -- tuist version 2>/dev/null || echo '?')"
-          echo "=== tuist install (SPM resolution, untimed setup) ==="
-          mise exec -- tuist install >/dev/null 2>&1 || mise exec -- tuist install || true
-
-          gen() { # $1=label
-            local s e
-            s=$(python3 -c 'import time;print(int(time.time()*1000))')
-            mise exec -- tuist generate tuist ProjectDescription --no-open >/tmp/gen_$1.log 2>&1
-            local rc=$?
-            e=$(python3 -c 'import time;print(int(time.time()*1000))')
-            echo "BENCH_GEN_$1_MS=$((e - s)) rc=${rc}"
-            grep -iE "downloaded|cache|xcframework" /tmp/gen_$1.log | tail -2 | sed "s/^/  gen_$1: /" || true
-          }
-          echo "=== TIMED gen1 (first generate this boot) ==="; gen gen1
-          echo "=== TIMED gen2 (same boot, warm page cache) ==="; gen gen2
-
-          man_after=$(count "$man"); bin_after=$(count "$bin")
-          echo "BENCH_MANIFESTS: before=${man_before} after=${man_after}"
-          echo "BENCH_BINARIES: before=${bin_before} after=${bin_after} bytes_after=$(bytes "$bin")k"
-          [ -n "${TUIST_XDG_CACHE_HOME:-}" ] && du -sh "${root}/tuist/"* 2>/dev/null | sed 's/^/  /' || true
-
-      - name: Warm-bench — build EE CLI + generate (spec #76)
-        if: ${{ inputs.mode == 'warm-bench' }}
-        shell: bash --noprofile --norc {0}
-        env:
-          TUIST_URL: https://staging.tuist.dev
-          TUIST_TOKEN: ${{ secrets.TUIST_STAGING_CACHE_TOKEN }}
-          TUIST_GITHUB_TOKEN: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
-        run: |
-          set +e -o pipefail
-          root="${TUIST_XDG_CACHE_HOME:-$HOME/.cache}"
-          man="${root}/tuist/Manifests"; bin="${root}/tuist/Binaries"
-          count(){ ls -1 "$1" 2>/dev/null | wc -l | tr -d ' '; }
-          arm="cold"; [ "$(count "$man")" -gt 0 ] && arm="warm"
-          echo "WBENCH_ARM=${arm} manifests_before=$(count "$man") binaries_before=$(count "$bin")"
-          echo "WBENCH_GRANT=$([ -n "${TUIST_CACHE_SIGNING_GRANT:-}" ] && echo present || echo absent)"
-          echo "WBENCH_XDG=${TUIST_XDG_CACHE_HOME:-<unset>}"
-          if ! command -v mise >/dev/null 2>&1; then curl -fsSL https://mise.run|sh; export PATH="$HOME/.local/bin:$PATH"; fi
-          # Build the EE tuist from THIS branch (gitlink points at my EE commit).
-          rm -rf tuist-src; git clone --quiet https://github.com/tuist/tuist tuist-src; cd tuist-src
-          git checkout -q ${{ github.sha }} 2>/dev/null || true
-          mise install >/dev/null 2>&1
-          echo "=== init private EE submodule (my branch @ gitlink) ==="
-          mise run --no-deps --skip-tools cli:ee 2>&1 | tail -2
-          (cd cli/TuistCacheEE && echo "EE checked out at $(git rev-parse --short HEAD)")
-          echo "=== build EE tuist (release recipe: full generate, static linking, tuist xcodebuild) ==="
-          bs=$(python3 -c 'import time;print(int(time.time()))')
-          DD=/tmp/eedd; rm -rf "$DD"
-          TUIST_EE=1 mise exec -- tuist install >/tmp/inst.log 2>&1; echo "install rc=$?"
-          TUIST_EE=1 mise exec -- tuist generate --no-binary-cache --no-open >/tmp/genws.log 2>&1; echo "GENWS rc=$?"; tail -4 /tmp/genws.log
-          TUIST_EE=1 mise exec -- tuist xcodebuild build -configuration Release -workspace Tuist.xcworkspace -scheme tuist -derivedDataPath "$DD" -destination "platform=macOS" ARCHS=arm64 ONLY_ACTIVE_ARCH=YES SKIP_INSTALL=NO CODE_SIGN_IDENTITY="" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO > /tmp/xcb.log 2>&1; brc=$?
-          echo "BUILD rc=${brc} seconds=$(( $(python3 -c 'import time;print(int(time.time()))') - bs ))"
-          if [ "$brc" != 0 ]; then echo "=== xcodebuild error lines ==="; grep -iE "error:|BUILD FAILED|No such module|Undefined symbol|Command .* failed|linker command failed|cannot find" /tmp/xcb.log | head -20; echo "=== xcb log tail ==="; tail -25 /tmp/xcb.log; fi
-          EE="$DD/Build/Products/Release/tuist"
-          if [ ! -x "$EE" ]; then echo "NO EE BINARY at $EE"; ls -la "$DD/Build/Products/Release/" 2>/dev/null | head -20; exit 0; fi
-          echo "=== EE binary verification ==="; file "$EE" | cut -c1-90
-          [ -d "$DD/Build/Products/Release/ProjectDescription.framework" ] && echo "ProjectDescription.framework: present" || echo "ProjectDescription.framework: MISSING (manifest load may fail)"
-          "$EE" version 2>&1 | head -2 | sed 's/^/  version: /'
-          strings "$EE" 2>/dev/null | grep -qE "CacheSigningGrant|tuist-runner-cache" && echo "EE grant code: PRESENT in binary" || echo "EE grant code: NOT in strings"
-          echo "=== A/B/C/D signature-scope discriminator (spec #76) ==="
-          # Use a FRESH cache home ON the volume, unpoisoned by the release-CLI populate.
-          VOLHOME="${TUIST_XDG_CACHE_HOME:-/Volumes/tuist-cache}"
-          CLEAN="$VOLHOME/spec76-signtest"
-          rm -rf "$CLEAN"; mkdir -p "$CLEAN"
-          export TUIST_XDG_CACHE_HOME="$CLEAN"
-          bin="$CLEAN/tuist/Binaries"
-          echo "SIGNTEST_HOME=$CLEAN (fresh, on the volume)"
-          [ -n "${TUIST_CACHE_SIGNING_GRANT:-}" ] && echo "grant available for A/B/D" || echo "WARN: no grant in env — discriminator meaningless"
-          g(){ # $1=label  $2=on|off (whether the grant env is visible to this generate)
-            local pfx=""; [ "$2" = off ] && pfx="env -u TUIST_CACHE_SIGNING_GRANT"
-            local s; s=$(python3 -c 'import time;print(int(time.time()*1000))')
-            $pfx "$EE" generate tuist ProjectDescription --no-open >/tmp/g_$1.log 2>&1; local r=$?
-            local e; e=$(python3 -c 'import time;print(int(time.time()*1000))')
-            local w; w=$(grep -c "requires using" /tmp/g_$1.log 2>/dev/null); w=${w:-0}
-            echo "WBENCH_GEN_$1 ms=$((e-s)) rc=$r grant=$2 requires_using=$w binaries=$(count "$bin")"
-            grep -iE "requires using|cache binaries|downloaded" /tmp/g_$1.log | tail -1 | sed "s/^/    $1: /"
-            [ "$r" != 0 ] && tail -6 /tmp/g_$1.log | sed "s/^/    $1-err: /"
-          }
-          g A on    # warm the clean dir WITH the grant
-          g B on    # re-generate WITH grant  -> expect HIT (no 'requires using')
-          g C off   # re-generate as raw MAC  -> DISCRIMINATOR (a different VM's identity)
-          g D on    # re-generate WITH grant  -> symmetric confirm
-          wB=$(grep -c "requires using" /tmp/g_B.log 2>/dev/null); wB=${wB:-0}
-          wC=$(grep -c "requires using" /tmp/g_C.log 2>/dev/null); wC=${wC:-0}
-          echo "=== VERDICT ==="
-          if [ "$wB" -eq 0 ] && [ "$wC" -gt 0 ]; then
-            echo "SIGNTEST_VERDICT=GRANT_ACTIVE — grant-signed binaries validate WITH the grant (B hit) but the raw-MAC validator rejects them (C miss). Signature is account-scoped => portable across the account's VMs."
-          elif [ "$wB" -eq 0 ] && [ "$wC" -eq 0 ]; then
-            echo "SIGNTEST_VERDICT=GRANT_INACTIVE — dropping the grant (C) still validated => signature is the VM MAC, not the account scope. Grant not compiled/active in this build."
-          else
-            echo "SIGNTEST_VERDICT=INCONCLUSIVE wB=$wB wC=$wC (B should have hit on the freshly-warmed clean dir)"
-          fi
-
-      - name: Dir-vs-disk — virtio-fs vs virtio-blk for the cache (spec #76)
-        if: ${{ inputs.mode == 'dir-vs-disk' }}
-        shell: bash --noprofile --norc {0}
-        run: |
-          set +e
-          # virtio-fs = the writable status --dir share; virtio-blk = the --disk cache volume.
-          # Both back onto the same host SSD, so the delta isolates the virtualization layer,
-          # which is the question for the post-dispatch shared-dir materialization model (spec #76).
-          VFS="/Volumes/My Shared Files/status"
-          VBLK="${TUIST_XDG_CACHE_HOME:-/Volumes/tuist-cache}"
-          echo "virtio-fs (--dir status): $VFS"
-          echo "virtio-blk (--disk cache): $VBLK"
-          if ! { [ -d "$VFS" ] && touch "$VFS/.w" 2>/dev/null; }; then echo "ABORT: virtio-fs share not writable/absent"; exit 0; fi
-          if ! { [ -d "$VBLK" ] && touch "$VBLK/.w" 2>/dev/null; }; then echo "ABORT: virtio-blk cache not writable/absent"; exit 0; fi
-          rm -f "$VFS/.w" "$VBLK/.w"
-          trap 'rm -rf "$VFS/seqtest.bin" "$VFS/small" "$VFS/xattr.bin" "$VBLK/seqtest.bin" "$VBLK/small" "$VBLK/xattr.bin" 2>/dev/null' EXIT
-          freem=$(df -m "$VFS" 2>/dev/null | awk 'NR==2{print $4}')
-          SZ=256; [ "${freem:-0}" -lt 2048 ] && SZ=64
-          NF=1000
-          echo "sequential dataset=${SZ}MB  small-files=${NF}x8KB  (vfs free=${freem}MB)"
-          ms(){ python3 -c 'import time;print(int(time.time()*1000))'; }
-          mbps(){ python3 -c "print(round($1*1000/max(1,$2),1))"; }
-          seqw(){ s=$(ms); dd if=/dev/zero of="$1/seqtest.bin" bs=1048576 count=$SZ 2>/dev/null; sync; e=$(ms); echo $((e-s)); }
-          seqr(){ sudo purge >/dev/null 2>&1; s=$(ms); dd if="$1/seqtest.bin" of=/dev/null bs=1048576 2>/dev/null; e=$(ms); echo $((e-s)); }
-          smallw(){ d="$1/small"; rm -rf "$d"; mkdir -p "$d"; s=$(ms); i=0; while [ $i -lt $NF ]; do printf '%8192s' '' > "$d/f$i"; i=$((i+1)); done; sync; e=$(ms); echo $((e-s)); }
-          smallr(){ sudo purge >/dev/null 2>&1; s=$(ms); cat "$1/small"/f* > /dev/null 2>&1; e=$(ms); echo $((e-s)); }
-          xtest(){ printf 'hi' > "$1/xattr.bin"; xattr -w tuist.cloud.metadata "sig-check-123" "$1/xattr.bin" 2>/dev/null; got=$(xattr -p tuist.cloud.metadata "$1/xattr.bin" 2>/dev/null); [ "$got" = "sig-check-123" ] && echo "PASS" || echo "FAIL(got=${got// /_})"; }
-          measure(){ echo "$(mbps $SZ "$(seqw "$1")") $(mbps $SZ "$(seqr "$1")") $(smallw "$1") $(smallr "$1") $(xtest "$1")"; }
-          read DISK_W DISK_R DISK_SW DISK_SR DISK_X <<< "$(measure "$VBLK")"
-          read FS_W FS_R FS_SW FS_SR FS_X <<< "$(measure "$VFS")"
-          echo "DISK (virtio-blk): seqW=${DISK_W} seqR=${DISK_R} MB/s | smallW=${DISK_SW} smallR=${DISK_SR} ms | xattr=${DISK_X}"
-          echo "FS   (virtio-fs) : seqW=${FS_W} seqR=${FS_R} MB/s | smallW=${FS_SW} smallR=${FS_SR} ms | xattr=${FS_X}"
-          echo "=== VERDICT ==="
-          python3 - "$DISK_R" "$FS_R" "$DISK_SR" "$FS_SR" "$FS_X" <<'PY'
-          import sys
-          dsr,fsr,dsm,fsm,fx = float(sys.argv[1]),float(sys.argv[2]),int(sys.argv[3]),int(sys.argv[4]),sys.argv[5]
-          seq_ratio = dsr/fsr if fsr else float('inf')
-          small_ratio = fsm/dsm if dsm else float('inf')
-          print(f"SEQ_READ: virtio-fs is {seq_ratio:.1f}x slower than virtio-blk ({fsr} vs {dsr} MB/s)")
-          print(f"SMALL_READ: virtio-fs is {small_ratio:.1f}x slower than virtio-blk ({fsm} vs {dsm} ms)")
-          print(f"XATTR on virtio-fs: {fx}")
-          ok = fx == "PASS" and seq_ratio <= 2.0 and small_ratio <= 3.0
-          print("DIRVSDISK_VERDICT=" + ("VIABLE — virtio-fs within tolerance and xattr survives; Approach B worth a full generate test" if ok else "MARGINAL/NO — virtio-fs too slow or xattr lost; favor Approach D (per-account warm pools)"))
-          PY
-          echo "=== dir-vs-disk done ==="
-
-      - name: Gen fs-vs-disk — warm generate on virtio-fs vs virtio-blk (spec #76)
-        if: ${{ inputs.mode == 'gen-fs-vs-disk' }}
-        shell: bash --noprofile --norc {0}
-        env:
-          TUIST_URL: https://staging.tuist.dev
-          TUIST_TOKEN: ${{ secrets.TUIST_STAGING_CACHE_TOKEN }}
-        run: |
-          # End-to-end answer to "does virtio-fs retain the generate warmth despite slower raw I/O?"
-          # Warm a cache on the block device with the released CLI (its own MAC signs it, so it
-          # validates on THIS VM), copy it to a virtio-fs location with xattrs preserved, then time
-          # PURGED warm generates against each (purged = realistic cold page cache on a fresh VM).
-          set +e -o pipefail
-          VBLK="${TUIST_XDG_CACHE_HOME:-/Volumes/tuist-cache}"
-          VFS="/Volumes/My Shared Files/status"
-          BLK_HOME="$VBLK/gentest-blk"; FS_HOME="$VFS/gentest-fs"
-          trap 'rm -rf "$BLK_HOME" "$FS_HOME" 2>/dev/null' EXIT
-          rm -rf "$BLK_HOME" "$FS_HOME"; mkdir -p "$BLK_HOME" "$FS_HOME"
-          echo "BLK_HOME=$BLK_HOME"; echo "FS_HOME=$FS_HOME"
-          if ! command -v mise >/dev/null 2>&1; then curl -fsSL https://mise.run|sh; export PATH="$HOME/.local/bin:$PATH"; fi
-          rm -rf tuist-bench; git clone --quiet --filter=blob:none https://github.com/tuist/tuist tuist-bench; cd tuist-bench
-          mise install >/dev/null 2>&1 || mise install
-          echo "tuist $(mise exec -- tuist version 2>/dev/null || echo '?')"
-          mise exec -- tuist install >/dev/null 2>&1 || true
-          ms(){ python3 -c 'import time;print(int(time.time()*1000))'; }
-          : > /tmp/genresults
-          gen(){ # $1=label $2=cachehome  (page cache purged first)
-            sudo purge >/dev/null 2>&1
-            local s e rc; s=$(ms)
-            env TUIST_XDG_CACHE_HOME="$2" mise exec -- tuist generate tuist ProjectDescription --no-open >"/tmp/g_$1.log" 2>&1; rc=$?
-            e=$(ms); echo "$1 $((e-s)) $rc" >> /tmp/genresults
-            echo "GEN_$1_MS=$((e-s)) rc=$rc  binaries=$(ls -1 "$2/tuist/Binaries" 2>/dev/null|wc -l|tr -d ' ')  reqwarn=$(grep -c 'requires using' "/tmp/g_$1.log" 2>/dev/null)"
-          }
-          echo "=== COLD: warm BLK_HOME (pull + MAC-sign) — this is the cold/recompile baseline ==="
-          gen cold "$BLK_HOME"
-          echo "=== copy warm cache BLK_HOME -> FS_HOME (ditto preserves xattrs; setup, untimed) ==="
-          cs=$(ms); ditto "$BLK_HOME/tuist" "$FS_HOME/tuist" 2>/dev/null; echo "copy_ms=$(( $(ms)-cs ))  fs_binaries=$(ls -1 "$FS_HOME/tuist/Binaries" 2>/dev/null|wc -l|tr -d ' ')"
-          sample=$(find "$FS_HOME/tuist/Binaries" -type f 2>/dev/null | head -1)
-          [ -n "$sample" ] && echo "post-copy signature xattr on a copied binary: $(xattr -p tuist.cloud.metadata "$sample" 2>/dev/null | head -c 24 || echo MISSING)"
-          echo "=== WARM on virtio-blk (purged) x2 ==="; gen blkwarm1 "$BLK_HOME"; gen blkwarm2 "$BLK_HOME"
-          echo "=== WARM on virtio-fs  (purged) x2 ==="; gen fswarm1 "$FS_HOME"; gen fswarm2 "$FS_HOME"
-          echo "=== RETENTION ==="
-          python3 - <<'PY'
-          d={}
-          for line in open('/tmp/genresults'):
-              p=line.split()
-              if len(p)>=2:
-                  try: d[p[0]]=int(p[1])
-                  except: pass
-          cold=d.get('cold'); blk=min(d.get('blkwarm1',10**9),d.get('blkwarm2',10**9)); fs=min(d.get('fswarm1',10**9),d.get('fswarm2',10**9))
-          print(f"cold={cold}ms  blk_warm={blk}ms  fs_warm={fs}ms")
-          if cold and blk<cold and fs<10**9:
-              saved_blk=cold-blk; saved_fs=cold-fs
-              ret=saved_fs/saved_blk*100 if saved_blk>0 else 0
-              print(f"warmth saved: block-device={saved_blk}ms, virtio-fs={saved_fs}ms")
-              print(f"GEN_RETENTION={ret:.0f}%  (virtio-fs keeps {ret:.0f}% of the block-device warmth win)")
-              v = "VIABLE — virtio-fs retains most of the generate warmth" if ret>=75 else ("MARGINAL — meaningful loss" if ret>=50 else "NO — virtio-fs gives back most of the warmth")
-              print("GENFS_VERDICT="+v)
-          else:
-              print("GENFS_VERDICT=INCONCLUSIVE (a run failed or no warm delta)")
-          PY
-          echo "=== signature-fail warnings per gen (should be 0 if the copy kept xattrs) ==="
-          for l in cold blkwarm1 blkwarm2 fswarm1 fswarm2; do echo "  $l: reqwarn=$(grep -c 'requires using' "/tmp/g_$l.log" 2>/dev/null)"; done
-          echo "=== gen-fs-vs-disk done ==="
-
-      - name: Clone-bench — clonefile speed for post-dispatch materialization (spec #76)
-        if: ${{ inputs.mode == 'clone-bench' }}
-        shell: bash --noprofile --norc {0}
-        run: |
-          # How long does the host take to materialize an account's master into a VM's
-          # branch dir (the "cache-ready wait" the guest incurs)? clonefile is CoW — cost
-          # is driven by file COUNT (metadata), not bytes. Measured guest-side on the
-          # virtio-blk cache mount = conservative upper bound; host-native APFS is faster.
-          set +e
-          VOL="${TUIST_XDG_CACHE_HOME:-/Volumes/tuist-cache}"
-          SRC="$VOL/clonebench-src"; DST1="$VOL/clonebench-clone"; DST2="$VOL/clonebench-copy"
-          trap 'rm -rf "$SRC" "$DST1" "$DST2" 2>/dev/null' EXIT
-          rm -rf "$SRC" "$DST1" "$DST2"; mkdir -p "$SRC"
-          ms(){ python3 -c 'import time;print(int(time.time()*1000))'; }
-          echo "=== build synthetic cache-shaped tree on the cache volume ==="
-          NDIR=300; NSMALL=20; BIGMB=8
-          gs=$(ms); i=0
-          while [ $i -lt $NDIR ]; do
-            d="$SRC/xcf$i/arch"; mkdir -p "$d"
-            dd if=/dev/urandom of="$d/binary" bs=1048576 count=$BIGMB 2>/dev/null
-            j=0; while [ $j -lt $NSMALL ]; do printf '%512s' '' > "$SRC/xcf$i/h$j.h"; j=$((j+1)); done
-            i=$((i+1))
-          done
-          files=$(find "$SRC" -type f | wc -l | tr -d ' '); sz=$(du -sh "$SRC" 2>/dev/null | awk '{print $1}')
-          echo "TREE: files=${files} dirs=${NDIR} size=${sz} built_in_ms=$(( $(ms)-gs ))"
-          echo "=== clonefile() syscall on the directory — the host-native materialization path ==="
-          python3 - "$SRC" "$DST1" <<'PY'
-          import ctypes, ctypes.util, time, sys
-          libc = ctypes.CDLL(ctypes.util.find_library('c'), use_errno=True)
-          libc.clonefile.restype = ctypes.c_int
-          libc.clonefile.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_int]
-          s = time.time(); rc = libc.clonefile(sys.argv[1].encode(), sys.argv[2].encode(), 0); e = time.time()
-          print(f"CLONEFILE_SYSCALL_MS={int((e-s)*1000)} rc={rc}" + ("" if rc == 0 else f" errno={ctypes.get_errno()}"))
-          PY
-          echo "=== cp -cR (clonefile CLI proxy) ==="
-          s=$(ms); cp -cR "$SRC" "$DST2" 2>/dev/null; r=$?; echo "CP_CLONE_MS=$(( $(ms)-s )) rc=$r"
-          rm -rf "$DST2"
-          echo "=== cp -R (plain byte copy, cross-volume-equivalent cost, for contrast) ==="
-          s=$(ms); cp -R "$SRC" "$DST2" 2>/dev/null; r=$?; echo "CP_PLAIN_MS=$(( $(ms)-s )) rc=$r"
-          echo "=== clone-bench done ==="
-
-      - name: Populate — tuist cache warm (spec #76)
-        if: ${{ inputs.mode == 'populate' }}
-        shell: bash --noprofile --norc {0}
-        env:
-          TUIST_URL: https://staging.tuist.dev
-          TUIST_TOKEN: ${{ secrets.TUIST_STAGING_CACHE_TOKEN }}
-        run: |
-          set +e -o pipefail
-          if ! command -v mise >/dev/null 2>&1; then curl -fsSL https://mise.run | sh; export PATH="${HOME}/.local/bin:${PATH}"; fi
-          rm -rf tuist-bench; git clone --quiet --filter=blob:none https://github.com/tuist/tuist tuist-bench; cd tuist-bench
-          mise install >/dev/null 2>&1 || mise install
-          echo "tuist $(mise exec -- tuist version 2>/dev/null)"
-          mise exec -- tuist install >/dev/null 2>&1 || mise exec -- tuist install || true
-          echo "=== tuist cache warm — build + upload the binary cache to staging ==="
-          s=$(python3 -c 'import time;print(int(time.time()))')
-          mise exec -- tuist cache warm > /tmp/warm.log 2>&1; rc=$?
-          tail -60 /tmp/warm.log
-          echo "POPULATE rc=${rc} seconds=$(( $(python3 -c 'import time;print(int(time.time()))') - s ))"
-          echo "=== cached artifacts now present in staging cache (config) ==="
-          mise exec -- tuist cache config 2>&1 | head -8 || true
 
       - name: Public reachability check
         run: |
           set -euo pipefail
-          # Public GH should be reachable (the runner already
-          # registered, so this had better work). This is the
-          # only network assertion the smoke covers; the
-          # negative-isolation test that used to live here was
-          # removed because the previous shape leaned on
-          # KUBERNETES_SERVICE_HOST being injected (it isn't —
-          # Tart VMs don't get the K8s env contract that Pods
-          # do) so the assertion passed vacuously via DNS
-          # failure. Tart VM egress isolation is not enforced
-          # by the runner-namespace NetworkPolicy (vmnet
-          # bypasses CNI) and there's no in-cluster endpoint we
-          # can dial from inside the VM as a proxy for "is the
-          # cluster reachable" — the perimeter gate lives on the
-          # Mac mini's security group at the IaaS layer, not
-          # somewhere we can curl from the workflow.
+          # Public GH should be reachable (the runner already registered, so
+          # this had better work). Tart VM egress isolation is enforced at the
+          # Mac mini's IaaS security group, not somewhere we can curl from here,
+          # so this is the only network assertion the smoke makes.
           curl -fsSL -o /dev/null -w "github.com → HTTP %{http_code}\n" https://github.com
 
       - name: Kura runner-cache reachable over the PN
@@ -486,9 +125,9 @@ jobs:
             exit 0
           fi
           echo "TUIST_CACHE_ENDPOINT=${endpoint}"
-          # macOS runners reach the cache over the Scaleway PN in
-          # node-port form (http://<node PN IP>:<NodePort>). A 200 on
-          # /up proves the VM routes onto the PN and the cache serves.
+          # macOS runners reach the cache over the Scaleway PN in node-port form
+          # (http://<node PN IP>:<NodePort>). A 200 on /up proves the VM routes
+          # onto the PN and the cache serves.
           code=$(curl -sS -m 10 -o /tmp/up -w '%{http_code}' "${endpoint%/}/up")
           echo "GET ${endpoint%/}/up → HTTP ${code}"
           cat /tmp/up 2>/dev/null || true; echo
