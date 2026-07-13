@@ -65,13 +65,13 @@ defmodule TuistWeb.ProjectAutomationsLive do
     |> assign(create_automation_form_window: "30d")
     |> assign(create_automation_form_rolling_window_size: "100")
     |> assign(create_automation_form_events: ["marked_flaky"])
-    |> assign(create_automation_form_trigger_states: [])
+    |> assign(create_automation_form_trigger_conditions: [])
     |> assign(create_automation_form_trigger_actions: [default_add_label_action()])
     |> assign(create_automation_form_recovery_enabled: false)
     |> assign(create_automation_form_recovery_window_type: "last_days")
     |> assign(create_automation_form_recovery_window: "14d")
     |> assign(create_automation_form_recovery_rolling_window_size: "100")
-    |> assign(create_automation_form_recovery_states: [])
+    |> assign(create_automation_form_recovery_conditions: [])
     |> assign(create_automation_form_recovery_actions: [default_remove_label_action()])
   end
 
@@ -123,13 +123,13 @@ defmodule TuistWeb.ProjectAutomationsLive do
       window: automation.trigger_config["window"] || "30d",
       rolling_window_size: to_string(automation.trigger_config["rolling_window_size"] || 100),
       events: parse_events(automation.trigger_config["events"]),
-      trigger_states: parse_states(automation.trigger_config["test_case_states"]),
+      trigger_conditions: parse_conditions(automation.trigger_config["conditions"]),
       trigger_actions: automation.trigger_actions,
       recovery_enabled: automation.recovery_enabled,
       recovery_window_type: parse_window_type(automation.recovery_config["window_type"]),
       recovery_window: automation.recovery_config["window"] || "14d",
       recovery_rolling_window_size: to_string(automation.recovery_config["rolling_window_size"] || 100),
-      recovery_states: parse_states(automation.recovery_config["test_case_states"]),
+      recovery_conditions: parse_conditions(automation.recovery_config["conditions"]),
       recovery_actions: automation.recovery_actions,
       enabled: automation.enabled
     }
@@ -141,11 +141,20 @@ defmodule TuistWeb.ProjectAutomationsLive do
 
   defp parse_events(_), do: ["marked_flaky"]
 
-  defp parse_states(states) when is_list(states) do
-    Enum.filter(Alert.valid_states(), &(&1 in states))
+  defp parse_conditions(conditions) when is_list(conditions) do
+    Enum.flat_map(conditions, &normalize_condition/1)
   end
 
-  defp parse_states(_), do: []
+  defp parse_conditions(_), do: []
+
+  defp normalize_condition(%{"type" => "test_case_state", "states" => states}) when is_list(states) do
+    case Enum.filter(Alert.valid_states(), &(&1 in states)) do
+      [] -> []
+      valid -> [%{"type" => "test_case_state", "states" => valid}]
+    end
+  end
+
+  defp normalize_condition(_), do: []
 
   defp parse_comparison(comparison) when comparison in @comparisons, do: comparison
   defp parse_comparison(_), do: "gte"
@@ -182,13 +191,13 @@ defmodule TuistWeb.ProjectAutomationsLive do
         |> assign(create_automation_form_window: form.window)
         |> assign(create_automation_form_rolling_window_size: form.rolling_window_size)
         |> assign(create_automation_form_events: form.events)
-        |> assign(create_automation_form_trigger_states: form.trigger_states)
+        |> assign(create_automation_form_trigger_conditions: form.trigger_conditions)
         |> assign(create_automation_form_trigger_actions: form.trigger_actions)
         |> assign(create_automation_form_recovery_enabled: form.recovery_enabled)
         |> assign(create_automation_form_recovery_window_type: form.recovery_window_type)
         |> assign(create_automation_form_recovery_window: form.recovery_window)
         |> assign(create_automation_form_recovery_rolling_window_size: form.recovery_rolling_window_size)
-        |> assign(create_automation_form_recovery_states: form.recovery_states)
+        |> assign(create_automation_form_recovery_conditions: form.recovery_conditions)
         |> assign(create_automation_form_recovery_actions: form.recovery_actions)
         |> push_event("open-modal", %{id: "create-automation-modal"})
 
@@ -247,14 +256,46 @@ defmodule TuistWeb.ProjectAutomationsLive do
     {:noreply, assign(socket, create_automation_form_events: next)}
   end
 
-  def handle_event("toggle_create_automation_form_trigger_state", %{"data" => state}, socket) do
-    states = toggle_state(socket.assigns.create_automation_form_trigger_states, state)
-    {:noreply, assign(socket, create_automation_form_trigger_states: states)}
+  def handle_event("add_create_automation_form_trigger_condition", %{"data" => type}, socket) do
+    conditions = socket.assigns.create_automation_form_trigger_conditions ++ [new_condition(type, :trigger)]
+    {:noreply, assign(socket, create_automation_form_trigger_conditions: conditions)}
   end
 
-  def handle_event("toggle_create_automation_form_recovery_state", %{"data" => state}, socket) do
-    states = toggle_state(socket.assigns.create_automation_form_recovery_states, state)
-    {:noreply, assign(socket, create_automation_form_recovery_states: states)}
+  def handle_event("delete_create_automation_form_trigger_condition", %{"index" => index}, socket) do
+    conditions = List.delete_at(socket.assigns.create_automation_form_trigger_conditions, String.to_integer(index))
+    {:noreply, assign(socket, create_automation_form_trigger_conditions: conditions)}
+  end
+
+  def handle_event("toggle_create_automation_form_trigger_condition_state", %{"data" => state, "index" => index}, socket) do
+    conditions =
+      update_condition_at(
+        socket.assigns.create_automation_form_trigger_conditions,
+        index,
+        &toggle_condition_state(&1, state)
+      )
+
+    {:noreply, assign(socket, create_automation_form_trigger_conditions: conditions)}
+  end
+
+  def handle_event("add_create_automation_form_recovery_condition", %{"data" => type}, socket) do
+    conditions = socket.assigns.create_automation_form_recovery_conditions ++ [new_condition(type, :recovery)]
+    {:noreply, assign(socket, create_automation_form_recovery_conditions: conditions)}
+  end
+
+  def handle_event("delete_create_automation_form_recovery_condition", %{"index" => index}, socket) do
+    conditions = List.delete_at(socket.assigns.create_automation_form_recovery_conditions, String.to_integer(index))
+    {:noreply, assign(socket, create_automation_form_recovery_conditions: conditions)}
+  end
+
+  def handle_event("toggle_create_automation_form_recovery_condition_state", %{"data" => state, "index" => index}, socket) do
+    conditions =
+      update_condition_at(
+        socket.assigns.create_automation_form_recovery_conditions,
+        index,
+        &toggle_condition_state(&1, state)
+      )
+
+    {:noreply, assign(socket, create_automation_form_recovery_conditions: conditions)}
   end
 
   def handle_event("update_create_automation_form_threshold", %{"value" => value}, socket) do
@@ -542,7 +583,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
       assigns.create_automation_form_window,
       assigns.create_automation_form_rolling_window_size
     )
-    |> maybe_put_test_case_states(assigns.create_automation_form_trigger_states)
+    |> maybe_put_conditions(assigns.create_automation_form_trigger_conditions)
   end
 
   defp recovery_config_for("test_updated", _assigns), do: %{}
@@ -553,18 +594,37 @@ defmodule TuistWeb.ProjectAutomationsLive do
       assigns.create_automation_form_recovery_window,
       assigns.create_automation_form_recovery_rolling_window_size
     )
-    |> maybe_put_test_case_states(assigns.create_automation_form_recovery_states)
+    |> maybe_put_conditions(assigns.create_automation_form_recovery_conditions)
   end
 
-  defp maybe_put_test_case_states(config, states) when is_list(states) and states != [] do
-    Map.put(config, "test_case_states", states)
+  # Drop conditions the user left empty (e.g. a just-added state condition with
+  # no state ticked) so they neither persist nor fail validation; an absent
+  # `conditions` key means "no scoping".
+  defp maybe_put_conditions(config, conditions) do
+    case Enum.filter(conditions, &savable_condition?/1) do
+      [] -> config
+      savable -> Map.put(config, "conditions", savable)
+    end
   end
 
-  defp maybe_put_test_case_states(config, _states), do: config
+  defp savable_condition?(%{"type" => "test_case_state", "states" => states}), do: is_list(states) and states != []
+  defp savable_condition?(_), do: false
 
-  defp toggle_state(states, state) do
+  defp new_condition("test_case_state", :recovery), do: %{"type" => "test_case_state", "states" => ["muted"]}
+  defp new_condition("test_case_state", _context), do: %{"type" => "test_case_state", "states" => ["enabled"]}
+  defp new_condition(_type, context), do: new_condition("test_case_state", context)
+
+  defp update_condition_at(conditions, index, fun) do
+    List.update_at(conditions, String.to_integer(index), fun)
+  end
+
+  defp toggle_condition_state(%{"states" => states} = condition, state) do
     next = if state in states, do: List.delete(states, state), else: [state | states]
-    Enum.filter(Alert.valid_states(), &(&1 in next))
+    Map.put(condition, "states", Enum.filter(Alert.valid_states(), &(&1 in next)))
+  end
+
+  defp toggle_condition_state(condition, state) do
+    toggle_condition_state(Map.put(condition, "states", []), state)
   end
 
   defp build_trigger_config(threshold, comparison, "rolling", _window, rolling_window_size) do
@@ -679,14 +739,22 @@ defmodule TuistWeb.ProjectAutomationsLive do
   def test_case_state_label("skipped"), do: dgettext("dashboard_projects", "Skipped")
   def test_case_state_label(_), do: dgettext("dashboard_projects", "Unknown")
 
-  def test_case_state_description("enabled"), do: dgettext("dashboard_projects", "The test runs and its failures count.")
+  def condition_type_label("test_case_state"), do: dgettext("dashboard_projects", "Test state")
+  def condition_type_label(_), do: dgettext("dashboard_projects", "Unknown")
 
-  def test_case_state_description("muted"),
-    do: dgettext("dashboard_projects", "The test runs but its failures are ignored.")
+  # Condition types not yet present in the list. Each type is single-use for
+  # now (a test case has one state), so once added it drops out of the picker.
+  def available_condition_types(conditions) do
+    Enum.reject(Alert.condition_types(), &has_condition_type?(conditions, &1))
+  end
 
-  def test_case_state_description("skipped"), do: dgettext("dashboard_projects", "The test is skipped entirely.")
+  def has_condition_type?(conditions, type), do: Enum.any?(conditions, &(&1["type"] == type))
 
-  def test_case_state_description(_), do: ""
+  def condition_states_label(states) when is_list(states) and states != [] do
+    Enum.map_join(states, ", ", &test_case_state_label/1)
+  end
+
+  def condition_states_label(_), do: dgettext("dashboard_projects", "Select states")
 
   def comparison_label("gte"), do: dgettext("dashboard_projects", "Greater or equal")
   def comparison_label("gt"), do: dgettext("dashboard_projects", "Greater than")

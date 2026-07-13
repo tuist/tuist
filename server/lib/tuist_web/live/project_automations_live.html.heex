@@ -309,32 +309,84 @@
                     </label>
                   </div>
                 </div>
-                <div
-                  :if={not event_driven_monitor_type?(@create_automation_form_metric)}
-                  data-part="form-row"
-                >
-                  <label data-part="label">
-                    {dgettext("dashboard_projects", "Only when test is")}
-                    <span data-part="hint">
-                      {dgettext("dashboard_projects", "(any state if none selected)")}
+              </div>
+
+              <.line_divider :if={not event_driven_monitor_type?(@create_automation_form_metric)} />
+
+              <div
+                :if={not event_driven_monitor_type?(@create_automation_form_metric)}
+                data-part="form-section"
+              >
+                <div data-part="form-section-header" data-with-action>
+                  <div data-part="form-section-header-titles">
+                    <span data-part="title">
+                      {dgettext("dashboard_projects", "Scope")}
                     </span>
-                  </label>
-                  <div id="create-automation-trigger-states" data-part="event-checkbox-list">
-                    <label
-                      :for={state <- test_case_states()}
-                      id={"create-automation-trigger-state-#{state}"}
-                      data-part="event-checkbox"
-                      phx-click="toggle_create_automation_form_trigger_state"
-                      phx-value-data={state}
-                    >
-                      <.checkbox_control checked={state in @create_automation_form_trigger_states} />
-                      <div data-part="body">
-                        <span data-part="label">{test_case_state_label(state)}</span>
-                        <span data-part="description">
-                          {test_case_state_description(state)}
+                    <span data-part="subtitle">
+                      {dgettext(
+                        "dashboard_projects",
+                        "Only act on test cases matching every condition (all tests if none added)"
+                      )}
+                    </span>
+                  </div>
+                  <.dropdown
+                    :if={
+                      available_condition_types(@create_automation_form_trigger_conditions) != []
+                    }
+                    id="create-automation-trigger-condition-add-dropdown"
+                    label={dgettext("dashboard_projects", "Add condition")}
+                  >
+                    <.dropdown_item
+                      :for={
+                        type <-
+                          available_condition_types(@create_automation_form_trigger_conditions)
+                      }
+                      value={type}
+                      label={condition_type_label(type)}
+                      on_click="add_create_automation_form_trigger_condition"
+                    />
+                  </.dropdown>
+                </div>
+                <div
+                  :if={@create_automation_form_trigger_conditions != []}
+                  data-part="form-section-body"
+                >
+                  <div
+                    :for={
+                      {condition, index} <-
+                        Enum.with_index(@create_automation_form_trigger_conditions)
+                    }
+                    data-part="action-row"
+                  >
+                    <%= case condition["type"] do %>
+                      <% "test_case_state" -> %>
+                        <span data-part="action-label">
+                          {dgettext("dashboard_projects", "Test state is any of")}
                         </span>
-                      </div>
-                    </label>
+                        <.dropdown
+                          id={"create-automation-trigger-condition-#{index}"}
+                          label={condition_states_label(condition["states"])}
+                        >
+                          <.dropdown_item
+                            :for={state <- test_case_states()}
+                            value={state}
+                            label={test_case_state_label(state)}
+                            on_click="toggle_create_automation_form_trigger_condition_state"
+                            phx-value-index={index}
+                            data-selected={state in (condition["states"] || [])}
+                          >
+                            <:right_icon><.check /></:right_icon>
+                          </.dropdown_item>
+                        </.dropdown>
+                    <% end %>
+                    <.button
+                      icon_only
+                      variant="secondary"
+                      phx-click="delete_create_automation_form_trigger_condition"
+                      phx-value-index={index}
+                    >
+                      <.icon name="trash" />
+                    </.button>
                   </div>
                 </div>
               </div>
@@ -719,30 +771,66 @@
                   </div>
                   <div data-part="form-row">
                     <label data-part="label">
-                      {dgettext("dashboard_projects", "Only when test is")}
+                      {dgettext("dashboard_projects", "Only for tests matching")}
                       <span data-part="hint">
-                        {dgettext("dashboard_projects", "(any state if none selected)")}
+                        {dgettext("dashboard_projects", "(all tests if none added)")}
                       </span>
                     </label>
-                    <div id="create-automation-recovery-states" data-part="event-checkbox-list">
-                      <label
-                        :for={state <- test_case_states()}
-                        id={"create-automation-recovery-state-#{state}"}
-                        data-part="event-checkbox"
-                        phx-click="toggle_create_automation_form_recovery_state"
-                        phx-value-data={state}
-                      >
-                        <.checkbox_control checked={
-                          state in @create_automation_form_recovery_states
-                        } />
-                        <div data-part="body">
-                          <span data-part="label">{test_case_state_label(state)}</span>
-                          <span data-part="description">
-                            {test_case_state_description(state)}
-                          </span>
-                        </div>
-                      </label>
-                    </div>
+                    <.dropdown
+                      :if={
+                        available_condition_types(@create_automation_form_recovery_conditions) !=
+                          []
+                      }
+                      id="create-automation-recovery-condition-add-dropdown"
+                      label={dgettext("dashboard_projects", "Add condition")}
+                    >
+                      <.dropdown_item
+                        :for={
+                          type <-
+                            available_condition_types(@create_automation_form_recovery_conditions)
+                        }
+                        value={type}
+                        label={condition_type_label(type)}
+                        on_click="add_create_automation_form_recovery_condition"
+                      />
+                    </.dropdown>
+                  </div>
+                  <div
+                    :for={
+                      {condition, index} <-
+                        Enum.with_index(@create_automation_form_recovery_conditions)
+                    }
+                    data-part="action-row"
+                  >
+                    <%= case condition["type"] do %>
+                      <% "test_case_state" -> %>
+                        <span data-part="action-label">
+                          {dgettext("dashboard_projects", "Test state is any of")}
+                        </span>
+                        <.dropdown
+                          id={"create-automation-recovery-condition-#{index}"}
+                          label={condition_states_label(condition["states"])}
+                        >
+                          <.dropdown_item
+                            :for={state <- test_case_states()}
+                            value={state}
+                            label={test_case_state_label(state)}
+                            on_click="toggle_create_automation_form_recovery_condition_state"
+                            phx-value-index={index}
+                            data-selected={state in (condition["states"] || [])}
+                          >
+                            <:right_icon><.check /></:right_icon>
+                          </.dropdown_item>
+                        </.dropdown>
+                    <% end %>
+                    <.button
+                      icon_only
+                      variant="secondary"
+                      phx-click="delete_create_automation_form_recovery_condition"
+                      phx-value-index={index}
+                    >
+                      <.icon name="trash" />
+                    </.button>
                   </div>
                   <div
                     :for={

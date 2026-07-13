@@ -302,7 +302,7 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
       refute Map.has_key?(automation.recovery_config, "rolling_window_size")
     end
 
-    test "persists trigger and recovery test_case_states preconditions", %{
+    test "persists trigger and recovery test_case_state conditions", %{
       conn: conn,
       organization: organization,
       project: project
@@ -311,17 +311,19 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
 
       render_hook(lv, "open_create_automation_modal", %{})
       render_hook(lv, "update_create_automation_form_name", %{"value" => "State-gated"})
-      render_hook(lv, "toggle_create_automation_form_trigger_state", %{"data" => "enabled"})
+      # A freshly added trigger condition defaults to ["enabled"], so no toggle
+      # is needed to land on Curtis's setup.
+      render_hook(lv, "add_create_automation_form_trigger_condition", %{"data" => "test_case_state"})
       render_hook(lv, "toggle_create_automation_form_recovery", %{})
-      render_hook(lv, "toggle_create_automation_form_recovery_state", %{"data" => "muted"})
+      render_hook(lv, "add_create_automation_form_recovery_condition", %{"data" => "test_case_state"})
       render_hook(lv, "save_automation", %{})
 
       assert [automation] = Automations.list_alerts(project.id)
-      assert automation.trigger_config["test_case_states"] == ["enabled"]
-      assert automation.recovery_config["test_case_states"] == ["muted"]
+      assert automation.trigger_config["conditions"] == [%{"type" => "test_case_state", "states" => ["enabled"]}]
+      assert automation.recovery_config["conditions"] == [%{"type" => "test_case_state", "states" => ["muted"]}]
     end
 
-    test "omits test_case_states from the config when no state is selected", %{
+    test "omits conditions from the config when none are added", %{
       conn: conn,
       organization: organization,
       project: project
@@ -329,14 +331,14 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
       {:ok, lv, _html} = open(conn, organization, project)
 
       render_hook(lv, "open_create_automation_modal", %{})
-      render_hook(lv, "update_create_automation_form_name", %{"value" => "Any state"})
+      render_hook(lv, "update_create_automation_form_name", %{"value" => "No scope"})
       render_hook(lv, "save_automation", %{})
 
       assert [automation] = Automations.list_alerts(project.id)
-      refute Map.has_key?(automation.trigger_config, "test_case_states")
+      refute Map.has_key?(automation.trigger_config, "conditions")
     end
 
-    test "toggling a trigger state twice removes it again", %{
+    test "a state condition emptied of all states is dropped on save", %{
       conn: conn,
       organization: organization,
       project: project
@@ -344,13 +346,48 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
       {:ok, lv, _html} = open(conn, organization, project)
 
       render_hook(lv, "open_create_automation_modal", %{})
-      render_hook(lv, "update_create_automation_form_name", %{"value" => "Toggle off"})
-      render_hook(lv, "toggle_create_automation_form_trigger_state", %{"data" => "muted"})
-      render_hook(lv, "toggle_create_automation_form_trigger_state", %{"data" => "muted"})
+      render_hook(lv, "update_create_automation_form_name", %{"value" => "Emptied"})
+      render_hook(lv, "add_create_automation_form_trigger_condition", %{"data" => "test_case_state"})
+      # Untick the default "enabled" so the condition has no states left.
+      render_hook(lv, "toggle_create_automation_form_trigger_condition_state", %{"data" => "enabled", "index" => "0"})
       render_hook(lv, "save_automation", %{})
 
       assert [automation] = Automations.list_alerts(project.id)
-      refute Map.has_key?(automation.trigger_config, "test_case_states")
+      refute Map.has_key?(automation.trigger_config, "conditions")
+    end
+
+    test "toggling adds a second allowed state to a condition", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      {:ok, lv, _html} = open(conn, organization, project)
+
+      render_hook(lv, "open_create_automation_modal", %{})
+      render_hook(lv, "update_create_automation_form_name", %{"value" => "Two states"})
+      render_hook(lv, "add_create_automation_form_trigger_condition", %{"data" => "test_case_state"})
+      render_hook(lv, "toggle_create_automation_form_trigger_condition_state", %{"data" => "muted", "index" => "0"})
+      render_hook(lv, "save_automation", %{})
+
+      assert [automation] = Automations.list_alerts(project.id)
+      assert automation.trigger_config["conditions"] == [%{"type" => "test_case_state", "states" => ["enabled", "muted"]}]
+    end
+
+    test "deleting a condition removes it before save", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      {:ok, lv, _html} = open(conn, organization, project)
+
+      render_hook(lv, "open_create_automation_modal", %{})
+      render_hook(lv, "update_create_automation_form_name", %{"value" => "Removed"})
+      render_hook(lv, "add_create_automation_form_trigger_condition", %{"data" => "test_case_state"})
+      render_hook(lv, "delete_create_automation_form_trigger_condition", %{"index" => "0"})
+      render_hook(lv, "save_automation", %{})
+
+      assert [automation] = Automations.list_alerts(project.id)
+      refute Map.has_key?(automation.trigger_config, "conditions")
     end
 
     test "creates a test_updated automation subscribed to the default marked_flaky event", %{
@@ -483,7 +520,7 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
       assert updated.name == "Renamed"
     end
 
-    test "edit_automation preserves existing test_case_states preconditions on save", %{
+    test "edit_automation preserves existing conditions on save", %{
       conn: conn,
       organization: organization,
       project: project
@@ -496,10 +533,14 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
             "threshold" => 10,
             "window_type" => "last_days",
             "window" => "30d",
-            "test_case_states" => ["enabled"]
+            "conditions" => [%{"type" => "test_case_state", "states" => ["enabled"]}]
           },
           recovery_enabled: true,
-          recovery_config: %{"window_type" => "last_days", "window" => "14d", "test_case_states" => ["muted"]},
+          recovery_config: %{
+            "window_type" => "last_days",
+            "window" => "14d",
+            "conditions" => [%{"type" => "test_case_state", "states" => ["muted"]}]
+          },
           recovery_actions: [%{"type" => "change_state", "state" => "enabled"}]
         )
 
@@ -511,8 +552,8 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
 
       assert [updated] = Automations.list_alerts(project.id)
       assert updated.name == "Gated renamed"
-      assert updated.trigger_config["test_case_states"] == ["enabled"]
-      assert updated.recovery_config["test_case_states"] == ["muted"]
+      assert updated.trigger_config["conditions"] == [%{"type" => "test_case_state", "states" => ["enabled"]}]
+      assert updated.recovery_config["conditions"] == [%{"type" => "test_case_state", "states" => ["muted"]}]
     end
 
     test "edit_automation does nothing for an automation in another project", %{
