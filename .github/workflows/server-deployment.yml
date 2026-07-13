@@ -406,6 +406,8 @@ jobs:
           install_args: "--locked helm kubectl"
           cache: "false"
       - uses: 1password/install-cli-action@v4
+        with:
+          version: 2.31.1
       - name: Load kubeconfig from 1Password
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
@@ -489,6 +491,8 @@ jobs:
           cache: "false"
       - if: steps.check-values.outputs.exists == 'true'
         uses: 1password/install-cli-action@v4
+        with:
+          version: 2.31.1
       - if: steps.check-values.outputs.exists == 'true'
         name: Load kubeconfig from 1Password
         env:
@@ -552,6 +556,8 @@ jobs:
           install_args: "--locked helm kubectl"
           cache: "false"
       - uses: 1password/install-cli-action@v4
+        with:
+          version: 2.31.1
       - name: Load kubeconfig from 1Password
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
@@ -667,6 +673,8 @@ jobs:
           install_args: "--locked helm kubectl"
           cache: "false"
       - uses: 1password/install-cli-action@v4
+        with:
+          version: 2.31.1
       - name: Load kubeconfig from 1Password
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
