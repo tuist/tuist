@@ -435,6 +435,123 @@ defmodule Tuist.Automations.Alerts.AlertTest do
     end
   end
 
+  describe "test_case_states precondition" do
+    test "accepts a trigger_config test_case_states list of valid states" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "trigger_config" => %{
+              "threshold" => 10,
+              "window_type" => "last_days",
+              "window" => "30d",
+              "test_case_states" => ["enabled"]
+            }
+          })
+        )
+
+      assert changeset.valid?
+    end
+
+    test "rejects a trigger_config test_case_states with an unknown state" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "trigger_config" => %{
+              "threshold" => 10,
+              "window_type" => "last_days",
+              "window" => "30d",
+              "test_case_states" => ["enabled", "bogus"]
+            }
+          })
+        )
+
+      refute changeset.valid?
+      assert errors_on(changeset).trigger_config
+    end
+
+    test "rejects an empty trigger_config test_case_states list" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "trigger_config" => %{
+              "threshold" => 10,
+              "window_type" => "last_days",
+              "window" => "30d",
+              "test_case_states" => []
+            }
+          })
+        )
+
+      refute changeset.valid?
+      assert errors_on(changeset).trigger_config
+    end
+
+    test "accepts a recovery_config test_case_states list of valid states" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "recovery_enabled" => true,
+            "recovery_config" => %{
+              "window_type" => "rolling",
+              "rolling_window_size" => 50,
+              "test_case_states" => ["muted"]
+            },
+            "recovery_actions" => [%{"type" => "change_state", "state" => "enabled"}]
+          })
+        )
+
+      assert changeset.valid?
+    end
+
+    test "rejects a recovery_config test_case_states with an unknown state" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "recovery_enabled" => true,
+            "recovery_config" => %{
+              "window_type" => "rolling",
+              "rolling_window_size" => 50,
+              "test_case_states" => ["nope"]
+            },
+            "recovery_actions" => [%{"type" => "change_state", "state" => "enabled"}]
+          })
+        )
+
+      refute changeset.valid?
+      assert errors_on(changeset).recovery_config
+    end
+
+    test "ignores recovery_config test_case_states when recovery is disabled" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "recovery_enabled" => false,
+            "recovery_config" => %{"test_case_states" => ["nonsense"]}
+          })
+        )
+
+      assert changeset.valid?
+    end
+  end
+
   describe "cadence validation" do
     test "converts cadence values to seconds" do
       assert Alert.cadence_seconds("30s") == 30

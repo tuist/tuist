@@ -603,6 +603,132 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     assert :ok = run(automation.id)
   end
 
+  describe "test_case_states precondition" do
+    test "trigger fires only for test cases whose current state is allowed" do
+      automation =
+        AutomationsFixtures.automation_alert_fixture(
+          trigger_config: %{
+            "threshold" => 5,
+            "window_type" => "rolling",
+            "rolling_window_size" => 100,
+            "test_case_states" => ["enabled"]
+          },
+          trigger_actions: [%{"type" => "change_state", "state" => "muted"}]
+        )
+
+      enabled_id = Ecto.UUID.generate()
+      already_muted_id = Ecto.UUID.generate()
+
+      expect(FlakyTestsMonitor, :evaluate, fn _automation ->
+        %{triggered: [enabled_id, already_muted_id], all: [enabled_id, already_muted_id]}
+      end)
+
+      expect(Tests, :test_case_states, fn _project_id, ids ->
+        assert Enum.sort(ids) == Enum.sort([enabled_id, already_muted_id])
+        %{enabled_id => "enabled", already_muted_id => "muted"}
+      end)
+
+      expect(Automations, :list_active_alert_events, fn _id -> [] end)
+
+      # Only the currently-enabled test case is muted; the already-muted one is
+      # left alone (the automation shouldn't re-mute what it doesn't need to).
+      expected_entity = %{type: :test_case, id: enabled_id}
+      expect(ActionExecutor, :execute_actions, fn _actions, ^automation, ^expected_entity -> :ok end)
+
+      expect(Automations, :create_alert_event, fn %{test_case_id: ^enabled_id, status: "triggered"} -> :ok end)
+
+      assert :ok = run(automation.id)
+    end
+
+    test "recovery withholds its actions but still re-arms a candidate whose state is not allowed" do
+      # The reported bug: a mute automation set to recover only `muted` tests
+      # must not revert a test a human has since manually skipped.
+      automation =
+        AutomationsFixtures.automation_alert_fixture(
+          recovery_enabled: true,
+          recovery_config: %{"window_type" => "last_days", "window" => "1d", "test_case_states" => ["muted"]},
+          recovery_actions: [
+            %{"type" => "change_state", "state" => "enabled"},
+            %{"type" => "remove_label", "label" => "flaky"}
+          ]
+        )
+
+      skipped_id = Ecto.UUID.generate()
+
+      expect(FlakyTestsMonitor, :evaluate, fn _automation ->
+        %{triggered: [], all: [skipped_id]}
+      end)
+
+      triggered_long_ago = NaiveDateTime.add(NaiveDateTime.utc_now(), -3, :day)
+
+      expect(Automations, :list_active_alert_events, fn _id ->
+        [%{test_case_id: skipped_id, triggered_at: triggered_long_ago}]
+      end)
+
+      expect(Tests, :test_case_states, fn _project_id, [^skipped_id] ->
+        %{skipped_id => "skipped"}
+      end)
+
+      # State precondition fails → the recovery actions are withheld (empty list),
+      # so the manual skip / flaky mark is left untouched...
+      expect(ActionExecutor, :execute_actions, fn actions, ^automation, %{type: :test_case, id: ^skipped_id} ->
+        assert actions == []
+        :ok
+      end)
+
+      # ...but the candidate still re-arms so a future rising edge can fire.
+      expect(Automations, :create_alert_event, fn %{test_case_id: ^skipped_id, status: "recovered"} -> :ok end)
+
+      assert :ok = run(automation.id)
+    end
+
+    test "recovery filters its actions by state, running for allowed and re-arming the rest" do
+      automation =
+        AutomationsFixtures.automation_alert_fixture(
+          recovery_enabled: true,
+          recovery_config: %{"window_type" => "last_days", "window" => "1d", "test_case_states" => ["muted"]},
+          recovery_actions: [%{"type" => "change_state", "state" => "enabled"}]
+        )
+
+      muted_id = Ecto.UUID.generate()
+      skipped_id = Ecto.UUID.generate()
+      triggered_long_ago = NaiveDateTime.add(NaiveDateTime.utc_now(), -3, :day)
+
+      expect(FlakyTestsMonitor, :evaluate, fn _automation ->
+        %{triggered: [], all: [muted_id, skipped_id]}
+      end)
+
+      expect(Automations, :list_active_alert_events, fn _id ->
+        [
+          %{test_case_id: muted_id, triggered_at: triggered_long_ago},
+          %{test_case_id: skipped_id, triggered_at: triggered_long_ago}
+        ]
+      end)
+
+      expect(Tests, :test_case_states, fn _project_id, ids ->
+        assert Enum.sort(ids) == Enum.sort([muted_id, skipped_id])
+        %{muted_id => "muted", skipped_id => "skipped"}
+      end)
+
+      expect(ActionExecutor, :execute_actions, 2, fn actions, ^automation, %{type: :test_case, id: id} ->
+        case id do
+          ^muted_id -> assert actions == automation.recovery_actions
+          ^skipped_id -> assert actions == []
+        end
+
+        :ok
+      end)
+
+      # Both re-arm regardless of whether their actions ran.
+      expect(Automations, :create_alert_event, 2, fn %{status: "recovered", test_case_id: id} ->
+        assert id in [muted_id, skipped_id]
+        :ok
+      end)
+
+      assert :ok = run(automation.id)
+    end
+  end
+
   test "test_updated alerts skip recovery bookkeeping even with stale active triggered events" do
     # A monitor-type change to test_updated can leave `triggered` events behind.
     # Event-driven monitors have no recovery semantics, so those must never get

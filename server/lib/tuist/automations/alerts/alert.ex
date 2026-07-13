@@ -41,6 +41,13 @@ defmodule Tuist.Automations.Alerts.Alert do
   def max_rolling_window_size, do: @max_rolling_window_size
 
   @doc """
+  The states a test case can be in. Also the accepted values for a
+  `change_state` action's target and for the optional `test_case_states`
+  precondition on `trigger_config` / `recovery_config`.
+  """
+  def valid_states, do: @valid_states
+
+  @doc """
   Event-driven monitors (`test_updated`) fire from
   `Tuist.Automations.dispatch_test_case_event/2` the instant a test case
   changes and keep their own one-shot ledger. They are not scheduled and have
@@ -224,7 +231,28 @@ defmodule Tuist.Automations.Alerts.Alert do
 
     changeset
     |> validate_comparison(trigger_config)
+    |> validate_test_case_states(:trigger_config, trigger_config)
     |> validate_recovery_config()
+  end
+
+  # Optional precondition gating whether trigger/recovery actions run based on
+  # the test case's current state. Absent means "any state" (unchanged
+  # behaviour); when present it must be a non-empty list of valid states.
+  defp validate_test_case_states(changeset, field, config) do
+    case Map.get(config, "test_case_states") do
+      nil ->
+        changeset
+
+      states when is_list(states) and states != [] ->
+        if Enum.all?(states, &(&1 in @valid_states)) do
+          changeset
+        else
+          add_error(changeset, field, "test_case_states must only contain: #{Enum.join(@valid_states, ", ")}")
+        end
+
+      _ ->
+        add_error(changeset, field, "test_case_states must be a non-empty list of: #{Enum.join(@valid_states, ", ")}")
+    end
   end
 
   defp validate_test_updated_config(changeset, trigger_config) do
@@ -299,7 +327,7 @@ defmodule Tuist.Automations.Alerts.Alert do
       recovery_config = get_field(changeset, :recovery_config) || %{}
 
       case validate_window_shape(recovery_config) do
-        :ok -> changeset
+        :ok -> validate_test_case_states(changeset, :recovery_config, recovery_config)
         {:error, message} -> add_error(changeset, :recovery_config, message)
       end
     else

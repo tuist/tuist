@@ -20,11 +20,23 @@ defmodule TuistWeb.API.Schemas.AutomationAlert do
         enum: ["flakiness_rate", "flaky_run_count", "reliability_rate"],
         description: "The monitor type that evaluates the condition."
       },
-      trigger_config: %Schema{type: :object, description: "Monitor-specific trigger parameters (e.g. threshold, window)."},
+      trigger_config: %Schema{
+        type: :object,
+        description:
+          "Monitor-specific trigger parameters (e.g. threshold, window). May include an optional " <>
+            "\"test_case_states\" list (subset of enabled/muted/skipped) that gates trigger actions to " <>
+            "test cases currently in one of those states."
+      },
       cadence: %Schema{type: :string, description: "Evaluation cadence (e.g. \"5m\")."},
       trigger_actions: %Schema{type: :array, items: AutomationAlertAction},
       recovery_enabled: %Schema{type: :boolean},
-      recovery_config: %Schema{type: :object, description: "Recovery parameters (e.g. window)."},
+      recovery_config: %Schema{
+        type: :object,
+        description:
+          "Recovery parameters (e.g. window). May include an optional \"test_case_states\" list (subset of " <>
+            "enabled/muted/skipped) that gates recovery actions to test cases currently in one of those states; " <>
+            "candidates outside it still re-arm but keep their state."
+      },
       recovery_actions: %Schema{type: :array, items: AutomationAlertAction}
     },
     required: [:id, :name, :enabled, :monitor_type, :trigger_config, :cadence, :trigger_actions]
