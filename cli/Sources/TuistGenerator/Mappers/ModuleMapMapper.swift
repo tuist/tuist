@@ -410,45 +410,39 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
         if Self.shouldApplyModuleMapFlags(
             to: settings[Self.otherSwiftFlagsSetting],
             onlyExistingKeys: onlyExistingKeys
-        ),
-            let updated = Self.updatedOtherSwiftFlags(
-                targetID: targetID,
-                oldOtherSwiftFlags: settings[Self.otherSwiftFlagsSetting],
-                dependenciesDerivedDirectory: dependenciesDerivedDirectory,
-                xcodeProjParent: xcodeProjParent,
-                combinedModuleMapPath: combinedModuleMapPath
-            )
-        {
+        ), let updated = Self.updatedOtherSwiftFlags(
+            targetID: targetID,
+            oldOtherSwiftFlags: settings[Self.otherSwiftFlagsSetting],
+            dependenciesDerivedDirectory: dependenciesDerivedDirectory,
+            xcodeProjParent: xcodeProjParent,
+            combinedModuleMapPath: combinedModuleMapPath
+        ) {
             settings[Self.otherSwiftFlagsSetting] = updated
         }
 
         if Self.shouldApplyModuleMapFlags(
             to: settings[Self.otherCFlagsSetting],
             onlyExistingKeys: onlyExistingKeys
-        ),
-            let updated = Self.updatedOtherCFlags(
-                targetID: targetID,
-                oldOtherCFlags: settings[Self.otherCFlagsSetting],
-                dependenciesDerivedDirectory: dependenciesDerivedDirectory,
-                xcodeProjParent: xcodeProjParent,
-                combinedModuleMapPath: combinedModuleMapPath
-            )
-        {
+        ), let updated = Self.updatedOtherCFlags(
+            targetID: targetID,
+            oldOtherCFlags: settings[Self.otherCFlagsSetting],
+            dependenciesDerivedDirectory: dependenciesDerivedDirectory,
+            xcodeProjParent: xcodeProjParent,
+            combinedModuleMapPath: combinedModuleMapPath
+        ) {
             settings[Self.otherCFlagsSetting] = updated
         }
 
         if Self.shouldApplyModuleMapFlags(
             to: settings[Self.headerSearchPaths],
             onlyExistingKeys: onlyExistingKeys
-        ),
-            let updated = Self.updatedHeaderSearchPaths(
-                targetID: targetID,
-                oldHeaderSearchPaths: settings[Self.headerSearchPaths],
-                targetToDependenciesMetadata: targetToDependenciesMetadata,
-                dependenciesDerivedDirectory: dependenciesDerivedDirectory,
-                xcodeProjParent: xcodeProjParent
-            )
-        {
+        ), let updated = Self.updatedHeaderSearchPaths(
+            targetID: targetID,
+            oldHeaderSearchPaths: settings[Self.headerSearchPaths],
+            targetToDependenciesMetadata: targetToDependenciesMetadata,
+            dependenciesDerivedDirectory: dependenciesDerivedDirectory,
+            xcodeProjParent: xcodeProjParent
+        ) {
             settings[Self.headerSearchPaths] = updated
         }
 
