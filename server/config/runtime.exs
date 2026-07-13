@@ -654,6 +654,7 @@ swift_registry_sync_limit =
 
 config :tuist, :registry,
   bucket: System.get_env("S3_REGISTRY_BUCKET"),
+  url: System.get_env("TUIST_REGISTRY_URL"),
   swift_github_token: System.get_env("SWIFT_REGISTRY_GITHUB_TOKEN"),
   swift_sync_enabled: swift_registry_sync_enabled,
   swift_sync_allowlist: swift_registry_sync_allowlist,
