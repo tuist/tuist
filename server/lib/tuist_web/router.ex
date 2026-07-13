@@ -452,7 +452,6 @@ defmodule TuistWeb.Router do
 
     get "/api-catalog", WellKnownController, :api_catalog, metadata: %{robots_txt: false}
     get "/agent-skills/index.json", WellKnownController, :agent_skills_index, metadata: %{robots_txt: false}
-    get "/tuist-registry.json", WellKnownController, :swift_registry, metadata: %{robots_txt: false}
   end
 
   scope "/.well-known", TuistWeb do
@@ -462,6 +461,7 @@ defmodule TuistWeb.Router do
     get "/oauth-protected-resource", WellKnownController, :oauth_protected_resource
     get "/oauth-protected-resource/*resource_path", WellKnownController, :oauth_protected_resource
     get "/mcp/server-card.json", WellKnownController, :mcp_server_card
+    get "/registry.json", WellKnownController, :swift_registry, metadata: %{robots_txt: false}
     get "/apple-app-site-association", WellKnownController, :apple_app_site_association
     get "/assetlinks.json", WellKnownController, :assetlinks
   end

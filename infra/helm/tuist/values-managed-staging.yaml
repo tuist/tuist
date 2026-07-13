@@ -42,9 +42,11 @@ server:
     # env's config the release runs as.
     - name: TUIST_DEPLOY_ENV
       value: stag
-    # Registry base URL advertised at /.well-known/tuist-registry.json.
+    # Full registry URL advertised at /.well-known/registry.json. The
+    # staging registry ingress serves /swift directly (no Worker), so it can
+    # advertise the canonical prefix already.
     - name: TUIST_REGISTRY_URL
-      value: https://registry-staging.tuist.dev
+      value: https://registry-staging.tuist.dev/swift
     - name: TUIST_DATABASE_POOL_SIZE
       value: "15"
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT

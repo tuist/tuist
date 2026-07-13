@@ -41,8 +41,9 @@ defmodule TuistWeb.WellKnownController do
       nil ->
         send_resp(conn, :not_found, "")
 
-      base ->
-        json(conn, %{"url" => base <> "/swift", "loginAPIPath" => "/swift/login"})
+      url ->
+        login_path = (URI.parse(url).path || "") <> "/login"
+        json(conn, %{"url" => url, "loginAPIPath" => login_path})
     end
   end
 

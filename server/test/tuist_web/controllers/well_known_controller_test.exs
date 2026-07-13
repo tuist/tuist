@@ -102,11 +102,25 @@ defmodule TuistWeb.WellKnownControllerTest do
     end
   end
 
-  describe "GET /.well-known/tuist-registry.json" do
-    test "returns the registry base URL when configured", %{conn: conn} do
-      stub(Tuist.Registry, :url, fn -> "https://registry.tuist.dev" end)
+  describe "GET /.well-known/registry.json" do
+    test "returns the registry URL and derives the login path", %{conn: conn} do
+      stub(Tuist.Registry, :url, fn -> "https://registry.tuist.dev/api/registry/swift" end)
 
-      conn = get(conn, "/.well-known/tuist-registry.json")
+      conn = get(conn, "/.well-known/registry.json")
+
+      assert json_response(conn, 200) == %{
+               "url" => "https://registry.tuist.dev/api/registry/swift",
+               "loginAPIPath" => "/api/registry/swift/login"
+             }
+    end
+
+    test "serves JSON to clients that send an application/json Accept header", %{conn: conn} do
+      stub(Tuist.Registry, :url, fn -> "https://registry.tuist.dev/swift" end)
+
+      conn =
+        conn
+        |> put_req_header("accept", "application/json")
+        |> get("/.well-known/registry.json")
 
       assert json_response(conn, 200) == %{
                "url" => "https://registry.tuist.dev/swift",
@@ -117,7 +131,7 @@ defmodule TuistWeb.WellKnownControllerTest do
     test "404s when the deployment exposes no registry", %{conn: conn} do
       stub(Tuist.Registry, :url, fn -> nil end)
 
-      conn = get(conn, "/.well-known/tuist-registry.json")
+      conn = get(conn, "/.well-known/registry.json")
 
       assert response(conn, 404) == ""
     end
