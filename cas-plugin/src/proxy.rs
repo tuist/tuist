@@ -2046,7 +2046,18 @@ impl Proxy {
                 // produce pruned objects (fetch_object reconstructs the
                 // instruction from the instance snapshot). An unroutable
                 // request stays a miss without opening a CAS handle.
-                let state = match self.paths.lock().unwrap().get(&request.cas_path).copied() {
+                //
+                // The lookup MUST release the `paths` guard before the match
+                // runs: a match scrutinee's temporary lives across every arm,
+                // and the fallback arm re-enters `path_state` — a self-
+                // deadlock on the non-reentrant `paths` mutex — and takes
+                // `path_instance` while holding `paths`, inverting the
+                // resolve path's lock order. One unroutable demand fetch
+                // wedged the whole proxy permanently (165 threads parked,
+                // every build on the machine silently degraded to cache-less
+                // compiles).
+                let known = self.paths.lock().unwrap().get(&request.cas_path).copied();
+                let state = match known {
                     Some(state) => Ok(Some(state)),
                     None if self
                         .resolve_instance(&request.cas_path, &request.instance)
