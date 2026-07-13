@@ -14,8 +14,7 @@ defmodule Tuist.IngestRepo.Migrations.CreateCommandEventsByNameRanAtMv do
 
   With `name` in the sort key, `(project_id, name)` is a contiguous range and
   `ran_at` is ordered within it, so `ran_at DESC LIMIT N` reads ~one granule via
-  reverse read-in-order regardless of how sparse the command is. The same
-  production page reads ~75K rows / ~127 MiB (~209ms) against this layout.
+  reverse read-in-order regardless of how sparse the command is.
 
   The target table is intentionally NOT partitioned. `command_events` is
   partitioned by `toYYYYMM(ran_at)`, which fans a reverse read-in-order scan
@@ -26,71 +25,79 @@ defmodule Tuist.IngestRepo.Migrations.CreateCommandEventsByNameRanAtMv do
   `ran_at`-ordered queries (e.g. ModuleCacheLive recent runs, the `/runs` API
   without a name filter), which rely on read-in-order over `ran_at` directly.
 
-  No secondary indexes are defined. `command_events_by_ran_at` carries
-  minmax/bloom indexes (is_ci, user_id, cacheable_targets_count) because its
-  `(project_id, ran_at)` working set is a whole project (millions of rows). Here
-  `(project_id, name)` already isolates a small contiguous range, so the runs
-  list's secondary filters (`is_ci`/`user_id` via "ran by", status, branch, …)
-  are cheap to apply as plain predicates over it; skip indexes would add write
-  and storage cost for negligible pruning.
+  ## Gap-free, memory-bounded backfill (no POPULATE, one partition at a time)
 
-  ## Gap-free backfill (no POPULATE)
+  `POPULATE`/a single full-table `INSERT ... SELECT *` are both avoided. The
+  first misses rows inserted while it runs; the second copies all ~27M wide rows
+  (with the large `Array(String)` columns) in one statement, which exceeded the
+  shared ClickHouse memory ceiling under live load (`Code: 241
+  MEMORY_LIMIT_EXCEEDED`). Instead:
 
-  `POPULATE` is avoided on purpose: it snapshots existing rows at CREATE time but
-  does NOT capture rows inserted while it runs, and `command_events` is ingested
-  continuously. Those rows would stay in `command_events` yet be permanently
-  absent from every name-filtered list and count once reads route here. Instead:
-
-    1. Create the empty target table (`EMPTY AS SELECT *` copies the column types
-       from `command_events` without its data, indexes, or projections).
-    2. Create the materialized view with `TO` and no `POPULATE`. From this point
-       every insert into `command_events` is written to the target synchronously.
-    3. Backfill the history with an `id` anti-join. ClickHouse evaluates the
-       outer scan and the anti-join subquery against the set of parts present
-       when the INSERT starts, so:
-         - rows inserted before the view existed → scanned, not yet in the
-           target → inserted once;
-         - rows the view already captured (created between steps 2 and 3) → in
-           the target → excluded by the anti-join;
-         - rows inserted while the backfill runs → not in the scan snapshot, but
-           captured by the view → inserted once.
-       No row is dropped and none is duplicated.
+    1. Drop any leftovers from a previous failed attempt so we start from an
+       empty, consistent table.
+    2. Create the empty target (`EMPTY AS SELECT *` copies the column types only,
+       no data, indexes, or projections).
+    3. Create the materialized view with `TO` and no `POPULATE`. From here every
+       insert into `command_events` is written to the target synchronously.
+    4. Backfill one `toYYYYMM(ran_at)` partition at a time (single-threaded), so
+       each statement's memory is bounded by one month of data rather than the
+       whole table. The per-partition `id` anti-join excludes rows the view
+       already captured since creation, so no row is dropped or duplicated even
+       while ingestion continues.
   """
 
   use Ecto.Migration
+
+  alias Tuist.IngestRepo
+
+  require Logger
 
   @disable_ddl_transaction true
   @disable_migration_lock true
 
   def up do
-    # excellent_migrations:safety-assured-for-next-line raw_sql_executed
-    execute """
+    IngestRepo.query!("DROP VIEW IF EXISTS command_events_by_name_ran_at_mv SYNC")
+    IngestRepo.query!("DROP TABLE IF EXISTS command_events_by_name_ran_at SYNC")
+
+    IngestRepo.query!("""
     CREATE TABLE IF NOT EXISTS command_events_by_name_ran_at
     ENGINE = MergeTree
     ORDER BY (project_id, name, ran_at)
     EMPTY AS SELECT * FROM command_events
-    """
+    """)
 
-    # excellent_migrations:safety-assured-for-next-line raw_sql_executed
-    execute """
+    IngestRepo.query!("""
     CREATE MATERIALIZED VIEW IF NOT EXISTS command_events_by_name_ran_at_mv
     TO command_events_by_name_ran_at
     AS SELECT * FROM command_events
-    """
+    """)
 
-    # excellent_migrations:safety-assured-for-next-line raw_sql_executed
-    execute """
-    INSERT INTO command_events_by_name_ran_at
-    SELECT * FROM command_events
-    WHERE id NOT IN (SELECT id FROM command_events_by_name_ran_at)
-    """
+    %{rows: partitions} =
+      IngestRepo.query!(
+        "SELECT DISTINCT toYYYYMM(ran_at) AS partition FROM command_events ORDER BY partition"
+      )
+
+    for [partition] <- partitions, is_integer(partition) do
+      Logger.info("Backfilling command_events_by_name_ran_at partition #{partition}")
+
+      IngestRepo.query!(
+        """
+        INSERT INTO command_events_by_name_ran_at
+        SELECT * FROM command_events
+        WHERE toYYYYMM(ran_at) = #{partition}
+          AND id NOT IN (
+            SELECT id FROM command_events_by_name_ran_at WHERE toYYYYMM(ran_at) = #{partition}
+          )
+        SETTINGS max_threads = 1, max_insert_threads = 1
+        """,
+        [],
+        timeout: :infinity
+      )
+    end
   end
 
   def down do
-    # excellent_migrations:safety-assured-for-next-line raw_sql_executed
-    execute "DROP VIEW IF EXISTS command_events_by_name_ran_at_mv SYNC"
-
-    # excellent_migrations:safety-assured-for-next-line raw_sql_executed
-    execute "DROP TABLE IF EXISTS command_events_by_name_ran_at SYNC"
+    IngestRepo.query!("DROP VIEW IF EXISTS command_events_by_name_ran_at_mv SYNC")
+    IngestRepo.query!("DROP TABLE IF EXISTS command_events_by_name_ran_at SYNC")
   end
 end
