@@ -227,4 +227,26 @@ defmodule Tuist.Runners.ClaimsTest do
       assert Claims.by_pod_name("unknown-pod") == :error
     end
   end
+
+  describe "by_workflow_job_id/1" do
+    test "resolves the live claim for a workflow_job_id" do
+      account = account_fixture()
+      {:ok, _} = Claims.attempt(6201, account.id, "fleet-a", "pod-1")
+      :ok = Claims.mark_running(6201, "runner-x")
+
+      assert {:ok,
+              %{
+                workflow_job_id: 6201,
+                account_id: account_id,
+                fleet_name: "fleet-a",
+                pod_name: "pod-1"
+              }} = Claims.by_workflow_job_id(6201)
+
+      assert account_id == account.id
+    end
+
+    test "returns :error when no live claim exists for the workflow_job_id" do
+      assert Claims.by_workflow_job_id(9_999_999) == :error
+    end
+  end
 end
