@@ -313,8 +313,9 @@ struct ProjectDescriptorGenerator: ProjectDescriptorGenerating {
 
         Logger.current.debug("Processing \(project.packages.count) packages for project \(project.name)")
         for package in project.packages {
+            let traits = project.packageTraits?[package]
             switch package {
-            case let .local(path, traits):
+            case let .local(path):
                 Logger.current.debug("Processing local package at \(path.pathString) for project \(project.name)")
                 let relativePath = path.relative(to: project.sourceRootPath).pathString
                 let reference = PBXFileReference(
@@ -340,7 +341,7 @@ struct ProjectDescriptorGenerator: ProjectDescriptorGenerating {
                     packageGroup?.first?.children.append(reference)
                 }
 
-            case let .remote(url: url, requirement: requirement, traits: traits):
+            case let .remote(url: url, requirement: requirement):
                 Logger.current.debug("Processing remote package \(url) for project \(project.name)")
                 let packageReference = XCRemoteSwiftPackageReference(
                     repositoryURL: url,

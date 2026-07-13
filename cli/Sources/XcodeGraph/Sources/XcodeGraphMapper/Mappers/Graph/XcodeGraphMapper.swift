@@ -140,7 +140,7 @@ public struct XcodeGraphMapper: XcodeGraphMapping {
             switch projectPackage {
             case .remote:
                 break
-            case let .local(path: packagePath, traits: _):
+            case let .local(path: packagePath):
                 guard packageInfos[packagePath] == nil else { break }
                 let packageInfo = try await packageInfoLoader.loadPackageInfo(at: packagePath)
                 packageInfos[packagePath] = packageInfo

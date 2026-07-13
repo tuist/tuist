@@ -63,6 +63,11 @@ extension XcodeGraph.Project {
             .flatMap { $0 }
             .sorted(by: { $0.path < $1.path })
         let packages = try manifest.packages.map { try XcodeGraph.Package.from(manifest: $0, generatorPaths: generatorPaths) }
+        let packageTraits = try manifest.packageTraits.map { packageTraits in
+            try Dictionary(uniqueKeysWithValues: packageTraits.map { package, traits in
+                (try XcodeGraph.Package.from(manifest: package, generatorPaths: generatorPaths), traits)
+            })
+        }
         let ideTemplateMacros = try manifest.fileHeaderTemplate
             .map { try IDETemplateMacros.from(manifest: $0, generatorPaths: generatorPaths) }
         let resourceSynthesizers = try await manifest.resourceSynthesizers.concurrentMap {
@@ -87,6 +92,7 @@ extension XcodeGraph.Project {
             filesGroup: .group(name: "Project"),
             targets: targets,
             packages: packages,
+            packageTraits: packageTraits,
             schemes: schemes,
             ideTemplateMacros: ideTemplateMacros,
             additionalFiles: additionalFiles,

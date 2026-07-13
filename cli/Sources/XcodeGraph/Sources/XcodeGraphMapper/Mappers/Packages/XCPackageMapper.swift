@@ -42,13 +42,13 @@ struct XCPackageMapper: XCPackageMapping {
             throw PackageMappingError.missingRepositoryURL(packageName: name)
         }
         let requirement = mapRequirement(package: package)
-        return .remote(url: repositoryURL, requirement: requirement, traits: package.traits)
+        return .remote(url: repositoryURL, requirement: requirement)
     }
 
     func map(package: XCLocalSwiftPackageReference, sourceDirectory: AbsolutePath) throws -> Package {
         let relativePath = try RelativePath(validating: package.relativePath)
         let path = sourceDirectory.appending(relativePath)
-        return .local(path: path, traits: package.traits)
+        return .local(path: path)
     }
 
     // MARK: - Private Helpers

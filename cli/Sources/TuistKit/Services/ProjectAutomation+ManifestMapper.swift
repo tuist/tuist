@@ -67,9 +67,9 @@ extension ProjectAutomation.Project {
 extension ProjectAutomation.Package {
     static func from(_ package: XcodeGraph.Package) -> ProjectAutomation.Package {
         switch package {
-        case let .remote(url, _, _):
+        case let .remote(url, _):
             return ProjectAutomation.Package(kind: ProjectAutomation.Package.PackageKind.remote, path: url)
-        case let .local(path, _):
+        case let .local(path):
             return ProjectAutomation.Package(kind: ProjectAutomation.Package.PackageKind.local, path: path.pathString)
         }
     }

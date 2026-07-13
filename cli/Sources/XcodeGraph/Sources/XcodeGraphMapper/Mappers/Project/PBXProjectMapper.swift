@@ -92,11 +92,20 @@ struct PBXProjectMapper: PBXProjectMapping {
 
         // Map remote and local packages
         let packageMapper = XCPackageMapper()
-        let remotePackages = try pbxProject.remotePackages.compactMap {
-            try packageMapper.map(package: $0)
+        var packageTraits: [Package: [String]] = [:]
+        let remotePackages = try pbxProject.remotePackages.map { packageReference in
+            let package = try packageMapper.map(package: packageReference)
+            if let traits = packageReference.traits {
+                packageTraits[package] = traits
+            }
+            return package
         }
-        let localPackages = try pbxProject.localPackages.compactMap {
-            try packageMapper.map(package: $0, sourceDirectory: sourceDirectory)
+        let localPackages = try pbxProject.localPackages.map { packageReference in
+            let package = try packageMapper.map(package: packageReference, sourceDirectory: sourceDirectory)
+            if let traits = packageReference.traits {
+                packageTraits[package] = traits
+            }
+            return package
         } + localPackagePaths.map { .local(path: $0) }
 
         // Create a files group for the main group
@@ -149,6 +158,7 @@ struct PBXProjectMapper: PBXProjectMapping {
             filesGroup: filesGroup,
             targets: targets,
             packages: remotePackages + localPackages,
+            packageTraits: packageTraits.isEmpty ? nil : packageTraits,
             schemes: schemes,
             ideTemplateMacros: nil,
             additionalFiles: [],
