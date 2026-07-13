@@ -1,0 +1,73 @@
+{{- if .Values.keyBootstrap.enabled }}
+{{- $imageTag := required "image.tag is required" .Values.image.tag -}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "typesense.fullname" . }}-keybootstrap
+  labels:
+    {{- include "typesense.labels" . | nindent 4 }}
+    app.kubernetes.io/component: search-keybootstrap
+  annotations:
+    # Run after the instance is deployed and ready, on every install/upgrade.
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: {{ .Values.keyBootstrap.backoffLimit }}
+  template:
+    metadata:
+      labels:
+        {{- include "typesense.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: search-keybootstrap
+    spec:
+      restartPolicy: Never
+      serviceAccountName: {{ include "typesense.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.automountServiceAccountToken }}
+      {{- include "typesense.podScheduling" . | nindent 6 }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: keybootstrap
+          image: "{{ .Values.image.repository }}:{{ $imageTag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          env:
+            - name: BASE
+              value: {{ printf "http://%s:%v" (include "typesense.fullname" .) .Values.service.port | quote }}
+            - name: SEARCH_KEY
+              value: {{ .Values.typesense.searchKey | quote }}
+            - name: TYPESENSE_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "typesense.runtimeSecretName" . }}
+                  key: TYPESENSE_API_KEY
+          command:
+            - sh
+            - -c
+            - |
+              set -e
+              PREFIX=$(printf '%s' "$SEARCH_KEY" | cut -c1-4)
+              existing=$(curl -s -H "X-TYPESENSE-API-KEY: $TYPESENSE_API_KEY" "$BASE/keys" \
+                | jq -r --arg p "$PREFIX" '.keys[]? | select(.value_prefix==$p and ((.actions // []) | index("documents:search"))) | .id' | head -1)
+              if [ -n "$existing" ]; then
+                echo "search key already registered (id $existing)"
+              else
+                curl -sf -X POST -H "X-TYPESENSE-API-KEY: $TYPESENSE_API_KEY" -H "Content-Type: application/json" \
+                  -d "{\"value\":\"$SEARCH_KEY\",\"description\":\"Public read-only docs search key\",\"actions\":[\"documents:search\"],\"collections\":[\"*\"]}" \
+                  "$BASE/keys" >/dev/null
+                echo "registered read-only search key"
+              fi
+              code=$(curl -s -o /dev/null -w '%{http_code}' -H "X-TYPESENSE-API-KEY: $SEARCH_KEY" \
+                "$BASE/collections/tuist/documents/search?q=cache&query_by=content&per_page=1")
+              echo "search-key verification HTTP: $code"
+              [ "$code" = "200" ] || [ "$code" = "404" ]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+{{- end }}

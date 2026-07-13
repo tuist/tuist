@@ -10,6 +10,11 @@ ingress:
   tlsSecretName: typesense-tls
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-cloudflare
+    # Let external-dns own search.tuist.dev and keep it proxied through
+    # Cloudflare (matching the record's current behaviour). external-dns only
+    # takes over the record once the manually-created one is deleted, since it
+    # will not clobber a record it does not own.
+    external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
 
 runtimeSecrets:
   externalSecret:
