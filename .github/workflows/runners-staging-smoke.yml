@@ -127,6 +127,32 @@ jobs:
           echo "  wrote ${marker}"
           du -sh "${root}/tuist/"* 2>/dev/null | sed 's/^/  /' || true
 
+      - name: Verify cache-signing grant against baked pubkey (spec #76)
+        run: |
+          set +e
+          if [ -z "${TUIST_CACHE_SIGNING_GRANT:-}" ]; then echo "grant absent — skipping verification"; exit 0; fi
+          python3 -c "import cryptography" 2>/dev/null || pip3 install --quiet cryptography 2>/dev/null || pip3 install --quiet --break-system-packages cryptography 2>/dev/null || pip3 install --quiet --user cryptography 2>/dev/null
+          python3 <<'PY'
+          import base64, json, os, time
+          from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+          from cryptography.exceptions import InvalidSignature
+          tok = os.environ["TUIST_CACHE_SIGNING_GRANT"]
+          # Same public key baked into TuistCacheEE's CacheSigningGrantVerifier.
+          pub = base64.b64decode("KYXwBJW/2DSAldaOXMiaova/emzkOlBHMhYJkz63UA8=")
+          h, p, s = tok.split(".")
+          b64u = lambda x: base64.urlsafe_b64decode(x + "=" * (-len(x) % 4))
+          hdr = json.loads(b64u(h)); c = json.loads(b64u(p))
+          try:
+              Ed25519PublicKey.from_public_bytes(pub).verify(b64u(s), f"{h}.{p}".encode())
+              sig = "VALID"
+          except InvalidSignature:
+              sig = "INVALID"
+          ok = (sig == "VALID" and hdr.get("alg") == "EdDSA" and c.get("iss") == "tuist-runners"
+                and c.get("aud") == "tuist-runner-cache" and c.get("scope") and c["exp"] > time.time())
+          print(f"GRANT_CHECK signature={sig} alg={hdr.get('alg')} iss={c.get('iss')} aud={c.get('aud')} scope={c.get('scope')} exp_in_s={int(c['exp']-time.time())}")
+          print("GRANT_VERDICT " + ("ACCEPTED (verifier would substitute this scope for the MAC)" if ok else "REJECTED"))
+          PY
+
       - name: Benchmark — tuist generate tuist (spec #76)
         if: ${{ inputs.mode == 'benchmark' }}
         shell: bash --noprofile --norc {0}
