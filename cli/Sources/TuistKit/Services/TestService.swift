@@ -114,6 +114,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
     private let configLoader: ConfigLoading
     private let fileSystem: FileSysteming
     private let xcResultService: XCResultServicing
+    private let xcResultToolController: XCResultToolControlling
     private let xcodeBuildAgumentParser: XcodeBuildArgumentParsing
     private let gitController: GitControlling
     private let rootDirectoryLocator: RootDirectoryLocating
@@ -155,6 +156,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         configLoader: ConfigLoading,
         fileSystem: FileSysteming = FileSystem(),
         xcResultService: XCResultServicing = XCResultService(),
+        xcResultToolController: XCResultToolControlling = XCResultToolController(),
         xcodeBuildArgumentParser: XcodeBuildArgumentParsing = XcodeBuildArgumentParser(),
         gitController: GitControlling = GitController(),
         rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator(),
@@ -182,6 +184,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         self.configLoader = configLoader
         self.fileSystem = fileSystem
         self.xcResultService = xcResultService
+        self.xcResultToolController = xcResultToolController
         xcodeBuildAgumentParser = xcodeBuildArgumentParser
         self.gitController = gitController
         self.rootDirectoryLocator = rootDirectoryLocator
@@ -523,6 +526,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 action: action,
                 rosetta: rosetta,
                 resultBundlePath: resultBundlePath,
+                passedResultBundlePath: passedResultBundlePath,
                 derivedDataPath: derivedDataPath,
                 retryCount: retryCount,
                 testTargets: testTargets,
@@ -1132,6 +1136,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
 
     // MARK: - Helpers
 
+    // swiftlint:disable:next function_body_length
     private func testSchemes(
         _ schemes: [Scheme],
         graph: Graph,
@@ -1146,6 +1151,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         action: XcodeBuildTestAction,
         rosetta: Bool,
         resultBundlePath: AbsolutePath?,
+        passedResultBundlePath: AbsolutePath?,
         derivedDataPath: AbsolutePath?,
         retryCount: Int,
         testTargets: [TestIdentifier],
@@ -1197,64 +1203,87 @@ public struct TestService { // swiftlint:disable:this type_body_length
             return false
         }
 
-        for testSchemeRun in testSchemeRuns {
-            let testScheme = testSchemeRun.scheme
-            let testSchemeResultBundlePath = schemeResultBundlePath(
-                resultBundlePath,
-                schemeName: testScheme.name,
-                runningMultipleSchemes: testSchemeRuns.count > 1
-            )
+        let runningMultipleSchemes = testSchemeRuns.count > 1
+        var perSchemeResultBundlePaths: [AbsolutePath] = []
 
-            do {
-                try await self.testScheme(
-                    scheme: testScheme,
-                    graphTraverser: graphTraverser,
-                    clean: clean,
-                    configuration: configuration,
-                    version: version,
-                    deviceName: deviceName,
-                    platform: platform,
-                    action: action,
-                    rosetta: rosetta,
-                    resultBundlePath: testSchemeResultBundlePath,
-                    derivedDataPath: derivedDataPath,
-                    retryCount: retryCount,
-                    testTargets: testSchemeRun.testTargets,
-                    skipTestTargets: skipTestTargets,
-                    testPlanConfiguration: testPlanConfiguration,
-                    passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
-                    config: config,
-                    quarantinedTests: quarantinedTests,
-                    mode: mode
+        do {
+            for testSchemeRun in testSchemeRuns {
+                let testScheme = testSchemeRun.scheme
+                let testSchemeResultBundlePath = schemeResultBundlePath(
+                    resultBundlePath,
+                    schemeName: testScheme.name,
+                    runningMultipleSchemes: runningMultipleSchemes
                 )
-            } catch {
-                if try await handleTestSchemeFailure(
-                    error,
-                    scheme: testScheme,
-                    resultBundlePath: testSchemeResultBundlePath,
-                    graph: graph,
-                    mapperEnvironment: mapperEnvironment,
-                    cacheStorage: uploadCacheStorage,
-                    testPlanConfiguration: testPlanConfiguration,
-                    action: action,
-                    quarantinedTests: quarantinedTests
-                ) {
-                    continue
+                if runningMultipleSchemes, let testSchemeResultBundlePath {
+                    perSchemeResultBundlePaths.append(testSchemeResultBundlePath)
                 }
-                throw error
-            }
 
-            if action != .build {
-                try await storeSuccessfulTestHashes(
-                    for: testActionTargets(
-                        for: [testScheme], testPlanConfiguration: testPlanConfiguration, graph: graph, action: action
-                    ),
-                    graph: graph,
-                    mapperEnvironment: mapperEnvironment,
-                    cacheStorage: uploadCacheStorage
-                )
+                do {
+                    try await self.testScheme(
+                        scheme: testScheme,
+                        graphTraverser: graphTraverser,
+                        clean: clean,
+                        configuration: configuration,
+                        version: version,
+                        deviceName: deviceName,
+                        platform: platform,
+                        action: action,
+                        rosetta: rosetta,
+                        resultBundlePath: testSchemeResultBundlePath,
+                        derivedDataPath: derivedDataPath,
+                        retryCount: retryCount,
+                        testTargets: testSchemeRun.testTargets,
+                        skipTestTargets: skipTestTargets,
+                        testPlanConfiguration: testPlanConfiguration,
+                        passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
+                        config: config,
+                        quarantinedTests: quarantinedTests,
+                        mode: mode
+                    )
+                } catch {
+                    if try await handleTestSchemeFailure(
+                        error,
+                        scheme: testScheme,
+                        resultBundlePath: testSchemeResultBundlePath,
+                        graph: graph,
+                        mapperEnvironment: mapperEnvironment,
+                        cacheStorage: uploadCacheStorage,
+                        testPlanConfiguration: testPlanConfiguration,
+                        action: action,
+                        quarantinedTests: quarantinedTests
+                    ) {
+                        continue
+                    }
+                    throw error
+                }
+
+                if action != .build {
+                    try await storeSuccessfulTestHashes(
+                        for: testActionTargets(
+                            for: [testScheme], testPlanConfiguration: testPlanConfiguration, graph: graph, action: action
+                        ),
+                        graph: graph,
+                        mapperEnvironment: mapperEnvironment,
+                        cacheStorage: uploadCacheStorage
+                    )
+                }
             }
+        } catch {
+            // Assemble the requested result bundle from whatever schemes produced one before
+            // rethrowing, so consumers of a fixed `--result-bundle-path` still find it on failure.
+            try? await assembleRequestedResultBundle(
+                from: perSchemeResultBundlePaths,
+                resultBundlePath: resultBundlePath,
+                passedResultBundlePath: passedResultBundlePath
+            )
+            throw error
         }
+
+        try await assembleRequestedResultBundle(
+            from: perSchemeResultBundlePaths,
+            resultBundlePath: resultBundlePath,
+            passedResultBundlePath: passedResultBundlePath
+        )
 
         let verb =
             switch action {
@@ -1700,6 +1729,53 @@ public struct TestService { // swiftlint:disable:this type_body_length
         }
 
         return resultBundlePath.parentDirectory.appending(component: pathComponent)
+    }
+
+    /// When multiple schemes run, each `xcodebuild` invocation writes to its own per-scheme result
+    /// bundle (see `schemeResultBundlePath`) to avoid xcodebuild refusing to overwrite an existing
+    /// `-resultBundlePath`. That means the exact path the user asked for via `--result-bundle-path`
+    /// is never produced, breaking downstream consumers (and Tuist's own upload) that expect a
+    /// bundle at that path. This reassembles the requested bundle from the per-scheme bundles once
+    /// every scheme has run.
+    private func assembleRequestedResultBundle(
+        from perSchemeResultBundlePaths: [AbsolutePath],
+        resultBundlePath: AbsolutePath?,
+        passedResultBundlePath: AbsolutePath?
+    ) async throws {
+        guard let passedResultBundlePath,
+              let resultBundlePath,
+              resultBundlePath == passedResultBundlePath
+        else { return }
+
+        var existingPaths: [AbsolutePath] = []
+        for path in perSchemeResultBundlePaths where try await fileSystem.exists(path) {
+            existingPaths.append(path)
+        }
+        guard !existingPaths.isEmpty else { return }
+
+        if try await fileSystem.exists(resultBundlePath) {
+            try await fileSystem.remove(resultBundlePath)
+        }
+        if try await !fileSystem.exists(resultBundlePath.parentDirectory) {
+            try await fileSystem.makeDirectory(at: resultBundlePath.parentDirectory)
+        }
+
+        if existingPaths.count == 1 {
+            try await fileSystem.copy(existingPaths[0], to: resultBundlePath)
+            return
+        }
+
+        do {
+            try await xcResultToolController.merge(existingPaths, into: resultBundlePath)
+        } catch {
+            Logger.current.warning(
+                "Failed to merge per-scheme result bundles into \(resultBundlePath.pathString): \(error). Falling back to the first scheme's result bundle."
+            )
+            if try await fileSystem.exists(resultBundlePath) {
+                try await fileSystem.remove(resultBundlePath)
+            }
+            try await fileSystem.copy(existingPaths[0], to: resultBundlePath)
+        }
     }
 
     // swiftlint:disable:next function_body_length
