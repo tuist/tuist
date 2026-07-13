@@ -43,6 +43,7 @@ final class TestServiceTests: TuistUnitTestCase {
     private var runMetadataStorage: RunMetadataStorage!
     private var testedSchemes: [String] = []
     private var xcResultService: MockXCResultServicing!
+    private var xcResultToolController: MockXCResultToolControlling!
     private var xcodeBuildArgumentParser: MockXcodeBuildArgumentParsing!
     private var uploadResultBundleService: MockUploadResultBundleServicing!
     private var derivedDataLocator: MockDerivedDataLocating!
@@ -70,6 +71,7 @@ final class TestServiceTests: TuistUnitTestCase {
         cacheStorage = .init()
         runMetadataStorage = RunMetadataStorage()
         xcResultService = .init()
+        xcResultToolController = .init()
         xcodeBuildArgumentParser = MockXcodeBuildArgumentParsing()
         uploadResultBundleService = .init()
         derivedDataLocator = .init()
@@ -196,6 +198,7 @@ final class TestServiceTests: TuistUnitTestCase {
             cacheDirectoriesProvider: cacheDirectoriesProvider,
             configLoader: configLoader,
             xcResultService: xcResultService,
+            xcResultToolController: xcResultToolController,
             gitController: gitController,
             uploadResultBundleService: uploadResultBundleService,
             derivedDataLocator: derivedDataLocator,
@@ -840,6 +843,60 @@ final class TestServiceTests: TuistUnitTestCase {
                 skipTestTargets: .any,
                 testPlanConfiguration: .any,
                 passthroughXcodeBuildArguments: .any
+            )
+            .called(1)
+    }
+
+    func test_run_tests_all_project_schemes_merges_per_scheme_result_bundles_into_requested_path() async throws {
+        // Given
+        givenGenerator()
+        given(buildGraphInspector)
+            .testableSchemes(graphTraverser: .any)
+            .willReturn([])
+        given(buildGraphInspector)
+            .workspaceSchemes(graphTraverser: .any)
+            .willReturn(
+                [
+                    Scheme.test(name: "ProjectSchemeOne"),
+                    Scheme.test(name: "ProjectSchemeTwo"),
+                ]
+            )
+        given(generator)
+            .generateWithGraph(path: .any, options: .any)
+            .willProduce { path, _ in
+                (path, .test(), MapperEnvironment())
+            }
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject()))
+        given(xcResultToolController)
+            .merge(.any, into: .any)
+            .willReturn()
+
+        let resultBundlePath = try temporaryPath().appending(component: "results.xcresult")
+        let firstResultBundlePath = resultBundlePath.parentDirectory
+            .appending(component: "results-ProjectSchemeOne.xcresult")
+        let secondResultBundlePath = resultBundlePath.parentDirectory
+            .appending(component: "results-ProjectSchemeTwo.xcresult")
+        // Simulate xcodebuild writing a per-scheme result bundle for each scheme.
+        try FileManager.default.createDirectory(
+            atPath: firstResultBundlePath.pathString, withIntermediateDirectories: true
+        )
+        try FileManager.default.createDirectory(
+            atPath: secondResultBundlePath.pathString, withIntermediateDirectories: true
+        )
+
+        // When
+        try await testRun(
+            path: try temporaryPath(),
+            resultBundlePath: resultBundlePath
+        )
+
+        // Then
+        verify(xcResultToolController)
+            .merge(
+                .value([firstResultBundlePath, secondResultBundlePath]),
+                into: .value(resultBundlePath)
             )
             .called(1)
     }
