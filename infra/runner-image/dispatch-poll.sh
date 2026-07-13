@@ -83,7 +83,15 @@ if [ -z "${SA_TOKEN}" ]; then
 fi
 
 if [ -x /opt/tuist/runner-shell-agent.py ]; then
-  /opt/tuist/runner-shell-agent.py &
+  echo "$(date -u +%FT%TZ) dispatch-poll: starting runner-shell-agent"
+  (
+    /opt/tuist/runner-shell-agent.py
+    rc=$?
+    echo "$(date -u +%FT%TZ) dispatch-poll: runner-shell-agent exited (rc=${rc})"
+  ) &
+  echo "$(date -u +%FT%TZ) dispatch-poll: runner-shell-agent pid=$!"
+else
+  echo "$(date -u +%FT%TZ) dispatch-poll: runner-shell-agent missing or not executable"
 fi
 
 # 2 s polling interval is the practical floor for "feels live" to

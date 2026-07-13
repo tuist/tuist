@@ -109,6 +109,33 @@ defmodule Tuist.Runners.InteractiveSessions do
 
   def current_shell_for_pod(_pod_name), do: nil
 
+  def shell_discovery_miss_context(pod_name) when is_binary(pod_name) and pod_name != "" do
+    now = now()
+
+    requested_sessions =
+      InteractiveSession
+      |> where(
+        [session],
+        session.kind == :shell and session.state == :requested and is_nil(session.closed_at) and
+          session.expires_at > ^now
+      )
+      |> order_by([session], desc: session.inserted_at)
+      |> limit(5)
+      |> select([session], %{
+        id: session.id,
+        workflow_job_id: session.workflow_job_id,
+        account_id: session.account_id,
+        pod_name: session.pod_name,
+        fleet_name: session.fleet_name,
+        inserted_at: session.inserted_at
+      })
+      |> Repo.all()
+
+    %{binding: binding_for_pod(pod_name), requested_sessions: requested_sessions}
+  end
+
+  def shell_discovery_miss_context(_pod_name), do: %{binding: nil, requested_sessions: []}
+
   def validate_token(token, %Account{id: account_id}, %User{id: user_id}) when is_binary(token) and token != "" do
     now = now()
     hash = token_hash(token)

@@ -77,7 +77,19 @@ def wait_for_claim():
 
 
 def discover_session(url, token):
-    request = urllib.request.Request(url, headers={"Authorization": f"Bearer {token}"})
+    headers = {"Authorization": f"Bearer {token}"}
+    pod_name = os.environ.get("TUIST_RUNNER_POD_NAME")
+    pod_uid = os.environ.get("TUIST_RUNNER_POD_UID")
+    pool = os.environ.get("TUIST_RUNNER_POOL")
+
+    if pod_name:
+        headers["X-Tuist-Runner-Pod-Name"] = pod_name
+    if pod_uid:
+        headers["X-Tuist-Runner-Pod-Uid"] = pod_uid
+    if pool:
+        headers["X-Tuist-Runner-Pool"] = pool
+
+    request = urllib.request.Request(url, headers=headers)
 
     try:
         with urllib.request.urlopen(request, timeout=10) as response:

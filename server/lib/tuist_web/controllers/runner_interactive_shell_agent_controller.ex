@@ -12,16 +12,20 @@ defmodule TuistWeb.RunnerInteractiveShellAgentController do
   require Logger
 
   def show(conn, _params) do
-    with {:ok, pod_name} <- authenticated_pod_name(conn),
-         %InteractiveSession{} = session <- InteractiveSessions.current_shell_for_pod(pod_name) do
-      json(conn, %{
-        session_id: session.id,
-        workflow_job_id: session.workflow_job_id,
-        websocket_url: websocket_url("/api/internal/runners/interactive/shell/#{session.id}/tunnel")
-      })
-    else
-      nil ->
-        send_resp(conn, :no_content, "")
+    case authenticated_pod_name(conn) do
+      {:ok, pod_name} ->
+        case InteractiveSessions.current_shell_for_pod(pod_name) do
+          %InteractiveSession{} = session ->
+            json(conn, %{
+              session_id: session.id,
+              workflow_job_id: session.workflow_job_id,
+              websocket_url: websocket_url("/api/internal/runners/interactive/shell/#{session.id}/tunnel")
+            })
+
+          nil ->
+            log_shell_discovery_miss(conn, pod_name)
+            send_resp(conn, :no_content, "")
+        end
 
       {:error, :missing_bearer} ->
         conn |> put_status(:unauthorized) |> json(%{error: "missing bearer token"})
@@ -77,6 +81,27 @@ defmodule TuistWeb.RunnerInteractiveShellAgentController do
       ["Bearer " <> token] when token != "" -> {:ok, token}
       ["bearer " <> token] when token != "" -> {:ok, token}
       _ -> {:error, :missing_bearer}
+    end
+  end
+
+  defp log_shell_discovery_miss(conn, pod_name) do
+    context = InteractiveSessions.shell_discovery_miss_context(pod_name)
+
+    if context.requested_sessions != [] do
+      Logger.info("runners: shell discovery had no matching requested session",
+        pod: pod_name,
+        reported_pod: header(conn, "x-tuist-runner-pod-name"),
+        reported_pool: header(conn, "x-tuist-runner-pool"),
+        binding: inspect(context.binding),
+        requested_sessions: inspect(context.requested_sessions)
+      )
+    end
+  end
+
+  defp header(conn, name) do
+    case get_req_header(conn, name) do
+      [value | _] -> value
+      [] -> nil
     end
   end
 
