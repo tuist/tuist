@@ -37,6 +37,25 @@ pub const ROCKSDB_HARD_PENDING_COMPACTION_BYTES: u64 = 256 * 1024 * 1024 * 1024;
 pub const DEFAULT_OUTBOX_MAX_DEPTH: usize = 100_000;
 pub const DEFAULT_MULTIPART_UPLOAD_TTL_MS: u64 = 24 * 60 * 60 * 1000;
 pub const DEFAULT_MULTIPART_JANITOR_INTERVAL_MS: u64 = 10 * 60 * 1000;
+// REAPI action-cache entries are append-only from the client's perspective
+// (every source change publishes new keys), so a recency sweep is what bounds
+// the namespace keyspace. An expired entry costs its next reader one
+// recompile + republish, which also refreshes it fleet-wide; the deletes-per-
+// sweep cap smooths the first sweep over a store that never expired anything.
+pub const REAPI_ACTION_CACHE_TTL_MS: u64 = 30 * 24 * 60 * 60 * 1000;
+pub const REAPI_ACTION_CACHE_EXPIRY_INTERVAL_MS: u64 = 6 * 60 * 60 * 1000;
+pub const REAPI_ACTION_CACHE_EXPIRY_MAX_DELETES: usize = 100_000;
+// Clients re-publish an entry's unchanged manifest when a per-key lookup
+// reveals it fell out of the snapshot's size-capped wire view (the view ranks
+// by version, which publish-dedup never refreshes). The damping window keeps
+// a fleet of cold machines from stampeding version bumps for the same entry:
+// an identical re-publish only applies when the stored version has aged past
+// it — one refresh per entry per window fleet-wide.
+pub const REAPI_ACTION_CACHE_REFRESH_DAMPING_MS: u64 = 24 * 60 * 60 * 1000;
+// Not a cap on total bootstrap runtime — it is the maximum time a bootstrap may
+// go *without forward progress* (a fetched page or applied artifact) before it
+// is abandoned and retried. A large cold pull that keeps making progress runs to
+// completion however long that takes; only a genuinely stalled one is dropped.
 pub const DEFAULT_BOOTSTRAP_TIMEOUT_MS: u64 = 30 * 60 * 1000;
 pub const SEGMENT_FREE_SPACE_MARGIN: u64 = 2;
 pub const DEFAULT_USAGE_WINDOW_SECS: u64 = 60;
@@ -47,6 +66,13 @@ pub const DEFAULT_USAGE_MAX_BUCKETS: usize = 10_000;
 pub const DEFAULT_USAGE_OUTBOX_MAX_DEPTH: usize = 100_000;
 
 pub const MAX_BOOTSTRAP_PAGE_BYTES: u64 = 32 * 1024 * 1024;
+// Range-digest anti-entropy: partition the sorted `artifact_id` keyspace by its
+// leading hex characters. 3 nibbles = 4096 buckets (~340 artifacts/bucket at
+// 1.4M), enough to make a mostly-in-sync bootstrap O(delta) while keeping the
+// digest payload small. `artifact_id` is a 64-char hex SHA-256, so the prefix
+// length is capped well under its width.
+pub const BOOTSTRAP_DIGEST_DEFAULT_PREFIX_LEN: usize = 3;
+pub const BOOTSTRAP_DIGEST_MAX_PREFIX_LEN: usize = 8;
 pub const MAX_INLINE_REPLICATION_BODY_BYTES: u64 = 4 * 1024 * 1024;
 pub const DEFAULT_BOOTSTRAP_MAX_CONCURRENT_PEERS: usize = 8;
 // Stripes for the per-artifact bootstrap fetch gate that single-flights the

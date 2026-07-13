@@ -26,9 +26,9 @@ defmodule Tuist.Runners.Workers.StaleClaimsWorker do
     * Both succeed → row is back in the queued pool, cap slot
       freed.
     * CH succeeds, PG delete fails / crash → CH says queued, PG
-      still claimed. The next poll picks the row, hits a PG PK
-      conflict on `Claims.attempt`, returns :lost_race and bails
-      cleanly. The next worker run sees the same stale PG row
+      still claimed. Dispatch skips rows already claimed in PG
+      before selecting queued work, so later workflow_jobs can
+      keep moving. The next worker run sees the same stale PG row
       and retries.
     * CH fails → leave PG alone; next worker run retries the
       whole sequence.

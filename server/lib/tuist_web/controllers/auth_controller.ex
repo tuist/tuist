@@ -262,7 +262,10 @@ defmodule TuistWeb.AuthController do
   defp pending_invitation_for(_user, nil), do: nil
 
   defp pending_invitation_for(%{email: email}, %Organization{} = organization) do
-    Accounts.get_invitation_by_invitee_email_and_organization(email, organization)
+    case Accounts.get_invitation_by_invitee_email_and_organization(email, organization) do
+      nil -> nil
+      invitation -> if Accounts.invitation_expired?(invitation), do: nil, else: invitation
+    end
   end
 
   defp maybe_put_post_invitation_return_to(conn, nil), do: conn
@@ -407,7 +410,7 @@ defmodule TuistWeb.AuthController do
         &String.starts_with?(&1, "http")
       )
 
-    if Enum.all?(urls, &Tuist.URL.public_url?/1) do
+    if Enum.all?(urls, &Tuist.URL.sso_url?/1) do
       :ok
     else
       {:error, :unsafe_sso_url}

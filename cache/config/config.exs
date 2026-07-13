@@ -66,7 +66,6 @@ config :cache, Oban,
        {"0 * * * *", Cache.OrphanCleanupWorker},
        {"*/15 * * * *", Cache.KeyValueEvictionWorker},
        {"* * * * *", Cache.S3TransferWorker},
-       {"*/10 * * * *", Cache.Registry.SyncWorker},
        {"*/15 * * * *", Cache.SQLiteMaintenanceWorker}
      ]}
   ]

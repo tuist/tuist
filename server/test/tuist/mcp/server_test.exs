@@ -42,11 +42,25 @@ defmodule Tuist.MCP.ServerTest do
       assert "list_projects" in tool_names
     end
 
-    test "every tool exposes a human-readable title and explicit review hints" do
+    test "every tool exposes descriptions, schemas, a human-readable title, and explicit review hints" do
       server = Server.server()
 
       for {name, module} <- server.tools do
+        descriptor = Tuist.MCP.Tool.descriptor(module)
         annotations = module.annotations()
+
+        assert is_binary(descriptor["description"]) and descriptor["description"] != "",
+               "tool #{name} is missing a non-empty description"
+
+        assert descriptor["inputSchema"] == module.input_schema()
+        assert descriptor["outputSchema"] == module.output_schema()
+        assert descriptor["outputSchema"]["type"] == "object"
+        assert is_map(descriptor["outputSchema"]["properties"])
+
+        assert descriptor["outputSchema"]["additionalProperties"] == false,
+               "tool #{name} must reject undeclared output properties"
+
+        ExJsonSchema.Schema.resolve(descriptor["outputSchema"])
 
         assert is_binary(annotations[:title]) and annotations[:title] != "",
                "tool #{name} is missing a non-empty :title annotation"

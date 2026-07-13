@@ -125,6 +125,7 @@ defmodule Tuist.MixProject do
       # Pinned to the open upstream fix for intermittent missing tool-call
       # responses. Revert to a Hex version once the fix is released.
       {:emcp, github: "addstar34/emcp", ref: "c687e279cf4f550f69934549a1303312ed3a23b5", override: true},
+      {:ex_json_schema, "~> 0.11"},
       {:ua_parser, "~> 1.8"},
       {:money, "~> 1.12"},
       {:image, "~> 0.60"},

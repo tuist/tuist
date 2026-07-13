@@ -93,15 +93,33 @@ pub struct Node {
 
 /// One node of a value graph as it travels: the llcas digest identifies it to
 /// the local CAS, the REAPI digest identifies its frame blob remotely.
+#[derive(Clone, PartialEq)]
 pub struct ManifestEntry {
     pub llcas_digest: Vec<u8>,
     pub blob: reapi::Digest,
+    /// Frame bytes the server inlined into the GetActionResult response (see
+    /// the `inline_output_files: ["*"]` request hint). `None` means the server
+    /// did not inline this blob (older kura, or response budget exhausted) and
+    /// it must be fetched via `batch_read` as before.
+    pub contents: Option<Vec<u8>>,
 }
 
 // One request must stay under kura's 64MB decoding cap, with headroom.
 const MAX_BATCH_BYTES: i64 = 32 << 20;
-const RPC_TIMEOUT: Duration = Duration::from_secs(60);
+// Generous because it is a per-RPC ceiling, not the dead-link detector (h2
+// keepalive reaps dead connections in ~30s regardless): the snapshot fetch
+// legitimately carries tens of MB in one unary response — measured 40s for
+// 48MiB over a WAN link — and a 60s cap made slower links fail it
+// systematically.
+const RPC_TIMEOUT: Duration = Duration::from_secs(180);
 const ATTEMPTS: usize = 3;
+
+/// Delay between retries: the first retry is immediate -- the dominant
+/// retryable condition is kura's graceful GOAWAY rotation, where re-issuing
+/// on a fresh connection succeeds right away -- while later retries back off
+/// so many concurrent fetches don't hammer a node that is genuinely
+/// struggling.
+const RETRY_BACKOFF: Duration = Duration::from_millis(200);
 
 /// Retries a synchronous gRPC call up to `ATTEMPTS` times on retryable statuses,
 /// keeping the retry policy in one place. The caller maps success and terminal
@@ -109,6 +127,9 @@ const ATTEMPTS: usize = 3;
 fn retry_call<T>(mut op: impl FnMut() -> Result<T, tonic::Status>) -> Result<T, tonic::Status> {
     let mut last = None;
     for attempt in 0..ATTEMPTS {
+        if attempt > 1 {
+            std::thread::sleep(RETRY_BACKOFF * (attempt - 1) as u32);
+        }
         match op() {
             Ok(value) => return Ok(value),
             Err(status) if retryable(&status) && attempt + 1 < ATTEMPTS => last = Some(status),
@@ -128,6 +149,9 @@ where
 {
     let mut last = None;
     for attempt in 0..ATTEMPTS {
+        if attempt > 1 {
+            tokio::time::sleep(RETRY_BACKOFF * (attempt - 1) as u32).await;
+        }
         match op().await {
             Ok(value) => return Ok(value),
             Err(status) if retryable(&status) && attempt + 1 < ATTEMPTS => last = Some(status),
@@ -137,7 +161,7 @@ where
     Err(last.unwrap_or_else(|| tonic::Status::unknown("retry attempts exhausted")))
 }
 
-fn hex(bytes: &[u8]) -> String {
+pub(crate) fn hex(bytes: &[u8]) -> String {
     let mut s = String::with_capacity(bytes.len() * 2);
     for b in bytes {
         s.push_str(&format!("{b:02x}"));
@@ -154,6 +178,16 @@ fn unhex(s: &str) -> Option<Vec<u8>> {
         .map(|i| u8::from_str_radix(&s[i..i + 2], 16).ok())
         .collect()
 }
+
+/// Reserved action key kura answers with the instance-wide action-cache
+/// snapshot. Must byte-match the server constant; the version suffix bumps on
+/// any encoding change so a mixed deployment degrades to a plain not-found
+/// (v2 added the write-time watermark header and delta responses).
+pub const SNAPSHOT_ACTION_KEY: &[u8] = b"tuist-actioncache-snapshot/v2";
+/// `inline_output_files` hint carrying our watermark: the server then returns
+/// only entries written after it (a delta), so a long-lived proxy refreshes
+/// without refetching the world.
+const SNAPSHOT_AFTER_HINT: &str = "tuist-snapshot-after:";
 
 pub fn blob_digest(content: &[u8]) -> reapi::Digest {
     reapi::Digest {
@@ -189,13 +223,52 @@ pub struct Remote {
 }
 
 fn retryable(status: &tonic::Status) -> bool {
-    matches!(
-        status.code(),
+    match status.code() {
         tonic::Code::Unavailable
-            | tonic::Code::Unknown
-            | tonic::Code::DeadlineExceeded
-            | tonic::Code::ResourceExhausted
-    )
+        | tonic::Code::Unknown
+        | tonic::Code::DeadlineExceeded
+        | tonic::Code::ResourceExhausted => true,
+        // Kura periodically closes an h2 connection with GOAWAY(NO_ERROR)
+        // (graceful rotation), which tonic surfaces as `Internal`
+        // ("h2 protocol error"); an in-flight stream on the dropped
+        // connection surfaces as `Cancelled` ("connection closed"). Both are
+        // transient transport conditions, not the server rejecting the
+        // request -- re-issuing reconnects the lazy channel. Safe to retry
+        // because every CAS op is idempotent (content-addressed reads,
+        // dedup'd writes). Without this a graceful GOAWAY turned a cache hit
+        // into a miss + recompile: harmless at low concurrency, a real
+        // hit-rate drain once many fetches overlap.
+        //
+        // The codes alone are broader than that condition, though: kura maps
+        // genuine storage faults to trailer-borne `Internal`, and the
+        // client's own `Endpoint::timeout` surfaces as `Cancelled`
+        // ("Timeout expired"). Retrying those triples the load on a server
+        // that is deterministically failing and turns one 60s timeout into
+        // three, so gate on the status actually coming from the local
+        // transport.
+        tonic::Code::Internal | tonic::Code::Cancelled => transport_caused(status),
+        _ => false,
+    }
+}
+
+/// Whether a status was synthesized by the local h2/hyper transport rather
+/// than sent by the server. tonic attaches the transport error chain as the
+/// status source for local failures (GOAWAY, dropped connection, broken
+/// stream); a status parsed from response trailers -- i.e. one the server
+/// actually returned -- carries no source. The client's own deadline
+/// (`TimeoutExpired`) is also source-borne but is deliberately not matched:
+/// a hung server should cost one timeout, not `ATTEMPTS`.
+fn transport_caused(status: &tonic::Status) -> bool {
+    let mut source = std::error::Error::source(status);
+    while let Some(error) = source {
+        if error.downcast_ref::<h2::Error>().is_some()
+            || error.downcast_ref::<hyper::Error>().is_some()
+        {
+            return true;
+        }
+        source = error.source();
+    }
+    false
 }
 
 type AuthValue = tonic::metadata::MetadataValue<tonic::metadata::Ascii>;
@@ -283,18 +356,61 @@ impl Remote {
     }
 
     fn ac_client(&self) -> Result<ActionCacheClient<Channel>, String> {
-        Ok(ActionCacheClient::new(self.channel()?).max_decoding_message_size(64 << 20))
+        // Kura's wildcard inlining packs blob contents greedily up to its
+        // response budget, whose ceiling is exactly 64MB
+        // (MAX_REAPI_RESPONSE_BUDGET_BYTES); the budget counts content bytes,
+        // not the few bytes per file of protobuf framing added by embedding
+        // them, so a cap equal to the budget can reject a maximally-packed
+        // response and turn the largest cached graphs into permanent misses.
+        // 96MB keeps deliberate headroom above the server ceiling.
+        Ok(ActionCacheClient::new(self.channel()?).max_decoding_message_size(96 << 20))
     }
 
     /// Fetches the closure manifest for an action key. `Ok(None)` is a
     /// definitive miss; `Err` is a transport problem.
+    ///
+    /// Asks the server to inline every output blob it can afford, which is a
+    /// deliberate latency-for-bytes trade: the request goes out before the
+    /// local store is consulted, so on a warm store the response carries (and
+    /// the server bills as egress) frame bytes for blobs the caller already
+    /// holds and will discard. Cold-store resolves -- the dominant remote-hit
+    /// case -- waste nothing and save a full WAN round-trip per resolve.
     pub fn get_action(&self, key: &[u8]) -> Result<Option<Vec<ManifestEntry>>, String> {
+        self.get_action_with_inline(key, true)
+    }
+
+    /// Existence probe for the publish path: the same lookup without the
+    /// wildcard inline hint. Publish callers only compare the manifest's
+    /// first entry, so asking the server to materialize and ship every output
+    /// blob (16-way concurrent reads, claims on the shared materialization
+    /// pool, billed egress up to the response budget) would pay all of that
+    /// for bytes that are immediately dropped.
+    pub fn probe_action(&self, key: &[u8]) -> Result<Option<Vec<ManifestEntry>>, String> {
+        self.get_action_with_inline(key, false)
+    }
+
+    fn get_action_with_inline(
+        &self,
+        key: &[u8],
+        inline_outputs: bool,
+    ) -> Result<Option<Vec<ManifestEntry>>, String> {
         let started = Instant::now();
         let result = (|| {
             let mut client = self.ac_client()?;
             let request = reapi::GetActionResultRequest {
                 instance_name: self.config.instance.clone(),
                 action_digest: Some(action_digest(key)),
+                // Kura extension: `"*"` asks the server to inline every output
+                // file's frame bytes into this response (best-effort, within
+                // its response budget), collapsing the action lookup + blob
+                // fetch into one round-trip. A server without the extension
+                // matches no literal `"*"` path and inlines nothing, in which
+                // case the caller batch-reads as before.
+                inline_output_files: if inline_outputs {
+                    vec!["*".into()]
+                } else {
+                    Vec::new()
+                },
                 ..Default::default()
             };
             let response = retry_call(|| {
@@ -309,6 +425,8 @@ impl Remote {
                         .filter_map(|file| {
                             Some(ManifestEntry {
                                 llcas_digest: unhex(&file.path)?,
+                                contents: (!file.contents.is_empty())
+                                    .then_some(file.contents),
                                 blob: file.digest?,
                             })
                         })
@@ -321,6 +439,40 @@ impl Remote {
         })();
         self.get_stats.record(started.elapsed());
         result
+    }
+
+    /// Fetches the instance's action-cache snapshot: kura answers the reserved
+    /// snapshot key with the namespace's complete key→value map inlined into a
+    /// single output file (see `SNAPSHOT_ACTION_KEY`). `Ok(None)` means the
+    /// server has no snapshot support (an ordinary not-found), and the caller
+    /// stays on the per-key path.
+    /// `after` asks for a delta: only entries written after that watermark.
+    pub fn get_snapshot(&self, after: Option<u64>) -> Result<Option<Vec<u8>>, String> {
+        let mut client = self.ac_client()?;
+        let mut inline_output_files = vec!["*".to_string()];
+        if let Some(after) = after {
+            inline_output_files.push(format!("{SNAPSHOT_AFTER_HINT}{after}"));
+        }
+        let request = reapi::GetActionResultRequest {
+            instance_name: self.config.instance.clone(),
+            action_digest: Some(action_digest(SNAPSHOT_ACTION_KEY)),
+            inline_output_files,
+            ..Default::default()
+        };
+        let response = retry_call(|| {
+            runtime().block_on(client.get_action_result(self.authed(request.clone())))
+        });
+        match response {
+            Ok(response) => Ok(response
+                .into_inner()
+                .output_files
+                .into_iter()
+                .next()
+                .map(|file| file.contents)
+                .filter(|contents| !contents.is_empty())),
+            Err(status) if status.code() == tonic::Code::NotFound => Ok(None),
+            Err(status) => Err(format!("get_snapshot: {status}")),
+        }
     }
 
     /// Reads blobs in size-bounded batches. Chunks are fetched concurrently
@@ -561,7 +713,7 @@ pub fn decompress_frame(blob: &[u8]) -> Option<Vec<u8>> {
 
 #[cfg(test)]
 mod tests {
-    use super::reapi_instance;
+    use super::{reapi_instance, retryable};
 
     #[test]
     fn reapi_instance_strips_the_account_from_a_full_handle() {
@@ -575,5 +727,40 @@ mod tests {
     fn reapi_instance_passes_through_a_bare_project() {
         assert_eq!(reapi_instance("tuist"), "tuist");
         assert_eq!(reapi_instance(""), "");
+    }
+
+    #[test]
+    fn server_sent_internal_and_cancelled_are_terminal() {
+        // A status constructed directly models one parsed from response
+        // trailers: no error source, so it was the server speaking, not the
+        // local transport. Kura maps genuine storage faults to Internal --
+        // retrying those only amplifies load on a failing node.
+        assert!(!retryable(&tonic::Status::internal("failed to load blob")));
+        assert!(!retryable(&tonic::Status::cancelled("Timeout expired")));
+    }
+
+    #[test]
+    fn transport_borne_internal_and_cancelled_are_retryable() {
+        // tonic attaches the h2/hyper error chain as the status source when
+        // the failure is local (GOAWAY rotation, dropped connection).
+        let goaway: h2::Error = h2::Reason::NO_ERROR.into();
+        let status = tonic::Status::from_error(Box::new(goaway));
+        assert_eq!(status.code(), tonic::Code::Internal);
+        assert!(retryable(&status));
+
+        let cancel: h2::Error = h2::Reason::CANCEL.into();
+        let status = tonic::Status::from_error(Box::new(cancel));
+        assert_eq!(status.code(), tonic::Code::Cancelled);
+        assert!(retryable(&status));
+    }
+
+    #[test]
+    fn plain_transport_codes_stay_retryable() {
+        assert!(retryable(&tonic::Status::unavailable("draining")));
+        assert!(retryable(&tonic::Status::deadline_exceeded("slow")));
+        assert!(!retryable(&tonic::Status::not_found("miss")));
+        assert!(!retryable(&tonic::Status::out_of_range(
+            "message length too large"
+        )));
     }
 }

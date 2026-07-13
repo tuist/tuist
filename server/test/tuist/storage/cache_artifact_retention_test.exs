@@ -10,7 +10,7 @@ defmodule Tuist.Storage.CacheArtifactRetentionTest do
   alias Tuist.Storage.CacheArtifactRetention
 
   describe "delete_expired/2" do
-    test "deletes expired objects for the requested cache artifact type" do
+    test "deletes objects using an explicit retention window" do
       expired_xcode_key = "tuist/app/xcode/AB/CD/ABCD"
       recent_xcode_key = "tuist/app/xcode/EF/GH/EFGH"
       expired_gradle_key = "tuist/app/gradle/AB/CD/ABCD"
@@ -23,9 +23,9 @@ defmodule Tuist.Storage.CacheArtifactRetentionTest do
          %{
            body: %{
              contents: [
-               %{key: expired_xcode_key, last_modified: DateTime.add(DateTime.utc_now(), -15, :day)},
-               %{key: recent_xcode_key, last_modified: DateTime.add(DateTime.utc_now(), -13, :day)},
-               %{key: expired_gradle_key, last_modified: DateTime.add(DateTime.utc_now(), -15, :day)}
+               %{key: expired_xcode_key, last_modified: DateTime.add(DateTime.utc_now(), -61, :day)},
+               %{key: recent_xcode_key, last_modified: DateTime.add(DateTime.utc_now(), -59, :day)},
+               %{key: expired_gradle_key, last_modified: DateTime.add(DateTime.utc_now(), -61, :day)}
              ],
              is_truncated: true,
              next_continuation_token: "next-page"
@@ -37,7 +37,7 @@ defmodule Tuist.Storage.CacheArtifactRetentionTest do
 
       expect_delete_objects([expired_xcode_key], "xcode-cache-bucket")
 
-      assert CacheArtifactRetention.delete_expired(:xcode_cache) == {:ok, "next-page"}
+      assert CacheArtifactRetention.delete_expired(:xcode_cache, retention_days: 60) == {:ok, "next-page"}
     end
 
     test "deletes expired legacy CAS objects from the cache bucket" do
@@ -174,6 +174,32 @@ defmodule Tuist.Storage.CacheArtifactRetentionTest do
       assert CacheArtifactRetention.delete_expired(:xcode_cache) == {:ok, nil}
     end
 
+    test "applies an explicit retention window to orphaned cache objects" do
+      expired_orphan_key = "deleted-account/app/xcode/AB/CD/ABCD"
+      recent_orphan_key = "renamed-account/app/xcode/EF/GH/EFGH"
+
+      expect(Environment, :cache_xcode_s3_bucket_name, fn -> "xcode-cache-bucket" end)
+
+      expect(Storage, :list_objects_from_bucket, fn "xcode-cache-bucket",
+                                                    [prefix: "", max_keys: 1000, continuation_token: nil] ->
+        {:ok,
+         %{
+           body: %{
+             contents: [
+               %{key: expired_orphan_key, last_modified: DateTime.add(DateTime.utc_now(), -31, :day)},
+               %{key: recent_orphan_key, last_modified: DateTime.add(DateTime.utc_now(), -29, :day)}
+             ],
+             is_truncated: false
+           }
+         }}
+      end)
+
+      expect(Repo, :all, fn _query -> [] end)
+      expect_delete_objects([expired_orphan_key], "xcode-cache-bucket")
+
+      assert CacheArtifactRetention.delete_expired(:xcode_cache, retention_days: 30) == {:ok, nil}
+    end
+
     test "skips objects for accounts with custom S3 storage configured" do
       custom_storage_key = "custom-storage-account/app/xcode/AB/CD/ABCD"
       managed_storage_key = "managed-storage-account/app/xcode/EF/GH/EFGH"
@@ -207,7 +233,7 @@ defmodule Tuist.Storage.CacheArtifactRetentionTest do
 
       expect_delete_objects([managed_storage_key], "xcode-cache-bucket")
 
-      assert CacheArtifactRetention.delete_expired(:xcode_cache) == {:ok, nil}
+      assert CacheArtifactRetention.delete_expired(:xcode_cache, retention_days: 30) == {:ok, nil}
     end
 
     test "resolves mixed-case object account handles to managed accounts" do

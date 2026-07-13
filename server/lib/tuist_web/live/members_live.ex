@@ -285,16 +285,27 @@ defmodule TuistWeb.MembersLive do
                 <:col :let={invitation} label={dgettext("dashboard_account", "Email")}>
                   <.text_cell label={invitation.invitee_email} />
                 </:col>
-                <:col label={dgettext("dashboard_account", "Status")}>
+                <:col :let={invitation} label={dgettext("dashboard_account", "Status")}>
+                  <% status_badge = invitation_status_badge(invitation) %>
                   <.status_badge_cell
-                    label={dgettext("dashboard_account", "Pending")}
-                    status="attention"
+                    label={status_badge.label}
+                    status={status_badge.status}
                   />
                 </:col>
                 <:col :let={invitation}>
                   <.dropdown id={"invite-actions-#{invitation.id}"} icon_only>
                     <:icon><.dots_vertical /></:icon>
                     <.dropdown_item
+                      id={"resend-invite-#{invitation.id}"}
+                      label={dgettext("dashboard_account", "Resend invitation")}
+                      value="resend"
+                      on_click="resend_invite"
+                      phx-value-id={invitation.id}
+                    >
+                      <:left_icon><.mail /></:left_icon>
+                    </.dropdown_item>
+                    <.dropdown_item
+                      :if={!Accounts.invitation_expired?(invitation)}
                       id={"copy-invite-link-#{invitation.id}"}
                       label={dgettext("dashboard_account", "Copy invite link")}
                       value="copy_invite_link"
@@ -514,6 +525,29 @@ defmodule TuistWeb.MembersLive do
     end
   end
 
+  def handle_event("resend_invite", %{"id" => id}, socket) do
+    with %{organization_id: org_id} = invitation when org_id == socket.assigns.organization.id <-
+           Accounts.get_invitation_by_id(id),
+         :ok <-
+           Authorization.authorize(:invitation_create, socket.assigns.current_user, socket.assigns.selected_account),
+         {:ok, invitation} <-
+           Accounts.resend_invitation(invitation, %{url: &url(~p"/auth/invitations/#{&1}")}) do
+      socket =
+        socket
+        |> assign_organization()
+        |> assign(
+          selected_inner_tab: "invitations",
+          search_query: "",
+          invitation_disclosure: invitation_disclosure(invitation)
+        )
+        |> push_event("open-modal", %{id: "invite-member-form-modal"})
+
+      {:noreply, socket}
+    else
+      _ -> {:noreply, socket}
+    end
+  end
+
   # def handle_event("add-invite-email", %{"key" => key, "value" => email}, socket)
   #     when key in ["Enter", ","] do
   #   socket = assign(socket, invite_emails: socket.assigns.invite_emails ++ [email])
@@ -611,13 +645,7 @@ defmodule TuistWeb.MembersLive do
           form: to_form(%{}, as: :invitation),
           selected_inner_tab: "invitations",
           search_query: "",
-          invitation_disclosure: %{
-            url: url(~p"/auth/invitations/#{invitation.token}"),
-            email: invitation.invitee_email,
-            # `invite_user_to_organization/3` only delivers the email when mail
-            # is configured, so this mirrors whether the invitee was notified.
-            email_delivered: Environment.mail_configured?()
-          }
+          invitation_disclosure: invitation_disclosure(invitation)
         )
         # Reveal the link in the always-present header modal: close the
         # empty-state modal in case it triggered the invite, and nudge the
@@ -666,6 +694,22 @@ defmodule TuistWeb.MembersLive do
       invitations: organization.invitations,
       all_invitations: organization.invitations
     )
+  end
+
+  defp invitation_disclosure(invitation) do
+    %{
+      url: url(~p"/auth/invitations/#{invitation.token}"),
+      email: invitation.invitee_email,
+      email_delivered: Environment.mail_configured?()
+    }
+  end
+
+  defp invitation_status_badge(invitation) do
+    if Accounts.invitation_expired?(invitation) do
+      %{label: dgettext("dashboard_account", "Expired"), status: "disabled"}
+    else
+      %{label: dgettext("dashboard_account", "Pending"), status: "attention"}
+    end
   end
 
   defp get_selected_role(managing_member, member_id, current_role) do

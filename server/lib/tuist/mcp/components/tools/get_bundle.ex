@@ -15,6 +15,38 @@ defmodule Tuist.MCP.Components.Tools.GetBundle do
         }
       },
       "required" => ["bundle_id"]
+    },
+    output_schema: %{
+      "type" => "object",
+      "properties" => %{
+        "id" => %{"type" => "string"},
+        "name" => %{"type" => "string"},
+        "app_bundle_id" => %{"type" => "string"},
+        "version" => %{"type" => "string"},
+        "type" => %{"type" => "string"},
+        "supported_platforms" => %{"type" => "array", "items" => %{"type" => "string"}},
+        "install_size" => %{"type" => "integer"},
+        "download_size" => %{"type" => ["integer", "null"]},
+        "git_branch" => %{"type" => ["string", "null"]},
+        "git_commit_sha" => %{"type" => ["string", "null"]},
+        "git_ref" => %{"type" => ["string", "null"]},
+        "inserted_at" => %{"type" => "string"}
+      },
+      "required" => [
+        "id",
+        "name",
+        "app_bundle_id",
+        "version",
+        "type",
+        "supported_platforms",
+        "install_size",
+        "download_size",
+        "git_branch",
+        "git_commit_sha",
+        "git_ref",
+        "inserted_at"
+      ],
+      "additionalProperties" => false
     }
 
   alias Tuist.Bundles

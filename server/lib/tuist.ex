@@ -94,6 +94,7 @@ defmodule Tuist do
       Shards.ShardPlanTestSuite,
       Shards.ShardRun,
       MCP.Server,
+      MCP.Transport.StreamableHTTP,
       # App
       # -----
       # They are modules that are core to the Tuist domain (e.g. accounts) and that other

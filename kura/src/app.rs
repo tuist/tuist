@@ -195,11 +195,18 @@ async fn run_with_config(
     spawn_runtime_metrics_task(state.clone());
     spawn_drain_signal_task(state.clone());
     spawn_multipart_janitor_task(state.clone());
+    spawn_action_cache_expiry_task(state.clone());
     spawn_tmp_dir_metrics_task(state.clone());
     spawn_geoip_refresh_task(state.clone());
+    spawn_segment_promotion_task(state.clone());
 
     // When the node enrolled on boot, keep its peer certificate fresh in-process
-    // so a short leaf does not require a restart.
+    // so a short leaf does not require a restart, and prove mesh-membership
+    // liveness to the control plane (which also refreshes the peer list at
+    // heartbeat cadence instead of at certificate renewal). Managed pods don't
+    // enroll; they sync the peer view read-only, with serving gated on the
+    // first successful fetch so a pod booting blind never accepts writes
+    // without enqueuing replication for peers it cannot see.
     if let Some(enrollment) = enrollment
         && state.config.peer_tls.is_some()
     {
@@ -207,6 +214,15 @@ async fn run_with_config(
             .dynamic_peers
             .store(std::sync::Arc::new(enrollment.peers.clone()));
         spawn_cert_renewal_task(state.clone(), enrollment.renew_after_seconds);
+        crate::mesh_heartbeat::spawn(
+            state.clone(),
+            crate::mesh_heartbeat::MeshHeartbeatConfig::from_enrollment(&enrollment),
+        );
+    } else if state.config.peer_tls.is_some()
+        && let Some(config) = crate::mesh_heartbeat::MeshPeersSyncConfig::from_config(&state.config)
+    {
+        state.runtime.require_peer_view();
+        crate::mesh_heartbeat::spawn_peers_sync(state.clone(), config);
     }
 
     let address = SocketAddr::from((Ipv4Addr::UNSPECIFIED, state.config.port));
@@ -453,6 +469,42 @@ async fn shutdown_signal() {
     wait_for_shutdown_signal(ctrl_c, terminate).await;
 }
 
+// Drains the store's read-path promotion queue: artifacts served from an
+// Old-generation segment are rewritten into the current segment here instead
+// of inline on the read path (see Store::run_promotion_worker).
+//
+// Unlike the other background tasks, this one has a producer queue behind it:
+// if the worker dies, enqueue_promotion keeps filling the queue and promotion
+// silently stops for the life of the process, so Old-segment artifacts age out
+// wholesale with hit-rate decay as the only symptom. The worker itself only
+// returns by panicking (invariant `expect`s deep in the refresh path that
+// pre-dated backgrounding killed a single request when they ran inline), so
+// supervise it: respawn on panic instead of losing the subsystem.
+fn spawn_segment_promotion_task(state: Arc<AppState>) {
+    tokio::spawn(
+        async move {
+            loop {
+                let worker_state = state.clone();
+                let worker = tokio::spawn(
+                    async move {
+                        worker_state.store.run_promotion_worker().await;
+                    }
+                    .in_current_span(),
+                );
+                if worker.await.is_ok() {
+                    // run_promotion_worker loops forever; a clean return means
+                    // the runtime is shutting down.
+                    return;
+                }
+                state.metrics.record_promotion_failure();
+                tracing::warn!("segment promotion worker panicked; respawning");
+                tokio::time::sleep(Duration::from_secs(1)).await;
+            }
+        }
+        .in_current_span(),
+    );
+}
+
 fn spawn_snapshot_task(state: Arc<AppState>) {
     tokio::spawn(
         async move {
@@ -473,6 +525,9 @@ fn spawn_snapshot_task(state: Arc<AppState>) {
                         state
                             .metrics
                             .update_multipart_uploads(snapshot.multipart_uploads);
+                        state
+                            .metrics
+                            .update_promotion_queue_depth(snapshot.promotion_queue_depth);
                         state
                             .metrics
                             .update_segment_fsyncs(snapshot.segment_fsync_count);
@@ -565,6 +620,48 @@ fn spawn_runtime_metrics_task(state: Arc<AppState>) {
             loop {
                 state.sync_runtime_metrics().await;
                 tokio::time::sleep(Duration::from_secs(1)).await;
+            }
+        }
+        .in_current_span(),
+    );
+}
+
+/// Expires REAPI action-cache entries whose write time predates the TTL.
+/// Clients publish new keys on every source change and nothing else removes
+/// the stale ones, so this recency sweep is what bounds a namespace's
+/// keyspace (and with it the snapshot reconcile scan and index memory). An
+/// expired entry that is still genuinely used costs its next cold reader one
+/// recompile + republish, which refreshes it for the whole fleet. Node-local
+/// by design: peers apply the same rule over the replicated version_ms and
+/// converge on their own. The manifest-keyspace walk is a full scan, so it
+/// runs on the blocking pool at a long interval.
+fn spawn_action_cache_expiry_task(state: Arc<AppState>) {
+    use crate::constants::{
+        REAPI_ACTION_CACHE_EXPIRY_INTERVAL_MS, REAPI_ACTION_CACHE_EXPIRY_MAX_DELETES,
+        REAPI_ACTION_CACHE_TTL_MS,
+    };
+    let interval = Duration::from_millis(REAPI_ACTION_CACHE_EXPIRY_INTERVAL_MS);
+    tokio::spawn(
+        async move {
+            loop {
+                tokio::time::sleep(interval).await;
+                let sweep_state = state.clone();
+                let cutoff_ms = crate::utils::now_ms().saturating_sub(REAPI_ACTION_CACHE_TTL_MS);
+                let expired = tokio::task::spawn_blocking(move || {
+                    sweep_state.store.expire_stale_action_cache_entries(
+                        cutoff_ms,
+                        REAPI_ACTION_CACHE_EXPIRY_MAX_DELETES,
+                    )
+                })
+                .await;
+                match expired {
+                    Ok(Ok(0)) => {}
+                    Ok(Ok(expired)) => {
+                        info!(expired, cutoff_ms, "expired stale action-cache entries");
+                    }
+                    Ok(Err(error)) => warn!("action-cache expiry sweep failed: {error}"),
+                    Err(error) => warn!("action-cache expiry task panicked: {error}"),
+                }
             }
         }
         .in_current_span(),
@@ -675,7 +772,7 @@ fn spawn_cert_renewal_task(state: Arc<AppState>, initial_renew_after_seconds: u6
             loop {
                 tokio::time::sleep(Duration::from_secs(renew_after)).await;
                 match crate::enrollment::renew().await {
-                    Ok(outcome) => match apply_renewed_certs(&state, &outcome).await {
+                    Ok(outcome) => match apply_renewed_enrollment(&state, &outcome).await {
                         Ok(()) => {
                             info!("renewed peer certificate");
                             renew_after = outcome.renew_after_seconds.max(60);
@@ -696,7 +793,7 @@ fn spawn_cert_renewal_task(state: Arc<AppState>, initial_renew_after_seconds: u6
     );
 }
 
-async fn apply_renewed_certs(
+pub(crate) async fn apply_renewed_enrollment(
     state: &Arc<AppState>,
     outcome: &crate::enrollment::EnrollmentOutcome,
 ) -> Result<(), String> {

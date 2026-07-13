@@ -35,6 +35,20 @@ app.kubernetes.io/component: {{ .component }}
 {{- end -}}
 
 {{/*
+Name of the server migration Job. Stable when it runs as a Helm hook, and
+scoped to the release revision when it runs as a regular Job, so that Helm
+replaces it on upgrade instead of tripping the immutable `spec.template`.
+*/}}
+{{- define "tuist.serverMigrateJobName" -}}
+{{- $base := include "tuist.componentName" (dict "root" . "component" "server-migrate") -}}
+{{- if and (not .Values.server.migrationJob.asHook) .Values.server.migrationJob.namePerRevision -}}
+{{- printf "%s-r%d" $base (int .Release.Revision) -}}
+{{- else -}}
+{{- $base -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
 Service account name for an application component.
 */}}
 {{- define "tuist.componentServiceAccountName" -}}

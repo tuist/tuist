@@ -2087,6 +2087,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.environmentTesting.targetName),
                     .external(name: "OpenAPIRuntime"),
                     .external(name: "HTTPTypes"),
+                    .external(name: "FileSystem"),
                 ]
             }
         dependencies =

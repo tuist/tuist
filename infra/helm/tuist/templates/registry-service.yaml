@@ -1,0 +1,18 @@
+{{- if .Values.registry.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "registry") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: registry
+spec:
+  type: {{ .Values.registry.service.type }}
+  selector:
+    {{- include "tuist.componentLabels" (dict "root" . "component" "registry") | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.registry.service.port }}
+      targetPort: http
+      protocol: TCP
+{{- end }}

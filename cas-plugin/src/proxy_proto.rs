@@ -13,20 +13,28 @@
 //! the `cas_path -> instance` mapping a prior build primed.
 //!
 //! RESOLVE (op 1): payload = action key digest bytes. status 1 = hit (body =
-//! value llcas digest, materialized into the local CAS before replying),
-//! status 0 = definitive miss, status 2 = proxy error (treat as miss).
+//! value llcas digest; the value graph materializes into the local CAS in the
+//! background — a consumer's demand load that outruns it self-heals through
+//! FETCH_OBJECT), status 0 = definitive miss, status 2 = proxy error (treat
+//! as miss).
 //! PUBLISH (op 2): payload = utf8 path of a write-ahead publication record.
 //! status 1 = accepted (publication proceeds asynchronously).
+//! FETCH_OBJECT (op 4): payload = llcas object digest bytes. Blocks until the
+//! object is on disk (fetching it from the remote if the background
+//! materializer has not stored it yet). status 1 = present, status 0 = the
+//! proxy has no way to produce it (treat as not found).
 
 use std::io::{Read, Write};
 use std::os::unix::net::UnixStream;
 use std::time::Duration;
 
-/// Bumped on any incompatible change to the frame layout below. The proxy
-/// rejects a mismatched version (→ the plugin degrades to a local miss) instead
-/// of misparsing, so a stale proxy left running across a CLI upgrade can't
-/// corrupt a build.
-pub const PROTOCOL_VERSION: u8 = 1;
+/// Bumped on any incompatible change to the frame layout below — or to its
+/// semantics: v2 resolves reply before the value graph is materialized, which
+/// is only safe with a client that self-heals demand loads via FETCH_OBJECT.
+/// The proxy rejects a mismatched version (→ the plugin degrades to a local
+/// miss) instead of misparsing, so a stale proxy left running across a CLI
+/// upgrade can't corrupt a build.
+pub const PROTOCOL_VERSION: u8 = 2;
 
 pub const OP_RESOLVE: u8 = 1;
 pub const OP_PUBLISH: u8 = 2;
@@ -36,6 +44,10 @@ pub const OP_PUBLISH: u8 = 2;
 /// see that, so the plugin tells it to drop the path's in-memory known-local /
 /// resolved marks, which would otherwise skip re-fetching the pruned blobs.
 pub const OP_INVALIDATE: u8 = 3;
+/// Demand fetch of one llcas object the background materializer has not stored
+/// yet (or that a prune removed). Runs on compiler worker threads, never on the
+/// build engine's serial task-setup path, so it may block on the remote.
+pub const OP_FETCH_OBJECT: u8 = 4;
 
 pub const STATUS_MISS: u8 = 0;
 pub const STATUS_HIT: u8 = 1;
@@ -141,6 +153,35 @@ impl ProxyClient {
         match status {
             STATUS_HIT => Ok(Resolution::Hit(body)),
             STATUS_MISS => Ok(Resolution::Miss),
+            _ => Err(format!("proxy error: {}", String::from_utf8_lossy(&body))),
+        }
+    }
+
+    /// Blocks until the proxy has `digest`'s object in the local CAS (present,
+    /// mid-materialization, or fetched on demand). Hit = present now; Miss =
+    /// the proxy cannot produce it.
+    pub fn fetch_object(
+        &self,
+        cas_path: &str,
+        instance: &str,
+        digest: &[u8],
+    ) -> Result<bool, String> {
+        let mut stream = self.connect().map_err(|e| format!("proxy connect: {e}"))?;
+        write_request(
+            &mut stream,
+            &Request {
+                version: PROTOCOL_VERSION,
+                op: OP_FETCH_OBJECT,
+                cas_path: cas_path.to_string(),
+                instance: instance.to_string(),
+                payload: digest.to_vec(),
+            },
+        )
+        .map_err(|e| format!("proxy send: {e}"))?;
+        let (status, body) = read_response(&mut stream).map_err(|e| format!("proxy recv: {e}"))?;
+        match status {
+            STATUS_HIT => Ok(true),
+            STATUS_MISS => Ok(false),
             _ => Err(format!("proxy error: {}", String::from_utf8_lossy(&body))),
         }
     }

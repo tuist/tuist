@@ -758,7 +758,10 @@ func TestKuraInstanceReconcileCrossRegionAccountPeerService(t *testing.T) {
 	if err := reconciler.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, policy); err != nil {
 		t.Fatal(err)
 	}
-	if len(policy.Spec.Ingress) != 3 {
+	// 4 rules: own-pods, same-account peer (podSelector), in-cluster http, and
+	// the open peer port for SNATed cross-region peers (this instance peers
+	// cross-region, so crossRegionRuntimeEnabled adds it).
+	if len(policy.Spec.Ingress) != 4 {
 		t.Fatalf("expected NetworkPolicy to include same-account peer rule, got %d rules", len(policy.Spec.Ingress))
 	}
 	if got := policy.Spec.Ingress[1].Ports[0].Port.StrVal; got != "peer" {
@@ -766,6 +769,9 @@ func TestKuraInstanceReconcileCrossRegionAccountPeerService(t *testing.T) {
 	}
 	if got := policy.Spec.Ingress[1].From[0].PodSelector.MatchLabels["tuist.dev/account"]; got != "tuist" {
 		t.Fatalf("expected same-account NetworkPolicy peer selector, got %q", got)
+	}
+	if !peerPortOpenFromAnyIP(policy) {
+		t.Fatal("expected a cross-region peer instance to allow the peer port from any IP (SNATed peers)")
 	}
 }
 
@@ -900,6 +906,54 @@ func TestKuraInstanceReconcileMeshPublicPeerExposure(t *testing.T) {
 	}
 	if err := reconciler.Get(ctx, types.NamespacedName{Name: instancePublicPeerServiceName(instance), Namespace: instance.Namespace}, lb); err != nil {
 		t.Fatalf("expected public peer Service to survive a non-mesh sibling's reconcile, got %v", err)
+	}
+}
+
+func peerPortOpenFromAnyIP(policy *networkingv1.NetworkPolicy) bool {
+	for _, rule := range policy.Spec.Ingress {
+		for _, from := range rule.From {
+			if from.IPBlock == nil || from.IPBlock.CIDR != "0.0.0.0/0" {
+				continue
+			}
+			for _, p := range rule.Ports {
+				if p.Port != nil && p.Port.StrVal == "peer" {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+// A mesh region without a public peer host (e.g. a NodePort runner-cache node
+// that peers cross-region purely in-cluster) must still open the peer port to
+// SNATed traffic: a same-account peer in another region reaches it via
+// cross-provider in-cluster pod-to-pod traffic that is SNATed to a node IP, so
+// no pod/namespace selector matches. Regression for the wedge where such a node
+// silently rejected cross-provider peers on :7443 and never finished bootstrap.
+func TestMeshPeerNetworkPolicyOpensPeerPortWithoutPublicHost(t *testing.T) {
+	ctx := context.Background()
+	scheme := meshTestScheme(t)
+
+	instance := meshInstance("kura-tuist-scw-fr-par", "tuist")
+	instance.Spec.MeshPublicPeerHost = "" // NodePort runner-cache node: no public peer LB
+	instance.Spec.ExposeNodePort = true
+	instance.Spec.ClientCIDRs = []string{"172.16.0.0/22"}
+
+	reconciler := &KuraInstanceReconciler{
+		Client: fake.NewClientBuilder().WithScheme(scheme).WithObjects(instance).WithStatusSubresource(instance).Build(),
+		Scheme: scheme,
+	}
+	if _, err := reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}}); err != nil {
+		t.Fatal(err)
+	}
+
+	policy := &networkingv1.NetworkPolicy{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, policy); err != nil {
+		t.Fatal(err)
+	}
+	if !peerPortOpenFromAnyIP(policy) {
+		t.Fatal("expected a mesh region without a public peer host to still allow the peer port from any IP (cross-provider in-cluster peers arrive SNATed)")
 	}
 }
 

@@ -157,6 +157,46 @@ subjects:
   - kind: ServiceAccount
     name: {{ $name }}
     namespace: {{ $namespace }}
+---
+# Namespaced Role granting the controller's SA read on the single
+# kube-system/kube-dns Service. peer-demux's discoverClusterDNS reads its
+# ClusterIP to wire the per-region peer plane's in-cluster DNS, which a
+# freshly (re)provisioned instance needs before its cache pods can complete
+# peer discovery and pass readiness — without it the reconciler errors every
+# cycle ("services \"kube-dns\" is forbidden") and the fresh StatefulSet never
+# goes Ready. Scoped to kube-system as a Role rather than a ClusterRole with
+# resourceNames (which would match a kube-dns Service in any namespace); read
+# via the uncached APIReader since the manager's Services cache is namespaced.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $name }}-cluster-dns
+  namespace: kube-system
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kura-controller
+rules:
+  - apiGroups: [""]
+    resources: [services]
+    resourceNames: [kube-dns]
+    verbs: [get]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $name }}-cluster-dns
+  namespace: kube-system
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kura-controller
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $name }}-cluster-dns
+subjects:
+  - kind: ServiceAccount
+    name: {{ $name }}
+    namespace: {{ $namespace }}
 {{- if .Values.server.enabled }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1

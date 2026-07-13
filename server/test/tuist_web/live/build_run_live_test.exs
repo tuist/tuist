@@ -7,6 +7,9 @@ defmodule TuistWeb.BuildRunLiveTest do
   import Phoenix.LiveViewTest
 
   alias Tuist.CommandEvents
+  alias Tuist.IngestRepo
+  alias Tuist.Runners.Job
+  alias Tuist.Runners.JobSteps
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
@@ -135,6 +138,84 @@ defmodule TuistWeb.BuildRunLiveTest do
     # Then
     assert has_element?(lv, "a", "CI Run")
     assert has_element?(lv, ~s|a[href="https://github.com/tuist/tuist/actions/runs/1234567890"]|)
+  end
+
+  test "surfaces linked runner CI context when build run came from a Tuist runner job", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    seed_runner_job(organization.account, 31_301, 313_010, "Build")
+
+    {:ok, build_run} =
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        user_id: organization.account.id,
+        scheme: "App",
+        duration: 120_000,
+        ci_provider: "github",
+        ci_run_id: "313010",
+        ci_project_handle: "tuist/tuist",
+        is_ci: true
+      )
+
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/builds/build-runs/#{build_run.id}")
+
+    assert has_element?(lv, "[data-part='ci-context-card']", "CI Details")
+    assert has_element?(lv, "[data-part='ci-context-card'] a", "View more")
+
+    assert has_element?(
+             lv,
+             ~s|[data-part='ci-context-card'] a[href="/#{organization.account.name}/runners/workflows/tuist/tuist/Server"]|,
+             "Server"
+           )
+
+    assert has_element?(
+             lv,
+             ~s|[data-part='ci-context-card'] a[href="/#{organization.account.name}/runners/runs/313010/jobs/31301"]|,
+             "Build and test"
+           )
+
+    assert has_element?(
+             lv,
+             ~s|[data-part='ci-context-card'] a[href="/#{organization.account.name}/runners/runs/313010/jobs/31301?tab=overview&step=2"]|,
+             "Build ·"
+           )
+
+    refute has_element?(lv, "[data-part='ci-context-card'] a", "GitHub")
+    refute has_element?(lv, "[data-part='ci-context-card']", "Status")
+    refute has_element?(lv, "[data-part='ci-context-card']", "Workflow jobs")
+    refute has_element?(lv, "[data-part='ci-context-card']", "Repository")
+    refute has_element?(lv, "[data-part='ci-context-card']", "Run ID")
+    assert render(lv) =~ "Profile"
+    assert render(lv) =~ "tuist-macos"
+    refute has_element?(lv, "[data-part='ci-context-card']", "Platform")
+    refute has_element?(lv, "[data-part='ci-context-card']", "Build duration")
+    assert has_element?(lv, "[data-part='ci-context-card']", "Step")
+    assert render(lv) =~ "Build ·"
+  end
+
+  test "hides linked runner CI context when no runner job matches the build", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    seed_runner_job(organization.account, 31_302, 313_020, "Deploy", job_name: "Deploy")
+
+    {:ok, build_run} =
+      RunsFixtures.build_fixture(
+        project_id: project.id,
+        user_id: organization.account.id,
+        scheme: "App",
+        ci_provider: "github",
+        ci_run_id: "313020",
+        ci_project_handle: "tuist/tuist",
+        is_ci: true
+      )
+
+    {:ok, lv, _html} = live(conn, ~p"/#{organization.account.name}/#{project.name}/builds/build-runs/#{build_run.id}")
+
+    refute has_element?(lv, "[data-part='ci-context-card']")
   end
 
   test "hides CI Run button when build run has no CI metadata", %{
@@ -324,5 +405,61 @@ defmodule TuistWeb.BuildRunLiveTest do
 
     # Then
     refute has_element?(lv, ".noora-tab-menu-horizontal-item", "Module Cache")
+  end
+
+  defp seed_runner_job(account, workflow_job_id, workflow_run_id, matched_step_name, opts \\ []) do
+    enqueued_at = ~U[2026-05-28 10:00:00.000000Z]
+    claimed_at = ~U[2026-05-28 10:00:08.000000Z]
+    started_at = ~U[2026-05-28 10:00:12.000000Z]
+    completed_at = ~U[2026-05-28 10:08:12.000000Z]
+
+    IngestRepo.insert_all(Job, [
+      %{
+        workflow_job_id: workflow_job_id,
+        account_id: account.id,
+        fleet_name: "macos-xcode-26.4",
+        repository: "tuist/tuist",
+        workflow_run_id: workflow_run_id,
+        workflow_name: "Server",
+        run_attempt: 1,
+        job_name: Keyword.get(opts, :job_name, "Build and test"),
+        head_branch: "main",
+        head_sha: "abcdef1234567890",
+        status: "completed",
+        conclusion: "success",
+        enqueued_at: enqueued_at,
+        claimed_at: claimed_at,
+        started_at: started_at,
+        completed_at: completed_at,
+        pod_name: "runner-pod-ci-context",
+        runner_name: "tuist-runner-ci-context",
+        requested_dispatch_label: "tuist-macos",
+        updated_at: completed_at
+      }
+    ])
+
+    :ok =
+      JobSteps.record([
+        %{
+          workflow_job_id: workflow_job_id,
+          account_id: account.id,
+          number: 1,
+          name: "Run actions/checkout@v4",
+          status: "completed",
+          conclusion: "success",
+          started_at: started_at,
+          completed_at: DateTime.add(started_at, 20, :second)
+        },
+        %{
+          workflow_job_id: workflow_job_id,
+          account_id: account.id,
+          number: 2,
+          name: matched_step_name,
+          status: "completed",
+          conclusion: "success",
+          started_at: DateTime.add(started_at, 20, :second),
+          completed_at: DateTime.add(started_at, 260, :second)
+        }
+      ])
   end
 end

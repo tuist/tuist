@@ -9,7 +9,7 @@ defmodule Tuist.Environment do
   @compile_env Mix.env()
   @dev_all_locales Application.compile_env(:tuist, :dev_all_locales, false)
 
-  @runtime_envs ~w(prod can stag)
+  @runtime_envs ~w(prod can stag preview)
   @default_database_schema "public"
   @postgres_identifier_regex ~r/^[a-zA-Z_][a-zA-Z0-9_]*$/
   @agent_auth_default_trusted_providers [
@@ -18,13 +18,21 @@ defmodule Tuist.Environment do
       "jwks_uri" => "https://auth.openai.com/.well-known/jwks.json"
     }
   ]
+  @artifact_retention_environment_variables %{
+    cache_artifacts: "TUIST_CACHE_ARTIFACT_RETENTION_DAYS",
+    app_previews: "TUIST_APP_PREVIEW_RETENTION_DAYS",
+    build_archives: "TUIST_BUILD_ARCHIVE_RETENTION_DAYS",
+    run_artifacts: "TUIST_RUN_ARTIFACT_RETENTION_DAYS",
+    test_attachments: "TUIST_TEST_ATTACHMENT_RETENTION_DAYS",
+    shard_bundles: "TUIST_SHARD_BUNDLE_RETENTION_DAYS"
+  }
 
   # Every supported pod role. `mode/0` raises on any other value of
   # TUIST_MODE so a deployment-manifest typo (`processsor`, `ingest`,
   # ...) fails the pod fast at boot rather than landing it in `:web`
   # silently — exactly the failure mode that previously masked the
   # xcresult-processor leader-election bug.
-  @modes [:web, :processor, :xcresult_processor]
+  @modes [:web, :processor, :xcresult_processor, :swift_registry_sync]
 
   @doc """
   All pod roles `mode/0` may return. Stable list — used by
@@ -60,7 +68,7 @@ defmodule Tuist.Environment do
   @doc ~S"""
   Returns an list with all the supported environments.
   """
-  def all_envs, do: [:dev, :test, :can, :stag, :prod]
+  def all_envs, do: [:dev, :test, :preview, :can, :stag, :prod]
 
   def test? do
     @compile_env == :test
@@ -117,6 +125,14 @@ defmodule Tuist.Environment do
       narrowed to `:process_xcresult`. Runs inside a Tart VM on the
       macOS Mac mini fleet (the only place the macOS-only xcresult NIF
       can load). Booted by xcresult-processor-deployment.yaml.
+    * `:swift_registry_sync` — no Phoenix listener, Oban queue set
+      narrowed to `:swift_registry_sync` + `:swift_registry_release`.
+      Consumes jobs enqueued by the `:web` pod's cron, fetches Swift
+      packages from GitHub, and writes archives + metadata into the
+      registry S3 bucket. The standalone `registry` Phoenix app reads
+      back from the same bucket. Booted by
+      swift-registry-sync-deployment.yaml. Future ecosystems get
+      their own mode (e.g. `:maven_registry_sync`) and Deployment.
 
   Read once from `TUIST_MODE`. Add new modes here when the supervision tree
   needs another shape (e.g. a future `:scheduler` or `:ingest`).
@@ -133,6 +149,7 @@ defmodule Tuist.Environment do
   def mode("web"), do: :web
   def mode("processor"), do: :processor
   def mode("xcresult_processor"), do: :xcresult_processor
+  def mode("swift_registry_sync"), do: :swift_registry_sync
 
   def mode(other) do
     raise """
@@ -146,6 +163,8 @@ defmodule Tuist.Environment do
   def processor_mode?, do: mode() == :processor
 
   def xcresult_processor_mode?, do: mode() == :xcresult_processor
+
+  def swift_registry_sync_mode?, do: mode() == :swift_registry_sync
 
   def database_url(secrets \\ secrets()) do
     System.get_env("DATABASE_URL") || get([:database_url], secrets)
@@ -191,6 +210,13 @@ defmodule Tuist.Environment do
     end
   end
 
+  def database_swift_registry_sync_role do
+    case System.get_env("TUIST_DATABASE_SWIFT_REGISTRY_SYNC_ROLE") do
+      role when is_binary(role) and role != "" -> role
+      _ -> nil
+    end
+  end
+
   def database_config_from_url(url) do
     parsed_url = URI.parse(url)
 
@@ -224,6 +250,35 @@ defmodule Tuist.Environment do
   def tuist_hosted? do
     truthy?(System.get_env("TUIST_CLOUD_HOSTED", "0")) or
       truthy?(System.get_env("TUIST_HOSTED", "0"))
+  end
+
+  def artifact_retention_days(environment \\ System.get_env()) when is_map(environment) do
+    Enum.reduce(@artifact_retention_environment_variables, %{}, fn {resource_type, environment_variable}, acc ->
+      case parse_artifact_retention_days(Map.get(environment, environment_variable), environment_variable) do
+        nil -> acc
+        days -> Map.put(acc, resource_type, days)
+      end
+    end)
+  end
+
+  defp parse_artifact_retention_days(nil, _environment_variable), do: nil
+
+  defp parse_artifact_retention_days(value, environment_variable) when is_binary(value) do
+    value = String.trim(value)
+
+    case Integer.parse(value) do
+      _ when value == "" -> nil
+      {days, ""} when days > 0 -> days
+      _ -> raise_invalid_artifact_retention_days(environment_variable, value)
+    end
+  end
+
+  defp parse_artifact_retention_days(value, environment_variable) do
+    raise_invalid_artifact_retention_days(environment_variable, value)
+  end
+
+  defp raise_invalid_artifact_retention_days(environment_variable, value) do
+    raise "#{environment_variable} must be a positive integer number of days, got: #{inspect(value)}"
   end
 
   def test_user_login_enabled? do

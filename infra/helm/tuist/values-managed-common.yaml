@@ -190,6 +190,41 @@ server:
 
   terminationGracePeriodSeconds: 60
 
+registry:
+  enabled: true
+  image:
+    tag: ""  # Set by CI to the commit SHA on each deploy.
+  managedSecrets: true
+  externalSecrets:
+    refreshInterval: "1h"
+    storeRef:
+      kind: ClusterSecretStore
+      name: onepassword
+    item: REGISTRY
+    fields:
+      sentryDsn: ""
+      s3RegistryBucket: S3_REGISTRY_BUCKET
+      s3Host: S3_HOST
+      s3AccessKeyId: S3_ACCESS_KEY_ID
+      s3SecretAccessKey: S3_SECRET_ACCESS_KEY
+      s3Region: S3_REGION
+  ingress:
+    enabled: true
+    className: nginx
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-cloudflare
+  networkPolicy:
+    enabled: true
+  observability:
+    otelEndpoint: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
+  resources:
+    requests:
+      cpu: "250m"
+      memory: "512Mi"
+    limits:
+      cpu: "2"
+      memory: "2Gi"
+
 # Processor runs in-cluster as a dedicated Oban consumer for :process_build.
 # Same Docker image as the server; TUIST_MODE=processor in the chart
 # flips the BEAM into queue-only mode. Postgres is the coordination plane —
@@ -217,6 +252,47 @@ processor:
   podDisruptionBudget:
     enabled: true
     minAvailable: 1
+  resources:
+    requests:
+      cpu: "250m"
+      memory: "512Mi"
+    limits:
+      cpu: "1000m"
+      memory: "1Gi"
+
+# Swift Package Registry sync. Same image as the server booted with
+# TUIST_MODE=swift_registry_sync (see
+# infra/helm/tuist/templates/swift-registry-sync-deployment.yaml).
+# Catalog-poll cron lives on the :web leader; this Deployment is a
+# pure consumer of the :swift_registry_sync + :swift_registry_release
+# Oban queues, fetches from SwiftPackageIndex + GitHub, and writes
+# archives + metadata into the registry S3 bucket. The `registry`
+# component in this chart reads back from the same bucket.
+#
+# Hosted-only feature. `managedSecrets: true` provisions an ESO
+# ExternalSecret reading from the per-env `REGISTRY` 1Password item
+# (same item the read frontend uses). Without the 1P item, ESO syncs
+# empty values and the pod crashloops on missing S3 credentials.
+swiftRegistrySync:
+  enabled: true
+  replicaCount: 1
+  managedSecrets: true
+  externalSecrets:
+    refreshInterval: "1h"
+    storeRef:
+      kind: ClusterSecretStore
+      name: onepassword
+    item: REGISTRY
+    fields:
+      s3RegistryBucket: S3_REGISTRY_BUCKET
+      s3Host: S3_HOST
+      s3Region: S3_REGION
+      s3AccessKeyId: S3_ACCESS_KEY_ID
+      s3SecretAccessKey: S3_SECRET_ACCESS_KEY
+      githubToken: REGISTRY_GITHUB_TOKEN
+    databasePassword:
+      item: SWIFT_REGISTRY_SYNC_DATABASE_PASSWORD
+      field: password
   resources:
     requests:
       cpu: "250m"

@@ -1039,6 +1039,8 @@ version = "0.1.0"
 dependencies = [
  "base64",
  "bazel-remote-apis",
+ "h2",
+ "hyper",
  "libc",
  "libloading",
  "prost",

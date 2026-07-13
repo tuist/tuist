@@ -128,6 +128,18 @@ defmodule Tuist.Runners.ClaimsTest do
     end
   end
 
+  describe "workflow_job_ids_for_fleet/1" do
+    test "returns active workflow_job IDs for one fleet" do
+      account = account_fixture()
+
+      {:ok, _} = Claims.attempt(6101, account.id, "fleet-a", "pod-a-1")
+      {:ok, _} = Claims.attempt(6102, account.id, "fleet-a", "pod-a-2")
+      {:ok, _} = Claims.attempt(6103, account.id, "fleet-b", "pod-b-1")
+
+      assert "fleet-a" |> Claims.workflow_job_ids_for_fleet() |> Enum.sort() == [6101, 6102]
+    end
+  end
+
   describe "complete/1" do
     test "deletes the claim regardless of handle" do
       account = account_fixture()

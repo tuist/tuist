@@ -27,6 +27,35 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeBuildTargets do
         }
       },
       "required" => ["build_run_id"]
+    },
+    output_schema: %{
+      "type" => "object",
+      "properties" => %{
+        "targets" => %{
+          "type" => "array",
+          "items" => %{
+            "type" => "object",
+            "properties" => %{
+              "name" => %{"type" => "string"},
+              "project" => %{"type" => "string"},
+              "build_duration" => %{"type" => "integer"},
+              "compilation_duration" => %{"type" => "integer"},
+              "status" => %{"type" => "string", "enum" => ["success", "failure"]}
+            },
+            "required" => [
+              "name",
+              "project",
+              "build_duration",
+              "compilation_duration",
+              "status"
+            ],
+            "additionalProperties" => false
+          }
+        },
+        "pagination_metadata" => Tuist.MCP.Tool.pagination_metadata_schema()
+      },
+      "required" => ["targets", "pagination_metadata"],
+      "additionalProperties" => false
     }
 
   alias Tuist.Builds

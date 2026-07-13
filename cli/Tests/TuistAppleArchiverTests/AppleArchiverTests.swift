@@ -341,4 +341,47 @@ struct AppleArchiverTests {
         let metadataExists = try await fileSystem.exists(extractDir.appending(component: "run-metadata.json"))
         #expect(!metadataExists)
     }
+
+    @Test(.inTemporaryDirectory)
+    func compress_subdirectories_preservesRelativePaths_andPrunesSiblings() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let fileSystem = FileSystem()
+
+        let productsDir = temporaryDirectory.appending(component: "MyApp.xctestproducts")
+        let firstXCTest = productsDir.appending(components: ["Binaries", "0", "Debug", "FooTests.xctest"])
+        let secondXCTest = productsDir.appending(components: ["Binaries", "1", "Debug", "FooTests.xctest"])
+        try await fileSystem.makeDirectory(at: firstXCTest)
+        try await fileSystem.makeDirectory(at: secondXCTest)
+        try await fileSystem.writeText("first", at: firstXCTest.appending(component: "FooTests"))
+        try await fileSystem.writeText("second", at: secondXCTest.appending(component: "FooTests"))
+
+        let siblingXCTest = productsDir.appending(components: ["Binaries", "1", "Debug", "BarTests.xctest"])
+        try await fileSystem.makeDirectory(at: siblingXCTest)
+        try await fileSystem.writeText("bar", at: siblingXCTest.appending(component: "BarTests"))
+
+        let archivePath = temporaryDirectory.appending(component: "FooTests.aar")
+        try await subject.compress(
+            subdirectories: [firstXCTest, secondXCTest],
+            relativeTo: productsDir,
+            to: archivePath
+        )
+
+        let extractDir = temporaryDirectory.appending(component: "extracted")
+        try await fileSystem.makeDirectory(at: extractDir)
+        try await subject.decompress(archive: archivePath, to: extractDir)
+
+        let firstContent = try await fileSystem.readTextFile(
+            at: extractDir.appending(components: ["Binaries", "0", "Debug", "FooTests.xctest", "FooTests"])
+        )
+        let secondContent = try await fileSystem.readTextFile(
+            at: extractDir.appending(components: ["Binaries", "1", "Debug", "FooTests.xctest", "FooTests"])
+        )
+        #expect(firstContent == "first")
+        #expect(secondContent == "second")
+
+        let siblingExists = try await fileSystem.exists(
+            extractDir.appending(components: ["Binaries", "1", "Debug", "BarTests.xctest"])
+        )
+        #expect(!siblingExists)
+    }
 }

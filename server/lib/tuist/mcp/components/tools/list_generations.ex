@@ -36,6 +36,55 @@ defmodule Tuist.MCP.Components.Tools.ListGenerations do
         }
       },
       "required" => ["account_handle", "project_handle"]
+    },
+    output_schema: %{
+      "type" => "object",
+      "properties" => %{
+        "generations" => %{
+          "type" => "array",
+          "items" => %{
+            "type" => "object",
+            "properties" => %{
+              "id" => %{"type" => "string"},
+              "duration" => %{"type" => "integer"},
+              "status" => %{"type" => "string"},
+              "tuist_version" => %{"type" => "string"},
+              "swift_version" => %{"type" => "string"},
+              "macos_version" => %{"type" => "string"},
+              "is_ci" => %{"type" => "boolean"},
+              "git_branch" => %{"type" => ["string", "null"]},
+              "git_commit_sha" => %{"type" => ["string", "null"]},
+              "git_ref" => %{"type" => ["string", "null"]},
+              "command_arguments" => %{"type" => ["string", "null"]},
+              "cacheable_targets" => %{"type" => "array", "items" => %{"type" => "string"}},
+              "local_cache_target_hits" => %{"type" => "array", "items" => %{"type" => "string"}},
+              "remote_cache_target_hits" => %{"type" => "array", "items" => %{"type" => "string"}},
+              "ran_at" => %{"type" => "string"}
+            },
+            "required" => [
+              "id",
+              "duration",
+              "status",
+              "tuist_version",
+              "swift_version",
+              "macos_version",
+              "is_ci",
+              "git_branch",
+              "git_commit_sha",
+              "git_ref",
+              "command_arguments",
+              "cacheable_targets",
+              "local_cache_target_hits",
+              "remote_cache_target_hits",
+              "ran_at"
+            ],
+            "additionalProperties" => false
+          }
+        },
+        "pagination_metadata" => Tuist.MCP.Tool.pagination_metadata_schema()
+      },
+      "required" => ["generations", "pagination_metadata"],
+      "additionalProperties" => false
     }
 
   alias Tuist.CommandEvents
