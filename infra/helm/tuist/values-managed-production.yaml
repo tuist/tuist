@@ -526,6 +526,13 @@ ovhFleets:
 # xcresult capacity offline.
 macosFleet:
   replicas: 2
+  # Per-account cache volumes. The quota is an APFS ceiling (shares the
+  # container's free space, not a reservation) fenced by admission +
+  # watermark eviction, so space pressure degrades a job to the cold
+  # path rather than risking ENOSPC. 120 GiB holds ~6 masters at the
+  # 20 GiB default cap, so a production host keeps several accounts hot.
+  runnerCacheVolume:
+    gib: 120
   # Production tailnet — alloy-metrics scrapes PromEx (xcresult VM)
   # + node_exporter (host) over the tailnet. The pre-auth key lives
   # in the production 1Password vault under TAILSCALE/auth-key.
