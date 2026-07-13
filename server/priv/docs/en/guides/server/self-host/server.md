@@ -195,9 +195,6 @@ We facilitate authentication through [identity providers (IdP)](https://en.wikip
 
 Email and password sign-in and self-serve registration are built in and enabled by default. On an instance where you want to require an identity provider (for example, when enforcing SSO), you can turn them off entirely. This removes the email/password form, the sign-up link, and the password-reset flow from the login experience, and closes every matching server-side endpoint, including the email/password endpoint the CLI uses (`tuist auth`).
 
-> [!WARNING]
-> There is no lockout guard. If you disable email and password sign-in while no other provider (GitHub, Google, Okta, Apple, or SSO) is configured and enabled, the instance will have no available login method.
-
 | Environment variable | Description | Required | Default | Example |
 | --- | --- | --- | --- | --- |
 | `TUIST_EMAIL_AUTH_ENABLED` | Whether email and password can be used to sign in and register. Set to `0` to remove the email/password form, the sign-up link, and the password-reset flow from the login page and close the matching server-side endpoints | No | `1` | `0` |
