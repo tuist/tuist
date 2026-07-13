@@ -83,8 +83,8 @@ if [ -z "${SA_TOKEN}" ]; then
   exit 1
 fi
 
-# Per-account cache volume (Approach B). tart-kubelet attaches an
-# EMPTY per-VM branch directory as a writable virtio-fs share at boot; after
+# Per-account cache volume, materialized after dispatch. tart-kubelet attaches
+# an EMPTY per-VM branch directory as a writable virtio-fs share at boot; after
 # dispatch binds this VM to an account, the host clonefiles that account's cache
 # master into the branch and writes a cache-ready marker. The guest points the
 # Tuist cache root at the share and waits for cache-ready before running so it
