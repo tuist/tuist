@@ -114,7 +114,45 @@ public struct Project: Codable, Equatable, Sendable {
         )
     }
 
+    /// Creates a project with package declarations that can select Swift package traits.
+    ///
+    /// Package traits require Xcode 26.4 or later.
+    @_disfavoredOverload
     public init(
+        name: String,
+        organizationName: String? = nil,
+        classPrefix: String? = nil,
+        options: Options = .options(),
+        packages: [PackageConfiguration],
+        settings: Settings? = nil,
+        targets: [Target] = [],
+        schemes: [Scheme] = [],
+        fileHeaderTemplate: FileHeaderTemplate? = nil,
+        additionalFiles: [FileElement] = [],
+        resourceSynthesizers: [ResourceSynthesizer] = .default
+    ) {
+        let packageTraits = packages.compactMap { configuration in
+            configuration.traits.map {
+                PackageTraitSelection(package: configuration.package, traits: $0)
+            }
+        }
+        self.init(
+            name: name,
+            organizationName: organizationName,
+            classPrefix: classPrefix,
+            options: options,
+            packages: packages.map(\.package),
+            packageTraits: packageTraits.isEmpty ? nil : packageTraits,
+            settings: settings,
+            targets: targets,
+            schemes: schemes,
+            fileHeaderTemplate: fileHeaderTemplate,
+            additionalFiles: additionalFiles,
+            resourceSynthesizers: resourceSynthesizers
+        )
+    }
+
+    private init(
         name: String,
         organizationName: String? = nil,
         classPrefix: String? = nil,

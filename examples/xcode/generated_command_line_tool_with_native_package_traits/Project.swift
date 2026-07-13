@@ -1,14 +1,9 @@
 import ProjectDescription
 
-let featurePackage = Package.package(path: "Package")
-
 let project = Project(
     name: "App",
     packages: [
-        featurePackage,
-    ],
-    packageTraits: [
-        .init(package: featurePackage, traits: ["NativeIntegration"]),
+        .package(path: "Package", traits: ["NativeIntegration"]),
     ],
     targets: [
         .target(

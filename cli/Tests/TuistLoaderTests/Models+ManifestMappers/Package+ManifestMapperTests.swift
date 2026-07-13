@@ -9,36 +9,50 @@ import XcodeGraph
 @testable import TuistLoader
 
 struct PackageManifestMapperTests {
-    @Test func projectWithPackageTraitsRoundTripsThroughCodable() throws {
-        let localPackage = ProjectDescription.Package.package(path: "Package")
-        let remotePackage = ProjectDescription.Package.package(url: "https://example.com/package.git", from: "1.0.0")
+    @Test func existingPackageDeclarationsRemainSourceCompatible() {
+        let package = ProjectDescription.Package.package(path: "Package")
+        let emptyProject = ProjectDescription.Project(name: "Empty", packages: [])
         let project = ProjectDescription.Project(
             name: "Project",
-            packages: [localPackage, remotePackage],
-            packageTraits: [
-                .init(package: localPackage, traits: ["FeatureA"]),
-                .init(package: remotePackage, traits: []),
+            packages: [package]
+        )
+
+        let decodedPackagePath = switch project.packages[0] {
+        case let .local(path): path
+        case .remote, .registry: Path("Unexpected")
+        }
+
+        #expect(decodedPackagePath == Path("Package"))
+        #expect(emptyProject.packages.isEmpty)
+        #expect(project.packageTraits == nil)
+    }
+
+    @Test func projectWithPackageTraitsRoundTripsThroughCodable() throws {
+        let project = ProjectDescription.Project(
+            name: "Project",
+            packages: [
+                .package(path: "Package", traits: ["FeatureA"]),
+                .package(url: "https://example.com/package.git", from: "1.0.0", traits: []),
+                .package(id: "example.unconfigured", from: "1.0.0"),
             ]
         )
 
         let encoded = try JSONEncoder().encode(project)
         let decoded = try JSONDecoder().decode(ProjectDescription.Project.self, from: encoded)
 
+        #expect(project.packages.count == 3)
+        #expect(project.packageTraits?.count == 2)
         #expect(decoded == project)
     }
 
     @Test func mapsProjectPackageTraitsToXcodeGraph() async throws {
         let generatorPaths = GeneratorPaths(manifestDirectory: "/Project", rootDirectory: "/Project")
-        let localPackage = ProjectDescription.Package.package(path: "Package")
-        let remotePackage = ProjectDescription.Package.package(url: "https://example.com/package.git", from: "1.0.0")
-        let registryPackage = ProjectDescription.Package.package(id: "example.package", exact: "1.0.0")
         let project = ProjectDescription.Project(
             name: "Project",
-            packages: [localPackage, remotePackage, registryPackage],
-            packageTraits: [
-                .init(package: localPackage, traits: ["FeatureA"]),
-                .init(package: remotePackage, traits: []),
-                .init(package: registryPackage, traits: ["FeatureB"]),
+            packages: [
+                .package(path: "Package", traits: ["FeatureA"]),
+                .package(url: "https://example.com/package.git", from: "1.0.0", traits: []),
+                .package(id: "example.package", exact: "1.0.0", traits: ["FeatureB"]),
             ]
         )
         let mappedProject = try await XcodeGraph.Project.from(
