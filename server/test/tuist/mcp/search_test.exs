@@ -81,6 +81,17 @@ defmodule Tuist.MCP.SearchTest do
     assert {:ok, %{"results" => []}} = Search.search(%{"query" => "cache", "source" => "forum"})
   end
 
+  test "fetches up to max_results per collection so a single source can reach the cap" do
+    expect(Req, :post, fn _url, opts ->
+      [search] = opts[:json]["searches"]
+      assert search["collection"] == "github-issues"
+      assert search["per_page"] == 20
+      {:ok, %Req.Response{status: 200, body: %{"results" => [%{"hits" => []}]}}}
+    end)
+
+    assert {:ok, _} = Search.search(%{"query" => "cache", "source" => "issues", "max_results" => 20})
+  end
+
   test "maps a non-200 response to an error" do
     stub(Req, :post, fn _url, _opts -> {:ok, %Req.Response{status: 503, body: ""}} end)
 

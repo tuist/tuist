@@ -97,7 +97,10 @@ defmodule Tuist.MCP.Search do
       "q" => query,
       "query_by" => collection.query_by,
       "query_by_weights" => collection.query_by_weights,
-      "per_page" => min(max_results, 10)
+      # Fetch up to max_results per collection (already clamped to the advertised
+      # cap) so a single-source search can reach that cap, and multi-source
+      # searches have a wider candidate pool to rank across.
+      "per_page" => max_results
     }
     |> maybe_put("group_by", collection.group_by)
     |> maybe_group_limit(collection.group_by)
