@@ -33,13 +33,13 @@ use crate::{
     constants::{
         CAS_CAPACITY_DEFAULT_DISK_PERCENT, CAS_CAPACITY_MAX_DISK_PERCENT, DESIRED_CURRENT_SEGMENTS,
         DESIRED_NEW_SEGMENTS, DESIRED_OLD_SEGMENTS, MAX_DESIRED_SEGMENTS, MAX_MODULE_TOTAL_BYTES,
-        MAX_SEGMENT_BYTES, ROCKSDB_BYTES_PER_SYNC, ROCKSDB_CF_KEY_VALUE, ROCKSDB_CF_MANIFESTS,
-        ROCKSDB_CF_MULTIPART_UPLOADS, ROCKSDB_CF_NAMESPACE_ARTIFACTS,
-        ROCKSDB_CF_NAMESPACE_TOMBSTONES, ROCKSDB_CF_OUTBOX, ROCKSDB_CF_SEGMENT_ARTIFACTS,
-        ROCKSDB_CF_SEGMENT_STATE, ROCKSDB_CF_USAGE_OUTBOX, ROCKSDB_HARD_PENDING_COMPACTION_BYTES,
-        ROCKSDB_LEVEL0_SLOWDOWN_TRIGGER, ROCKSDB_LEVEL0_STOP_TRIGGER,
-        ROCKSDB_SOFT_PENDING_COMPACTION_BYTES, ROCKSDB_WAL_BYTES_PER_SYNC,
-        SEGMENT_FREE_SPACE_MARGIN,
+        MAX_SEGMENT_BYTES, REAPI_ACTION_CACHE_REFRESH_DAMPING_MS, ROCKSDB_BYTES_PER_SYNC,
+        ROCKSDB_CF_KEY_VALUE, ROCKSDB_CF_MANIFESTS, ROCKSDB_CF_MULTIPART_UPLOADS,
+        ROCKSDB_CF_NAMESPACE_ARTIFACTS, ROCKSDB_CF_NAMESPACE_TOMBSTONES, ROCKSDB_CF_OUTBOX,
+        ROCKSDB_CF_SEGMENT_ARTIFACTS, ROCKSDB_CF_SEGMENT_STATE, ROCKSDB_CF_USAGE_OUTBOX,
+        ROCKSDB_HARD_PENDING_COMPACTION_BYTES, ROCKSDB_LEVEL0_SLOWDOWN_TRIGGER,
+        ROCKSDB_LEVEL0_STOP_TRIGGER, ROCKSDB_SOFT_PENDING_COMPACTION_BYTES,
+        ROCKSDB_WAL_BYTES_PER_SYNC, SEGMENT_FREE_SPACE_MARGIN,
     },
     failpoints::{FailpointName, FailpointSet},
     io::{IoController, PersistentFile},
@@ -1856,6 +1856,44 @@ impl Store {
                 "artifact write for {producer:?}/{namespace_id}/{key} was rejected by a newer tombstone"
             )),
         }
+    }
+
+    /// Persist an inline artifact, treating a byte-identical re-publish of an
+    /// entry whose stored version is younger than the refresh damping window
+    /// as already applied (returns the existing manifest, writes and
+    /// replicates nothing). Clients refresh action-cache entries back into
+    /// the snapshot's ranked wire view by re-publishing their unchanged
+    /// manifests; without damping, every cold machine in a fleet would bump
+    /// the same entries' versions (and replicate the rewrites) on the same
+    /// day.
+    pub async fn persist_inline_artifact_from_bytes_damped_and_enqueue(
+        &self,
+        producer: ArtifactProducer,
+        namespace_id: &str,
+        key: &str,
+        content_type: &str,
+        bytes: &[u8],
+        replication_targets: &[String],
+    ) -> Result<(ArtifactManifest, bool), String> {
+        let artifact_id = artifact_storage_id(producer, &self.tenant_id, namespace_id, key);
+        if let Some(existing) = self.manifest_from_db(&artifact_id)?
+            && existing.inline
+            && manifest_version_ms(&existing).saturating_add(REAPI_ACTION_CACHE_REFRESH_DAMPING_MS)
+                > now_ms()
+            && self.inline_bytes(&artifact_id)?.as_deref() == Some(bytes)
+        {
+            return Ok((existing, false));
+        }
+        self.persist_inline_artifact_from_bytes_and_enqueue(
+            producer,
+            namespace_id,
+            key,
+            content_type,
+            bytes,
+            replication_targets,
+        )
+        .await
+        .map(|manifest| (manifest, true))
     }
 
     pub async fn persist_inline_artifact_from_bytes_and_enqueue(
@@ -3924,6 +3962,70 @@ mod tests {
             "segment store held {segments_bytes} bytes, expected ~{artifact_len} (one copy); \
              concurrent same-key applies amplified on-disk data"
         );
+    }
+
+    #[tokio::test]
+    async fn damped_persist_skips_identical_republish_of_a_fresh_entry() {
+        let (_temp_dir, _config, store) = temp_store();
+        let day = 24 * 60 * 60 * 1000;
+
+        // Seed the entry with an aged version (a replicated apply preserves
+        // the origin's version), so the first damped refresh applies.
+        store
+            .apply_replicated_inline_artifact_from_bytes(
+                ArtifactProducer::Reapi,
+                "ios",
+                "action_cache/aa/10",
+                "application/x-protobuf",
+                b"graph",
+                now_ms() - 2 * day,
+            )
+            .await
+            .expect("seed should persist");
+
+        let (refreshed, applied) = store
+            .persist_inline_artifact_from_bytes_damped_and_enqueue(
+                ArtifactProducer::Reapi,
+                "ios",
+                "action_cache/aa/10",
+                "application/x-protobuf",
+                b"graph",
+                &[],
+            )
+            .await
+            .expect("aged refresh should persist");
+        assert!(applied, "an aged identical re-publish applies");
+
+        let (damped, applied) = store
+            .persist_inline_artifact_from_bytes_damped_and_enqueue(
+                ArtifactProducer::Reapi,
+                "ios",
+                "action_cache/aa/10",
+                "application/x-protobuf",
+                b"graph",
+                &[],
+            )
+            .await
+            .expect("damped refresh should succeed");
+        assert!(
+            !applied,
+            "an identical re-publish inside the window is damped"
+        );
+        assert_eq!(damped.version_ms, refreshed.version_ms);
+
+        let (changed, applied) = store
+            .persist_inline_artifact_from_bytes_damped_and_enqueue(
+                ArtifactProducer::Reapi,
+                "ios",
+                "action_cache/aa/10",
+                "application/x-protobuf",
+                b"graph-v2",
+                &[],
+            )
+            .await
+            .expect("changed publish should persist");
+        assert!(applied, "changed content always applies");
+        assert!(changed.version_ms >= refreshed.version_ms);
     }
 
     #[tokio::test]
