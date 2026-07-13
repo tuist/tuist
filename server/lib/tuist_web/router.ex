@@ -744,6 +744,7 @@ defmodule TuistWeb.Router do
     pipe_through [:non_authenticated_api]
 
     post "/runners/dispatch", RunnersController, :dispatch
+    post "/runners/volume-head", RunnersController, :report_volume_head
     get "/runners/desired_replicas", RunnersController, :desired_replicas
     post "/runners/pods/stopped", RunnerPodsController, :stopped
     post "/runners/pods/:pod_name/metrics", RunnerJobMetricsController, :create

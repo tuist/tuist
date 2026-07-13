@@ -61,6 +61,8 @@ defmodule Tuist.Runners do
   alias Tuist.Runners.RunnerSessions
   alias Tuist.Runners.Telemetry
   alias Tuist.Runners.VolumeAffinities
+  alias Tuist.Runners.VolumeHeads
+  alias Tuist.Storage
   alias Tuist.VCS
 
   require Logger
@@ -112,6 +114,58 @@ defmodule Tuist.Runners do
       :runner_volume_affinity_age_tolerance_seconds,
       @volume_affinity_age_tolerance_seconds
     )
+  end
+
+  # Presigned-URL lifetime for the cache-volume master archive. Comfortably
+  # covers a job: the download is used at materialize, the upload at job end.
+  @volume_master_url_ttl_seconds 6 * 60 * 60
+
+  # The account's cache-volume HEAD for the dispatch response: the current
+  # generation + inventory digest, plus presigned GET/PUT URLs for the master
+  # archive so the runner can converge a stale local master and publish a fresh
+  # one. Best-effort — any failure returns nil and the runner stays on its
+  # local master (the status quo).
+  defp volume_head_payload(account) do
+    key = volume_master_object_key(account.id)
+    head = VolumeHeads.get_head(account.id)
+
+    %{
+      generation: (head && head.generation) || 0,
+      digest: head && head.tree_digest,
+      download_url: Storage.generate_download_url(key, account, expires_in: @volume_master_url_ttl_seconds),
+      upload_url: Storage.generate_upload_url(key, account, expires_in: @volume_master_url_ttl_seconds)
+    }
+  rescue
+    _ -> nil
+  end
+
+  @doc """
+  Records a runner's promote of `account_id`'s cache volume: bumps the account's
+  HEAD to `tree_digest` published from `node_name`. Called by the runner after a
+  successful, cache-changing job whose branch it uploaded to the master archive.
+  """
+  def report_volume_head(account_id, node_name, tree_digest) do
+    VolumeHeads.bump_head(account_id, node_name, tree_digest)
+  end
+
+  @doc """
+  Resolves the account a runner Pod ran, from the `tuist.dev/runner-account`
+  label the server stamped on it at claim. Authoritative — the runner can't
+  change it — so a volume-head report is bound to the account it actually ran,
+  not to whatever the request body claims.
+  """
+  def account_id_for_sa(namespace, sa_name) do
+    with {:ok, pod} <- K8sClient.get_pod(namespace, pod_name_from_sa(sa_name)),
+         label when is_binary(label) <- get_in(pod, ["metadata", "labels", @account_label]),
+         {account_id, ""} <- Integer.parse(label) do
+      {:ok, account_id}
+    else
+      _ -> {:error, :account_unresolved}
+    end
+  end
+
+  defp volume_master_object_key(account_id) do
+    "runner-volume-masters/#{account_id}/#{VolumeHeads.reserved_tuist_cache()}.zip"
   end
 
   @doc """
@@ -348,7 +402,13 @@ defmodule Tuist.Runners do
              # Per-account cache-signing grant. nil when grant
              # minting is unconfigured; the runner then falls back to the
              # MAC default and only the binaries cache re-pulls.
-             cache_signing_grant: CacheGrant.mint(candidate.account_id)
+             cache_signing_grant: CacheGrant.mint(candidate.account_id),
+             # Current cache-volume HEAD (generation + inventory digest) plus
+             # presigned URLs for the account's master archive, so a host whose
+             # on-disk master is behind can converge it before materializing.
+             # nil/best-effort: a failure just leaves the host on its local
+             # master (status quo).
+             volume_head: volume_head_payload(account)
            }}
         else
           {:error, reason} = err ->

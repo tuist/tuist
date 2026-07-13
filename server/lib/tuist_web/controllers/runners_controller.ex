@@ -44,7 +44,8 @@ defmodule TuistWeb.RunnersController do
           workflow_job_id,
           on_cluster_network,
           fleet_platform,
-          Map.get(dispatched, :cache_signing_grant)
+          Map.get(dispatched, :cache_signing_grant),
+          Map.get(dispatched, :volume_head)
         )
       )
     else
@@ -90,6 +91,29 @@ defmodule TuistWeb.RunnersController do
       {:error, reason} ->
         Logger.error("runners: dispatch failed", reason: inspect(reason))
         conn |> put_status(:internal_server_error) |> json(%{error: "dispatch failed"})
+    end
+  end
+
+  # A runner reports the cache-volume it just promoted: it uploaded its branch
+  # to the account's master archive (presigned URL from dispatch) and now bumps
+  # the account's HEAD to that inventory digest. The account is resolved from
+  # the Pod's server-stamped runner-account label, not the body, so a runner
+  # can only advance the HEAD of the account it actually ran.
+  def report_volume_head(conn, params) do
+    digest = Map.get(params, "tree_digest", "")
+    node = Map.get(params, "node_name", "")
+
+    with {:ok, token} <- bearer_token(conn),
+         {:ok, %{namespace: ns, name: sa_name}} <- K8sClient.create_token_review(token),
+         {:ok, account_id} <- Runners.account_id_for_sa(ns, sa_name) do
+      Runners.report_volume_head(account_id, node, digest)
+      send_resp(conn, :no_content, "")
+    else
+      {:error, :missing_bearer} ->
+        conn |> put_status(:unauthorized) |> json(%{error: "missing bearer token"})
+
+      _ ->
+        conn |> put_status(:unauthorized) |> json(%{error: "unauthorized"})
     end
   end
 
@@ -165,7 +189,15 @@ defmodule TuistWeb.RunnersController do
   #     `runner_cache_endpoint_url/2` matches against the private
   #     region's `runner_platforms`, so a node co-located with one
   #     fleet never serves a fleet on the wrong side of a WAN.
-  defp dispatch_response(jit, account, workflow_job_id, fleet_on_cluster_network, fleet_platform, cache_signing_grant) do
+  defp dispatch_response(
+         jit,
+         account,
+         workflow_job_id,
+         fleet_on_cluster_network,
+         fleet_platform,
+         cache_signing_grant,
+         volume_head
+       ) do
     base = %{
       encoded_jit_config: jit,
       owner: account.name,
@@ -175,6 +207,12 @@ defmodule TuistWeb.RunnersController do
     base =
       case cache_signing_grant do
         grant when is_binary(grant) and grant != "" -> Map.put(base, :cache_signing_grant, grant)
+        _ -> base
+      end
+
+    base =
+      case volume_head do
+        %{} = head -> Map.put(base, :volume_head, head)
         _ -> base
       end
 
