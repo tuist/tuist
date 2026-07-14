@@ -1293,6 +1293,23 @@ defmodule Tuist.Environment do
     get([:typesense, :host], secrets(), default_value: "https://search.tuist.dev")
   end
 
+  def codebase_search_url(environment \\ System.get_env()) when is_map(environment) do
+    case Map.get(environment, "TUIST_CODEBASE_SEARCH_URL") do
+      value when is_binary(value) ->
+        case value |> String.trim() |> String.trim_trailing("/") do
+          "" -> nil
+          url -> url
+        end
+
+      _ ->
+        nil
+    end
+  end
+
+  def codebase_search_enabled?(environment \\ System.get_env()) when is_map(environment) do
+    codebase_search_url(environment) != nil
+  end
+
   @doc """
   Kubernetes namespace customer runner Pods live in. The
   webhook handler writes RunnerAssignment CRs into this

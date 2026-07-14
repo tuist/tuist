@@ -128,6 +128,18 @@ This read-only tool searches Tuist's documentation, API reference, GitHub releas
 |------|-------------|---------------------|
 | `search_tuist` | Search Tuist's documentation, API reference, GitHub releases, community forum, and GitHub issues. Optionally restrict to one `source` (`docs`, `api_reference`, `releases`, `forum`, `issues`). | `query` |
 
+#### Source code research
+
+These read-only tools inspect the exact public Tuist source revision deployed alongside the hosted server. They are only available at `https://tuist.dev/mcp`.
+
+Every operation has fixed limits for concurrency, duration, traversal, bytes read, and response size. Search and listing results include `truncated` and `truncation_reason` fields. When a result is truncated, narrow the path, file pattern, or search term instead of treating the result as exhaustive.
+
+| Tool | Description | Required parameters |
+|------|-------------|---------------------|
+| `search_tuist_code` | Search source files with literal text or a bounded regular expression. Results include surrounding lines, revision-pinned source links, and scan statistics. | `pattern` |
+| `list_tuist_files` | Discover files and directories under a repository-relative path with bounded depth and result count. | None |
+| `read_tuist_file` | Read a bounded line range from a text file. Truncated responses provide `next_start_line` for continuation. | `path` |
+
 #### Projects
 
 | Tool | Description | Required parameters |
@@ -210,8 +222,9 @@ This read-only tool searches Tuist's documentation, API reference, GitHub releas
 | `compare_cache_runs` | Guides you through comparing two cache runs to identify cache effectiveness changes and target-level regressions. |
 | `integrate_gradle_project` | Guides you through integrating Tuist into an existing Gradle project. Supports remote build cache, build insights, test insights, flaky test detection and quarantine, and test sharding. |
 | `integrate_xcode_project` | Guides you through integrating Tuist into an existing Xcode project. Supports Xcode cache, build insights, test insights, and test sharding. |
+| `research_tuist` | Answers a Tuist question through documentation and focused source searches, call sites, and tests. It requires a `question` and cites revision-pinned evidence. |
 
-All prompts accept `account_handle` and `project_handle` to scope the investigation to a specific project. The comparison prompts also accept `base` and `head` arguments to specify the two items to compare (by ID, dashboard URL, or branch name). `integrate_gradle_project` also accepts `features`, a comma-separated list of Gradle integrations to apply: `remote_cache`, `build_insights`, `test_insights`, `flaky_tests`, and `test_sharding`. `integrate_xcode_project` accepts `features` with `xcode_cache`, `build_insights`, `test_insights`, and `test_sharding`.
+Project-data prompts accept `account_handle` and `project_handle` to scope the investigation to a specific project. The comparison prompts also accept `base` and `head` arguments to specify the two items to compare (by ID, dashboard URL, or branch name). `research_tuist` accepts a `question` instead of project parameters. `integrate_gradle_project` also accepts `features`, a comma-separated list of Gradle integrations to apply: `remote_cache`, `build_insights`, `test_insights`, `flaky_tests`, and `test_sharding`. `integrate_xcode_project` accepts `features` with `xcode_cache`, `build_insights`, `test_insights`, and `test_sharding`.
 
 #### Gradle integration prompt features
 

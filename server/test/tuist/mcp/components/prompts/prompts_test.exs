@@ -11,6 +11,7 @@ defmodule Tuist.MCP.Components.Prompts.PromptsTest do
   alias Tuist.MCP.Components.Prompts.FixFlakyTest
   alias Tuist.MCP.Components.Prompts.IntegrateGradleProject
   alias Tuist.MCP.Components.Prompts.IntegrateXcodeProject
+  alias Tuist.MCP.Components.Prompts.ResearchTuist
   alias Tuist.Projects
 
   describe "fix_flaky_test" do
@@ -220,6 +221,25 @@ defmodule Tuist.MCP.Components.Prompts.PromptsTest do
       assert text =~ "$HOME/.local/bin/mise x -C $SRCROOT -- tuist inspect test"
       assert text =~ "tuist xcodebuild build-for-testing"
       assert text =~ "tuist test --build-only --shard-total 5"
+    end
+  end
+
+  describe "research_tuist" do
+    test "explains how to combine documentation and bounded source tools" do
+      result =
+        ResearchTuist.template(nil, %{
+          "question" => "Where is cache upload policy selected?"
+        })
+
+      assert %{messages: [message]} = result
+      text = message.content.text
+      assert text =~ "Where is cache upload policy selected?"
+      assert text =~ "search_tuist"
+      assert text =~ "search_tuist_code"
+      assert text =~ "list_tuist_files"
+      assert text =~ "read_tuist_file"
+      assert text =~ "truncated=true"
+      assert text =~ "Never describe a truncated result as exhaustive"
     end
   end
 end

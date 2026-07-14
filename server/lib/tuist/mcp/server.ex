@@ -11,6 +11,12 @@ defmodule Tuist.MCP.Server do
     Tools.SearchTuist
   ]
 
+  @codebase_tools [
+    Tools.SearchTuistCode,
+    Tools.ListTuistFiles,
+    Tools.ReadTuistFile
+  ]
+
   @tools [
     Tools.CreateOrganization,
     Tools.CreateProject,
@@ -61,16 +67,28 @@ defmodule Tuist.MCP.Server do
     Prompts.IntegrateXcodeProject
   ]
 
+  @codebase_prompts [
+    Prompts.ResearchTuist
+  ]
+
   def server do
     EMCP.Server.new(
       name: "tuist",
-      version: "1.11.0",
+      version: "1.12.0",
       tools: tools(),
-      prompts: @prompts
+      prompts: prompts()
     )
   end
 
   defp tools do
-    if Environment.tuist_hosted?(), do: @hosted_tools ++ @tools, else: @tools
+    hosted_tools = if Environment.tuist_hosted?(), do: @hosted_tools, else: []
+    codebase_tools = if codebase_search_enabled?(), do: @codebase_tools, else: []
+    hosted_tools ++ codebase_tools ++ @tools
+  end
+
+  defp prompts, do: if(codebase_search_enabled?(), do: @codebase_prompts ++ @prompts, else: @prompts)
+
+  defp codebase_search_enabled? do
+    Environment.tuist_hosted?() and Environment.codebase_search_enabled?()
   end
 end
