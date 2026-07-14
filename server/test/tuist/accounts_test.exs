@@ -3105,8 +3105,9 @@ defmodule Tuist.AccountsTest do
         })
 
       # Then
-      %{id: token_id} = Repo.one(AccountToken)
+      %{id: token_id, token_last_four: token_last_four} = Repo.one(AccountToken)
       assert "tuist_#{token_id}_generated-hash" == got_token_value
+      assert token_last_four == "hash"
     end
 
     test "creates account token with all_projects: false by default" do

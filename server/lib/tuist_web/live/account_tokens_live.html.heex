@@ -1,0 +1,263 @@
+<div id="account-tokens-settings">
+  <h1 data-part="title">
+    {dgettext("dashboard_account", "Settings")}
+  </h1>
+  <TuistWeb.AppLayoutComponents.settings_tab_menu
+    selected_account={@selected_account}
+    current_path={@current_path}
+    current_user={@current_user}
+  />
+
+  <.alert
+    :if={@flash_message}
+    status={elem(@flash_message, 0)}
+    type="secondary"
+    size="small"
+    title={elem(@flash_message, 1)}
+  />
+
+  <.card_section data-part="tokens-card">
+    <div data-part="header">
+      <span data-part="title">
+        {dgettext("dashboard_account", "Account tokens")}
+      </span>
+      <span data-part="subtitle">
+        {dgettext(
+          "dashboard_account",
+          "Create scoped tokens for CI, automation, and more."
+        )}
+      </span>
+    </div>
+    <div data-part="content">
+      <div data-part="section" data-section="create">
+        <div data-part="field">
+          <.modal
+            id="create-account-token-modal"
+            title={dgettext("dashboard_account", "Generate account token")}
+            description={
+              dgettext(
+                "dashboard_account",
+                "Choose the scopes, optional expiration, and optional project restrictions for this token."
+              )
+            }
+            on_dismiss="dismiss_account_token"
+            on_open_change="account_token_modal_open_change"
+          >
+            <:trigger :let={attrs}>
+              <.button
+                label={dgettext("dashboard_account", "Generate token")}
+                variant="secondary"
+                size="medium"
+                disabled={not @can_create_tokens?}
+                {attrs}
+              />
+            </:trigger>
+
+            <div data-part="modal-content-wrapper">
+              <.line_divider />
+
+              <%= if @new_account_token_plaintext do %>
+                <div data-part="modal-body">
+                  <div data-part="modal-message">
+                    <span data-part="title">
+                      {dgettext("dashboard_account", "Token created")}
+                    </span>
+                    <span data-part="subtitle">
+                      {dgettext(
+                        "dashboard_account",
+                        "Copy it now. It will not be shown again after you close this dialog."
+                      )}
+                    </span>
+                  </div>
+                  <div data-part="read-only-value">
+                    <code id="new-account-token">{@new_account_token_plaintext}</code>
+                    <.button
+                      id="copy-account-token-button"
+                      variant="secondary"
+                      size="small"
+                      icon_only
+                      type="button"
+                      phx-hook="Clipboard"
+                      data-clipboard-value={@new_account_token_plaintext}
+                      aria-label={dgettext("dashboard_account", "Copy token")}
+                    >
+                      <.copy />
+                    </.button>
+                  </div>
+                </div>
+              <% else %>
+                <.form
+                  for={@new_account_token_form}
+                  id="create-account-token-form"
+                  phx-submit="create_account_token"
+                >
+                  <div data-part="modal-body">
+                    <.text_input
+                      field={@new_account_token_form[:name]}
+                      type="basic"
+                      label={dgettext("dashboard_account", "Token name")}
+                      sublabel={
+                        dgettext(
+                          "dashboard_account",
+                          "Use a stable name so you can revoke or rotate this token later."
+                        )
+                      }
+                      placeholder="ci-main"
+                      required
+                    />
+                    <.text_input
+                      field={@new_account_token_form[:expires]}
+                      type="basic"
+                      label={dgettext("dashboard_account", "Expiration")}
+                      sublabel={
+                        dgettext(
+                          "dashboard_account",
+                          "Optional. Use 30d, 6m, or 1y. Leave empty for a token that never expires."
+                        )
+                      }
+                      placeholder="30d"
+                    />
+                    <.text_area
+                      field={@new_account_token_form[:project_handles]}
+                      label={dgettext("dashboard_account", "Project handles")}
+                      sublabel={
+                        dgettext(
+                          "dashboard_account",
+                          "Optional. Separate project handles with commas, spaces, or new lines. Leave empty for all projects in this account."
+                        )
+                      }
+                      placeholder="ios-app\nmacos-app"
+                      rows={3}
+                      max_length={500}
+                      resize="vertical"
+                    />
+                    <div data-part="scope-list">
+                      <span data-part="label">
+                        {dgettext("dashboard_account", "Scopes")}
+                      </span>
+                      <span data-part="sublabel">
+                        {dgettext(
+                          "dashboard_account",
+                          "Select one or more scopes. Presets expand to several fine-grained permissions when the token is used."
+                        )}
+                      </span>
+                      <div :for={group <- @scope_options} data-part="scope-group">
+                        <h3 data-part="scope-group-label">{group.label}</h3>
+                        <div data-part="scope-checkbox-list">
+                          <label
+                            :for={scope_option <- group.scopes}
+                            id={"account-token-scope-#{String.replace(scope_option.scope, ":", "-")}"}
+                            data-part="scope-checkbox"
+                            phx-click="toggle_token_scope"
+                            phx-value-scope={scope_option.scope}
+                          >
+                            <.checkbox_control checked={scope_option.scope in @selected_scopes} />
+                            <div data-part="body">
+                              <span data-part="label">{scope_option.label}</span>
+                              <code data-part="scope">{scope_option.scope}</code>
+                              <span data-part="description">{scope_option.description}</span>
+                            </div>
+                          </label>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </.form>
+              <% end %>
+
+              <.line_divider />
+            </div>
+
+            <:footer>
+              <.modal_footer>
+                <:action>
+                  <%= if @new_account_token_plaintext do %>
+                    <.button
+                      label={dgettext("dashboard_account", "Done")}
+                      variant="primary"
+                      phx-click="dismiss_account_token"
+                    />
+                  <% else %>
+                    <.button
+                      label={dgettext("dashboard_account", "Cancel")}
+                      variant="secondary"
+                      phx-click="dismiss_account_token"
+                    />
+                    <.button
+                      label={dgettext("dashboard_account", "Generate")}
+                      variant="primary"
+                      type="submit"
+                      form="create-account-token-form"
+                      disabled={not @can_create_tokens?}
+                    />
+                  <% end %>
+                </:action>
+              </.modal_footer>
+            </:footer>
+          </.modal>
+        </div>
+      </div>
+
+      <div data-part="tokens-table">
+        <.table id="account-tokens-table" rows={@account_tokens}>
+          <:col :let={token} label={dgettext("dashboard_account", "Name")}>
+            <.text_cell label={token.name} />
+          </:col>
+          <:col :let={token} label={dgettext("dashboard_account", "Token")}>
+            <.text_cell data-part="token-hint-cell" label={account_token_hint(token)} />
+          </:col>
+          <:col :let={token} label={dgettext("dashboard_account", "Scopes")}>
+            <.text_cell label={scopes_label(token.scopes)} />
+          </:col>
+          <:col :let={token} label={dgettext("dashboard_account", "Projects")}>
+            <.text_cell label={projects_label(token)} />
+          </:col>
+          <:col :let={token} label={dgettext("dashboard_account", "Expires")}>
+            <.text_cell label={expires_label(token)} />
+          </:col>
+          <:col :let={token} label={dgettext("dashboard_account", "Last used")}>
+            <.text_cell label={last_used_label(token)} />
+          </:col>
+          <:col :let={token} label={dgettext("dashboard_account", "Created")}>
+            <.text_cell label={created_label(token)} />
+          </:col>
+          <:col :let={token} label="">
+            <.button_cell>
+              <:button>
+                <.button
+                  :if={@can_delete_tokens?}
+                  icon_only
+                  variant="secondary"
+                  size="small"
+                  phx-click="revoke_account_token"
+                  phx-value-name={token.name}
+                  aria-label={dgettext("dashboard_account", "Revoke token")}
+                  data-confirm={
+                    dgettext(
+                      "dashboard_account",
+                      "Revoke %{name}? This action cannot be undone.",
+                      name: token.name
+                    )
+                  }
+                >
+                  <.icon name="trash" />
+                </.button>
+              </:button>
+            </.button_cell>
+          </:col>
+          <:empty_state>
+            <.table_empty_state
+              title={dgettext("dashboard_account", "No account tokens yet")}
+              subtitle={
+                dgettext(
+                  "dashboard_account",
+                  "Generate one above to authenticate CI, automation, or integrations without using a user session."
+                )
+              }
+            />
+          </:empty_state>
+        </.table>
+      </div>
+    </div>
+  </.card_section>
+</div>

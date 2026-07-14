@@ -60,6 +60,7 @@ defmodule Tuist.Accounts.AccountToken do
   @primary_key {:id, UUIDv7, autogenerate: true}
   schema "account_tokens" do
     field :encrypted_token_hash, :string
+    field :token_last_four, :string
     field :scopes, {:array, :string}
     field :name, :string
     field :expires_at, :utc_datetime
@@ -88,6 +89,7 @@ defmodule Tuist.Accounts.AccountToken do
       :account_id,
       :created_by_account_id,
       :encrypted_token_hash,
+      :token_last_four,
       :scopes,
       :name,
       :expires_at,
@@ -110,6 +112,7 @@ defmodule Tuist.Accounts.AccountToken do
     |> cast(attrs, [
       :account_id,
       :encrypted_token_hash,
+      :token_last_four,
       :scopes,
       :name,
       :all_projects
@@ -122,6 +125,9 @@ defmodule Tuist.Accounts.AccountToken do
     |> unique_constraint([:account_id, :encrypted_token_hash])
     |> unique_constraint([:account_id, :name], name: "account_tokens_account_id_name_index")
   end
+
+  @doc "The trailing four characters of the token, persisted as a masked-preview hint."
+  def last_four(token) when is_binary(token), do: String.slice(token, -4, 4)
 
   defp validate_name(changeset) do
     changeset

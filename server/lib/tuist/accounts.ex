@@ -1761,6 +1761,7 @@ defmodule Tuist.Accounts do
         account_id: account.id,
         created_by_account_id: created_by_account && created_by_account.id,
         encrypted_token_hash: encrypted_token_hash,
+        token_last_four: AccountToken.last_four(token_hash),
         scopes: scopes,
         name: name,
         expires_at: expires_at,

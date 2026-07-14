@@ -1047,6 +1047,7 @@ defmodule TuistWeb.Router do
       live "/billing", BillingLive
       live "/usage", UsageLive
       live "/settings", AccountSettingsLive
+      live "/settings/tokens", AccountTokensLive
       live "/settings/integrations", IntegrationsLive
       live "/settings/authentication", AuthenticationSettingsLive
     end
