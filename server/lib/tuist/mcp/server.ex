@@ -1,55 +1,76 @@
 defmodule Tuist.MCP.Server do
   @moduledoc false
 
-  use EMCP.Server,
-    name: "tuist",
-    version: "1.9.0",
-    tools: [
-      Tuist.MCP.Components.Tools.CreateOrganization,
-      Tuist.MCP.Components.Tools.CreateProject,
-      Tuist.MCP.Components.Tools.AddOrganizationMember,
-      Tuist.MCP.Components.Tools.ListXcodeBuilds,
-      Tuist.MCP.Components.Tools.GetXcodeBuild,
-      Tuist.MCP.Components.Tools.ListXcodeBuildTargets,
-      Tuist.MCP.Components.Tools.ListXcodeBuildFiles,
-      Tuist.MCP.Components.Tools.ListXcodeBuildIssues,
-      Tuist.MCP.Components.Tools.ListXcodeBuildCacheTasks,
-      Tuist.MCP.Components.Tools.ListXcodeBuildCASOutputs,
-      Tuist.MCP.Components.Tools.ListGradleBuilds,
-      Tuist.MCP.Components.Tools.GetGradleBuild,
-      Tuist.MCP.Components.Tools.ListGradleBuildTasks,
-      Tuist.MCP.Components.Tools.ListTestRuns,
-      Tuist.MCP.Components.Tools.ListTestModuleRuns,
-      Tuist.MCP.Components.Tools.ListTestSuiteRuns,
-      Tuist.MCP.Components.Tools.ListTestCaseRuns,
-      Tuist.MCP.Components.Tools.ListTestCases,
-      Tuist.MCP.Components.Tools.ListTestCaseEvents,
-      Tuist.MCP.Components.Tools.GetTestCase,
-      Tuist.MCP.Components.Tools.UpdateTestCase,
-      Tuist.MCP.Components.Tools.GetTestRun,
-      Tuist.MCP.Components.Tools.GetTestCaseRun,
-      Tuist.MCP.Components.Tools.ListTestCaseRunAttachments,
-      Tuist.MCP.Components.Tools.ListBundles,
-      Tuist.MCP.Components.Tools.GetBundle,
-      Tuist.MCP.Components.Tools.GetBundleArtifactTree,
-      Tuist.MCP.Components.Tools.ListGenerations,
-      Tuist.MCP.Components.Tools.GetGeneration,
-      Tuist.MCP.Components.Tools.ListCacheRuns,
-      Tuist.MCP.Components.Tools.GetCacheRun,
-      Tuist.MCP.Components.Tools.ListXcodeModuleCacheTargets,
-      Tuist.MCP.Components.Tools.ListXcodeTestTargets,
-      Tuist.MCP.Components.Tools.ListProjects
-    ],
-    prompts: [
-      Tuist.MCP.Components.Prompts.FixFlakyTest,
-      Tuist.MCP.Components.Prompts.CompareBuilds,
-      Tuist.MCP.Components.Prompts.CompareTestRuns,
-      Tuist.MCP.Components.Prompts.CompareBundles,
-      Tuist.MCP.Components.Prompts.CompareTestCase,
-      Tuist.MCP.Components.Prompts.CompareGenerations,
-      Tuist.MCP.Components.Prompts.CompareCacheRuns,
-      Tuist.MCP.Components.Prompts.AnalyzeSelectiveTesting,
-      Tuist.MCP.Components.Prompts.IntegrateGradleProject,
-      Tuist.MCP.Components.Prompts.IntegrateXcodeProject
-    ]
+  alias Tuist.Environment
+  alias Tuist.MCP.Components.Prompts
+  alias Tuist.MCP.Components.Tools
+
+  # Backed by the hosted Typesense search service, so only offered on the
+  # Tuist-hosted installation.
+  @hosted_tools [
+    Tools.SearchTuist
+  ]
+
+  @tools [
+    Tools.CreateOrganization,
+    Tools.CreateProject,
+    Tools.AddOrganizationMember,
+    Tools.ListXcodeBuilds,
+    Tools.GetXcodeBuild,
+    Tools.ListXcodeBuildTargets,
+    Tools.ListXcodeBuildFiles,
+    Tools.ListXcodeBuildIssues,
+    Tools.ListXcodeBuildCacheTasks,
+    Tools.ListXcodeBuildCASOutputs,
+    Tools.ListGradleBuilds,
+    Tools.GetGradleBuild,
+    Tools.ListGradleBuildTasks,
+    Tools.ListTestRuns,
+    Tools.ListTestModuleRuns,
+    Tools.ListTestSuiteRuns,
+    Tools.ListTestCaseRuns,
+    Tools.ListTestCases,
+    Tools.ListTestCaseEvents,
+    Tools.GetTestCase,
+    Tools.UpdateTestCase,
+    Tools.GetTestRun,
+    Tools.GetTestCaseRun,
+    Tools.ListTestCaseRunAttachments,
+    Tools.ListBundles,
+    Tools.GetBundle,
+    Tools.GetBundleArtifactTree,
+    Tools.ListGenerations,
+    Tools.GetGeneration,
+    Tools.ListCacheRuns,
+    Tools.GetCacheRun,
+    Tools.ListXcodeModuleCacheTargets,
+    Tools.ListXcodeTestTargets,
+    Tools.ListProjects
+  ]
+
+  @prompts [
+    Prompts.FixFlakyTest,
+    Prompts.CompareBuilds,
+    Prompts.CompareTestRuns,
+    Prompts.CompareBundles,
+    Prompts.CompareTestCase,
+    Prompts.CompareGenerations,
+    Prompts.CompareCacheRuns,
+    Prompts.AnalyzeSelectiveTesting,
+    Prompts.IntegrateGradleProject,
+    Prompts.IntegrateXcodeProject
+  ]
+
+  def server do
+    EMCP.Server.new(
+      name: "tuist",
+      version: "1.11.0",
+      tools: tools(),
+      prompts: @prompts
+    )
+  end
+
+  defp tools do
+    if Environment.tuist_hosted?(), do: @hosted_tools ++ @tools, else: @tools
+  end
 end

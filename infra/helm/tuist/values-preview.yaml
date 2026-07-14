@@ -25,6 +25,10 @@ global:
     tuist.dev/environment: preview
 
 server:
+  # Previews exercise the hosted product and the public marketing site. Leaving
+  # this at the chart's self-hosted default redirects every public route to the
+  # login page.
+  hosted: true
   replicaCount: 1
   autoscaling:
     enabled: false

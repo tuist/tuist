@@ -16,12 +16,12 @@ msgstr ""
 msgid "Account confirmed!"
 msgstr ""
 
-#: lib/tuist_web/live/user_registration_live.ex:297
+#: lib/tuist_web/live/user_registration_live.ex:311
 #, elixir-autogen, elixir-format
 msgid "Account created successfully! Please log in."
 msgstr ""
 
-#: lib/tuist_web/live/user_registration_live.ex:309
+#: lib/tuist_web/live/user_registration_live.ex:323
 #, elixir-autogen, elixir-format
 msgid "Account name is already taken"
 msgstr ""
@@ -36,7 +36,7 @@ msgstr ""
 msgid "Already set up your Tuist project? Skip setup and go to the dashboard."
 msgstr ""
 
-#: lib/tuist_web/live/user_forgot_password_live.ex:75
+#: lib/tuist_web/live/user_forgot_password_live.ex:76
 #, elixir-autogen, elixir-format
 msgid "Back to log in"
 msgstr ""
@@ -46,12 +46,12 @@ msgstr ""
 msgid "Binary caching"
 msgstr ""
 
-#: lib/tuist_web/live/user_reset_password_live.ex:34
+#: lib/tuist_web/live/user_reset_password_live.ex:35
 #, elixir-autogen, elixir-format
 msgid "Change your password"
 msgstr ""
 
-#: lib/tuist_web/live/user_forgot_password_live.ex:43
+#: lib/tuist_web/live/user_forgot_password_live.ex:44
 #, elixir-autogen, elixir-format
 msgid "Check your email"
 msgstr ""
@@ -66,7 +66,7 @@ msgstr ""
 msgid "Choose a username"
 msgstr ""
 
-#: lib/tuist_web/live/user_reset_password_live.ex:55
+#: lib/tuist_web/live/user_reset_password_live.ex:56
 #, elixir-autogen, elixir-format
 msgid "Confirm password"
 msgstr ""
@@ -121,20 +121,20 @@ msgstr ""
 msgid "Discover how selective testing is reducing your test time."
 msgstr ""
 
-#: lib/tuist_web/live/user_login_live.ex:205
+#: lib/tuist_web/live/user_login_live.ex:207
 #, elixir-autogen, elixir-format
 msgid "Don't have an account?"
 msgstr ""
 
 #: lib/tuist_web/live/sso_login_live.ex:89
-#: lib/tuist_web/live/user_forgot_password_live.ex:55
-#: lib/tuist_web/live/user_login_live.ex:142
+#: lib/tuist_web/live/user_forgot_password_live.ex:56
+#: lib/tuist_web/live/user_login_live.ex:144
 #: lib/tuist_web/live/user_registration_live.ex:149
 #, elixir-autogen, elixir-format
 msgid "Email address"
 msgstr ""
 
-#: lib/tuist_web/live/user_registration_live.ex:312
+#: lib/tuist_web/live/user_registration_live.ex:326
 #, elixir-autogen, elixir-format
 msgid "Email is already taken"
 msgstr ""
@@ -149,17 +149,17 @@ msgstr ""
 msgid "Explore how binary caching is enhancing your build times."
 msgstr ""
 
-#: lib/tuist_web/live/user_login_live.ex:174
+#: lib/tuist_web/live/user_login_live.ex:176
 #, elixir-autogen, elixir-format
 msgid "Forgot password?"
 msgstr ""
 
-#: lib/tuist_web/live/user_forgot_password_live.ex:32
+#: lib/tuist_web/live/user_forgot_password_live.ex:33
 #, elixir-autogen, elixir-format
 msgid "Forgot your password?"
 msgstr ""
 
-#: lib/tuist_web/live/user_forgot_password_live.ex:45
+#: lib/tuist_web/live/user_forgot_password_live.ex:46
 #, elixir-autogen, elixir-format
 msgid "If your email exists in our records, you'll receive reset instructions shortly."
 msgstr ""
@@ -179,21 +179,21 @@ msgstr ""
 msgid "Interested in SSO?"
 msgstr ""
 
-#: lib/tuist_web/live/user_login_live.ex:167
+#: lib/tuist_web/live/user_login_live.ex:169
 #, elixir-autogen, elixir-format
 msgid "Keep me logged in"
 msgstr ""
 
 #: lib/tuist_web/live/sso_login_live.ex:97
 #: lib/tuist_web/live/user_login_live.ex:18
-#: lib/tuist_web/live/user_login_live.ex:180
+#: lib/tuist_web/live/user_login_live.ex:182
 #: lib/tuist_web/live/user_registration_live.ex:194
 #, elixir-autogen, elixir-format
 msgid "Log in"
 msgstr ""
 
 #: lib/tuist_web/live/sso_login_live.ex:72
-#: lib/tuist_web/live/user_login_live.ex:51
+#: lib/tuist_web/live/user_login_live.ex:52
 #, elixir-autogen, elixir-format
 msgid "Log in to Tuist"
 msgstr ""
@@ -203,7 +203,7 @@ msgstr ""
 msgid "Log in to your enterprise account via SSO"
 msgstr ""
 
-#: lib/tuist_web/live/user_reset_password_live.ex:47
+#: lib/tuist_web/live/user_reset_password_live.ex:48
 #, elixir-autogen, elixir-format
 msgid "New password"
 msgstr ""
@@ -218,13 +218,13 @@ msgstr ""
 msgid "OR"
 msgstr ""
 
-#: lib/tuist_web/live/user_login_live.ex:153
+#: lib/tuist_web/live/user_login_live.ex:155
 #: lib/tuist_web/live/user_registration_live.ex:159
 #, elixir-autogen, elixir-format
 msgid "Password"
 msgstr ""
 
-#: lib/tuist_web/live/user_reset_password_live.ex:101
+#: lib/tuist_web/live/user_reset_password_live.ex:106
 #, elixir-autogen, elixir-format
 msgid "Password reset successfully."
 msgstr ""
@@ -239,8 +239,8 @@ msgstr ""
 msgid "Project Ready? Proceed to dashboard"
 msgstr ""
 
-#: lib/tuist_web/live/user_forgot_password_live.ex:64
-#: lib/tuist_web/live/user_reset_password_live.ex:62
+#: lib/tuist_web/live/user_forgot_password_live.ex:65
+#: lib/tuist_web/live/user_reset_password_live.ex:63
 #, elixir-autogen, elixir-format
 msgid "Reset password"
 msgstr ""
@@ -260,9 +260,9 @@ msgstr ""
 msgid "Selective testing"
 msgstr ""
 
-#: lib/tuist_web/live/user_login_live.ex:210
+#: lib/tuist_web/live/user_login_live.ex:212
 #: lib/tuist_web/live/user_registration_live.ex:183
-#: lib/tuist_web/live/user_registration_live.ex:267
+#: lib/tuist_web/live/user_registration_live.ex:270
 #, elixir-autogen, elixir-format
 msgid "Sign up"
 msgstr ""
@@ -286,11 +286,11 @@ msgstr ""
 #: lib/tuist_web/live/device_codes_success_live.ex:28
 #: lib/tuist_web/live/sso_login_live.ex:63
 #: lib/tuist_web/live/user_confirmation_live.ex:18
-#: lib/tuist_web/live/user_forgot_password_live.ex:23
-#: lib/tuist_web/live/user_login_live.ex:42
+#: lib/tuist_web/live/user_forgot_password_live.ex:24
+#: lib/tuist_web/live/user_login_live.ex:43
 #: lib/tuist_web/live/user_registration_live.ex:67
 #: lib/tuist_web/live/user_registration_live.ex:212
-#: lib/tuist_web/live/user_reset_password_live.ex:25
+#: lib/tuist_web/live/user_reset_password_live.ex:26
 #, elixir-autogen, elixir-format
 msgid "Tuist Logo"
 msgstr ""
@@ -337,12 +337,12 @@ msgstr ""
 msgid "Waiting for connection"
 msgstr ""
 
-#: lib/tuist_web/live/user_forgot_password_live.ex:34
+#: lib/tuist_web/live/user_forgot_password_live.ex:35
 #, elixir-autogen, elixir-format
 msgid "We'll send a password reset link to your inbox"
 msgstr ""
 
-#: lib/tuist_web/live/user_login_live.ex:53
+#: lib/tuist_web/live/user_login_live.ex:54
 #, elixir-autogen, elixir-format
 msgid "Welcome back! Please log in to continue"
 msgstr ""
@@ -382,7 +382,7 @@ msgstr ""
 msgid "Your account has been confirmed. You will be redirected shortly..."
 msgstr ""
 
-#: lib/tuist_web/live/user_reset_password_live.ex:36
+#: lib/tuist_web/live/user_reset_password_live.ex:37
 #, elixir-autogen, elixir-format
 msgid "Your new password must be different to previously used passwords."
 msgstr ""
@@ -424,7 +424,7 @@ msgstr ""
 msgid "and"
 msgstr ""
 
-#: lib/tuist_web/live/user_login_live.ex:200
+#: lib/tuist_web/live/user_login_live.ex:202
 #, elixir-autogen, elixir-format
 msgid "Log in as test user"
 msgstr ""
@@ -434,7 +434,7 @@ msgstr ""
 msgid "Choose a username for your account"
 msgstr ""
 
-#: lib/tuist_web/live/user_login_live.ex:107
+#: lib/tuist_web/live/user_login_live.ex:108
 #, elixir-autogen, elixir-format
 msgid "Log in with SSO"
 msgstr ""
@@ -444,7 +444,7 @@ msgstr ""
 msgid "No SSO organization is configured for this email. Check the address and ask your organization admin to verify the SSO domain setup."
 msgstr ""
 
-#: lib/tuist_web/controllers/auth_controller.ex:335
+#: lib/tuist_web/controllers/auth_controller.ex:340
 #, elixir-autogen, elixir-format
 msgid "An account with this email already exists. Please log in instead."
 msgstr ""

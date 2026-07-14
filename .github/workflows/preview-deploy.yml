@@ -618,6 +618,22 @@ jobs:
             echo "::error::No Kura controller in the preview cluster. Run the 'Preview Platform Reconcile' workflow (workflow_dispatch) before deploying previews."
             exit 1
           fi
+          controller_images="$(
+            kubectl -n kura get deployment \
+              -l app.kubernetes.io/component=kura-controller \
+              -o jsonpath='{range .items[*]}{range .spec.template.spec.containers[*]}{.image}{"\n"}{end}{end}'
+          )"
+          while IFS= read -r controller_image; do
+            case "$controller_image" in
+              *:sha-* | *@sha256:*) ;;
+              *)
+                echo "::error::The preview Kura controller is not using an immutable image reference. Run the 'Preview Platform Reconcile' workflow before deploying previews."
+                exit 1
+                ;;
+            esac
+          done <<< "$controller_images"
+          kubectl -n kura rollout status deployment \
+            -l app.kubernetes.io/component=kura-controller --timeout=1m
       - name: Checkout preview source
         uses: actions/checkout@v4
         with:
@@ -703,14 +719,6 @@ jobs:
             --set-file "kuraRuntime.instance.extensionScript=kura/ops/helm/kura/hooks/tuist.lua" \
             --set "server.kuraEndpointUrls[0]=https://$KURA_HOST" \
             --atomic --timeout 20m --wait
-      - name: Finalize namespace labels
-        run: |
-          set -euo pipefail
-          ARGS=("tuist.dev/state=ready" --overwrite)
-          if [ -n "${EXPIRES_AT:-}" ]; then
-            ARGS=("tuist.dev/expires-at=$EXPIRES_AT" "tuist.dev/state=ready" --overwrite)
-          fi
-          kubectl label namespace "$NAMESPACE" "${ARGS[@]}"
       - name: Wait for KuraInstance
         run: |
           set -euo pipefail
@@ -794,6 +802,86 @@ jobs:
           RELEASE_NAME: ${{ env.RELEASE }}
         run: |
           mise -C infra run preview:seed-account --namespace "$NAMESPACE"
+      - name: Verify marketing and test-user login
+        env:
+          PREVIEW_USER_EMAIL: tuistrocks@tuist.dev
+          PREVIEW_USER_PASSWORD: tuistrocks
+        run: |
+          set -euo pipefail
+
+          verification_dir="$(mktemp -d)"
+          trap 'rm -rf "$verification_dir"' EXIT
+
+          marketing_status="$(
+            curl -sS -o "$verification_dir/marketing.html" \
+              -w '%{http_code}' "https://${HOST}/"
+          )"
+          if [ "$marketing_status" != "200" ]; then
+            echo "::error::The marketing root returned response status $marketing_status instead of 200."
+            exit 1
+          fi
+
+          curl -fsS \
+            -c "$verification_dir/cookies.txt" \
+            "https://${HOST}/users/log_in" \
+            -o "$verification_dir/login.html"
+
+          form_token="$(
+            grep -o 'name="_csrf_token" value="[^"]*"' "$verification_dir/login.html" \
+              | head -1 \
+              | sed 's/^name="_csrf_token" value="//; s/"$//'
+          )"
+          if [ -z "$form_token" ]; then
+            echo "::error::The login page did not contain a form token."
+            exit 1
+          fi
+
+          login_status="$(
+            curl -sS \
+              -b "$verification_dir/cookies.txt" \
+              -c "$verification_dir/cookies.txt" \
+              -D "$verification_dir/login-headers.txt" \
+              -o /dev/null \
+              -w '%{http_code}' \
+              --data-urlencode "_csrf_token=$form_token" \
+              --data-urlencode "user[email]=$PREVIEW_USER_EMAIL" \
+              --data-urlencode "user[password]=$PREVIEW_USER_PASSWORD" \
+              "https://${HOST}/users/log_in"
+          )"
+          if [ "$login_status" != "302" ]; then
+            echo "::error::The test-user login returned response status $login_status instead of 302."
+            exit 1
+          fi
+
+          login_location="$(
+            awk 'tolower($1) == "location:" {print $2}' "$verification_dir/login-headers.txt" \
+              | tr -d '\r' \
+              | tail -1
+          )"
+          case "$login_location" in
+            /users/log_in* | "")
+              echo "::error::The test-user login redirected back to the login page."
+              exit 1
+              ;;
+            /*)
+              curl -fsS \
+                -b "$verification_dir/cookies.txt" \
+                "https://${HOST}${login_location}" \
+                -o /dev/null
+              ;;
+            *)
+              echo "::error::The test-user login returned an unexpected redirect: $login_location"
+              exit 1
+              ;;
+          esac
+      - name: Finalize namespace labels
+        run: |
+          set -euo pipefail
+          ARGS=("tuist.dev/state=ready" --overwrite)
+          if [ -n "${EXPIRES_AT:-}" ]; then
+            ARGS=("tuist.dev/expires-at=$EXPIRES_AT" "tuist.dev/state=ready" --overwrite)
+          fi
+          kubectl label namespace "$NAMESPACE" "${ARGS[@]}"
       - name: Diagnostics on failure
         if: failure()
         run: |
