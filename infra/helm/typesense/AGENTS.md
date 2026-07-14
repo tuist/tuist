@@ -20,6 +20,9 @@ agent search service will delegate to in a follow-up.
   (`typesense.searchKey`) on the instance using the admin key. Typesense stores
   non-bootstrap keys inside its own data, so a fresh volume needs this to accept
   the key the docs website and the `search_tuist` MCP tool present.
+- `typesense-release-indexer-bootstrap` runs after the key bootstrap on each
+  install or upgrade so the `github-releases` collection is available
+  immediately. The recurring indexer CronJob refreshes it daily afterward.
 - `Ingress` exposes `search.tuist.dev` through ingress-nginx with a
   cert-manager certificate. The production overlay annotates it
   `external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"` so external-dns
@@ -34,16 +37,16 @@ agent search service will delegate to in a follow-up.
 
 ## Collections
 
-Four collections back search, all populated in-cluster:
+Five collections back search, all populated in-cluster:
 
-- `projectdescription` (DocC API) and `github-issues` come from the
-  `typesense-indexers` CronJob (`index-docc`, `index-github`).
+- `projectdescription` (DocC API), `github-issues`, and `github-releases` come from the
+  `typesense-indexers` CronJob (`index-docc`, `index-github`, `index-github-releases`).
 - `tuist` (docs) and `forum-topics` (forum) come from the `typesense-scraper`
   CronJob (`typesense/docsearch-scraper` with the `docsearch-configs` ConfigMap).
 
 The public docs and forum search UI (`server/assets/docs/hooks/docs-search-hook.js`)
-queries `tuist` and `forum-topics`, so those two must exist on any instance that
-serves the UI. On a fresh volume the CronJobs run on their schedule; trigger them
+queries all five collections, so they must exist on any instance that serves the
+UI. On a fresh volume the CronJobs run on their schedule; trigger them
 once with `kubectl create job --from=cronjob/typesense-indexers` (and the
 scraper) to populate immediately.
 

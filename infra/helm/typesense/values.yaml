@@ -52,6 +52,14 @@ keyBootstrap:
   enabled: true
   backoffLimit: 3
 
+# Populates the release collection immediately after each install or upgrade.
+# The recurring indexer below keeps the same collection current afterward.
+releaseIndexerBootstrap:
+  enabled: true
+  backoffLimit: 1
+  activeDeadlineSeconds: 600
+  resources: {}
+
 # Recurring DocSearch crawl of the public docs site and community forum into the
 # `tuist` and `forum-topics` collections. Runs the typesense/docsearch-scraper
 # image against the in-cluster Service, reading the crawl configs from the
@@ -100,9 +108,10 @@ ingress:
   tlsSecretName: ""
   annotations: {}
 
-# Daily reindex of the two collections the bundled indexers own: the DocC API
-# reference (`projectdescription`, via index-docc) and `github-issues` (via
-# index-github). The `tuist` and `forum-topics` collections that the public docs
+# Daily reindex of the three collections the bundled indexers own: the DocC API
+# reference (`projectdescription`, via index-docc), `github-issues` (via
+# index-github), and `github-releases` (via index-github-releases). The `tuist`
+# and `forum-topics` collections that the public docs
 # and forum UI query are produced by the DocSearch scraper, not by these
 # indexers. The scraper is a separate crawler container and is not part of this
 # chart; it must be run against this service to populate those two collections
