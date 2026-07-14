@@ -23,6 +23,22 @@ defmodule Tuist.Registry do
 
   def registry_bucket, do: Application.get_env(:tuist, :registry)[:bucket]
 
+  @doc """
+  The full public base URL, including the API path prefix, that clients use
+  to reach the Swift package registry (e.g.
+  `https://registry.tuist.dev/api/registry/swift` today, becoming
+  `.../swift` once production traffic moves to the standalone frontend). Set
+  per environment via `TUIST_REGISTRY_URL` so ops controls the prefix as the
+  routing cutover lands. `nil` when the deployment exposes no registry, in
+  which case the discovery endpoint 404s.
+  """
+  def url do
+    case Application.get_env(:tuist, :registry)[:url] do
+      url when is_binary(url) and url != "" -> String.trim_trailing(url, "/")
+      _ -> nil
+    end
+  end
+
   def swift_registry_github_token do
     case Application.get_env(:tuist, :registry)[:swift_github_token] do
       token when is_binary(token) and token != "" -> token

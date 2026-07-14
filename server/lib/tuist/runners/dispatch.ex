@@ -16,9 +16,15 @@ defmodule Tuist.Runners.Dispatch do
 
   Flow for `queued`:
 
-    1. Parse `repository.owner.login` from the payload; look up
-       the Tuist account by that name (account `name` IS the
-       GitHub org login by convention).
+    1. Resolve the Tuist account. The authoritative link is the
+       webhook's `installation.id` → `github_app_installations`
+       row → `account_id`, so we resolve by installation first and
+       only fall back to the legacy `repository.owner.login ==
+       account.name` convention when no installation row is found.
+       The convention silently strands any customer whose Tuist
+       handle differs from their GitHub org login (the dominant
+       `no_account` webhook outcome); installation resolution has
+       no such coupling.
     2. Reject if runners aren't enabled for the customer
        (`FeatureFlags.runners_enabled?/1`, gated by the `:runners`
        flag in production).
@@ -46,6 +52,7 @@ defmodule Tuist.Runners.Dispatch do
   alias Tuist.Runners.Profiles
   alias Tuist.Runners.Telemetry
   alias Tuist.Runners.Workers.FetchLogsWorker
+  alias Tuist.VCS
 
   require Logger
 
@@ -66,13 +73,13 @@ defmodule Tuist.Runners.Dispatch do
   Handle a `workflow_job` webhook payload. Branches on `action`.
   """
   def handle_webhook(%{"action" => "queued"} = payload, installation_id) when is_integer(installation_id) do
-    result = handle_queued(payload)
+    result = handle_queued(payload, installation_id)
     emit_webhook_telemetry("queued", result)
     result
   end
 
   def handle_webhook(%{"action" => "waiting"} = payload, installation_id) when is_integer(installation_id) do
-    result = handle_waiting(payload)
+    result = handle_waiting(payload, installation_id)
     emit_webhook_telemetry("waiting", result)
     result
   end
@@ -115,22 +122,22 @@ defmodule Tuist.Runners.Dispatch do
   defp webhook_outcome({:error, reason}) when is_atom(reason), do: Atom.to_string(reason)
   defp webhook_outcome(_), do: "unknown"
 
-  defp handle_queued(payload) do
-    handle_queueable(payload, &Jobs.enqueue/1)
+  defp handle_queued(payload, installation_id) do
+    handle_queueable(payload, installation_id, &Jobs.enqueue/1)
   end
 
-  defp handle_waiting(payload) do
-    handle_queueable(payload, &Jobs.enqueue_if_missing/1)
+  defp handle_waiting(payload, installation_id) do
+    handle_queueable(payload, installation_id, &Jobs.enqueue_if_missing/1)
   end
 
-  defp handle_queueable(payload, enqueue_fun) do
+  defp handle_queueable(payload, installation_id, enqueue_fun) do
     job = Map.get(payload, "workflow_job", %{})
     repo = Map.get(payload, "repository", %{})
     full_name = Map.get(repo, "full_name", "")
     {owner, _repo_name} = parse_full_name(full_name)
     requested = Map.get(job, "labels", [])
 
-    with {:ok, account} <- fetch_enabled_account(owner),
+    with {:ok, account} <- fetch_enabled_account(installation_id, owner),
          {:ok, target} <- resolve_dispatch_target(account, requested),
          :ok <- enqueue_fun.(enqueue_attrs(account, target, full_name, job)) do
       Logger.info("runners: enqueued",
@@ -144,7 +151,8 @@ defmodule Tuist.Runners.Dispatch do
       {:ok, :queued}
     else
       {:error, :no_account} ->
-        Logger.info("runners: no account match for webhook owner; ignoring",
+        Logger.info("runners: no account match for webhook installation or owner; ignoring",
+          installation_id: installation_id,
           owner: owner,
           repo: full_name,
           requested_labels: requested
@@ -412,8 +420,12 @@ defmodule Tuist.Runners.Dispatch do
     end
   end
 
-  defp fetch_enabled_account(owner) when is_binary(owner) and owner != "" do
-    case get_account_by_handle_cached(owner) do
+  # Resolve by installation first (the authoritative link the customer
+  # established at connect time), then fall back to the legacy
+  # `owner == account.name` convention. Enablement is checked once the
+  # account resolves, regardless of which path found it.
+  defp fetch_enabled_account(installation_id, owner) do
+    case resolve_account(installation_id, owner) do
       nil ->
         {:error, :no_account}
 
@@ -426,7 +438,12 @@ defmodule Tuist.Runners.Dispatch do
     end
   end
 
-  defp fetch_enabled_account(_), do: {:error, :no_account}
+  defp resolve_account(installation_id, owner) do
+    account_by_installation_cached(installation_id) || account_by_handle(owner)
+  end
+
+  defp account_by_handle(owner) when is_binary(owner) and owner != "", do: get_account_by_handle_cached(owner)
+  defp account_by_handle(_), do: nil
 
   # We deliberately do NOT cache `{:error, _}` returns from the K8s
   # client. A transient apiserver hiccup should retry on the next
@@ -450,6 +467,45 @@ defmodule Tuist.Runners.Dispatch do
 
       cached ->
         cached
+    end
+  end
+
+  # Resolves and caches the account a GitHub App installation belongs
+  # to, keyed by `installation_id`. This is the authoritative link
+  # (`github_app_installations.account_id`), so it works even when the
+  # customer's Tuist handle differs from their GitHub org login. Same
+  # caching contract as the handle cache: only successful resolutions
+  # are memoised, and enablement is re-evaluated per webhook by the
+  # caller. A nil/absent installation row falls through to the handle
+  # convention.
+  defp account_by_installation_cached(installation_id) when is_integer(installation_id) do
+    cache_key = [__MODULE__, :account_by_installation, installation_id]
+    cache_opts = [cache: __MODULE__.cache_name()]
+
+    case KeyValueStore.get(cache_key, cache_opts) do
+      nil ->
+        case account_for_installation(installation_id) do
+          nil ->
+            nil
+
+          account ->
+            KeyValueStore.put(cache_key, account, Keyword.put(cache_opts, :ttl, @account_cache_ttl_ms))
+            account
+        end
+
+      cached ->
+        cached
+    end
+  end
+
+  defp account_by_installation_cached(_), do: nil
+
+  defp account_for_installation(installation_id) do
+    with {:ok, %{account_id: account_id}} <- VCS.get_github_app_installation_by_installation_id(installation_id),
+         {:ok, account} <- Accounts.get_account_by_id(account_id) do
+      account
+    else
+      _ -> nil
     end
   end
 

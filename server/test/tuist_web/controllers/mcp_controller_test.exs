@@ -203,6 +203,9 @@ defmodule TuistWeb.MCPControllerTest do
     test "returns request responses inline when the session has a stale event stream registration", %{conn: conn} do
       user = AccountsFixtures.user_fixture()
       stub(RateLimit.MCP, :hit, fn _conn -> {:allow, 1} end)
+      # Pin the hosted-only tools so the advertised count is deterministic
+      # regardless of the ambient TUIST_HOSTED value.
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
 
       init_conn =
         conn
@@ -239,7 +242,8 @@ defmodule TuistWeb.MCPControllerTest do
       assert response["id"] == 2
 
       tools = response["result"]["tools"]
-      assert length(tools) == 34
+      assert length(tools) == 35
+      assert "search_tuist" in Enum.map(tools, & &1["name"])
 
       for tool <- tools do
         assert is_binary(tool["description"]) and tool["description"] != ""

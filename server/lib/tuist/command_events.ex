@@ -124,7 +124,7 @@ defmodule Tuist.CommandEvents do
 
   def generate_result_bundle_url(command_event) do
     {:ok, project} = get_project_for_command_event(command_event, preload: :account)
-    Storage.generate_download_url(get_result_bundle_key(command_event), project.account)
+    result_bundle_download_url(get_result_bundle_key(command_event), project.account)
   end
 
   # Run-scoped variants for remote-processed test runs (`tuist inspect test`),
@@ -135,7 +135,7 @@ defmodule Tuist.CommandEvents do
   end
 
   def generate_result_bundle_url(run_id, project) when is_binary(run_id) do
-    Storage.generate_download_url(get_result_bundle_key(run_id, project), project.account)
+    result_bundle_download_url(get_result_bundle_key(run_id, project), project.account)
   end
 
   def has_session?(command_event) do
@@ -183,6 +183,17 @@ defmodule Tuist.CommandEvents do
 
   def get_session_key(run_id, project) do
     "#{get_command_event_artifact_base_path_key(run_id, project)}/session.zip"
+  end
+
+  defp result_bundle_download_url(object_key, account) do
+    filename =
+      case Storage.get_object_range(object_key, 0..1, account) do
+        {:ok, <<0x50, 0x4B, _rest::binary>>} -> "result_bundle.zip"
+        {:ok, _other_format} -> "result_bundle.aar"
+        {:error, _reason} -> "result_bundle.zip"
+      end
+
+    Storage.generate_download_url(object_key, account, content_disposition: ~s(attachment; filename="#{filename}"))
   end
 
   def get_command_event_artifact_base_path_key(run_id, project) do

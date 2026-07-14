@@ -120,6 +120,14 @@ The following tools are available through the Tuist MCP server:
 
 Every tool publishes a human-readable description together with explicit input and output schemas. Successful calls return structured content that conforms to the advertised output schema, plus the same result serialized as text for clients that do not yet consume structured content.
 
+#### Documentation and community search
+
+This read-only tool searches Tuist's documentation, API reference, GitHub releases, community forum, and GitHub issues through the same search engine that powers the docs website. Release results include the product, version, publication date, and prerelease status. Stable releases are searched by default, and prereleases can be included with `include_prereleases`. The tool is only available on the Tuist-hosted server at `https://tuist.dev/mcp`.
+
+| Tool | Description | Required parameters |
+|------|-------------|---------------------|
+| `search_tuist` | Search Tuist's documentation, API reference, GitHub releases, community forum, and GitHub issues. Optionally restrict to one `source` (`docs`, `api_reference`, `releases`, `forum`, `issues`). | `query` |
+
 #### Projects
 
 | Tool | Description | Required parameters |

@@ -1,6 +1,8 @@
 defmodule Tuist.MCP.ServerTest do
   use TuistTestSupport.Cases.ConnCase, async: true
+  use Mimic
 
+  alias Tuist.Environment
   alias Tuist.MCP.Components.Tools.AddOrganizationMember
   alias Tuist.MCP.Components.Tools.CreateOrganization
   alias Tuist.MCP.Components.Tools.CreateProject
@@ -42,7 +44,16 @@ defmodule Tuist.MCP.ServerTest do
       assert "list_projects" in tool_names
     end
 
+    test "offers search_tuist only on the Tuist-hosted installation" do
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      assert "search_tuist" in Map.keys(Server.server().tools)
+
+      stub(Environment, :tuist_hosted?, fn -> false end)
+      refute "search_tuist" in Map.keys(Server.server().tools)
+    end
+
     test "every tool exposes descriptions, schemas, a human-readable title, and explicit review hints" do
+      stub(Environment, :tuist_hosted?, fn -> true end)
       server = Server.server()
 
       for {name, module} <- server.tools do

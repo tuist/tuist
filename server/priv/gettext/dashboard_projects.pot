@@ -756,7 +756,7 @@ msgstr ""
 #: lib/tuist_web/live/project_automations_live.html.heex:859
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:198
 #: lib/tuist_web/live/project_notifications_live.html.heex:500
-#: lib/tuist_web/live/projects_live.ex:393
+#: lib/tuist_web/live/projects_live.ex:396
 #, elixir-autogen, elixir-format
 msgid "Create"
 msgstr ""
@@ -813,13 +813,13 @@ msgid "Automations"
 msgstr ""
 
 #: lib/tuist_web/live/create_project_live.ex:99
-#: lib/tuist_web/live/projects_live.ex:372
+#: lib/tuist_web/live/projects_live.ex:374
 #, elixir-autogen, elixir-format
 msgid "Build system"
 msgstr ""
 
 #: lib/tuist_web/live/create_project_live.ex:93
-#: lib/tuist_web/live/projects_live.ex:366
+#: lib/tuist_web/live/projects_live.ex:368
 #, elixir-autogen, elixir-format
 msgid "Select build system"
 msgstr ""
