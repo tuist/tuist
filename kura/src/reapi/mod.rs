@@ -522,8 +522,10 @@ impl ReapiService {
         // namespace), and running it inline made every fetch pay it — 40s
         // measured for a serve whose encode and transfer account for a few
         // seconds. Staleness is bounded by the window plus the client's own
-        // delta cadence; a build in flight has taken the index out of the
-        // cache, so those requests fall through and share its completion.
+        // delta cadence. The reconcile builds against a clone and leaves this
+        // index in place (see `run_index_build`), so a build in flight does
+        // NOT take it out of the cache — serves keep hitting this fast path
+        // throughout, rather than falling to the cold path below.
         {
             let mut indexes = self
                 .snapshot_cache
@@ -575,10 +577,10 @@ impl ReapiService {
     }
 
     /// The namespace's in-flight index build, starting one when none is
-    /// running. Requests share a single reconcile; the spawned task owns the
-    /// index for its duration and reinserts it (with the LRU bound applied)
-    /// whether the reconcile succeeded or failed, so accumulated progress
-    /// survives request aborts and transient store errors alike.
+    /// running. Requests share a single reconcile; the spawned task reconciles
+    /// a clone of the live index and swaps the result in on success (leaving
+    /// the live view servable throughout, and untouched on failure so the last
+    /// good view keeps serving and the next reconcile retries from it).
     fn ensure_index_build(&self, namespace_id: &str) -> SharedIndexBuild {
         let mut builds = self
             .snapshot_cache
@@ -670,43 +672,52 @@ impl ReapiService {
             );
             return Err("declined under memory pressure".to_owned());
         };
-        let index = cache
+        // Reconcile against a CLONE, leaving the live index in place so the
+        // serve fast path keeps returning it (slightly stale) for the build's
+        // whole duration. Removing it made every serve during a reconcile fall
+        // to the cold path and answer UNAVAILABLE — and on a hot namespace,
+        // where reconciles run back-to-back under continuous writes, that
+        // window is a large fraction of the time, so cold clients saw repeated
+        // UNAVAILABLE. The clone is the reconcile's diff base anyway (it loads
+        // only entries new-or-changed against it). A fresh namespace has no
+        // live index yet, so its FIRST build still serves the cold path once.
+        let base = cache
             .indexes
             .lock()
             .expect("snapshot cache lock poisoned")
-            .remove(&namespace)
+            .get(&namespace)
+            .cloned()
             .unwrap_or_else(NamespaceSnapshotIndex::new);
-        let (mut index, result) = match reconcile_snapshot_index(&state, &namespace, index).await {
+        match reconcile_snapshot_index(&state, &namespace, base).await {
             Ok(mut index) => {
                 index.reconciled_at = Instant::now();
-                (index, Ok(()))
+                index.last_used = Instant::now();
+                let mut indexes = cache.indexes.lock().expect("snapshot cache lock poisoned");
+                indexes.insert(namespace.clone(), index);
+                while indexes.len() > SNAPSHOT_CACHE_MAX_NAMESPACES {
+                    let oldest = indexes
+                        .iter()
+                        .min_by_key(|(_, index)| index.last_used)
+                        .map(|(namespace, _)| namespace.clone());
+                    let Some(oldest) = oldest else { break };
+                    indexes.remove(&oldest);
+                }
+                Ok(())
             }
-            Err((index, error)) => {
-                // Background kicks drop the shared future without
-                // awaiting it, so this is the only place a repeated
+            Err((_partial, error)) => {
+                // Leave the live index untouched: it keeps serving its
+                // last fully-reconciled view, and the next reconcile
+                // retries from it. Background kicks drop the shared future
+                // without awaiting it, so this is the only place a repeated
                 // reconcile failure becomes visible.
                 tracing::warn!(
                     namespace_id = namespace.as_str(),
                     error = error.as_str(),
                     "action-cache snapshot reconcile failed"
                 );
-                (index, Err(error))
-            }
-        };
-        index.last_used = Instant::now();
-        {
-            let mut indexes = cache.indexes.lock().expect("snapshot cache lock poisoned");
-            indexes.insert(namespace.clone(), index);
-            while indexes.len() > SNAPSHOT_CACHE_MAX_NAMESPACES {
-                let oldest = indexes
-                    .iter()
-                    .min_by_key(|(_, index)| index.last_used)
-                    .map(|(namespace, _)| namespace.clone());
-                let Some(oldest) = oldest else { break };
-                indexes.remove(&oldest);
+                Err(error)
             }
         }
-        result
     }
 }
 
@@ -2034,6 +2045,7 @@ fn snapshot_action_hash() -> &'static str {
     HASH.get_or_init(|| hex::encode(Sha256::digest(SNAPSHOT_ACTION_KEY)))
 }
 
+#[derive(Clone)]
 struct SnapshotNode {
     llcas: Vec<u8>,
     blob_hash: [u8; 32],
@@ -2043,6 +2055,7 @@ struct SnapshotNode {
     blob_key: String,
 }
 
+#[derive(Clone)]
 struct SnapshotIndexEntry {
     version_ms: u64,
     nodes: Vec<u32>,
@@ -2054,6 +2067,10 @@ struct SnapshotIndexEntry {
 /// write-path hooks) keeps it correct under peer replication and eviction:
 /// whatever wrote or removed an entry, the manifest keyspace is the truth
 /// this diffs against.
+///
+/// `Clone` so a reconcile can build against a copy while the live index keeps
+/// serving (slightly stale) — see `run_index_build`.
+#[derive(Clone)]
 struct NamespaceSnapshotIndex {
     nodes: Vec<SnapshotNode>,
     node_index: BTreeMap<Vec<u8>, u32>,
@@ -3155,6 +3172,109 @@ mod tests {
             .expect("serve task should not panic")
             .expect("serve should succeed");
         assert_eq!(&bytes[..4], b"TSNZ");
+    }
+
+    #[tokio::test]
+    async fn snapshot_serve_returns_the_cached_view_while_a_reconcile_is_outstanding() {
+        let context = test_context(|_| {}).await;
+        let service = ReapiService {
+            snapshot_cache: Default::default(),
+            state: context.state.clone(),
+        };
+        let store = &context.state.store;
+        let uploads = context.state.config.tmp_dir.join("uploads");
+        std::fs::create_dir_all(&uploads).expect("uploads dir should create");
+        let entry_key = format!("action_cache/{}/10", hex::encode([0x44u8; 32]));
+        let entry_path = uploads.join("entry");
+        let entry_bytes = reapi::ActionResult {
+            output_files: vec![reapi::OutputFile {
+                path: hex::encode([0xABu8, 0xCD]),
+                digest: Some(reapi::Digest {
+                    hash: hex::encode([0x11u8; 32]),
+                    size_bytes: 7,
+                }),
+                ..Default::default()
+            }],
+            ..Default::default()
+        }
+        .encode_to_vec();
+        std::fs::write(&entry_path, &entry_bytes).expect("entry should write");
+        store
+            .apply_replicated_artifact_from_path(
+                ArtifactProducer::Reapi,
+                "ios",
+                &entry_key,
+                "application/octet-stream",
+                &entry_path,
+                100,
+            )
+            .await
+            .expect("entry should persist");
+        let blob_path = uploads.join("blob");
+        std::fs::write(&blob_path, b"payload").expect("blob should write");
+        store
+            .apply_replicated_artifact_from_path(
+                ArtifactProducer::Reapi,
+                "ios",
+                &blob_key(&format!("{}/7", hex::encode([0x11u8; 32]))),
+                "application/octet-stream",
+                &blob_path,
+                100,
+            )
+            .await
+            .expect("blob should persist");
+
+        // Build and cache the index once.
+        let first = service
+            .serve_actioncache_snapshot("ios", 0)
+            .await
+            .expect("first serve builds the index");
+        assert_eq!(&first[..4], b"TSNZ");
+
+        // Age the cached view past the freshness window so the next serve kicks
+        // a background reconcile, and exhaust the pool so that reconcile stalls
+        // rather than completing instantly.
+        {
+            let mut indexes = service.snapshot_cache.indexes.lock().unwrap();
+            let index = indexes
+                .get_mut("ios")
+                .expect("index cached after first serve");
+            index.reconciled_at = Instant::now()
+                .checked_sub(SNAPSHOT_RECONCILE_INTERVAL * 2)
+                .expect("test clock has headroom");
+        }
+        let pool = context.state.memory.reapi_materialization_pool_bytes();
+        let _hog = context
+            .state
+            .memory
+            .try_acquire_reapi_materialization(pool)
+            .expect("pool should be acquirable when idle");
+
+        // A stale serve with a reconcile it cannot complete (pool exhausted)
+        // must still return the cached view immediately — never UNAVAILABLE,
+        // never blocking on the build. This guards the contract the clone fix
+        // preserves: the reconcile builds against a copy, so the live index
+        // stays in the map and serveable for the build's whole duration rather
+        // than being taken out (the pre-fix remove-then-reinsert exposed a
+        // window where a concurrent serve found nothing and fell to the cold
+        // UNAVAILABLE path).
+        let stale = tokio::time::timeout(
+            std::time::Duration::from_secs(2),
+            service.serve_actioncache_snapshot("ios", 0),
+        )
+        .await
+        .expect("serve must not block on the stalled reconcile")
+        .expect("serve returns the cached view, not UNAVAILABLE");
+        assert_eq!(&stale[..4], b"TSNZ");
+        assert!(
+            service
+                .snapshot_cache
+                .indexes
+                .lock()
+                .unwrap()
+                .contains_key("ios"),
+            "the live index stays cached while a reconcile is outstanding"
+        );
     }
 
     #[tokio::test(start_paused = true)]
