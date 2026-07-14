@@ -239,6 +239,7 @@ impl Codebase {
             .hidden(false)
             .require_git(false)
             .follow_links(false)
+            .sort_by_file_name(|left, right| left.cmp(right))
             .max_depth(Some(self.limits.max_traversal_depth));
 
         for entry in walker.build() {
@@ -390,6 +391,7 @@ impl Codebase {
             .hidden(false)
             .require_git(false)
             .follow_links(false)
+            .sort_by_file_name(|left, right| left.cmp(right))
             .max_depth(Some(requested_depth));
 
         for entry in walker.build() {
@@ -1104,6 +1106,21 @@ mod tests {
         (directory, codebase)
     }
 
+    fn reverse_ordered_fixture() -> (TempDir, Codebase) {
+        let directory = tempfile::tempdir().unwrap();
+        fs::write(directory.path().join("z.rs"), "needle\n").unwrap();
+        fs::write(directory.path().join("a.rs"), "needle\n").unwrap();
+
+        let codebase = Codebase::new(
+            directory.path().to_path_buf(),
+            REVISION.to_string(),
+            "https://github.com/tuist/tuist".to_string(),
+            Limits::default(),
+        )
+        .unwrap();
+        (directory, codebase)
+    }
+
     #[test]
     fn searches_literal_text_with_context_and_source_links() {
         let (_directory, codebase) = fixture(Limits::default());
@@ -1131,6 +1148,28 @@ mod tests {
             "https://github.com/tuist/tuist/blob/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/src/cache.rs#L4"
         );
         assert!(!response.truncated);
+    }
+
+    #[test]
+    fn truncated_searches_follow_path_order() {
+        let (_directory, codebase) = reverse_ordered_fixture();
+
+        let response = codebase
+            .search(SearchRequest {
+                pattern: "needle".to_string(),
+                path: String::new(),
+                file_glob: Some("**/*.rs".to_string()),
+                use_regular_expression: false,
+                case_sensitive: true,
+                context_lines: Some(0),
+                max_results: Some(1),
+            })
+            .unwrap();
+
+        assert_eq!(response.matches.len(), 1);
+        assert_eq!(response.matches[0].path, "a.rs");
+        assert!(response.truncated);
+        assert_eq!(response.truncation_reason.as_deref(), Some("match_limit"));
     }
 
     #[test]
@@ -1230,6 +1269,25 @@ mod tests {
             .unwrap();
 
         assert_eq!(response.entries.len(), 1);
+        assert!(response.truncated);
+        assert_eq!(response.truncation_reason.as_deref(), Some("result_limit"));
+    }
+
+    #[test]
+    fn truncated_listings_follow_path_order() {
+        let (_directory, codebase) = reverse_ordered_fixture();
+
+        let response = codebase
+            .list_files(ListFilesRequest {
+                path: String::new(),
+                file_glob: Some("**/*.rs".to_string()),
+                depth: Some(1),
+                max_results: Some(1),
+            })
+            .unwrap();
+
+        assert_eq!(response.entries.len(), 1);
+        assert_eq!(response.entries[0].path, "a.rs");
         assert!(response.truncated);
         assert_eq!(response.truncation_reason.as_deref(), Some("result_limit"));
     }
