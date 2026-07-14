@@ -47,6 +47,22 @@ defmodule TuistWeb.API.RunnerInteractiveShellSessionControllerTest do
     assert session.requested_by_user_id == user.id
   end
 
+  test "creates a shell session from a bodyless workflow job id request", %{conn: conn} do
+    user = AccountsFixtures.user_fixture()
+    account = user.account
+    running_job(account, 72_005, 720_050, "pod-api-shell-query")
+
+    conn =
+      conn
+      |> put_req_header("authorization", "Bearer #{user.token}")
+      |> post(~p"/api/runners/interactive/shell?job_ref=72005")
+
+    response = json_response(conn, 200)
+
+    assert response["workflow_job_id"] == 72_005
+    assert response["state"] == "requested"
+  end
+
   test "creates a shell session from a dashboard job URL", %{conn: conn} do
     user = AccountsFixtures.user_fixture()
     account = user.account

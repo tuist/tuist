@@ -48,6 +48,9 @@ struct RunnerShellSessionService: RunnerShellSessionServicing {
     func create(jobRef: String, serverURL: URL, token: String) async throws -> RunnerShellSession {
         var components = URLComponents(url: serverURL, resolvingAgainstBaseURL: false)
         components?.path = "/api/runners/interactive/shell"
+        components?.queryItems = [
+            URLQueryItem(name: "job_ref", value: jobRef),
+        ]
 
         guard let url = components?.url else {
             throw RunnerShellSessionServiceError.invalidResponse
@@ -55,9 +58,7 @@ struct RunnerShellSessionService: RunnerShellSessionServicing {
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        request.httpBody = try JSONEncoder().encode(["job_ref": jobRef])
 
         let (data, response) = try await urlSession.data(for: request)
 
