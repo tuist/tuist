@@ -432,6 +432,66 @@ defmodule Tuist.GitHub.Client do
   end
 
   @doc """
+  Cancels a workflow run via GitHub's Actions API
+  (`POST /repos/{owner}/{repo}/actions/runs/{run_id}/cancel`).
+  Requires the installation to hold `actions: write`; GitHub then
+  cancels every job in the run, and the resulting
+  `workflow_job.completed` webhooks reconcile our `runner_jobs` rows.
+
+  Returns `:ok` on 202 (accepted) and on 409 (the run already reached
+  a terminal state — the desired end state already holds, so it's not
+  an error). `403` surfaces as `{:error, :forbidden}` (the App lacks
+  `actions: write`), `404` as `{:error, :not_found}`.
+  """
+  def cancel_workflow_run(installation, repository_full_handle, workflow_run_id)
+      when is_binary(repository_full_handle) and is_integer(workflow_run_id) do
+    api_url = installation_api_url(installation)
+    url = "#{api_url}/repos/#{repository_full_handle}/actions/runs/#{workflow_run_id}/cancel"
+
+    with {:ok, %{token: token}} <- App.get_installation_token(installation, api_url: api_url),
+         {:ok, request_url, ssrf_opts} <- pin_ghes_url(url, api_url) do
+      req_opts =
+        [
+          url: request_url,
+          headers: default_headers(token)
+        ] ++ ssrf_opts ++ Retry.retry_options()
+
+      case Req.post(req_opts) do
+        {:ok, %{status: status}} when status in [202, 409] -> :ok
+        {:ok, %{status: 403}} -> {:error, :forbidden}
+        {:ok, %{status: 404}} -> {:error, :not_found}
+        {:ok, %{status: status, body: body}} -> {:error, {:http, status, body}}
+        {:error, reason} -> {:error, {:transport, reason}}
+      end
+    end
+  end
+
+  @doc """
+  Returns the installation's granted permissions map (e.g.
+  `%{"actions" => "write", "checks" => "write", …}`), read from the
+  installation token GitHub issues (cached, so no extra round-trip in
+  the common case). Used to gate dashboard capabilities.
+  """
+  def installation_permissions(installation) do
+    api_url = installation_api_url(installation)
+
+    case App.get_installation_token(installation, api_url: api_url) do
+      {:ok, %{permissions: permissions}} when is_map(permissions) -> {:ok, permissions}
+      {:ok, _} -> {:ok, %{}}
+      {:error, _} = error -> error
+    end
+  end
+
+  @doc """
+  Predicate: does the installation currently hold `actions: write`?
+  Fails closed (`false`) on any lookup error, so the UI hides an
+  action GitHub would 403 rather than showing a broken button.
+  """
+  def installation_has_actions_write?(installation) do
+    match?({:ok, %{"actions" => "write"}}, installation_permissions(installation))
+  end
+
+  @doc """
   Lists the App's recent webhook deliveries (the App's central
   delivery log — App-wide, not per-installation). Used by
   `Tuist.Runners.Workers.WebhookRedeliveryWorker` to discover

@@ -1104,6 +1104,122 @@ defmodule Tuist.Runners.Jobs do
     )
   end
 
+  @doc """
+  Lists workflow *runs* for a named workflow (`repository` +
+  `workflow_name`), newest activity first, paginated. Unlike
+  `list_recent_workflow_runs_for_account/2` (analytics; completed
+  runs only) this includes still-running runs and stamps a run-level
+  `status` / `conclusion` rolled up from the run's jobs, so the
+  dashboard can render a status badge and a Cancel affordance per run.
+
+  Run status rollup:
+    * any job not `completed` → `status: "in_progress"` (a queued /
+      claimed / running job means the run is still going).
+    * all jobs `completed` → `status: "completed"` with `conclusion`
+      collapsed failure > cancelled > success > skipped.
+
+  Options: `:limit`, `:offset`, `:head_branch` (exact), `:platform`.
+  """
+  def list_workflow_runs(account_id, repository, workflow_name, opts \\ [])
+      when is_integer(account_id) and is_binary(repository) and repository != "" and is_binary(workflow_name) and
+             is_list(opts) do
+    limit = Keyword.get(opts, :limit, 20)
+    offset = Keyword.get(opts, :offset, 0)
+
+    account_id
+    |> workflow_runs_query(repository, workflow_name, opts)
+    |> order_by([r], desc: r.last_activity_at)
+    |> limit(^limit)
+    |> offset(^offset)
+    |> ClickHouseRepo.all()
+  end
+
+  def list_workflow_runs(_, _, _, _), do: []
+
+  @doc """
+  Counts distinct workflow runs for a named workflow — the total for
+  `list_workflow_runs/4` pagination. `workflow_run_id` is stable
+  across a job's lifecycle rows, so a plain `countDistinct` over the
+  filtered rows is exact without the inner dedup.
+  """
+  def count_workflow_runs(account_id, repository, workflow_name, opts \\ [])
+      when is_integer(account_id) and is_binary(repository) and repository != "" and is_binary(workflow_name) and
+             is_list(opts) do
+    Job
+    |> where([j], j.account_id == ^account_id and j.workflow_run_id > 0)
+    |> where([j], j.repository == ^repository and j.workflow_name == ^workflow_name)
+    |> maybe_filter_run_branch(Keyword.get(opts, :head_branch))
+    |> maybe_filter_platform(Keyword.get(opts, :platform))
+    |> select([j], fragment("countDistinct(?)", j.workflow_run_id))
+    |> ClickHouseRepo.one()
+  end
+
+  def count_workflow_runs(_, _, _, _), do: 0
+
+  # Two-stage aggregation shared by list/count: inner dedupes to one
+  # row per workflow_job (argMax over lifecycle rows), outer rolls the
+  # deduped jobs up to one row per workflow_run_id with the run status.
+  defp workflow_runs_query(account_id, repository, workflow_name, opts) do
+    inner =
+      Job
+      |> where([j], j.account_id == ^account_id and j.workflow_run_id > 0)
+      |> where([j], j.repository == ^repository and j.workflow_name == ^workflow_name)
+      |> maybe_filter_run_branch(Keyword.get(opts, :head_branch))
+      |> maybe_filter_platform(Keyword.get(opts, :platform))
+      |> group_by([j], j.workflow_job_id)
+      |> select([j], %{
+        workflow_job_id: j.workflow_job_id,
+        workflow_run_id: fragment("argMax(?, ?)", j.workflow_run_id, j.updated_at),
+        workflow_name: fragment("argMax(?, ?)", j.workflow_name, j.updated_at),
+        repository: fragment("argMax(?, ?)", j.repository, j.updated_at),
+        head_branch: fragment("argMax(?, ?)", j.head_branch, j.updated_at),
+        head_sha: fragment("argMax(?, ?)", j.head_sha, j.updated_at),
+        run_attempt: fragment("argMax(?, ?)", j.run_attempt, j.updated_at),
+        status: fragment("argMax(?, ?)", j.status, j.updated_at),
+        conclusion: fragment("argMax(?, ?)", j.conclusion, j.updated_at),
+        enqueued_at: fragment("argMax(?, ?)", j.enqueued_at, j.updated_at),
+        started_at: fragment("argMax(?, ?)", j.started_at, j.updated_at),
+        completed_at: fragment("argMax(?, ?)", j.completed_at, j.updated_at),
+        updated_at: max(j.updated_at)
+      })
+
+    from(j in subquery(inner),
+      group_by: j.workflow_run_id,
+      select: %{
+        workflow_run_id: j.workflow_run_id,
+        workflow_name: fragment("argMax(?, ?)", j.workflow_name, j.updated_at),
+        repository: fragment("argMax(?, ?)", j.repository, j.updated_at),
+        head_branch: fragment("argMax(?, ?)", j.head_branch, j.updated_at),
+        head_sha: fragment("argMax(?, ?)", j.head_sha, j.updated_at),
+        run_attempt: fragment("argMax(?, ?)", j.run_attempt, j.updated_at),
+        job_count: fragment("count()"),
+        status: fragment("if(countIf(? != 'completed') > 0, 'in_progress', 'completed')", j.status),
+        conclusion:
+          fragment(
+            "if(countIf(? = 'failure') > 0, 'failure', if(countIf(? = 'cancelled') > 0, 'cancelled', if(countIf(? = 'success') > 0, 'success', 'skipped')))",
+            j.conclusion,
+            j.conclusion,
+            j.conclusion
+          ),
+        enqueued_at: min(j.enqueued_at),
+        duration_ms:
+          fragment(
+            "maxIf(toUnixTimestamp64Milli(?), isNotNull(?)) - minIf(toUnixTimestamp64Milli(?), isNotNull(?))",
+            j.completed_at,
+            j.completed_at,
+            j.started_at,
+            j.started_at
+          ),
+        last_activity_at: max(j.updated_at)
+      }
+    )
+  end
+
+  defp maybe_filter_run_branch(query, nil), do: query
+  defp maybe_filter_run_branch(query, ""), do: query
+
+  defp maybe_filter_run_branch(query, branch) when is_binary(branch), do: where(query, [j], j.head_branch == ^branch)
+
   defp maybe_eq_workflow(query, nil, nil), do: query
 
   defp maybe_eq_workflow(query, repository, nil) when is_binary(repository) and repository != "",

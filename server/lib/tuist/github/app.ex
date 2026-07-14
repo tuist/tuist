@@ -160,9 +160,14 @@ defmodule Tuist.GitHub.App do
         ] ++ ssrf_opts ++ Retry.retry_options()
 
       case Req.post(req_opts) do
-        {:ok, %Req.Response{status: 201, body: %{"token" => token, "expires_at" => expires_at}}} ->
+        {:ok, %Req.Response{status: 201, body: %{"token" => token, "expires_at" => expires_at} = body}} ->
           {:ok, expires_at, _} = DateTime.from_iso8601(expires_at)
-          {:ok, %{token: token, expires_at: expires_at}}
+          # GitHub returns the token's granted `permissions` map here
+          # (e.g. `%{"actions" => "write"}`). Carry it on the cached
+          # token so callers can gate capabilities (e.g. cancelling a
+          # workflow run needs `actions: write`) without a second API
+          # round-trip.
+          {:ok, %{token: token, expires_at: expires_at, permissions: Map.get(body, "permissions", %{})}}
 
         {:ok, %Req.Response{status: _status, body: _body}} ->
           {:error, "Failed to get installation token"}
