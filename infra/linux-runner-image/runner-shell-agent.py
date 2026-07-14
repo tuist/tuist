@@ -223,15 +223,101 @@ def shell_workdir():
     return "/"
 
 
+def prompt_host():
+    configured = os.environ.get("TUIST_RUNNER_SHELL_PROMPT_HOST")
+    source = configured or os.environ.get("TUIST_RUNNER_POD_NAME") or socket.gethostname()
+
+    if not configured and "-runner-" in source:
+        source = source.rsplit("-runner-", 1)[1]
+    elif not configured:
+        parts = source.split("-")
+        if len(parts) > 1 and len(parts[-1]) >= 6:
+            source = parts[-1]
+
+    cleaned = "".join(character for character in source if character.isalnum() or character in "._-")
+    return (cleaned or "runner")[:24]
+
+
+def prompt_dir_function_body(output_command, escape_tilde=False):
+    tilde = "\\~" if escape_tilde else "~"
+
+    return f"""
+__tuist_prompt_dir() {{
+  local path="${{PWD/#$HOME/{tilde}}}"
+  path="${{path/#{tilde}\\/actions-runner\\/_work/{tilde}\\/work}}"
+  path="${{path/#\\/home\\/runner\\/actions-runner\\/_work/{tilde}\\/work}}"
+  path="${{path/#\\/Users\\/runner\\/work/{tilde}\\/work}}"
+  {output_command} "$path"
+}}
+"""
+
+
+def write_shell_startup_file(name, body):
+    path = f"/tmp/tuist-runner-shell-{name}-{os.getpid()}"
+    with open(path, "w", encoding="utf-8") as file:
+        file.write(body)
+    os.chmod(path, 0o644)
+    return path
+
+
+def shell_argv(shell):
+    host = prompt_host()
+    shell_name = os.path.basename(shell)
+
+    if shell_name == "bash":
+        rc_path = write_shell_startup_file(
+            "bashrc",
+            f"""
+if [ -r /etc/profile ]; then . /etc/profile; fi
+if [ -r /etc/bash.bashrc ]; then . /etc/bash.bashrc; fi
+if [ -r "$HOME/.bash_profile" ]; then
+  . "$HOME/.bash_profile"
+elif [ -r "$HOME/.bash_login" ]; then
+  . "$HOME/.bash_login"
+elif [ -r "$HOME/.profile" ]; then
+  . "$HOME/.profile"
+fi
+if [ -r "$HOME/.bashrc" ]; then . "$HOME/.bashrc"; fi
+{prompt_dir_function_body('printf "%s"', escape_tilde=True)}
+PROMPT_COMMAND=
+PS1='\\u@{host} $(__tuist_prompt_dir) \\$ '
+""",
+        )
+        return [shell, "--noprofile", "--rcfile", rc_path, "-i"]
+
+    if shell_name == "zsh":
+        dotdir = f"/tmp/tuist-runner-shell-zdotdir-{os.getpid()}"
+        os.makedirs(dotdir, exist_ok=True)
+        with open(os.path.join(dotdir, ".zshrc"), "w", encoding="utf-8") as file:
+            file.write(
+                f"""
+for __tuist_rc in /etc/zprofile "$HOME/.zprofile" /etc/zshrc "$HOME/.zshrc"; do
+  if [ -r "$__tuist_rc" ]; then source "$__tuist_rc"; fi
+done
+unset __tuist_rc
+{prompt_dir_function_body('print -r --')}
+setopt PROMPT_SUBST
+PROMPT='%n@{host} $(__tuist_prompt_dir) %# '
+RPROMPT=''
+"""
+            )
+        os.environ["ZDOTDIR"] = dotdir
+        return [shell, "-i"]
+
+    os.environ["PS1"] = f"\\u@{host} \\W \\$ "
+    os.environ["PROMPT"] = f"%n@{host} %1~ %# "
+    return [shell, "-i"]
+
+
 def spawn_shell():
     pid, fd = pty.fork()
     if pid == 0:
-        os.chdir(shell_workdir())
         os.environ.setdefault("TERM", "xterm-256color")
         os.environ["TUIST_RUNNER_INTERACTIVE_SHELL"] = "1"
         shell = os.environ.get("TUIST_RUNNER_SHELL_PATH", os.environ.get("SHELL", "/bin/bash"))
         drop_to_shell_user()
-        os.execlp(shell, shell, "-l")
+        os.chdir(shell_workdir())
+        os.execvp(shell, shell_argv(shell))
 
     return pid, fd
 
