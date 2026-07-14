@@ -19,11 +19,11 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant};
 
+pub use bazel_remote_apis::build::bazel::remote::execution::v2::Digest;
 use bazel_remote_apis::build::bazel::remote::execution::v2::{
     self as reapi, action_cache_client::ActionCacheClient, batch_update_blobs_request,
     content_addressable_storage_client::ContentAddressableStorageClient,
 };
-pub use bazel_remote_apis::build::bazel::remote::execution::v2::Digest;
 use sha2::{Digest as _, Sha256};
 use tonic::transport::{Channel, ClientTlsConfig, Endpoint};
 
@@ -188,6 +188,11 @@ pub const SNAPSHOT_ACTION_KEY: &[u8] = b"tuist-actioncache-snapshot/v2";
 /// only entries written after it (a delta), so a long-lived proxy refreshes
 /// without refetching the world.
 const SNAPSHOT_AFTER_HINT: &str = "tuist-snapshot-after:";
+/// `inline_output_files` hint advertising that we accept the zstd-compressed
+/// (`TSNZ`) snapshot body. Always sent — this client always supports it. An
+/// old server ignores the unknown hint and answers plain `TSNP`, which decode
+/// still reads, so sending it unconditionally is rollout-safe.
+const SNAPSHOT_ZSTD_HINT: &str = "tuist-snapshot-zstd:1";
 
 pub fn blob_digest(content: &[u8]) -> reapi::Digest {
     reapi::Digest {
@@ -277,7 +282,9 @@ type AuthValue = tonic::metadata::MetadataValue<tonic::metadata::Ascii>;
 fn authed_request<T>(message: T, auth: Option<&AuthValue>) -> tonic::Request<T> {
     let mut request = tonic::Request::new(message);
     if let Some(value) = auth {
-        request.metadata_mut().insert("authorization", value.clone());
+        request
+            .metadata_mut()
+            .insert("authorization", value.clone());
     }
     request
 }
@@ -425,8 +432,7 @@ impl Remote {
                         .filter_map(|file| {
                             Some(ManifestEntry {
                                 llcas_digest: unhex(&file.path)?,
-                                contents: (!file.contents.is_empty())
-                                    .then_some(file.contents),
+                                contents: (!file.contents.is_empty()).then_some(file.contents),
                                 blob: file.digest?,
                             })
                         })
@@ -449,7 +455,7 @@ impl Remote {
     /// `after` asks for a delta: only entries written after that watermark.
     pub fn get_snapshot(&self, after: Option<u64>) -> Result<Option<Vec<u8>>, String> {
         let mut client = self.ac_client()?;
-        let mut inline_output_files = vec!["*".to_string()];
+        let mut inline_output_files = vec!["*".to_string(), SNAPSHOT_ZSTD_HINT.to_string()];
         if let Some(after) = after {
             inline_output_files.push(format!("{SNAPSHOT_AFTER_HINT}{after}"));
         }

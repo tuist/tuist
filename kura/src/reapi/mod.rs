@@ -515,6 +515,7 @@ impl ReapiService {
         &self,
         namespace_id: &str,
         after: u64,
+        compress: bool,
     ) -> Result<Vec<u8>, Status> {
         // Serve the cached index immediately, kicking the reconcile in the
         // background once the view is older than the freshness window: a
@@ -533,7 +534,7 @@ impl ReapiService {
             if let Some(index) = indexes.get_mut(namespace_id) {
                 let stale = index.reconciled_at.elapsed() >= SNAPSHOT_RECONCILE_INTERVAL;
                 index.last_used = Instant::now();
-                let bytes = index.encode(after);
+                let bytes = index.encode(after, compress);
                 drop(indexes);
                 if stale {
                     let _build = self.ensure_index_build(namespace_id);
@@ -571,7 +572,7 @@ impl ReapiService {
             return Err(Status::internal("snapshot index missing after build"));
         };
         index.last_used = Instant::now();
-        Ok(index.encode(after))
+        Ok(index.encode(after, compress))
     }
 
     /// The namespace's in-flight index build, starting one when none is
@@ -1004,7 +1005,14 @@ impl ActionCache for ReapiService {
                 .iter()
                 .find_map(|hint| hint.strip_prefix(SNAPSHOT_AFTER_HINT)?.parse::<u64>().ok())
                 .unwrap_or(0);
-            let snapshot = self.serve_actioncache_snapshot(namespace_id, after).await?;
+            let compress = request
+                .get_ref()
+                .inline_output_files
+                .iter()
+                .any(|hint| hint == SNAPSHOT_ZSTD_HINT);
+            let snapshot = self
+                .serve_actioncache_snapshot(namespace_id, after, compress)
+                .await?;
             let served = snapshot.len() as u64;
             let action_result = reapi::ActionResult {
                 output_files: vec![reapi::OutputFile {
@@ -1945,15 +1953,51 @@ fn validate_digest_bytes(digest: &reapi::Digest, bytes: &[u8]) -> Result<(), Str
 /// the write-time watermark header and delta responses).
 pub const SNAPSHOT_ACTION_KEY: &[u8] = b"tuist-actioncache-snapshot/v2";
 const SNAPSHOT_OUTPUT_PATH: &str = "tuist-actioncache-snapshot";
-/// Hard ceiling on the encoded snapshot, with headroom under the 64MB
-/// message limit REAPI clients configure. Entries are encoded newest-first,
-/// so the ceiling sheds the OLDEST keys — the snapshot degrades into a
-/// recency window; dropped keys resolve through the per-key path.
+/// Hard ceiling on the UNCOMPRESSED encoded snapshot served to clients that
+/// do not request compression, with headroom under the 64MB message limit
+/// REAPI clients configure. Entries are encoded newest-first, so the ceiling
+/// sheds the OLDEST keys — the snapshot degrades into a recency window;
+/// dropped keys resolve through the per-key path. It is also the floor the
+/// compressed path's inclusion budget converges to (a body this size is
+/// guaranteed to compress under the wire ceiling), so shrink retries always
+/// terminate at a safe view.
 const SNAPSHOT_MAX_BYTES: usize = 48 << 20;
+
+/// Ceiling on the COMPRESSED wire size for clients that request zstd. Same
+/// transfer budget as the uncompressed ceiling, but it now carries several
+/// times the content — a shared namespace's snapshot rides the recency
+/// window down to a small suffix of oldest keys, and those sheds were the
+/// per-key ladder that made the snapshot net-negative over the WAN.
+const SNAPSHOT_WIRE_MAX_BYTES: usize = 48 << 20;
+
+/// How much UNCOMPRESSED body the compressed path includes before it stops
+/// adding keys. Sized so the zstd output of a full body lands near the wire
+/// ceiling for this data's typical ratio; a body that compresses worse is
+/// re-encoded smaller (see `encode`). Also bounded in practice by the index's
+/// own entry cap.
+const SNAPSHOT_CONTENT_BUDGET_BYTES: usize = 144 << 20;
+
+/// Bounded shrink retries when a compressed body overshoots the wire ceiling.
+/// Each retry scales the content budget down from the observed ratio and can
+/// only fall to `SNAPSHOT_MAX_BYTES` (a provably-safe view), so this bounds
+/// the encode work, not the correctness.
+const SNAPSHOT_COMPRESS_MAX_ATTEMPTS: usize = 3;
+
+/// zstd level for the snapshot body. Level 3 runs at hundreds of MB/s and
+/// lands within a few percent of higher levels on hex-id node tables, so the
+/// serve stays CPU-cheap while the wire shrinks ~3x.
+const SNAPSHOT_ZSTD_LEVEL: i32 = 3;
 /// `inline_output_files` hint carrying the client's write-time watermark:
 /// when present, the response includes only entries written after it (a
 /// delta), letting a long-lived client refresh without refetching the world.
 pub const SNAPSHOT_AFTER_HINT: &str = "tuist-snapshot-after:";
+/// `inline_output_files` hint by which a client advertises zstd support: when
+/// present the body is compressed into the `TSNZ` envelope, letting the same
+/// wire budget carry several times the content. Negotiated, not versioned, so
+/// a client that omits it (any already-deployed build) still gets the plain
+/// `TSNP` body and an old server that ignores it still answers uncompressed —
+/// compatible in both directions across a rollout.
+pub const SNAPSHOT_ZSTD_HINT: &str = "tuist-snapshot-zstd:1";
 /// Bound on cached per-namespace snapshot indexes (LRU by last use). A kura
 /// node serves one tenant, so this comfortably covers every namespace that
 /// actually requests snapshots.
@@ -2121,7 +2165,47 @@ impl NamespaceSnapshotIndex {
     /// included, so a delta that overflows the ceiling paginates — the next
     /// request resumes where this one stopped — instead of the watermark
     /// skipping past entries that were never sent.
-    fn encode(&self, after: u64) -> Vec<u8> {
+    /// Encodes a view for the wire. Without compression the body is bounded by
+    /// the uncompressed ceiling and returned as-is (`TSNP`). With compression
+    /// the body is included up to the larger content budget and zstd-wrapped
+    /// (`TSNZ`); a body that compresses worse than budgeted is re-encoded with
+    /// a smaller budget scaled from the observed ratio, bounded to a few tries
+    /// that can only converge on the provably-safe uncompressed ceiling.
+    fn encode(&self, after: u64, compress: bool) -> Vec<u8> {
+        if !compress {
+            return self.encode_body(after, SNAPSHOT_MAX_BYTES);
+        }
+        let mut budget = SNAPSHOT_CONTENT_BUDGET_BYTES;
+        let mut wire = Vec::new();
+        for attempt in 0..SNAPSHOT_COMPRESS_MAX_ATTEMPTS {
+            let body = self.encode_body(after, budget);
+            wire = compress_snapshot(&body);
+            if wire.len() <= SNAPSHOT_WIRE_MAX_BYTES {
+                return wire;
+            }
+            // Overshot: this batch compressed worse than the budget assumed.
+            // Scale the content budget down from the ratio we just measured
+            // (strictly shrinks, since the compressed size is over the
+            // ceiling) but never below the uncompressed ceiling, whose body is
+            // guaranteed to compress under the wire ceiling. So the retry
+            // converges on a safe view.
+            let ratio = (body.len() as f64 / wire.len().max(1) as f64).max(1.0);
+            let scaled = (SNAPSHOT_WIRE_MAX_BYTES as f64 * ratio * 0.9) as usize;
+            budget = scaled.min(budget * 9 / 10).max(SNAPSHOT_MAX_BYTES);
+            if attempt + 1 == SNAPSHOT_COMPRESS_MAX_ATTEMPTS {
+                tracing::warn!(
+                    wire_bytes = wire.len(),
+                    "action-cache snapshot still over the wire ceiling after compression retries; shipping the trimmed view"
+                );
+            }
+        }
+        wire
+    }
+
+    /// The uncompressed `TSNP` body, including keys until `budget` bytes of
+    /// wire are accounted. `after == 0` is a full newest-first recency window;
+    /// a delta (`after > 0`) is oldest-first and paginates on overflow.
+    fn encode_body(&self, after: u64, budget: usize) -> Vec<u8> {
         let full = after == 0;
         let mut included: Vec<(&[u8; 32], &SnapshotIndexEntry)> = self
             .entries
@@ -2148,7 +2232,7 @@ impl NamespaceSnapshotIndex {
                     key_cost += 1 + self.nodes[node as usize].llcas.len() + 32 + 8;
                 }
             }
-            if estimated + key_cost > SNAPSHOT_MAX_BYTES {
+            if estimated + key_cost > budget {
                 if full {
                     // Recency window: this key is out, smaller older ones may fit.
                     continue;
@@ -2206,6 +2290,21 @@ impl NamespaceSnapshotIndex {
         }
         out
     }
+}
+
+/// Wraps a `TSNP` body in the `TSNZ` envelope: magic, version, the u64
+/// uncompressed length (so the client can size its buffer and reject a torn
+/// payload), then the zstd stream. Only clients that advertise zstd support
+/// receive this; everyone else gets the raw body.
+fn compress_snapshot(body: &[u8]) -> Vec<u8> {
+    let compressed = zstd::stream::encode_all(body, SNAPSHOT_ZSTD_LEVEL)
+        .expect("zstd encode of an in-memory buffer cannot fail");
+    let mut out = Vec::with_capacity(compressed.len() + 13);
+    out.extend_from_slice(b"TSNZ");
+    out.push(1);
+    out.extend_from_slice(&(body.len() as u64).to_le_bytes());
+    out.extend_from_slice(&compressed);
+    out
 }
 
 fn digest_key(digest: &reapi::Digest) -> Result<String, Status> {
@@ -2434,7 +2533,7 @@ mod tests {
         };
 
         // Full view: both keys, watermark = newest version, node table deduped.
-        let full = index.encode(0);
+        let full = index.encode(0, false);
         assert_eq!(&full[..4], b"TSNP");
         assert_eq!(full[4], 2);
         assert_eq!(u64::from_le_bytes(full[5..13].try_into().unwrap()), 200);
@@ -2442,7 +2541,7 @@ mod tests {
 
         // Delta view: only the key strictly newer than the cursor, with a
         // self-contained node table (root + the shared node).
-        let delta = index.encode(150);
+        let delta = index.encode(150, false);
         assert_eq!(u64::from_le_bytes(delta[5..13].try_into().unwrap()), 200);
         let node_count = read_u32(&delta, 13);
         assert_eq!(node_count, 2);
@@ -2459,16 +2558,45 @@ mod tests {
         // write landing in an already-served millisecond must reappear on the
         // next delta rather than being skipped until the full refresh. The
         // boundary key is re-sent (merge is idempotent client-side).
-        let boundary = index.encode(200);
+        let boundary = index.encode(200, false);
         assert_eq!(u64::from_le_bytes(boundary[5..13].try_into().unwrap()), 200);
         let node_count = read_u32(&boundary, 13);
         assert_eq!(node_count, 2, "boundary key re-sent");
 
         // Nothing at or past the cursor: an empty delta echoes it.
-        let empty = index.encode(300);
+        let empty = index.encode(300, false);
         assert_eq!(u64::from_le_bytes(empty[5..13].try_into().unwrap()), 300);
         let node_count = read_u32(&empty, 13);
         assert_eq!(node_count, 0);
+    }
+
+    #[test]
+    fn actioncache_snapshot_compressed_envelope_round_trips() {
+        let mut index = NamespaceSnapshotIndex::new();
+        let root = index.intern_node(vec![0xAA, 0xAA], [7; 32], 10);
+        let shared = index.intern_node(vec![0xBB], [8; 32], 20);
+        index.entries.insert(
+            [1; 32],
+            SnapshotIndexEntry {
+                version_ms: 100,
+                nodes: vec![root, shared],
+            },
+        );
+
+        // The compressed wire is the TSNZ envelope: magic, version 1, the
+        // uncompressed length, then the zstd stream that decodes to exactly
+        // the uncompressed body the same view would have produced.
+        let wire = index.encode(0, true);
+        assert_eq!(&wire[..4], b"TSNZ");
+        assert_eq!(wire[4], 1);
+        let declared = u64::from_le_bytes(wire[5..13].try_into().unwrap()) as usize;
+        let body = zstd::stream::decode_all(&wire[13..]).expect("zstd body should decode");
+        assert_eq!(body.len(), declared, "declared length matches the body");
+        assert_eq!(
+            body,
+            index.encode(0, false),
+            "body equals the plain TSNP view"
+        );
     }
 
     #[test]
@@ -2496,7 +2624,7 @@ mod tests {
         assert_eq!(index.nodes[0].llcas, vec![0xAA]);
         assert_eq!(index.node_index.get(&vec![0xAA]).copied(), Some(0));
         // The rebuilt table keeps serving: the full view carries the live key.
-        let full = index.encode(0);
+        let full = index.encode(0, false);
         assert_eq!(u64::from_le_bytes(full[5..13].try_into().unwrap()), 100);
     }
 
@@ -2617,7 +2745,7 @@ mod tests {
         .await;
 
         service
-            .serve_actioncache_snapshot("ios", 0)
+            .serve_actioncache_snapshot("ios", 0, false)
             .await
             .expect("first serve should succeed");
         assert_eq!(
@@ -2644,7 +2772,7 @@ mod tests {
 
         backdate_snapshot_index(&service, "ios");
         service
-            .serve_actioncache_snapshot("ios", 0)
+            .serve_actioncache_snapshot("ios", 0, false)
             .await
             .expect("second serve should succeed");
         wait_for_snapshot_index(&service, "ios", |index| index.entries.len() == 1).await;
@@ -2824,7 +2952,7 @@ mod tests {
         // keep running and cache the index anyway. Dropping it with the
         // request meant every retry rebuilt from scratch, and a gateway
         // timeout made the snapshot permanently unservable.
-        let mut serve = Box::pin(service.serve_actioncache_snapshot("ios", 0));
+        let mut serve = Box::pin(service.serve_actioncache_snapshot("ios", 0, false));
         let first = futures_util::future::poll_immediate(serve.as_mut()).await;
         assert!(first.is_none(), "the first poll leaves the build in flight");
         drop(serve);
@@ -2851,7 +2979,7 @@ mod tests {
             "the finished build removed itself from the in-flight map"
         );
         let bytes = service
-            .serve_actioncache_snapshot("ios", 0)
+            .serve_actioncache_snapshot("ios", 0, false)
             .await
             .expect("the follow-up request serves from the cached index");
         assert_eq!(&bytes[..4], b"TSNP");
@@ -2875,7 +3003,7 @@ mod tests {
             .expect("late entry should persist");
         backdate_snapshot_index(&service, "ios");
         service
-            .serve_actioncache_snapshot("ios", 0)
+            .serve_actioncache_snapshot("ios", 0, false)
             .await
             .expect("the post-publish serve succeeds");
         wait_for_snapshot_index(&service, "ios", |index| {
@@ -2951,7 +3079,7 @@ mod tests {
         }
 
         let bytes = service
-            .serve_actioncache_snapshot("ios", 0)
+            .serve_actioncache_snapshot("ios", 0, false)
             .await
             .expect("serve should succeed on the large namespace");
         assert_eq!(&bytes[..4], b"TSNP");
@@ -3032,7 +3160,7 @@ mod tests {
             .expect("pool should be acquirable when idle");
         let serve = tokio::spawn({
             let service = service.clone();
-            async move { service.serve_actioncache_snapshot("ios", 0).await }
+            async move { service.serve_actioncache_snapshot("ios", 0, false).await }
         });
         tokio::time::sleep(std::time::Duration::from_millis(200)).await;
         assert!(
@@ -3066,7 +3194,7 @@ mod tests {
             .try_acquire_reapi_materialization(pool)
             .expect("pool should be acquirable when idle");
         let status = service
-            .serve_actioncache_snapshot("ios", 0)
+            .serve_actioncache_snapshot("ios", 0, false)
             .await
             .expect_err("cold serve should shed while the build is stuck");
         assert_eq!(status.code(), tonic::Code::Unavailable);
@@ -3075,7 +3203,7 @@ mod tests {
         drop(hog);
         let bytes = tokio::time::timeout(
             std::time::Duration::from_secs(120),
-            service.serve_actioncache_snapshot("ios", 0),
+            service.serve_actioncache_snapshot("ios", 0, false),
         )
         .await
         .expect("serve should not hang once the pool frees")

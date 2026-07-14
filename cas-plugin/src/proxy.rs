@@ -51,6 +51,17 @@ const SNAPSHOT_DELTA_INTERVAL: Duration = Duration::from_secs(120);
 const SNAPSHOT_FETCH_WAIT: Duration = Duration::from_secs(20);
 const SNAPSHOT_FULL_INTERVAL: Duration = Duration::from_secs(30 * 60);
 const SNAPSHOT_RETRY_INTERVAL: Duration = Duration::from_secs(60 * 60);
+// Ceiling on a compressed snapshot's declared uncompressed size, so a torn or
+// hostile length prefix cannot drive an unbounded allocation. Comfortably
+// above the server's content budget (144 MiB); a legitimate body never
+// approaches it.
+const SNAPSHOT_DECOMPRESS_MAX_BYTES: usize = 512 << 20;
+// A leader that finds itself alone lingers this long before firing, giving a
+// near-simultaneous straggler time to join its batch. Once batches flow the
+// followers accumulating during each round trip carry the coalescing, so this
+// only pays out at the very start and end of a demand burst; kept far below a
+// WAN round trip so a lone fetch is barely delayed.
+const DEMAND_BATCH_LINGER: Duration = Duration::from_millis(3);
 // Failed fetches retry much sooner than definitive not-found: the server
 // answers UNAVAILABLE while it builds a large namespace's snapshot index,
 // and timeouts/transport errors are transient by the same token.
@@ -321,11 +332,33 @@ enum SnapshotState {
 }
 
 impl Snapshot {
-    /// Decodes the server's snapshot wire format: `"TSNP"` + version byte,
-    /// u64 write-time watermark, node table, per-key node-index lists. `None`
-    /// on any structural violation — the caller stays on the per-key path
-    /// rather than trusting a torn payload.
+    /// Decodes the server's snapshot response. A `"TSNZ"` envelope (magic,
+    /// version byte, u64 uncompressed length, zstd stream) is decompressed
+    /// into a `"TSNP"` body first; a bare `"TSNP"` body (an old server, or one
+    /// answering a client that did not request zstd) is decoded directly. Any
+    /// structural violation returns `None` and the caller stays on the per-key
+    /// path rather than trusting a torn payload.
     fn decode(bytes: &[u8]) -> Option<Snapshot> {
+        if bytes.len() >= 13 && &bytes[..4] == b"TSNZ" {
+            if bytes[4] != 1 {
+                return None;
+            }
+            let declared = u64::from_le_bytes(bytes[5..13].try_into().ok()?) as usize;
+            if declared > SNAPSHOT_DECOMPRESS_MAX_BYTES {
+                return None;
+            }
+            let body = zstd::stream::decode_all(&bytes[13..]).ok()?;
+            if body.len() != declared {
+                return None;
+            }
+            return Self::decode_body(&body);
+        }
+        Self::decode_body(bytes)
+    }
+
+    /// Decodes a bare `"TSNP"` body: `"TSNP"` + version byte, u64 write-time
+    /// watermark, node table, per-key node-index lists.
+    fn decode_body(bytes: &[u8]) -> Option<Snapshot> {
         fn take<'a>(bytes: &mut &'a [u8], n: usize) -> Option<&'a [u8]> {
             if bytes.len() < n {
                 return None;
@@ -506,6 +539,121 @@ unsafe impl Sync for PathState {}
 /// manifest to re-publish.
 type ViewRefresh = (Arc<Remote>, Vec<u8>, Vec<ManifestEntry>);
 
+/// Result of a coalesced demand fetch, taken by exactly one waiter.
+enum DemandResult {
+    Present(Vec<u8>),
+    Missing,
+    Failed(String),
+}
+
+/// Coalesces concurrent single-object demand fetches (OP_FETCH_OBJECT, one per
+/// compiler worker that outran the materializer) into shared `BatchReadBlobs`
+/// calls. A demand build fetched ~7000 objects one round trip each over the
+/// WAN; the RTT, not bandwidth, dominated that time. Compiler workers issue
+/// their misses in parallel, so a leader drains everything pending into one
+/// batch while followers accumulate during its round trip — the batch size
+/// self-clocks to the worker concurrency with no fixed wait.
+#[derive(Default)]
+struct DemandBatch {
+    /// Digests waiting to be fetched, deduped by hash.
+    pending: HashMap<String, reapi::Digest>,
+    /// Fetched results keyed by hash; each removed by the waiter that wanted it.
+    results: HashMap<String, DemandResult>,
+    /// Whether a leader is currently draining/fetching.
+    leader_active: bool,
+}
+
+struct DemandCoalescer {
+    batch: Mutex<DemandBatch>,
+    ready: Condvar,
+}
+
+impl DemandCoalescer {
+    fn new() -> DemandCoalescer {
+        DemandCoalescer {
+            batch: Mutex::new(DemandBatch::default()),
+            ready: Condvar::new(),
+        }
+    }
+
+    /// Fetches one blob, coalescing with concurrent callers into shared batch
+    /// reads. `fetch_batch` performs the actual multi-blob read; only the
+    /// leader of each batch invokes it, and every caller passes the same
+    /// closure (a read against the shared remote), so which thread leads does
+    /// not matter. Blocking here is free: the caller is a compiler worker
+    /// thread that a demand load already parks on network I/O.
+    ///
+    /// Each result is a one-shot mailbox consumed by the first thread to read
+    /// it, so two threads demanding the SAME digest concurrently may each
+    /// fetch it — a rare redundant read, never a wrong or dropped result.
+    fn fetch<F>(&self, digest: &reapi::Digest, fetch_batch: F) -> Result<Option<Vec<u8>>, String>
+    where
+        F: Fn(&[reapi::Digest]) -> Result<HashMap<String, Vec<u8>>, String>,
+    {
+        let hash = digest.hash.clone();
+        let mut batch = self.batch.lock().unwrap();
+        loop {
+            if let Some(result) = batch.results.remove(&hash) {
+                // Drop any pending entry we (or a same-hash sibling) registered
+                // but that another leader's fetch already satisfied — otherwise
+                // it lingers and a later batch re-fetches it, leaking its result.
+                batch.pending.remove(&hash);
+                return match result {
+                    DemandResult::Present(bytes) => Ok(Some(bytes)),
+                    DemandResult::Missing => Ok(None),
+                    DemandResult::Failed(message) => Err(message),
+                };
+            }
+            batch.pending.insert(hash.clone(), digest.clone());
+            if batch.leader_active {
+                // A leader is draining/fetching; wait for it to fill results.
+                batch = self.ready.wait(batch).unwrap();
+                continue;
+            }
+            // Lead this batch. If alone, linger briefly so a near-simultaneous
+            // straggler can join; once batches flow the accumulation during the
+            // previous round trip means we are rarely alone.
+            batch.leader_active = true;
+            if batch.pending.len() == 1 {
+                drop(batch);
+                std::thread::sleep(DEMAND_BATCH_LINGER);
+                batch = self.batch.lock().unwrap();
+            }
+            let digests: Vec<reapi::Digest> = batch.pending.values().cloned().collect();
+            let hashes: Vec<String> = batch.pending.keys().cloned().collect();
+            batch.pending.clear();
+            drop(batch);
+
+            // Network round trip outside the lock so followers keep queueing.
+            let fetched = fetch_batch(&digests);
+
+            batch = self.batch.lock().unwrap();
+            match fetched {
+                Ok(mut map) => {
+                    for hash in hashes {
+                        let result = match map.remove(&hash) {
+                            Some(bytes) => DemandResult::Present(bytes),
+                            None => DemandResult::Missing,
+                        };
+                        batch.results.insert(hash, result);
+                    }
+                }
+                Err(message) => {
+                    for hash in hashes {
+                        batch
+                            .results
+                            .insert(hash, DemandResult::Failed(message.clone()));
+                    }
+                }
+            }
+            batch.leader_active = false;
+            self.ready.notify_all();
+            // Loop: our own hash is now in results (or a follower took it and
+            // we re-enqueue for the next batch — correct either way).
+        }
+    }
+}
+
 pub struct Proxy {
     grpc_url: String,
     tokens: Arc<TokenProvider>,
@@ -562,6 +710,10 @@ pub struct Proxy {
     view_refresh: Mutex<VecDeque<ViewRefresh>>,
     view_refreshed: Mutex<HashSet<Vec<u8>>>,
 
+    // instance -> demand-fetch coalescer, created on first demand miss. Groups
+    // concurrent OP_FETCH_OBJECT blob reads into shared BatchReadBlobs calls.
+    demand_coalescers: Mutex<HashMap<String, Arc<DemandCoalescer>>>,
+
     // Per-node transfer analytics, written to cas_analytics.db for parity with
     // the Swift `CASAnalyticsDatabase`. `None` when no analytics path was configured.
     analytics: Option<crate::analytics::Analytics>,
@@ -597,6 +749,7 @@ impl Proxy {
             unprimed: AtomicU64::new(0),
             view_refresh: Mutex::new(VecDeque::new()),
             view_refreshed: Mutex::new(HashSet::new()),
+            demand_coalescers: Mutex::new(HashMap::new()),
             analytics,
         }));
         let proxy_addr = proxy as *const Proxy as usize;
@@ -1133,6 +1286,27 @@ impl Proxy {
         }
     }
 
+    /// The demand-fetch coalescer for an instance, created on first use.
+    fn coalescer_for(&self, instance: &str) -> Arc<DemandCoalescer> {
+        let mut coalescers = self.demand_coalescers.lock().unwrap();
+        coalescers
+            .entry(instance.to_string())
+            .or_insert_with(|| Arc::new(DemandCoalescer::new()))
+            .clone()
+    }
+
+    /// Fetches one blob for a demand load, coalescing with other demand fetches
+    /// in flight for the same instance into a shared `BatchReadBlobs`.
+    fn demand_fetch(
+        &self,
+        instance: &str,
+        remote: &Arc<Remote>,
+        digest: &reapi::Digest,
+    ) -> Result<Option<Vec<u8>>, String> {
+        self.coalescer_for(instance)
+            .fetch(digest, |digests| remote.batch_read(digests))
+    }
+
     /// Serves one FETCH_OBJECT: a demand load found `digest` missing from the
     /// local CAS. Present now (the materializer won the race) answers
     /// immediately; a registered pending fetch is executed inline (this runs
@@ -1185,9 +1359,8 @@ impl Proxy {
                     return Ok(false);
                 };
                 let remote = self.remote_for(&instance);
-                let contents = remote.batch_read(&[blob.clone()])?;
-                match contents.get(&blob.hash) {
-                    Some(bytes) => bytes.clone(),
+                match self.demand_fetch(&instance, &remote, &blob)? {
+                    Some(bytes) => bytes,
                     None => return Ok(false),
                 }
             }
@@ -2318,6 +2491,125 @@ mod tests {
         // and merged delta keys — the newest — move to the front of it.
         assert_eq!(snapshot.key_order, vec![[5u8; 32]]);
         assert_eq!(merged.key_order, vec![[9u8; 32], [5u8; 32]]);
+    }
+
+    #[test]
+    fn snapshot_decodes_the_compressed_envelope() {
+        // A minimal valid TSNP body: one node, one key referencing it.
+        let mut body = Vec::new();
+        body.extend_from_slice(b"TSNP");
+        body.push(2);
+        body.extend_from_slice(&555u64.to_le_bytes());
+        body.extend_from_slice(&1u32.to_le_bytes());
+        body.push(1);
+        body.push(0xAB);
+        body.extend_from_slice(&[7u8; 32]);
+        body.extend_from_slice(&10u64.to_le_bytes());
+        body.extend_from_slice(&1u32.to_le_bytes());
+        body.extend_from_slice(&[5u8; 32]);
+        body.extend_from_slice(&1u32.to_le_bytes());
+        body.extend_from_slice(&0u32.to_le_bytes());
+
+        // Wrap it in the TSNZ envelope the way kura does and confirm the client
+        // decodes the compressed and plain forms identically.
+        let compressed = zstd::stream::encode_all(&body[..], 3).unwrap();
+        let mut wire = Vec::new();
+        wire.extend_from_slice(b"TSNZ");
+        wire.push(1);
+        wire.extend_from_slice(&(body.len() as u64).to_le_bytes());
+        wire.extend_from_slice(&compressed);
+
+        let from_zstd = Snapshot::decode(&wire).expect("compressed decodes");
+        let from_plain = Snapshot::decode(&body).expect("plain decodes");
+        assert_eq!(from_zstd.watermark, 555);
+        assert_eq!(from_zstd.watermark, from_plain.watermark);
+        assert_eq!(from_zstd.nodes.len(), from_plain.nodes.len());
+        assert!(from_zstd.manifest(&[5u8; 32]).is_some());
+
+        // A declared length that disagrees with the real body is a torn
+        // payload: refuse rather than serve a half-decoded view.
+        let mut wrong_len = wire.clone();
+        wrong_len[5..13].copy_from_slice(&(body.len() as u64 + 1).to_le_bytes());
+        assert!(Snapshot::decode(&wrong_len).is_none());
+
+        // An absurd declared length must be rejected before allocating.
+        let mut huge = wire.clone();
+        huge[5..13].copy_from_slice(&(u64::MAX).to_le_bytes());
+        assert!(Snapshot::decode(&huge).is_none());
+    }
+
+    #[test]
+    fn demand_coalescer_routes_concurrent_fetches_correctly() {
+        use std::sync::atomic::AtomicUsize;
+
+        let coalescer = Arc::new(DemandCoalescer::new());
+        // Sums digests.len() over every batch call: with each hash fetched at
+        // most once, coalescing can only lower the CALL count, never change
+        // this sum — so a total above the worker count would mean a hash was
+        // fetched twice, and below it would mean one was dropped.
+        let fetched_total = Arc::new(AtomicUsize::new(0));
+
+        let digest = |n: u8| reapi::Digest {
+            hash: reapi::hex(&[n; 32]),
+            size_bytes: 3,
+        };
+
+        let mut handles = Vec::new();
+        for n in 0..8u8 {
+            let coalescer = coalescer.clone();
+            let fetched_total = fetched_total.clone();
+            handles.push(std::thread::spawn(move || {
+                coalescer
+                    .fetch(&digest(n), |digests| {
+                        fetched_total.fetch_add(digests.len(), Ordering::SeqCst);
+                        Ok(digests
+                            .iter()
+                            .map(|d| (d.hash.clone(), d.hash.clone().into_bytes()))
+                            .collect())
+                    })
+                    .expect("fetch succeeds")
+                    .expect("blob present")
+            }));
+        }
+        for (n, handle) in handles.into_iter().enumerate() {
+            let bytes = handle.join().unwrap();
+            assert_eq!(
+                bytes,
+                digest(n as u8).hash.into_bytes(),
+                "each worker gets its own blob"
+            );
+        }
+        assert_eq!(
+            fetched_total.load(Ordering::SeqCst),
+            8,
+            "every hash fetched exactly once across all batches"
+        );
+    }
+
+    #[test]
+    fn demand_coalescer_reports_missing_and_failure_per_waiter() {
+        let coalescer = DemandCoalescer::new();
+        let present = reapi::Digest {
+            hash: reapi::hex(&[1; 32]),
+            size_bytes: 3,
+        };
+        // A hash the batch read does not return is a miss (Ok(None)).
+        let missing = coalescer
+            .fetch(&present, |_| Ok(HashMap::new()))
+            .expect("no transport error");
+        assert!(missing.is_none(), "absent blob is a miss");
+
+        // A present hash returns its bytes.
+        let hit = coalescer
+            .fetch(&present, |d| {
+                Ok(d.iter().map(|d| (d.hash.clone(), vec![0xAB])).collect())
+            })
+            .expect("no transport error");
+        assert_eq!(hit, Some(vec![0xAB]));
+
+        // A transport error surfaces to the caller.
+        let err = coalescer.fetch(&present, |_| Err("boom".to_string()));
+        assert_eq!(err.unwrap_err(), "boom");
     }
 
     fn resolved_with(entries: Vec<(Vec<u8>, Resolution)>) -> Mutex<HashMap<Vec<u8>, Resolution>> {
