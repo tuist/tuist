@@ -22,24 +22,6 @@ import XcodeGraph
 
 #if canImport(TuistCacheEE)
 
-    enum CacheWarmCommandServiceError: LocalizedError, Equatable {
-        /// A cacheable target's per-platform build was incomplete, so the assembled xcframework would be
-        /// missing one or more primary (simulator/device) slices. Storing it would poison the shared,
-        /// content-addressed cache with a binary that fails module resolution for every consumer.
-        case incompleteXCFramework(target: String, missingSlices: [String])
-
-        var errorDescription: String? {
-            switch self {
-            case let .incompleteXCFramework(target, missingSlices):
-                return """
-                The cache warm produced an incomplete xcframework for '\(target)': the following required \
-                slices are missing: \(missingSlices.joined(separator: ", ")). This usually means a per-platform \
-                build was incomplete. Re-run the warm; if it persists, inspect the build logs for that target.
-                """
-            }
-        }
-    }
-
     // swiftlint:disable:next type_body_length
     public struct CacheWarmCommandService: CacheServicing {
         enum Destination {
@@ -539,9 +521,11 @@ import XcodeGraph
             // target-specific output path, so the operations are independent. We run them with
             // bounded concurrency to cut the wall-clock time of this phase on projects with many
             // cacheable targets, while keeping the input order so artifact storage stays deterministic.
-            return try await cacheableTargets.concurrentMap(
+            // Targets whose per-platform build came out incomplete are skipped (see below) rather than
+            // stored, so `concurrentCompactMap` drops them from the result.
+            return try await cacheableTargets.concurrentCompactMap(
                 maxConcurrentTasks: Self.maxConcurrentXCFrameworkCreations
-            ) { cacheableTarget in
+            ) { cacheableTarget -> CacheGraphTargetBuiltArtifact? in
                 let platforms = Array(cacheableTarget.0.target.supportedPlatforms)
                 let platformBinaryArtifacts = platforms.flatMap { Array(binaryArtifactDirectories[$0, default: Set()]) }
                 let artifactsIncludingTarget = try await platformBinaryArtifacts.concurrentCompactMap {
@@ -564,17 +548,22 @@ import XcodeGraph
                 // A per-platform build that silently dropped a slice (e.g. a flaky simulator or device
                 // build) would otherwise yield an xcframework missing that slice, which we'd happily
                 // store — poisoning the shared, content-addressed cache with a binary that fails module
-                // resolution for every consumer until it's evicted. Fail the warm instead of caching a
-                // structurally incomplete xcframework.
+                // resolution for every consumer until it's evicted. Skip caching such a target rather than
+                // storing a structurally incomplete xcframework: it will be built from source by consumers
+                // until a later warm produces a complete set of slices, which is safe. Warming the other
+                // targets still succeeds.
                 let missingRequiredSlices = Self.missingRequiredXCFrameworkSlices(
                     expectedSliceDirectories: platformBinaryArtifacts,
                     resolvedSliceDirectories: Set(artifactsIncludingTarget.map(\.directory))
                 )
                 guard missingRequiredSlices.isEmpty else {
-                    throw CacheWarmCommandServiceError.incompleteXCFramework(
-                        target: cacheableTarget.0.target.name,
-                        missingSlices: missingRequiredSlices.map(\.basename).sorted()
-                    )
+                    let missing = missingRequiredSlices.map(\.basename).sorted().joined(separator: ", ")
+                    Logger.current.warning("""
+                    Skipping caching of \(cacheableTarget.0.target.name): its xcframework is missing the \
+                    required \(missing) slice(s). This usually means a per-platform build was incomplete; \
+                    the target will be built from source by consumers until the next successful warm.
+                    """)
+                    return nil
                 }
 
                 let xcframeworkPath = temporaryDirectory.appending(components: [
