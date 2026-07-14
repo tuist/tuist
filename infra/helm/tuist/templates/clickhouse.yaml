@@ -1,4 +1,6 @@
 {{- if eq .Values.clickhouse.mode "embedded" }}
+{{- $systemLogLevel := .Values.clickhouse.embedded.systemLogs.level }}
+{{- $systemLogTTLDays := .Values.clickhouse.embedded.systemLogs.ttlDays }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -6,6 +8,63 @@ metadata:
   labels:
     {{- include "tuist.labels" . | nindent 4 }}
 data:
+  config.xml: |
+    <clickhouse>
+      {{ with .Values.clickhouse.embedded.systemLogs.level }}
+      <logger>
+        <level>{{ . }}</level>
+      </logger>
+      {{ end }}
+      {{ if or $systemLogLevel $systemLogTTLDays }}
+      <text_log>
+        <database>system</database>
+        <table>text_log</table>
+        {{ with $systemLogLevel }}
+        <level>{{ . }}</level>
+        {{ end }}
+        {{ with $systemLogTTLDays }}
+        <ttl>event_date + INTERVAL {{ . }} DAY DELETE</ttl>
+        {{ end }}
+      </text_log>
+      {{ end }}
+      {{ with $systemLogTTLDays }}
+      <query_log>
+        <database>system</database>
+        <table>query_log</table>
+        <ttl>event_date + INTERVAL {{ . }} DAY DELETE</ttl>
+      </query_log>
+      <query_thread_log>
+        <database>system</database>
+        <table>query_thread_log</table>
+        <ttl>event_date + INTERVAL {{ . }} DAY DELETE</ttl>
+      </query_thread_log>
+      <query_views_log>
+        <database>system</database>
+        <table>query_views_log</table>
+        <ttl>event_date + INTERVAL {{ . }} DAY DELETE</ttl>
+      </query_views_log>
+      <trace_log>
+        <database>system</database>
+        <table>trace_log</table>
+        <ttl>event_date + INTERVAL {{ . }} DAY DELETE</ttl>
+      </trace_log>
+      <metric_log>
+        <database>system</database>
+        <table>metric_log</table>
+        <ttl>event_date + INTERVAL {{ . }} DAY DELETE</ttl>
+      </metric_log>
+      <asynchronous_metric_log>
+        <database>system</database>
+        <table>asynchronous_metric_log</table>
+        <ttl>event_date + INTERVAL {{ . }} DAY DELETE</ttl>
+      </asynchronous_metric_log>
+      <part_log>
+        <database>system</database>
+        <table>part_log</table>
+        <ttl>event_date + INTERVAL {{ . }} DAY DELETE</ttl>
+      </part_log>
+      {{ end }}
+    </clickhouse>
   users.xml: |
     <clickhouse>
       <users>
@@ -72,6 +131,9 @@ spec:
             - name: data
               mountPath: /var/lib/clickhouse
             - name: config
+              mountPath: /etc/clickhouse-server/config.d/tuist.xml
+              subPath: config.xml
+            - name: config
               mountPath: /etc/clickhouse-server/users.d/users.xml
               subPath: users.xml
           readinessProbe:
@@ -135,4 +197,48 @@ spec:
                 sleep 2
               done
               clickhouse-client --host {{ include "tuist.componentName" (dict "root" . "component" "clickhouse") }} --port {{ .Values.clickhouse.embedded.service.nativePort }} --query "CREATE DATABASE IF NOT EXISTS {{ .Values.clickhouse.embedded.database }}"
+{{- with .Values.clickhouse.embedded.systemLogs.ttlDays }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" $ "component" "clickhouse-system-log-retention") }}
+  labels:
+    {{- include "tuist.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: clickhouse-system-log-retention
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "1"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 5
+  template:
+    metadata:
+      labels:
+        {{- include "tuist.componentLabels" (dict "root" $ "component" "clickhouse-system-log-retention") | nindent 8 }}
+        {{- with $.Values.global.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+{{ include "tuist.podScheduling" $ | nindent 6 }}
+      restartPolicy: OnFailure
+      containers:
+        - name: clickhouse-system-log-retention
+          image: "{{ $.Values.clickhouse.embedded.image.repository }}:{{ $.Values.clickhouse.embedded.image.tag }}"
+          imagePullPolicy: {{ $.Values.clickhouse.embedded.image.pullPolicy }}
+          env:
+            - name: CLICKHOUSE_PASSWORD
+              value: {{ $.Values.clickhouse.embedded.password | quote }}
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              until clickhouse-client --host {{ include "tuist.componentName" (dict "root" $ "component" "clickhouse") }} --port {{ $.Values.clickhouse.embedded.service.nativePort }} --password "$CLICKHOUSE_PASSWORD" --query "SELECT 1"; do
+                sleep 2
+              done
+              SYSTEM_LOG_TTL="event_date + INTERVAL {{ . }} DAY DELETE"
+              for table in text_log query_log query_thread_log query_views_log trace_log metric_log asynchronous_metric_log part_log; do
+                clickhouse-client --host {{ include "tuist.componentName" (dict "root" $ "component" "clickhouse") }} --port {{ $.Values.clickhouse.embedded.service.nativePort }} --password "$CLICKHOUSE_PASSWORD" --query "ALTER TABLE IF EXISTS system.${table} MODIFY TTL ${SYSTEM_LOG_TTL}"
+              done
+{{- end }}
 {{- end }}
