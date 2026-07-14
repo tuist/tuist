@@ -13,6 +13,25 @@ defmodule Tuist.URL do
   def public_url?(_), do: false
 
   @doc """
+  Like `public_url?/1` but permits a query/fragment, so it can validate a
+  presigned object-storage URL (which carries its signature in the query) before
+  it is handed to a host that will fetch it. Returns true only when the scheme is
+  allowed and the host is not a private/loopback/link-local address — the SSRF
+  guard for the runner-cache master archive URLs.
+  """
+  def public_host_url?(url) when is_binary(url) do
+    case URI.parse(url) do
+      %URI{scheme: scheme, host: host} when is_binary(host) and host != "" ->
+        scheme_allowed?(scheme) and not private_host?(host)
+
+      _ ->
+        false
+    end
+  end
+
+  def public_host_url?(_), do: false
+
+  @doc """
   Validates an SSO URL using the network policy for the current deployment.
 
   Tuist-hosted deployments only accept public URLs to protect the multi-tenant

@@ -246,7 +246,12 @@ func downloadAndExtract(url, dst string) error {
 	defer cancel()
 
 	archive := filepath.Join(dst, ".master.zip")
-	if out, err := exec.CommandContext(ctx, "curl", "-fsSL", "-o", archive, url).CombinedOutput(); err != nil {
+	// No -L: a presigned object-storage URL is fetched directly (200, no
+	// redirect), so refuse to follow redirects — that removes redirect-based
+	// SSRF where a hostile/misconfigured endpoint bounces this host to an
+	// internal address. The server also validates the URL host is public before
+	// handing it over (see volume_head_payload).
+	if out, err := exec.CommandContext(ctx, "curl", "-fsS", "-o", archive, url).CombinedOutput(); err != nil {
 		return fmt.Errorf("curl master: %w (%s)", err, strings.TrimSpace(string(out)))
 	}
 	defer os.Remove(archive)

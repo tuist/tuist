@@ -139,13 +139,23 @@ defmodule Tuist.Runners do
   defp volume_head_payload(account) do
     key = volume_master_object_key(account.id)
     head = VolumeHeads.get_head(account.id)
+    download_url = Storage.generate_download_url(key, account, expires_in: @volume_master_url_ttl_seconds)
+    upload_url = Storage.generate_upload_url(key, account, expires_in: @volume_master_url_ttl_seconds)
 
-    %{
-      generation: (head && head.generation) || 0,
-      digest: head && head.tree_digest,
-      download_url: Storage.generate_download_url(key, account, expires_in: @volume_master_url_ttl_seconds),
-      upload_url: Storage.generate_upload_url(key, account, expires_in: @volume_master_url_ttl_seconds)
-    }
+    # SSRF guard: a runner host follows the download URL (and the guest the
+    # upload URL), so refuse to hand out one whose host resolves to a private,
+    # loopback, or link-local address. A misconfigured or hostile storage
+    # endpoint would otherwise turn this into an SSRF primitive from every host.
+    # A rejected URL just means no HEAD (the job stays on its local master, the
+    # status quo) — never a fetch against an internal address.
+    if Tuist.URL.public_host_url?(download_url) and Tuist.URL.public_host_url?(upload_url) do
+      %{
+        generation: (head && head.generation) || 0,
+        digest: head && head.tree_digest,
+        download_url: download_url,
+        upload_url: upload_url
+      }
+    end
   rescue
     _ -> nil
   end
