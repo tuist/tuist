@@ -309,10 +309,11 @@ defmodule Tuist.Application do
         Supervisor.child_spec(CASEvent.Buffer, id: CASEvent.Buffer),
         Supervisor.child_spec(DeliveryAttempt.Buffer, id: DeliveryAttempt.Buffer),
         Tuist.Vault,
+        # Queued jobs can run as soon as Oban starts, so their connection pool must already be available.
+        {Finch, name: Tuist.Finch, pools: finch_pools()},
         {Oban, Application.fetch_env!(:tuist, Oban)},
         {Cachex, [:tuist, []]},
         Cache,
-        {Finch, name: Tuist.Finch, pools: finch_pools()},
         {Phoenix.PubSub, name: Tuist.PubSub},
         {TuistWeb.RateLimit.InMemory, [clean_period: to_timeout(hour: 1)]},
         {Tuist.API.Pipeline, []},
