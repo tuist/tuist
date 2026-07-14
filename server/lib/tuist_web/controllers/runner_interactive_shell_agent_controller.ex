@@ -11,6 +11,8 @@ defmodule TuistWeb.RunnerInteractiveShellAgentController do
 
   require Logger
 
+  @kubernetes_name_pattern ~r/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/
+
   def show(conn, _params) do
     case authenticated_pod_name(conn) do
       {:ok, pod_name} ->
@@ -41,6 +43,10 @@ defmodule TuistWeb.RunnerInteractiveShellAgentController do
       {:error, :wrong_namespace} ->
         conn |> put_status(:unauthorized) |> json(%{error: "wrong namespace"})
 
+      {:error, :pod_identity_mismatch} ->
+        Logger.warning("runners: shell tunnel discovery pod identity mismatch")
+        conn |> put_status(:unauthorized) |> json(%{error: "pod identity mismatch"})
+
       {:error, :not_in_cluster} ->
         conn |> put_status(:service_unavailable) |> json(%{error: "kubernetes unavailable"})
 
@@ -68,11 +74,42 @@ defmodule TuistWeb.RunnerInteractiveShellAgentController do
   defp authenticated_pod_name(conn) do
     with {:ok, token} <- bearer_token(conn),
          {:ok, %{namespace: namespace, name: service_account_name}} <- K8sClient.create_token_review(token),
-         true <- namespace == Environment.runners_namespace() do
-      {:ok, service_account_name}
+         true <- namespace == Environment.runners_namespace(),
+         {:ok, pod_name} <- verified_pod_name(conn, namespace, service_account_name) do
+      {:ok, pod_name}
     else
       false -> {:error, :wrong_namespace}
       error -> error
+    end
+  end
+
+  defp verified_pod_name(conn, namespace, service_account_name) do
+    case header(conn, "x-tuist-runner-pod-name") do
+      reported when is_binary(reported) and reported != "" and reported != service_account_name ->
+        verify_reported_pod_name(namespace, service_account_name, reported)
+
+      _ ->
+        {:ok, service_account_name}
+    end
+  end
+
+  defp verify_reported_pod_name(namespace, service_account_name, reported_pod_name) do
+    with true <- Regex.match?(@kubernetes_name_pattern, reported_pod_name),
+         {:ok, %{"spec" => %{"serviceAccountName" => ^service_account_name}}} <-
+           K8sClient.get_pod(namespace, reported_pod_name) do
+      {:ok, reported_pod_name}
+    else
+      false ->
+        {:error, :pod_identity_mismatch}
+
+      {:ok, _pod} ->
+        {:error, :pod_identity_mismatch}
+
+      {:error, :not_found} ->
+        {:error, :pod_identity_mismatch}
+
+      error ->
+        error
     end
   end
 
@@ -87,13 +124,13 @@ defmodule TuistWeb.RunnerInteractiveShellAgentController do
   defp log_shell_discovery_miss(conn, pod_name) do
     context = InteractiveSessions.shell_discovery_miss_context(pod_name)
 
-    if context.requested_sessions != [] do
-      Logger.info("runners: shell discovery had no matching requested session",
+    if context.open_sessions != [] do
+      Logger.info("runners: shell discovery had no matching open session",
         pod: pod_name,
         reported_pod: header(conn, "x-tuist-runner-pod-name"),
         reported_pool: header(conn, "x-tuist-runner-pool"),
         binding: inspect(context.binding),
-        requested_sessions: inspect(context.requested_sessions)
+        open_sessions: inspect(context.open_sessions)
       )
     end
   end

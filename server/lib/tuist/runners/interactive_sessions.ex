@@ -112,12 +112,11 @@ defmodule Tuist.Runners.InteractiveSessions do
   def shell_discovery_miss_context(pod_name) when is_binary(pod_name) and pod_name != "" do
     now = now()
 
-    requested_sessions =
+    open_sessions =
       InteractiveSession
       |> where(
         [session],
-        session.kind == :shell and session.state == :requested and is_nil(session.closed_at) and
-          session.expires_at > ^now
+        session.kind == :shell and is_nil(session.closed_at) and session.expires_at > ^now
       )
       |> order_by([session], desc: session.inserted_at)
       |> limit(5)
@@ -127,14 +126,15 @@ defmodule Tuist.Runners.InteractiveSessions do
         account_id: session.account_id,
         pod_name: session.pod_name,
         fleet_name: session.fleet_name,
+        state: session.state,
         inserted_at: session.inserted_at
       })
       |> Repo.all()
 
-    %{binding: binding_for_pod(pod_name), requested_sessions: requested_sessions}
+    %{binding: binding_for_pod(pod_name), open_sessions: open_sessions}
   end
 
-  def shell_discovery_miss_context(_pod_name), do: %{binding: nil, requested_sessions: []}
+  def shell_discovery_miss_context(_pod_name), do: %{binding: nil, open_sessions: []}
 
   def validate_token(token, %Account{id: account_id}, %User{id: user_id}) when is_binary(token) and token != "" do
     now = now()
