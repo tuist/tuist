@@ -8,6 +8,7 @@ defmodule TuistWeb.AuthControllerTest do
   alias Tuist.Accounts.Oauth2Identity
   alias Tuist.OAuth2.SSOClient
   alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistWeb.Errors.NotFoundError
   alias Ueberauth.Auth.Info
 
   describe "GET /auth/cli/:device_code" do
@@ -858,7 +859,41 @@ defmodule TuistWeb.AuthControllerTest do
 
       conn = conn |> init_test_session(%{}) |> assign(:ueberauth_auth, auth)
 
-      assert_raise TuistWeb.Errors.NotFoundError, fn ->
+      assert_raise NotFoundError, fn ->
+        TuistWeb.AuthController.callback(conn, %{})
+      end
+    end
+
+    test "rejects the Google callback when Google auth is disabled", %{conn: conn} do
+      stub(Tuist.Environment, :google_auth_enabled?, fn -> false end)
+
+      auth = %Ueberauth.Auth{
+        provider: :google,
+        uid: "google-uid-123",
+        info: %Info{email: "google-user@example.com"},
+        extra: %{raw_info: %{user: %{"hd" => nil}}}
+      }
+
+      conn = conn |> init_test_session(%{}) |> assign(:ueberauth_auth, auth)
+
+      assert_raise NotFoundError, fn ->
+        TuistWeb.AuthController.callback(conn, %{})
+      end
+    end
+
+    test "rejects the Apple callback when Apple auth is disabled", %{conn: conn} do
+      stub(Tuist.Environment, :apple_auth_enabled?, fn -> false end)
+
+      auth = %Ueberauth.Auth{
+        provider: :apple,
+        uid: "apple-uid-123",
+        info: %Info{email: "apple-user@example.com"},
+        extra: %{raw_info: %{user: %{}}}
+      }
+
+      conn = conn |> init_test_session(%{}) |> assign(:ueberauth_auth, auth)
+
+      assert_raise NotFoundError, fn ->
         TuistWeb.AuthController.callback(conn, %{})
       end
     end

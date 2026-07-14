@@ -35,6 +35,29 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeBuildFiles do
         }
       },
       "required" => ["build_run_id"]
+    },
+    output_schema: %{
+      "type" => "object",
+      "properties" => %{
+        "files" => %{
+          "type" => "array",
+          "items" => %{
+            "type" => "object",
+            "properties" => %{
+              "type" => %{"type" => "string", "enum" => ["swift", "c"]},
+              "target" => %{"type" => "string"},
+              "project" => %{"type" => "string"},
+              "path" => %{"type" => "string"},
+              "compilation_duration" => %{"type" => "integer"}
+            },
+            "required" => ["type", "target", "project", "path", "compilation_duration"],
+            "additionalProperties" => false
+          }
+        },
+        "pagination_metadata" => Tuist.MCP.Tool.pagination_metadata_schema()
+      },
+      "required" => ["files", "pagination_metadata"],
+      "additionalProperties" => false
     }
 
   alias Tuist.Builds

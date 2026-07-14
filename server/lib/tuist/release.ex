@@ -11,6 +11,7 @@ defmodule Tuist.Release do
   @app :tuist
   @processor_write_tables ~w(oban_jobs oban_peers)
   @processor_read_tables ~w(accounts projects automation_alerts webhook_endpoints)
+  @swift_registry_sync_write_tables ~w(oban_jobs oban_peers)
 
   def migrate do
     load_app()
@@ -24,9 +25,28 @@ defmodule Tuist.Release do
         Ecto.Migrator.with_repo(repo, fn repo ->
           ensure_database_schema(repo)
           Ecto.Migrator.run(repo, :up, all: true)
+          assert_all_migrations_up(repo)
           grant_runtime_role(repo)
           grant_processor_role(repo)
+          grant_swift_registry_sync_role(repo)
         end)
+    end
+  end
+
+  # A migration that brings the VM down instead of raising (an exit signal from a
+  # linked process, say) leaves `Ecto.Migrator.run/3` looking like it succeeded,
+  # so the deploy would report success and boot against a half-migrated database.
+  # Fail loudly instead of trusting the run's return value.
+  defp assert_all_migrations_up(repo) do
+    pending =
+      repo
+      |> Ecto.Migrator.migrations()
+      |> Enum.filter(fn {status, _version, _name} -> status == :down end)
+
+    if !Enum.empty?(pending) do
+      versions = Enum.map_join(pending, ", ", fn {_status, version, _name} -> version end)
+
+      raise "Migrations are still pending for #{inspect(repo)} after migrating: #{versions}"
     end
   end
 
@@ -221,6 +241,57 @@ defmodule Tuist.Release do
       "GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE #{write_tables} TO #{role}",
       "GRANT USAGE, SELECT ON SEQUENCE #{quoted_schema}.oban_jobs_id_seq TO #{role}",
       "GRANT SELECT ON TABLE #{read_tables} TO #{role}"
+    ]
+  end
+
+  # The swift_registry_sync worker (TUIST_MODE=swift_registry_sync) only
+  # touches Oban: it consumes :swift_registry_sync and inserts
+  # :swift_registry_release jobs, everything else lives in S3. So its grant
+  # is a strict subset of the processor's — the Oban tables, no
+  # accounts/projects reads. Applied here on every migrate, as the schema
+  # owner, so enabling swiftRegistrySync carries its own grants instead of
+  # the drift-prone manual `infra/cnpg/tuist-swift-registry-sync-grants.sql`
+  # runbook.
+  defp grant_swift_registry_sync_role(repo) when repo == Tuist.Repo do
+    case Environment.database_swift_registry_sync_role() do
+      role when is_binary(role) and role != "" ->
+        do_grant_swift_registry_sync_role(repo, role)
+
+      _ ->
+        :ok
+    end
+  end
+
+  defp grant_swift_registry_sync_role(_repo), do: :ok
+
+  defp do_grant_swift_registry_sync_role(repo, role) do
+    Environment.validate_postgres_identifier!(role, "TUIST_DATABASE_SWIFT_REGISTRY_SYNC_ROLE")
+
+    role = Environment.quote_postgres_identifier(role)
+    database = repo.config() |> Keyword.fetch!(:database) |> Environment.quote_postgres_identifier()
+    quoted_schema = Environment.quote_postgres_identifier(Environment.database_schema())
+
+    {:ok, :ok} =
+      repo.transaction(fn ->
+        Enum.each(
+          swift_registry_sync_role_grant_statements(role, database, quoted_schema),
+          &SQL.query!(repo, &1, [])
+        )
+
+        :ok
+      end)
+  end
+
+  @doc false
+  def swift_registry_sync_role_grant_statements(role, database, quoted_schema) do
+    write_tables = qualify_tables(quoted_schema, @swift_registry_sync_write_tables)
+
+    [
+      "REVOKE ALL ON ALL TABLES IN SCHEMA #{quoted_schema} FROM #{role}",
+      "GRANT CONNECT ON DATABASE #{database} TO #{role}",
+      "GRANT USAGE ON SCHEMA #{quoted_schema} TO #{role}",
+      "GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE #{write_tables} TO #{role}",
+      "GRANT USAGE, SELECT ON SEQUENCE #{quoted_schema}.oban_jobs_id_seq TO #{role}"
     ]
   end
 

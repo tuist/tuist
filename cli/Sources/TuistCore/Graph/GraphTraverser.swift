@@ -27,7 +27,7 @@ public class GraphTraverser: GraphTraversing {
     private let graph: Graph
     private let conditionCache = ConditionCache()
     private let conditionalTargets: Set<GraphDependency>
-    private let swiftPluginExecutablesCache = GraphCache<GraphDependency, Set<String>>()
+    private let precompiledSwiftMacroExecutablesCache = GraphCache<GraphDependency, Set<String>>()
     private let systemFrameworkMetadataProvider: SystemFrameworkMetadataProviding =
         SystemFrameworkMetadataProvider()
     private let targetDirectTargetDependenciesCache: ThreadSafe<[GraphTarget: [GraphTarget]]> =
@@ -1166,9 +1166,8 @@ public class GraphTraverser: GraphTraversing {
         return allExternalTargets.subtracting(allTargetExternalDependendedUponTargets)
     }
 
-    // swiftlint:disable:next function_body_length
-    public func allSwiftPluginExecutables(path: Path.AbsolutePath, name: String) -> Set<String> {
-        if let cached = swiftPluginExecutablesCache[.target(name: name, path: path)] {
+    public func allPrecompiledSwiftMacroExecutables(path: Path.AbsolutePath, name: String) -> Set<String> {
+        if let cached = precompiledSwiftMacroExecutablesCache[.target(name: name, path: path)] {
             return cached
         } else {
             func precompiledMacroDependencies(_ graphDependency: GraphDependency) -> Set<
@@ -1220,21 +1219,8 @@ public class GraphTraverser: GraphTraversing {
             }
             .map { "\($0.pathString)#\($0.basename.replacingOccurrences(of: ".macro", with: ""))" }
 
-            let sourceMacroPluginExecutables = allSwiftMacroTargets(path: path, name: name)
-                .flatMap { target in
-                    directSwiftMacroExecutables(path: target.project.path, name: target.target.name).map
-                        { (target, $0) }
-                }
-                .compactMap { _, dependencyReference in
-                    switch dependencyReference {
-                    case let .product(_, productName, _, _):
-                        return "$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/\(productName)#\(productName)"
-                    default:
-                        return nil
-                    }
-                }
-            let result = Set(precompiledMacroPluginExecutables + sourceMacroPluginExecutables)
-            swiftPluginExecutablesCache[.target(name: name, path: path)] = result
+            let result = Set(precompiledMacroPluginExecutables)
+            precompiledSwiftMacroExecutablesCache[.target(name: name, path: path)] = result
             return result
         }
     }

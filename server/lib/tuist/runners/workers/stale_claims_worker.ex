@@ -26,9 +26,9 @@ defmodule Tuist.Runners.Workers.StaleClaimsWorker do
     * Both succeed → row is back in the queued pool, cap slot
       freed.
     * CH succeeds, PG delete fails / crash → CH says queued, PG
-      still claimed. The next poll picks the row, hits a PG PK
-      conflict on `Claims.attempt`, returns :lost_race and bails
-      cleanly. The next worker run sees the same stale PG row
+      still claimed. Dispatch skips rows already claimed in PG
+      before selecting queued work, so later workflow_jobs can
+      keep moving. The next worker run sees the same stale PG row
       and retries.
     * CH fails → leave PG alone; next worker run retries the
       whole sequence.
@@ -48,6 +48,7 @@ defmodule Tuist.Runners.Workers.StaleClaimsWorker do
   alias Tuist.Runners.Claims
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.Telemetry
+  alias Tuist.Runners.VolumeAffinities
 
   require Logger
 
@@ -74,6 +75,12 @@ defmodule Tuist.Runners.Workers.StaleClaimsWorker do
         %{kind: "stale_claim"}
       )
     end
+
+    # Opportunistically prune volume-affinity rows past their retention
+    # window. Cheap indexed range delete, usually 0 rows;
+    # piggybacks on this periodic runner-maintenance sweep rather than
+    # adding a separate cron entry.
+    VolumeAffinities.prune()
 
     :ok
   end

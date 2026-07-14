@@ -120,6 +120,30 @@ spec:
               value: {{ .Values.server.logLevel | quote }}
             - name: TUIST_HOSTED
               value: {{ .Values.server.hosted | ternary "1" "0" | quote }}
+            {{- with (.Values.server.artifactRetentionDays.cacheArtifacts | toString) }}
+            - name: TUIST_CACHE_ARTIFACT_RETENTION_DAYS
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with (.Values.server.artifactRetentionDays.appPreviews | toString) }}
+            - name: TUIST_APP_PREVIEW_RETENTION_DAYS
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with (.Values.server.artifactRetentionDays.buildArchives | toString) }}
+            - name: TUIST_BUILD_ARCHIVE_RETENTION_DAYS
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with (.Values.server.artifactRetentionDays.runArtifacts | toString) }}
+            - name: TUIST_RUN_ARTIFACT_RETENTION_DAYS
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with (.Values.server.artifactRetentionDays.testAttachments | toString) }}
+            - name: TUIST_TEST_ATTACHMENT_RETENTION_DAYS
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with (.Values.server.artifactRetentionDays.shardBundles | toString) }}
+            - name: TUIST_SHARD_BUNDLE_RETENTION_DAYS
+              value: {{ . | quote }}
+            {{- end }}
             - name: TUIST_SKIP_EMAIL_CONFIRMATION
               value: {{ .Values.server.skipEmailConfirmation | ternary "1" "0" | quote }}
             - name: TUIST_SELF_HOSTING_DEVELOPMENT_MODE
@@ -320,6 +344,17 @@ spec:
             {{- include "tuist.clickhousePoolEnv" . | nindent 12 }}
             {{- with .Values.server.extraEnv }}
             {{- toYaml . | nindent 12 }}
+            {{- end }}
+            {{- if ne (.Values.server.externalSecrets.cacheGrant.item | default "") "" }}
+            # Cache-signing grant key: read as an env var because
+            # decrypt_secrets/0 is empty outside dev, so the getter takes it
+            # from TUIST_CACHE_GRANT_PRIVATE_KEY. Synced from 1Password by the
+            # server-external-secrets ExternalSecret.
+            - name: TUIST_CACHE_GRANT_PRIVATE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "tuist.componentName" (dict "root" . "component" "server-external-secrets") }}
+                  key: cache-grant-private-key
             {{- end }}
           {{- $serverConfigEnvFrom := include "tuist.serverConfigEnvFrom" . | trim }}
           {{- if or $serverConfigEnvFrom .Values.server.extraEnvFrom }}

@@ -39,6 +39,19 @@ defmodule Tuist.Storage.AzureBlobTest do
       assert query["spr"] == "https"
       assert is_binary(query["sig"])
     end
+
+    test "sets and signs the download filename" do
+      url =
+        AzureBlob.generate_download_url("Account/Project/runs/result_bundle.zip",
+          expires_in: 60,
+          content_disposition: ~s(attachment; filename="result_bundle.aar")
+        )
+
+      query = url |> URI.parse() |> Map.fetch!(:query) |> URI.decode_query()
+
+      assert query["rscd"] == ~s(attachment; filename="result_bundle.aar")
+      assert is_binary(query["sig"])
+    end
   end
 
   describe "generate_upload_url/2" do
@@ -157,6 +170,19 @@ defmodule Tuist.Storage.AzureBlobTest do
       end)
 
       assert AzureBlob.multipart_complete_upload("builds/build.zip", upload_id, [{2, "etag-2"}, {1, "etag-1"}]) == :ok
+    end
+  end
+
+  describe "get_object_range/2" do
+    test "requests only the selected bytes" do
+      expect(Req, :request, fn opts ->
+        assert opts[:method] == :get
+        assert {"range", "bytes=0-1"} in opts[:headers]
+
+        {:ok, %{status: 206, headers: [], body: "pb"}}
+      end)
+
+      assert {:ok, %{body: "pb"}} = AzureBlob.get_object_range("runs/result_bundle.zip", 0..1)
     end
   end
 

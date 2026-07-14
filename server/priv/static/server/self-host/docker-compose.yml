@@ -110,7 +110,7 @@ services:
       KURA_TMP_DIR: /tmp/kura
       KURA_DATA_DIR: /var/cache/kura
       KURA_NODE_URL: http://kura:7443
-      KURA_PEERS: http://kura:7443
+      KURA_PEERS: ""
       KURA_OTEL_SERVICE_NAME: kura-local
       KURA_OTEL_DEPLOYMENT_ENVIRONMENT: local
     ports:

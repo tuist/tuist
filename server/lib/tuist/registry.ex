@@ -21,7 +21,27 @@ defmodule Tuist.Registry do
   decommissioned.
   """
 
+  alias Tuist.Registry.Swift.Metadata
+  alias Tuist.Registry.Swift.SwiftPackageIndex
+  alias Tuist.Registry.Swift.SyncWorker
+
   def registry_bucket, do: Application.get_env(:tuist, :registry)[:bucket]
+
+  @doc """
+  The full public base URL, including the API path prefix, that clients use
+  to reach the Swift package registry (e.g.
+  `https://registry.tuist.dev/api/registry/swift` today, becoming
+  `.../swift` once production traffic moves to the standalone frontend). Set
+  per environment via `TUIST_REGISTRY_URL` so ops controls the prefix as the
+  routing cutover lands. `nil` when the deployment exposes no registry, in
+  which case the discovery endpoint 404s.
+  """
+  def url do
+    case Application.get_env(:tuist, :registry)[:url] do
+      url when is_binary(url) and url != "" -> String.trim_trailing(url, "/")
+      _ -> nil
+    end
+  end
 
   def swift_registry_github_token do
     case Application.get_env(:tuist, :registry)[:swift_github_token] do
@@ -42,5 +62,67 @@ defmodule Tuist.Registry do
 
   def swift_registry_sync_limit do
     Application.get_env(:tuist, :registry)[:swift_sync_limit] || 1_000
+  end
+
+  def list_swift_packages do
+    SwiftPackageIndex.list_packages(nil)
+  end
+
+  def get_swift_package(scope, name) when is_binary(scope) and is_binary(name) do
+    with {:ok, packages} <- list_swift_packages(),
+         package when not is_nil(package) <-
+           Enum.find(packages, &(&1.scope == scope and &1.name == name)),
+         {:ok, metadata} <- get_swift_package_metadata(scope, name) do
+      {:ok, Map.put(package, :versions, swift_package_versions(metadata))}
+    else
+      nil -> {:error, :not_found}
+      {:error, _reason} = error -> error
+    end
+  end
+
+  def force_resync_swift_package_version(repository_full_handle, version)
+      when is_binary(repository_full_handle) and is_binary(version) do
+    %{repository_full_handle: repository_full_handle, version: version, force: true}
+    |> SyncWorker.new(unique: [period: 60, keys: [:repository_full_handle, :version, :force]])
+    |> Oban.insert()
+  end
+
+  defp get_swift_package_metadata(scope, name) do
+    case Metadata.get_package(scope, name) do
+      {:ok, metadata} -> {:ok, metadata}
+      {:error, :not_found} -> {:ok, %{}}
+      {:error, _reason} = error -> error
+    end
+  end
+
+  defp swift_package_versions(metadata) do
+    releases = Map.get(metadata, "releases", %{})
+
+    available_versions =
+      Enum.map(releases, fn {version, release} ->
+        %{
+          version: version,
+          status: :available,
+          detail: Map.get(release, "checksum")
+        }
+      end)
+
+    skipped_versions =
+      metadata
+      |> Map.get("skipped_releases", %{})
+      |> Map.drop(Map.keys(releases))
+      |> Enum.map(fn {version, release} ->
+        %{
+          version: version,
+          status: :skipped,
+          detail: Map.get(release, "reason")
+        }
+      end)
+
+    Enum.sort_by(
+      available_versions ++ skipped_versions,
+      &Version.parse!(&1.version),
+      {:desc, Version}
+    )
   end
 end

@@ -42,7 +42,8 @@ defmodule Tuist.Storage.AzureBlob do
   def generate_download_url(object_key, opts \\ []) do
     presigned_url(object_key,
       permissions: "r",
-      expires_in: Keyword.get(opts, :expires_in, 3600)
+      expires_in: Keyword.get(opts, :expires_in, 3600),
+      content_disposition: Keyword.get(opts, :content_disposition)
     )
   end
 
@@ -179,6 +180,10 @@ defmodule Tuist.Storage.AzureBlob do
     end
   end
 
+  def get_object_range(object_key, first..last//1) do
+    request(:get, object_key, headers: [{"range", "bytes=#{first}-#{last}"}])
+  end
+
   def multipart_start(_object_key), do: UUIDv7.generate()
 
   def delete_all_objects(prefix) do
@@ -281,6 +286,7 @@ defmodule Tuist.Storage.AzureBlob do
     resource = "b"
     protocol = signed_protocol(config.endpoint)
     expires_at = DateTime.utc_now() |> DateTime.add(expires_in, :second) |> format_iso8601()
+    content_disposition = Keyword.get(opts, :content_disposition, "") || ""
 
     string_to_sign =
       Enum.join(
@@ -297,7 +303,7 @@ defmodule Tuist.Storage.AzureBlob do
           "",
           "",
           "",
-          "",
+          content_disposition,
           "",
           "",
           ""
@@ -306,17 +312,18 @@ defmodule Tuist.Storage.AzureBlob do
       )
 
     sas_params =
-      maybe_put_query_param(
-        [
-          {"sp", permissions},
-          {"se", expires_at},
-          {"sv", config.service_version},
-          {"sr", resource},
-          {"sig", sign(config.account_key, string_to_sign)}
-        ],
+      [
+        {"sp", permissions},
+        {"se", expires_at},
+        {"sv", config.service_version},
+        {"sr", resource},
+        {"sig", sign(config.account_key, string_to_sign)}
+      ]
+      |> maybe_put_query_param(
         "spr",
         empty_to_nil(protocol)
       )
+      |> maybe_put_query_param("rscd", empty_to_nil(content_disposition))
 
     object_key
     |> blob_url(config: config, query_params: Keyword.get(opts, :query_params, []) ++ sas_params)

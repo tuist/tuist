@@ -27,6 +27,27 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeTestTargets do
         }
       },
       "required" => ["test_run_id"]
+    },
+    output_schema: %{
+      "type" => "object",
+      "properties" => %{
+        "targets" => %{
+          "type" => "array",
+          "items" => %{
+            "type" => "object",
+            "properties" => %{
+              "name" => %{"type" => "string"},
+              "hit_status" => %{"type" => "string"},
+              "hash" => %{"type" => "string"}
+            },
+            "required" => ["name", "hit_status", "hash"],
+            "additionalProperties" => false
+          }
+        },
+        "pagination_metadata" => Tuist.MCP.Tool.pagination_metadata_schema()
+      },
+      "required" => ["targets", "pagination_metadata"],
+      "additionalProperties" => false
     }
 
   alias Tuist.CommandEvents

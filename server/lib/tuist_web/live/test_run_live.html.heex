@@ -132,8 +132,8 @@
         <:icon_left><.download /></:icon_left>
       </.button>
       <.button
-        :if={@run.status != "processing" && Tuist.Tests.test_ci_run_url(@run)}
-        href={Tuist.Tests.test_ci_run_url(@run)}
+        :if={@run.status != "processing" && @ci_run_url}
+        href={@ci_run_url}
         label={dgettext("dashboard_tests", "CI Run")}
         variant="secondary"
         size="medium"
@@ -445,6 +445,11 @@
         </div>
       </.card_section>
     </.card>
+
+    <.ci_context_card
+      :if={@ci_context}
+      context={@ci_context}
+    />
 
     <.card
       :if={@is_sharded}

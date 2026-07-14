@@ -3462,6 +3462,13 @@ defmodule Tuist.AccountsTest do
   end
 
   describe "delete_account/1" do
+    setup do
+      # Account deletion purges the account's runner cache-volume masters from
+      # object storage; stub it so tests don't reach real storage.
+      stub(Tuist.Storage, :delete_all_objects, fn _prefix, _actor -> {:ok, 0} end)
+      :ok
+    end
+
     test "deletes a user account successfully" do
       # Given
       user = AccountsFixtures.user_fixture()
@@ -3486,6 +3493,36 @@ defmodule Tuist.AccountsTest do
 
       # Then
       assert Accounts.get_organization_by_id(organization.id) == {:error, :not_found}
+      assert Accounts.get_account_by_id(account.id) == {:error, :not_found}
+    end
+
+    test "purges the account's runner cache-volume masters from object storage" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      test_pid = self()
+
+      expect(Tuist.Storage, :delete_all_objects, fn prefix, _actor ->
+        send(test_pid, {:purged, prefix})
+        {:ok, 0}
+      end)
+
+      # When
+      Accounts.delete_account!(account)
+
+      # Then
+      assert_receive {:purged, "runner-volume-masters/" <> rest}
+      assert rest == "#{account.id}/"
+    end
+
+    test "account deletion still succeeds when the cache-master purge fails" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      stub(Tuist.Storage, :delete_all_objects, fn _prefix, _actor -> raise "storage down" end)
+
+      # When / Then — the best-effort purge is rescued, deletion proceeds.
+      Accounts.delete_account!(account)
       assert Accounts.get_account_by_id(account.id) == {:error, :not_found}
     end
   end

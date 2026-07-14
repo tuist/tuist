@@ -55,8 +55,8 @@ final class FrameworkSearchPathsGraphMapperTests: TuistUnitTestCase {
         )
         let otherSwiftFlags = arrayValue(settings.base["OTHER_SWIFT_FLAGS"])
         XCTAssertTrue(otherSwiftFlags.contains("-F"))
-        XCTAssertTrue(otherSwiftFlags.contains("$(SRCROOT)/Derived/FrameworkSearchPaths/Swift/App"))
-        XCTAssertFalse(otherSwiftFlags.contains("$(SRCROOT)/Frameworks/hash0"))
+        XCTAssertTrue(otherSwiftFlags.contains("\"$(SRCROOT)/Derived/FrameworkSearchPaths/Swift/App\""))
+        XCTAssertFalse(otherSwiftFlags.contains("\"$(SRCROOT)/Frameworks/hash0\""))
         // The precompiled paths live in the response file, not in FRAMEWORK_SEARCH_PATHS.
         XCTAssertFalse(arrayValue(settings.base["FRAMEWORK_SEARCH_PATHS"]).contains { $0.contains("/Frameworks/") })
 
@@ -140,6 +140,44 @@ final class FrameworkSearchPathsGraphMapperTests: TuistUnitTestCase {
         })
     }
 
+    func test_map_quotesSwiftFrameworkSearchPaths_whenTargetNameContainsWhitespace() async throws {
+        // Given
+        let projectPath = try temporaryPath()
+        let app = Target.test(name: "Notification Service", product: .app)
+        let project = Project.test(path: projectPath, sourceRootPath: projectPath, targets: [app])
+        var xcframeworks: [GraphDependency] = []
+        for i in 0 ..< 25 {
+            xcframeworks.append(
+                .testXCFramework(
+                    path: projectPath.appending(components: "Frameworks", "hash\(i)", "Module\(i).xcframework"),
+                    linking: .dynamic
+                )
+            )
+        }
+        var dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: "Notification Service", path: projectPath): Set(xcframeworks),
+        ]
+        for xcframework in xcframeworks {
+            dependencies[xcframework] = Set()
+        }
+        let graph = Graph.test(projects: [projectPath: project], dependencies: dependencies)
+
+        // When
+        let (mappedGraph, _, _) = try await subject.map(graph: graph, environment: MapperEnvironment())
+
+        // Then
+        let settings = try XCTUnwrap(mappedGraph.projects[projectPath]?.targets["Notification Service"]?.settings)
+        let otherSwiftFlags = arrayValue(settings.base["OTHER_SWIFT_FLAGS"])
+        XCTAssertTrue(otherSwiftFlags.contains("-F"))
+        // The search path is quoted so Xcode does not word-split it into two tokens.
+        XCTAssertTrue(
+            otherSwiftFlags.contains("\"$(SRCROOT)/Derived/FrameworkSearchPaths/Swift/Notification Service\"")
+        )
+        XCTAssertFalse(
+            otherSwiftFlags.contains("$(SRCROOT)/Derived/FrameworkSearchPaths/Swift/Notification Service")
+        )
+    }
+
     func test_map_deletesStaleFrameworkSearchPathResponseFiles() async throws {
         // Given
         let projectPath = try temporaryPath()
@@ -220,10 +258,10 @@ final class FrameworkSearchPathsGraphMapperTests: TuistUnitTestCase {
         // Then
         let settings = try XCTUnwrap(mappedGraph.projects[projectPath]?.targets["App"]?.settings)
         let otherSwiftFlags = arrayValue(settings.base["OTHER_SWIFT_FLAGS"])
-        XCTAssertTrue(otherSwiftFlags.contains("$(SRCROOT)/Derived/FrameworkSearchPaths/Swift/App"))
-        XCTAssertTrue(otherSwiftFlags.contains("$(SRCROOT)/Frameworks/hash0"))
-        XCTAssertTrue(otherSwiftFlags.contains("$(SRCROOT)/Frameworks/hash1"))
-        XCTAssertFalse(otherSwiftFlags.contains("$(SRCROOT)/Frameworks/hash2"))
+        XCTAssertTrue(otherSwiftFlags.contains("\"$(SRCROOT)/Derived/FrameworkSearchPaths/Swift/App\""))
+        XCTAssertTrue(otherSwiftFlags.contains("\"$(SRCROOT)/Frameworks/hash0\""))
+        XCTAssertTrue(otherSwiftFlags.contains("\"$(SRCROOT)/Frameworks/hash1\""))
+        XCTAssertFalse(otherSwiftFlags.contains("\"$(SRCROOT)/Frameworks/hash2\""))
 
         let symbolicLinks = symbolicLinkDescriptors(in: sideEffects)
         XCTAssertFalse(symbolicLinks.contains { $0.destination.basename == "Shared.xcframework" })

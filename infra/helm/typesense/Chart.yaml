@@ -1,0 +1,6 @@
+apiVersion: v2
+name: typesense
+description: Standalone Helm chart for deploying the Tuist Typesense search engine.
+type: application
+version: 0.1.0
+appVersion: "27.1"

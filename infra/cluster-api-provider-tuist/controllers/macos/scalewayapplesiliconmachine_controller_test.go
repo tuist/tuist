@@ -71,7 +71,7 @@ func TestHostConfigDrift(t *testing.T) {
 
 func TestRecordUpdateFailure_IncrementsAttempts(t *testing.T) {
 	machine := &infrav1.ScalewayAppleSiliconMachine{}
-	recordUpdateFailure(machine, errors.New("boom"), 5, logr.Discard(), fakeRecorder())
+	recordUpdateFailure(machine, errors.New("boom"), 5, "broken-hash", logr.Discard(), fakeRecorder())
 	if machine.Status.TartKubeletUpdateAttempts != 1 {
 		t.Fatalf("attempts: got %d, want 1", machine.Status.TartKubeletUpdateAttempts)
 	}
@@ -83,7 +83,7 @@ func TestRecordUpdateFailure_IncrementsAttempts(t *testing.T) {
 func TestRecordUpdateFailure_TransitionsToFailedAtCap(t *testing.T) {
 	machine := &infrav1.ScalewayAppleSiliconMachine{}
 	for i := 0; i < 5; i++ {
-		recordUpdateFailure(machine, errors.New("boom"), 5, logr.Discard(), fakeRecorder())
+		recordUpdateFailure(machine, errors.New("boom"), 5, "broken-hash", logr.Discard(), fakeRecorder())
 	}
 	if machine.Status.TartKubeletUpdateAttempts != 5 {
 		t.Fatalf("attempts: got %d, want 5", machine.Status.TartKubeletUpdateAttempts)
@@ -100,12 +100,79 @@ func TestRecordUpdateFailure_TransitionsToFailedAtCap(t *testing.T) {
 	if machine.Status.FailureMessage == nil {
 		t.Fatal("expected FailureMessage to be set")
 	}
+	if got, want := machine.Status.FailedHostConfigHash, "broken-hash"; got != want {
+		t.Fatalf("FailedHostConfigHash: got %q, want %q", got, want)
+	}
+}
+
+// Regression for the retry-cap defeat: a broken config never updates
+// Status.HostConfigHash, so the self-heal must key on the FAILED hash — else
+// every reconcile sees drift-vs-applied and clears the cap forever.
+func TestShouldClearTerminalFailure(t *testing.T) {
+	cases := []struct {
+		name      string
+		desired   string
+		failed    string
+		terminal  bool
+		wantClear bool
+	}{
+		{"same broken config stays terminal (cap preserved)", "broken", "broken", true, false},
+		{"a new config clears and retries", "fixed", "broken", true, true},
+		{"not terminal never clears", "fixed", "broken", false, false},
+		{"empty desired hash never clears", "", "broken", true, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := shouldClearTerminalFailure(tc.desired, tc.failed, tc.terminal); got != tc.wantClear {
+				t.Fatalf("shouldClearTerminalFailure(%q,%q,%v) = %v; want %v", tc.desired, tc.failed, tc.terminal, got, tc.wantClear)
+			}
+		})
+	}
+}
+
+func TestClearUpdateFailure_ResetsTerminalState(t *testing.T) {
+	machine := &infrav1.ScalewayAppleSiliconMachine{}
+	for i := 0; i < 5; i++ {
+		recordUpdateFailure(machine, errors.New("boom"), 5, "broken-hash", logr.Discard(), fakeRecorder())
+	}
+	if machine.Status.FailureReason == nil {
+		t.Fatal("precondition: expected terminal failure before clearing")
+	}
+
+	clearUpdateFailure(machine, logr.Discard(), fakeRecorder())
+
+	if machine.Status.FailureReason != nil {
+		t.Fatalf("FailureReason: got %q, want nil", *machine.Status.FailureReason)
+	}
+	if machine.Status.FailureMessage != nil {
+		t.Fatalf("FailureMessage: got %q, want nil", *machine.Status.FailureMessage)
+	}
+	if machine.Status.TartKubeletUpdateAttempts != 0 {
+		t.Fatalf("attempts: got %d, want 0", machine.Status.TartKubeletUpdateAttempts)
+	}
+	if machine.Status.Phase == "Failed" {
+		t.Fatal("Phase: still Failed after clear")
+	}
+}
+
+func TestClearUpdateFailure_NoOpWhenClean(t *testing.T) {
+	machine := &infrav1.ScalewayAppleSiliconMachine{}
+	rec := record.NewFakeRecorder(10)
+	clearUpdateFailure(machine, logr.Discard(), rec)
+	select {
+	case ev := <-rec.Events:
+		t.Fatalf("expected no event on a clean machine; got %q", ev)
+	default:
+	}
+	if machine.Status.TartKubeletUpdateAttempts != 0 || machine.Status.FailureReason != nil {
+		t.Fatal("clean machine mutated by clearUpdateFailure")
+	}
 }
 
 func TestRecordUpdateFailure_DoesNotTransitionBeforeCap(t *testing.T) {
 	machine := &infrav1.ScalewayAppleSiliconMachine{}
 	for i := 0; i < 4; i++ {
-		recordUpdateFailure(machine, errors.New("boom"), 5, logr.Discard(), fakeRecorder())
+		recordUpdateFailure(machine, errors.New("boom"), 5, "broken-hash", logr.Discard(), fakeRecorder())
 	}
 	if machine.Status.FailureReason != nil {
 		t.Fatalf("did not expect terminal failure on attempt 4; got %q", *machine.Status.FailureReason)
@@ -115,7 +182,7 @@ func TestRecordUpdateFailure_DoesNotTransitionBeforeCap(t *testing.T) {
 func TestRecordUpdateFailure_DisabledCap(t *testing.T) {
 	machine := &infrav1.ScalewayAppleSiliconMachine{}
 	for i := 0; i < 100; i++ {
-		recordUpdateFailure(machine, errors.New("boom"), 0, logr.Discard(), fakeRecorder())
+		recordUpdateFailure(machine, errors.New("boom"), 0, "broken-hash", logr.Discard(), fakeRecorder())
 	}
 	if machine.Status.TartKubeletUpdateAttempts != 100 {
 		t.Fatalf("attempts: got %d, want 100", machine.Status.TartKubeletUpdateAttempts)

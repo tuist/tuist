@@ -504,6 +504,12 @@ defmodule TuistWeb.AppLayoutComponents do
         selected={String.starts_with?(@current_path, "/ops/accounts")}
       />
       <.sidebar_item
+        label="Registry"
+        icon="package"
+        navigate={~p"/ops/registry"}
+        selected={String.starts_with?(@current_path, "/ops/registry")}
+      />
+      <.sidebar_item
         label={dgettext("dashboard", "Database")}
         icon="database"
         navigate={~p"/ops/db"}

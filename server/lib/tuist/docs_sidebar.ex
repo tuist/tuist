@@ -214,6 +214,20 @@ defmodule Tuist.Docs.Sidebar do
         ]
       },
       %Group{
+        label: "Compute",
+        weight: :medium,
+        items: [
+          %Item{
+            label: "Runners",
+            slug: "/en/guides/features/runners",
+            items: [
+              %Item{label: "Getting started", slug: "/en/guides/features/runners/getting-started"},
+              %Item{label: "Profiles", slug: "/en/guides/features/runners/profiles"}
+            ]
+          }
+        ]
+      },
+      %Group{
         label: "Artifacts",
         weight: :medium,
         items: [

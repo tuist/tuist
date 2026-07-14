@@ -8,6 +8,32 @@ global:
   nodeSelector: {}
   tolerations: []
 
+# Grace-period garbage collector for orphaned Hetzner block volumes (PVs left
+# Released by CNPG rebuilds, StatefulSet teardowns, etc. under the hcloud-volumes
+# Retain default). Ships to every cluster the chart is applied to. Safe to leave
+# on: dryRun only logs. After reviewing a run's logs in Grafana Cloud, set
+# dryRun=false (per env) to arm actual reaping. See templates/released-pv-reaper.yaml.
+pvReaper:
+  enabled: true
+  # dryRun logs the PVs it would reap without deleting anything. Flip to false
+  # per environment once the dry-run logs look right.
+  dryRun: true
+  schedule: "0 3 * * *"
+  # Only reap PVs that have been Released longer than this. The grace window is
+  # the recovery window for an accidental PVC deletion (default 7 days).
+  graceHours: 168
+  # Scoped to this StorageClass so node-local (scw-local-nvme) and non-CSI
+  # volumes are never touched.
+  storageClass: hcloud-volumes
+  # kubectl + jq in one image (Docker Hub, same registry as other chart images).
+  image: alpine/k8s:1.31.1
+  resources:
+    requests:
+      cpu: "25m"
+      memory: "32Mi"
+    limits:
+      memory: "64Mi"
+
 kuraController:
   enabled: false
   namespace: kura
@@ -92,6 +118,37 @@ kuraRuntime:
   image:
     repository: ghcr.io/tuist/kura
     tag: ""
+  # An optional per-release KuraInstance, rendered into `instance.namespace`
+  # (the cluster-wide namespace the controller watches). Off by default:
+  # managed environments provision Kura through the server's reconciler, which
+  # authors the CR itself, so the chart must not also own one. Previews turn it
+  # on through values-preview-kura.yaml.
+  instance:
+    enabled: false
+    # Defaults to "<release>-kura".
+    name: ""
+    namespace: kura
+    # Own the CR by the release's namespace so that deleting the preview
+    # namespace garbage-collects it (and its controller-created children in the
+    # kura namespace). Self-healing cleanup for previews; keep off if the CR's
+    # namespace equals the release namespace or the CR should outlive it.
+    ownerReferenceToReleaseNamespace: true
+    accountHandle: ""
+    tenantID: ""
+    region: ""
+    replicas: 1
+    # When true, no public endpoint is reconciled and publicHost is not
+    # required: the cache is reachable only in-cluster.
+    private: false
+    publicHost: ""
+    ingressClassName: nginx
+    storageSize: 10Gi
+    labels: {}
+    nodeSelector: {}
+    tolerations: []
+    # Lua extension, normally supplied with
+    # `--set-file kuraRuntime.instance.extensionScript=<path>`.
+    extensionScript: ""
 
 server:
   enabled: true
@@ -114,6 +171,15 @@ server:
   appUrl: http://tuist.local
   logLevel: info
   hosted: false
+  # Opt-in object-storage cleanup windows by artifact family, in days.
+  # An empty value disables cleanup only for that artifact family.
+  artifactRetentionDays:
+    cacheArtifacts: ""
+    appPreviews: ""
+    buildArchives: ""
+    runArtifacts: ""
+    testAttachments: ""
+    shardBundles: ""
   skipEmailConfirmation: true
   secretKeyBase: ""
   # When true, the chart skips emitting DATABASE_URL / TUIST_CLICKHOUSE_URL /
@@ -135,6 +201,13 @@ server:
     # managedSecrets — preview environments use this without the encrypted
     # priv/secrets blob. Leave `item` empty to skip license sync.
     license:
+      item: ""
+      field: password
+    # Cache-signing grant private key: a PEM Ed25519 key the
+    # server signs runner cache grants with. Leave item empty to disable
+    # grant minting (dispatch omits the grant; CLI falls back to the MAC
+    # default). The 1Password item's `password` field holds the PEM.
+    cacheGrant:
       item: ""
       field: password
     # Dedicated OAuth client used by Kura to call /oauth2/introspect.
@@ -376,6 +449,11 @@ server:
     # migrations complete before new pods roll out. Disable for self-hosted
     # topologies that prefer a post-install Job instead.
     asHook: false
+    # Only meaningful when asHook is false. Suffixes the Job name with the
+    # release revision so an upgrade creates a new Job and Helm prunes the old
+    # one, instead of failing on the immutable `spec.template`. Off by default
+    # to keep the Job name stable for existing self-hosted installs.
+    namePerRevision: false
 
 processor:
   # Oban-backed xcactivitylog processor. Runs the same Docker image as the
@@ -1083,6 +1161,19 @@ macosFleet:
     hostCPU: 8
     hostMemoryMB: 14336
     maxPods: 3
+  # Per-account cache volumes. When gib > 0, bootstrap
+  # provisions a quota-bounded APFS volume of that many GiB on each Mac
+  # mini to hold per-account cache-volume images, and turns the feature on
+  # in tart-kubelet (--runner-cache-root). The quota is the aggregate
+  # ceiling for all cache volumes on the host — the filesystem bound that
+  # keeps them from ever starving the VM image path. Operator-wide (the
+  # provider applies it to every Mac it bootstraps); 0 (default) leaves the
+  # feature off and every runner VM boots on the status-quo cold path.
+  runnerCacheVolume:
+    gib: 0
+    # Per-account master image cap (GiB). The image is sparse so this is a
+    # ceiling, not an allocation. 0 uses tart-kubelet's default (20 GiB).
+    masterCapGib: 0
   scaleway:
     # Name of the Secret holding `access-key`, `secret-key`,
     # `project-id`. ESO populates it from 1Password by default; set
@@ -1347,8 +1438,9 @@ runnersFleet:
   # list in sync with the `runner-image-build.strategy.matrix.xcode`
   # matrix in `.github/workflows/release.yml`.
   xcodeVersions:
-    - xcodeVersion: "26.5"
+    - xcodeVersion: "26.6"
       default: true
+    - xcodeVersion: "26.5"
     - xcodeVersion: "26.4.1"
     - xcodeVersion: "26.3"
     - xcodeVersion: "26.0.1"

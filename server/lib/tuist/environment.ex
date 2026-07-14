@@ -18,6 +18,14 @@ defmodule Tuist.Environment do
       "jwks_uri" => "https://auth.openai.com/.well-known/jwks.json"
     }
   ]
+  @artifact_retention_environment_variables %{
+    cache_artifacts: "TUIST_CACHE_ARTIFACT_RETENTION_DAYS",
+    app_previews: "TUIST_APP_PREVIEW_RETENTION_DAYS",
+    build_archives: "TUIST_BUILD_ARCHIVE_RETENTION_DAYS",
+    run_artifacts: "TUIST_RUN_ARTIFACT_RETENTION_DAYS",
+    test_attachments: "TUIST_TEST_ATTACHMENT_RETENTION_DAYS",
+    shard_bundles: "TUIST_SHARD_BUNDLE_RETENTION_DAYS"
+  }
 
   # Every supported pod role. `mode/0` raises on any other value of
   # TUIST_MODE so a deployment-manifest typo (`processsor`, `ingest`,
@@ -202,6 +210,13 @@ defmodule Tuist.Environment do
     end
   end
 
+  def database_swift_registry_sync_role do
+    case System.get_env("TUIST_DATABASE_SWIFT_REGISTRY_SYNC_ROLE") do
+      role when is_binary(role) and role != "" -> role
+      _ -> nil
+    end
+  end
+
   def database_config_from_url(url) do
     parsed_url = URI.parse(url)
 
@@ -235,6 +250,35 @@ defmodule Tuist.Environment do
   def tuist_hosted? do
     truthy?(System.get_env("TUIST_CLOUD_HOSTED", "0")) or
       truthy?(System.get_env("TUIST_HOSTED", "0"))
+  end
+
+  def artifact_retention_days(environment \\ System.get_env()) when is_map(environment) do
+    Enum.reduce(@artifact_retention_environment_variables, %{}, fn {resource_type, environment_variable}, acc ->
+      case parse_artifact_retention_days(Map.get(environment, environment_variable), environment_variable) do
+        nil -> acc
+        days -> Map.put(acc, resource_type, days)
+      end
+    end)
+  end
+
+  defp parse_artifact_retention_days(nil, _environment_variable), do: nil
+
+  defp parse_artifact_retention_days(value, environment_variable) when is_binary(value) do
+    value = String.trim(value)
+
+    case Integer.parse(value) do
+      _ when value == "" -> nil
+      {days, ""} when days > 0 -> days
+      _ -> raise_invalid_artifact_retention_days(environment_variable, value)
+    end
+  end
+
+  defp parse_artifact_retention_days(value, environment_variable) do
+    raise_invalid_artifact_retention_days(environment_variable, value)
+  end
+
+  defp raise_invalid_artifact_retention_days(environment_variable, value) do
+    raise "#{environment_variable} must be a positive integer number of days, got: #{inspect(value)}"
   end
 
   def test_user_login_enabled? do
@@ -459,6 +503,47 @@ defmodule Tuist.Environment do
   """
   def ops_reason_form_url(secrets \\ secrets()) do
     get([:ops, :reason_form_url], secrets, default_value: nil)
+  end
+
+  @doc """
+  PEM-encoded Ed25519 PRIVATE key the server uses to sign per-account
+  cache-signing grants delivered to runner jobs. The runner's
+  Tuist EE CLI verifies the grant OFFLINE with the matching public half
+  baked into the binary, then scopes cached-artifact signatures to the
+  account instead of the machine MAC so a warm cache volume's binaries
+  validate as local hits across VMs. nil (default) disables grant minting:
+  dispatch omits the grant, the CLI falls back to the MAC default, and the
+  manifest/helper cache warmth still applies — the volume just re-pulls its
+  binaries, exactly as without the EE change. Provisioned per environment
+  from 1Password via ESO; distinct from the artifact-signing key.
+  """
+  def cache_grant_private_key(secrets \\ secrets()) do
+    System.get_env("TUIST_CACHE_GRANT_PRIVATE_KEY") || get([:cache_grant, :private_key], secrets)
+  end
+
+  @doc """
+  The `aud` claim stamped on cache-signing grants, pinned per environment
+  so a grant minted for one env can't be replayed in another. Must match
+  the audience the EE CLI enforces.
+  """
+  def cache_grant_audience(secrets \\ secrets()) do
+    get([:cache_grant, :audience], secrets, default_value: "tuist-runner-cache")
+  end
+
+  @doc """
+  Lifetime (seconds) of a cache-signing grant. Set to the job's maximum
+  lifetime plus a small margin: a leaked grant (runner jobs run arbitrary
+  user code that can read the environment) expires within the job's TTL,
+  so sustaining cross-machine reuse would require continuously harvesting
+  fresh grants from one's own live runner jobs — an authorized account
+  member who can already download the same artifacts with their account
+  token. Defaults to 7h (GitHub Actions' 6h job ceiling + margin).
+  """
+  def cache_grant_ttl_seconds(secrets \\ secrets()) do
+    case get([:cache_grant, :ttl_seconds], secrets, default_value: 25_200) do
+      value when is_integer(value) -> value
+      value when is_binary(value) -> String.to_integer(value)
+    end
   end
 
   def posthog_api_key(secrets \\ secrets()) do
@@ -799,6 +884,33 @@ defmodule Tuist.Environment do
   # sign-in method off.
   def github_auth_enabled? do
     truthy?(System.get_env("TUIST_GITHUB_AUTH_ENABLED", "1"))
+  end
+
+  # Email/password sign-in and self-serve registration are built in and have no
+  # "configured?" concept, so this lever lets a self-hosted operator turn them
+  # off entirely (for example on an SSO-only instance). It gates the login form,
+  # registration, and the password-reset flow, both in the UI and server-side.
+  # There is deliberately no lockout guard: disabling this while no OAuth/SSO
+  # provider is usable leaves the instance without a login method.
+  def email_auth_enabled? do
+    truthy?(System.get_env("TUIST_EMAIL_AUTH_ENABLED", "1"))
+  end
+
+  # Google, Okta, and Apple sign-in are shown whenever the provider is
+  # configured. These levers, mirroring `github_auth_enabled?/0`, let a
+  # self-hosted operator keep a provider configured while removing it as a
+  # sign-in option (button hidden and, for the Ueberauth providers, the sign-in
+  # callback closed).
+  def google_auth_enabled? do
+    truthy?(System.get_env("TUIST_GOOGLE_AUTH_ENABLED", "1"))
+  end
+
+  def okta_auth_enabled? do
+    truthy?(System.get_env("TUIST_OKTA_AUTH_ENABLED", "1"))
+  end
+
+  def apple_auth_enabled? do
+    truthy?(System.get_env("TUIST_APPLE_AUTH_ENABLED", "1"))
   end
 
   def github_app_configured?(secrets \\ secrets()) do

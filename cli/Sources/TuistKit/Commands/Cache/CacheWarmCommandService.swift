@@ -482,9 +482,15 @@ import XcodeGraph
                         validating: "Build/Products/\(productsDirectory(platform: platform, configuration: configuration))"
                     )
                 )
+            let bundlePlatformNormalizer = CachedBundlePlatformNormalizer(fileSystem: fileSystem)
             for bundle in cacheableTargets.filter({ $0.0.target.product == .bundle }) {
                 let bundlePath = bundleProductsDirectory.appending(component: bundle.0.target.productNameWithExtension)
                 guard try await fileSystem.exists(bundlePath) else { continue }
+                // Bundles are built for the simulator SDK, so their Info.plist carries
+                // CFBundleSupportedPlatforms = [iPhoneSimulator]. Left in place, a device archive that
+                // embeds the cached bundle is rejected by App Store Connect with error 90542. Removing
+                // the key normalizes the bundle for both device and simulator consumers.
+                try await bundlePlatformNormalizer.normalize(bundleAt: bundlePath)
                 bundlesToStore.append(CacheGraphTargetBuiltArtifact(
                     type: .bundle,
                     graphTarget: bundle.0,
