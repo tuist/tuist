@@ -23,6 +23,7 @@ TOKEN_PATHS = (
 )
 
 DIRECT_HTTP_OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+HTTP_USER_AGENT = os.environ.get("TUIST_RUNNER_SHELL_USER_AGENT", "curl/8.7.1")
 
 
 def log(message):
@@ -79,7 +80,7 @@ def wait_for_claim():
 
 
 def discover_session(url, token):
-    headers = {"Authorization": f"Bearer {token}"}
+    headers = {"Authorization": f"Bearer {token}", "User-Agent": HTTP_USER_AGENT}
     pod_name = os.environ.get("TUIST_RUNNER_POD_NAME")
     pod_uid = os.environ.get("TUIST_RUNNER_POD_UID")
     pool = os.environ.get("TUIST_RUNNER_POOL")
@@ -182,10 +183,13 @@ def connect_websocket(url, token):
     request = (
         f"GET {path} HTTP/1.1\r\n"
         f"Host: {host_header}\r\n"
+        f"User-Agent: {HTTP_USER_AGENT}\r\n"
+        "Accept: */*\r\n"
         "Upgrade: websocket\r\n"
         "Connection: Upgrade\r\n"
         f"Sec-WebSocket-Key: {key}\r\n"
         "Sec-WebSocket-Version: 13\r\n"
+        f"Origin: {'https' if parsed.scheme == 'wss' else 'http'}://{host_header}\r\n"
         f"Authorization: Bearer {token}\r\n"
         "\r\n"
     )
