@@ -35,6 +35,12 @@ env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   MISE_TASK_RUN_AUTO_INSTALL: 0
   MISE_GITHUB_ATTESTATIONS: 0
+  # Trust the committed mise.lock and skip re-verifying tool provenance against
+  # the GitHub API on every job. Without this, the SLSA-provenance step fetches
+  # release info from api.github.com and the parallel-job burst exhausts the
+  # rate limit, failing toolchain setup before any test runs (matches
+  # android.yml, which already sets this).
+  MISE_LOCKED: 1
 
 defaults:
   run:
