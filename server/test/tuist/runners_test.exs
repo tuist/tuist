@@ -547,4 +547,38 @@ defmodule Tuist.RunnersTest do
       assert String.starts_with?(runner_name, "pod-1-")
     end
   end
+
+  describe "account_id_for_sa/2" do
+    test "resolves the account from a trusted pod's runner-account label" do
+      expect(K8sClient, :get_pod, fn "tuist-runners", "pod-1" ->
+        {:ok, %{"metadata" => %{"labels" => %{"tuist.dev/runner-account" => "42"}}}}
+      end)
+
+      assert {:ok, 42} = Runners.account_id_for_sa("tuist-runners", "pod-1")
+    end
+
+    test "rejects an untrusted (fork) pod so it cannot advance a shared HEAD" do
+      expect(K8sClient, :get_pod, fn "tuist-runners", "pod-1" ->
+        {:ok,
+         %{
+           "metadata" => %{
+             "labels" => %{
+               "tuist.dev/runner-account" => "42",
+               "tuist.dev/runner-cache-untrusted" => "true"
+             }
+           }
+         }}
+      end)
+
+      assert {:error, :cache_untrusted} = Runners.account_id_for_sa("tuist-runners", "pod-1")
+    end
+
+    test "returns :account_unresolved when the label is absent" do
+      expect(K8sClient, :get_pod, fn "tuist-runners", "pod-1" ->
+        {:ok, %{"metadata" => %{"labels" => %{}}}}
+      end)
+
+      assert {:error, :account_unresolved} = Runners.account_id_for_sa("tuist-runners", "pod-1")
+    end
+  end
 end

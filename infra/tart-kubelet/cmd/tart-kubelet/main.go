@@ -737,12 +737,11 @@ func recoverState(
 		}
 		// Reattach the cache-volume branch this VM is still virtio-fs-mounting
 		// so the startup SweepBranches keeps it (not reap it out from under the
-		// running job) and Finalize can still promote its warm set. SourceAccount
-		// comes from the server-stamped label so the promote lands in the right
-		// master; a missing branch (feature off / never materialized) leaves the
-		// entry on the cold path.
-		if att, ok := volumes.ReattachBranch(podagent.ReservedTuistCacheVolume, vmName); ok {
-			att.SourceAccount = podagent.RunnerAccountFromPod(pod)
+		// running job) and Finalize can still promote its warm set. Preserves the
+		// untrusted decision: an untrusted (fork) branch keeps SourceAccount empty
+		// so Finalize discards it — recovery never revives attacker content into
+		// the master. A missing branch leaves the entry on the cold path.
+		if att, ok := podagent.ReattachVolumeForPod(volumes, pod, vmName); ok {
 			entry.Volume = att
 			if statusDir, sdErr := tartClient.StatusDir(vmName); sdErr == nil {
 				entry.VolumeStatusDir = statusDir

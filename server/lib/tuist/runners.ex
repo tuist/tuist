@@ -180,14 +180,30 @@ defmodule Tuist.Runners do
   label the server stamped on it at claim. Authoritative — the runner can't
   change it — so a volume-head report is bound to the account it actually ran,
   not to whatever the request body claims.
+
+  A Pod carrying the `tuist.dev/runner-cache-untrusted` label (an untrusted
+  fork-PR job) is rejected: it was dispatched with no volume-head and its cache
+  branch is discarded on the host, so it must never be able to advance an
+  account's shared HEAD. Fail-closed so a compromised fork job can't poison the
+  master by reporting a promote.
   """
   def account_id_for_sa(namespace, sa_name) do
     with {:ok, pod} <- K8sClient.get_pod(namespace, pod_name_from_sa(sa_name)),
+         :ok <- reject_untrusted_pod(pod),
          label when is_binary(label) <- get_in(pod, ["metadata", "labels", @account_label]),
          {account_id, ""} <- Integer.parse(label) do
       {:ok, account_id}
     else
+      {:error, :cache_untrusted} = error -> error
       _ -> {:error, :account_unresolved}
+    end
+  end
+
+  defp reject_untrusted_pod(pod) do
+    if get_in(pod, ["metadata", "labels", @cache_untrusted_label]) == "true" do
+      {:error, :cache_untrusted}
+    else
+      :ok
     end
   end
 

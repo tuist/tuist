@@ -431,13 +431,14 @@ func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
 			StartTS:      metav1.Now(),
 			BootObserved: true,
 		}
-		// Same reattach as recoverState: this VM survived a restart with its
-		// cache branch still mounted, so rebind the branch (unless the startup
-		// sweep already reaped it because recovery missed this VM) so Finalize
-		// can promote its warm set instead of losing it.
+		// Same reattach as recoverState (via the shared helper, which preserves
+		// the untrusted decision so an untrusted branch can't be revived as
+		// promotable): this VM survived a restart with its cache branch still
+		// mounted, so rebind it (unless the startup sweep already reaped it
+		// because recovery missed this VM) so Finalize can promote a trusted
+		// warm set instead of losing it.
 		if r.Volumes != nil {
-			if att, ok := r.Volumes.ReattachBranch(ReservedTuistCacheVolume, vmName); ok {
-				att.SourceAccount = pod.Labels[runnerAccountLabel]
+			if att, ok := ReattachVolumeForPod(r.Volumes, pod, vmName); ok {
 				entry.Volume = att
 				if statusDir, sdErr := r.Tart.StatusDir(vmName); sdErr == nil {
 					entry.VolumeStatusDir = statusDir

@@ -7,6 +7,9 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // fakeBackend models APFS clonefile + statfs against real files under a temp
@@ -433,6 +436,57 @@ func TestSweepBranchesRetainsReattached(t *testing.T) {
 	}
 	if m.liveBranches != 1 {
 		t.Fatalf("liveBranches after sweep = %d; want 1 (only the retained branch)", m.liveBranches)
+	}
+}
+
+// Recovery must preserve the untrusted decision: a fork job's branch (which the
+// dispatch path left with an empty SourceAccount) must NOT get a SourceAccount
+// reconstructed from the account label on restart — otherwise the attacker-
+// controlled branch promotes into the account's master.
+func TestReattachVolumeForPodPreservesUntrusted(t *testing.T) {
+	m, _ := newTestManager(t, 100)
+	att := mustAllocate(t, m, "vm-untrusted")
+	writeBranchCache(t, att, "attacker")
+
+	pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{
+		runnerAccountLabel:        "42",
+		runnerCacheUntrustedLabel: "true",
+	}}}
+
+	got, ok := ReattachVolumeForPod(m, pod, "vm-untrusted")
+	if !ok || !got.Attached {
+		t.Fatalf("ReattachVolumeForPod = %+v, %v; want attached", got, ok)
+	}
+	if got.SourceAccount != "" {
+		t.Fatalf("untrusted recovered branch must keep an empty SourceAccount; got %q", got.SourceAccount)
+	}
+
+	// Completing the recovered job dirty must DISCARD, not promote.
+	out, err := m.Finalize(got, "42", true, true)
+	if err != nil || out != VolumeOutcomeDiscarded {
+		t.Fatalf("Finalize = %s, %v; want discarded", out, err)
+	}
+	if masterExists(m, "42") {
+		t.Fatal("an untrusted (fork) branch must never become the account's master via recovery")
+	}
+}
+
+// The trusted side still works: a recovered trusted branch gets its
+// SourceAccount and promotes.
+func TestReattachVolumeForPodTrustedPromotes(t *testing.T) {
+	m, _ := newTestManager(t, 100)
+	att := mustAllocate(t, m, "vm-trusted")
+	m.MarkMaterialized(att)
+	writeBranchCache(t, att, "warm")
+
+	pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{runnerAccountLabel: "42"}}}
+
+	got, ok := ReattachVolumeForPod(m, pod, "vm-trusted")
+	if !ok || got.SourceAccount != "42" {
+		t.Fatalf("trusted reattach SourceAccount = %q (ok=%v); want 42", got.SourceAccount, ok)
+	}
+	if out, _ := m.Finalize(got, "42", true, true); out != VolumeOutcomePromoted {
+		t.Fatalf("trusted recovered branch should promote, got %s", out)
 	}
 }
 

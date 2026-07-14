@@ -38,6 +38,31 @@ func RunnerAccountFromPod(pod *corev1.Pod) string {
 	return pod.Labels[runnerAccountLabel]
 }
 
+// RunnerCacheUntrusted reports whether the server marked this Pod's job as
+// untrusted (a fork it could not confirm as same-repo). Exported so state
+// recovery in package main can preserve the untrusted decision.
+func RunnerCacheUntrusted(pod *corev1.Pod) bool {
+	return pod != nil && pod.Labels[runnerCacheUntrustedLabel] == "true"
+}
+
+// ReattachVolumeForPod reconstructs the cache-volume attachment for a VM that
+// survived a kubelet restart. It preserves the untrusted decision: SourceAccount
+// is set from the account label ONLY for a trusted pod. An untrusted branch is
+// reattached (so its live virtio-fs mount isn't swept and it's cleaned at job
+// end) but keeps SourceAccount empty, so Finalize's SourceAccount==account guard
+// discards it — recovery can never revive attacker-controlled content into the
+// account's master. Both recoverState and the createPod adoption path use this.
+func ReattachVolumeForPod(volumes *VolumeManager, pod *corev1.Pod, vm string) (VolumeAttachment, bool) {
+	att, ok := volumes.ReattachBranch(ReservedTuistCacheVolume, vm)
+	if !ok {
+		return VolumeAttachment{}, false
+	}
+	if !RunnerCacheUntrusted(pod) {
+		att.SourceAccount = RunnerAccountFromPod(pod)
+	}
+	return att, true
+}
+
 // dirtyMarkerFile is the file the guest writes into the writable status share
 // at job end: "1" when the job changed the cache (artifacts added/evicted,
 // manifests or helpers compiled), "0" for a pure-hit/read-only job. Its
