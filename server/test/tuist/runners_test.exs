@@ -404,6 +404,75 @@ defmodule Tuist.RunnersTest do
       assert {:error, :no_work_yet} = Runners.dispatch_for_sa("tuist-runners", pod_name)
     end
 
+    test "capped accounts do not exhaust the retry budget before eligible work" do
+      capped_candidates =
+        Enum.map(1..16, fn index ->
+          account = account_fixture()
+          candidate_with_label(account, "tuist-default", workflow_job_id: 92_000 + index)
+        end)
+
+      eligible_account = account_fixture()
+      eligible_candidate = candidate_with_label(eligible_account, "tuist-default", workflow_job_id: 92_017)
+      candidates = capped_candidates ++ [eligible_candidate]
+      capped_account_ids = MapSet.new(capped_candidates, & &1.account_id)
+      pod_name = "pod-1"
+
+      expect(K8sClient, :get_service_account, fn "tuist-runners", ^pod_name ->
+        {:ok, sa_with_pool_label(pod_name, "fleet-a")}
+      end)
+
+      expect(K8sClient, :get_runner_pool, fn "tuist-runners", "fleet-a" ->
+        {:error, :not_found}
+      end)
+
+      expect(Claims, :workflow_job_ids_for_fleet, fn "fleet-a" -> [] end)
+
+      expect(Jobs, :pick_queued, 17, fn "fleet-a", excluded_account_ids, [] ->
+        candidate = Enum.find(candidates, &(&1.account_id not in excluded_account_ids))
+        {:ok, candidate}
+      end)
+
+      expect(Claims, :attempt, 17, fn workflow_job_id, account_id, "fleet-a", ^pod_name, resources ->
+        if MapSet.member?(capped_account_ids, account_id) do
+          {:error,
+           {:concurrency_limit_reached,
+            %{
+              platform: :linux,
+              requested: resources,
+              used: %{vcpus: 32, memory_gb: 64},
+              limit: %{vcpus: 32, memory_gb: 64}
+            }}}
+        else
+          assert account_id == eligible_account.id
+          assert workflow_job_id == eligible_candidate.workflow_job_id
+          {:ok, %{claimed_at: DateTime.utc_now()}}
+        end
+      end)
+
+      expect(Jobs, :record_claimed, fn ^eligible_candidate, ^pod_name, _claimed_at -> :ok end)
+
+      expect(Dispatch, :pool_summary_by_name, fn "fleet-a" ->
+        {:ok, %{dispatch_label: "shape-linux-4vcpu-16gb", runner_labels: ["self-hosted", "Linux", "X64"]}}
+      end)
+
+      stub(K8sClient, :patch_pod, fn _ns, _pod, _patch -> {:ok, %{}} end)
+
+      stub(VCS, :get_github_app_installation_for_account, fn account_id ->
+        assert account_id == eligible_account.id
+        {:ok, %{installation_id: 42, client_url: "https://github.com"}}
+      end)
+
+      expect(GitHubClient, :generate_jit_config, fn _installation, "acme", %{name: runner_name} ->
+        {:ok, %{encoded_jit_config: "jit-blob", runner_name: runner_name}}
+      end)
+
+      expect(Claims, :mark_running, fn 92_017, _runner_name -> :ok end)
+      expect(Jobs, :record_running, fn 92_017, _runner_name -> :ok end)
+
+      assert {:ok, %{workflow_job_id: 92_017}} =
+               Runners.dispatch_for_sa("tuist-runners", pod_name)
+    end
+
     test "retries the owner-label stamp on a transient patch failure and still dispatches" do
       account = account_fixture()
       candidate = candidate_with_label(account, "tuist-default")

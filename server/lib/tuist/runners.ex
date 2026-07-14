@@ -275,7 +275,7 @@ defmodule Tuist.Runners do
           fleet_name,
           [candidate.account_id | excluded_account_ids],
           excluded_workflow_job_ids,
-          attempts_left - 1
+          attempts_left
         )
 
       {:error, :pod_in_use} ->

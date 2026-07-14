@@ -139,6 +139,57 @@ defmodule Tuist.Runners.ConcurrencyTest do
     assert length(usage.macos.memory_gb) == 721
   end
 
+  test "does not count a requeued job as continuously claimed" do
+    account = account_fixture()
+    workflow_job_id = 93_001 + System.unique_integer([:positive])
+    claimed_at = datetime("2026-07-10T10:10:00Z")
+    requeued_at = datetime("2026-07-10T10:30:00Z")
+
+    base_row = %{
+      workflow_job_id: workflow_job_id,
+      account_id: account.id,
+      fleet_name: "linux-pool",
+      platform: "linux",
+      vcpus: 4,
+      memory_gb: 16,
+      repository: "tuist/tuist",
+      workflow_run_id: workflow_job_id,
+      run_attempt: 1,
+      workflow_name: "CI",
+      job_name: "Test",
+      head_branch: "main",
+      head_sha: "abcdef0",
+      conclusion: "",
+      enqueued_at: claimed_at,
+      started_at: nil,
+      completed_at: nil,
+      pod_name: "",
+      runner_name: "",
+      requested_dispatch_label: ""
+    }
+
+    {1, _} =
+      IngestRepo.insert_all(Job, [
+        Map.merge(base_row, %{status: "claimed", claimed_at: claimed_at, updated_at: claimed_at})
+      ])
+
+    {1, _} =
+      IngestRepo.insert_all(Job, [
+        Map.merge(base_row, %{status: "queued", claimed_at: nil, updated_at: requeued_at})
+      ])
+
+    usage =
+      Concurrency.usage_over_time(
+        account.id,
+        datetime("2026-07-10T10:00:00Z"),
+        datetime("2026-07-10T12:00:00Z"),
+        :hour
+      )
+
+    assert usage.linux.vcpus == [0, 0, 0]
+    assert usage.linux.memory_gb == [0, 0, 0]
+  end
+
   defp insert_completed_job(account_id, workflow_job_id, opts) do
     claimed_at = Keyword.fetch!(opts, :claimed_at)
     completed_at = Keyword.fetch!(opts, :completed_at)

@@ -499,7 +499,7 @@ defmodule TuistWeb.RunnersLive do
   """
   def concurrency_chart_series(values, limit, usage_label) do
     admitted_usage = Enum.map(values, &if(&1 < limit, do: &1))
-    at_limit = Enum.map(values, &if(&1 >= limit, do: limit))
+    at_limit = Enum.map(values, &if(&1 >= limit, do: &1))
 
     [
       %{

@@ -101,7 +101,7 @@ defmodule TuistWeb.RunnersLiveTest do
     assert admitted_usage.name == "Peak CPU"
     assert admitted_usage.itemStyle.color == "var:noora-chart-primary"
 
-    assert at_limit.data == [nil, 12, 12]
+    assert at_limit.data == [nil, 12, 18]
     assert at_limit.name == "Limit reached"
     assert at_limit.itemStyle.color == "var:noora-chart-destructive"
     assert at_limit.stack == admitted_usage.stack

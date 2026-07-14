@@ -146,20 +146,28 @@ defmodule Tuist.Runners.Concurrency do
     [macos_legacy_prefix, macos_pool_prefix] = Catalog.fleet_name_prefixes(:macos)
 
     query = """
-    WITH latest_jobs AS (
+    WITH latest_rows AS (
       SELECT
         workflow_job_id,
-        argMax(platform, updated_at) AS stored_platform,
-        argMax(fleet_name, updated_at) AS fleet_name,
-        argMax(vcpus, updated_at) AS stored_vcpus,
-        argMax(memory_gb, updated_at) AS stored_memory_gb,
-        argMax(claimed_at, updated_at) AS claimed_at,
-        argMax(completed_at, updated_at) AS completed_at
+        argMax(
+          tuple(platform, fleet_name, vcpus, memory_gb, claimed_at, completed_at),
+          updated_at
+        ) AS latest_state
       FROM runner_jobs
       WHERE account_id = {account_id:Int64}
         AND enqueued_at <= {end_dt:DateTime64(6)}
       GROUP BY workflow_job_id
-      HAVING claimed_at IS NOT NULL
+    ), latest_jobs AS (
+      SELECT
+        workflow_job_id,
+        tupleElement(latest_state, 1) AS stored_platform,
+        tupleElement(latest_state, 2) AS fleet_name,
+        tupleElement(latest_state, 3) AS stored_vcpus,
+        tupleElement(latest_state, 4) AS stored_memory_gb,
+        tupleElement(latest_state, 5) AS claimed_at,
+        tupleElement(latest_state, 6) AS completed_at
+      FROM latest_rows
+      WHERE claimed_at IS NOT NULL
         AND claimed_at <= {end_dt:DateTime64(6)}
         AND (completed_at IS NULL OR completed_at > {start_dt:DateTime64(6)})
     ), normalized_platforms AS (
