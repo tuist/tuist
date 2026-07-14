@@ -11,6 +11,7 @@ defmodule TuistWeb.RunnersLive do
   alias Tuist.Authorization
   alias Tuist.FeatureFlags
   alias Tuist.Runners.Analytics
+  alias Tuist.Runners.Concurrency
   alias Tuist.Runners.Jobs
   alias Tuist.Utilities.DateFormatter
   alias TuistWeb.Helpers.DatePicker
@@ -27,13 +28,28 @@ defmodule TuistWeb.RunnersLive do
             dgettext("dashboard_runners", "The page you are looking for doesn't exist or has been moved.")
     end
 
+    if connected?(socket) do
+      Tuist.PubSub.subscribe(Jobs.topic(selected_account.id))
+    end
+
     {:ok,
      socket
      |> assign(
        :head_title,
        "#{dgettext("dashboard_runners", "Runners")} · #{selected_account.name} · Tuist"
      )
+     |> assign(:runner_concurrency, Concurrency.summaries(selected_account))
      |> assign(:repositories, Jobs.distinct_repositories_for_account(selected_account.id))}
+  end
+
+  @impl true
+  def handle_info({:runner_jobs_status_changed, _payload}, socket) do
+    {:noreply,
+     assign(
+       socket,
+       :runner_concurrency,
+       Concurrency.summaries(socket.assigns.selected_account)
+     )}
   end
 
   @impl true
@@ -46,6 +62,7 @@ defmodule TuistWeb.RunnersLive do
     workflow_duration_percentile = params["workflow-duration"] || "avg"
     repository = params["repository"] || "any"
     platform = platform_param(params["platform"])
+    concurrency_platform = concurrency_platform_param(params["concurrency-platform"])
 
     opts =
       [start_datetime: start_datetime, end_datetime: end_datetime]
@@ -57,6 +74,7 @@ defmodule TuistWeb.RunnersLive do
      |> assign(:uri, URI.parse(uri))
      |> assign(:repository, repository)
      |> assign(:platform, platform)
+     |> assign(:concurrency_platform, concurrency_platform)
      |> assign(:analytics_preset, preset)
      |> assign(:analytics_period, period)
      |> assign(:analytics_trend_label, trend_label(preset))
@@ -66,13 +84,20 @@ defmodule TuistWeb.RunnersLive do
      |> assign_recent_jobs(account.id, repository, platform)
      |> assign_recent_workflow_runs(account.id, repository, platform)
      |> assign_async(
-       [:jobs_count, :jobs_duration, :workflows_duration],
+       [:jobs_count, :jobs_duration, :workflows_duration, :concurrency_usage],
        fn ->
          {:ok,
           %{
             jobs_count: Analytics.jobs_count(account.id, opts),
             jobs_duration: Analytics.jobs_duration(account.id, opts),
-            workflows_duration: Analytics.workflows_duration(account.id, opts)
+            workflows_duration: Analytics.workflows_duration(account.id, opts),
+            concurrency_usage:
+              Concurrency.usage_over_time(
+                account.id,
+                start_datetime,
+                end_datetime,
+                :hour
+              )
           }}
        end
      )}
@@ -94,6 +119,9 @@ defmodule TuistWeb.RunnersLive do
   # plus the unset `any`.
   defp platform_param(value) when value in ["macos", "linux"], do: value
   defp platform_param(_), do: "any"
+
+  defp concurrency_platform_param(value) when value in ["macos", "linux"], do: value
+  defp concurrency_platform_param(_), do: "macos"
 
   @impl true
   def handle_event("select_widget", %{"widget" => widget}, socket) do
@@ -283,8 +311,14 @@ defmodule TuistWeb.RunnersLive do
     "?" <> Query.put(uri.query, "platform", platform)
   end
 
+  def concurrency_platform_patch(%URI{} = uri, platform) do
+    "?" <> Query.put(uri.query, "concurrency-platform", platform)
+  end
+
   def platform_label("macos"), do: dgettext("dashboard_runners", "macOS")
   def platform_label("linux"), do: dgettext("dashboard_runners", "Linux")
+  def platform_label(:macos), do: dgettext("dashboard_runners", "macOS")
+  def platform_label(:linux), do: dgettext("dashboard_runners", "Linux")
   def platform_label(_any), do: dgettext("dashboard_runners", "Any")
 
   @platforms ["macos", "linux"]
@@ -398,6 +432,153 @@ defmodule TuistWeb.RunnersLive do
         else
           %{}
         end
+    }
+  end
+
+  @doc """
+  Builds the two resource charts shown for the selected platform.
+  """
+  def concurrency_charts(usage, summaries, platform) when platform in ["linux", "macos"] do
+    summaries_by_platform = Map.new(summaries, &{&1.platform, &1})
+    platform = String.to_existing_atom(platform)
+    summary = Map.fetch!(summaries_by_platform, platform)
+
+    [
+      concurrency_chart(
+        usage,
+        summary,
+        :vcpus,
+        "#{platform}-vcpus",
+        dgettext("dashboard_runners", "%{platform} vCPU", platform: platform_label(platform))
+      ),
+      concurrency_chart(
+        usage,
+        summary,
+        :memory_gb,
+        "#{platform}-memory",
+        dgettext("dashboard_runners", "%{platform} memory", platform: platform_label(platform))
+      )
+    ]
+  end
+
+  defp concurrency_chart(usage, summary, resource, id, title) do
+    platform_usage = Map.fetch!(usage, summary.platform)
+    values = Map.fetch!(platform_usage, resource)
+
+    limit =
+      case resource do
+        :vcpus -> summary.limit_vcpus
+        :memory_gb -> summary.limit_memory_gb
+      end
+
+    %{
+      id: id,
+      title: title,
+      dates: usage.dates,
+      values: values,
+      limit: limit,
+      limit_label: concurrency_limit_label(resource, limit),
+      usage_label: concurrency_usage_label(resource)
+    }
+  end
+
+  defp concurrency_limit_label(:vcpus, limit) do
+    dgettext("dashboard_runners", "%{limit} vCPU limit", limit: limit)
+  end
+
+  defp concurrency_limit_label(:memory_gb, limit) do
+    dgettext("dashboard_runners", "%{limit} GB limit", limit: limit)
+  end
+
+  defp concurrency_usage_label(:vcpus), do: dgettext("dashboard_runners", "Peak CPU")
+  defp concurrency_usage_label(:memory_gb), do: dgettext("dashboard_runners", "Peak memory")
+
+  @doc """
+  Colors buckets that reached the configured limit and overlays that
+  limit as a dashed line.
+  """
+  def concurrency_chart_series(values, limit, usage_label) do
+    admitted_usage = Enum.map(values, &if(&1 < limit, do: &1))
+    at_limit = Enum.map(values, &if(&1 >= limit, do: limit))
+
+    [
+      %{
+        data: admitted_usage,
+        itemStyle: %{color: "var:noora-chart-primary"},
+        name: usage_label,
+        type: "bar",
+        stack: "admitted-usage",
+        barMaxWidth: 18
+      },
+      %{
+        data: at_limit,
+        itemStyle: %{color: "var:noora-chart-destructive"},
+        name: dgettext("dashboard_runners", "Limit reached"),
+        type: "bar",
+        stack: "admitted-usage",
+        barMaxWidth: 18
+      },
+      %{
+        data: List.duplicate(limit, length(values)),
+        name: dgettext("dashboard_runners", "Limit"),
+        type: "line",
+        symbol: "none",
+        silent: true,
+        itemStyle: %{color: "var:noora-chart-destructive"},
+        lineStyle: %{
+          color: "var:noora-chart-destructive",
+          type: "dashed",
+          width: 1.5
+        }
+      }
+    ]
+  end
+
+  @doc """
+  Shared ECharts options for concurrency resource charts.
+  """
+  def concurrency_chart_options(analytics_preset) do
+    %{
+      grid: %{left: 34, right: 24, top: 8, bottom: 36},
+      legend: %{
+        left: "left",
+        top: "bottom",
+        orient: "horizontal",
+        textStyle: %{
+          color: "var:noora-surface-label-secondary",
+          fontFamily: "monospace",
+          fontWeight: 400,
+          fontSize: 10,
+          lineHeight: 12
+        },
+        itemWidth: 10,
+        itemHeight: 4
+      },
+      xAxis: %{
+        boundaryGap: true,
+        axisLabel: %{
+          color: "var:noora-surface-label-secondary",
+          formatter:
+            if(analytics_preset == "last-24-hours",
+              do: "fn:toLocaleDateHour",
+              else: "fn:toLocaleDate"
+            ),
+          interval:
+            case analytics_preset do
+              "last-7-days" -> 23
+              "last-30-days" -> 47
+              _ -> "auto"
+            end,
+          hideOverlap: true,
+          padding: [8, 0, 0, 0]
+        }
+      },
+      yAxis: %{
+        splitNumber: 4,
+        splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}},
+        axisLabel: %{color: "var:noora-surface-label-secondary"}
+      },
+      tooltip: %{dateFormat: "hour"}
     }
   end
 

@@ -170,6 +170,45 @@ defmodule Tuist.Runners.Catalog do
   def fleet_platform(_), do: nil
 
   @doc """
+  Resolves the resources represented by a fleet name.
+
+  New lifecycle rows persist resources at webhook enqueue time, so
+  this is primarily a rollout fallback for queued rows created before
+  resource columns existed. Linux profile pools encode their shape in
+  the name; macOS pools use the catalog default shape because the
+  current Xcode-keyed pools all run on the same machine shape.
+  """
+  def resources_for_fleet(fleet_name) when is_binary(fleet_name) do
+    case fleet_platform(fleet_name) do
+      :linux -> linux_resources_for_fleet(fleet_name)
+      :macos -> default_resources(:macos)
+      nil -> {:error, :invalid_resources}
+    end
+  end
+
+  defp linux_resources_for_fleet(fleet_name) do
+    case Regex.run(~r/(\d+)vcpu-(\d+)gb$/, fleet_name) do
+      [_, vcpus, memory_gb] ->
+        {:ok,
+         %{
+           platform: :linux,
+           vcpus: String.to_integer(vcpus),
+           memory_gb: String.to_integer(memory_gb)
+         }}
+
+      _ ->
+        default_resources(:linux)
+    end
+  end
+
+  defp default_resources(platform) do
+    case default_shape(platform) do
+      nil -> {:error, :invalid_resources}
+      shape -> {:ok, %{platform: platform, vcpus: shape.vcpus, memory_gb: shape.memory_gb}}
+    end
+  end
+
+  @doc """
   Whether jobs on this fleet can reach the private (in-cluster) Kura
   runner-cache endpoint dispatch would hand them.
 

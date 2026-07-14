@@ -165,6 +165,9 @@ defmodule Tuist.RunnersTest do
         job_name: "build",
         head_branch: "main",
         head_sha: "deadbeef",
+        platform: "linux",
+        vcpus: 4,
+        memory_gb: 16,
         requested_dispatch_label: requested_dispatch_label,
         enqueued_at: DateTime.utc_now()
       }
@@ -192,7 +195,8 @@ defmodule Tuist.RunnersTest do
 
       expect(Jobs, :pick_queued, fn "fleet-a", [], ^excluded_workflow_job_ids -> {:ok, candidate} end)
 
-      expect(Claims, :attempt, fn ^workflow_job_id, _account_id, "fleet-a", ^pod_name ->
+      expect(Claims, :attempt, fn ^workflow_job_id, _account_id, "fleet-a", ^pod_name, resources ->
+        assert resources == %{platform: :linux, vcpus: 4, memory_gb: 16}
         {:ok, %{claimed_at: DateTime.utc_now()}}
       end)
 
@@ -317,13 +321,13 @@ defmodule Tuist.RunnersTest do
 
       expect(Jobs, :pick_queued, fn "fleet-a", [], [] -> {:ok, stale_candidate} end)
 
-      expect(Claims, :attempt, fn 90_001, _account_id, "fleet-a", ^pod_name ->
+      expect(Claims, :attempt, fn 90_001, _account_id, "fleet-a", ^pod_name, _resources ->
         {:error, :lost_race}
       end)
 
       expect(Jobs, :pick_queued, fn "fleet-a", [], [90_001] -> {:ok, candidate} end)
 
-      expect(Claims, :attempt, fn 90_002, _account_id, "fleet-a", ^pod_name ->
+      expect(Claims, :attempt, fn 90_002, _account_id, "fleet-a", ^pod_name, _resources ->
         {:ok, %{claimed_at: DateTime.utc_now()}}
       end)
 
@@ -358,6 +362,46 @@ defmodule Tuist.RunnersTest do
       assert {:ok, %{workflow_job_id: 90_002}} = Runners.dispatch_for_sa("tuist-runners", pod_name)
       assert_receive {:jit_labels, labels}
       assert "tuist-default" in labels
+    end
+
+    test "skips all queued work for an account that reached its platform limit" do
+      capped_account = account_fixture()
+      other_account = account_fixture()
+      capped_candidate = candidate_with_label(capped_account, "tuist-default", workflow_job_id: 91_001)
+      other_candidate = candidate_with_label(other_account, "tuist-default", workflow_job_id: 91_002)
+      pod_name = "pod-1"
+
+      expect(K8sClient, :get_service_account, fn "tuist-runners", ^pod_name ->
+        {:ok, sa_with_pool_label(pod_name, "fleet-a")}
+      end)
+
+      expect(K8sClient, :get_runner_pool, fn "tuist-runners", "fleet-a" ->
+        {:error, :not_found}
+      end)
+
+      expect(Claims, :workflow_job_ids_for_fleet, fn "fleet-a" -> [] end)
+      expect(Jobs, :pick_queued, fn "fleet-a", [], [] -> {:ok, capped_candidate} end)
+
+      expect(Claims, :attempt, fn 91_001, account_id, "fleet-a", ^pod_name, resources ->
+        assert account_id == capped_account.id
+
+        {:error,
+         {:concurrency_limit_reached,
+          %{
+            platform: :linux,
+            requested: resources,
+            used: %{vcpus: 32, memory_gb: 64},
+            limit: %{vcpus: 32, memory_gb: 64}
+          }}}
+      end)
+
+      expect(Jobs, :pick_queued, fn "fleet-a", excluded_account_ids, [] ->
+        assert excluded_account_ids == [capped_account.id]
+        assert other_candidate.account_id == other_account.id
+        {:error, :empty}
+      end)
+
+      assert {:error, :no_work_yet} = Runners.dispatch_for_sa("tuist-runners", pod_name)
     end
 
     test "retries the owner-label stamp on a transient patch failure and still dispatches" do

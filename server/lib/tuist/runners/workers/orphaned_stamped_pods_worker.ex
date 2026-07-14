@@ -34,7 +34,7 @@ defmodule Tuist.Runners.Workers.OrphanedStampedPodsWorker do
   handful starve a node and wedge the whole fleet. A single deploy
   can batch-leak the entire warm pool.
 
-  Because `Claims.attempt/4` INSERTs the claim *before*
+  Because `Claims.attempt/5` INSERTs the claim *before*
   `stamp_owner_labels/3` runs, an owner-stamped Pod should *always*
   have a matching claim. A stamped Pod with no claim is therefore
   unambiguously a leak — there is no legitimate transient state.

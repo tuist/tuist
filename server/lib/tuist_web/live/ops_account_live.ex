@@ -15,6 +15,7 @@ defmodule TuistWeb.OpsAccountLive do
   alias Tuist.Billing.Subscription
   alias Tuist.Kura
   alias Tuist.Repo
+  alias Tuist.Runners.Concurrency
 
   @impl true
   def mount(%{"id" => id}, _session, socket) do
@@ -27,6 +28,7 @@ defmodule TuistWeb.OpsAccountLive do
          |> assign(:head_title, "#{account.name} · Tuist Ops")
          |> assign(:account, account)
          |> assign(:kura_servers, Kura.list_servers_for_account(account.id))
+         |> assign(:runner_concurrency_form, runner_concurrency_form(account))
          |> assign(:upgrade_target_account, nil)
          |> assign(:upgrade_target_customer, nil)}
 
@@ -59,6 +61,26 @@ defmodule TuistWeb.OpsAccountLive do
   end
 
   ## Plan & billing event handlers (moved from OpsAccountsLive)
+
+  @impl true
+  def handle_event("update_runner_concurrency_limits", %{"account" => params}, socket) do
+    case Concurrency.update_limits(socket.assigns.account, params) do
+      {:ok, account} ->
+        account = preload_billing(account)
+
+        {:noreply,
+         socket
+         |> assign(:account, account)
+         |> assign(:runner_concurrency_form, runner_concurrency_form(account))
+         |> put_flash(:info, dgettext("dashboard", "Runner concurrency limits updated."))}
+
+      {:error, changeset} ->
+        {:noreply,
+         socket
+         |> assign(:runner_concurrency_form, to_form(changeset))
+         |> put_flash(:error, dgettext("dashboard", "Runner concurrency limits could not be updated."))}
+    end
+  end
 
   @impl true
   def handle_event("initiate_enterprise_upgrade", _params, socket) do
@@ -200,6 +222,12 @@ defmodule TuistWeb.OpsAccountLive do
         country: String.upcase(params["address_country"] || "")
       }
     }
+  end
+
+  defp runner_concurrency_form(account) do
+    account
+    |> Concurrency.change_limits()
+    |> to_form()
   end
 
   # ISO 3166-1 alpha-2 codes for the countries most likely to appear on

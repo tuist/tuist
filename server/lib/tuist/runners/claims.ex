@@ -6,10 +6,12 @@ defmodule Tuist.Runners.Claims do
 
   Two responsibilities, both genuinely OLTP:
 
-    1. **Atomic claim.** `attempt/4` runs the full check-and-set
+    1. **Atomic claim.** `attempt/5` runs the full check-and-set
        inside a single Postgres transaction, holding an
        advisory lock keyed on `account_id` for the duration:
 
+         * platform resource-limit check against the account's
+           vCPU and memory budgets and this platform's live claims
          * pod-in-use rejection if the polling Pod already owns
            a live claim (defends against the SA-token reuse
            attack: customer workflow code can read
@@ -21,8 +23,8 @@ defmodule Tuist.Runners.Claims do
            the loser sees zero rows and bails with `:lost_race`
 
        The advisory lock serialises concurrent claim attempts
-       for the same account so the pod-in-use check and the
-       INSERT land atomically.
+       for the same account so the resource check, pod-in-use
+       check, and INSERT land atomically.
 
     2. **Per-account inflight count.** `counts_per_account/0` is
        a single indexed `GROUP BY account_id` against this table
@@ -31,7 +33,7 @@ defmodule Tuist.Runners.Claims do
 
   Lifecycle column (`lifecycle_state`):
 
-    * `claimed` — INSERTed by `attempt/4`, pre-mint. Stale
+    * `claimed` — INSERTed by `attempt/5`, pre-mint. Stale
       reaper targets these.
     * `running` — set by `mark_running/2` once the JIT mint
       lands and we're handing the runner to GitHub. A
@@ -60,6 +62,7 @@ defmodule Tuist.Runners.Claims do
 
   alias Tuist.Repo
   alias Tuist.Runners.Claim
+  alias Tuist.Runners.Concurrency
 
   # Postgres advisory locks accept a single 64-bit int or two
   # 32-bit ints. Using the two-int form lets us namespace by a
@@ -70,8 +73,9 @@ defmodule Tuist.Runners.Claims do
 
   @doc """
   Attempts to claim `workflow_job_id` for `pod_name` on behalf of
-  `account_id`. Runs check-and-set inside one Postgres transaction
-  with an advisory lock on `account_id`:
+  `account_id`, consuming the requested platform resources. Runs
+  check-and-set inside one Postgres transaction with an advisory
+  lock on `account_id`:
 
   Returns one of:
 
@@ -79,15 +83,20 @@ defmodule Tuist.Runners.Claims do
       JIT and call `mark_running/2` on success.
     * `{:error, :lost_race}` — another pod beat us to the
       `workflow_job_id` PK.
+    * `{:error, {:concurrency_limit_reached, details}}` — adding the
+      requested shape would exceed either the platform's vCPU or
+      memory limit.
     * `{:error, :pod_in_use}` — `pod_name` already owns a live
       claim. Closes the SA-token-reuse path.
   """
-  def attempt(workflow_job_id, account_id, fleet_name, pod_name)
-      when is_integer(workflow_job_id) and is_integer(account_id) and is_binary(fleet_name) and is_binary(pod_name) do
+  def attempt(workflow_job_id, account_id, fleet_name, pod_name, resources)
+      when is_integer(workflow_job_id) and is_integer(account_id) and is_binary(fleet_name) and is_binary(pod_name) and
+             is_map(resources) do
     Repo.transaction(fn ->
       with :ok <- acquire_account_lock(account_id),
+           :ok <- Concurrency.check_available(account_id, resources),
            :ok <- check_pod_not_in_use(pod_name) do
-        case insert_claim(workflow_job_id, account_id, fleet_name, pod_name) do
+        case insert_claim(workflow_job_id, account_id, fleet_name, pod_name, resources) do
           {:ok, claim} -> claim
           {:error, :lost_race} -> Repo.rollback(:lost_race)
         end
@@ -113,7 +122,7 @@ defmodule Tuist.Runners.Claims do
     end
   end
 
-  defp insert_claim(workflow_job_id, account_id, fleet_name, pod_name) do
+  defp insert_claim(workflow_job_id, account_id, fleet_name, pod_name, resources) do
     now = DateTime.utc_now()
 
     {count, rows} =
@@ -126,6 +135,9 @@ defmodule Tuist.Runners.Claims do
             fleet_name: fleet_name,
             pod_name: pod_name,
             claimed_at: now,
+            platform: resources.platform,
+            vcpus: resources.vcpus,
+            memory_gb: resources.memory_gb,
             lifecycle_state: "claimed",
             runner_name: ""
           }
@@ -138,6 +150,9 @@ defmodule Tuist.Runners.Claims do
           :fleet_name,
           :pod_name,
           :claimed_at,
+          :platform,
+          :vcpus,
+          :memory_gb,
           :lifecycle_state,
           :runner_name
         ]
@@ -174,7 +189,7 @@ defmodule Tuist.Runners.Claims do
   @doc """
   Releases the claim for `workflow_job_id` — DELETE'd from PG.
   The `claimed_at` argument is the claim handle returned by
-  `attempt/4`; the DELETE filters on it so a stale serve whose
+  `attempt/5`; the DELETE filters on it so a stale serve whose
   PG row was already deleted by the stale-claims worker (and
   then re-claimed by a different poll) doesn't delete the second
   claim's row out from under it.

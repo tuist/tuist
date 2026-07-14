@@ -62,6 +62,11 @@ defmodule Tuist.Accounts.Account do
 
     field :custom_cache_endpoints_enabled, :boolean, default: false
 
+    field :runner_linux_vcpus_limit, :integer, default: 32
+    field :runner_linux_memory_gb_limit, :integer, default: 64
+    field :runner_macos_vcpus_limit, :integer, default: 12
+    field :runner_macos_memory_gb_limit, :integer, default: 28
+
     belongs_to :organization, Organization
     belongs_to :user, User
 
@@ -131,6 +136,23 @@ defmodule Tuist.Accounts.Account do
     |> validate_handle()
     |> validate_inclusion(:region, [:all, :europe, :usa])
     |> validate_inclusion(:cache_write_policy, [:members_and_tokens, :tokens_only])
+  end
+
+  def runner_concurrency_limits_changeset(account, attrs) do
+    fields = [
+      :runner_linux_vcpus_limit,
+      :runner_linux_memory_gb_limit,
+      :runner_macos_vcpus_limit,
+      :runner_macos_memory_gb_limit
+    ]
+
+    account
+    |> cast(attrs, fields)
+    |> validate_required(fields)
+    |> validate_number(:runner_linux_vcpus_limit, greater_than: 0)
+    |> validate_number(:runner_linux_memory_gb_limit, greater_than: 0)
+    |> validate_number(:runner_macos_vcpus_limit, greater_than: 0)
+    |> validate_number(:runner_macos_memory_gb_limit, greater_than: 0)
   end
 
   @s3_fields [:s3_bucket_name, :s3_access_key_id, :s3_secret_access_key, :s3_region, :s3_endpoint]

@@ -27,6 +27,14 @@ Adopting them is usually a one-line change to your workflow:
        - run: tuist test
 ```
 
+## Concurrency limits {#concurrency-limits}
+
+Each account has independent vCPU and memory concurrency limits for macOS and Linux. Before Tuist admits a job, it checks the job's <.localized_link href="/guides/features/runners/profiles#machine-shapes">machine shape</.localized_link> against all jobs currently running on that platform. The job starts only when both its vCPU and memory fit within the remaining capacity; otherwise it stays queued until capacity becomes available. Work on one platform never consumes the other platform's capacity.
+
+The **Concurrency** section of the Runners dashboard shows the peak admitted vCPU and memory usage for every hour. A red bar means usage reached the configured limit at some point during that hour. Usage cannot exceed the line because jobs that would take either resource over its limit remain queued.
+
+Your current limits are shown alongside each chart. If your workflows regularly reach them and spend time queued, [contact us](mailto:contact@tuist.dev) with your account handle, platform, and expected parallel workload. We'll review the required capacity and help raise the limits.
+
 <HomeCards>
     <HomeCard
         icon="<img src='/images/logo.webp' alt='Tuist' width='32' height='32' />"

@@ -284,6 +284,9 @@ defmodule Tuist.Runners.Dispatch do
       account_id: account.id,
       fleet_name: target.pool_name,
       requested_dispatch_label: target.requested_dispatch_label,
+      platform: Atom.to_string(target.platform),
+      vcpus: target.vcpus,
+      memory_gb: target.memory_gb,
       repository: full_name,
       workflow_run_id: get_integer(job, "run_id"),
       workflow_name: get_string(job, "workflow_name"),
@@ -327,7 +330,10 @@ defmodule Tuist.Runners.Dispatch do
         {:ok,
          %{
            pool_name: Catalog.pool_name(profile),
-           requested_dispatch_label: Profile.dispatch_label(profile)
+           requested_dispatch_label: Profile.dispatch_label(profile),
+           platform: profile.platform,
+           vcpus: profile.vcpus,
+           memory_gb: profile.memory_gb
          }}
 
       {:error, :no_matching_profile} = err ->
@@ -337,8 +343,15 @@ defmodule Tuist.Runners.Dispatch do
 
   defp resolve_legacy_pool(requested_labels) do
     case match_pool(requested_labels) do
-      {:ok, %{name: name, dispatch_label: label}} ->
-        {:ok, %{pool_name: name, requested_dispatch_label: label}}
+      {:ok, %{name: name, dispatch_label: label} = pool} ->
+        {:ok,
+         %{
+           pool_name: name,
+           requested_dispatch_label: label,
+           platform: pool.platform,
+           vcpus: pool.vcpus,
+           memory_gb: pool.memory_gb
+         }}
 
       {:error, _} = err ->
         err
@@ -545,7 +558,17 @@ defmodule Tuist.Runners.Dispatch do
 
   defp pool_summary(%{"metadata" => %{"name" => name}, "spec" => %{"dispatchLabel" => label} = spec})
        when is_binary(name) and is_binary(label) and label != "" do
-    %{name: name, dispatch_label: label, runner_labels: extract_runner_labels(spec)}
+    platform = extract_pool_platform(spec)
+    default_shape = Catalog.default_shape(platform) || %{vcpus: 1, memory_gb: 1}
+
+    %{
+      name: name,
+      dispatch_label: label,
+      runner_labels: extract_runner_labels(spec),
+      platform: platform,
+      vcpus: extract_pool_vcpus(spec, default_shape.vcpus),
+      memory_gb: extract_pool_memory_gb(spec, default_shape.memory_gb)
+    }
   end
 
   defp pool_summary(_), do: nil
@@ -561,6 +584,19 @@ defmodule Tuist.Runners.Dispatch do
   end
 
   defp extract_runner_labels(_), do: []
+
+  defp extract_pool_platform(%{"os" => "linux"}), do: :linux
+  defp extract_pool_platform(_), do: :macos
+
+  defp extract_pool_vcpus(%{"podCPUMilli" => cpu_milli}, _default) when is_integer(cpu_milli) and cpu_milli > 0,
+    do: div(cpu_milli + 999, 1000)
+
+  defp extract_pool_vcpus(_spec, default), do: default
+
+  defp extract_pool_memory_gb(%{"podMemoryMB" => memory_mb}, _default) when is_integer(memory_mb) and memory_mb > 0,
+    do: div(memory_mb + 1023, 1024)
+
+  defp extract_pool_memory_gb(_spec, default), do: default
 
   defp namespace, do: Environment.runners_namespace()
 

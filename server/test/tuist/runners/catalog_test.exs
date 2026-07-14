@@ -62,6 +62,30 @@ defmodule Tuist.Runners.CatalogTest do
     end
   end
 
+  describe "resources_for_fleet/1" do
+    test "reads the exact Linux shape encoded in a catalog pool name" do
+      fleet_name = "#{Tuist.Environment.runners_linux_pool_name_prefix()}-4vcpu-16gb"
+
+      assert Catalog.resources_for_fleet(fleet_name) ==
+               {:ok, %{platform: :linux, vcpus: 4, memory_gb: 16}}
+    end
+
+    test "uses platform defaults for legacy Linux and macOS rows" do
+      linux = Catalog.default_shape(:linux)
+      macos = Catalog.default_shape(:macos)
+
+      assert Catalog.resources_for_fleet("linux-amd64") ==
+               {:ok, %{platform: :linux, vcpus: linux.vcpus, memory_gb: linux.memory_gb}}
+
+      assert Catalog.resources_for_fleet("macos-26-5") ==
+               {:ok, %{platform: :macos, vcpus: macos.vcpus, memory_gb: macos.memory_gb}}
+    end
+
+    test "rejects an unknown fleet" do
+      assert Catalog.resources_for_fleet("windows-large") == {:error, :invalid_resources}
+    end
+  end
+
   describe "parse_shapes_json/1" do
     test "parses the Helm-injected JSON into the config shape" do
       # The exact value the chart renders into TUIST_RUNNER_LINUX_SHAPES.
