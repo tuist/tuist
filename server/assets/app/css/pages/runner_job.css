@@ -165,6 +165,19 @@
             color: var(--noora-surface-label-primary);
             font: var(--noora-font-weight-regular) var(--noora-font-code-large);
           }
+
+          /* Metadata links (Workflow / Run) read as the surrounding
+             label text, not the browser's default blue underline —
+             the underline appears on hover to signal they're clickable. */
+          & [data-part="workflow-link"],
+          & [data-part="run-link"] {
+            color: var(--noora-surface-label-primary);
+            text-decoration: none;
+
+            &:hover {
+              text-decoration: underline;
+            }
+          }
         }
       }
     }
