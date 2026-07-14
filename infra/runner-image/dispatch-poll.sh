@@ -82,13 +82,13 @@ if [ -z "${SA_TOKEN}" ]; then
   exit 1
 fi
 
-if [ "${TUIST_RUNNER_SHELL_AGENT_MANAGED_BY_LAUNCHD:-0}" = "1" ] && [ -x /opt/tuist/runner-shell-agent-supervisor.sh ]; then
-  echo "$(date -u +%FT%TZ) dispatch-poll: ensuring launchd-managed runner-shell-agent supervisor"
+if [ -x /opt/tuist/runner-shell-agent-supervisor.sh ]; then
+  echo "$(date -u +%FT%TZ) dispatch-poll: starting runner-shell-agent supervisor"
   (
     trap - EXIT
     exec /bin/zsh -lc 'exec /opt/tuist/runner-shell-agent-supervisor.sh'
   ) &
-  echo "$(date -u +%FT%TZ) dispatch-poll: runner-shell-agent fallback supervisor pid=$!"
+  echo "$(date -u +%FT%TZ) dispatch-poll: runner-shell-agent supervisor pid=$!"
 elif [ -x /opt/tuist/runner-shell-agent.py ]; then
   shell_agent_python=""
   if shell_agent_python="$(command -v python3 2>/dev/null)"; then

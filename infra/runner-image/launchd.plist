@@ -55,7 +55,7 @@
           SA token). Elevate only the injector; dispatch-poll runs
           as runner so the GitHub runner stays non-root.
         -->
-        <string>sudo /opt/tuist/inject-env.sh &amp;&amp; source /etc/tuist.env &amp;&amp; export TUIST_RUNNER_SHELL_AGENT_MANAGED_BY_LAUNCHD=1 &amp;&amp; exec /opt/tuist/dispatch-poll.sh</string>
+        <string>sudo /opt/tuist/inject-env.sh &amp;&amp; source /etc/tuist.env &amp;&amp; exec /opt/tuist/dispatch-poll.sh</string>
     </array>
 
     <key>RunAtLoad</key>

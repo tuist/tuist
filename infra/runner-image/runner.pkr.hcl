@@ -348,11 +348,6 @@ build {
     destination = "/tmp/dev.tuist.runner.plist"
   }
 
-  provisioner "file" {
-    source      = "${path.root}/runner-shell-agent.launchd.plist"
-    destination = "/tmp/dev.tuist.runner-shell-agent.plist"
-  }
-
   # Install as a LaunchAgent under runner's home so it loads
   # inside runner's user session (auto-login above guarantees the
   # session exists at boot). User-owned (runner:staff, 0644) per
@@ -367,8 +362,7 @@ build {
       "sudo mkdir -p /Users/runner/Library/LaunchAgents",
       "sudo chown runner:staff /Users/runner/Library /Users/runner/Library/LaunchAgents",
       "sudo install -m 0644 -o runner -g staff /tmp/dev.tuist.runner.plist /Users/runner/Library/LaunchAgents/dev.tuist.runner.plist",
-      "sudo install -m 0644 -o runner -g staff /tmp/dev.tuist.runner-shell-agent.plist /Users/runner/Library/LaunchAgents/dev.tuist.runner-shell-agent.plist",
-      "rm -f /tmp/dev.tuist.runner.plist /tmp/dev.tuist.runner-shell-agent.plist",
+      "rm -f /tmp/dev.tuist.runner.plist",
       "sudo mkdir -p /var/log/tuist-runner",
       "sudo chown runner:staff /var/log/tuist-runner"
     ]
