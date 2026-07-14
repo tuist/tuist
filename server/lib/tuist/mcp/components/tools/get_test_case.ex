@@ -28,6 +28,40 @@ defmodule Tuist.MCP.Components.Tools.GetTestCase do
               "Required when not using test_case_id. Must be combined with account_handle and project_handle."
         }
       }
+    },
+    output_schema: %{
+      "type" => "object",
+      "properties" => %{
+        "id" => %{"type" => "string"},
+        "name" => %{"type" => "string"},
+        "module_name" => %{"type" => "string"},
+        "suite_name" => %{"type" => "string"},
+        "is_flaky" => %{"type" => "boolean"},
+        "state" => %{"type" => "string"},
+        "last_status" => %{"type" => "string"},
+        "last_duration" => %{"type" => "integer"},
+        "avg_duration" => %{"type" => "integer"},
+        "reliability_rate" => %{"type" => ["number", "null"]},
+        "flakiness_rate" => %{"type" => "number"},
+        "total_runs" => %{"type" => "integer"},
+        "failed_runs" => %{"type" => "integer"}
+      },
+      "required" => [
+        "id",
+        "name",
+        "module_name",
+        "suite_name",
+        "is_flaky",
+        "state",
+        "last_status",
+        "last_duration",
+        "avg_duration",
+        "reliability_rate",
+        "flakiness_rate",
+        "total_runs",
+        "failed_runs"
+      ],
+      "additionalProperties" => false
     }
 
   alias Tuist.MCP.Tool, as: MCPTool
@@ -125,6 +159,6 @@ defmodule Tuist.MCP.Components.Tools.GetTestCase do
       failed_runs: analytics.failed_count
     }
 
-    MCPTool.json_response(data)
+    MCPTool.json_response(data, __MODULE__)
   end
 end

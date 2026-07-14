@@ -100,6 +100,71 @@ func TestRenderLinuxCloudInit_DockerHubMirror(t *testing.T) {
 	}
 }
 
+func TestRenderLinux_SelfSignedServingCertAndClientCA(t *testing.T) {
+	ca := "-----BEGIN CERTIFICATE-----\nMIIBdummyCAbytes\n-----END CERTIFICATE-----\n"
+
+	withCA := renderLinuxBootstrapScript(linuxCloudInitOptions{
+		NodeName:       "tuist-tuist-dedibox-fleet-abc",
+		KubeconfigYAML: "apiVersion: v1\nkind: Config\n",
+		ClusterCAPEM:   []byte(ca),
+		K8sMinor:       "v1.34",
+		BootstrapUser:  "ubuntu",
+	})
+
+	// serverTLSBootstrap must NOT be set. The self-join kubelet authenticates as
+	// a ServiceAccount (not system:node:<name>), so its serving CSR is never
+	// auto-approved and serverTLSBootstrap would leave it with no :10250 serving
+	// cert (`tls: internal error`). A self-signed cert (serverTLSBootstrap unset)
+	// is what the apiserver (no --kubelet-certificate-authority) and metrics-server
+	// (--kubelet-insecure-tls) accept.
+	if strings.Contains(withCA, "serverTLSBootstrap") {
+		t.Fatalf("expected serverTLSBootstrap unset so the kubelet self-signs its serving cert, got:\n%s", withCA)
+	}
+	// The cluster CA is written to disk and wired as clientCAFile so the kubelet
+	// trusts the apiserver's client cert; without it /containerLogs, /exec, and
+	// /port-forward authenticate as anonymous and 401.
+	if !strings.Contains(withCA, "clientCAFile: /var/lib/kubelet/ca.crt") {
+		t.Fatalf("expected the kubelet clientCAFile to point at the on-disk CA, got:\n%s", withCA)
+	}
+	if !strings.Contains(withCA, "tee /var/lib/kubelet/ca.crt > /dev/null <<'TUIST_EOF'") ||
+		!strings.Contains(withCA, "-----BEGIN CERTIFICATE-----") {
+		t.Fatalf("expected the cluster CA written to /var/lib/kubelet/ca.crt, got:\n%s", withCA)
+	}
+	// The CA must be written before the kubelet config.yaml that references it.
+	caIdx := strings.Index(withCA, "tee /var/lib/kubelet/ca.crt")
+	cfgIdx := strings.Index(withCA, "tee /var/lib/kubelet/config.yaml")
+	if caIdx < 0 || cfgIdx < 0 || caIdx > cfgIdx {
+		t.Fatalf("expected the CA write before the kubelet config write (ca=%d cfg=%d), got:\n%s", caIdx, cfgIdx, withCA)
+	}
+
+	// Cloud-init form carries the same CA write_files entry + clientCAFile.
+	cloudInit := renderLinuxCloudInitWithOptions(linuxCloudInitOptions{
+		NodeName:       "node-a",
+		KubeconfigYAML: "apiVersion: v1\nkind: Config\n",
+		ClusterCAPEM:   []byte(ca),
+		K8sMinor:       "v1.34",
+	})
+	if !strings.Contains(cloudInit, "path: /var/lib/kubelet/ca.crt") ||
+		!strings.Contains(cloudInit, "clientCAFile: /var/lib/kubelet/ca.crt") {
+		t.Fatalf("expected the cloud-init form to write the CA + set clientCAFile, got:\n%s", cloudInit)
+	}
+	if strings.Contains(cloudInit, "serverTLSBootstrap") {
+		t.Fatalf("expected serverTLSBootstrap unset in the cloud-init form, got:\n%s", cloudInit)
+	}
+
+	// No CA supplied: clientCAFile omitted and no ca.crt written, so a caller that
+	// doesn't thread a CA renders exactly as before.
+	noCA := renderLinuxBootstrapScript(linuxCloudInitOptions{
+		NodeName:       "node-a",
+		KubeconfigYAML: "apiVersion: v1\nkind: Config\n",
+		K8sMinor:       "v1.34",
+		BootstrapUser:  "ubuntu",
+	})
+	if strings.Contains(noCA, "clientCAFile") || strings.Contains(noCA, "/var/lib/kubelet/ca.crt") {
+		t.Fatalf("expected no clientCAFile/CA write when no CA is supplied, got:\n%s", noCA)
+	}
+}
+
 func TestRenderLinux_LockupHardening(t *testing.T) {
 	// Both render forms must harden bare-metal boxes so a silent kernel lockup
 	// auto-reboots instead of stranding the node NotReady forever (which drops the

@@ -25,6 +25,10 @@ global:
     tuist.dev/environment: preview
 
 server:
+  # Previews exercise the hosted product and the public marketing site. Leaving
+  # this at the chart's self-hosted default redirects every public route to the
+  # login page.
+  hosted: true
   replicaCount: 1
   autoscaling:
     enabled: false
@@ -37,12 +41,15 @@ server:
   # Postgres + ClickHouse, but preview ships with embedded ones, and the
   # Job's wait-for-dependencies init container then deadlocks: pre-install
   # hooks run before regular release resources, so the embedded Postgres
-  # / ClickHouse never come up during the hook window. The deploy
-  # workflow kubectl-deletes the stale Job before `helm upgrade` instead,
-  # which sidesteps the `spec.template field is immutable` issue without
-  # tripping the dependency wait.
+  # / ClickHouse never come up during the hook window.
+  #
+  # `spec.template` is immutable, so re-deploying with a new image tag would
+  # fail on a Job of the same name. namePerRevision scopes the Job name to the
+  # release revision, so Helm creates the new one and prunes the previous one
+  # itself. This replaces the deploy workflow's `kubectl delete job` step.
   migrationJob:
     asHook: false
+    namePerRevision: true
   # License is synced from 1Password via ESO into the chart's
   # server-external-secrets Secret. The 1P item must exist in the vault that
   # the ClusterSecretStore (default name: onepassword) is bound to. ESO and
@@ -73,10 +80,10 @@ server:
   #      preview-* namespace and set tlsSecretName below to its name.
   #
   # The managed preview cluster uses option 1 through
-  # infra/helm/platform/values-tuist-preview.yaml. No external-dns annotations
-  # are needed: a single A record
-  #   *.preview.tuist.dev -> <preview ingress IP>
-  # already resolves every per-PR subdomain.
+  # infra/helm/platform/values-tuist-preview.yaml. The ingress controller's
+  # LoadBalancer Service owns the wildcard record through ExternalDNS, so it
+  # automatically follows the current preview ingress address and resolves
+  # every per-pull-request subdomain.
   ingress:
     enabled: false
     className: nginx

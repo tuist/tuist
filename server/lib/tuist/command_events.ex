@@ -124,7 +124,7 @@ defmodule Tuist.CommandEvents do
 
   def generate_result_bundle_url(command_event) do
     {:ok, project} = get_project_for_command_event(command_event, preload: :account)
-    Storage.generate_download_url(get_result_bundle_key(command_event), project.account)
+    result_bundle_download_url(get_result_bundle_key(command_event), project.account)
   end
 
   # Run-scoped variants for remote-processed test runs (`tuist inspect test`),
@@ -135,7 +135,7 @@ defmodule Tuist.CommandEvents do
   end
 
   def generate_result_bundle_url(run_id, project) when is_binary(run_id) do
-    Storage.generate_download_url(get_result_bundle_key(run_id, project), project.account)
+    result_bundle_download_url(get_result_bundle_key(run_id, project), project.account)
   end
 
   def has_session?(command_event) do
@@ -183,6 +183,17 @@ defmodule Tuist.CommandEvents do
 
   def get_session_key(run_id, project) do
     "#{get_command_event_artifact_base_path_key(run_id, project)}/session.zip"
+  end
+
+  defp result_bundle_download_url(object_key, account) do
+    filename =
+      case Storage.get_object_range(object_key, 0..1, account) do
+        {:ok, <<0x50, 0x4B, _rest::binary>>} -> "result_bundle.zip"
+        {:ok, _other_format} -> "result_bundle.aar"
+        {:error, _reason} -> "result_bundle.zip"
+      end
+
+    Storage.generate_download_url(object_key, account, content_disposition: ~s(attachment; filename="#{filename}"))
   end
 
   def get_command_event_artifact_base_path_key(run_id, project) do
@@ -1120,7 +1131,28 @@ defmodule Tuist.CommandEvents do
   defp sort_optimized_table(%{order_by: [field | _]}) when field in [:hit_rate, "hit_rate"],
     do: "command_events_by_hit_rate"
 
-  defp sort_optimized_table(%{order_by: [field | _]}) when field in [:ran_at, "ran_at"], do: "command_events_by_ran_at"
+  defp sort_optimized_table(%{order_by: [field | _]} = attrs) when field in [:ran_at, "ran_at"] do
+    # When a `name` filter is present (cache runs, generate runs, `/runs` with a
+    # name filter), `command_events_by_name_ran_at` sorts by (project_id, name,
+    # ran_at) so the page reads ~one granule regardless of how sparse the command
+    # is. Without a name filter (e.g. ModuleCacheLive, `/runs` unfiltered),
+    # `command_events_by_ran_at` (project_id, ran_at) serves the ran_at scan.
+    if name_filter?(attrs), do: "command_events_by_name_ran_at", else: "command_events_by_ran_at"
+  end
 
   defp sort_optimized_table(_), do: nil
+
+  defp name_filter?(%{filters: filters}) when is_list(filters), do: Enum.any?(filters, &name_filter_clause?/1)
+  defp name_filter?(%{"filters" => filters}) when is_list(filters), do: Enum.any?(filters, &name_filter_clause?/1)
+  defp name_filter?(_), do: false
+
+  # Matches both plain maps and %Flop.Filter{} structs, which are maps carrying
+  # the same :field/:value keys.
+  defp name_filter_clause?(%{field: field, value: value}), do: name_field?(field) and filter_value_present?(value)
+  defp name_filter_clause?(%{"field" => field, "value" => value}), do: name_field?(field) and filter_value_present?(value)
+  defp name_filter_clause?(_), do: false
+
+  defp name_field?(field), do: field in [:name, "name"]
+
+  defp filter_value_present?(value), do: value not in [nil, [], ""]
 end

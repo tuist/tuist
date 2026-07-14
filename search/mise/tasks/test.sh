@@ -6,6 +6,10 @@ set -euo pipefail
 IMAGE_NAME="tuist/search:test"
 CONTAINER_NAME="search-test-$$"
 
+echo "Verifying release indexing skips without a GitHub token..."
+skip_output=$(env -u GITHUB_TOKEN -u TYPESENSE_API_KEY -u TYPESENSE_HOST ./bin/index-github-releases)
+grep -Fq "Skipping GitHub release indexing: GITHUB_TOKEN is not configured" <<< "$skip_output"
+
 cleanup() { docker rm -f "$CONTAINER_NAME" 2>/dev/null || true; }
 trap cleanup EXIT
 

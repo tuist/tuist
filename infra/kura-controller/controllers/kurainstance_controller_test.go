@@ -1759,6 +1759,141 @@ func TestKuraInstanceReconcileDoesNotShrinkPVCs(t *testing.T) {
 	}
 }
 
+func TestKuraInstanceReconcileDeletionReclaimsDataVolumes(t *testing.T) {
+	ctx := context.Background()
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := kurav1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+
+	replicas := int32(1)
+	now := metav1.Now()
+	instance := &kurav1alpha1.KuraInstance{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:              "kura-tuist-eu-1",
+			Namespace:         "kura",
+			Finalizers:        []string{KuraInstanceFinalizer},
+			DeletionTimestamp: &now,
+		},
+		Spec: kurav1alpha1.KuraInstanceSpec{
+			AccountHandle: "tuist",
+			TenantID:      "tuist",
+			Region:        "eu",
+			Image:         "ghcr.io/tuist/kura:0.5.3",
+			Replicas:      &replicas,
+			StorageSize:   "20Gi",
+		},
+	}
+	pvc := dataPersistentVolumeClaim(instance, 0, "20Gi")
+	pvc.Spec.VolumeName = "pvc-hcloud-retain"
+	pvc.Status.Phase = corev1.ClaimBound
+	pv := &corev1.PersistentVolume{
+		ObjectMeta: metav1.ObjectMeta{Name: "pvc-hcloud-retain"},
+		Spec: corev1.PersistentVolumeSpec{
+			PersistentVolumeReclaimPolicy: corev1.PersistentVolumeReclaimRetain,
+		},
+	}
+
+	reconciler := &KuraInstanceReconciler{
+		Client: fake.NewClientBuilder().
+			WithScheme(scheme).
+			WithObjects(instance, pvc, pv).
+			WithStatusSubresource(instance).
+			Build(),
+		Scheme: scheme,
+	}
+
+	if _, err := reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}}); err != nil {
+		t.Fatal(err)
+	}
+
+	updatedPV := &corev1.PersistentVolume{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: pv.Name}, updatedPV); err != nil {
+		t.Fatal(err)
+	}
+	if got := updatedPV.Spec.PersistentVolumeReclaimPolicy; got != corev1.PersistentVolumeReclaimDelete {
+		t.Fatalf("expected data PV to be reclaimed with Delete on instance deletion, got %q", got)
+	}
+}
+
+func TestKuraInstanceReconcileStaleStorageReclaimsOldVolume(t *testing.T) {
+	ctx := context.Background()
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := kurav1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+
+	replicas := int32(1)
+	instance := &kurav1alpha1.KuraInstance{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:       "kura-tuist-eu-1",
+			Namespace:  "kura",
+			Finalizers: []string{KuraInstanceFinalizer},
+		},
+		Spec: kurav1alpha1.KuraInstanceSpec{
+			AccountHandle:    "tuist",
+			TenantID:         "tuist",
+			Region:           "eu",
+			Image:            "ghcr.io/tuist/kura:0.5.3",
+			Replicas:         &replicas,
+			StorageSize:      "20Gi",
+			StorageClassName: "scw-local-nvme",
+		},
+	}
+	sts := &appsv1.StatefulSet{
+		ObjectMeta: metav1.ObjectMeta{Name: instance.Name, Namespace: instance.Namespace},
+		Spec: appsv1.StatefulSetSpec{
+			Replicas:             &replicas,
+			Selector:             &metav1.LabelSelector{MatchLabels: selectorLabels(instance)},
+			Template:             podTemplate(instance, "", "production", ""),
+			VolumeClaimTemplates: []corev1.PersistentVolumeClaim{dataVolumeClaim(instance)},
+		},
+	}
+	oldClass := "hcloud-volumes"
+	pvc := dataPersistentVolumeClaim(instance, 0, "200Gi")
+	pvc.Spec.StorageClassName = &oldClass
+	pvc.Spec.VolumeName = "pvc-hcloud-old"
+	pvc.Status.Phase = corev1.ClaimBound
+	pv := &corev1.PersistentVolume{
+		ObjectMeta: metav1.ObjectMeta{Name: "pvc-hcloud-old"},
+		Spec: corev1.PersistentVolumeSpec{
+			PersistentVolumeReclaimPolicy: corev1.PersistentVolumeReclaimRetain,
+		},
+	}
+
+	reconciler := &KuraInstanceReconciler{
+		Client: fake.NewClientBuilder().
+			WithScheme(scheme).
+			WithObjects(instance, sts, pvc, pv).
+			WithStatusSubresource(instance).
+			Build(),
+		Scheme: scheme,
+	}
+
+	if _, err := reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}}); err != nil {
+		t.Fatal(err)
+	}
+
+	updatedPV := &corev1.PersistentVolume{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: pv.Name}, updatedPV); err != nil {
+		t.Fatal(err)
+	}
+	if got := updatedPV.Spec.PersistentVolumeReclaimPolicy; got != corev1.PersistentVolumeReclaimDelete {
+		t.Fatalf("expected stale data PV to be reclaimed with Delete before recreation, got %q", got)
+	}
+	leftover := &corev1.PersistentVolumeClaim{}
+	err := reconciler.Get(ctx, types.NamespacedName{Name: pvc.Name, Namespace: pvc.Namespace}, leftover)
+	if !apierrors.IsNotFound(err) {
+		t.Fatalf("expected stale data PVC to be deleted, got err=%v", err)
+	}
+}
+
 func TestKuraInstanceSpecSupportsLocalWorkloadOverrides(t *testing.T) {
 	replicas := int32(1)
 	instance := &kurav1alpha1.KuraInstance{

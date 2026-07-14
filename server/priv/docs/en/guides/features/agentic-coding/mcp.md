@@ -118,13 +118,23 @@ If your agent supports `auth.md`, you can connect without opening a browser. Dep
 
 The following tools are available through the Tuist MCP server:
 
+Every tool publishes a human-readable description together with explicit input and output schemas. Successful calls return structured content that conforms to the advertised output schema, plus the same result serialized as text for clients that do not yet consume structured content.
+
+#### Documentation and community search
+
+This read-only tool searches Tuist's documentation, API reference, GitHub releases, community forum, and GitHub issues through the same search engine that powers the docs website. Release results include the product, version, publication date, and prerelease status. Stable releases are searched by default, and prereleases can be included with `include_prereleases`. The tool is only available on the Tuist-hosted server at `https://tuist.dev/mcp`.
+
+| Tool | Description | Required parameters |
+|------|-------------|---------------------|
+| `search_tuist` | Search Tuist's documentation, API reference, GitHub releases, community forum, and GitHub issues. Optionally restrict to one `source` (`docs`, `api_reference`, `releases`, `forum`, `issues`). | `query` |
+
 #### Projects
 
 | Tool | Description | Required parameters |
 |------|-------------|---------------------|
 | `create_organization` | Create a Tuist organization for the authenticated user. | `handle` |
 | `create_project` | Create a Tuist project under an account the authenticated user can access. | `account_handle`, `project_handle` |
-| `add_organization_member` | Add an existing Tuist user to an organization. | `organization_handle`, `email` |
+| `add_organization_member` | Add an existing Tuist user to an organization or update an existing member's role. | `organization_handle`, `email` |
 | `list_projects` | List all projects accessible to the authenticated user. | None |
 
 #### Xcode builds
@@ -160,6 +170,9 @@ The following tools are available through the Tuist MCP server:
 | `list_test_case_runs` | List test case runs, optionally filtered by test case or test run. | `account_handle`, `project_handle` |
 | `get_test_case_run` | Get failure details and repetitions for a specific test case run. | `test_case_run_id` |
 | `list_test_case_run_attachments` | List attachments for a test case run. Each attachment includes a temporary download URL. | `test_case_run_id` |
+| `list_test_case_events` | List state changes for a test case, such as muting or skipping it. | `test_case_id` |
+| `update_test_case` | Update a test case's state or flaky classification. | `test_case_id` or `identifier` + `account_handle` + `project_handle` |
+| `list_xcode_test_targets` | List selective-testing target results for a test run. | `test_run_id` |
 
 #### Bundles
 

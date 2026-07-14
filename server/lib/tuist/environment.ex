@@ -18,6 +18,14 @@ defmodule Tuist.Environment do
       "jwks_uri" => "https://auth.openai.com/.well-known/jwks.json"
     }
   ]
+  @artifact_retention_environment_variables %{
+    cache_artifacts: "TUIST_CACHE_ARTIFACT_RETENTION_DAYS",
+    app_previews: "TUIST_APP_PREVIEW_RETENTION_DAYS",
+    build_archives: "TUIST_BUILD_ARCHIVE_RETENTION_DAYS",
+    run_artifacts: "TUIST_RUN_ARTIFACT_RETENTION_DAYS",
+    test_attachments: "TUIST_TEST_ATTACHMENT_RETENTION_DAYS",
+    shard_bundles: "TUIST_SHARD_BUNDLE_RETENTION_DAYS"
+  }
 
   # Every supported pod role. `mode/0` raises on any other value of
   # TUIST_MODE so a deployment-manifest typo (`processsor`, `ingest`,
@@ -202,6 +210,13 @@ defmodule Tuist.Environment do
     end
   end
 
+  def database_swift_registry_sync_role do
+    case System.get_env("TUIST_DATABASE_SWIFT_REGISTRY_SYNC_ROLE") do
+      role when is_binary(role) and role != "" -> role
+      _ -> nil
+    end
+  end
+
   def database_config_from_url(url) do
     parsed_url = URI.parse(url)
 
@@ -235,6 +250,35 @@ defmodule Tuist.Environment do
   def tuist_hosted? do
     truthy?(System.get_env("TUIST_CLOUD_HOSTED", "0")) or
       truthy?(System.get_env("TUIST_HOSTED", "0"))
+  end
+
+  def artifact_retention_days(environment \\ System.get_env()) when is_map(environment) do
+    Enum.reduce(@artifact_retention_environment_variables, %{}, fn {resource_type, environment_variable}, acc ->
+      case parse_artifact_retention_days(Map.get(environment, environment_variable), environment_variable) do
+        nil -> acc
+        days -> Map.put(acc, resource_type, days)
+      end
+    end)
+  end
+
+  defp parse_artifact_retention_days(nil, _environment_variable), do: nil
+
+  defp parse_artifact_retention_days(value, environment_variable) when is_binary(value) do
+    value = String.trim(value)
+
+    case Integer.parse(value) do
+      _ when value == "" -> nil
+      {days, ""} when days > 0 -> days
+      _ -> raise_invalid_artifact_retention_days(environment_variable, value)
+    end
+  end
+
+  defp parse_artifact_retention_days(value, environment_variable) do
+    raise_invalid_artifact_retention_days(environment_variable, value)
+  end
+
+  defp raise_invalid_artifact_retention_days(environment_variable, value) do
+    raise "#{environment_variable} must be a positive integer number of days, got: #{inspect(value)}"
   end
 
   def test_user_login_enabled? do
@@ -799,6 +843,33 @@ defmodule Tuist.Environment do
   # sign-in method off.
   def github_auth_enabled? do
     truthy?(System.get_env("TUIST_GITHUB_AUTH_ENABLED", "1"))
+  end
+
+  # Email/password sign-in and self-serve registration are built in and have no
+  # "configured?" concept, so this lever lets a self-hosted operator turn them
+  # off entirely (for example on an SSO-only instance). It gates the login form,
+  # registration, and the password-reset flow, both in the UI and server-side.
+  # There is deliberately no lockout guard: disabling this while no OAuth/SSO
+  # provider is usable leaves the instance without a login method.
+  def email_auth_enabled? do
+    truthy?(System.get_env("TUIST_EMAIL_AUTH_ENABLED", "1"))
+  end
+
+  # Google, Okta, and Apple sign-in are shown whenever the provider is
+  # configured. These levers, mirroring `github_auth_enabled?/0`, let a
+  # self-hosted operator keep a provider configured while removing it as a
+  # sign-in option (button hidden and, for the Ueberauth providers, the sign-in
+  # callback closed).
+  def google_auth_enabled? do
+    truthy?(System.get_env("TUIST_GOOGLE_AUTH_ENABLED", "1"))
+  end
+
+  def okta_auth_enabled? do
+    truthy?(System.get_env("TUIST_OKTA_AUTH_ENABLED", "1"))
+  end
+
+  def apple_auth_enabled? do
+    truthy?(System.get_env("TUIST_APPLE_AUTH_ENABLED", "1"))
   end
 
   def github_app_configured?(secrets \\ secrets()) do

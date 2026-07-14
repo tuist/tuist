@@ -2,10 +2,15 @@
 
 This directory contains the standalone Tuist package registry service
 deployed at `https://registry.tuist.dev`. **The pod is a stateless read
-frontend.** All write/sync work lives in the server under
-`Tuist.Registry.Swift.*` and runs in a separate `TUIST_MODE=swift_registry_sync`
-pod (see `server/AGENTS.md` and
-`infra/helm/tuist/templates/swift-registry-sync-deployment.yaml`).
+frontend.** The server-owned writer lives under `Tuist.Registry.Swift.*`
+and runs in a separate `TUIST_MODE=swift_registry_sync` pod (see
+`server/AGENTS.md` and
+`infra/helm/tuist/templates/swift-registry-sync-deployment.yaml`). During
+the managed cutover, the currently deployed legacy cache release remains
+the sole scheduled writer for canary and production while staging and
+previews exercise the server-owned writer. Do not redeploy cache from the
+current main branch before cutover because its registry cron has already
+been removed.
 
 The service is multi-ecosystem by design: each ecosystem mounts its own
 protocol-compliant API surface under a path prefix that names the
@@ -80,8 +85,9 @@ Responses on the legacy prefix carry RFC 8594 `Deprecation: true` and
   1Password (`REGISTRY` item in `tuist-k8s-<env>` vault).
 - Normal deploys run through `.github/workflows/server-deployment.yml`,
   which builds and deploys the registry read image together with the
-  server image so the read frontend and `swift_registry_sync` writer roll
-  from the same commit.
+  server image. In managed canary and production, the
+  `swift_registry_sync` writer remains disabled until cache sync is turned
+  off as a separate, deliberate cutover step.
 
 ### Cluster prereqs
 The chart assumes these are installed in the target cluster (they

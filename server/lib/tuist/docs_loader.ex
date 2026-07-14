@@ -10,6 +10,9 @@ defmodule Tuist.Docs.Loader do
   alias Tuist.Docs.Page
   alias Tuist.Locale
   alias Tuist.Markdown
+  alias Tuist.Runners.Catalog
+  alias Tuist.Runners.Profile
+  alias Tuist.Runners.Profiles
   alias Tuist.Webhooks.WebhookEndpoint
 
   # Paths
@@ -237,7 +240,75 @@ defmodule Tuist.Docs.Loader do
       "{{minimum_supported_cli_version}}",
       Tuist.CLIVersions.minimum_supported_version()
     )
+    |> String.replace("{{runner_default_profiles_table}}", runner_default_profiles_table())
+    |> String.replace("{{runner_linux_shapes_table}}", runner_shapes_table(:linux))
+    |> String.replace("{{runner_macos_shapes_table}}", runner_shapes_table(:macos))
+    |> String.replace("{{runner_macos_xcode_versions}}", runner_xcode_versions_list())
   end
+
+  defp runner_shapes_table(platform) do
+    rows =
+      platform
+      |> Catalog.shapes()
+      |> Enum.map_join("\n", fn shape ->
+        "| #{shape.vcpus} | #{shape.memory_gb} GB#{default_suffix(shape.default?)} |"
+      end)
+
+    """
+    | vCPUs | Memory |
+    | --- | --- |
+    #{rows}
+    """
+  end
+
+  defp runner_xcode_versions_list do
+    Enum.map_join(Catalog.xcode_versions(), "\n", fn version ->
+      "- `#{version.xcode_version}`#{default_suffix(version.default?)}"
+    end)
+  end
+
+  defp runner_default_profiles_table do
+    prefix = Profile.prefix()
+
+    rows =
+      Enum.map_join(default_profile_rows(prefix), "\n", fn row ->
+        "| `#{row.name}` | `#{row.label}` | #{row.shape} |"
+      end)
+
+    """
+    | Profile | Label | Default shape |
+    | --- | --- | --- |
+    #{rows}
+    """
+  end
+
+  defp default_profile_rows(prefix) do
+    linux_row =
+      case Catalog.default_shape(:linux) do
+        nil ->
+          []
+
+        shape ->
+          name = Profiles.default_linux_name()
+          [%{name: name, label: prefix <> name, shape: shape_label(shape)}]
+      end
+
+    macos_row =
+      with shape when not is_nil(shape) <- Catalog.default_shape(:macos),
+           xcode when not is_nil(xcode) <- Catalog.default_xcode_version() do
+        name = Profiles.default_macos_name()
+        [%{name: name, label: prefix <> name, shape: "#{shape_label(shape)}, Xcode #{xcode.xcode_version}"}]
+      else
+        _ -> []
+      end
+
+    linux_row ++ macos_row
+  end
+
+  defp shape_label(%{vcpus: vcpus, memory_gb: memory_gb}), do: "#{vcpus} vCPU / #{memory_gb} GB"
+
+  defp default_suffix(true), do: " (default)"
+  defp default_suffix(_), do: ""
 
   defp webhook_events_table do
     rows =

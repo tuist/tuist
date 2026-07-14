@@ -153,4 +153,17 @@ defmodule Tuist.Registry.Swift.SyncWorkerTest do
       }
     )
   end
+
+  test "discards the job on a transient transport error instead of failing" do
+    reason = %Req.HTTPError{protocol: :http2, reason: :closed_for_writing}
+    expect(SwiftPackageIndex, :list_packages, fn "token" -> {:error, reason} end)
+
+    assert {:discard, ^reason} = SyncWorker.perform(%Oban.Job{args: %{}})
+  end
+
+  test "surfaces an HTTP status error as a hard failure" do
+    expect(SwiftPackageIndex, :list_packages, fn "token" -> {:error, {:http_error, 403}} end)
+
+    assert {:error, {:http_error, 403}} = SyncWorker.perform(%Oban.Job{args: %{}})
+  end
 end

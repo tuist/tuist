@@ -50,6 +50,45 @@ defmodule Tuist.MCP.Components.Tools.ListTestCases do
         }
       },
       "required" => ["account_handle", "project_handle"]
+    },
+    output_schema: %{
+      "type" => "object",
+      "properties" => %{
+        "test_cases" => %{
+          "type" => "array",
+          "items" => %{
+            "type" => "object",
+            "properties" => %{
+              "id" => %{"type" => "string"},
+              "name" => %{"type" => "string"},
+              "module_name" => %{"type" => "string"},
+              "suite_name" => %{"type" => "string"},
+              "is_flaky" => %{"type" => "boolean"},
+              "state" => %{"type" => "string"},
+              "last_status" => %{"type" => "string"},
+              "last_duration" => %{"type" => "integer"},
+              "last_ran_at" => %{"type" => "string"},
+              "avg_duration" => %{"type" => "integer"}
+            },
+            "required" => [
+              "id",
+              "name",
+              "module_name",
+              "suite_name",
+              "is_flaky",
+              "state",
+              "last_status",
+              "last_duration",
+              "last_ran_at",
+              "avg_duration"
+            ],
+            "additionalProperties" => false
+          }
+        },
+        "pagination_metadata" => Tuist.MCP.Tool.pagination_metadata_schema()
+      },
+      "required" => ["test_cases", "pagination_metadata"],
+      "additionalProperties" => false
     }
 
   alias Tuist.MCP.Formatter

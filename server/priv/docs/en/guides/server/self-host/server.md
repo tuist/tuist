@@ -191,6 +191,25 @@ ALTER ROLE <runtime_role> IN DATABASE <database> SET search_path = tuist;
 
 We facilitate authentication through [identity providers (IdP)](https://en.wikipedia.org/wiki/Identity_provider). To utilize this, ensure all necessary environment variables for the chosen provider are present in the server's environment. **Missing variables** will result in Tuist bypassing that provider.
 
+#### Email and password {#email-and-password}
+
+Email and password sign-in and self-serve registration are built in and enabled by default. On an instance where you want to require an identity provider (for example, when enforcing SSO), you can turn them off entirely. This removes the email/password form, the sign-up link, and the password-reset flow from the login experience, and closes every matching server-side endpoint, including the email/password endpoint the CLI uses (`tuist auth`).
+
+| Environment variable | Description | Required | Default | Example |
+| --- | --- | --- | --- | --- |
+| `TUIST_EMAIL_AUTH_ENABLED` | Whether email and password can be used to sign in and register. Set to `0` to remove the email/password form, the sign-up link, and the password-reset flow from the login page and close the matching server-side endpoints | No | `1` | `0` |
+
+#### Disabling a configured identity provider {#disabling-a-configured-identity-provider}
+
+By default, a provider appears as a sign-in option whenever it is configured. To keep a provider configured (its credentials remain set) while removing it from the login and sign-up pages, set the matching lever to `0`. For GitHub, Google, and Apple this also closes the sign-in callback, so the method is unavailable end to end.
+
+| Environment variable | Description | Required | Default | Example |
+| --- | --- | --- | --- | --- |
+| `TUIST_GITHUB_AUTH_ENABLED` | Whether GitHub can be used to sign in (see the [GitHub](#github) section for why the App shares its credentials with sign-in) | No | `1` | `0` |
+| `TUIST_GOOGLE_AUTH_ENABLED` | Whether Google can be used to sign in | No | `1` | `0` |
+| `TUIST_OKTA_AUTH_ENABLED` | Whether the configured Okta provider appears as a sign-in option | No | `1` | `0` |
+| `TUIST_APPLE_AUTH_ENABLED` | Whether Apple can be used to sign in | No | `1` | `0` |
+
 #### GitHub {#github}
 
 We recommend authenticating using a [GitHub App](https://docs.github.com/en/apps/creating-github-apps/about-creating-github-apps/about-creating-github-apps) but you can also use the [OAuth App](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/creating-an-oauth-app). Make sure to include all essential environment variables specified by GitHub in the server environment. Absent variables will cause Tuist to overlook the GitHub authentication. To properly set up the GitHub app:
@@ -290,6 +309,47 @@ For Azure Blob Storage, set `TUIST_OBJECT_STORAGE_PROVIDER=azure_blob` and confi
 | `TUIST_AZURE_BLOB_SERVICE_VERSION` | Azure Blob REST API version used for signed requests and SAS URLs | No | `2020-12-06` | `2020-12-06` |
 
 When using the Helm chart, set `server.storage.provider=azure_blob` and fill `server.azureBlob.*`. The chart's top-level `objectStorage` settings remain S3-compatible because the optional cache and registry-mirror workloads still expect S3-compatible storage. If those workloads are disabled and the server uses Azure Blob, set `objectStorage.mode=external` and leave the external object-storage endpoint and credentials empty to avoid deploying the embedded MinIO service.
+
+#### Artifact retention {#artifact-retention}
+
+Artifact cleanup is disabled by default on self-hosted instances. Each supported artifact type has its own environment variable. Set a variable to a positive integer number of days to enable cleanup for that artifact type. Leaving a variable unset or blank disables cleanup only for its artifact type.
+
+```bash
+TUIST_CACHE_ARTIFACT_RETENTION_DAYS=30
+TUIST_APP_PREVIEW_RETENTION_DAYS=30
+TUIST_BUILD_ARCHIVE_RETENTION_DAYS=60
+TUIST_RUN_ARTIFACT_RETENTION_DAYS=30
+TUIST_TEST_ATTACHMENT_RETENTION_DAYS=30
+TUIST_SHARD_BUNDLE_RETENTION_DAYS=14
+```
+
+With the Helm chart, configure the same windows as a map:
+
+```yaml
+server:
+  artifactRetentionDays:
+    cacheArtifacts: 30
+    appPreviews: 30
+    buildArchives: 60
+    runArtifacts: 30
+    testAttachments: 30
+    shardBundles: 14
+```
+
+All six keys are optional. This example enables every supported artifact type with an independent retention window. Omit a key or leave its value blank to keep cleanup disabled for that artifact type. Self-hosted retention windows have no 30-day maximum. Configured values that are not positive integers cause the server to fail at startup.
+
+Restart the server after changing a retention variable. Every queued self-hosted cleanup batch checks the current configuration before deleting files, so unsetting or blanking a variable, or increasing its window, also protects files from pending jobs after the restart.
+
+| Environment variable | Artifact files removed from object storage |
+| --- | --- |
+| `TUIST_CACHE_ARTIFACT_RETENTION_DAYS` | Xcode cache, legacy content-addressable storage cache, module cache, and Gradle cache files |
+| `TUIST_APP_PREVIEW_RETENTION_DAYS` | App preview builds and icons |
+| `TUIST_BUILD_ARCHIVE_RETENTION_DAYS` | Current and legacy build archives |
+| `TUIST_RUN_ARTIFACT_RETENTION_DAYS` | All objects stored under an expired run's artifact prefix, including result bundles, invocation records, and session archives |
+| `TUIST_TEST_ATTACHMENT_RETENTION_DAYS` | Test run attachments |
+| `TUIST_SHARD_BUNDLE_RETENTION_DAYS` | Test shard bundles |
+
+The scheduled cleanup removes artifact blobs only. It preserves the corresponding PostgreSQL and ClickHouse rows, so build, test, run, preview, and shard metadata can remain visible in dashboards after their downloads expire. This configuration does not change ClickHouse table retention rules.
 
 ### Email configuration {#email-configuration}
 

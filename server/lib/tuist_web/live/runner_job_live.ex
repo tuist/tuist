@@ -95,12 +95,15 @@ defmodule TuistWeb.RunnerJobLive do
   @impl true
   def handle_params(_params, uri, socket) do
     params = Query.query_params(uri)
+    step = params["step"]
+    cleaned_params = Map.delete(params, "step")
     selected_tab = selected_tab(params["tab"] || "overview", socket.assigns.interactive)
 
     socket =
       socket
       |> assign(:selected_tab, selected_tab)
-      |> assign(:uri, URI.new!("?" <> URI.encode_query(params)))
+      |> assign(:uri, URI.new!("?" <> URI.encode_query(cleaned_params)))
+      |> maybe_expand_step(step, cleaned_params)
       |> maybe_auto_request_vnc_session()
 
     {:noreply, socket}
@@ -221,6 +224,22 @@ defmodule TuistWeb.RunnerJobLive do
   end
 
   def path(_, _), do: nil
+
+  @doc """
+  Builds a deep link to a step in the job overview.
+
+  The `step` query parameter is the single source of truth: LiveView
+  uses it to expand the step, load its logs, and ask the client to
+  scroll to the rendered step.
+  """
+  def step_path(account_name, job, %{number: number}) when is_integer(number) and number > 0 do
+    case __MODULE__.path(account_name, job) do
+      nil -> nil
+      job_path -> "#{job_path}?tab=overview&step=#{number}"
+    end
+  end
+
+  def step_path(_, _, _), do: nil
 
   def queued_duration_ms(%{enqueued_at: enqueued, claimed_at: claimed}) do
     cond do
@@ -829,6 +848,35 @@ defmodule TuistWeb.RunnerJobLive do
   defp selected_tab("logs", _interactive), do: "logs"
   defp selected_tab("metrics", _interactive), do: "metrics"
   defp selected_tab(_, _interactive), do: "overview"
+
+  defp maybe_expand_step(socket, step, cleaned_params) when is_binary(step) do
+    case Integer.parse(step) do
+      {number, ""} ->
+        if Enum.any?(socket.assigns.steps, &(&1.number == number)) do
+          socket
+          |> assign(:expanded_steps, MapSet.put(socket.assigns.expanded_steps, number))
+          |> load_step_logs(number)
+          |> scroll_to_step(number)
+          |> replace_url(cleaned_params)
+        else
+          socket
+        end
+
+      _ ->
+        socket
+    end
+  end
+
+  defp maybe_expand_step(socket, _, _), do: socket
+
+  defp scroll_to_step(socket, number) do
+    push_event(socket, "scroll-to-element", %{id: "runner-step-#{number}"})
+  end
+
+  defp replace_url(socket, params) do
+    query = URI.encode_query(params)
+    push_event(socket, "replace-url", %{url: "?#{query}"})
+  end
 
   defp refresh_interactive_state(socket) do
     %{selected_account: selected_account, current_user: current_user, job: job} = socket.assigns

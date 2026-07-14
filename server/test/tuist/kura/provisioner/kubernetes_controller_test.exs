@@ -862,6 +862,24 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
     end
   end
 
+  describe "internal_url/3" do
+    test "renders the ref as the in-cluster Service name" do
+      assert KubernetesController.internal_url("TUIST", scaleway_region(), "kura-tuist-scw-fr-par") ==
+               "http://kura-tuist-scw-fr-par.kura.svc.cluster.local:4000"
+    end
+
+    test "keeps a moved server's -m ref — the Service is named after the ref, not the handle" do
+      assert KubernetesController.internal_url("tuist", Regions.get("eu-central"), "kura-tuist-eu-central-1-m") ==
+               "http://kura-tuist-eu-central-1-m.kura.svc.cluster.local:4000"
+    end
+
+    test "is nil for regions without an in-cluster template" do
+      region = %Regions{id: "local-controller", provisioner_config: %{cluster_id: "local-controller"}}
+
+      assert KubernetesController.internal_url("tuist", region, "kura-tuist-local") == nil
+    end
+  end
+
   defp scaleway_region do
     %Regions{
       id: "scw-fr-par-runners",
