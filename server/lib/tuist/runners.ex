@@ -185,8 +185,20 @@ defmodule Tuist.Runners do
     end
   end
 
+  @doc """
+  Object-storage prefix holding an account's runner cache-volume master
+  archive(s). Deleting this prefix removes the account's cache masters
+  regardless of the per-object key, so it is the unit of account-deletion
+  cleanup. Keyed by `account_id` (stable across handle renames), so it is not
+  swept by the account-handle-based artifact retention — account deletion is
+  what removes it.
+  """
+  def volume_master_object_prefix(account_id) do
+    "runner-volume-masters/#{account_id}/"
+  end
+
   defp volume_master_object_key(account_id) do
-    "runner-volume-masters/#{account_id}/#{VolumeHeads.reserved_tuist_cache()}.zip"
+    volume_master_object_prefix(account_id) <> "#{VolumeHeads.reserved_tuist_cache()}.zip"
   end
 
   @doc """
