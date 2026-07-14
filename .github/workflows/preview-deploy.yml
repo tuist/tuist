@@ -696,11 +696,15 @@ jobs:
         # lifecycle. Its static shape lives in values-preview-kura.yaml; only
         # the per-preview identity is set here.
         #
-        # --wait-for-jobs is load-bearing: --wait on its own only waits for the
-        # Deployments to go ready, not for Jobs to complete. Preview runs the
-        # migration as a regular Job (server.migrationJob.asHook=false), so
-        # without this Helm returns success while migrations are still running
-        # and the seed step below writes into a half-migrated database.
+        # Deliberately NOT --wait-for-jobs. It combines badly with --atomic:
+        # a failing migration Job fails the upgrade, --atomic then uninstalls
+        # the release, and the migration pod (the only place the actual error
+        # is written) is deleted before anything can read it. The preview is
+        # torn down and the failure is unexplainable.
+        #
+        # The "Wait for migrations" step below blocks on the Job instead, so
+        # the seed still never runs against a half-migrated database, but a
+        # failure leaves the release standing and prints the migration log.
         run: |
           set -euo pipefail
           helm upgrade --install "$RELEASE" "$HELM_CHART_PATH" \
@@ -724,7 +728,59 @@ jobs:
             --set-string "kuraRuntime.instance.labels.tuist\.dev/preview-source=$SOURCE" \
             --set-file "kuraRuntime.instance.extensionScript=kura/ops/helm/kura/hooks/tuist.lua" \
             --set "server.kuraEndpointUrls[0]=https://$KURA_HOST" \
-            --atomic --timeout 20m --wait --wait-for-jobs
+            --atomic --timeout 20m --wait
+      - name: Wait for migrations
+        # Helm returns as soon as the Deployments are ready; the migration Job
+        # (server.migrationJob.asHook=false) can still be running. Seeding into
+        # a half-migrated database is what produced the long-standing
+        # "Table tuist.build_runs does not exist" failure, so block here.
+        #
+        # On failure this prints the migration log, which nothing did before:
+        # the Job's pod was either still around and unread, or already deleted
+        # by an --atomic rollback.
+        run: |
+          set -euo pipefail
+          JOB=$(kubectl -n "$NAMESPACE" get job \
+            -l app.kubernetes.io/component=server-migration \
+            --sort-by=.metadata.creationTimestamp \
+            -o jsonpath='{.items[-1:].metadata.name}')
+
+          if [ -z "$JOB" ]; then
+            echo "::error::no server-migration Job found in $NAMESPACE"
+            exit 1
+          fi
+          echo "Waiting for migration job: $JOB"
+
+          for i in $(seq 1 120); do
+            COMPLETE=$(kubectl -n "$NAMESPACE" get job "$JOB" \
+              -o jsonpath='{.status.conditions[?(@.type=="Complete")].status}' 2>/dev/null || true)
+            FAILED=$(kubectl -n "$NAMESPACE" get job "$JOB" \
+              -o jsonpath='{.status.conditions[?(@.type=="Failed")].status}' 2>/dev/null || true)
+
+            if [ "$COMPLETE" = "True" ]; then
+              echo "OK: migrations completed"
+              exit 0
+            fi
+
+            if [ "$FAILED" = "True" ]; then
+              echo "::error::migration job $JOB failed"
+              echo "::group::migration job log"
+              kubectl -n "$NAMESPACE" logs "job/$JOB" --all-containers --tail=500 || true
+              echo "::endgroup::"
+              echo "::group::migration job describe"
+              kubectl -n "$NAMESPACE" describe job "$JOB" || true
+              echo "::endgroup::"
+              exit 1
+            fi
+
+            sleep 10
+          done
+
+          echo "::error::migration job $JOB did not finish after about 20 min."
+          echo "::group::migration job log"
+          kubectl -n "$NAMESPACE" logs "job/$JOB" --all-containers --tail=500 || true
+          echo "::endgroup::"
+          exit 1
       - name: Wait for KuraInstance
         run: |
           set -euo pipefail
