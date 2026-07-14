@@ -1602,31 +1602,48 @@ func renderRunnerCacheVolumeScript(cfg Config) string {
 VOL=%[1]s
 MOUNT=%[2]s
 QUOTA_GIB=%[3]d
-# Idempotent: a provisioned volume is already mounted here.
-if /usr/sbin/diskutil info "$MOUNT" >/dev/null 2>&1; then
-  echo "runner-cache volume already present at $MOUNT"
-  exit 0
+OWNER=%[4]s
+# Provision the volume only if it isn't already mounted. Idempotent: a
+# provisioned volume is never resized under live jobs (a cap change ships via
+# host replacement).
+if ! /usr/sbin/diskutil info "$MOUNT" >/dev/null 2>&1; then
+  # Resolve the APFS container backing the boot volume; the cache volume shares
+  # that container's free space but is capped by its own quota. On modern macOS
+  # "/" is a sealed snapshot whose diskutil info labels the container "APFS
+  # Container:" (not "... Reference:"), so read the machine-readable plist key
+  # off the always-real Data volume; fall back to a text parse for older macOS.
+  CONTAINER=$(/usr/sbin/diskutil info -plist /System/Volumes/Data 2>/dev/null | /usr/bin/plutil -extract APFSContainerReference raw -o - - 2>/dev/null || true)
+  if [ -z "${CONTAINER:-}" ]; then
+    CONTAINER=$(/usr/sbin/diskutil info / | awk -F'[[:space:]]*:[[:space:]]*' '/APFS Container:/{print $2; exit}')
+  fi
+  if [ -z "${CONTAINER:-}" ]; then
+    echo "could not determine APFS container for /System/Volumes/Data" >&2
+    exit 1
+  fi
+  sudo /usr/sbin/diskutil apfs addVolume "$CONTAINER" APFS "$VOL" -quota "${QUOTA_GIB}GiB"
+  # addVolume auto-mounts at /Volumes/<name>; confirm before returning so a
+  # failed mount fails the bootstrap loudly rather than leaving tart-kubelet to
+  # ENOENT on its --runner-cache-root.
+  /usr/sbin/diskutil info "$MOUNT" >/dev/null
+  echo "provisioned runner-cache volume $VOL (${QUOTA_GIB} GiB quota) at $MOUNT"
 fi
-# Resolve the APFS container backing the boot volume; the cache volume shares
-# that container's free space but is capped by its own quota. On modern macOS
-# "/" is a sealed snapshot whose diskutil info labels the container "APFS
-# Container:" (not "... Reference:"), so read the machine-readable plist key
-# off the always-real Data volume; fall back to a text parse for older macOS.
-CONTAINER=$(/usr/sbin/diskutil info -plist /System/Volumes/Data 2>/dev/null | /usr/bin/plutil -extract APFSContainerReference raw -o - - 2>/dev/null || true)
-if [ -z "${CONTAINER:-}" ]; then
-  CONTAINER=$(/usr/sbin/diskutil info / | awk -F'[[:space:]]*:[[:space:]]*' '/APFS Container:/{print $2; exit}')
-fi
-if [ -z "${CONTAINER:-}" ]; then
-  echo "could not determine APFS container for /System/Volumes/Data" >&2
-  exit 1
-fi
-sudo /usr/sbin/diskutil apfs addVolume "$CONTAINER" APFS "$VOL" -quota "${QUOTA_GIB}GiB"
-# addVolume auto-mounts at /Volumes/<name>; confirm before returning so a
-# failed mount fails the bootstrap loudly rather than leaving tart-kubelet to
-# ENOENT on its --runner-cache-root.
-/usr/sbin/diskutil info "$MOUNT" >/dev/null
-echo "provisioned runner-cache volume $VOL (${QUOTA_GIB} GiB quota) at $MOUNT"
-`, runnerCacheVolumeName, runnerCacheMountPoint, cfg.RunnerCacheVolumeGiB)
+# The volume is created and auto-mounted by root, but tart-kubelet runs as
+# $OWNER and must create per-account and per-branch directories under the root.
+# Without a runner-owned root, the very first branch allocation fails and every
+# job silently falls back to a cold cache. Enforce ownership on EVERY run — not
+# only at first provision — so a volume left root-owned by an earlier bootstrap
+# is repaired rather than skipped by the mounted-volume early return.
+# enableOwnership makes the chown authoritative (auto-mounted data volumes can
+# otherwise ignore on-disk ownership).
+sudo /usr/sbin/diskutil enableOwnership "$MOUNT" >/dev/null 2>&1 || true
+sudo /usr/sbin/chown "$OWNER" "$MOUNT"
+sudo /bin/chmod 0755 "$MOUNT"
+# Verify the runner user can actually write the root before returning, so a
+# botched ownership fixup fails the bootstrap loudly instead of degrading every
+# job to cold at runtime.
+sudo -u "$OWNER" /bin/test -w "$MOUNT"
+echo "runner-cache volume at $MOUNT owned by $OWNER"
+`, runnerCacheVolumeName, runnerCacheMountPoint, cfg.RunnerCacheVolumeGiB, cfg.SSHUser)
 }
 
 // renderVMCachePNInterfaceScript materializes the per-host VLAN

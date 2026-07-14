@@ -1189,9 +1189,18 @@ func (r *Reconciler) podStatus(ctx context.Context, pod *corev1.Pod) (*corev1.Po
 	}
 
 	if !running {
-		// VM exited cleanly. Tear down the Tart clone + Store
-		// entry so the host state mirrors what the API server
-		// will see post-update, then mark the Pod Succeeded so
+		// VM exited cleanly. A recovered VM (Run == nil after a kubelet
+		// restart) never passed through the terminal-phase finalize above, so
+		// promote/discard its cache branch HERE from the account label and the
+		// guest's dirty marker — the marker exists only on a clean job
+		// completion and already encodes job success (rc-gated), so treating the
+		// observed stop as a clean exit is correct. Without this, deleteByKey's
+		// safety-net finalize (empty account, cleanExit=false) would discard a
+		// successfully completed dirty branch instead of promoting it. Idempotent
+		// with the terminal path: finalize no-ops once the branch is consumed.
+		r.finalizeVolume(entry, pod.Labels[runnerAccountLabel], true)
+		// Tear down the Tart clone + Store entry so the host state mirrors what
+		// the API server will see post-update, then mark the Pod Succeeded so
 		// the watcher refills the warm pool.
 		_ = r.deleteByKey(ctx, pod.Namespace, pod.Name)
 		status.Phase = corev1.PodSucceeded
