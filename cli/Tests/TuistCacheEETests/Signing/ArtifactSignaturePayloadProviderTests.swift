@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 import TuistEnvironment
+import TuistEnvironmentTesting
 
 @testable import TuistCacheEE
 @testable import TuistTesting
