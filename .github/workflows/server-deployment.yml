@@ -145,6 +145,7 @@ env:
   REGISTRY: ghcr.io
   IMAGE_NAME: tuist/tuist
   REGISTRY_IMAGE_NAME: tuist/registry
+  CODEBASE_SEARCH_IMAGE_NAME: tuist/codebase-search
   KURA_CONTROLLER_IMAGE_NAME: tuist/kura-controller
   KURA_RUNTIME_IMAGE_NAME: tuist/kura
   HELM_CHART_PATH: infra/helm/tuist
@@ -263,6 +264,18 @@ jobs:
             TUIST_HOSTED=1
             MIX_ENV=prod
             APT_CACHE_BUST=${{ env.DEPLOY_SHA }}
+      - uses: docker/build-push-action@v6
+        name: Build and push codebase search image
+        with:
+          context: ./codebase-search
+          file: ./codebase-search/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.CODEBASE_SEARCH_IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
+          build-args: |
+            TUIST_REVISION=${{ env.DEPLOY_SHA }}
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.CODEBASE_SEARCH_IMAGE_NAME }}-buildcache:main
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.CODEBASE_SEARCH_IMAGE_NAME }}-buildcache:main,mode=max
       - uses: docker/build-push-action@v6
         name: Build and push Kura controller image
         with:
@@ -895,6 +908,7 @@ jobs:
           helm template "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
             "${helm_values_args[@]}" \
             --set server.image.tag="$IMAGE_TAG" \
+            --set codebaseSearch.image.tag="$IMAGE_TAG" \
             --set registry.image.tag="$registry_probe_tag" \
             --set kuraController.image.tag="$IMAGE_TAG" \
             "${image_sets[@]}" \
@@ -919,6 +933,7 @@ jobs:
             --namespace "$NAMESPACE" --create-namespace \
             "${helm_values_args[@]}" \
             --set server.image.tag="$IMAGE_TAG" \
+            --set codebaseSearch.image.tag="$IMAGE_TAG" \
             --set registry.image.tag="$registry_image_tag" \
             --set kuraController.image.tag="$IMAGE_TAG" \
             "${image_sets[@]}" \
