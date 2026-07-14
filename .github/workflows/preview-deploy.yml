@@ -738,8 +738,27 @@ jobs:
         # On failure this prints the migration log, which nothing did before:
         # the Job's pod was either still around and unread, or already deleted
         # by an --atomic rollback.
+        #
+        # The log is REDACTED before it is printed. Ecto logs the SQL of every
+        # migration it runs, and the Postgres-to-ClickHouse backfills embed the
+        # Postgres credentials directly in that SQL:
+        #
+        #   ... FROM postgresql('host:port', 'db', 'table', 'user', 'password')
+        #
+        # This repository is public, so an unfiltered `kubectl logs` would
+        # publish the preview database password into a world-readable Actions
+        # log. redact() masks the credential-bearing forms; keep it in front of
+        # anything that prints this log.
         run: |
           set -euo pipefail
+
+          redact() {
+            sed -E \
+              -e "s/(postgresql\('[^']*', *'[^']*', *'[^']*', *'[^']*', *')[^']*'/\1***REDACTED***'/g" \
+              -e "s#(postgres(ql)?://[^:@/]+:)[^@]*@#\1***REDACTED***@#g" \
+              -e "s/(password[\"'[:space:]:=]+)[^[:space:]\"',)]+/\1***REDACTED***/gI"
+          }
+
           JOB=$(kubectl -n "$NAMESPACE" get job \
             -l app.kubernetes.io/component=server-migration \
             --sort-by=.metadata.creationTimestamp \
@@ -750,6 +769,15 @@ jobs:
             exit 1
           fi
           echo "Waiting for migration job: $JOB"
+
+          dump_log() {
+            echo "::group::migration job log (redacted)"
+            kubectl -n "$NAMESPACE" logs "job/$JOB" --all-containers --tail=500 2>&1 | redact || true
+            echo "::endgroup::"
+            echo "::group::migration job describe"
+            kubectl -n "$NAMESPACE" describe job "$JOB" 2>&1 | redact || true
+            echo "::endgroup::"
+          }
 
           for i in $(seq 1 120); do
             COMPLETE=$(kubectl -n "$NAMESPACE" get job "$JOB" \
@@ -764,12 +792,7 @@ jobs:
 
             if [ "$FAILED" = "True" ]; then
               echo "::error::migration job $JOB failed"
-              echo "::group::migration job log"
-              kubectl -n "$NAMESPACE" logs "job/$JOB" --all-containers --tail=500 || true
-              echo "::endgroup::"
-              echo "::group::migration job describe"
-              kubectl -n "$NAMESPACE" describe job "$JOB" || true
-              echo "::endgroup::"
+              dump_log
               exit 1
             fi
 
@@ -777,9 +800,7 @@ jobs:
           done
 
           echo "::error::migration job $JOB did not finish after about 20 min."
-          echo "::group::migration job log"
-          kubectl -n "$NAMESPACE" logs "job/$JOB" --all-containers --tail=500 || true
-          echo "::endgroup::"
+          dump_log
           exit 1
       - name: Wait for KuraInstance
         run: |
