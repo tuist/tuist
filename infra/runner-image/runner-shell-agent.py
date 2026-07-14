@@ -303,10 +303,16 @@ PS1='\\u@{host} $(__tuist_prompt_dir) \\$ '
         with open(os.path.join(dotdir, ".zshrc"), "w", encoding="utf-8") as file:
             file.write(
                 f"""
-for __tuist_rc in /etc/zprofile "$HOME/.zprofile" /etc/zshrc "$HOME/.zshrc"; do
-  if [ -r "$__tuist_rc" ]; then source "$__tuist_rc"; fi
+if [ -x /usr/libexec/path_helper ]; then
+  eval "$(/usr/libexec/path_helper -s)"
+fi
+for __tuist_path in /opt/homebrew/bin /opt/homebrew/sbin /usr/local/bin /usr/local/sbin "$HOME/.local/bin"; do
+  if [ -d "$__tuist_path" ] && [[ ":$PATH:" != *":$__tuist_path:"* ]]; then
+    PATH="$__tuist_path:$PATH"
+  fi
 done
-unset __tuist_rc
+export PATH
+unset __tuist_path
 {prompt_dir_function_body('print -r --')}
 setopt PROMPT_SUBST
 PROMPT='%n@{host} $(__tuist_prompt_dir) %# '

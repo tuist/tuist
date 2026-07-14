@@ -6,6 +6,8 @@ defmodule TuistWeb.RunnerShellClientWebSock do
   alias Tuist.Runners.InteractiveSessions
   alias Tuist.Runners.InteractiveShellBroker
 
+  require Logger
+
   @impl WebSock
   def init(%{session: session}) do
     connection_id = Ecto.UUID.generate()
@@ -13,6 +15,14 @@ defmodule TuistWeb.RunnerShellClientWebSock do
 
     case InteractiveSessions.mark_active(session, connection_id) do
       {:ok, active_session} ->
+        Logger.info("runners: shell client connected",
+          session_id: active_session.id,
+          workflow_job_id: active_session.workflow_job_id,
+          pod_name: active_session.pod_name,
+          state: active_session.state,
+          connection_id: connection_id
+        )
+
         :ok = InteractiveShellBroker.broadcast_to_runner(active_session.id, :client_connected)
 
         status =
@@ -26,6 +36,14 @@ defmodule TuistWeb.RunnerShellClientWebSock do
         {:push, {:text, Jason.encode!(%{type: "status", status: status})}, state}
 
       {:error, reason} ->
+        Logger.warning("runners: shell client failed to mark active",
+          session_id: session.id,
+          workflow_job_id: session.workflow_job_id,
+          pod_name: session.pod_name,
+          reason: inspect(reason),
+          connection_id: connection_id
+        )
+
         {:stop, {:session_activate_failed, reason}, {1011, "session unavailable"}, %{}}
     end
   end
@@ -81,6 +99,14 @@ defmodule TuistWeb.RunnerShellClientWebSock do
 
   defp disconnect_client(%{session: session, connection_id: connection_id}) do
     _ = InteractiveSessions.close_disconnected_connection(session, connection_id)
+
+    Logger.info("runners: shell client disconnected",
+      session_id: session.id,
+      workflow_job_id: session.workflow_job_id,
+      pod_name: session.pod_name,
+      connection_id: connection_id
+    )
+
     :ok = InteractiveShellBroker.broadcast_to_runner(session.id, :client_disconnected)
   end
 end
