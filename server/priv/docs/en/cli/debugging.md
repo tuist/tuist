@@ -79,3 +79,20 @@ log stream --predicate 'subsystem == "dev.tuist.cache"' --debug
 ```
 
 These logs are also visible in Console.app by filtering for the `dev.tuist.cache` subsystem. This provides detailed information about cache operations, which can help diagnose cache upload, download, and communication issues.
+
+## Tuning network timeouts {#tuning-network-timeouts}
+
+All of Tuist's HTTP traffic—server API calls, the registry, previews, and cache artifact transfers—goes through a shared `URLSession` with sensible defaults. On slow or congested network paths (for example, a self-hosted setup reaching object storage through a corporate proxy), an individual request can starve and hit the resource timeout before it completes. For cache downloads in particular, hitting the timeout makes Tuist fall back to building the module from source, which is far more expensive than waiting a bit longer for the cached binary. You can tune the underlying HTTP settings through environment variables, with the defaults applied when they're unset or set to an invalid value:
+
+```bash
+# Maximum time (in seconds) a single resource transfer can take before it's cancelled (default: 90)
+export TUIST_HTTP_TIMEOUT_INTERVAL_FOR_RESOURCE=600
+
+# Maximum time (in seconds) to wait for new data on an existing request (default: 120)
+export TUIST_HTTP_TIMEOUT_INTERVAL_FOR_REQUEST=300
+
+# Maximum number of simultaneous connections per host (default: 20)
+export TUIST_HTTP_MAXIMUM_CONNECTIONS_PER_HOST=40
+```
+
+Raising `TUIST_HTTP_TIMEOUT_INTERVAL_FOR_RESOURCE` lets a recoverable-but-slow download finish instead of timing out—for cache downloads, that means landing a cache hit rather than falling back to a build from source.

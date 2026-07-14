@@ -41,6 +41,13 @@ use_repo(toolchains, "default_rust_toolchains")
 
 register_toolchains("@default_rust_toolchains//:all")
 
+# Make @rules_rust visible here so the clippy aspect label
+# (@rules_rust//rust:defs.bzl%rust_clippy_aspect) resolves on the `mise run clippy` command line.
+# rules_rs already provisions this repo; re-importing its extension only adds it to our repo mapping,
+# it does not create a second copy.
+rules_rust = use_extension("@rules_rs//rs:rules_rust.bzl", "rules_rust")
+use_repo(rules_rust, "rules_rust")
+
 crate = use_extension("@rules_rs//rs:extensions.bzl", "crate")
 
 # mlua's `vendored` feature compiles Lua from sources shipped in the `lua-src` crate, whose build

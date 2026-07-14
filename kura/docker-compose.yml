@@ -7,8 +7,9 @@ services:
     hostname: kura-us
     domainname: kura.internal
     environment: &kura_env
+      # The single co-hosted HTTP + h2c gRPC listener; both cache and REAPI
+      # traffic ride this one port (published below as KURA_*_PORT).
       KURA_PORT: "4000"
-      KURA_GRPC_PORT: "50051"
       KURA_INTERNAL_PORT: "7443"
       KURA_TENANT_ID: default
       KURA_TMP_DIR: /var/cache/kura/tmp
@@ -41,7 +42,6 @@ services:
       kura.tenant_id: default
     ports:
       - "${KURA_US_PORT:-4101}:4000"
-      - "${KURA_US_GRPC_PORT:-5101}:50051"
     volumes:
       - kura-us-data:/var/cache/kura
     networks:
@@ -76,7 +76,6 @@ services:
       kura.tenant_id: default
     ports:
       - "${KURA_EU_PORT:-4102}:4000"
-      - "${KURA_EU_GRPC_PORT:-5102}:50051"
     volumes:
       - kura-eu-data:/var/cache/kura
     networks:
@@ -111,7 +110,6 @@ services:
       kura.tenant_id: default
     ports:
       - "${KURA_AP_PORT:-4103}:4000"
-      - "${KURA_AP_GRPC_PORT:-5103}:50051"
     volumes:
       - kura-ap-data:/var/cache/kura
     networks:

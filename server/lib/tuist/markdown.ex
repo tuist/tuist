@@ -20,4 +20,13 @@ defmodule Tuist.Markdown do
   end
 
   def to_html(_), do: ""
+
+  @doc """
+  Escapes a string so it is safe to embed as HTML text, returning a plain binary.
+  """
+  def html_escape(text) do
+    text
+    |> Phoenix.HTML.html_escape()
+    |> Phoenix.HTML.safe_to_string()
+  end
 end

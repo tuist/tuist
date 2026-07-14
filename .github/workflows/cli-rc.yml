@@ -77,9 +77,9 @@ jobs:
         run: |
           set -euo pipefail
           if [ -z "$BRANCH" ]; then
-            mise run --no-deps cli:release:channel-version -- rc-new
+            mise run --no-deps --skip-tools cli:release:channel-version -- rc-new
           else
-            mise run --no-deps cli:release:channel-version -- rc "$BRANCH"
+            mise run --no-deps --skip-tools cli:release:channel-version -- rc "$BRANCH"
           fi
 
   build-publish:

@@ -4,12 +4,12 @@ name: Kura Runtime Image
 # specific commit, so a feature branch can be deployed to staging before it is
 # merged and the push-to-main `release-kura-docker` job cuts a `kura@` release.
 #
-# The release pipeline builds a multi-arch image from natively-compiled amd64 +
-# arm64 binaries. This dispatch build is amd64-only (the Hetzner managed-region
-# and staging runner nodes are amd64), compiling the binary inline rather than
-# pulling release artifacts. Pair it with a `Server Deployment` dispatch:
-# pass the printed `sha-<sha>` tag as `kura_runtime_image_tag` and the same
-# commit as `commit_sha`.
+# The binary is compiled with Bazel (`mise run compile`; opt via kura/.bazelrc),
+# reusing the Tuist remote cache like the rest of Kura CI, then baked into
+# Dockerfile.release — the same prebuilt-binary assembly the release pipeline uses.
+# This dispatch build is amd64-only (the Hetzner managed-region and staging runner
+# nodes are amd64). Pair it with a `Server Deployment` dispatch: pass the printed
+# `sha-<sha>` tag as `kura_runtime_image_tag` and the same commit as `commit_sha`.
 #
 # A matching stub registers this workflow_dispatch trigger on the default branch
 # (GitHub requires that before the workflow can be dispatched against any ref);
@@ -21,6 +21,11 @@ on:
 permissions:
   contents: read
   packages: write
+  id-token: write
+
+defaults:
+  run:
+    working-directory: kura
 
 env:
   MISE_VERSION: "2026.5.15"
@@ -31,7 +36,7 @@ env:
 jobs:
   build-and-push:
     name: Build and push (amd64)
-    runs-on: ubuntu-latest
+    runs-on: tuist-linux
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
@@ -39,24 +44,27 @@ jobs:
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
-          install_args: --force rust
+          install_args: "rust bazel tuist"
           working_directory: kura
 
-      - uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: kura-rust-${{ runner.os }}
-          workspaces: |
-            kura -> target
-
-      - name: Build Kura binary
-        working-directory: kura
-        run: env -u RUSTUP_TOOLCHAIN cargo build --release --locked
-
-      - name: Stage binary for Docker build
-        working-directory: kura
+      - name: Install C/C++ toolchain for -sys crates (rocksdb/aws-lc bindgen)
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential clang cmake pkg-config
+      # Remote cache is best-effort: auth/setup is continue-on-error and `.bazelrc` try-imports
+      # `.bazelrc.tuist`, so if it fails the build runs cold locally rather than blocking.
+      - name: Set up the Tuist remote cache
         run: |
+          tuist auth login
+          tuist bazel setup
+        continue-on-error: true
+      - name: Warn when the Tuist remote cache is unavailable
+        if: ${{ hashFiles('kura/.bazelrc.tuist') == '' }}
+        run: echo "::warning::Tuist remote cache unavailable (.bazelrc.tuist not written); building cold against the local cache."
+
+      - name: Build the Kura binary with Bazel
+        run: |
+          mise run --skip-tools compile
           mkdir -p bin/amd64
-          cp target/release/kura bin/amd64/kura
+          cp bazel-bin/kura bin/amd64/kura
           chmod +x bin/amd64/kura
 
       - uses: docker/setup-buildx-action@v3

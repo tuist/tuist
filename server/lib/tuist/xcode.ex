@@ -11,8 +11,6 @@ defmodule Tuist.Xcode do
   alias Tuist.Xcode.XcodeTarget
   alias Tuist.Xcode.XcodeTarget.Buffer, as: XcodeTargetBuffer
 
-  require Logger
-
   def create_xcode_graph(%{command_event: %{id: command_event_id}, xcode_graph: %{name: name} = xcode_graph}) do
     {xcode_graph_data, projects_data, targets_data, xcode_graph_id} =
       prepare_xcode_graph(xcode_graph, command_event_id)

@@ -65,7 +65,23 @@ type Maintainer struct {
 	// a full guest disk from the scheduler and from alerting. nil keeps
 	// the condition at its False default.
 	DiskPressure DiskPressureProbe
+
+	// DynamicLabels, when non-nil, is evaluated each heartbeat for Node
+	// labels the agent owns that change at runtime (today: the
+	// `tuist.dev/golden-<hash>` advertisements of which golden base VMs
+	// this host holds). They're merged alongside NodeLabels and pruned
+	// the same way — a key that stops being returned (golden GC'd) is
+	// dropped on the next heartbeat. A probe error contributes nothing
+	// this round; the provider is expected to mask transient failures
+	// (e.g. return its last good result) so a momentary `tart list`
+	// hiccup doesn't flap the labels off.
+	DynamicLabels DynamicLabelProvider
 }
+
+// DynamicLabelProvider returns the agent-owned labels to publish this
+// heartbeat. A non-nil error means the probe failed; the maintainer then
+// publishes no dynamic labels for the round rather than guessing.
+type DynamicLabelProvider func(ctx context.Context) (map[string]string, error)
 
 // DiskPressureProbe reports whether the node is under disk pressure plus
 // a human-readable detail for the condition message. A non-nil error
@@ -108,7 +124,7 @@ func (m *Maintainer) ensureNode(ctx context.Context) error {
 		if m.ProviderID != "" {
 			node.Spec.ProviderID = m.ProviderID
 		}
-		m.configureNode(node)
+		m.configureNode(node, m.evalDynamicLabels(ctx))
 		return m.Client.Create(ctx, node)
 	}
 	if err != nil {
@@ -133,7 +149,37 @@ func (m *Maintainer) refresh(ctx context.Context) error {
 	if err := m.Client.Get(ctx, types.NamespacedName{Name: m.NodeName}, node); err != nil {
 		return err
 	}
-	m.configureNode(node)
+
+	// configureNode edits labels (metadata) and taints (spec); the
+	// Status().Update below writes only the status subresource and the API
+	// server drops any metadata/spec it carries. Static labels survive
+	// because they're set at Create, but the dynamic golden-base labels
+	// first appear here on a heartbeat — without a separate metadata write
+	// they'd never reach etcd, so no Node would carry the label and the
+	// controller's golden node-affinity would silently match nothing. Patch
+	// metadata/spec first (merge patch persists label deletions as null),
+	// then update status.
+	base := node.DeepCopy()
+	m.configureNode(node, m.evalDynamicLabels(ctx))
+
+	// configureNode just set this Node's desired status (Ready=True,
+	// capacity, node info). client.Patch below replaces the in-memory node
+	// — status included — with the API server's response, which carries
+	// whatever status the node holds on the server right now. If the
+	// node-lifecycle controller has flipped Ready to Unknown (it does that
+	// on any heartbeat gap, e.g. during a kubelet restart), the Patch
+	// clobbers our Ready=True back to Unknown, and the Status().Update below
+	// then re-posts that Unknown with only a fresh LastHeartbeatTime — so
+	// the Node is stranded in Unknown forever and the heartbeat can never
+	// lift it back to Ready. Snapshot the desired status before the Patch
+	// and restore it afterward so the status update actually asserts
+	// Ready=True.
+	desiredStatus := node.Status.DeepCopy()
+	if err := m.Client.Patch(ctx, node, client.MergeFrom(base)); err != nil {
+		return err
+	}
+	node.Status = *desiredStatus
+
 	m.applyDiskPressure(ctx, node)
 	for i, c := range node.Status.Conditions {
 		if c.Type == corev1.NodeReady {
@@ -141,6 +187,22 @@ func (m *Maintainer) refresh(ctx context.Context) error {
 		}
 	}
 	return m.Client.Status().Update(ctx, node)
+}
+
+// evalDynamicLabels runs the DynamicLabels provider for this heartbeat,
+// returning nil (publish no dynamic labels) when unset or on error. The
+// provider is responsible for masking transient failures so a probe error
+// here is genuinely "no opinion this round", not "flap the labels off".
+func (m *Maintainer) evalDynamicLabels(ctx context.Context) map[string]string {
+	if m.DynamicLabels == nil {
+		return nil
+	}
+	labels, err := m.DynamicLabels(ctx)
+	if err != nil {
+		log.FromContext(ctx).Error(err, "dynamic node labels")
+		return nil
+	}
+	return labels
 }
 
 // applyDiskPressure refreshes the DiskPressure condition from the probe.
@@ -166,7 +228,7 @@ func (m *Maintainer) applyDiskPressure(ctx context.Context, node *corev1.Node) {
 // configureNode sets labels, taints, capacity, and Node info. Mirrors
 // what a real kubelet reports — minus cAdvisor metrics, which we
 // don't need.
-func (m *Maintainer) configureNode(node *corev1.Node) {
+func (m *Maintainer) configureNode(node *corev1.Node, dynamicLabels map[string]string) {
 	if node.Labels == nil {
 		node.Labels = map[string]string{}
 	}
@@ -178,12 +240,20 @@ func (m *Maintainer) configureNode(node *corev1.Node) {
 	// excluded from the prune below.
 	node.Labels["tuist.dev/runtime"] = "tart"
 
-	// Apply operator-set labels. Any tuist.dev/* label not in the
-	// current NodeLabels map gets dropped — gives the operator a
-	// clean retire path: flip --node-labels and the Node sheds
-	// the old labels on the next heartbeat. The runtime label is
-	// excluded from prune (intrinsic, not operator-tunable).
+	// Effective owned set: operator-set NodeLabels plus the agent-owned
+	// dynamic labels (golden advertisements) this heartbeat. Used for
+	// both apply and prune so a tuist.dev/* label that's no longer owned
+	// — a retired --node-labels entry or a GC'd golden — is dropped on
+	// the next heartbeat. The runtime label is excluded from prune
+	// (intrinsic, not tunable).
+	owned := make(map[string]string, len(m.NodeLabels)+len(dynamicLabels))
 	for k, v := range m.NodeLabels {
+		owned[k] = v
+	}
+	for k, v := range dynamicLabels {
+		owned[k] = v
+	}
+	for k, v := range owned {
 		node.Labels[k] = v
 	}
 	for k := range node.Labels {
@@ -193,7 +263,7 @@ func (m *Maintainer) configureNode(node *corev1.Node) {
 		if k == "tuist.dev/runtime" {
 			continue
 		}
-		if _, kept := m.NodeLabels[k]; !kept {
+		if _, kept := owned[k]; !kept {
 			delete(node.Labels, k)
 		}
 	}

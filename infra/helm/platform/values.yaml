@@ -90,6 +90,14 @@ kura-eu-central-ingress-nginx:
       type: LoadBalancer
       externalTrafficPolicy: Local
       annotations: {}
+    # ingress-nginx admission webhooks are cluster-wide, not scoped to one
+    # IngressClass. A regional Kura controller can legitimately have zero pods
+    # while its bare-metal fleet is absent or being replaced; if its webhook is
+    # registered, every Ingress update in the cluster blocks on that empty
+    # Service. Keep admission on the main ingress-nginx controller only; it runs
+    # the same validator for the Kura Ingress annotations.
+    admissionWebhooks: &kuraGatewayAdmissionWebhooks
+      enabled: false
     # Anchored so all three regional Kura gateways share ONE nginx config
     # source. The e2e throughput test (kura/test/e2e/grpc-upload-throughput)
     # derives its patched nginx config from the window keys here, and the
@@ -116,6 +124,29 @@ kura-eu-central-ingress-nginx:
     metrics:
       enabled: true
 
+kura-ca-east-ingress-nginx:
+  enabled: false
+  controller:
+    replicaCount: 2
+    electionID: kura-ca-east-ingress-nginx-leader
+    ingressClass: kura-ca-east
+    ingressClassResource:
+      name: kura-ca-east
+      controllerValue: k8s.io/kura-ca-east-ingress-nginx
+    publishService:
+      enabled: true
+    service:
+      type: LoadBalancer
+      externalTrafficPolicy: Local
+      annotations: {}
+    admissionWebhooks: *kuraGatewayAdmissionWebhooks
+    # Shares the one anchored regional Kura nginx config (defined in the
+    # eu-central block above); see TestGatewayNginxConfigMatchesChart on why
+    # these cannot drift from the dedicated-gateway ConfigMap.
+    config: *kuraGatewayNginxConfig
+    metrics:
+      enabled: true
+
 kura-us-east-ingress-nginx:
   enabled: false
   controller:
@@ -131,6 +162,7 @@ kura-us-east-ingress-nginx:
       type: LoadBalancer
       externalTrafficPolicy: Local
       annotations: {}
+    admissionWebhooks: *kuraGatewayAdmissionWebhooks
     config: *kuraGatewayNginxConfig
     metrics:
       enabled: true
@@ -150,6 +182,7 @@ kura-us-west-ingress-nginx:
       type: LoadBalancer
       externalTrafficPolicy: Local
       annotations: {}
+    admissionWebhooks: *kuraGatewayAdmissionWebhooks
     config: *kuraGatewayNginxConfig
     metrics:
       enabled: true
@@ -160,6 +193,10 @@ external-dns:
   sources:
     - service
     - ingress
+    # crd sources DNSEndpoint CRs (externaldns.k8s.io). The kura-controller emits
+    # one per host-network region peer host -> the region's failover IP, since a
+    # bare-metal peer plane has no LoadBalancer for the service source to read.
+    - crd
   # Must be unique per workload cluster because several managed clusters
   # write records under tuist.dev. The bootstrap task overrides this with
   # "<cluster-name>-platform".
@@ -220,6 +257,16 @@ cloudnative-pg:
   # "no matches for kind PodMonitor".
   monitoring:
     podMonitorEnabled: false
+
+# Barman Cloud Plugin (CNPG-I) — the backup sidecar a CNPG cluster uses when
+# its backups run through the plugin instead of in-tree barman. As a subchart
+# of this release it installs into the release namespace (`platform`), which is
+# where the operator runs and where the plugin must live. Installing it is
+# inert: no cluster uses it until the tuist/tuist-ops chart sets
+# `…backup.plugin.enabled`. Flip off alongside cloudnative-pg for non-cnpg
+# (embedded/external) self-hosted setups.
+plugin-barman-cloud:
+  enabled: true
 
 # Optional Cilium egress gateway policy for managed-cluster workloads that
 # need a stable outbound source IP for customer allowlists.
@@ -298,6 +345,39 @@ ciliumEgressGateway:
         # `token` is the canonical key bootstrap-workload waits for.
         name: hcloud
         key: token
+
+# Optional in-cluster cleanup loop for the managed preview cluster. Disabled
+# by default so ordinary platform installs do not get cluster-wide delete
+# permissions. The tuist-preview overlay enables it.
+previewJanitor:
+  enabled: false
+  # Runs after preview-sweep.yml's on-the-hour schedule and 15 minute timeout,
+  # so the external workflow gets first chance to run helm uninstall.
+  schedule: "20 * * * *"
+  suspend: false
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  startingDeadlineSeconds: 900
+  backoffLimit: 0
+  activeDeadlineSeconds: 900
+  stuckCreateAgeSeconds: 1800
+  teardownTimeout: 5m
+  kuraNamespace: kura
+  serviceAccount:
+    name: preview-janitor
+  image:
+    repository: alpine/k8s
+    tag: "1.36.1"
+    pullPolicy: IfNotPresent
+  nodeSelector: {}
+  tolerations: []
+  resources:
+    requests:
+      cpu: 25m
+      memory: 96Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
 
 # Whether to emit the ClusterIssuer template below. Turn off if you manage
 # cert-manager issuers with a separate GitOps process.

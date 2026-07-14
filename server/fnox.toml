@@ -1,0 +1,62 @@
+# Dev-only secrets, sourced from 1Password at runtime by fnox (https://fnox.jdx.dev).
+#
+# This file holds references, not values — safe to commit. It replaces the old
+# encrypted priv/secrets/dev.yml.enc blob: `mise run dev` wraps the server in
+# `fnox exec` when 1Password access is available, which resolves these entries
+# into TUIST_* env vars. Contributors without a 1Password account skip fnox
+# entirely (see server/mise/tasks/dev.sh) and the server still boots — OAuth,
+# Stripe, etc. are simply disabled, same as before.
+#
+# Add a dev secret with `<ITEM>/<FIELD>` (resolved against the provider's
+# vault below) or a full `op://VAULT/ITEM/FIELD` reference. Keep this to what a
+# local server genuinely needs; most integrations degrade gracefully when unset.
+#
+# Prereq for first-party devs: install fnox (`mise install`) and authenticate
+# to 1Password — either an interactive `op signin` session or an
+# OP_SERVICE_ACCOUNT_TOKEN scoped to the Development vault.
+
+# Degrade rather than fail: a dev secret that isn't in the Development vault
+# warns and stays unset (that integration just disables locally) instead of
+# blocking `mise run dev`. Matches the old blob behavior where a missing key
+# read as nil.
+if_missing = "warn"
+
+[providers]
+onepass = { type = "1password", vault = "Development" }
+
+# No license here: dev runs unhosted (TUIST_HOSTED=0), so the Keygen license
+# check is skipped and the decrypted dev blob never carried one.
+[secrets]
+TUIST_SLACK_CLIENT_ID = { provider = "onepass", value = "SLACK/client_id" }
+TUIST_SLACK_CLIENT_SECRET = { provider = "onepass", value = "SLACK/client_secret" }
+TUIST_SLACK_TUIST_TOKEN = { provider = "onepass", value = "SLACK/tuist_token" }
+TUIST_STRIPE_SECRET_KEY = { provider = "onepass", value = "STRIPE/secret_key" }
+TUIST_STRIPE_PUBLISHABLE_KEY = { provider = "onepass", value = "STRIPE/publishable_key" }
+TUIST_STRIPE_ENDPOINT_SECRET = { provider = "onepass", value = "STRIPE/endpoint_secret" }
+TUIST_MAILGUN_API_KEY = { provider = "onepass", value = "MAILGUN/api_key" }
+TUIST_PLAIN_AUTHENTICATION_SECRET = { provider = "onepass", value = "PLAIN/authentication_secret" }
+TUIST_LOOPS_API_KEY = { provider = "onepass", value = "LOOPS/api_key" }
+TUIST_CACHE_API_KEY = { provider = "onepass", value = "CACHE_API_KEY/password" }
+# Tuist OIDC provider (CLI/agent login). Only the three fields the code reads
+# from the blob structure — client_name + private_key aren't synced (the
+# accessors return nil today; an empty private_key would crash JOSE.JWK.from_pem).
+TUIST_OAUTH_CLIENT_ID = { provider = "onepass", value = "OAUTH/client_id" }
+TUIST_OAUTH_CLIENT_SECRET = { provider = "onepass", value = "OAUTH/client_secret" }
+TUIST_OAUTH_JWT_PUBLIC_KEY = { provider = "onepass", value = "OAUTH/jwt_public_key" }
+# NOTE: ClickHouse is intentionally NOT wired here — runtime.exs hardcodes dev
+# ClickHouse to localhost (tuist_development), so TUIST_CLICKHOUSE_URL is never
+# read in dev. The CLICKHOUSE Development item you created is inert; delete it
+# or keep it for reference.
+# secret_key.base stays committed in mise.toml [env] (so contributors without
+# 1Password still get a working Phoenix signing key); only these three come
+# from 1Password for first-party devs.
+TUIST_SECRET_KEY_PASSWORD = { provider = "onepass", value = "SECRET_KEYS/password" }
+TUIST_SECRET_KEY_TOKENS = { provider = "onepass", value = "SECRET_KEYS/tokens" }
+TUIST_SECRET_KEY_ENCRYPTION = { provider = "onepass", value = "SECRET_KEYS/encryption" }
+# Okta SSO (dev-only). Consumed by priv/repo/seeds.exs to seed a dev org's SSO
+# config. domain + client_id are omitted on purpose — the seed already defaults
+# them to trial-2983119.okta.com / 0oastwz9g1cW2qjIY697; only these two secrets
+# have no default (without them the seed skips Okta). scim_token must be in the
+# tuist_scim_<id>_<token> format the seed parses.
+TUIST_OKTA_CLIENT_SECRET = { provider = "onepass", value = "OKTA/client_secret" }
+TUIST_OKTA_SCIM_TOKEN = { provider = "onepass", value = "OKTA/scim_token" }

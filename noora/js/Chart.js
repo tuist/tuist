@@ -126,12 +126,14 @@ export default {
     const theme = getTheme(option);
 
     echarts.registerTheme("noora", theme);
-    this.chart = echarts.init(
-      this.el.querySelector("[data-part='chart']"),
-      "noora",
-      { renderer: "canvas" },
-    );
+    const chartDom = this.el.querySelector("[data-part='chart']");
+    this.chart = echarts.init(chartDom, "noora", { renderer: "canvas" });
     this.chart.setOption(option);
+    // Expose the instance on the chart element so code outside this hook
+    // (and outside Noora's bundled ECharts) can drive the chart — e.g. an
+    // external hover adding a markArea — without echarts.getInstanceByDom,
+    // which only resolves instances created by the same ECharts copy.
+    chartDom.__nooraChart = this.chart;
 
     const hasClickableData =
       option.series &&
@@ -148,7 +150,6 @@ export default {
         }
       });
 
-      const chartDom = this.el.querySelector("[data-part='chart']");
       this.chart.on("mouseover", (params) => {
         if (params.data && params.data.url) {
           chartDom.style.cursor = "pointer";
@@ -171,6 +172,8 @@ export default {
     this.render({ animate: false });
   },
   destroyed() {
+    const chartDom = this.el.querySelector("[data-part='chart']");
+    if (chartDom) chartDom.__nooraChart = null;
     this.chart.dispose();
     window.removeEventListener(
       "changed-preferred-theme",

@@ -146,10 +146,11 @@ gets the same toolchain.
 ```
 gh workflow run macos-xcode-image.yml -f xcode_version=26.4.1
 gh workflow run macos-xcode-image.yml -f xcode_version=26.3
+gh workflow run macos-xcode-image.yml -f xcode_version=26.0.1
 gh workflow run macos-xcode-image.yml -f xcode_version=26.5
 ```
 
-Push tag: 26.4.1 → `:26-4-1`, 26.3 → `:26-3`, 26.5 → `:26-5`. Each invocation
+Push tag: 26.4.1 → `:26-4-1`, 26.3 → `:26-3`, 26.0.1 → `:26-0-1`, 26.5 → `:26-5`. Each invocation
 publishes a fresh image — multiple Xcode versions exist in GHCR
 side-by-side under their respective tags, and the customer
 fleet's profile picker chooses between them.
@@ -160,7 +161,7 @@ The current Tahoe-era profile set is:
 - `:26-3`
 - `:26-2-y`
 - `:26-1-y`
-- `:26-0-y`
+- `:26-0-1`
 
 To bring up the full set on a fresh GHCR, dispatch this workflow
 six times — once per Xcode version we want available as a

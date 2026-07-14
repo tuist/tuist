@@ -47,12 +47,17 @@ public struct DerivedDataLocator: DerivedDataLocating {
             return buildRoot
         }
 
+        let name = xcodeDerivedDataPrefix(for: projectPath)
         if usesHash {
             let hash = try XcodeProjectPathHasher.hashString(for: projectPath.pathString)
-            return root.appending(component: "\(projectPath.basenameWithoutExt)-\(hash)")
+            return root.appending(component: "\(name)-\(hash)")
         } else {
-            return root.appending(component: projectPath.basenameWithoutExt)
+            return root.appending(component: name)
         }
+    }
+
+    private func xcodeDerivedDataPrefix(for projectPath: AbsolutePath) -> String {
+        projectPath.basenameWithoutExt.replacingOccurrences(of: " ", with: "_")
     }
 
     /// Extracts the derived data root from `BUILD_DIR`.

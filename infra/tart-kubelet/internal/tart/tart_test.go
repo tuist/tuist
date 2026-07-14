@@ -2,13 +2,39 @@ package tart
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 )
+
+// Regression for the warm-path miss: `tart list` encodes Size as an
+// integer while `tart get` encodes it as a quoted decimal string. A plain
+// int64 field errored on the latter, which made Get() fail on every golden
+// and forced a re-pull each recycle. VM must unmarshal both forms.
+func TestVMUnmarshalSizeAcceptsListAndGetEncodings(t *testing.T) {
+	cases := map[string]string{
+		"tart list (integer)":       `{"Name":"tuist-golden-abc","Source":"local","Size":72}`,
+		"tart get (quoted decimal)": `{"Name":"tuist-golden-abc","Source":"local","Size":"72.660"}`,
+		"tart get (quoted integer)": `{"Name":"tuist-golden-abc","Source":"local","Size":"72"}`,
+		"bare decimal (defensive)":  `{"Name":"tuist-golden-abc","Source":"local","Size":72.66}`,
+	}
+	for name, payload := range cases {
+		t.Run(name, func(t *testing.T) {
+			var vm VM
+			if err := json.Unmarshal([]byte(payload), &vm); err != nil {
+				t.Fatalf("unmarshal %s failed: %v", name, err)
+			}
+			if vm.Name != "tuist-golden-abc" {
+				t.Fatalf("Name = %q, want tuist-golden-abc", vm.Name)
+			}
+		})
+	}
+}
 
 // TestCloneTimeoutKillsHungProcess verifies the per-op watchdog: a
 // `tart` invocation that hangs (here a fake binary that sleeps well
@@ -83,6 +109,64 @@ func TestCleanupVMUserData(t *testing.T) {
 	}
 	if _, err := os.Stat(target); !os.IsNotExist(err) {
 		t.Fatalf("expected target removed, got err=%v", err)
+	}
+}
+
+// Regression for the substring liveness bug: pgrep -f matches over the
+// whole command line, so an unanchored `tart run <name>` query would also
+// match a running `tart run <name>-2` — reporting a stopped VM as live and,
+// in the GC, pinning its disk forever. Both names are valid VMNameForPod
+// outputs. IsRunning must anchor the name to an argument boundary.
+func TestIsRunningRequiresExactNameBoundary(t *testing.T) {
+	if _, err := exec.LookPath("pgrep"); err != nil {
+		t.Skip("pgrep not available on this host")
+	}
+
+	const base = "tuist-runners-runner-team-job"
+	const longer = base + "-2"
+
+	decoyCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	// Command line: `/bin/sh -c 'sleep 30; :' tart run <longer>`. The
+	// compound `-c` body keeps sh from exec-replacing itself with `sleep`,
+	// so the `tart run …` argv survives for pgrep to read.
+	decoy := exec.CommandContext(decoyCtx, "/bin/sh", "-c", "sleep 30; :", "tart", "run", longer)
+	if err := decoy.Start(); err != nil {
+		t.Fatalf("start decoy: %v", err)
+	}
+	defer func() {
+		cancel()
+		_ = decoy.Wait()
+	}()
+
+	c := &Client{}
+	ctx := context.Background()
+
+	// Wait until the decoy is visible to pgrep — this also asserts the
+	// exact longer name is correctly found (the positive boundary case).
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		running, err := c.IsRunning(ctx, longer)
+		if err != nil {
+			t.Fatalf("IsRunning(%q): %v", longer, err)
+		}
+		if running {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("decoy %q never became visible to pgrep", longer)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	// The core regression: the shorter name must NOT match the running
+	// longer-named process.
+	running, err := c.IsRunning(ctx, base)
+	if err != nil {
+		t.Fatalf("IsRunning(%q): %v", base, err)
+	}
+	if running {
+		t.Fatalf("IsRunning(%q) reported live, but only %q is running", base, longer)
 	}
 }
 
@@ -216,6 +300,72 @@ func TestRunInvokesEnsureGUISessionBeforeStartingTart(t *testing.T) {
 	}
 	if called != 1 {
 		t.Fatalf("EnsureGUISession called %d times, want 1", called)
+	}
+}
+
+func TestRunWithOptionsAddsVNCFlag(t *testing.T) {
+	dir := t.TempDir()
+	argsPath := filepath.Join(dir, "args")
+	binPath := filepath.Join(dir, "fake-tart")
+	if err := os.WriteFile(binPath, []byte("#!/bin/sh\nprintf '%s\\n' \"$@\" > '"+argsPath+"'\nprintf 'VNC server is running at vnc://:alpha-bravo@127.0.0.1:5901\\n'\nsleep 6\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	c := &Client{
+		Binary:      binPath,
+		UserDataDir: filepath.Join(dir, "userdata"),
+		LogDir:      filepath.Join(dir, "logs"),
+	}
+	handle, err := c.RunWithOptions(context.Background(), "test-vm", RunOptions{
+		SharedDirs: []string{"env:/tmp/env:ro"},
+		VNC:        true,
+	})
+	if err != nil {
+		t.Fatalf("RunWithOptions failed: %v", err)
+	}
+	if handle == nil {
+		t.Fatal("expected non-nil handle")
+	}
+	t.Cleanup(func() { <-handle.Done() })
+
+	vncCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	info, err := handle.WaitVNCInfo(vncCtx)
+	if err != nil {
+		t.Fatalf("WaitVNCInfo: %v", err)
+	}
+	if info.Host != "127.0.0.1" || info.Port != 5901 || info.Password != "alpha-bravo" {
+		t.Fatalf("VNC info = %+v, want host=127.0.0.1 port=5901 password=alpha-bravo", info)
+	}
+
+	body, err := os.ReadFile(argsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := string(body)
+	for _, want := range []string{"run\n", "test-vm\n", "--no-graphics\n", "--vnc-experimental\n", "--root-disk-opts\n", "caching=cached\n", "--dir\n", "env:/tmp/env:ro\n"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("args missing %q in:\n%s", want, got)
+		}
+	}
+
+	<-handle.Done()
+	logBody, err := os.ReadFile(handle.LogPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(logBody), "alpha-bravo") {
+		t.Fatalf("VM log leaked generated VNC password:\n%s", string(logBody))
+	}
+	if !strings.Contains(string(logBody), "vnc://:REDACTED@127.0.0.1:5901") {
+		t.Fatalf("VM log missing redacted VNC URL:\n%s", string(logBody))
+	}
+}
+
+func TestParseTartVNCURLRequiresGeneratedPassword(t *testing.T) {
+	_, err := parseTartVNCURL("vnc://127.0.0.1:5901")
+	if err == nil {
+		t.Fatal("parseTartVNCURL accepted a URL without Tart's generated password")
 	}
 }
 

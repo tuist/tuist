@@ -7,6 +7,7 @@ import OpenAPIRuntime
 import Path
 import Testing
 import TuistAlert
+import TuistAppleArchiver
 import TuistCache
 import TuistConstants
 import TuistCore
@@ -60,7 +61,7 @@ struct ModuleCacheRemoteStorageTests {
             cacheURL: Constants.URLs.production,
             serverURL: Constants.URLs.production,
             serverAuthenticationController: serverAuthenticationController,
-            fileArchiverFactory: FileArchivingFactory(),
+            appleArchiver: AppleArchiver(),
             cacheDirectoriesProvider: cacheDirectoriesProvider,
             multipartUploadService: multipartUploadService,
             downloadModuleCacheService: downloadModuleCacheService,
@@ -72,6 +73,249 @@ struct ModuleCacheRemoteStorageTests {
             concurrencyLimit: 15,
             cacheActionItemConcurrencyLimit: 15
         )
+    }
+
+    /// Builds an AppleArchive (LZFSE) fixture of the given paths, matching the archive format the
+    /// storage now downloads and decompresses. Replaces the previous store-method zip fixtures.
+    private func makeArchive(paths: [AbsolutePath], name: String) async throws -> AbsolutePath {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let stagingDirectory = temporaryDirectory.appending(component: "\(name)-staging")
+        try await fileSystem.makeDirectory(at: stagingDirectory)
+        for path in paths {
+            try await fileSystem.copy(path, to: stagingDirectory.appending(component: path.basename))
+        }
+        let archivePath = temporaryDirectory.appending(component: "\(name).aar")
+        try await AppleArchiver().compress(
+            directory: stagingDirectory,
+            to: archivePath,
+            excludePatterns: [],
+            preservesBaseDirectory: false
+        )
+        return archivePath
+    }
+
+    @Test(.inTemporaryDirectory) func fetch_when_macro_product_name_differs_from_target_name() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let macroPath = temporaryDirectory.appending(component: "MacroProduct.macro")
+        try await fileSystem.touch(macroPath)
+        let zipPath = try await makeArchive(paths: [macroPath], name: "test")
+        let zipData = try Data(contentsOf: zipPath.url)
+
+        given(downloadModuleCacheService)
+            .downloadModuleCacheArtifact(
+                accountHandle: .value("tuist"),
+                projectHandle: .value("tuist"),
+                hash: .value("hash"),
+                name: .value("MacroTarget.zip"),
+                cacheCategory: .value("builds"),
+                serverURL: .value(Constants.URLs.production),
+                authenticationURL: .value(Constants.URLs.production),
+                serverAuthenticationController: .any
+            )
+            .willReturn(zipData)
+
+        let got = try await subject.fetch(
+            Set([.init(name: "MacroTarget", hash: "hash")]),
+            cacheCategory: .binaries
+        )
+
+        let path = try #require(
+            got[.test(name: "MacroTarget", hash: "hash", source: .remote, cacheCategory: .binaries)]
+        )
+        #expect(path.basename == "MacroProduct.macro")
+        #expect(try artifactSigner.isValid(path) == true)
+    }
+
+    @Test(.inTemporaryDirectory) func fetch_when_bundle_product_name_replaces_dash_with_underscore() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let bundlePath = temporaryDirectory.appending(component: "Dash_NamedBundle.bundle")
+        try await fileSystem.makeDirectory(at: bundlePath)
+        try await fileSystem.touch(bundlePath.appending(component: "Info.plist"))
+        let zipPath = try await makeArchive(paths: [bundlePath], name: "test")
+        let zipData = try Data(contentsOf: zipPath.url)
+
+        given(downloadModuleCacheService)
+            .downloadModuleCacheArtifact(
+                accountHandle: .value("tuist"),
+                projectHandle: .value("tuist"),
+                hash: .value("hash"),
+                name: .value("Dash-NamedBundle.zip"),
+                cacheCategory: .value("builds"),
+                serverURL: .value(Constants.URLs.production),
+                authenticationURL: .value(Constants.URLs.production),
+                serverAuthenticationController: .any
+            )
+            .willReturn(zipData)
+
+        let got = try await subject.fetch(
+            Set([.init(name: "Dash-NamedBundle", hash: "hash")]),
+            cacheCategory: .binaries
+        )
+
+        let path = try #require(
+            got[.test(name: "Dash-NamedBundle", hash: "hash", source: .remote, cacheCategory: .binaries)]
+        )
+        #expect(path.basename == "Dash_NamedBundle.bundle")
+        #expect(try artifactSigner.isValid(path) == true)
+    }
+
+    @Test(.inTemporaryDirectory) func fetch_when_downloaded_archive_does_not_contain_artifact_returns_empty() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let frameworkPath = temporaryDirectory.appending(component: "Other.framework")
+        try await fileSystem.makeDirectory(at: frameworkPath)
+        let zipPath = try await makeArchive(paths: [frameworkPath], name: "test")
+        let zipData = try Data(contentsOf: zipPath.url)
+
+        given(downloadModuleCacheService)
+            .downloadModuleCacheArtifact(
+                accountHandle: .value("tuist"),
+                projectHandle: .value("tuist"),
+                hash: .value("hash"),
+                name: .value("Target.zip"),
+                cacheCategory: .value("builds"),
+                serverURL: .value(Constants.URLs.production),
+                authenticationURL: .value(Constants.URLs.production),
+                serverAuthenticationController: .any
+            )
+            .willReturn(zipData)
+
+        let got = try await subject.fetch(
+            Set([.init(name: "Target", hash: "hash")]),
+            cacheCategory: .binaries
+        )
+
+        #expect(got.isEmpty == true)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedLogger(), .withScopedAlertController())
+    func fetch_when_downloaded_archive_cannot_be_decompressed_is_treated_as_a_cache_miss() async throws {
+        // Given
+        let appleArchiver = MockAppleArchiving()
+        let subject = ModuleCacheRemoteStorage(
+            fullHandle: fullHandle,
+            cacheURL: Constants.URLs.production,
+            serverURL: Constants.URLs.production,
+            serverAuthenticationController: serverAuthenticationController,
+            appleArchiver: appleArchiver,
+            cacheDirectoriesProvider: cacheDirectoriesProvider,
+            multipartUploadService: multipartUploadService,
+            downloadModuleCacheService: downloadModuleCacheService,
+            getCacheActionItemService: getCacheActionItemService,
+            uploadCacheActionItemService: uploadCacheActionItemService,
+            artifactSigner: artifactSigner,
+            fileSystem: fileSystem,
+            retryProvider: retryProvider,
+            concurrencyLimit: 15,
+            cacheActionItemConcurrencyLimit: 15
+        )
+        given(downloadModuleCacheService)
+            .downloadModuleCacheArtifact(
+                accountHandle: .any,
+                projectHandle: .any,
+                hash: .any,
+                name: .any,
+                cacheCategory: .any,
+                serverURL: .any,
+                authenticationURL: .any,
+                serverAuthenticationController: .any
+            )
+            .willReturn(Data("stale-stored-zip-payload".utf8))
+        given(appleArchiver)
+            .decompress(archive: .any, to: .any)
+            .willThrow(AppleArchiverError.decompressionFailed("unsupported archive format"))
+
+        // When
+        let got = try await subject.fetch(
+            Set([.init(name: "target", hash: "hash")]),
+            cacheCategory: .binaries
+        )
+
+        // Then
+        // The undecompressable artifact is a per-item cache miss (the fetch does
+        // not fail), surfaced as a single "could not be decompressed" warning
+        // rather than the misleading "server unavailable" alert.
+        #expect(got.isEmpty == true)
+        #expect(AlertController.current.warnings().map(\.message).map { $0.plain() } ==
+            ["These cached artifacts could not be decompressed and were rebuilt from source: target"]
+        )
+        // The payload won't change on retry, so it must be downloaded only once.
+        verify(downloadModuleCacheService)
+            .downloadModuleCacheArtifact(
+                accountHandle: .any,
+                projectHandle: .any,
+                hash: .any,
+                name: .any,
+                cacheCategory: .any,
+                serverURL: .any,
+                authenticationURL: .any,
+                serverAuthenticationController: .any
+            )
+            .called(1)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedLogger(), .withScopedAlertController())
+    func fetch_when_one_artifact_is_corrupted_still_returns_the_valid_ones() async throws {
+        // Given
+        // Drive decompression through a mock archiver so the corrupt case is
+        // deterministic. Decompressing arbitrary "corrupt" bytes with the real
+        // AppleArchive has undefined behavior and is unsuitable for a fixture.
+        let appleArchiver = MockAppleArchiving()
+        let subject = ModuleCacheRemoteStorage(
+            fullHandle: fullHandle,
+            cacheURL: Constants.URLs.production,
+            serverURL: Constants.URLs.production,
+            serverAuthenticationController: serverAuthenticationController,
+            appleArchiver: appleArchiver,
+            cacheDirectoriesProvider: cacheDirectoriesProvider,
+            multipartUploadService: multipartUploadService,
+            downloadModuleCacheService: downloadModuleCacheService,
+            getCacheActionItemService: getCacheActionItemService,
+            uploadCacheActionItemService: uploadCacheActionItemService,
+            artifactSigner: artifactSigner,
+            fileSystem: fileSystem,
+            retryProvider: retryProvider,
+            concurrencyLimit: 15,
+            cacheActionItemConcurrencyLimit: 15
+        )
+        given(downloadModuleCacheService)
+            .downloadModuleCacheArtifact(
+                accountHandle: .any,
+                projectHandle: .any,
+                hash: .any,
+                name: .any,
+                cacheCategory: .any,
+                serverURL: .any,
+                authenticationURL: .any,
+                serverAuthenticationController: .any
+            )
+            .willReturn(Data("payload".utf8))
+        // The valid artifact decompresses into a real framework; the corrupt one
+        // fails to decompress. The archive path is "<hash>.aar", so match on hash.
+        given(appleArchiver)
+            .decompress(archive: .matching { $0.pathString.contains("valid-hash") }, to: .any)
+            .willProduce { _, directory in
+                try FileManager.default.createDirectory(
+                    at: directory.appending(component: "Valid.framework").url,
+                    withIntermediateDirectories: true
+                )
+            }
+        given(appleArchiver)
+            .decompress(archive: .matching { $0.pathString.contains("corrupt-hash") }, to: .any)
+            .willThrow(AppleArchiverError.decompressionFailed("unsupported archive format"))
+
+        // When
+        let got = try await subject.fetch(
+            Set([
+                .init(name: "Valid", hash: "valid-hash"),
+                .init(name: "Corrupt", hash: "corrupt-hash"),
+            ]),
+            cacheCategory: .binaries
+        )
+
+        // Then
+        #expect(got.count == 1)
+        #expect(got[.test(name: "Valid", hash: "valid-hash", source: .remote, cacheCategory: .binaries)] != nil)
+        #expect(got[.test(name: "Corrupt", hash: "corrupt-hash", source: .remote, cacheCategory: .binaries)] == nil)
     }
 
     // MARK: - Authentication Failure Tests (401/403)

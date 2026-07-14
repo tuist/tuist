@@ -30,6 +30,14 @@ impl ReplicationOperation {
             Self::DeleteNamespace { .. } => "delete_namespace",
         }
     }
+
+    /// Whether delivering this message ships segment-backed artifact bytes.
+    /// Bulk messages drain in a lower-priority outbox lane so metadata-sized
+    /// operations (inline artifacts such as action-cache entries, namespace
+    /// deletes) are not parked behind gigabytes of blob backlog.
+    pub fn is_bulk(&self) -> bool {
+        matches!(self, Self::UpsertArtifact { inline: false, .. })
+    }
 }
 
 #[cfg(test)]

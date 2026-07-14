@@ -10,16 +10,16 @@ defmodule Tuist.Storage.RetentionPolicy do
 
   @default_plan :air
   @known_plans [:air, :open_source, :pro, :enterprise]
-  @maximum_retention_days 180
+  @maximum_hosted_retention_days 30
 
   @retention_days %{
-    cache_artifact: %{air: 14, open_source: 14, pro: 30, enterprise: 90},
-    xcode_cache_artifact: %{air: 14, open_source: 14, pro: 30, enterprise: 90},
-    preview_app_build: %{air: 60, open_source: 60, pro: 90, enterprise: 180},
-    preview_icon: %{air: 60, open_source: 60, pro: 90, enterprise: 180},
-    build_archive: %{air: 30, open_source: 30, pro: 90, enterprise: 180},
-    run_session: %{air: 30, open_source: 30, pro: 90, enterprise: 180},
-    test_attachment: %{air: 30, open_source: 30, pro: 90, enterprise: 180},
+    cache_artifact: %{air: 14, open_source: 14, pro: 30, enterprise: 30},
+    xcode_cache_artifact: %{air: 14, open_source: 14, pro: 30, enterprise: 30},
+    preview_app_build: %{air: 30, open_source: 30, pro: 30, enterprise: 30},
+    preview_icon: %{air: 30, open_source: 30, pro: 30, enterprise: 30},
+    build_archive: %{air: 30, open_source: 30, pro: 30, enterprise: 30},
+    run_session: %{air: 30, open_source: 30, pro: 30, enterprise: 30},
+    test_attachment: %{air: 30, open_source: 30, pro: 30, enterprise: 30},
     shard_bundle: %{air: 7, open_source: 7, pro: 14, enterprise: 30}
   }
 
@@ -43,16 +43,26 @@ defmodule Tuist.Storage.RetentionPolicy do
     end)
   end
 
-  def retention_days(artifact_type, plan) do
+  def retention_days(artifact_type, plan, override_days \\ nil)
+
+  def retention_days(_artifact_type, _plan, override_days) when is_integer(override_days) and override_days > 0 do
+    override_days
+  end
+
+  def retention_days(artifact_type, plan, nil) do
     retention_by_plan = Map.fetch!(@retention_days, artifact_type)
 
     retention_by_plan
     |> Map.get(plan, Map.fetch!(retention_by_plan, @default_plan))
-    |> min(@maximum_retention_days)
+    |> min(@maximum_hosted_retention_days)
   end
 
-  def cutoff(artifact_type, plan) do
-    days = retention_days(artifact_type, plan)
+  def retention_days(_artifact_type, _plan, override_days) do
+    raise ArgumentError, "retention days must be a positive integer, got: #{inspect(override_days)}"
+  end
+
+  def cutoff(artifact_type, plan, override_days \\ nil) do
+    days = retention_days(artifact_type, plan, override_days)
     DateTime.add(DateTime.utc_now(), -days, :day)
   end
 

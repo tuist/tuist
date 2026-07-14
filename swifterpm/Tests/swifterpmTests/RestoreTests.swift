@@ -54,6 +54,99 @@ struct RestoreTests {
     }
 
     @Test
+    func restorePackageInitializesRequiredGitSubmodules() async throws {
+        try await withTemporaryDirectory { root in
+            let repo = root.appendingPathComponent("libwebp-Xcode")
+            let submodule = root.appendingPathComponent("libwebp")
+            let scratch = root.appendingPathComponent("scratch")
+            let cache = try await Cache(root: root.appendingPathComponent("cache"))
+            let revision = try await writeGitPackageWithRequiredSubmodule(
+                packageRepo: repo,
+                submoduleRepo: submodule
+            )
+            let pin = ResolvedPin(
+                identity: "libwebp-xcode",
+                kind: "localSourceControl",
+                location: repo.path,
+                state: ResolvedState(branch: nil, revision: revision, version: nil)
+            )
+            let resolved = ResolvedPins(originHash: "origin", pins: [pin], version: 3)
+
+            try await WorkspaceRestorer.restorePackage(
+                scratchDir: scratch,
+                cache: cache,
+                registryConfig: RegistryConfig(),
+                resolved: resolved,
+                progress: nil,
+                disableSandbox: true
+            )
+
+            let checkout = scratch.appendingPathComponent("checkouts/libwebp-Xcode")
+            #expect(
+                try await fileSystem.exists(
+                    checkout.appendingPathComponent("libwebp/src/decode.c").absolutePath
+                ))
+            #expect(
+                try await fileSystem.exists(
+                    checkout.appendingPathComponent("libwebp/sharpyuv/sharpyuv.c").absolutePath
+                ))
+        }
+    }
+
+    @Test
+    func restorePackageRefreshesCachedSourceWhenSubmodulesAreMissing() async throws {
+        try await withTemporaryDirectory { root in
+            let repo = root.appendingPathComponent("libwebp-Xcode")
+            let submodule = root.appendingPathComponent("libwebp")
+            let scratch = root.appendingPathComponent("scratch")
+            let cache = try await Cache(root: root.appendingPathComponent("cache"))
+            let revision = try await writeGitPackageWithRequiredSubmodule(
+                packageRepo: repo,
+                submoduleRepo: submodule
+            )
+            let pin = ResolvedPin(
+                identity: "libwebp-xcode",
+                kind: "localSourceControl",
+                location: repo.path,
+                state: ResolvedState(branch: nil, revision: revision, version: nil)
+            )
+            let cachedSource = try cache.sourcePath(pin: pin)
+            try await fileSystem.makeDirectory(
+                at: cachedSource.absolutePath,
+                options: [.createTargetParentDirectories]
+            )
+            try await fileSystem.write(
+                await fileSystem.readFile(
+                    at: repo.appendingPathComponent("Package.swift").absolutePath
+                ),
+                to: cachedSource.appendingPathComponent("Package.swift")
+            )
+            try await fileSystem.write(
+                await fileSystem.readFile(
+                    at: repo.appendingPathComponent(".gitmodules").absolutePath
+                ),
+                to: cachedSource.appendingPathComponent(".gitmodules")
+            )
+            let resolved = ResolvedPins(originHash: "origin", pins: [pin], version: 3)
+
+            try await WorkspaceRestorer.restorePackage(
+                scratchDir: scratch,
+                cache: cache,
+                registryConfig: RegistryConfig(),
+                resolved: resolved,
+                progress: nil,
+                disableSandbox: true
+            )
+
+            let checkout = scratch.appendingPathComponent("checkouts/libwebp-Xcode")
+            #expect(
+                try await fileSystem.exists(
+                    checkout.appendingPathComponent("libwebp/src/decode.c").absolutePath
+                ))
+        }
+    }
+
+    @Test
     func writeWorkspaceStateWritesSourceControlAndRegistryDependencies() async throws {
         try await withTemporaryDirectory { root in
             let package = root.appendingPathComponent("Package")
@@ -542,6 +635,92 @@ struct RestoreTests {
             #expect(artifacts.count == 1)
             #expect(artifact["path"] as? String == artifactPath.path)
         }
+    }
+
+    private func writeGitPackageWithRequiredSubmodule(
+        packageRepo: URL,
+        submoduleRepo: URL
+    ) async throws -> String {
+        try await fileSystem.makeDirectory(
+            at: submoduleRepo.appendingPathComponent("src").absolutePath,
+            options: [.createTargetParentDirectories]
+        )
+        try await fileSystem.makeDirectory(
+            at: submoduleRepo.appendingPathComponent("sharpyuv").absolutePath,
+            options: [.createTargetParentDirectories]
+        )
+        try await fileSystem.atomicWrite(
+            "void webp_decode(void) {}\n",
+            to: submoduleRepo.appendingPathComponent("src/decode.c")
+        )
+        try await fileSystem.atomicWrite(
+            "void webp_sharpyuv(void) {}\n",
+            to: submoduleRepo.appendingPathComponent("sharpyuv/sharpyuv.c")
+        )
+        try await SystemProcess.run(
+            "/usr/bin/git", ["init", "-q"], workingDirectory: submoduleRepo
+        )
+        try await commitAll(in: submoduleRepo, message: "initial")
+
+        try await fileSystem.makeDirectory(
+            at: packageRepo.appendingPathComponent("include").absolutePath,
+            options: [.createTargetParentDirectories]
+        )
+        try await fileSystem.atomicWrite(
+            """
+            // swift-tools-version:5.0
+            import PackageDescription
+
+            let package = Package(
+                name: "libwebp",
+                products: [
+                    .library(name: "libwebp", targets: ["libwebp"]),
+                ],
+                targets: [
+                    .target(
+                        name: "libwebp",
+                        path: ".",
+                        sources: ["libwebp/src", "libwebp/sharpyuv"],
+                        publicHeadersPath: "include"
+                    ),
+                ]
+            )
+            """,
+            to: packageRepo.appendingPathComponent("Package.swift")
+        )
+        try await fileSystem.atomicWrite(
+            "void webp_decode(void);\n",
+            to: packageRepo.appendingPathComponent("include/webp.h")
+        )
+        try await SystemProcess.run(
+            "/usr/bin/git", ["init", "-q"], workingDirectory: packageRepo
+        )
+        try await SystemProcess.run(
+            "/usr/bin/git",
+            [
+                "-c", "protocol.file.allow=always",
+                "submodule", "add", "-q", submoduleRepo.path, "libwebp",
+            ],
+            workingDirectory: packageRepo
+        )
+        try await commitAll(in: packageRepo, message: "initial")
+        return try await SystemProcess.output(
+            "/usr/bin/git", ["rev-parse", "HEAD"], workingDirectory: packageRepo
+        )
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func commitAll(in repo: URL, message: String) async throws {
+        try await SystemProcess.run("/usr/bin/git", ["add", "."], workingDirectory: repo)
+        try await SystemProcess.run(
+            "/usr/bin/git",
+            [
+                "-c", "user.name=Repro",
+                "-c", "user.email=repro@example.com",
+                "commit", "-q", "-m", message,
+            ],
+            workingDirectory: repo
+        )
     }
 
     private func writeGitPackageWithBrokenSubmodule(at repo: URL) async throws -> String {

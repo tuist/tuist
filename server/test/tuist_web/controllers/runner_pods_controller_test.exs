@@ -7,6 +7,7 @@ defmodule TuistWeb.RunnerPodsControllerTest do
 
   alias Tuist.Kubernetes.Client, as: K8sClient
   alias Tuist.Repo
+  alias Tuist.Runners.InteractiveSessions
   alias Tuist.Runners.RunnerSession
 
   defp session_fixture(account, attrs) do
@@ -32,13 +33,28 @@ defmodule TuistWeb.RunnerPodsControllerTest do
   end
 
   describe "POST /api/internal/runners/pods/stopped" do
-    test "closes the matching open session and returns 204", %{conn: conn} do
+    test "closes the matching open sessions and returns 204", %{conn: conn} do
       account = account_fixture()
+      user = user_fixture()
       pod_name = "tuist-macos-runner-pod-1"
       started_at = ~U[2026-05-26 12:00:00.000000Z]
       ended_at = ~U[2026-05-26 12:05:00.000000Z]
 
       session_fixture(account, pod_name: pod_name, started_at: started_at)
+
+      {:ok, interactive_session} =
+        InteractiveSessions.request_vnc(
+          %{
+            account_id: account.id,
+            workflow_job_id: 99_001,
+            fleet_name: "macos-xcode-26-5",
+            status: "running",
+            pod_name: pod_name
+          },
+          account,
+          user
+        )
+
       ok_tokenreview_stub()
 
       conn =
@@ -53,6 +69,7 @@ defmodule TuistWeb.RunnerPodsControllerTest do
 
       [session] = Repo.all(from(s in RunnerSession, where: s.pod_name == ^pod_name))
       assert DateTime.compare(session.ended_at, ended_at) == :eq
+      assert Repo.reload!(interactive_session).state == :closed
     end
 
     test "returns 204 when no open session matches (idempotent / out-of-order delivery)", %{conn: conn} do

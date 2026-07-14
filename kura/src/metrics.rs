@@ -46,9 +46,14 @@ pub struct Metrics {
     segment_refresh_bytes: Family<ArtifactOpLabels, Counter>,
     segment_refresh_duration: Family<ArtifactRouteLabels, Histogram>,
     segment_evicted_artifacts: Family<ArtifactOpLabels, Counter>,
+    // Cumulative segment fsyncs (group-commit durability + rotation). Compared
+    // against kura_artifact_writes_total, its rate shows how hard concurrent
+    // writes batch their durability fsyncs (≪ 1 fsync per write under load).
+    segment_fsyncs: Counter,
     replication_requests: Family<ReplicationLabels, Counter>,
     replication_request_duration: Family<ReplicationRouteLabels, Histogram>,
     replication_apply_results: Family<ReplicationApplyLabels, Counter>,
+    bootstrap_digest_buckets: Family<BootstrapDigestLabels, Counter>,
     replication_bandwidth_configured_limit_bytes_per_second: Gauge,
     replication_bandwidth_effective_limit_bytes_per_second: Gauge,
     replication_bandwidth_public_latency_target_ms: Gauge,
@@ -123,6 +128,8 @@ pub struct Metrics {
     writer_lock_owned: Gauge,
     writer_lock_acquire_failures: Counter,
     mmap_partial_page_exemptions: Counter,
+    promotion_queue_depth: Gauge,
+    promotion_failures: Counter,
 }
 
 #[derive(Default)]
@@ -152,6 +159,7 @@ impl Metrics {
         let http_exceptions = Family::<HttpExceptionLabels, Counter>::default();
         let artifact_reads = Family::<ArtifactOpLabels, Counter>::default();
         let artifact_writes = Family::<ArtifactOpLabels, Counter>::default();
+        let segment_fsyncs = Counter::default();
         let artifact_read_bytes = Family::<ArtifactOpLabels, Counter>::default();
         let artifact_write_bytes = Family::<ArtifactOpLabels, Counter>::default();
         let artifact_egress_completions = Family::<ArtifactOpLabels, Counter>::default();
@@ -177,6 +185,7 @@ impl Metrics {
                 Histogram::new(exponential_buckets(0.001, 2.0, 16))
             });
         let replication_apply_results = Family::<ReplicationApplyLabels, Counter>::default();
+        let bootstrap_digest_buckets = Family::<BootstrapDigestLabels, Counter>::default();
         let replication_bandwidth_configured_limit_bytes_per_second = Gauge::default();
         let replication_bandwidth_effective_limit_bytes_per_second = Gauge::default();
         let replication_bandwidth_public_latency_target_ms = Gauge::default();
@@ -270,6 +279,8 @@ impl Metrics {
         let writer_lock_owned = Gauge::default();
         let writer_lock_acquire_failures = Counter::default();
         let mmap_partial_page_exemptions = Counter::default();
+        let promotion_queue_depth = Gauge::default();
+        let promotion_failures = Counter::default();
         let process_start_time_seconds = Gauge::<i64>::default();
         process_start_time_seconds.set(
             SystemTime::now()
@@ -312,6 +323,11 @@ impl Metrics {
             "kura_artifact_writes_total",
             "Artifact writes by producer and result",
             artifact_writes.clone(),
+        );
+        registry.register(
+            "kura_segment_fsyncs_total",
+            "Segment durability fsyncs (group-commit + rotation); compare its rate to kura_artifact_writes_total to see fsync batching under concurrent writes",
+            segment_fsyncs.clone(),
         );
         registry.register(
             "kura_artifact_read_bytes_total",
@@ -377,6 +393,11 @@ impl Metrics {
             "kura_replication_apply_results_total",
             "Receiver and bootstrap apply outcomes for replicated artifacts and namespace deletes",
             replication_apply_results.clone(),
+        );
+        registry.register(
+            "kura_bootstrap_digest_buckets_total",
+            "Manifest digest buckets classified during bootstrap range reconciliation, matched (skipped) vs walked",
+            bootstrap_digest_buckets.clone(),
         );
         registry.register(
             "kura_replication_bandwidth_configured_limit_bytes_per_second",
@@ -744,6 +765,16 @@ impl Metrics {
             writer_lock_acquire_failures.clone(),
         );
         registry.register(
+            "kura_promotion_queue_depth",
+            "Artifacts queued for background promotion out of Old segments",
+            promotion_queue_depth.clone(),
+        );
+        registry.register(
+            "kura_promotion_failures_total",
+            "Background segment promotions that failed (the artifact stays in its Old segment and may be reclaimed with it)",
+            promotion_failures.clone(),
+        );
+        registry.register(
             "kura_mmap_partial_page_exemptions_total",
             "Times an artifact was served via mmap only because the file's final partial page was exempted from the residency gate while its mincore bit was clear (the path that may fault one cold page on a worker)",
             mmap_partial_page_exemptions.clone(),
@@ -766,6 +797,7 @@ impl Metrics {
             http_exceptions,
             artifact_reads,
             artifact_writes,
+            segment_fsyncs,
             artifact_read_bytes,
             artifact_write_bytes,
             artifact_egress_completions,
@@ -779,6 +811,7 @@ impl Metrics {
             replication_requests,
             replication_request_duration,
             replication_apply_results,
+            bootstrap_digest_buckets,
             replication_bandwidth_configured_limit_bytes_per_second,
             replication_bandwidth_effective_limit_bytes_per_second,
             replication_bandwidth_public_latency_target_ms,
@@ -853,6 +886,8 @@ impl Metrics {
             writer_lock_owned,
             writer_lock_acquire_failures,
             mmap_partial_page_exemptions,
+            promotion_queue_depth,
+            promotion_failures,
         };
 
         metrics
@@ -1056,6 +1091,19 @@ impl Metrics {
             .inc();
     }
 
+    pub fn record_bootstrap_digest_reconcile(&self, matched: u64, walked: u64) {
+        self.bootstrap_digest_buckets
+            .get_or_create(&BootstrapDigestLabels {
+                result: "matched".to_owned(),
+            })
+            .inc_by(matched);
+        self.bootstrap_digest_buckets
+            .get_or_create(&BootstrapDigestLabels {
+                result: "walked".to_owned(),
+            })
+            .inc_by(walked);
+    }
+
     pub fn update_replication_bandwidth_limits(
         &self,
         configured_bytes_per_second: u64,
@@ -1226,6 +1274,16 @@ impl Metrics {
         self.rollout_snapshot
             .outbox_messages
             .store(count as u64, Ordering::Relaxed);
+    }
+
+    pub fn update_segment_fsyncs(&self, total: u64) {
+        // The store tracks the cumulative fsync count as a process-local atomic
+        // that resets to 0 on restart, exactly like this Counter. Advance the
+        // Counter by the delta since the last sample so `rate()` is well-defined.
+        let recorded = self.segment_fsyncs.get();
+        if total > recorded {
+            self.segment_fsyncs.inc_by(total - recorded);
+        }
     }
 
     pub fn update_multipart_uploads(&self, count: usize) {
@@ -1474,6 +1532,14 @@ impl Metrics {
         self.mmap_partial_page_exemptions.inc();
     }
 
+    pub fn update_promotion_queue_depth(&self, depth: usize) {
+        self.promotion_queue_depth.set(depth as i64);
+    }
+
+    pub fn record_promotion_failure(&self) {
+        self.promotion_failures.inc();
+    }
+
     pub fn rollout_metrics_snapshot(&self) -> RolloutMetricsSnapshot {
         RolloutMetricsSnapshot {
             outbox_messages: self
@@ -1553,6 +1619,11 @@ struct ReplicationApplyLabels {
     source: String,
     item_type: String,
     outcome: String,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+struct BootstrapDigestLabels {
+    result: String,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]

@@ -270,7 +270,7 @@ defmodule TuistOpsWeb.SlackControllerTest do
       stub(Approvals, :approve, fn _, _ -> {:error, :cannot_self_approve} end)
 
       expect(SlackClient, :ephemeral, fn _channel, _user, msg ->
-        assert msg =~ "second human"
+        assert msg =~ "self-approve"
         :ok
       end)
 

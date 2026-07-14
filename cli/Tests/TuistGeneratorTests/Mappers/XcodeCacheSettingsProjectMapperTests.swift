@@ -1,3 +1,4 @@
+import FileSystem
 import FileSystemTesting
 import Foundation
 import Path
@@ -35,7 +36,7 @@ struct XcodeCacheSettingsProjectMapperTests {
         )
 
         // When
-        let (mappedProject, sideEffects) = try subject.map(project: project)
+        let (mappedProject, sideEffects) = try await subject.map(project: project)
 
         // Then
         #expect(mappedProject == project)
@@ -64,7 +65,7 @@ struct XcodeCacheSettingsProjectMapperTests {
         )
 
         // When
-        let (mappedProject, sideEffects) = try subject.map(project: project)
+        let (mappedProject, sideEffects) = try await subject.map(project: project)
 
         // Then
         #expect(sideEffects.isEmpty)
@@ -84,6 +85,9 @@ struct XcodeCacheSettingsProjectMapperTests {
     @Test(.inTemporaryDirectory)
     func map_whenCachingEnabled_addsCacheSettings() async throws {
         // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let casPluginPath = temporaryDirectory.appending(component: "libtuist_cas_plugin.dylib")
+        try await FileSystem().touch(casPluginPath)
         let fullHandle = "test-org/test-project"
         let tuist = Tuist(
             project: .generated(
@@ -95,7 +99,11 @@ struct XcodeCacheSettingsProjectMapperTests {
             inspectOptions: .init(redundantDependencies: .init(ignoreTagsMatching: [])),
             url: Constants.URLs.production
         )
-        let subject = XcodeCacheSettingsProjectMapper(tuist: tuist)
+        let subject = XcodeCacheSettingsProjectMapper(
+            tuist: tuist,
+            kuraEnabled: true,
+            casPluginCandidates: [casPluginPath]
+        )
         let project = Project.test(
             name: "TestProject",
             settings: .test(
@@ -105,7 +113,7 @@ struct XcodeCacheSettingsProjectMapperTests {
         )
 
         // When
-        let (mappedProject, sideEffects) = try subject.map(project: project)
+        let (mappedProject, sideEffects) = try await subject.map(project: project)
 
         // Then
         #expect(sideEffects.isEmpty)
@@ -119,15 +127,99 @@ struct XcodeCacheSettingsProjectMapperTests {
         // Remote caching settings (since fullHandle is provided)
         #expect(baseSettings["COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS"] == .string("YES"))
         #expect(baseSettings["COMPILATION_CACHE_ENABLE_PLUGIN"] == .string("YES"))
-        let socketPath = Environment.current.cacheSocketPathString(for: fullHandle)
-        #expect(baseSettings["COMPILATION_CACHE_REMOTE_SERVICE_PATH"] == .string(socketPath))
+        #expect(baseSettings["COMPILATION_CACHE_PLUGIN_PATH"] == .string(casPluginPath.pathString))
+        #expect(baseSettings["COMPILATION_CACHE_REMOTE_SERVICE_PATH"] == nil)
+
+        // The account/project is delivered to the plugin as a compiler option so
+        // it reaches every frontend, including Xcode ⌘B builds.
+        #expect(
+            baseSettings["OTHER_SWIFT_FLAGS"]
+                == .array(["$(inherited)", "-cas-plugin-option", "tuist-instance=test-org/test-project"])
+        )
 
         #expect(mappedProject.settings.configurations == project.settings.configurations)
     }
 
     @Test(.inTemporaryDirectory)
+    func map_whenPluginMissing_addsLocalCacheSettingsOnly() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let missingPluginPath = temporaryDirectory.appending(component: "libtuist_cas_plugin.dylib")
+        let tuist = Tuist(
+            project: .generated(
+                .test(
+                    generationOptions: .test(enableCaching: true)
+                )
+            ),
+            fullHandle: "test-org/test-project",
+            inspectOptions: .init(redundantDependencies: .init(ignoreTagsMatching: [])),
+            url: Constants.URLs.production
+        )
+        let subject = XcodeCacheSettingsProjectMapper(
+            tuist: tuist,
+            kuraEnabled: true,
+            casPluginCandidates: [missingPluginPath]
+        )
+        let project = Project.test(name: "TestProject", settings: .test(base: [:]))
+
+        // When
+        let (mappedProject, _) = try await subject.map(project: project)
+
+        // Then: local caching on, but no plugin settings since the dylib is absent
+        let baseSettings = mappedProject.settings.base
+        #expect(baseSettings["COMPILATION_CACHE_ENABLE_CACHING"] == .string("YES"))
+        #expect(baseSettings["COMPILATION_CACHE_ENABLE_PLUGIN"] == nil)
+        #expect(baseSettings["COMPILATION_CACHE_PLUGIN_PATH"] == nil)
+        #expect(baseSettings["OTHER_SWIFT_FLAGS"] == nil)
+    }
+
+    @Test(.inTemporaryDirectory)
+    func map_whenUploadDisabled_addsUploadOptionToSwiftFlags() async throws {
+        // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let casPluginPath = temporaryDirectory.appending(component: "libtuist_cas_plugin.dylib")
+        try await FileSystem().touch(casPluginPath)
+        let tuist = Tuist(
+            project: .generated(
+                .test(
+                    generationOptions: .test(enableCaching: true)
+                )
+            ),
+            fullHandle: "test-org/test-project",
+            inspectOptions: .init(redundantDependencies: .init(ignoreTagsMatching: [])),
+            xcodeCache: .init(upload: false),
+            url: Constants.URLs.production
+        )
+        let subject = XcodeCacheSettingsProjectMapper(
+            tuist: tuist,
+            kuraEnabled: true,
+            casPluginCandidates: [casPluginPath]
+        )
+        let project = Project.test(name: "TestProject", settings: .test(base: [:]))
+
+        // When
+        let (mappedProject, _) = try await subject.map(project: project)
+
+        // Then: xcodeCache(upload: false) is carried to the plugin as a per-project
+        // option (the machine-wide proxy env can't express a per-project setting).
+        #expect(
+            mappedProject.settings.base["OTHER_SWIFT_FLAGS"]
+                == .array([
+                    "$(inherited)",
+                    "-cas-plugin-option",
+                    "tuist-instance=test-org/test-project",
+                    "-cas-plugin-option",
+                    "tuist-upload=false",
+                ])
+        )
+    }
+
+    @Test(.inTemporaryDirectory)
     func map_whenNoExistingSettings_addsOnlyCacheSettings() async throws {
         // Given
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let casPluginPath = temporaryDirectory.appending(component: "libtuist_cas_plugin.dylib")
+        try await FileSystem().touch(casPluginPath)
         let fullHandle = "org/project"
         let tuist = Tuist(
             project: .generated(
@@ -139,14 +231,18 @@ struct XcodeCacheSettingsProjectMapperTests {
             inspectOptions: .init(redundantDependencies: .init(ignoreTagsMatching: [])),
             url: Constants.URLs.production
         )
-        let subject = XcodeCacheSettingsProjectMapper(tuist: tuist)
+        let subject = XcodeCacheSettingsProjectMapper(
+            tuist: tuist,
+            kuraEnabled: true,
+            casPluginCandidates: [casPluginPath]
+        )
         let project = Project.test(
             name: "TestProject",
             settings: .test(base: [:])
         )
 
         // When
-        let (mappedProject, sideEffects) = try subject.map(project: project)
+        let (mappedProject, sideEffects) = try await subject.map(project: project)
 
         // Then
         #expect(sideEffects.isEmpty)
@@ -159,8 +255,8 @@ struct XcodeCacheSettingsProjectMapperTests {
         // Remote caching settings (since fullHandle is provided)
         #expect(baseSettings["COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS"] == .string("YES"))
         #expect(baseSettings["COMPILATION_CACHE_ENABLE_PLUGIN"] == .string("YES"))
-        let socketPath = Environment.current.cacheSocketPathString(for: fullHandle)
-        #expect(baseSettings["COMPILATION_CACHE_REMOTE_SERVICE_PATH"] == .string(socketPath))
+        #expect(baseSettings["COMPILATION_CACHE_PLUGIN_PATH"] == .string(casPluginPath.pathString))
+        #expect(baseSettings["COMPILATION_CACHE_REMOTE_SERVICE_PATH"] == nil)
     }
 
     @Test(.inTemporaryDirectory)
@@ -198,10 +294,42 @@ struct XcodeCacheSettingsProjectMapperTests {
         )
 
         // When
-        let (mappedProject, _) = try subject.map(project: project)
+        let (mappedProject, _) = try await subject.map(project: project)
 
         // Then
         #expect(mappedProject.settings.base["CUSTOM"] == .string("value"))
         #expect(mappedProject.settings.base["COMPILATION_CACHE_ENABLE_CACHING"] == .string("YES"))
+    }
+
+    @Test(.inTemporaryDirectory)
+    func map_whenKuraDisabled_addsLegacyRemoteServiceSettings() async throws {
+        // Given: no kura flag → the legacy per-project daemon path
+        let fullHandle = "test-org/test-project"
+        let tuist = Tuist(
+            project: .generated(
+                .test(
+                    generationOptions: .test(enableCaching: true)
+                )
+            ),
+            fullHandle: fullHandle,
+            inspectOptions: .init(redundantDependencies: .init(ignoreTagsMatching: [])),
+            url: Constants.URLs.production
+        )
+        let subject = XcodeCacheSettingsProjectMapper(tuist: tuist, kuraEnabled: false)
+        let project = Project.test(name: "TestProject", settings: .test(base: [:]))
+
+        // When
+        let (mappedProject, _) = try await subject.map(project: project)
+
+        // Then: Xcode's built-in remote-cache service (daemon socket), not the plugin
+        let baseSettings = mappedProject.settings.base
+        #expect(baseSettings["COMPILATION_CACHE_ENABLE_CACHING"] == .string("YES"))
+        #expect(baseSettings["COMPILATION_CACHE_ENABLE_PLUGIN"] == .string("YES"))
+        #expect(
+            baseSettings["COMPILATION_CACHE_REMOTE_SERVICE_PATH"]
+                == .string(Environment.current.cacheSocketPathString(for: fullHandle))
+        )
+        #expect(baseSettings["COMPILATION_CACHE_PLUGIN_PATH"] == nil)
+        #expect(baseSettings["OTHER_SWIFT_FLAGS"] == nil)
     }
 }

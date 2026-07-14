@@ -6,6 +6,9 @@ import Path
 import Testing
 import TuistAppleArchiver
 import TuistCI
+import TuistHTTP
+import TuistLoggerTesting
+import TuistLogging
 import TuistServer
 import TuistSupport
 import TuistTesting
@@ -37,7 +40,7 @@ struct ShardServiceTests {
         #expect(shard.testIdentifiers == ["AppTests", "CoreTests"])
     }
 
-    @Test(.inTemporaryDirectory, .withMockedDependencies())
+    @Test(.inTemporaryDirectory, .withMockedDependencies(), .withMockedLogger())
     func shard_suiteGranularity_emitsModuleSlashSuiteOnlyTestingIdentifiers() async throws {
         // Given: a plan with suites grouped by module (suite granularity)
         let (subject, testProductsPath) = try await makeSubjectWithLocalProducts(
@@ -64,6 +67,8 @@ struct ShardServiceTests {
             "AppTests/SignupTests",
             "CoreTests/NetworkTests",
         ])
+        #expect(Logger.testingLogHandler
+            .collected[.notice, ==] == "Shard 0: AppTests/LoginTests, AppTests/SignupTests, CoreTests/NetworkTests")
     }
 
     // MARK: - shard() with local test products path
@@ -104,8 +109,10 @@ struct ShardServiceTests {
         ).willReturn(
             Components.Schemas.Shard(
                 download_url: "https://example.com/should-not-be-used",
+                download_urls: [],
                 modules: ["AppTests"],
                 shard_plan_id: "plan-123",
+                skip: [],
                 suites: .init()
             )
         )
@@ -133,6 +140,57 @@ struct ShardServiceTests {
         let originalXCTestRunData = try await fileSystem.readFile(at: xctestrunPath)
         let originalPlist = try parsePlist(originalXCTestRunData)
         #expect(blueprintNames(from: originalPlist) == ["AppTests", "CoreTests"])
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedDependencies(), .withMockedLogger())
+    func shard_catchAllShard_carriesSkipTestIdentifiersAndNoOnlyTesting() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let fileSystem = FileSystem()
+
+        let testProductsPath = temporaryDirectory.appending(component: "MyApp.xctestproducts")
+        try await fileSystem.makeDirectory(at: testProductsPath)
+
+        let ciController = MockCIControlling()
+        given(ciController).ciInfo().willReturn(.test(provider: .github))
+
+        // The catch-all shard carries no modules/suites (no -only-testing) and a skip list of every suite
+        // assigned to other shards, so it runs the remainder via -skip-testing.
+        let getShardService = MockGetShardServicing()
+        given(getShardService).getShard(
+            fullHandle: .any,
+            serverURL: .any,
+            reference: .any,
+            shardIndex: .any
+        ).willReturn(
+            Components.Schemas.Shard(
+                download_url: "https://example.com/should-not-be-used",
+                download_urls: [],
+                modules: [],
+                shard_plan_id: "plan-123",
+                skip: ["AppTests/LoginTests", "CoreTests/NetworkTests"],
+                suites: .init()
+            )
+        )
+
+        let subject = ShardService(
+            getShardService: getShardService,
+            ciController: ciController,
+            fileSystem: fileSystem
+        )
+
+        let shard = try await subject.shard(
+            shardIndex: 2,
+            fullHandle: "org/project",
+            serverURL: URL(string: "https://tuist.dev")!,
+            reference: nil,
+            testProductsPath: testProductsPath,
+            testProductsArchivePath: nil
+        )
+
+        // No -only-testing; the remainder is selected by skipping everything already assigned.
+        #expect(shard.testIdentifiers.isEmpty)
+        #expect(shard.skipTestIdentifiers == ["AppTests/LoginTests", "CoreTests/NetworkTests"])
+        #expect(Logger.testingLogHandler.collected[.notice, ==] == "Shard 2: AppTests/LoginTests, CoreTests/NetworkTests")
     }
 
     @Test(.inTemporaryDirectory, .withMockedDependencies())
@@ -165,8 +223,10 @@ struct ShardServiceTests {
         ).willReturn(
             Components.Schemas.Shard(
                 download_url: "https://example.com/unused",
+                download_urls: [],
                 modules: ["AppTests"],
                 shard_plan_id: "plan-123",
+                skip: [],
                 suites: .init()
             )
         )
@@ -233,8 +293,10 @@ struct ShardServiceTests {
         ).willReturn(
             Components.Schemas.Shard(
                 download_url: "https://example.com/unused",
+                download_urls: [],
                 modules: ["AppTests"],
                 shard_plan_id: "plan-123",
+                skip: [],
                 suites: .init()
             )
         )
@@ -272,6 +334,105 @@ struct ShardServiceTests {
         #expect(extractedContent == "fixture")
     }
 
+    @Test(.inTemporaryDirectory, .withMockedDependencies(), .serialized)
+    func shard_withRemoteDownloadUrls_downloadsAndExtractsSplitArtifacts() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let fileSystem = FileSystem()
+        let appleArchiver = AppleArchiver()
+
+        let sourceProductsPath = temporaryDirectory.appending(component: "MyApp.xctestproducts")
+        try await fileSystem.makeDirectory(at: sourceProductsPath)
+        try await fileSystem.writeAsPlist(
+            XCTestRunFixture(
+                testConfigurations: [
+                    .init(
+                        testTargets: [
+                            .init(blueprintName: "AppTests", testHostPath: "/path/to/host"),
+                        ]
+                    ),
+                ]
+            ),
+            at: sourceProductsPath.appending(component: "MyApp.xctestrun"),
+            encoder: plistEncoder()
+        )
+        try await fileSystem.writeText("shared", at: sourceProductsPath.appending(component: "shared.txt"))
+        let appTestsPath = sourceProductsPath.appending(component: "AppTests.xctest")
+        try await fileSystem.makeDirectory(at: appTestsPath)
+        try await fileSystem.writeText("module", at: appTestsPath.appending(component: "module.txt"))
+
+        let archiveDirectory = temporaryDirectory.appending(component: "archives")
+        try await fileSystem.makeDirectory(at: archiveDirectory)
+        let sharedArchivePath = archiveDirectory.appending(component: "shared.aar")
+        let moduleArchivePath = archiveDirectory.appending(component: "AppTests.aar")
+        try await appleArchiver.compress(
+            directory: sourceProductsPath,
+            to: sharedArchivePath,
+            excludePatterns: [".xctest/"]
+        )
+        try await appleArchiver.compress(
+            subdirectory: appTestsPath,
+            relativeTo: sourceProductsPath,
+            to: moduleArchivePath
+        )
+
+        let sharedURL = URL(string: "https://artifacts.tuist.test/shared.aar")!
+        let moduleURL = URL(string: "https://artifacts.tuist.test/AppTests.aar")!
+        ShardDownloadURLProtocol.responses = [
+            sharedURL: try await fileSystem.readFile(at: sharedArchivePath),
+            moduleURL: try await fileSystem.readFile(at: moduleArchivePath),
+        ]
+
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [ShardDownloadURLProtocol.self]
+        let fileClient = FileClient(session: URLSession(configuration: configuration), fileSystem: fileSystem)
+
+        let ciController = MockCIControlling()
+        given(ciController).ciInfo().willReturn(.test(provider: .github))
+
+        let getShardService = MockGetShardServicing()
+        given(getShardService).getShard(
+            fullHandle: .any,
+            serverURL: .any,
+            reference: .any,
+            shardIndex: .any
+        ).willReturn(
+            Components.Schemas.Shard(
+                download_url: sharedURL.absoluteString,
+                download_urls: [sharedURL.absoluteString, moduleURL.absoluteString],
+                modules: ["AppTests"],
+                shard_plan_id: "plan-123",
+                skip: [],
+                suites: .init(additionalProperties: ["AppTests": ["LoginTests"]])
+            )
+        )
+
+        let subject = ShardService(
+            getShardService: getShardService,
+            ciController: ciController,
+            fileClient: fileClient,
+            fileSystem: fileSystem,
+            appleArchiver: appleArchiver
+        )
+
+        let shard = try await subject.shard(
+            shardIndex: 0,
+            fullHandle: "org/project",
+            serverURL: URL(string: "https://tuist.dev")!,
+            reference: nil,
+            testProductsPath: nil,
+            testProductsArchivePath: nil
+        )
+
+        #expect(shard.testProductsPath.basename.hasSuffix(".xctestproducts"))
+        #expect(shard.testIdentifiers == ["AppTests/LoginTests"])
+        #expect(try await fileSystem.readTextFile(at: shard.testProductsPath.appending(component: "shared.txt")) == "shared")
+        #expect(
+            try await fileSystem.readTextFile(
+                at: shard.testProductsPath.appending(components: "AppTests.xctest", "module.txt")
+            ) == "module"
+        )
+    }
+
     // MARK: - Helpers
 
     private func makeSubjectWithLocalProducts(
@@ -305,8 +466,10 @@ struct ShardServiceTests {
         ).willReturn(
             Components.Schemas.Shard(
                 download_url: "https://example.com/unused",
+                download_urls: [],
                 modules: modules,
                 shard_plan_id: "plan-123",
+                skip: [],
                 suites: .init(additionalProperties: suites)
             )
         )
@@ -361,4 +524,32 @@ private func plistEncoder() -> PropertyListEncoder {
     let encoder = PropertyListEncoder()
     encoder.outputFormat = .xml
     return encoder
+}
+
+private final class ShardDownloadURLProtocol: URLProtocol {
+    nonisolated(unsafe) static var responses = [URL: Data]()
+
+    override class func canInit(with _: URLRequest) -> Bool {
+        true
+    }
+
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest {
+        request
+    }
+
+    override func startLoading() {
+        let data = request.url.flatMap { Self.responses[$0] } ?? Data()
+        let statusCode = request.url.flatMap { Self.responses[$0] } == nil ? 404 : 200
+        let response = HTTPURLResponse(
+            url: request.url!,
+            statusCode: statusCode,
+            httpVersion: nil,
+            headerFields: nil
+        )!
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: data)
+        client?.urlProtocolDidFinishLoading(self)
+    }
+
+    override func stopLoading() {}
 }

@@ -6,7 +6,7 @@ defmodule TuistWeb.MCPControllerTest do
   alias TuistWeb.RateLimit
 
   @initialize_params %{
-    "protocolVersion" => "2025-03-26",
+    "protocolVersion" => "2025-06-18",
     "capabilities" => %{},
     "clientInfo" => %{"name" => "test", "version" => "0.1.0"}
   }
@@ -45,8 +45,70 @@ defmodule TuistWeb.MCPControllerTest do
       assert response["jsonrpc"] == "2.0"
       assert response["id"] == 1
       assert is_map(response["result"])
-      assert is_binary(response["result"]["protocolVersion"])
+      assert response["result"]["protocolVersion"] == "2025-06-18"
       assert is_map(response["result"]["capabilities"])
+    end
+
+    test "negotiates the legacy protocol version when requested", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+      stub(RateLimit.MCP, :hit, fn _conn -> {:allow, 1} end)
+
+      initialize_params = Map.put(@initialize_params, "protocolVersion", "2025-03-26")
+
+      conn =
+        conn
+        |> authenticated_mcp_conn(user.token)
+        |> post_mcp(%{
+          "jsonrpc" => "2.0",
+          "id" => 1,
+          "method" => "initialize",
+          "params" => initialize_params
+        })
+
+      response = json_response(conn, 200)
+      assert response["result"]["protocolVersion"] == "2025-03-26"
+    end
+
+    test "returns the latest supported protocol version for an unsupported initialization version", %{
+      conn: conn
+    } do
+      user = AccountsFixtures.user_fixture()
+      stub(RateLimit.MCP, :hit, fn _conn -> {:allow, 1} end)
+
+      initialize_params = Map.put(@initialize_params, "protocolVersion", "2099-01-01")
+
+      conn =
+        conn
+        |> authenticated_mcp_conn(user.token)
+        |> post_mcp(%{
+          "jsonrpc" => "2.0",
+          "id" => 1,
+          "method" => "initialize",
+          "params" => initialize_params
+        })
+
+      response = json_response(conn, 200)
+      assert response["result"]["protocolVersion"] == "2025-06-18"
+    end
+
+    test "rejects an unsupported protocol version header", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+      stub(RateLimit.MCP, :hit, fn _conn -> {:allow, 1} end)
+
+      conn =
+        conn
+        |> authenticated_mcp_conn(user.token)
+        |> put_req_header("mcp-protocol-version", "2099-01-01")
+        |> post_mcp(%{
+          "jsonrpc" => "2.0",
+          "id" => 2,
+          "method" => "tools/list",
+          "params" => %{}
+        })
+
+      response = json_response(conn, 400)
+      assert response["error"] == "Unsupported MCP protocol version: 2099-01-01"
+      assert response["supported"] == ["2025-06-18", "2025-03-26"]
     end
 
     test "returns error when session is not initialized", %{conn: conn} do
@@ -90,6 +152,7 @@ defmodule TuistWeb.MCPControllerTest do
         build_conn()
         |> authenticated_mcp_conn(user.token)
         |> put_req_header("mcp-session-id", session_id)
+        |> put_req_header("mcp-protocol-version", "2025-06-18")
         |> post_mcp(%{
           "jsonrpc" => "2.0",
           "method" => "notifications/initialized",
@@ -135,6 +198,91 @@ defmodule TuistWeb.MCPControllerTest do
       [content_type] = get_resp_header(conn, "content-type")
       assert content_type =~ "application/json"
       refute content_type =~ "text/event-stream"
+    end
+
+    test "returns request responses inline when the session has a stale event stream registration", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+      stub(RateLimit.MCP, :hit, fn _conn -> {:allow, 1} end)
+      # Pin the hosted-only tools so the advertised count is deterministic
+      # regardless of the ambient TUIST_HOSTED value.
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+
+      init_conn =
+        conn
+        |> authenticated_mcp_conn(user.token)
+        |> post_mcp(%{
+          "jsonrpc" => "2.0",
+          "id" => 1,
+          "method" => "initialize",
+          "params" => @initialize_params
+        })
+
+      [session_id] = get_resp_header(init_conn, "mcp-session-id")
+
+      stale_pid = spawn(fn -> :ok end)
+      ref = Process.monitor(stale_pid)
+      assert_receive {:DOWN, ^ref, :process, ^stale_pid, _reason}
+      EMCP.SessionStore.ETS.register(session_id, stale_pid)
+
+      conn =
+        build_conn()
+        |> authenticated_mcp_conn(user.token)
+        |> put_req_header("mcp-session-id", session_id)
+        |> put_req_header("mcp-protocol-version", "2025-06-18")
+        |> post_mcp(%{
+          "jsonrpc" => "2.0",
+          "id" => 2,
+          "method" => "tools/list",
+          "params" => %{}
+        })
+
+      response = json_response(conn, 200)
+
+      assert response["jsonrpc"] == "2.0"
+      assert response["id"] == 2
+
+      tools = response["result"]["tools"]
+      assert length(tools) == 35
+      assert "search_tuist" in Enum.map(tools, & &1["name"])
+
+      for tool <- tools do
+        assert is_binary(tool["description"]) and tool["description"] != ""
+        assert tool["outputSchema"]["type"] == "object"
+        assert is_map(tool["outputSchema"]["properties"])
+      end
+    end
+
+    test "serves methods that skip response decoration", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+      stub(RateLimit.MCP, :hit, fn _conn -> {:allow, 1} end)
+
+      init_conn =
+        conn
+        |> authenticated_mcp_conn(user.token)
+        |> post_mcp(%{
+          "jsonrpc" => "2.0",
+          "id" => 1,
+          "method" => "initialize",
+          "params" => @initialize_params
+        })
+
+      [session_id] = get_resp_header(init_conn, "mcp-session-id")
+
+      conn =
+        build_conn()
+        |> authenticated_mcp_conn(user.token)
+        |> put_req_header("mcp-session-id", session_id)
+        |> put_req_header("mcp-protocol-version", "2025-06-18")
+        |> post_mcp(%{
+          "jsonrpc" => "2.0",
+          "id" => 2,
+          "method" => "prompts/list",
+          "params" => %{}
+        })
+
+      response = json_response(conn, 200)
+      assert response["id"] == 2
+      assert is_list(response["result"]["prompts"])
     end
 
     test "assigns a session ID on first request", %{conn: conn} do

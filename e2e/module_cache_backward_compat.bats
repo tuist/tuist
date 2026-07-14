@@ -69,17 +69,35 @@ EOF
     echo "# Using tuist binary: $("$TUIST_EXECUTABLE" version 2>/dev/null || echo unknown)" >&3
     # The way `auth login` is pointed at a server changed across versions: older
     # CLIs take --path and read the URL from Tuist.swift, newer ones take --url.
-    # Try --url first and fall back to --path so the suite survives the pin
-    # moving across that boundary. Credentials/email/password come from env.
+    # Detect which the pinned binary supports from its --help so the suite
+    # survives the pin moving across that boundary - and, crucially, so a real
+    # login failure (e.g. a transient 502 from the canary gateway) surfaces as
+    # itself instead of being masked by an "Unknown option '--path'" from a
+    # blind `|| ... --path` fallback. Credentials/email/password come from env.
+    local login_target=(--path "$FIXTURE_DIR")
+    if "$TUIST_EXECUTABLE" auth login --help 2>&1 | grep -q -- '--url'; then
+        login_target=(--url "$TUIST_URL")
+    fi
+
+    # Retry the login: a single transient gateway blip against canary must not
+    # fail the whole production gate, mirroring the polled cache pull below.
     echo "# Logging in to ${TUIST_URL}..." >&3
-    "$TUIST_EXECUTABLE" auth login \
-        --email "$TUIST_AUTH_EMAIL" \
-        --password "$TUIST_AUTH_PASSWORD" \
-        --url "$TUIST_URL" \
-        || "$TUIST_EXECUTABLE" auth login \
+    logged_in=0
+    for attempt in 1 2 3 4 5; do
+        if "$TUIST_EXECUTABLE" auth login \
             --email "$TUIST_AUTH_EMAIL" \
             --password "$TUIST_AUTH_PASSWORD" \
-            --path "$FIXTURE_DIR"
+            "${login_target[@]}" >&3 2>&1; then
+            logged_in=1
+            break
+        fi
+        echo "# auth login attempt ${attempt} failed; retrying in 3s" >&3
+        sleep 3
+    done
+    if [ "$logged_in" -ne 1 ]; then
+        echo "# auth login to ${TUIST_URL} failed after retries" >&3
+    fi
+    [ "$logged_in" -eq 1 ]
 
     # --build-system is required non-interactively; without it the CLI prompts
     # "Which build system does your project use?" and aborts in CI. xcode is the

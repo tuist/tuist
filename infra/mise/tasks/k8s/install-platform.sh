@@ -132,21 +132,8 @@ KUBECONFIG="$WL_KUBECONFIG" kubectl -n platform delete job \
   --ignore-not-found --cascade=foreground --timeout=2m || true
 
 HELM_EXTRA_ARGS=()
+
 ADMISSION_SECRETS=(platform-ingress-nginx-admission)
-case "$CLUSTER_NAME" in
-  tuist)
-    ADMISSION_SECRETS+=(
-      platform-kura-eu-central-ingress-nginx-admission
-      platform-kura-us-east-ingress-nginx-admission
-      platform-kura-us-west-ingress-nginx-admission
-    )
-    ;;
-  tuist-canary | tuist-staging)
-    ADMISSION_SECRETS+=(
-      platform-kura-eu-central-ingress-nginx-admission
-    )
-    ;;
-esac
 
 if KUBECONFIG="$WL_KUBECONFIG" helm status platform --namespace platform >/dev/null 2>&1; then
   HAVE_ALL_ADMISSION_SECRETS=true

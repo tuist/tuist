@@ -38,6 +38,8 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
     cache_key = [
       Atom.to_string(__MODULE__),
       "authorize",
+      Atom.to_string(category),
+      Atom.to_string(action),
       "#{subject_kind(subject)}-#{subject_id(subject)}",
       "#{Atom.to_string(selected_project.__struct__)}-#{selected_project.id}"
     ]
@@ -82,8 +84,14 @@ defmodule TuistWeb.API.Authorization.AuthorizationPlug do
   defp subject_name(_subject), do: "The authenticated subject"
 
   def authorize(subject, action, project, category) do
-    Authorization.authorize(:"#{category}_#{action}", subject, project) == :ok
+    category
+    |> authorization_action(action)
+    |> Authorization.authorize(subject, project)
+    |> Kernel.==(:ok)
   end
+
+  defp authorization_action(:cache, action), do: authorization_action(:project, :"cache_#{action}")
+  defp authorization_action(category, action), do: :"#{category}_#{action}"
 
   defp get_action(conn) do
     case conn.method do

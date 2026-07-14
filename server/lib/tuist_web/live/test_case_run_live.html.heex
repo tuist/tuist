@@ -1087,8 +1087,18 @@
           <.empty_tab_state_background />
         </div>
         <div data-part="image">
-          <img src="/images/empty_errors_light.png" data-theme="light" />
-          <img src="/images/empty_errors_dark.png" data-theme="dark" />
+          <img
+            src={~p"/images/empty_errors_light.png"}
+            data-theme="light"
+            loading="lazy"
+            decoding="async"
+          />
+          <img
+            src={~p"/images/empty_errors_dark.png"}
+            data-theme="dark"
+            loading="lazy"
+            decoding="async"
+          />
         </div>
         <span data-part="title">{dgettext("dashboard_tests", "No failures detected")}</span>
         <span data-part="subtitle">{dgettext("dashboard_tests", "All tests passed!")}</span>

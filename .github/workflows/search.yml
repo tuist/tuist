@@ -43,7 +43,6 @@ jobs:
       - uses: ./.github/actions/mise-install
         with:
           version: ${{ env.MISE_VERSION }}
-          install: "ruby gem:kamal"
           working-directory: search
       - name: Build and verify health
         run: mise run test

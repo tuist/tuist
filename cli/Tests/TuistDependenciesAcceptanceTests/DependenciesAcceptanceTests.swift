@@ -258,6 +258,22 @@ struct DependenciesAcceptanceTestIosAppWithLocalSPMPackageGenerate {
     }
 }
 
+struct DependenciesAcceptanceTestCommandLineToolWithLocalSPMTestOnlyDependencies {
+    @Test(
+        .withFixture("generated_command_line_tool_with_local_spm_test_only_dependencies"),
+        .inTemporaryDirectory,
+        .timeLimit(.minutes(1))
+    )
+    func install_then_generate_ignores_local_package_test_only_dependencies() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        try await TuistTest.run(
+            InstallCommand.self,
+            ["--path", fixtureDirectory.pathString, "--force-resolved-versions"]
+        )
+        try await TuistTest.run(GenerateCommand.self, ["--no-open", "--path", fixtureDirectory.pathString])
+    }
+}
+
 struct DependenciesAcceptanceTestAppAlamofire {
     @Test(.disabled(), .withFixture("generated_app_with_alamofire"), .inTemporaryDirectory)
     func app_with_alamofire() async throws {

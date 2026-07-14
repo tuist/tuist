@@ -100,7 +100,11 @@ defmodule Tuist.Kura.ReconcilerTest do
     assert :ok = Reconciler.reconcile()
 
     assert %Deployment{status: :running} = Repo.get!(Deployment, deployment.id)
-    assert %Server{status: :provisioning, current_image_tag: nil, url: nil} = Repo.get!(Server, server.id)
+
+    # The workload is up on the desired image but its public endpoint is not
+    # serving yet, so the server surfaces :replicating while the deployment keeps
+    # retrying (it is not activated until the endpoint is healthy).
+    assert %Server{status: :replicating, current_image_tag: nil, url: nil} = Repo.get!(Server, server.id)
   end
 
   test "schedules and applies runtime image drift for active servers" do
@@ -490,6 +494,76 @@ defmodule Tuist.Kura.ReconcilerTest do
 
     assert %Server{status: :active, current_image_tag: "0.5.2", url: "http://localhost:4100"} =
              Repo.get!(Server, server.id)
+  end
+
+  describe "warm-handoff moves" do
+    test "promotes a caught-up moving_in target, swapping host ownership" do
+      {_account, source} = active_host_network_source()
+      {:ok, target} = Kura.move_server(source, "box-2")
+
+      # The target is up on the desired image and has caught up from the source.
+      stub(Provisioner, :current_image_tag, fn %Server{id: id} ->
+        if id == target.id, do: {:ok, "0.5.2"}, else: {:error, :not_found}
+      end)
+
+      stub(Provisioner, :caught_up?, fn %Server{id: id} -> {:ok, id == target.id} end)
+      stub(Provisioner, :rollout, fn _server, _inputs -> :ok end)
+
+      assert :ok = Reconciler.reconcile()
+
+      # Host ownership flips atomically: source drains, target takes over.
+      assert %Server{move_phase: :moving_out} = Repo.get!(Server, source.id)
+      assert %Server{move_phase: :none} = Repo.get!(Server, target.id)
+    end
+
+    test "leaves a not-yet-caught-up target warming as :replicating" do
+      {_account, source} = active_host_network_source()
+      {:ok, target} = Kura.move_server(source, "box-2")
+
+      stub(Provisioner, :current_image_tag, fn %Server{id: id} ->
+        if id == target.id, do: {:ok, "0.5.2"}, else: {:error, :not_found}
+      end)
+
+      stub(Provisioner, :caught_up?, fn %Server{} -> {:ok, false} end)
+
+      assert :ok = Reconciler.reconcile()
+
+      assert %Server{move_phase: :moving_in, status: :replicating} = Repo.get!(Server, target.id)
+      assert %Server{move_phase: :none} = Repo.get!(Server, source.id)
+    end
+
+    test "drains and destroys the source after the drain window" do
+      {_account, source} = active_host_network_source()
+      {:ok, moving_out} = source |> Server.move_changeset(%{move_phase: :moving_out}) |> Repo.update()
+
+      past = DateTime.add(DateTime.utc_now(), -3600, :second)
+      {1, _} = Repo.update_all(Ecto.Query.where(Server, [s], s.id == ^moving_out.id), set: [updated_at: past])
+
+      assert :ok = Reconciler.reconcile()
+
+      assert %Server{status: :destroying} = Repo.get!(Server, moving_out.id)
+    end
+  end
+
+  defp active_host_network_source do
+    user = AccountsFixtures.user_fixture()
+    account = Accounts.get_account_from_user(user)
+
+    {:ok, source} =
+      %{account_id: account.id, region: "eu-central", provisioner_node_ref: "kura-move-source"}
+      |> Server.create_changeset()
+      |> Repo.insert()
+
+    {:ok, source} =
+      source
+      |> Server.status_changeset(%{
+        status: :active,
+        url: "https://acme-eu-central-1.kura.tuist.dev",
+        current_image_tag: "0.5.2"
+      })
+      |> Repo.update()
+
+    {account, source}
   end
 
   defp create_server do

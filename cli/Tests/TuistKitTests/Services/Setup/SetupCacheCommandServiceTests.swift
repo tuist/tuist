@@ -24,6 +24,7 @@ struct SetupCacheCommandServiceTests {
     private let launchAgentService = MockLaunchAgentServicing()
     private let configLoader = MockConfigLoading()
     private let serverEnvironmentService = MockServerEnvironmentServicing()
+    private let serverAuthenticationController = MockServerAuthenticationControlling()
     private let manifestLoader = MockManifestLoading()
 
     init() {
@@ -31,6 +32,7 @@ struct SetupCacheCommandServiceTests {
             launchAgentService: launchAgentService,
             configLoader: configLoader,
             serverEnvironmentService: serverEnvironmentService,
+            serverAuthenticationController: serverAuthenticationController,
             manifestLoader: manifestLoader
         )
 
@@ -42,6 +44,10 @@ struct SetupCacheCommandServiceTests {
             .url(configServerURL: .any)
             .willReturn(Constants.URLs.production)
 
+        given(serverAuthenticationController)
+            .authenticationToken(serverURL: .any)
+            .willReturn(.project("token"))
+
         given(manifestLoader)
             .hasRootManifest(at: .any)
             .willReturn(false)
@@ -49,12 +55,17 @@ struct SetupCacheCommandServiceTests {
         given(launchAgentService)
             .setupLaunchAgent(label: .any, plistFileName: .any, programArguments: .any, environmentVariables: .any)
             .willReturn()
+
+        given(launchAgentService)
+            .teardownLaunchAgent(label: .any, plistFileName: .any)
+            .willReturn()
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment(), .withMockedLogger()) func setupCache_withTuistProject() async throws {
         // Given
         let environment = try #require(Environment.mocked)
         environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
 
         let config = Tuist.test(
             project: .generated(.test(generationOptions: .test(enableCaching: true))),
@@ -80,8 +91,8 @@ struct SetupCacheCommandServiceTests {
         // Then
         verify(launchAgentService)
             .setupLaunchAgent(
-                label: .value("tuist.cache.organization_project"),
-                plistFileName: .value("tuist.cache.organization_project.plist"),
+                label: .value("tuist.cas-proxy"),
+                plistFileName: .value("tuist.cas-proxy.plist"),
                 programArguments: .any,
                 environmentVariables: .any
             )
@@ -89,7 +100,7 @@ struct SetupCacheCommandServiceTests {
 
         let success = try #require(alertController.success().last)
         #expect(success.message.plain().contains("Xcode Cache has been enabled 🎉"))
-        #expect(success.takeaways.contains { $0.plain().contains("Xcode talks to the cache daemon over the socket at") })
+        #expect(success.takeaways.contains { $0.plain().contains("Xcode Cache is set up") })
     }
 
     @Test(
@@ -100,6 +111,7 @@ struct SetupCacheCommandServiceTests {
         // Given
         let environment = try #require(Environment.mocked)
         environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
 
         let config = Tuist.test(fullHandle: "organization/project")
         configLoader.reset()
@@ -116,13 +128,14 @@ struct SetupCacheCommandServiceTests {
             .called(1)
 
         TuistTest.expectLogs("Xcode Cache setup is almost complete!")
-        TuistTest.expectLogs("COMPILATION_CACHE_REMOTE_SERVICE_PATH=")
+        TuistTest.expectLogs("COMPILATION_CACHE_PLUGIN_PATH=")
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment()) func setupCache_withCustomURL() async throws {
         // Given
         let environment = try #require(Environment.mocked)
         environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
 
         let customURL = URL(string: "https://custom.tuist.dev")!
         let config = Tuist.test(
@@ -157,6 +170,7 @@ struct SetupCacheCommandServiceTests {
         // Given
         let environment = try #require(Environment.mocked)
         environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
 
         let config = Tuist.test(fullHandle: "organization/project")
         configLoader.reset()
@@ -170,8 +184,8 @@ struct SetupCacheCommandServiceTests {
         // Then
         verify(launchAgentService)
             .setupLaunchAgent(
-                label: .value("tuist.cache.organization_project"),
-                plistFileName: .value("tuist.cache.organization_project.plist"),
+                label: .value("tuist.cas-proxy"),
+                plistFileName: .value("tuist.cas-proxy.plist"),
                 programArguments: .any,
                 environmentVariables: .any
             )
@@ -182,6 +196,7 @@ struct SetupCacheCommandServiceTests {
         // Given
         let environment = try #require(Environment.mocked)
         environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
 
         let config = Tuist.test(fullHandle: nil)
         configLoader.reset()
@@ -195,10 +210,33 @@ struct SetupCacheCommandServiceTests {
         }
     }
 
+    @Test(.withMockedEnvironment()) func setupCache_notAuthenticated() async throws {
+        // Given
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
+
+        serverAuthenticationController.reset()
+        given(serverAuthenticationController)
+            .authenticationToken(serverURL: .any)
+            .willReturn(nil)
+
+        // When/Then: setup must fail fast rather than installing a LaunchAgent whose
+        // daemon would immediately exit because there are no credentials.
+        await #expect(throws: SetupCacheCommandServiceError.notAuthenticated) {
+            try await subject.run(path: nil)
+        }
+
+        verify(launchAgentService)
+            .setupLaunchAgent(label: .any, plistFileName: .any, programArguments: .any, environmentVariables: .any)
+            .called(0)
+    }
+
     @Test(.inTemporaryDirectory, .withMockedEnvironment()) func setupCache_includesEnvironmentToken() async throws {
         // Given
         let environment = try #require(Environment.mocked)
         environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
         let token = "test-auth-token-123"
         environment.variables[Constants.EnvironmentVariables.token] = token
 
@@ -217,7 +255,11 @@ struct SetupCacheCommandServiceTests {
                 label: .any,
                 plistFileName: .any,
                 programArguments: .any,
-                environmentVariables: .value(["TUIST_TOKEN": token])
+                environmentVariables: .value([
+                    "TUIST_CAS_TOKEN": token,
+                    "TUIST_TOKEN": token,
+                    "TUIST_FEATURE_FLAG_KURA": "1",
+                ])
             )
             .called(1)
     }
@@ -226,9 +268,9 @@ struct SetupCacheCommandServiceTests {
         // Given
         let environment = try #require(Environment.mocked)
         environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
         let token = "test-auth-token-123"
         environment.variables[Constants.EnvironmentVariables.token] = token
-        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
 
         let config = Tuist.test(fullHandle: "organization/project")
         configLoader.reset()
@@ -248,8 +290,45 @@ struct SetupCacheCommandServiceTests {
                 plistFileName: .any,
                 programArguments: .any,
                 environmentVariables: .value([
+                    "TUIST_CAS_TOKEN": token,
                     "TUIST_TOKEN": token,
                     "TUIST_FEATURE_FLAG_KURA": "1",
+                ])
+            )
+            .called(1)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func setupCache_forwardsCacheEndpointOverride() async throws {
+        // Given
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
+        let token = "test-auth-token-123"
+        environment.variables[Constants.EnvironmentVariables.token] = token
+        environment.variables["TUIST_CACHE_ENDPOINT"] = "http://172.16.0.2:30815"
+
+        let config = Tuist.test(fullHandle: "organization/project")
+        configLoader.reset()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(config)
+
+        // When
+        try await subject.run(path: nil)
+
+        // Then: the runner-cache dispatch sets TUIST_CACHE_ENDPOINT as a hard
+        // override, but the launchd agent does not inherit it, so it must be
+        // forwarded or the CAS keeps resolving the public endpoint.
+        verify(launchAgentService)
+            .setupLaunchAgent(
+                label: .any,
+                plistFileName: .any,
+                programArguments: .any,
+                environmentVariables: .value([
+                    "TUIST_CAS_TOKEN": token,
+                    "TUIST_TOKEN": token,
+                    "TUIST_FEATURE_FLAG_KURA": "1",
+                    "TUIST_CACHE_ENDPOINT": "http://172.16.0.2:30815",
                 ])
             )
             .called(1)
@@ -262,6 +341,7 @@ struct SetupCacheCommandServiceTests {
         // Given
         let environment = try #require(Environment.mocked)
         environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
         environment.variables[Constants.EnvironmentVariables.token] = nil
 
         let config = Tuist.test(fullHandle: "organization/project")
@@ -279,69 +359,7 @@ struct SetupCacheCommandServiceTests {
                 label: .any,
                 plistFileName: .any,
                 programArguments: .any,
-                environmentVariables: .value([:])
-            )
-            .called(1)
-    }
-
-    @Test(
-        .inTemporaryDirectory,
-        .withMockedEnvironment()
-    ) func setupCache_withUploadDisabled_includesNoUploadFlag() async throws {
-        // Given
-        let environment = try #require(Environment.mocked)
-        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
-
-        let config = Tuist.test(
-            fullHandle: "organization/project",
-            xcodeCache: .init(upload: false)
-        )
-        configLoader.reset()
-        given(configLoader)
-            .loadConfig(path: .any)
-            .willReturn(config)
-
-        // When
-        try await subject.run(path: nil)
-
-        // Then
-        verify(launchAgentService)
-            .setupLaunchAgent(
-                label: .any,
-                plistFileName: .any,
-                programArguments: .matching { $0.contains("--no-upload") },
-                environmentVariables: .any
-            )
-            .called(1)
-    }
-
-    @Test(
-        .inTemporaryDirectory,
-        .withMockedEnvironment()
-    ) func setupCache_withUploadEnabled_doesNotIncludeNoUploadFlag() async throws {
-        // Given
-        let environment = try #require(Environment.mocked)
-        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
-
-        let config = Tuist.test(
-            fullHandle: "organization/project",
-            xcodeCache: .init(upload: true)
-        )
-        configLoader.reset()
-        given(configLoader)
-            .loadConfig(path: .any)
-            .willReturn(config)
-
-        // When
-        try await subject.run(path: nil)
-
-        // Then
-        verify(launchAgentService)
-            .setupLaunchAgent(
-                label: .any,
-                plistFileName: .any,
-                programArguments: .matching { !$0.contains("--no-upload") },
-                environmentVariables: .any
+                environmentVariables: .value(["TUIST_FEATURE_FLAG_KURA": "1"])
             )
             .called(1)
     }
@@ -354,6 +372,7 @@ struct SetupCacheCommandServiceTests {
         // Given
         let environment = try #require(Environment.mocked)
         environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
 
         let config = Tuist.test(
             project: .generated(.test(generationOptions: .test(enableCaching: false))),
@@ -381,16 +400,17 @@ struct SetupCacheCommandServiceTests {
         TuistTest
             .expectLogs("To enable Xcode Cache for this project, set the enableCaching property in your Tuist.swift file to true:"
             )
-        TuistTest.expectLogs("Xcode talks to the cache daemon over the socket at: ")
+        TuistTest.expectLogs("Xcode Cache is set up")
     }
 
     @Test(
         .inTemporaryDirectory,
         .withMockedEnvironment()
-    ) func setupCache_programArgumentsIncludeCacheStartAndFullHandle() async throws {
+    ) func setupCache_programArgumentsIncludeCacheProxyAndAccount() async throws {
         // Given
         let environment = try #require(Environment.mocked)
         environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
 
         let config = Tuist.test(fullHandle: "organization/project")
         configLoader.reset()
@@ -406,8 +426,51 @@ struct SetupCacheCommandServiceTests {
             .setupLaunchAgent(
                 label: .any,
                 plistFileName: .any,
-                programArguments: .matching { $0.contains("cache-start") && $0.contains("organization/project") },
+                programArguments: .matching { $0.contains("cache-proxy") && $0.contains("organization") },
                 environmentVariables: .any
+            )
+            .called(1)
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment(),
+        .withMockedLogger()
+    ) func setupCache_withoutKuraFlag_installsLegacyDaemon() async throws {
+        // Given: no TUIST_FEATURE_FLAG_KURA, so setup takes the legacy per-project
+        // daemon path that every not-yet-migrated account still runs. The kura
+        // backwards-compat promise rests on this branch, so pin its behaviour.
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        let token = "test-auth-token-123"
+        environment.variables[Constants.EnvironmentVariables.token] = token
+
+        let config = Tuist.test(
+            fullHandle: "organization/project",
+            xcodeCache: Tuist.XcodeCache(upload: false)
+        )
+        configLoader.reset()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(config)
+
+        // When
+        try await subject.run(path: nil)
+
+        // Then: the per-project agent label, `cache-start` args (with --no-upload),
+        // and TUIST_TOKEN seeding are all pinned.
+        verify(launchAgentService)
+            .setupLaunchAgent(
+                label: .value("tuist.cache.organization_project"),
+                plistFileName: .value("tuist.cache.organization_project.plist"),
+                programArguments: .value([
+                    "cache-start",
+                    "organization/project",
+                    "--url",
+                    Constants.URLs.production.absoluteString,
+                    "--no-upload",
+                ]),
+                environmentVariables: .value(["TUIST_TOKEN": token])
             )
             .called(1)
     }

@@ -37,8 +37,6 @@ defmodule Tuist.Runners.Workers.ArchiveLogsWorker do
   alias Tuist.Runners.Jobs
   alias Tuist.Storage
 
-  require Logger
-
   # Lines read from ClickHouse per batch. Bounds peak memory for the
   # in-flight chunk being deflated.
   @batch_size 2_000

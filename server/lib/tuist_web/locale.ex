@@ -93,8 +93,6 @@ defmodule TuistWeb.Locale do
     String.length(script) == 4 and String.match?(script, ~r/^[A-Za-z]+$/)
   end
 
-  defp normalize_script(nil), do: nil
-
   defp normalize_script(script) do
     script
     |> String.downcase()

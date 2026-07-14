@@ -1,0 +1,40 @@
+// Minimal subset of the Remote Execution API (REAPI) Capabilities service.
+//
+// It is vendored solely so the CLI can probe a remote cache endpoint with the
+// same GetCapabilities handshake Bazel performs on start-up. Only the pieces
+// required to issue the request and confirm a successful response are declared:
+// the package, service name and method name match the upstream REAPI exactly so
+// the wire path resolves to "/build.bazel.remote.execution.v2.Capabilities/GetCapabilities".
+//
+// ServerCapabilities is intentionally left empty. proto3 ignores unknown fields
+// on decode, so the probe can decode whatever the server returns while only
+// needing to confirm the call completes without a gRPC error.
+//
+// Upstream: https://github.com/bazelbuild/remote-apis/blob/main/build/bazel/remote/execution/v2/remote_execution.proto
+
+syntax = "proto3";
+
+package build.bazel.remote.execution.v2;
+
+option java_multiple_files = true;
+option java_package = "build.bazel.remote.execution.v2";
+option java_outer_classname = "RemoteExecutionProto";
+
+// The Capabilities service may be used by remote execution clients to query
+// various server properties, in order to self-configure or return meaningful
+// error messages.
+service Capabilities {
+  rpc GetCapabilities(GetCapabilitiesRequest) returns (ServerCapabilities) {}
+}
+
+message GetCapabilitiesRequest {
+  // The instance of the execution system to operate against. The probe sends
+  // the project handle here so the server can authorize the request against the
+  // matching instance namespace, mirroring what Bazel does via
+  // --remote_instance_name.
+  string instance_name = 1;
+}
+
+// Left empty on purpose: the probe only needs to confirm the server responds
+// successfully, not to inspect the advertised capabilities.
+message ServerCapabilities {}

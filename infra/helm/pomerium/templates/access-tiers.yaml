@@ -105,3 +105,25 @@ rules:
   - apiGroups: ["rbac.authorization.k8s.io"]
     resources: ["clusterroles", "clusterrolebindings", "roles", "rolebindings"]
     verbs: ["get", "list", "watch"]
+---
+# Write extension to the `edit` tier, the mutate analog of
+# `tuist-view-infra-read`. The upstream `edit` ClusterRole covers core/apps
+# resources but not custom resources, so a JIT-elevated `tuist-<env>-write`
+# identity can mutate Pods/StatefulSets/PVCs yet not the server-managed Kura
+# CRs (KuraInstance). Those are reconciled from the control plane,
+# so operators normally leave them alone — but a region cutover or cleanup
+# sometimes needs to recreate them so they re-render (e.g. onto a new node
+# pool). This aggregates into `edit` so an active write elevation can do that
+# without the break-glass kubeconfig. Scoped to `kura.tuist.dev`; CAPI/infra
+# CRs stay read-only for the edit tier (scaling fleets is a heavier action).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: tuist-edit-kura-write
+  labels:
+    {{- include "pomerium.labels" . | nindent 4 }}
+    rbac.authorization.k8s.io/aggregate-to-edit: "true"
+rules:
+  - apiGroups: ["kura.tuist.dev"]
+    resources: ["*"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete", "deletecollection"]

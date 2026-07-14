@@ -23,11 +23,15 @@
         </div>
       </div>
 
-      <img data-part="image" src={Blog.get_post_image_url(@post)} />
+      <img
+        data-part="image"
+        src={static_asset_path(Blog.get_post_image_url(@post))}
+        decoding="async"
+      />
     </header>
 
     <section id="blog-post-content" data-part="content" data-prose>
-      {raw(@post.body)}
+      {raw(content_html(@post.body))}
     </section>
 
     <section data-part="cta">
@@ -104,7 +108,7 @@
           </div>
         <% end %>
         <div class="marketing_content">
-          {raw(@post.body)}
+          {raw(content_html(@post.body))}
         </div>
       </section>
       <aside

@@ -2870,6 +2870,48 @@ defmodule Tuist.TestsTest do
       assert meta.total_pages == 2
     end
 
+    test "reports skipped test case pagination metadata past the first page" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      ran_at = NaiveDateTime.utc_now()
+
+      test_cases =
+        for index <- 1..501 do
+          RunsFixtures.test_case_fixture(
+            project_id: project.id,
+            name: "skippedTest#{index}",
+            state: "skipped",
+            last_ran_at: ran_at,
+            inserted_at: ran_at
+          )
+        end
+
+      IngestRepo.insert_all(
+        TestCase,
+        Enum.map(test_cases, &(&1 |> Map.from_struct() |> Map.delete(:__meta__)))
+      )
+
+      attrs = %{
+        filters: [%{field: :state, op: :==, value: "skipped"}],
+        order_by: [:last_ran_at, :id],
+        order_directions: [:desc, :asc],
+        page_size: 500
+      }
+
+      # When
+      {page1, meta1} = Tests.list_test_cases(project.id, Map.put(attrs, :page, 1))
+      {page2, meta2} = Tests.list_test_cases(project.id, Map.put(attrs, :page, 2))
+
+      # Then
+      assert length(page1) == 500
+      assert length(page2) == 1
+      assert meta1.total_count == 501
+      assert meta1.total_pages == 2
+      assert meta1.has_next_page?
+      refute meta2.has_next_page?
+      assert meta2.has_previous_page?
+    end
+
     test "supports sorting by last_duration" do
       # Given
       project = ProjectsFixtures.project_fixture()

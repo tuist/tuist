@@ -343,7 +343,7 @@
       },
       {
         "datasource": "$datasource",
-        "description": "Mac minis where tart-kubelet's controller-runtime metrics endpoint is reachable. Bound to the tailnet IP when --node-ip-source=tailscale, scraped through the Tailscale operator's egress ProxyGroup. A drop here is a routing failure (ProxyGroup pod down, ACL drift, missing egress Service) before it's a host failure; the node_exporter scrape on :9100 is the second sanity check.",
+        "description": "Mac minis where tart-kubelet's controller-runtime metrics endpoint is reachable, scoped to the selected environment (each cluster's Alloy stamps env on the scrape). Bound to the tailnet IP when --node-ip-source=tailscale, scraped through the Tailscale operator's egress ProxyGroup. A drop here is a routing failure (ProxyGroup pod down, ACL drift, missing egress Service) before it's a host failure; the node_exporter scrape on :9100 is the second sanity check. This same count is the live capacity denominator of the Pool utilisation panel for macOS.",
         "fieldConfig": {
           "defaults": {
             "color": {
@@ -394,7 +394,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "count(up{job=\"tuist-macos-tart-kubelet\"} == 1)",
+            "expr": "count(up{job=\"tuist-macos-tart-kubelet\", env=\"$env\"} == 1)",
             "instant": true,
             "refId": "A"
           }
@@ -859,7 +859,7 @@
       },
       {
         "datasource": "$datasource",
-        "description": "Running claims as a fraction of the platform's concurrency ceiling. macOS pools (one per Xcode version) share a single bare-metal host budget (hostCount, 1 VM/host) and the controller's allocator caps their joint replica sum to it, so the ceiling is max(maxReplicas) across the platform's pools, NOT the sum: each macOS pool reports maxReplicas = hostCount, so summing triple-counts the shared budget and pins utilisation near 33% even at full saturation. 100% means the platform is at its host budget and further queued work can't be served until hosts are added (raising maxReplicas does not help a host-bound macOS fleet). The denominator is the fixed ceiling, not the live target, so this reads as true saturation. Caveat: the numerator is PG running claims, which can briefly include claims whose Pods just finished before the recovery sweep, so small transient overshoots above 100% are possible.",
+        "description": "Running claims as a fraction of live capacity, per platform, scoped to the selected environment. For macOS the denominator is the count of Mac minis whose tart-kubelet endpoint is currently reachable (count(up{job=\"tuist-macos-tart-kubelet\"} == 1)) — 1 VM per host today, so reachable hosts == VM slots, and this is the same number shown in the Mac minis reporting stat. This tracks REAL capacity: if a mini drops off the tailnet the ceiling falls with it, unlike the static RunnerPool maxReplicas (which the four per-Xcode macOS pools all report as the shared hostCount, so it can't be summed). 100% means every reachable host is running a build and further queued work waits for a host to free up or for more hosts to come online. Caveat: small transient overshoots above 100% are possible because the numerator is PG running claims, which can briefly include claims whose Pods just finished before the recovery sweep, and because a host can leave the reachable set while its claim is still counted. Linux has no per-host reachability signal (runners are Kata microVMs on a shared, memory-contended bare-metal pool), so its denominator stays the pool capacity ceiling max(maxReplicas).",
         "fieldConfig": {
           "defaults": {
             "color": {
@@ -949,7 +949,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum by (platform) (label_replace(max by (fleet) (tuist_runners_claims_count{fleet=~\".*$platform.*\", lifecycle_state=\"running\", env=\"$env\"}), \"platform\", \"$1\", \"fleet\", \".*runner-pool-(linux|macos).*\")) / clamp_min(max by (platform) (label_replace(max by (fleet) (tuist_runners_pool_replicas_max{fleet=~\".*$platform.*\", env=\"$env\"}), \"platform\", \"$1\", \"fleet\", \".*runner-pool-(linux|macos).*\")), 1)",
+            "expr": "sum by (platform) (label_replace(max by (fleet) (tuist_runners_claims_count{fleet=~\".*$platform.*\", lifecycle_state=\"running\", env=\"$env\"}), \"platform\", \"$1\", \"fleet\", \".*runner-pool-(linux|macos).*\")) / clamp_min(label_replace(count(up{job=\"tuist-macos-tart-kubelet\", env=\"$env\"} == 1), \"platform\", \"macos\", \"__name__\", \".*\") or max by (platform) (label_replace(max by (fleet) (tuist_runners_pool_replicas_max{fleet=~\".*linux.*\", env=\"$env\"}), \"platform\", \"$1\", \"fleet\", \".*runner-pool-(linux|macos).*\")), 1)",
             "legendFormat": "{{platform}}",
             "refId": "A"
           }

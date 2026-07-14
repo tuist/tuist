@@ -4,17 +4,45 @@ defmodule Tuist.URL do
   """
 
   def public_url?(url) when is_binary(url) do
-    case URI.parse(url) do
-      %URI{scheme: scheme, host: host, query: nil, fragment: nil}
-      when is_binary(host) and host != "" ->
-        scheme_allowed?(scheme) and not private_host?(host)
-
-      _ ->
-        false
+    case parse_http_url(url) do
+      {:ok, %URI{host: host}} -> not private_host?(host)
+      :error -> false
     end
   end
 
   def public_url?(_), do: false
+
+  @doc """
+  Validates an SSO URL using the network policy for the current deployment.
+
+  Tuist-hosted deployments only accept public URLs to protect the multi-tenant
+  service from SSRF. Self-hosted deployments allow private network hosts while
+  keeping the same scheme, query, and fragment rules.
+  """
+  def sso_url?(url) when is_binary(url) do
+    if Tuist.Environment.tuist_hosted?() do
+      public_url?(url)
+    else
+      http_url?(url)
+    end
+  end
+
+  def sso_url?(_), do: false
+
+  defp http_url?(url) do
+    match?({:ok, %URI{}}, parse_http_url(url))
+  end
+
+  defp parse_http_url(url) do
+    case URI.parse(url) do
+      %URI{scheme: scheme, host: host, query: nil, fragment: nil} = uri
+      when is_binary(host) and host != "" ->
+        if scheme_allowed?(scheme), do: {:ok, uri}, else: :error
+
+      _ ->
+        :error
+    end
+  end
 
   defp scheme_allowed?("https"), do: true
   defp scheme_allowed?("http"), do: Tuist.Environment.dev?() or Tuist.Environment.test?()

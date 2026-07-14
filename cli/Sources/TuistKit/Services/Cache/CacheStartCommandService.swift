@@ -15,15 +15,18 @@ import TuistSupport
 
 struct CacheStartCommandService {
     private let serverEnvironmentService: ServerEnvironmentServicing
+    private let serverAuthenticationController: ServerAuthenticationControlling
     private let fileSystem: FileSysteming
     private let cacheURLStore: CacheURLStoring
 
     init(
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
+        serverAuthenticationController: ServerAuthenticationControlling = ServerAuthenticationController(),
         cacheURLStore: CacheURLStoring = CacheURLStore(),
         fileSystem: FileSysteming = FileSystem()
     ) {
         self.serverEnvironmentService = serverEnvironmentService
+        self.serverAuthenticationController = serverAuthenticationController
         self.cacheURLStore = cacheURLStore
         self.fileSystem = fileSystem
     }
@@ -38,8 +41,22 @@ struct CacheStartCommandService {
 
         // Run the cache server with the cache-specific logger
         try await Logger.$current.withValue(cacheLogger) {
+            let serverURL = try resolveServerURL(url: url)
+
+            // When the daemon is launched without valid credentials (e.g. the user is
+            // logged out), exit cleanly instead of erroring out. The LaunchAgent only
+            // respawns the daemon on an unsuccessful exit, so returning here prevents
+            // launchd from restarting it every ~10 seconds — and creating a new session
+            // directory on each attempt — until the user authenticates.
+            guard try await serverAuthenticationController.authenticationToken(serverURL: serverURL) != nil else {
+                Logger.current.debug(
+                    "Not authenticated against \(serverURL.absoluteString). The cache daemon will exit without starting. Authenticate with `tuist auth login` or set TUIST_TOKEN, then re-run `tuist setup cache`."
+                )
+                return
+            }
+
             let analyticsDatabase = try CASAnalyticsDatabase()
-            try analyticsDatabase.migrate()
+            try await analyticsDatabase.migrate()
             AnalyticsStateController(database: analyticsDatabase)
                 .scheduleMaintenance(stateDirectory: Environment.current.stateDirectory)
 
@@ -47,11 +64,6 @@ struct CacheStartCommandService {
             if try await !fileSystem.exists(socketPath.parentDirectory, isDirectory: true) {
                 try await fileSystem.makeDirectory(at: socketPath.parentDirectory)
             }
-
-            let configURL = url.flatMap { URL(string: $0) }
-            let serverURL = try configURL
-                .map { try serverEnvironmentService.url(configServerURL: $0) } ?? serverEnvironmentService
-                .url()
 
             Logger.current.debug("Warming cache endpoint URL for \(serverURL.absoluteString)")
             let accountHandle = fullHandle.split(separator: "/").first.map(String.init)
@@ -86,5 +98,11 @@ struct CacheStartCommandService {
                 }
             }
         }
+    }
+
+    private func resolveServerURL(url: String?) throws -> URL {
+        let configURL = url.flatMap { URL(string: $0) }
+        return try configURL
+            .map { try serverEnvironmentService.url(configServerURL: $0) } ?? serverEnvironmentService.url()
     }
 }

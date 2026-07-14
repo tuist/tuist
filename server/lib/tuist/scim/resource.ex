@@ -84,7 +84,7 @@ defmodule Tuist.SCIM.Resource do
     end
   end
 
-  def inserted_at(%User{} = user), do: Map.get(user, :created_at) || Map.get(user, :inserted_at)
+  def inserted_at(%User{} = user), do: user.created_at
 
   defp updated_at(%User{} = user), do: Map.get(user, :updated_at) || inserted_at(user)
 

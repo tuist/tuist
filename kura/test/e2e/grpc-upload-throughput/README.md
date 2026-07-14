@@ -18,10 +18,17 @@ only in those window directives, plus a direct-to-kura control, all behind
 toxiproxy injecting identical symmetric latency:
 
 ```
-client ─► toxiproxy ─► nginx-baseline (default window, today)        ─► kura
-       (latency)    ─► nginx-patched  (raised window from chart, the fix) ─► kura
-                    ─► kura (direct, kura's own stream window)
+client ─► toxiproxy ─► nginx-baseline (default window, today)             ─► kura:4000
+       (latency)    ─► nginx-patched  (raised window from chart, the fix) ─► kura:4000
+                    ─► kura:4000      (direct, kura's own stream window)
 ```
+
+Every path reaches kura through its single co-hosted HTTP + h2c gRPC listener
+(`KURA_PORT`, 4000 — the only listener kura runs). The nginx upstream is held
+constant within each rendered config, so the measured speedup is attributable
+to the HTTP/2 window alone, and the patched path doubles as a check that REAPI
+uploads through the co-hosted listener run at full speed behind the production
+gateway window (kura advertises a fixed 4MB HTTP/2 stream window there).
 
 Both nginx configs are **generated** by the harness (the client image's
 `genconfs` subcommand) from a single template (`nginx/nginx.conf.tmpl`):

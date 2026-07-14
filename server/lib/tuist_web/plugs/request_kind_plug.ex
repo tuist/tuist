@@ -11,15 +11,15 @@ defmodule TuistWeb.Plugs.RequestKindPlug do
   `Plug.Telemetry` `:stop` callback that emits the `Sent NNN in NNNms`
   log line, which is what observability dashboards filter on.
 
-  Routes that don't run through a tagged pipeline (webhooks, static
+  Routes that don't run through a tagged pipeline (webhooks, most static
   assets) flow through with no kind set; downstream filters can either
   match the absence (`| request_kind=\"\"`) or just exclude them by
-  matching specific kinds.
+  matching specific kinds. Marketing static assets are observed by
+  `TuistWeb.Plugs.MarketingStaticAssetObservabilityPlug` because
+  `Plug.Static` serves them before this plug runs.
   """
 
   import Plug.Conn
-
-  require Logger
 
   def init(opts), do: opts
 

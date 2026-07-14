@@ -12,6 +12,21 @@
       region_form={@region_form}
       selected_account={@selected_account}
     />
+    <%= if @managed_kura_visible? do %>
+      <.kura_servers_section
+        kura_servers={@kura_servers}
+        available_kura_regions={@available_kura_regions}
+        add_kura_server_form={@add_kura_server_form}
+        latest_kura_version={@latest_kura_version}
+      />
+    <% end %>
+    <%= if @custom_cache_endpoints_available do %>
+      <.cache_endpoints_section
+        cache_endpoints={@cache_endpoints}
+        add_cache_endpoint_form={@add_cache_endpoint_form}
+        custom_cache_endpoints_enabled={@selected_account.custom_cache_endpoints_enabled}
+      />
+    <% end %>
     <.card_section data-part="rename-card-section">
       <div data-part="header">
         <span data-part="title">
@@ -163,6 +178,21 @@
       region_form={@region_form}
       selected_account={@selected_account}
     />
+    <%= if @managed_kura_visible? do %>
+      <.kura_servers_section
+        kura_servers={@kura_servers}
+        available_kura_regions={@available_kura_regions}
+        add_kura_server_form={@add_kura_server_form}
+        latest_kura_version={@latest_kura_version}
+      />
+    <% end %>
+    <%= if @custom_cache_endpoints_available do %>
+      <.cache_endpoints_section
+        cache_endpoints={@cache_endpoints}
+        add_cache_endpoint_form={@add_cache_endpoint_form}
+        custom_cache_endpoints_enabled={@selected_account.custom_cache_endpoints_enabled}
+      />
+    <% end %>
     <.card_section data-part="rename-card-section">
       <div data-part="header">
         <span data-part="title">

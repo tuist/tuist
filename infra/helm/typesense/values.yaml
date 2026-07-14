@@ -1,0 +1,167 @@
+global:
+  commonLabels: {}
+  podLabels: {}
+  imagePullSecrets: []
+  nodeSelector: {}
+  tolerations: []
+
+nameOverride: ""
+fullnameOverride: ""
+
+replicaCount: 1
+
+# The image is the search wrapper (Typesense 27.1 plus the DocC and GitHub
+# indexer scripts). The Deployment runs the Typesense server directly; the
+# indexers run as a separate CronJob rather than the wrapper's in-container cron.
+image:
+  repository: ghcr.io/tuist/search
+  tag: ""
+  pullPolicy: IfNotPresent
+
+deploymentStrategy:
+  # Recreate because the data directory is a single ReadWriteOnce volume that
+  # only one pod may mount at a time.
+  type: Recreate
+
+service:
+  type: ClusterIP
+  port: 8108
+  targetPort: 8108
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+automountServiceAccountToken: false
+
+typesense:
+  dataDir: /data
+  enableCors: true
+  # The read-only, search-only API key the docs website and the search_tuist MCP
+  # tool use. It is public by design (shipped to browsers), not a secret. A
+  # bootstrap Job registers it on the instance with the admin key, because
+  # Typesense stores non-bootstrap keys inside its own data rather than reading
+  # them from config.
+  searchKey: "RgIpKytJBtSQf9CoYKxIfVxh8ma5kzs6"
+
+# Registers the read-only search key on the instance after each deploy. It is
+# idempotent: it only creates the key if a search key with the same value is not
+# already present, so a fresh data volume self-heals without a manual step.
+keyBootstrap:
+  enabled: true
+  backoffLimit: 3
+
+# Recurring DocSearch crawl of the public docs site and community forum into the
+# `tuist` and `forum-topics` collections. Runs the typesense/docsearch-scraper
+# image against the in-cluster Service, reading the crawl configs from the
+# `docsearch-configs` ConfigMap (created by the deploy workflow from
+# search/config/docsearch*.json so those files stay the single source).
+scraper:
+  enabled: true
+  image: typesense/docsearch-scraper
+  schedule: "30 4 * * *"
+  concurrencyPolicy: Forbid
+  activeDeadlineSeconds: 3600
+  configMapName: docsearch-configs
+  resources: {}
+
+# TYPESENSE_API_KEY and GITHUB_TOKEN. Provided inline for CI and dev, or synced
+# from 1Password via an ExternalSecret in production.
+runtimeSecrets:
+  secretName: ""
+  inline:
+    apiKey: ""
+    githubToken: ""
+  externalSecret:
+    enabled: false
+    refreshInterval: "1h"
+    storeRef:
+      kind: ClusterSecretStore
+      name: onepassword
+    # 1Password item/field paths. The vault comes from the store (the per-env
+    # `tuist-k8s-<env>` vault), so these mirror the item names already used in
+    # the `cache` vault: two items, each with a `password` field.
+    apiKeyRef: "TYPESENSE_API_KEY/password"
+    githubTokenRef: "SEARCH_GITHUB_TOKEN/password"
+
+persistence:
+  create: true
+  existingClaim: ""
+  storageClassName: ""
+  accessModes:
+    - ReadWriteOnce
+  size: 10Gi
+
+ingress:
+  enabled: false
+  className: ""
+  host: ""
+  tlsSecretName: ""
+  annotations: {}
+
+# Daily reindex of the two collections the bundled indexers own: the DocC API
+# reference (`projectdescription`, via index-docc) and `github-issues` (via
+# index-github). The `tuist` and `forum-topics` collections that the public docs
+# and forum UI query are produced by the DocSearch scraper, not by these
+# indexers. The scraper is a separate crawler container and is not part of this
+# chart; it must be run against this service to populate those two collections
+# before the DNS cutover. See AGENTS.md.
+indexers:
+  enabled: true
+  schedule: "0 4 * * *"
+  concurrencyPolicy: Forbid
+  restartPolicy: Never
+  backoffLimit: 1
+  activeDeadlineSeconds: 3600
+  resources: {}
+
+resources: {}
+podSecurityContext:
+  fsGroup: 65534
+  fsGroupChangePolicy: OnRootMismatch
+  seccompProfile:
+    type: RuntimeDefault
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 65534
+extraEnv: []
+podAnnotations: {}
+podLabels: {}
+affinity: {}
+nodeSelector: {}
+tolerations: []
+terminationGracePeriodSeconds: 30
+
+networkPolicy:
+  enabled: false
+  ingressControllerNamespace: platform
+  ingressControllerPodLabels:
+    app.kubernetes.io/name: ingress-nginx
+    app.kubernetes.io/component: controller
+  dnsNamespace: kube-system
+
+probes:
+  readiness:
+    path: /health
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 3
+    failureThreshold: 3
+  liveness:
+    path: /health
+    initialDelaySeconds: 30
+    periodSeconds: 20
+    timeoutSeconds: 3
+    failureThreshold: 3
+  startup:
+    path: /health
+    initialDelaySeconds: 0
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 60

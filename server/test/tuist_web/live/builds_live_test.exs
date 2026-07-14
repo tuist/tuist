@@ -118,4 +118,16 @@ defmodule TuistWeb.BuildsLiveTest do
 
     assert has_element?(lv, "#builds-analytics-scheme-dropdown [data-part='search-input']")
   end
+
+  test "renders with legacy analytics environment all query parameter", %{
+    conn: conn,
+    project: project
+  } do
+    {:ok, lv, _html} =
+      live(conn, ~p"/#{project.account.name}/#{project.name}/builds?analytics-environment=all")
+
+    render_async(lv, @render_async_timeout)
+
+    assert has_element?(lv, "#builds-analytics-environment-dropdown")
+  end
 end

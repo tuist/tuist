@@ -84,11 +84,16 @@ spec:
         app: local-path-provisioner
     spec:
       serviceAccountName: local-path-provisioner-service-account
-      # Tolerate the runner-cache taint so the controller is free to land on
-      # the cache node if the scheduler picks it, but it is not pinned there —
-      # it runs its helper Pods on the target node regardless of where it sits.
+      # Tolerate both cache taints so the controller is free to land on a cache
+      # node if the scheduler picks it, but it is not pinned there — it runs its
+      # helper Pods on the target node regardless of where it sits. runner-cache
+      # is the Elastic Metal runner-cache pool; kura-cache is the public-region
+      # pools (Dedibox eu-central, OVH) that also provision scw-local-nvme PVCs.
       tolerations:
         - key: tuist.dev/runner-cache
+          operator: Exists
+          effect: NoSchedule
+        - key: tuist.dev/kura-cache
           operator: Exists
           effect: NoSchedule
       containers:
@@ -170,9 +175,14 @@ data:
       name: helper-pod
     spec:
       # The helper Pod runs on the target cache node to create/remove the PV
-      # directory, so it has to tolerate the runner-cache taint.
+      # directory, so it has to tolerate whatever taint that node carries:
+      # runner-cache (Elastic Metal) or kura-cache (the public Dedibox/OVH cache
+      # pools, which also provision scw-local-nvme PVCs).
       tolerations:
         - key: tuist.dev/runner-cache
+          operator: Exists
+          effect: NoSchedule
+        - key: tuist.dev/kura-cache
           operator: Exists
           effect: NoSchedule
       containers:

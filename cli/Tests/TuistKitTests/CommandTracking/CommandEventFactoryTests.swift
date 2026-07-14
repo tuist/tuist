@@ -128,7 +128,8 @@ struct CommandEventFactoryTests {
             buildRunId: nil,
             testRunId: nil,
             generationId: nil,
-            cacheEndpoint: "https://cache.tuist.dev"
+            cacheEndpoint: "https://cache.tuist.dev",
+            moduleCacheOutputs: []
         )
         let expectedEvent = CommandEvent(
             runId: "run-id",
@@ -327,7 +328,8 @@ struct CommandEventFactoryTests {
             buildRunId: nil,
             testRunId: nil,
             generationId: nil,
-            cacheEndpoint: ""
+            cacheEndpoint: "",
+            moduleCacheOutputs: []
         )
 
         given(gitController)
@@ -374,7 +376,8 @@ struct CommandEventFactoryTests {
             buildRunId: nil,
             testRunId: nil,
             generationId: nil,
-            cacheEndpoint: ""
+            cacheEndpoint: "",
+            moduleCacheOutputs: []
         )
 
         given(gitController)
@@ -433,7 +436,8 @@ struct CommandEventFactoryTests {
             buildRunId: nil,
             testRunId: nil,
             generationId: nil,
-            cacheEndpoint: ""
+            cacheEndpoint: "",
+            moduleCacheOutputs: []
         )
 
         given(gitController)
@@ -489,7 +493,8 @@ struct CommandEventFactoryTests {
             buildRunId: nil,
             testRunId: nil,
             generationId: nil,
-            cacheEndpoint: cacheEndpoint
+            cacheEndpoint: cacheEndpoint,
+            moduleCacheOutputs: []
         )
 
         given(gitController)
@@ -534,7 +539,8 @@ struct CommandEventFactoryTests {
             buildRunId: nil,
             testRunId: nil,
             generationId: nil,
-            cacheEndpoint: ""
+            cacheEndpoint: "",
+            moduleCacheOutputs: []
         )
 
         given(gitController)

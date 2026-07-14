@@ -2,7 +2,14 @@ package podagent
 
 import (
 	"context"
+	"encoding/json"
+	"net"
+	"os"
+	"path/filepath"
+	"strconv"
 	"testing"
+
+	"github.com/tuist/tuist/infra/tart-kubelet/internal/tart"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -139,6 +146,245 @@ func TestRunningContainerStatusesReportsReady(t *testing.T) {
 	if cs.ContainerID != "tart://vm-abc" {
 		t.Fatalf("expected ContainerID to carry the VM name, got %q", cs.ContainerID)
 	}
+}
+
+func TestVNCRelayRequestedUsesHostControlFile(t *testing.T) {
+	dir := t.TempDir()
+	r := &Reconciler{VNCControlDir: dir}
+	pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Namespace: "tuist-runners", Name: "runner-abc"}}
+
+	requested, err := r.vncRelayRequested(pod)
+	if err != nil {
+		t.Fatalf("vncRelayRequested without file: %v", err)
+	}
+	if requested {
+		t.Fatal("relay requested without host control file")
+	}
+
+	if err := os.MkdirAll(filepath.Join(dir, "requests"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(r.vncRequestPath(pod.Namespace, pod.Name), []byte{}, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	requested, err = r.vncRelayRequested(pod)
+	if err != nil {
+		t.Fatalf("vncRelayRequested with file: %v", err)
+	}
+	if !requested {
+		t.Fatal("relay not requested despite host control file")
+	}
+}
+
+func TestVNCRelayRequestedUsesPodAnnotation(t *testing.T) {
+	r := &Reconciler{VNCControlDir: t.TempDir()}
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace:   "tuist-runners",
+			Name:        "runner-annotated",
+			Annotations: map[string]string{vncSessionIDAnnotation: "123", vncRelayTokenHashAnnotation: "token-hash"},
+		},
+	}
+
+	requested, err := r.vncRelayRequested(pod)
+	if err != nil {
+		t.Fatalf("vncRelayRequested with pod annotation: %v", err)
+	}
+	if !requested {
+		t.Fatal("relay not requested despite server-owned pod annotation")
+	}
+}
+
+func TestVNCRelayRequestedRequiresTokenHashForPodAnnotation(t *testing.T) {
+	r := &Reconciler{VNCControlDir: t.TempDir()}
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace:   "tuist-runners",
+			Name:        "runner-annotated",
+			Annotations: map[string]string{vncSessionIDAnnotation: "123"},
+		},
+	}
+
+	requested, err := r.vncRelayRequested(pod)
+	if err != nil {
+		t.Fatalf("vncRelayRequested with pod annotation: %v", err)
+	}
+	if requested {
+		t.Fatal("relay requested without server-owned token hash annotation")
+	}
+}
+
+func TestVNCCapableRunnerPodRequiresRunnerLabel(t *testing.T) {
+	if vncCapableRunnerPod(&corev1.Pod{}) {
+		t.Fatal("pod without runner label should not launch Tart VNC")
+	}
+	pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{"tuist.dev/runner": "true"}}}
+	if !vncCapableRunnerPod(pod) {
+		t.Fatal("runner pod should launch Tart VNC")
+	}
+}
+
+func TestVNCURLIncludesPassword(t *testing.T) {
+	if got, want := vncURL("100.64.1.2", 49152, "secret-pass"), "vnc://:secret-pass@100.64.1.2:49152"; got != want {
+		t.Fatalf("vncURL IPv4 = %q, want %q", got, want)
+	}
+	if got, want := vncURL("fd7a:115c:a1e0::1", 49152, "secret-pass"), "vnc://:secret-pass@[fd7a:115c:a1e0::1]:49152"; got != want {
+		t.Fatalf("vncURL IPv6 = %q, want %q", got, want)
+	}
+}
+
+func TestWriteVNCStateUsesHostControlStateAndRemovesItOnStop(t *testing.T) {
+	dir := t.TempDir()
+	r := &Reconciler{NodeIP: "127.0.0.1", VNCControlDir: dir}
+	pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Namespace: "tuist-runners", Name: "runner-abc"}}
+
+	fw, err := NewTCPForwarder("127.0.0.1:0", func() (string, error) {
+		return "127.0.0.1:5901", nil
+	}, TCPForwarderOptions{})
+	if err != nil {
+		t.Fatalf("NewTCPForwarder: %v", err)
+	}
+	entry := &Entry{VMName: "vm-runner-abc", VNCForwarder: fw}
+
+	if err := r.writeVNCState(context.Background(), pod, entry, tart.VNCInfo{Host: "127.0.0.1", Port: 5901, Password: "secret-pass"}); err != nil {
+		t.Fatalf("writeVNCState: %v", err)
+	}
+
+	statePath := r.vncStatePath(pod.Namespace, pod.Name)
+	info, err := os.Stat(statePath)
+	if err != nil {
+		t.Fatalf("stat VNC state: %v", err)
+	}
+	if got, want := info.Mode().Perm(), os.FileMode(0o600); got != want {
+		t.Fatalf("state mode = %v, want %v", got, want)
+	}
+
+	var state vncRelayState
+	body, err := os.ReadFile(statePath)
+	if err != nil {
+		t.Fatalf("read VNC state: %v", err)
+	}
+	if err := json.Unmarshal(body, &state); err != nil {
+		t.Fatalf("unmarshal VNC state: %v", err)
+	}
+	tcpAddr := fw.Addr().(*net.TCPAddr)
+	if got, want := state.RelayURL, vncURL("127.0.0.1", tcpAddr.Port, "secret-pass"); got != want {
+		t.Fatalf("relay_url = %q, want %q", got, want)
+	}
+	if got, want := state.RelayHost, "127.0.0.1"; got != want {
+		t.Fatalf("relay_host = %q, want %q", got, want)
+	}
+
+	r.stopVNCForwarder(pod.Namespace, pod.Name, entry)
+	if _, err := os.Stat(statePath); !os.IsNotExist(err) {
+		t.Fatalf("state file still exists after stop: %v", err)
+	}
+}
+
+func TestWriteVNCStatePatchesServerRelayAnnotations(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace:   "tuist-runners",
+			Name:        "runner-annotated",
+			Annotations: map[string]string{vncSessionIDAnnotation: "123", vncRelayTokenHashAnnotation: "token-hash"},
+		},
+	}
+	kubeClient := newPodTestClient(t, pod)
+	r := &Reconciler{
+		CachedClient:  kubeClient,
+		NodeIP:        "127.0.0.1",
+		VNCControlDir: dir,
+		VNCRelayHost:  "macmini-1.tailscale-operator.svc.cluster.local",
+	}
+
+	fw, err := NewTCPForwarder("127.0.0.1:0", func() (string, error) {
+		return "127.0.0.1:5901", nil
+	}, TCPForwarderOptions{})
+	if err != nil {
+		t.Fatalf("NewTCPForwarder: %v", err)
+	}
+	defer fw.Stop()
+
+	entry := &Entry{VMName: "vm-runner-annotated", VNCForwarder: fw}
+	storedPod := getPod(t, ctx, kubeClient, types.NamespacedName{Namespace: "tuist-runners", Name: "runner-annotated"})
+
+	if err := r.writeVNCState(ctx, storedPod, entry, tart.VNCInfo{Host: "127.0.0.1", Port: 5901, Password: "secret-pass"}); err != nil {
+		t.Fatalf("writeVNCState: %v", err)
+	}
+
+	updatedPod := getPod(t, ctx, kubeClient, types.NamespacedName{Namespace: "tuist-runners", Name: "runner-annotated"})
+	tcpAddr := fw.Addr().(*net.TCPAddr)
+	if got, want := updatedPod.Annotations[vncStateAnnotation], "ready"; got != want {
+		t.Fatalf("state annotation = %q, want %q", got, want)
+	}
+	if got, want := updatedPod.Annotations[vncRelayHostAnnotation], "macmini-1.tailscale-operator.svc.cluster.local"; got != want {
+		t.Fatalf("relay host annotation = %q, want %q", got, want)
+	}
+	if got, want := updatedPod.Annotations[vncRelayPortAnnotation], strconv.Itoa(tcpAddr.Port); got != want {
+		t.Fatalf("relay port annotation = %q, want %q", got, want)
+	}
+	if updatedPod.Annotations[vncRelayReadyAtAnnotation] == "" {
+		t.Fatal("missing relay ready timestamp annotation")
+	}
+}
+
+func TestStartVNCForwarderUsesPersistedEndpointForRecoveredVM(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "tuist-runners",
+			Name:      "runner-recovered",
+			Annotations: map[string]string{
+				vncSessionIDAnnotation:      "123",
+				vncRelayTokenHashAnnotation: "token-hash",
+			},
+			Labels: map[string]string{"tuist.dev/runner": "true"},
+		},
+	}
+	kubeClient := newPodTestClient(t, pod)
+	port := freeTCPPort(t)
+	r := &Reconciler{
+		CachedClient:  kubeClient,
+		NodeIP:        "127.0.0.1",
+		VNCControlDir: dir,
+		VNCRelayHost:  "macmini-1.tailscale-operator.svc.cluster.local",
+		VNCRelayPort:  port,
+	}
+	entry := &Entry{VMName: "vm-runner-recovered"}
+
+	if err := r.writeVNCEndpointState(pod, entry, tart.VNCInfo{Host: "127.0.0.1", Port: 5901, Password: "secret-pass"}); err != nil {
+		t.Fatalf("writeVNCEndpointState: %v", err)
+	}
+	storedPod := getPod(t, ctx, kubeClient, types.NamespacedName{Namespace: "tuist-runners", Name: "runner-recovered"})
+
+	if err := r.startVNCForwarder(ctx, storedPod, entry); err != nil {
+		t.Fatalf("startVNCForwarder: %v", err)
+	}
+	defer entry.VNCForwarder.Stop()
+
+	updatedPod := getPod(t, ctx, kubeClient, types.NamespacedName{Namespace: "tuist-runners", Name: "runner-recovered"})
+	if got, want := updatedPod.Annotations[vncStateAnnotation], "ready"; got != want {
+		t.Fatalf("state annotation = %q, want %q", got, want)
+	}
+	if got, want := updatedPod.Annotations[vncRelayHostAnnotation], "macmini-1.tailscale-operator.svc.cluster.local"; got != want {
+		t.Fatalf("relay host annotation = %q, want %q", got, want)
+	}
+	if got, want := updatedPod.Annotations[vncRelayPortAnnotation], strconv.Itoa(port); got != want {
+		t.Fatalf("relay port annotation = %q, want %q", got, want)
+	}
+}
+
+func freeTCPPort(t *testing.T) int {
+	t.Helper()
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen for free port: %v", err)
+	}
+	defer l.Close()
+	return l.Addr().(*net.TCPAddr).Port
 }
 
 func newPodTestClient(t *testing.T, objects ...runtime.Object) client.Client {

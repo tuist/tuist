@@ -11,7 +11,7 @@ Describe 'DNS discovery and bootstrap'
     setup_suite_tmpdir
 
     suite_env COMPOSE_PROJECT_NAME kura-discovery
-    ephemeral_ports KURA_US_PORT KURA_US_2_PORT KURA_US_GRPC_PORT KURA_US_2_GRPC_PORT TEMPO_PORT OTLP_PORT
+    ephemeral_ports KURA_US_PORT KURA_US_2_PORT TEMPO_PORT OTLP_PORT
 
     dc down -v --remove-orphans >/dev/null 2>&1 || true
     dc build kura-us kura-us-2 >/dev/null 2>&1

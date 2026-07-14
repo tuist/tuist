@@ -341,7 +341,7 @@ defmodule TuistWeb.Marketing.MarketingComponents do
     ~H"""
     <picture data-part="header-background">
       <source media="(max-width: 1024px)" srcset={~p"/images/hero-background-sm.webp"} />
-      <img src={~p"/images/hero-background.webp"} alt="" />
+      <img src={~p"/images/hero-background.webp"} alt="" decoding="async" />
     </picture>
     """
   end
@@ -420,6 +420,8 @@ defmodule TuistWeb.Marketing.MarketingComponents do
           data-part="background"
           src={~p"/marketing/images/components/banner/background.webp"}
           alt=""
+          loading="lazy"
+          decoding="async"
         />
         <h2 data-part="title">
           {@title}

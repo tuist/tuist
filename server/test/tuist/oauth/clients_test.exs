@@ -32,7 +32,7 @@ defmodule Tuist.OAuth.ClientsTest do
       assert client.id == "00000000-0000-0000-0000-000000000001"
       assert client.secret == "kura-secret"
       assert client.confidential == true
-      assert client.supported_grant_types == ["introspect", "kura_usage"]
+      assert client.supported_grant_types == ["introspect", "kura_usage", "kura_registration"]
       assert client.token_endpoint_auth_methods == ["client_secret_basic", "client_secret_post"]
     end
 

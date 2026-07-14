@@ -81,6 +81,36 @@ defmodule TuistWeb.CacheRunsLiveTest do
       assert has_element?(lv, "span", "tuist cache App")
     end
 
+    test "truncates the command column for runs with a long argument list", %{
+      conn: conn,
+      user: user,
+      organization: organization,
+      project: project
+    } do
+      # Given - a cache run with many target arguments, which otherwise widens the command
+      # column unbounded and pushes every other column off-screen.
+      targets = Enum.map(1..40, &"Target#{&1}")
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        user_id: user.id,
+        name: "cache",
+        command_arguments: ["cache" | targets]
+      )
+
+      # When
+      {:ok, lv, _html} =
+        live(conn, ~p"/#{organization.account.name}/#{project.name}/module-cache/cache-runs")
+
+      # Then - the command cell truncates (the default for text_and_description cells) so the
+      # column can no longer grow unbounded.
+      assert has_element?(
+               lv,
+               ~s([data-part="cell"][data-type="text_and_description"][data-truncate]),
+               "cache Target1"
+             )
+    end
+
     test "filters cache runs by user with ran_by filter", %{
       conn: conn,
       user: user,
@@ -104,6 +134,14 @@ defmodule TuistWeb.CacheRunsLiveTest do
         command_arguments: ["cache", "OtherUserApp"]
       )
 
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        user_id: user.id,
+        name: "cache",
+        command_arguments: ["cache", "ContinuousIntegrationUserApp"],
+        is_ci: true
+      )
+
       {:ok, lv, _html} =
         live(
           conn,
@@ -112,6 +150,7 @@ defmodule TuistWeb.CacheRunsLiveTest do
 
       assert has_element?(lv, "span", "tuist cache UserApp")
       refute has_element?(lv, "span", "tuist cache OtherUserApp")
+      refute has_element?(lv, "span", "tuist cache ContinuousIntegrationUserApp")
     end
 
     test "filters cache runs by displayed command", %{

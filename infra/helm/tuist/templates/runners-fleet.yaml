@@ -4,7 +4,7 @@
 {{- $bootstrapSecret := include "tuist.componentName" (dict "root" . "component" "noop-bootstrap") }}
 {{- /*
 Customer-runner Mac mini fleet. Sibling of macos-fleet.yaml,
-provisioned by the same cluster-api-provider-scaleway-applesilicon
+provisioned by the same cluster-api-provider-tuist
 operator from the same Scaleway IAM credentials.
 
 See macos-fleet.yaml for the rationale on the

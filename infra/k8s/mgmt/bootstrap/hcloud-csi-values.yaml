@@ -64,10 +64,12 @@ node:
   # `provided-by=robot`) are re-declared here alongside our own
   # rules. All match expressions live in one list so they AND
   # together — a node schedules the pod only if it is none of:
-  # Hetzner root server, Robot-provisioned, in `runners-linux`, or
-  # running darwin. Our CAPI HCCM doesn't set the `is-root-server` /
-  # `provided-by` labels today (upstream chart with no Robot creds),
-  # so the pool and OS rules are what actually filter in this
+  # Hetzner root server, Robot-provisioned, in `runners-linux`,
+  # provisioned by the in-house CAPI provider on non-Hetzner infra
+  # (OVHcloud / Dedibox / Scaleway), or running darwin. Our CAPI
+  # HCCM doesn't set the `is-root-server` / `provided-by` labels
+  # today (upstream chart with no Robot creds), so the pool,
+  # instance-type, and OS rules are what actually filter in this
   # cluster; the others are forward-compat with a Syself-style HCCM
   # or a future Robot-aware upstream.
   #
@@ -81,9 +83,14 @@ node:
   # matches (= node included), so this rule only filters out nodes
   # that explicitly advertise darwin; everything else still passes.
   #
-  # Future bare-metal pools should carry the same
-  # `node.cluster.x-k8s.io/pool` label convention so this affinity
-  # can be extended with another `values:` entry.
+  # The non-Hetzner kura fleets are excluded by provider, not by
+  # per-region pool name (below). Enumerating pools is what caused
+  # the crash-loop this file exists to prevent: #11346 added the
+  # `kura-us-east` / `kura-us-west` OVH regions but the pool denylist
+  # only listed the regions that existed when it was written, so
+  # hcloud-csi-node landed on the new bare-metal boxes and
+  # CrashLoopBackOff'd (hcloud Volumes can't attach off Hetzner).
+  # A new kura region on an existing provider now needs no edit here.
   affinity:
     nodeAffinity:
       requiredDuringSchedulingIgnoredDuringExecution:
@@ -97,15 +104,31 @@ node:
                 operator: NotIn
                 values:
                   - robot
+              # Hetzner Robot bare metal (the `runners-linux` pool).
+              # caph provisions these, so they carry no
+              # `node.cluster.x-k8s.io/instance-type` label and the
+              # provider rule below can't catch them; exclude by pool.
+              # hcloud Volumes can't attach to Robot servers.
               - key: node.cluster.x-k8s.io/pool
                 operator: NotIn
                 values:
                   - runners-linux
-                  # Scaleway Instance pool for the macOS runner
-                  # cache (kura) — not Hetzner hardware, hcloud
-                  # Volumes can't attach there. scaleway-csi serves
-                  # its PVCs instead.
-                  - kura-scw-fr-par
+              # Nodes the in-house CAPI provider brings up on
+              # non-Hetzner infrastructure (OVHcloud, Dedibox,
+              # Scaleway) for the kura cache fleets. hcloud Volumes
+              # can't attach anywhere off Hetzner, so the driver only
+              # crash-loops there; the server provisions those PVCs
+              # from local NVMe instead. Keying on the provider label
+              # rather than each `pool` means every kura region on
+              # these providers is excluded automatically. Real
+              # Hetzner Cloud nodes carry no such label, so NotIn with
+              # the label absent still includes them.
+              - key: node.cluster.x-k8s.io/instance-type
+                operator: NotIn
+                values:
+                  - ovh
+                  - dedibox
+                  - scaleway
               - key: kubernetes.io/os
                 operator: NotIn
                 values:

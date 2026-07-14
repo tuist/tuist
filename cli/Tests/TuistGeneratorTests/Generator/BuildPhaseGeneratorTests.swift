@@ -1803,6 +1803,12 @@ struct BuildPhaseGeneratorTests {
                     name: "post",
                     order: .post,
                     script: .scriptPath(path: path.appending(component: "script.sh"), args: ["arg"]),
+                    inputFileListPaths: [
+                        .generated(path.appending(components: "Generated", "Inputs.xcfilelist")),
+                    ],
+                    outputFileListPaths: [
+                        .generated(path.appending(components: "Generated", "Outputs.xcfilelist")),
+                    ],
                     showEnvVarsInLog: false,
                     basedOnDependencyAnalysis: false,
                     runForInstallBuildsOnly: true
@@ -1856,6 +1862,8 @@ struct BuildPhaseGeneratorTests {
         #expect(postBuildPhase.name == "post")
         #expect(postBuildPhase.shellPath == "/bin/sh")
         #expect(postBuildPhase.shellScript == "\"$SRCROOT\"/script.sh arg")
+        #expect(postBuildPhase.inputFileListPaths == ["Generated/Inputs.xcfilelist"])
+        #expect(postBuildPhase.outputFileListPaths == ["Generated/Outputs.xcfilelist"])
         #expect(postBuildPhase.showEnvVarsInLog == false)
         #expect(postBuildPhase.alwaysOutOfDate == true)
         #expect(postBuildPhase.runOnlyForDeploymentPostprocessing == true)

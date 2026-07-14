@@ -253,8 +253,6 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
   # `is_flaky` updates re-insert rows, and `FINAL` multiplies the read by
   # the duplicate factor. A re-inserted run can shift the recovery count by
   # at most one, which is well within the threshold's natural slop.
-  defp batch_runs_since_trigger(_project_id, []), do: %{}
-
   defp batch_runs_since_trigger(project_id, candidates) do
     candidates
     |> Enum.chunk_every(@recovery_candidate_batch_size)

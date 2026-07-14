@@ -1,6 +1,6 @@
 import Foundation
 
-struct GitHubRepo: Sendable {
+struct GitHubRepo {
     let owner: String
     let repo: String
 
@@ -83,24 +83,30 @@ enum SourceControlLocations {
 
     static func fetchCandidates(_ location: String) -> [String] {
         var locations = [location]
-        appendGitHubSSHLocation(for: location, to: &locations)
-        appendGitLabSSHLocation(for: location, to: &locations)
+        appendGitHubLocations(for: location, to: &locations)
+        appendGitLabLocations(for: location, to: &locations)
         return locations
     }
 
-    private static func appendGitHubSSHLocation(for location: String, to locations: inout [String]) {
+    /// Offer both the HTTPS and SSH forms regardless of how the location was originally
+    /// declared. The original is tried first, so SSH-declared dependencies keep using
+    /// ssh-agent locally while still falling back to HTTPS in environments (typically CI)
+    /// that only have a token-based `git config insteadOf` rewrite or anonymous HTTPS access.
+    private static func appendGitHubLocations(for location: String, to locations: inout [String]) {
         guard let repo = try? GitHubRepo(location: location) else { return }
-        let ssh = "git@github.com:\(repo.owner)/\(repo.repo).git"
-        if !locations.contains(ssh) {
-            locations.append(ssh)
-        }
+        appendUnique("https://github.com/\(repo.owner)/\(repo.repo).git", to: &locations)
+        appendUnique("git@github.com:\(repo.owner)/\(repo.repo).git", to: &locations)
     }
 
-    private static func appendGitLabSSHLocation(for location: String, to locations: inout [String]) {
+    private static func appendGitLabLocations(for location: String, to locations: inout [String]) {
         guard let repo = try? GitLabRepo(location: location) else { return }
-        let ssh = "git@\(repo.host):\(repo.pathWithNamespace).git"
-        if !locations.contains(ssh) {
-            locations.append(ssh)
+        appendUnique("https://\(repo.host)/\(repo.pathWithNamespace).git", to: &locations)
+        appendUnique("git@\(repo.host):\(repo.pathWithNamespace).git", to: &locations)
+    }
+
+    private static func appendUnique(_ location: String, to locations: inout [String]) {
+        if !locations.contains(location) {
+            locations.append(location)
         }
     }
 
@@ -116,6 +122,48 @@ enum SourceControlLocations {
     fileprivate static func canonicalizesProviderPath(host: String) -> Bool {
         let host = host.lowercased()
         return host == "github.com" || GitLabRepo.isKnownHost(host)
+    }
+}
+
+/// Authenticates the HTTPS git fallback with the same token swifterpm discovers for the
+/// provider's API. Without this, the HTTPS candidate added by `fetchCandidates` only works
+/// when an ambient credential (a `url.insteadOf` token rewrite, a credential helper, or
+/// ~/.netrc) is configured, so an SSH-declared private dependency keeps failing in CI even
+/// with a usable `GITHUB_TOKEN`/`GH_TOKEN`. Emitting an `http.<base>.extraheader` via `-c`
+/// mirrors what `actions/checkout` does and keeps the token out of the on-disk git config.
+/// SSH candidates return no arguments so ssh-agent stays in charge, and when no token is
+/// available we add nothing so configured ambient credentials keep working unchanged.
+enum GitTransportAuth {
+    static func configArguments(for location: String) async -> [String] {
+        guard location.hasPrefix("https://") else { return [] }
+        if (try? GitHubRepo(location: location)) != nil {
+            guard let token = await GitHubAuth.token() else { return [] }
+            return gitHubArguments(token: token)
+        }
+        if let repo = try? GitLabRepo(location: location) {
+            guard let token = await GitLabAuth.token(host: repo.host) else { return [] }
+            return gitLabArguments(host: repo.host, token: token)
+        }
+        return []
+    }
+
+    static func gitHubArguments(token: String) -> [String] {
+        extraHeaderArguments(
+            base: "https://github.com/",
+            authorization: "Basic \(basicCredential(user: "x-access-token", token: token))"
+        )
+    }
+
+    static func gitLabArguments(host: String, token: GitLabAuth.Token) -> [String] {
+        extraHeaderArguments(base: "https://\(host)/", authorization: token.gitHTTPAuthorization)
+    }
+
+    private static func extraHeaderArguments(base: String, authorization: String) -> [String] {
+        ["-c", "http.\(base).extraheader=Authorization: \(authorization)"]
+    }
+
+    private static func basicCredential(user: String, token: String) -> String {
+        Data("\(user):\(token)".utf8).base64EncodedString()
     }
 }
 

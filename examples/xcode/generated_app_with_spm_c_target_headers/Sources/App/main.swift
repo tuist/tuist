@@ -1,0 +1,2 @@
+import CLib
+print("hi")

@@ -181,6 +181,26 @@ impl MemoryController {
         reapi_materialization_pool_bytes(self.inner.soft_limit_bytes, self.inner.hard_limit_bytes)
     }
 
+    /// Like `try_acquire_reapi_materialization`, but waits for headroom.
+    /// For background work (snapshot index builds) that should queue behind
+    /// in-flight response materialization rather than fail because of it.
+    pub async fn acquire_reapi_materialization(
+        &self,
+        requested_bytes: usize,
+    ) -> Result<Option<OwnedSemaphorePermit>, ()> {
+        if requested_bytes == 0 {
+            return Ok(None);
+        }
+        let permits = u32::try_from(requested_bytes).map_err(|_| ())?;
+        self.inner
+            .reapi_materialization_pool
+            .clone()
+            .acquire_many_owned(permits)
+            .await
+            .map(Some)
+            .map_err(|_| ())
+    }
+
     pub fn try_acquire_reapi_materialization(
         &self,
         requested_bytes: usize,

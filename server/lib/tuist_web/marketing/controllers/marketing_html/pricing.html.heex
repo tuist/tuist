@@ -238,7 +238,12 @@ features = [
     <TuistWeb.Marketing.MarketingComponents.header_background />
 
     <header data-part="header">
-      <img data-part="logo" src={~p"/marketing/images/pricing/logo.webp"} data-part="logo" />
+      <img
+        data-part="logo"
+        src={~p"/marketing/images/pricing/logo.webp"}
+        data-part="logo"
+        decoding="async"
+      />
       <h1 data-part="title">
         {dgettext("marketing", "Start free,")}
         <br />
@@ -267,6 +272,7 @@ features = [
               data-part="image"
               src={~p"/marketing/images/pricing/popular-plan-notch.webp"}
               alt=""
+              decoding="async"
             />
             <span data-part="text">{dgettext("marketing", "Most popular")}</span>
           </div>

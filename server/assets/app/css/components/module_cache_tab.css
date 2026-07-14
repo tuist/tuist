@@ -19,6 +19,16 @@
     gap: var(--noora-spacing-8);
     padding: var(--noora-spacing-8);
 
+    & > [data-part="throughput-widgets"] {
+      display: flex;
+      flex-direction: row;
+      gap: var(--noora-spacing-4);
+
+      & > * {
+        flex: 1;
+      }
+    }
+
     & [data-part="filters"] {
       display: flex;
       gap: var(--noora-spacing-6);

@@ -80,6 +80,67 @@
     }
   }
 
+  /* Invite-member modal: padded form body and the post-create invite-link
+     reveal, mirroring the webhook signing-secret disclosure. */
+  & .noora-modal {
+    & [data-part="modal-content-wrapper"] {
+      display: flex;
+      flex-direction: column;
+
+      & > .noora-line-divider {
+        flex-shrink: 0;
+      }
+    }
+
+    & [data-part="modal-body"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-5);
+      padding: var(--noora-spacing-7) var(--noora-spacing-4);
+
+      & [data-part="modal-message"] {
+        display: flex;
+        flex-direction: column;
+        gap: var(--noora-spacing-2);
+
+        & > [data-part="title"] {
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+        }
+
+        & > [data-part="subtitle"] {
+          color: var(--noora-surface-label-secondary);
+          font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+        }
+      }
+    }
+
+    & [data-part="read-only-value"] {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: var(--noora-spacing-3);
+      border-radius: var(--noora-radius-3);
+      background: var(--noora-surface-background-tertiary);
+      padding: var(--noora-spacing-3) var(--noora-spacing-3) var(--noora-spacing-3) var(--noora-spacing-5);
+      min-width: 0;
+
+      & > code {
+        flex-grow: 1;
+        overflow: hidden;
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+        font-family: "Geist Mono", monospace;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      & > .noora-button {
+        flex-shrink: 0;
+      }
+    }
+  }
+
   /* & #invite-members-input { */
   /*   display: flex; */
   /*   width: 280px; */

@@ -1,6 +1,7 @@
 import FileSystem
 import Foundation
 import Path
+import PathKit
 import TuistCore
 import TuistSupport
 import XcodeProj
@@ -82,7 +83,7 @@ public struct XcodeProjWriter: XcodeProjWriting {
 
         // XcodeProj can manage writing of shared schemes, we have to manually manage the user schemes
         let project = enrichingXcodeProjWithSharedSchemes(descriptor: project)
-        try project.xcodeProj.write(path: project.xcodeprojPath.path)
+        try writePBXProj(project.xcodeProj, at: project.xcodeprojPath)
 
         // Write user schemes only
         try await writeSchemes(
@@ -100,6 +101,34 @@ public struct XcodeProjWriter: XcodeProjWriting {
         // `.xctestplan` files that reference now-stable PBX blueprint identifiers — runs against
         // finalized state.
         try await sideEffectDescriptorExecutor.execute(sideEffects: project.sideEffectDescriptors)
+    }
+
+    /// Writes the `.xcodeproj`, mirroring `XcodeProj.write` (workspace → pbxproj → shared data → user
+    /// data).
+    ///
+    /// As an implementation detail, `project.pbxproj` is only written when its freshly serialized bytes
+    /// differ from what's already on disk. Tuist's generation is byte-deterministic for an unchanged
+    /// input (PBX references are stable hashes of identity and output is sorted), so an unchanged
+    /// regeneration produces identical bytes; leaving the file untouched preserves its modification time
+    /// and avoids the inode/mtime churn an unconditional rewrite would cause. The serialized bytes are
+    /// computed once and reused for the write, so the only added cost is a single read + compare.
+    private func writePBXProj(_ xcodeProj: XcodeProj, at xcodeprojPath: AbsolutePath) throws {
+        let path = xcodeprojPath.path
+        let outputSettings = PBXOutputSettings()
+        try path.mkpath()
+        try xcodeProj.writeWorkspace(path: path, override: true)
+
+        let pbxprojPath = XcodeProj.pbxprojPath(path)
+        if let output = try xcodeProj.pbxproj.dataRepresentation(outputSettings: outputSettings) {
+            let existing = pbxprojPath.exists ? try? pbxprojPath.read() : nil
+            if existing != output {
+                if pbxprojPath.exists { try pbxprojPath.delete() }
+                try pbxprojPath.write(output)
+            }
+        }
+
+        try xcodeProj.writeSharedData(path: path, override: true)
+        try xcodeProj.writeUserData(path: path, override: true)
     }
 
     private func writeSchemes(

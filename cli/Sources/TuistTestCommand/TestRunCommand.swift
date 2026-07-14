@@ -60,8 +60,8 @@
                 abstract: "Tests a project",
                 usage:
                 "tuist test [<options>] [<scheme>] -- [<passthrough-xcode-build-arguments> ...]",
-                discussion: "Use 'tuist test case' to manage test cases.",
-                shouldDisplay: false
+                discussion:
+                "This is the default subcommand, so 'tuist test --clean' and 'tuist test run --clean' are equivalent."
             )
         }
 
@@ -274,7 +274,7 @@
 
         @Option(
             name: .long,
-            help: "Exact number of shards (mutually exclusive with --shard-min/--shard-max).",
+            help: "Exact number of shards (mutually exclusive with --shard-min/--shard-max). With suite granularity, the final shard is the catch-all.",
             envKey: .testShardTotal
         )
         var shardTotal: Int?

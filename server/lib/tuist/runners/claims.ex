@@ -61,8 +61,6 @@ defmodule Tuist.Runners.Claims do
   alias Tuist.Repo
   alias Tuist.Runners.Claim
 
-  require Logger
-
   # Postgres advisory locks accept a single 64-bit int or two
   # 32-bit ints. Using the two-int form lets us namespace by a
   # constant so we don't collide with other advisory-lock users
@@ -228,6 +226,17 @@ defmodule Tuist.Runners.Claims do
   end
 
   @doc """
+  Returns active claim workflow_job IDs for `fleet_name`.
+
+  Dispatch uses this as an anti-list when selecting queued ClickHouse
+  rows. If ClickHouse still says a job is queued while Postgres already
+  has a live claim for it, that row must not pin the fleet's queue head.
+  """
+  def workflow_job_ids_for_fleet(fleet_name) when is_binary(fleet_name) do
+    Repo.all(from(c in Claim, where: c.fleet_name == ^fleet_name, select: c.workflow_job_id))
+  end
+
+  @doc """
   Counts active claims per account **across all fleets**. Returns
   `%{account_id => count}` — how many runners each account is
   currently using. Not fleet-scoped: an account's jobs spread
@@ -288,5 +297,25 @@ defmodule Tuist.Runners.Claims do
     from(c in Claim, select: c.pod_name, distinct: true)
     |> Repo.all()
     |> MapSet.new()
+  end
+
+  @doc """
+  Resolves the live claim (`claimed` or `running`) owning `pod_name`
+  to its `workflow_job_id` and `account_id`. The metrics ingest
+  endpoint uses this to map a sampled Pod back to the job it's running,
+  so the runners-controller can POST samples keyed by Pod name without
+  knowing job ids. Returns `:error` when the Pod holds no live claim
+  (an idle/warm Pod, or one whose job already released its claim).
+  """
+  def by_pod_name(pod_name) when is_binary(pod_name) do
+    Claim
+    |> where([c], c.pod_name == ^pod_name)
+    |> select([c], %{workflow_job_id: c.workflow_job_id, account_id: c.account_id})
+    |> limit(1)
+    |> Repo.one()
+    |> case do
+      nil -> :error
+      claim -> {:ok, claim}
+    end
   end
 end

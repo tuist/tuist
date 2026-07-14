@@ -128,6 +128,18 @@ defmodule Tuist.Runners.ClaimsTest do
     end
   end
 
+  describe "workflow_job_ids_for_fleet/1" do
+    test "returns active workflow_job IDs for one fleet" do
+      account = account_fixture()
+
+      {:ok, _} = Claims.attempt(6101, account.id, "fleet-a", "pod-a-1")
+      {:ok, _} = Claims.attempt(6102, account.id, "fleet-a", "pod-a-2")
+      {:ok, _} = Claims.attempt(6103, account.id, "fleet-b", "pod-b-1")
+
+      assert "fleet-a" |> Claims.workflow_job_ids_for_fleet() |> Enum.sort() == [6101, 6102]
+    end
+  end
+
   describe "complete/1" do
     test "deletes the claim regardless of handle" do
       account = account_fixture()
@@ -198,6 +210,21 @@ defmodule Tuist.Runners.ClaimsTest do
 
     test "is empty when there are no claims" do
       assert Claims.live_pod_names() == MapSet.new()
+    end
+  end
+
+  describe "by_pod_name/1" do
+    test "resolves a live claim's workflow_job_id and account_id" do
+      account = account_fixture()
+      {:ok, _} = Claims.attempt(6001, account.id, "fleet-a", "pod-1")
+      :ok = Claims.mark_running(6001, "runner-x")
+
+      assert {:ok, %{workflow_job_id: 6001, account_id: account_id}} = Claims.by_pod_name("pod-1")
+      assert account_id == account.id
+    end
+
+    test "returns :error when the pod holds no live claim" do
+      assert Claims.by_pod_name("unknown-pod") == :error
     end
   end
 end

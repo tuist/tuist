@@ -28,7 +28,7 @@ services:
       - "${PGWEB_PORT:-8081}:8081"
 
   clickhouse-keeper:
-    image: clickhouse/clickhouse-server:25.8
+    image: clickhouse/clickhouse-server:26.5-alpine
     restart: unless-stopped
     command: ["clickhouse-keeper", "--config-file=/etc/clickhouse-keeper/keeper_config.xml"]
     volumes:
@@ -41,7 +41,7 @@ services:
       retries: 20
 
   clickhouse:
-    image: clickhouse/clickhouse-server:25.8
+    image: clickhouse/clickhouse-server:26.5-alpine
     restart: unless-stopped
     depends_on:
       clickhouse-keeper:
@@ -102,8 +102,8 @@ services:
     image: ${KURA_IMAGE:-ghcr.io/tuist/kura:latest}
     restart: unless-stopped
     environment:
+      # One listener serves the HTTP cache API and REAPI gRPC (h2c).
       KURA_PORT: "4000"
-      KURA_GRPC_PORT: "50051"
       KURA_INTERNAL_PORT: "7443"
       KURA_TENANT_ID: default
       KURA_REGION: local
@@ -115,7 +115,6 @@ services:
       KURA_OTEL_DEPLOYMENT_ENVIRONMENT: local
     ports:
       - "${KURA_HTTP_PORT:-4000}:4000"
-      - "${KURA_GRPC_PORT:-50051}:50051"
     volumes:
       - kura-data:/var/cache/kura
     healthcheck:

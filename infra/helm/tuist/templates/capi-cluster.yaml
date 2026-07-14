@@ -10,7 +10,7 @@ MachineDeployment + Machine the chart renders. Without all three:
   1. Cluster — CAPI core's parent resource; every Machine carries
      `spec.clusterName: <this>` and CAPI core refuses to drive a
      Machine whose Cluster doesn't exist or isn't ready.
-  2. ScalewayAppleSiliconCluster — our infrastructure-side
+  2. TuistCluster — our infrastructure-side
      Cluster; flipped to Status.Ready=true by our cluster
      controller. CAPI core watches it and sets
      Cluster.Status.InfrastructureReady from it.
@@ -60,11 +60,11 @@ spec:
     port: 6443
   infrastructureRef:
     apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
-    kind: ScalewayAppleSiliconCluster
+    kind: TuistCluster
     name: {{ $clusterName }}
 ---
 apiVersion: infrastructure.cluster.x-k8s.io/v1alpha1
-kind: ScalewayAppleSiliconCluster
+kind: TuistCluster
 metadata:
   name: {{ $clusterName }}
   namespace: {{ .Release.Namespace }}

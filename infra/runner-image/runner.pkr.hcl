@@ -54,6 +54,7 @@ packer {
 #   /Users/runner/work/<owner>/<repo>           <- workspace, set via JIT work_folder
 #   /Users/runner/Library/LaunchAgents/         <- dev.tuist.runner.plist
 #   /opt/tuist/dispatch-poll.sh                 <- the dispatch poll loop (root-owned)
+#   /opt/tuist/metrics-poll.sh                  <- machine-metrics sampler (forked during a job)
 #   /opt/tuist/inject-env.sh                    <- reads kubelet env mount → /etc/tuist.env
 #   /Applications/Xcode_<version>.app           <- inherited from the base
 #
@@ -145,8 +146,8 @@ source "tart-cli" "runner" {
   # tight values held for years on the original Mac mini but timed out
   # on newly-onboarded hosts. 15m gives headroom for the cold path on a
   # cirruslabs Tahoe base; the warm path returns long before then.
-  ssh_timeout  = "15m"
-  headless     = true
+  ssh_timeout = "15m"
+  headless    = true
 }
 
 build {
@@ -179,6 +180,44 @@ build {
       "echo 'admin' | sudo -S sysadminctl -addUser runner -fullName 'GitHub Actions Runner' -password runner -admin",
       "echo 'admin' | sudo -S mkdir -p /opt/tuist /etc/tuist",
       "echo 'admin' | sudo -S chown root:wheel /opt/tuist"
+    ]
+  }
+
+  # The runner auto-login opens a real desktop session so launchd can
+  # run the GitHub Actions agent. On fresh macOS images that first
+  # desktop can be intercepted by Setup Assistant's "Update Mac
+  # Automatically" pane, which is exactly what the dashboard VNC
+  # would then show. macOS 11+ rejects silent .mobileconfig installs,
+  # so seed the macOS 15+ SkipSetupItems preferences directly and also
+  # write the older seen flags that previous Setup Assistant releases
+  # still consult.
+  provisioner "shell" {
+    inline = [
+      "set -euo pipefail",
+      "echo 'admin' | sudo -S true",
+      "SETUP_ITEMS=(AppleID Appearance Biometric Diagnostics FileVault iCloudStorage Intelligence Location Privacy ScreenTime Siri SoftwareUpdate UnlockWithWatch UpdateCompleted Welcome)",
+      "sudo mkdir -p '/Library/Managed Preferences' '/Library/Managed Preferences/runner'",
+      "write_skip_items() { local plist=\"$1\"; sudo rm -f \"$plist\"; sudo plutil -create xml1 \"$plist\"; sudo /usr/libexec/PlistBuddy -c 'Add :SkipSetupItems array' \"$plist\"; for item in \"$${SETUP_ITEMS[@]}\"; do sudo /usr/libexec/PlistBuddy -c \"Add :SkipSetupItems: string $item\" \"$plist\"; done; sudo chmod 644 \"$plist\"; }",
+      "write_skip_items '/Library/Managed Preferences/com.apple.SetupAssistant.managed.plist'",
+      "write_skip_items '/Library/Managed Preferences/runner/com.apple.SetupAssistant.managed.plist'",
+      "write_skip_items '/Library/Preferences/com.apple.SetupAssistant.managed.plist'",
+      "write_skip_items '/Users/runner/Library/Preferences/com.apple.SetupAssistant.managed.plist'",
+      "sudo chown runner:staff /Users/runner/Library/Preferences/com.apple.SetupAssistant.managed.plist",
+      "sudo chmod 755 '/Library/Managed Preferences' '/Library/Managed Preferences/runner'",
+      "PRODUCT_VERSION=$(sw_vers -productVersion)",
+      "BUILD_VERSION=$(sw_vers -buildVersion)",
+      "sudo defaults write /Library/Preferences/com.apple.SetupAssistant DidSeeCloudSetup -bool true",
+      "sudo defaults write /Library/Preferences/com.apple.SetupAssistant DidSeeSiriSetup -bool true",
+      "sudo defaults write /Library/Preferences/com.apple.SetupAssistant DidSeePrivacy -bool true",
+      "sudo defaults write /Library/Preferences/com.apple.SetupAssistant LastSeenCloudProductVersion \"$PRODUCT_VERSION\"",
+      "sudo defaults write /Library/Preferences/com.apple.SetupAssistant LastSeenBuddyBuildVersion \"$BUILD_VERSION\"",
+      "sudo -u runner defaults write com.apple.SetupAssistant DidSeeCloudSetup -bool true",
+      "sudo -u runner defaults write com.apple.SetupAssistant DidSeeSiriSetup -bool true",
+      "sudo -u runner defaults write com.apple.SetupAssistant DidSeePrivacy -bool true",
+      "sudo -u runner defaults write com.apple.SetupAssistant LastSeenCloudProductVersion \"$PRODUCT_VERSION\"",
+      "sudo -u runner defaults write com.apple.SetupAssistant LastSeenBuddyBuildVersion \"$BUILD_VERSION\"",
+      "sudo -u runner defaults write com.apple.SoftwareUpdate AutomaticCheckEnabled -bool false",
+      "sudo -u runner defaults write com.apple.SoftwareUpdate AutomaticDownload -bool false"
     ]
   }
 
@@ -230,11 +269,17 @@ build {
     destination = "/tmp/dispatch-poll.sh"
   }
 
+  provisioner "file" {
+    source      = "${path.root}/metrics-poll.sh"
+    destination = "/tmp/metrics-poll.sh"
+  }
+
   provisioner "shell" {
     inline = [
       "echo 'admin' | sudo -S install -m 0755 /tmp/inject-env.sh /opt/tuist/inject-env.sh",
       "echo 'admin' | sudo -S install -m 0755 /tmp/dispatch-poll.sh /opt/tuist/dispatch-poll.sh",
-      "rm -f /tmp/inject-env.sh /tmp/dispatch-poll.sh"
+      "echo 'admin' | sudo -S install -m 0755 /tmp/metrics-poll.sh /opt/tuist/metrics-poll.sh",
+      "rm -f /tmp/inject-env.sh /tmp/dispatch-poll.sh /tmp/metrics-poll.sh"
     ]
   }
 

@@ -6,14 +6,15 @@ This file provides guidance to AI agents when working with code in this reposito
 - `cli/` - Tuist CLI (Swift) - see `cli/AGENTS.md`
 - `server/` - Tuist Server (Elixir/Phoenix) - see `server/AGENTS.md`
 - `cache/` - Tuist cache service (Elixir/Phoenix) - see `cache/AGENTS.md`
+- `registry/` - Swift package registry service (Elixir/Phoenix) - see `registry/AGENTS.md`
 - `slack/` - Tuist Slack invitation app (Elixir/Phoenix + SQLite) - see `slack/AGENTS.md`
 - `kura/` - Kura distributed cache mesh (Rust) - see `kura/AGENTS.md`
+- `cas-plugin/` - Xcode compilation-cache CAS plugin (Rust cdylib) wrapping Apple's libToolchainCASPlugin with Tuist-remote read/write-through - see `cas-plugin/AGENTS.md`
 - `tuist_common/` - Shared Elixir utilities used across services - see `tuist_common/AGENTS.md`
 - `app/` - Tuist iOS and macOS app - see `app/AGENTS.md`
 - `android/` - Tuist Android app (Kotlin/Compose) - see `android/AGENTS.md`
 - `handbook/` - Company handbook (VitePress) - see `handbook/AGENTS.md`
 - `noora/` - Noora design system (Elixir/Phoenix web components) - see `noora/AGENTS.md`
-- `mise/tasks/registry/` - Operational scripts for Swift package registry management (purge, sync)
 - `skills/` - Agent Skills (published to [tuist/agent-skills](https://github.com/tuist/agent-skills))
 - `swifterpm/` - SwifterPM Swift package restoration tool and Bazel/Buck integration helpers - see `swifterpm/AGENTS.md`
 - `server/native/xcactivitylog_nif/` - Swift NIF linked into the server release for xcactivitylog parsing. The build processor is no longer a standalone Elixir app; it's the same `ghcr.io/tuist/tuist` image booted with `TUIST_MODE=processor` to run the `:process_build` Oban queue consumer.
@@ -21,7 +22,7 @@ This file provides guidance to AI agents when working with code in this reposito
 - `infra/xcresult-processor-image/` - Packer template + launchd plist that produces the macOS Tart image hosting the Tuist server release with `TUIST_MODE=xcresult_processor`. See `infra/xcresult-processor-image/AGENTS.md`.
 - `infra/macos-xcode-image/` - Packer template that builds the in-house macOS + Xcode Tart image (Layer 1 base for `tuist-runner` and `tuist-xcresult-processor`). Drops the dependency on Cirrus Labs' `macos-tahoe-xcode:N` catalog. See `infra/macos-xcode-image/AGENTS.md`.
 - `infra/tart-cri/` - Container Runtime Interface (CRI) implementation that drives Tart on macOS, plus a CNI plugin. Lets a Mac mini join a Kubernetes cluster as a real node so macOS workloads schedule via standard `Deployment` / `Job` with `nodeSelector: kubernetes.io/os=darwin` + `tuist.dev/runtime=tart`. See `infra/tart-cri/AGENTS.md`.
-- `infra/cluster-api-provider-scaleway-applesilicon/` - Cluster API infrastructure provider that joins Scaleway nodes as workers into the existing caph/Hetzner clusters. Watches two machine kinds — `ScalewayAppleSiliconMachine` (Mac minis/Tart) and `ScalewayElasticMetalMachine` (Linux bare metal, e.g. the `kura-scw-fr-par` runner-cache node) — orders/releases via Scaleway's API, and bootstraps each with an operator-minted kubelet identity + SSH self-join. Scaling a fleet is `kubectl scale machinedeployment`. See `infra/cluster-api-provider-scaleway-applesilicon/AGENTS.md`.
+- `infra/cluster-api-provider-tuist/` - Cluster API infrastructure provider that joins Scaleway nodes as workers into the existing caph/Hetzner clusters. Watches two machine kinds — `ScalewayAppleSiliconMachine` (Mac minis/Tart) and `ScalewayElasticMetalMachine` (Linux bare metal, e.g. the `kura-scw-fr-par` runner-cache node) — orders/releases via Scaleway's API, and bootstraps each with an operator-minted kubelet identity + SSH self-join. Scaling a fleet is `kubectl scale machinedeployment`. See `infra/cluster-api-provider-tuist/AGENTS.md`.
 - `infra/stable-egress-controller/` - Go controller (Hetzner Cloud) that makes the hosted server's stable egress IP highly available: keeps the Floating IP + active gateway label on one Ready node of the ≥2-node `md-egress` pool and fails over on node loss, so the Cilium egress gateway has no single-node SPOF. See `infra/stable-egress-controller/AGENTS.md`.
 - `search/` - Search infrastructure (TypeSense) - see `search/AGENTS.md`
 - `status/` - Public status page (Cloudflare Worker + Hono) backed by Grafana IRM - see `status/AGENTS.md`
@@ -46,6 +47,7 @@ When creating commits and pull requests, use these conventional commit scopes:
 - `android` - Changes to the Tuist Android app
 - `server` - Changes to the Tuist server (Elixir/Phoenix)
 - `cache` - Changes to the Tuist cache service (Elixir/Phoenix)
+- `registry` - Changes to the Swift package registry service
 - `slack` - Changes to the Tuist Slack invitation app (Elixir/Phoenix)
 - `kura` - Changes to the Kura distributed cache mesh service
 - `cli` - Changes to the Tuist CLI (Swift)
@@ -62,6 +64,7 @@ Examples:
 - `feat(server): add new telemetry sanitizer module`
 - `fix(cli): resolve cache artifact upload issue`
 - `feat(cache): add new S3 transfer worker`
+- `feat(registry): add release sync allowlist`
 - `feat(kura): add peer discovery backoff handling`
 - `feat(skills): add new migration skill`
 - `docs(handbook): update project setup guide`
@@ -78,17 +81,26 @@ Pull request descriptions should cover:
 
 Avoid minimal PR descriptions that only restate the code diff. The goal is that a reviewer can understand the problem, the reasoning, and the validation without reopening the full agent session.
 
+## Review Guidance
+
+When reviewing changes, keep the relevant Blick review skills in mind based on the languages modified:
+
+- [Tuist Elixir review](.blick/skills/tuist-elixir-review/SKILL.md) for Elixir, Phoenix, Noora, and shared service changes.
+- [Tuist Swift review](.blick/skills/tuist-swift-review/SKILL.md) for Swift changes, including Tuist command-line and SwifterPM changes.
+
+These files are review context for Claude, Codex, and other local coding agents. Only report findings whose cited line appears in the diff.
+
 # Tuist CLI (Swift)
 
 ## Code style
 - Do not add one-line comments unless you think they are really useful.
 
 ## Workflow
-- For faster builds, generate only the required targets: `tuist generate tuist ProjectDescription --no-open`
-- When compiling Swift changes, use `xcodebuild build -workspace Tuist.xcworkspace -scheme tuist CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""` instead of `swift build`
-- When testing Swift changes, use `xcodebuild test -workspace Tuist.xcworkspace -scheme Tuist-Workspace -only-testing MyTests/SuiteTests CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""` instead of `swift test`.
+- For faster builds, generate only the required targets before compiling or testing, for example `tuist generate tuist ProjectDescription --no-open`. If the target or test suite you need is not present in the current generated workspace, regenerate with that specific production target and test target instead of falling back to SwiftPM.
+- When compiling Swift changes, use `xcodebuild build -workspace Tuist.xcworkspace -scheme tuist CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""` instead of `swift build`.
+- When testing Swift changes, use `xcodebuild test -workspace Tuist.xcworkspace -scheme Tuist-Workspace -only-testing MyTests/SuiteTests CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""` or `xcsiftbuild test` instead of `swift test`.
 - Prefer running test suites or individual test cases, and not the whole test target, for performance
-- When using `swift build`, `swift test`, or `swift package resolve` always include `--replace-scm-with-registry` to avoid switching packages from registry to source control resolution
+- Do not use `swift build` or `swift test` as a fallback for CLI work. Only use SwiftPM commands when the user explicitly asks for them or when changing package-resolution behavior; in those exceptional cases, always include `--replace-scm-with-registry` to avoid switching packages from registry to source control resolution.
 
 ## Testing
 - Use Swift Testing framework with custom traits for tests that need temporary directories

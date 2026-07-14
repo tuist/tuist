@@ -8,8 +8,7 @@ Describe 'tenant-scoped HTTP cache interoperability'
     setup_suite_tmpdir
 
     suite_env COMPOSE_PROJECT_NAME kura-tenant-scope
-    ephemeral_ports KURA_US_PORT KURA_EU_PORT KURA_AP_PORT \
-      KURA_US_GRPC_PORT KURA_EU_GRPC_PORT KURA_AP_GRPC_PORT
+    ephemeral_ports KURA_US_PORT KURA_EU_PORT KURA_AP_PORT
 
     dc down -v --remove-orphans >/dev/null 2>&1 || true
     compose_up kura-us kura-eu kura-ap || return 1

@@ -6,6 +6,7 @@ defmodule TuistWeb.UserResetPasswordLive do
   import TuistWeb.AppAuthComponents
 
   alias Tuist.Accounts
+  alias Tuist.Environment
   alias TuistWeb.Endpoint
 
   def render(assigns) do
@@ -21,9 +22,10 @@ defmodule TuistWeb.UserResetPasswordLive do
         <div data-part="frame">
           <div data-part="content">
             <img
-              src="/images/tuist_logo_32x32@2x.png"
+              src={~p"/images/tuist_logo_32x32@2x.png"}
               alt={dgettext("dashboard_auth", "Tuist Logo")}
               data-part="logo"
+              decoding="async"
             />
             <div data-part="dots">
               <.dots_light />
@@ -76,16 +78,20 @@ defmodule TuistWeb.UserResetPasswordLive do
   end
 
   def mount(params, _session, socket) do
-    password = Phoenix.Flash.get(socket.assigns.flash, :password)
-    form = to_form(%{"password" => password}, as: "user")
+    if Environment.email_auth_enabled?() do
+      password = Phoenix.Flash.get(socket.assigns.flash, :password)
+      form = to_form(%{"password" => password}, as: "user")
 
-    {
-      :ok,
-      socket
-      |> assign_user_and_token(params)
-      |> assign(:form, form),
-      temporary_assigns: [form: form]
-    }
+      {
+        :ok,
+        socket
+        |> assign_user_and_token(params)
+        |> assign(:form, form),
+        temporary_assigns: [form: form]
+      }
+    else
+      {:ok, redirect(socket, to: ~p"/users/log_in")}
+    end
   end
 
   # Do not log in the user after reset password to avoid a

@@ -64,14 +64,18 @@ defmodule Tuist.MixProject do
       {:jason, "~> 1.2"},
       {:libcluster, "~> 3.5"},
       {:bandit, "~> 1.11.1", override: true},
-      {:credo, "== 1.7.13", only: [:dev, :test], runtime: false},
+      # Pinned: plug >= 1.19.3 crashes WebSocket upgrades on bandit 1.11.1
+      # (ArgumentError ":upgrade not a binary"). Without this pin, plug is an
+      # unconstrained transitive dep and every `mix deps.get` re-resolves it to
+      # the latest, churning the lock and forcing full recompiles.
+      {:plug, "1.19.2", override: true},
+      {:credo, "== 1.7.19", only: [:dev, :test], runtime: false},
       {:sentry, "~> 11.0.4"},
       {:tower, "0.8.0"},
       {:tower_opentelemetry, "~> 0.2.0"},
       {:hackney, "~> 1.8"},
       {:castore, "~> 1.0.12"},
       {:uniq, "~> 0.6"},
-      {:encrypted_secrets, "~> 0.3.0"},
       {:ex_aws, "~> 2.6"},
       {:ex_aws_s3,
        git: "https://github.com/tuist/ex_aws_s3/", ref: "7f3278bef49cc3fa6b4138a4077804d328a41c9c", override: true},
@@ -118,7 +122,10 @@ defmodule Tuist.MixProject do
       {:retry, "~> 0.19"},
       {:redirect, "~> 0.4.0"},
       {:let_me, "~> 1.2"},
-      {:emcp, "~> 0.3.4"},
+      # Pinned to the open upstream fix for intermittent missing tool-call
+      # responses. Revert to a Hex version once the fix is released.
+      {:emcp, github: "addstar34/emcp", ref: "c687e279cf4f550f69934549a1303312ed3a23b5", override: true},
+      {:ex_json_schema, "~> 0.11"},
       {:ua_parser, "~> 1.8"},
       {:money, "~> 1.12"},
       {:image, "~> 0.60"},

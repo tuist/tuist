@@ -1,6 +1,6 @@
 import Foundation
 
-struct RemoteVersion: Codable, Sendable {
+struct RemoteVersion: Codable {
     let version: String
     let revision: String
 
@@ -54,18 +54,20 @@ enum RemoteMetadata {
     }
 
     private static func gitRemoteVersions(location: String) async throws -> [RemoteVersion] {
-        var lastError: (any Error)?
+        var attempts: [(candidate: String, error: any Error)] = []
         for candidate in SourceControlLocations.fetchCandidates(location) {
             do {
+                let authArguments = await GitTransportAuth.configArguments(for: candidate)
                 let output = try await SystemProcess.output(
-                    "/usr/bin/git", ["ls-remote", "--tags", candidate])
+                    "/usr/bin/git", authArguments + ["ls-remote", "--tags", candidate],
+                    environment: SystemProcess.nonInteractiveGitEnvironment
+                )
                 return parseGitRemoteVersions(output)
             } catch {
-                lastError = error
+                attempts.append((candidate, error))
             }
         }
-        throw lastError
-            ?? ToolError.message("no source-control locations available for \(location)")
+        throw GitFetchFailure.error(location: location, attempts: attempts)
     }
 
     private static func parseGitRemoteVersions(_ output: String) -> [RemoteVersion] {
@@ -90,7 +92,8 @@ enum RemoteMetadata {
         for (tag, sha) in direct {
             guard let version = RemoteMetadata.parseSwiftTagVersion(tag) else { continue }
             versions.append(
-                RemoteVersion(version: version.description, revision: peeled[tag] ?? sha))
+                RemoteVersion(version: version.description, revision: peeled[tag] ?? sha)
+            )
         }
         return versions.sorted {
             SemVer.ascendingForSort(
@@ -112,21 +115,23 @@ enum RemoteMetadata {
         while true {
             let url = URL(
                 string:
-                    "https://api.github.com/repos/\(repo.owner)/\(repo.repo)/tags?per_page=100&page=\(page)"
+                "https://api.github.com/repos/\(repo.owner)/\(repo.repo)/tags?per_page=100&page=\(page)"
             )!
             var headers = ["User-Agent": "swifterpm/0.1"]
             if let token = await GitHubAuth.token() {
                 headers["Authorization"] = "Bearer \(token)"
             }
             let tags = try JSONDecoder().decode(
-                [TagsResponse].self, from: try await HTTPClient.data(url: url, headers: headers))
+                [TagsResponse].self, from: try await HTTPClient.data(url: url, headers: headers)
+            )
             if tags.isEmpty {
                 break
             }
             for tag in tags {
                 if let version = RemoteMetadata.parseSwiftTagVersion(tag.name) {
                     versions.append(
-                        RemoteVersion(version: version.description, revision: tag.commit.sha))
+                        RemoteVersion(version: version.description, revision: tag.commit.sha)
+                    )
                 }
             }
             page += 1
@@ -140,22 +145,25 @@ enum RemoteMetadata {
     }
 
     static func resolveNamedRef(location: String, name: String) async throws -> String {
-        var lastError: (any Error)?
+        var attempts: [(candidate: String, error: any Error)] = []
         for candidate in SourceControlLocations.fetchCandidates(location) {
             do {
+                let authArguments = await GitTransportAuth.configArguments(for: candidate)
                 let output = try await SystemProcess.output(
-                    "/usr/bin/git", ["ls-remote", candidate, name])
+                    "/usr/bin/git", authArguments + ["ls-remote", candidate, name],
+                    environment: SystemProcess.nonInteractiveGitEnvironment
+                )
                 guard let line = output.split(separator: "\n").first,
-                    let revision = line.split(whereSeparator: \.isWhitespace).first
+                      let revision = line.split(whereSeparator: \.isWhitespace).first
                 else {
                     throw ToolError.message("\(name) was not found in \(candidate)")
                 }
                 return String(revision)
             } catch {
-                lastError = error
+                attempts.append((candidate, error))
             }
         }
-        throw lastError ?? ToolError.message("\(name) was not found in \(location)")
+        throw GitFetchFailure.error(location: location, attempts: attempts)
     }
 
     static func parseSwiftTagVersion(_ tag: String) -> SemVer? {
@@ -169,12 +177,13 @@ enum RemoteMetadata {
         let path = cache.remoteVersionsPath(location: location)
         guard try await fileSystem.exists(path.absolutePath) else { return nil }
         if let modified = try await fileSystem.fileMetadata(at: path.absolutePath)?.lastModificationDate,
-            Date().timeIntervalSince(modified) > 60 * 60
+           Date().timeIntervalSince(modified) > 60 * 60
         {
             return nil
         }
         let cached = try JSONDecoder().decode(
-            RemoteVersionsCache.self, from: try await fileSystem.readFile(at: path.absolutePath))
+            RemoteVersionsCache.self, from: try await fileSystem.readFile(at: path.absolutePath)
+        )
         guard cached.location == location else { return nil }
         return cached.versions
     }
@@ -186,8 +195,9 @@ enum RemoteMetadata {
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         let data =
             try encoder.encode(RemoteVersionsCache(location: location, versions: versions))
-            + Data("\n".utf8)
+                + Data("\n".utf8)
         try await fileSystem.atomicWrite(
-            data, to: cache.remoteVersionsPath(location: location))
+            data, to: cache.remoteVersionsPath(location: location)
+        )
     }
 }

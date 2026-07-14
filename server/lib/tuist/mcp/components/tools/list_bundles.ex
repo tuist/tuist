@@ -32,6 +32,47 @@ defmodule Tuist.MCP.Components.Tools.ListBundles do
         }
       },
       "required" => ["account_handle", "project_handle"]
+    },
+    output_schema: %{
+      "type" => "object",
+      "properties" => %{
+        "bundles" => %{
+          "type" => "array",
+          "items" => %{
+            "type" => "object",
+            "properties" => %{
+              "id" => %{"type" => "string"},
+              "name" => %{"type" => "string"},
+              "app_bundle_id" => %{"type" => "string"},
+              "version" => %{"type" => "string"},
+              "type" => %{"type" => "string"},
+              "supported_platforms" => %{"type" => "array", "items" => %{"type" => "string"}},
+              "install_size" => %{"type" => "integer"},
+              "download_size" => %{"type" => ["integer", "null"]},
+              "git_branch" => %{"type" => ["string", "null"]},
+              "git_commit_sha" => %{"type" => ["string", "null"]},
+              "inserted_at" => %{"type" => "string"}
+            },
+            "required" => [
+              "id",
+              "name",
+              "app_bundle_id",
+              "version",
+              "type",
+              "supported_platforms",
+              "install_size",
+              "download_size",
+              "git_branch",
+              "git_commit_sha",
+              "inserted_at"
+            ],
+            "additionalProperties" => false
+          }
+        },
+        "pagination_metadata" => Tuist.MCP.Tool.pagination_metadata_schema()
+      },
+      "required" => ["bundles", "pagination_metadata"],
+      "additionalProperties" => false
     }
 
   alias Tuist.Bundles

@@ -128,6 +128,7 @@ config :logger, :console,
     :pod_name,
     :pool,
     :pools,
+    :session_id,
     :runner_name,
     :repo,
     :principal_namespace,
@@ -154,6 +155,7 @@ config :logger, :console,
     :original_reason,
     :release_error,
     :owner,
+    :org,
     :count,
     :stale_after_seconds,
     :verify_after_seconds,
@@ -221,7 +223,7 @@ config :tuist, Tuist.Vault, key: {Tuist.Environment, :secret_key_encryption, []}
 config :tuist, TuistWeb.Endpoint,
   adapter: Bandit.PhoenixAdapter,
   render_errors: [
-    formats: [html: TuistWeb.ErrorHTML, json: TuistWeb.ErrorJSON],
+    formats: [html: TuistWeb.ErrorHTML, json: TuistWeb.ErrorJSON, "scim+json": TuistWeb.SCIM.ErrorJSON],
     layout: false
   ],
   pubsub_server: Tuist.PubSub,
@@ -381,7 +383,8 @@ config :tuist, :runner_macos_shapes, [
 config :tuist, :runner_macos_xcode_versions, [
   %{xcode_version: "26.5", default: true},
   %{xcode_version: "26.4.1"},
-  %{xcode_version: "26.3"}
+  %{xcode_version: "26.3"},
+  %{xcode_version: "26.0.1"}
 ]
 
 config :tuist, :urls,

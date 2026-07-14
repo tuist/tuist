@@ -207,4 +207,87 @@ final class TargetManifestMapperTests: TuistUnitTestCase {
             .hash(Parameter<String>.value("generated-file-Scripts/GeneratedFile.swift"))
             .called(1)
     }
+
+    func test_from_deduplicatesIdenticalXCFrameworkDependenciesExpandedFromExternalDependencies() async throws {
+        // Given
+        let rootDirectory = try temporaryPath()
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: try temporaryPath(),
+            rootDirectory: rootDirectory
+        )
+        let xcframeworkDependency = XcodeGraph.TargetDependency.xcframework(
+            path: "/Frameworks/MyBinary.xcframework",
+            expectedSignature: nil,
+            status: .required
+        )
+        let mockContentHasher = MockContentHashing()
+
+        // When
+        let target = try await XcodeGraph.Target.from(
+            manifest: .test(
+                infoPlist: .default,
+                sources: .sourceFilesList(globs: [ProjectDescription.SourceFileGlob]()),
+                resources: .resources([]),
+                dependencies: [
+                    .external(name: "ProductA"),
+                    .external(name: "ProductB"),
+                ]
+            ),
+            generatorPaths: generatorPaths,
+            externalDependencies: [
+                "ProductA": [xcframeworkDependency],
+                "ProductB": [xcframeworkDependency],
+            ],
+            fileSystem: fileSystem,
+            contentHasher: mockContentHasher,
+            type: .local
+        )
+
+        // Then
+        XCTAssertEqual(target.dependencies, [xcframeworkDependency])
+    }
+
+    func test_from_preservesDuplicateAuthoredXCFrameworkDependencies() async throws {
+        // Given
+        let rootDirectory = try temporaryPath()
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: try temporaryPath(),
+            rootDirectory: rootDirectory
+        )
+        let manifestDependency = ProjectDescription.TargetDependency.xcframework(
+            path: "/Frameworks/MyBinary.xcframework",
+            expectedSignature: nil,
+            status: .required
+        )
+        let graphDependency = XcodeGraph.TargetDependency.xcframework(
+            path: "/Frameworks/MyBinary.xcframework",
+            expectedSignature: nil,
+            status: .required
+        )
+        let mockContentHasher = MockContentHashing()
+
+        // When
+        let target = try await XcodeGraph.Target.from(
+            manifest: .test(
+                infoPlist: .default,
+                sources: .sourceFilesList(globs: [ProjectDescription.SourceFileGlob]()),
+                resources: .resources([]),
+                dependencies: [
+                    manifestDependency,
+                    manifestDependency,
+                ]
+            ),
+            generatorPaths: generatorPaths,
+            externalDependencies: [:],
+            fileSystem: fileSystem,
+            contentHasher: mockContentHasher,
+            type: .local
+        )
+
+        // Then
+        XCTAssertEqual(target.dependencies, [
+            graphDependency,
+            graphDependency,
+        ])
+    }
 }

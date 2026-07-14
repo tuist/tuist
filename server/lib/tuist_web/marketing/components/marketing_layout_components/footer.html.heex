@@ -3,17 +3,27 @@
     data-part="background"
     src={~p"/marketing/images/components/footer/background.webp"}
     alt=""
+    loading="lazy"
+    decoding="async"
   />
   <div data-part="content">
     <header data-part="header">
       <div data-part="tuist">
-        <img data-part="logo" src={~p"/marketing/images/components/footer/logo.webp"} alt="Tuist" />
+        <img
+          data-part="logo"
+          src={~p"/marketing/images/components/footer/logo.webp"}
+          alt="Tuist"
+          loading="lazy"
+          decoding="async"
+        />
         <h3 data-part="title">Tuist</h3>
       </div>
       <img
         data-part="soc2"
         src={~p"/marketing/images/shared/soc2.webp"}
         alt="SOC 2 Type II Certified"
+        loading="lazy"
+        decoding="async"
       />
       <.link href="https://status.tuist.dev" target="_blank" rel="noopener noreferrer">
         <% any_ongoing_incident? = Tuist.Incidents.any_ongoing_incident?() %>

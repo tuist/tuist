@@ -219,4 +219,194 @@ struct XCResultParserTests {
             #expect(try await !fileSystem.exists(projectRoot.appending(component: "xcresult-attachments")))
         }
     }
+
+    @Test
+    func parse_liftsXctestRunnerErrorsOutOfTestCasesIntoErrors() async throws {
+        // xctest emits a synthetic "xctest (<pid>) encountered an error" case
+        // when a whole target fails to load/launch. These must not become test
+        // cases (they'd inflate counts, create unbounded per-pid rows, and fire
+        // webhooks). They're lifted into `errors`, keyed by target and deduped,
+        // the run is marked failed, and real test cases are untouched.
+        let json = """
+        {
+          "testNodes": [
+            {
+              "nodeType": "Test Plan",
+              "name": "AppTests",
+              "children": [
+                {
+                  "nodeType": "Unit test bundle",
+                  "name": "AboutUserTests",
+                  "children": [
+                    {
+                      "nodeType": "Test Case",
+                      "name": "xctest (67445) encountered an error",
+                      "nodeIdentifier": "xctest (67445) encountered an error",
+                      "result": "Failed",
+                      "children": [
+                        {
+                          "nodeType": "Failure Message",
+                          "name": "Failed to create a bundle instance representing '.../AboutUserTests.xctest'. Check that the bundle exists on disk."
+                        }
+                      ]
+                    },
+                    {
+                      "nodeType": "Test Case",
+                      "name": "xctest (99999) encountered an error",
+                      "nodeIdentifier": "xctest (99999) encountered an error",
+                      "result": "Failed",
+                      "children": [
+                        {
+                          "nodeType": "Failure Message",
+                          "name": "Failed to create a bundle instance representing '.../AboutUserTests.xctest'. Check that the bundle exists on disk."
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "nodeType": "Unit test bundle",
+                  "name": "CalculatorTests",
+                  "children": [
+                    {
+                      "nodeType": "Test Case",
+                      "name": "testRealExample()",
+                      "nodeIdentifier": "CalculatorTests/testRealExample()",
+                      "result": "Passed"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+        """
+        let parser = XCResultParser(
+            commandRunner: RoutingXCResultToolStub(testResultsJSON: json, actionLogJSON: "")
+        )
+
+        let summary = try #require(
+            try await parser.parse(path: try AbsolutePath(validating: "/tmp/app.xcresult"), rootDirectory: nil)
+        )
+
+        // The two per-pid runner errors dedup to one, keyed by target.
+        #expect(summary.errors.count == 1)
+        #expect(summary.errors.first?.target == "AboutUserTests")
+        #expect(summary.errors.first?.message.contains("Failed to create a bundle instance") == true)
+
+        // They are not test cases; only the real test survives.
+        let names = summary.testCases.map(\.name)
+        #expect(names == ["testRealExample()"])
+        #expect(!names.contains { $0.contains("encountered an error") })
+
+        // Errors mark the run failed even though no real test failed.
+        #expect(summary.status == .failed)
+    }
+
+    @Test
+    func parse_liftsRunnerErrorsRegardlessOfPrefix_andKeepsRealTestsNamedSimilarly() async throws {
+        // The runner-process name is only "xctest" for unit tests. For UI tests
+        // it's the app/UI-runner target (varies per project), it sometimes has no
+        // pid, and Xcode also emits a generic "The test runner encountered an
+        // error". All are lifted structurally (nodeIdentifier == name plus a
+        // Failure Message child), regardless of the prefix. A real test whose
+        // display name merely ends this way, but which carries a real
+        // "Suite/method" identifier, must survive as a test case.
+        let json = """
+        {
+          "testNodes": [
+            {
+              "nodeType": "Test Plan",
+              "name": "AppTests",
+              "children": [
+                {
+                  "nodeType": "UI test bundle",
+                  "name": "AppUITests",
+                  "children": [
+                    {
+                      "nodeType": "Test Case",
+                      "name": "UITestTarget (4242) encountered an error",
+                      "nodeIdentifier": "UITestTarget (4242) encountered an error",
+                      "result": "Failed",
+                      "children": [
+                        { "nodeType": "Failure Message", "name": "AppUITests-Runner failed to launch." }
+                      ]
+                    },
+                    {
+                      "nodeType": "Test Case",
+                      "name": "EMAUITests-Runner (99) encountered an error",
+                      "nodeIdentifier": "EMAUITests-Runner (99) encountered an error",
+                      "result": "Failed",
+                      "children": [
+                        { "nodeType": "Failure Message", "name": "The UI test runner failed to launch." }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "nodeType": "Unit test bundle",
+                  "name": "SnapshotTests",
+                  "children": [
+                    {
+                      "nodeType": "Test Case",
+                      "name": "SnapshotTestHost encountered an error",
+                      "nodeIdentifier": "SnapshotTestHost encountered an error",
+                      "result": "Failed",
+                      "children": [
+                        { "nodeType": "Failure Message", "name": "Failed to create a bundle instance." }
+                      ]
+                    },
+                    {
+                      "nodeType": "Test Case",
+                      "name": "The test runner encountered an error",
+                      "nodeIdentifier": "The test runner encountered an error",
+                      "result": "Failed",
+                      "children": [
+                        { "nodeType": "Failure Message", "name": "The test runner encountered an error." }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "nodeType": "Unit test bundle",
+                  "name": "RealTests",
+                  "children": [
+                    {
+                      "nodeType": "Test Case",
+                      "name": "the server encountered an error",
+                      "nodeIdentifier": "RealTests/theServerErrorIsSurfaced()",
+                      "result": "Passed"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+        """
+        let parser = XCResultParser(
+            commandRunner: RoutingXCResultToolStub(testResultsJSON: json, actionLogJSON: "")
+        )
+
+        let summary = try #require(
+            try await parser.parse(path: try AbsolutePath(validating: "/tmp/app.xcresult"), rootDirectory: nil)
+        )
+
+        // All four runner errors are lifted — an app/UI-runner target, an exotic
+        // single-token prefix, a no-pid form, and Xcode's generic string — keyed
+        // by their bundle target.
+        let lifted = Set(summary.errors.map { "\($0.target ?? "")|\($0.message)" })
+        #expect(lifted == [
+            "AppUITests|AppUITests-Runner failed to launch.",
+            "AppUITests|The UI test runner failed to launch.",
+            "SnapshotTests|Failed to create a bundle instance.",
+            "SnapshotTests|The test runner encountered an error.",
+        ])
+
+        // The real test whose display name ends the same way, but which has a
+        // real "Suite/method" identifier, is kept and no runner error leaked in.
+        #expect(summary.testCases.map(\.name) == ["the server encountered an error"])
+
+        #expect(summary.status == .failed)
+    }
 }

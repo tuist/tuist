@@ -1,5 +1,14 @@
 {{- if and .Values.capi.enabled .Values.macosFleet.enabled }}
 {{- $name := include "tuist.componentName" (dict "root" . "component" "capi-scaleway-applesilicon") }}
+{{- /* The OVH reconciler serves the singular ovhFleet (ca-east) and every
+   ovhFleets map entry (us-east/us-west); wire its creds when ANY is enabled,
+   and take the endpoint from whichever is on (all our OVH boxes share one
+   account, so the endpoint is uniform). */ -}}
+{{- $ovhAny := .Values.ovhFleet.enabled -}}
+{{- $ovhEndpoint := .Values.ovhFleet.endpoint | default "ovh-eu" -}}
+{{- range $f := .Values.ovhFleets }}
+{{- if $f.enabled }}{{- $ovhAny = true -}}{{- $ovhEndpoint = $f.endpoint | default $ovhEndpoint -}}{{- end }}
+{{- end }}
 ---
 # Cluster API infrastructure provider for Scaleway Apple Silicon Mac
 # minis. Watches ScalewayAppleSiliconMachine CRs and reconciles them
@@ -27,17 +36,27 @@ rules:
     resources:
       - scalewayapplesiliconmachines
       - scalewayapplesiliconmachinetemplates
-      - scalewayapplesiliconclusters
+      - tuistclusters
       - scalewayelasticmetalmachines
       - scalewayelasticmetalmachinetemplates
+      - ovhdedicatedmachines
+      - ovhdedicatedmachinetemplates
+      - dediboxmachines
+      - dediboxmachinetemplates
+      - failoverips
     verbs: [get, list, watch, create, update, patch, delete]
   - apiGroups: ["infrastructure.cluster.x-k8s.io"]
     resources:
       - scalewayapplesiliconmachines/status
       - scalewayapplesiliconmachines/finalizers
-      - scalewayapplesiliconclusters/status
+      - tuistclusters/status
       - scalewayelasticmetalmachines/status
       - scalewayelasticmetalmachines/finalizers
+      - ovhdedicatedmachines/status
+      - ovhdedicatedmachines/finalizers
+      - dediboxmachines/status
+      - dediboxmachines/finalizers
+      - failoverips/status
     verbs: [get, update, patch]
   - apiGroups: ["cluster.x-k8s.io"]
     resources: [machines, machinesets, machinedeployments, clusters]
@@ -61,6 +80,28 @@ rules:
     # `patch` lets the Instance reconciler stamp the foreign providerID
     # (so CAPI links Machine<->Node) and the dynamic tuist.dev/pn-ipv4 label.
     verbs: [get, list, watch, patch, delete]
+  - apiGroups: [""]
+    # The Linux machine reconcilers (OVH/Dedibox) advertise the box's egress
+    # budget as the node's tuist.dev/egress-mbps extended-resource capacity, which
+    # lives on the status subresource.
+    resources: [nodes/status]
+    verbs: [get, update, patch]
+  - apiGroups: [""]
+    # On Machine (node) delete, the Linux reconcilers reap PVCs bound to
+    # node-local PVs pinned to the departing box's hostname so their
+    # StatefulSets reprovision fresh volumes on the replacement node. PVs are
+    # listed to find the ones pinned to the node; the orphaned PVCs are deleted
+    # (the runner cache they back is regenerable).
+    resources: [persistentvolumes]
+    verbs: [get, list, watch]
+  - apiGroups: [""]
+    resources: [persistentvolumeclaims]
+    verbs: [get, list, watch, delete]
+  - apiGroups: [""]
+    # The failover-IP controller reads peer-demux pod readiness to drain the IP
+    # off a box whose demux is rolling.
+    resources: [pods]
+    verbs: [get, list, watch]
   - apiGroups: [""]
     # The operator owns four Secret families in its own namespace:
     #   - <fleet>-ssh: per-fleet Ed25519 keypair, generated once
@@ -332,7 +373,7 @@ spec:
             {{- with .Values.macosFleet.vmClusterEgress.kuraServiceCIDR }}
             # Punch the runner-cache carve-out through the VM egress
             # firewall: Tart VMs may reach the cluster's Service CIDR
-            # on the Kura cache ports (4000 HTTP / 50051 gRPC),
+            # on the Kura cache port (4000, co-hosted HTTP + gRPC),
             # mirroring the Linux runner namespace's NetworkPolicy
             # egress rule. Source of truth for the CIDR:
             # infra/k8s/clusters/cluster-<env>.yaml
@@ -416,6 +457,46 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.macosFleet.scaleway.secretName | default $name }}
                   key: project-id
+            {{- if .Values.dediboxFleet.enabled }}
+            # Dedibox uses a SEPARATE default-project Scaleway IAM key (every
+            # Dedibox in the org lives in the default project, so this one key
+            # serves all envs and the per-fleet tag does the scoping). The
+            # reconciler sends secret-key as X-Auth-Token over raw HTTP. Its
+            # presence also gates the reconciler on (cmd/manager/main.go).
+            - name: DEDIBOX_SCW_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.dediboxFleet.scaleway.secretName | default (include "tuist.componentName" (dict "root" . "component" "dedibox")) }}
+                  key: secret-key
+            - name: DEDIBOX_SCW_PROJECT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.dediboxFleet.scaleway.secretName | default (include "tuist.componentName" (dict "root" . "component" "dedibox")) }}
+                  key: project-id
+            {{- end }}
+            {{- if $ovhAny }}
+            # OVH dedicated-server reconciler creds. The OVH SDK reads these from
+            # the env; OVH_ENDPOINT (ovh-eu/ovh-ca/...) is non-secret config, the
+            # rest sync from the OVH_API item. OVH_APPLICATION_KEY's presence also
+            # gates the reconciler on (cmd/manager/main.go).
+            - name: OVH_ENDPOINT
+              value: {{ $ovhEndpoint | quote }}
+            - name: OVH_APPLICATION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.ovhFleet.secretName | default (include "tuist.componentName" (dict "root" . "component" "ovh")) }}
+                  key: application-key
+            - name: OVH_APPLICATION_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.ovhFleet.secretName | default (include "tuist.componentName" (dict "root" . "component" "ovh")) }}
+                  key: application-secret
+            - name: OVH_CONSUMER_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.ovhFleet.secretName | default (include "tuist.componentName" (dict "root" . "component" "ovh")) }}
+                  key: consumer-key
+            {{- end }}
           ports:
             - name: metrics
               containerPort: 8080

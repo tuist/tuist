@@ -809,6 +809,35 @@ defmodule TuistWeb.API.CacheControllerTest do
       assert response_data["upload_id"] == upload_id
     end
 
+    test "rejects account tokens without cache write scope", %{conn: conn, cache: cache} do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      {:ok, account} = Accounts.get_account_by_id(project.account_id)
+      hash = "hash"
+      name = "name"
+      project_id = "#{account.name}/#{project.name}"
+      cache_category = "builds"
+
+      conn =
+        Plug.Conn.assign(conn, :current_subject, %AuthenticatedAccount{
+          account: account,
+          scopes: ["project:cache:read"],
+          all_projects: true
+        })
+
+      # When
+      conn =
+        conn
+        |> assign(:cache, cache)
+        |> post(
+          ~p"/api/cache/multipart/start?hash=#{hash}&name=#{name}&project_id=#{project_id}&cache_category=#{cache_category}"
+        )
+
+      # Then
+      response = json_response(conn, :forbidden)
+      assert response["message"] == "#{account.name} is not authorized to create cache"
+    end
+
     test "returns a payment_required error if the account has no subscription and they've gone above the threshold",
          %{conn: conn, cache: cache} do
       # Given

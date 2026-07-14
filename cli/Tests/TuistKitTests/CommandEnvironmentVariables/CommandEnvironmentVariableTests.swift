@@ -923,6 +923,7 @@ struct CommandEnvironmentVariableTests {
         setVariable(.cacheExternalOnly, value: "true")
         setVariable(.cacheProfile, value: "development")
         setVariable(.cacheGenerateOnly, value: "true")
+        setVariable(.cacheNoUpload, value: "true")
         setVariable(.cachePrintHashes, value: "true")
         setVariable(.cacheConfiguration, value: "CacheConfig")
         setVariable(.cachePath, value: "/cache/path")
@@ -932,6 +933,7 @@ struct CommandEnvironmentVariableTests {
         #expect(commandWithEnvVars.externalOnly == true)
         #expect(commandWithEnvVars.cacheProfile == "development")
         #expect(commandWithEnvVars.generateOnly == true)
+        #expect(commandWithEnvVars.noUpload == true)
         #expect(commandWithEnvVars.printHashes == true)
         #expect(commandWithEnvVars.configuration == "CacheConfig")
         #expect(commandWithEnvVars.path == "/cache/path")
@@ -941,6 +943,7 @@ struct CommandEnvironmentVariableTests {
             "--external-only",
             "--cache-profile", "development",
             "--generate-only",
+            "--no-upload",
             "--print-hashes",
             "--configuration", "CacheConfig",
             "--path", "/cache/path",
@@ -950,6 +953,7 @@ struct CommandEnvironmentVariableTests {
         #expect(commandWithArgs.externalOnly == true)
         #expect(commandWithArgs.cacheProfile == "development")
         #expect(commandWithArgs.generateOnly == true)
+        #expect(commandWithArgs.noUpload == true)
         #expect(commandWithArgs.printHashes == true)
         #expect(commandWithArgs.configuration == "CacheConfig")
         #expect(commandWithArgs.path == "/cache/path")

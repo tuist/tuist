@@ -79,9 +79,6 @@ defmodule Cache.Authentication do
 
       {:error, :project_not_in_jwt} ->
         fetch_and_cache_projects(auth_header, cache_key, conn, cache)
-
-      {:error, _reason} ->
-        fetch_and_cache_projects(auth_header, cache_key, conn, cache)
     end
   end
 

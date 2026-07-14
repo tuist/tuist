@@ -6,6 +6,8 @@
   font: var(--noora-font-weight-regular) var(--noora-font-body-large);
 
   & :not(pre, .code-window, [data-part="code"]) > code {
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
     box-shadow:
       0 1px 1px 0 rgba(14, 14, 14, 0.05),
       0 0 0 1px rgba(46, 51, 56, 0.08),
@@ -15,7 +17,8 @@
     padding: var(--noora-spacing-1);
     color: var(--surface-label-primary);
     font: var(--noora-font-weight-regular) var(--noora-font-code-large);
-    white-space: nowrap;
+    white-space: normal;
+    overflow-wrap: anywhere;
   }
 
   & blockquote {
@@ -72,17 +75,10 @@
     max-width: 100%;
   }
 
-  & .noora-table th {
-    padding: var(--noora-spacing-4) var(--noora-spacing-7) var(--noora-spacing-5) var(--noora-spacing-7);
-    color: var(--noora-surface-label-primary);
-    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
-    text-align: left;
-  }
-
-  & .noora-table table tbody tr td {
+  & .noora-table table tbody tr:not([data-part="expanded-row"]) td {
     vertical-align: middle;
     background-color: var(--noora-surface-background-primary);
-    padding: 22px var(--noora-spacing-7);
+    padding: var(--noora-spacing-7);
     color: var(--noora-surface-label-primary);
     font: var(--noora-font-body-medium);
     line-height: 20px;
