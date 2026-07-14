@@ -684,17 +684,22 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 	// without operator action. Recovery: clear FailureReason +
 	// reset TartKubeletUpdateAttempts to resume the loop.
 	terminalFailure := machine.Status.FailureReason != nil
-	// Self-heal on config drift: a terminal failure is a verdict on the
-	// config the operator was trying to push when it exhausted its
-	// retries. If the desired host config has drifted since (configDrift
-	// is true against the stored hash the failure was recorded at), a new
-	// — typically fixed — config has landed, and it deserves its own retry
-	// budget rather than inheriting the old config's verdict. Clearing the
-	// terminal state here makes pushing a corrected operator image
-	// self-heal every host a bad rollout bricked, instead of requiring a
-	// manual status patch per host. A config that is still broken simply
-	// re-exhausts its retries and re-enters the terminal state.
-	if configDrift && terminalFailure {
+	// Self-heal on config change: a terminal failure is a verdict on the
+	// config the operator was trying to push when it exhausted its retries. If
+	// the desired host config differs from the one that failed, a new —
+	// typically fixed — config has landed, and it deserves its own retry budget
+	// rather than inheriting the old config's verdict. Clearing the terminal
+	// state here makes pushing a corrected operator image self-heal every host
+	// a bad rollout bricked, instead of requiring a manual status patch per host.
+	//
+	// Crucially, this compares the desired hash against the recorded FAILED
+	// hash, NOT the last-applied Status.HostConfigHash. A broken config can
+	// never be applied, so Status.HostConfigHash never advances to it and plain
+	// drift stays true forever — comparing against it would reset the retry cap
+	// every reconcile and hammer the same broken config indefinitely, defeating
+	// the cap. Against the failed hash, an unchanged broken config stays
+	// terminal while a genuinely new config retries.
+	if shouldClearTerminalFailure(r.HostConfigHash, machine.Status.FailedHostConfigHash, terminalFailure) {
 		clearUpdateFailure(machine, logger, r.Recorder)
 		terminalFailure = false
 	}
@@ -705,7 +710,7 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 		}
 		identity, err := r.CredentialsManager.EnsureNodeIdentity(ctx, machine.Name, "")
 		if err != nil {
-			recordUpdateFailure(machine, fmt.Errorf("ensure node identity: %w", err), r.TartKubeletMaxUpdateAttempts, logger, r.Recorder)
+			recordUpdateFailure(machine, fmt.Errorf("ensure node identity: %w", err), r.TartKubeletMaxUpdateAttempts, r.HostConfigHash, logger, r.Recorder)
 			if machine.Status.FailureReason != nil {
 				return ctrl.Result{}, nil
 			}
@@ -713,7 +718,7 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 		}
 		kubeconfigYAML, err := r.Kubeconfig.Render(ctx, machine.Name, identity.Token, identity.CA)
 		if err != nil {
-			recordUpdateFailure(machine, fmt.Errorf("render kubeconfig: %w", err), r.TartKubeletMaxUpdateAttempts, logger, r.Recorder)
+			recordUpdateFailure(machine, fmt.Errorf("render kubeconfig: %w", err), r.TartKubeletMaxUpdateAttempts, r.HostConfigHash, logger, r.Recorder)
 			if machine.Status.FailureReason != nil {
 				return ctrl.Result{}, nil
 			}
@@ -727,7 +732,7 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 		// way to keep the plist render correct.
 		tailscaleAuthKey, err := r.CredentialsManager.GetTailscaleAuthKey(ctx)
 		if err != nil {
-			recordUpdateFailure(machine, fmt.Errorf("get tailscale auth key: %w", err), r.TartKubeletMaxUpdateAttempts, logger, r.Recorder)
+			recordUpdateFailure(machine, fmt.Errorf("get tailscale auth key: %w", err), r.TartKubeletMaxUpdateAttempts, r.HostConfigHash, logger, r.Recorder)
 			if machine.Status.FailureReason != nil {
 				return ctrl.Result{}, nil
 			}
@@ -805,7 +810,7 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			}
 		}
 		if err != nil {
-			recordUpdateFailure(machine, fmt.Errorf("tart-kubelet update: %w", err), r.TartKubeletMaxUpdateAttempts, logger, r.Recorder)
+			recordUpdateFailure(machine, fmt.Errorf("tart-kubelet update: %w", err), r.TartKubeletMaxUpdateAttempts, r.HostConfigHash, logger, r.Recorder)
 			if machine.Status.FailureReason != nil {
 				return ctrl.Result{}, nil
 			}
@@ -1064,6 +1069,19 @@ func hostConfigDrift(operatorHash, machineHash string) bool {
 	return operatorHash != "" && machineHash != operatorHash
 }
 
+// shouldClearTerminalFailure reports whether a terminal tart-kubelet-update
+// failure should be cleared so the drift loop retries. It clears only when the
+// operator's desired config differs from the one that exhausted its retry
+// budget (failedHash) — NOT from the last successfully applied hash. A broken
+// config can never be applied, so the applied hash never advances to it and a
+// desired-vs-applied comparison would report drift forever, resetting the cap
+// on every reconcile and retrying the same broken config indefinitely. Keyed on
+// the failed hash instead, an unchanged broken config keeps its terminal state
+// while a genuinely new (typically fixed) config gets a fresh budget.
+func shouldClearTerminalFailure(desiredHash, failedHash string, terminalFailure bool) bool {
+	return terminalFailure && desiredHash != "" && desiredHash != failedHash
+}
+
 // recordUpdateFailure increments the drift-loop retry counter and,
 // once it crosses maxAttempts, flips the CR into a terminal Failed
 // state. The counter is reset on successful UpdateTartKubelet. We
@@ -1074,7 +1092,7 @@ func hostConfigDrift(operatorHash, machineHash string) bool {
 // see clearUpdateFailure), or operator-driven before then: `kubectl patch`
 // to clear status.failureReason + zero status.tartKubeletUpdateAttempts and
 // the loop resumes.
-func recordUpdateFailure(machine *infrav1.ScalewayAppleSiliconMachine, err error, maxAttempts int32, logger logr.Logger, recorder record.EventRecorder) {
+func recordUpdateFailure(machine *infrav1.ScalewayAppleSiliconMachine, err error, maxAttempts int32, operatorHash string, logger logr.Logger, recorder record.EventRecorder) {
 	machine.Status.TartKubeletUpdateAttempts++
 	logger.Error(err, "tart-kubelet update step failed",
 		"attempt", machine.Status.TartKubeletUpdateAttempts,
@@ -1085,6 +1103,11 @@ func recordUpdateFailure(machine *infrav1.ScalewayAppleSiliconMachine, err error
 			machine.Status.TartKubeletUpdateAttempts, err)
 		machine.Status.FailureReason = &reason
 		machine.Status.FailureMessage = &msg
+		// Record the desired config that exhausted its budget so the
+		// self-heal only fires for a genuinely different config, not the same
+		// broken one (whose HostConfigHash never advances because it can't be
+		// applied) on every subsequent reconcile.
+		machine.Status.FailedHostConfigHash = operatorHash
 		machine.Status.Phase = "Failed"
 		recorder.Eventf(machine, corev1.EventTypeWarning, reason, "%s", msg)
 		logger.Error(err, "tart-kubelet update permanently failed; CR transitioned to Failed",
@@ -1111,6 +1134,7 @@ func clearUpdateFailure(machine *infrav1.ScalewayAppleSiliconMachine, logger log
 		"previousAttempts", machine.Status.TartKubeletUpdateAttempts)
 	machine.Status.FailureReason = nil
 	machine.Status.FailureMessage = nil
+	machine.Status.FailedHostConfigHash = ""
 	machine.Status.TartKubeletUpdateAttempts = 0
 	if machine.Status.Phase == "Failed" {
 		machine.Status.Phase = ""
