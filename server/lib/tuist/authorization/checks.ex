@@ -81,6 +81,10 @@ defmodule Tuist.Authorization.Checks do
     false
   end
 
+  def accounts_match(%AuthenticatedAccount{issued_by: %User{} = user}, %Account{} = account) do
+    Accounts.owns_account_or_belongs_to_account_organization?(user, %{id: account.id})
+  end
+
   def accounts_match(%AuthenticatedAccount{account: %Account{} = authenticated_account}, %Account{} = account) do
     authenticated_account.id == account.id
   end

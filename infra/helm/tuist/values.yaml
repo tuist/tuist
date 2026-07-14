@@ -1443,8 +1443,9 @@ runnersFleet:
   # list in sync with the `runner-image-build.strategy.matrix.xcode`
   # matrix in `.github/workflows/release.yml`.
   xcodeVersions:
-    - xcodeVersion: "26.5"
+    - xcodeVersion: "26.6"
       default: true
+    - xcodeVersion: "26.5"
     - xcodeVersion: "26.4.1"
     - xcodeVersion: "26.3"
     - xcodeVersion: "26.0.1"
