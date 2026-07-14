@@ -26,7 +26,6 @@ This directory contains the core business logic and domain modules for the serve
 - Cache: `server/lib/tuist/cache/AGENTS.md`
 - Cache Action Items: `server/lib/tuist/cache_action_items/AGENTS.md`
 - Command Events: `server/lib/tuist/command_events/AGENTS.md`
-- Earmark: `server/lib/tuist/earmark/AGENTS.md`
 - Ecto: `server/lib/tuist/ecto/AGENTS.md`
 - Github: `server/lib/tuist/github/AGENTS.md`
 - Http: `server/lib/tuist/http/AGENTS.md`
