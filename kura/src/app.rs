@@ -195,6 +195,7 @@ async fn run_with_config(
     spawn_runtime_metrics_task(state.clone());
     spawn_drain_signal_task(state.clone());
     spawn_multipart_janitor_task(state.clone());
+    spawn_action_cache_expiry_task(state.clone());
     spawn_tmp_dir_metrics_task(state.clone());
     spawn_geoip_refresh_task(state.clone());
     spawn_segment_promotion_task(state.clone());
@@ -619,6 +620,48 @@ fn spawn_runtime_metrics_task(state: Arc<AppState>) {
             loop {
                 state.sync_runtime_metrics().await;
                 tokio::time::sleep(Duration::from_secs(1)).await;
+            }
+        }
+        .in_current_span(),
+    );
+}
+
+/// Expires REAPI action-cache entries whose write time predates the TTL.
+/// Clients publish new keys on every source change and nothing else removes
+/// the stale ones, so this recency sweep is what bounds a namespace's
+/// keyspace (and with it the snapshot reconcile scan and index memory). An
+/// expired entry that is still genuinely used costs its next cold reader one
+/// recompile + republish, which refreshes it for the whole fleet. Node-local
+/// by design: peers apply the same rule over the replicated version_ms and
+/// converge on their own. The manifest-keyspace walk is a full scan, so it
+/// runs on the blocking pool at a long interval.
+fn spawn_action_cache_expiry_task(state: Arc<AppState>) {
+    use crate::constants::{
+        REAPI_ACTION_CACHE_EXPIRY_INTERVAL_MS, REAPI_ACTION_CACHE_EXPIRY_MAX_DELETES,
+        REAPI_ACTION_CACHE_TTL_MS,
+    };
+    let interval = Duration::from_millis(REAPI_ACTION_CACHE_EXPIRY_INTERVAL_MS);
+    tokio::spawn(
+        async move {
+            loop {
+                tokio::time::sleep(interval).await;
+                let sweep_state = state.clone();
+                let cutoff_ms = crate::utils::now_ms().saturating_sub(REAPI_ACTION_CACHE_TTL_MS);
+                let expired = tokio::task::spawn_blocking(move || {
+                    sweep_state.store.expire_stale_action_cache_entries(
+                        cutoff_ms,
+                        REAPI_ACTION_CACHE_EXPIRY_MAX_DELETES,
+                    )
+                })
+                .await;
+                match expired {
+                    Ok(Ok(0)) => {}
+                    Ok(Ok(expired)) => {
+                        info!(expired, cutoff_ms, "expired stale action-cache entries");
+                    }
+                    Ok(Err(error)) => warn!("action-cache expiry sweep failed: {error}"),
+                    Err(error) => warn!("action-cache expiry task panicked: {error}"),
+                }
             }
         }
         .in_current_span(),

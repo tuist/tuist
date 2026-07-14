@@ -1,22 +1,28 @@
 # cluster-api-provider-tuist
 
-Cluster API infrastructure provider that joins Scaleway nodes as
+Cluster API infrastructure provider that joins Scaleway and OVH nodes as
 workers into the existing caph/Hetzner clusters, surfaced through
-CAPI's standard Machine/MachineDeployment shape. It manages two
+CAPI's standard Machine/MachineDeployment shape. It manages four
 machine kinds:
 
 - `ScalewayAppleSiliconMachine` — Mac minis (Tart), SSH-bootstrapped
   with tart-cri/tart-kubelet.
-- `ScalewayElasticMetalMachine` — Linux bare metal (e.g. the
+- `ScalewayElasticMetalMachine` — Scaleway Linux bare metal (e.g. the
   `kura-scw-fr-par` runner-cache node), SSH self-join (Elastic Metal
-  has no user-data channel).
+  has no user-data channel); adopts a pre-ordered box and
+  **reinstalls it (wipe) on release**.
+- `DediboxMachine` — Scaleway Dedibox bare metal (eu-central); adopts a
+  pre-prepped box and reinstalls it (wipe) back to the pool on release.
+- `OVHDedicatedMachine` — OVHcloud US bare metal (us-east / us-west);
+  adopts a pre-prepped box and reinstalls it (wipe) back to the pool on
+  release.
 
-Both order/release via Scaleway's API and bootstrap with an
-operator-minted kubelet identity + SSH self-join, then wait for
-`Node.Ready`. The Elastic Metal kind binds that identity to
-`system:node`; Apple Silicon uses the `tart-kubelet` role. The Elastic
-Metal kind is designed in `docs/scaleway-elastic-metal-support.md`; the
-sections below detail the Apple Silicon kind.
+All bootstrap with an operator-minted kubelet identity + SSH self-join,
+then wait for `Node.Ready`. The three Linux kinds share the
+`controllers/linux` package and bind that identity to `system:node`;
+Apple Silicon uses the `tart-kubelet` role. The Elastic Metal kind is
+designed in `docs/scaleway-elastic-metal-support.md`; the sections below
+detail the Apple Silicon kind.
 
 ## CRDs
 
@@ -24,7 +30,9 @@ sections below detail the Apple Silicon kind.
 |---|---|
 | `ScalewayAppleSiliconMachine` | One Mac mini. Has the Scaleway server type, zone, OS, per-host pod CIDR, fleet name (ties Machines on the same fleet to one shared SSH key), and kubelet version. SSH and bootstrap material are operator-managed — no Secret refs in the spec. |
 | `ScalewayAppleSiliconMachineTemplate` | Template MachineDeployments / MachineSets clone from. |
-| `ScalewayElasticMetalMachine` (+ `…Template`) | One Scaleway Elastic Metal server (Linux bare metal): offer type, zone, OS, PN id, node taints. SSH self-join (no user-data channel); local-NVMe (`scw-local-nvme`) cache. |
+| `ScalewayElasticMetalMachine` (+ `…Template`) | One Scaleway Elastic Metal server (Linux bare metal): offer type, zone, OS, PN id, node taints, `fleetName`. SSH self-join (no user-data channel); local-NVMe (`scw-local-nvme`) cache. Reinstall-on-release. |
+| `DediboxMachine` (+ `…Template`) | One Scaleway Dedibox bare-metal server (eu-central): adopts a pre-prepped box by tag, `fleetName`. Left installed on release. |
+| `OVHDedicatedMachine` (+ `…Template`) | One OVHcloud US bare-metal server (us-east / us-west): adopts a pre-prepped box by displayName prefix, `fleetName`. Left installed on release. |
 | `TuistCluster` | Cluster-level stub (CAPI core requires it for the parent Cluster to validate). Sets `Status.Ready=true` once it exists. Shared by all machine kinds. |
 
 API group: `infrastructure.cluster.x-k8s.io/v1alpha1`. Short names:
@@ -106,18 +114,27 @@ Two auxiliary controllers run alongside it:
 infra/cluster-api-provider-tuist/
 ├── api/v1alpha1/
 │   ├── groupversion_info.go
-│   ├── scalewayapplesiliconmachine_types.go
-│   ├── scalewayapplesiliconmachinetemplate_types.go
+│   ├── scalewayapplesiliconmachine_types.go (+ …template)
+│   ├── scalewayelasticmetalmachine_types.go (+ …template)
+│   ├── dediboxmachine_types.go (+ …template)
+│   ├── ovhdedicatedmachine_types.go (+ …template)
 │   ├── tuistcluster_types.go
 │   └── zz_generated.deepcopy.go
 ├── controllers/
 │   ├── scalewayapplesiliconmachine_controller.go
 │   ├── tuistcluster_controller.go
 │   ├── fleetspread_controller.go
-│   └── orphan_reclaimer.go
+│   ├── orphan_reclaimer.go
+│   └── linux/      # the 3 Linux fleet kinds (Dedibox / OVH / Elastic Metal)
+│       ├── dediboxmachine_controller.go
+│       ├── ovhdedicatedmachine_controller.go
+│       ├── scalewayelasticmetalmachine_controller.go
+│       ├── linux_cloudinit.go       # shared self-join script + kubelet config (Layers 2+3)
+│       └── kubelet_config_drift.go  # zero-downtime re-push of kubelet config to Ready nodes
 ├── internal/
-│   ├── scaleway/   # Scaleway SDK wrapper
-│   └── bootstrap/  # SSH-driven kubelet/tart-cri install
+│   ├── scaleway/     # Scaleway SDK wrapper
+│   ├── credentials/  # fleet SSH keys + per-machine kubelet identities
+│   └── bootstrap/    # SSH-driven kubelet/tart-cri install
 ├── cmd/manager/    # controller-manager entry point
 ├── config/
 │   └── rbac/       # ClusterRole for the manager
@@ -281,10 +298,10 @@ values: `adoptTag` (Dedibox) or `adoptDisplayNamePrefix` (OVH, a prefix match).
 Production today: tag `tuist-kura-production` (eu-central), displayName prefixes
 `tuist-kura-ovh-production-us-east` / `-us-west` (OVH).
 
-Release (`reconcileDelete`) drops the Node + identity + TOFU pin but **leaves the
-box installed** (it is a monthly contract, not a reinstall-on-release); a released
-box keeps its OS + key, so re-marking it back into the pool re-claims it with no
-re-prep.
+Release (`reconcileDelete`) drops the Node + identity + TOFU pin and **reinstalls
+the box back into the pool**. It stays a monthly contract (release is not a contract
+termination), but the reinstall wipes the OS to a clean, claimable state — any
+node-local volume is lost and the host key rotates, so the next claim re-TOFUs it.
 
 ### Scale up
 ```bash
@@ -328,6 +345,47 @@ kubectl describe scalewayapplesiliconmachine <name>
 # Check Conditions (Provisioned / Bootstrapped) and Events (lifecycle
 # transitions, drift-loop attempts, terminal-failure transitions)
 kubectl get events --field-selector involvedObject.kind=ScalewayAppleSiliconMachine
+```
+
+### Make `kubectl logs`/`exec` work on a fleet node
+
+The apiserver dials the kubelet at the node's InternalIP:10250. When
+`logs`/`exec`/`attach`/`port-forward` fail against a fleet node (Dedibox / Elastic
+Metal / OVH), the error says which piece is off:
+
+| `kubectl logs <fleet-pod>` error | Fix |
+|---|---|
+| `dial tcp: lookup <node> … no such host` | apiserver's `--kubelet-preferred-address-types` is missing `InternalIP`. It comes from the `kubeletPreferredAddressTypes` variable in `infra/k8s/clusters/cluster-<env>.yaml`; applying that Cluster CR via `mgmt-cluster-apply` rolls the CP with it. If the running flag doesn't change, the KCP is stuck: `kubectl -n <ns> describe kcp <name>` (a roll blocked behind a CP Machine with no Node). |
+| `remote error: tls: internal error` | kubelet has no serving cert. |
+| `401` / `Unauthorized` | kubelet config is missing `clientCAFile`. |
+
+The kubelet-config rows converge on their own after a new operator image rolls;
+check the node picked it up (the stamped hash appears once the re-push ran):
+
+```bash
+kubectl get node <fleet-node> -o jsonpath='{.metadata.annotations.tuist\.dev/kubelet-config-hash}'
+```
+
+`kubectl delete machine <name>` re-provisions to force it. On **Elastic Metal**,
+two things bite:
+
+- The re-push SSHes in with the fleet key, so the box must be authorized with it.
+  `ssh: unable to authenticate … [none publickey]` means it isn't, and the box is
+  re-keyed only at reinstall with the key of `machine.Spec.FleetName`. An empty
+  `fleetName` uses a per-machine key that mismatches, so make sure it's set.
+- A reinstalled box can fail apt (`exited with status 100`) when PN DHCP writes
+  `/etc/resolv.conf` with only `nameserver 169.254.169.254`, which the box
+  firewalls off. SSH in as `ubuntu` and swap it for `nameserver 1.1.1.1`.
+
+Emergency bypass for a wedged CP: add `InternalIP` to
+`--kubelet-preferred-address-types` in
+`/etc/kubernetes/manifests/kube-apiserver.yaml` on the CP node (`kubectl debug
+node/<cp>` → `chroot /host`; back up outside `manifests/`, swap atomically). It
+persists until the CP is rebuilt.
+
+```bash
+kubectl -n kube-system logs <pod-on-a-fleet-node> --tail=5   # streams, no dial error
+kubectl exec <pod-on-a-fleet-node> -- true
 ```
 
 ### Unstick a host whose CAPI bootstrap is failing on sudo

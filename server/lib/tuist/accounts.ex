@@ -1987,15 +1987,36 @@ defmodule Tuist.Accounts do
   end
 
   def delete_account!(%Account{} = account) do
-    cond do
-      user?(account) ->
-        account_user = get_user_by_id(account.user_id)
-        delete_user(account_user)
+    result =
+      cond do
+        user?(account) ->
+          account_user = get_user_by_id(account.user_id)
+          delete_user(account_user)
 
-      organization?(account) ->
-        {:ok, account_organization} = get_organization_by_id(account.organization_id)
-        delete_organization!(account_organization)
-    end
+        organization?(account) ->
+          {:ok, account_organization} = get_organization_by_id(account.organization_id)
+          delete_organization!(account_organization)
+      end
+
+    purge_account_cache_masters(account)
+    result
+  end
+
+  # The runner cache-volume master archive is customer-derived build cache
+  # stored under an account_id-keyed prefix, outside the account-handle
+  # namespace that handle-based artifact retention sweeps — so nothing else
+  # removes it. Delete it explicitly on account deletion so it doesn't outlive
+  # the account. Best-effort: a storage failure must never fail the deletion.
+  defp purge_account_cache_masters(account) do
+    Tuist.Storage.delete_all_objects(Tuist.Runners.volume_master_object_prefix(account.id), account)
+    :ok
+  rescue
+    e ->
+      Logger.warning(
+        "failed to purge runner cache-volume masters on account deletion (account_id=#{account.id}): #{Exception.message(e)}"
+      )
+
+      :ok
   end
 
   def organization?(account), do: !is_nil(account.organization_id)

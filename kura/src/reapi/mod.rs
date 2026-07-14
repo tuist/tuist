@@ -27,7 +27,7 @@ use bazel_remote_apis::{
     },
 };
 use bytes::Bytes;
-use futures_util::{StreamExt, future::BoxFuture};
+use futures_util::{FutureExt, StreamExt, future::BoxFuture};
 use http_body_util::{BodyExt, combinators::UnsyncBoxBody};
 use prost::Message;
 use sha2::{Digest as _, Sha256};
@@ -62,7 +62,34 @@ type GrpcAccountingBody = UnsyncBoxBody<Bytes, BoxError>;
 #[derive(Clone)]
 pub struct ReapiService {
     state: SharedState,
+    // Per-namespace action-cache snapshot indexes and their in-flight
+    // builds, shared across the service clones tonic hands each server.
+    snapshot_cache: std::sync::Arc<SnapshotCache>,
 }
+
+/// Completed snapshot indexes (bounded by SNAPSHOT_CACHE_MAX_NAMESPACES, LRU
+/// by last use) plus the in-flight builds producing them. Builds run as
+/// DETACHED tasks shared by every concurrent request for a namespace: the
+/// first build of a large namespace can outlive a gateway's upstream timeout,
+/// and dropping the work with the aborted request meant every retry rebuilt
+/// from scratch and timed out the same way — the snapshot never became
+/// servable. A detached build completes and caches regardless of who is
+/// still waiting.
+#[derive(Default)]
+struct SnapshotCache {
+    indexes: std::sync::Mutex<BTreeMap<String, NamespaceSnapshotIndex>>,
+    builds: std::sync::Mutex<std::collections::HashMap<String, SharedIndexBuild>>,
+    /// The last FULL (`after == 0`) encoded snapshot per namespace. A reconcile
+    /// takes its index out of `indexes` for the build's duration, so a serve
+    /// landing during a rebuild would otherwise find nothing and shed a cold
+    /// client to UNAVAILABLE. Serving this last full view instead keeps them on
+    /// the (slightly stale) snapshot. Bounded at the wire ceiling per entry and
+    /// pruned with the index LRU — unlike cloning the whole index, whose
+    /// node table the entry cap does not bound.
+    served_full: std::sync::Mutex<BTreeMap<String, std::sync::Arc<Vec<u8>>>>,
+}
+
+type SharedIndexBuild = futures_util::future::Shared<BoxFuture<'static, Result<(), String>>>;
 
 #[derive(Clone)]
 struct GrpcExtensionSpec<'a> {
@@ -85,7 +112,10 @@ type ReapiServers = (
 
 // The four REAPI gRPC services with their shared decoding limits.
 fn reapi_servers(state: SharedState) -> ReapiServers {
-    let service = ReapiService { state };
+    let service = ReapiService {
+        state,
+        snapshot_cache: Default::default(),
+    };
     (
         CapabilitiesServer::new(service.clone())
             .max_decoding_message_size(REAPI_MAX_DECODING_MESSAGE_SIZE),
@@ -482,6 +512,463 @@ impl ReapiService {
         }
         Ok(response)
     }
+
+    /// Serves the namespace's action-cache snapshot from the cached index:
+    /// reconcile against the manifest keyspace (one index scan, no stored
+    /// ActionResult reads), load only entries that are new or changed,
+    /// presence-gate every referenced blob (manifest presence — eviction
+    /// removes manifests, so this tracks it exactly), then encode in memory.
+    /// `after` > 0 returns a delta of entries written after that watermark.
+    async fn serve_actioncache_snapshot(
+        &self,
+        namespace_id: &str,
+        after: u64,
+    ) -> Result<Vec<u8>, Status> {
+        // Serve the cached index immediately, kicking the reconcile in the
+        // background once the view is older than the freshness window: a
+        // reconcile costs a namespace scan (tens of seconds on a large
+        // namespace), and running it inline made every fetch pay it — 40s
+        // measured for a serve whose encode and transfer account for a few
+        // seconds. Staleness is bounded by the window plus the client's own
+        // delta cadence.
+        {
+            let mut indexes = self
+                .snapshot_cache
+                .indexes
+                .lock()
+                .expect("snapshot cache lock poisoned");
+            if let Some(index) = indexes.get_mut(namespace_id) {
+                let stale = index.reconciled_at.elapsed() >= SNAPSHOT_RECONCILE_INTERVAL;
+                index.last_used = Instant::now();
+                let bytes = index.encode(after);
+                drop(indexes);
+                self.cache_full_view(namespace_id, after, &bytes);
+                if stale {
+                    let _build = self.ensure_index_build(namespace_id);
+                }
+                return Ok(bytes);
+            }
+        }
+        // The index is out — either a reconcile has it, or it has never been
+        // built. For a full request, serve the last full view (stale) rather
+        // than shedding a cold client to UNAVAILABLE while a rebuild runs, and
+        // make sure a rebuild is in flight. A delta cannot be replayed this
+        // way, so it falls through to the cold path (its client keeps its
+        // current snapshot and retries).
+        if after == 0 {
+            let cached = self
+                .snapshot_cache
+                .served_full
+                .lock()
+                .expect("snapshot served_full lock poisoned")
+                .get(namespace_id)
+                .cloned();
+            if let Some(cached) = cached {
+                let _build = self.ensure_index_build(namespace_id);
+                return Ok((*cached).clone());
+            }
+        }
+        // Cold path: wait briefly for the build so small (and already
+        // backfilled) namespaces keep their one-round-trip semantics, but
+        // never pin the request to it — a first-ever backfill of a large
+        // namespace runs for minutes, and holding the RPC open just walks
+        // every client into its deadline (production clients timed out on
+        // every fetch for as long as the build ran). Past the bound the
+        // client gets UNAVAILABLE, stays on the per-key path, and a later
+        // fetch is served from the completed index.
+        let build = self.ensure_index_build(namespace_id);
+        match tokio::time::timeout(SNAPSHOT_COLD_SERVE_WAIT, build).await {
+            Ok(result) => result.map_err(|error| {
+                Status::internal(format!(
+                    "failed to build the action-cache snapshot: {error}"
+                ))
+            })?,
+            Err(_elapsed) => {
+                return Err(Status::unavailable(
+                    "action-cache snapshot index is building; retry shortly",
+                ));
+            }
+        }
+        let mut indexes = self
+            .snapshot_cache
+            .indexes
+            .lock()
+            .expect("snapshot cache lock poisoned");
+        let Some(index) = indexes.get_mut(namespace_id) else {
+            return Err(Status::internal("snapshot index missing after build"));
+        };
+        index.last_used = Instant::now();
+        let bytes = index.encode(after);
+        drop(indexes);
+        self.cache_full_view(namespace_id, after, &bytes);
+        Ok(bytes)
+    }
+
+    /// Caches a full (`after == 0`) encoded view as the namespace's
+    /// `served_full`, so a serve that lands while the index is out for a
+    /// reconcile returns it instead of shedding to UNAVAILABLE. A delta is
+    /// relative to a client's watermark and cannot be replayed, so it is not
+    /// cached.
+    fn cache_full_view(&self, namespace_id: &str, after: u64, bytes: &[u8]) {
+        if after != 0 {
+            return;
+        }
+        self.snapshot_cache
+            .served_full
+            .lock()
+            .expect("snapshot served_full lock poisoned")
+            .insert(namespace_id.to_owned(), std::sync::Arc::new(bytes.to_vec()));
+    }
+
+    /// The namespace's in-flight index build, starting one when none is
+    /// running. Requests share a single reconcile; the spawned task takes the
+    /// index out for the reconcile and reinserts it (with the LRU bound
+    /// applied) whether the reconcile succeeded or failed, so accumulated
+    /// progress survives request aborts and transient store errors alike.
+    /// While the index is out, serves fall back to the cached full view
+    /// (`served_full`) rather than the cold path.
+    fn ensure_index_build(&self, namespace_id: &str) -> SharedIndexBuild {
+        let mut builds = self
+            .snapshot_cache
+            .builds
+            .lock()
+            .expect("snapshot builds lock poisoned");
+        if let Some(build) = builds.get(namespace_id) {
+            return build.clone();
+        }
+        let cache = self.snapshot_cache.clone();
+        let state = self.state.clone();
+        let namespace = namespace_id.to_owned();
+        // Spawned while holding the builds lock, so the task's terminal
+        // removal (which takes the same lock) cannot run before the insert
+        // below — the entry it removes is always its own. The body is
+        // panic-guarded and the removal sits OUTSIDE it: a reconcile panic
+        // that leaked the entry left a dead shared future in the map, and
+        // every later build request for the namespace resolved to that
+        // corpse — snapshots stayed bricked until the pod restarted.
+        let cleanup_namespace = namespace.clone();
+        let cleanup_cache = cache.clone();
+        let task = tokio::spawn(async move {
+            let outcome = futures_util::FutureExt::catch_unwind(std::panic::AssertUnwindSafe(
+                Self::run_index_build(cache, state, namespace),
+            ))
+            .await;
+            cleanup_cache
+                .builds
+                .lock()
+                .expect("snapshot builds lock poisoned")
+                .remove(&cleanup_namespace);
+            match outcome {
+                Ok(result) => result,
+                Err(_panic) => {
+                    tracing::warn!(
+                        namespace_id = cleanup_namespace.as_str(),
+                        "action-cache snapshot index build panicked"
+                    );
+                    Err("snapshot index build panicked".to_owned())
+                }
+            }
+        });
+        let build: SharedIndexBuild = async move {
+            task.await
+                .map_err(|error| format!("snapshot index build panicked: {error}"))?
+        }
+        .boxed()
+        .shared();
+        builds.insert(namespace_id.to_owned(), build.clone());
+        build
+    }
+
+    /// The build task's body: permit, reconcile, reinsert. The caller owns
+    /// the builds-map entry cleanup, which must run whether this returns or
+    /// panics.
+    async fn run_index_build(
+        cache: std::sync::Arc<SnapshotCache>,
+        state: SharedState,
+        namespace: String,
+    ) -> Result<(), String> {
+        tracing::info!(
+            namespace_id = namespace.as_str(),
+            "action-cache snapshot index build started"
+        );
+        // A build's transient memory rides the response-materialization
+        // pool: holding a byte-sized permit for its duration means a node
+        // under memory pressure defers the build instead of being
+        // OOM-killed. The build WAITS for headroom rather than declining:
+        // a stale snapshot is what causes heavy per-key traffic, per-key
+        // responses draw on this same pool, and a try-acquire under that
+        // load refused every reconcile for exactly the reason one was
+        // needed — the index parked stale indefinitely. The bounded wait
+        // still fails closed if the pool never frees. The budget adapts
+        // to small pools so tests and tiny nodes still build; the
+        // streaming reconcile keeps the real peak near it.
+        let budget = SNAPSHOT_BUILD_BUDGET_BYTES
+            .min(state.memory.reapi_materialization_pool_bytes() / 2)
+            .max(1);
+        let permit = tokio::time::timeout(
+            SNAPSHOT_BUILD_PERMIT_WAIT,
+            state.memory.acquire_reapi_materialization(budget),
+        )
+        .await;
+        let Ok(Ok(_permit)) = permit else {
+            tracing::warn!(
+                namespace_id = namespace.as_str(),
+                budget,
+                "action-cache snapshot build declined under memory pressure"
+            );
+            return Err("declined under memory pressure".to_owned());
+        };
+        // Take the index out for the reconcile (it mutates in place). A serve
+        // landing while it is out does NOT fall to the cold path and answer
+        // UNAVAILABLE — the fast path's caller serves the last full view from
+        // `served_full` instead. Cloning the whole index to keep it in place
+        // would copy an unbounded node table (the entry cap does not bound it);
+        // the cached full encoding is bounded at the wire ceiling.
+        let index = cache
+            .indexes
+            .lock()
+            .expect("snapshot cache lock poisoned")
+            .remove(&namespace)
+            .unwrap_or_else(NamespaceSnapshotIndex::new);
+        let (mut index, result) = match reconcile_snapshot_index(&state, &namespace, index).await {
+            Ok(mut index) => {
+                index.reconciled_at = Instant::now();
+                (index, Ok(()))
+            }
+            Err((index, error)) => {
+                // The reconcile hands the index back so accumulated progress
+                // survives a transient store error; reinsert it. Background
+                // kicks drop the shared future without awaiting it, so this is
+                // the only place a repeated reconcile failure becomes visible.
+                tracing::warn!(
+                    namespace_id = namespace.as_str(),
+                    error = error.as_str(),
+                    "action-cache snapshot reconcile failed"
+                );
+                (index, Err(error))
+            }
+        };
+        index.last_used = Instant::now();
+        {
+            let mut indexes = cache.indexes.lock().expect("snapshot cache lock poisoned");
+            indexes.insert(namespace.clone(), index);
+            while indexes.len() > SNAPSHOT_CACHE_MAX_NAMESPACES {
+                let oldest = indexes
+                    .iter()
+                    .min_by_key(|(_, index)| index.last_used)
+                    .map(|(namespace, _)| namespace.clone());
+                let Some(oldest) = oldest else { break };
+                indexes.remove(&oldest);
+                // Drop the evicted namespace's cached full view too, so
+                // `served_full` stays bounded alongside `indexes`.
+                cache
+                    .served_full
+                    .lock()
+                    .expect("snapshot served_full lock poisoned")
+                    .remove(&oldest);
+            }
+        }
+        result
+    }
+}
+
+/// Reconciles a namespace's snapshot index against the manifest keyspace:
+/// one namespace-index scan, action-result reads only for new-or-changed
+/// entries, the manifest-existence presence gate with its cascade delete,
+/// and node-table compaction. On failure the caller gets the index back so
+/// progress survives transient store errors.
+async fn reconcile_snapshot_index(
+    state: &SharedState,
+    namespace_id: &str,
+    mut index: NamespaceSnapshotIndex,
+) -> Result<NamespaceSnapshotIndex, (NamespaceSnapshotIndex, String)> {
+    let started = Instant::now();
+    let manifests = match state
+        .store
+        .action_cache_manifests(namespace_id, SNAPSHOT_INDEX_MAX_ENTRIES)
+    {
+        Ok(manifests) => manifests,
+        Err(error) => {
+            return Err((
+                index,
+                format!("failed to enumerate the action cache: {error}"),
+            ));
+        }
+    };
+    let scan_ms = started.elapsed().as_millis() as u64;
+    // Diff the cached entries against the manifest keyspace: load only
+    // new-or-changed entries, drop entries whose artifacts are gone.
+    // Manifests are MOVED into the map (never cloned), and action results
+    // stream through a bounded window below instead of being collected —
+    // building the first index for a large namespace with layered full-size
+    // copies OOM-killed 2Gi production pods even with the scan capped.
+    let mut current: BTreeMap<[u8; 32], (u64, ArtifactManifest)> = BTreeMap::new();
+    for manifest in manifests {
+        let Some(hash) = manifest
+            .key
+            .strip_prefix("action_cache/")
+            .and_then(|rest| rest.split('/').next())
+            .and_then(|hash| hex::decode(hash).ok())
+            .and_then(|hash| <[u8; 32]>::try_from(hash.as_slice()).ok())
+        else {
+            continue;
+        };
+        let version = manifest.version_ms;
+        current.insert(hash, (version, manifest));
+    }
+    index.entries.retain(|hash, _| current.contains_key(hash));
+    let changed: Vec<[u8; 32]> = current
+        .iter()
+        .filter(|(hash, (version, _))| {
+            index
+                .entries
+                .get(*hash)
+                .is_none_or(|entry| entry.version_ms != *version)
+        })
+        .map(|(hash, _)| *hash)
+        .collect();
+    // Manifests move out for the load and move back with the result, so the
+    // stream owns everything it captures (the whole reconcile runs inside a
+    // 'static spawned task) without duplicating a single manifest.
+    let mut to_load = Vec::with_capacity(changed.len());
+    for hash in changed {
+        if let Some((version, manifest)) = current.remove(&hash) {
+            to_load.push((hash, version, manifest));
+        }
+    }
+    let changed_count = to_load.len();
+    let mut loads_failed = 0_usize;
+    let mut invalid = 0_usize;
+    let mut loading =
+        futures_util::stream::iter(to_load.into_iter().map(|(hash, version, manifest)| {
+            let state = state.clone();
+            async move {
+                let bytes = read_manifest_bytes(&state, &manifest).await.ok();
+                let action_result =
+                    bytes.and_then(|bytes| reapi::ActionResult::decode(bytes.as_slice()).ok());
+                (hash, version, manifest, action_result)
+            }
+        }))
+        .buffered(32);
+    while let Some((hash, version_ms, manifest, action_result)) = loading.next().await {
+        current.insert(hash, (version_ms, manifest));
+        let Some(action_result) = action_result else {
+            loads_failed += 1;
+            continue;
+        };
+        let mut nodes = Vec::with_capacity(action_result.output_files.len());
+        let mut valid = !action_result.output_files.is_empty();
+        for file in &action_result.output_files {
+            let (Ok(llcas), Some(digest)) = (hex::decode(&file.path), file.digest.as_ref()) else {
+                valid = false;
+                break;
+            };
+            let (Ok(blob_hash), true) = (
+                hex::decode(&digest.hash)
+                    .map_err(|_| ())
+                    .and_then(|hash| <[u8; 32]>::try_from(hash.as_slice()).map_err(|_| ())),
+                digest.size_bytes >= 0,
+            ) else {
+                valid = false;
+                break;
+            };
+            nodes.push(index.intern_node(llcas, blob_hash, digest.size_bytes as u64));
+        }
+        if valid {
+            index
+                .entries
+                .insert(hash, SnapshotIndexEntry { version_ms, nodes });
+        } else {
+            invalid += 1;
+        }
+    }
+    drop(loading);
+    let load_ms = started.elapsed().as_millis() as u64 - scan_ms;
+
+    // Presence gate: an entry only stays advertised while every node's
+    // blob manifest exists (CAS eviction outlives action-cache entries,
+    // and clang fails the build on a missing object). Mostly
+    // existence-cache hits; a dead entry is dropped from the cache too —
+    // a republish bumps its version and reloads it. The store reads are
+    // synchronous, so yield periodically: on a cold cache this loop is
+    // hundreds of thousands of point reads, and unbroken it parks a whole
+    // runtime worker for their duration.
+    let mut dead: Vec<[u8; 32]> = Vec::new();
+    for (gated, (hash, entry)) in index.entries.iter().enumerate() {
+        if gated % 1024 == 1023 {
+            tokio::task::yield_now().await;
+        }
+        let missing = entry.nodes.iter().any(|&node| {
+            !state
+                .store
+                .artifact_manifest_exists(
+                    ArtifactProducer::Reapi,
+                    namespace_id,
+                    &index.nodes[node as usize].blob_key,
+                )
+                .unwrap_or(false)
+        });
+        if missing {
+            dead.push(*hash);
+        }
+    }
+    // Cascade: an entry whose blobs were evicted is unserveable by
+    // construction (the per-key path would hand out a manifest whose
+    // batch_read then misses), so delete it from the store too, not just
+    // from the cached index. The grace window keeps this from fighting
+    // peer replication that delivers an entry before its blobs finish
+    // syncing.
+    let now = crate::utils::now_ms();
+    let cascade: Vec<ArtifactManifest> = dead
+        .iter()
+        .filter_map(|hash| current.get(hash))
+        .filter(|(version_ms, _)| now.saturating_sub(*version_ms) > SNAPSHOT_CASCADE_GRACE_MS)
+        .map(|(_, manifest)| manifest.clone())
+        .collect();
+    for hash in dead {
+        index.entries.remove(&hash);
+    }
+    if !cascade.is_empty() {
+        match state.store.delete_artifact_metadata(&cascade) {
+            Ok(()) => tracing::info!(
+                deleted = cascade.len(),
+                namespace_id,
+                "deleted action-cache entries whose blobs were evicted"
+            ),
+            Err(error) => tracing::warn!("action-cache cascade delete failed: {error}"),
+        }
+    }
+    index.compact_nodes();
+
+    // One line per reconcile: production served a stale snapshot for hours
+    // and nothing said whether builds were running, how much they scanned, or
+    // what the index held afterwards — this is the Loki breadcrumb that turns
+    // that from archaeology into a query.
+    // `changed` counts entries whose scanned version differed from the cached
+    // index; a load or parse failure there silently retains the entry's OLD
+    // version, which is exactly the shape of a frozen watermark — these
+    // counters are what distinguish "nothing new was published" from "new
+    // versions were published but every reload failed".
+    tracing::info!(
+        namespace_id,
+        entries = index.entries.len(),
+        nodes = index.nodes.len(),
+        watermark = index
+            .entries
+            .values()
+            .map(|entry| entry.version_ms)
+            .max()
+            .unwrap_or(0),
+        changed = changed_count,
+        loads_failed,
+        invalid,
+        scan_ms,
+        load_ms,
+        gate_ms = started.elapsed().as_millis() as u64 - scan_ms - load_ms,
+        elapsed_ms = started.elapsed().as_millis() as u64,
+        "action-cache snapshot index reconciled"
+    );
+    Ok(index)
 }
 
 #[tonic::async_trait]
@@ -561,6 +1048,47 @@ impl ActionCache for ReapiService {
             artifact_hash: Some(digest.hash.clone()),
         };
         let principal = self.authorize_request(&request, extension.clone()).await?;
+        // Instance-wide action-cache snapshot: a reserved action key whose
+        // "result" is the namespace's complete key→value map (deduplicated
+        // node table + per-key node lists), inlined into a single output
+        // file. One round trip primes a completely cold client — no per-key
+        // lookups and no client-side memoization — after which content flows
+        // through ordinary batched blob reads. The client hashes the reserved
+        // key bytes exactly like a real key, so interception is a digest
+        // comparison, and against an old server the lookup is a plain
+        // not-found the client degrades from.
+        if digest.hash == snapshot_action_hash()
+            && digest.size_bytes == SNAPSHOT_ACTION_KEY.len() as i64
+        {
+            let after = request
+                .get_ref()
+                .inline_output_files
+                .iter()
+                .find_map(|hint| hint.strip_prefix(SNAPSHOT_AFTER_HINT)?.parse::<u64>().ok())
+                .unwrap_or(0);
+            let snapshot = self.serve_actioncache_snapshot(namespace_id, after).await?;
+            let served = snapshot.len() as u64;
+            let action_result = reapi::ActionResult {
+                output_files: vec![reapi::OutputFile {
+                    path: SNAPSHOT_OUTPUT_PATH.to_owned(),
+                    digest: Some(reapi::Digest {
+                        hash: hex::encode(Sha256::digest(&snapshot)),
+                        size_bytes: snapshot.len() as i64,
+                    }),
+                    contents: snapshot,
+                    ..Default::default()
+                }],
+                ..Default::default()
+            };
+            let mut response = Response::new(action_result);
+            self.apply_response_headers(&mut response, extension, principal.as_ref())
+                .await?;
+            self.state
+                .metrics
+                .record_artifact_read(ArtifactProducer::Reapi, "ok", served);
+            self.record_reapi_download(request.metadata(), namespace_id, served);
+            return Ok(response);
+        }
         let mut materialization_budget = MaterializationBudget::new(&self.state);
         let (size_bytes, mut action_result) = fetch_keyvalue_proto::<reapi::ActionResult>(
             &self.state,
@@ -570,6 +1098,53 @@ impl ActionCache for ReapiService {
             Some(&mut materialization_budget),
         )
         .await?;
+        // Presence gate, the per-key counterpart of the snapshot reconcile's:
+        // an entry whose output blobs were evicted is unserveable by
+        // construction — the compiler replaying it hard-fails the build on
+        // the first missing object (a production cold build died on its very
+        // first resolve this way), while a not-found here is an ordinary miss
+        // the client recompiles from and republishes with fresh blobs.
+        // Entries older than the snapshot index's scan cap are exactly the
+        // ones its reconcile-time gate and cascade never examine, so without
+        // this they serve dead forever. Mostly existence-cache hits.
+        let evicted = action_result.output_files.iter().find_map(|file| {
+            let digest = file.digest.as_ref()?;
+            let node_key = blob_key(&digest_key(digest).ok()?);
+            let exists = self
+                .state
+                .store
+                .artifact_manifest_exists(ArtifactProducer::Reapi, namespace_id, &node_key)
+                .unwrap_or(true);
+            (!exists).then(|| digest.hash.clone())
+        });
+        if let Some(missing) = evicted {
+            // Delete the dead entry past the replication grace window (a
+            // freshly replicated entry's blobs may still be in flight), so
+            // the next publish recreates it instead of every reader paying
+            // this lookup again.
+            if let Ok(Some(manifest)) =
+                self.state
+                    .store
+                    .manifest_for_key(ArtifactProducer::Reapi, namespace_id, &key)
+                && crate::utils::now_ms().saturating_sub(manifest.version_ms)
+                    > SNAPSHOT_CASCADE_GRACE_MS
+            {
+                match self.state.store.delete_artifact_metadata(&[manifest]) {
+                    Ok(()) => tracing::info!(
+                        namespace_id,
+                        key,
+                        missing,
+                        "deleted an action-cache entry whose output blob was evicted"
+                    ),
+                    Err(error) => {
+                        tracing::warn!("dead action-cache entry delete failed: {error}")
+                    }
+                }
+            }
+            return Err(Status::not_found(
+                "action result references evicted output blobs",
+            ));
+        }
         // Everything this RPC returns is egress: the stored action result plus
         // any stdout/stderr/output-file blobs inlined below, so all of it is
         // accumulated for the usage rollup.
@@ -720,10 +1295,10 @@ impl ActionCache for ReapiService {
         let principal = self.authorize_request(&request, extension.clone()).await?;
         let bytes = action_result.encode_to_vec();
         let targets = replication_targets(&self.state).await;
-        let manifest = self
+        let (manifest, applied) = self
             .state
             .store
-            .persist_inline_artifact_from_bytes_and_enqueue(
+            .persist_inline_artifact_from_bytes_damped_and_enqueue(
                 ArtifactProducer::Reapi,
                 namespace_id,
                 &key,
@@ -744,7 +1319,11 @@ impl ActionCache for ReapiService {
         // update is billed: an action result is a mutable entry whose content
         // changes across updates, so there is no CAS-style "already present"
         // dedupe — matching the HTTP key-value path, which bills each put.
-        self.record_reapi_upload(request.metadata(), namespace_id, manifest.size);
+        // A damped refresh (identical bytes, fresh version) applies nothing
+        // and bills nothing.
+        if applied {
+            self.record_reapi_upload(request.metadata(), namespace_id, manifest.size);
+        }
         Ok(response)
     }
 }
@@ -1421,6 +2000,356 @@ fn validate_digest_bytes(digest: &reapi::Digest, bytes: &[u8]) -> Result<(), Str
     Ok(())
 }
 
+/// Reserved action key whose lookup returns the namespace's action-cache
+/// snapshot instead of a stored result. Clients hash these exact bytes the
+/// way they hash a real llcas key, so serving it needs no new RPC surface.
+/// Bump the version suffix on any change to the snapshot encoding (v2 added
+/// the write-time watermark header and delta responses).
+pub const SNAPSHOT_ACTION_KEY: &[u8] = b"tuist-actioncache-snapshot/v2";
+const SNAPSHOT_OUTPUT_PATH: &str = "tuist-actioncache-snapshot";
+/// The floor the compressed path's inclusion budget converges to. A body this
+/// size is guaranteed to compress under the wire ceiling, so the shrink
+/// retries always terminate at a safe view. Also the size below which no
+/// benefit is left on the table: the recency window shed the oldest keys.
+const SNAPSHOT_MIN_BUDGET_BYTES: usize = 48 << 20;
+
+/// Ceiling on the COMPRESSED wire size, with headroom under the 64MB message
+/// limit REAPI clients configure. Same transfer budget as the pre-compression
+/// snapshot, but it now carries several times the content — a shared
+/// namespace's snapshot rides the recency window down to a small suffix of
+/// oldest keys, and those sheds were the per-key ladder that made the snapshot
+/// net-negative over the WAN. Entries are encoded newest-first, so what sheds
+/// is the oldest; dropped keys resolve through the per-key path.
+const SNAPSHOT_WIRE_MAX_BYTES: usize = 48 << 20;
+
+/// How much UNCOMPRESSED body to include before it stops adding keys. Sized so
+/// the zstd output of a full body lands near the wire ceiling for this data's
+/// typical ratio; a body that compresses worse is re-encoded smaller (see
+/// `encode`). Also bounded in practice by the index's own entry cap.
+const SNAPSHOT_CONTENT_BUDGET_BYTES: usize = 144 << 20;
+
+/// Bounded shrink retries when a compressed body overshoots the wire ceiling.
+/// Each retry scales the content budget down from the observed ratio and can
+/// only fall to `SNAPSHOT_MIN_BUDGET_BYTES` (a provably-safe view), so this
+/// bounds the encode work, not the correctness.
+const SNAPSHOT_COMPRESS_MAX_ATTEMPTS: usize = 3;
+
+/// zstd level for the snapshot body. Level 3 runs at hundreds of MB/s and
+/// lands within a few percent of higher levels on hex-id node tables, so the
+/// serve stays CPU-cheap while the wire shrinks ~3x.
+const SNAPSHOT_ZSTD_LEVEL: i32 = 3;
+/// `inline_output_files` hint carrying the client's write-time watermark:
+/// when present, the response includes only entries written after it (a
+/// delta), letting a long-lived client refresh without refetching the world.
+pub const SNAPSHOT_AFTER_HINT: &str = "tuist-snapshot-after:";
+/// Bound on cached per-namespace snapshot indexes (LRU by last use). A kura
+/// node serves one tenant, so this comfortably covers every namespace that
+/// actually requests snapshots.
+const SNAPSHOT_CACHE_MAX_NAMESPACES: usize = 32;
+
+/// The most entries a snapshot index holds, counted from the newest write.
+/// This bounds the BUILD's memory the way the wire ceiling bounds the
+/// response: reconciling against an unbounded keyspace held every manifest
+/// in memory at once, and a namespace with weeks of un-expired CI churn
+/// OOM-killed the pod on its first serve. With the cap, the scan buffer
+/// (≤2x cap of manifests) plus the moved `current` map dominate the build's
+/// transient memory — roughly cap x ~1KB.
+const SNAPSHOT_INDEX_MAX_ENTRIES: usize = 100_000;
+
+/// The transient memory a bounded index build is budgeted for, held as a
+/// response-materialization-pool permit for the build's duration (adapted
+/// down on nodes whose pool is smaller). Matches SNAPSHOT_INDEX_MAX_ENTRIES
+/// at ~1KB per entry of scan-buffer + current-map peak, with headroom.
+const SNAPSHOT_BUILD_BUDGET_BYTES: usize = 192 << 20;
+
+/// How long a snapshot build waits for its memory-pool permit before
+/// declining. Generous: the build is background work, and the pool drains as
+/// in-flight responses complete — declining is only right when the node is
+/// pinned at capacity for this entire window.
+const SNAPSHOT_BUILD_PERMIT_WAIT: Duration = Duration::from_secs(600);
+
+/// How old a cached snapshot index may grow before a serve kicks a
+/// background reconcile. Requests never wait on it — they get the cached
+/// view — so this bounds staleness, not latency; it composes with the
+/// client's ~2-minute delta cadence.
+const SNAPSHOT_RECONCILE_INTERVAL: Duration = Duration::from_secs(60);
+
+/// How long a COLD serve (no cached index) waits for the build before
+/// answering UNAVAILABLE. Long enough that an already-indexed namespace's
+/// reconcile completes inline and small namespaces keep one-round-trip
+/// semantics; far shorter than any client deadline, so a first-ever backfill
+/// of a large namespace sheds requests fast instead of timing them all out.
+const SNAPSHOT_COLD_SERVE_WAIT: Duration = Duration::from_secs(15);
+
+/// Stranded-node floor below which a cached snapshot index skips compacting
+/// its node table (the sweep rewrites every entry's index list).
+const SNAPSHOT_COMPACT_MIN_GARBAGE: usize = 1024;
+
+/// Minimum age before the presence gate's dead entries are cascade-deleted
+/// from the store. Client publication orders blobs before the entry, but peer
+/// replication and bootstrap may deliver an entry before its blobs — a young
+/// entry with missing blobs is more likely mid-sync than stranded.
+const SNAPSHOT_CASCADE_GRACE_MS: u64 = 60 * 60 * 1000;
+
+fn snapshot_action_hash() -> &'static str {
+    static HASH: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    HASH.get_or_init(|| hex::encode(Sha256::digest(SNAPSHOT_ACTION_KEY)))
+}
+
+struct SnapshotNode {
+    llcas: Vec<u8>,
+    blob_hash: [u8; 32],
+    blob_size: u64,
+    /// The blob's keyvalue artifact key, precomputed for the per-serve
+    /// presence gate.
+    blob_key: String,
+}
+
+struct SnapshotIndexEntry {
+    version_ms: u64,
+    nodes: Vec<u32>,
+}
+
+/// Incrementally maintained view of one namespace's action cache, so serving
+/// a snapshot is a manifest-index reconcile plus an in-memory encode instead
+/// of re-reading every stored ActionResult. Reconciliation (rather than
+/// write-path hooks) keeps it correct under peer replication and eviction:
+/// whatever wrote or removed an entry, the manifest keyspace is the truth
+/// this diffs against.
+struct NamespaceSnapshotIndex {
+    nodes: Vec<SnapshotNode>,
+    node_index: BTreeMap<Vec<u8>, u32>,
+    entries: BTreeMap<[u8; 32], SnapshotIndexEntry>,
+    last_used: Instant,
+    /// When the last successful reconcile finished. Serving reads this to
+    /// decide whether the cached view is fresh enough to return as-is.
+    reconciled_at: Instant,
+}
+
+impl NamespaceSnapshotIndex {
+    fn new() -> Self {
+        Self {
+            nodes: Vec::new(),
+            node_index: BTreeMap::new(),
+            entries: BTreeMap::new(),
+            last_used: Instant::now(),
+            reconciled_at: Instant::now(),
+        }
+    }
+
+    fn intern_node(&mut self, llcas: Vec<u8>, blob_hash: [u8; 32], blob_size: u64) -> u32 {
+        if let Some(&index) = self.node_index.get(&llcas) {
+            return index;
+        }
+        let blob_key = blob_key(&format!("{}/{}", hex::encode(blob_hash), blob_size));
+        let index = self.nodes.len() as u32;
+        self.nodes.push(SnapshotNode {
+            llcas: llcas.clone(),
+            blob_hash,
+            blob_size,
+            blob_key,
+        });
+        self.node_index.insert(llcas, index);
+        index
+    }
+
+    /// Rebuilds the node table around the nodes that live entries still
+    /// reference. Entry churn (republished keys, evicted action results)
+    /// strands nodes nothing references anymore; `intern_node` only ever
+    /// appends, so without this sweep a long-cached index for an actively
+    /// written namespace would grow its node table for the life of the
+    /// process. Skipped while the garbage share is too small to be worth
+    /// rewriting every entry's index list.
+    fn compact_nodes(&mut self) {
+        let mut remap: Vec<Option<u32>> = vec![None; self.nodes.len()];
+        let mut live: u32 = 0;
+        for entry in self.entries.values() {
+            for &node in &entry.nodes {
+                if remap[node as usize].is_none() {
+                    remap[node as usize] = Some(live);
+                    live += 1;
+                }
+            }
+        }
+        let garbage = self.nodes.len() - live as usize;
+        if garbage < SNAPSHOT_COMPACT_MIN_GARBAGE || garbage * 2 < self.nodes.len() {
+            return;
+        }
+        let old_nodes = std::mem::take(&mut self.nodes);
+        let mut new_nodes: Vec<Option<SnapshotNode>> = Vec::new();
+        new_nodes.resize_with(live as usize, || None);
+        for (old_index, node) in old_nodes.into_iter().enumerate() {
+            if let Some(new_index) = remap[old_index] {
+                new_nodes[new_index as usize] = Some(node);
+            }
+        }
+        self.nodes = new_nodes.into_iter().flatten().collect();
+        self.node_index = self
+            .nodes
+            .iter()
+            .enumerate()
+            .map(|(index, node)| (node.llcas.clone(), index as u32))
+            .collect();
+        for entry in self.entries.values_mut() {
+            for node in &mut entry.nodes {
+                *node = remap[*node as usize].expect("live entry references a swept node");
+            }
+        }
+    }
+
+    /// Encodes a view for the wire, always zstd-compressed into the `TSNZ`
+    /// envelope. The body is included up to the larger content budget then
+    /// compressed; a body that compresses worse than budgeted is re-encoded
+    /// with a smaller budget scaled from the observed ratio, bounded to a few
+    /// tries that can only converge on the provably-safe minimum budget.
+    ///
+    /// Every snapshot client decodes `TSNZ`; the plain `TSNP` body still exists
+    /// (see `encode_body`) only because a NEW client may hit an OLD server mid
+    /// kura-mesh-roll and must read what those pods emit — this server never
+    /// emits it. The client falls back to the per-key path on any body it can't
+    /// decode, so there is nothing to negotiate.
+    fn encode(&self, after: u64) -> Vec<u8> {
+        let mut budget = SNAPSHOT_CONTENT_BUDGET_BYTES;
+        let mut wire = Vec::new();
+        for attempt in 0..SNAPSHOT_COMPRESS_MAX_ATTEMPTS {
+            let body = self.encode_body(after, budget);
+            wire = compress_snapshot(&body);
+            if wire.len() <= SNAPSHOT_WIRE_MAX_BYTES {
+                return wire;
+            }
+            // Overshot: this batch compressed worse than the budget assumed.
+            // Scale the content budget down from the ratio we just measured
+            // (strictly shrinks, since the compressed size is over the
+            // ceiling) but never below the minimum budget, whose body is
+            // guaranteed to compress under the wire ceiling. So the retry
+            // converges on a safe view.
+            let ratio = (body.len() as f64 / wire.len().max(1) as f64).max(1.0);
+            let scaled = (SNAPSHOT_WIRE_MAX_BYTES as f64 * ratio * 0.9) as usize;
+            budget = scaled.min(budget * 9 / 10).max(SNAPSHOT_MIN_BUDGET_BYTES);
+            if attempt + 1 == SNAPSHOT_COMPRESS_MAX_ATTEMPTS {
+                tracing::warn!(
+                    wire_bytes = wire.len(),
+                    "action-cache snapshot still over the wire ceiling after compression retries; shipping the trimmed view"
+                );
+            }
+        }
+        wire
+    }
+
+    /// The uncompressed body, including keys until `budget` bytes of wire are
+    /// accounted, with a response-local node table so every view is
+    /// self-contained. `after == 0` is a full newest-first recency window (an
+    /// oversized namespace degrades to "the most recent keys, the rest
+    /// per-key"); a delta (`after > 0`) includes entries with
+    /// `version_ms >= after` — inclusive, because millisecond timestamps are
+    /// not unique and a write landing in an already-served millisecond must
+    /// reappear (re-sent boundary entries merge idempotently client-side) —
+    /// assembled oldest-first with the header watermark set to the newest
+    /// entry actually included, so an overflowing delta paginates rather than
+    /// skipping what it dropped. This is `encode`'s pre-compression input; it
+    /// is also the exact `TSNP` layout old kura pods still serve on the wire.
+    fn encode_body(&self, after: u64, budget: usize) -> Vec<u8> {
+        let full = after == 0;
+        let mut included: Vec<(&[u8; 32], &SnapshotIndexEntry)> = self
+            .entries
+            .iter()
+            .filter(|(_, entry)| full || entry.version_ms >= after)
+            .collect();
+        if full {
+            included.sort_by(|a, b| b.1.version_ms.cmp(&a.1.version_ms));
+        } else {
+            included.sort_by(|a, b| a.1.version_ms.cmp(&b.1.version_ms));
+        }
+
+        // Response-local node remap: only nodes the included keys reference.
+        let total = included.len();
+        let mut remap: BTreeMap<u32, u32> = BTreeMap::new();
+        let mut response_nodes: Vec<u32> = Vec::new();
+        let mut keys: Vec<(&[u8; 32], Vec<u32>)> = Vec::new();
+        let mut estimated = 0usize;
+        let mut watermark = after;
+        for (hash, entry) in included {
+            let mut key_cost = 32 + 4 + entry.nodes.len() * 4;
+            for &node in &entry.nodes {
+                if !remap.contains_key(&node) {
+                    key_cost += 1 + self.nodes[node as usize].llcas.len() + 32 + 8;
+                }
+            }
+            if estimated + key_cost > budget {
+                if full {
+                    // Recency window: this key is out, smaller older ones may fit.
+                    continue;
+                }
+                // Pagination: everything from here on is newer than the
+                // watermark being returned, so it arrives on the next delta.
+                break;
+            }
+            estimated += key_cost;
+            watermark = watermark.max(entry.version_ms);
+            let indexes = entry
+                .nodes
+                .iter()
+                .map(|&node| {
+                    *remap.entry(node).or_insert_with(|| {
+                        response_nodes.push(node);
+                        (response_nodes.len() - 1) as u32
+                    })
+                })
+                .collect();
+            keys.push((hash, indexes));
+        }
+        let dropped = total - keys.len();
+        if dropped > 0 {
+            if full {
+                tracing::warn!(
+                    "action-cache snapshot truncated: {dropped} oldest keys over the size ceiling"
+                );
+            } else {
+                tracing::info!(
+                    "action-cache snapshot delta paginated: {dropped} newest keys deferred to the next delta"
+                );
+            }
+        }
+
+        let mut out = Vec::with_capacity(estimated + 32);
+        out.extend_from_slice(b"TSNP");
+        out.push(2);
+        out.extend_from_slice(&watermark.to_le_bytes());
+        out.extend_from_slice(&(response_nodes.len() as u32).to_le_bytes());
+        for &node in &response_nodes {
+            let node = &self.nodes[node as usize];
+            out.push(node.llcas.len() as u8);
+            out.extend_from_slice(&node.llcas);
+            out.extend_from_slice(&node.blob_hash);
+            out.extend_from_slice(&node.blob_size.to_le_bytes());
+        }
+        out.extend_from_slice(&(keys.len() as u32).to_le_bytes());
+        for (hash, indexes) in &keys {
+            out.extend_from_slice(*hash);
+            out.extend_from_slice(&(indexes.len() as u32).to_le_bytes());
+            for index in indexes {
+                out.extend_from_slice(&index.to_le_bytes());
+            }
+        }
+        out
+    }
+}
+
+/// Wraps a `TSNP` body in the `TSNZ` envelope: magic, version, the u64
+/// uncompressed length (so the client can size its buffer and reject a torn
+/// payload), then the zstd stream. Only clients that advertise zstd support
+/// receive this; everyone else gets the raw body.
+fn compress_snapshot(body: &[u8]) -> Vec<u8> {
+    let compressed = zstd::stream::encode_all(body, SNAPSHOT_ZSTD_LEVEL)
+        .expect("zstd encode of an in-memory buffer cannot fail");
+    let mut out = Vec::with_capacity(compressed.len() + 13);
+    out.extend_from_slice(b"TSNZ");
+    out.push(1);
+    out.extend_from_slice(&(body.len() as u64).to_le_bytes());
+    out.extend_from_slice(&compressed);
+    out
+}
+
 fn digest_key(digest: &reapi::Digest) -> Result<String, Status> {
     if digest.size_bytes < 0 {
         return Err(Status::invalid_argument("digest size must be non-negative"));
@@ -1619,6 +2548,801 @@ fn parse_blob_resource_name(
 mod tests {
     use super::*;
     use std::{convert::Infallible, time::Duration};
+
+    #[test]
+    fn actioncache_snapshot_index_encodes_full_and_delta_views() {
+        let mut index = NamespaceSnapshotIndex::new();
+        let shared = index.intern_node(vec![0xBB], [8; 32], 20);
+        let a_root = index.intern_node(vec![0xAA, 0xAA], [7; 32], 10);
+        let b_root = index.intern_node(vec![0xCC], [9; 32], 30);
+        assert_eq!(index.intern_node(vec![0xBB], [8; 32], 20), shared, "dedup");
+        index.entries.insert(
+            [1; 32],
+            SnapshotIndexEntry {
+                version_ms: 100,
+                nodes: vec![a_root, shared],
+            },
+        );
+        index.entries.insert(
+            [2; 32],
+            SnapshotIndexEntry {
+                version_ms: 200,
+                nodes: vec![b_root, shared],
+            },
+        );
+
+        let read_u32 = |bytes: &[u8], at: usize| {
+            u32::from_le_bytes(bytes[at..at + 4].try_into().unwrap()) as usize
+        };
+
+        // Full view: both keys, watermark = newest version, node table deduped.
+        let full = index.encode_body(0, SNAPSHOT_MIN_BUDGET_BYTES);
+        assert_eq!(&full[..4], b"TSNP");
+        assert_eq!(full[4], 2);
+        assert_eq!(u64::from_le_bytes(full[5..13].try_into().unwrap()), 200);
+        assert_eq!(read_u32(&full, 13), 3, "three unique nodes");
+
+        // Delta view: only the key strictly newer than the cursor, with a
+        // self-contained node table (root + the shared node).
+        let delta = index.encode_body(150, SNAPSHOT_MIN_BUDGET_BYTES);
+        assert_eq!(u64::from_le_bytes(delta[5..13].try_into().unwrap()), 200);
+        let node_count = read_u32(&delta, 13);
+        assert_eq!(node_count, 2);
+        // Walk past the node table to the key section.
+        let mut at = 17;
+        for _ in 0..node_count {
+            let len = delta[at] as usize;
+            at += 1 + len + 32 + 8;
+        }
+        assert_eq!(read_u32(&delta, at), 1, "one delta key");
+        assert_eq!(&delta[at + 4..at + 36], &[2u8; 32]);
+
+        // The cursor is INCLUSIVE: millisecond versions are not unique, so a
+        // write landing in an already-served millisecond must reappear on the
+        // next delta rather than being skipped until the full refresh. The
+        // boundary key is re-sent (merge is idempotent client-side).
+        let boundary = index.encode_body(200, SNAPSHOT_MIN_BUDGET_BYTES);
+        assert_eq!(u64::from_le_bytes(boundary[5..13].try_into().unwrap()), 200);
+        let node_count = read_u32(&boundary, 13);
+        assert_eq!(node_count, 2, "boundary key re-sent");
+
+        // Nothing at or past the cursor: an empty delta echoes it.
+        let empty = index.encode_body(300, SNAPSHOT_MIN_BUDGET_BYTES);
+        assert_eq!(u64::from_le_bytes(empty[5..13].try_into().unwrap()), 300);
+        let node_count = read_u32(&empty, 13);
+        assert_eq!(node_count, 0);
+    }
+
+    #[test]
+    fn actioncache_snapshot_compressed_envelope_round_trips() {
+        let mut index = NamespaceSnapshotIndex::new();
+        let root = index.intern_node(vec![0xAA, 0xAA], [7; 32], 10);
+        let shared = index.intern_node(vec![0xBB], [8; 32], 20);
+        index.entries.insert(
+            [1; 32],
+            SnapshotIndexEntry {
+                version_ms: 100,
+                nodes: vec![root, shared],
+            },
+        );
+
+        // The compressed wire is the TSNZ envelope: magic, version 1, the
+        // uncompressed length, then the zstd stream that decodes to exactly
+        // the uncompressed body the same view would have produced.
+        let wire = index.encode(0);
+        assert_eq!(&wire[..4], b"TSNZ");
+        assert_eq!(wire[4], 1);
+        let declared = u64::from_le_bytes(wire[5..13].try_into().unwrap()) as usize;
+        let body = zstd::stream::decode_all(&wire[13..]).expect("zstd body should decode");
+        assert_eq!(body.len(), declared, "declared length matches the body");
+        assert_eq!(
+            body,
+            index.encode_body(0, SNAPSHOT_MIN_BUDGET_BYTES),
+            "body equals the plain TSNP view"
+        );
+    }
+
+    #[test]
+    fn actioncache_snapshot_index_compacts_stranded_nodes() {
+        let mut index = NamespaceSnapshotIndex::new();
+        // A churned namespace: interned nodes whose entries are gone.
+        for stranded in 0..SNAPSHOT_COMPACT_MIN_GARBAGE as u64 {
+            index.intern_node(stranded.to_le_bytes().to_vec(), [3; 32], stranded);
+        }
+        let live = index.intern_node(vec![0xAA], [7; 32], 10);
+        index.entries.insert(
+            [1; 32],
+            SnapshotIndexEntry {
+                version_ms: 100,
+                nodes: vec![live],
+            },
+        );
+
+        index.compact_nodes();
+
+        assert_eq!(index.nodes.len(), 1, "stranded nodes swept");
+        assert_eq!(index.node_index.len(), 1);
+        let entry = index.entries.get(&[1; 32]).unwrap();
+        assert_eq!(entry.nodes, vec![0], "entry remapped onto the new table");
+        assert_eq!(index.nodes[0].llcas, vec![0xAA]);
+        assert_eq!(index.node_index.get(&vec![0xAA]).copied(), Some(0));
+        // The rebuilt table keeps serving: the full view carries the live key.
+        let full = index.encode_body(0, SNAPSHOT_MIN_BUDGET_BYTES);
+        assert_eq!(u64::from_le_bytes(full[5..13].try_into().unwrap()), 100);
+    }
+
+    /// Marks a cached index stale so the next serve kicks a reconcile
+    /// (serves return the cached view and reconcile in the background once
+    /// the freshness window lapses).
+    fn backdate_snapshot_index(service: &ReapiService, namespace_id: &str) {
+        if let Some(index) = service
+            .snapshot_cache
+            .indexes
+            .lock()
+            .unwrap()
+            .get_mut(namespace_id)
+        {
+            index.reconciled_at = Instant::now() - 2 * SNAPSHOT_RECONCILE_INTERVAL;
+        }
+    }
+
+    /// Waits until the namespace's cached index satisfies `done` (background
+    /// reconciles land asynchronously after a stale serve).
+    async fn wait_for_snapshot_index<F>(service: &ReapiService, namespace_id: &str, done: F)
+    where
+        F: Fn(&NamespaceSnapshotIndex) -> bool,
+    {
+        for _ in 0..400 {
+            {
+                let indexes = service.snapshot_cache.indexes.lock().unwrap();
+                if indexes.get(namespace_id).map(&done).unwrap_or(false) {
+                    return;
+                }
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+        panic!("background reconcile did not reach the expected state");
+    }
+
+    #[tokio::test]
+    async fn snapshot_serve_cascade_deletes_stranded_entries_past_grace() {
+        let context = test_context(|_| {}).await;
+        let service = ReapiService {
+            snapshot_cache: Default::default(),
+            state: context.state.clone(),
+        };
+        let store = &context.state.store;
+        let uploads = context.state.config.tmp_dir.join("uploads");
+        std::fs::create_dir_all(&uploads).expect("uploads dir should create");
+
+        async fn write_artifact(
+            store: &crate::store::Store,
+            uploads: &std::path::Path,
+            key: &str,
+            bytes: &[u8],
+            version_ms: u64,
+        ) {
+            let path = uploads.join(key.replace('/', "-"));
+            std::fs::write(&path, bytes).expect("source should write");
+            store
+                .apply_replicated_artifact_from_path(
+                    ArtifactProducer::Reapi,
+                    "ios",
+                    key,
+                    "application/octet-stream",
+                    &path,
+                    version_ms,
+                )
+                .await
+                .expect("artifact should persist");
+        }
+        fn entry_bytes(llcas: &[u8], blob_hash: [u8; 32]) -> Vec<u8> {
+            reapi::ActionResult {
+                output_files: vec![reapi::OutputFile {
+                    path: hex::encode(llcas),
+                    digest: Some(reapi::Digest {
+                        hash: hex::encode(blob_hash),
+                        size_bytes: 7,
+                    }),
+                    ..Default::default()
+                }],
+                ..Default::default()
+            }
+            .encode_to_vec()
+        }
+
+        let now = crate::utils::now_ms();
+        let old = now - 2 * SNAPSHOT_CASCADE_GRACE_MS;
+        let evicted_blob = [0x11u8; 32];
+        let live_blob = [0x22u8; 32];
+        let evicted_blob_key = blob_key(&format!("{}/7", hex::encode(evicted_blob)));
+        let live_blob_key = blob_key(&format!("{}/7", hex::encode(live_blob)));
+        let stranded_key = format!("action_cache/{}/10", hex::encode([0x44u8; 32]));
+        let young_key = format!("action_cache/{}/10", hex::encode([0x55u8; 32]));
+        let live_key = format!("action_cache/{}/10", hex::encode([0x66u8; 32]));
+        write_artifact(store, &uploads, &evicted_blob_key, b"payload", old).await;
+        write_artifact(store, &uploads, &live_blob_key, b"payload", old).await;
+        write_artifact(
+            store,
+            &uploads,
+            &stranded_key,
+            &entry_bytes(&[0xAB, 0xCD], evicted_blob),
+            old,
+        )
+        .await;
+        write_artifact(
+            store,
+            &uploads,
+            &young_key,
+            &entry_bytes(&[0xAB, 0xCD], evicted_blob),
+            now,
+        )
+        .await;
+        write_artifact(
+            store,
+            &uploads,
+            &live_key,
+            &entry_bytes(&[0xEE, 0xFF], live_blob),
+            old,
+        )
+        .await;
+
+        service
+            .serve_actioncache_snapshot("ios", 0)
+            .await
+            .expect("first serve should succeed");
+        assert_eq!(
+            service.snapshot_cache.indexes.lock().unwrap()["ios"]
+                .entries
+                .len(),
+            3,
+            "all three entries advertised while their blobs exist"
+        );
+
+        // Evict the shared blob the way segment eviction would: manifest gone.
+        let blob_manifest = store
+            .manifest(&crate::utils::artifact_storage_id(
+                ArtifactProducer::Reapi,
+                "test-tenant",
+                "ios",
+                &evicted_blob_key,
+            ))
+            .expect("manifest read should succeed")
+            .expect("blob manifest should exist");
+        store
+            .delete_artifact_metadata(&[blob_manifest])
+            .expect("blob eviction should succeed");
+
+        backdate_snapshot_index(&service, "ios");
+        service
+            .serve_actioncache_snapshot("ios", 0)
+            .await
+            .expect("second serve should succeed");
+        wait_for_snapshot_index(&service, "ios", |index| index.entries.len() == 1).await;
+        let exists = |key: &str| {
+            store
+                .artifact_manifest_exists(ArtifactProducer::Reapi, "ios", key)
+                .expect("existence check should succeed")
+        };
+        assert!(
+            !exists(&stranded_key),
+            "the stranded entry past the grace window is cascade-deleted"
+        );
+        assert!(
+            exists(&young_key),
+            "a young stranded entry is kept — its blobs may still be mid-replication"
+        );
+        assert!(exists(&live_key));
+    }
+
+    #[tokio::test]
+    async fn per_key_serve_gates_entries_with_evicted_outputs() {
+        let context = test_context(|_| {}).await;
+        let service = ReapiService {
+            snapshot_cache: Default::default(),
+            state: context.state.clone(),
+        };
+        let store = &context.state.store;
+        let uploads = context.state.config.tmp_dir.join("uploads");
+        std::fs::create_dir_all(&uploads).expect("uploads dir should create");
+
+        async fn write_artifact(
+            store: &crate::store::Store,
+            uploads: &std::path::Path,
+            key: &str,
+            bytes: &[u8],
+            version_ms: u64,
+        ) {
+            let path = uploads.join(key.replace('/', "-"));
+            std::fs::write(&path, bytes).expect("source should write");
+            store
+                .apply_replicated_artifact_from_path(
+                    ArtifactProducer::Reapi,
+                    "ios",
+                    key,
+                    "application/octet-stream",
+                    &path,
+                    version_ms,
+                )
+                .await
+                .expect("artifact should persist");
+        }
+        fn entry_bytes(blob_hash: [u8; 32]) -> Vec<u8> {
+            reapi::ActionResult {
+                output_files: vec![reapi::OutputFile {
+                    path: hex::encode([0xAB, 0xCD]),
+                    digest: Some(reapi::Digest {
+                        hash: hex::encode(blob_hash),
+                        size_bytes: 7,
+                    }),
+                    ..Default::default()
+                }],
+                ..Default::default()
+            }
+            .encode_to_vec()
+        }
+        fn get_request(action_hash: [u8; 32]) -> Request<reapi::GetActionResultRequest> {
+            Request::new(reapi::GetActionResultRequest {
+                instance_name: "ios".into(),
+                action_digest: Some(reapi::Digest {
+                    hash: hex::encode(action_hash),
+                    size_bytes: 10,
+                }),
+                ..Default::default()
+            })
+        }
+
+        let now = crate::utils::now_ms();
+        let old = now - 2 * SNAPSHOT_CASCADE_GRACE_MS;
+        let live_blob = [0x11u8; 32];
+        let missing_blob = [0x22u8; 32];
+        let live_blob_key = blob_key(&format!("{}/7", hex::encode(live_blob)));
+        let live_action = [0x44u8; 32];
+        let dead_action = [0x55u8; 32];
+        let young_dead_action = [0x66u8; 32];
+        let live_key = format!("action_cache/{}/10", hex::encode(live_action));
+        let dead_key = format!("action_cache/{}/10", hex::encode(dead_action));
+        let young_dead_key = format!("action_cache/{}/10", hex::encode(young_dead_action));
+        write_artifact(store, &uploads, &live_blob_key, b"payload", old).await;
+        write_artifact(store, &uploads, &live_key, &entry_bytes(live_blob), old).await;
+        write_artifact(store, &uploads, &dead_key, &entry_bytes(missing_blob), old).await;
+        write_artifact(
+            store,
+            &uploads,
+            &young_dead_key,
+            &entry_bytes(missing_blob),
+            now,
+        )
+        .await;
+
+        service
+            .get_action_result(get_request(live_action))
+            .await
+            .expect("an entry with present outputs serves");
+
+        let status = service
+            .get_action_result(get_request(dead_action))
+            .await
+            .expect_err("an entry with evicted outputs must not serve");
+        assert_eq!(status.code(), tonic::Code::NotFound);
+        let exists = |key: &str| {
+            store
+                .artifact_manifest_exists(ArtifactProducer::Reapi, "ios", key)
+                .expect("existence check should succeed")
+        };
+        assert!(
+            !exists(&dead_key),
+            "a dead entry past the grace window is deleted on serve"
+        );
+
+        let status = service
+            .get_action_result(get_request(young_dead_action))
+            .await
+            .expect_err("a young dead entry must not serve either");
+        assert_eq!(status.code(), tonic::Code::NotFound);
+        assert!(
+            exists(&young_dead_key),
+            "a young dead entry is kept — its blobs may still be mid-replication"
+        );
+    }
+
+    #[tokio::test]
+    async fn snapshot_index_build_survives_an_aborted_request() {
+        let context = test_context(|_| {}).await;
+        let service = ReapiService {
+            snapshot_cache: Default::default(),
+            state: context.state.clone(),
+        };
+        let store = &context.state.store;
+        let uploads = context.state.config.tmp_dir.join("uploads");
+        std::fs::create_dir_all(&uploads).expect("uploads dir should create");
+        let blob_hash = [0x11u8; 32];
+        let blob_key_name = blob_key(&format!("{}/7", hex::encode(blob_hash)));
+        let entry_key = format!("action_cache/{}/10", hex::encode([0x44u8; 32]));
+        let entry_bytes = reapi::ActionResult {
+            output_files: vec![reapi::OutputFile {
+                path: hex::encode([0xABu8, 0xCD]),
+                digest: Some(reapi::Digest {
+                    hash: hex::encode(blob_hash),
+                    size_bytes: 7,
+                }),
+                ..Default::default()
+            }],
+            ..Default::default()
+        }
+        .encode_to_vec();
+        for (key, bytes) in [
+            (&blob_key_name, b"payload".to_vec()),
+            (&entry_key, entry_bytes.clone()),
+        ] {
+            let path = uploads.join(key.replace('/', "-"));
+            std::fs::write(&path, &bytes).expect("source should write");
+            store
+                .apply_replicated_artifact_from_path(
+                    ArtifactProducer::Reapi,
+                    "ios",
+                    key,
+                    "application/octet-stream",
+                    &path,
+                    100,
+                )
+                .await
+                .expect("artifact should persist");
+        }
+
+        // Abort the request before the build completes: one poll starts the
+        // detached build, then the request future is dropped — the build must
+        // keep running and cache the index anyway. Dropping it with the
+        // request meant every retry rebuilt from scratch, and a gateway
+        // timeout made the snapshot permanently unservable.
+        let mut serve = Box::pin(service.serve_actioncache_snapshot("ios", 0));
+        let first = futures_util::future::poll_immediate(serve.as_mut()).await;
+        assert!(first.is_none(), "the first poll leaves the build in flight");
+        drop(serve);
+        let mut cached = false;
+        for _ in 0..400 {
+            if service
+                .snapshot_cache
+                .indexes
+                .lock()
+                .unwrap()
+                .contains_key("ios")
+            {
+                cached = true;
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+        assert!(
+            cached,
+            "the detached build cached the index after the abort"
+        );
+        assert!(
+            service.snapshot_cache.builds.lock().unwrap().is_empty(),
+            "the finished build removed itself from the in-flight map"
+        );
+        let bytes = service
+            .serve_actioncache_snapshot("ios", 0)
+            .await
+            .expect("the follow-up request serves from the cached index");
+        assert_eq!(&bytes[..4], b"TSNZ");
+
+        // A later publish must reach the next serve: every serve reconciles
+        // afresh (a memoized index served forever is the production-staleness
+        // failure this guards against).
+        let late_key = format!("action_cache/{}/10", hex::encode([0x55u8; 32]));
+        let late_path = uploads.join("late");
+        std::fs::write(&late_path, &entry_bytes).expect("late entry should write");
+        store
+            .apply_replicated_artifact_from_path(
+                ArtifactProducer::Reapi,
+                "ios",
+                &late_key,
+                "application/octet-stream",
+                &late_path,
+                2_000,
+            )
+            .await
+            .expect("late entry should persist");
+        backdate_snapshot_index(&service, "ios");
+        service
+            .serve_actioncache_snapshot("ios", 0)
+            .await
+            .expect("the post-publish serve succeeds");
+        wait_for_snapshot_index(&service, "ios", |index| {
+            index.entries.len() == 2
+                && index
+                    .entries
+                    .values()
+                    .any(|entry| entry.version_ms == 2_000)
+        })
+        .await;
+    }
+
+    // Scale validation for the bounded index build: a namespace more than
+    // twice the entry cap exercises the mid-scan shed, the cap, and the
+    // streaming loads end to end. Run manually (writes 220k artifacts):
+    //   /usr/bin/time -l cargo test --release -- --ignored snapshot_index_build_is_bounded
+    // and eyeball the max RSS — the serve must not add hundreds of MB.
+    #[tokio::test(flavor = "multi_thread")]
+    #[ignore = "scale validation; run manually with --ignored"]
+    async fn snapshot_index_build_is_bounded_on_a_large_namespace() {
+        let context = test_context(|_| {}).await;
+        let service = ReapiService {
+            snapshot_cache: Default::default(),
+            state: context.state.clone(),
+        };
+        let store = &context.state.store;
+        let uploads = context.state.config.tmp_dir.join("uploads");
+        std::fs::create_dir_all(&uploads).expect("uploads dir should create");
+        let blob_hash = [0x11u8; 32];
+        let blob_key_name = blob_key(&format!("{}/7", hex::encode(blob_hash)));
+        let blob_path = uploads.join("blob");
+        std::fs::write(&blob_path, b"payload").expect("blob should write");
+        store
+            .apply_replicated_artifact_from_path(
+                ArtifactProducer::Reapi,
+                "ios",
+                &blob_key_name,
+                "application/octet-stream",
+                &blob_path,
+                1,
+            )
+            .await
+            .expect("blob should persist");
+        let entry_bytes = reapi::ActionResult {
+            output_files: vec![reapi::OutputFile {
+                path: hex::encode([0xABu8, 0xCD]),
+                digest: Some(reapi::Digest {
+                    hash: hex::encode(blob_hash),
+                    size_bytes: 7,
+                }),
+                ..Default::default()
+            }],
+            ..Default::default()
+        }
+        .encode_to_vec();
+        let entry_path = uploads.join("entry");
+        const ENTRIES: u64 = 220_000;
+        for version in 1..=ENTRIES {
+            std::fs::write(&entry_path, &entry_bytes).expect("entry should write");
+            let mut hash = [0u8; 32];
+            hash[..8].copy_from_slice(&version.to_be_bytes());
+            store
+                .apply_replicated_artifact_from_path(
+                    ArtifactProducer::Reapi,
+                    "ios",
+                    &format!("action_cache/{}/10", hex::encode(hash)),
+                    "application/octet-stream",
+                    &entry_path,
+                    version,
+                )
+                .await
+                .expect("entry should persist");
+        }
+
+        let bytes = service
+            .serve_actioncache_snapshot("ios", 0)
+            .await
+            .expect("serve should succeed on the large namespace");
+        assert_eq!(&bytes[..4], b"TSNZ");
+        let indexes = service.snapshot_cache.indexes.lock().unwrap();
+        let index = &indexes["ios"];
+        assert_eq!(
+            index.entries.len(),
+            SNAPSHOT_INDEX_MAX_ENTRIES,
+            "the index holds exactly the cap"
+        );
+        assert!(
+            index
+                .entries
+                .values()
+                .all(|entry| entry.version_ms > (ENTRIES - SNAPSHOT_INDEX_MAX_ENTRIES as u64)),
+            "the cap kept the newest entries"
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn snapshot_build_waits_for_pool_headroom_instead_of_declining() {
+        let context = test_context(|_| {}).await;
+        let service = ReapiService {
+            snapshot_cache: Default::default(),
+            state: context.state.clone(),
+        };
+        let store = &context.state.store;
+        let uploads = context.state.config.tmp_dir.join("uploads");
+        std::fs::create_dir_all(&uploads).expect("uploads dir should create");
+        let entry_key = format!("action_cache/{}/10", hex::encode([0x44u8; 32]));
+        let entry_path = uploads.join("entry");
+        let entry_bytes = reapi::ActionResult {
+            output_files: vec![reapi::OutputFile {
+                path: hex::encode([0xABu8, 0xCD]),
+                digest: Some(reapi::Digest {
+                    hash: hex::encode([0x11u8; 32]),
+                    size_bytes: 7,
+                }),
+                ..Default::default()
+            }],
+            ..Default::default()
+        }
+        .encode_to_vec();
+        std::fs::write(&entry_path, &entry_bytes).expect("entry should write");
+        store
+            .apply_replicated_artifact_from_path(
+                ArtifactProducer::Reapi,
+                "ios",
+                &entry_key,
+                "application/octet-stream",
+                &entry_path,
+                100,
+            )
+            .await
+            .expect("entry should persist");
+        let blob_path = uploads.join("blob");
+        std::fs::write(&blob_path, b"payload").expect("blob should write");
+        store
+            .apply_replicated_artifact_from_path(
+                ArtifactProducer::Reapi,
+                "ios",
+                &blob_key(&format!("{}/7", hex::encode([0x11u8; 32]))),
+                "application/octet-stream",
+                &blob_path,
+                100,
+            )
+            .await
+            .expect("blob should persist");
+
+        // Exhaust the pool: the old try-acquire declined the build here —
+        // which, under the per-key load a stale snapshot causes, parked the
+        // index stale indefinitely. The build must wait instead.
+        let pool = context.state.memory.reapi_materialization_pool_bytes();
+        let hog = context
+            .state
+            .memory
+            .try_acquire_reapi_materialization(pool)
+            .expect("pool should be acquirable when idle");
+        let serve = tokio::spawn({
+            let service = service.clone();
+            async move { service.serve_actioncache_snapshot("ios", 0).await }
+        });
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+        assert!(
+            !serve.is_finished(),
+            "the build waits for headroom rather than declining"
+        );
+        drop(hog);
+        let bytes = tokio::time::timeout(std::time::Duration::from_secs(30), serve)
+            .await
+            .expect("build should complete once the pool frees")
+            .expect("serve task should not panic")
+            .expect("serve should succeed");
+        assert_eq!(&bytes[..4], b"TSNZ");
+    }
+
+    #[tokio::test]
+    async fn snapshot_serve_returns_the_cached_full_view_while_the_index_is_out_for_reconcile() {
+        let context = test_context(|_| {}).await;
+        let service = ReapiService {
+            snapshot_cache: Default::default(),
+            state: context.state.clone(),
+        };
+        let store = &context.state.store;
+        let uploads = context.state.config.tmp_dir.join("uploads");
+        std::fs::create_dir_all(&uploads).expect("uploads dir should create");
+        let entry_key = format!("action_cache/{}/10", hex::encode([0x44u8; 32]));
+        let entry_path = uploads.join("entry");
+        let entry_bytes = reapi::ActionResult {
+            output_files: vec![reapi::OutputFile {
+                path: hex::encode([0xABu8, 0xCD]),
+                digest: Some(reapi::Digest {
+                    hash: hex::encode([0x11u8; 32]),
+                    size_bytes: 7,
+                }),
+                ..Default::default()
+            }],
+            ..Default::default()
+        }
+        .encode_to_vec();
+        std::fs::write(&entry_path, &entry_bytes).expect("entry should write");
+        store
+            .apply_replicated_artifact_from_path(
+                ArtifactProducer::Reapi,
+                "ios",
+                &entry_key,
+                "application/octet-stream",
+                &entry_path,
+                100,
+            )
+            .await
+            .expect("entry should persist");
+        let blob_path = uploads.join("blob");
+        std::fs::write(&blob_path, b"payload").expect("blob should write");
+        store
+            .apply_replicated_artifact_from_path(
+                ArtifactProducer::Reapi,
+                "ios",
+                &blob_key(&format!("{}/7", hex::encode([0x11u8; 32]))),
+                "application/octet-stream",
+                &blob_path,
+                100,
+            )
+            .await
+            .expect("blob should persist");
+
+        // A full serve builds the index and caches the full view.
+        let first = service
+            .serve_actioncache_snapshot("ios", 0)
+            .await
+            .expect("first serve builds the index");
+        assert_eq!(&first[..4], b"TSNZ");
+        assert!(
+            service
+                .snapshot_cache
+                .served_full
+                .lock()
+                .unwrap()
+                .contains_key("ios"),
+            "the full view is cached for the rebuild window"
+        );
+
+        // Simulate a reconcile in flight: the index is OUT of the map. Exhaust
+        // the pool so the serve's kicked rebuild cannot reinsert it before the
+        // assertion.
+        service.snapshot_cache.indexes.lock().unwrap().remove("ios");
+        let pool = context.state.memory.reapi_materialization_pool_bytes();
+        let _hog = context
+            .state
+            .memory
+            .try_acquire_reapi_materialization(pool)
+            .expect("pool should be acquirable when idle");
+
+        // A full serve now finds no index but returns the cached full view
+        // immediately, rather than shedding a cold client to UNAVAILABLE while
+        // the rebuild runs. Before `served_full`, this fell to the cold path.
+        let stale = tokio::time::timeout(
+            std::time::Duration::from_secs(2),
+            service.serve_actioncache_snapshot("ios", 0),
+        )
+        .await
+        .expect("serve must not block on the stalled rebuild")
+        .expect("serve returns the cached full view, not UNAVAILABLE");
+        assert_eq!(stale, first, "serves the exact cached full view");
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn snapshot_cold_serve_sheds_to_unavailable_while_the_build_runs() {
+        let context = test_context(|_| {}).await;
+        let service = ReapiService {
+            snapshot_cache: Default::default(),
+            state: context.state.clone(),
+        };
+        // Stall the build at its memory permit: with no cached index the
+        // serve must answer UNAVAILABLE within its bound instead of pinning
+        // the request to the build — production builds ran for tens of
+        // minutes and walked every client fetch into its deadline.
+        let pool = context.state.memory.reapi_materialization_pool_bytes();
+        let hog = context
+            .state
+            .memory
+            .try_acquire_reapi_materialization(pool)
+            .expect("pool should be acquirable when idle");
+        let status = service
+            .serve_actioncache_snapshot("ios", 0)
+            .await
+            .expect_err("cold serve should shed while the build is stuck");
+        assert_eq!(status.code(), tonic::Code::Unavailable);
+        // Once the pool frees the same build completes in the background and
+        // the next fetch is served from the index it produced.
+        drop(hog);
+        let bytes = tokio::time::timeout(
+            std::time::Duration::from_secs(120),
+            service.serve_actioncache_snapshot("ios", 0),
+        )
+        .await
+        .expect("serve should not hang once the pool frees")
+        .expect("serve should succeed after the build completes");
+        assert_eq!(&bytes[..4], b"TSNZ");
+    }
 
     use tokio::net::TcpListener;
     use tonic::body::Body as TonicBody;
@@ -1980,6 +3704,7 @@ end
         let extension = namespace_policy_extension().await;
         let context = test_context_with_extension(|_| {}, Some(extension)).await;
         let service = ReapiService {
+            snapshot_cache: Default::default(),
             state: context.state.clone(),
         };
 
@@ -2073,6 +3798,7 @@ end
     async fn action_cache_reads_emit_keyvalue_metrics() {
         let context = test_context(|_| {}).await;
         let service = ReapiService {
+            snapshot_cache: Default::default(),
             state: context.state.clone(),
         };
         let action_result = reapi::ActionResult::default();
@@ -2116,6 +3842,7 @@ end
     async fn cas_batch_reads_emit_module_metrics() {
         let context = test_context(|_| {}).await;
         let service = ReapiService {
+            snapshot_cache: Default::default(),
             state: context.state.clone(),
         };
         let bytes = b"blob-bytes";
@@ -2165,6 +3892,7 @@ end
         })
         .await;
         let service = ReapiService {
+            snapshot_cache: Default::default(),
             state: context.state.clone(),
         };
         let oversized_bytes = vec![b'x'; 9 * 1024 * 1024];
@@ -2243,12 +3971,15 @@ end
         })
         .await;
         let first_service = ReapiService {
+            snapshot_cache: Default::default(),
             state: context.state.clone(),
         };
         let second_service = ReapiService {
+            snapshot_cache: Default::default(),
             state: context.state.clone(),
         };
         let third_service = ReapiService {
+            snapshot_cache: Default::default(),
             state: context.state.clone(),
         };
         let bytes = vec![b'b'; 16 * 1024 * 1024];
@@ -2347,6 +4078,7 @@ end
     async fn cas_batch_reads_shed_under_critical_memory_pressure() {
         let context = test_context(|_| {}).await;
         let service = ReapiService {
+            snapshot_cache: Default::default(),
             state: context.state.clone(),
         };
         let bytes = b"blob-bytes";
@@ -2400,6 +4132,7 @@ end
         })
         .await;
         let service = ReapiService {
+            snapshot_cache: Default::default(),
             state: context.state.clone(),
         };
         let stdout_bytes = vec![b's'; 9 * 1024 * 1024];
@@ -2514,6 +4247,7 @@ end
     async fn action_cache_wildcard_inlines_every_output_file() {
         let context = test_context(|_| {}).await;
         let service = ReapiService {
+            snapshot_cache: Default::default(),
             state: context.state.clone(),
         };
         let first_bytes = b"first output".to_vec();
@@ -2561,6 +4295,7 @@ end
         })
         .await;
         let service = ReapiService {
+            snapshot_cache: Default::default(),
             state: context.state.clone(),
         };
         // Larger than the response budget under this memory config (the same
@@ -2611,6 +4346,7 @@ end
         })
         .await;
         let service = ReapiService {
+            snapshot_cache: Default::default(),
             state: context.state.clone(),
         };
         // Larger than the response budget; listed BOTH via "*" and explicitly.
@@ -2646,6 +4382,7 @@ end
     async fn draining_rejects_new_grpc_requests() {
         let context = test_context(|_| {}).await;
         let service = ReapiService {
+            snapshot_cache: Default::default(),
             state: context.state.clone(),
         };
         context.state.enter_draining();
@@ -2726,6 +4463,7 @@ end
         })
         .await;
         let service = ReapiService {
+            snapshot_cache: Default::default(),
             state: context.state.clone(),
         };
 
@@ -2844,6 +4582,7 @@ end
         })
         .await;
         let service = ReapiService {
+            snapshot_cache: Default::default(),
             state: context.state.clone(),
         };
 

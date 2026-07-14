@@ -11,6 +11,7 @@ defmodule Tuist.Runners.DispatchTest do
   alias Tuist.Runners.Dispatch
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.JobSteps
+  alias Tuist.VCS
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
   setup :verify_on_exit!
@@ -19,6 +20,12 @@ defmodule Tuist.Runners.DispatchTest do
     cache = :"runners_dispatch_#{System.unique_integer([:positive])}"
     start_supervised!({Cachex, name: cache})
     stub(Dispatch, :cache_name, fn -> cache end)
+
+    # Default: no installation row for the webhook's installation_id, so
+    # resolution falls back to the legacy `owner == account.name`
+    # convention the bulk of these cases exercise. The installation-first
+    # path has its own case that overrides this stub.
+    stub(VCS, :get_github_app_installation_by_installation_id, fn _ -> {:error, :not_found} end)
 
     # Disable the macOS protected-profile auto-bootstrap globally for
     # this suite. `Accounts.create_organization` and `Accounts.create_user`
@@ -76,11 +83,55 @@ defmodule Tuist.Runners.DispatchTest do
   end
 
   describe "handle_webhook/2" do
-    test "returns {:ignored, :no_account} when the org login doesn't match a Tuist account" do
+    test "returns {:ignored, :no_account} when neither the installation nor the org login match a Tuist account" do
       stub(Accounts, :get_account_by_handle, fn _ -> nil end)
 
       assert {:ignored, :no_account} =
                Dispatch.handle_webhook(queued_payload(owner: "ghost"), 1)
+    end
+
+    test "resolves the account via the installation even when the org login doesn't match the handle" do
+      account = enabled_account()
+
+      # The customer's GitHub org login differs from their Tuist handle,
+      # so the legacy name convention can't find them — but the App
+      # installation maps straight to the account.
+      stub(Accounts, :get_account_by_handle, fn _ -> nil end)
+      stub(VCS, :get_github_app_installation_by_installation_id, fn 123_975_483 -> {:ok, %{account_id: account.id}} end)
+
+      stub(Client, :list_runner_pools, fn _ns ->
+        {:ok, [pool_cr(name: "macos-pool", label: "tuist-macos")]}
+      end)
+
+      payload = queued_payload(owner: "DigitalSolutionsPest", labels: ["tuist-macos"])
+
+      assert {:ok, :queued} = Dispatch.handle_webhook(payload, 123_975_483)
+
+      counts = Jobs.status_counts(account.id)
+      assert Map.get(counts, "queued", 0) == 1
+    end
+
+    test "prefers the installation-resolved account over the handle match" do
+      installation_account = enabled_account()
+
+      # A different account happens to share the org login; the
+      # installation link is authoritative, so we must dispatch against
+      # the account that actually connected the App.
+      stub(Accounts, :get_account_by_handle, fn _ -> enabled_account() end)
+
+      stub(VCS, :get_github_app_installation_by_installation_id, fn _ ->
+        {:ok, %{account_id: installation_account.id}}
+      end)
+
+      stub(Client, :list_runner_pools, fn _ns ->
+        {:ok, [pool_cr(name: "macos-pool", label: "tuist-macos")]}
+      end)
+
+      payload = queued_payload(owner: "shared-login", labels: ["tuist-macos"])
+
+      assert {:ok, :queued} = Dispatch.handle_webhook(payload, 555)
+
+      assert Map.get(Jobs.status_counts(installation_account.id), "queued", 0) == 1
     end
 
     test "returns {:ignored, :runners_disabled} when runners aren't enabled for the account" do

@@ -686,7 +686,7 @@ defmodule TuistWeb.TestRunLive do
       page: String.to_integer(params["selective-testing-page"] || "1"),
       page_size: @table_page_size,
       order_by: [ensure_allowed_params("selective-testing-sort-by", params)],
-      order_directions: [String.to_atom(params["selective-testing-sort-order"] || "asc")]
+      order_directions: [ensure_allowed_sort_order(params["selective-testing-sort-order"])]
     }
 
     {filtered_analytics, meta} = Xcode.selective_testing_analytics(run, flop_params)
@@ -708,7 +708,7 @@ defmodule TuistWeb.TestRunLive do
       page: String.to_integer(params["binary-cache-page"] || "1"),
       page_size: @table_page_size,
       order_by: [ensure_allowed_params("binary-cache-sort-by", params)],
-      order_directions: [String.to_atom(params["binary-cache-sort-order"] || "asc")]
+      order_directions: [ensure_allowed_sort_order(params["binary-cache-sort-order"])]
     }
 
     {filtered_analytics, meta} = Xcode.binary_cache_analytics(run, flop_params)
@@ -737,7 +737,7 @@ defmodule TuistWeb.TestRunLive do
       page: String.to_integer(params["test-cases-page"] || "1"),
       page_size: @table_page_size,
       order_by: [ensure_allowed_test_cases_sort_params(params["test-cases-sort-by"])],
-      order_directions: [String.to_atom(params["test-cases-sort-order"] || "asc")]
+      order_directions: [ensure_allowed_sort_order(params["test-cases-sort-order"])]
     }
 
     Tests.list_test_case_runs(flop_params)
@@ -752,7 +752,7 @@ defmodule TuistWeb.TestRunLive do
       page: String.to_integer(params["test-suites-page"] || "1"),
       page_size: @table_page_size,
       order_by: [ensure_allowed_test_suites_sort_params(params["test-suites-sort-by"])],
-      order_directions: [String.to_atom(params["test-suites-sort-order"] || "asc")]
+      order_directions: [ensure_allowed_sort_order(params["test-suites-sort-order"])]
     }
 
     Tests.list_test_suite_runs(flop_params)
@@ -769,7 +769,7 @@ defmodule TuistWeb.TestRunLive do
       page: String.to_integer(params["test-modules-page"] || "1"),
       page_size: @table_page_size,
       order_by: [ensure_allowed_test_modules_sort_params(params["test-modules-sort-by"])],
-      order_directions: [String.to_atom(params["test-modules-sort-order"] || "asc")]
+      order_directions: [ensure_allowed_sort_order(params["test-modules-sort-order"])]
     }
 
     Tests.list_test_module_runs(flop_params)
@@ -788,6 +788,9 @@ defmodule TuistWeb.TestRunLive do
        do: String.to_existing_atom(value)
 
   defp ensure_allowed_test_modules_sort_params(_value), do: :name
+
+  defp ensure_allowed_sort_order("desc"), do: :desc
+  defp ensure_allowed_sort_order(_value), do: :asc
 
   defp load_failures_data(run, params) do
     page = String.to_integer(params["failures-page"] || "1")

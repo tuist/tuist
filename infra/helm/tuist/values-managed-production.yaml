@@ -7,17 +7,21 @@
 #     --set server.image.tag=$GIT_SHA
 
 registry:
-  # Keep production disabled until the registry cutover. Staging and
-  # canary exercise the component through values-managed-common.yaml.
-  enabled: false
+  # The public host stays behind the registry-router Worker. The ingress keeps
+  # the canonical host for routing and certificate identity, while external-dns
+  # publishes a separate resolution-only record for the Worker's origin lookup.
+  enabled: true
   publicHost: registry.tuist.dev
   serverUrl: https://tuist.dev
-  deployEnv: prod
+  deployEnv: production
   sentryEnv: prod
   poolSize: "10"
   ingress:
     host: registry.tuist.dev
     tlsSecretName: registry-tls
+    annotations:
+      external-dns.alpha.kubernetes.io/hostname: registry-origin.tuist.dev
+      external-dns.alpha.kubernetes.io/ingress-hostname-source: annotation-only
   resources:
     requests:
       cpu: "500m"
@@ -73,9 +77,16 @@ server:
     # env's config the release runs as.
     - name: TUIST_DEPLOY_ENV
       value: prod
-    # Cache remains the sole registry writer until the managed cutover.
+    # Keep advertising the legacy path until the Worker cutover is live. The
+    # cache origins only serve this prefix, and the standalone frontend keeps
+    # it as a compatibility route, so it works throughout the rollout.
+    - name: TUIST_REGISTRY_URL
+      value: https://registry.tuist.dev/api/registry/swift
+    # Enables the server-owned registry sync writer. Cache still writes
+    # too until it is turned off as a separate step; the two coordinate
+    # through the shared S3 sync lock, so dual-writing is safe.
     - name: SWIFT_REGISTRY_SYNC_ENABLED
-      value: "false"
+      value: "true"
     - name: TUIST_DATABASE_POOL_SIZE
       value: "15"
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
@@ -381,7 +392,7 @@ processor:
   affinity: {}
 
 swiftRegistrySync:
-  enabled: false
+  enabled: true
   extraEnv:
     - name: TUIST_DEPLOY_ENV
       value: prod
@@ -526,6 +537,17 @@ ovhFleets:
 # xcresult capacity offline.
 macosFleet:
   replicas: 2
+  # Per-account cache volumes. The quota is an APFS ceiling (shares the
+  # container's free space, not a reservation) fenced by admission +
+  # watermark eviction, so space pressure degrades a job to the cold
+  # path rather than risking ENOSPC. A real Tuist cache master is ~2.4 GB
+  # (the 20 GiB masterCapGib is a sparse per-master ceiling, not the
+  # typical size), so 80 GiB holds ~30 masters — well beyond the accounts
+  # a single host keeps hot once affinity spreads them across the fleet.
+  # Kept well under the 512 GB disk, which is dominated by the ~85 GB
+  # golden VM image(s) (two during a digest roll) + per-job DerivedData.
+  runnerCacheVolume:
+    gib: 80
   # Production tailnet — alloy-metrics scrapes PromEx (xcresult VM)
   # + node_exporter (host) over the tailnet. The pre-auth key lives
   # in the production 1Password vault under TAILSCALE/auth-key.
@@ -600,15 +622,20 @@ runnersFleet:
   #
   # Floors sum to 3 of the 9-slot budget; the remaining 6 slots are
   # dynamically apportioned by queue depth across the pools.
-  # The default (26.5) keeps the warm baseline since most traffic
+  # The default (26.6) keeps the warm baseline since most traffic
   # lands there; older Xcodes sit cold (floor 0) so an unused runner
   # doesn't tie up a host. Revisit once we open the runners to
   # general signups where the pool mix is unpredictable in advance.
   xcodeOverrides:
-    "26.5":
+    "26.6":
       autoscaling:
         enabled: true
         minWarmPoolFloor: 3
+        maxReplicas: 9
+    "26.5":
+      autoscaling:
+        enabled: true
+        minWarmPoolFloor: 0
         maxReplicas: 9
     "26.4.1":
       autoscaling:

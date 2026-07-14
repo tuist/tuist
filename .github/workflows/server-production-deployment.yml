@@ -1030,7 +1030,7 @@ jobs:
         # when you bump the first entry in
         # infra/runner-image/profiles.json, bump this too.
         env:
-          XCODE_VERSION: "26.5"
+          XCODE_VERSION: "26.6"
         run: |
           set -euo pipefail
           BASE_IMAGE="ghcr.io/tuist/macos-tahoe-xcode:${XCODE_VERSION//./-}"

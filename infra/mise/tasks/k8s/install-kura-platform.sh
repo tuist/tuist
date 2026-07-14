@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#MISE description="Install or upgrade the cluster-wide Kura controller in the `kura` namespace. Idempotent. Every preview deploy runs this so the controller exists exactly once per cluster, regardless of how many previews coexist."
+#MISE description="Install or upgrade the cluster-wide Kura controller in the `kura` namespace. Requires KURA_CONTROLLER_IMAGE_TAG. Idempotent across preview deploys."
 #USAGE arg "<kubeconfig>" help="Path to the workload cluster kubeconfig"
 
 # Installs ONLY the kuraController resources from the tuist Helm chart into
@@ -22,9 +22,14 @@ WL_KUBECONFIG="$1"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 CHART_PATH="$REPO_ROOT/infra/helm/tuist"
 KURA_NAMESPACE="kura"
-KURA_CONTROLLER_IMAGE_TAG="${KURA_CONTROLLER_IMAGE_TAG:-latest}"
+KURA_CONTROLLER_IMAGE_TAG="${KURA_CONTROLLER_IMAGE_TAG:-}"
 
 log() { printf '\n\033[1;34m==> %s\033[0m\n' "$*"; }
+
+if [ -z "$KURA_CONTROLLER_IMAGE_TAG" ]; then
+  echo "ERROR: KURA_CONTROLLER_IMAGE_TAG must be set to an immutable image tag." >&2
+  exit 1
+fi
 
 if [ ! -r "$WL_KUBECONFIG" ]; then
   echo "ERROR: kubeconfig not readable: $WL_KUBECONFIG" >&2

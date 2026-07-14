@@ -12,7 +12,7 @@
 registry:
   publicHost: registry-canary.tuist.dev
   serverUrl: https://canary.tuist.dev
-  deployEnv: can
+  deployEnv: canary
   sentryEnv: can
   ingress:
     host: registry-canary.tuist.dev
@@ -93,6 +93,11 @@ server:
     # env's config the release runs as.
     - name: TUIST_DEPLOY_ENV
       value: can
+    # Full registry URL advertised at /.well-known/registry.json. The
+    # canary registry ingress serves /swift directly (no Worker), so it can
+    # advertise the canonical prefix already.
+    - name: TUIST_REGISTRY_URL
+      value: https://registry-canary.tuist.dev/swift
     # Cache remains the sole registry writer until the managed cutover.
     - name: SWIFT_REGISTRY_SYNC_ENABLED
       value: "false"
@@ -315,19 +320,19 @@ kuraFleet:
 # reconciler adopts a pre-ordered Dedibox carrying the tuist-kura-canary tag (the
 # env boundary, since all Dedibox share the org's default project) and self-joins
 # it as the kura-dedibox pool that backs eu-central. PREREQ before merge: the
-# DEDIBOX_SCW_API 1Password item exists in the canary vault, and a Start-2-L box
-# in DC5 is delivered + tagged tuist-kura-canary; an enabled fleet with no
+# DEDIBOX_SCW_API 1Password item exists in the canary vault, and a Start-9-M box
+# in DC2 is delivered + tagged tuist-kura-canary; an enabled fleet with no
 # adoptable box hangs helm --wait.
 dediboxFleet:
   enabled: true
   machine:
     adoptTag: tuist-kura-canary
-    offer: Start-2-L
-    datacenter: DC5
+    offer: Start-9-M
+    datacenter: DC2
     os: ubuntu_24.04
-    # Node egress budget (Mbps): ~1 Gbit/s box, advertised as
+    # Node egress budget (Mbps): ~500 Mbit/s box, advertised as
     # tuist.dev/egress-mbps so eu-central's 250-Mbps-floor pods bin-pack.
-    egressBudgetMbps: 1000
+    egressBudgetMbps: 500
   scaleway:
     externalSecrets:
       item: DEDIBOX_SCW_API
@@ -372,6 +377,14 @@ ovhFleet:
 # Mac mini fleet — declarative via CAPI.
 macosFleet:
   replicas: 1
+  # Per-account cache volumes. The quota is an APFS ceiling (shares the
+  # container's free space, not a reservation) fenced by admission +
+  # watermark eviction, so space pressure degrades a job to the cold
+  # path rather than risking ENOSPC. A real Tuist cache master is ~2.4 GB
+  # (the 20 GiB masterCapGib is a sparse per-master ceiling), so 40 GiB
+  # holds ~16 masters — ample for canary's single replica.
+  runnerCacheVolume:
+    gib: 40
   # Canary runs on the production tailnet (single shared tailnet
   # across canary + production — same Grafana, same admin console).
   # Staging has its own tailnet so a leaked staging key can't add
@@ -421,10 +434,15 @@ runnersFleet:
   # headroom) policy. `minWarmPoolFloor` is the always-on warm
   # guarantee; the sum across overrides must stay ≤ `hostCount`.
   xcodeOverrides:
-    "26.5":
+    "26.6":
       autoscaling:
         enabled: true
         minWarmPoolFloor: 1
+        maxReplicas: 1
+    "26.5":
+      autoscaling:
+        enabled: true
+        minWarmPoolFloor: 0
         maxReplicas: 1
     "26.4.1":
       autoscaling:

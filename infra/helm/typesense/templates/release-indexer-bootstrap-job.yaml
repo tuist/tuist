@@ -1,0 +1,62 @@
+{{- if .Values.releaseIndexerBootstrap.enabled }}
+{{- $imageTag := required "image.tag is required" .Values.image.tag -}}
+{{- $nodeSelector := merge (dict) (.Values.global.nodeSelector | default (dict)) (.Values.nodeSelector | default (dict)) -}}
+{{- $tolerations := concat (.Values.global.tolerations | default (list)) (.Values.tolerations | default (list)) -}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ printf "%s-release-indexer-bootstrap" (include "typesense.fullname" .) | trunc 63 | trimSuffix "-" }}
+  labels:
+    {{- include "typesense.labels" . | nindent 4 }}
+    app.kubernetes.io/component: search-release-indexer-bootstrap
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "1"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: {{ .Values.releaseIndexerBootstrap.backoffLimit }}
+  activeDeadlineSeconds: {{ .Values.releaseIndexerBootstrap.activeDeadlineSeconds }}
+  template:
+    metadata:
+      labels:
+        {{- include "typesense.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: search-release-indexer-bootstrap
+    spec:
+      restartPolicy: Never
+      serviceAccountName: {{ include "typesense.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.automountServiceAccountToken }}
+      {{- include "typesense.podScheduling" . | nindent 6 }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: release-indexer
+          image: "{{ .Values.image.repository }}:{{ $imageTag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["/opt/docsearch/index-github-releases"]
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          env:
+            - name: TYPESENSE_HOST
+              value: {{ printf "http://%s:%v" (include "typesense.fullname" .) .Values.service.port | quote }}
+          envFrom:
+            - secretRef:
+                name: {{ include "typesense.runtimeSecretName" . }}
+          resources:
+            {{- toYaml .Values.releaseIndexerBootstrap.resources | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+{{- end }}
