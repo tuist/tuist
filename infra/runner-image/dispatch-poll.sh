@@ -253,13 +253,18 @@ report_volume_head() {
   # gets a generous ceiling (the archive can be a couple GB) but not unbounded;
   # the tiny POST gets a short one. On any timeout, HEAD just isn't advanced
   # (best-effort) and teardown proceeds.
-  if ! curl -fsSL --connect-timeout 10 --max-time 120 \
+  #
+  # No -L on the PUT: the presigned upload URL is written directly (no redirect),
+  # so refuse to follow redirects — otherwise a compromised/misconfigured storage
+  # endpoint could 307 the upload to an internal address and receive the archive
+  # body (SSRF), the write-side twin of the download guard.
+  if ! curl -fsS --connect-timeout 10 --max-time 120 \
     -X PUT --upload-file "${archive}" "${VOLUME_HEAD_UPLOAD}" >/dev/null 2>&1; then
     echo "$(date -u +%FT%TZ) dispatch-poll: master upload failed/timed out; HEAD not advanced"
     rm -f "${archive}"
     return 0
   fi
-  curl -fsSL --connect-timeout 10 --max-time 15 -X POST \
+  curl -fsS --connect-timeout 10 --max-time 15 -X POST \
     -H "Authorization: Bearer ${SA_TOKEN}" -H "Content-Type: application/json" \
     --data "{\"tree_digest\":\"${after}\"}" "${VOLUME_HEAD_REPORT_URL}" >/dev/null 2>&1 || true
   echo "$(date -u +%FT%TZ) dispatch-poll: published volume HEAD (digest=${after})"
