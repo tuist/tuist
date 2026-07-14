@@ -64,7 +64,7 @@ defmodule Tuist.MCP.Server do
   def server do
     EMCP.Server.new(
       name: "tuist",
-      version: "1.10.0",
+      version: "1.11.0",
       tools: tools(),
       prompts: @prompts
     )

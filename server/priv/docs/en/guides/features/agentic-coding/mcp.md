@@ -122,11 +122,11 @@ Every tool publishes a human-readable description together with explicit input a
 
 #### Documentation and community search
 
-This read-only tool searches Tuist's documentation, API reference, community forum, and GitHub issues through the same search engine that powers the docs website. It is only available on the Tuist-hosted server at `https://tuist.dev/mcp`.
+This read-only tool searches Tuist's documentation, API reference, GitHub releases, community forum, and GitHub issues through the same search engine that powers the docs website. Release results include the product, version, publication date, and prerelease status. Stable releases are searched by default, and prereleases can be included with `include_prereleases`. The tool is only available on the Tuist-hosted server at `https://tuist.dev/mcp`.
 
 | Tool | Description | Required parameters |
 |------|-------------|---------------------|
-| `search_tuist` | Search Tuist's documentation, API reference, community forum, and GitHub issues. Optionally restrict to one `source` (`docs`, `api_reference`, `forum`, `issues`). | `query` |
+| `search_tuist` | Search Tuist's documentation, API reference, GitHub releases, community forum, and GitHub issues. Optionally restrict to one `source` (`docs`, `api_reference`, `releases`, `forum`, `issues`). | `query` |
 
 #### Projects
 

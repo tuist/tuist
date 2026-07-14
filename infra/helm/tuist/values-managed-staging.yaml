@@ -15,7 +15,7 @@ kuraController:
 registry:
   publicHost: registry-staging.tuist.dev
   serverUrl: https://staging.tuist.dev
-  deployEnv: stag
+  deployEnv: staging
   sentryEnv: stag
   ingress:
     host: registry-staging.tuist.dev
@@ -567,10 +567,15 @@ runnersFleet:
   # allocator caps the joint sum so two pools both asking for 9
   # don't double-book the cluster.
   xcodeOverrides:
-    "26.5":
+    "26.6":
       autoscaling:
         enabled: true
         minWarmPoolFloor: 1
+        maxReplicas: 1
+    "26.5":
+      autoscaling:
+        enabled: true
+        minWarmPoolFloor: 0
         maxReplicas: 1
     "26.4.1":
       autoscaling:

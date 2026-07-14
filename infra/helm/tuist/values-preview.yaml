@@ -135,12 +135,15 @@ clickhouse:
   embedded:
     persistence:
       create: false
+    # ClickHouse sizes its internal memory cap from the cgroup limit, so the
+    # limit below is also its working ceiling. Seeding a preview account pushed
+    # it past 1Gi, which OOM-killed the pod and failed the whole helm upgrade.
     resources:
       requests:
         cpu: 100m
-        memory: 256Mi
+        memory: 512Mi
       limits:
-        memory: 1Gi
+        memory: 2Gi
 
 redis:
   enabled: false
