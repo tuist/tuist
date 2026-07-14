@@ -174,9 +174,11 @@ defmodule Tuist.Runners.Catalog do
 
   New lifecycle rows persist resources at webhook enqueue time, so
   this is primarily a rollout fallback for queued rows created before
-  resource columns existed. Linux profile pools encode their shape in
-  the name; macOS pools use the catalog default shape because the
-  current Xcode-keyed pools all run on the same machine shape.
+  resource columns existed. Linux profile pools are matched against
+  names generated from the configured shape catalog; macOS pools use
+  the catalog default shape because the current Xcode-keyed pools all
+  run on the same machine shape. Legacy `linux-…` names use the Linux
+  default, while an unconfigured catalog pool is rejected.
   """
   def resources_for_fleet(fleet_name) when is_binary(fleet_name) do
     case fleet_platform(fleet_name) do
@@ -187,19 +189,19 @@ defmodule Tuist.Runners.Catalog do
   end
 
   defp linux_resources_for_fleet(fleet_name) do
-    case Regex.run(~r/(\d+)vcpu-(\d+)gb$/, fleet_name) do
-      [_, vcpus, memory_gb] ->
-        {:ok,
-         %{
-           platform: :linux,
-           vcpus: String.to_integer(vcpus),
-           memory_gb: String.to_integer(memory_gb)
-         }}
+    shape =
+      Enum.find(shapes(:linux), fn shape ->
+        pool_name(%{platform: :linux, vcpus: shape.vcpus, memory_gb: shape.memory_gb}) == fleet_name
+      end)
 
-      _ ->
-        default_resources(:linux)
+    case shape do
+      nil -> legacy_linux_resources(fleet_name)
+      shape -> {:ok, %{platform: :linux, vcpus: shape.vcpus, memory_gb: shape.memory_gb}}
     end
   end
+
+  defp legacy_linux_resources("linux-" <> _fleet_name), do: default_resources(:linux)
+  defp legacy_linux_resources(_fleet_name), do: {:error, :invalid_resources}
 
   defp default_resources(platform) do
     case default_shape(platform) do

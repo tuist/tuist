@@ -63,11 +63,13 @@ defmodule Tuist.Runners.CatalogTest do
   end
 
   describe "resources_for_fleet/1" do
-    test "reads the exact Linux shape encoded in a catalog pool name" do
-      fleet_name = "#{Tuist.Environment.runners_linux_pool_name_prefix()}-4vcpu-16gb"
+    test "resolves Linux pool names through the configured shape catalog" do
+      Enum.each(Catalog.shapes(:linux), fn shape ->
+        fleet_name = Catalog.pool_name(Map.put(shape, :platform, :linux))
 
-      assert Catalog.resources_for_fleet(fleet_name) ==
-               {:ok, %{platform: :linux, vcpus: 4, memory_gb: 16}}
+        assert Catalog.resources_for_fleet(fleet_name) ==
+                 {:ok, %{platform: :linux, vcpus: shape.vcpus, memory_gb: shape.memory_gb}}
+      end)
     end
 
     test "uses platform defaults for legacy Linux and macOS rows" do
@@ -79,6 +81,12 @@ defmodule Tuist.Runners.CatalogTest do
 
       assert Catalog.resources_for_fleet("macos-26-5") ==
                {:ok, %{platform: :macos, vcpus: macos.vcpus, memory_gb: macos.memory_gb}}
+    end
+
+    test "does not infer resources from an unconfigured Linux pool suffix" do
+      fleet_name = "#{Tuist.Environment.runners_linux_pool_name_prefix()}-999vcpu-999gb"
+
+      assert Catalog.resources_for_fleet(fleet_name) == {:error, :invalid_resources}
     end
 
     test "rejects an unknown fleet" do
