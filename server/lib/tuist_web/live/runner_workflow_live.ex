@@ -11,7 +11,6 @@ defmodule TuistWeb.RunnerWorkflowLive do
   alias Noora.Filter
   alias Tuist.Authorization
   alias Tuist.FeatureFlags
-  alias Tuist.Runners
   alias Tuist.Runners.Analytics
   alias Tuist.Runners.Jobs
   alias Tuist.Utilities.DateFormatter
@@ -45,11 +44,7 @@ defmodule TuistWeb.RunnerWorkflowLive do
      |> assign(:available_filters, available_filters())
      |> assign(:analytics_selected_widget, "total_jobs")
      |> assign(:job_duration_percentile, "avg")
-     |> assign(:queue_time_percentile, "avg")
-     # Whether this account's GitHub App installation granted
-     # `actions: write`. Gates the per-run Cancel button — computed
-     # once (the installation token GitHub returns it on is cached).
-     |> assign(:can_cancel_runs, Runners.can_cancel_workflow_runs?(selected_account))}
+     |> assign(:queue_time_percentile, "avg")}
   end
 
   @impl true
@@ -151,38 +146,6 @@ defmodule TuistWeb.RunnerWorkflowLive do
   @impl true
   def handle_event("select_widget", %{"widget" => widget}, socket) do
     {:noreply, assign(socket, :analytics_selected_widget, widget)}
-  end
-
-  def handle_event("cancel_run", %{"run-id" => run_id}, socket) do
-    %{selected_account: account, current_user: current_user, repository: repository} = socket.assigns
-
-    with :ok <- Authorization.authorize(:runners_cancel, current_user, account),
-         {run_id_int, ""} when run_id_int > 0 <- Integer.parse(run_id),
-         :ok <- Runners.cancel_workflow_run(account, repository, run_id_int) do
-      # GitHub cancels the run and the `workflow_job.completed` webhooks
-      # flip our rows; the status badge follows on the next load.
-      {:noreply, put_flash(socket, :info, dgettext("dashboard_runners", "Cancelling the workflow run…"))}
-    else
-      {:error, :no_installation} ->
-        {:noreply,
-         put_flash(
-           socket,
-           :error,
-           dgettext("dashboard_runners", "No GitHub App installation is connected for this account.")
-         )}
-
-      {:error, :forbidden} ->
-        {:noreply,
-         put_flash(
-           socket,
-           :error,
-           dgettext("dashboard_runners", "Cancelling a run needs the Tuist GitHub App to have write access to Actions.")
-         )}
-
-      _ ->
-        {:noreply,
-         put_flash(socket, :error, dgettext("dashboard_runners", "Couldn't cancel the workflow run. Please try again."))}
-    end
   end
 
   def handle_event("select_job_duration_percentile", %{"type" => type}, socket) do
@@ -319,8 +282,15 @@ defmodule TuistWeb.RunnerWorkflowLive do
 
   def run_status_badge_props(_), do: %{label: dgettext("dashboard_runners", "Unknown"), status: "warning"}
 
-  def run_cancellable?(%{status: "in_progress"}), do: true
-  def run_cancellable?(_), do: false
+  @doc """
+  Internal path to a run's detail page. Each runs-list row navigates
+  here (the whole row is the link).
+  """
+  def run_path(account_name, run_id) when is_binary(account_name) and is_integer(run_id) and run_id > 0 do
+    "/#{account_name}/runners/runs/#{run_id}"
+  end
+
+  def run_path(_, _), do: nil
 
   # Duration for a run row: elapsed-so-far for an in-progress run,
   # else the completed span. The SQL `duration_ms` is only meaningful

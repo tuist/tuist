@@ -1,0 +1,108 @@
+<div id="runner-workflow-run">
+  <.button
+    label={dgettext("dashboard_runners", "Back to workflow")}
+    data-part="back-button"
+    variant="secondary"
+    size="medium"
+    navigate={
+      TuistWeb.RunnerWorkflowRunLive.workflow_path(
+        @selected_account.name,
+        @repository,
+        @workflow_name
+      ) || ~p"/#{@selected_account.name}/runners/workflows"
+    }
+  >
+    <:icon_left>
+      <.icon name="arrow_left" />
+    </:icon_left>
+  </.button>
+
+  <div data-part="header">
+    <div data-part="title-group">
+      <div data-part="title">
+        <h1 data-part="label">
+          {TuistWeb.RunnerWorkflowLive.display_workflow(@workflow_name)}
+        </h1>
+        <% run_props = TuistWeb.RunnerWorkflowLive.run_status_badge_props(@run_status) %>
+        <.status_badge label={run_props.label} status={run_props.status} />
+      </div>
+      <div data-part="badges">
+        <a
+          href={TuistWeb.RunnerWorkflowRunLive.github_run_url(@repository, @workflow_run_id)}
+          target="_blank"
+          rel="noopener noreferrer"
+          data-part="run-link"
+        >
+          <.badge label={@repository} color="primary" style="light-fill" size="large">
+            <:icon><.brand_github /></:icon>
+          </.badge>
+        </a>
+        <.badge
+          :if={@head_branch != ""}
+          label={@head_branch}
+          color="secondary"
+          style="light-fill"
+          size="large"
+        >
+          <:icon><.git_branch /></:icon>
+        </.badge>
+      </div>
+    </div>
+    <div
+      :if={@can_cancel_runs and TuistWeb.RunnerWorkflowRunLive.run_cancellable?(@run_status)}
+      data-part="actions"
+    >
+      <.button
+        variant="destructive"
+        label={dgettext("dashboard_runners", "Cancel run")}
+        phx-click="cancel_run"
+        data-confirm={
+          dgettext(
+            "dashboard_runners",
+            "Cancel this workflow run on GitHub? This cancels all of its jobs."
+          )
+        }
+      />
+    </div>
+  </div>
+
+  <.card
+    title={dgettext("dashboard_runners", "Jobs")}
+    icon="stack_2"
+    data-part="runner-run-jobs-card"
+  >
+    <.card_section data-part="runner-run-jobs-card-section">
+      <.table
+        id="runner-run-jobs-table"
+        rows={@jobs}
+        row_key={fn job -> "runner-run-jobs-row-#{job.workflow_job_id}" end}
+        row_navigate={
+          fn job ->
+            case TuistWeb.RunnerWorkflowRunLive.job_path(@selected_account.name, job) do
+              nil -> nil
+              path -> unverified_url(@socket, path)
+            end
+          end
+        }
+      >
+        <:col :let={job} label={dgettext("dashboard_runners", "Job")}>
+          <.text_cell label={if(job.job_name == "", do: "–", else: job.job_name)} />
+        </:col>
+        <:col :let={job} label={dgettext("dashboard_runners", "Status")}>
+          <% job_props = TuistWeb.RunnerWorkflowRunLive.job_status_badge_props(job) %>
+          <.status_badge_cell label={job_props.label} status={job_props.status} />
+        </:col>
+        <:col :let={job} label={dgettext("dashboard_runners", "Duration")}>
+          <.text_cell
+            icon="history"
+            label={
+              Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
+                TuistWeb.RunnerWorkflowRunLive.job_duration_ms(job)
+              )
+            }
+          />
+        </:col>
+      </.table>
+    </.card_section>
+  </.card>
+</div>

@@ -1,11 +1,9 @@
 defmodule TuistWeb.RunnerWorkflowLiveTest do
   use TuistTestSupport.Cases.ConnCase, async: false
   use TuistTestSupport.Cases.LiveCase
-  use Mimic
 
   import Phoenix.LiveViewTest
 
-  alias Tuist.Runners
   alias Tuist.Runners.Jobs
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
@@ -99,6 +97,8 @@ defmodule TuistWeb.RunnerWorkflowLiveTest do
 
     assert html =~ "runner-workflow-runs-row-915000"
     assert html =~ "Running"
+    # The whole row links to the run detail.
+    assert html =~ "/runners/runs/915000"
   end
 
   test "paginates when the workflow has more than one page of runs", %{conn: conn, account: account} do
@@ -120,65 +120,6 @@ defmodule TuistWeb.RunnerWorkflowLiveTest do
     assert page_1 =~ "Prev"
     assert run_row_count(page_1) == 20
     assert run_row_count(page_2) == 1
-  end
-
-  test "shows the Cancel button on in-progress runs when the installation can cancel", %{conn: conn, account: account} do
-    stub(Runners, :can_cancel_workflow_runs?, fn _ -> true end)
-
-    enqueue_job(account, %{
-      workflow_job_id: 94_001,
-      workflow_run_id: 940_010,
-      workflow_name: "Server",
-      head_branch: "main"
-    })
-
-    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/runners/workflows/tuist/tuist/Server")
-
-    assert html =~ "cancel_run"
-    assert html =~ "Cancel"
-  end
-
-  test "hides the Cancel button when the installation cannot cancel", %{conn: conn, account: account} do
-    stub(Runners, :can_cancel_workflow_runs?, fn _ -> false end)
-
-    enqueue_job(account, %{
-      workflow_job_id: 94_101,
-      workflow_run_id: 941_010,
-      workflow_name: "Server",
-      head_branch: "main"
-    })
-
-    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/runners/workflows/tuist/tuist/Server")
-
-    assert html =~ "runner-workflow-runs-row-941010"
-    refute html =~ "cancel_run"
-  end
-
-  test "the cancel_run event cancels the run and flashes", %{conn: conn, account: account} do
-    stub(Runners, :can_cancel_workflow_runs?, fn _ -> true end)
-
-    test_pid = self()
-
-    stub(Runners, :cancel_workflow_run, fn acct, "tuist/tuist", 950_010 ->
-      send(test_pid, {:cancelled, acct.id})
-      :ok
-    end)
-
-    enqueue_job(account, %{
-      workflow_job_id: 95_001,
-      workflow_run_id: 950_010,
-      workflow_name: "Server",
-      head_branch: "main"
-    })
-
-    {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners/workflows/tuist/tuist/Server")
-
-    render_click(lv, "cancel_run", %{"run-id" => "950010"})
-
-    # The stub proves the handler resolved the account + run id and
-    # invoked the cancel; the flash renders in the layout, not the LV body.
-    assert_received {:cancelled, account_id}
-    assert account_id == account.id
   end
 
   test "404s for an unauthorised account name", %{conn: conn} do

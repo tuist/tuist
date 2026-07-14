@@ -266,6 +266,17 @@
           id="runner-workflow-runs-table"
           rows={@runs}
           row_key={fn run -> "runner-workflow-runs-row-#{run.workflow_run_id}" end}
+          row_navigate={
+            fn run ->
+              case TuistWeb.RunnerWorkflowLive.run_path(
+                     @selected_account.name,
+                     run.workflow_run_id
+                   ) do
+                nil -> nil
+                path -> unverified_url(@socket, path)
+              end
+            end
+          }
         >
           <:col :let={run} label={dgettext("dashboard_runners", "Status")}>
             <% props = TuistWeb.RunnerWorkflowLive.run_status_badge_props(run) %>
@@ -283,16 +294,7 @@
             />
           </:col>
           <:col :let={run} label={dgettext("dashboard_runners", "Commit")}>
-            <.link
-              href={
-                TuistWeb.RunnerWorkflowLive.github_run_url(run.repository, run.workflow_run_id)
-              }
-              target="_blank"
-              rel="noopener noreferrer"
-              data-part="run-commit-link"
-            >
-              {TuistWeb.Utilities.SHA.format_commit_sha(run.head_sha)}
-            </.link>
+            <.text_cell label={TuistWeb.Utilities.SHA.format_commit_sha(run.head_sha)} />
           </:col>
           <:col :let={run} label={dgettext("dashboard_runners", "Jobs")}>
             <.text_cell label={Integer.to_string(run.job_count)} />
@@ -309,24 +311,6 @@
           </:col>
           <:col :let={run} label={dgettext("dashboard_runners", "Last activity")}>
             <.text_cell label={Tuist.Utilities.DateFormatter.from_now(run.last_activity_at)} />
-          </:col>
-          <:col :let={run} label="">
-            <.button
-              :if={@can_cancel_runs and TuistWeb.RunnerWorkflowLive.run_cancellable?(run)}
-              variant="secondary"
-              label={dgettext("dashboard_runners", "Cancel")}
-              phx-click={
-                Phoenix.LiveView.JS.push("cancel_run",
-                  value: %{"run-id" => Integer.to_string(run.workflow_run_id)}
-                )
-              }
-              data-confirm={
-                dgettext(
-                  "dashboard_runners",
-                  "Cancel this workflow run on GitHub? This cancels all of its jobs."
-                )
-              }
-            />
           </:col>
         </.table>
         <div :if={@total_pages > 1} data-part="pagination">

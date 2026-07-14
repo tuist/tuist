@@ -664,6 +664,55 @@ defmodule Tuist.Runners.Jobs do
 
   def list_for_workflow_run(_, _, _, _), do: []
 
+  @doc """
+  Lists every job in a workflow run for an account, keyed only by
+  `workflow_run_id` (no repository needed — the run-detail page routes
+  on the id alone). Returns the full per-job state (status,
+  conclusion, branch, sha, timings) so the page can both render the
+  job rows and derive the run header + status rollup. Ordered by
+  start/claim/enqueue time so the run reads top-to-bottom in
+  execution order.
+  """
+  def jobs_for_run(account_id, workflow_run_id)
+      when is_integer(account_id) and is_integer(workflow_run_id) and workflow_run_id > 0 do
+    Job
+    |> where([j], j.account_id == ^account_id and j.workflow_run_id == ^workflow_run_id)
+    |> group_by([j], j.workflow_job_id)
+    |> select([j], %{
+      workflow_job_id: j.workflow_job_id,
+      fleet_name: fragment("argMax(?, ?)", j.fleet_name, j.updated_at),
+      repository: fragment("argMax(?, ?)", j.repository, j.updated_at),
+      workflow_run_id: fragment("argMax(?, ?)", j.workflow_run_id, j.updated_at),
+      workflow_name: fragment("argMax(?, ?)", j.workflow_name, j.updated_at),
+      run_attempt: fragment("argMax(?, ?)", j.run_attempt, j.updated_at),
+      job_name: fragment("argMax(?, ?)", j.job_name, j.updated_at),
+      head_branch: fragment("argMax(?, ?)", j.head_branch, j.updated_at),
+      head_sha: fragment("argMax(?, ?)", j.head_sha, j.updated_at),
+      status: fragment("argMax(?, ?)", j.status, j.updated_at),
+      conclusion: fragment("argMax(?, ?)", j.conclusion, j.updated_at),
+      enqueued_at: fragment("argMax(?, ?)", j.enqueued_at, j.updated_at),
+      claimed_at: fragment("argMax(?, ?)", j.claimed_at, j.updated_at),
+      started_at: fragment("argMax(?, ?)", j.started_at, j.updated_at),
+      completed_at: fragment("argMax(?, ?)", j.completed_at, j.updated_at)
+    })
+    |> order_by([j],
+      asc:
+        fragment(
+          "coalesce(argMax(?, ?), argMax(?, ?), argMax(?, ?))",
+          j.started_at,
+          j.updated_at,
+          j.claimed_at,
+          j.updated_at,
+          j.enqueued_at,
+          j.updated_at
+        ),
+      asc: j.workflow_job_id
+    )
+    |> ClickHouseRepo.all()
+  end
+
+  def jobs_for_run(_, _), do: []
+
   # Inner dedup subquery for every multi-row read in this module.
   # GROUP BY workflow_job_id + argMax(field, updated_at) gives us
   # one row per workflow_job carrying its latest state — the same
