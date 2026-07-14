@@ -6,9 +6,29 @@ extension Package {
             /// A dependency located at a local path.
             case fileSystem(path: Path)
             /// A dependency hosted in a source control repository.
-            case sourceControl(location: String, requirement: Package.Requirement)
+            case sourceControl(location: String, requirement: SourceControlRequirement)
             /// A dependency published to a package registry.
-            case registry(id: String, requirement: Package.Requirement)
+            case registry(id: String, requirement: RegistryRequirement)
+        }
+
+        /// A source control package requirement.
+        public enum SourceControlRequirement: Codable, Equatable, Sendable {
+            /// An exact version requirement.
+            case exact(Version)
+            /// A version range requirement.
+            case range(Range<Version>)
+            /// A source control revision requirement.
+            case revision(String)
+            /// A source control branch requirement.
+            case branch(String)
+        }
+
+        /// A registry package requirement.
+        public enum RegistryRequirement: Codable, Equatable, Sendable {
+            /// An exact version requirement.
+            case exact(Version)
+            /// A version range requirement.
+            case range(Range<Version>)
         }
 
         /// An enabled trait of a dependency.
@@ -48,9 +68,9 @@ extension Package {
             case let .fileSystem(path):
                 .local(path: path)
             case let .sourceControl(location, requirement):
-                .remote(url: location, requirement: requirement)
+                .remote(url: location, requirement: requirement.packageRequirement)
             case let .registry(id, requirement):
-                .registry(identifier: id, requirement: requirement)
+                .registry(identifier: id, requirement: requirement.packageRequirement)
             }
         }
 
@@ -60,13 +80,17 @@ extension Package {
             from version: Version,
             traits: Set<Trait> = [.defaults]
         ) -> Dependency {
-            .package(url: url, .upToNextMajor(from: version), traits: traits)
+            .package(
+                url: url,
+                .range(version ..< Version(version.major + 1, 0, 0)),
+                traits: traits
+            )
         }
 
         /// Creates a remote package dependency using a requirement and enabled traits.
         public static func package(
             url: String,
-            _ requirement: Package.Requirement,
+            _ requirement: SourceControlRequirement,
             traits: Set<Trait> = [.defaults]
         ) -> Dependency {
             .init(kind: .sourceControl(location: url, requirement: requirement), traits: traits)
@@ -80,7 +104,7 @@ extension Package {
         ) -> Dependency {
             .package(
                 url: url,
-                .range(from: range.lowerBound, to: range.upperBound),
+                .range(range),
                 traits: traits
             )
         }
@@ -116,7 +140,13 @@ extension Package {
             from version: Version,
             traits: Set<Trait> = [.defaults]
         ) -> Dependency {
-            .init(kind: .registry(id: id, requirement: .upToNextMajor(from: version)), traits: traits)
+            .init(
+                kind: .registry(
+                    id: id,
+                    requirement: .range(version ..< Version(version.major + 1, 0, 0))
+                ),
+                traits: traits
+            )
         }
 
         /// Creates a registry package dependency using an exact version and enabled traits.
@@ -135,7 +165,7 @@ extension Package {
             traits: Set<Trait> = [.defaults]
         ) -> Dependency {
             .init(
-                kind: .registry(id: id, requirement: .range(from: range.lowerBound, to: range.upperBound)),
+                kind: .registry(id: id, requirement: .range(range)),
                 traits: traits
             )
         }
@@ -155,9 +185,35 @@ extension Package {
                 buildMetadataIdentifiers: upper.buildMetadataIdentifiers
             )
             return .init(
-                kind: .registry(id: id, requirement: .range(from: range.lowerBound, to: upperBound)),
+                kind: .registry(id: id, requirement: .range(range.lowerBound ..< upperBound)),
                 traits: traits
             )
+        }
+    }
+}
+
+extension Package.Dependency.SourceControlRequirement {
+    fileprivate var packageRequirement: Package.Requirement {
+        switch self {
+        case let .exact(version):
+            .exact(version)
+        case let .range(range):
+            .range(from: range.lowerBound, to: range.upperBound)
+        case let .revision(revision):
+            .revision(revision)
+        case let .branch(branch):
+            .branch(branch)
+        }
+    }
+}
+
+extension Package.Dependency.RegistryRequirement {
+    fileprivate var packageRequirement: Package.Requirement {
+        switch self {
+        case let .exact(version):
+            .exact(version)
+        case let .range(range):
+            .range(from: range.lowerBound, to: range.upperBound)
         }
     }
 }

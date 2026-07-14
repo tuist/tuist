@@ -74,7 +74,10 @@ struct PackageManifestMapperTests {
         #expect(mappedProject.packageTraits == [
             .init(package: .local(path: "/Project/Package"), traits: ["FeatureA"]),
             .init(
-                package: .remote(url: "https://example.com/package.git", requirement: .upToNextMajor("1.0.0")),
+                package: .remote(
+                    url: "https://example.com/package.git",
+                    requirement: .range(from: "1.0.0", to: "2.0.0")
+                ),
                 traits: []
             ),
         ])
@@ -90,9 +93,37 @@ struct PackageManifestMapperTests {
         #expect(
             dependency.kind == .sourceControl(
                 location: "https://example.com/package.git",
-                requirement: .upToNextMajor(from: "1.0.0")
+                requirement: .range("1.0.0" ..< "2.0.0")
             )
         )
         #expect(dependency.traits == [.defaults, "FeatureA"])
+    }
+
+    @Test func packageDependencyUsesDistinctSourceControlAndRegistryRequirements() {
+        let sourceControlDependency = ProjectDescription.Package.Dependency(
+            kind: .sourceControl(
+                location: "https://example.com/package.git",
+                requirement: .branch("main")
+            )
+        )
+        let registryDependency = ProjectDescription.Package.Dependency(
+            kind: .registry(
+                id: "example.package",
+                requirement: .range("1.0.0" ..< "2.0.0")
+            )
+        )
+
+        #expect(
+            sourceControlDependency.package == .remote(
+                url: "https://example.com/package.git",
+                requirement: .branch("main")
+            )
+        )
+        #expect(
+            registryDependency.package == .registry(
+                identifier: "example.package",
+                requirement: .range(from: "1.0.0", to: "2.0.0")
+            )
+        )
     }
 }
