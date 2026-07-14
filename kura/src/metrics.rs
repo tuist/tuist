@@ -681,12 +681,12 @@ impl Metrics {
         );
         registry.register(
             "kura_process_resident_anon_bytes",
-            "Anonymous resident memory (RssAnon) in bytes: private heap/stacks, the leak-relevant, non-reclaimable-without-swap portion of RSS",
+            "Anonymous resident memory in bytes (RssAnon from /proc/self/status): private pages such as heap and stacks",
             process_resident_anon_bytes.clone(),
         );
         registry.register(
             "kura_process_resident_file_bytes",
-            "File-backed resident memory (RssFile) in bytes: mmap'd segments and code, reclaimable page cache",
+            "File-backed resident memory in bytes (RssFile from /proc/self/status): resident pages backed by mapped files, such as mmap'd segments and the executable",
             process_resident_file_bytes.clone(),
         );
         registry.register(
@@ -696,17 +696,17 @@ impl Metrics {
         );
         registry.register(
             "kura_jemalloc_allocated_bytes",
-            "jemalloc bytes in live application allocations (stats.allocated); unbounded growth indicates a leak",
+            "Bytes allocated by the application, as reported by jemalloc stats.allocated",
             jemalloc_allocated_bytes.clone(),
         );
         registry.register(
             "kura_jemalloc_resident_bytes",
-            "jemalloc resident physical memory (stats.resident); far exceeding allocated indicates allocator retention, not a leak",
+            "Bytes in physically resident pages mapped by jemalloc (stats.resident): allocator metadata, pages backing active allocations, and unused dirty pages",
             jemalloc_resident_bytes.clone(),
         );
         registry.register(
             "kura_jemalloc_retained_bytes",
-            "jemalloc virtual memory purged back to the OS but not unmapped (stats.retained); confirms whether decay purging is returning memory",
+            "Bytes of virtual memory retained by jemalloc rather than returned to the OS (stats.retained); typically decommitted or purged, so not strongly associated with physical memory",
             jemalloc_retained_bytes.clone(),
         );
         registry.register(

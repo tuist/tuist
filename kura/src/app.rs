@@ -930,8 +930,10 @@ fn process_memory_snapshot() -> Option<ProcessMemorySnapshot> {
 
 /// jemalloc's own accounting via mallctl. It sees only jemalloc-managed memory
 /// — not mmap'd segment files or non-Rust (RocksDB/C++) allocations — so it
-/// complements the RssAnon/RssFile split rather than replacing it. What each
-/// field distinguishes (leak vs allocator retention) is in the metric HELP text.
+/// complements the RssAnon/RssFile split rather than replacing it. `allocated`
+/// is live application bytes; `resident` the physical pages jemalloc holds
+/// (allocations plus metadata, fragmentation, and dirty pages); `retained` the
+/// virtual address space kept back from the OS.
 struct JemallocStats {
     allocated_bytes: u64,
     resident_bytes: u64,
