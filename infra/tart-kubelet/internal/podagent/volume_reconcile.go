@@ -21,6 +21,13 @@ import (
 // promote a cache-volume branch to the right master.
 const runnerAccountLabel = "tuist.dev/runner-account"
 
+// runnerCacheUntrustedLabel marks a Pod whose job the server could not
+// positively confirm as trusted (same-repo, non-fork). When present, the host
+// skips cache-volume materialize and promotion, so an untrusted fork job neither
+// reads the account's warm master nor writes into it. Fail-closed on the server:
+// any uncertainty stamps this label.
+const runnerCacheUntrustedLabel = "tuist.dev/runner-cache-untrusted"
+
 // RunnerAccountFromPod returns the account id the server stamped on a Pod at
 // dispatch, or "" when unset. Exported so state recovery in package main can
 // reconstruct a recovered VM's SourceAccount without duplicating the label key.
@@ -81,6 +88,18 @@ func (r *Reconciler) maybeMaterializeVolume(pod *corev1.Pod) {
 	account := pod.Labels[runnerAccountLabel]
 	if account == "" {
 		return // not dispatched yet — nothing to materialize
+	}
+
+	// Fork-exclusion: an untrusted job never touches the shared cache. Skip
+	// materialize (the guest runs cold on its isolated, empty branch) and leave
+	// SourceAccount empty so Finalize's SourceAccount==account guard discards the
+	// branch — the job can neither read the account's warm master nor promote
+	// into it. Mark materialized so this doesn't re-enter, and still signal
+	// cache-ready so the guest stops waiting and runs.
+	if pod.Labels[runnerCacheUntrustedLabel] == "true" {
+		entry.Volume.Materialized = true
+		writeCacheReady(entry.VolumeStatusDir)
+		return
 	}
 
 	// Materialize this host's LOCAL master into the branch immediately — a CoW

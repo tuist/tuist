@@ -70,6 +70,12 @@ defmodule Tuist.Runners do
   @pool_label "tuist.dev/runner-pool"
   @owner_label "tuist.dev/runner-pool-owner"
   @account_label "tuist.dev/runner-account"
+  # Stamped on a Pod whenever dispatch cannot POSITIVELY confirm the job is
+  # trusted (same-repo, not a fork). tart-kubelet reads it and skips cache-volume
+  # materialization + promotion, so an untrusted fork job neither reads the
+  # account's warm master nor writes into it. Fail-closed: any uncertainty means
+  # the label is present and the job runs cold on an isolated branch.
+  @cache_untrusted_label "tuist.dev/runner-cache-untrusted"
 
   # The owner label gates dispatch egress: the runners-namespace
   # NetworkPolicy admits only label-less (idle, polling) Pods to the
@@ -409,12 +415,20 @@ defmodule Tuist.Runners do
              {:ok, jit, runner_name} <- mint_jit(account, github_org, sa_name, dispatch_label, runner_labels),
              :ok <- Claims.mark_running(candidate.workflow_job_id, runner_name),
              :ok <- record_running_safe(candidate.workflow_job_id, runner_name) do
-          # Stamp the account label only now that dispatch has fully committed.
-          # It is the host's cache-materialize trigger, so stamping it before the
-          # commit would let a failed dispatch strand a stale account on a Pod
-          # that later runs a different one (cross-account cache exposure). See
-          # stamp_account_label/3.
-          stamp_account_label(namespace, pod_name, account)
+          # Fork-exclusion: only a trusted (same-repo, non-fork) job may touch
+          # the account's shared cache. Determine trust fail-closed — any
+          # uncertainty means untrusted, so the job runs cold and cannot poison
+          # the master. Untrusted jobs get NO grant and NO volume HEAD (so the
+          # cache isn't account-portable and the guest can't publish), and the
+          # host is told to skip materialize/promote via the untrusted label.
+          trusted = job_trusted?(candidate, account)
+
+          # Stamp the account label (the host's cache-materialize trigger) only
+          # now that dispatch has fully committed — stamping it before the commit
+          # would let a failed dispatch strand a stale account on a Pod that later
+          # runs a different one. The untrusted label rides the same patch so the
+          # host sees both atomically. See stamp_account_label/4.
+          stamp_account_label(namespace, pod_name, account, trusted)
 
           # Open the per-Pod billing session only after dispatch
           # commits — JIT minted, PG marked running, CH state
@@ -451,16 +465,16 @@ defmodule Tuist.Runners do
              workflow_job_id: candidate.workflow_job_id,
              fleet_on_cluster_network: Catalog.fleet_on_cluster_network?(fleet_name),
              fleet_platform: Catalog.fleet_platform(fleet_name),
-             # Per-account cache-signing grant. nil when grant
-             # minting is unconfigured; the runner then falls back to the
-             # MAC default and only the binaries cache re-pulls.
-             cache_signing_grant: CacheGrant.mint(candidate.account_id),
+             # Per-account cache-signing grant — trusted jobs only. nil for an
+             # untrusted (fork) job or when minting is unconfigured; the runner
+             # then falls back to the MAC default (machine-local), so an
+             # untrusted job's cache is never account-portable.
+             cache_signing_grant: if(trusted, do: CacheGrant.mint(candidate.account_id)),
              # Current cache-volume HEAD (generation + inventory digest) plus
-             # presigned URLs for the account's master archive, so a host whose
-             # on-disk master is behind can converge it before materializing.
-             # nil/best-effort: a failure just leaves the host on its local
-             # master (status quo).
-             volume_head: volume_head_payload(account)
+             # presigned URLs for the account's master archive — trusted jobs
+             # only. nil for an untrusted job (no convergence, and the guest has
+             # no upload URL so it cannot publish a HEAD) or best-effort failure.
+             volume_head: if(trusted, do: volume_head_payload(account))
            }}
         else
           {:error, reason} = err ->
@@ -566,9 +580,37 @@ defmodule Tuist.Runners do
   # the account the VM actually runs ever triggers materialization. Best-effort:
   # a stamp failure degrades to a cold (unmaterialized) job, never a
   # wrong-account one.
-  defp stamp_account_label(namespace, pod_name, account) do
-    patch = %{"metadata" => %{"labels" => %{@account_label => Integer.to_string(account.id)}}}
-    patch_pod_labels(namespace, pod_name, patch, @owner_label_stamp_attempts)
+  defp stamp_account_label(namespace, pod_name, account, trusted) do
+    labels = %{@account_label => Integer.to_string(account.id)}
+    labels = if trusted, do: labels, else: Map.put(labels, @cache_untrusted_label, "true")
+    patch_pod_labels(namespace, pod_name, %{"metadata" => %{"labels" => labels}}, @owner_label_stamp_attempts)
+  end
+
+  # A job is trusted only when its workflow run's head repository is the base
+  # repository — a same-repo push or PR, whose author has write access — not a
+  # fork. Fail-closed: a missing run id, an API error, an unexpected response
+  # shape, or any exception is treated as UNTRUSTED, so the cache volume is
+  # withheld and the job runs cold rather than risk a fork poisoning the shared
+  # master. Runs in the committed-dispatch path, so an error here only costs
+  # warmth, never correctness.
+  defp job_trusted?(candidate, account) do
+    with run_id when is_integer(run_id) <- Map.get(candidate, :workflow_run_id),
+         repository when is_binary(repository) and repository != "" <- Map.get(candidate, :repository),
+         {:ok, installation} <- VCS.get_github_app_installation_for_account(account.id),
+         {:ok, run} <-
+           GitHubClient.get_workflow_run(%{
+             repository_full_handle: repository,
+             installation: installation,
+             run_id: run_id
+           }),
+         head when is_binary(head) <- get_in(run, ["head_repository", "full_name"]),
+         base when is_binary(base) <- get_in(run, ["repository", "full_name"]) do
+      String.downcase(head) == String.downcase(base)
+    else
+      _ -> false
+    end
+  rescue
+    _ -> false
   end
 
   defp patch_pod_labels(namespace, pod_name, patch, attempts_left) do

@@ -263,6 +263,12 @@ defmodule Tuist.RunnersTest do
         {:ok, %{installation_id: 42, client_url: "https://github.com"}}
       end)
 
+      # Trust check: default to a same-repo (trusted) run so the cache path runs.
+      # Fork/fail-closed cases override this stub in their own tests.
+      stub(GitHubClient, :get_workflow_run, fn %{repository_full_handle: repo} ->
+        {:ok, %{"head_repository" => %{"full_name" => repo}, "repository" => %{"full_name" => repo}}}
+      end)
+
       expect(GitHubClient, :generate_jit_config, fn _installation, login, %{labels: labels, name: runner_name} ->
         send(test_pid, {:jit_labels, labels})
         send(test_pid, {:jit_runner_name, runner_name})
@@ -312,6 +318,44 @@ defmodule Tuist.RunnersTest do
 
       assert {:ok, %{cache_signing_grant: "signed-grant-token"}} =
                Runners.dispatch_for_sa("tuist-runners", "pod-1")
+    end
+
+    test "excludes an untrusted fork job from the cache (no grant, no HEAD, untrusted label)" do
+      account = account_fixture()
+      candidate = candidate_with_label(account, "tuist-default")
+      test_pid = self()
+      stub_dispatch_path(account, candidate, test_pid)
+
+      # Fork: the run's head repository differs from the base repository.
+      stub(GitHubClient, :get_workflow_run, fn %{repository_full_handle: repo} ->
+        {:ok, %{"head_repository" => %{"full_name" => "attacker/#{repo}"}, "repository" => %{"full_name" => repo}}}
+      end)
+
+      stub(K8sClient, :patch_pod, fn _ns, _pod, patch ->
+        send(test_pid, {:patched, get_in(patch, ["metadata", "labels"])})
+        {:ok, %{}}
+      end)
+
+      # An untrusted job must never get a grant nor a volume HEAD.
+      reject(&CacheGrant.mint/1)
+
+      assert {:ok, result} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+      assert result.cache_signing_grant == nil
+      assert result.volume_head == nil
+      assert_receive {:patched, %{"tuist.dev/runner-cache-untrusted" => "true"}}
+    end
+
+    test "treats a job as untrusted (cold) when the workflow-run lookup fails, fail-closed" do
+      account = account_fixture()
+      candidate = candidate_with_label(account, "tuist-default")
+      stub_dispatch_path(account, candidate, self())
+
+      stub(GitHubClient, :get_workflow_run, fn _ -> {:error, "boom"} end)
+      reject(&CacheGrant.mint/1)
+
+      assert {:ok, result} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+      assert result.cache_signing_grant == nil
+      assert result.volume_head == nil
     end
 
     test "records volume affinity for the polling node on a successful claim" do
