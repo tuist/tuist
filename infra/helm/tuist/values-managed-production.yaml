@@ -7,11 +7,9 @@
 #     --set server.image.tag=$GIT_SHA
 
 registry:
-  # Brings up the read frontend, its ingress, and the DNS-01 cert. It
-  # serves no user traffic until registry.tuist.dev's Cloudflare origin
-  # is repointed at this ingress, which is a separate, revertible step.
-  # The sync writer stays disabled below: cache remains the sole writer
-  # until the cutover.
+  # The public host stays behind the registry-router Worker. The ingress keeps
+  # the canonical host for routing and certificate identity, while external-dns
+  # publishes a separate resolution-only record for the Worker's origin lookup.
   enabled: true
   publicHost: registry.tuist.dev
   serverUrl: https://tuist.dev
@@ -21,6 +19,9 @@ registry:
   ingress:
     host: registry.tuist.dev
     tlsSecretName: registry-tls
+    annotations:
+      external-dns.alpha.kubernetes.io/hostname: registry-origin.tuist.dev
+      external-dns.alpha.kubernetes.io/ingress-hostname-source: annotation-only
   resources:
     requests:
       cpu: "500m"
@@ -76,13 +77,9 @@ server:
     # env's config the release runs as.
     - name: TUIST_DEPLOY_ENV
       value: prod
-    # Full registry URL advertised at /.well-known/registry.json so the CLI
-    # configures SwiftPM against registry.tuist.dev instead of tuist.dev.
-    # Keeps the legacy /api/registry/swift prefix for now: production's
-    # registry.tuist.dev is still fronted by the registry-router Worker
-    # against the cache origins, which only serve that prefix. Flip to
-    # https://registry.tuist.dev/swift once the Worker cuts over to the
-    # standalone frontend (which serves /swift).
+    # Keep advertising the legacy path until the Worker cutover is live. The
+    # cache origins only serve this prefix, and the standalone frontend keeps
+    # it as a compatibility route, so it works throughout the rollout.
     - name: TUIST_REGISTRY_URL
       value: https://registry.tuist.dev/api/registry/swift
     # Enables the server-owned registry sync writer. Cache still writes
