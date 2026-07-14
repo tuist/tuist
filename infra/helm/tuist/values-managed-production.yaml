@@ -74,11 +74,11 @@ server:
     # env's config the release runs as.
     - name: TUIST_DEPLOY_ENV
       value: prod
-    # Full registry address advertised at /.well-known/registry.json so the
-    # Tuist command-line interface configures Swift Package Manager against
-    # the standalone registry frontend.
+    # Keep advertising the legacy path until the Worker cutover is live. The
+    # cache origins only serve this prefix, and the standalone frontend keeps
+    # it as a compatibility route, so it works throughout the rollout.
     - name: TUIST_REGISTRY_URL
-      value: https://registry.tuist.dev/swift
+      value: https://registry.tuist.dev/api/registry/swift
     # Enables the server-owned registry sync writer. Cache still writes
     # too until it is turned off as a separate step; the two coordinate
     # through the shared S3 sync lock, so dual-writing is safe.
