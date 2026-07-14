@@ -153,6 +153,17 @@ func TestRenderLaunchdPlist_RendersDisableVMGCWhenSet(t *testing.T) {
 	}
 }
 
+func TestRenderLaunchdPlist_RendersRunnerCacheRoot(t *testing.T) {
+	out := renderLaunchdPlist(Config{
+		NodeName:        "n1",
+		SSHUser:         "m1",
+		RunnerCacheRoot: "/var/lib/tuist-runner-cache",
+	})
+	if !strings.Contains(out, "<string>--runner-cache-root=/var/lib/tuist-runner-cache</string>") {
+		t.Fatalf("expected --runner-cache-root in plist\n%s", out)
+	}
+}
+
 func TestRenderTartKubeletLaunchdScript_PreparesVNCControlDir(t *testing.T) {
 	out := renderTartKubeletLaunchdScript(Config{SSHUser: "m1"})
 	if !strings.Contains(out, "/var/lib/tart-vnc-control") {

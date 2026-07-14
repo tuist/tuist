@@ -84,6 +84,7 @@ where
         replication_public_latency_target_ms: 100,
         multipart_upload_ttl_ms: 24 * 60 * 60 * 1000,
         multipart_janitor_interval_ms: 10 * 60 * 1000,
+        bootstrap_enabled: true,
         bootstrap_timeout_ms: 30 * 60 * 1000,
         bootstrap_max_concurrent_peers: 8,
         analytics: None,

@@ -335,6 +335,15 @@ spec:
             - --tartkubelet-host-cpu={{ .Values.macosFleet.tartKubelet.hostCPU | default 8 }}
             - --tartkubelet-host-memory-mb={{ .Values.macosFleet.tartKubelet.hostMemoryMB | default 16384 }}
             - --tartkubelet-max-pods={{ .Values.macosFleet.tartKubelet.maxPods | default 3 }}
+            {{- with .Values.macosFleet.tartKubelet.runnerCacheRoot }}
+            - --tartkubelet-runner-cache-root={{ . }}
+            {{- end }}
+            {{- with .Values.macosFleet.tartKubelet.hostKuraVersion }}
+            - --tartkubelet-host-kura-version={{ . }}
+            {{- end }}
+            {{- with .Values.macosFleet.tartKubelet.emPeerURLTemplate }}
+            - --tartkubelet-em-peer-url-template={{ . }}
+            {{- end }}
             {{- if .Values.macosFleet.tailscale.enabled }}
             # Tailscale + node_exporter artifact paths. Both are
             # baked into the operator image at the Dockerfile-pinned

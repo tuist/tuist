@@ -577,6 +577,30 @@ func TestBuild_MacOSHasNoPollerOrTokenVolume(t *testing.T) {
 	}
 }
 
+func TestBuild_MacOSOptsIntoRunnerCacheVolume(t *testing.T) {
+	pod := build(t, basePool(""))
+
+	if got := pod.Annotations[runnerCacheVolumeAnnotation]; got != "true" {
+		t.Fatalf("macOS runner cache annotation = %q, want true; annotations %+v", got, pod.Annotations)
+	}
+	runner := containerByName(t, pod, "runner")
+	if got := envValue(runner.Env, "TUIST_RUNNER_CACHE_ENDPOINT_FILE"); got != runnerCacheEndpointFile {
+		t.Errorf("cache endpoint file env = %q, want %q", got, runnerCacheEndpointFile)
+	}
+}
+
+func TestBuild_LinuxDoesNotOptIntoRunnerCacheVolume(t *testing.T) {
+	pod := build(t, basePool("linux"))
+
+	if _, ok := pod.Annotations[runnerCacheVolumeAnnotation]; ok {
+		t.Fatalf("Linux pod must not carry runner cache annotation; annotations %+v", pod.Annotations)
+	}
+	runner := containerByName(t, pod, "runner")
+	if got := envValue(runner.Env, "TUIST_RUNNER_CACHE_ENDPOINT_FILE"); got != "" {
+		t.Errorf("Linux runner env TUIST_RUNNER_CACHE_ENDPOINT_FILE = %q, want absent", got)
+	}
+}
+
 func TestBuild_RunnerMirrorsDiagLogToStdout(t *testing.T) {
 	// ACTIONS_RUNNER_PRINT_LOG_TO_STDOUT=1 streams the actions/runner
 	// _diag log to the runner's stdout so an abnormal exit's reason

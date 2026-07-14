@@ -67,6 +67,10 @@ func main() {
 		metricsAddr        string
 		probeAddr          string
 		tartBinary         string
+		runnerCacheRoot    string
+		hostKuraBinary     string
+		hostKuraBasePort   int
+		emPeerURLTemplate  string
 		vncControlDir      string
 		vncRelayHost       string
 		vncRelayPort       int
@@ -107,6 +111,14 @@ func main() {
 			"the endpoint on the WAN.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "Liveness/readiness probe endpoint.")
 	flag.StringVar(&tartBinary, "tart-binary", "/usr/local/bin/tart", "Path to the local tart CLI.")
+	flag.StringVar(&runnerCacheRoot, "runner-cache-root", envOr("TART_KUBELET_RUNNER_CACHE_ROOT", ""),
+		"Host directory holding per-account runner caches. When set, Pods annotated with tart-kubelet.tuist.dev/runner-cache-volume=true get a per-VM tuist-cache share that the host Kura endpoint marker is written into once the Tuist server stamps tuist.dev/runner-account. The account's cache lives at <root>/accounts/<account-id>/current and is served by the per-account host Kura (see --host-kura-binary).")
+	flag.StringVar(&hostKuraBinary, "host-kura-binary", envOr("TART_KUBELET_HOST_KURA_BINARY", ""),
+		"Path to the kura executable on the host. When set together with --runner-cache-root, tart-kubelet runs a persistent per-account host Kura (Option A) and points each runner VM at it via an endpoint marker in the tuist-cache share. Empty disables on-host serving; the runner VM then falls back to the dispatch-provided cache endpoint (L2).")
+	flag.IntVar(&hostKuraBasePort, "host-kura-base-port", 4100,
+		"First host port handed to a per-account host Kura; subsequent accounts get the next free block of ports at or above it.")
+	flag.StringVar(&emPeerURLTemplate, "em-peer-url-template", envOr("TART_KUBELET_EM_PEER_URL_TEMPLATE", ""),
+		"Plaintext http URL template for the Elastic Metal (EM) Kura peer the host Kura replicates with, with %s replaced by the account id (e.g. http://10.0.0.5:5000). Empty runs each host Kura islanded (no EM peer); the PN mesh fan-out beyond EM is EM's responsibility, not the Mac's.")
 	flag.StringVar(&vncControlDir, "vnc-control-dir", envOr("TART_KUBELET_VNC_CONTROL_DIR", "/var/lib/tart-vnc-control"),
 		"Host-local control/state directory for runner VNC access. Create requests/<namespace>_<pod> or stamp the server-owned Pod request annotation to open a VNC relay for a running runner Pod; tart-kubelet writes sensitive connection metadata under state/ with 0600 permissions. Empty disables VNC relays.")
 	flag.StringVar(&vncRelayHost, "vnc-relay-host", envOr("TART_KUBELET_VNC_RELAY_HOST", ""),
@@ -283,6 +295,27 @@ func main() {
 		setupLog.Error(err, "state recovery failed; reconciles may treat existing VMs as stale")
 	}
 
+	var cacheVolumes *podagent.CacheVolumeManager
+	if runnerCacheRoot != "" {
+		cacheVolumes = &podagent.CacheVolumeManager{RootDir: runnerCacheRoot}
+	}
+
+	// Option A: a persistent per-account host Kura the runner VMs talk to over
+	// the host<->VM bridge. Requires both the cache root and a kura binary.
+	var hostKura *podagent.HostKuraManager
+	if runnerCacheRoot != "" && hostKuraBinary != "" {
+		hostKura = &podagent.HostKuraManager{
+			Root:       runnerCacheRoot,
+			KuraBinary: hostKuraBinary,
+			BasePort:   hostKuraBasePort,
+		}
+		if emPeerURLTemplate != "" {
+			hostKura.PeerURLFor = func(accountID string) string {
+				return fmt.Sprintf(emPeerURLTemplate, accountID)
+			}
+		}
+	}
+
 	// Typed kubernetes.Interface for TokenRequest — the
 	// controller-runtime client doesn't expose CreateToken on
 	// ServiceAccounts because TokenRequest is a subresource that
@@ -304,6 +337,8 @@ func main() {
 		Tart:               tartClient,
 		Resolver:           resolver,
 		Store:              store,
+		CacheVolumes:       cacheVolumes,
+		HostKura:           hostKura,
 		// 8h TTL: minted once at boot and not rotated, the token must
 		// outlive warm-time + the whole job, because the in-VM metrics
 		// sampler reuses it to POST for the job's full duration (a 1h TTL
