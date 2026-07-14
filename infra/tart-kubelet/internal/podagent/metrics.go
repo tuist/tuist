@@ -151,9 +151,10 @@ var cacheVolumeMaterializeTotal = prometheus.NewCounterVec(
 	[]string{"result"},
 )
 
-// cacheVolumeConvergedTotal counts materialize-time fast-forwards of this host's
+// cacheVolumeConvergedTotal counts background fast-forwards of this host's
 // master to the account's HEAD — a host that was behind pulling the latest
-// master before running. A high rate relative to materialize means hosts are
+// master after a job started (off the job-start path), so the next job on it
+// starts fresher. A high rate relative to materialize means hosts are
 // frequently stale (jobs spread thin across hosts, or the cache churns fast).
 var cacheVolumeConvergedTotal = prometheus.NewCounter(
 	prometheus.CounterOpts{

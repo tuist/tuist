@@ -139,15 +139,18 @@ mount_cache_volume() {
   echo "$(date -u +%FT%TZ) dispatch-poll: cache share at ${CACHE_MOUNT}; TUIST_XDG_CACHE_HOME set (budget=${TUIST_CACHE_MAX_BYTES:-none})"
 }
 
-# CACHE_READY_TIMEOUT bounds the wait for the host's cache-ready signal. It must
-# exceed the host's worst-case materialization: a stale-master convergence can
-# download a full master archive (host-side curl bounded at 120s) before the
-# clonefile. A too-short wait (the old 30s) would race that download — the guest
-# would start on the share while the host later atomically swaps the branch dir
-# underneath the running job, dropping in-flight writes. Common case (fresh
-# clonefile, no convergence) signals in well under a second, so this ceiling
-# only bites when the host is genuinely still working.
-CACHE_READY_TIMEOUT=180
+# CACHE_READY_TIMEOUT bounds the wait for the host's cache-ready signal — the
+# most a job's start can be delayed by the cache. The host materializes from its
+# LOCAL master (a CoW clonefile, ~tens of ms, no network) before signalling;
+# freshness convergence (the only slow, download-bound step) runs in the
+# background off this path, so cache-ready normally lands within a second of the
+# host observing the dispatch. The ceiling only has to absorb reconcile
+# scheduling jitter (a missed watch falls back to the reconciler's ~30s
+# periodic requeue), so 60s is comfortable headroom. On timeout the guest
+# assumes the host is wedged and starts on a local cold cache rather than the
+# share, so it never blocks the job longer than this and a late host swap can't
+# corrupt the run.
+CACHE_READY_TIMEOUT=60
 
 # wait_for_cache_ready blocks (bounded) until the host signals it has
 # materialized the dispatched account's cache master into the branch share (or

@@ -82,12 +82,10 @@ func (r *Reconciler) maybeMaterializeVolume(pod *corev1.Pod) {
 	if account == "" {
 		return // not dispatched yet — nothing to materialize
 	}
-	// Fast-forward this host's master toward the account's HEAD before
-	// materializing, so the job gets the account's current warm set rather than
-	// whatever this host last ran. Best-effort — a failure leaves the local
-	// master in place (the status quo).
-	r.convergeMaster(entry, account)
 
+	// Materialize this host's LOCAL master into the branch immediately — a CoW
+	// clonefile that touches the network zero times (~tens of ms) — and signal
+	// the guest, so the job starts warm without ever blocking on a download.
 	warm, err := r.Volumes.Materialize(entry.Volume, account)
 	if err != nil {
 		log.Log.WithName("volume").Error(err, "materialize cache volume", "vm", entry.VMName, "account", account)
@@ -98,6 +96,15 @@ func (r *Reconciler) maybeMaterializeVolume(pod *corev1.Pod) {
 	// releases and the job runs.
 	writeCacheReady(entry.VolumeStatusDir)
 	RecordVolumeMaterialized(warm)
+
+	// Converge the on-disk master toward the account's HEAD in the background,
+	// off the job-start critical path. The running job already holds its own
+	// CoW branch, so refreshing the master (an atomic swap of a separate dir)
+	// never touches the job in flight — it just makes the NEXT job on this host
+	// start from the account's current warm set instead of paying remote misses
+	// for the delta. Best-effort and self-limiting: one goroutine per VM
+	// (materialize runs at most once per VM), bounded by a download deadline.
+	go r.convergeMaster(entry.VMName, entry.VolumeStatusDir, entry.Volume.VolumeName, account)
 }
 
 // writeCacheReady drops the cache-ready marker into the writable status share.
@@ -150,40 +157,44 @@ func readVolumeHead(statusDir string) *volumeHead {
 
 // convergeMaster fast-forwards this host's master for the account to the
 // account's HEAD when the host is behind, by downloading the latest master
-// archive and swapping it in before materialize. Best-effort and bounded: no
+// archive and atomically swapping it in. Runs in the background off the
+// job-start critical path (see maybeMaterializeVolume): it refreshes the master
+// dir, which the in-flight job's CoW branch does not reference, so the NEXT job
+// clonefiles the fresher set. Takes plain values, not the shared *Entry, so it
+// can't race the reconciler mutating that entry. Best-effort and bounded: no
 // HEAD, already-current, or any download/extract failure leaves the local
-// master untouched (the status quo — the job just pays a few remote misses).
-func (r *Reconciler) convergeMaster(entry *Entry, account string) {
-	if r.Volumes == nil || !entry.Volume.Attached {
+// master untouched (the status quo — jobs just pay a few remote misses).
+func (r *Reconciler) convergeMaster(vmName, statusDir, volumeName, account string) {
+	if r.Volumes == nil || !r.Volumes.Enabled() {
 		return
 	}
-	head := readVolumeHead(entry.VolumeStatusDir)
+	head := readVolumeHead(statusDir)
 	if head == nil || head.Digest == "" || head.DownloadURL == "" {
 		return
 	}
-	if local, err := r.Volumes.MasterDigest(account, entry.Volume.VolumeName); err == nil && local == head.Digest {
+	if local, err := r.Volumes.MasterDigest(account, volumeName); err == nil && local == head.Digest {
 		return // already at HEAD
 	}
 
 	logger := log.Log.WithName("volume")
-	staging := r.Volumes.ConvergeStagingDir(entry.VMName)
+	staging := r.Volumes.ConvergeStagingDir(vmName)
 	_ = os.RemoveAll(staging)
 	if err := os.MkdirAll(staging, 0o755); err != nil {
-		logger.Error(err, "converge: mkdir staging", "vm", entry.VMName)
+		logger.Error(err, "converge: mkdir staging", "vm", vmName)
 		return
 	}
 	defer os.RemoveAll(staging)
 
 	if err := downloadAndExtract(head.DownloadURL, staging); err != nil {
-		logger.Error(err, "converge: download master", "vm", entry.VMName, "account", account)
+		logger.Error(err, "converge: download master", "vm", vmName, "account", account)
 		return
 	}
-	if err := r.Volumes.ReplaceMaster(account, entry.Volume.VolumeName, staging); err != nil {
-		logger.Error(err, "converge: replace master", "vm", entry.VMName, "account", account)
+	if err := r.Volumes.ReplaceMaster(account, volumeName, staging); err != nil {
+		logger.Error(err, "converge: replace master", "vm", vmName, "account", account)
 		return
 	}
 	RecordVolumeConverged()
-	logger.Info("converged master to HEAD", "vm", entry.VMName, "account", account, "generation", head.Generation)
+	logger.Info("converged master to HEAD", "vm", vmName, "account", account, "generation", head.Generation)
 }
 
 // downloadAndExtract fetches the master archive from a presigned URL and expands
