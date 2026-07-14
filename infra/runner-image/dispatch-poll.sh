@@ -49,6 +49,31 @@ source /etc/tuist.env
 
 : "${TUIST_RUNNER_DISPATCH_URL:?TUIST_RUNNER_DISPATCH_URL not set}"
 
+keep_desktop_interactive() {
+  # ByHost screensaver preferences are tied to the cloned VM's
+  # runtime host UUID, so the image-build defaults alone are not
+  # enough. Re-apply them inside the booted runner session before a
+  # job can be probed over VNC.
+  sudo pmset -a sleep 0 displaysleep 0 disksleep 0 >/dev/null 2>&1 || true
+  sudo defaults write /Library/Preferences/com.apple.loginwindow autoLoginUser -string runner >/dev/null 2>&1 || true
+  sudo defaults write /Library/Preferences/.GlobalPreferences com.apple.autologout.AutoLogOutDelay -int 0 >/dev/null 2>&1 || true
+
+  defaults write com.apple.screensaver idleTime -int 0 >/dev/null 2>&1 || true
+  defaults write com.apple.screensaver askForPassword -bool false >/dev/null 2>&1 || true
+  defaults write com.apple.screensaver askForPasswordDelay -int 0 >/dev/null 2>&1 || true
+  defaults -currentHost write com.apple.screensaver idleTime -int 0 >/dev/null 2>&1 || true
+  defaults -currentHost write com.apple.screensaver askForPassword -bool false >/dev/null 2>&1 || true
+  defaults -currentHost write com.apple.screensaver askForPasswordDelay -int 0 >/dev/null 2>&1 || true
+  /usr/bin/killall cfprefsd >/dev/null 2>&1 || true
+
+  if [ -x /usr/bin/caffeinate ]; then
+    /usr/bin/caffeinate -dims -w "$$" >/dev/null 2>&1 &
+    echo "$(date -u +%FT%TZ) dispatch-poll: desktop sleep and screen lock disabled"
+  fi
+}
+
+keep_desktop_interactive
+
 # In-VM cluster DNS for the runner-cache path. When the
 # runners-controller staged TUIST_CLUSTER_DNS_IP (macOS pools in
 # environments whose Mac minis have the tailnet route into the
