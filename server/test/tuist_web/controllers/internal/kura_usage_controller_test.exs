@@ -5,6 +5,7 @@ defmodule TuistWeb.Internal.KuraUsageControllerTest do
   alias Boruta.Oauth.Client
   alias Tuist.ClickHouseRepo
   alias Tuist.Environment
+  alias Tuist.Kura.SelfHostedClients
   alias Tuist.Kura.UsageEvent
   alias Tuist.OAuth.Clients
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -93,6 +94,21 @@ defmodule TuistWeb.Internal.KuraUsageControllerTest do
 
     assert account_id == account.id
     assert project_id == project.id
+  end
+
+  test "marks usage submitted by a customer-operated node as non-billable", %{conn: conn} do
+    stub(Environment, :tuist_hosted?, fn -> false end)
+    account = AccountsFixtures.organization_fixture(name: "acme").account
+    ProjectsFixtures.project_fixture(account: account, name: "ios")
+
+    {:ok, {client, secret}} =
+      SelfHostedClients.create_self_hosted_client(account, %{name: "customer cache"})
+
+    conn =
+      post_events(conn, [build_event()], authorization: authorization_header(client.client_id, secret))
+
+    assert %{"accepted" => 1} = json_response(conn, 202)
+    assert [%UsageEvent{traffic_plane: "customer_operated"}] = ClickHouseRepo.all(UsageEvent)
   end
 
   test "rejects missing credentials", %{conn: conn} do

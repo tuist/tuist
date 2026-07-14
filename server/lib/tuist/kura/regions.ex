@@ -238,6 +238,16 @@ defmodule Tuist.Kura.Regions do
   def all, do: managed_regions() ++ [local_controller_region()]
 
   @doc """
+  Region identifiers whose client traffic leaves a Tuist-managed cache through the
+  public Internet and is therefore eligible for egress billing.
+
+  Private runner-cache regions and the local controller are intentionally not
+  included. Keeping this list derived from the public managed-region catalog
+  also excludes traffic reported by customer-operated, self-hosted nodes.
+  """
+  def billable_egress_region_identifiers, do: Enum.map(@managed_region_specs, & &1.id)
+
+  @doc """
   Regions exposed in the current runtime environment. Dev/test sees
   only the controller-backed local region so a developer can't
   accidentally provision into managed infrastructure. Managed runtimes

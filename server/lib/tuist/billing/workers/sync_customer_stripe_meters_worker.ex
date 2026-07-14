@@ -23,6 +23,7 @@ defmodule Tuist.Billing.Workers.SyncCustomerStripeMetersWorker do
     {:ok, account} = Accounts.get_account_from_customer_id(customer_id)
 
     {:ok, _} = Billing.update_remote_cache_hit_meter(customer_id, idempotency_key)
+    {:ok, _} = Billing.update_cache_egress_meter(account, idempotency_key)
 
     if FunWithFlags.enabled?(:qa_billing_enabled, for: account) do
       {:ok, _} = Billing.update_llm_token_meters(customer_id, idempotency_key)

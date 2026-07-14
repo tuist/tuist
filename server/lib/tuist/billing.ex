@@ -14,6 +14,7 @@ defmodule Tuist.Billing do
   alias Tuist.Billing.Subscription
   alias Tuist.Billing.TokenUsage
   alias Tuist.CommandEvents
+  alias Tuist.Kura.Usage
   alias Tuist.Repo
 
   # Unfortunately, this data can't be obtained and cached
@@ -120,6 +121,47 @@ defmodule Tuist.Billing do
       })
       |> Stripe.Request.put_method(:post)
       |> Stripe.Request.make_request()
+  end
+
+  @doc """
+  Reports the previous day's billable cache egress to Stripe in bytes.
+
+  The Kura usage query includes only public client traffic from
+  Tuist-managed public regions, so private runner-cache and customer-operated
+  traffic never reaches the meter. Zero-value days are skipped because Stripe
+  meter events require a positive integer value.
+  """
+  def update_cache_egress_meter(
+        %Account{customer_id: customer_id} = account,
+        idempotency_key,
+        now \\ Tuist.Time.utc_now()
+      )
+      when is_binary(customer_id) do
+    start_of_yesterday = now |> Timex.shift(days: -1) |> Timex.beginning_of_day()
+    end_of_yesterday = now |> Timex.shift(days: -1) |> Timex.end_of_day()
+    bytes = Usage.billable_egress_bytes(account.id, start_of_yesterday, end_of_yesterday)
+
+    if bytes > 0 do
+      path = Stripe.OpenApi.Path.replace_path_params("/v1/billing/meter_events", [], [])
+      usage_date = start_of_yesterday |> DateTime.to_date() |> Date.to_iso8601()
+
+      []
+      |> Stripe.Request.new_request(%{"Idempotency-Key" => "#{idempotency_key}-cache-egress-byte"})
+      |> Stripe.Request.put_endpoint(path)
+      |> Stripe.Request.put_params(%{
+        event_name: "cache_egress_byte",
+        identifier: "#{customer_id}-cache-egress-byte-#{usage_date}",
+        timestamp: DateTime.to_unix(start_of_yesterday),
+        payload: %{
+          value: bytes,
+          stripe_customer_id: customer_id
+        }
+      })
+      |> Stripe.Request.put_method(:post)
+      |> Stripe.Request.make_request()
+    else
+      {:ok, :no_usage}
+    end
   end
 
   def update_plan(%{plan: plan, account: %Account{} = account, success_url: success_url}) do
@@ -404,6 +446,29 @@ defmodule Tuist.Billing do
         limit: 1
       )
     )
+  end
+
+  @doc """
+  Returns the current billing period to date for an account.
+
+  Active subscriptions use Stripe's period boundary. Accounts without an
+  active subscription use the current calendar month so metered usage still
+  has a stable reset point before a price is attached.
+  """
+  def current_billing_period(%Account{} = account, now \\ Tuist.Time.utc_now()) do
+    start_at =
+      case get_current_active_subscription(account) do
+        nil ->
+          Timex.beginning_of_month(now)
+
+        %Subscription{subscription_id: subscription_id} ->
+          {:ok, %{current_period_start: current_period_start}} =
+            Stripe.Subscription.retrieve(subscription_id)
+
+          DateTime.from_unix!(current_period_start)
+      end
+
+    %{start_at: start_at, end_at: now}
   end
 
   @doc """

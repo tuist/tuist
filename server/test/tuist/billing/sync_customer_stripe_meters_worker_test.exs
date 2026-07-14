@@ -19,6 +19,10 @@ defmodule Tuist.Billing.Workers.SyncCustomerStripeMetersWorkerWorkerTest do
       {:ok, :updated}
     end)
 
+    expect(Tuist.Billing, :update_cache_egress_meter, fn ^account, ^idempotency_key ->
+      {:ok, :updated}
+    end)
+
     expect(Tuist.Billing, :update_llm_token_meters, fn ^customer_id, ^idempotency_key ->
       {:ok, :updated}
     end)
@@ -41,6 +45,10 @@ defmodule Tuist.Billing.Workers.SyncCustomerStripeMetersWorkerWorkerTest do
     stub(FunWithFlags, :enabled?, fn :qa_billing_enabled, [for: ^account] -> false end)
 
     expect(Tuist.Billing, :update_remote_cache_hit_meter, fn ^customer_id, ^idempotency_key ->
+      {:ok, :updated}
+    end)
+
+    expect(Tuist.Billing, :update_cache_egress_meter, fn ^account, ^idempotency_key ->
       {:ok, :updated}
     end)
 

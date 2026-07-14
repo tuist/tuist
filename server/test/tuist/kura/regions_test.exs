@@ -262,6 +262,19 @@ defmodule Tuist.Kura.RegionsTest do
     end
   end
 
+  describe "billable_egress_region_identifiers/0" do
+    test "includes public managed regions and excludes private and customer-operated regions" do
+      identifiers = Regions.billable_egress_region_identifiers()
+
+      assert "us-east" in identifiers
+      assert "us-west" in identifiers
+      assert "eu-central" in identifiers
+      refute "scw-fr-par-runners" in identifiers
+      refute "hetzner-staging-runners" in identifiers
+      refute "local-controller" in identifiers
+    end
+  end
+
   describe "serves_runner_platform?/2" do
     test "scaleway region serves only the co-located macOS fleet" do
       scw = Regions.get("scw-fr-par-runners")

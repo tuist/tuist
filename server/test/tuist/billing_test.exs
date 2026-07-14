@@ -9,6 +9,7 @@ defmodule Tuist.BillingTest do
   alias Tuist.Billing.Customer
   alias Tuist.Billing.PaymentMethod
   alias Tuist.Environment
+  alias Tuist.Kura.Usage
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.BillingFixtures
 
@@ -493,6 +494,54 @@ defmodule Tuist.BillingTest do
     end
   end
 
+  describe "update_cache_egress_meter/3" do
+    test "sends yesterday's billable public egress bytes to Stripe" do
+      customer_id = "customer_id"
+      now = ~U[2026-07-14 08:30:00Z]
+
+      %{account: account} =
+        AccountsFixtures.user_fixture(customer_id: customer_id)
+
+      expect(Usage, :billable_egress_bytes, fn account_id, start_date, end_date ->
+        assert account_id == account.id
+        assert start_date == ~U[2026-07-13 00:00:00Z]
+        assert end_date == ~U[2026-07-13 23:59:59Z]
+        12_345
+      end)
+
+      expect(Stripe.Request, :make_request, fn %{
+                                                 method: :post,
+                                                 endpoint: "/v1/billing/meter_events",
+                                                 headers: %{
+                                                   "Idempotency-Key" => "job-1-cache-egress-byte"
+                                                 },
+                                                 params: %{
+                                                   event_name: "cache_egress_byte",
+                                                   identifier: "customer_id-cache-egress-byte-2026-07-13",
+                                                   timestamp: 1_783_900_800,
+                                                   payload: %{
+                                                     value: 12_345,
+                                                     stripe_customer_id: "customer_id"
+                                                   }
+                                                 }
+                                               } ->
+        {:ok, %{}}
+      end)
+
+      assert {:ok, %{}} = Billing.update_cache_egress_meter(account, "job-1", now)
+    end
+
+    test "does not send a zero-value meter event" do
+      now = ~U[2026-07-14 08:30:00Z]
+      %{account: account} = AccountsFixtures.user_fixture(customer_id: "customer_id")
+
+      expect(Usage, :billable_egress_bytes, fn _account_id, _start_date, _end_date -> 0 end)
+      reject(&Stripe.Request.make_request/1)
+
+      assert {:ok, :no_usage} = Billing.update_cache_egress_meter(account, "job-1", now)
+    end
+  end
+
   describe "get_customer_by_id/1" do
     test "returns the customer when it exists" do
       # Given
@@ -679,6 +728,38 @@ defmodule Tuist.BillingTest do
 
       # Then
       assert got == nil
+    end
+  end
+
+  describe "current_billing_period/2" do
+    test "uses the current calendar month when the account has no active subscription" do
+      now = ~U[2026-07-14 10:30:00Z]
+      account = Accounts.get_account_from_user(AccountsFixtures.user_fixture())
+
+      assert Billing.current_billing_period(account, now) == %{
+               start_at: ~U[2026-07-01 00:00:00Z],
+               end_at: now
+             }
+    end
+
+    test "uses the active Stripe subscription period start" do
+      now = ~U[2026-07-14 10:30:00Z]
+      period_start = ~U[2026-07-05 12:00:00Z]
+      account = Accounts.get_account_from_user(AccountsFixtures.user_fixture())
+
+      BillingFixtures.subscription_fixture(
+        account_id: account.id,
+        subscription_id: "sub_current_period"
+      )
+
+      expect(Stripe.Subscription, :retrieve, fn "sub_current_period" ->
+        {:ok, %{current_period_start: DateTime.to_unix(period_start)}}
+      end)
+
+      assert Billing.current_billing_period(account, now) == %{
+               start_at: period_start,
+               end_at: now
+             }
     end
   end
 

@@ -15,7 +15,7 @@ defmodule TuistWeb.Internal.KuraUsageController do
 
       {:ok, {:account, account}} ->
         if events_scoped_to_account?(events, account) do
-          ingest(conn, events)
+          ingest(conn, customer_operated_events(events))
         else
           conn
           |> put_status(:forbidden)
@@ -47,6 +47,14 @@ defmodule TuistWeb.Internal.KuraUsageController do
         |> put_status(:payload_too_large)
         |> json(%{error: "too_many_events"})
     end
+  end
+
+  # Billing trusts the credential that submitted an event, not a customer-
+  # controlled payload field. A self-hosted node may report public client
+  # traffic, but that traffic did not leave Tuist-managed infrastructure and
+  # must not contribute to the public egress meter.
+  defp customer_operated_events(events) do
+    Enum.map(events, &Map.put(&1, "traffic_plane", "customer_operated"))
   end
 
   # A self-hosted credential may only report usage for its own tenant. Rejecting
