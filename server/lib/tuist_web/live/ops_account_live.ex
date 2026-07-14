@@ -77,7 +77,7 @@ defmodule TuistWeb.OpsAccountLive do
       {:error, changeset} ->
         {:noreply,
          socket
-         |> assign(:runner_concurrency_form, to_form(changeset))
+         |> assign(:runner_concurrency_form, to_form(changeset, as: "account"))
          |> put_flash(:error, dgettext("dashboard", "Runner concurrency limits could not be updated."))}
     end
   end
@@ -227,7 +227,7 @@ defmodule TuistWeb.OpsAccountLive do
   defp runner_concurrency_form(account) do
     account
     |> Concurrency.change_limits()
-    |> to_form()
+    |> to_form(as: "account")
   end
 
   # ISO 3166-1 alpha-2 codes for the countries most likely to appear on

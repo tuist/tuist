@@ -30,10 +30,17 @@ defmodule Tuist.Runners.ConcurrencyTest do
            ]
   end
 
+  test "creates default platform limits for organization accounts" do
+    organization = organization_fixture()
+
+    assert Concurrency.limits_for(organization.account, :linux) == %{vcpus: 32, memory_gb: 64}
+    assert Concurrency.limits_for(organization.account, :macos) == %{vcpus: 12, memory_gb: 28}
+  end
+
   test "updates each platform's limits independently" do
     account = account_fixture()
 
-    assert {:ok, updated} =
+    assert {:ok, _account} =
              Concurrency.update_limits(account, %{
                "runner_linux_vcpus_limit" => "48",
                "runner_linux_memory_gb_limit" => "96",
@@ -41,10 +48,8 @@ defmodule Tuist.Runners.ConcurrencyTest do
                "runner_macos_memory_gb_limit" => "42"
              })
 
-    assert updated.runner_linux_vcpus_limit == 48
-    assert updated.runner_linux_memory_gb_limit == 96
-    assert updated.runner_macos_vcpus_limit == 18
-    assert updated.runner_macos_memory_gb_limit == 42
+    assert Concurrency.limits_for(account, :linux) == %{vcpus: 48, memory_gb: 96}
+    assert Concurrency.limits_for(account, :macos) == %{vcpus: 18, memory_gb: 42}
   end
 
   test "summarizes active resource usage independently by platform" do

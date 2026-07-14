@@ -12,31 +12,45 @@ defmodule Tuist.Runners.Concurrency do
 
   import Ecto.Query
 
+  alias Ecto.Changeset
   alias Tuist.Accounts.Account
   alias Tuist.ClickHouseRepo
   alias Tuist.Repo
   alias Tuist.Runners.Catalog
   alias Tuist.Runners.Claim
+  alias Tuist.Runners.ConcurrencyLimit
   alias Tuist.Runners.Job
 
   @platforms [:linux, :macos]
+  @default_limits %{
+    linux: %{vcpus: 32, memory_gb: 64},
+    macos: %{vcpus: 12, memory_gb: 28}
+  }
+  @limit_form_fields [
+    :runner_linux_vcpus_limit,
+    :runner_linux_memory_gb_limit,
+    :runner_macos_vcpus_limit,
+    :runner_macos_memory_gb_limit
+  ]
+  @limit_form_types Map.new(@limit_form_fields, &{&1, :integer})
 
   @doc """
   Returns platform summaries with current claimed resources and limits.
   """
   def summaries(%Account{} = account) do
     usage = usage_by_platform(account.id)
+    limits = limits_by_platform(account.id)
 
     Enum.map(@platforms, fn platform ->
       platform_usage = Map.fetch!(usage, platform)
-      limits = limits_for(account, platform)
+      platform_limits = limits |> Map.fetch!(platform) |> limit_resources()
 
       %{
         platform: platform,
         used_vcpus: platform_usage.vcpus,
         used_memory_gb: platform_usage.memory_gb,
-        limit_vcpus: limits.vcpus,
-        limit_memory_gb: limits.memory_gb
+        limit_vcpus: platform_limits.vcpus,
+        limit_memory_gb: platform_limits.memory_gb
       }
     end)
   end
@@ -107,19 +121,94 @@ defmodule Tuist.Runners.Concurrency do
   end
 
   @doc """
+  Creates the default Linux and macOS limits for a new account.
+  """
+  def create_default_limits(%Account{id: account_id}) do
+    Enum.reduce_while(@platforms, {:ok, []}, fn platform, {:ok, limits} ->
+      attrs =
+        @default_limits
+        |> Map.fetch!(platform)
+        |> Map.merge(%{account_id: account_id, platform: platform})
+
+      case %ConcurrencyLimit{} |> ConcurrencyLimit.changeset(attrs) |> Repo.insert() do
+        {:ok, limit} -> {:cont, {:ok, [limit | limits]}}
+        {:error, changeset} -> {:halt, {:error, changeset}}
+      end
+    end)
+  end
+
+  @doc """
   Builds a changeset for the ops concurrency-limits form.
   """
   def change_limits(%Account{} = account, attrs \\ %{}) do
-    Account.runner_concurrency_limits_changeset(account, attrs)
+    limits = limits_by_platform(account.id)
+    linux = limits |> Map.fetch!(:linux) |> limit_resources()
+    macos = limits |> Map.fetch!(:macos) |> limit_resources()
+
+    data = %{
+      runner_linux_vcpus_limit: linux.vcpus,
+      runner_linux_memory_gb_limit: linux.memory_gb,
+      runner_macos_vcpus_limit: macos.vcpus,
+      runner_macos_memory_gb_limit: macos.memory_gb
+    }
+
+    {data, @limit_form_types}
+    |> Changeset.cast(attrs, @limit_form_fields)
+    |> Changeset.validate_required(@limit_form_fields)
+    |> Changeset.validate_number(:runner_linux_vcpus_limit, greater_than: 0)
+    |> Changeset.validate_number(:runner_linux_memory_gb_limit, greater_than: 0)
+    |> Changeset.validate_number(:runner_macos_vcpus_limit, greater_than: 0)
+    |> Changeset.validate_number(:runner_macos_memory_gb_limit, greater_than: 0)
   end
 
   @doc """
   Persists custom concurrency limits for an account.
   """
   def update_limits(%Account{} = account, attrs) when is_map(attrs) do
-    account
-    |> change_limits(attrs)
-    |> Repo.update()
+    changeset = change_limits(account, attrs)
+
+    case Changeset.apply_action(changeset, :update) do
+      {:ok, values} ->
+        Repo.transaction(fn ->
+          limits =
+            ConcurrencyLimit
+            |> where([limit], limit.account_id == ^account.id)
+            |> order_by([limit], limit.platform)
+            |> lock("FOR UPDATE")
+            |> Repo.all()
+
+          if length(limits) != length(@platforms) do
+            Repo.rollback(:runner_concurrency_limits_missing)
+          end
+
+          Enum.each(limits, fn limit ->
+            attrs = form_values_for_platform(values, limit.platform)
+
+            limit
+            |> ConcurrencyLimit.changeset(attrs)
+            |> Repo.update!()
+          end)
+
+          account
+        end)
+
+      {:error, changeset} ->
+        {:error, changeset}
+    end
+  end
+
+  defp form_values_for_platform(values, :linux) do
+    %{
+      vcpus: values.runner_linux_vcpus_limit,
+      memory_gb: values.runner_linux_memory_gb_limit
+    }
+  end
+
+  defp form_values_for_platform(values, :macos) do
+    %{
+      vcpus: values.runner_macos_vcpus_limit,
+      memory_gb: values.runner_macos_memory_gb_limit
+    }
   end
 
   defp usage_events(account_id, start_dt, end_dt) do
@@ -378,18 +467,23 @@ defmodule Tuist.Runners.Concurrency do
   @doc """
   Returns the configured resource limits for `platform`.
   """
-  def limits_for(%Account{} = account, :linux) do
-    %{
-      vcpus: account.runner_linux_vcpus_limit,
-      memory_gb: account.runner_linux_memory_gb_limit
-    }
+  def limits_for(%Account{id: account_id}, platform), do: limits_for(account_id, platform)
+
+  def limits_for(account_id, platform) when is_integer(account_id) and platform in @platforms do
+    ConcurrencyLimit
+    |> Repo.get_by!(account_id: account_id, platform: platform)
+    |> limit_resources()
   end
 
-  def limits_for(%Account{} = account, :macos) do
-    %{
-      vcpus: account.runner_macos_vcpus_limit,
-      memory_gb: account.runner_macos_memory_gb_limit
-    }
+  def limit_resources(%ConcurrencyLimit{} = limit) do
+    %{vcpus: limit.vcpus, memory_gb: limit.memory_gb}
+  end
+
+  defp limits_by_platform(account_id) do
+    ConcurrencyLimit
+    |> where([limit], limit.account_id == ^account_id)
+    |> Repo.all()
+    |> Map.new(&{&1.platform, &1})
   end
 
   defp zero_usage do

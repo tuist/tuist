@@ -8,6 +8,7 @@ defmodule Tuist.Runners.ClaimsConcurrencyTest do
   alias Tuist.Repo
   alias Tuist.Runners.Claim
   alias Tuist.Runners.Claims
+  alias Tuist.Runners.ConcurrencyLimit
 
   @linux_resources %{platform: :linux, vcpus: 1, memory_gb: 1}
 
@@ -159,7 +160,6 @@ defmodule Tuist.Runners.ClaimsConcurrencyTest do
 
   defp hold_platform_lock(account_id, platform) do
     parent = self()
-    lock_key = if platform == :linux, do: account_id, else: -account_id
 
     task =
       Task.async(fn ->
@@ -167,7 +167,13 @@ defmodule Tuist.Runners.ClaimsConcurrencyTest do
 
         try do
           Repo.transaction(fn ->
-            Repo.query!("SELECT pg_advisory_xact_lock($1::bigint)", [lock_key])
+            Repo.one!(
+              from(limit in ConcurrencyLimit,
+                where: limit.account_id == ^account_id and limit.platform == ^platform,
+                lock: "FOR UPDATE"
+              )
+            )
+
             send(parent, {:platform_lock_held, self()})
 
             receive do

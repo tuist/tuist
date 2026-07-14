@@ -9,9 +9,9 @@ defmodule Tuist.Runners.Claims do
     1. **Atomic claim.** `attempt/5` runs the full check-and-set
        inside a single Postgres transaction. It inserts the
        uniqueness-sensitive reservation before acquiring a non-blocking
-       advisory lock keyed on `(account_id, platform)`, so a unique-index
-       wait cannot hold the account's admission lock. Once acquired, the
-       lock covers only the resource aggregate, capacity decision, and
+       row lock on the account's platform limit, so a unique-index wait
+       cannot hold the account's admission lock. Once acquired, the lock
+       covers only the resource aggregate, capacity decision, and
        transaction completion:
 
          * platform resource-limit check against the account's
@@ -64,14 +64,15 @@ defmodule Tuist.Runners.Claims do
   alias Tuist.Repo
   alias Tuist.Runners.Claim
   alias Tuist.Runners.Concurrency
+  alias Tuist.Runners.ConcurrencyLimit
 
   @doc """
   Attempts to claim `workflow_job_id` for `pod_name` on behalf of
   `account_id`, consuming the requested platform resources. Runs
   check-and-set inside one Postgres transaction. The claim reservation
-  is inserted before taking the non-blocking advisory lock on
-  `(account_id, platform)`; the lock then serialises the capacity check
-  through transaction completion:
+  is inserted before taking a non-blocking row lock on the account's
+  platform limit; the lock then serialises the capacity check through
+  transaction completion:
 
   Returns one of:
 
@@ -80,6 +81,8 @@ defmodule Tuist.Runners.Claims do
     * `{:error, :account_busy}` — another transaction is currently
       admitting work for this account and platform. The caller should
       try another account instead of waiting.
+    * `{:error, :concurrency_limit_missing}` — the account's platform
+      limit invariant is broken and admission cannot proceed safely.
     * `{:error, :lost_race}` — another pod beat us to the
       `workflow_job_id` PK.
     * `{:error, {:concurrency_limit_reached, details}}` — adding the
@@ -95,8 +98,8 @@ defmodule Tuist.Runners.Claims do
         result =
           with {:ok, account} <- fetch_account(account_id),
                {:ok, claim} <- insert_claim(workflow_job_id, account.id, fleet_name, pod_name, resources),
-               :ok <- try_acquire_account_platform_lock(account.id, resources.platform),
-               :ok <- check_reserved_capacity(account, resources) do
+               {:ok, limit} <- try_lock_concurrency_limit(account.id, resources.platform),
+               :ok <- check_reserved_capacity(account.id, limit, resources) do
             {:ok, claim}
           end
 
@@ -124,21 +127,24 @@ defmodule Tuist.Runners.Claims do
   defp positive_integer?(value), do: is_integer(value) and value > 0
   defp non_empty_binary?(value), do: is_binary(value) and value != ""
 
-  defp try_acquire_account_platform_lock(account_id, platform) do
-    lock_key = account_platform_lock_key(account_id, platform)
+  defp try_lock_concurrency_limit(account_id, platform) do
+    limit_query =
+      from(limit in ConcurrencyLimit,
+        where: limit.account_id == ^account_id and limit.platform == ^platform
+      )
 
-    case Repo.query("SELECT pg_try_advisory_xact_lock($1::bigint)", [lock_key]) do
-      {:ok, %{rows: [[true]]}} -> :ok
-      {:ok, %{rows: [[false]]}} -> {:error, :account_busy}
-      {:error, reason} -> {:error, {:lock_failed, reason}}
+    case Repo.one(from(limit in limit_query, lock: "FOR UPDATE SKIP LOCKED")) do
+      %ConcurrencyLimit{} = limit ->
+        {:ok, limit}
+
+      nil ->
+        if Repo.exists?(limit_query) do
+          {:error, :account_busy}
+        else
+          {:error, :concurrency_limit_missing}
+        end
     end
   end
-
-  # Account IDs are positive bigint values. Mapping Linux to the positive
-  # ID and macOS to its negative gives each platform a distinct,
-  # collision-free lock key across the full account ID range.
-  defp account_platform_lock_key(account_id, :linux), do: account_id
-  defp account_platform_lock_key(account_id, :macos), do: -account_id
 
   defp fetch_account(account_id) do
     case Repo.get(Account, account_id) do
@@ -147,8 +153,8 @@ defmodule Tuist.Runners.Claims do
     end
   end
 
-  defp check_reserved_capacity(account, resources) do
-    reserved = usage_for_platform(account.id, resources.platform)
+  defp check_reserved_capacity(account_id, limit, resources) do
+    reserved = usage_for_platform(account_id, resources.platform)
 
     # The transaction sees its own reservation; preserve the `fits?/3`
     # contract by passing only the usage that existed before this claim.
@@ -157,7 +163,7 @@ defmodule Tuist.Runners.Claims do
       memory_gb: reserved.memory_gb - resources.memory_gb
     }
 
-    limit = Concurrency.limits_for(account, resources.platform)
+    limit = Concurrency.limit_resources(limit)
 
     if Concurrency.fits?(used, limit, resources) do
       :ok

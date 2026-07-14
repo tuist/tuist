@@ -8,7 +8,7 @@ defmodule TuistWeb.OpsAccountLiveTest do
   alias Tuist.Accounts
   alias Tuist.Billing
   alias Tuist.Kura
-  alias Tuist.Repo
+  alias Tuist.Runners.Concurrency
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.BillingFixtures
 
@@ -47,11 +47,8 @@ defmodule TuistWeb.OpsAccountLiveTest do
     })
     |> render_submit()
 
-    account = Repo.reload(user.account)
-    assert account.runner_linux_vcpus_limit == 48
-    assert account.runner_linux_memory_gb_limit == 96
-    assert account.runner_macos_vcpus_limit == 18
-    assert account.runner_macos_memory_gb_limit == 42
+    assert Concurrency.limits_for(user.account, :linux) == %{vcpus: 48, memory_gb: 96}
+    assert Concurrency.limits_for(user.account, :macos) == %{vcpus: 18, memory_gb: 42}
   end
 
   test "links Kura servers to their latest deployment", %{conn: conn, user: user} do

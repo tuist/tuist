@@ -7,6 +7,7 @@ defmodule Tuist.Runners.ClaimsTest do
   alias Tuist.Repo
   alias Tuist.Runners.Claim
   alias Tuist.Runners.Claims
+  alias Tuist.Runners.ConcurrencyLimit
 
   @linux_resources %{platform: :linux, vcpus: 1, memory_gb: 1}
 
@@ -98,6 +99,21 @@ defmodule Tuist.Runners.ClaimsTest do
 
       assert {:ok, _} = Claims.attempt(1450, account.id, "fleet-macos", "pod-macos", macos_resources)
       assert {:ok, _} = Claims.attempt(1451, account.id, "fleet-linux", "pod-linux", linux_resources)
+    end
+
+    test "fails closed when a platform limit row is missing" do
+      account = account_fixture()
+
+      Repo.delete_all(
+        from(limit in ConcurrencyLimit,
+          where: limit.account_id == ^account.id and limit.platform == :linux
+        )
+      )
+
+      assert {:error, :concurrency_limit_missing} =
+               Claims.attempt(1460, account.id, "fleet-linux", "pod-linux", @linux_resources)
+
+      refute Repo.exists?(from(claim in Claim, where: claim.workflow_job_id == 1460))
     end
   end
 
