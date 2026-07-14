@@ -421,10 +421,15 @@ runnersFleet:
   # headroom) policy. `minWarmPoolFloor` is the always-on warm
   # guarantee; the sum across overrides must stay ≤ `hostCount`.
   xcodeOverrides:
-    "26.5":
+    "26.6":
       autoscaling:
         enabled: true
         minWarmPoolFloor: 1
+        maxReplicas: 1
+    "26.5":
+      autoscaling:
+        enabled: true
+        minWarmPoolFloor: 0
         maxReplicas: 1
     "26.4.1":
       autoscaling:
