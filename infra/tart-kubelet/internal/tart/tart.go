@@ -257,6 +257,13 @@ type RunOptions struct {
 	// SharedDirs are Tart --dir mounts, for example env:/path:ro.
 	SharedDirs []string
 
+	// Disks are additional block devices attached via `tart run --disk
+	// <path>`, on top of the VM's root disk. The per-account cache volume
+	// attaches its per-VM branch image here. The list is plural
+	// from day one so generic user-declared volumes (spec #69) compose
+	// without a wrapper change; v1 passes at most one.
+	Disks []string
+
 	// VNC enables Tart's host-owned experimental VNC server while keeping
 	// the VM headless. Tart prints a one-time password; Run captures it
 	// into RunHandle and redacts it from the VM log.
@@ -329,6 +336,15 @@ func (c *Client) RunWithOptions(ctx context.Context, name string, opts RunOption
 	for _, dir := range opts.SharedDirs {
 		args = append(args, "--dir", dir)
 	}
+	// Additional block devices (the per-account cache volume branch).
+	// Attached plainly: unlike the root disk (whose caching is set via the
+	// dedicated --root-disk-opts flag), tart 2.32's `--disk` takes a bare
+	// path (with only `:ro`-style flags), so a `:caching=cached` suffix here
+	// is parsed as part of the path and fails the attach. The branch is a
+	// CoW clone, as ephemeral as the VM, so default caching is fine.
+	for _, disk := range opts.Disks {
+		args = append(args, "--disk", disk)
+	}
 
 	logPath := filepath.Join(c.LogDir, name+".log")
 	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
@@ -394,7 +410,11 @@ func (c *Client) RunWithOptions(ctx context.Context, name string, opts RunOption
 	// handle.Exited() on subsequent passes.
 	select {
 	case <-handle.done:
-		return nil, fmt.Errorf("tart run %s exited immediately: %w (see %s)", name, handle.exitErr, logPath)
+		// Fold the tail of the tart log into the error so the actual tart
+		// failure (unknown --disk option, admission refusal, bad image)
+		// reaches `kubectl describe` / the Pod event instead of only
+		// "exit status 1" with a host-local logpath we can't read remotely.
+		return nil, fmt.Errorf("tart run %s exited immediately: %w (see %s)\n--- tart log tail ---\n%s", name, handle.exitErr, logPath, tailFile(logPath, 20))
 	case <-ctx.Done():
 		// Parent ctx cancelled. The Setsid-detached process keeps
 		// running; recoverState rebinds it after a kubelet restart.
@@ -402,6 +422,22 @@ func (c *Client) RunWithOptions(ctx context.Context, name string, opts RunOption
 	case <-time.After(5 * time.Second):
 		return handle, nil
 	}
+}
+
+// tailFile returns the last n non-empty lines of a file, best-effort.
+// Used to surface the tail of a VM's tart log in an error when the VM
+// exits immediately, since the log path itself is host-local and not
+// reachable from wherever the Pod status is read.
+func tailFile(path string, n int) string {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Sprintf("(could not read %s: %v)", path, err)
+	}
+	lines := strings.Split(strings.TrimRight(string(data), "\n"), "\n")
+	if len(lines) > n {
+		lines = lines[len(lines)-n:]
+	}
+	return strings.Join(lines, "\n")
 }
 
 var vncURLPattern = regexp.MustCompile(`vnc://\S+`)
@@ -641,6 +677,23 @@ func (c *Client) StageServiceAccountToken(name, token string) error {
 		return fmt.Errorf("write sa_token: %w", err)
 	}
 	return nil
+}
+
+// StatusDir creates and returns the per-VM writable status directory
+// (<UserDataDir>/<vm>/status), shared into the guest rw so the guest can
+// report the cache dirty marker back to the host. World-writable because the
+// virtiofs share is consumed by the guest's unprivileged `runner` user; it
+// holds only the guest's own tiny marker file and is torn down with the VM.
+func (c *Client) StatusDir(name string) (string, error) {
+	dir := filepath.Join(c.UserDataDir, name, "status")
+	if err := os.MkdirAll(dir, 0o777); err != nil {
+		return "", fmt.Errorf("mkdir status dir: %w", err)
+	}
+	// MkdirAll honours umask; force the mode so the guest can write.
+	if err := os.Chmod(dir, 0o777); err != nil {
+		return "", fmt.Errorf("chmod status dir: %w", err)
+	}
+	return dir, nil
 }
 
 // CleanupVMUserData removes <UserDataDir>/<vm>. Best-effort.

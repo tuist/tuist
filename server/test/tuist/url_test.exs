@@ -89,6 +89,30 @@ defmodule Tuist.URLTest do
     end
   end
 
+  describe "public_host_url?/1" do
+    test "accepts a public host with a presigned-style query string" do
+      assert URL.public_host_url?(
+               "https://bucket.fly.storage.tigris.dev/runner-volume-masters/1/tuist-cache.zip?X-Amz-Signature=abc&X-Amz-Expires=60"
+             )
+    end
+
+    test "rejects private, loopback, and link-local hosts even with a query" do
+      refute URL.public_host_url?("https://localhost/x?sig=1")
+      refute URL.public_host_url?("http://127.0.0.1/x?sig=1")
+      refute URL.public_host_url?("https://10.0.0.5/x?sig=1")
+      refute URL.public_host_url?("https://169.254.169.254/latest/meta-data?sig=1")
+    end
+
+    test "rejects non-https outside dev/test and non-URL values" do
+      stub(Environment, :dev?, fn -> false end)
+      stub(Environment, :test?, fn -> false end)
+
+      refute URL.public_host_url?("http://bucket.example.com/x?sig=1")
+      refute URL.public_host_url?("not-a-url")
+      refute URL.public_host_url?(nil)
+    end
+  end
+
   describe "sso_url?/1" do
     test "uses public URL validation on Tuist-hosted installations" do
       stub(Environment, :tuist_hosted?, fn -> true end)
