@@ -82,7 +82,29 @@ if [ -z "${SA_TOKEN}" ]; then
   exit 1
 fi
 
-if [ -d /tmp/tuist-runner-shell-agent.lock ]; then
+shell_agent_lock_active() {
+  local lock_dir=/tmp/tuist-runner-shell-agent.lock
+  local pid_file="${lock_dir}/pid"
+  local lock_pid=""
+
+  if [ ! -d "${lock_dir}" ]; then
+    return 1
+  fi
+
+  if [ -f "${pid_file}" ]; then
+    read -r lock_pid <"${pid_file}" || lock_pid=""
+  fi
+
+  if [ -n "${lock_pid}" ] && kill -0 "${lock_pid}" 2>/dev/null; then
+    return 0
+  fi
+
+  echo "$(date -u +%FT%TZ) dispatch-poll: removing stale runner-shell-agent lock"
+  rm -rf "${lock_dir}"
+  return 1
+}
+
+if shell_agent_lock_active; then
   echo "$(date -u +%FT%TZ) dispatch-poll: runner-shell-agent supervisor already active"
 elif [ -x /opt/tuist/runner-shell-agent-supervisor.sh ]; then
   echo "$(date -u +%FT%TZ) dispatch-poll: starting runner-shell-agent supervisor"

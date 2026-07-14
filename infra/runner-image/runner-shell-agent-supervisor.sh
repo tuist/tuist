@@ -12,11 +12,29 @@ exec >>"${LOG}" 2>&1
 echo "$(date -u +%FT%TZ) runner-shell-agent-supervisor: starting"
 
 LOCK_DIR=/tmp/tuist-runner-shell-agent.lock
+LOCK_PID_FILE="${LOCK_DIR}/pid"
 while ! mkdir "${LOCK_DIR}" 2>/dev/null; do
+  lock_pid=""
+  if [ -f "${LOCK_PID_FILE}" ]; then
+    read -r lock_pid <"${LOCK_PID_FILE}" || lock_pid=""
+  else
+    sleep 1
+    if [ -f "${LOCK_PID_FILE}" ]; then
+      read -r lock_pid <"${LOCK_PID_FILE}" || lock_pid=""
+    fi
+  fi
+
+  if [ -z "${lock_pid}" ] || ! kill -0 "${lock_pid}" 2>/dev/null; then
+    echo "$(date -u +%FT%TZ) runner-shell-agent-supervisor: removing stale lock at ${LOCK_DIR}"
+    rm -rf "${LOCK_DIR}"
+    continue
+  fi
+
   echo "$(date -u +%FT%TZ) runner-shell-agent-supervisor: another supervisor is active; waiting"
   sleep 30
 done
-trap 'rmdir "${LOCK_DIR}" 2>/dev/null || true' EXIT
+echo "$$" >"${LOCK_PID_FILE}"
+trap 'rm -rf "${LOCK_DIR}" 2>/dev/null || true' EXIT
 
 while true; do
   if [ -f /etc/tuist.env ] && [ -f /etc/tuist-sa-token ]; then
