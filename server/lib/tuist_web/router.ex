@@ -841,6 +841,8 @@ defmodule TuistWeb.Router do
       live "/accounts", TuistWeb.OpsAccountsLive
       live "/accounts/:id", TuistWeb.OpsAccountLive
       live "/accounts/:id/kura/deployments/:deployment_id", TuistWeb.OpsAccountKuraDeploymentLive
+      live "/registry", TuistWeb.OpsRegistryLive
+      live "/registry/:scope/:name", TuistWeb.OpsRegistryPackageLive
       live "/db", TuistWeb.OpsDatabaseLive
       live "/db/tables/:schema/:name", TuistWeb.OpsDatabaseTableLive
     end

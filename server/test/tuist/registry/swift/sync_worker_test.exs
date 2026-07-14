@@ -7,6 +7,7 @@ defmodule Tuist.Registry.Swift.SyncWorkerTest do
   alias Tuist.Registry
   alias Tuist.Registry.Swift.Lock
   alias Tuist.Registry.Swift.Metadata
+  alias Tuist.Registry.Swift.Purge
   alias Tuist.Registry.Swift.ReleaseWorker
   alias Tuist.Registry.Swift.SwiftPackageIndex
   alias Tuist.Registry.Swift.SyncCursor
@@ -165,5 +166,174 @@ defmodule Tuist.Registry.Swift.SyncWorkerTest do
     expect(SwiftPackageIndex, :list_packages, fn "token" -> {:error, {:http_error, 403}} end)
 
     assert {:error, {:http_error, 403}} = SyncWorker.perform(%Oban.Job{args: %{}})
+  end
+
+  test "force resyncs only the requested package version without taking the catalog lock" do
+    package = %{
+      scope: "apple",
+      name: "swift-argument-parser",
+      repository_full_handle: "apple/swift-argument-parser"
+    }
+
+    expect(SwiftPackageIndex, :list_packages, fn "token" -> {:ok, [package]} end)
+
+    expect(Lock, :try_acquire, fn
+      {:package, "apple", "swift-argument-parser"}, _ -> {:ok, :acquired}
+    end)
+
+    expect(TuistCommon.GitHub, :list_tags, fn "apple/swift-argument-parser", "token", _ ->
+      {:ok, ["v1.2.3", "2.0.0"]}
+    end)
+
+    expect(Purge, :purge_version, fn "apple", "swift-argument-parser", "1.2.3" ->
+      {:ok, %{artifacts_deleted: 1, metadata: %{removed_from: ["releases"]}}}
+    end)
+
+    assert :ok =
+             SyncWorker.perform(%Oban.Job{
+               args: %{
+                 "force" => true,
+                 "repository_full_handle" => "apple/swift-argument-parser",
+                 "version" => "1.2.3"
+               }
+             })
+
+    assert_enqueued(
+      worker: ReleaseWorker,
+      args: %{
+        "scope" => "apple",
+        "name" => "swift-argument-parser",
+        "repository_full_handle" => "apple/swift-argument-parser",
+        "tag" => "v1.2.3"
+      }
+    )
+
+    refute_enqueued(
+      worker: ReleaseWorker,
+      args: %{
+        "scope" => "apple",
+        "name" => "swift-argument-parser",
+        "repository_full_handle" => "apple/swift-argument-parser",
+        "tag" => "2.0.0"
+      }
+    )
+  end
+
+  test "does not purge a version when its tags cannot be fetched" do
+    package = %{
+      scope: "apple",
+      name: "swift-argument-parser",
+      repository_full_handle: "apple/swift-argument-parser"
+    }
+
+    expect(SwiftPackageIndex, :list_packages, fn "token" -> {:ok, [package]} end)
+
+    expect(Lock, :try_acquire, fn
+      {:package, "apple", "swift-argument-parser"}, _ -> {:ok, :acquired}
+    end)
+
+    expect(TuistCommon.GitHub, :list_tags, fn "apple/swift-argument-parser", "token", _ ->
+      {:error, :timeout}
+    end)
+
+    assert {:error, :timeout} =
+             SyncWorker.perform(%Oban.Job{
+               args: %{
+                 "force" => true,
+                 "repository_full_handle" => "apple/swift-argument-parser",
+                 "version" => "1.2.3"
+               }
+             })
+
+    refute_enqueued(worker: ReleaseWorker)
+  end
+
+  test "discards force resync requests for versions outside the catalog" do
+    expect(SwiftPackageIndex, :list_packages, fn "token" ->
+      {:ok,
+       [
+         %{
+           scope: "apple",
+           name: "swift-argument-parser",
+           repository_full_handle: "apple/swift-argument-parser"
+         }
+       ]}
+    end)
+
+    assert {:discard, :package_not_found} =
+             SyncWorker.perform(%Oban.Job{
+               args: %{
+                 "force" => true,
+                 "repository_full_handle" => "unknown/package",
+                 "version" => "1.2.3"
+               }
+             })
+
+    refute_enqueued(worker: ReleaseWorker)
+  end
+
+  test "discards force resync requests when the version is not a current source tag" do
+    package = %{
+      scope: "apple",
+      name: "swift-argument-parser",
+      repository_full_handle: "apple/swift-argument-parser"
+    }
+
+    expect(SwiftPackageIndex, :list_packages, fn "token" -> {:ok, [package]} end)
+
+    expect(Lock, :try_acquire, fn
+      {:package, "apple", "swift-argument-parser"}, _ -> {:ok, :acquired}
+    end)
+
+    expect(TuistCommon.GitHub, :list_tags, fn "apple/swift-argument-parser", "token", _ ->
+      {:ok, ["2.0.0"]}
+    end)
+
+    assert {:discard, :version_not_found} =
+             SyncWorker.perform(%Oban.Job{
+               args: %{
+                 "force" => true,
+                 "repository_full_handle" => "apple/swift-argument-parser",
+                 "version" => "1.2.3"
+               }
+             })
+
+    refute_enqueued(worker: ReleaseWorker)
+  end
+
+  test "discards force resync requests with an invalid version" do
+    assert {:discard, :invalid_version} =
+             SyncWorker.perform(%Oban.Job{
+               args: %{
+                 "force" => true,
+                 "repository_full_handle" => "apple/swift-argument-parser",
+                 "version" => "not-a-version"
+               }
+             })
+
+    refute_enqueued(worker: ReleaseWorker)
+  end
+
+  test "snoozes a version resync while the package is locked" do
+    package = %{
+      scope: "apple",
+      name: "swift-argument-parser",
+      repository_full_handle: "apple/swift-argument-parser"
+    }
+
+    expect(SwiftPackageIndex, :list_packages, fn "token" -> {:ok, [package]} end)
+
+    expect(Lock, :try_acquire, fn
+      {:package, "apple", "swift-argument-parser"}, _ -> {:error, :already_locked}
+    end)
+
+    assert {:snooze, 30} =
+             SyncWorker.perform(%Oban.Job{
+               args: %{
+                 "force" => true,
+                 "repository_full_handle" => "apple/swift-argument-parser",
+                 "version" => "1.2.3"
+               }
+             })
   end
 end
