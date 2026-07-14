@@ -34,9 +34,20 @@ defmodule TuistWeb.RunnersController do
             workflow_job_id: workflow_job_id,
             fleet_on_cluster_network: on_cluster_network,
             fleet_platform: fleet_platform
-          }} <-
+          } = dispatched} <-
            Runners.dispatch_for_sa(ns, sa_name) do
-      json(conn, dispatch_response(jit, account, workflow_job_id, on_cluster_network, fleet_platform))
+      json(
+        conn,
+        dispatch_response(
+          jit,
+          account,
+          workflow_job_id,
+          on_cluster_network,
+          fleet_platform,
+          Map.get(dispatched, :cache_signing_grant),
+          Map.get(dispatched, :volume_head)
+        )
+      )
     else
       {:error, :no_work_yet} ->
         send_resp(conn, :no_content, "")
@@ -49,6 +60,14 @@ defmodule TuistWeb.RunnersController do
         # Succeeded, and the runner-pool reconciler replaces it
         # with one on the current image.
         conn |> put_status(:gone) |> json(%{error: "drain", reason: "image stale"})
+
+      {:error, :pod_committed} ->
+        # 410 Gone: this Pod already committed to a dispatch (it carries the
+        # account label) but is polling again, so its dispatch response was lost
+        # and the runner never started. Same clean-exit signal as a drain — the
+        # VM halts and the reconciler replaces the Pod — so it can't serve a
+        # second account on the cache materialized for the first.
+        conn |> put_status(:gone) |> json(%{error: "drain", reason: "pod already committed"})
 
       {:error, :missing_bearer} ->
         conn |> put_status(:unauthorized) |> json(%{error: "missing bearer token"})
@@ -80,6 +99,29 @@ defmodule TuistWeb.RunnersController do
       {:error, reason} ->
         Logger.error("runners: dispatch failed", reason: inspect(reason))
         conn |> put_status(:internal_server_error) |> json(%{error: "dispatch failed"})
+    end
+  end
+
+  # A runner reports the cache-volume it just promoted: it uploaded its branch
+  # to the account's master archive (presigned URL from dispatch) and now bumps
+  # the account's HEAD to that inventory digest. The account is resolved from
+  # the Pod's server-stamped runner-account label, not the body, so a runner
+  # can only advance the HEAD of the account it actually ran.
+  def report_volume_head(conn, params) do
+    digest = Map.get(params, "tree_digest", "")
+    node = Map.get(params, "node_name", "")
+
+    with {:ok, token} <- bearer_token(conn),
+         {:ok, %{namespace: ns, name: sa_name}} <- K8sClient.create_token_review(token),
+         {:ok, account_id} <- Runners.account_id_for_sa(ns, sa_name) do
+      Runners.report_volume_head(account_id, node, digest)
+      send_resp(conn, :no_content, "")
+    else
+      {:error, :missing_bearer} ->
+        conn |> put_status(:unauthorized) |> json(%{error: "missing bearer token"})
+
+      _ ->
+        conn |> put_status(:unauthorized) |> json(%{error: "unauthorized"})
     end
   end
 
@@ -155,12 +197,32 @@ defmodule TuistWeb.RunnersController do
   #     `runner_cache_endpoint_url/2` matches against the private
   #     region's `runner_platforms`, so a node co-located with one
   #     fleet never serves a fleet on the wrong side of a WAN.
-  defp dispatch_response(jit, account, workflow_job_id, fleet_on_cluster_network, fleet_platform) do
+  defp dispatch_response(
+         jit,
+         account,
+         workflow_job_id,
+         fleet_on_cluster_network,
+         fleet_platform,
+         cache_signing_grant,
+         volume_head
+       ) do
     base = %{
       encoded_jit_config: jit,
       owner: account.name,
       workflow_job_id: workflow_job_id
     }
+
+    base =
+      case cache_signing_grant do
+        grant when is_binary(grant) and grant != "" -> Map.put(base, :cache_signing_grant, grant)
+        _ -> base
+      end
+
+    base =
+      case volume_head do
+        %{} = head -> Map.put(base, :volume_head, head)
+        _ -> base
+      end
 
     with true <- fleet_on_cluster_network,
          true <- fleet_platform in [:linux, :macos],

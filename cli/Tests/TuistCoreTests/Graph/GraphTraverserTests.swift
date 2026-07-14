@@ -5794,7 +5794,8 @@ final class GraphTraverserTests: TuistUnitTestCase {
         ]))
     }
 
-    func test_allSwiftPluginExecutables_includesAllXCFrameworkMacros_when_theyAreDirectOrTransitiveDependencies() throws {
+    func test_allPrecompiledSwiftMacroExecutables_includesAllXCFrameworkMacros_when_theyAreDirectOrTransitiveDependencies(
+    ) throws {
         // Given
         let directory = try temporaryPath()
         let appTarget = Target.test(name: "App", destinations: [.appleWatch])
@@ -5815,14 +5816,17 @@ final class GraphTraverserTests: TuistUnitTestCase {
         )
 
         // When
-        let got = GraphTraverser(graph: graph).allSwiftPluginExecutables(path: project.path, name: appTarget.name)
+        let got = GraphTraverser(graph: graph).allPrecompiledSwiftMacroExecutables(
+            path: project.path,
+            name: appTarget.name
+        )
 
         XCTAssertEqual(got.sorted(), [
             "\(macroPath.pathString)#\(macroPath.basename.replacingOccurrences(of: ".macro", with: ""))",
         ])
     }
 
-    func test_allSwiftPluginExecutables_staticFrameworksThatDependOnMacroTargets_when_theyAreDirectOrTransitiveDependencies(
+    func test_allPrecompiledSwiftMacroExecutables_excludesSourceMacroTargets(
     ) throws {
         // Given
         let directory = try temporaryPath()
@@ -5880,15 +5884,15 @@ final class GraphTraverserTests: TuistUnitTestCase {
         )
 
         // When
-        let got = GraphTraverser(graph: graph).allSwiftPluginExecutables(path: project.path, name: appTarget.name)
+        let got = GraphTraverser(graph: graph).allPrecompiledSwiftMacroExecutables(
+            path: project.path,
+            name: appTarget.name
+        )
 
-        XCTAssertEqual(got.sorted(), [
-            "$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/DirectMacro#DirectMacro",
-            "$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/TransitiveMacro#TransitiveMacro",
-        ])
+        XCTAssertEqual(got, [])
     }
 
-    func test_allSwiftPluginExecutables_when_staticMacroFrameworkThatDependOnMacroPrecompiledExecutable(
+    func test_allPrecompiledSwiftMacroExecutables_when_staticMacroFrameworkDependsOnPrecompiledMacroExecutable(
     ) throws {
         // Given
         let directory = try temporaryPath()
@@ -5921,7 +5925,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
         )
 
         // When
-        let got = GraphTraverser(graph: graph).allSwiftPluginExecutables(path: project.path, name: appTarget.name)
+        let got = GraphTraverser(graph: graph).allPrecompiledSwiftMacroExecutables(
+            path: project.path,
+            name: appTarget.name
+        )
 
         // Then
         XCTAssertEqual(got.sorted(), [

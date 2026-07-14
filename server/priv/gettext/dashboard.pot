@@ -104,7 +104,7 @@ msgstr ""
 msgid "Download macOS app"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:525
+#: lib/tuist_web/components/app_layout_components.ex:531
 #, elixir-autogen, elixir-format
 msgid "Emails"
 msgstr ""
@@ -116,12 +116,12 @@ msgstr ""
 msgid "Error"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:540
+#: lib/tuist_web/components/app_layout_components.ex:546
 #, elixir-autogen, elixir-format
 msgid "Errors"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:518
+#: lib/tuist_web/components/app_layout_components.ex:524
 #, elixir-autogen, elixir-format
 msgid "Flags"
 msgstr ""
@@ -137,7 +137,7 @@ msgstr ""
 msgid "Go to dashboard"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:548
+#: lib/tuist_web/components/app_layout_components.ex:554
 #: lib/tuist_web/live/ops_account_kura_deployment_live.html.heex:52
 #, elixir-autogen, elixir-format
 msgid "Grafana"
@@ -160,7 +160,7 @@ msgid "Invalid installation request. Please try again."
 msgstr ""
 
 #: lib/tuist_web/components/app_layout_components.ex:386
-#: lib/tuist_web/components/app_layout_components.ex:512
+#: lib/tuist_web/components/app_layout_components.ex:518
 #, elixir-autogen, elixir-format
 msgid "Jobs"
 msgstr ""
@@ -170,7 +170,7 @@ msgstr ""
 msgid "Learn more"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:506
+#: lib/tuist_web/components/app_layout_components.ex:512
 #, elixir-autogen, elixir-format
 msgid "LiveDashboard"
 msgstr ""
@@ -301,7 +301,7 @@ msgstr ""
 msgid "Sorry, you made too many requests. Please try again later."
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:532
+#: lib/tuist_web/components/app_layout_components.ex:538
 #, elixir-autogen, elixir-format
 msgid "Storage"
 msgstr ""
@@ -387,8 +387,8 @@ msgstr ""
 msgid "Too many requests."
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:572
-#: lib/tuist_web/components/app_layout_components.ex:615
+#: lib/tuist_web/components/app_layout_components.ex:578
+#: lib/tuist_web/components/app_layout_components.ex:621
 #, elixir-autogen, elixir-format
 msgid "Tuist Icon"
 msgstr ""
@@ -1442,7 +1442,7 @@ msgstr ""
 msgid "Could not read the cluster's Backup resources from the Kubernetes API — check the server ServiceAccount's RBAC on postgresql.cnpg.io."
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:500
+#: lib/tuist_web/components/app_layout_components.ex:506
 #: lib/tuist_web/live/ops_database_live.html.heex:3
 #: lib/tuist_web/live/ops_database_live.html.heex:58
 #, elixir-autogen, elixir-format
@@ -1828,7 +1828,7 @@ msgstr ""
 msgid "Usage"
 msgstr ""
 
-#: lib/tuist_web/components/app_layout_components.ex:596
+#: lib/tuist_web/components/app_layout_components.ex:602
 #, elixir-autogen, elixir-format
 msgid "Documentation"
 msgstr ""

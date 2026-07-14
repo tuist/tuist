@@ -6,12 +6,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY bin/index-docc /opt/docsearch/index-docc
 COPY bin/index-github /opt/docsearch/index-github
+COPY bin/index-github-releases /opt/docsearch/index-github-releases
 COPY bin/run-indexers.sh /opt/docsearch/run-indexers.sh
 COPY bin/entrypoint.sh /opt/docsearch/entrypoint.sh
 COPY config/docsearch.json /opt/docsearch/docsearch.json
 COPY config/docsearch-forum.json /opt/docsearch/docsearch-forum.json
 
-RUN chmod +x /opt/docsearch/index-docc /opt/docsearch/index-github \
+RUN chmod +x /opt/docsearch/index-docc /opt/docsearch/index-github /opt/docsearch/index-github-releases \
     /opt/docsearch/run-indexers.sh /opt/docsearch/entrypoint.sh
 
 ENTRYPOINT ["/opt/docsearch/entrypoint.sh"]

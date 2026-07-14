@@ -249,6 +249,15 @@ defmodule Tuist.Registry.Swift.ReleaseWorkerTest do
              })
   end
 
+  test "treats a GitHub private repository permission error as a skippable submodule failure" do
+    output = """
+    remote: Write access to repository not granted.
+    fatal: unable to access 'https://github.com/tuist/TuistCacheEE/': The requested URL returned error: 403
+    """
+
+    assert ReleaseWorker.skippable_submodule_failure?(output)
+  end
+
   defp write_basic_zipball(archive_path) do
     tmp = Path.join(Path.dirname(archive_path), "zipball_content")
     top_dir = Path.join(tmp, "repo-v1.0.0")
