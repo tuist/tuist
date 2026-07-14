@@ -108,7 +108,12 @@ pub struct Metrics {
     extension_http_client_requests: Family<ExtensionHttpClientLabels, Counter>,
     extension_http_client_duration: Family<ExtensionHttpClientRouteLabels, Histogram>,
     process_resident_memory_bytes: Gauge,
+    process_resident_anon_bytes: Gauge,
+    process_resident_file_bytes: Gauge,
     process_virtual_memory_bytes: Gauge,
+    jemalloc_allocated_bytes: Gauge,
+    jemalloc_resident_bytes: Gauge,
+    jemalloc_retained_bytes: Gauge,
     rocksdb_block_cache_usage_bytes: Gauge,
     rocksdb_block_cache_pinned_usage_bytes: Gauge,
     rocksdb_block_cache_capacity_bytes: Gauge,
@@ -258,7 +263,12 @@ impl Metrics {
                 Histogram::new(exponential_buckets(0.001, 2.0, 16))
             });
         let process_resident_memory_bytes = Gauge::default();
+        let process_resident_anon_bytes = Gauge::default();
+        let process_resident_file_bytes = Gauge::default();
         let process_virtual_memory_bytes = Gauge::default();
+        let jemalloc_allocated_bytes = Gauge::default();
+        let jemalloc_resident_bytes = Gauge::default();
+        let jemalloc_retained_bytes = Gauge::default();
         let rocksdb_block_cache_usage_bytes = Gauge::default();
         let rocksdb_block_cache_pinned_usage_bytes = Gauge::default();
         let rocksdb_block_cache_capacity_bytes = Gauge::default();
@@ -670,9 +680,34 @@ impl Metrics {
             process_resident_memory_bytes.clone(),
         );
         registry.register(
+            "kura_process_resident_anon_bytes",
+            "Anonymous resident memory in bytes (RssAnon from /proc/self/status): private pages such as heap and stacks",
+            process_resident_anon_bytes.clone(),
+        );
+        registry.register(
+            "kura_process_resident_file_bytes",
+            "File-backed resident memory in bytes (RssFile from /proc/self/status): resident pages backed by mapped files, such as mmap'd segments and the executable",
+            process_resident_file_bytes.clone(),
+        );
+        registry.register(
             "kura_process_virtual_memory_bytes",
             "Process virtual memory size in bytes",
             process_virtual_memory_bytes.clone(),
+        );
+        registry.register(
+            "kura_jemalloc_allocated_bytes",
+            "Bytes allocated by the application, as reported by jemalloc stats.allocated",
+            jemalloc_allocated_bytes.clone(),
+        );
+        registry.register(
+            "kura_jemalloc_resident_bytes",
+            "Bytes in physically resident pages mapped by jemalloc (stats.resident): allocator metadata, pages backing active allocations, and unused dirty pages",
+            jemalloc_resident_bytes.clone(),
+        );
+        registry.register(
+            "kura_jemalloc_retained_bytes",
+            "Bytes of virtual memory retained by jemalloc rather than returned to the OS (stats.retained); typically decommitted or purged, so not strongly associated with physical memory",
+            jemalloc_retained_bytes.clone(),
         );
         registry.register(
             "kura_rocksdb_block_cache_usage_bytes",
@@ -866,7 +901,12 @@ impl Metrics {
             extension_http_client_requests,
             extension_http_client_duration,
             process_resident_memory_bytes,
+            process_resident_anon_bytes,
+            process_resident_file_bytes,
             process_virtual_memory_bytes,
+            jemalloc_allocated_bytes,
+            jemalloc_resident_bytes,
+            jemalloc_retained_bytes,
             rocksdb_block_cache_usage_bytes,
             rocksdb_block_cache_pinned_usage_bytes,
             rocksdb_block_cache_capacity_bytes,
@@ -1445,6 +1485,22 @@ impl Metrics {
         self.process_virtual_memory_bytes.set(virtual_bytes as i64);
     }
 
+    pub fn update_process_resident_breakdown(&self, anon_bytes: u64, file_bytes: u64) {
+        self.process_resident_anon_bytes.set(anon_bytes as i64);
+        self.process_resident_file_bytes.set(file_bytes as i64);
+    }
+
+    pub fn update_jemalloc_stats(
+        &self,
+        allocated_bytes: u64,
+        resident_bytes: u64,
+        retained_bytes: u64,
+    ) {
+        self.jemalloc_allocated_bytes.set(allocated_bytes as i64);
+        self.jemalloc_resident_bytes.set(resident_bytes as i64);
+        self.jemalloc_retained_bytes.set(retained_bytes as i64);
+    }
+
     pub fn update_rocksdb_memory(
         &self,
         block_cache_usage_bytes: u64,
@@ -1861,6 +1917,8 @@ mod tests {
         metrics.record_analytics_circuit_transition("xcode", "closed", "open");
         metrics.update_segment_generation_count("old", 1);
         metrics.update_process_memory(1024, 2048);
+        metrics.update_process_resident_breakdown(768, 256);
+        metrics.update_jemalloc_stats(700, 900, 200);
         metrics.update_rocksdb_memory(256, 64, 4096, 512, 2048);
         metrics.update_memory_limits(4_096, 8_192);
         metrics.update_memory_pressure_state(1);
@@ -1965,6 +2023,11 @@ mod tests {
         assert!(rendered.contains("kura_analytics_circuit_transitions_total"));
         assert!(rendered.contains("kura_segment_generation_count"));
         assert!(rendered.contains("kura_process_resident_memory_bytes"));
+        assert!(rendered.contains("kura_process_resident_anon_bytes"));
+        assert!(rendered.contains("kura_process_resident_file_bytes"));
+        assert!(rendered.contains("kura_jemalloc_allocated_bytes"));
+        assert!(rendered.contains("kura_jemalloc_resident_bytes"));
+        assert!(rendered.contains("kura_jemalloc_retained_bytes"));
         assert!(rendered.contains("kura_rocksdb_block_cache_usage_bytes"));
         assert!(rendered.contains("kura_rocksdb_block_cache_pinned_usage_bytes"));
         assert!(rendered.contains("kura_rocksdb_block_cache_capacity_bytes"));
