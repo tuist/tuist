@@ -138,6 +138,30 @@ defmodule TuistWeb.API.CacheControllerTest do
                ])
     end
 
+    test "does not return another account's custom endpoints", %{conn: conn} do
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+
+      attacker = AccountsFixtures.user_fixture()
+      victim = AccountsFixtures.user_fixture()
+      victim_account = Accounts.get_account_from_user(victim)
+      BillingFixtures.subscription_fixture(account_id: victim_account.id, plan: :enterprise)
+      {:ok, victim_account} = Accounts.update_account(victim_account, %{custom_cache_endpoints_enabled: true})
+
+      {:ok, _endpoint} =
+        Accounts.create_account_cache_endpoint(victim_account, %{
+          url: "https://victim-private-cache.example.com"
+        })
+
+      conn =
+        conn
+        |> Authentication.put_current_user(attacker)
+        |> get(~p"/api/cache/endpoints?account_handle=#{victim_account.name}")
+
+      assert json_response(conn, :forbidden) == %{
+               "message" => "The authenticated subject is not authorized to perform this action"
+             }
+    end
+
     test "returns ready account Kura endpoints when the client requests Kura and the account is opted in", %{
       conn: conn
     } do
