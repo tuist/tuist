@@ -7,8 +7,12 @@ defmodule Tuist.Runners.Claims do
   Two responsibilities, both genuinely OLTP:
 
     1. **Atomic claim.** `attempt/5` runs the full check-and-set
-       inside a single Postgres transaction, holding a non-blocking
-       advisory lock keyed on `(account_id, platform)` for the duration:
+       inside a single Postgres transaction. It inserts the
+       uniqueness-sensitive reservation before acquiring a non-blocking
+       advisory lock keyed on `(account_id, platform)`, so a unique-index
+       wait cannot hold the account's admission lock. Once acquired, the
+       lock covers only the resource aggregate, capacity decision, and
+       transaction completion:
 
          * platform resource-limit check against the account's
            vCPU and memory budgets and this platform's live claims
@@ -64,8 +68,10 @@ defmodule Tuist.Runners.Claims do
   @doc """
   Attempts to claim `workflow_job_id` for `pod_name` on behalf of
   `account_id`, consuming the requested platform resources. Runs
-  check-and-set inside one Postgres transaction with a non-blocking
-  advisory lock on `(account_id, platform)`:
+  check-and-set inside one Postgres transaction. The claim reservation
+  is inserted before taking the non-blocking advisory lock on
+  `(account_id, platform)`; the lock then serialises the capacity check
+  through transaction completion:
 
   Returns one of:
 
@@ -87,9 +93,11 @@ defmodule Tuist.Runners.Claims do
          :ok <- validate_resources(resources) do
       Repo.transaction(fn ->
         result =
-          with :ok <- try_acquire_account_platform_lock(account_id, resources.platform),
-               {:ok, account} <- fetch_account(account_id) do
-            reserve_if_available(workflow_job_id, account, fleet_name, pod_name, resources)
+          with {:ok, account} <- fetch_account(account_id),
+               {:ok, claim} <- insert_claim(workflow_job_id, account.id, fleet_name, pod_name, resources),
+               :ok <- try_acquire_account_platform_lock(account.id, resources.platform),
+               :ok <- check_reserved_capacity(account, resources) do
+            {:ok, claim}
           end
 
         case result do
@@ -139,12 +147,20 @@ defmodule Tuist.Runners.Claims do
     end
   end
 
-  defp reserve_if_available(workflow_job_id, account, fleet_name, pod_name, resources) do
-    used = usage_for_platform(account.id, resources.platform)
+  defp check_reserved_capacity(account, resources) do
+    reserved = usage_for_platform(account.id, resources.platform)
+
+    # The transaction sees its own reservation; preserve the `fits?/3`
+    # contract by passing only the usage that existed before this claim.
+    used = %{
+      vcpus: reserved.vcpus - resources.vcpus,
+      memory_gb: reserved.memory_gb - resources.memory_gb
+    }
+
     limit = Concurrency.limits_for(account, resources.platform)
 
     if Concurrency.fits?(used, limit, resources) do
-      insert_claim(workflow_job_id, account.id, fleet_name, pod_name, resources)
+      :ok
     else
       {:error,
        {:concurrency_limit_reached,

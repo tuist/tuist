@@ -79,6 +79,35 @@ defmodule Tuist.Runners.ClaimsConcurrencyTest do
     end)
   end
 
+  test "a unique-index wait does not hold the account platform lock" do
+    with_accounts(2, fn [account, conflicting_account] ->
+      conflicting_claim = hold_uncommitted_claim(conflicting_account.id, 81_100, "shared-pod")
+
+      blocked_attempt =
+        start_db_task(fn ->
+          Claims.attempt(81_101, account.id, "fleet-linux", "shared-pod", @linux_resources)
+        end)
+
+      blocked_before_release = Task.yield(blocked_attempt, 100)
+
+      independent_result =
+        Claims.attempt(81_102, account.id, "fleet-linux", "independent-pod", @linux_resources)
+
+      send(conflicting_claim.pid, :commit)
+      assert {:ok, :committed} = Task.await(conflicting_claim)
+
+      blocked_result =
+        case blocked_before_release do
+          nil -> Task.await(blocked_attempt)
+          {:ok, result} -> result
+        end
+
+      assert blocked_before_release == nil
+      assert {:ok, _claim} = independent_result
+      assert {:error, :pod_in_use} = blocked_result
+    end)
+  end
+
   test "one pod cannot acquire concurrent claims across accounts" do
     with_accounts(2, fn [first_account, second_account] ->
       results =
@@ -152,6 +181,47 @@ defmodule Tuist.Runners.ClaimsConcurrencyTest do
 
     pid = task.pid
     assert_receive {:platform_lock_held, ^pid}
+    task
+  end
+
+  defp hold_uncommitted_claim(account_id, workflow_job_id, pod_name) do
+    parent = self()
+
+    task =
+      Task.async(fn ->
+        :ok = Sandbox.checkout(Repo, sandbox: false)
+
+        try do
+          Repo.transaction(fn ->
+            {1, _rows} =
+              Repo.insert_all(Claim, [
+                %{
+                  workflow_job_id: workflow_job_id,
+                  account_id: account_id,
+                  fleet_name: "conflicting-fleet",
+                  pod_name: pod_name,
+                  claimed_at: DateTime.utc_now(),
+                  platform: :linux,
+                  vcpus: 1,
+                  memory_gb: 1,
+                  lifecycle_state: "claimed",
+                  runner_name: ""
+                }
+              ])
+
+            send(parent, {:uncommitted_claim_inserted, self()})
+
+            receive do
+              :commit -> :committed
+            end
+          end)
+        after
+          Sandbox.checkin(Repo)
+        end
+      end)
+
+    pid = task.pid
+    assert_receive {:uncommitted_claim_inserted, ^pid}
     task
   end
 
