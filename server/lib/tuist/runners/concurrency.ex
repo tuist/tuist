@@ -17,6 +17,7 @@ defmodule Tuist.Runners.Concurrency do
   alias Tuist.Repo
   alias Tuist.Runners.Catalog
   alias Tuist.Runners.Claim
+  alias Tuist.Runners.Job
 
   @platforms [:linux, :macos]
 
@@ -145,119 +146,180 @@ defmodule Tuist.Runners.Concurrency do
     [linux_legacy_prefix, linux_pool_prefix] = Catalog.fleet_name_prefixes(:linux)
     [macos_legacy_prefix, macos_pool_prefix] = Catalog.fleet_name_prefixes(:macos)
 
-    query = """
-    WITH latest_rows AS (
-      SELECT
-        workflow_job_id,
-        argMax(
-          tuple(platform, fleet_name, vcpus, memory_gb, claimed_at, completed_at),
-          updated_at
-        ) AS latest_state
-      FROM runner_jobs
-      WHERE account_id = {account_id:Int64}
-        AND enqueued_at <= {end_dt:DateTime64(6)}
-      GROUP BY workflow_job_id
-    ), latest_jobs AS (
-      SELECT
-        workflow_job_id,
-        tupleElement(latest_state, 1) AS stored_platform,
-        tupleElement(latest_state, 2) AS fleet_name,
-        tupleElement(latest_state, 3) AS stored_vcpus,
-        tupleElement(latest_state, 4) AS stored_memory_gb,
-        tupleElement(latest_state, 5) AS claimed_at,
-        tupleElement(latest_state, 6) AS completed_at
-      FROM latest_rows
-      WHERE claimed_at IS NOT NULL
-        AND claimed_at <= {end_dt:DateTime64(6)}
-        AND (completed_at IS NULL OR completed_at > {start_dt:DateTime64(6)})
-    ), normalized_platforms AS (
-      SELECT
-        multiIf(
-          stored_platform = 'linux', 'linux',
-          stored_platform = 'macos', 'macos',
-          startsWith(fleet_name, {linux_legacy_prefix:String}), 'linux',
-          startsWith(fleet_name, {linux_pool_prefix:String}), 'linux',
-          startsWith(fleet_name, {macos_legacy_prefix:String}), 'macos',
-          startsWith(fleet_name, {macos_pool_prefix:String}), 'macos',
-          ''
-        ) AS platform,
-        fleet_name,
-        stored_vcpus,
-        stored_memory_gb,
-        claimed_at,
-        completed_at
-      FROM latest_jobs
-    ), intervals AS (
-      SELECT
-        platform,
-        greatest(claimed_at, {start_dt:DateTime64(6)}) AS active_from,
-        least(ifNull(completed_at, {end_dt:DateTime64(6)}), {end_dt:DateTime64(6)}) AS active_until,
-        if(
-          stored_vcpus > 0,
-          toInt64(stored_vcpus),
-          if(platform = 'linux', {linux_vcpus:Int64}, {macos_vcpus:Int64})
-        ) AS vcpus,
-        if(
-          stored_memory_gb > 0,
-          toInt64(stored_memory_gb),
-          if(platform = 'linux', {linux_memory_gb:Int64}, {macos_memory_gb:Int64})
-        ) AS memory_gb
-      FROM normalized_platforms
-      WHERE platform != ''
-    ), events AS (
-      SELECT
-        platform,
-        tupleElement(event, 1) AS event_time,
-        sum(tupleElement(event, 2)) AS vcpus_delta,
-        sum(tupleElement(event, 3)) AS memory_gb_delta
-      FROM intervals
-      ARRAY JOIN [
-        tuple(active_from, vcpus, memory_gb),
-        tuple(active_until, -vcpus, -memory_gb)
-      ] AS event
-      GROUP BY platform, event_time
-    )
-    SELECT
-      platform,
-      event_time,
-      toInt64(sum(vcpus_delta) OVER (
-        PARTITION BY platform
-        ORDER BY event_time
-        ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
-      )) AS vcpus,
-      toInt64(sum(memory_gb_delta) OVER (
-        PARTITION BY platform
-        ORDER BY event_time
-        ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
-      )) AS memory_gb
-    FROM events
-    ORDER BY platform, event_time
-    """
+    latest_rows = latest_rows_query(account_id, end_dt)
+    latest_jobs = latest_jobs_query(latest_rows, start_dt, end_dt)
 
-    params = %{
-      account_id: account_id,
-      start_dt: start_dt,
-      end_dt: end_dt,
-      linux_legacy_prefix: linux_legacy_prefix,
-      linux_pool_prefix: linux_pool_prefix,
-      macos_legacy_prefix: macos_legacy_prefix,
-      macos_pool_prefix: macos_pool_prefix,
-      linux_vcpus: linux_default.vcpus,
-      linux_memory_gb: linux_default.memory_gb,
-      macos_vcpus: macos_default.vcpus,
-      macos_memory_gb: macos_default.memory_gb
-    }
+    normalized_platforms =
+      normalized_platforms_query(latest_jobs, %{
+        linux_legacy: linux_legacy_prefix,
+        linux_pool: linux_pool_prefix,
+        macos_legacy: macos_legacy_prefix,
+        macos_pool: macos_pool_prefix
+      })
 
-    {:ok, %{rows: rows}} = ClickHouseRepo.query(query, params)
+    intervals = active_intervals_query(normalized_platforms, start_dt, end_dt, linux_default, macos_default)
 
-    Enum.map(rows, fn [platform, event_time, vcpus, memory_gb] ->
+    intervals
+    |> resource_events_query()
+    |> cumulative_usage_query()
+    |> ClickHouseRepo.all()
+    |> Enum.map(fn event ->
       %{
-        platform: String.to_existing_atom(platform),
-        event_time: to_datetime(event_time),
-        vcpus: vcpus,
-        memory_gb: memory_gb
+        event
+        | platform: String.to_existing_atom(event.platform),
+          event_time: to_datetime(event.event_time)
       }
     end)
+  end
+
+  defp latest_rows_query(account_id, end_dt) do
+    from(job in Job,
+      where: job.account_id == ^account_id and job.enqueued_at <= ^end_dt,
+      group_by: job.workflow_job_id,
+      select: %{
+        latest_state:
+          fragment(
+            "argMax(tuple(?, ?, ?, ?, ?, ?), ?)",
+            job.platform,
+            job.fleet_name,
+            job.vcpus,
+            job.memory_gb,
+            job.claimed_at,
+            job.completed_at,
+            job.updated_at
+          )
+      }
+    )
+  end
+
+  defp latest_jobs_query(latest_rows, start_dt, end_dt) do
+    from(row in subquery(latest_rows),
+      where:
+        not is_nil(fragment("tupleElement(?, 5)", row.latest_state)) and
+          fragment("tupleElement(?, 5) <= ?", row.latest_state, ^end_dt) and
+          (is_nil(fragment("tupleElement(?, 6)", row.latest_state)) or
+             fragment("tupleElement(?, 6) > ?", row.latest_state, ^start_dt)),
+      select: %{
+        stored_platform: fragment("tupleElement(?, 1)", row.latest_state),
+        fleet_name: fragment("tupleElement(?, 2)", row.latest_state),
+        stored_vcpus: fragment("tupleElement(?, 3)", row.latest_state),
+        stored_memory_gb: fragment("tupleElement(?, 4)", row.latest_state),
+        claimed_at: fragment("tupleElement(?, 5)", row.latest_state),
+        completed_at: fragment("tupleElement(?, 6)", row.latest_state)
+      }
+    )
+  end
+
+  defp normalized_platforms_query(latest_jobs, prefixes) do
+    from(job in subquery(latest_jobs),
+      select: %{
+        platform:
+          fragment(
+            """
+            multiIf(
+              ? = 'linux', 'linux',
+              ? = 'macos', 'macos',
+              startsWith(?, ?), 'linux',
+              startsWith(?, ?), 'linux',
+              startsWith(?, ?), 'macos',
+              startsWith(?, ?), 'macos',
+              ''
+            )
+            """,
+            job.stored_platform,
+            job.stored_platform,
+            job.fleet_name,
+            ^prefixes.linux_legacy,
+            job.fleet_name,
+            ^prefixes.linux_pool,
+            job.fleet_name,
+            ^prefixes.macos_legacy,
+            job.fleet_name,
+            ^prefixes.macos_pool
+          ),
+        stored_vcpus: job.stored_vcpus,
+        stored_memory_gb: job.stored_memory_gb,
+        claimed_at: job.claimed_at,
+        completed_at: job.completed_at
+      }
+    )
+  end
+
+  defp active_intervals_query(normalized_platforms, start_dt, end_dt, linux_default, macos_default) do
+    from(job in subquery(normalized_platforms),
+      where: job.platform != "",
+      select: %{
+        platform: job.platform,
+        active_from: fragment("greatest(?, ?)", job.claimed_at, ^start_dt),
+        active_until: fragment("least(ifNull(?, ?), ?)", job.completed_at, ^end_dt, ^end_dt),
+        vcpus:
+          fragment(
+            "if(? > 0, toInt64(?), if(? = 'linux', ?, ?))",
+            job.stored_vcpus,
+            job.stored_vcpus,
+            job.platform,
+            ^linux_default.vcpus,
+            ^macos_default.vcpus
+          ),
+        memory_gb:
+          fragment(
+            "if(? > 0, toInt64(?), if(? = 'linux', ?, ?))",
+            job.stored_memory_gb,
+            job.stored_memory_gb,
+            job.platform,
+            ^linux_default.memory_gb,
+            ^macos_default.memory_gb
+          )
+      }
+    )
+  end
+
+  defp resource_events_query(intervals) do
+    expanded_events =
+      from(interval in subquery(intervals),
+        select: %{
+          platform: interval.platform,
+          event:
+            fragment(
+              "arrayJoin([tuple(?, ?, ?), tuple(?, -?, -?)])",
+              interval.active_from,
+              interval.vcpus,
+              interval.memory_gb,
+              interval.active_until,
+              interval.vcpus,
+              interval.memory_gb
+            )
+        }
+      )
+
+    from(event in subquery(expanded_events),
+      group_by: [event.platform, fragment("tupleElement(?, 1)", event.event)],
+      select: %{
+        platform: event.platform,
+        event_time: fragment("tupleElement(?, 1)", event.event),
+        vcpus_delta: sum(fragment("tupleElement(?, 2)", event.event)),
+        memory_gb_delta: sum(fragment("tupleElement(?, 3)", event.event))
+      }
+    )
+  end
+
+  defp cumulative_usage_query(events) do
+    from(event in subquery(events),
+      windows: [
+        running: [
+          partition_by: event.platform,
+          order_by: event.event_time,
+          frame: fragment("ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW")
+        ]
+      ],
+      order_by: [event.platform, event.event_time],
+      select: %{
+        platform: event.platform,
+        event_time: event.event_time,
+        vcpus: fragment("toInt64(?)", over(sum(event.vcpus_delta), :running)),
+        memory_gb: fragment("toInt64(?)", over(sum(event.memory_gb_delta), :running))
+      }
+    )
   end
 
   defp peak_usage(events, dates, bucket) do

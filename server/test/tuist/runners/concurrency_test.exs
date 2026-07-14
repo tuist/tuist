@@ -4,6 +4,7 @@ defmodule Tuist.Runners.ConcurrencyTest do
   import TuistTestSupport.Fixtures.AccountsFixtures
 
   alias Tuist.IngestRepo
+  alias Tuist.Runners.Catalog
   alias Tuist.Runners.Claims
   alias Tuist.Runners.Concurrency
   alias Tuist.Runners.Job
@@ -139,6 +140,31 @@ defmodule Tuist.Runners.ConcurrencyTest do
     assert length(usage.macos.memory_gb) == 721
   end
 
+  test "uses fleet platform and default resources for legacy rows" do
+    account = account_fixture()
+    default = Catalog.default_shape(:linux)
+
+    insert_completed_job(account.id, 92_001,
+      platform: "",
+      fleet_name: "linux-amd64",
+      vcpus: 0,
+      memory_gb: 0,
+      claimed_at: datetime("2026-07-10T10:10:00Z"),
+      completed_at: datetime("2026-07-10T10:40:00Z")
+    )
+
+    usage =
+      Concurrency.usage_over_time(
+        account.id,
+        datetime("2026-07-10T10:00:00Z"),
+        datetime("2026-07-10T11:00:00Z"),
+        :hour
+      )
+
+    assert usage.linux.vcpus == [default.vcpus, 0]
+    assert usage.linux.memory_gb == [default.memory_gb, 0]
+  end
+
   test "does not count a requeued job as continuously claimed" do
     account = account_fixture()
     workflow_job_id = 93_001 + System.unique_integer([:positive])
@@ -199,7 +225,7 @@ defmodule Tuist.Runners.ConcurrencyTest do
         %{
           workflow_job_id: workflow_job_id + System.unique_integer([:positive]),
           account_id: account_id,
-          fleet_name: "#{Keyword.fetch!(opts, :platform)}-pool",
+          fleet_name: Keyword.get(opts, :fleet_name, "#{Keyword.fetch!(opts, :platform)}-pool"),
           platform: Keyword.fetch!(opts, :platform),
           vcpus: Keyword.fetch!(opts, :vcpus),
           memory_gb: Keyword.fetch!(opts, :memory_gb),
