@@ -1,0 +1,59 @@
+<div id="usage">
+  <div data-part="page-header">
+    <div data-part="header">
+      <h1 data-part="title">{dgettext("dashboard_usage", "Metered usage")}</h1>
+      <span data-part="subtitle">
+        {dgettext(
+          "dashboard_usage",
+          "Billable public cache traffic for this account. Private runner traffic is excluded."
+        )}
+      </span>
+    </div>
+  </div>
+
+  <.card
+    title={dgettext("dashboard_usage", "Billable cache traffic")}
+    icon="chart_column"
+    data-part="kura-traffic"
+  >
+    <.card_section data-part="kura-traffic-card-chart-section">
+      <%= cond do %>
+        <% !@billable_egress.ok? -> %>
+          <.skeleton_chart />
+        <% @billable_egress.result.total == 0 -> %>
+          <.empty_card_section
+            title={dgettext("dashboard_usage", "No billable egress in this window yet")}
+            get_started_href="https://tuist.dev/en/docs"
+          >
+            <:image>
+              <img
+                src={~p"/images/empty_line_chart_light.png"}
+                data-theme="light"
+                loading="lazy"
+                decoding="async"
+              />
+              <img
+                src={~p"/images/empty_line_chart_dark.png"}
+                data-theme="dark"
+                loading="lazy"
+                decoding="async"
+              />
+            </:image>
+          </.empty_card_section>
+        <% true -> %>
+          <.chart
+            id="billing-usage-egress-chart"
+            type="line"
+            extra_options={
+              TuistWeb.BillingUsageLive.chart_options(
+                @billable_egress.result.dates,
+                @bucket
+              )
+            }
+            series={TuistWeb.BillingUsageLive.chart_series(@billable_egress.result)}
+            y_axis_min={0}
+          />
+      <% end %>
+    </.card_section>
+  </.card>
+</div>

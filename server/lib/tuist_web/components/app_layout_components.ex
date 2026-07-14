@@ -409,30 +409,48 @@ defmodule TuistWeb.AppLayoutComponents do
         navigate={~p"/#{@selected_account.name}/webhooks"}
         selected={String.starts_with?(@current_path, ~p"/#{@selected_account.name}/webhooks")}
       />
-      <.sidebar_item
+      <% cache_path = ~p"/#{@selected_account.name}/cache" %>
+      <% cache_usage_path = ~p"/#{@selected_account.name}/cache/usage" %>
+      <.sidebar_group
         :if={
           FeatureFlags.kura_enabled?(@selected_account) and
             Authorization.authorize(:account_update, @current_user, @selected_account) == :ok
         }
+        id="sidebar-cache"
         label={dgettext("dashboard", "Cache")}
         icon="database"
-        navigate={~p"/#{@selected_account.name}/cache"}
-        selected={String.starts_with?(@current_path, ~p"/#{@selected_account.name}/cache")}
-      />
-      <.sidebar_item
+        navigate={cache_path}
+        selected={@current_path == cache_path}
+        default_open={String.starts_with?(@current_path, cache_path)}
+        phx-update="ignore"
+      >
+        <.sidebar_item
+          label={dgettext("dashboard", "Usage")}
+          icon="chart_column"
+          navigate={cache_usage_path}
+          selected={@current_path == cache_usage_path}
+        />
+      </.sidebar_group>
+      <% billing_path = ~p"/#{@selected_account.name}/billing" %>
+      <% billing_usage_path = ~p"/#{@selected_account.name}/billing/usage" %>
+      <.sidebar_group
         :if={Authorization.authorize(:account_update, @current_user, @selected_account) == :ok}
+        id="sidebar-billing"
         label={dgettext("dashboard", "Billing")}
         icon="credit_card"
-        navigate={~p"/#{@selected_account.name}/billing"}
-        selected={String.starts_with?(@current_path, ~p"/#{@selected_account.name}/billing")}
-      />
-      <.sidebar_item
-        :if={FeatureFlags.kura_enabled?(@selected_account)}
-        label={dgettext("dashboard", "Usage")}
-        icon="chart_column"
-        navigate={~p"/#{@selected_account.name}/usage"}
-        selected={String.starts_with?(@current_path, ~p"/#{@selected_account.name}/usage")}
-      />
+        navigate={billing_path}
+        selected={@current_path == billing_path}
+        default_open={String.starts_with?(@current_path, billing_path)}
+        phx-update="ignore"
+      >
+        <.sidebar_item
+          :if={FeatureFlags.kura_enabled?(@selected_account)}
+          label={dgettext("dashboard", "Usage")}
+          icon="chart_column"
+          navigate={billing_usage_path}
+          selected={@current_path == billing_usage_path}
+        />
+      </.sidebar_group>
       <.sidebar_item
         :if={Authorization.authorize(:account_update, @current_user, @selected_account) == :ok}
         label={dgettext("dashboard", "Settings")}

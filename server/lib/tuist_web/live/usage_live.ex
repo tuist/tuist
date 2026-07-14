@@ -36,7 +36,7 @@ defmodule TuistWeb.UsageLive do
 
     {:ok,
      socket
-     |> assign(:head_title, "#{dgettext("dashboard_usage", "Usage")} · #{account.name} · Tuist")
+     |> assign(:head_title, "#{dgettext("dashboard_usage", "Cache usage")} · #{account.name} · Tuist")
      |> assign(:projects, projects)}
   end
 
@@ -106,12 +106,15 @@ defmodule TuistWeb.UsageLive do
         Query.put(socket.assigns.uri.query, "usage-date-range", preset)
       end
 
-    {:noreply, push_patch(socket, to: "/#{socket.assigns.selected_account.name}/usage?#{query_params}")}
+    {:noreply,
+     push_patch(socket,
+       to: "/#{socket.assigns.selected_account.name}/cache/usage?#{query_params}"
+     )}
   end
 
   defp push_patch_with_param(socket, key, value) do
     query = Query.put(socket.assigns.uri.query || "", key, value)
-    push_patch(socket, to: "/#{socket.assigns.selected_account.name}/usage?#{query}")
+    push_patch(socket, to: "/#{socket.assigns.selected_account.name}/cache/usage?#{query}")
   end
 
   defp widget_param(widget) when widget in @widgets, do: widget

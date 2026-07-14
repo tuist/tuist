@@ -1020,6 +1020,7 @@ defmodule TuistWeb.Router do
 
     get "/billing/manage", BillingController, :manage
     get "/billing/upgrade", BillingController, :upgrade
+    get "/usage", RedirectPlug, to: "/cache/usage"
 
     get "/runners/interactive/vnc",
         RunnerInteractiveVNCController,
@@ -1050,8 +1051,9 @@ defmodule TuistWeb.Router do
       live "/webhooks/:id", WebhookLive
       live "/webhooks/:id/events/:attempt_id", WebhookEventLive
       live "/cache", CacheLive
+      live "/cache/usage", UsageLive
       live "/billing", BillingLive
-      live "/usage", UsageLive
+      live "/billing/usage", BillingUsageLive
       live "/settings", AccountSettingsLive
       live "/settings/integrations", IntegrationsLive
       live "/settings/authentication", AuthenticationSettingsLive

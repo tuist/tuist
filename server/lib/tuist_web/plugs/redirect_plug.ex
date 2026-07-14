@@ -1,6 +1,6 @@
 defmodule TuistWeb.RedirectPlug do
   @moduledoc """
-  A generic redirect plug that preserves path parameters like account_handle and project_handle.
+  A generic redirect plug that preserves account and optional project path parameters.
 
   ## Usage
 
@@ -21,7 +21,12 @@ defmodule TuistWeb.RedirectPlug do
     account_handle = conn.path_params["account_handle"]
     project_handle = conn.path_params["project_handle"]
 
-    new_path = "/#{account_handle}/#{project_handle}#{to_path}"
+    prefix =
+      [account_handle, project_handle]
+      |> Enum.reject(&is_nil/1)
+      |> Enum.join("/")
+
+    new_path = "/#{prefix}#{to_path}"
 
     # Preserve query string if present
     new_path_with_query =
