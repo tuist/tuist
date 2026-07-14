@@ -62,14 +62,16 @@ extension XcodeGraph.Project {
             }
             .flatMap { $0 }
             .sorted(by: { $0.path < $1.path })
-        let packages = try manifest.packages.map { try XcodeGraph.Package.from(manifest: $0, generatorPaths: generatorPaths) }
-        let packageTraits = try manifest.packageTraits.map { packageTraits in
-            try packageTraits.map {
+        let manifestPackages = manifest.packageDependencies?.map(\.package) ?? manifest.packages
+        let packages = try manifestPackages.map { try XcodeGraph.Package.from(manifest: $0, generatorPaths: generatorPaths) }
+        let packageTraits = try manifest.packageDependencies.flatMap { packageDependencies in
+            let packageTraits = try packageDependencies.map { dependency in
                 XcodeGraph.PackageTraitSelection(
-                    package: try XcodeGraph.Package.from(manifest: $0.package, generatorPaths: generatorPaths),
-                    traits: $0.traits
+                    package: try XcodeGraph.Package.from(manifest: dependency.package, generatorPaths: generatorPaths),
+                    traits: dependency.traits.map(\.name).sorted()
                 )
             }
+            return packageTraits.isEmpty ? nil : packageTraits
         }
         let ideTemplateMacros = try manifest.fileHeaderTemplate
             .map { try IDETemplateMacros.from(manifest: $0, generatorPaths: generatorPaths) }

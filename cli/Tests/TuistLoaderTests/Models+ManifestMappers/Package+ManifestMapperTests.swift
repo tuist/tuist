@@ -24,7 +24,7 @@ struct PackageManifestMapperTests {
 
         #expect(decodedPackagePath == Path("Package"))
         #expect(emptyProject.packages.isEmpty)
-        #expect(project.packageTraits == nil)
+        #expect(project.packageDependencies == nil)
     }
 
     @Test func projectWithPackageTraitsRoundTripsThroughCodable() throws {
@@ -41,7 +41,8 @@ struct PackageManifestMapperTests {
         let decoded = try JSONDecoder().decode(ProjectDescription.Project.self, from: encoded)
 
         #expect(project.packages.count == 3)
-        #expect(project.packageTraits?.count == 2)
+        #expect(project.packageDependencies?.count == 3)
+        #expect(project.packageDependencies?[2].traits == [.defaults])
         #expect(decoded == project)
     }
 
@@ -52,7 +53,7 @@ struct PackageManifestMapperTests {
             packages: [
                 .package(path: "Package", traits: ["FeatureA"]),
                 .package(url: "https://example.com/package.git", from: "1.0.0", traits: []),
-                .package(id: "example.package", exact: "1.0.0", traits: ["FeatureB"]),
+                .package(id: "example.package", exact: "1.0.0"),
             ]
         )
         let mappedProject = try await XcodeGraph.Project.from(
@@ -72,7 +73,23 @@ struct PackageManifestMapperTests {
                 package: .remote(url: "https://example.com/package.git", requirement: .upToNextMajor("1.0.0")),
                 traits: []
             ),
-            .init(package: .remote(url: "example.package", requirement: .exact("1.0.0")), traits: ["FeatureB"]),
+            .init(package: .remote(url: "example.package", requirement: .exact("1.0.0")), traits: ["default"]),
         ])
+    }
+
+    @Test func packageDependencyUsesSwiftPackageManagerAlignedKindAndTypedTraits() {
+        let dependency = ProjectDescription.Package.Dependency.package(
+            url: "https://example.com/package.git",
+            from: "1.0.0",
+            traits: [.defaults, "FeatureA"]
+        )
+
+        #expect(
+            dependency.kind == .sourceControl(
+                location: "https://example.com/package.git",
+                requirement: .upToNextMajor(from: "1.0.0")
+            )
+        )
+        #expect(dependency.traits == [.defaults, "FeatureA"])
     }
 }
