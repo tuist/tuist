@@ -139,6 +139,19 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		pool.Status.ImageRolledAt = metav1.Now()
 	}
 
+	// Track dispatch-config rolls the same way. The chart stamps
+	// `spec.dispatchGeneration` from the server release identifier, so it
+	// changes on every server deploy; recording when it changes gives a
+	// future drain the boundary before which a registered-idle Pod's
+	// claim-time dispatch config (the dispatch-staged cache endpoint, the
+	// JIT extras) is stale. Empty generation (the feature unwired) never
+	// differs from the empty observed value, so this is a no-op until the
+	// chart sets it.
+	if pool.Status.ObservedDispatchGeneration != pool.Spec.DispatchGeneration {
+		pool.Status.ObservedDispatchGeneration = pool.Spec.DispatchGeneration
+		pool.Status.DispatchRolledAt = metav1.Now()
+	}
+
 	// Count Pods owned by this pool that are alive (not in a
 	// terminal phase, not being deleted). Terminal Pods aren't
 	// counted toward `replicas` — they're on their way out and a

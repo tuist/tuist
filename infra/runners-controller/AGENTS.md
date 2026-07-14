@@ -328,6 +328,18 @@ customer job's runtime. macOS keeps the single-container shape (the
 Tart VM is the isolation boundary; tart-kubelet projects the token
 into it).
 
+**Deploy-boundary tracking:** the chart stamps `spec.dispatchGeneration`
+on every pool from the server release identifier
+(`.Values.server.image.tag`), and the reconciler records the moment it
+changes in `status.dispatchRolledAt`, mirroring the
+`observedImage`/`imageRolledAt` image-roll bookkeeping. This is dormant
+groundwork — nothing drains on it yet. Its purpose is to give a future
+registered-idle drain a boundary: a Pod that claimed before the last
+server deploy froze its claim-time dispatch config (the dispatch-staged
+cache endpoint, JIT extras) and must be recycled to pick up the new
+behavior. An unset generation never differs from the empty observed
+value, so the tracking is a no-op until the chart wires it.
+
 **Death-cause backstop:** the same reconciler also re-emits a
 runner's final log on an abnormal end — a non-zero/SIGKILLed exit, or
 a Pod reaped while still `Running` (the "lost communication" /

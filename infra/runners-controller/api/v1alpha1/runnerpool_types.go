@@ -114,6 +114,16 @@ type RunnerPoolSpec struct {
 	// Ready. Absent block = the built-in default (5%, min 1).
 	// +optional
 	Rollout *RunnerPoolRollout `json:"rollout,omitempty"`
+
+	// DispatchGeneration is an opaque token the chart stamps from the
+	// server release identifier (`.Values.server.image.tag`). It changes
+	// on every server deploy, so the controller can record the moment it
+	// changes in `status.DispatchRolledAt` — the boundary before which a
+	// registered-idle Pod's claim-time dispatch config (e.g. the
+	// dispatch-staged cache endpoint) is stale. Empty (the default)
+	// leaves the tracking inert: nothing is stamped.
+	// +optional
+	DispatchGeneration string `json:"dispatchGeneration,omitempty"`
 }
 
 // RunnerPoolAutoscaling carries the autoscaling knobs. Lives in
@@ -204,6 +214,21 @@ type RunnerPoolStatus struct {
 	// replicas and survives a restart mid-rollout.
 	// +optional
 	ImageRolledAt metav1.Time `json:"imageRolledAt,omitempty"`
+
+	// ObservedDispatchGeneration is the `spec.dispatchGeneration` value
+	// the controller last recorded a `DispatchRolledAt` for. Bumped
+	// together on every change, mirroring ObservedImage/ImageRolledAt.
+	// +optional
+	ObservedDispatchGeneration string `json:"observedDispatchGeneration,omitempty"`
+
+	// DispatchRolledAt is when the controller most recently observed
+	// `spec.dispatchGeneration` change — i.e. the last server deploy.
+	// A future drain uses it as the boundary: registered-idle Pods that
+	// claimed before this moment froze their claim-time dispatch config
+	// and are recycled so the next claim re-fetches it. Set on first
+	// observe to establish the t=0 baseline.
+	// +optional
+	DispatchRolledAt metav1.Time `json:"dispatchRolledAt,omitempty"`
 }
 
 // +kubebuilder:object:root=true

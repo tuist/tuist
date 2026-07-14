@@ -1,5 +1,13 @@
 {{- $labels := include "tuist.labels" . }}
 {{- /*
+Deploy-boundary token stamped on every pool: the server release identifier
+this pool's dispatch config was rendered against. It changes on every server
+deploy, so the controller can record the moment it changes in
+`status.dispatchRolledAt` — the boundary a registered-idle drain uses to
+recycle Pods whose claim-time dispatch config predates the deploy.
+*/}}
+{{- $dispatchGeneration := .Values.server.image.tag | default .Chart.AppVersion }}
+{{- /*
 RunnerPool CRs — one per entry in `runnersFleet.pools` (macOS,
 Scaleway Mac minis) and `runnersFleetLinux.pools` (Linux,
 Hetzner Cloud). Each pool is a runner image variant (Xcode
@@ -55,6 +63,7 @@ spec:
   labels: []
   replicas: {{ $replicas }}
   image: {{ $image | quote }}
+  dispatchGeneration: {{ $dispatchGeneration | quote }}
   os: darwin
   fleetSelector: {{ $hostFleetName | quote }}
   dispatchLabel: {{ $dispatchLabel | quote }}
@@ -161,6 +170,7 @@ spec:
   labels: []
   replicas: {{ $replicas }}
   image: {{ $image | quote }}
+  dispatchGeneration: {{ $dispatchGeneration | quote }}
   os: darwin
   fleetSelector: {{ $hostFleetName | quote }}
   dispatchLabel: {{ printf "shape-macos-%s" $xcodeTag | quote }}
@@ -219,6 +229,7 @@ spec:
   labels: []
   replicas: {{ $replicas }}
   image: {{ $image | quote }}
+  dispatchGeneration: {{ $dispatchGeneration | quote }}
   os: linux
   fleetSelector: {{ $hostFleetName | quote }}
   dispatchLabel: {{ $dispatchLabel | quote }}
@@ -294,6 +305,7 @@ spec:
   labels: []
   replicas: {{ dig "minWarmPoolFloor" 1 $autoscaling }}
   image: {{ $shapeImage | quote }}
+  dispatchGeneration: {{ $dispatchGeneration | quote }}
   os: linux
   fleetSelector: {{ $hostFleetName | quote }}
   dispatchLabel: {{ $dispatchLabel | quote }}

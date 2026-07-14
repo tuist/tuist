@@ -530,6 +530,70 @@ func TestReconcile_StampsImageRolledAtOnFirstReconcile(t *testing.T) {
 	}
 }
 
+// TestReconcile_StampsDispatchRolledAtWhenGenerationChanges covers the
+// deploy-boundary trigger: when the chart bumps spec.dispatchGeneration
+// (a new server release), the controller records ObservedDispatchGeneration
+// and stamps DispatchRolledAt — the boundary a future drain uses to recycle
+// registered-idle Pods whose claim-time dispatch config predates the deploy.
+func TestReconcile_StampsDispatchRolledAtWhenGenerationChanges(t *testing.T) {
+	scheme := mustScheme(t)
+	pool := newPool("p", "ghcr.io/tuist/tuist-runner@sha256:initial", 0)
+	pool.Spec.DispatchGeneration = "sha-abc123"
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(pool).
+		WithStatusSubresource(&tuistv1.RunnerPool{}).
+		Build()
+
+	r := &RunnerPoolReconciler{Client: c, Scheme: scheme, DispatchURL: "http://dispatch"}
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{
+		NamespacedName: nn(pool.Namespace, pool.Name),
+	}); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	updated := &tuistv1.RunnerPool{}
+	if err := c.Get(context.Background(), nn(pool.Namespace, pool.Name), updated); err != nil {
+		t.Fatalf("get pool: %v", err)
+	}
+	if updated.Status.ObservedDispatchGeneration != "sha-abc123" {
+		t.Fatalf("ObservedDispatchGeneration = %q, want %q", updated.Status.ObservedDispatchGeneration, "sha-abc123")
+	}
+	if updated.Status.DispatchRolledAt.IsZero() {
+		t.Fatalf("DispatchRolledAt is zero, expected stamp when generation first observed")
+	}
+}
+
+// TestReconcile_LeavesDispatchRolledAtUnsetWhenGenerationEmpty guards the
+// unwired default: with no chart-stamped generation the trigger is inert
+// (empty spec value never differs from the empty observed value).
+func TestReconcile_LeavesDispatchRolledAtUnsetWhenGenerationEmpty(t *testing.T) {
+	scheme := mustScheme(t)
+	pool := newPool("p", "ghcr.io/tuist/tuist-runner@sha256:initial", 0)
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(pool).
+		WithStatusSubresource(&tuistv1.RunnerPool{}).
+		Build()
+
+	r := &RunnerPoolReconciler{Client: c, Scheme: scheme, DispatchURL: "http://dispatch"}
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{
+		NamespacedName: nn(pool.Namespace, pool.Name),
+	}); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	updated := &tuistv1.RunnerPool{}
+	if err := c.Get(context.Background(), nn(pool.Namespace, pool.Name), updated); err != nil {
+		t.Fatalf("get pool: %v", err)
+	}
+	if !updated.Status.DispatchRolledAt.IsZero() {
+		t.Fatalf("DispatchRolledAt = %v, want zero (generation unset)", updated.Status.DispatchRolledAt)
+	}
+}
+
 // TestReconcile_BumpsImageRolledAtOnSpecImageChange covers the
 // digest-pin bump path. When `spec.image` flips to a new value,
 // the controller must overwrite `ObservedImage` and reset

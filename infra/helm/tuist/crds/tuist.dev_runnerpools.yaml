@@ -182,6 +182,9 @@ spec:
                         minimum of 1 so a rollout always makes progress. Lower
                         keeps more of the warm pool serving during a roll at
                         the cost of a slower rollout.
+                dispatchGeneration:
+                  type: string
+                  description: Opaque token the chart stamps from the server release identifier; changes on every server deploy. The controller records when it changes in status.dispatchRolledAt.
             status:
               type: object
               properties:
@@ -197,6 +200,13 @@ spec:
                 observedImage:
                   type: string
                   description: spec.image value the controller last recorded an imageRolledAt for. Bumped together on every image change.
+                observedDispatchGeneration:
+                  type: string
+                  description: spec.dispatchGeneration value the controller last recorded a dispatchRolledAt for. Bumped together on every change, mirroring observedImage/imageRolledAt.
+                dispatchRolledAt:
+                  type: string
+                  format: date-time
+                  description: Timestamp the controller last observed spec.dispatchGeneration change (the last server deploy). A future drain uses it as the boundary before which a registered-idle Pod's claim-time dispatch config is stale.
                 imageRolledAt:
                   type: string
                   format: date-time

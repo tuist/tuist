@@ -112,4 +112,5 @@ func (in *RunnerPoolStatus) DeepCopyInto(out *RunnerPoolStatus) {
 		in.LastScaleDownAt.DeepCopyInto(out.LastScaleDownAt)
 	}
 	in.ImageRolledAt.DeepCopyInto(&out.ImageRolledAt)
+	in.DispatchRolledAt.DeepCopyInto(&out.DispatchRolledAt)
 }
