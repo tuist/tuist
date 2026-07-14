@@ -76,7 +76,6 @@ struct PackageManifestMapperTests {
                 package: .remote(url: "https://example.com/package.git", requirement: .upToNextMajor("1.0.0")),
                 traits: []
             ),
-            .init(package: .remote(url: "example.package", requirement: .exact("1.0.0")), traits: ["default"]),
         ])
     }
 

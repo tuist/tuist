@@ -65,8 +65,9 @@ extension XcodeGraph.Project {
         let manifestPackages = manifest.packageDependencies?.map(\.package) ?? manifest.packages
         let packages = try manifestPackages.map { try XcodeGraph.Package.from(manifest: $0, generatorPaths: generatorPaths) }
         let packageTraits = try manifest.packageDependencies.flatMap { packageDependencies in
-            let packageTraits = try packageDependencies.map { dependency in
-                XcodeGraph.PackageTraitSelection(
+            let packageTraits = try packageDependencies.compactMap { dependency -> XcodeGraph.PackageTraitSelection? in
+                guard dependency.traits != [.defaults] else { return nil }
+                return XcodeGraph.PackageTraitSelection(
                     package: try XcodeGraph.Package.from(manifest: dependency.package, generatorPaths: generatorPaths),
                     traits: dependency.traits.map(\.name).sorted()
                 )
