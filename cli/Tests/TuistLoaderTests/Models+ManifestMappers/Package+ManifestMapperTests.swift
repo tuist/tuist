@@ -9,13 +9,15 @@ import XcodeGraph
 @testable import TuistLoader
 
 struct PackageManifestMapperTests {
-    @Test func existingPackageDeclarationsRemainSourceCompatible() {
+    @Test func existingPackageDeclarationsRemainSourceAndSerializationCompatible() throws {
         let package = ProjectDescription.Package.package(path: "Package")
         let emptyProject = ProjectDescription.Project(name: "Empty", packages: [])
         let project = ProjectDescription.Project(
             name: "Project",
             packages: [package]
         )
+        let encoded = try JSONEncoder().encode(project)
+        let decoded = try JSONDecoder().decode(ProjectDescription.Project.self, from: encoded)
 
         let decodedPackagePath = switch project.packages[0] {
         case let .local(path): path
@@ -25,6 +27,7 @@ struct PackageManifestMapperTests {
         #expect(decodedPackagePath == Path("Package"))
         #expect(emptyProject.packages.isEmpty)
         #expect(project.packageDependencies == nil)
+        #expect(decoded == project)
     }
 
     @Test func projectWithPackageTraitsRoundTripsThroughCodable() throws {
