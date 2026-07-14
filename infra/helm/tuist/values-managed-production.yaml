@@ -7,9 +7,9 @@
 #     --set server.image.tag=$GIT_SHA
 
 registry:
-  # The public host stays behind the registry-router Worker. Its ingress uses
-  # a dedicated origin host so the Worker can reach the standalone frontend
-  # without recursing through its registry.tuist.dev route.
+  # The public host stays behind the registry-router Worker. The ingress keeps
+  # the canonical host for routing and certificate identity, while external-dns
+  # publishes a separate resolution-only record for the Worker's origin lookup.
   enabled: true
   publicHost: registry.tuist.dev
   serverUrl: https://tuist.dev
@@ -17,8 +17,11 @@ registry:
   sentryEnv: prod
   poolSize: "10"
   ingress:
-    host: registry-origin.tuist.dev
+    host: registry.tuist.dev
     tlsSecretName: registry-tls
+    annotations:
+      external-dns.alpha.kubernetes.io/hostname: registry-origin.tuist.dev
+      external-dns.alpha.kubernetes.io/ingress-hostname-source: annotation-only
   resources:
     requests:
       cpu: "500m"
