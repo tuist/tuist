@@ -276,8 +276,10 @@ jobs:
             build/ProjectDescription.xcframework.zip
             build/tuist.spec.json
       - name: Trigger Homebrew Formula Update
-        # Skipped for backports: brew install tuist must keep pointing at the
-        # true latest version, never an older patched line.
+        # Skipped only for canary/RC prereleases (update_homebrew=false). Stable
+        # releases and backports both publish the per-version formula; the
+        # homebrew-tuist aliases task is semver-aware, so brew install tuist
+        # always resolves to the highest stable version regardless of order.
         if: ${{ inputs.update_homebrew }}
         run: |
           SHA256=$(cat build/SHASUMS256.txt | grep tuist.zip | awk '{print $1}')
