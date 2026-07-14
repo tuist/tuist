@@ -11,6 +11,7 @@ defmodule TuistWeb.RunnerWorkflowLive do
   alias Noora.Filter
   alias Tuist.Authorization
   alias Tuist.FeatureFlags
+  alias Tuist.Runners
   alias Tuist.Runners.Analytics
   alias Tuist.Runners.Jobs
   alias Tuist.Utilities.DateFormatter
@@ -44,7 +45,11 @@ defmodule TuistWeb.RunnerWorkflowLive do
      |> assign(:available_filters, available_filters())
      |> assign(:analytics_selected_widget, "total_jobs")
      |> assign(:job_duration_percentile, "avg")
-     |> assign(:queue_time_percentile, "avg")}
+     |> assign(:queue_time_percentile, "avg")
+     # Whether this account's GitHub App installation granted
+     # `actions: write`. Gates the per-run Cancel button — computed
+     # once (the installation token GitHub returns it on is cached).
+     |> assign(:can_cancel_runs, Runners.can_cancel_workflow_runs?(selected_account))}
   end
 
   @impl true
@@ -69,7 +74,7 @@ defmodule TuistWeb.RunnerWorkflowLive do
       |> assign(:page, page)
       |> assign(:sort_by, sort_by)
       |> assign(:sort_order, sort_order)
-      |> assign_jobs(scope_opts)
+      |> assign_runs(scope_opts)
       |> assign_async(
         [:jobs_count, :failed_jobs_count, :jobs_duration, :queue_time],
         fn ->
@@ -86,28 +91,25 @@ defmodule TuistWeb.RunnerWorkflowLive do
     {:noreply, socket}
   end
 
-  defp assign_jobs(
+  # Lists workflow *runs* (grouped by workflow_run_id) for this named
+  # workflow, newest activity first. This page is a drill-down from the
+  # Workflows list, so runs — not individual jobs — are the rows;
+  # clicking a run opens its GitHub Actions run.
+  defp assign_runs(
          %{
            assigns: %{
              selected_account: account,
              active_filters: filters,
              page: page,
-             search: search,
-             sort_by: sort_by,
-             sort_order: sort_order
+             repository: repository,
+             workflow_name: workflow_name
            }
          } = socket,
-         scope_opts
+         _scope_opts
        ) do
-    base_opts =
-      scope_opts
-      |> maybe_put_search(search)
-      |> add_filter_opt(filters, "branch", :head_branch)
-      |> add_status_filter_opt(filters)
-      |> Keyword.put(:sort_by, sort_by)
-      |> Keyword.put(:sort_order, sort_order)
+    base_opts = add_filter_opt([], filters, "branch", :head_branch)
 
-    total = Jobs.count_for_account(account.id, base_opts)
+    total = Jobs.count_workflow_runs(account.id, repository, workflow_name, base_opts)
     total_pages = max(1, ceil_div(total, @page_size))
     page = min(page, total_pages)
     offset = (page - 1) * @page_size
@@ -117,18 +119,14 @@ defmodule TuistWeb.RunnerWorkflowLive do
       |> Keyword.put(:limit, @page_size)
       |> Keyword.put(:offset, offset)
 
-    jobs = Jobs.list_for_account(account.id, paged_opts)
+    runs = Jobs.list_workflow_runs(account.id, repository, workflow_name, paged_opts)
 
     socket
-    |> assign(:jobs, jobs)
+    |> assign(:runs, runs)
     |> assign(:page, page)
-    |> assign(:total_jobs, total)
+    |> assign(:total_runs, total)
     |> assign(:total_pages, total_pages)
   end
-
-  defp maybe_put_search(opts, ""), do: opts
-  defp maybe_put_search(opts, nil), do: opts
-  defp maybe_put_search(opts, value) when is_binary(value), do: Keyword.put(opts, :search, value)
 
   defp add_filter_opt(opts, filters, filter_id, opt_key) do
     case Enum.find(filters, &(&1.id == filter_id)) do
@@ -137,50 +135,8 @@ defmodule TuistWeb.RunnerWorkflowLive do
     end
   end
 
-  # Status filter routes the picked value to either `:status` (queued/
-  # claimed/running) or `:conclusion` (success/failure/cancelled/
-  # skipped) — same pattern as the Jobs page.
-  defp add_status_filter_opt(opts, filters) do
-    case Enum.find(filters, &(&1.id == "status")) do
-      %{value: value} when not is_nil(value) ->
-        value = to_string(value)
-
-        cond do
-          value in ~w(success failure cancelled skipped) ->
-            opts |> Keyword.put(:conclusion, value) |> Keyword.put(:status, "completed")
-
-          value in ~w(queued claimed running completed) ->
-            Keyword.put(opts, :status, value)
-
-          true ->
-            opts
-        end
-
-      _ ->
-        opts
-    end
-  end
-
   defp available_filters do
     [
-      %Filter.Filter{
-        id: "status",
-        field: :status,
-        display_name: dgettext("dashboard_runners", "Status"),
-        type: :option,
-        options: [:queued, :claimed, :running, :success, :failure, :cancelled, :skipped],
-        options_display_names: %{
-          queued: dgettext("dashboard_runners", "Queued"),
-          claimed: dgettext("dashboard_runners", "Claimed"),
-          running: dgettext("dashboard_runners", "Running"),
-          success: dgettext("dashboard_runners", "Success"),
-          failure: dgettext("dashboard_runners", "Failure"),
-          cancelled: dgettext("dashboard_runners", "Cancelled"),
-          skipped: dgettext("dashboard_runners", "Skipped")
-        },
-        operator: :==,
-        value: nil
-      },
       %Filter.Filter{
         id: "branch",
         field: :head_branch,
@@ -195,6 +151,38 @@ defmodule TuistWeb.RunnerWorkflowLive do
   @impl true
   def handle_event("select_widget", %{"widget" => widget}, socket) do
     {:noreply, assign(socket, :analytics_selected_widget, widget)}
+  end
+
+  def handle_event("cancel_run", %{"run-id" => run_id}, socket) do
+    %{selected_account: account, current_user: current_user, repository: repository} = socket.assigns
+
+    with :ok <- Authorization.authorize(:runners_cancel, current_user, account),
+         {run_id_int, ""} when run_id_int > 0 <- Integer.parse(run_id),
+         :ok <- Runners.cancel_workflow_run(account, repository, run_id_int) do
+      # GitHub cancels the run and the `workflow_job.completed` webhooks
+      # flip our rows; the status badge follows on the next load.
+      {:noreply, put_flash(socket, :info, dgettext("dashboard_runners", "Cancelling the workflow run…"))}
+    else
+      {:error, :no_installation} ->
+        {:noreply,
+         put_flash(
+           socket,
+           :error,
+           dgettext("dashboard_runners", "No GitHub App installation is connected for this account.")
+         )}
+
+      {:error, :forbidden} ->
+        {:noreply,
+         put_flash(
+           socket,
+           :error,
+           dgettext("dashboard_runners", "Cancelling a run needs the Tuist GitHub App to have write access to Actions.")
+         )}
+
+      _ ->
+        {:noreply,
+         put_flash(socket, :error, dgettext("dashboard_runners", "Couldn't cancel the workflow run. Please try again."))}
+    end
   end
 
   def handle_event("select_job_duration_percentile", %{"type" => type}, socket) do
@@ -320,6 +308,42 @@ defmodule TuistWeb.RunnerWorkflowLive do
     do: %{label: String.capitalize(other), status: "warning"}
 
   def conclusion_badge_props(_), do: nil
+
+  # Run-level status badge: an in-progress run (any job still going)
+  # shows Running; a completed run shows its rolled-up conclusion.
+  def run_status_badge_props(%{status: "in_progress"}),
+    do: %{label: dgettext("dashboard_runners", "Running"), status: "in_progress"}
+
+  def run_status_badge_props(%{status: "completed", conclusion: conclusion}),
+    do: conclusion_badge_props(conclusion) || %{label: dgettext("dashboard_runners", "Completed"), status: "success"}
+
+  def run_status_badge_props(_), do: %{label: dgettext("dashboard_runners", "Unknown"), status: "warning"}
+
+  def run_cancellable?(%{status: "in_progress"}), do: true
+  def run_cancellable?(_), do: false
+
+  # Duration for a run row: elapsed-so-far for an in-progress run,
+  # else the completed span. The SQL `duration_ms` is only meaningful
+  # once the run has a completed job, so guard on a positive value.
+  def run_duration_ms(%{status: "in_progress", enqueued_at: enqueued}), do: DateFormatter.ms_since(enqueued)
+  def run_duration_ms(%{duration_ms: ms}) when is_integer(ms) and ms > 0, do: ms
+  def run_duration_ms(_), do: 0
+
+  @doc """
+  Public GitHub Actions run URL for a run row — the drill-down target
+  from the runs list (we don't host an internal run view yet).
+  """
+  def github_run_url(repository, run_id) when is_binary(repository) and is_integer(run_id) do
+    case String.split(repository, "/", parts: 2) do
+      [owner, name] when owner != "" and name != "" ->
+        "https://github.com/#{owner}/#{name}/actions/runs/#{run_id}"
+
+      _ ->
+        "#"
+    end
+  end
+
+  def github_run_url(_, _), do: "#"
 
   def duration_ms(%{status: "queued", enqueued_at: enqueued}), do: DateFormatter.ms_since(enqueued)
   def duration_ms(%{status: "claimed", claimed_at: claimed}), do: DateFormatter.ms_since(claimed)

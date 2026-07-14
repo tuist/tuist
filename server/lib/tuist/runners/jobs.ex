@@ -1121,6 +1121,8 @@ defmodule Tuist.Runners.Jobs do
   Options: `:limit`, `:offset`, `:head_branch` (exact), `:platform`.
   """
   def list_workflow_runs(account_id, repository, workflow_name, opts \\ [])
+
+  def list_workflow_runs(account_id, repository, workflow_name, opts)
       when is_integer(account_id) and is_binary(repository) and repository != "" and is_binary(workflow_name) and
              is_list(opts) do
     limit = Keyword.get(opts, :limit, 20)
@@ -1128,7 +1130,7 @@ defmodule Tuist.Runners.Jobs do
 
     account_id
     |> workflow_runs_query(repository, workflow_name, opts)
-    |> order_by([r], desc: r.last_activity_at)
+    |> order_by([j], desc: max(j.updated_at))
     |> limit(^limit)
     |> offset(^offset)
     |> ClickHouseRepo.all()
@@ -1143,6 +1145,8 @@ defmodule Tuist.Runners.Jobs do
   filtered rows is exact without the inner dedup.
   """
   def count_workflow_runs(account_id, repository, workflow_name, opts \\ [])
+
+  def count_workflow_runs(account_id, repository, workflow_name, opts)
       when is_integer(account_id) and is_binary(repository) and repository != "" and is_binary(workflow_name) and
              is_list(opts) do
     Job

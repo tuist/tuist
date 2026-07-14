@@ -245,133 +245,88 @@
   </.card>
 
   <.card
-    title={dgettext("dashboard_runners", "Jobs")}
+    title={dgettext("dashboard_runners", "Runs")}
     icon="stack_2"
-    data-part="runner-workflow-jobs-card"
+    data-part="runner-workflow-runs-card"
   >
-    <.card_section data-part="runner-workflow-jobs-card-section">
+    <.card_section data-part="runner-workflow-runs-card-section">
       <div data-part="filters">
-        <.form for={%{}} phx-change="search-jobs">
-          <.text_input
-            type="search"
-            id="search-workflow-jobs"
-            name="search"
-            placeholder={dgettext("dashboard_runners", "Search by job name...")}
-            show_suffix={false}
-            data-part="search"
-            value={@search}
-            phx-debounce="200"
-          />
-        </.form>
         <.filter_dropdown
-          id="workflow-jobs-filter-dropdown"
+          id="workflow-runs-filter-dropdown"
           label={dgettext("dashboard_runners", "Filter")}
           available_filters={@available_filters}
           active_filters={@active_filters}
         />
-        <.dropdown
-          id="workflow-jobs-sort-by-dropdown"
-          label={TuistWeb.RunnerWorkflowLive.sort_by_label(@sort_by)}
-          secondary_text={dgettext("dashboard_runners", "Sort by:")}
-        >
-          <.dropdown_item
-            value="enqueued"
-            label={dgettext("dashboard_runners", "Enqueued at")}
-            patch={TuistWeb.RunnerWorkflowLive.column_sort_patch(assigns, "enqueued")}
-            data-selected={@sort_by == "enqueued"}
-          >
-            <:right_icon :if={@sort_by == "enqueued"}><.check /></:right_icon>
-          </.dropdown_item>
-          <.dropdown_item
-            value="job"
-            label={dgettext("dashboard_runners", "Job")}
-            patch={TuistWeb.RunnerWorkflowLive.column_sort_patch(assigns, "job")}
-            data-selected={@sort_by == "job"}
-          >
-            <:right_icon :if={@sort_by == "job"}><.check /></:right_icon>
-          </.dropdown_item>
-          <.dropdown_item
-            value="duration"
-            label={dgettext("dashboard_runners", "Duration")}
-            patch={TuistWeb.RunnerWorkflowLive.column_sort_patch(assigns, "duration")}
-            data-selected={@sort_by == "duration"}
-          >
-            <:right_icon :if={@sort_by == "duration"}><.check /></:right_icon>
-          </.dropdown_item>
-        </.dropdown>
       </div>
       <div :if={Enum.any?(@active_filters)} data-part="active-filters">
         <.active_filter :for={filter <- @active_filters} filter={filter} />
       </div>
-      <div :if={not Enum.empty?(@jobs)} data-part="runner-jobs-table">
+      <div :if={not Enum.empty?(@runs)} data-part="runner-runs-table">
         <.table
-          id="runner-workflow-jobs-table"
-          rows={@jobs}
-          row_key={fn job -> "runner-workflow-jobs-row-#{job.workflow_job_id}" end}
-          row_navigate={
-            fn job ->
-              case TuistWeb.RunnerJobLive.path(@selected_account.name, job) do
-                nil -> nil
-                path -> unverified_url(@socket, path)
-              end
-            end
-          }
+          id="runner-workflow-runs-table"
+          rows={@runs}
+          row_key={fn run -> "runner-workflow-runs-row-#{run.workflow_run_id}" end}
         >
-          <:col
-            :let={job}
-            label={dgettext("dashboard_runners", "Job")}
-            patch={TuistWeb.RunnerWorkflowLive.column_sort_patch(assigns, "job")}
-            sort_order={@sort_by == "job" && @sort_order}
-          >
-            <.text_cell label={if(job.job_name == "", do: "–", else: job.job_name)} />
-          </:col>
-          <:col :let={job} label={dgettext("dashboard_runners", "Status")}>
-            <% props =
-              cond do
-                job.status == "completed" and (job.conclusion || "") != "" ->
-                  TuistWeb.RunnerWorkflowLive.conclusion_badge_props(job.conclusion)
-
-                true ->
-                  TuistWeb.RunnerWorkflowLive.status_badge_props(job.status)
-              end %>
+          <:col :let={run} label={dgettext("dashboard_runners", "Status")}>
+            <% props = TuistWeb.RunnerWorkflowLive.run_status_badge_props(run) %>
             <.status_badge_cell label={props.label} status={props.status} />
           </:col>
-          <:col :let={job} label={dgettext("dashboard_runners", "Branch")}>
+          <:col :let={run} label={dgettext("dashboard_runners", "Branch")}>
             <.text_cell
               icon="git_branch"
               label={
-                if(job.head_branch == "",
+                if(run.head_branch == "",
                   do: dgettext("dashboard_runners", "Unknown"),
-                  else: job.head_branch
+                  else: run.head_branch
                 )
               }
             />
           </:col>
-          <:col :let={job} label={dgettext("dashboard_runners", "Commit")}>
-            <.text_cell label={TuistWeb.Utilities.SHA.format_commit_sha(job.head_sha)} />
+          <:col :let={run} label={dgettext("dashboard_runners", "Commit")}>
+            <.link
+              href={
+                TuistWeb.RunnerWorkflowLive.github_run_url(run.repository, run.workflow_run_id)
+              }
+              target="_blank"
+              rel="noopener noreferrer"
+              data-part="run-commit-link"
+            >
+              {TuistWeb.Utilities.SHA.format_commit_sha(run.head_sha)}
+            </.link>
           </:col>
-          <:col
-            :let={job}
-            label={dgettext("dashboard_runners", "Duration")}
-            patch={TuistWeb.RunnerWorkflowLive.column_sort_patch(assigns, "duration")}
-            sort_order={@sort_by == "duration" && @sort_order}
-          >
+          <:col :let={run} label={dgettext("dashboard_runners", "Jobs")}>
+            <.text_cell label={Integer.to_string(run.job_count)} />
+          </:col>
+          <:col :let={run} label={dgettext("dashboard_runners", "Duration")}>
             <.text_cell
               icon="history"
               label={
                 Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
-                  TuistWeb.RunnerWorkflowLive.duration_ms(job)
+                  TuistWeb.RunnerWorkflowLive.run_duration_ms(run)
                 )
               }
             />
           </:col>
-          <:col
-            :let={job}
-            label={dgettext("dashboard_runners", "Enqueued at")}
-            patch={TuistWeb.RunnerWorkflowLive.column_sort_patch(assigns, "enqueued")}
-            sort_order={@sort_by == "enqueued" && @sort_order}
-          >
-            <.text_cell label={Tuist.Utilities.DateFormatter.from_now(job.enqueued_at)} />
+          <:col :let={run} label={dgettext("dashboard_runners", "Last activity")}>
+            <.text_cell label={Tuist.Utilities.DateFormatter.from_now(run.last_activity_at)} />
+          </:col>
+          <:col :let={run} label="">
+            <.button
+              :if={@can_cancel_runs and TuistWeb.RunnerWorkflowLive.run_cancellable?(run)}
+              variant="secondary"
+              label={dgettext("dashboard_runners", "Cancel")}
+              phx-click={
+                Phoenix.LiveView.JS.push("cancel_run",
+                  value: %{"run-id" => Integer.to_string(run.workflow_run_id)}
+                )
+              }
+              data-confirm={
+                dgettext(
+                  "dashboard_runners",
+                  "Cancel this workflow run on GitHub? This cancels all of its jobs."
+                )
+              }
+            />
           </:col>
         </.table>
         <div :if={@total_pages > 1} data-part="pagination">
@@ -393,19 +348,19 @@
           </.button>
         </div>
       </div>
-      <div :if={Enum.empty?(@jobs)} data-part="empty-runner-workflow-jobs">
+      <div :if={Enum.empty?(@runs)} data-part="empty-runner-workflow-runs">
         <.empty_card_section
           title={
-            if @search == "" and Enum.empty?(@active_filters) do
-              dgettext("dashboard_runners", "No jobs yet for this workflow")
+            if Enum.empty?(@active_filters) do
+              dgettext("dashboard_runners", "No runs yet for this workflow")
             else
-              dgettext("dashboard_runners", "No jobs match the current filters")
+              dgettext("dashboard_runners", "No runs match the current filters")
             end
           }
           get_started_href={
             TuistWeb.Marketing.Localization.localized_href("https://tuist.dev/en/docs")
           }
-          data-part="empty-runner-workflow-jobs-card-section"
+          data-part="empty-runner-workflow-runs-card-section"
         >
           <:image>
             <img

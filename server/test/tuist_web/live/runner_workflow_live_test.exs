@@ -5,6 +5,7 @@ defmodule TuistWeb.RunnerWorkflowLiveTest do
 
   import Phoenix.LiveViewTest
 
+  alias Tuist.Runners
   alias Tuist.Runners.Jobs
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
@@ -26,24 +27,33 @@ defmodule TuistWeb.RunnerWorkflowLiveTest do
     %{conn: conn, user: user, account: account}
   end
 
-  test "renders the workflow header and analytics widgets", %{conn: conn, account: account} do
+  defp enqueue_job(account, attrs) do
     :ok =
-      Jobs.enqueue(%{
-        workflow_job_id: 90_001,
-        account_id: account.id,
-        fleet_name: "fleet-w",
-        repository: "tuist/tuist",
-        workflow_run_id: 900_010,
-        workflow_name: "Server",
-        run_attempt: 1,
-        job_name: "Docker build",
-        head_branch: "main",
-        head_sha: "deadbee"
-      })
+      Jobs.enqueue(
+        Map.merge(
+          %{
+            account_id: account.id,
+            fleet_name: "fleet-w",
+            repository: "tuist/tuist",
+            run_attempt: 1,
+            head_branch: "main",
+            head_sha: "deadbee"
+          },
+          attrs
+        )
+      )
+  end
+
+  test "renders the workflow header, analytics widgets, and the runs table", %{conn: conn, account: account} do
+    enqueue_job(account, %{
+      workflow_job_id: 90_001,
+      workflow_run_id: 900_010,
+      workflow_name: "Server",
+      job_name: "Docker build"
+    })
 
     # Walk the job to completed so the success-rate widget renders a
-    # real value (otherwise the success_rate query returns nil and the
-    # widget would just say '–').
+    # real value (otherwise the success_rate query returns nil).
     {:ok, candidate} = Jobs.pick_queued("fleet-w", [])
     :ok = Jobs.record_claimed(candidate, "pod-w", DateTime.utc_now())
     :ok = Jobs.record_running(90_001, "runner-w")
@@ -56,150 +66,119 @@ defmodule TuistWeb.RunnerWorkflowLiveTest do
     assert html =~ "tuist/tuist"
     assert html =~ "Total jobs"
     assert html =~ "queue time"
-    assert html =~ "Failed jobs"
-    assert html =~ "job duration"
-    assert html =~ "Docker build"
+    # The table is now a list of runs, not jobs.
+    assert html =~ ~s(data-part="runner-workflow-runs-card")
+    assert html =~ "runner-workflow-runs-row-900010"
   end
 
-  test "scopes the Jobs table to the requested workflow", %{conn: conn, account: account} do
-    :ok =
-      Jobs.enqueue(%{
-        workflow_job_id: 91_001,
-        account_id: account.id,
-        fleet_name: "fleet-w",
-        repository: "tuist/tuist",
-        workflow_run_id: 910_010,
-        workflow_name: "Server",
-        run_attempt: 1,
-        job_name: "Format",
-        head_branch: "main",
-        head_sha: "abc1234"
-      })
+  test "lists runs scoped to the requested workflow", %{conn: conn, account: account} do
+    enqueue_job(account, %{
+      workflow_job_id: 91_001,
+      workflow_run_id: 910_010,
+      workflow_name: "Server",
+      head_branch: "server-branch"
+    })
 
-    :ok =
-      Jobs.enqueue(%{
-        workflow_job_id: 91_002,
-        account_id: account.id,
-        fleet_name: "fleet-w",
-        repository: "tuist/tuist",
-        workflow_run_id: 910_020,
-        workflow_name: "Release",
-        run_attempt: 1,
-        job_name: "Bump version",
-        head_branch: "main",
-        head_sha: "def4567"
-      })
+    enqueue_job(account, %{
+      workflow_job_id: 91_002,
+      workflow_run_id: 910_020,
+      workflow_name: "Release",
+      head_branch: "release-branch"
+    })
 
     {:ok, _lv, html} = live(conn, ~p"/#{account.name}/runners/workflows/tuist/tuist/Server")
 
-    assert html =~ "Format"
-    refute html =~ "Bump version"
+    assert html =~ "server-branch"
+    refute html =~ "release-branch"
   end
 
-  test "Jobs table search narrows by job_name within the workflow", %{
-    conn: conn,
-    account: account
-  } do
-    :ok =
-      Jobs.enqueue(%{
-        workflow_job_id: 91_101,
-        account_id: account.id,
-        fleet_name: "fleet-search",
-        repository: "tuist/tuist",
-        workflow_run_id: 911_010,
-        workflow_name: "Server",
-        run_attempt: 1,
-        job_name: "Docker build",
-        head_branch: "main",
-        head_sha: "aaa"
-      })
+  test "an in-progress run renders a Running badge", %{conn: conn, account: account} do
+    enqueue_job(account, %{workflow_job_id: 91_500, workflow_run_id: 915_000, workflow_name: "Server", head_branch: "wip"})
 
-    :ok =
-      Jobs.enqueue(%{
-        workflow_job_id: 91_102,
-        account_id: account.id,
-        fleet_name: "fleet-search",
-        repository: "tuist/tuist",
-        workflow_run_id: 911_020,
-        workflow_name: "Server",
-        run_attempt: 1,
-        job_name: "Format",
-        head_branch: "main",
-        head_sha: "bbb"
-      })
+    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/runners/workflows/tuist/tuist/Server")
 
-    {:ok, _lv, html} =
-      live(conn, ~p"/#{account.name}/runners/workflows/tuist/tuist/Server?search=Docker")
-
-    assert html =~ "Docker build"
-    refute html =~ ~r{>\s*Format\s*<}
+    assert html =~ "runner-workflow-runs-row-915000"
+    assert html =~ "Running"
   end
 
-  test "Jobs table paginates when the workflow has more than one page of jobs", %{
-    conn: conn,
-    account: account
-  } do
-    # @page_size on the workflow detail is 20. Seed 21 jobs so we
-    # get a Prev/Next strip and a real second page.
+  test "paginates when the workflow has more than one page of runs", %{conn: conn, account: account} do
+    # @page_size on the workflow detail is 20; 21 distinct runs → a
+    # Prev/Next strip, 20 rows on page 1 and 1 on page 2.
     Enum.each(1..21, fn i ->
-      :ok =
-        Jobs.enqueue(%{
-          workflow_job_id: 92_000 + i,
-          account_id: account.id,
-          fleet_name: "fleet-pg",
-          repository: "tuist/tuist",
-          workflow_run_id: (92_000 + i) * 10,
-          workflow_name: "Server",
-          run_attempt: 1,
-          job_name: "Job #{i}",
-          head_branch: "main",
-          head_sha: "sha#{i}"
-        })
+      enqueue_job(account, %{
+        workflow_job_id: 92_000 + i,
+        workflow_run_id: (92_000 + i) * 10,
+        workflow_name: "Server",
+        head_branch: "branch-#{i}"
+      })
     end)
 
     {:ok, _lv, page_1} = live(conn, ~p"/#{account.name}/runners/workflows/tuist/tuist/Server")
-
-    {:ok, _lv, page_2} =
-      live(conn, ~p"/#{account.name}/runners/workflows/tuist/tuist/Server?page=2")
+    {:ok, _lv, page_2} = live(conn, ~p"/#{account.name}/runners/workflows/tuist/tuist/Server?page=2")
 
     assert page_1 =~ "Next"
     assert page_1 =~ "Prev"
-    refute page_1 =~ ~r{>\s*Job 1\s*<}
-    assert page_2 =~ ~r{>\s*Job 1\s*<}
+    assert run_row_count(page_1) == 20
+    assert run_row_count(page_2) == 1
   end
 
-  test "Jobs table sort_by job re-orders the rendered rows", %{conn: conn, account: account} do
-    Enum.each(
-      [{93_001, "Charlie"}, {93_002, "Alpha"}, {93_003, "Bravo"}],
-      fn {id, name} ->
-        :ok =
-          Jobs.enqueue(%{
-            workflow_job_id: id,
-            account_id: account.id,
-            fleet_name: "fleet-sort-wf",
-            repository: "tuist/tuist",
-            workflow_run_id: id * 10,
-            workflow_name: "Server",
-            run_attempt: 1,
-            job_name: name,
-            head_branch: "main",
-            head_sha: "sha-#{id}"
-          })
-      end
-    )
+  test "shows the Cancel button on in-progress runs when the installation can cancel", %{conn: conn, account: account} do
+    stub(Runners, :can_cancel_workflow_runs?, fn _ -> true end)
 
-    {:ok, _lv, html} =
-      live(
-        conn,
-        ~p"/#{account.name}/runners/workflows/tuist/tuist/Server?sort_by=job&sort_order=asc"
-      )
+    enqueue_job(account, %{
+      workflow_job_id: 94_001,
+      workflow_run_id: 940_010,
+      workflow_name: "Server",
+      head_branch: "main"
+    })
 
-    [alpha_idx, charlie_idx] =
-      Enum.map(["Alpha", "Charlie"], fn name ->
-        html |> :binary.match(name) |> elem(0)
-      end)
+    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/runners/workflows/tuist/tuist/Server")
 
-    assert alpha_idx < charlie_idx
+    assert html =~ "cancel_run"
+    assert html =~ "Cancel"
+  end
+
+  test "hides the Cancel button when the installation cannot cancel", %{conn: conn, account: account} do
+    stub(Runners, :can_cancel_workflow_runs?, fn _ -> false end)
+
+    enqueue_job(account, %{
+      workflow_job_id: 94_101,
+      workflow_run_id: 941_010,
+      workflow_name: "Server",
+      head_branch: "main"
+    })
+
+    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/runners/workflows/tuist/tuist/Server")
+
+    assert html =~ "runner-workflow-runs-row-941010"
+    refute html =~ "cancel_run"
+  end
+
+  test "the cancel_run event cancels the run and flashes", %{conn: conn, account: account} do
+    stub(Runners, :can_cancel_workflow_runs?, fn _ -> true end)
+
+    test_pid = self()
+
+    stub(Runners, :cancel_workflow_run, fn acct, "tuist/tuist", 950_010 ->
+      send(test_pid, {:cancelled, acct.id})
+      :ok
+    end)
+
+    enqueue_job(account, %{
+      workflow_job_id: 95_001,
+      workflow_run_id: 950_010,
+      workflow_name: "Server",
+      head_branch: "main"
+    })
+
+    {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners/workflows/tuist/tuist/Server")
+
+    render_click(lv, "cancel_run", %{"run-id" => "950010"})
+
+    # The stub proves the handler resolved the account + run id and
+    # invoked the cancel; the flash renders in the layout, not the LV body.
+    assert_received {:cancelled, account_id}
+    assert account_id == account.id
   end
 
   test "404s for an unauthorised account name", %{conn: conn} do
@@ -212,5 +191,9 @@ defmodule TuistWeb.RunnerWorkflowLiveTest do
     assert_raise TuistWeb.Errors.NotFoundError, fn ->
       live(conn, ~p"/#{other_account.name}/runners/workflows/tuist/tuist/Server")
     end
+  end
+
+  defp run_row_count(html) do
+    length(String.split(html, "runner-workflow-runs-row-")) - 1
   end
 end
