@@ -81,6 +81,16 @@ defmodule Tuist.Runners.ConcurrencyTest do
     assert "must be greater than 0" in errors_on(changeset).runner_macos_vcpus_limit
   end
 
+  test "checks capacity using a pure resource comparison" do
+    used = %{vcpus: 6, memory_gb: 14}
+    limit = %{vcpus: 12, memory_gb: 28}
+
+    assert Concurrency.fits?(used, limit, %{vcpus: 6, memory_gb: 14})
+    refute Concurrency.fits?(used, limit, %{vcpus: 7, memory_gb: 14})
+    refute Concurrency.fits?(used, limit, %{vcpus: 6, memory_gb: 15})
+    refute Concurrency.fits?(used, limit, %{vcpus: -1, memory_gb: 14})
+  end
+
   test "returns exact peak resource usage per platform and time bucket" do
     account = account_fixture()
     start_dt = datetime("2026-07-10T10:00:00Z")

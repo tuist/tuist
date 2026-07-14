@@ -404,6 +404,35 @@ defmodule Tuist.RunnersTest do
       assert {:error, :no_work_yet} = Runners.dispatch_for_sa("tuist-runners", pod_name)
     end
 
+    test "skips a busy account without consuming the lost-race retry budget" do
+      busy_account = account_fixture()
+      busy_candidate = candidate_with_label(busy_account, "tuist-default", workflow_job_id: 91_010)
+      pod_name = "pod-1"
+
+      expect(K8sClient, :get_service_account, fn "tuist-runners", ^pod_name ->
+        {:ok, sa_with_pool_label(pod_name, "fleet-a")}
+      end)
+
+      expect(K8sClient, :get_runner_pool, fn "tuist-runners", "fleet-a" ->
+        {:error, :not_found}
+      end)
+
+      expect(Claims, :workflow_job_ids_for_fleet, fn "fleet-a" -> [] end)
+      expect(Jobs, :pick_queued, fn "fleet-a", [], [] -> {:ok, busy_candidate} end)
+
+      expect(Claims, :attempt, fn 91_010, account_id, "fleet-a", ^pod_name, _resources ->
+        assert account_id == busy_account.id
+        {:error, :account_busy}
+      end)
+
+      expect(Jobs, :pick_queued, fn "fleet-a", excluded_account_ids, [] ->
+        assert excluded_account_ids == [busy_account.id]
+        {:error, :empty}
+      end)
+
+      assert {:error, :no_work_yet} = Runners.dispatch_for_sa("tuist-runners", pod_name)
+    end
+
     test "capped accounts do not exhaust the retry budget before eligible work" do
       capped_candidates =
         Enum.map(1..16, fn index ->

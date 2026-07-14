@@ -261,6 +261,22 @@ defmodule Tuist.Runners do
           attempts_left - 1
         )
 
+      {:error, :account_busy} ->
+        Logger.debug("runners: account admission is busy; trying next account",
+          fleet: fleet_name,
+          sa: sa_name,
+          account_id: candidate.account_id
+        )
+
+        claim_and_serve(
+          namespace,
+          sa_name,
+          fleet_name,
+          [candidate.account_id | excluded_account_ids],
+          excluded_workflow_job_ids,
+          attempts_left
+        )
+
       {:error, {:concurrency_limit_reached, details}} ->
         Logger.debug("runners: account reached platform concurrency limit; trying next account",
           fleet: fleet_name,

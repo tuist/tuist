@@ -47,6 +47,33 @@ defmodule Tuist.Runners.ClaimsTest do
       assert {:error, :pod_in_use} = Claims.attempt(1301, account.id, "fleet-a", "pod-1", @linux_resources)
     end
 
+    test "enforces pod ownership across accounts" do
+      first_account = account_fixture()
+      second_account = account_fixture()
+
+      assert {:ok, _} = Claims.attempt(1310, first_account.id, "fleet-a", "shared-pod", @linux_resources)
+
+      assert {:error, :pod_in_use} =
+               Claims.attempt(1311, second_account.id, "fleet-a", "shared-pod", @linux_resources)
+    end
+
+    test "rejects invalid claim inputs" do
+      account = account_fixture()
+
+      assert {:error, :invalid_resources} =
+               Claims.attempt(0, account.id, "fleet-a", "pod-1", @linux_resources)
+
+      assert {:error, :invalid_resources} =
+               Claims.attempt(1320, account.id, "", "pod-1", @linux_resources)
+
+      assert {:error, :invalid_resources} =
+               Claims.attempt(1320, account.id, "fleet-a", "pod-1", %{
+                 platform: :linux,
+                 vcpus: 0,
+                 memory_gb: 1
+               })
+    end
+
     test "atomically rejects a shape that would exceed a platform budget" do
       account = account_fixture()
       macos_resources = %{platform: :macos, vcpus: 6, memory_gb: 14}

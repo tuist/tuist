@@ -7,24 +7,20 @@ defmodule Tuist.Runners.Claims do
   Two responsibilities, both genuinely OLTP:
 
     1. **Atomic claim.** `attempt/5` runs the full check-and-set
-       inside a single Postgres transaction, holding an
-       advisory lock keyed on `account_id` for the duration:
+       inside a single Postgres transaction, holding a non-blocking
+       advisory lock keyed on `(account_id, platform)` for the duration:
 
          * platform resource-limit check against the account's
            vCPU and memory budgets and this platform's live claims
-         * pod-in-use rejection if the polling Pod already owns
-           a live claim (defends against the SA-token reuse
-           attack: customer workflow code can read
-           `/etc/tuist-sa-token` and call dispatch a second
-           time; the active claim makes the second attempt
-           fail-closed)
-         * `INSERT … ON CONFLICT (workflow_job_id) DO NOTHING`
-           collapses concurrent attempts for the same job;
-           the loser sees zero rows and bails with `:lost_race`
+         * the `workflow_job_id` primary key collapses concurrent
+           attempts for the same job
+         * the unique `pod_name` index prevents one Pod from owning
+           two live claims, including attempts spanning accounts or
+           platforms
 
-       The advisory lock serialises concurrent claim attempts
-       for the same account so the resource check, pod-in-use
-       check, and INSERT land atomically.
+       A busy lock returns immediately so one account cannot fill the
+       database pool with waiting transactions. The dispatcher skips
+       that account for the current poll and considers other work.
 
     2. **Per-account inflight count.** `counts_per_account/0` is
        a single indexed `GROUP BY account_id` against this table
@@ -60,27 +56,24 @@ defmodule Tuist.Runners.Claims do
 
   import Ecto.Query
 
+  alias Tuist.Accounts.Account
   alias Tuist.Repo
   alias Tuist.Runners.Claim
   alias Tuist.Runners.Concurrency
 
-  # Postgres advisory locks accept a single 64-bit int or two
-  # 32-bit ints. Using the two-int form lets us namespace by a
-  # constant so we don't collide with other advisory-lock users
-  # in the same DB. `runner_claim_account_lock` truncated to 32
-  # bits.
-  @claim_lock_namespace 0x52434C4B
-
   @doc """
   Attempts to claim `workflow_job_id` for `pod_name` on behalf of
   `account_id`, consuming the requested platform resources. Runs
-  check-and-set inside one Postgres transaction with an advisory
-  lock on `account_id`:
+  check-and-set inside one Postgres transaction with a non-blocking
+  advisory lock on `(account_id, platform)`:
 
   Returns one of:
 
     * `{:ok, %Claim{}}` — claim landed; caller should mint the
       JIT and call `mark_running/2` on success.
+    * `{:error, :account_busy}` — another transaction is currently
+      admitting work for this account and platform. The caller should
+      try another account instead of waiting.
     * `{:error, :lost_race}` — another pod beat us to the
       `workflow_job_id` PK.
     * `{:error, {:concurrency_limit_reached, details}}` — adding the
@@ -89,37 +82,91 @@ defmodule Tuist.Runners.Claims do
     * `{:error, :pod_in_use}` — `pod_name` already owns a live
       claim. Closes the SA-token-reuse path.
   """
-  def attempt(workflow_job_id, account_id, fleet_name, pod_name, resources)
-      when is_integer(workflow_job_id) and is_integer(account_id) and is_binary(fleet_name) and is_binary(pod_name) and
-             is_map(resources) do
-    Repo.transaction(fn ->
-      with :ok <- acquire_account_lock(account_id),
-           :ok <- Concurrency.check_available(account_id, resources),
-           :ok <- check_pod_not_in_use(pod_name) do
-        case insert_claim(workflow_job_id, account_id, fleet_name, pod_name, resources) do
+  def attempt(workflow_job_id, account_id, fleet_name, pod_name, resources) do
+    with :ok <- validate_claim_inputs(workflow_job_id, account_id, fleet_name, pod_name, resources),
+         :ok <- validate_resources(resources) do
+      Repo.transaction(fn ->
+        result =
+          with :ok <- try_acquire_account_platform_lock(account_id, resources.platform),
+               {:ok, account} <- fetch_account(account_id) do
+            reserve_if_available(workflow_job_id, account, fleet_name, pod_name, resources)
+          end
+
+        case result do
           {:ok, claim} -> claim
-          {:error, :lost_race} -> Repo.rollback(:lost_race)
+          {:error, reason} -> Repo.rollback(reason)
         end
-      else
-        {:error, reason} -> Repo.rollback(reason)
-      end
-    end)
+      end)
+    end
   end
 
-  defp acquire_account_lock(account_id) do
-    # `pg_advisory_xact_lock` is released automatically on
-    # COMMIT/ROLLBACK — no need to track release ourselves.
-    case Repo.query("SELECT pg_advisory_xact_lock($1, $2)", [@claim_lock_namespace, account_id]) do
-      {:ok, _} -> :ok
+  defp validate_claim_inputs(workflow_job_id, account_id, fleet_name, pod_name, resources) do
+    valid? =
+      Enum.all?([
+        positive_integer?(workflow_job_id),
+        positive_integer?(account_id),
+        non_empty_binary?(fleet_name),
+        non_empty_binary?(pod_name),
+        is_map(resources)
+      ])
+
+    if valid?, do: :ok, else: {:error, :invalid_resources}
+  end
+
+  defp positive_integer?(value), do: is_integer(value) and value > 0
+  defp non_empty_binary?(value), do: is_binary(value) and value != ""
+
+  defp try_acquire_account_platform_lock(account_id, platform) do
+    lock_key = account_platform_lock_key(account_id, platform)
+
+    case Repo.query("SELECT pg_try_advisory_xact_lock($1::bigint)", [lock_key]) do
+      {:ok, %{rows: [[true]]}} -> :ok
+      {:ok, %{rows: [[false]]}} -> {:error, :account_busy}
       {:error, reason} -> {:error, {:lock_failed, reason}}
     end
   end
 
-  defp check_pod_not_in_use(pod_name) do
-    case Repo.one(from(c in Claim, where: c.pod_name == ^pod_name, select: c.workflow_job_id, limit: 1)) do
-      nil -> :ok
-      _ -> {:error, :pod_in_use}
+  # Account IDs are positive bigint values. Mapping Linux to the positive
+  # ID and macOS to its negative gives each platform a distinct,
+  # collision-free lock key across the full account ID range.
+  defp account_platform_lock_key(account_id, :linux), do: account_id
+  defp account_platform_lock_key(account_id, :macos), do: -account_id
+
+  defp fetch_account(account_id) do
+    case Repo.get(Account, account_id) do
+      nil -> {:error, :unknown_account}
+      account -> {:ok, account}
     end
+  end
+
+  defp reserve_if_available(workflow_job_id, account, fleet_name, pod_name, resources) do
+    used = usage_for_platform(account.id, resources.platform)
+    limit = Concurrency.limits_for(account, resources.platform)
+
+    if Concurrency.fits?(used, limit, resources) do
+      insert_claim(workflow_job_id, account.id, fleet_name, pod_name, resources)
+    else
+      {:error,
+       {:concurrency_limit_reached,
+        %{
+          platform: resources.platform,
+          requested: resources,
+          used: used,
+          limit: limit
+        }}}
+    end
+  end
+
+  defp usage_for_platform(account_id, platform) do
+    {vcpus, memory_gb} =
+      Repo.one(
+        from(claim in Claim,
+          where: claim.account_id == ^account_id and claim.platform == ^platform,
+          select: {sum(claim.vcpus), sum(claim.memory_gb)}
+        )
+      )
+
+    %{vcpus: vcpus || 0, memory_gb: memory_gb || 0}
   end
 
   defp insert_claim(workflow_job_id, account_id, fleet_name, pod_name, resources) do
@@ -143,7 +190,6 @@ defmodule Tuist.Runners.Claims do
           }
         ],
         on_conflict: :nothing,
-        conflict_target: :workflow_job_id,
         returning: [
           :workflow_job_id,
           :account_id,
@@ -159,10 +205,31 @@ defmodule Tuist.Runners.Claims do
       )
 
     case count do
-      0 -> {:error, :lost_race}
+      0 -> claim_conflict(workflow_job_id, pod_name)
       1 -> {:ok, struct(Claim, Map.from_struct(hd(rows)))}
     end
   end
+
+  defp claim_conflict(workflow_job_id, pod_name) do
+    cond do
+      Repo.exists?(from(claim in Claim, where: claim.workflow_job_id == ^workflow_job_id)) ->
+        {:error, :lost_race}
+
+      Repo.exists?(from(claim in Claim, where: claim.pod_name == ^pod_name)) ->
+        {:error, :pod_in_use}
+
+      true ->
+        {:error, :lost_race}
+    end
+  end
+
+  defp validate_resources(%{platform: platform, vcpus: vcpus, memory_gb: memory_gb}) when platform in [:linux, :macos] do
+    if Enum.all?([vcpus, memory_gb], &(is_integer(&1) and &1 > 0)),
+      do: :ok,
+      else: {:error, :invalid_resources}
+  end
+
+  defp validate_resources(_resources), do: {:error, :invalid_resources}
 
   @doc """
   Promotes a `claimed` claim to `running`. Called after the JIT

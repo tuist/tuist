@@ -6,8 +6,8 @@ defmodule Tuist.Runners.Concurrency do
   Linux and macOS have independent budgets. A claim is admitted only
   when adding its shape keeps both aggregate vCPU and aggregate memory
   within the account's limits for that platform. `Claims.attempt/5`
-  invokes `check_available/2` while holding the account advisory lock,
-  making the read-check-insert sequence atomic across server replicas.
+  owns the database-backed read-check-insert transaction; this module
+  provides the pure capacity predicate and reporting queries.
   """
 
   import Ecto.Query
@@ -84,44 +84,26 @@ defmodule Tuist.Runners.Concurrency do
   end
 
   @doc """
-  Checks whether `requested` fits the account's remaining capacity.
-
-  This function must run inside the transaction and after the account
-  advisory lock acquired by `Claims.attempt/5`.
+  Purely checks whether `requested` fits within `limit` after `used`.
   """
-  def check_available(account_id, %{platform: platform, vcpus: vcpus, memory_gb: memory_gb} = requested) do
-    with :ok <- validate_account_id(account_id),
-         :ok <- validate_platform(platform),
-         :ok <- validate_positive_integer(vcpus),
-         :ok <- validate_positive_integer(memory_gb) do
-      check_account_capacity(account_id, requested)
-    end
+  def fits?(
+        %{vcpus: used_vcpus, memory_gb: used_memory_gb} = used,
+        %{vcpus: limit_vcpus, memory_gb: limit_memory_gb} = limit,
+        %{vcpus: requested_vcpus, memory_gb: requested_memory_gb} = requested
+      ) do
+    valid_usage?(used) and valid_capacity?(limit) and valid_capacity?(requested) and
+      used_vcpus + requested_vcpus <= limit_vcpus and
+      used_memory_gb + requested_memory_gb <= limit_memory_gb
   end
 
-  def check_available(_account_id, _requested), do: {:error, :invalid_resources}
+  def fits?(_used, _limit, _requested), do: false
 
-  defp check_account_capacity(account_id, %{platform: platform, vcpus: vcpus, memory_gb: memory_gb} = requested) do
-    case Repo.get(Account, account_id) do
-      nil ->
-        {:error, :unknown_account}
+  defp valid_usage?(resources) do
+    Enum.all?([resources.vcpus, resources.memory_gb], &(is_integer(&1) and &1 >= 0))
+  end
 
-      account ->
-        used = account_id |> usage_by_platform() |> Map.fetch!(platform)
-        limit = limits_for(account, platform)
-
-        if used.vcpus + vcpus <= limit.vcpus and used.memory_gb + memory_gb <= limit.memory_gb do
-          :ok
-        else
-          {:error,
-           {:concurrency_limit_reached,
-            %{
-              platform: platform,
-              requested: requested,
-              used: used,
-              limit: limit
-            }}}
-        end
-    end
+  defp valid_capacity?(resources) do
+    Enum.all?([resources.vcpus, resources.memory_gb], &(is_integer(&1) and &1 > 0))
   end
 
   @doc """
@@ -393,28 +375,22 @@ defmodule Tuist.Runners.Concurrency do
   defp to_datetime(%DateTime{} = datetime), do: datetime
   defp to_datetime(%NaiveDateTime{} = datetime), do: DateTime.from_naive!(datetime, "Etc/UTC")
 
-  defp limits_for(account, :linux) do
+  @doc """
+  Returns the configured resource limits for `platform`.
+  """
+  def limits_for(%Account{} = account, :linux) do
     %{
       vcpus: account.runner_linux_vcpus_limit,
       memory_gb: account.runner_linux_memory_gb_limit
     }
   end
 
-  defp limits_for(account, :macos) do
+  def limits_for(%Account{} = account, :macos) do
     %{
       vcpus: account.runner_macos_vcpus_limit,
       memory_gb: account.runner_macos_memory_gb_limit
     }
   end
-
-  defp validate_account_id(account_id) when is_integer(account_id), do: :ok
-  defp validate_account_id(_account_id), do: {:error, :invalid_resources}
-
-  defp validate_platform(platform) when platform in @platforms, do: :ok
-  defp validate_platform(_platform), do: {:error, :invalid_resources}
-
-  defp validate_positive_integer(value) when is_integer(value) and value > 0, do: :ok
-  defp validate_positive_integer(_value), do: {:error, :invalid_resources}
 
   defp zero_usage do
     %{
