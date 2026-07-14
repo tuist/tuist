@@ -380,8 +380,9 @@ macosFleet:
   # Per-account cache volumes. The quota is an APFS ceiling (shares the
   # container's free space, not a reservation) fenced by admission +
   # watermark eviction, so space pressure degrades a job to the cold
-  # path rather than risking ENOSPC. 40 GiB holds ~2 masters at the
-  # 20 GiB default cap — enough for canary's single replica.
+  # path rather than risking ENOSPC. A real Tuist cache master is ~2.4 GB
+  # (the 20 GiB masterCapGib is a sparse per-master ceiling), so 40 GiB
+  # holds ~16 masters — ample for canary's single replica.
   runnerCacheVolume:
     gib: 40
   # Canary runs on the production tailnet (single shared tailnet

@@ -543,10 +543,14 @@ macosFleet:
   # Per-account cache volumes. The quota is an APFS ceiling (shares the
   # container's free space, not a reservation) fenced by admission +
   # watermark eviction, so space pressure degrades a job to the cold
-  # path rather than risking ENOSPC. 120 GiB holds ~6 masters at the
-  # 20 GiB default cap, so a production host keeps several accounts hot.
+  # path rather than risking ENOSPC. A real Tuist cache master is ~2.4 GB
+  # (the 20 GiB masterCapGib is a sparse per-master ceiling, not the
+  # typical size), so 80 GiB holds ~30 masters — well beyond the accounts
+  # a single host keeps hot once affinity spreads them across the fleet.
+  # Kept well under the 512 GB disk, which is dominated by the ~85 GB
+  # golden VM image(s) (two during a digest roll) + per-job DerivedData.
   runnerCacheVolume:
-    gib: 120
+    gib: 80
   # Production tailnet — alloy-metrics scrapes PromEx (xcresult VM)
   # + node_exporter (host) over the tailnet. The pre-auth key lives
   # in the production 1Password vault under TAILSCALE/auth-key.
