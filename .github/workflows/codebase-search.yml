@@ -1,0 +1,66 @@
+name: Codebase Search
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - codebase-search/**
+      - .github/workflows/codebase-search.yml
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - codebase-search/**
+      - .github/workflows/codebase-search.yml
+  merge_group: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: codebase-search-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: codebase-search
+
+env:
+  MISE_VERSION: "2026.5.15"
+  MISE_GITHUB_TOKEN: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
+
+jobs:
+  checks:
+    name: Format, lint, and test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install_args: rust
+          working_directory: codebase-search
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+      - name: Lint
+        run: cargo clippy --all-targets -- -D warnings
+      - name: Test
+        run: cargo test --all-targets
+
+  image:
+    name: Build image
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: ./codebase-search
+          file: ./codebase-search/Dockerfile
+          push: false
+          build-args: |
+            TUIST_REVISION=${{ github.event.pull_request.base.sha || github.sha }}
