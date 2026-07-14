@@ -28,7 +28,7 @@ msgstr ""
 
 #: lib/tuist_web/live/runner_workflows_live.ex:273
 #: lib/tuist_web/live/runner_workflows_live.html.heex:335
-#: lib/tuist_web/live/runner_workflows_live.html.heex:395
+#: lib/tuist_web/live/runner_workflows_live.html.heex:391
 #, elixir-autogen, elixir-format
 msgid "Avg duration"
 msgstr ""
@@ -97,7 +97,6 @@ msgstr ""
 #: lib/tuist_web/live/runner_jobs_live.ex:519
 #: lib/tuist_web/live/runner_workflow_live.ex:299
 #: lib/tuist_web/live/runner_workflow_live.ex:318
-#: lib/tuist_web/live/runner_workflows_live.ex:303
 #: lib/tuist_web/live/runners_live.ex:486
 #, elixir-autogen, elixir-format
 msgid "Completed"
@@ -181,7 +180,7 @@ msgstr ""
 #: lib/tuist_web/live/runner_workflow_live.html.heex:297
 #: lib/tuist_web/live/runner_workflows_live.ex:271
 #: lib/tuist_web/live/runner_workflows_live.html.heex:319
-#: lib/tuist_web/live/runner_workflows_live.html.heex:379
+#: lib/tuist_web/live/runner_workflows_live.html.heex:375
 #: lib/tuist_web/live/runners_live.html.heex:263
 #, elixir-autogen, elixir-format
 msgid "Jobs"
@@ -230,7 +229,8 @@ msgstr ""
 msgid "Last 7 days"
 msgstr ""
 
-#: lib/tuist_web/live/runner_workflows_live.html.heex:406
+#: lib/tuist_web/live/runner_workflows_live.ex:275
+#: lib/tuist_web/live/runner_workflows_live.html.heex:404
 #, elixir-autogen, elixir-format
 msgid "Last run"
 msgstr ""
@@ -242,7 +242,7 @@ msgstr ""
 
 #: lib/tuist_web/live/runner_jobs_live.html.heex:672
 #: lib/tuist_web/live/runner_workflow_live.html.heex:343
-#: lib/tuist_web/live/runner_workflows_live.html.heex:421
+#: lib/tuist_web/live/runner_workflows_live.html.heex:422
 #, elixir-autogen, elixir-format
 msgid "Next"
 msgstr ""
@@ -258,14 +258,14 @@ msgstr ""
 msgid "No jobs yet"
 msgstr ""
 
-#: lib/tuist_web/live/runner_workflows_live.html.heex:433
+#: lib/tuist_web/live/runner_workflows_live.html.heex:434
 #, elixir-autogen, elixir-format
 msgid "No workflows yet"
 msgstr ""
 
 #: lib/tuist_web/live/runner_jobs_live.html.heex:664
 #: lib/tuist_web/live/runner_workflow_live.html.heex:335
-#: lib/tuist_web/live/runner_workflows_live.html.heex:413
+#: lib/tuist_web/live/runner_workflows_live.html.heex:414
 #, elixir-autogen, elixir-format
 msgid "Prev"
 msgstr ""
@@ -288,7 +288,7 @@ msgstr ""
 #: lib/tuist/runners/analytics.ex:945
 #: lib/tuist_web/live/runner_job_live.html.heex:160
 #: lib/tuist_web/live/runner_jobs_live.html.heex:597
-#: lib/tuist_web/live/runner_workflows_live.html.heex:369
+#: lib/tuist_web/live/runner_workflows_live.html.heex:365
 #: lib/tuist_web/live/runners_live.html.heex:400
 #: lib/tuist_web/live/runners_live.html.heex:555
 #, elixir-autogen, elixir-format
@@ -306,7 +306,6 @@ msgstr ""
 #: lib/tuist_web/live/runner_jobs_live.html.heex:472
 #: lib/tuist_web/live/runner_workflow_live.ex:298
 #: lib/tuist_web/live/runner_workflow_live.ex:315
-#: lib/tuist_web/live/runner_workflows_live.ex:307
 #: lib/tuist_web/live/runners_live.ex:485
 #, elixir-autogen, elixir-format
 msgid "Running"
@@ -331,7 +330,6 @@ msgstr ""
 #: lib/tuist_web/live/runner_jobs_live.html.heex:415
 #: lib/tuist_web/live/runner_jobs_live.html.heex:605
 #: lib/tuist_web/live/runner_workflow_live.html.heex:270
-#: lib/tuist_web/live/runner_workflows_live.html.heex:352
 #: lib/tuist_web/live/runners_live.html.heex:403
 #: lib/tuist_web/live/runners_live.html.heex:563
 #, elixir-autogen, elixir-format
@@ -350,7 +348,7 @@ msgstr ""
 
 #: lib/tuist_web/live/runner_workflows_live.ex:272
 #: lib/tuist_web/live/runner_workflows_live.html.heex:327
-#: lib/tuist_web/live/runner_workflows_live.html.heex:387
+#: lib/tuist_web/live/runner_workflows_live.html.heex:383
 #, elixir-autogen, elixir-format
 msgid "Success rate"
 msgstr ""
@@ -419,9 +417,8 @@ msgstr ""
 #: lib/tuist_web/live/runner_workflow_live.ex:300
 #: lib/tuist_web/live/runner_workflow_live.ex:320
 #: lib/tuist_web/live/runner_workflow_live.html.heex:279
-#: lib/tuist_web/live/runner_workflows_live.ex:310
-#: lib/tuist_web/live/runner_workflows_live.html.heex:364
-#: lib/tuist_web/live/runner_workflows_live.html.heex:372
+#: lib/tuist_web/live/runner_workflows_live.html.heex:360
+#: lib/tuist_web/live/runner_workflows_live.html.heex:368
 #: lib/tuist_web/live/runners_live.ex:303
 #: lib/tuist_web/live/runners_live.ex:487
 #: lib/tuist_web/live/runners_live.html.heex:395
@@ -449,7 +446,7 @@ msgstr ""
 #: lib/tuist_web/live/runner_jobs_live.html.heex:586
 #: lib/tuist_web/live/runner_workflows_live.ex:274
 #: lib/tuist_web/live/runner_workflows_live.html.heex:311
-#: lib/tuist_web/live/runner_workflows_live.html.heex:358
+#: lib/tuist_web/live/runner_workflows_live.html.heex:354
 #: lib/tuist_web/live/runners_live.html.heex:392
 #: lib/tuist_web/live/runners_live.html.heex:547
 #, elixir-autogen, elixir-format
@@ -518,35 +515,35 @@ msgstr ""
 #: lib/tuist_web/live/runner_workflow_live.html.heex:73
 #: lib/tuist_web/live/runner_workflow_live.html.heex:115
 #: lib/tuist_web/live/runner_workflow_live.html.heex:160
-#: lib/tuist_web/live/runner_workflows_live.ex:283
+#: lib/tuist_web/live/runner_workflows_live.ex:284
 #: lib/tuist_web/live/runners_live.ex:326
 #, elixir-autogen, elixir-format
 msgid "since last month"
 msgstr ""
 
 #: lib/tuist_web/live/runner_jobs_live.ex:257
-#: lib/tuist_web/live/runner_workflows_live.ex:282
+#: lib/tuist_web/live/runner_workflows_live.ex:283
 #: lib/tuist_web/live/runners_live.ex:325
 #, elixir-autogen, elixir-format
 msgid "since last period"
 msgstr ""
 
 #: lib/tuist_web/live/runner_jobs_live.ex:255
-#: lib/tuist_web/live/runner_workflows_live.ex:280
+#: lib/tuist_web/live/runner_workflows_live.ex:281
 #: lib/tuist_web/live/runners_live.ex:323
 #, elixir-autogen, elixir-format
 msgid "since last week"
 msgstr ""
 
 #: lib/tuist_web/live/runner_jobs_live.ex:256
-#: lib/tuist_web/live/runner_workflows_live.ex:281
+#: lib/tuist_web/live/runner_workflows_live.ex:282
 #: lib/tuist_web/live/runners_live.ex:324
 #, elixir-autogen, elixir-format
 msgid "since last year"
 msgstr ""
 
 #: lib/tuist_web/live/runner_jobs_live.ex:254
-#: lib/tuist_web/live/runner_workflows_live.ex:279
+#: lib/tuist_web/live/runner_workflows_live.ex:280
 #: lib/tuist_web/live/runners_live.ex:322
 #, elixir-autogen, elixir-format
 msgid "since yesterday"
@@ -639,7 +636,7 @@ msgstr ""
 msgid "Search..."
 msgstr ""
 
-#: lib/tuist_web/live/runner_workflows_live.html.heex:435
+#: lib/tuist_web/live/runner_workflows_live.html.heex:436
 #, elixir-autogen, elixir-format
 msgid "No workflows match the current search"
 msgstr ""

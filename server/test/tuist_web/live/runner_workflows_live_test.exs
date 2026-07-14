@@ -61,9 +61,51 @@ defmodule TuistWeb.RunnerWorkflowsLiveTest do
     assert html =~ "tuist/tuist"
     assert html =~ "CLI"
     assert html =~ "tuist/cli"
-    # Each workflow row carries a latest-run status badge; the seeded
-    # jobs are still queued, so the latest-run status reads Running.
-    assert html =~ "Running"
+  end
+
+  test "defaults to sorting workflows by most recent run first", %{conn: conn, account: account} do
+    now = DateTime.utc_now()
+
+    # Alphabetically-first name but the OLDER last run.
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 80_101,
+        account_id: account.id,
+        fleet_name: "fleet-sort",
+        repository: "tuist/tuist",
+        workflow_run_id: 801_010,
+        workflow_name: "aaa-older-workflow",
+        run_attempt: 1,
+        job_name: "j",
+        head_branch: "main",
+        head_sha: "a",
+        enqueued_at: DateTime.add(now, -3600, :second)
+      })
+
+    # Alphabetically-last name but the NEWER last run.
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 80_102,
+        account_id: account.id,
+        fleet_name: "fleet-sort",
+        repository: "tuist/tuist",
+        workflow_run_id: 801_020,
+        workflow_name: "zzz-newer-workflow",
+        run_attempt: 1,
+        job_name: "j",
+        head_branch: "main",
+        head_sha: "b",
+        enqueued_at: now
+      })
+
+    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/runners/workflows")
+
+    older_idx = html |> :binary.match("aaa-older-workflow") |> elem(0)
+    newer_idx = html |> :binary.match("zzz-newer-workflow") |> elem(0)
+    # Default sort is last_run desc: the more recently active workflow
+    # comes first despite being alphabetically last (which rules out the
+    # old alphabetical default).
+    assert newer_idx < older_idx
   end
 
   test "filters by repository via the repository filter", %{conn: conn, account: account} do

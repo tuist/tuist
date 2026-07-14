@@ -349,10 +349,6 @@
             fn w -> TuistWeb.RunnerWorkflowsLive.workflow_path(@selected_account.name, w) end
           }
         >
-          <:col :let={w} label={dgettext("dashboard_runners", "Status")}>
-            <% props = TuistWeb.RunnerWorkflowsLive.status_badge_props(w) %>
-            <.status_badge_cell label={props.label} status={props.status} />
-          </:col>
           <:col
             :let={w}
             label={dgettext("dashboard_runners", "Workflow")}
@@ -403,7 +399,12 @@
               }
             />
           </:col>
-          <:col :let={w} label={dgettext("dashboard_runners", "Last run")}>
+          <:col
+            :let={w}
+            label={dgettext("dashboard_runners", "Last run")}
+            patch={TuistWeb.RunnerWorkflowsLive.column_sort_patch(assigns, "last_run")}
+            sort_order={@sort_by == "last_run" && @sort_order}
+          >
             <.text_cell sublabel={Tuist.Utilities.DateFormatter.from_now(w.last_run_at)} />
           </:col>
         </.table>
