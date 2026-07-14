@@ -25,6 +25,7 @@ defmodule Tuist.Registry.Swift.SyncWorker do
 
   @sync_lock_ttl_seconds 3_000
   @package_lock_ttl_seconds 900
+  @release_lock_ttl_seconds 1_800
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: args}) do
@@ -171,19 +172,7 @@ defmodule Tuist.Registry.Swift.SyncWorker do
   end
 
   defp force_resync_package_version(%{scope: scope, name: name, repository_full_handle: full_handle}, version, token) do
-    lock_key = {:package, scope, name}
-
-    case Lock.try_acquire(lock_key, @package_lock_ttl_seconds) do
-      {:ok, :acquired} ->
-        try do
-          do_force_resync_package_version(scope, name, full_handle, version, token)
-        after
-          Lock.release(lock_key)
-        end
-
-      {:error, :already_locked} ->
-        {:snooze, 30}
-    end
+    do_force_resync_package_version(scope, name, full_handle, version, token)
   end
 
   defp do_sync_package(scope, name, full_handle, token) do
@@ -213,7 +202,7 @@ defmodule Tuist.Registry.Swift.SyncWorker do
             {:discard, :version_not_found}
 
           tag ->
-            with {:ok, _result} <- Purge.purge_version(scope, name, version) do
+            with {:ok, _result} <- purge_package_version(scope, name, version) do
               enqueue_release_worker(scope, name, full_handle, tag)
             end
         end
@@ -222,6 +211,38 @@ defmodule Tuist.Registry.Swift.SyncWorker do
         Logger.warning("Failed to fetch tags before force resyncing #{scope}/#{name}@#{version}: #{inspect(reason)}")
 
         {:error, reason}
+    end
+  end
+
+  defp purge_package_version(scope, name, version) do
+    lock_key = {:release, scope, name, version}
+
+    case Lock.try_acquire(lock_key, @release_lock_ttl_seconds) do
+      {:ok, :acquired} ->
+        try do
+          purge_package_version_with_package_lock(scope, name, version)
+        after
+          Lock.release(lock_key)
+        end
+
+      {:error, :already_locked} ->
+        {:snooze, 30}
+    end
+  end
+
+  defp purge_package_version_with_package_lock(scope, name, version) do
+    lock_key = {:package, scope, name}
+
+    case Lock.try_acquire(lock_key, @package_lock_ttl_seconds) do
+      {:ok, :acquired} ->
+        try do
+          Purge.purge_version(scope, name, version)
+        after
+          Lock.release(lock_key)
+        end
+
+      {:error, :already_locked} ->
+        {:snooze, 30}
     end
   end
 
