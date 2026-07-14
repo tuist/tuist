@@ -163,9 +163,14 @@ public struct DependenciesContentHasher: DependenciesContentHashing {
                 )
             }
         case let .package(product, type, _):
+            let packageTraits = try packageTraitsFingerprint(graphTarget.project.packageTraits)
             return DependenciesContentHash(
                 hashedPaths: hashedPaths,
-                hash: try contentHasher.hash("package-\(product)-\(type.rawValue)")
+                hash: try contentHasher.hash(
+                    ["package", product, type.rawValue, packageTraits]
+                        .compactMap { $0 }
+                        .joined(separator: "-")
+                )
             )
         case let .sdk(name, status, _):
             return DependenciesContentHash(
@@ -178,5 +183,30 @@ public struct DependenciesContentHasher: DependenciesContentHashing {
                 hash: try contentHasher.hash("xctest")
             )
         }
+    }
+
+    private func packageTraitsFingerprint(_ packageTraits: [PackageTraitSelection]?) throws -> String? {
+        guard let packageTraits, !packageTraits.isEmpty else { return nil }
+
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+
+        let normalizedPackageTraits = try packageTraits
+            .map {
+                PackageTraitSelection(
+                    package: $0.package,
+                    traits: $0.traits.sorted()
+                )
+            }
+            .map {
+                (
+                    value: $0,
+                    sortKey: String(decoding: try encoder.encode($0), as: UTF8.self)
+                )
+            }
+            .sorted { $0.sortKey < $1.sortKey }
+            .map(\.value)
+
+        return String(decoding: try encoder.encode(normalizedPackageTraits), as: UTF8.self)
     }
 }
