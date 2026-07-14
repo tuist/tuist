@@ -280,11 +280,7 @@ defmodule Tuist.GitHub.Client do
   the run originates from a fork, which the runner dispatch uses to decide
   whether a job may touch the shared per-account cache.
   """
-  def get_workflow_run(%{
-        repository_full_handle: repository_full_handle,
-        installation: installation,
-        run_id: run_id
-      }) do
+  def get_workflow_run(%{repository_full_handle: repository_full_handle, installation: installation, run_id: run_id}) do
     api_url = installation_api_url(installation)
     url = "#{api_url}/repos/#{repository_full_handle}/actions/runs/#{run_id}"
 
