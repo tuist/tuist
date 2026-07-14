@@ -12,7 +12,7 @@
 registry:
   publicHost: registry-canary.tuist.dev
   serverUrl: https://canary.tuist.dev
-  deployEnv: can
+  deployEnv: canary
   sentryEnv: can
   ingress:
     host: registry-canary.tuist.dev
