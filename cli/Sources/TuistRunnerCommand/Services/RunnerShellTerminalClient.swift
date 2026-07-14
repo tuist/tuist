@@ -64,8 +64,10 @@ struct RunnerShellTerminalClient: RunnerShellTerminalClienting {
                 switch try await webSocketTask.receive() {
                 case let .data(data):
                     FileHandle.standardOutput.write(data)
-                case .string:
-                    continue
+                case let .string(text):
+                    if Self.shouldClose(for: text) {
+                        return
+                    }
                 @unknown default:
                     continue
                 }
@@ -85,6 +87,16 @@ struct RunnerShellTerminalClient: RunnerShellTerminalClienting {
         guard let text = String(data: payload, encoding: .utf8) else { return }
 
         try await webSocketTask.send(.string(text))
+    }
+
+    private static func shouldClose(for text: String) -> Bool {
+        guard let data = text.data(using: .utf8),
+              let message = try? JSONDecoder().decode(RunnerShellControlMessage.self, from: data)
+        else {
+            return false
+        }
+
+        return message.type == "exit"
     }
 }
 
@@ -108,6 +120,10 @@ private struct TerminalSize: Encodable {
 
         return TerminalSize(columns: 80, rows: 24)
     }
+}
+
+private struct RunnerShellControlMessage: Decodable {
+    let type: String
 }
 
 private final class TerminalRawMode {

@@ -370,6 +370,12 @@ def reap_shell(pid):
     return None
 
 
+def send_shell_exit(sock, exit_status):
+    if exit_status is None:
+        exit_status = 0
+    send_ws_frame(sock, 0x1, json.dumps({"type": "exit", "status": exit_status}))
+
+
 def handle_text_frame(payload, pty_fd):
     try:
         message = json.loads(payload.decode("utf-8"))
@@ -415,12 +421,13 @@ def bridge_session(session, token, discovery):
                 except OSError:
                     data = b""
                 if not data:
+                    send_shell_exit(sock, reap_shell(pid))
                     break
                 send_ws_frame(sock, 0x2, data)
 
             exit_status = reap_shell(pid)
             if exit_status is not None:
-                send_ws_frame(sock, 0x1, json.dumps({"type": "exit", "status": exit_status}))
+                send_shell_exit(sock, exit_status)
                 break
     finally:
         try:

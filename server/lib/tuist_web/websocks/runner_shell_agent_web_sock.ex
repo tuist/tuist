@@ -45,13 +45,13 @@ defmodule TuistWeb.RunnerShellAgentWebSock do
   def handle_in({payload, [opcode: :text]}, %{session: session} = state) do
     case Jason.decode(payload) do
       {:ok, %{"type" => "exit", "status" => status}} ->
+        _ = InteractiveSessions.close(session, "shell_exit")
         :ok = InteractiveShellBroker.broadcast_to_client(session.id, {:runner_exit, status})
+        {:stop, :normal, state}
 
       _ ->
-        :ok
+        {:ok, state}
     end
-
-    {:ok, state}
   end
 
   @impl WebSock
