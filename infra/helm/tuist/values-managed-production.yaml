@@ -7,11 +7,9 @@
 #     --set server.image.tag=$GIT_SHA
 
 registry:
-  # Brings up the read frontend, its ingress, and the DNS-01 cert. It
-  # serves no user traffic until registry.tuist.dev's Cloudflare origin
-  # is repointed at this ingress, which is a separate, revertible step.
-  # The sync writer stays disabled below: cache remains the sole writer
-  # until the cutover.
+  # The public host stays behind the registry-router Worker. Its ingress uses
+  # a dedicated origin host so the Worker can reach the standalone frontend
+  # without recursing through its registry.tuist.dev route.
   enabled: true
   publicHost: registry.tuist.dev
   serverUrl: https://tuist.dev
@@ -19,7 +17,7 @@ registry:
   sentryEnv: prod
   poolSize: "10"
   ingress:
-    host: registry.tuist.dev
+    host: registry-origin.tuist.dev
     tlsSecretName: registry-tls
   resources:
     requests:
@@ -76,15 +74,11 @@ server:
     # env's config the release runs as.
     - name: TUIST_DEPLOY_ENV
       value: prod
-    # Full registry URL advertised at /.well-known/registry.json so the CLI
-    # configures SwiftPM against registry.tuist.dev instead of tuist.dev.
-    # Keeps the legacy /api/registry/swift prefix for now: production's
-    # registry.tuist.dev is still fronted by the registry-router Worker
-    # against the cache origins, which only serve that prefix. Flip to
-    # https://registry.tuist.dev/swift once the Worker cuts over to the
-    # standalone frontend (which serves /swift).
+    # Full registry address advertised at /.well-known/registry.json so the
+    # Tuist command-line interface configures Swift Package Manager against
+    # the standalone registry frontend.
     - name: TUIST_REGISTRY_URL
-      value: https://registry.tuist.dev/api/registry/swift
+      value: https://registry.tuist.dev/swift
     # Enables the server-owned registry sync writer. Cache still writes
     # too until it is turned off as a separate step; the two coordinate
     # through the shared S3 sync lock, so dual-writing is safe.

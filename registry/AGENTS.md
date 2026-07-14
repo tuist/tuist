@@ -96,9 +96,9 @@ already are on the managed clusters, installed by the platform chart):
   `onepassword`
 - cert-manager with a `ClusterIssuer` named `letsencrypt-cloudflare`
 - ingress-nginx
-- external-dns (for per-env hostnames; `registry.tuist.dev` itself
-  is owned by the existing Cloudflare Worker and is not managed by
-  external-dns)
+- external-dns (for per-env hostnames and the production
+  `registry-origin.tuist.dev` ingress; `registry.tuist.dev` itself is owned by
+  the Cloudflare Worker and is not managed by external-dns)
 
 ### `REGISTRY` 1Password item
 Per environment vault (`tuist-k8s-{staging,canary,production}`), the
@@ -121,7 +121,7 @@ After a deploy, verify with:
 # pick the right env
 HOST=registry-canary.tuist.dev      # canary
 INGRESS=91.98.12.147                # canary cluster ingress
-# production: HOST=registry.tuist.dev, INGRESS=91.98.14.217
+# production: HOST=registry-origin.tuist.dev, INGRESS=91.98.14.217
 # staging:    HOST=registry-staging.tuist.dev, INGRESS=91.98.219.17
 
 curl -sS --resolve "$HOST:443:$INGRESS" "https://$HOST/up"
