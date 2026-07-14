@@ -68,6 +68,18 @@ jobs:
           # set by Tart and the host CPU model leaks via sysctl.
           sysctl -n machdep.cpu.brand_string
 
+      - name: Show interactive diagnostics
+        run: |
+          set -euo pipefail
+          echo "Shell agent launchd state:"
+          sudo launchctl print system/dev.tuist.runner-shell-agent || true
+          echo
+          echo "Shell agent log:"
+          sudo tail -n 200 /var/log/tuist-runner/shell-agent.log || true
+          echo
+          echo "Runner poll log:"
+          sudo tail -n 120 /var/log/tuist-runner/poll.log || true
+
       - name: Hold runner for interactive probing
         env:
           HOLD_MINUTES: ${{ github.event_name == 'workflow_dispatch' && inputs.hold_minutes || '0' }}

@@ -24,6 +24,7 @@ while true; do
     source /etc/tuist.env
 
     if [ -n "${TUIST_RUNNER_DISPATCH_URL:-}" ] && [ -s /etc/tuist-sa-token ]; then
+      echo "$(date -u +%FT%TZ) runner-shell-agent-supervisor: runner env/token ready (dispatch_url=${TUIST_RUNNER_DISPATCH_URL})"
       break
     fi
   fi
@@ -36,6 +37,10 @@ while true; do
   shell_agent_python=""
   if shell_agent_python="$(command -v python3 2>/dev/null)"; then
     :
+  elif [ -x /opt/homebrew/bin/python3 ]; then
+    shell_agent_python=/opt/homebrew/bin/python3
+  elif [ -x /usr/local/bin/python3 ]; then
+    shell_agent_python=/usr/local/bin/python3
   elif [ -x /usr/bin/python3 ]; then
     shell_agent_python=/usr/bin/python3
   elif [ -x /usr/bin/xcrun ] && shell_agent_python="$(/usr/bin/xcrun -f python3 2>/dev/null)"; then
@@ -52,6 +57,10 @@ while true; do
     echo "$(date -u +%FT%TZ) runner-shell-agent-supervisor: runner-shell-agent missing or not executable; retrying in 10s"
     sleep 10
     continue
+  fi
+
+  if [ -z "${TUIST_RUNNER_SHELL_PATH:-}" ] && [ -x /bin/zsh ]; then
+    export TUIST_RUNNER_SHELL_PATH=/bin/zsh
   fi
 
   echo "$(date -u +%FT%TZ) runner-shell-agent-supervisor: starting runner-shell-agent with ${shell_agent_python}"

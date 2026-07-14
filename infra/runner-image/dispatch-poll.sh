@@ -82,7 +82,9 @@ if [ -z "${SA_TOKEN}" ]; then
   exit 1
 fi
 
-if [ -x /opt/tuist/runner-shell-agent-supervisor.sh ]; then
+if [ -d /tmp/tuist-runner-shell-agent.lock ]; then
+  echo "$(date -u +%FT%TZ) dispatch-poll: runner-shell-agent supervisor already active"
+elif [ -x /opt/tuist/runner-shell-agent-supervisor.sh ]; then
   echo "$(date -u +%FT%TZ) dispatch-poll: starting runner-shell-agent supervisor"
   (
     trap - EXIT

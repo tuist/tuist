@@ -40,17 +40,21 @@ runtime — no service, sudo entry, or auto-login targets it.
   `…/pods/<pod>/metrics` with the same SA token, dying with the VM when
   the job ends. Best-effort; never blocks the job.
 - `/opt/tuist/runner-shell-agent.py` — interactive shell bridge.
-  `dispatch-poll.sh` starts `runner-shell-agent-supervisor.sh` after
-  `/etc/tuist.env` and `/etc/tuist-sa-token` are materialized. It polls
+  `dev.tuist.runner-shell-agent` starts `runner-shell-agent-supervisor.sh`
+  at boot and waits until `/etc/tuist.env` and `/etc/tuist-sa-token` are
+  materialized. It polls
   the server for authorized shell sessions and forwards a PTY in the
   runner VM over the server-owned WebSocket tunnel, so dashboard terminal
   access and `tuist runner ssh` attach to the same ephemeral job
   environment.
 - `/opt/tuist/runner-shell-agent-supervisor.sh` — restarts the trusted
-  shell bridge while the single-shot runner VM is alive. It intentionally
-  starts from `dispatch-poll.sh` instead of an independent LaunchAgent so
-  the bridge never grabs its singleton lock before the per-pod env/token
-  files exist.
+  shell bridge while the single-shot runner VM is alive. It runs as root
+  from a LaunchDaemon so terminal access does not depend on an unlocked
+  Aqua session, then drops PTY child shells to the `runner` user.
+- `/Library/LaunchDaemons/dev.tuist.runner-shell-agent.plist` — the
+  boot-time LaunchDaemon for the shell supervisor. `dispatch-poll.sh`
+  still has a singleton-lock guarded fallback start path for older or
+  partially-built images.
 - Homebrew `python` — installed in this layer for the trusted shell
   bridge. The Xcode base does not promise Python for customer workflows,
   but `/opt/tuist/runner-shell-agent.py` needs `python3` available in the
@@ -71,6 +75,9 @@ runtime — no service, sudo entry, or auto-login targets it.
   first-run panes such as Apple Account, Privacy, Siri, Screen Time,
   and automatic software update so VNC opens on the runner desktop
   instead of Setup Assistant.
+- `pmset`, `com.apple.screensaver`, and `com.apple.autologout`
+  defaults — keep the ephemeral runner desktop from sleeping, locking,
+  or auto-logging-out during interactive VNC sessions.
 - `/etc/sudoers.d/runner-nopasswd` — passwordless sudo for the
   agent's privileged ops (installing /etc/tuist.env, halting the
   VM at job exit). Single-tenant ephemeral VM — the entire OS is

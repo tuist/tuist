@@ -297,6 +297,11 @@ build {
     destination = "/tmp/runner-shell-agent-supervisor.sh"
   }
 
+  provisioner "file" {
+    source      = "${path.root}/runner-shell-agent.plist"
+    destination = "/tmp/dev.tuist.runner-shell-agent.plist"
+  }
+
   provisioner "shell" {
     inline = [
       "echo 'admin' | sudo -S install -m 0755 /tmp/inject-env.sh /opt/tuist/inject-env.sh",
@@ -304,17 +309,18 @@ build {
       "echo 'admin' | sudo -S install -m 0755 /tmp/metrics-poll.sh /opt/tuist/metrics-poll.sh",
       "echo 'admin' | sudo -S install -m 0755 /tmp/runner-shell-agent.py /opt/tuist/runner-shell-agent.py",
       "echo 'admin' | sudo -S install -m 0755 /tmp/runner-shell-agent-supervisor.sh /opt/tuist/runner-shell-agent-supervisor.sh",
-      "rm -f /tmp/inject-env.sh /tmp/dispatch-poll.sh /tmp/metrics-poll.sh /tmp/runner-shell-agent.py /tmp/runner-shell-agent-supervisor.sh"
+      "echo 'admin' | sudo -S install -m 0644 -o root -g wheel /tmp/dev.tuist.runner-shell-agent.plist /Library/LaunchDaemons/dev.tuist.runner-shell-agent.plist",
+      "rm -f /tmp/inject-env.sh /tmp/dispatch-poll.sh /tmp/metrics-poll.sh /tmp/runner-shell-agent.py /tmp/runner-shell-agent-supervisor.sh /tmp/dev.tuist.runner-shell-agent.plist"
     ]
   }
 
-  # Passwordless sudo for runner. The agent runs as the `runner`
-  # user in a real desktop session (LaunchAgent + auto-login),
-  # not as root, so the few privileged operations the agent needs
-  # — installing /etc/tuist.env from the kubelet env mount,
-  # halting the VM at job exit — go through sudo. Passwordless
-  # because the VM is ephemeral and single-tenant; the entire OS
-  # is the customer's job environment.
+  # Passwordless sudo for runner. The GitHub Actions runner runs as
+  # the `runner` user in a real desktop session (LaunchAgent +
+  # auto-login), so the few privileged operations the dispatch loop
+  # needs — installing /etc/tuist.env from the kubelet env mount,
+  # halting the VM at job exit — go through sudo. Passwordless because
+  # the VM is ephemeral and single-tenant; the entire OS is the
+  # customer's job environment.
   provisioner "shell" {
     inline = [
       "set -euo pipefail",
@@ -339,7 +345,15 @@ build {
       "printf '\\x0f\\xfc\\x3c\\x4d\\xb7\\xce\\xdd\\xea\\xa3\\xb9\\x1f\\xb5' > /tmp/kcpassword",
       "sudo install -m 0600 -o root -g wheel /tmp/kcpassword /etc/kcpassword",
       "rm -f /tmp/kcpassword",
-      "sudo defaults write /Library/Preferences/com.apple.loginwindow autoLoginUser runner"
+      "sudo defaults write /Library/Preferences/com.apple.loginwindow autoLoginUser runner",
+      "sudo pmset -a sleep 0 displaysleep 0 disksleep 0",
+      "sudo defaults write /Library/Preferences/com.apple.screensaver idleTime -int 0",
+      "sudo defaults write /Library/Preferences/com.apple.screensaver askForPassword -int 0",
+      "sudo defaults write /Library/Preferences/.GlobalPreferences com.apple.autologout.AutoLogOutDelay -int 0",
+      "sudo -u runner defaults write com.apple.screensaver idleTime -int 0",
+      "sudo -u runner defaults write com.apple.screensaver askForPassword -int 0",
+      "sudo -u runner defaults write com.apple.screensaver askForPasswordDelay -int 0",
+      "sudo /usr/bin/python3 - <<'CHECK'\nimport sys\nkey = bytes([0x7d, 0x89, 0x52, 0x23, 0xd2, 0xbc, 0xdd, 0xea, 0xa3, 0xb9, 0x1f])\nwith open('/etc/kcpassword', 'rb') as f:\n    enc = f.read()\ndec = bytes(b ^ key[i % len(key)] for i, b in enumerate(enc))\nif dec.startswith(b'<sealed>'):\n    sys.stderr.write('kcpassword was replaced by macOS with <sealed>; runner auto-login would boot to the password screen\\n')\n    sys.exit(1)\nCHECK"
     ]
   }
 
