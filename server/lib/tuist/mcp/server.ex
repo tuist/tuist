@@ -68,7 +68,7 @@ defmodule Tuist.MCP.Server do
   ]
 
   @codebase_prompts [
-    Prompts.ResearchTuist
+    Prompts.AskTuist
   ]
 
   def server do

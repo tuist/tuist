@@ -128,9 +128,9 @@ This read-only tool searches Tuist's documentation, API reference, GitHub releas
 |------|-------------|---------------------|
 | `search_tuist` | Search Tuist's documentation, API reference, GitHub releases, community forum, and GitHub issues. Optionally restrict to one `source` (`docs`, `api_reference`, `releases`, `forum`, `issues`). | `query` |
 
-#### Source code research
+#### Source-backed answers
 
-These read-only tools inspect the exact public Tuist source revision deployed alongside the hosted server. They are only available at `https://tuist.dev/mcp`.
+These read-only tools let agents use the exact public Tuist source revision deployed alongside the hosted server as the source of truth for answers that depend on current behavior. They are only available at `https://tuist.dev/mcp`.
 
 Every operation has fixed limits for concurrency, duration, traversal, bytes read, and response size. Search and listing results include `truncated` and `truncation_reason` fields. When a result is truncated, narrow the path, file pattern, or search term instead of treating the result as exhaustive.
 
@@ -222,9 +222,9 @@ Every operation has fixed limits for concurrency, duration, traversal, bytes rea
 | `compare_cache_runs` | Guides you through comparing two cache runs to identify cache effectiveness changes and target-level regressions. |
 | `integrate_gradle_project` | Guides you through integrating Tuist into an existing Gradle project. Supports remote build cache, build insights, test insights, flaky test detection and quarantine, and test sharding. |
 | `integrate_xcode_project` | Guides you through integrating Tuist into an existing Xcode project. Supports Xcode cache, build insights, test insights, and test sharding. |
-| `research_tuist` | Answers a Tuist question through documentation and focused source searches, call sites, and tests. It requires a `question` and cites revision-pinned evidence. |
+| `ask_tuist` | Answers a Tuist question using public material for context and focused implementation and test evidence as the source of truth for current behavior. It requires a `question` and cites revision-pinned evidence. |
 
-Project-data prompts accept `account_handle` and `project_handle` to scope the investigation to a specific project. The comparison prompts also accept `base` and `head` arguments to specify the two items to compare (by ID, dashboard URL, or branch name). `research_tuist` accepts a `question` instead of project parameters. `integrate_gradle_project` also accepts `features`, a comma-separated list of Gradle integrations to apply: `remote_cache`, `build_insights`, `test_insights`, `flaky_tests`, and `test_sharding`. `integrate_xcode_project` accepts `features` with `xcode_cache`, `build_insights`, `test_insights`, and `test_sharding`.
+Project-data prompts accept `account_handle` and `project_handle` to scope the investigation to a specific project. The comparison prompts also accept `base` and `head` arguments to specify the two items to compare (by ID, dashboard URL, or branch name). `ask_tuist` accepts a `question` instead of project parameters. `integrate_gradle_project` also accepts `features`, a comma-separated list of Gradle integrations to apply: `remote_cache`, `build_insights`, `test_insights`, `flaky_tests`, and `test_sharding`. `integrate_xcode_project` accepts `features` with `xcode_cache`, `build_insights`, `test_insights`, and `test_sharding`.
 
 #### Gradle integration prompt features
 

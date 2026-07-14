@@ -129,13 +129,13 @@ defmodule Tuist.MCP.ServerTest do
       assert "integrate_xcode_project" in prompt_names
     end
 
-    test "offers the codebase research prompt with the codebase tools" do
+    test "offers the question-answering prompt with the codebase tools" do
       stub(Environment, :tuist_hosted?, fn -> true end)
       stub(Environment, :codebase_search_enabled?, fn -> true end)
-      assert "research_tuist" in Map.keys(Server.server().prompts)
+      assert "ask_tuist" in Map.keys(Server.server().prompts)
 
       stub(Environment, :codebase_search_enabled?, fn -> false end)
-      refute "research_tuist" in Map.keys(Server.server().prompts)
+      refute "ask_tuist" in Map.keys(Server.server().prompts)
     end
   end
 end
