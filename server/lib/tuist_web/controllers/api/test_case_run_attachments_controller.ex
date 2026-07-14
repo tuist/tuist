@@ -189,7 +189,6 @@ defmodule TuistWeb.API.TestCaseRunAttachmentsController do
              project_id: project.id,
              preload: [:arguments]
            ),
-         true <- valid_test_run_id?(body_params, test_case_run),
          true <- valid_argument_id?(body_params, test_case_run) do
       create_attachment(conn, project, body_params, test_case_run)
     else
@@ -251,10 +250,6 @@ defmodule TuistWeb.API.TestCaseRunAttachmentsController do
       upload_url: upload_url,
       expires_at: System.system_time(:second) + expires_in
     })
-  end
-
-  defp valid_test_run_id?(body_params, test_case_run) do
-    is_nil(body_params[:test_run_id]) or body_params.test_run_id == test_case_run.test_run_id
   end
 
   defp valid_argument_id?(body_params, test_case_run) do
