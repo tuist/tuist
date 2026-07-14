@@ -41,6 +41,7 @@ jobs:
         with:
           version: ${{ env.MISE_VERSION }}
           install_args: rust
+          cache: "false"
           working_directory: codebase-search
       - name: Check formatting
         run: cargo fmt --all -- --check
