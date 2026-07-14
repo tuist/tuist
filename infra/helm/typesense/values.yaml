@@ -52,7 +52,8 @@ keyBootstrap:
   enabled: true
   backoffLimit: 3
 
-# Populates the release collection immediately after each install or upgrade.
+# Populates the release collection immediately after each install or upgrade
+# when a GitHub token is configured. Tokenless installations skip successfully.
 # The recurring indexer below keeps the same collection current afterward.
 releaseIndexerBootstrap:
   enabled: true

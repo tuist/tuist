@@ -2,13 +2,21 @@
 # Indexes published GitHub releases from tuist/tuist into Typesense.
 # Drafts and screenshot-only releases are excluded. Prereleases remain indexed
 # so agent searches can opt into them, while the docs search filters them out.
-# Requires TYPESENSE_API_KEY, TYPESENSE_HOST, and GITHUB_TOKEN environment variables.
+# Requires TYPESENSE_API_KEY and TYPESENSE_HOST when GITHUB_TOKEN is configured.
+# Tokenless installations skip this indexer because unauthenticated pagination
+# cannot retrieve the repository's full release history.
 set -euo pipefail
 
 GITHUB_REPO="tuist/tuist"
+GITHUB_TOKEN="${GITHUB_TOKEN:-}"
+
+if [ -z "$GITHUB_TOKEN" ]; then
+  echo "Skipping GitHub release indexing: GITHUB_TOKEN is not configured"
+  exit 0
+fi
+
 TYPESENSE_API_KEY="${TYPESENSE_API_KEY:?TYPESENSE_API_KEY is required}"
 TYPESENSE_HOST="${TYPESENSE_HOST:?TYPESENSE_HOST is required}"
-GITHUB_TOKEN="${GITHUB_TOKEN:?GITHUB_TOKEN is required to index more than 1000 releases}"
 COLLECTION="github-releases"
 
 DOCUMENTS_FILE=$(mktemp)

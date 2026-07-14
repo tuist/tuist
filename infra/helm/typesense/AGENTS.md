@@ -22,7 +22,9 @@ agent search service will delegate to in a follow-up.
   the key the docs website and the `search_tuist` MCP tool present.
 - `typesense-release-indexer-bootstrap` runs after the key bootstrap on each
   install or upgrade so the `github-releases` collection is available
-  immediately. The recurring indexer CronJob refreshes it daily afterward.
+  immediately when a GitHub token is configured. Tokenless installations skip
+  release indexing successfully. The recurring indexer CronJob refreshes it
+  daily afterward.
 - `Ingress` exposes `search.tuist.dev` through ingress-nginx with a
   cert-manager certificate. The production overlay annotates it
   `external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"` so external-dns
