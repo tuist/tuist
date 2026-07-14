@@ -226,6 +226,25 @@ defmodule TuistWeb.RunnerJobLive do
   def path(_, _), do: nil
 
   @doc """
+  Path to the parent workflow's detail page for a job, or `nil` when
+  the job carries no repository / workflow_name to address it. Lets
+  the job page link "up" to its workflow (and its runs).
+  """
+  def workflow_path(account_name, %{repository: repository, workflow_name: workflow_name})
+      when is_binary(account_name) and is_binary(repository) and is_binary(workflow_name) and workflow_name != "" do
+    case String.split(repository, "/", parts: 2) do
+      [owner, name] when owner != "" and name != "" ->
+        encoded = URI.encode(workflow_name, &URI.char_unreserved?/1)
+        "/#{account_name}/runners/workflows/#{owner}/#{name}/#{encoded}"
+
+      _ ->
+        nil
+    end
+  end
+
+  def workflow_path(_, _), do: nil
+
+  @doc """
   Builds a deep link to a step in the job overview.
 
   The `step` query parameter is the single source of truth: LiveView

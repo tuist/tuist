@@ -61,6 +61,9 @@ defmodule TuistWeb.RunnerWorkflowsLiveTest do
     assert html =~ "tuist/tuist"
     assert html =~ "CLI"
     assert html =~ "tuist/cli"
+    # Each workflow row carries a latest-run status badge; the seeded
+    # jobs are still queued, so the latest-run status reads Running.
+    assert html =~ "Running"
   end
 
   test "filters by repository via the repository filter", %{conn: conn, account: account} do

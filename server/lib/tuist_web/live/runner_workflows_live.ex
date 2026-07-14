@@ -294,6 +294,22 @@ defmodule TuistWeb.RunnerWorkflowsLive do
   def success_rate(_), do: "–"
 
   @doc """
+  Status badge for a workflow row, derived from its latest run: an
+  in-progress latest run shows Running, else the run's conclusion.
+  Mirrors the run-level badge on the workflow detail page.
+  """
+  def status_badge_props(%{latest_status: "completed", latest_conclusion: conclusion}) do
+    TuistWeb.RunnerWorkflowLive.conclusion_badge_props(conclusion) ||
+      %{label: dgettext("dashboard_runners", "Completed"), status: "success"}
+  end
+
+  def status_badge_props(%{latest_status: status}) when is_binary(status) and status != "" do
+    %{label: dgettext("dashboard_runners", "Running"), status: "in_progress"}
+  end
+
+  def status_badge_props(_), do: %{label: dgettext("dashboard_runners", "Unknown"), status: "warning"}
+
+  @doc """
   Resolves the per-row link target for the workflows table. Returns
   a detail-page path when both `repository` (in `owner/name` form) and
   `workflow_name` are present; rows missing either field — legacy

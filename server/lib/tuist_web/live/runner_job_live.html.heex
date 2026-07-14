@@ -162,6 +162,20 @@
                 {if(@job.repository in [nil, ""], do: "None", else: @job.repository)}
               </span>
             </div>
+            <div
+              :if={TuistWeb.RunnerJobLive.workflow_path(@selected_account.name, @job)}
+              data-part="metadata"
+            >
+              <div data-part="title">{dgettext("dashboard_runners", "Workflow")}</div>
+              <span data-part="label">
+                <.link
+                  navigate={TuistWeb.RunnerJobLive.workflow_path(@selected_account.name, @job)}
+                  data-part="workflow-link"
+                >
+                  {@job.workflow_name}
+                </.link>
+              </span>
+            </div>
           </div>
         </div>
       </.card_section>

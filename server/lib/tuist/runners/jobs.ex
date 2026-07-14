@@ -920,6 +920,11 @@ defmodule Tuist.Runners.Jobs do
         cancelled_count: fragment("countIf(? = 'completed' AND ? = 'cancelled')", j.status, j.conclusion),
         skipped_count: fragment("countIf(? = 'completed' AND ? = 'skipped')", j.status, j.conclusion),
         in_progress_count: fragment("countIf(? != 'completed')", j.status),
+        # Status/conclusion of the most recently enqueued job in the
+        # workflow — approximates the latest run's state for the list's
+        # status badge (exact per-run rollup lives on the detail page).
+        latest_status: fragment("argMax(?, ?)", j.status, j.enqueued_at),
+        latest_conclusion: fragment("argMax(?, ?)", j.conclusion, j.enqueued_at),
         avg_duration_ms:
           fragment(
             "avgIf((toUnixTimestamp64Milli(?) - toUnixTimestamp64Milli(?)), ? = 'completed' AND isNotNull(?) AND isNotNull(?))",
