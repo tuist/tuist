@@ -28,6 +28,9 @@ public enum CacheCategory: String, CaseIterable, RawRepresentable {
     /// uploaded by the last `tuist generate`.
     case generationMetadata
 
+    /// The mapped Swift Package Manager dependency graphs cache
+    case swiftPackageManagerGraphs
+
     public var directoryName: String {
         switch self {
         case .plugins:
@@ -48,6 +51,8 @@ public enum CacheCategory: String, CaseIterable, RawRepresentable {
             return "SelectiveTests"
         case .generationMetadata:
             return "GenerationMetadata"
+        case .swiftPackageManagerGraphs:
+            return "SwiftPackageManagerGraphs"
         }
     }
 }
