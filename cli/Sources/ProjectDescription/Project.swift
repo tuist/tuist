@@ -106,7 +106,7 @@ public struct Project: Codable, Equatable, Sendable {
             classPrefix: classPrefix,
             options: options,
             packages: packages.map(\.package),
-            packageDependencies: packages,
+            packageDependencies: packages.isEmpty ? nil : packages,
             settings: settings,
             targets: targets,
             schemes: schemes,

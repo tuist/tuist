@@ -26,6 +26,7 @@ struct PackageManifestMapperTests {
 
         #expect(decodedPackagePath == Path("Package"))
         #expect(emptyProject.packages.isEmpty)
+        #expect(emptyProject.packageDependencies == nil)
         #expect(project.packageDependencies == nil)
         #expect(decoded == project)
     }
