@@ -2850,7 +2850,7 @@ final class TestServiceTests: TuistUnitTestCase {
         XCTAssertEqual(testedSchemes, [])
     }
 
-    func test_run_without_scheme_uses_project_schemes_when_workspace_scheme_contains_hostless_unit_tests() async throws {
+    func test_run_without_scheme_partitions_hosted_and_hostless_tests_without_running_overlapping_schemes() async throws {
         // Given
         let appProjectPath = try temporaryPath().appending(component: "App")
         let featureProjectPath = try temporaryPath().appending(component: "Feature")
@@ -2868,6 +2868,15 @@ final class TestServiceTests: TuistUnitTestCase {
             name: "Feature",
             testAction: .test(targets: [.test(target: featureTestsReference)])
         )
+        let allModulesScheme = Scheme.test(
+            name: "AllModules",
+            testAction: .test(
+                targets: [
+                    .test(target: appTestsReference),
+                    .test(target: featureTestsReference),
+                ]
+            )
+        )
         let workspaceScheme = Scheme.test(
             name: "Sample-Workspace",
             testAction: .test(
@@ -2880,7 +2889,7 @@ final class TestServiceTests: TuistUnitTestCase {
         let appProject = Project.test(
             path: appProjectPath,
             targets: [app, appTests],
-            schemes: [appScheme]
+            schemes: [appScheme, allModulesScheme]
         )
         let featureProject = Project.test(
             path: featureProjectPath,
@@ -2932,19 +2941,50 @@ final class TestServiceTests: TuistUnitTestCase {
             .willProduce { path, _ in (path, graph, MapperEnvironment()) }
         given(buildGraphInspector)
             .testableSchemes(graphTraverser: .any)
-            .willReturn([appScheme, featureScheme, workspaceScheme])
+            .willReturn([allModulesScheme, appScheme, featureScheme, workspaceScheme])
         given(buildGraphInspector)
             .workspaceSchemes(graphTraverser: .any)
             .willReturn([workspaceScheme])
+        var capturedTestTargets: [String: [TestIdentifier]] = [:]
+        xcodebuildController.reset()
+        given(xcodebuildController)
+            .test(
+                .any,
+                scheme: .any,
+                clean: .any,
+                destination: .any,
+                action: .any,
+                rosetta: .any,
+                derivedDataPath: .any,
+                resultBundlePath: .any,
+                arguments: .any,
+                retryCount: .any,
+                testTargets: .any,
+                skipTestTargets: .any,
+                testPlanConfiguration: .any,
+                passthroughXcodeBuildArguments: .any
+            )
+            .willProduce { _, scheme, _, _, _, _, _, _, _, _, testTargets, _, _, _ in
+                capturedTestTargets[scheme] = testTargets
+                self.testedSchemes.append(scheme)
+            }
 
         // When
         try await testRun(path: try temporaryPath())
 
         // Then
-        XCTAssertEqual(testedSchemes, ["App", "Feature"])
+        XCTAssertEqual(testedSchemes, ["Sample-Workspace", "Feature"])
+        XCTAssertEqual(
+            capturedTestTargets,
+            [
+                "Sample-Workspace": [try TestIdentifier(target: "AppTests")],
+                "Feature": [try TestIdentifier(target: "FeatureTests")],
+            ]
+        )
 
         // When
         testedSchemes = []
+        capturedTestTargets = [:]
         try await testRun(
             path: try temporaryPath(),
             testTargets: [try TestIdentifier(target: "FeatureTests", class: nil)]
@@ -2952,6 +2992,25 @@ final class TestServiceTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(testedSchemes, ["Feature"])
+        XCTAssertEqual(
+            capturedTestTargets,
+            ["Feature": [try TestIdentifier(target: "FeatureTests")]]
+        )
+
+        // When
+        testedSchemes = []
+        capturedTestTargets = [:]
+        try await testRun(
+            path: try temporaryPath(),
+            testTargets: [try TestIdentifier(target: "AppTests", class: nil)]
+        )
+
+        // Then
+        XCTAssertEqual(testedSchemes, ["Sample-Workspace"])
+        XCTAssertEqual(
+            capturedTestTargets,
+            ["Sample-Workspace": [try TestIdentifier(target: "AppTests")]]
+        )
     }
 
     func test_run_skips_xcodebuild_when_passthrough_skip_testing_removes_all_selective_targets() async throws {
