@@ -105,6 +105,8 @@ private let truthyValues = ["1", "true", "TRUE", "yes", "YES"]
 private let sensitiveEnvironmentVariableNameComponents: Set<String> = [
     "CREDENTIAL",
     "CREDENTIALS",
+    "DSN",
+    "DSNS",
     "KEY",
     "KEYS",
     "LICENSE",
@@ -116,6 +118,8 @@ private let sensitiveEnvironmentVariableNameComponents: Set<String> = [
     "SECRETS",
     "TOKEN",
     "TOKENS",
+    "URL",
+    "URLS",
 ]
 
 extension Environmenting {

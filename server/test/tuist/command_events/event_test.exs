@@ -112,6 +112,8 @@ defmodule Tuist.CommandEvents.EventTest do
           "TUIST_ACCOUNT_TOKENS_NAME" => "tokens",
           "TUIST_SIGNING_KEY" => "key",
           "TUIST_lowercase_secret" => "secret",
+          "TUIST_MIGRATION_DATABASE_URL" => "postgres://owner:password@database.example.com/production",
+          "TUIST_SENTRY_DSN" => "https://public:secret@sentry.example.com/1",
           "TUIST_USE_SWIFTERPM" => "1"
         }
       }
@@ -125,6 +127,8 @@ defmodule Tuist.CommandEvents.EventTest do
                "TUIST_ACCOUNT_TOKENS_NAME" => "[redacted]",
                "TUIST_SIGNING_KEY" => "[redacted]",
                "TUIST_lowercase_secret" => "[redacted]",
+               "TUIST_MIGRATION_DATABASE_URL" => "[redacted]",
+               "TUIST_SENTRY_DSN" => "[redacted]",
                "TUIST_USE_SWIFTERPM" => "1"
              }
     end
