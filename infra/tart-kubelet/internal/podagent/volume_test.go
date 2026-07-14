@@ -414,6 +414,7 @@ func TestSweepBranchesRetainsReattached(t *testing.T) {
 	orphan := mustAllocate(t, m, "vm-orphan")
 	writeBranchCache(t, live, "warm")
 	writeBranchCache(t, orphan, "stale")
+	m.MarkMaterialized(live) // host materialized this branch before the restart
 
 	// Simulate recovery of the still-running VM after a kubelet restart.
 	att, ok := m.ReattachBranch(ReservedTuistCacheVolume, "vm-live")
@@ -440,6 +441,33 @@ func TestReattachBranchAbsent(t *testing.T) {
 	m, _ := newTestManager(t, 100)
 	if att, ok := m.ReattachBranch(ReservedTuistCacheVolume, "never-existed"); ok || att.Attached {
 		t.Fatalf("ReattachBranch of a missing branch = %+v, %v; want zero, false", att, ok)
+	}
+}
+
+// An idle VM creates its (empty) tuist cache subtree at boot but the host never
+// materialized it, so ReattachBranch must NOT report it as materialized — else
+// a restart would leave it permanently skipping materialization and running
+// cold. The host-written marker, not the subtree, is the signal.
+func TestReattachBranchIdleNotMaterialized(t *testing.T) {
+	m, _ := newTestManager(t, 100)
+	att := mustAllocate(t, m, "vm-idle")
+	// Guest created branch/tuist at boot, but no host materialization happened.
+	if err := os.MkdirAll(filepath.Join(att.BranchPath, cacheHomeSubdir), 0o777); err != nil {
+		t.Fatal(err)
+	}
+
+	got, ok := m.ReattachBranch(ReservedTuistCacheVolume, "vm-idle")
+	if !ok || !got.Attached {
+		t.Fatalf("ReattachBranch = %+v, %v; want attached", got, ok)
+	}
+	if got.Materialized {
+		t.Fatal("an idle branch with only the boot-created tuist subtree must not be materialized")
+	}
+
+	// Once the host marks it, reattach reports materialized.
+	m.MarkMaterialized(got)
+	if again, _ := m.ReattachBranch(ReservedTuistCacheVolume, "vm-idle"); !again.Materialized {
+		t.Fatal("after MarkMaterialized, reattach must report materialized")
 	}
 }
 
@@ -479,6 +507,46 @@ func TestMasterDigestMatchesInventory(t *testing.T) {
 	}
 	if want := hex.EncodeToString(h.Sum(nil)); got != want {
 		t.Fatalf("digest = %q; want %q", got, want)
+	}
+}
+
+// TreeDigest (used by convergence to verify a downloaded archive matches the
+// HEAD digest before install) computes over the staged dir's tuist subtree,
+// identically to MasterDigest — so a matching tree verifies and a divergent one
+// is rejected.
+func TestTreeDigestMatchesMaster(t *testing.T) {
+	m, _ := newTestManager(t, 100)
+	seedMaster(t, m, "42") // master/tuist/Binaries/marker
+
+	// A staged tree with identical inventory (entry name "marker") must digest
+	// equal to the account's master.
+	staging := m.ConvergeStagingDir("vmX")
+	dir := filepath.Join(staging, cacheHomeSubdir, "Binaries")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "marker"), []byte("whatever"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	master, err := m.MasterDigest("42", ReservedTuistCacheVolume)
+	if err != nil {
+		t.Fatalf("MasterDigest: %v", err)
+	}
+	staged, err := m.TreeDigest(staging)
+	if err != nil {
+		t.Fatalf("TreeDigest: %v", err)
+	}
+	if staged != master {
+		t.Fatalf("TreeDigest = %q; want it to equal MasterDigest %q for identical inventory", staged, master)
+	}
+
+	// A divergent inventory must NOT match — this is the reject-on-mismatch guard.
+	if err := os.MkdirAll(filepath.Join(dir, "extra"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if diverged, _ := m.TreeDigest(staging); diverged == master {
+		t.Fatal("a tree with an extra entry must not digest-match the master")
 	}
 }
 

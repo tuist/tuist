@@ -61,6 +61,16 @@ const ReservedTuistCacheVolume = "tuist-cache"
 // disappear atomically.
 const cacheHomeSubdir = "tuist"
 
+// materializedMarker is a host-written sentinel dropped in the branch once the
+// host has materialized (or decided cold-path) for a VM. It is the ONLY signal
+// that the branch was host-materialized: the guest creates the `tuist` cache
+// subtree itself at boot (empty), so the subtree's existence can't distinguish
+// an idle, never-dispatched VM from a materialized one. The guest writes only
+// under `tuist/`, never this dotfile, so it stays host-authoritative — which
+// keeps restart recovery from marking an idle branch materialized and skipping
+// its real materialization.
+const materializedMarker = ".host-materialized"
+
 // volumeBackend abstracts the two macOS-specific operations the manager needs
 // so its lifecycle logic (admission, LRU, promote/discard, paths) is testable
 // off a Mac. The real implementation lives in volume_darwin.go (clonefile via
@@ -305,6 +315,14 @@ func (m *VolumeManager) MasterDigest(account, volume string) (string, error) {
 	return inventoryDigest(filepath.Join(m.masterDir(account, volume), cacheHomeSubdir))
 }
 
+// TreeDigest returns the inventory digest of a staged cache tree (dir/tuist),
+// computed identically to MasterDigest and the guest's cache_inventory. Used to
+// verify a downloaded HEAD archive matches the digest it claims before it
+// replaces the local master.
+func (m *VolumeManager) TreeDigest(dir string) (string, error) {
+	return inventoryDigest(filepath.Join(dir, cacheHomeSubdir))
+}
+
 // cacheInventorySubdirs mirror dispatch-poll.sh's cache_inventory so host and
 // guest compute the same digest over the cache subtrees whose entry-name churn
 // means the cache actually changed.
@@ -476,7 +494,7 @@ func (m *VolumeManager) ReattachBranch(volume, vm string) (VolumeAttachment, boo
 	m.mu.Unlock()
 
 	materialized := false
-	if _, err := os.Stat(filepath.Join(branch, cacheHomeSubdir)); err == nil {
+	if _, err := os.Stat(filepath.Join(branch, materializedMarker)); err == nil {
 		materialized = true
 	}
 	return VolumeAttachment{
@@ -485,6 +503,17 @@ func (m *VolumeManager) ReattachBranch(volume, vm string) (VolumeAttachment, boo
 		BranchPath:   branch,
 		Materialized: materialized,
 	}, true
+}
+
+// MarkMaterialized drops the host-written materialization sentinel in a branch,
+// so a kubelet restart can tell a materialized branch from an idle VM's
+// boot-created (empty) cache subtree. Best-effort: a write failure only means a
+// recovered VM re-materializes, which is safe.
+func (m *VolumeManager) MarkMaterialized(att VolumeAttachment) {
+	if !m.Enabled() || !att.Attached || att.BranchPath == "" {
+		return
+	}
+	_ = os.WriteFile(filepath.Join(att.BranchPath, materializedMarker), []byte("1"), 0o644)
 }
 
 // SweepBranches reaps per-VM branch directories on startup, keeping only those

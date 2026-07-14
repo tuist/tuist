@@ -732,9 +732,41 @@ defmodule Tuist.Runners do
   defp check_not_stale(namespace, sa_name, fleet_name) do
     pod_name = pod_name_from_sa(sa_name)
 
+    case K8sClient.get_pod(namespace, pod_name) do
+      {:ok, pod} ->
+        if committed?(pod) do
+          # The account label is stamped only after a claim fully commits, and a
+          # committed Pod that received its JIT runs the job in place and never
+          # polls again. So a committed Pod polling HERE means its dispatch
+          # response was lost and the runner never started — it must not be
+          # handed a second, possibly different, account on the cache already
+          # materialized for the first (the host's SourceAccount guard blocks
+          # promotion, but not the guest reading it). 410 so the guest halts and
+          # the runner-pool reconciler replaces it with a fresh Pod.
+          Logger.info("runners: reaping committed-but-polling pod",
+            pod: pod_name,
+            fleet: fleet_name
+          )
+
+          {:error, :pod_committed}
+        else
+          check_image_staleness(namespace, fleet_name, pod)
+        end
+
+      _ ->
+        # Pod unreadable (transient apiserver blip / not in cluster). We can't
+        # check commitment or staleness; degrade to "no preference" and let the
+        # claim path proceed, same as a pool-lookup miss.
+        {:ok, nil}
+    end
+  end
+
+  # A Pod carries the account label once its dispatch has committed.
+  defp committed?(pod), do: is_binary(get_in(pod, ["metadata", "labels", @account_label]))
+
+  defp check_image_staleness(namespace, fleet_name, pod) do
     with {:ok, pool} <- K8sClient.get_runner_pool(namespace, fleet_name),
          {:ok, pool_image} <- pool_image(pool),
-         {:ok, pod} <- K8sClient.get_pod(namespace, pod_name),
          {:ok, pod_image} <- pod_image(pod) do
       cond do
         pod_image == pool_image ->
@@ -749,7 +781,7 @@ defmodule Tuist.Runners do
 
         true ->
           Logger.info("runners: draining stale pod",
-            pod: pod_name,
+            pod: get_in(pod, ["metadata", "name"]),
             fleet: fleet_name,
             pod_image: pod_image,
             pool_image: pool_image
@@ -758,7 +790,9 @@ defmodule Tuist.Runners do
           {:error, :drain}
       end
     else
-      _ -> {:ok, nil}
+      # Pool lookup / image parse failed but we have the Pod; degrade to "not
+      # stale" with the Pod's node for affinity.
+      _ -> {:ok, node_name_of(pod)}
     end
   end
 

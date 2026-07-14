@@ -124,18 +124,14 @@ defmodule Tuist.RunnersTest do
       assert {:error, :no_work_yet} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
     end
 
-    test "downgrades transient k8s lookup failure to :ok and proceeds with dispatch" do
+    test "downgrades transient k8s Pod lookup failure to :ok and proceeds with dispatch" do
       # Refusing to dispatch on a transient k8s blip would stall the
-      # whole pool. The drain check is opportunistic cleanup, not a
-      # correctness gate; the reconciler's Pending-stale path catches
-      # the unhappy long-tail. On a `get_pod` error here we fall
-      # through to the normal claim path.
+      # whole pool. The Pod fetch (commitment + staleness) is opportunistic,
+      # not a correctness gate; the reconciler's Pending-stale path catches
+      # the unhappy long-tail. On a `get_pod` error we fall through to the
+      # normal claim path.
       expect(K8sClient, :get_service_account, fn "tuist-runners", "pod-1" ->
         {:ok, sa_with_pool_label("pod-1", "fleet-a")}
-      end)
-
-      expect(K8sClient, :get_runner_pool, fn "tuist-runners", "fleet-a" ->
-        {:ok, pool_with_image("ghcr.io/tuist/tuist-runner@sha256:new")}
       end)
 
       expect(K8sClient, :get_pod, fn "tuist-runners", "pod-1" ->
@@ -150,11 +146,40 @@ defmodule Tuist.RunnersTest do
         {:ok, sa_with_pool_label("pod-1", "fleet-a")}
       end)
 
+      expect(K8sClient, :get_pod, fn "tuist-runners", "pod-1" ->
+        {:ok, pod_with_image("pod-1", "ghcr.io/tuist/tuist-runner@sha256:current")}
+      end)
+
       expect(K8sClient, :get_runner_pool, fn "tuist-runners", "fleet-a" ->
         {:error, :not_found}
       end)
 
       assert {:error, :no_work_yet} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+    end
+
+    test "reaps a committed-but-polling Pod (its dispatch response was lost)" do
+      # The account label is stamped only after a dispatch commits. A committed
+      # Pod polling again means it never received its JIT — it must be replaced,
+      # not handed a second account on the cache materialized for the first.
+      committed_pod = %{
+        "metadata" => %{
+          "name" => "pod-1",
+          "namespace" => "tuist-runners",
+          "labels" => %{"tuist.dev/runner-account" => "42"}
+        },
+        "spec" => %{"containers" => [%{"name" => "runner", "image" => "img"}]}
+      }
+
+      expect(K8sClient, :get_service_account, fn "tuist-runners", "pod-1" ->
+        {:ok, sa_with_pool_label("pod-1", "fleet-a")}
+      end)
+
+      expect(K8sClient, :get_pod, fn "tuist-runners", "pod-1" -> {:ok, committed_pod} end)
+
+      # No claim is attempted; the Pod is refused so the guest halts (410).
+      reject(&Claims.attempt/4)
+
+      assert {:error, :pod_committed} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
     end
   end
 
@@ -191,25 +216,27 @@ defmodule Tuist.RunnersTest do
       workflow_job_id = candidate.workflow_job_id
 
       node_name = Keyword.get(opts, :node_name)
+      image = "ghcr.io/tuist/tuist-runner@sha256:current"
+
+      # check_not_stale fetches the Pod first (to reject committed Pods), so the
+      # Pod is always read. It carries no account label, so it is not committed.
+      expect(K8sClient, :get_pod, fn "tuist-runners", ^pod_name ->
+        {:ok, pod_with_image(pod_name, image, node_name: node_name)}
+      end)
 
       expect(K8sClient, :get_service_account, fn "tuist-runners", ^pod_name ->
         {:ok, sa_with_pool_label(pod_name, "fleet-a")}
       end)
 
       if node_name do
-        # Image-match path so check_not_stale reads the Pod's spec.nodeName
+        # Image-match path so the staleness check reads the Pod's spec.nodeName
         # and threads it into the affinity scoring.
-        image = "ghcr.io/tuist/tuist-runner@sha256:current"
-
         expect(K8sClient, :get_runner_pool, fn "tuist-runners", "fleet-a" ->
           {:ok, pool_with_image(image)}
         end)
-
-        expect(K8sClient, :get_pod, fn "tuist-runners", ^pod_name ->
-          {:ok, pod_with_image(pod_name, image, node_name: node_name)}
-        end)
       else
-        # Missing RunnerPool downgrades the stale-image check to {:ok, nil}.
+        # Missing RunnerPool downgrades the stale-image check to the Pod's node
+        # (nil here, since this Pod has no spec.nodeName) — no affinity.
         expect(K8sClient, :get_runner_pool, fn "tuist-runners", "fleet-a" ->
           {:error, :not_found}
         end)
@@ -386,6 +413,11 @@ defmodule Tuist.RunnersTest do
 
       expect(K8sClient, :get_service_account, fn "tuist-runners", ^pod_name ->
         {:ok, sa_with_pool_label(pod_name, "fleet-a")}
+      end)
+
+      # check_not_stale fetches the (uncommitted) Pod first, then the pool.
+      expect(K8sClient, :get_pod, fn "tuist-runners", ^pod_name ->
+        {:ok, pod_with_image(pod_name, "img")}
       end)
 
       expect(K8sClient, :get_runner_pool, fn "tuist-runners", "fleet-a" ->

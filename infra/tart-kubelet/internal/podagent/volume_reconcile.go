@@ -92,6 +92,9 @@ func (r *Reconciler) maybeMaterializeVolume(pod *corev1.Pod) {
 	}
 	entry.Volume.SourceAccount = account
 	entry.Volume.Materialized = true
+	// Drop the host-written materialization marker so a kubelet restart can tell
+	// this (materialized) branch from an idle VM's boot-created empty cache dir.
+	r.Volumes.MarkMaterialized(entry.Volume)
 	// Signal the guest the cache is ready (warm or cold) so its bounded wait
 	// releases and the job runs.
 	writeCacheReady(entry.VolumeStatusDir)
@@ -168,7 +171,13 @@ func (r *Reconciler) convergeMaster(vmName, statusDir, volumeName, account strin
 	if r.Volumes == nil || !r.Volumes.Enabled() {
 		return
 	}
-	head := readVolumeHead(statusDir)
+	// Wait (bounded) for the guest to stage the HEAD. The guest writes
+	// volume-head.json only after it receives the dispatch response, which the
+	// server returns after stamping the label that triggered this convergence,
+	// so the file lands a beat later than this goroutine starts. Reading it once
+	// would usually miss it and permanently skip convergence; since this runs in
+	// the background, it can afford to wait for the file to appear.
+	head := awaitVolumeHead(statusDir)
 	if head == nil || head.Digest == "" || head.DownloadURL == "" {
 		return
 	}
@@ -189,12 +198,44 @@ func (r *Reconciler) convergeMaster(vmName, statusDir, volumeName, account strin
 		logger.Error(err, "converge: download master", "vm", vmName, "account", account)
 		return
 	}
+	// The HEAD digest and the (mutable) archive object can diverge — a failed
+	// digest report after a successful upload, or interleaved jobs for the same
+	// account overwriting the object. Verify the downloaded archive's inventory
+	// actually matches the HEAD digest before installing it, so the host never
+	// adopts a master under a digest it doesn't have. On mismatch, stay on the
+	// local master (status quo). Immutable, content-addressed archive keys are
+	// the fuller fix and a tracked follow-up.
+	if got, err := r.Volumes.TreeDigest(staging); err != nil || got != head.Digest {
+		logger.Info("converge: archive digest does not match HEAD; keeping local master",
+			"vm", vmName, "account", account, "want", head.Digest, "got", got)
+		return
+	}
 	if err := r.Volumes.ReplaceMaster(account, volumeName, staging); err != nil {
 		logger.Error(err, "converge: replace master", "vm", vmName, "account", account)
 		return
 	}
 	RecordVolumeConverged()
 	logger.Info("converged master to HEAD", "vm", vmName, "account", account, "generation", head.Generation)
+}
+
+// convergeHeadWaitInterval / convergeHeadWaitAttempts bound how long the
+// background convergence waits for the guest to stage the HEAD before giving
+// up (best-effort; the next job on this host converges instead).
+const (
+	convergeHeadWaitInterval = 1 * time.Second
+	convergeHeadWaitAttempts = 15
+)
+
+// awaitVolumeHead polls the status share for the guest-staged HEAD, returning
+// as soon as it appears or nil once the bound elapses.
+func awaitVolumeHead(statusDir string) *volumeHead {
+	for i := 0; i < convergeHeadWaitAttempts; i++ {
+		if h := readVolumeHead(statusDir); h != nil {
+			return h
+		}
+		time.Sleep(convergeHeadWaitInterval)
+	}
+	return readVolumeHead(statusDir)
 }
 
 // downloadAndExtract fetches the master archive from a presigned URL and expands

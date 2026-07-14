@@ -61,6 +61,14 @@ defmodule TuistWeb.RunnersController do
         # with one on the current image.
         conn |> put_status(:gone) |> json(%{error: "drain", reason: "image stale"})
 
+      {:error, :pod_committed} ->
+        # 410 Gone: this Pod already committed to a dispatch (it carries the
+        # account label) but is polling again, so its dispatch response was lost
+        # and the runner never started. Same clean-exit signal as a drain — the
+        # VM halts and the reconciler replaces the Pod — so it can't serve a
+        # second account on the cache materialized for the first.
+        conn |> put_status(:gone) |> json(%{error: "drain", reason: "pod already committed"})
+
       {:error, :missing_bearer} ->
         conn |> put_status(:unauthorized) |> json(%{error: "missing bearer token"})
 
