@@ -1,7 +1,7 @@
 defmodule Tuist.MCP.Components.Tools.SearchTuist do
   @moduledoc """
-  Searches Tuist's documentation, API reference, community forum, and GitHub
-  issues through the Typesense search engine.
+  Searches Tuist's documentation, API reference, release notes, community forum,
+  and GitHub issues through the Typesense search engine.
   """
 
   use Tuist.MCP.Tool,
@@ -17,9 +17,13 @@ defmodule Tuist.MCP.Components.Tools.SearchTuist do
         },
         "source" => %{
           "type" => "string",
-          "enum" => ["docs", "api_reference", "forum", "issues"],
+          "enum" => ["docs", "api_reference", "releases", "forum", "issues"],
           "description" =>
-            "Restrict results to one source: docs, api_reference, forum, or issues. Searches all when omitted."
+            "Restrict results to one source: docs, api_reference, releases, forum, or issues. Searches all when omitted."
+        },
+        "include_prereleases" => %{
+          "type" => "boolean",
+          "description" => "Include prereleases when searching release notes. Defaults to false."
         },
         "max_results" => %{
           "type" => "integer",
@@ -41,11 +45,15 @@ defmodule Tuist.MCP.Components.Tools.SearchTuist do
             "properties" => %{
               "source" => %{
                 "type" => "string",
-                "enum" => ["docs", "api_reference", "forum", "issues"]
+                "enum" => ["docs", "api_reference", "releases", "forum", "issues"]
               },
               "title" => %{"type" => "string"},
               "url" => %{"type" => "string"},
-              "snippet" => %{"type" => "string"}
+              "snippet" => %{"type" => "string"},
+              "product" => %{"type" => "string"},
+              "version" => %{"type" => "string"},
+              "published_at" => %{"type" => "string"},
+              "prerelease" => %{"type" => "boolean"}
             },
             "required" => ["source", "title", "url", "snippet"],
             "additionalProperties" => false
@@ -60,7 +68,7 @@ defmodule Tuist.MCP.Components.Tools.SearchTuist do
 
   @impl EMCP.Tool
   def description do
-    "Search Tuist's documentation, API reference, community forum, and GitHub issues."
+    "Search Tuist's documentation, API reference, release notes, community forum, and GitHub issues."
   end
 
   def execute(_conn, arguments), do: Search.search(arguments)

@@ -1,7 +1,7 @@
 defmodule Tuist.MCP.Search do
   @moduledoc """
-  Searches Tuist's documentation, API reference, community forum, and GitHub
-  issues through the Typesense search engine that also powers the docs website.
+  Searches Tuist's documentation, API reference, release notes, community forum,
+  and GitHub issues through the Typesense search engine that also powers the docs website.
 
   The collection set and per-collection query weights mirror
   `server/assets/docs/hooks/docs-search-hook.js` so the MCP tool and the website
@@ -14,6 +14,7 @@ defmodule Tuist.MCP.Search do
   @max_snippet_characters 320
   @default_max_results 8
   @max_results 20
+  @default_max_release_results 2
 
   @collections [
     %{
@@ -23,7 +24,17 @@ defmodule Tuist.MCP.Search do
         "hierarchy.lvl0,hierarchy.lvl1,hierarchy.lvl2,hierarchy.lvl3,hierarchy.lvl4,hierarchy.lvl5,hierarchy.lvl6,content",
       query_by_weights: "127,100,80,60,40,20,10,5",
       group_by: "url_without_anchor",
-      filter_by: "tags:=en"
+      filter_by: "tags:=en",
+      sort_by: nil
+    },
+    %{
+      name: "github-releases",
+      source: "releases",
+      query_by: "title,version,product,hierarchy.lvl0,hierarchy.lvl1,hierarchy.lvl2,content",
+      query_by_weights: "127,120,100,80,60,40,5",
+      group_by: "release_group",
+      filter_by: "prerelease:=false",
+      sort_by: "_text_match:desc,published_at:desc"
     },
     %{
       name: "projectdescription",
@@ -31,7 +42,8 @@ defmodule Tuist.MCP.Search do
       query_by: "title,hierarchy.lvl0,hierarchy.lvl1,hierarchy.lvl2,content",
       query_by_weights: "127,100,80,60,5",
       group_by: nil,
-      filter_by: nil
+      filter_by: nil,
+      sort_by: nil
     },
     %{
       name: "github-issues",
@@ -39,7 +51,8 @@ defmodule Tuist.MCP.Search do
       query_by: "title,hierarchy.lvl0,hierarchy.lvl1,content",
       query_by_weights: "127,100,80,5",
       group_by: nil,
-      filter_by: nil
+      filter_by: nil,
+      sort_by: nil
     },
     %{
       name: "forum-topics",
@@ -48,7 +61,8 @@ defmodule Tuist.MCP.Search do
         "hierarchy.lvl0,hierarchy.lvl1,hierarchy.lvl2,hierarchy.lvl3,hierarchy.lvl4,hierarchy.lvl5,hierarchy.lvl6,content",
       query_by_weights: "127,100,80,60,40,20,10,5",
       group_by: "url_without_anchor",
-      filter_by: nil
+      filter_by: nil,
+      sort_by: nil
     }
   ]
 
@@ -61,7 +75,7 @@ defmodule Tuist.MCP.Search do
     max_results = clamp_max_results(arguments["max_results"])
     collections = collections_for(arguments["source"])
 
-    body = %{"searches" => Enum.map(collections, &search_clause(&1, query, max_results))}
+    body = %{"searches" => Enum.map(collections, &search_clause(&1, query, max_results, arguments))}
 
     case Req.post(Environment.typesense_host() <> "/multi_search",
            json: body,
@@ -91,12 +105,14 @@ defmodule Tuist.MCP.Search do
   defp clamp_max_results(value) when is_integer(value) and value > 0, do: min(value, @max_results)
   defp clamp_max_results(_), do: @default_max_results
 
-  defp search_clause(collection, query, max_results) do
+  defp search_clause(collection, query, max_results, arguments) do
     %{
       "collection" => collection.name,
       "q" => query,
       "query_by" => collection.query_by,
       "query_by_weights" => collection.query_by_weights,
+      "highlight_fields" => "content",
+      "highlight_affix_num_tokens" => 24,
       # Fetch up to max_results per collection (already clamped to the advertised
       # cap) so a single-source search can reach that cap, and multi-source
       # searches have a wider candidate pool to rank across.
@@ -104,8 +120,12 @@ defmodule Tuist.MCP.Search do
     }
     |> maybe_put("group_by", collection.group_by)
     |> maybe_group_limit(collection.group_by)
-    |> maybe_put("filter_by", collection.filter_by)
+    |> maybe_put("filter_by", filter_by(collection, arguments))
+    |> maybe_put("sort_by", collection.sort_by)
   end
+
+  defp filter_by(%{source: "releases"}, %{"include_prereleases" => true}), do: nil
+  defp filter_by(collection, _arguments), do: collection.filter_by
 
   defp maybe_group_limit(clause, nil), do: clause
   defp maybe_group_limit(clause, _group_by), do: Map.put(clause, "group_limit", 1)
@@ -121,8 +141,28 @@ defmodule Tuist.MCP.Search do
       result |> hits() |> Enum.map(&to_result(&1, collection))
     end)
     |> Enum.sort_by(& &1["text_match"], :desc)
+    |> cap_release_results(length(collections) > 1)
     |> Enum.take(max_results)
     |> Enum.map(&Map.delete(&1, "text_match"))
+  end
+
+  defp cap_release_results(results, false), do: results
+
+  defp cap_release_results(results, true) do
+    {results, _release_count} =
+      Enum.reduce(results, {[], 0}, fn result, {kept, release_count} ->
+        if result["source"] == "releases" do
+          if release_count < @default_max_release_results do
+            {[result | kept], release_count + 1}
+          else
+            {kept, release_count}
+          end
+        else
+          {[result | kept], release_count}
+        end
+      end)
+
+    Enum.reverse(results)
   end
 
   defp hits(%{"grouped_hits" => grouped}) when is_list(grouped),
@@ -138,10 +178,14 @@ defmodule Tuist.MCP.Search do
       "source" => collection.source,
       "title" => title_for(document, collection),
       "url" => document["url"] || document["url_without_anchor"] || "",
-      "snippet" => snippet_for(document),
+      "snippet" => snippet_for(hit, document),
       # Kept only for ranking across collections; dropped before returning.
       "text_match" => Map.get(hit, "text_match", 0)
     }
+    |> maybe_put("product", present(document["product"]))
+    |> maybe_put("version", present(document["version"]))
+    |> maybe_put("published_at", present(document["published_at_iso"]))
+    |> maybe_put("prerelease", document["prerelease"])
   end
 
   defp title_for(document, %{name: name}) when name in ["tuist", "forum-topics"],
@@ -154,13 +198,27 @@ defmodule Tuist.MCP.Search do
     Enum.find_value(6..0//-1, fn level -> present(hierarchy["lvl#{level}"]) end)
   end
 
-  defp snippet_for(document) do
-    document
-    |> Map.get("content", "")
+  defp snippet_for(hit, document) do
+    hit
+    |> highlighted_content()
+    |> Kernel.||(Map.get(document, "content", ""))
     |> to_string()
+    |> String.replace(~r/<\/?mark>/, "")
     |> String.slice(0, @max_snippet_characters)
     |> String.trim()
   end
+
+  defp highlighted_content(%{"highlights" => highlights}) when is_list(highlights) do
+    Enum.find_value(highlights, fn
+      %{"field" => "content"} = highlight -> present(highlight["snippet"]) || present(highlight["value"])
+      _highlight -> nil
+    end)
+  end
+
+  defp highlighted_content(%{"highlight" => %{"content" => highlight}}) when is_map(highlight),
+    do: present(highlight["snippet"]) || present(highlight["value"])
+
+  defp highlighted_content(_hit), do: nil
 
   defp present(value) when is_binary(value) do
     trimmed = String.trim(value)
