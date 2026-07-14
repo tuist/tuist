@@ -18,8 +18,8 @@ This node covers the Tuist CLI workspace under `cli/`. Follow downlinks for subs
 - `cli/Sources/TuistGenerator` - Monolithic generation pipeline; new generation logic should be added to smaller, focused modules.
 
 ## Building
-- To generate the Xcode project for a faster build, run `tuist generate tuist ProjectDescription --no-open` (generates only the required targets instead of the full workspace).
-- To compile, use `xcodebuild build -workspace Tuist.xcworkspace -scheme tuist CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""`.
+- To generate the Xcode project for a faster build, run `tuist generate tuist ProjectDescription --no-open` (generates only the required targets instead of the full workspace). If the target you need is not in the current generated workspace, regenerate with that specific target instead of falling back to SwiftPM.
+- To compile, use `xcodebuild build -workspace Tuist.xcworkspace -scheme tuist CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""`. Do not use `swift build` for CLI validation unless the user explicitly asks for SwiftPM.
 - Prefer the `tuist` scheme over `Tuist-Workspace` for faster iteration.
 
 ## Code Style
@@ -41,7 +41,8 @@ This node covers the Tuist CLI workspace under `cli/`. Follow downlinks for subs
   ```
 
 ### Running tests
-- Prefer `tuist generate` + `xcodebuild`/`xcsiftbuild test` over `swift test`. `swift test` is significantly slower because it rebuilds the full SPM dependency graph, and some test targets (e.g. `TuistGeneratorTests`, `TuistLoaderTests`) aren't even registered in `Package.swift` — they only exist in the Tuist-generated workspace.
+- Use `tuist generate` + `xcodebuild`/`xcsiftbuild test` instead of `swift test`. `swift test` is significantly slower because it rebuilds the full SPM dependency graph, bypasses Tuist caching, and some test targets (e.g. `TuistGeneratorTests`, `TuistLoaderTests`) aren't even registered in `Package.swift` — they only exist in the Tuist-generated workspace.
+- If the generated scheme does not include the test target, run `tuist generate tuist <ProductionTarget> <TestTarget> ProjectDescription --no-open` with the narrowest target list that covers the change, then rerun the focused `xcodebuild`/`xcsiftbuild test`.
 - Fast iteration loop for a specific test suite:
   ```bash
   tuist generate tuist TuistGenerator TuistGeneratorTests ProjectDescription --no-open

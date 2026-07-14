@@ -134,6 +134,14 @@ defmodule TuistWeb.CacheRunsLiveTest do
         command_arguments: ["cache", "OtherUserApp"]
       )
 
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        user_id: user.id,
+        name: "cache",
+        command_arguments: ["cache", "ContinuousIntegrationUserApp"],
+        is_ci: true
+      )
+
       {:ok, lv, _html} =
         live(
           conn,
@@ -142,6 +150,7 @@ defmodule TuistWeb.CacheRunsLiveTest do
 
       assert has_element?(lv, "span", "tuist cache UserApp")
       refute has_element?(lv, "span", "tuist cache OtherUserApp")
+      refute has_element?(lv, "span", "tuist cache ContinuousIntegrationUserApp")
     end
 
     test "filters cache runs by displayed command", %{

@@ -18,9 +18,8 @@ defmodule TuistWeb.RunnerProfilesLive do
     # Profiles is a settings surface — create / edit / delete rows
     # affect every workflow on the account, so we gate it on
     # `:account_update` (admin-only) the same way `webhooks_live` and
-    # `integrations_live` do. Read-only sibling views
-    # (`runners_live`, `runner_jobs_live`) keep `:projects_read`
-    # because they only surface state.
+    # `integrations_live` do. Read-only sibling views use
+    # `:runners_read` because they only surface state.
     if Authorization.authorize(:account_update, current_user, selected_account) != :ok or
          not FeatureFlags.runners_enabled?(selected_account) do
       raise TuistWeb.Errors.NotFoundError,

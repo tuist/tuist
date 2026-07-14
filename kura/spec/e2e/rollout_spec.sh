@@ -11,7 +11,7 @@ Describe 'warm rollout lifecycle'
     setup_suite_tmpdir
 
     suite_env COMPOSE_PROJECT_NAME kura-rollout
-    ephemeral_ports KURA_US_PORT KURA_US_GRPC_PORT TEMPO_PORT OTLP_PORT
+    ephemeral_ports KURA_US_PORT TEMPO_PORT OTLP_PORT
 
     dc down -v --remove-orphans >/dev/null 2>&1 || true
     dc build kura-us >/dev/null 2>&1
@@ -87,7 +87,6 @@ Describe 'warm rollout lifecycle'
         rm -rf /tmp/kura-locktest &&
         mkdir -p /tmp/kura-locktest &&
         KURA_PORT=4010 \
-        KURA_GRPC_PORT=50110 \
         KURA_INTERNAL_PORT=7444 \
         KURA_NODE_URL=http://lock-test.kura.internal:7444 \
         KURA_PEERS=http://lock-test.kura.internal:7444 \

@@ -1,0 +1,169 @@
+{{- if .Values.registry.enabled }}
+{{- $host := .Values.registry.publicHost | default .Values.registry.ingress.host -}}
+{{- $publicHost := required "registry.publicHost or registry.ingress.host is required when registry.enabled is true" $host -}}
+{{- $imageTag := required "registry.image.tag is required when registry.enabled is true" .Values.registry.image.tag -}}
+{{- $runtimeSecretName := .Values.registry.runtimeSecretName | default (include "tuist.componentName" (dict "root" . "component" "registry-runtime")) -}}
+{{- $appSecretName := include "tuist.componentName" (dict "root" . "component" "registry-app") -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "registry") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: registry
+spec:
+  replicas: {{ .Values.registry.replicaCount }}
+  strategy:
+    {{- toYaml .Values.registry.strategy | nindent 4 }}
+  selector:
+    matchLabels:
+      {{- include "tuist.componentLabels" (dict "root" . "component" "registry") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "tuist.componentLabels" (dict "root" . "component" "registry") | nindent 8 }}
+        {{- with .Values.global.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- with .Values.registry.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- if or .Values.registry.metrics.enabled .Values.registry.podAnnotations }}
+      annotations:
+        {{- if .Values.registry.metrics.enabled }}
+        prometheus.io/scrape: "true"
+        prometheus.io/port: {{ .Values.registry.metrics.port | quote }}
+        prometheus.io/path: {{ .Values.registry.metrics.path | quote }}
+        prometheus.io/port-name: metrics
+        {{- end }}
+        {{- with .Values.registry.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- end }}
+    spec:
+      terminationGracePeriodSeconds: {{ .Values.registry.terminationGracePeriodSeconds }}
+      serviceAccountName: {{ include "tuist.componentServiceAccountName" (dict "root" . "component" "registry") }}
+      automountServiceAccountToken: {{ .Values.registry.automountServiceAccountToken }}
+      {{- include "tuist.podScheduling" . | nindent 6 }}
+      {{- with .Values.registry.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.registry.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.registry.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.registry.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: registry
+          image: "{{ .Values.registry.image.repository }}:{{ $imageTag }}"
+          imagePullPolicy: {{ .Values.registry.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.registry.containerSecurityContext | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.registry.containerPort }}
+            {{- if .Values.registry.metrics.enabled }}
+            - name: metrics
+              containerPort: {{ .Values.registry.metrics.port }}
+            {{- end }}
+          env:
+            - name: MIX_ENV
+              value: prod
+            - name: PUBLIC_HOST
+              value: {{ $publicHost | quote }}
+            - name: PORT
+              value: {{ .Values.registry.containerPort | quote }}
+            {{- if .Values.registry.metrics.enabled }}
+            - name: METRICS_PORT
+              value: {{ .Values.registry.metrics.port | quote }}
+            {{- end }}
+            - name: SERVER_URL
+              value: {{ .Values.registry.serverUrl | quote }}
+            - name: SENTRY_ENV
+              value: {{ .Values.registry.sentryEnv | quote }}
+            - name: DEPLOY_ENV
+              value: {{ .Values.registry.deployEnv | quote }}
+            - name: POOL_SIZE
+              value: {{ .Values.registry.poolSize | quote }}
+            {{- with .Values.registry.s3.endpoint }}
+            - name: S3_ENDPOINT
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.registry.s3.protocol }}
+            - name: S3_PROTOCOL
+              value: {{ . | quote }}
+            {{- end }}
+            - name: S3_VIRTUAL_HOST
+              value: {{ ternary "true" "false" .Values.registry.s3.virtualHost | quote }}
+            {{- with .Values.registry.s3.caCertPem }}
+            - name: S3_CA_CERT_PEM
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.registry.observability.otelEndpoint }}
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.registry.observability.lokiUrl }}
+            - name: LOKI_URL
+              value: {{ . | quote }}
+            {{- end }}
+            - name: SECRET_KEY_BASE
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $appSecretName }}
+                  key: secret-key-base
+            - name: RELEASE_COOKIE
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $appSecretName }}
+                  key: release-cookie
+            {{- with .Values.registry.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          envFrom:
+            - secretRef:
+                name: {{ $runtimeSecretName }}
+            {{- with .Values.registry.extraEnvFrom }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          startupProbe:
+            httpGet:
+              path: {{ .Values.registry.probes.startup.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.registry.probes.startup.initialDelaySeconds }}
+            periodSeconds: {{ .Values.registry.probes.startup.periodSeconds }}
+            timeoutSeconds: {{ .Values.registry.probes.startup.timeoutSeconds }}
+            failureThreshold: {{ .Values.registry.probes.startup.failureThreshold }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.registry.probes.readiness.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.registry.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.registry.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.registry.probes.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.registry.probes.readiness.failureThreshold }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.registry.probes.liveness.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.registry.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.registry.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.registry.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.registry.probes.liveness.failureThreshold }}
+          resources:
+            {{- toYaml .Values.registry.resources | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+{{- end }}

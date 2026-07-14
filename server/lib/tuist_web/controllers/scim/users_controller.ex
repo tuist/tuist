@@ -107,7 +107,6 @@ defmodule TuistWeb.SCIM.UsersController do
     case SCIM.deactivate_user(organization, id) do
       {:ok, _user} -> send_resp(conn, 204, "")
       {:error, :not_found} -> send_scim_error(conn, 404, "User not found")
-      {:error, _} -> send_scim_error(conn, 500, "Could not deactivate user")
     end
   end
 

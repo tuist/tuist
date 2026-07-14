@@ -14,6 +14,82 @@ defmodule TuistWeb.Marketing.MarketingHTML do
   # Delegate to Localization module
   defdelegate localized_href(href), to: TuistWeb.Marketing.Localization
 
+  def static_asset_path(nil), do: nil
+
+  def static_asset_path(source) do
+    uri = URI.parse(source)
+    app_uri = URI.parse(Tuist.Environment.app_url())
+
+    if static_asset_uri?(uri, app_uri) do
+      uri.path
+      |> TuistWeb.Endpoint.static_path()
+      |> append_query(uri.query)
+      |> append_fragment(uri.fragment)
+    else
+      source
+    end
+  end
+
+  def content_html(nil), do: nil
+
+  def content_html(html) do
+    case Floki.parse_fragment(html) do
+      {:ok, document} ->
+        document
+        |> Floki.traverse_and_update(fn
+          {"img", attrs, children} ->
+            {"img", optimize_image_attrs(attrs), children}
+
+          node ->
+            node
+        end)
+        |> Floki.raw_html()
+
+      {:error, _reason} ->
+        html
+    end
+  end
+
+  defp static_asset_uri?(%URI{path: path} = uri, app_uri) when is_binary(path) do
+    String.starts_with?(path, "/") and
+      (is_nil(uri.host) or uri.host == app_uri.host) and
+      (is_nil(uri.scheme) or uri.scheme == app_uri.scheme)
+  end
+
+  defp static_asset_uri?(_uri, _app_uri), do: false
+
+  defp optimize_image_attrs(attrs) do
+    attrs
+    |> update_attr("src", &static_asset_path/1)
+    |> put_new_attr("loading", "lazy")
+    |> put_new_attr("decoding", "async")
+  end
+
+  defp update_attr(attrs, key, update) do
+    Enum.map(attrs, fn
+      {^key, value} -> {key, update.(value)}
+      attr -> attr
+    end)
+  end
+
+  defp put_new_attr(attrs, key, value) do
+    if Enum.any?(attrs, fn {name, _value} -> name == key end) do
+      attrs
+    else
+      attrs ++ [{key, value}]
+    end
+  end
+
+  defp append_query(path, nil), do: path
+
+  defp append_query(path, query) do
+    separator = if String.contains?(path, "?"), do: "&", else: "?"
+    path <> separator <> query
+  end
+
+  defp append_fragment(path, nil), do: path
+  defp append_fragment(path, fragment), do: path <> "#" <> fragment
+
   attr(:title, :string, required: true)
   attr(:primary_action_title, :string, required: false)
   attr(:primary_action_href, :string, required: false)
@@ -50,7 +126,12 @@ defmodule TuistWeb.Marketing.MarketingHTML do
 
     ~H"""
     <div id="marketing-banner">
-      <img data-part="background" src={~p"/marketing/images/components/banner/background.webp"} />
+      <img
+        data-part="background"
+        src={~p"/marketing/images/components/banner/background.webp"}
+        loading="lazy"
+        decoding="async"
+      />
       <h2 data-part="title">{@title}</h2>
       <nav data-part="actions" aria-label="Primary actions">
         <.button
@@ -83,7 +164,7 @@ defmodule TuistWeb.Marketing.MarketingHTML do
     ~H"""
     <div data-part="member">
       <div data-part="photo">
-        <img src={@photo_src} />
+        <img src={static_asset_path(@photo_src)} loading="lazy" decoding="async" />
         <div data-part="data">
           <h3 data-part="name">
             {@name}
@@ -215,7 +296,12 @@ defmodule TuistWeb.Marketing.MarketingHTML do
           "{@quote}"
         </p>
         <div data-part="person">
-          <img data-part="avatar" src={@avatar_src} />
+          <img
+            data-part="avatar"
+            src={static_asset_path(@avatar_src)}
+            loading="lazy"
+            decoding="async"
+          />
           <div data-part="details">
             <h3 data-part="name">{@name}</h3>
             <p data-part="role">{@role}</p>

@@ -48,7 +48,12 @@ permissions:
 jobs:
   build:
     runs-on: [self-hosted, macos, bare-metal, vm-image-builder]
-    timeout-minutes: 60
+    # A fresh Xcode major's `-downloadAllPlatforms` pulls brand-new
+    # simulator runtimes from Apple that aren't cached yet, which can
+    # push the build step alone past 50 min (26.6 took ~54 min) and
+    # leave no room to push before a 60-min cap. 90 gives headroom for
+    # the slow first build of a new major plus the multi-GB GHCR push.
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
 

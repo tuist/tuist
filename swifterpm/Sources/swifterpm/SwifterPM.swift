@@ -246,6 +246,22 @@ public struct SwifterPM: Sendable {
             )
         }
 
+        // With the pins restored, confirm they still satisfy the manifest the
+        // same way SwiftPM would. We only do this once the checkouts exist so
+        // SwiftPM reuses the restored workspace state and the check stays a fast
+        // precomputation rather than a fresh resolve.
+        if request.forceResolvedVersions, request.restorePackage {
+            try await PackageResolver.assertResolvedFileUpToDate(
+                packageDir: package,
+                scratchDir: scratch,
+                cacheDir: cache.root,
+                registryConfigurationPath: request.registryConfigurationPath,
+                defaultRegistryURL: request.defaultRegistryURL,
+                disableSandbox: request.disableSandbox,
+                scmToRegistryTransformation: request.scmToRegistryTransformation
+            )
+        }
+
         return SwifterPMResolutionResult(resolved)
     }
 

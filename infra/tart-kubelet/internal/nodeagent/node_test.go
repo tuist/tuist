@@ -117,6 +117,44 @@ func TestRefreshPersistsDynamicLabels(t *testing.T) {
 	}
 }
 
+// Regression for nodes stranded in Unknown: once the node-lifecycle
+// controller flips Ready to Unknown (after a heartbeat gap, e.g. a kubelet
+// restart), a heartbeat must lift the node back to Ready=True. The bug:
+// client.Patch overwrote the in-memory node.Status (our freshly-set
+// Ready=True) with the server's Unknown before Status().Update, so the
+// heartbeat only re-posted Unknown and the node never recovered.
+func TestRefreshLiftsNodeOutOfUnknown(t *testing.T) {
+	existing := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{Name: "mac-1"},
+		Status: corev1.NodeStatus{
+			Conditions: []corev1.NodeCondition{{
+				Type:    corev1.NodeReady,
+				Status:  corev1.ConditionUnknown,
+				Reason:  "NodeStatusUnknown",
+				Message: "Kubelet stopped posting node status.",
+			}},
+		},
+	}
+	c := newNodeFakeClient(existing)
+	m := &Maintainer{Client: c, NodeName: "mac-1", Heartbeat: time.Second}
+
+	if err := m.refresh(context.Background()); err != nil {
+		t.Fatalf("refresh: %v", err)
+	}
+
+	persisted := &corev1.Node{}
+	if err := c.Get(context.Background(), types.NamespacedName{Name: "mac-1"}, persisted); err != nil {
+		t.Fatalf("get node: %v", err)
+	}
+	cond, ok := conditionByType(persisted.Status.Conditions, corev1.NodeReady)
+	if !ok {
+		t.Fatal("Ready condition missing after refresh")
+	}
+	if cond.Status != corev1.ConditionTrue {
+		t.Fatalf("Ready = %q after refresh, want True — a heartbeat must recover a node the controller marked Unknown", cond.Status)
+	}
+}
+
 func conditionByType(conds []corev1.NodeCondition, t corev1.NodeConditionType) (corev1.NodeCondition, bool) {
 	for _, c := range conds {
 		if c.Type == t {

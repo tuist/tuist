@@ -15,6 +15,40 @@ defmodule Tuist.MCP.Components.Tools.GetTestRun do
         }
       },
       "required" => ["test_run_id"]
+    },
+    output_schema: %{
+      "type" => "object",
+      "properties" => %{
+        "id" => %{"type" => "string"},
+        "status" => %{"type" => "string"},
+        "duration" => %{"type" => "integer"},
+        "is_ci" => %{"type" => "boolean"},
+        "is_flaky" => %{"type" => "boolean"},
+        "scheme" => %{"type" => "string"},
+        "git_branch" => %{"type" => "string"},
+        "git_commit_sha" => %{"type" => "string"},
+        "ran_at" => %{"type" => "string"},
+        "total_test_count" => %{"type" => "integer"},
+        "failed_test_count" => %{"type" => "integer"},
+        "flaky_test_count" => %{"type" => "integer"},
+        "avg_test_duration" => %{"type" => "number"}
+      },
+      "required" => [
+        "id",
+        "status",
+        "duration",
+        "is_ci",
+        "is_flaky",
+        "scheme",
+        "git_branch",
+        "git_commit_sha",
+        "ran_at",
+        "total_test_count",
+        "failed_test_count",
+        "flaky_test_count",
+        "avg_test_duration"
+      ],
+      "additionalProperties" => false
     }
 
   alias Tuist.MCP.Formatter

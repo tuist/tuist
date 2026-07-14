@@ -80,22 +80,6 @@ struct BuildPhaseGenerator: BuildPhaseGenerating {
             )
         }
 
-        // Targets that depend on a Swift Macro have the following dependency graph:
-        // - Target -> MyMacro (Static framework) -> MyMacro (Executable)
-        // - or, in some cases, they directly depend on the executable: Target -> MyMacro (Executable)
-        //
-        // The executable is compiled transitively through the static library, and we place it inside the framework to make it
-        // available to the target depending on the framework
-        // to point it with the `-load-plugin-executable $(BUILD_DIR)/$(CONFIGURATION)/ExecutableName\#ExecutableName` build
-        // setting.
-        let directSwiftMacroExecutables = graphTraverser.directSwiftMacroExecutables(path: path, name: target.name).sorted()
-        try generateCopySwiftMacroExecutableScriptBuildPhase(
-            directSwiftMacroExecutables: directSwiftMacroExecutables,
-            target: target,
-            pbxTarget: pbxTarget,
-            pbxproj: pbxproj
-        )
-
         try await generateSourcesBuildPhase(
             files: target.sources,
             coreDataModels: target.coreDataModels,
@@ -225,8 +209,8 @@ struct BuildPhaseGenerator: BuildPhaseGenerating {
                     .map {
                         (try? AbsolutePath(validating: $0))?.relative(to: sourceRootPath).pathString ?? $0
                     },
-                inputFileListPaths: script.inputFileListPaths,
-                outputFileListPaths: script.outputFileListPaths,
+                inputFileListPaths: script.inputFileListPaths.map { $0.xcodePath(sourceRootPath: sourceRootPath) },
+                outputFileListPaths: script.outputFileListPaths.map { $0.xcodePath(sourceRootPath: sourceRootPath) },
                 shellPath: script.shellPath,
                 shellScript: try await script.shellScript(sourceRootPath: sourceRootPath),
                 runOnlyForDeploymentPostprocessing: script.runForInstallBuildsOnly,
@@ -501,78 +485,6 @@ struct BuildPhaseGenerator: BuildPhaseGenerating {
         case let .buildProduct(name, _, _):
             return "2:\(name)"
         }
-    }
-
-    private func generateCopySwiftMacroExecutableScriptBuildPhase(
-        directSwiftMacroExecutables: [GraphDependencyReference],
-        target: Target,
-        pbxTarget: PBXTarget,
-        pbxproj: PBXProj
-    ) throws {
-        if directSwiftMacroExecutables.isEmpty { return }
-
-        let copySwiftMacrosBuildPhase = PBXShellScriptBuildPhase(name: "Copy Swift Macro executable into $BUILT_PRODUCT_DIR")
-
-        let executableNames = directSwiftMacroExecutables.compactMap {
-            switch $0 {
-            case let .product(_, productName, _, _):
-                return productName
-            default:
-                return nil
-            }
-        }
-
-        let copyLines = executableNames.map {
-            """
-            if [[ -f "$BUILD_DIR/$CONFIGURATION/\($0)" ]]; then
-                mkdir -p "$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/"
-                if [[ "$BUILD_DIR/$CONFIGURATION/\($0)" != "$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/\($0)" ]]; then
-                    cp -f "$BUILD_DIR/$CONFIGURATION/\($0)" "$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/\($0)"
-                fi
-            fi
-            """
-        }
-
-        copySwiftMacrosBuildPhase.inputPaths = executableNames.flatMap {
-            [
-                "$BUILD_DIR/$CONFIGURATION/\($0)",
-                "$(OBJROOT)/UninstalledProducts/macosx/\($0)",
-            ]
-        }
-
-        if target.supports(.macOS) {
-            // Declaring the actual destination paths as outputs would collide with
-            // the macro target's `Ld` step on native macOS builds (where
-            // `$EFFECTIVE_PLATFORM_NAME` is empty and both write to
-            // `$BUILD_DIR/Debug/<exe>`). Use a stamp file under `$DERIVED_FILE_DIR`
-            // (per-target / per-configuration / per-platform) so Xcode's
-            // incremental up-to-date check still works without colliding.
-            copySwiftMacrosBuildPhase.shellScript = """
-            #  This build phase serves two purposes:
-            #  - Force Xcode build system to compile the macOS executable transitively when compiling for non-macOS destinations
-            #  - Place the artifacts in the "Debug" directory where the built artifacts for the active destination live. We default to "Debug" because otherwise the Xcode editor fails to resolve the macro references.
-            \(copyLines.joined(separator: "\n"))
-            mkdir -p "$DERIVED_FILE_DIR"
-            touch "$DERIVED_FILE_DIR/copy-swift-macro.stamp"
-            """
-            copySwiftMacrosBuildPhase.outputPaths = ["$(DERIVED_FILE_DIR)/copy-swift-macro.stamp"]
-        } else {
-            copySwiftMacrosBuildPhase.shellScript = """
-            #  This build phase serves two purposes:
-            #  - Force Xcode build system to compile the macOS executable transitively when compiling for non-macOS destinations
-            #  - Place the artifacts in the "Debug" directory where the built artifacts for the active destination live. We default to "Debug" because otherwise the Xcode editor fails to resolve the macro references.
-            \(copyLines.joined(separator: "\n"))
-            """
-            copySwiftMacrosBuildPhase.outputPaths = executableNames.flatMap { executable in
-                [
-                    "$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/\(executable)",
-                    "$BUILD_DIR/Debug-$EFFECTIVE_PLATFORM_NAME/\(executable)",
-                ]
-            }
-        }
-
-        pbxproj.add(object: copySwiftMacrosBuildPhase)
-        pbxTarget.buildPhases.append(copySwiftMacrosBuildPhase)
     }
 
     private func generateResourcesBuildFile(

@@ -381,6 +381,12 @@ defmodule TuistWeb.Router do
           metadata: @marketing_route_metadata,
           private: private
 
+      post Path.join(locale_path_prefix, "/newsletter/verify"),
+           MarketingController,
+           :newsletter_confirm,
+           metadata: @marketing_route_metadata,
+           private: private
+
       get Path.join(locale_path_prefix, "/newsletter/issues/:issue_number"),
           MarketingController,
           :newsletter_issue,
@@ -451,12 +457,11 @@ defmodule TuistWeb.Router do
   scope "/.well-known", TuistWeb do
     pipe_through [:open_api, :non_authenticated_api]
 
-    get "/openid-configuration", WellKnownController, :openid_configuration
     get "/oauth-authorization-server", WellKnownController, :oauth_authorization_server
     get "/oauth-protected-resource", WellKnownController, :oauth_protected_resource
     get "/oauth-protected-resource/*resource_path", WellKnownController, :oauth_protected_resource
-    get "/jwks.json", WellKnownController, :jwks
     get "/mcp/server-card.json", WellKnownController, :mcp_server_card
+    get "/registry.json", WellKnownController, :registry_discovery, metadata: %{robots_txt: false}
     get "/apple-app-site-association", WellKnownController, :apple_app_site_association
     get "/assetlinks.json", WellKnownController, :assetlinks
   end
@@ -470,7 +475,7 @@ defmodule TuistWeb.Router do
   scope "/" do
     pipe_through [:mcp]
 
-    forward "/mcp", EMCP.Transport.StreamableHTTP, server: Tuist.MCP.Server
+    forward "/mcp", Tuist.MCP.Transport.StreamableHTTP, server: Tuist.MCP.Server
   end
 
   scope "/scim/v2", TuistWeb.SCIM do
@@ -749,6 +754,10 @@ defmodule TuistWeb.Router do
     pipe_through [:atlas_internal_api]
 
     get "/atlas/accounts/:account_handle/usage", AtlasUsageController, :usage
+
+    post "/atlas/db/query", AtlasDatabaseController, :query
+    get "/atlas/db/tables", AtlasDatabaseController, :tables
+    get "/atlas/db/tables/:schema/:name", AtlasDatabaseController, :describe
   end
 
   scope "/_internal", TuistWeb.Internal do
@@ -756,6 +765,8 @@ defmodule TuistWeb.Router do
 
     post "/kura/usage", KuraUsageController, :create
     post "/kura/mesh/enroll", KuraMeshController, :enroll
+    post "/kura/mesh/heartbeat", KuraMeshController, :heartbeat
+    get "/kura/mesh/peers", KuraMeshController, :peers
     post "/kura/mesh/registrations", KuraMeshController, :register
   end
 
@@ -1006,6 +1017,10 @@ defmodule TuistWeb.Router do
 
     get "/billing/manage", BillingController, :manage
     get "/billing/upgrade", BillingController, :upgrade
+
+    get "/runners/interactive/vnc",
+        RunnerInteractiveVNCController,
+        :connect
 
     get "/runners/runs/:workflow_run_id/jobs/:workflow_job_id/logs/download",
         RunnerJobLogsController,

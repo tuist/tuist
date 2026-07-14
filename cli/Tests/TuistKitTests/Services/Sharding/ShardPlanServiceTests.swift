@@ -76,7 +76,6 @@ struct ShardPlanServiceTests {
 
         _ = try await subject.plan(
             xctestproductsPath: testProductsPath,
-            destination: nil,
             reference: "ref",
             shardGranularity: .module,
             shardMin: nil,
@@ -158,7 +157,9 @@ struct ShardPlanServiceTests {
             .startUpload(
                 fullHandle: .any,
                 serverURL: .any,
-                shardPlanId: .value("plan-id")
+                shardPlanId: .value("plan-id"),
+                reference: .any,
+                artifact: .any
             )
             .willReturn("upload-id")
 
@@ -183,7 +184,8 @@ struct ShardPlanServiceTests {
                 shardPlanId: .value("plan-id"),
                 reference: .any,
                 uploadId: .value("upload-id"),
-                partNumber: .value(1)
+                partNumber: .value(1),
+                artifact: .any
             )
             .willReturn("https://tuist.dev/upload")
 
@@ -197,7 +199,8 @@ struct ShardPlanServiceTests {
                 uploadId: .value("upload-id"),
                 parts: .matching { parts in
                     parts.count == 1 && parts[0].partNumber == 1 && parts[0].etag == "etag"
-                }
+                },
+                artifact: .any
             )
             .willReturn()
 
@@ -218,7 +221,6 @@ struct ShardPlanServiceTests {
 
         _ = try await subject.plan(
             xctestproductsPath: testProductsPath,
-            destination: nil,
             reference: "ref",
             shardGranularity: .module,
             shardMin: nil,
@@ -243,211 +245,33 @@ struct ShardPlanServiceTests {
     }
 
     @Test(.inTemporaryDirectory, .withMockedDependencies())
-    func plan_suiteGranularity_recoversModulesDroppedByTheBulkPass() async throws {
+    func plan_withRemoteUpload_groupsDuplicateXCTestBasenamesIntoOneModuleArtifact() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let fileSystem = FileSystem()
+
         let testProductsPath = temporaryDirectory.appending(component: "MyApp.xctestproducts")
-        try await writeXCTestProducts(modules: ["AppTests", "FeatureTests"], at: testProductsPath, fileSystem: fileSystem)
-
-        // The bulk pass (no -only-testing) only reports AppTests; the per-target recovery for the missing
-        // FeatureTests (run with -only-testing FeatureTests) recovers it rather than silently dropping it.
-        let xcTestEnumerator = MockXCTestEnumerating()
-        given(xcTestEnumerator)
-            .enumerateTests(testProductsPath: .any, destination: .any, onlyTesting: .any)
-            .willProduce { _, _, onlyTesting in
-                if onlyTesting.isEmpty {
-                    return [XCTestRun.TestTarget(blueprintName: "AppTests", onlyTestIdentifiers: ["LoginTests"])]
-                }
-                return [XCTestRun.TestTarget(blueprintName: "FeatureTests", onlyTestIdentifiers: ["FeatureFlagTests"])]
-            }
-
-        var capturedTestSuites: [String]?
-        let createShardPlanService = mockCreateShardPlanService(capturingTestSuites: { capturedTestSuites = $0 })
-        let shardMatrixOutputService = MockShardMatrixOutputServicing()
-        given(shardMatrixOutputService).output(.any).willReturn()
-
-        let subject = ShardPlanService(
-            xcTestEnumerator: xcTestEnumerator,
-            createShardPlanService: createShardPlanService,
-            fileSystem: fileSystem,
-            shardMatrixOutputService: shardMatrixOutputService
+        try await fileSystem.makeDirectory(at: testProductsPath)
+        try await fileSystem.writeAsPlist(
+            XCTestRunFixture(
+                testConfigurations: [
+                    .init(
+                        testTargets: [
+                            .init(blueprintName: "AppTests"),
+                        ]
+                    ),
+                ]
+            ),
+            at: testProductsPath.appending(component: "MyApp.xctestrun"),
+            encoder: plistEncoder()
         )
 
-        _ = try await subject.plan(
-            xctestproductsPath: testProductsPath,
-            destination: "platform=macOS",
-            reference: "ref",
-            shardGranularity: .suite,
-            shardMin: nil,
-            shardMax: nil,
-            shardTotal: 1,
-            shardMaxDuration: nil,
-            fullHandle: "tuist/tuist",
-            serverURL: try #require(URL(string: "https://tuist.dev")),
-            buildRunId: nil,
-            skipUpload: true,
-            archivePath: nil
-        )
+        let firstXCTestPath = testProductsPath.appending(components: "Binaries", "0", "Debug", "AppTests.xctest")
+        let secondXCTestPath = testProductsPath.appending(components: "Binaries", "1", "Debug", "AppTests.xctest")
+        try await fileSystem.makeDirectory(at: firstXCTestPath)
+        try await fileSystem.makeDirectory(at: secondXCTestPath)
+        try await fileSystem.writeText("first", at: firstXCTestPath.appending(component: "AppTests"))
+        try await fileSystem.writeText("second", at: secondXCTestPath.appending(component: "AppTests"))
 
-        // The dropped FeatureTests module is recovered by the per-target pass rather than silently omitted.
-        #expect(capturedTestSuites?.sorted() == ["AppTests/LoginTests", "FeatureTests/FeatureFlagTests"])
-        // One bulk pass plus one targeted recovery pass for the dropped module.
-        verify(xcTestEnumerator).enumerateTests(testProductsPath: .any, destination: .any, onlyTesting: .any).called(2)
-    }
-
-    @Test(.inTemporaryDirectory, .withMockedDependencies())
-    func plan_suiteGranularity_buildsSuitesForEveryModule_inASingleBulkPass() async throws {
-        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        let fileSystem = FileSystem()
-        let testProductsPath = temporaryDirectory.appending(component: "MyApp.xctestproducts")
-        try await writeXCTestProducts(modules: ["AppTests", "FeatureTests"], at: testProductsPath, fileSystem: fileSystem)
-
-        let xcTestEnumerator = MockXCTestEnumerating()
-        given(xcTestEnumerator)
-            .enumerateTests(testProductsPath: .any, destination: .any, onlyTesting: .any)
-            .willReturn([
-                XCTestRun.TestTarget(blueprintName: "AppTests", onlyTestIdentifiers: ["LoginTests", "SignupTests"]),
-                XCTestRun.TestTarget(blueprintName: "FeatureTests", onlyTestIdentifiers: ["FeatureFlagTests"]),
-            ])
-
-        var capturedTestSuites: [String]?
-        let createShardPlanService = mockCreateShardPlanService(capturingTestSuites: { capturedTestSuites = $0 })
-        let shardMatrixOutputService = MockShardMatrixOutputServicing()
-        given(shardMatrixOutputService).output(.any).willReturn()
-
-        let subject = ShardPlanService(
-            xcTestEnumerator: xcTestEnumerator,
-            createShardPlanService: createShardPlanService,
-            fileSystem: fileSystem,
-            shardMatrixOutputService: shardMatrixOutputService
-        )
-
-        _ = try await subject.plan(
-            xctestproductsPath: testProductsPath,
-            destination: "platform=macOS",
-            reference: "ref",
-            shardGranularity: .suite,
-            shardMin: nil,
-            shardMax: nil,
-            shardTotal: 1,
-            shardMaxDuration: nil,
-            fullHandle: "tuist/tuist",
-            serverURL: try #require(URL(string: "https://tuist.dev")),
-            buildRunId: nil,
-            skipUpload: true,
-            archivePath: nil
-        )
-
-        #expect(
-            capturedTestSuites?.sorted() == ["AppTests/LoginTests", "AppTests/SignupTests", "FeatureTests/FeatureFlagTests"]
-        )
-        // A complete bulk pass needs no per-target recovery.
-        verify(xcTestEnumerator).enumerateTests(testProductsPath: .any, destination: .any, onlyTesting: .any).called(1)
-    }
-
-    @Test(.inTemporaryDirectory, .withMockedDependencies())
-    func plan_suiteGranularity_excludesModulesThatEnumerateNoTests() async throws {
-        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        let fileSystem = FileSystem()
-        let testProductsPath = temporaryDirectory.appending(component: "MyApp.xctestproducts")
-        try await writeXCTestProducts(modules: ["AppTests", "EmptyTests"], at: testProductsPath, fileSystem: fileSystem)
-
-        // EmptyTests enumerates but reports no tests (an empty target); AppTests reports a suite.
-        let xcTestEnumerator = MockXCTestEnumerating()
-        given(xcTestEnumerator)
-            .enumerateTests(testProductsPath: .any, destination: .any, onlyTesting: .any)
-            .willReturn([
-                XCTestRun.TestTarget(blueprintName: "AppTests", onlyTestIdentifiers: ["LoginTests"]),
-                XCTestRun.TestTarget(blueprintName: "EmptyTests", onlyTestIdentifiers: []),
-            ])
-
-        var capturedTestSuites: [String]?
-        let createShardPlanService = mockCreateShardPlanService(capturingTestSuites: { capturedTestSuites = $0 })
-        let shardMatrixOutputService = MockShardMatrixOutputServicing()
-        given(shardMatrixOutputService).output(.any).willReturn()
-
-        let subject = ShardPlanService(
-            xcTestEnumerator: xcTestEnumerator,
-            createShardPlanService: createShardPlanService,
-            fileSystem: fileSystem,
-            shardMatrixOutputService: shardMatrixOutputService
-        )
-
-        _ = try await subject.plan(
-            xctestproductsPath: testProductsPath,
-            destination: "platform=macOS",
-            reference: "ref",
-            shardGranularity: .suite,
-            shardMin: nil,
-            shardMax: nil,
-            shardTotal: 1,
-            shardMaxDuration: nil,
-            fullHandle: "tuist/tuist",
-            serverURL: try #require(URL(string: "https://tuist.dev")),
-            buildRunId: nil,
-            skipUpload: true,
-            archivePath: nil
-        )
-
-        // EmptyTests enumerated no tests, so it is excluded; AppTests is unaffected.
-        #expect(capturedTestSuites == ["AppTests/LoginTests"])
-        // Every module enumerated (EmptyTests is simply empty), so no per-target recovery is needed.
-        verify(xcTestEnumerator).enumerateTests(testProductsPath: .any, destination: .any, onlyTesting: .any).called(1)
-    }
-
-    /// A module that never enumerates — even after per-target recovery — must not be silently dropped: it is a
-    /// genuine failure (e.g. a target that won't load) and fails plan creation loudly.
-    @Test(.inTemporaryDirectory, .withMockedDependencies())
-    func plan_suiteGranularity_throwsForModulesThatNeverEnumerate() async throws {
-        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        let fileSystem = FileSystem()
-        let testProductsPath = temporaryDirectory.appending(component: "Backstop.xctestproducts")
-        try await writeXCTestProducts(modules: ["AppTests", "GoneTests"], at: testProductsPath, fileSystem: fileSystem)
-
-        // GoneTests never appears in any enumeration — bulk or per-target recovery — while AppTests does.
-        let xcTestEnumerator = MockXCTestEnumerating()
-        given(xcTestEnumerator)
-            .enumerateTests(testProductsPath: .any, destination: .any, onlyTesting: .any)
-            .willReturn([XCTestRun.TestTarget(blueprintName: "AppTests", onlyTestIdentifiers: ["LoginTests"])])
-
-        let createShardPlanService = mockCreateShardPlanService(capturingTestSuites: { _ in })
-        let shardMatrixOutputService = MockShardMatrixOutputServicing()
-        given(shardMatrixOutputService).output(.any).willReturn()
-
-        let subject = ShardPlanService(
-            xcTestEnumerator: xcTestEnumerator,
-            createShardPlanService: createShardPlanService,
-            fileSystem: fileSystem,
-            shardMatrixOutputService: shardMatrixOutputService
-        )
-
-        let serverURL = try #require(URL(string: "https://tuist.dev"))
-        await #expect(throws: ShardPlanServiceError.modulesFailedToEnumerate(["GoneTests"])) {
-            _ = try await subject.plan(
-                xctestproductsPath: testProductsPath,
-                destination: "platform=macOS",
-                reference: "ref",
-                shardGranularity: .suite,
-                shardMin: nil,
-                shardMax: nil,
-                shardTotal: 1,
-                shardMaxDuration: nil,
-                fullHandle: "tuist/tuist",
-                serverURL: serverURL,
-                buildRunId: nil,
-                skipUpload: true,
-                archivePath: nil
-            )
-        }
-
-        // Bulk pass plus the bounded per-target recovery attempts before failing.
-        verify(xcTestEnumerator)
-            .enumerateTests(testProductsPath: .any, destination: .any, onlyTesting: .any).called(3)
-    }
-
-    private func mockCreateShardPlanService(
-        capturingTestSuites capture: @escaping ([String]?) -> Void
-    ) -> MockCreateShardPlanServicing {
         let createShardPlanService = MockCreateShardPlanServicing()
         given(createShardPlanService)
             .createShardPlan(
@@ -455,7 +279,7 @@ struct ShardPlanServiceTests {
                 serverURL: .any,
                 reference: .any,
                 modules: .any,
-                testSuites: .matching { capture($0); return true },
+                testSuites: .any,
                 shardMin: .any,
                 shardMax: .any,
                 shardTotal: .any,
@@ -472,6 +296,159 @@ struct ShardPlanServiceTests {
                     upload_url: "https://tuist.dev/api/projects/tuist/tuist/tests/shards/upload/start"
                 )
             )
+
+        let startedArtifacts = LockedValue<[String?]>([])
+        let uploadedArchivePaths = LockedValue<[AbsolutePath]>([])
+        let moduleArchives = LockedValue<[(subdirectories: [AbsolutePath], archivePath: AbsolutePath)]>([])
+
+        let startShardUploadService = MockStartShardUploadServicing()
+        given(startShardUploadService)
+            .startUpload(
+                fullHandle: .any,
+                serverURL: .any,
+                shardPlanId: .any,
+                reference: .any,
+                artifact: .any
+            )
+            .willProduce { _, _, _, _, artifact in
+                startedArtifacts.mutate { $0.append(artifact) }
+                return "upload-id"
+            }
+
+        let multipartUploadArtifactService = MockMultipartUploadArtifactServicing()
+        given(multipartUploadArtifactService)
+            .multipartUploadArtifact(
+                artifactPath: .any,
+                generateUploadURL: .any,
+                updateProgress: .any
+            )
+            .willProduce { archivePath, _, _ in
+                uploadedArchivePaths.mutate { $0.append(archivePath) }
+                return [(etag: "etag", partNumber: 1)]
+            }
+
+        let multipartUploadGenerateURLShardsService = MockMultipartUploadGenerateURLShardsServicing()
+        given(multipartUploadGenerateURLShardsService)
+            .generateUploadURL(
+                fullHandle: .any,
+                serverURL: .any,
+                shardPlanId: .any,
+                reference: .any,
+                uploadId: .any,
+                partNumber: .any,
+                artifact: .any
+            )
+            .willReturn("https://tuist.dev/upload")
+
+        let multipartUploadCompleteShardsService = MockMultipartUploadCompleteShardsServicing()
+        given(multipartUploadCompleteShardsService)
+            .completeUpload(
+                fullHandle: .any,
+                serverURL: .any,
+                shardPlanId: .any,
+                reference: .any,
+                uploadId: .any,
+                parts: .any,
+                artifact: .any
+            )
+            .willReturn()
+
+        let appleArchiver = MockAppleArchiving()
+        given(appleArchiver)
+            .compress(
+                directory: .any,
+                to: .any,
+                excludePatterns: .any,
+                preservesBaseDirectory: .any
+            )
+            .willProduce { _, archivePath, _, _ in
+                try Data("shared".utf8).write(to: archivePath.url)
+            }
+        given(appleArchiver)
+            .compress(
+                subdirectories: .any,
+                relativeTo: .any,
+                to: .any
+            )
+            .willProduce { subdirectories, _, archivePath in
+                moduleArchives.mutate { $0.append((subdirectories: subdirectories, archivePath: archivePath)) }
+                try Data("module".utf8).write(to: archivePath.url)
+            }
+
+        let shardMatrixOutputService = MockShardMatrixOutputServicing()
+        given(shardMatrixOutputService)
+            .output(.any)
+            .willReturn()
+
+        let subject = ShardPlanService(
+            createShardPlanService: createShardPlanService,
+            startShardUploadService: startShardUploadService,
+            multipartUploadArtifactService: multipartUploadArtifactService,
+            multipartUploadGenerateURLShardsService: multipartUploadGenerateURLShardsService,
+            multipartUploadCompleteShardsService: multipartUploadCompleteShardsService,
+            fileSystem: fileSystem,
+            shardMatrixOutputService: shardMatrixOutputService,
+            appleArchiver: appleArchiver
+        )
+
+        _ = try await subject.plan(
+            xctestproductsPath: testProductsPath,
+            reference: "ref",
+            shardGranularity: .module,
+            shardMin: nil,
+            shardMax: nil,
+            shardTotal: 1,
+            shardMaxDuration: nil,
+            fullHandle: "tuist/tuist",
+            serverURL: try #require(URL(string: "https://tuist.dev")),
+            buildRunId: nil,
+            skipUpload: false,
+            archivePath: nil
+        )
+
+        let artifacts = startedArtifacts.value.compactMap(\.self).sorted()
+        #expect(artifacts == ["module:AppTests", "shared"])
+
+        let uploadedArchiveBasenames = uploadedArchivePaths.value.map(\.basename).sorted()
+        #expect(uploadedArchiveBasenames == ["AppTests.aar", "shared.aar"])
+
+        let recordedModuleArchives = moduleArchives.value
+        #expect(recordedModuleArchives.count == 1)
+        #expect(recordedModuleArchives.first?.archivePath.basename == "AppTests.aar")
+        #expect(recordedModuleArchives.first?.subdirectories.map(\.pathString).sorted() == [
+            firstXCTestPath.pathString,
+            secondXCTestPath.pathString,
+        ])
+    }
+
+    private func mockCreateShardPlanService(
+        capturingTestSuites capture: @escaping ([String]?) -> Void
+    ) -> MockCreateShardPlanServicing {
+        let createShardPlanService = MockCreateShardPlanServicing()
+        given(createShardPlanService)
+            .createShardPlan(
+                fullHandle: .any,
+                serverURL: .any,
+                reference: .any,
+                modules: .any,
+                testSuites: .any,
+                shardMin: .any,
+                shardMax: .any,
+                shardTotal: .any,
+                shardMaxDuration: .any,
+                shardGranularity: .any,
+                buildRunId: .any
+            )
+            .willProduce { _, _, _, _, testSuites, _, _, _, _, _, _ in
+                capture(testSuites)
+                return Components.Schemas.ShardPlan(
+                    id: "plan-id",
+                    reference: "ref",
+                    shard_count: 1,
+                    shards: [],
+                    upload_url: "https://tuist.dev/api/projects/tuist/tuist/tests/shards/upload/start"
+                )
+            }
         return createShardPlanService
     }
 
@@ -517,4 +494,25 @@ private func plistEncoder() -> PropertyListEncoder {
     let encoder = PropertyListEncoder()
     encoder.outputFormat = .xml
     return encoder
+}
+
+private final class LockedValue<Value>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storage: Value
+
+    init(_ storage: Value) {
+        self.storage = storage
+    }
+
+    var value: Value {
+        lock.lock()
+        defer { lock.unlock() }
+        return storage
+    }
+
+    func mutate(_ transform: (inout Value) -> Void) {
+        lock.lock()
+        defer { lock.unlock() }
+        transform(&storage)
+    }
 }

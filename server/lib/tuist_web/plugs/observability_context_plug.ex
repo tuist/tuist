@@ -7,8 +7,6 @@ defmodule TuistWeb.Plugs.ObservabilityContextPlug do
   alias Tuist.Accounts.User
   alias Tuist.Projects.Project
 
-  require Logger
-
   def init(opts), do: opts
 
   def call(conn, _opts) do

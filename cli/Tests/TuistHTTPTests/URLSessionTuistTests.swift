@@ -22,6 +22,43 @@
         }
 
         @Test(.withMockedEnvironment())
+        func tuistURLSessionConfiguration_uses_default_timeouts_and_connection_limit() async throws {
+            let configuration = tuistURLSessionConfiguration()
+
+            #expect(configuration.timeoutIntervalForRequest == 120)
+            #expect(configuration.timeoutIntervalForResource == 90)
+            #expect(configuration.httpMaximumConnectionsPerHost == 20)
+        }
+
+        @Test(.withMockedEnvironment())
+        func tuistURLSessionConfiguration_overrides_timeouts_and_connection_limit_from_environment() async throws {
+            let environment = try #require(Environment.mocked)
+            environment.variables["TUIST_HTTP_TIMEOUT_INTERVAL_FOR_REQUEST"] = "300"
+            environment.variables["TUIST_HTTP_TIMEOUT_INTERVAL_FOR_RESOURCE"] = "600"
+            environment.variables["TUIST_HTTP_MAXIMUM_CONNECTIONS_PER_HOST"] = "40"
+
+            let configuration = tuistURLSessionConfiguration()
+
+            #expect(configuration.timeoutIntervalForRequest == 300)
+            #expect(configuration.timeoutIntervalForResource == 600)
+            #expect(configuration.httpMaximumConnectionsPerHost == 40)
+        }
+
+        @Test(.withMockedEnvironment())
+        func tuistURLSessionConfiguration_falls_back_to_defaults_for_invalid_environment_values() async throws {
+            let environment = try #require(Environment.mocked)
+            environment.variables["TUIST_HTTP_TIMEOUT_INTERVAL_FOR_REQUEST"] = "not-a-number"
+            environment.variables["TUIST_HTTP_TIMEOUT_INTERVAL_FOR_RESOURCE"] = ""
+            environment.variables["TUIST_HTTP_MAXIMUM_CONNECTIONS_PER_HOST"] = "abc"
+
+            let configuration = tuistURLSessionConfiguration()
+
+            #expect(configuration.timeoutIntervalForRequest == 120)
+            #expect(configuration.timeoutIntervalForResource == 90)
+            #expect(configuration.httpMaximumConnectionsPerHost == 20)
+        }
+
+        @Test(.withMockedEnvironment())
         func tuistURLSessionConfiguration_skips_environment_proxy_when_disabled() async throws {
             let environment = try #require(Environment.mocked)
             environment.variables["HTTPS_PROXY"] = "http://proxy.tuist.dev:8080"

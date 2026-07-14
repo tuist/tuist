@@ -4,7 +4,7 @@ Bare-metal Mac mini fleet that bakes the Tart VM images for our CI
 workflows (today: [`runner-image`](runner-image/),
 [`xcresult-processor-image`](xcresult-processor-image/)). Managed
 through the same CAPI provider as the rest of the macOS fleet
-([`infra/cluster-api-provider-scaleway-applesilicon/`](cluster-api-provider-scaleway-applesilicon/));
+([`infra/cluster-api-provider-tuist/`](cluster-api-provider-tuist/));
 scale by editing the `buildersFleet.replicas` chart value or running
 `kubectl scale machinedeployment <release>-builders-fleet
 --replicas=N`.

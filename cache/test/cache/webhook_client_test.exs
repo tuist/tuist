@@ -13,7 +13,10 @@ defmodule Cache.WebhookClientTest do
     stub(Cache.Config, :api_key, fn -> "test-api-key-secret" end)
     stub(Cache.Config, :cache_endpoint, fn -> "cache-eu-north.tuist.dev" end)
     stub(Cache.Config, :analytics_failure_threshold, fn -> 2 end)
-    stub(Cache.Config, :analytics_cooldown_ms, fn -> 25 end)
+    # 250ms (not 25ms) gives the two signed_post calls room to both land
+    # in the same fuse window on slow CI runners where Req+Mimic overhead
+    # can push the second failure outside a tight window.
+    stub(Cache.Config, :analytics_cooldown_ms, fn -> 250 end)
     stub(Cache.Config, :analytics_receive_timeout_ms, fn -> 2_000 end)
     stub(Cache.Config, :analytics_pool_timeout_ms, fn -> 1_000 end)
 
@@ -68,7 +71,7 @@ defmodule Cache.WebhookClientTest do
       assert :ok = WebhookClient.signed_post(url, "{}", "analytics test")
       refute Cache.AnalyticsCircuitBreaker.accept_event?(url)
 
-      Process.sleep(30)
+      Process.sleep(300)
 
       assert Cache.AnalyticsCircuitBreaker.accept_event?(url)
       assert :ok = WebhookClient.signed_post(url, "{}", "analytics test")

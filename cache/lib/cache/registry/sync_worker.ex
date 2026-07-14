@@ -1,6 +1,12 @@
 defmodule Cache.Registry.SyncWorker do
   @moduledoc """
-  Periodically syncs Swift package registry metadata and enqueues missing releases.
+  Syncs Swift package registry metadata and enqueues missing releases.
+
+  The */10 cron entry was removed when the standalone
+  `Tuist.Registry.Swift.SyncWorker` took over scheduled syncs; this
+  worker stays around so an operator can still trigger a one-shot
+  cache-side sync via `Oban.insert(Cache.Registry.SyncWorker.new(%{}))`
+  during the cutover window.
   """
 
   use Oban.Worker, queue: :registry_sync

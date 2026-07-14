@@ -23,8 +23,4 @@ spec:
       port: {{ .Values.service.httpPort }}
       targetPort: http
       protocol: TCP
-    - name: grpc
-      port: {{ .Values.service.grpcPort }}
-      targetPort: grpc
-      protocol: TCP
 

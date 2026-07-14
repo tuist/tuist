@@ -69,7 +69,8 @@ public struct SaveCacheCASService: SaveCacheCASServicing {
         let client = Client.authenticated(
             cacheURL: serverURL,
             authenticationURL: authenticationURL,
-            serverAuthenticationController: serverAuthenticationController
+            serverAuthenticationController: serverAuthenticationController,
+            session: .tuistCAS
         )
         let handles = try fullHandleService.parse(fullHandle)
         let response = try await client.saveCASArtifact(

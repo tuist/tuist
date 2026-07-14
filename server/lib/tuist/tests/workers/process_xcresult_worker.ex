@@ -22,6 +22,7 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
   alias Tuist.Projects
   alias Tuist.Storage
   alias Tuist.Tests
+  alias Tuist.Tests.Workers.BroadcastTestCreatedWorker
 
   require Logger
 
@@ -42,6 +43,12 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
     case process_xcresult(test_run_id, storage_key, args) do
       {:ok, parsed_data} ->
         replace_test_run(parsed_data, args)
+
+        # The run just finished on this (isolated, non-clustered) processor
+        # node, so the in-process PubSub broadcast from create_test can't
+        # reach the web tier. Enqueue an explicit notify job that a web pod
+        # will pick up and broadcast from inside the cluster.
+        enqueue_test_run_broadcast(args)
 
         case Map.get(args, "vcs_comment_params", %{}) do
           params when params != %{} -> Tuist.VCS.enqueue_vcs_pull_request_comment(params)
@@ -69,6 +76,12 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
 
         {:error, reason}
     end
+  end
+
+  defp enqueue_test_run_broadcast(args) do
+    %{test_run_id: args["test_run_id"], project_id: args["project_id"]}
+    |> BroadcastTestCreatedWorker.new()
+    |> Oban.insert()
   end
 
   # Storage routes per account, so the download backend must be the project's
@@ -119,13 +132,16 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
   end
 
   defp replace_test_run(parsed_data, args) do
+    test_modules = parsed_data["test_modules"] || []
+
     attrs =
       Map.merge(base_attrs(args), %{
         scheme: parsed_data["test_plan_name"] || Map.get(args, "scheme"),
-        status: parsed_data["status"] || "success",
+        status: run_status(parsed_data, test_modules),
         duration: parsed_data["duration"] || 0,
-        test_modules: parsed_data["test_modules"] || [],
-        run_destinations: normalize_run_destinations(parsed_data["run_destinations"] || [])
+        test_modules: test_modules,
+        run_destinations: normalize_run_destinations(parsed_data["run_destinations"] || []),
+        run_errors: parsed_data["errors"] || []
       })
 
     case Tests.create_test(attrs) do
@@ -133,6 +149,14 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
       error -> error
     end
   end
+
+  # A parse that extracted no test modules found nothing usable in the bundle
+  # (an aborted or empty xcresult). The Swift parser reports that as "skipped"
+  # — vacuously, from an empty test-case list — which reads on the dashboard as
+  # a real skip rather than "we couldn't parse this". Surface it as
+  # failed_processing so it isn't mistaken for a passing or skipped run.
+  defp run_status(_parsed_data, []), do: "failed_processing"
+  defp run_status(parsed_data, _test_modules), do: parsed_data["status"] || "success"
 
   # The xcresult `platform` field uses display strings ("iOS Simulator",
   # "macOS"). We persist the snake-case form in `test_run_destinations` so

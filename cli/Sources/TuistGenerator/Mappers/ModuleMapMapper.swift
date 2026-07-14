@@ -85,7 +85,7 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
                         from: mappedSettingsDictionary[Self.modulemapFileSetting],
                         projectPath: project.path
                     ),
-                        target.product.isFramework
+                        target.product == .framework
                     {
                         // swift-build gives ExtractAPI dependency module maps explicitly and models framework module maps
                         // at `Modules/module.modulemap`. Generated Xcode projects need the same canonical framework path.
@@ -97,10 +97,13 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
                                 name: "Copy Module Map",
                                 order: .post,
                                 script: .embedded(
+                                    // -f: with Xcode compilation caching enabled, the destination can
+                                    // pre-exist as a read-only CAS-materialized file that plain cp
+                                    // refuses to overwrite (Permission denied).
                                     """
                                     set -eu
                                     mkdir -p "$TARGET_BUILD_DIR/$WRAPPER_NAME/Modules"
-                                    cp '\(escapedModuleMapPath)' "$TARGET_BUILD_DIR/$WRAPPER_NAME/Modules/module.modulemap"
+                                    cp -f '\(escapedModuleMapPath)' "$TARGET_BUILD_DIR/$WRAPPER_NAME/Modules/module.modulemap"
                                     """
                                 ),
                                 inputPaths: [moduleMapPath.pathString],
@@ -404,43 +407,66 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
     ) -> SettingsDictionary {
         var settings = settings
 
-        if !onlyExistingKeys || settings[Self.otherSwiftFlagsSetting] != nil,
-           let updated = Self.updatedOtherSwiftFlags(
-               targetID: targetID,
-               oldOtherSwiftFlags: settings[Self.otherSwiftFlagsSetting],
-               dependenciesDerivedDirectory: dependenciesDerivedDirectory,
-               xcodeProjParent: xcodeProjParent,
-               combinedModuleMapPath: combinedModuleMapPath
-           )
-        {
+        if Self.shouldApplyModuleMapFlags(
+            to: settings[Self.otherSwiftFlagsSetting],
+            onlyExistingKeys: onlyExistingKeys
+        ), let updated = Self.updatedOtherSwiftFlags(
+            targetID: targetID,
+            oldOtherSwiftFlags: settings[Self.otherSwiftFlagsSetting],
+            dependenciesDerivedDirectory: dependenciesDerivedDirectory,
+            xcodeProjParent: xcodeProjParent,
+            combinedModuleMapPath: combinedModuleMapPath
+        ) {
             settings[Self.otherSwiftFlagsSetting] = updated
         }
 
-        if !onlyExistingKeys || settings[Self.otherCFlagsSetting] != nil,
-           let updated = Self.updatedOtherCFlags(
-               targetID: targetID,
-               oldOtherCFlags: settings[Self.otherCFlagsSetting],
-               dependenciesDerivedDirectory: dependenciesDerivedDirectory,
-               xcodeProjParent: xcodeProjParent,
-               combinedModuleMapPath: combinedModuleMapPath
-           )
-        {
+        if Self.shouldApplyModuleMapFlags(
+            to: settings[Self.otherCFlagsSetting],
+            onlyExistingKeys: onlyExistingKeys
+        ), let updated = Self.updatedOtherCFlags(
+            targetID: targetID,
+            oldOtherCFlags: settings[Self.otherCFlagsSetting],
+            dependenciesDerivedDirectory: dependenciesDerivedDirectory,
+            xcodeProjParent: xcodeProjParent,
+            combinedModuleMapPath: combinedModuleMapPath
+        ) {
             settings[Self.otherCFlagsSetting] = updated
         }
 
-        if !onlyExistingKeys || settings[Self.headerSearchPaths] != nil,
-           let updated = Self.updatedHeaderSearchPaths(
-               targetID: targetID,
-               oldHeaderSearchPaths: settings[Self.headerSearchPaths],
-               targetToDependenciesMetadata: targetToDependenciesMetadata,
-               dependenciesDerivedDirectory: dependenciesDerivedDirectory,
-               xcodeProjParent: xcodeProjParent
-           )
-        {
+        if Self.shouldApplyModuleMapFlags(
+            to: settings[Self.headerSearchPaths],
+            onlyExistingKeys: onlyExistingKeys
+        ), let updated = Self.updatedHeaderSearchPaths(
+            targetID: targetID,
+            oldHeaderSearchPaths: settings[Self.headerSearchPaths],
+            targetToDependenciesMetadata: targetToDependenciesMetadata,
+            dependenciesDerivedDirectory: dependenciesDerivedDirectory,
+            xcodeProjParent: xcodeProjParent
+        ) {
             settings[Self.headerSearchPaths] = updated
         }
 
         return settings
+    }
+
+    /// A configuration value containing $(inherited) already receives the base flags, so adding the
+    /// flag there again would duplicate it in the generated Xcode project.
+    private static func shouldApplyModuleMapFlags(
+        to setting: SettingsDictionary.Value?,
+        onlyExistingKeys: Bool
+    ) -> Bool {
+        !onlyExistingKeys || (setting != nil && !inheritsBaseSetting(setting))
+    }
+
+    private static func inheritsBaseSetting(_ setting: SettingsDictionary.Value?) -> Bool {
+        switch setting {
+        case let .string(value):
+            value.contains("$(inherited)")
+        case let .array(values):
+            values.contains("$(inherited)")
+        case nil:
+            false
+        }
     }
 
     private static func updatedHeaderSearchPaths(

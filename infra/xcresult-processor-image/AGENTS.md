@@ -111,3 +111,34 @@ one artifact, runtime selection. `TUIST_DEPLOY_ENV` picks which encrypted
 secrets bundle to decrypt with `MASTER_KEY`; everything else is
 configuration the Pod spec injects. A new env requires zero image
 changes — only a new Pod with new env vars.
+
+> **Note:** the env table and the `MASTER_KEY` / encrypted-blob description
+> above predate the #11460 secrets migration, which removed the blob and moved
+> the processor onto the ESO config Secret. They need a separate accurate
+> update — left out of this change to keep it a clean rebuild trigger.
+
+## Releasing this image & schema drift
+
+This image **bakes a full server release**, so its baked code can drift from the
+live DB schema if it isn't rebuilt when the server changes. The release gate
+(`mise/tasks/release/components.json` → `xcresult-processor-image`, evaluated by
+`git cliff` in `mise/tasks/release/check.sh`) is **scope-gated**: it cuts a new
+version only for conventional commits it doesn't skip — it skips `chore`, `ci`,
+and other-scoped commits — that touch `server/lib/tuist/**`, the xcresult NIF,
+`server/mix.{exs,lock}`, or this directory. That gate is intentionally
+conservative: the build runs Packer on a single bare-metal Mac mini and is
+expensive, so we deliberately do **not** rebuild on every server change.
+
+The tradeoff: a server change merged under a **skipped scope** (e.g. a
+`chore(server)` that also drops a column) won't auto-rebuild this image, so the
+baked release keeps running old code against the new schema. That happened once
+and took production down — the processor queried a column a migration had just
+dropped.
+
+**Runbook — when a schema- or runtime-affecting server change lands under a
+skipped scope:** cut a manual release so the image rebuilds against current
+`main`. The simplest way is a `fix`/`docs`-scoped commit touching this directory
+(this very commit is one), which makes `git cliff` bump the version and the
+`release-xcresult-processor-image` job rebuild + retag `:<version>` + `:latest`
+and rewrite the chart tag. To smoke-test image contents without cutting a
+version, dispatch `xcresult-processor-image.yml` for a throwaway `:<sha>` build.

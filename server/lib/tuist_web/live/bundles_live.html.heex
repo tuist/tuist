@@ -275,8 +275,18 @@
           title={dgettext("dashboard_cache", "No bundles yet")}
         >
           <:image>
-            <img src="/images/empty_line_chart_light.png" data-theme="light" />
-            <img src="/images/empty_line_chart_dark.png" data-theme="dark" />
+            <img
+              src={~p"/images/empty_line_chart_light.png"}
+              data-theme="light"
+              loading="lazy"
+              decoding="async"
+            />
+            <img
+              src={~p"/images/empty_line_chart_dark.png"}
+              data-theme="dark"
+              loading="lazy"
+              decoding="async"
+            />
           </:image>
         </.empty_card_section>
       </div>
@@ -411,8 +421,18 @@
           data-part="empty-bundles-table-card-section"
         >
           <:image>
-            <img src="/images/empty_table_light.png" data-theme="light" />
-            <img src="/images/empty_table_dark.png" data-theme="dark" />
+            <img
+              src={~p"/images/empty_table_light.png"}
+              data-theme="light"
+              loading="lazy"
+              decoding="async"
+            />
+            <img
+              src={~p"/images/empty_table_dark.png"}
+              data-theme="dark"
+              loading="lazy"
+              decoding="async"
+            />
           </:image>
         </.empty_card_section>
       </.card_section>

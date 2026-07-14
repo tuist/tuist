@@ -40,6 +40,9 @@ defmodule TuistWeb.UsageLiveTest do
 
   defp disable_kura(account) do
     stub(Environment, :dev?, fn -> false end)
+    # Kura is on by default on non-hosted deployments, so the flag only gates
+    # visibility on the hosted server.
+    stub(Environment, :tuist_hosted?, fn -> true end)
     stub_kura_flag(account, false)
   end
 
@@ -92,6 +95,19 @@ defmodule TuistWeb.UsageLiveTest do
       assert html =~ "Egress"
       assert html =~ "Ingress"
       assert html =~ "Requests"
+    end
+
+    test "renders the page on the hosted server when the flag is on", %{conn: conn, account: account} do
+      # Positive coverage for the hosted branch: tuist_hosted? true disables
+      # the `not tuist_hosted?()` disjunct, so the page renders only because
+      # the :kura flag is on.
+      stub(Environment, :dev?, fn -> false end)
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      stub_kura_flag(account, true)
+
+      {:ok, _lv, html} = live(conn, ~p"/#{account.name}/usage")
+
+      assert html =~ "Usage"
     end
   end
 

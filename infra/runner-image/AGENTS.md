@@ -51,6 +51,10 @@ runtime — no service, sudo entry, or auto-login targets it.
   config so the desktop session exists at boot and loginwindow
   loads the LaunchAgent. Without this the VM boots to a login
   screen and the agent never starts.
+- `SetupAssistant` and `SetupAssistant.managed` defaults — skip
+  first-run panes such as Apple Account, Privacy, Siri, Screen Time,
+  and automatic software update so VNC opens on the runner desktop
+  instead of Setup Assistant.
 - `/etc/sudoers.d/runner-nopasswd` — passwordless sudo for the
   agent's privileged ops (installing /etc/tuist.env, halting the
   VM at job exit). Single-tenant ephemeral VM — the entire OS is
@@ -121,7 +125,7 @@ Active profiles are the single source of truth in
 
 ```json
 // infra/runner-image/profiles.json
-["26.5", "26.4.1", "26.3", "26.0.1"]   // first entry = newest / default profile
+["26.6", "26.5", "26.4.1", "26.3", "26.0.1"]   // first entry = newest / default profile
 ```
 
 `check-releases` reads this into the `runner-image-matrix` output and

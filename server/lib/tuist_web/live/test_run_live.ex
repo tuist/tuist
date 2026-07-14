@@ -9,6 +9,7 @@ defmodule TuistWeb.TestRunLive do
   import TuistWeb.Helpers.TestLabels
   import TuistWeb.Helpers.VCSLinks
   import TuistWeb.Previews.PlatformIcon
+  import TuistWeb.Runs.CIContextCard
   import TuistWeb.Runs.ModuleCacheTab
   import TuistWeb.Runs.RanByBadge
   import TuistWeb.Runs.SelectiveTestingTab
@@ -17,15 +18,28 @@ defmodule TuistWeb.TestRunLive do
   alias Tuist.ClickHouseRepo
   alias Tuist.CommandEvents
   alias Tuist.Projects
+  alias Tuist.Runners.Jobs
+  alias Tuist.Runners.JobSteps
   alias Tuist.Shards.ShardPlan
   alias Tuist.Storage
   alias Tuist.Tests
   alias Tuist.Tests.TestRunDestination
   alias Tuist.Xcode
   alias TuistWeb.Errors.NotFoundError
+  alias TuistWeb.RunnerJobLive
+  alias TuistWeb.RunnerWorkflowsLive
   alias TuistWeb.Utilities.Query
 
   @table_page_size 20
+
+  # A run finishing on the isolated, non-clustered xcresult-processor pushes its
+  # completion through BroadcastTestCreatedWorker, and web-origin runs broadcast
+  # in process, but either can be missed. Poll while the run is in any transient
+  # state so a connected viewer's spinner clears on its own, then do one delayed
+  # refresh after it settles so buffered ClickHouse rows have had time to land.
+  @transient_statuses ~w(processing in_progress)
+  @run_poll_interval to_timeout(second: 5)
+  @settle_delay to_timeout(second: 5)
 
   # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   def mount(params, _session, %{assigns: %{selected_project: project}} = socket) do
@@ -48,6 +62,16 @@ defmodule TuistWeb.TestRunLive do
 
     project = Tuist.Repo.preload(project, vcs_connection: :github_app_installation)
 
+    # A run that was processed across multiple retries (e.g. before a fix) can
+    # carry duplicate identical destination rows, since create_run_destinations
+    # inserts a fresh row per attempt. Collapse them to distinct devices.
+    run = %{
+      run
+      | run_destinations: Enum.uniq_by(run.run_destinations, &{&1.name, &1.platform, &1.os_version})
+    }
+
+    ci_run_url = Tests.test_ci_run_url(run)
+    ci_context = test_ci_context(run, socket.assigns.selected_account, ci_run_url)
     run = Map.put(run, :project, project)
 
     [command_event, test_metrics, failures_count] =
@@ -69,9 +93,13 @@ defmodule TuistWeb.TestRunLive do
       |> assign(:selected_project, project)
       |> assign(:run, run)
       |> assign(:command_event, command_event)
+      |> assign(:ci_run_url, ci_run_url)
+      |> assign(:ci_context, ci_context)
+      |> assign(:module_cache_metrics, command_event && CommandEvents.module_cache_output_metrics(command_event.id))
       |> assign(:head_title, "#{dgettext("dashboard_tests", "Test Run")} · #{slug} · Tuist")
       |> assign(:test_metrics, test_metrics)
       |> assign(:failures_count, failures_count)
+      |> assign(:run_errors, Tests.list_run_errors(run.id))
       |> assign(:is_sharded, not is_nil(run.shard_plan_id))
       |> assign_initial_analytics_state()
       |> assign_initial_test_cases_state()
@@ -83,17 +111,85 @@ defmodule TuistWeb.TestRunLive do
       |> assign(:has_binary_cache_data, command_event && Xcode.has_binary_cache_data?(command_event))
       |> assign_shard_rows(run)
       |> assign_async(:has_result_bundle, fn ->
-        {:ok, %{has_result_bundle: (command_event && CommandEvents.has_result_bundle?(command_event)) || false}}
+        {:ok, %{has_result_bundle: resolve_result_bundle_run_id(command_event, run, project)}}
       end)
       |> assign_async(:has_session, fn ->
         {:ok, %{has_session: (command_event && CommandEvents.has_session?(command_event)) || false}}
       end)
 
-    if connected?(socket) and run.status == "processing" do
+    if connected?(socket) and transient?(run.status) do
       Tuist.PubSub.subscribe("#{project.account.name}/#{project.name}")
+      schedule_run_poll()
     end
 
     {:ok, socket}
+  end
+
+  # The `Download result` button and its route are keyed on the id under which
+  # the bundle was stored: the command_event id for CLI `tuist test` runs, and
+  # the test run id for remote `tuist inspect test` runs (no command_event).
+  # Returns that id, or nil when there is no downloadable bundle.
+  defp resolve_result_bundle_run_id(command_event, run, project) do
+    cond do
+      command_event && CommandEvents.has_result_bundle?(command_event) -> command_event.id
+      CommandEvents.has_result_bundle?(run.id, project) -> run.id
+      true -> nil
+    end
+  end
+
+  defp test_ci_context(run, selected_account, ci_run_url) when not is_nil(ci_run_url) do
+    with "github" <- normalize_ci_provider(Map.get(run, :ci_provider)),
+         repository when is_binary(repository) and repository != "" <- Map.get(run, :ci_project_handle),
+         workflow_run_id when is_integer(workflow_run_id) <- parse_workflow_run_id(Map.get(run, :ci_run_id)),
+         jobs when jobs != [] <- Jobs.list_for_workflow_run(selected_account.id, repository, workflow_run_id),
+         runner_job when not is_nil(runner_job) <- matching_test_job(jobs) do
+      steps = JobSteps.list_for_job(runner_job.workflow_job_id)
+      matched_step = matching_test_step(steps)
+
+      %{
+        matched_step: matched_step,
+        matched_step_path: RunnerJobLive.step_path(selected_account.name, runner_job, matched_step),
+        runner_job: runner_job,
+        runner_job_path: RunnerJobLive.path(selected_account.name, runner_job),
+        workflow_path: RunnerWorkflowsLive.workflow_path(selected_account.name, runner_job)
+      }
+    else
+      _ -> nil
+    end
+  end
+
+  defp test_ci_context(_, _, _), do: nil
+
+  defp normalize_ci_provider(provider) when is_binary(provider), do: provider
+  defp normalize_ci_provider(provider) when is_atom(provider), do: Atom.to_string(provider)
+  defp normalize_ci_provider(_), do: nil
+
+  defp parse_workflow_run_id(value) when is_integer(value) and value > 0, do: value
+
+  defp parse_workflow_run_id(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {workflow_run_id, ""} when workflow_run_id > 0 -> workflow_run_id
+      _ -> nil
+    end
+  end
+
+  defp parse_workflow_run_id(_), do: nil
+
+  defp matching_test_job(jobs), do: find_ci_job_by_name(jobs, ["test"])
+  defp matching_test_step(steps), do: find_ci_step_by_name(steps, ["test"])
+
+  defp find_ci_job_by_name(jobs, needles) do
+    Enum.find(jobs, fn job ->
+      name = job |> Map.get(:job_name, "") |> String.downcase()
+      Enum.any?(needles, &String.contains?(name, &1))
+    end)
+  end
+
+  defp find_ci_step_by_name(steps, needles) do
+    Enum.find(steps, fn step ->
+      name = step |> Map.get(:name, "") |> String.downcase()
+      Enum.any?(needles, &String.contains?(name, &1))
+    end)
   end
 
   def handle_params(_params, uri, socket) do
@@ -140,6 +236,22 @@ defmodule TuistWeb.TestRunLive do
     else
       {:noreply, socket}
     end
+  end
+
+  def handle_info(:poll_run_state, socket) do
+    socket = reload_run_state(socket)
+
+    if transient?(socket.assigns.run.status) do
+      schedule_run_poll()
+    else
+      schedule_settle_refresh()
+    end
+
+    {:noreply, socket}
+  end
+
+  def handle_info(:settle_run_state, socket) do
+    {:noreply, reload_run_state(socket)}
   end
 
   def handle_event("refresh_test_run", _params, socket) do
@@ -258,11 +370,15 @@ defmodule TuistWeb.TestRunLive do
   defp reload_run_state(%{assigns: %{run: run, selected_project: project, selected_tab: selected_tab, uri: uri}} = socket) do
     case Tests.get_test(run.id, preload: [:ran_by_account, :build_run, :gradle_build, :shard_plan, :run_destinations]) do
       {:ok, refreshed_run} ->
+        ci_run_url = Tests.test_ci_run_url(refreshed_run)
+        ci_context = test_ci_context(refreshed_run, socket.assigns.selected_account, ci_run_url)
         refreshed_run = Map.put(refreshed_run, :project, project)
         params = URI.decode_query(uri.query || "")
 
         socket
         |> assign(:run, refreshed_run)
+        |> assign(:ci_run_url, ci_run_url)
+        |> assign(:ci_context, ci_context)
         |> assign_initial_analytics_state()
         |> assign_initial_test_cases_state()
         |> assign_initial_failures_state()
@@ -272,6 +388,16 @@ defmodule TuistWeb.TestRunLive do
       {:error, :not_found} ->
         socket
     end
+  end
+
+  defp transient?(status), do: status in @transient_statuses
+
+  defp schedule_run_poll do
+    Process.send_after(self(), :poll_run_state, @run_poll_interval)
+  end
+
+  defp schedule_settle_refresh do
+    Process.send_after(self(), :settle_run_state, @settle_delay)
   end
 
   defp assign_initial_analytics_state(socket) do
@@ -560,7 +686,7 @@ defmodule TuistWeb.TestRunLive do
       page: String.to_integer(params["selective-testing-page"] || "1"),
       page_size: @table_page_size,
       order_by: [ensure_allowed_params("selective-testing-sort-by", params)],
-      order_directions: [String.to_atom(params["selective-testing-sort-order"] || "asc")]
+      order_directions: [ensure_allowed_sort_order(params["selective-testing-sort-order"])]
     }
 
     {filtered_analytics, meta} = Xcode.selective_testing_analytics(run, flop_params)
@@ -582,7 +708,7 @@ defmodule TuistWeb.TestRunLive do
       page: String.to_integer(params["binary-cache-page"] || "1"),
       page_size: @table_page_size,
       order_by: [ensure_allowed_params("binary-cache-sort-by", params)],
-      order_directions: [String.to_atom(params["binary-cache-sort-order"] || "asc")]
+      order_directions: [ensure_allowed_sort_order(params["binary-cache-sort-order"])]
     }
 
     {filtered_analytics, meta} = Xcode.binary_cache_analytics(run, flop_params)
@@ -611,7 +737,7 @@ defmodule TuistWeb.TestRunLive do
       page: String.to_integer(params["test-cases-page"] || "1"),
       page_size: @table_page_size,
       order_by: [ensure_allowed_test_cases_sort_params(params["test-cases-sort-by"])],
-      order_directions: [String.to_atom(params["test-cases-sort-order"] || "asc")]
+      order_directions: [ensure_allowed_sort_order(params["test-cases-sort-order"])]
     }
 
     Tests.list_test_case_runs(flop_params)
@@ -626,7 +752,7 @@ defmodule TuistWeb.TestRunLive do
       page: String.to_integer(params["test-suites-page"] || "1"),
       page_size: @table_page_size,
       order_by: [ensure_allowed_test_suites_sort_params(params["test-suites-sort-by"])],
-      order_directions: [String.to_atom(params["test-suites-sort-order"] || "asc")]
+      order_directions: [ensure_allowed_sort_order(params["test-suites-sort-order"])]
     }
 
     Tests.list_test_suite_runs(flop_params)
@@ -643,7 +769,7 @@ defmodule TuistWeb.TestRunLive do
       page: String.to_integer(params["test-modules-page"] || "1"),
       page_size: @table_page_size,
       order_by: [ensure_allowed_test_modules_sort_params(params["test-modules-sort-by"])],
-      order_directions: [String.to_atom(params["test-modules-sort-order"] || "asc")]
+      order_directions: [ensure_allowed_sort_order(params["test-modules-sort-order"])]
     }
 
     Tests.list_test_module_runs(flop_params)
@@ -662,6 +788,9 @@ defmodule TuistWeb.TestRunLive do
        do: String.to_existing_atom(value)
 
   defp ensure_allowed_test_modules_sort_params(_value), do: :name
+
+  defp ensure_allowed_sort_order("desc"), do: :desc
+  defp ensure_allowed_sort_order(_value), do: :asc
 
   defp load_failures_data(run, params) do
     page = String.to_integer(params["failures-page"] || "1")

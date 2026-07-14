@@ -66,6 +66,26 @@ spec:
                         Metal can't attach scw-bssd anyway. Benchmarked at ~4.4-6.5x the PRO2-S
                         sustained PN throughput with no token-bucket clamp (see PR #11256).
                       properties:
+                        adoptNamePrefix:
+                          description: |-
+                            AdoptNamePrefix is the Scaleway-side name prefix the controller scans to
+                            claim a pre-ordered, OS-installed Elastic Metal server for this Machine
+                            (the bare-metal analog of the Apple Silicon adoptPoolPrefix). The operator
+                            pre-orders boxes named with this prefix, authorized with the fleet SSH key;
+                            the controller never orders inline, so a deploy never blocks on out-of-stock
+                            capacity. Enforced by the fleet helm template (a default), not a required
+                            CRD field: a required field breaks helm rollbacks to revisions that predate
+                            it, because the rollback patch strips it and the apiserver then rejects it.
+                          type: string
+                        fleetName:
+                          description: |-
+                            FleetName groups Machines that share one SSH key, like the Apple Silicon
+                            kind. Set by the MachineTemplate so every Machine the MachineDeployment
+                            clones derives the SAME fleet key — the key the operator authorizes on the
+                            pre-ordered pool boxes. Without it the key is derived from the generated
+                            Machine name, which a pre-ordered box (named before any Machine exists)
+                            can't carry, so the controller could adopt a box it cannot SSH into.
+                          type: string
                         nodeTaints:
                           description: |-
                             NodeTaints are passed to the kubelet's `--register-with-taints` in the

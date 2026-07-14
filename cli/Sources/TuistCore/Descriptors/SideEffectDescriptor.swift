@@ -17,6 +17,9 @@ public enum SideEffectDescriptor: Equatable, CustomStringConvertible {
     /// Create / remove a directory
     case directory(DirectoryDescriptor)
 
+    /// Create / remove a symbolic link
+    case symbolicLink(SymbolicLinkDescriptor)
+
     /// Perform a command
     case command(CommandDescriptor)
 
@@ -35,6 +38,8 @@ public enum SideEffectDescriptor: Equatable, CustomStringConvertible {
             return fileDescriptor.description
         case let .directory(directoryDescriptor):
             return directoryDescriptor.description
+        case let .symbolicLink(symbolicLinkDescriptor):
+            return symbolicLinkDescriptor.description
         case let .command(commandDescriptor):
             return commandDescriptor.description
         case let .testPlan(descriptor):

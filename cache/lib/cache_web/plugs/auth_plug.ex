@@ -17,8 +17,6 @@ defmodule CacheWeb.Plugs.AuthPlug do
 
   alias Cache.Authentication
 
-  require Logger
-
   def init(opts), do: opts
 
   def call(conn, _opts) do

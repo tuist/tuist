@@ -616,7 +616,7 @@ enum WorkspaceRestorer {
             let download = try registryDownloads.appendingPathComponent(
                 PinKind.registryDownloadSubpath(pin)
             )
-            try await fileSystem.replaceWithSymlinkedDirectory(
+            try await fileSystem.replaceWithRegistryDownloadDirectory(
                 source: source, destination: download
             )
             return (pin.identity, source)
@@ -626,14 +626,13 @@ enum WorkspaceRestorer {
 
     static func ensureSource(cache: Cache, pin: ResolvedPin) async throws -> URL {
         let destination = try cache.sourcePath(pin: pin)
-        let manifest = destination.appendingPathComponent("Package.swift")
-        if try await fileSystem.exists(manifest.absolutePath) {
+        if try await cachedSourceIsUsable(destination) {
             return destination
         }
 
         let lock = try await cache.lock(namespace: "sources", key: destination.path)
         _ = lock
-        if try await fileSystem.exists(manifest.absolutePath) {
+        if try await cachedSourceIsUsable(destination) {
             return destination
         }
         if try await fileSystem.exists(destination.absolutePath) {
@@ -654,7 +653,7 @@ enum WorkspaceRestorer {
             do {
                 try await fileSystem.move(from: temp.absolutePath, to: destination.absolutePath, options: [])
             } catch {
-                if try await fileSystem.exists(manifest.absolutePath) {
+                if try await cachedSourceIsUsable(destination) {
                     try? await fileSystem.remove(temp.absolutePath)
                     return destination
                 }
@@ -665,6 +664,29 @@ enum WorkspaceRestorer {
             throw error
         }
         return destination
+    }
+
+    private static func cachedSourceIsUsable(_ source: URL) async throws -> Bool {
+        guard try await fileSystem.exists(
+            source.appendingPathComponent("Package.swift").absolutePath
+        ) else {
+            return false
+        }
+        return try await submodulesAreMaterialized(in: source)
+    }
+
+    private static func submodulesAreMaterialized(in source: URL) async throws -> Bool {
+        for path in try await submodulePaths(in: source) {
+            let submodule = source.appendingPathComponent(path)
+            guard fileSystem.isDirectoryAndNotSymlink(submodule) else {
+                return false
+            }
+            let entries = try await fileSystem.contentsOfDirectory(at: submodule)
+            if entries.allSatisfy({ $0.lastPathComponent == ".git" }) {
+                return false
+            }
+        }
+        return true
     }
 
     static func ensureRegistrySource(cache: Cache, registryConfig: RegistryConfig, pin: ResolvedPin)
@@ -793,6 +815,8 @@ enum WorkspaceRestorer {
 
     private static func shallowFetchCheckout(pin: ResolvedPin, destination: URL) async throws {
         let revision = try pin.revision()
+        let isLocalSourceControlPackage =
+            try await PackageResolver.localSourceControlPackageLocation(pin.location) != nil
         var attempts: [(candidate: String, error: any Error)] = []
         for location in SourceControlLocations.fetchCandidates(pin.location) {
             do {
@@ -811,8 +835,13 @@ enum WorkspaceRestorer {
                 try await SystemProcess.run(
                     "/usr/bin/git", ["-C", destination.path, "checkout", "--detach", "FETCH_HEAD"]
                 )
+                try await updateSubmodulesIfNeeded(
+                    in: destination,
+                    gitConfigArguments: authArguments,
+                    allowFileProtocol: isLocalSourceControlPackage
+                )
                 let gitDir = destination.appendingPathComponent(".git")
-                if try await PackageResolver.localSourceControlPackageLocation(pin.location) == nil,
+                if !isLocalSourceControlPackage,
                    try await fileSystem.exists(gitDir.absolutePath)
                 {
                     try await fileSystem.remove(gitDir.absolutePath)
@@ -823,6 +852,52 @@ enum WorkspaceRestorer {
             }
         }
         throw GitFetchFailure.error(location: pin.location, attempts: attempts)
+    }
+
+    private static func updateSubmodulesIfNeeded(
+        in destination: URL,
+        gitConfigArguments: [String],
+        allowFileProtocol: Bool
+    ) async throws {
+        guard try await !submodulePaths(in: destination).isEmpty else {
+            return
+        }
+        var arguments = ["-C", destination.path] + gitConfigArguments
+        if allowFileProtocol {
+            arguments.append(contentsOf: ["-c", "protocol.file.allow=always"])
+        }
+        arguments.append(contentsOf: ["submodule", "update", "--init", "--recursive"])
+        try await SystemProcess.run(
+            "/usr/bin/git",
+            arguments,
+            environment: SystemProcess.nonInteractiveGitEnvironment
+        )
+    }
+
+    private static func submodulePaths(in source: URL) async throws -> [String] {
+        let gitmodules = source.appendingPathComponent(".gitmodules")
+        guard try await fileSystem.exists(gitmodules.absolutePath) else {
+            return []
+        }
+
+        let output: String
+        do {
+            output = try await SystemProcess.output(
+                "/usr/bin/git",
+                ["config", "-f", gitmodules.path, "--get-regexp", #"submodule\..*\.path"#]
+            )
+        } catch {
+            return []
+        }
+
+        return output.split(separator: "\n").compactMap { line in
+            guard let separatorIndex = line.firstIndex(where: { $0.isWhitespace }) else {
+                return nil
+            }
+            let path = String(line[line.index(after: separatorIndex)...])
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            return path.isEmpty ? nil : path
+        }
     }
 
     private static func rejectArchiveWithSubmodules(_ destination: URL) async throws {

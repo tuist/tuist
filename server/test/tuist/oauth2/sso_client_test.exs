@@ -2,11 +2,13 @@ defmodule Tuist.OAuth2.SSOClientTest do
   use ExUnit.Case, async: true
   use Mimic
 
+  alias Tuist.Environment
   alias Tuist.OAuth2.SSOClient
   alias Tuist.OAuth2.SSRFGuard
 
   describe "exchange_token/5" do
     test "returns decoded JSON body on a successful 200 response" do
+      tuist_hosted()
       expect(SSRFGuard, :pin, fn url -> {:ok, url, "idp.example.com"} end)
       expect(SSRFGuard, :connect_options, fn "idp.example.com" -> [] end)
 
@@ -34,6 +36,7 @@ defmodule Tuist.OAuth2.SSOClientTest do
     end
 
     test "uses Basic Auth with the client credentials" do
+      tuist_hosted()
       expect(SSRFGuard, :pin, fn url -> {:ok, url, "idp.example.com"} end)
       expect(SSRFGuard, :connect_options, fn _ -> [] end)
 
@@ -50,6 +53,7 @@ defmodule Tuist.OAuth2.SSOClientTest do
     end
 
     test "returns an error tuple when the token endpoint returns a non-2xx status" do
+      tuist_hosted()
       expect(SSRFGuard, :pin, fn url -> {:ok, url, "idp.example.com"} end)
       expect(SSRFGuard, :connect_options, fn _ -> [] end)
 
@@ -62,6 +66,7 @@ defmodule Tuist.OAuth2.SSOClientTest do
     end
 
     test "propagates SSRFGuard pin errors" do
+      tuist_hosted()
       expect(SSRFGuard, :pin, fn _url -> {:error, :private_ip_resolved} end)
 
       assert {:error, :private_ip_resolved} =
@@ -69,6 +74,7 @@ defmodule Tuist.OAuth2.SSOClientTest do
     end
 
     test "propagates Req transport errors" do
+      tuist_hosted()
       expect(SSRFGuard, :pin, fn url -> {:ok, url, "idp.example.com"} end)
       expect(SSRFGuard, :connect_options, fn _ -> [] end)
       expect(Req, :post, fn _url, _opts -> {:error, %Mint.TransportError{reason: :timeout}} end)
@@ -76,10 +82,26 @@ defmodule Tuist.OAuth2.SSOClientTest do
       assert {:error, %Mint.TransportError{reason: :timeout}} =
                SSOClient.exchange_token("https://idp.example.com/token", "code", "https://cb", "id", "secret")
     end
+
+    test "does not pin token requests on self-hosted installations" do
+      self_hosted()
+      reject(&SSRFGuard.pin/1)
+      reject(&SSRFGuard.connect_options/1)
+
+      expect(Req, :post, fn "https://10.0.0.1/token", opts ->
+        refute Keyword.has_key?(opts, :connect_options)
+
+        {:ok, %Req.Response{status: 200, body: ~s({"access_token":"tok"})}}
+      end)
+
+      assert {:ok, %{"access_token" => "tok"}} =
+               SSOClient.exchange_token("https://10.0.0.1/token", "code", "https://cb", "id", "secret")
+    end
   end
 
   describe "fetch_userinfo/2" do
     test "returns decoded JSON body on a successful 200 response" do
+      tuist_hosted()
       expect(SSRFGuard, :pin, fn url -> {:ok, url, "idp.example.com"} end)
       expect(SSRFGuard, :connect_options, fn "idp.example.com" -> [] end)
 
@@ -99,6 +121,7 @@ defmodule Tuist.OAuth2.SSOClientTest do
     end
 
     test "returns an error tuple when the userinfo endpoint returns a non-200 status" do
+      tuist_hosted()
       expect(SSRFGuard, :pin, fn url -> {:ok, url, "idp.example.com"} end)
       expect(SSRFGuard, :connect_options, fn _ -> [] end)
 
@@ -111,10 +134,19 @@ defmodule Tuist.OAuth2.SSOClientTest do
     end
 
     test "propagates SSRFGuard pin errors" do
+      tuist_hosted()
       expect(SSRFGuard, :pin, fn _url -> {:error, :dns_failure} end)
 
       assert {:error, :dns_failure} =
                SSOClient.fetch_userinfo("https://nope.invalid/userinfo", "token")
     end
+  end
+
+  defp tuist_hosted do
+    stub(Environment, :tuist_hosted?, fn -> true end)
+  end
+
+  defp self_hosted do
+    stub(Environment, :tuist_hosted?, fn -> false end)
   end
 end

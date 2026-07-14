@@ -495,56 +495,6 @@
         }
 
         @Test
-        func putValue_when_node_store_fails_continues_successfully() async throws {
-            // Given
-            let key = Data("test-key".utf8)
-
-            var request = CompilationCacheService_Keyvalue_V1_PutValueRequest()
-            request.key = key
-            request.value.entries["value"] = compileJobResultEntry
-
-            let context = ServerContext.test()
-
-            given(putCacheValueService)
-                .putCacheValue(
-                    casId: .any,
-                    entries: .any,
-                    fullHandle: .any,
-                    serverURL: .any,
-                    authenticationURL: .any,
-                    serverAuthenticationController: .any
-                )
-                .willReturn()
-
-            // Configure node store to fail
-            given(analyticsDatabase)
-                .storeNode(key: .any, checksum: .any)
-                .willThrow(NSError(domain: "TestError", code: 1))
-
-            given(analyticsDatabase)
-                .storeKeyValueMetadata(key: .any, operationType: .any, duration: .any)
-                .willReturn()
-
-            // When
-            let response = try await subject.putValue(request: request, context: context)
-
-            // Then - putValue should still succeed even if node store fails
-            #expect(response.hasError == false)
-
-            // Wait for async Task to complete
-            try await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
-
-            // Verify storeNode was attempted
-            verify(analyticsDatabase)
-                .storeNode(key: .any, checksum: .any)
-                .called(.atLeastOnce)
-
-            verify(analyticsDatabase)
-                .storeKeyValueMetadata(key: .any, operationType: .value(KeyValueOperationType.write.rawValue), duration: .any)
-                .called(1)
-        }
-
-        @Test
         func putValue_with_invalid_protobuf_data_handles_gracefully() async throws {
             // Given
             let key = Data("test-key".utf8)

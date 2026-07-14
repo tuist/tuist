@@ -213,14 +213,51 @@ enum HTTPClient {
 enum HTTPAuthorization {
     static func header(for url: URL) async -> String? {
         let environment = ProcessInfo.processInfo.environment
-        if isGitHub(url), let token = nonEmpty(environment["GITHUB_TOKEN"] ?? environment["GH_TOKEN"]) {
+
+        // Explicit, host-scoped credentials win over an ambient GitHub token. A
+        // `machine api.github.com` entry in ~/.netrc (or SWIFTPM_NETRC_DATA) is a
+        // deliberate per-host credential, so it must beat a generic GITHUB_TOKEN /
+        // GH_TOKEN that may be scoped to an unrelated repository — otherwise a
+        // repo-scoped CI token shadows the netrc credential that can actually read
+        // a private release asset. This mirrors SwiftPM, whose download
+        // AuthorizationProvider resolves netrc and never consults GITHUB_TOKEN.
+        if let header = prioritizedHeader(
+            isGitHub: isGitHub(url),
+            netrcCredential: await netrcCredential(for: url, environment: environment),
+            gitHubEnvToken: environment["GITHUB_TOKEN"] ?? environment["GH_TOKEN"]
+        ) {
+            return header
+        }
+
+        if isGitHub(url), let token = await GitHubAuth.token() {
             return bearerHeader(token)
         }
 
+        return nil
+    }
+
+    static func prioritizedHeader(
+        isGitHub: Bool,
+        netrcCredential: RegistryCredential?,
+        gitHubEnvToken: String?
+    ) -> String? {
+        if let credential = netrcCredential {
+            return basicHeader(credential)
+        }
+        if isGitHub, let token = nonEmpty(gitHubEnvToken) {
+            return bearerHeader(token)
+        }
+        return nil
+    }
+
+    private static func netrcCredential(
+        for url: URL,
+        environment: [String: String]
+    ) async -> RegistryCredential? {
         if let netrcData = nonEmpty(environment["SWIFTPM_NETRC_DATA"]),
            let credential = RegistryNetrc(content: netrcData).credential(for: url)
         {
-            return basicHeader(credential)
+            return credential
         }
 
         if let home = environment["HOME"] {
@@ -229,12 +266,8 @@ enum HTTPAuthorization {
                let content = String(data: data, encoding: .utf8),
                let credential = RegistryNetrc(content: content).credential(for: url)
             {
-                return basicHeader(credential)
+                return credential
             }
-        }
-
-        if isGitHub(url), let token = await GitHubAuth.token() {
-            return bearerHeader(token)
         }
 
         return nil

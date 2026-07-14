@@ -165,7 +165,7 @@ defmodule TuistWeb.GenerateRunsLive do
     options = %{
       filters: [
         %{field: :project_id, op: :==, value: project_id},
-        %{field: :name, op: :in, value: ["generate"]}
+        %{field: :name, op: :==, value: "generate"}
         | build_flop_filters(Keyword.get(attrs, :filters, []))
       ],
       order_by: [Keyword.get(attrs, :order_by, :ran_at)],
@@ -197,13 +197,18 @@ defmodule TuistWeb.GenerateRunsLive do
     flop_filters =
       filters
       |> Enum.map(&normalize_command_filter/1)
-      |> Enum.map(&normalize_text_filter_operator/1)
       |> Filter.Operations.convert_filters_to_flop()
 
     ran_by_flop_filters =
       Enum.flat_map(ran_by, fn
         %{value: :ci, operator: op} ->
           [%{field: :is_ci, op: op, value: true}]
+
+        %{value: value, operator: :==} when not is_nil(value) ->
+          [
+            %{field: :is_ci, op: :==, value: false},
+            %{field: :user_id, op: :==, value: value}
+          ]
 
         %{value: value, operator: op} when not is_nil(value) ->
           [%{field: :user_id, op: op, value: value}]
@@ -214,10 +219,6 @@ defmodule TuistWeb.GenerateRunsLive do
 
     flop_filters ++ ran_by_flop_filters
   end
-
-  defp normalize_text_filter_operator(%Filter.Filter{operator: :"!=~"} = filter), do: %{filter | operator: :not_ilike}
-
-  defp normalize_text_filter_operator(filter), do: filter
 
   defp normalize_command_filter(%Filter.Filter{id: "name", value: value} = filter) when is_binary(value) do
     %{filter | value: normalize_command_filter_value(value)}

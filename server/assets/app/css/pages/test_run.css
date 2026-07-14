@@ -99,6 +99,72 @@
     }
   }
 
+  & [data-part="run-errors"] {
+    & [data-part="run-errors-section"] {
+      & > [data-part="errors-list"] {
+        display: flex;
+        flex-direction: column;
+        gap: var(--noora-spacing-5);
+      }
+
+      & .test-error-card {
+        display: flex;
+        flex-direction: column;
+        gap: var(--noora-spacing-5);
+        box-shadow: var(--noora-border-light-default);
+        border-radius: var(--noora-radius-4);
+        background-color: var(--noora-surface-background-primary);
+        padding: var(--noora-spacing-4);
+
+        & > [data-part="header"] {
+          display: flex;
+          flex-direction: row;
+          align-items: center;
+          gap: var(--noora-spacing-5);
+
+          & > [data-part="icon"] {
+            flex-shrink: 0;
+            border-radius: var(--noora-radius-3);
+            background-color: var(--noora-icon-destructive-background);
+            padding: var(--noora-spacing-3);
+            width: var(--noora-icon-size-medium);
+            height: var(--noora-icon-size-medium);
+
+            & svg {
+              width: 100%;
+              height: 100%;
+              color: var(--noora-icon-destructive-label);
+            }
+          }
+
+          & > [data-part="title-and-subtitle"] {
+            display: flex;
+            flex-grow: 1;
+            flex-direction: column;
+            gap: var(--noora-spacing-2);
+
+            & > [data-part="title"] {
+              margin: 0;
+              color: var(--noora-surface-label-primary);
+              font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+            }
+          }
+        }
+
+        & > [data-part="message"] {
+          box-shadow: var(--noora-border-section);
+          border-radius: var(--noora-radius-3);
+          background: var(--noora-surface-background-tertiary);
+          padding: var(--noora-spacing-5);
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-regular) var(--noora-font-code-large);
+          white-space: pre-wrap;
+          word-break: break-word;
+        }
+      }
+    }
+  }
+
   & [data-part="test-details-section"],
   & [data-part="command-card-section"] {
     display: flex;

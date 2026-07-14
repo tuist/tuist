@@ -45,6 +45,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -150,8 +151,9 @@ type Config struct {
 	// of the VM egress firewall (installVMEgressFirewall): Tart VMs
 	// may reach this CIDR — the cluster's Service CIDR, where the
 	// per-account runner-cache Kura ClusterIPs live — on TCP 4000
-	// (cache HTTP API) + 50051 (gRPC), mirroring the Linux runner
-	// namespace's NetworkPolicy egress carve-out. Everything else in
+	// (the co-hosted HTTP + gRPC cache port), mirroring the Linux
+	// runner namespace's NetworkPolicy egress carve-out.
+	// Everything else in
 	// the RFC1918 blocklist stays blocked; per-account isolation is
 	// the Kura app layer's JWT tenant check, exactly as on Linux.
 	// Must parse as an IPv4 CIDR; bootstrap fails closed otherwise.
@@ -200,6 +202,13 @@ type Config struct {
 	HostCPU      int
 	HostMemoryMB int
 	MaxPods      int
+
+	// VNCRelayHost / VNCRelayPort configure the server-facing runner VNC
+	// relay coordinates that tart-kubelet advertises after a dashboard
+	// session is requested. Managed tailnet clusters set these to the
+	// per-Mac Tailscale egress Service DNS name and port.
+	VNCRelayHost string
+	VNCRelayPort int
 
 	// NodeLabels is the set of labels tart-kubelet stamps on the
 	// Node it registers. The bootstrap layer is generic — fleet
@@ -435,6 +444,7 @@ func HostConfigHash(cfg Config) string {
 	cfg.ProviderID = ""
 	cfg.Kubeconfig = ""
 	cfg.TailscaleAuthKey = ""
+	cfg.VNCRelayHost = ""
 	cfg.VMCachePNVLAN = 0
 	cfg.KnownHostFingerprint = ""
 	cfg.GHActionsRunner = nil
@@ -614,9 +624,9 @@ cat >"$NEW"
 # owned by the user with the live GUI console session — see
 # renderLaunchdPlist's UserName field. Hand kubelet-writable paths to
 # that user so it can write VM logs / userdata / read its kubeconfig.
-sudo mkdir -p /var/log/tart-vms /var/lib/tart-userdata /etc/tart-kubelet
+sudo mkdir -p /var/log/tart-vms /var/lib/tart-userdata /var/lib/tart-vnc-control /etc/tart-kubelet
 sudo touch /var/log/tart-kubelet.log
-sudo chown -R %[1]s:staff /var/log/tart-vms /var/lib/tart-userdata /var/log/tart-kubelet.log
+sudo chown -R %[1]s:staff /var/log/tart-vms /var/lib/tart-userdata /var/lib/tart-vnc-control /var/log/tart-kubelet.log
 sudo chown %[1]s:staff /etc/tart-kubelet/kubeconfig
 sudo chmod 0600 /etc/tart-kubelet/kubeconfig
 
@@ -750,6 +760,14 @@ func renderLaunchdPlist(cfg Config) string {
 	if cfg.GHActionsRunner != nil || cfg.DisableVMGC {
 		disableVMGCArg = "\n    <string>--disable-vm-gc</string>"
 	}
+	vncRelayHostArg := ""
+	if cfg.VNCRelayHost != "" {
+		vncRelayHostArg = fmt.Sprintf("\n    <string>--vnc-relay-host=%s</string>", cfg.VNCRelayHost)
+	}
+	vncRelayPortArg := ""
+	if cfg.VNCRelayPort > 0 {
+		vncRelayPortArg = fmt.Sprintf("\n    <string>--vnc-relay-port=%d</string>", cfg.VNCRelayPort)
+	}
 	// Run tart-kubelet as the SSH user (m1). Apple's
 	// Virtualization.framework requires the calling process to be the
 	// same user that holds the live GUI console session — Tart's
@@ -772,7 +790,7 @@ func renderLaunchdPlist(cfg Config) string {
     <string>--kubeconfig=/etc/tart-kubelet/kubeconfig</string>
     <string>--host-cpu=%[2]d</string>
     <string>--host-memory-mb=%[3]d</string>
-    <string>--max-pods=%[4]d</string>%[6]s%[7]s%[8]s%[9]s
+    <string>--max-pods=%[4]d</string>%[6]s%[7]s%[8]s%[9]s%[10]s%[11]s
   </array>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
@@ -786,7 +804,7 @@ func renderLaunchdPlist(cfg Config) string {
   </dict>
 </dict>
 </plist>
-`, cfg.NodeName, cpu, mem, maxPods, user, nodeLabelsArg, nodeIPSourceArg, providerIDArg, disableVMGCArg)
+`, cfg.NodeName, cpu, mem, maxPods, user, nodeLabelsArg, nodeIPSourceArg, providerIDArg, disableVMGCArg, vncRelayHostArg, vncRelayPortArg)
 }
 
 func shellQuote(s string) string {
@@ -803,6 +821,13 @@ type HostKeyState struct {
 	expected string // empty until first observation; persisted by caller
 	captured string // SHA256 of the key the host actually presented
 }
+
+// ErrHostKeyMismatch is returned by the host-key callback when the host
+// presents a key that differs from the operator's pinned fingerprint. Callers
+// that adopt boxes from a reinstall-on-release pool match against it (errors.Is)
+// to re-TOFU during bootstrap: a freshly-claimed box can be reimaged after its
+// key was pinned, legitimately rotating the host key.
+var ErrHostKeyMismatch = errors.New("host key fingerprint mismatch")
 
 func NewHostKeyState(known string) *HostKeyState {
 	return &HostKeyState{expected: known}
@@ -839,7 +864,7 @@ func (h *HostKeyState) Callback() ssh.HostKeyCallback {
 		// host-fingerprint from a prior reconcile), refuse anything
 		// else regardless of TOFU state.
 		if h.expected != "" && got != h.expected {
-			return fmt.Errorf("host key fingerprint mismatch: expected %s, got %s", h.expected, got)
+			return fmt.Errorf("%w: expected %s, got %s", ErrHostKeyMismatch, h.expected, got)
 		}
 		h.captured = got
 		return nil
@@ -1151,8 +1176,9 @@ sudo chmod 0755 /usr/local/bin/tart
 // One optional carve-out punches through the blocklist: when
 // cfg.VMKuraEgressCIDR is set, VMs may reach that CIDR (the
 // cluster's Service CIDR, advertised to the host over the tailnet
-// by the cluster-side subnet router) on the Kura cache ports
-// 4000/50051, plus — when cfg.VMClusterDNSIP is set — the kube-dns
+// by the cluster-side subnet router) on the Kura cache port
+// (4000, co-hosted HTTP + gRPC),
+// plus — when cfg.VMClusterDNSIP is set — the kube-dns
 // ClusterIP on 53 so `*.svc.cluster.local` names resolve inside the
 // VM. pf is first-match-wins across `quick` rules, so the pass
 // lines render BEFORE the block lines. The inputs are validated as
@@ -1210,13 +1236,13 @@ func renderVMEgressFirewallScript(cfg Config) (string, error) {
 		}
 		carveOut = fmt.Sprintf(`
 # Runner-cache carve-out: VMs may dial the cluster's Kura cache
-# Service ClusterIPs (HTTP 4000 + gRPC 50051) — and, when wired,
+# Service ClusterIPs (4000, co-hosted HTTP + gRPC) — and, when wired,
 # cluster DNS on 53 — through the host's tailnet route. These pass
 # rules are evaluated before the block rules below (first 'quick'
 # match wins). Per-account isolation is Kura's app-layer JWT tenant
 # check, mirroring the Linux runner namespace's NetworkPolicy
 # carve-out.
-pass out quick proto tcp from <vm_sources> to %s port { 4000, 50051 } keep state
+pass out quick proto tcp from <vm_sources> to %s port 4000 keep state
 `, cfg.VMKuraEgressCIDR)
 
 		if cfg.VMClusterDNSIP != "" {
@@ -1355,7 +1381,7 @@ sudo tee /usr/local/bin/tuist-pf-vmnat >/dev/null <<'VMNAT'
 #!/bin/sh
 # Loads the VM->cache NAT rules into the com.apple/tuist.vmnat pf
 # sub-anchor (see installVMEgressFirewall in macos-host-bootstrap).
-# Two legs, each skipped when unconfigured or its route is absent:
+# Three legs, each skipped when unconfigured or its route is absent:
 #   - tailnet: VM -> cluster Service CIDR via the tailscale utun.
 #     MSS-clamped: the utun MTU (1280) is smaller than the VM's
 #     vmnet MTU (1500) and pf-NAT'd flows don't reliably deliver
@@ -1365,10 +1391,20 @@ sudo tee /usr/local/bin/tuist-pf-vmnat >/dev/null <<'VMNAT'
 #   - Private Network: VM -> PN subnet via the macOS VLAN
 #     interface (installVMCachePNInterface). No clamp: the VLAN
 #     runs at the same 1500 MTU as vmnet.
-# vmnet's built-in NAT only translates toward the default-route
-# interface, so both legs need explicit pf NAT. Idempotent and
-# cheap; re-run on an interval so a tailscaled restart (utun
-# renumber) or VLAN recreation re-converges within a minute.
+#   - General internet: VM -> public internet via the default-route
+#     NIC. vmnet/InternetSharing is *supposed* to own this leg, but on
+#     2026-06-26 its en0 NAT silently stopped translating after heavy
+#     VM churn — VMs egressed with their 192.168.64.x source, the
+#     upstream gateway dropped it, in-VM tailscaled never reached the
+#     control plane (SYN_SENT forever), and the release never booted
+#     while the pod still showed Ready. We now assert this leg here
+#     too, in this proven-enforced anchor, so it survives a churn that
+#     clobbers InternetSharing's separate anchor.
+# vmnet's built-in NAT only reliably translates toward the
+# default-route interface when freshly set up, so all three legs get
+# explicit pf NAT here. Idempotent and cheap; re-run on an interval so
+# a tailscaled restart (utun renumber), VLAN recreation, or a
+# clobbered default-route NAT re-converges within a minute.
 CIDR="%s"
 PNCIDR="%s"
 RULES=""
@@ -1408,10 +1444,29 @@ if [ -n "$PNCIDR" ]; then
     RULES="${RULES}nat on $PNIF from 192.168.64.0/22 to $PNCIDR -> ($PNIF)${NL}"
   fi
 fi
+# General internet leg (see header): NAT VM egress on the default
+# route so a VM that lost vmnet's en0 translation still reaches the
+# control plane. "to any" on the default NIC only catches
+# internet-bound egress — tailnet/PN traffic leaves via utun/vlan and
+# is translated by the interface-scoped legs above (pf nat is
+# first-match and interface-scoped, so this never shadows them).
+DEFIF=$(route -n get default 2>/dev/null | awk '/interface/{print $2}')
+if [ -n "$DEFIF" ]; then
+  RULES="${RULES}nat on $DEFIF from 192.168.64.0/22 to any -> ($DEFIF)${NL}"
+fi
 [ -z "$RULES" ] && exit 0
 # pf requires normalization (scrub) before translation (nat) within
 # a ruleset load; the legs above append in that order.
-printf '%%s' "$RULES" | cmp -s - /usr/local/etc/tuist-vmnat.loaded 2>/dev/null && exit 0
+#
+# Short-circuit only when the desired ruleset is unchanged AND the
+# anchor still holds rules. Comparing against the snapshot alone would
+# never re-converge after an external flush (precisely the failure
+# this leg hardens against) — the snapshot would still match while the
+# live anchor sat empty.
+if printf '%%s' "$RULES" | cmp -s - /usr/local/etc/tuist-vmnat.loaded 2>/dev/null \
+   && pfctl -a "com.apple/tuist.vmnat" -s nat 2>/dev/null | grep -q nat; then
+  exit 0
+fi
 printf '%%s' "$RULES" | pfctl -a "com.apple/tuist.vmnat" -f -
 mkdir -p /usr/local/etc
 printf '%%s' "$RULES" > /usr/local/etc/tuist-vmnat.loaded

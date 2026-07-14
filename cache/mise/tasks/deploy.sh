@@ -2,7 +2,7 @@
 #MISE description "Deploy cache with Kamal"
 #MISE raw=true
 #USAGE arg "<environment>" help="Target environment" {
-#USAGE   choices "canary" "staging" "production"
+#USAGE   choices "canary" "production"
 #USAGE }
 set -euo pipefail
 

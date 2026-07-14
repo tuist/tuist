@@ -178,6 +178,13 @@ defmodule TuistWeb.GradleBuildRunsLiveTest do
       is_ci: false
     )
 
+    GradleFixtures.build_fixture(
+      project_id: project.id,
+      account_id: user.account.id,
+      root_project_name: "user-continuous-integration-build",
+      is_ci: true
+    )
+
     {:ok, lv, _html} =
       live(
         conn,
@@ -186,6 +193,7 @@ defmodule TuistWeb.GradleBuildRunsLiveTest do
 
     assert has_element?(lv, "span", "user-build")
     refute has_element?(lv, "span", "other-user-build")
+    refute has_element?(lv, "span", "user-continuous-integration-build")
   end
 
   test "filters build runs by ran_by CI", %{

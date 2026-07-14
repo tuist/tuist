@@ -22,7 +22,7 @@ public struct XcodeBuildController: XcodeBuildControlling {
     private let formatter: Formatting
     private let simulatorController: SimulatorController
     private let commandRunner: CommandRunning
-    private static let showBuildSettingsTimeout: Duration = .seconds(20)
+    private static let showBuildSettingsTimeout: Duration = .seconds(60)
 
     public init() {
         self.init(

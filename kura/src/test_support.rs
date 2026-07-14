@@ -44,7 +44,6 @@ where
     let temp_dir = tempfile::tempdir().expect("failed to create temp dir");
     let mut config = Config {
         port: 0,
-        grpc_port: 0,
         internal_port: 7443,
         tenant_id: "test-tenant".into(),
         region: "local".into(),
@@ -58,7 +57,6 @@ where
         discovery_dns_name: None,
         global_discovery_dns_name: None,
         peer_tls: None,
-        grpc_tls: None,
         public_tls: None,
         https_port: 0,
         accelerated_file_serving: AcceleratedFileServingConfig {
@@ -160,6 +158,9 @@ where
         readiness: tokio::sync::Mutex::new(ReadinessState::new(Instant::now())),
         bootstrap_semaphore,
         bootstrap_staging_budget,
+        bootstrap_fetch_locks: (0..crate::constants::BOOTSTRAP_FETCH_LOCK_STRIPES)
+            .map(|_| tokio::sync::Mutex::new(()))
+            .collect(),
         replication_backoff: tokio::sync::Mutex::new(std::collections::HashMap::new()),
     });
     state.sync_runtime_metrics().await;

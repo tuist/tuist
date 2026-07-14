@@ -74,7 +74,7 @@ time:
   csstype@3.2.3: 2025-11-17T11:42:27.045Z
   culori@4.0.2: 2025-06-27T15:55:34.023Z
   detect-libc@2.1.2: 2025-10-05T12:46:33.077Z
-  echarts@5.6.0: 2024-12-28T07:21:42.839Z
+  echarts@6.1.0: 2026-05-19T17:52:11.076Z
   es-module-lexer@2.1.0: 2026-04-25T22:50:31.041Z
   esbuild@0.27.7: 2026-04-02T16:43:44.831Z
   estree-walker@3.0.3: 2023-01-20T02:27:12.467Z
@@ -115,7 +115,7 @@ time:
   vite@8.0.10: 2026-04-23T05:19:36.436Z
   vitest@4.1.5: 2026-04-21T11:04:03.117Z
   why-is-node-running@2.3.0: 2024-07-08T12:57:23.951Z
-  zrender@5.6.1: 2024-12-11T03:11:54.227Z
+  zrender@6.1.0: 2026-05-04T09:43:16.692Z
 
 importers:
 
@@ -179,8 +179,8 @@ importers:
         specifier: ^4.0.1
         version: 4.0.2
       echarts:
-        specifier: ^5.6.0
-        version: 5.6.0
+        specifier: ^6.1.0
+        version: 6.1.0
       vite:
         specifier: ^6.0.0 || ^7.0.0 || ^8.0.0
         version: 8.0.10(esbuild@0.27.7)
@@ -494,8 +494,8 @@ packages:
     resolution: {integrity: sha512-Btj2BOOO83o3WyH59e8MgXsxEQVcarkUOpEYrubB0urwnN10yQ364rsiByU11nZlqWYZm05i/of7io4mzihBtQ==}
     engines: {node: '>=8'}
 
-  echarts@5.6.0:
-    resolution: {integrity: sha512-oTbVTsXfKuEhxftHqL5xprgLoc0k7uScAwtryCgWF6hPYFLRwOUHiFmHGCBKP5NPFNkDVopOieyUqYGH8Fa3kA==}
+  echarts@6.1.0:
+    resolution: {integrity: sha512-q0yaFPggC9FUdsWH4blavRWFmxdrIodbkoKNAjJudAI6CA9gNPxHtV2RcZNEepZVlk4yvBYkOkbk6HIVpIyHZA==}
 
   es-module-lexer@2.1.0:
     resolution: {integrity: sha512-n27zTYMjYu1aj4MjCWzSP7G9r75utsaoc8m61weK+W8JMBGGQybd43GstCXZ3WNmSFtGT9wi59qQTW6mhTR5LQ==}
@@ -775,8 +775,8 @@ packages:
     engines: {node: '>=8'}
     hasBin: true
 
-  zrender@5.6.1:
-    resolution: {integrity: sha512-OFXkDJKcrlx5su2XbzJvj/34Q3m6PvyCZkVPHGYpcCJ52ek4U/ymZyfuV1nKE23AyBJ51E/6Yr0mhZ7xGTO4ag==}
+  zrender@6.1.0:
+    resolution: {integrity: sha512-oEGMDB6pOP2S6OwRR4PdVv610zrjnA3Bh+JnSG12fYJlBKjtNAoEb5fSUoCOOINlH96I2fU38/A2UpRKs67xYQ==}
 
 snapshots:
 
@@ -1099,10 +1099,10 @@ snapshots:
 
   detect-libc@2.1.2: {}
 
-  echarts@5.6.0:
+  echarts@6.1.0:
     dependencies:
       tslib: 2.3.0
-      zrender: 5.6.1
+      zrender: 6.1.0
 
   es-module-lexer@2.1.0: {}
 
@@ -1266,6 +1266,6 @@ snapshots:
       siginfo: 2.0.0
       stackback: 0.0.2
 
-  zrender@5.6.1:
+  zrender@6.1.0:
     dependencies:
       tslib: 2.3.0

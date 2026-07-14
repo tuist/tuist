@@ -1,6 +1,8 @@
 defmodule Tuist.MCP.ServerTest do
   use TuistTestSupport.Cases.ConnCase, async: true
+  use Mimic
 
+  alias Tuist.Environment
   alias Tuist.MCP.Components.Tools.AddOrganizationMember
   alias Tuist.MCP.Components.Tools.CreateOrganization
   alias Tuist.MCP.Components.Tools.CreateProject
@@ -42,11 +44,34 @@ defmodule Tuist.MCP.ServerTest do
       assert "list_projects" in tool_names
     end
 
-    test "every tool exposes a human-readable title and explicit review hints" do
+    test "offers search_tuist only on the Tuist-hosted installation" do
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      assert "search_tuist" in Map.keys(Server.server().tools)
+
+      stub(Environment, :tuist_hosted?, fn -> false end)
+      refute "search_tuist" in Map.keys(Server.server().tools)
+    end
+
+    test "every tool exposes descriptions, schemas, a human-readable title, and explicit review hints" do
+      stub(Environment, :tuist_hosted?, fn -> true end)
       server = Server.server()
 
       for {name, module} <- server.tools do
+        descriptor = Tuist.MCP.Tool.descriptor(module)
         annotations = module.annotations()
+
+        assert is_binary(descriptor["description"]) and descriptor["description"] != "",
+               "tool #{name} is missing a non-empty description"
+
+        assert descriptor["inputSchema"] == module.input_schema()
+        assert descriptor["outputSchema"] == module.output_schema()
+        assert descriptor["outputSchema"]["type"] == "object"
+        assert is_map(descriptor["outputSchema"]["properties"])
+
+        assert descriptor["outputSchema"]["additionalProperties"] == false,
+               "tool #{name} must reject undeclared output properties"
+
+        ExJsonSchema.Schema.resolve(descriptor["outputSchema"])
 
         assert is_binary(annotations[:title]) and annotations[:title] != "",
                "tool #{name} is missing a non-empty :title annotation"

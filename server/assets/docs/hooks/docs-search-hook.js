@@ -16,6 +16,18 @@ const COLLECTIONS = [
     groupBy: "url_without_anchor",
   },
   {
+    name: "github-releases",
+    label: "Releases",
+    icon: "github",
+    external: true,
+    queryBy: "title,version,product,hierarchy.lvl0,hierarchy.lvl1,hierarchy.lvl2,content",
+    queryByWeights: "127,120,100,80,60,40,5",
+    groupBy: "release_group",
+    filterBy: "prerelease:=false",
+    sortBy: "_text_match:desc,published_at:desc",
+    perPage: 3,
+  },
+  {
     name: "projectdescription",
     label: "ProjectDescription",
     icon: "swift",
@@ -294,6 +306,8 @@ class DocsSearch {
           per_page: col.perPage || DEFAULT_PER_PAGE,
           ...(col.groupBy ? { group_by: col.groupBy, group_limit: 1 } : {}),
           ...(col.name === "tuist" ? { filter_by: `tags:=${locale}` } : {}),
+          ...(col.filterBy ? { filter_by: col.filterBy } : {}),
+          ...(col.sortBy ? { sort_by: col.sortBy } : {}),
         })),
       });
 

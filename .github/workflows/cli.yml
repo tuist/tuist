@@ -10,6 +10,9 @@ on:
       - "cli/Sources/**"
       - "cli/Tests/**"
       - "cli/Templates/**"
+      # cas-plugin (the Xcode CAS dylib + tuist-cas-proxy) is built and shipped
+      # inside the CLI, so its changes must run CLI build/test/acceptance.
+      - "cas-plugin/**"
       - "*.swift"
       - ".github/workflows/cli.yml"
       - "mise/tasks/cli/lint.sh"
@@ -30,6 +33,9 @@ on:
       - "cli/Sources/**"
       - "cli/Tests/**"
       - "cli/Templates/**"
+      # cas-plugin (the Xcode CAS dylib + tuist-cas-proxy) is built and shipped
+      # inside the CLI, so its changes must run CLI build/test/acceptance.
+      - "cas-plugin/**"
       - "*.swift"
       - ".github/workflows/cli.yml"
       - "mise/tasks/cli/lint.sh"
@@ -271,7 +277,9 @@ jobs:
         run: xcodebuild -downloadComponent MetalToolchain
       - name: Build tests
         id: shard
-        run: tuist test --build-only --shard-total 2 --shard-granularity suite TuistAcceptanceTests
+        run: tuist test --build-only --shard-total 2 --shard-granularity suite --shard-reference "$TUIST_ACCEPTANCE_SHARD_REFERENCE" TuistAcceptanceTests
+        env:
+          TUIST_ACCEPTANCE_SHARD_REFERENCE: github-${{ github.run_id }}-${{ github.sha }}
 
   cli-acceptance-tests:
     name: Acceptance Tests
@@ -327,9 +335,10 @@ jobs:
           security default-keychain -s $KEYCHAIN_PATH
           security unlock-keychain -p $KEYCHAIN_PASSWORD $KEYCHAIN_PATH
       - name: Run shard ${{ matrix.shard }}
-        run: tuist test --without-building --platform macOS TuistAcceptanceTests -- -retry-tests-on-failure -test-iterations 2
+        run: tuist test --without-building --platform macOS --shard-reference "$TUIST_ACCEPTANCE_SHARD_REFERENCE" TuistAcceptanceTests -- -retry-tests-on-failure -test-iterations 2
         env:
           TUIST_SHARD_INDEX: ${{ matrix.shard }}
+          TUIST_ACCEPTANCE_SHARD_REFERENCE: github-${{ github.run_id }}-${{ github.sha }}
 
   cli-acceptance-tests-fork:
     name: Acceptance Tests (Fork)

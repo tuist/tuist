@@ -216,6 +216,15 @@ public struct GraphMapperFactory: GraphMapperFactorying {
             var mappers = self.default(config: config)
 
             if !ignoreBinaryCache {
+                mappers.append(
+                    CacheHashingGraphMapper(
+                        normalizationMappers: hashingGraphNormalizationMappers(
+                            config: config,
+                            includeWorkspaceScheme: true
+                        )
+                    )
+                )
+
                 let focusTargetsGraphMapper = TargetsToCacheBinariesGraphMapper(
                     config: config,
                     decider: CacheProfileTargetReplacementDecider(
@@ -263,6 +272,17 @@ public struct GraphMapperFactory: GraphMapperFactorying {
             )
 
             if cacheProfile != .none {
+                if !shouldPreserveHashingGraph {
+                    mappers.append(
+                        CacheHashingGraphMapper(
+                            normalizationMappers: hashingGraphNormalizationMappers(
+                                config: config,
+                                includeWorkspaceScheme: true
+                            )
+                        )
+                    )
+                }
+
                 let focusTargetsGraphMapper = TargetsToCacheBinariesGraphMapper(
                     config: config,
                     decider: CacheProfileTargetReplacementDecider(

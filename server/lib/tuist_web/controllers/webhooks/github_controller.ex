@@ -227,14 +227,15 @@ defmodule TuistWeb.Webhooks.GitHubController do
   #   * Worker errors → Oban retries with backoff up to
   #     `max_attempts`. The HTTP layer is done.
   # Actions that the dispatch pipeline persists or claims against.
-  # `Tuist.Runners.Dispatch.handle_webhook/2` only branches on these
-  # two — every other action (notably `in_progress`, ~33 % of
-  # `workflow_job` traffic) falls through to the catch-all
+  # `waiting` is GitHub's self-hosted-runner state for jobs waiting
+  # on capacity, so it must reach the worker even though the UI labels
+  # the same job as queued. Every other action (notably `in_progress`,
+  # ~33 % of `workflow_job` traffic) falls through to the catch-all
   # `:ignored` branch in the worker. Short-circuiting here removes
-  # the Oban.insert (and its Postgres write) for those events,
-  # which under burst load was costing us ~one PG checkout per
-  # webhook for work the worker was going to discard anyway.
-  @dispatchable_workflow_job_actions ~w(queued completed)
+  # the Oban.insert (and its Postgres write) for those events, which
+  # under burst load was costing us ~one PG checkout per webhook for
+  # work the worker was going to discard anyway.
+  @dispatchable_workflow_job_actions ~w(queued waiting completed)
 
   defp handle_workflow_job(conn, params) do
     installation_id =

@@ -17,7 +17,6 @@ Describe 'core cluster behaviour'
 
     suite_env COMPOSE_PROJECT_NAME kura-e2e
     ephemeral_ports KURA_US_PORT KURA_EU_PORT KURA_AP_PORT \
-      KURA_US_GRPC_PORT KURA_EU_GRPC_PORT KURA_AP_GRPC_PORT \
       GRAFANA_PORT PROMETHEUS_PORT LOKI_PORT TEMPO_PORT OTLP_PORT
 
     dc down -v --remove-orphans >/dev/null 2>&1 || true
@@ -141,12 +140,20 @@ Describe 'core cluster behaviour'
       "${KURA_AP_URL}/api/cache/clean?tenant_id=acme&namespace_id=ios")"
     The variable delete_status should eq 204
 
-    cas_status="$(status_only \
-      "${KURA_US_URL}/api/cache/cas/artifact-1?tenant_id=acme&namespace_id=ios")"
+    # clean only deletes locally on the AP node and enqueues the namespace
+    # tombstone for async replication, so US/EU drop the artifacts eventually,
+    # not by the time the DELETE returns. Poll (15 attempts x 2s = 30s ceiling)
+    # rather than checking once, matching the cross-node waits the other examples use.
+    capture_into cas_status \
+      wait_for_status \
+      "${KURA_US_URL}/api/cache/cas/artifact-1?tenant_id=acme&namespace_id=ios" \
+      404 15 || return 1
     The variable cas_status should eq 404
 
-    keyvalue_status="$(status_only \
-      "${KURA_EU_URL}/api/cache/keyvalue/cas-1?tenant_id=acme&namespace_id=ios")"
+    capture_into keyvalue_status \
+      wait_for_status \
+      "${KURA_EU_URL}/api/cache/keyvalue/cas-1?tenant_id=acme&namespace_id=ios" \
+      404 15 || return 1
     The variable keyvalue_status should eq 404
   End
 

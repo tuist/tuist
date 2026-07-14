@@ -48,7 +48,7 @@ env:
 jobs:
   release-cli:
     name: Release CLI
-    runs-on: macos-26
+    runs-on: tuist-macos-26-0-1
     timeout-minutes: 75
     permissions:
       contents: write
@@ -66,12 +66,20 @@ jobs:
           ref: ${{ inputs.ref }}
           fetch-depth: 0
           token: ${{ secrets.TUIST_RELEASE_GITHUB_TOKEN }}
-      - name: Select Xcode
-        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version-releases).app
       - uses: jdx/mise-action@v4.0.1
         with:
           version: ${{ env.MISE_VERSION }}
           install_args: "--locked tuist git-cliff 1password-cli jq"
+          cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      # Install the Rust toolchain the cas-plugin bundle needs, resolving its
+      # version from cas-plugin/mise.toml rather than pinning it here (single
+      # source of truth, matching how kura pins its toolchain).
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install_args: rust
+          working_directory: cas-plugin
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
       - name: Authenticate with Tuist
@@ -96,6 +104,7 @@ jobs:
           fi
           INCLUDE_PATHS=(
             --include-path "cli/**/*"
+            --include-path "cas-plugin/**/*"
             --include-path "mise/tasks/cli/**/*"
             --include-path "mise/tasks/release/components.json"
             --include-path ".github/workflows/cli-release.yml"
@@ -123,6 +132,7 @@ jobs:
         run: |
           INCLUDE_PATHS=(
             --include-path "cli/**/*"
+            --include-path "cas-plugin/**/*"
             --include-path "mise/tasks/cli/**/*"
             --include-path "mise/tasks/release/components.json"
             --include-path ".github/workflows/cli-release.yml"
@@ -266,8 +276,10 @@ jobs:
             build/ProjectDescription.xcframework.zip
             build/tuist.spec.json
       - name: Trigger Homebrew Formula Update
-        # Skipped for backports: brew install tuist must keep pointing at the
-        # true latest version, never an older patched line.
+        # Skipped only for canary/RC prereleases (update_homebrew=false). Stable
+        # releases and backports both publish the per-version formula; the
+        # homebrew-tuist aliases task is semver-aware, so brew install tuist
+        # always resolves to the highest stable version regardless of order.
         if: ${{ inputs.update_homebrew }}
         run: |
           SHA256=$(cat build/SHASUMS256.txt | grep tuist.zip | awk '{print $1}')

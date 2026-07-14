@@ -7,6 +7,7 @@ defmodule TuistWeb.Endpoint do
   # Set :encryption_salt if you would also like to encrypt it.
   alias TuistWeb.CodeReloader
   alias TuistWeb.Plugs.GitHubWebhookLoggingPlug
+  alias TuistWeb.Plugs.MarketingStaticAssetObservabilityPlug
   alias TuistWeb.Plugs.WebhookPlug
   alias TuistWeb.Webhooks.BillingController
   alias TuistWeb.Webhooks.GitHubController
@@ -30,6 +31,8 @@ defmodule TuistWeb.Endpoint do
   #
   # You should set gzip to true if you are running phx.digest
   # when deploying your static files in production.
+  plug MarketingStaticAssetObservabilityPlug
+
   plug Plug.Static,
     at: "/docs/images",
     from: {:tuist, "priv/docs/images"},
@@ -59,6 +62,7 @@ defmodule TuistWeb.Endpoint do
   plug TuistCommon.OtelRequestIdPlug
   plug Plug.Telemetry, event_prefix: [:phoenix, :endpoint]
   plug TuistWeb.Plugs.RequestKindPlug
+  plug TuistWeb.Plugs.SCIMErrorFormatPlug
   plug Sentry.PlugContext
   plug TuistWeb.Plugs.CloseConnectionOnErrorPlug
 
@@ -88,12 +92,6 @@ defmodule TuistWeb.Endpoint do
   plug WebhookPlug,
     at: "/webhooks/gradle-cache",
     handler: TuistWeb.Webhooks.GradleCacheController,
-    secret: {Tuist.Environment, :cache_api_key, []},
-    signature_header: "x-cache-signature"
-
-  plug WebhookPlug,
-    at: "/webhooks/registry",
-    handler: TuistWeb.Webhooks.RegistryController,
     secret: {Tuist.Environment, :cache_api_key, []},
     signature_header: "x-cache-signature"
 

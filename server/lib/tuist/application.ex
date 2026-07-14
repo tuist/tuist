@@ -81,7 +81,6 @@ defmodule Tuist.Application do
   defp start_telemetry do
     Oban.Telemetry.attach_default_logger()
     TuistCommon.ObanTelemetry.attach()
-    ReqTelemetry.attach_default_logger(:pipeline)
     TransportLogger.attach(:tuist)
 
     if Application.get_env(:opentelemetry, :traces_exporter) != :none do
@@ -291,6 +290,7 @@ defmodule Tuist.Application do
         Supervisor.child_spec(BuildTarget.Buffer, id: BuildTarget.Buffer),
         Supervisor.child_spec(CacheableTask.Buffer, id: CacheableTask.Buffer),
         Supervisor.child_spec(CASOutput.Buffer, id: CASOutput.Buffer),
+        Supervisor.child_spec(CommandEvents.ModuleCacheOutput.Buffer, id: CommandEvents.ModuleCacheOutput.Buffer),
         Supervisor.child_spec(XcodeGraph.Buffer, id: XcodeGraph.Buffer),
         Supervisor.child_spec(XcodeProject.Buffer, id: XcodeProject.Buffer),
         Supervisor.child_spec(XcodeTarget.Buffer, id: XcodeTarget.Buffer),
@@ -308,9 +308,11 @@ defmodule Tuist.Application do
         Supervisor.child_spec(CASEvent.Buffer, id: CASEvent.Buffer),
         Supervisor.child_spec(DeliveryAttempt.Buffer, id: DeliveryAttempt.Buffer),
         Tuist.Vault,
+        # Queued jobs can run as soon as Oban starts, so their connection pool must already be available.
+        {Finch, name: Tuist.Finch, pools: finch_pools()},
         {Oban, Application.fetch_env!(:tuist, Oban)},
         {Cachex, [:tuist, []]},
-        {Finch, name: Tuist.Finch, pools: finch_pools()},
+        Cache,
         {Phoenix.PubSub, name: Tuist.PubSub},
         {TuistWeb.RateLimit.InMemory, [clean_period: to_timeout(hour: 1)]},
         {Tuist.API.Pipeline, []},
@@ -382,7 +384,6 @@ defmodule Tuist.Application do
       ]
 
       [
-        Cache,
         Supervisor.child_spec(
           {Tuist.ContentFileWatcher, name: ContentFileWatcher, dirs: docs_dirs, extensions: [".md"], cache: Cache},
           id: ContentFileWatcher
@@ -424,9 +425,9 @@ defmodule Tuist.Application do
     if Environment.test?() do
       %{:default => [size: 10]}
     else
-      {s3_endpoint, s3_pool_opts} =
+      {object_storage_endpoint, object_storage_pool_opts} =
         TuistCommon.FinchPools.s3_pool(
-          endpoint: Environment.s3_endpoint(),
+          endpoint: object_storage_endpoint(),
           size: Environment.s3_pool_size(),
           count: Environment.s3_pool_count(),
           protocols: Environment.s3_protocols(),
@@ -452,7 +453,7 @@ defmodule Tuist.Application do
             protocols: [:http2, :http1],
             start_pool_metrics?: true
           ],
-          s3_endpoint => s3_pool_opts,
+          object_storage_endpoint => object_storage_pool_opts,
           "https://marketing.tuist.dev" => [
             conn_opts: [
               log: true,
@@ -493,6 +494,13 @@ defmodule Tuist.Application do
         end)
 
       Map.merge(base_pools, additional_pools)
+    end
+  end
+
+  defp object_storage_endpoint do
+    case Environment.object_storage_provider() do
+      :azure_blob -> Environment.azure_blob_endpoint()
+      :s3 -> Environment.s3_endpoint()
     end
   end
 

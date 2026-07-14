@@ -147,8 +147,8 @@
 		// 10.128.0.0/12; infra/k8s/clusters/cluster-staging.yaml is the
 		// source of truth for the CIDR). This is the macOS runner-cache
 		// path: Tart runner VMs on the minis dial the account's private
-		// Kura node at its ClusterIP — 4000 (HTTP cache API) + 50051
-		// (gRPC), mirroring the Linux runner namespace's egress
+		// Kura node at its ClusterIP — 4000 (the co-hosted HTTP + gRPC
+		// cache port), mirroring the Linux runner namespace's egress
 		// carve-out in infra/helm/tuist/templates/runners-namespace.yaml
 		// — plus cluster DNS on 53 (kube-dns ClusterIP lives in the same
 		// range) so the VM's /etc/resolver entry can resolve
@@ -166,7 +166,7 @@
 		{
 			"src": ["tag:tuist-macmini-staging"],
 			"dst": ["10.128.0.0/12"],
-			"ip":  ["tcp:4000", "tcp:50051", "tcp:53", "udp:53"],
+			"ip":  ["tcp:4000", "tcp:53", "udp:53"],
 		},
 
 		// Humans SSH into any Mac mini. Not load-bearing — the
@@ -349,7 +349,6 @@
 			"src": "tag:tuist-macmini-staging",
 			"accept": [
 				"10.128.0.10:4000",
-				"10.128.0.10:50051",
 				"10.128.0.10:53",
 			],
 		},

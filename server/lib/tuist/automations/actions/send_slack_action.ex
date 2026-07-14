@@ -27,11 +27,6 @@ defmodule Tuist.Automations.Actions.SendSlackAction do
         Logger.warning("Automation #{automation.id} send_slack skipped: project #{automation.project_id} not found")
 
         :ok
-
-      other ->
-        Logger.warning("Automation #{automation.id} send_slack skipped for test case #{test_case_id}: #{inspect(other)}")
-
-        :ok
     end
   end
 

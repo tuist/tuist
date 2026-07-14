@@ -37,7 +37,7 @@ mise run dev
 Open `http://localhost:8080` in your browser. In development, the login page includes a **Log in as test user** button that signs you in with the pre-made account (`tuistrocks@tuist.dev` / `tuistrocks`).
 
 > [!NOTE]
-> First-party developers can load encrypted secrets from `priv/secrets/dev.key`. External contributors don't need this key — the server runs locally without it. OAuth, Stripe, and other third-party integrations will be disabled, but core functionality works.
+> First-party developers load dev secrets from 1Password via fnox — `mise run dev` wraps the server in `fnox exec` (see `server/fnox.toml`). External contributors don't need 1Password access; the server runs locally without it. OAuth, Stripe, and other third-party integrations will be disabled, but core functionality works.
 
 ### Local Helm testing {#local-helm-testing}
 

@@ -44,11 +44,10 @@ spec:
           image: "{{ .Values.image.repository }}:{{ default .Chart.AppVersion .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
+            # Kura co-hosts the HTTP cache API and REAPI gRPC (h2c) on this
+            # single listener (KURA_PORT).
             - name: http
               containerPort: {{ .Values.service.httpPort }}
-              protocol: TCP
-            - name: grpc
-              containerPort: {{ .Values.service.grpcPort }}
               protocol: TCP
             - name: peer
               containerPort: {{ .Values.peerTls.internalPort }}
@@ -64,8 +63,6 @@ spec:
                   fieldPath: metadata.namespace
             - name: KURA_PORT
               value: {{ printf "%d" (int .Values.service.httpPort) | quote }}
-            - name: KURA_GRPC_PORT
-              value: {{ printf "%d" (int .Values.service.grpcPort) | quote }}
             - name: KURA_TENANT_ID
               value: {{ .Values.config.tenantId | quote }}
             - name: KURA_REGION

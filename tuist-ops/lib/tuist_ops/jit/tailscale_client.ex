@@ -171,5 +171,5 @@ defmodule TuistOps.JIT.TailscaleClient do
 
   defp client_id, do: Environment.tailscale_client_id()
   defp client_secret, do: Environment.tailscale_client_secret()
-  defp tailnet, do: Environment.tailscale_tailnet() || "-"
+  defp tailnet, do: Environment.tailscale_tailnet()
 end

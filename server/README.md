@@ -31,7 +31,7 @@ Pass: tuistrocks
 ```
 
 > [!NOTE]
-> First-party developers can load encrypted secrets from `priv/secrets/dev.key`. External contributors don't need this key — the server runs locally without it. OAuth, Stripe, and other third-party integrations will be disabled, but core functionality works.
+> First-party developers load dev secrets from 1Password via fnox — `mise run dev` wraps the server in `fnox exec` (see `server/fnox.toml`). External contributors don't need 1Password access; the server runs locally without it. OAuth, Stripe, and other third-party integrations will be disabled, but core functionality works.
 
 #### To run additional features
 1. Clone the repository: `https://github.com/tuist/tuist.git`.

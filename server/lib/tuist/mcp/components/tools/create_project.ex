@@ -25,6 +25,26 @@ defmodule Tuist.MCP.Components.Tools.CreateProject do
         }
       },
       "required" => ["account_handle", "project_handle"]
+    },
+    output_schema: %{
+      "type" => "object",
+      "properties" => %{
+        "id" => %{"type" => "integer"},
+        "name" => %{"type" => "string"},
+        "account_handle" => %{"type" => "string"},
+        "full_handle" => %{"type" => "string"},
+        "build_system" => %{"type" => "string", "enum" => ["xcode", "gradle"]},
+        "default_branch" => %{"type" => "string"}
+      },
+      "required" => [
+        "id",
+        "name",
+        "account_handle",
+        "full_handle",
+        "build_system",
+        "default_branch"
+      ],
+      "additionalProperties" => false
     }
 
   alias Tuist.Accounts

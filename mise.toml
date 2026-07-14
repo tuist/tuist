@@ -1,10 +1,10 @@
 [tools]
     aube = "1.6.2"
     # Auto-bumped to the latest Tuist CLI release (incl. canary) by the update-tuist-cli workflow.
-    tuist = "4.201.0-canary.13"
+    tuist = "4.203.0-canary.24"
     swiftlint = "0.59.1"
-    "elixir" = "1.19.5"
-    "erlang" = "28.4.3"
+    "elixir" = "1.20.2"
+    "erlang" = "29.0.3"
     swiftformat = "0.58.7"
     git-cliff = "2.6.0"
     sops = "3.9.3"
@@ -20,8 +20,6 @@
     java = "21"
     gradle = "8.12"
     caddy = "2.11.2"
-    "github:tuist/blick" = "0.8.0"
-    "npm:opencode-ai" = "1.14.39"
     kubectl = "1.36.1"
     helm = "4.2.0"
     # pomerium-cli is the kubeconfig exec credential plugin that does

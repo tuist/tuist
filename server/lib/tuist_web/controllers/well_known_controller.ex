@@ -2,7 +2,6 @@ defmodule TuistWeb.WellKnownController do
   use TuistWeb, :controller
 
   alias Tuist.Environment
-  alias Tuist.Namespace.JWTToken
   alias TuistWeb.AgentDiscovery
   alias TuistWeb.AgentSkillsDiscovery
   alias TuistWeb.RequestOrigin
@@ -29,6 +28,29 @@ defmodule TuistWeb.WellKnownController do
 
   def agent_skills_index(conn, _params) do
     json(conn, AgentSkillsDiscovery.index())
+  end
+
+  @doc """
+  Advertises the package registry for this deployment so the CLI can
+  configure clients against `registry.tuist.dev` instead of hardcoding a
+  `<server>/api/registry/swift` path. Keyed by ecosystem so future ones
+  (e.g. Gradle) are additive rather than a breaking reshape. 404s when the
+  deployment exposes no registry (self-hosted).
+  """
+  def registry_discovery(conn, _params) do
+    case Tuist.Registry.url() do
+      nil ->
+        send_resp(conn, :not_found, "")
+
+      url ->
+        login_path = (URI.parse(url).path || "") <> "/login"
+
+        json(conn, %{
+          "ecosystems" => %{
+            "swift" => %{"url" => url, "loginAPIPath" => login_path}
+          }
+        })
+    end
   end
 
   def openai_apps_challenge(conn, _params) do
@@ -70,27 +92,6 @@ defmodule TuistWeb.WellKnownController do
     conn
     |> put_resp_content_type("application/json")
     |> json(card)
-  end
-
-  @doc """
-  Returns the OpenID configuration for JWT verification.
-  """
-  def openid_configuration(conn, _params) do
-    issuer = JWTToken.issuer()
-
-    configuration = %{
-      issuer: issuer,
-      jwks_uri: "#{issuer}/.well-known/jwks.json",
-      response_types_supported: ["id_token"],
-      subject_types_supported: ["public"],
-      id_token_signing_alg_values_supported: ["RS256"],
-      claims_supported: ["iss", "sub", "aud", "exp", "iat"],
-      scopes_supported: ["openid"]
-    }
-
-    conn
-    |> put_resp_content_type("application/json")
-    |> json(configuration)
   end
 
   @doc """
@@ -152,21 +153,6 @@ defmodule TuistWeb.WellKnownController do
         |> put_status(:not_found)
         |> json(%{error: "not_found"})
     end
-  end
-
-  @doc """
-  Returns the JSON Web Key Set (JWKS) for verifying JWT signatures.
-  """
-  def jwks(conn, _params) do
-    public_jwk = JWTToken.public_jwk()
-
-    jwks = %{
-      keys: [public_jwk]
-    }
-
-    conn
-    |> put_resp_content_type("application/json")
-    |> json(jwks)
   end
 
   @doc """

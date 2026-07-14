@@ -14,6 +14,7 @@ Platform-level Helm umbrella chart installed **once per Kubernetes cluster** tha
 | `metrics-server` | Resource metrics API (`pods.metrics.k8s.io`) consumed by HPAs and `kubectl top` |
 | `ClusterIssuer` | Shared Let's Encrypt issuer wired to Cloudflare DNS-01 |
 | `CiliumEgressGatewayPolicy` | Optional stable outbound source IP for hosted Tuist server traffic |
+| `preview-janitor` | Optional in-cluster cleanup loop for expired preview namespaces |
 
 ## Bootstrap
 
@@ -41,13 +42,28 @@ ingress-nginx config. The production `values-tuist.yaml` overlay also enables
 three Kura-specific ingress-nginx aliases (`kura-eu-central`, `kura-us-east`,
 `kura-us-west`) so cache artifact traffic has dedicated regional gateways
 instead of sharing the main Tuist web ingress dataplane.
-Customer-dedicated Kura gateways are intentionally not chart aliases here:
-the Tuist server emits opaque `KuraGateway` resources and the Kura controller
-reconciles the dedicated ingress-nginx + LoadBalancer lifecycle.
 
 `k8s:install-platform` also loads `values-<cluster-name>.yaml` when present.
 Use that cluster overlay for static environment configuration such as stable
 egress IPs and managed-cluster LoadBalancer locations.
+
+## Preview Janitor
+
+The `tuist-preview` overlay enables `previewJanitor`, a Kubernetes CronJob that
+deletes expired preview namespaces inside the preview cluster. It reads
+namespaces labeled `tuist.dev/preview=true`, deletes the matching
+`KuraInstance` from the `kura` namespace, and deletes the preview namespace as
+the backstop.
+
+The janitor intentionally does not run `helm uninstall`, because that would
+require read access to Helm release Secrets in every dynamic preview namespace.
+The external `preview-sweep.yml` workflow keeps that Helm-aware cleanup path
+with its explicit preview-cluster kubeconfig. The workflow runs at the top of
+the hour, and the janitor follows at minute 20 as the in-cluster backstop.
+
+The janitor is disabled by default because it needs cluster-wide delete access
+to dynamic preview namespaces. Keep it enabled only for the managed preview
+cluster overlay.
 
 ## Local validation
 
@@ -171,6 +187,6 @@ kubectl -n tuist exec deploy/tuist-tuist-server -- curl -fsS https://api.ipify.o
 ## Notes
 
 - The main ingress-nginx LoadBalancer is annotated for Hetzner Cloud (Nuremberg region) by default. Managed Tuist cluster overlays pin it explicitly to `fsn1`, matching the general worker pools; regional Kura LoadBalancers are pinned separately.
-- Production Kura ingress controllers are shared per region by default. Their LoadBalancers are placed in `fsn1`, `ash`, and `hil` and their pods are pinned to the matching Kura node pools. Customer-dedicated gateways are server-driven `KuraGateway` resources with opaque names, not customer-specific Helm values.
+- Production Kura ingress controllers are shared per region. Their LoadBalancers are placed in `fsn1`, `ash`, and `hil` and their pods are pinned to the matching Kura node pools.
 - external-dns is scoped by `txtOwnerId: tuist-platform` — one cluster, one TXT prefix. Run it with `policy: sync` only if you're happy with it deleting DNS records that aren't tracked by any Ingress.
 - cert-manager CRDs are installed by the subchart (`installCRDs: true`). If another tool manages them, turn that off.

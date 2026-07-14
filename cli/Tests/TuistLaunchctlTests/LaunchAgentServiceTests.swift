@@ -53,8 +53,8 @@ struct LaunchAgentServiceTests {
         #expect(plistContent.contains(stateDirectory.appending(component: "tuist.test.stdout.log").pathString))
         #expect(plistContent.contains("<key>StandardErrorPath</key>"))
         #expect(plistContent.contains(stateDirectory.appending(component: "tuist.test.stderr.log").pathString))
-        // KeepAlive must only respawn the daemon on an unsuccessful (crash) exit. A clean
-        // exit — e.g. when cache-start detects it is not authenticated — must NOT trigger a
+        // KeepAlive must only respawn the agent on an unsuccessful (crash) exit. A clean
+        // exit — e.g. when cache-proxy detects it is not authenticated — must NOT trigger a
         // respawn, otherwise launchd restarts it every ~10 seconds in an endless loop.
         #expect(plistContent.contains("<key>KeepAlive</key>"))
         #expect(plistContent.contains("<key>SuccessfulExit</key>"))
@@ -226,7 +226,7 @@ struct LaunchAgentServiceTests {
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
-    func setupLaunchAgent_resolvesMiseManagedBinaryPath() async throws {
+    func setupLaunchAgent_usesConcreteMiseBinaryPathNotLatestSymlink() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let environment = try #require(Environment.mocked)
         let currentMisePath = temporaryDirectory.appending(
@@ -234,12 +234,6 @@ struct LaunchAgentServiceTests {
         )
         environment.homeDirectory = temporaryDirectory
         environment.currentExecutablePathStub = currentMisePath
-
-        let expectedBinaryPath = temporaryDirectory.appending(
-            components: ".local", "share", "mise", "installs", "tuist", "latest", "tuist"
-        )
-        try await fileSystem.makeDirectory(at: expectedBinaryPath.parentDirectory)
-        try await fileSystem.writeText("", at: expectedBinaryPath)
 
         given(launchctlController)
             .bootstrap(plistPath: .any)
@@ -256,41 +250,8 @@ struct LaunchAgentServiceTests {
             components: "Library", "LaunchAgents", "tuist.test.plist"
         )
         let plistContent = try await fileSystem.readTextFile(at: expectedPlistPath)
-        #expect(plistContent.contains(expectedBinaryPath.pathString.replacingOccurrences(of: "/private", with: "")))
-    }
-
-    @Test(.inTemporaryDirectory, .withMockedEnvironment())
-    func setupLaunchAgent_resolvesMiseManagedOldBinaryPath() async throws {
-        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        let environment = try #require(Environment.mocked)
-        let currentMisePath = temporaryDirectory.appending(
-            components: ".local", "share", "mise", "installs", "tuist", "4.0.0", "bin", "tuist"
-        )
-        environment.homeDirectory = temporaryDirectory
-        environment.currentExecutablePathStub = currentMisePath
-
-        let expectedBinaryPath = temporaryDirectory.appending(
-            components: ".local", "share", "mise", "installs", "tuist", "latest", "bin", "tuist"
-        )
-        try await fileSystem.makeDirectory(at: expectedBinaryPath.parentDirectory)
-        try await fileSystem.writeText("", at: expectedBinaryPath)
-
-        given(launchctlController)
-            .bootstrap(plistPath: .any)
-            .willReturn()
-
-        try await subject.setupLaunchAgent(
-            label: "tuist.test",
-            plistFileName: "tuist.test.plist",
-            programArguments: ["test-start"]
-        )
-
-        let homeDirectory = Environment.current.homeDirectory
-        let expectedPlistPath = homeDirectory.appending(
-            components: "Library", "LaunchAgents", "tuist.test.plist"
-        )
-        let plistContent = try await fileSystem.readTextFile(at: expectedPlistPath)
-        #expect(plistContent.contains(expectedBinaryPath.pathString.replacingOccurrences(of: "/private", with: "")))
+        #expect(plistContent.contains(currentMisePath.pathString))
+        #expect(!plistContent.contains("/installs/tuist/latest/"))
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment())

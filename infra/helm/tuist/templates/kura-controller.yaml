@@ -22,10 +22,6 @@
 {{- end }}
 {{- end }}
 {{- $serverRoleName := printf "%s-server" $name }}
-{{- $gatewayIngressServiceAccountName := printf "%s-gateway-ingress-nginx" $name }}
-{{- $gatewayIngressRoleName := printf "%s-gateway-ingress-nginx" $name }}
-{{- $gatewayIngressClusterRoleName := printf "%s-gateway-ingress-nginx" $name }}
-{{- $gatewayClassClusterRoleName := printf "%s-gateway-classes" $name }}
 {{- $imageTag := .Values.kuraController.image.tag }}
 {{- $tlsClusterIssuer := .Values.kuraController.tlsClusterIssuer | default .Values.kuraController.grpcClusterIssuer }}
 {{- if not $imageTag }}
@@ -62,23 +58,34 @@ metadata:
     app.kubernetes.io/component: kura-controller
 rules:
   - apiGroups: ["kura.tuist.dev"]
-    resources: [kurainstances, kuragateways]
+    resources: [kurainstances]
     verbs: [get, list, watch, create, update, patch, delete]
   - apiGroups: ["kura.tuist.dev"]
-    resources: [kurainstances/status, kurainstances/finalizers, kuragateways/status, kuragateways/finalizers]
+    resources: [kurainstances/status, kurainstances/finalizers]
     verbs: [get, update, patch]
   - apiGroups: ["apps"]
-    resources: [statefulsets, deployments]
+    resources: [statefulsets, deployments, daemonsets]
     verbs: [get, list, watch, create, update, patch, delete]
   - apiGroups: [""]
     resources: [services, configmaps, secrets]
     verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: ["externaldns.k8s.io"]
+    resources: [dnsendpoints]
+    verbs: [get, list, watch, create, update, patch, delete]
   - apiGroups: [""]
     resources: [pods]
     verbs: [get, list, watch]
+  # delete: self-heal a wedged instance by recreating its StatefulSet and
+  # dropping data PVCs that can never bind (storage-class drift on the immutable
+  # volumeClaimTemplate, or a node-local volume orphaned by a reprovisioned
+  # bare-metal fleet node). The cache is regenerable, so a fresh PVC is provisioned.
+  # delete (namespaced): self-heal a wedged instance by recreating its
+  # StatefulSet and dropping data PVCs that can never bind. PVs are read for the
+  # same purpose but are cluster-scoped, so they live in the -node-reads
+  # ClusterRole below, not this namespaced Role.
   - apiGroups: [""]
     resources: [persistentvolumeclaims]
-    verbs: [get, list, watch, update, patch]
+    verbs: [get, list, watch, update, patch, delete]
   - apiGroups: ["networking.k8s.io"]
     resources: [ingresses, networkpolicies]
     verbs: [get, list, watch, create, update, patch, delete]
@@ -94,18 +101,6 @@ rules:
   - apiGroups: [""]
     resources: [events]
     verbs: [create, patch]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: {{ $gatewayClassClusterRoleName }}
-  labels:
-    {{- include "tuist.labels" . | nindent 4 }}
-    app.kubernetes.io/component: kura-controller
-rules:
-  - apiGroups: ["networking.k8s.io"]
-    resources: [ingressclasses]
-    verbs: [get, list, watch, create, update, patch, delete]
 ---
 # Nodes are cluster-scoped, so this can't live in the namespaced
 # controller Role: the controller resolves the primary pod's node
@@ -123,6 +118,15 @@ rules:
   - apiGroups: [""]
     resources: [nodes]
     verbs: [get, list, watch]
+  # PVs are cluster-scoped too: reconcileStaleDataStorage reads a bound data
+  # PVC's PersistentVolume to detect a node-local volume pinned (node affinity)
+  # to a node that no longer exists — a reprovisioned bare-metal fleet node.
+  # update/patch let reclaimDataVolumes flip a data PV to reclaimPolicy Delete
+  # before the operator tears its PVC down, so the CSI driver reaps the Hetzner
+  # volume instead of stranding it under the hcloud-volumes Retain default.
+  - apiGroups: [""]
+    resources: [persistentvolumes]
+    verbs: [get, list, watch, update, patch]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -135,22 +139,6 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
   name: {{ $name }}-node-reads
-subjects:
-  - kind: ServiceAccount
-    name: {{ $name }}
-    namespace: {{ $namespace }}
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: {{ $gatewayClassClusterRoleName }}
-  labels:
-    {{- include "tuist.labels" . | nindent 4 }}
-    app.kubernetes.io/component: kura-controller
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: {{ $gatewayClassClusterRoleName }}
 subjects:
   - kind: ServiceAccount
     name: {{ $name }}
@@ -172,6 +160,46 @@ subjects:
   - kind: ServiceAccount
     name: {{ $name }}
     namespace: {{ $namespace }}
+---
+# Namespaced Role granting the controller's SA read on the single
+# kube-system/kube-dns Service. peer-demux's discoverClusterDNS reads its
+# ClusterIP to wire the per-region peer plane's in-cluster DNS, which a
+# freshly (re)provisioned instance needs before its cache pods can complete
+# peer discovery and pass readiness — without it the reconciler errors every
+# cycle ("services \"kube-dns\" is forbidden") and the fresh StatefulSet never
+# goes Ready. Scoped to kube-system as a Role rather than a ClusterRole with
+# resourceNames (which would match a kube-dns Service in any namespace); read
+# via the uncached APIReader since the manager's Services cache is namespaced.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $name }}-cluster-dns
+  namespace: kube-system
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kura-controller
+rules:
+  - apiGroups: [""]
+    resources: [services]
+    resourceNames: [kube-dns]
+    verbs: [get]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $name }}-cluster-dns
+  namespace: kube-system
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: kura-controller
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $name }}-cluster-dns
+subjects:
+  - kind: ServiceAccount
+    name: {{ $name }}
+    namespace: {{ $namespace }}
 {{- if .Values.server.enabled }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -184,7 +212,7 @@ metadata:
     app.kubernetes.io/component: server
 rules:
   - apiGroups: ["kura.tuist.dev"]
-    resources: [kurainstances, kuragateways]
+    resources: [kurainstances]
     verbs: [get, list, watch, create, update, patch, delete]
   - apiGroups: [""]
     resources: [pods]
@@ -212,91 +240,6 @@ subjects:
     name: {{ include "tuist.componentServiceAccountName" (dict "root" . "component" "server") }}
     namespace: {{ .Release.Namespace }}
 {{- end }}
----
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: {{ $gatewayIngressServiceAccountName }}
-  namespace: {{ $namespace }}
-  labels:
-    {{- include "tuist.labels" . | nindent 4 }}
-    app.kubernetes.io/component: kura-gateway-ingress-nginx
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  name: {{ $gatewayIngressRoleName }}
-  namespace: {{ $namespace }}
-  labels:
-    {{- include "tuist.labels" . | nindent 4 }}
-    app.kubernetes.io/component: kura-gateway-ingress-nginx
-rules:
-  - apiGroups: [""]
-    resources: [configmaps, endpoints, pods, secrets, services]
-    verbs: [get, list, watch]
-  - apiGroups: ["discovery.k8s.io"]
-    resources: [endpointslices]
-    verbs: [get, list, watch]
-  - apiGroups: ["networking.k8s.io"]
-    resources: [ingresses]
-    verbs: [get, list, watch]
-  - apiGroups: ["networking.k8s.io"]
-    resources: [ingresses/status]
-    verbs: [update]
-  - apiGroups: ["coordination.k8s.io"]
-    resources: [leases]
-    verbs: [get, list, watch, create, update, patch, delete]
-  - apiGroups: [""]
-    resources: [events]
-    verbs: [create, patch]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: {{ $gatewayIngressRoleName }}
-  namespace: {{ $namespace }}
-  labels:
-    {{- include "tuist.labels" . | nindent 4 }}
-    app.kubernetes.io/component: kura-gateway-ingress-nginx
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: Role
-  name: {{ $gatewayIngressRoleName }}
-subjects:
-  - kind: ServiceAccount
-    name: {{ $gatewayIngressServiceAccountName }}
-    namespace: {{ $namespace }}
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: {{ $gatewayIngressClusterRoleName }}
-  labels:
-    {{- include "tuist.labels" . | nindent 4 }}
-    app.kubernetes.io/component: kura-gateway-ingress-nginx
-rules:
-  - apiGroups: [""]
-    resources: [nodes, namespaces]
-    verbs: [get, list, watch]
-  - apiGroups: ["networking.k8s.io"]
-    resources: [ingressclasses]
-    verbs: [get, list, watch]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: {{ $gatewayIngressClusterRoleName }}
-  labels:
-    {{- include "tuist.labels" . | nindent 4 }}
-    app.kubernetes.io/component: kura-gateway-ingress-nginx
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: {{ $gatewayIngressClusterRoleName }}
-subjects:
-  - kind: ServiceAccount
-    name: {{ $gatewayIngressServiceAccountName }}
-    namespace: {{ $namespace }}
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -342,7 +285,6 @@ spec:
             - --otlp-traces-endpoint={{ .Values.kuraController.telemetry.otlpTracesEndpoint }}
             {{- end }}
             - --deployment-environment={{ .Values.kuraController.telemetry.deploymentEnvironment | default "production" }}
-            - --gateway-service-account-name={{ $gatewayIngressServiceAccountName }}
           ports:
             - name: metrics
               containerPort: 8080

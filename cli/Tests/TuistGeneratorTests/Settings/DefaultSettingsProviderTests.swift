@@ -1131,6 +1131,7 @@ struct DefaultSettingsProvider_MacosTests {
 
     private let macroTargetEssentialDebugSettings: [String: SettingValue] = [
         "SWIFT_ACTIVE_COMPILATION_CONDITIONS": .array(["$(inherited)", "DEBUG"]),
+        "ONLY_ACTIVE_ARCH": "YES",
         "SKIP_INSTALL": "YES",
         "SWIFT_OPTIMIZATION_LEVEL": "-Onone",
         "SWIFT_VERSION": "5",
@@ -1139,6 +1140,7 @@ struct DefaultSettingsProvider_MacosTests {
     ]
 
     private let macroTargetEssentialReleaseSettings: [String: SettingValue] = [
+        "ONLY_ACTIVE_ARCH": "YES",
         "SKIP_INSTALL": "YES",
         "SWIFT_OPTIMIZATION_LEVEL": "-O",
         "SWIFT_VERSION": "5",

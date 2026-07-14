@@ -214,6 +214,20 @@ defmodule Tuist.Docs.Sidebar do
         ]
       },
       %Group{
+        label: "Compute",
+        weight: :medium,
+        items: [
+          %Item{
+            label: "Runners",
+            slug: "/en/guides/features/runners",
+            items: [
+              %Item{label: "Getting started", slug: "/en/guides/features/runners/getting-started"},
+              %Item{label: "Profiles", slug: "/en/guides/features/runners/profiles"}
+            ]
+          }
+        ]
+      },
+      %Group{
         label: "Artifacts",
         weight: :medium,
         items: [
@@ -374,6 +388,7 @@ defmodule Tuist.Docs.Sidebar do
             slug: "/en/guides/server/accounts-and-projects"
           },
           %Item{label: "Authentication", slug: "/en/guides/server/authentication"},
+          %Item{label: "Data retention", slug: "/en/guides/server/data-retention"},
           %Item{label: "Network", slug: "/en/guides/server/network"},
           %Item{
             label: "Self-hosting",

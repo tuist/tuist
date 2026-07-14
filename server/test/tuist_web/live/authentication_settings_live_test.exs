@@ -6,6 +6,7 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
   import Phoenix.LiveViewTest
 
   alias Tuist.Accounts
+  alias Tuist.Environment
   alias Tuist.SCIM
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
@@ -184,6 +185,42 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
         |> render_submit()
 
       assert html =~ "must be a valid URL"
+
+      document = Floki.parse_fragment!(html)
+
+      assert Floki.attribute(document, "#sso_oauth2_site", "value") == ["not-a-url"]
+      assert Floki.attribute(document, "#sso_oauth2_authorize_url", "value") == ["not-a-url"]
+      assert Floki.attribute(document, "#sso_oauth2_token_url", "value") == ["not-a-url"]
+      assert Floki.attribute(document, "#sso_oauth2_user_info_url", "value") == ["not-a-url"]
+    end
+
+    test "configures OAuth2 SSO with private Keycloak-style URLs on self-hosted installations", %{
+      conn: conn,
+      account: account
+    } do
+      stub(Environment, :tuist_hosted?, fn -> false end)
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/authentication")
+
+      render_hook(lv, "toggle_sso")
+      render_hook(lv, "select_provider", %{"value" => ["oauth2"]})
+
+      html =
+        lv
+        |> form("#sso-form", %{
+          "sso" => %{
+            "oauth2_site" => "https://10.0.0.1/realms/master",
+            "oauth2_client_id" => "test_client_id",
+            "oauth2_client_secret" => "test_client_secret",
+            "oauth2_authorize_url" => "https://10.0.0.1/realms/master/protocol/openid-connect/auth",
+            "oauth2_token_url" => "https://10.0.0.1/realms/master/protocol/openid-connect/token",
+            "oauth2_user_info_url" => "https://10.0.0.1/realms/master/protocol/openid-connect/userinfo"
+          }
+        })
+        |> render_submit()
+
+      refute html =~ "must be a valid URL"
+      assert html =~ "Enable Single Sign-On"
     end
   end
 

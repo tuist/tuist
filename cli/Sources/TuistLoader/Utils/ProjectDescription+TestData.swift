@@ -120,9 +120,9 @@ import TuistSupport
             order: Order = .pre,
             arguments: [String] = [],
             inputPaths: [FileListGlob] = [],
-            inputFileListPaths: [Path] = [],
+            inputFileListPaths: [TargetScript.FileListPath] = [],
             outputPaths: [Path] = [],
-            outputFileListPaths: [Path] = [],
+            outputFileListPaths: [TargetScript.FileListPath] = [],
             dependencyFile: Path? = nil
         ) -> TargetScript {
             TargetScript(

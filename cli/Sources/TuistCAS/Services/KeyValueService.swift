@@ -239,12 +239,8 @@
                             .replacingOccurrences(of: "/", with: "_")
                         let nodeID = "0~\(nodeIDBase64URL)"
 
-                        // Store the mapping
-                        do {
-                            try analyticsDatabase.storeNode(key: nodeID, checksum: hexString.uppercased())
-                        } catch {
-                            Logger.current.error("Failed to store node mapping: \(error)")
-                        }
+                        // Store the mapping (buffered fire-and-forget append)
+                        analyticsDatabase.storeNode(key: nodeID, checksum: hexString.uppercased())
                     }
 
                     offset = nextOffset
@@ -298,19 +294,14 @@
             for cacheKey: String,
             operationType: KeyValueOperationType
         ) {
-            Task {
-                do {
-                    try analyticsDatabase.storeKeyValueMetadata(
-                        key: cacheKey,
-                        operationType: operationType.rawValue,
-                        duration: duration
-                    )
-                } catch {
-                    Logger.current.error(
-                        "Failed to store KeyValue metadata for cacheKey: \(cacheKey): \(error)"
-                    )
-                }
-            }
+            // The database buffers rows in memory and persists them off the
+            // cooperative pool, so this is a cheap fire-and-forget append — no
+            // detached Task per operation.
+            analyticsDatabase.storeKeyValueMetadata(
+                key: cacheKey,
+                operationType: operationType.rawValue,
+                duration: duration
+            )
         }
     }
 

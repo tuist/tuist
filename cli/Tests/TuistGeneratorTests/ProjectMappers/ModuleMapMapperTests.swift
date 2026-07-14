@@ -428,7 +428,7 @@ struct ModuleMapMapperTests {
                         """
                         set -eu
                         mkdir -p "$TARGET_BUILD_DIR/$WRAPPER_NAME/Modules"
-                        cp '\(moduleMapPath.pathString)' "$TARGET_BUILD_DIR/$WRAPPER_NAME/Modules/module.modulemap"
+                        cp -f '\(moduleMapPath.pathString)' "$TARGET_BUILD_DIR/$WRAPPER_NAME/Modules/module.modulemap"
                         """
                     ),
                     inputPaths: [moduleMapPath.pathString],
@@ -438,6 +438,42 @@ struct ModuleMapMapperTests {
                 ),
             ]
         )
+    }
+
+    @Test(.inTemporaryDirectory)
+    func removes_static_framework_modulemap_without_copy_script() throws {
+        // Given
+        let workspace = Workspace.test()
+        let projectPath = try temporaryPath().appending(component: "A")
+        let moduleMapPath = projectPath.appending(components: "A", "A.modulemap")
+        let target = Target.test(
+            name: "A",
+            product: .staticFramework,
+            settings: .test(base: [
+                "MODULEMAP_FILE": .string(moduleMapPath.pathString),
+            ])
+        )
+        let project = Project.test(
+            path: projectPath,
+            name: "A",
+            targets: [target]
+        )
+
+        // When
+        let (gotGraph, _, _) = try subject.map(
+            graph: .test(
+                workspace: workspace,
+                projects: [
+                    projectPath: project,
+                ]
+            ),
+            environment: MapperEnvironment()
+        )
+
+        // Then
+        let gotTarget = try #require(gotGraph.projects[projectPath]?.targets["A"])
+        #expect(gotTarget.settings?.base["MODULEMAP_FILE"] == nil)
+        #expect(gotTarget.scripts.isEmpty)
     }
 
     @Test(.inTemporaryDirectory)
@@ -566,6 +602,82 @@ struct ModuleMapMapperTests {
                 )),
             ]
         )
+    }
+
+    @Test(.inTemporaryDirectory)
+    func does_not_duplicate_modulemap_flags_in_configurations_that_inherit_them() throws {
+        // Given
+        let workspace = Workspace.test()
+        let projectAPath = try temporaryPath().appending(component: "A")
+        let projectBPath = try temporaryPath().appending(component: "B")
+        let debugConfig = BuildConfiguration(name: "Debug", variant: .debug)
+
+        let targetA = Target.test(
+            name: "A",
+            settings: .test(
+                base: [
+                    "OTHER_CFLAGS": ["-DBASE"],
+                    "OTHER_SWIFT_FLAGS": ["-D", "BASE"],
+                    "HEADER_SEARCH_PATHS": ["$(SRCROOT)/Headers"],
+                ],
+                configurations: [
+                    debugConfig: Configuration(settings: [
+                        "OTHER_CFLAGS": ["$(inherited)", "-DDEBUG"],
+                        "OTHER_SWIFT_FLAGS": ["$(inherited)", "-D", "DEBUG"],
+                        "HEADER_SEARCH_PATHS": ["$(inherited)", "$(SRCROOT)/DebugHeaders"],
+                    ], xcconfig: nil),
+                ]
+            ),
+            dependencies: [
+                .project(target: "B", path: projectBPath),
+            ]
+        )
+        let projectA = Project.test(path: projectAPath, name: "A", targets: [targetA])
+        let targetB = Target.test(
+            name: "B",
+            settings: .test(base: [
+                "MODULEMAP_FILE": .string(projectBPath.appending(components: "B", "B.module").pathString),
+                "HEADER_SEARCH_PATHS": .array(["$(SRCROOT)/B/include"]),
+            ])
+        )
+        let projectB = Project.test(path: projectBPath, name: "B", targets: [targetB])
+
+        // When
+        let (gotGraph, _, _) = try subject.map(
+            graph: .test(
+                workspace: workspace,
+                projects: [projectAPath: projectA, projectBPath: projectB],
+                dependencies: [
+                    .target(name: targetA.name, path: projectAPath): [
+                        .target(name: targetB.name, path: projectBPath),
+                    ],
+                ]
+            ),
+            environment: MapperEnvironment()
+        )
+
+        // Then
+        let gotTargetA = try #require(gotGraph.projects[projectAPath]?.targets["A"])
+        let baseSettings = try #require(gotTargetA.settings?.base)
+        #expect(baseSettings["OTHER_CFLAGS"] == .array([
+            "-DBASE",
+            "-fmodule-map-file=\"$(SRCROOT)/Derived/ModuleMaps/A-deps.modulemap\"",
+        ]))
+        #expect(baseSettings["OTHER_SWIFT_FLAGS"] == .array([
+            "-D",
+            "BASE",
+            "-Xcc",
+            "-fmodule-map-file=\"$(SRCROOT)/Derived/ModuleMaps/A-deps.modulemap\"",
+        ]))
+        #expect(baseSettings["HEADER_SEARCH_PATHS"] == .array([
+            "$(SRCROOT)/Headers",
+            "$(SRCROOT)/../B/B/include",
+        ]))
+
+        let debugSettings = try #require(gotTargetA.settings?.configurations[debugConfig] as? Configuration).settings
+        #expect(debugSettings["OTHER_CFLAGS"] == .array(["$(inherited)", "-DDEBUG"]))
+        #expect(debugSettings["OTHER_SWIFT_FLAGS"] == .array(["$(inherited)", "-D", "DEBUG"]))
+        #expect(debugSettings["HEADER_SEARCH_PATHS"] == .array(["$(inherited)", "$(SRCROOT)/DebugHeaders"]))
     }
 
     @Test(.inTemporaryDirectory)

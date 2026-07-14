@@ -28,7 +28,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable, Sendable {
     ]
     public static let validHeaderExtensions: [String] = ["h", "hpp", "hh", "hxx"]
     public static let validFolderExtensions: [String] = [
-        "framework", "bundle", "app", "xcassets", "appiconset", "scnassets",
+        "framework", "bundle", "app", "xcassets", "appiconset", "scnassets", "nib",
     ]
 
     // MARK: - Attributes

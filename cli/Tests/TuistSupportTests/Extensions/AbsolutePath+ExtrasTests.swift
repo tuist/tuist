@@ -65,6 +65,7 @@ final class AbsolutePathExtrasTests: TuistUnitTestCase {
         XCTAssertFalse(try AbsolutePath(validating: "/test/directory.playground").isInOpaqueDirectory)
         XCTAssertFalse(try AbsolutePath(validating: "/test/directory.bundle").isInOpaqueDirectory)
         XCTAssertFalse(try AbsolutePath(validating: "/test/directory.xcmappingmodel").isInOpaqueDirectory)
+        XCTAssertFalse(try AbsolutePath(validating: "/test/View.nib").isInOpaqueDirectory)
 
         XCTAssertFalse(try AbsolutePath(validating: "/").isInOpaqueDirectory)
         XCTAssertFalse(try AbsolutePath(validating: "/test/directory.notopaque/file.notopaque").isInOpaqueDirectory)
@@ -79,6 +80,7 @@ final class AbsolutePathExtrasTests: TuistUnitTestCase {
         XCTAssertTrue(try AbsolutePath(validating: "/test/directory.docc/file.png").isInOpaqueDirectory)
         XCTAssertTrue(try AbsolutePath(validating: "/test/directory.playground/file.png").isInOpaqueDirectory)
         XCTAssertTrue(try AbsolutePath(validating: "/test/directory.xcmappingmodel/file.png").isInOpaqueDirectory)
+        XCTAssertTrue(try AbsolutePath(validating: "/test/View.nib/keyedobjects.nib").isInOpaqueDirectory)
     }
 
     func test_opaqueDirectory() async throws {
@@ -89,6 +91,7 @@ final class AbsolutePathExtrasTests: TuistUnitTestCase {
             "/test/directory.xcdatamodeld",
             "/test/directory.docc",
             "/test/directory.xcmappingmodel",
+            "/test/View.nib",
         ] as [AbsolutePath] {
             XCTAssertEqual(directory.opaqueParentDirectory(), nil)
         }
@@ -108,6 +111,7 @@ final class AbsolutePathExtrasTests: TuistUnitTestCase {
             "/test/directory.xcdatamodeld/file.png",
             "/test/directory.docc/file.png",
             "/test/directory.xcmappingmodel/file.png",
+            "/test/View.nib/keyedobjects.nib",
         ] as [AbsolutePath] {
             XCTAssertEqual(file.opaqueParentDirectory(), file.parentDirectory)
         }

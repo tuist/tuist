@@ -359,6 +359,10 @@ defmodule TuistWeb.Marketing.LocalizationTest do
   # end
 
   describe "docs URL localization" do
+    # Rewriting between non-en locale segments relies on Tuist.Locale.languages/0,
+    # which is trimmed to "en" unless TUIST_DEV_ALL_LOCALES=1.
+    @describetag :locale
+
     test "places the locale before the path" do
       Gettext.put_locale(TuistWeb.Gettext, "ko")
 

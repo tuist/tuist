@@ -11,8 +11,7 @@ Describe 'memory pressure resilience'
     setup_suite_tmpdir
 
     suite_env COMPOSE_PROJECT_NAME kura-memory-pressure
-    ephemeral_ports KURA_US_PORT KURA_EU_PORT KURA_AP_PORT \
-      KURA_US_GRPC_PORT KURA_EU_GRPC_PORT KURA_AP_GRPC_PORT
+    ephemeral_ports KURA_US_PORT KURA_EU_PORT KURA_AP_PORT
     suite_env KURA_E2E_DOCKER_MEMORY_LIMIT 512m
     suite_env KURA_E2E_MEMORY_SOFT_LIMIT_BYTES $((256 * 1024 * 1024))
     suite_env KURA_E2E_MEMORY_HARD_LIMIT_BYTES $((320 * 1024 * 1024))

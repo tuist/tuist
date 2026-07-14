@@ -3,12 +3,14 @@ defmodule TuistWeb.CacheLive do
   use TuistWeb, :live_view
   use Noora
 
+  import Noora.CheckboxControl
   import Phoenix.Component
 
   alias Phoenix.HTML.Form
+  alias Tuist.Accounts
   alias Tuist.Authorization
   alias Tuist.Billing.Entitlements
-  alias Tuist.Environment
+  alias Tuist.FeatureFlags
   alias Tuist.Kura
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Registrations
@@ -121,6 +123,23 @@ defmodule TuistWeb.CacheLive do
   def handle_event("retry_cache_server", _params, socket), do: {:noreply, socket}
 
   def handle_event(
+        "select_cache_upload_policy",
+        %{"policy" => policy},
+        %{assigns: %{selected_account: selected_account}} = socket
+      ) do
+    policy =
+      case policy do
+        "members_and_tokens" -> :members_and_tokens
+        "tokens_only" -> :tokens_only
+        _ -> selected_account.cache_write_policy
+      end
+
+    {:ok, updated_account} = Accounts.update_account(selected_account, %{cache_write_policy: policy})
+
+    {:noreply, assign(socket, :selected_account, updated_account)}
+  end
+
+  def handle_event(
         "create_self_hosted_client",
         params,
         %{assigns: %{self_hosted_enabled: true, selected_account: account}} = socket
@@ -196,6 +215,7 @@ defmodule TuistWeb.CacheLive do
     |> assign(:regions, [])
     |> assign(:available_regions, [])
     |> assign(:latest_version, nil)
+    |> assign(:managed_cache_visible?, false)
     |> assign(:add_cache_server_form, default_server_form([]))
   end
 
@@ -220,6 +240,7 @@ defmodule TuistWeb.CacheLive do
     |> assign(:regions, regions)
     |> assign(:available_regions, available_regions)
     |> assign(:latest_version, latest)
+    |> assign(:managed_cache_visible?, servers != [] or available_regions != [])
     |> assign(:add_cache_server_form, default_server_form(available_regions))
   end
 
@@ -242,7 +263,7 @@ defmodule TuistWeb.CacheLive do
   end
 
   defp cache_enabled?(account) do
-    Environment.dev?() or FunWithFlags.enabled?(:kura, for: account)
+    FeatureFlags.kura_enabled?(account)
   end
 
   defp available_regions(regions, servers) do
@@ -382,18 +403,21 @@ defmodule TuistWeb.CacheLive do
       else: server_status_color(server.status)
   end
 
-  defp server_status_label(:provisioning), do: dgettext("dashboard_account", "Deploying")
+  defp server_status_label(:replicating), do: dgettext("dashboard_account", "Replicating")
   defp server_status_label(:active), do: dgettext("dashboard_account", "Active")
   defp server_status_label(:failed), do: dgettext("dashboard_account", "Failed")
   defp server_status_label(:destroying), do: dgettext("dashboard_account", "Destroying")
   defp server_status_label(:destroyed), do: dgettext("dashboard_account", "Destroyed")
 
-  defp server_status_color(:provisioning), do: "information"
+  defp server_status_color(:replicating), do: "information"
   defp server_status_color(:active), do: "success"
   defp server_status_color(:failed), do: "destructive"
   defp server_status_color(:destroying), do: "warning"
   defp server_status_color(:destroyed), do: "neutral"
 
+  # :replicating is intentionally NOT here: it has its own "Replicating" label and
+  # "information" color via server_status_label/2 + server_status_color/1. Forcing
+  # the "Deploying" short-circuit here would shadow that label.
   defp show_deploying?(%{status: :provisioning}), do: true
   defp show_deploying?(_), do: false
 
@@ -405,6 +429,87 @@ defmodule TuistWeb.CacheLive do
   end
 
   defp version_label(image_tag), do: Kura.version_label(image_tag)
+
+  attr(:cache_write_policy, :atom, required: true)
+
+  def cache_write_policy_section(assigns) do
+    ~H"""
+    <.card_section data-part="cache-write-policy-card">
+      <div data-part="header">
+        <div data-part="title-group">
+          <span data-part="title">{dgettext("dashboard_account", "Cache upload access")}</span>
+          <span data-part="subtitle">
+            {dgettext(
+              "dashboard_account",
+              "Choose whether members can upload or CI is the trusted cache writer."
+            )}
+            {dgettext("dashboard_account", "Learn more about how to authenticate CI")}
+            <span phx-no-format><.link href="/en/docs/guides/server/authentication#continuous-integration" target="_blank" data-part="docs-link">{dgettext("dashboard_account", "here")}</.link>.</span>
+          </span>
+        </div>
+      </div>
+      <div
+        data-part="policy-options"
+        role="radiogroup"
+        aria-label={dgettext("dashboard_account", "Cache upload access")}
+      >
+        <button
+          id="cache-upload-policy-members-and-tokens"
+          type="button"
+          data-part="policy-option"
+          data-selected={if @cache_write_policy == :members_and_tokens, do: "true", else: "false"}
+          role="radio"
+          aria-checked={if @cache_write_policy == :members_and_tokens, do: "true", else: "false"}
+          phx-click="select_cache_upload_policy"
+          phx-value-policy="members_and_tokens"
+        >
+          <span data-part="option-header">
+            <.checkbox_control
+              checked={@cache_write_policy == :members_and_tokens}
+              data-part="control"
+            />
+            <span data-part="body">
+              <span data-part="label">
+                {dgettext("dashboard_account", "Members, CI, and account tokens")}
+              </span>
+              <span data-part="description">
+                {dgettext(
+                  "dashboard_account",
+                  "Members using login sessions, CI OIDC tokens, and account tokens with cache write scopes can upload."
+                )}
+              </span>
+            </span>
+          </span>
+        </button>
+        <button
+          id="cache-upload-policy-tokens-only"
+          type="button"
+          data-part="policy-option"
+          data-selected={if @cache_write_policy == :tokens_only, do: "true", else: "false"}
+          role="radio"
+          aria-checked={if @cache_write_policy == :tokens_only, do: "true", else: "false"}
+          phx-click="select_cache_upload_policy"
+          phx-value-policy="tokens_only"
+        >
+          <span data-part="option-header">
+            <.checkbox_control checked={@cache_write_policy == :tokens_only} data-part="control" />
+            <span data-part="body">
+              <span data-part="label">
+                {dgettext("dashboard_account", "CI and account tokens only")}
+              </span>
+              <span data-part="description">
+                {dgettext(
+                  "dashboard_account",
+                  "Members can download, but uploads require CI OIDC tokens or account tokens with cache write scopes."
+                )}
+              </span>
+            </span>
+          </span>
+        </button>
+      </div>
+    </.card_section>
+    """
+  end
 
   attr(:servers, :list, required: true)
   attr(:available_regions, :list, required: true)
@@ -582,12 +687,6 @@ defmodule TuistWeb.CacheLive do
             disabled={is_nil(@latest_version)}
           />
         </:col>
-        <:empty_state>
-          <.table_empty_state
-            title={dgettext("dashboard_account", "No cache servers available")}
-            subtitle={dgettext("dashboard_account", "No regions are available for this account yet.")}
-          />
-        </:empty_state>
       </.table>
     </.card_section>
     """
