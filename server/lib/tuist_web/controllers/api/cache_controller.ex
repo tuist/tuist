@@ -67,7 +67,8 @@ defmodule TuistWeb.API.CacheController do
                items: %Schema{type: :string}
              }
            }
-         }}
+         }},
+      forbidden: {"Not authorized to perform this action", "application/json", Error}
     }
   )
 
