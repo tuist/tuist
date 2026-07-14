@@ -900,10 +900,11 @@ fn spawn_drain_signal_task(_state: Arc<AppState>) {}
 struct ProcessMemorySnapshot {
     resident_bytes: u64,
     virtual_bytes: u64,
-    // Best-effort split of VmRSS into anonymous (heap) and file-backed (mmap'd
-    // segments) resident memory; `None` on kernels < 4.5 that omit the lines,
-    // so it never fails the required resident/virtual sampling that drives
-    // memory-pressure control.
+    // Best-effort breakdown of resident memory into RssAnon (private pages:
+    // heap and stacks) and RssFile (pages backed by mapped files: mmap'd
+    // segments and the executable); these plus RssShmem sum to VmRSS. `None`
+    // on kernels < 4.5 that omit the lines, so it never fails the required
+    // resident/virtual sampling that drives memory-pressure control.
     resident_anon_bytes: Option<u64>,
     resident_file_bytes: Option<u64>,
 }
@@ -933,7 +934,9 @@ fn process_memory_snapshot() -> Option<ProcessMemorySnapshot> {
 /// complements the RssAnon/RssFile split rather than replacing it. `allocated`
 /// is live application bytes; `resident` the physical pages jemalloc holds
 /// (allocations plus metadata, fragmentation, and dirty pages); `retained` the
-/// virtual address space kept back from the OS.
+/// virtual address space kept back from the OS. Together they can hint at — but
+/// do not prove — a leak (a steadily rising `allocated`) as opposed to
+/// fragmentation or allocator retention (`resident` well above `allocated`).
 struct JemallocStats {
     allocated_bytes: u64,
     resident_bytes: u64,
@@ -944,7 +947,8 @@ struct JemallocStats {
 fn jemalloc_stats_snapshot() -> Option<JemallocStats> {
     use tikv_jemalloc_ctl::{epoch, stats};
     // jemalloc caches these values and only recomputes them when the epoch is
-    // advanced, so refresh first or every read returns the boot-time snapshot.
+    // advanced, so refresh first or every read returns a stale, previously
+    // cached snapshot.
     epoch::advance().ok()?;
     Some(JemallocStats {
         allocated_bytes: stats::allocated::read().ok()? as u64,
