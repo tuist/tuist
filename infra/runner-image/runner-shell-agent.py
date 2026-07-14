@@ -22,6 +22,8 @@ TOKEN_PATHS = (
     "/var/run/secrets/tuist-runner/token",
 )
 
+DIRECT_HTTP_OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+
 
 def log(message):
     print(f"{time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())} runner-shell-agent: {message}", flush=True)
@@ -92,7 +94,7 @@ def discover_session(url, token):
     request = urllib.request.Request(url, headers=headers)
 
     try:
-        with urllib.request.urlopen(request, timeout=10) as response:
+        with DIRECT_HTTP_OPENER.open(request, timeout=10) as response:
             if response.status == 204:
                 return None
             if response.status != 200:
@@ -101,7 +103,9 @@ def discover_session(url, token):
             return json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as error:
         if error.code not in (204, 404):
-            log(f"session discovery returned HTTP {error.code}")
+            body = error.read(300).decode("utf-8", errors="replace").strip().replace("\n", " ")
+            detail = f": {body}" if body else ""
+            log(f"session discovery returned HTTP {error.code}{detail}")
     except Exception as error:
         log(f"session discovery failed: {error}")
 
