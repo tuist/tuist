@@ -64,10 +64,13 @@ defmodule Tuist.MixProject do
       {:jason, "~> 1.2"},
       {:libcluster, "~> 3.5"},
       {:bandit, "~> 1.11.1", override: true},
-      # Pinned: plug >= 1.19.3 crashes WebSocket upgrades on bandit 1.11.1
-      # (ArgumentError ":upgrade not a binary"). Without this pin, plug is an
-      # unconstrained transitive dep and every `mix deps.get` re-resolves it to
-      # the latest, churning the lock and forcing full recompiles.
+      # The WebSocket upgrade crash that originally held this at 1.19.2
+      # (ArgumentError ":upgrade not a binary") came from the header validation
+      # 1.19.3 added to `Plug.Conn.inform/3`, which rejected atom header keys.
+      # 1.19.4 fixed it by normalising the key, so 1.19.5 upgrades cleanly. The
+      # pin stays because plug is otherwise an unconstrained transitive dep and
+      # every `mix deps.get` re-resolves it to the latest, churning the lock and
+      # forcing full recompiles.
       {:plug, "1.19.5", override: true},
       {:credo, "== 1.7.19", only: [:dev, :test], runtime: false},
       {:sentry, "~> 11.0.4"},
