@@ -333,11 +333,12 @@ enum SnapshotState {
 
 impl Snapshot {
     /// Decodes the server's snapshot response. A `"TSNZ"` envelope (magic,
-    /// version byte, u64 uncompressed length, zstd stream) is decompressed
-    /// into a `"TSNP"` body first; a bare `"TSNP"` body (an old server, or one
-    /// answering a client that did not request zstd) is decoded directly. Any
-    /// structural violation returns `None` and the caller stays on the per-key
-    /// path rather than trusting a torn payload.
+    /// version byte, u64 uncompressed length, zstd stream) — what current kura
+    /// always emits — is decompressed into a `"TSNP"` body first; a bare
+    /// `"TSNP"` body, which only an OLD kura pod emits (mid mesh-roll, or a
+    /// lagging self-hosted node), is decoded directly. Any structural violation
+    /// returns `None` and the caller stays on the per-key path rather than
+    /// trusting a torn payload.
     fn decode(bytes: &[u8]) -> Option<Snapshot> {
         if bytes.len() >= 13 && &bytes[..4] == b"TSNZ" {
             if bytes[4] != 1 {
