@@ -135,13 +135,50 @@ attached to the caph cluster, not a ClusterClass topology entry.
 
 ## Cross-cutting
 
-- **apiserver `--kubelet-preferred-address-types`** carries `InternalIP`,
-  delivered as a ClusterClass `kubeletPreferredAddressTypes` variable + patch.
-  The default equals the current value, so applying it is a no-op; each env
-  flips the variable to insert `InternalIP` on its own control-plane rollout.
-  Cross-cloud nodes (Elastic Metal + macOS PN) report a reachable `InternalIP`
-  but no `ExternalIP` and a Hostname the Hetzner apiserver can't resolve, so
-  this is what lets the apiserver reach those kubelets for `logs`/`exec`.
+- **`kubectl logs`/`exec`/`attach`/`port-forward` to a fleet node** needs three
+  things lined up, because the apiserver dials the kubelet on `:10250` directly.
+  Getting only some of them right leaves logs/exec broken with a *different*
+  error at each layer, so all three matter:
+  1. **apiserver `--kubelet-preferred-address-types` must list `InternalIP`.**
+     Fleet nodes report a routable `InternalIP` (their provider public IP) but no
+     `ExternalIP` and a Hostname the Hetzner apiserver can't resolve, so the
+     default `ExternalIP,Hostname,…` order lands on Hostname →
+     `dial tcp: lookup … no such host`. Delivered as a ClusterClass
+     `kubeletPreferredAddressTypes` variable + patch; each env sets
+     `ExternalIP,InternalIP,Hostname,…` in its Cluster CR. kubeadm bakes this
+     apiserver flag into the static-pod manifest at CP init/join, so **setting
+     the variable is not enough — it only takes effect on a control-plane
+     rollout** (see the runbook in the provider AGENTS.md). This is the one that
+     was silently missing: the value is in the Cluster CRs but the running CP
+     predates it.
+  2. **The kubelet must present a serving cert.** The self-join kubelet
+     authenticates as an operator-minted ServiceAccount, not `system:node:<name>`,
+     so the built-in serving-CSR approver (which requires requester == CN ==
+     `system:node:<name>`) never approves its CSR. With `serverTLSBootstrap: true`
+     that leaves the kubelet with *no* serving cert — every `:10250` dial fails
+     `remote error: tls: internal error`. So the self-join kubelet config leaves
+     `serverTLSBootstrap` unset and serves a **self-signed** cert. Nothing
+     verifies kubelet serving certs here (the apiserver sets no
+     `--kubelet-certificate-authority`, metrics-server runs `--kubelet-insecure-tls`),
+     so a self-signed cert is accepted.
+  3. **The kubelet must trust the apiserver's client cert.** The self-join writes
+     the cluster CA to `/var/lib/kubelet/ca.crt` and sets
+     `authentication.x509.clientCAFile`, so the apiserver's
+     `--kubelet-client-certificate` authenticates for the streaming endpoints
+     instead of the request landing as anonymous and (anonymous disabled) `401`.
+  (2) and (3) live in `controllers/linux/linux_cloudinit.go`. They reach
+  **existing** nodes automatically via the kubelet-config drift loop
+  (`controllers/linux/kubelet_config_drift.go`): each already-Ready node carries a
+  `tuist.dev/kubelet-config-hash` annotation, and when it doesn't match the
+  current rendered config the controller SSHes a minimal re-push (rewrite
+  `/var/lib/kubelet/{ca.crt,config.yaml}` + `systemctl restart kubelet`) — the
+  zero-downtime subset of the self-join (containerd, apt, and the `/data` mounts
+  are untouched, so running pods survive). So a config change like (2)/(3)
+  converges onto the fleet on the next reconcile after the operator image rolls,
+  with no `kubectl delete machine`. (1) is Cluster-CR config plus a one-time
+  control-plane rollout (kubeadm bakes the apiserver flag at CP init/join).
+  `kubectl top` (metrics-server) needs (1) + (2) only — it auths with a bearer
+  token via the kubelet webhook, not a client cert, so it doesn't hit (3).
 - **Node replacement**: on Machine delete the provider deletes the Node object
   and reaps the PVCs bound to node-local PVs pinned to the departing box's
   hostname (`deleteNodeLocalPVCs`, called from each Linux provider's

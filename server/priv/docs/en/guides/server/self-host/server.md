@@ -191,6 +191,25 @@ ALTER ROLE <runtime_role> IN DATABASE <database> SET search_path = tuist;
 
 We facilitate authentication through [identity providers (IdP)](https://en.wikipedia.org/wiki/Identity_provider). To utilize this, ensure all necessary environment variables for the chosen provider are present in the server's environment. **Missing variables** will result in Tuist bypassing that provider.
 
+#### Email and password {#email-and-password}
+
+Email and password sign-in and self-serve registration are built in and enabled by default. On an instance where you want to require an identity provider (for example, when enforcing SSO), you can turn them off entirely. This removes the email/password form, the sign-up link, and the password-reset flow from the login experience, and closes every matching server-side endpoint, including the email/password endpoint the CLI uses (`tuist auth`).
+
+| Environment variable | Description | Required | Default | Example |
+| --- | --- | --- | --- | --- |
+| `TUIST_EMAIL_AUTH_ENABLED` | Whether email and password can be used to sign in and register. Set to `0` to remove the email/password form, the sign-up link, and the password-reset flow from the login page and close the matching server-side endpoints | No | `1` | `0` |
+
+#### Disabling a configured identity provider {#disabling-a-configured-identity-provider}
+
+By default, a provider appears as a sign-in option whenever it is configured. To keep a provider configured (its credentials remain set) while removing it from the login and sign-up pages, set the matching lever to `0`. For GitHub, Google, and Apple this also closes the sign-in callback, so the method is unavailable end to end.
+
+| Environment variable | Description | Required | Default | Example |
+| --- | --- | --- | --- | --- |
+| `TUIST_GITHUB_AUTH_ENABLED` | Whether GitHub can be used to sign in (see the [GitHub](#github) section for why the App shares its credentials with sign-in) | No | `1` | `0` |
+| `TUIST_GOOGLE_AUTH_ENABLED` | Whether Google can be used to sign in | No | `1` | `0` |
+| `TUIST_OKTA_AUTH_ENABLED` | Whether the configured Okta provider appears as a sign-in option | No | `1` | `0` |
+| `TUIST_APPLE_AUTH_ENABLED` | Whether Apple can be used to sign in | No | `1` | `0` |
+
 #### GitHub {#github}
 
 We recommend authenticating using a [GitHub App](https://docs.github.com/en/apps/creating-github-apps/about-creating-github-apps/about-creating-github-apps) but you can also use the [OAuth App](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/creating-an-oauth-app). Make sure to include all essential environment variables specified by GitHub in the server environment. Absent variables will cause Tuist to overlook the GitHub authentication. To properly set up the GitHub app:

@@ -10,11 +10,20 @@ agent search service will delegate to in a follow-up.
 - `Deployment` runs the Typesense server directly (`/opt/typesense-server`) off
   the `ghcr.io/tuist/search` image, backed by a single ReadWriteOnce PVC at
   `/data`. `Recreate` strategy, because only one pod may mount the volume.
-- `CronJob` runs the DocC and GitHub indexers (`run-indexers.sh`) against the
-  Service. The DocSearch website scraper is not included; like the Kamal
-  deployment it runs separately because it crawls the public site.
+- `typesense-indexers` `CronJob` runs the DocC and GitHub indexers
+  (`run-indexers.sh`) against the Service, and `typesense-scraper` `CronJob` runs
+  the DocSearch crawler for the docs and forum configs. The configs come from the
+  `docsearch-configs` ConfigMap, which the deploy workflow syncs from
+  `search/config/docsearch*.json`.
+- `typesense-keybootstrap` is a `post-install`/`post-upgrade` hook `Job` that
+  idempotently registers the public read-only search key
+  (`typesense.searchKey`) on the instance using the admin key. Typesense stores
+  non-bootstrap keys inside its own data, so a fresh volume needs this to accept
+  the key the docs website and the `search_tuist` MCP tool present.
 - `Ingress` exposes `search.tuist.dev` through ingress-nginx with a
-  cert-manager certificate; external-dns publishes the record.
+  cert-manager certificate. The production overlay annotates it
+  `external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"` so external-dns
+  manages the record and keeps it proxied.
 - `TYPESENSE_API_KEY` and `GITHUB_TOKEN` come from 1Password via an
   ExternalSecret in production (or inline for CI and dev). The ExternalSecret
   reads two items through the per-env `onepassword` ClusterSecretStore, which is
@@ -25,30 +34,30 @@ agent search service will delegate to in a follow-up.
 
 ## Collections
 
-Four collections back search, populated by two different mechanisms:
+Four collections back search, all populated in-cluster:
 
-- `projectdescription` (DocC API) and `github-issues` are produced by the
-  bundled indexers (`index-docc`, `index-github`) that the reindex CronJob runs.
-- `tuist` (docs) and `forum-topics` (forum) are produced by the DocSearch
-  scraper (`typesense/docsearch-scraper` with `search/config/docsearch*.json`),
-  which crawls the public site from its own container. It is not part of this
-  chart and today runs out-of-band against the Kamal box.
+- `projectdescription` (DocC API) and `github-issues` come from the
+  `typesense-indexers` CronJob (`index-docc`, `index-github`).
+- `tuist` (docs) and `forum-topics` (forum) come from the `typesense-scraper`
+  CronJob (`typesense/docsearch-scraper` with the `docsearch-configs` ConfigMap).
 
 The public docs and forum search UI (`server/assets/docs/hooks/docs-search-hook.js`)
 queries `tuist` and `forum-topics`, so those two must exist on any instance that
-serves the UI.
+serves the UI. On a fresh volume the CronJobs run on their schedule; trigger them
+once with `kubectl create job --from=cronjob/typesense-indexers` (and the
+scraper) to populate immediately.
 
 ## Cutover
 
-Merging deploys a parallel in-cluster instance without touching the Kamal box or
-DNS. `search.tuist.dev` keeps resolving to the Kamal node until its Cloudflare
-record is released, because external-dns will not take over a record it does not
-own. Before repointing DNS, all four collections must be populated on the
-in-cluster instance: the CronJob covers `projectdescription` and `github-issues`,
-and the DocSearch scraper must be run against the new Service to populate `tuist`
-and `forum-topics` (migrating the scraper into the cluster is a required
-pre-cutover step). Cutting over before those two exist breaks docs-site and
-forum search.
+The chart bootstraps everything the instance needs on its own: the key-bootstrap
+hook registers the search key, and the two CronJobs populate the collections. The
+one remaining manual step is DNS. `search.tuist.dev` keeps resolving to the old
+Kamal node until its manually-created Cloudflare record is deleted, because
+external-dns will not take over a record it does not own. Delete that record and,
+within its 1-minute interval, external-dns recreates `search.tuist.dev` pointing
+at the ingress load balancer (proxied, per the ingress annotation) and reconciles
+it from then on. Do this only once the collections are populated and the key is
+registered, or docs-site and forum search break during the gap.
 
 ## Validation
 

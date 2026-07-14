@@ -13,6 +13,39 @@ defmodule TuistWeb.UserRegistrationLiveTest do
       assert html =~ "Create an account"
     end
 
+    test "redirects to log in when email auth is disabled", %{conn: conn} do
+      stub(Tuist.Environment, :email_auth_enabled?, fn -> false end)
+
+      assert {:error, {:redirect, %{to: to}}} = live(conn, ~p"/users/register")
+      assert to == ~p"/users/log_in"
+    end
+
+    test "renders the Google button when Google is configured and enabled", %{conn: conn} do
+      stub(Tuist.Environment, :google_oauth_configured?, fn -> true end)
+
+      {:ok, lv, _html} = live(conn, ~p"/users/register")
+
+      assert has_element?(lv, "a[href='/users/auth/google']")
+    end
+
+    test "hides the Google button when Google auth is disabled", %{conn: conn} do
+      stub(Tuist.Environment, :google_oauth_configured?, fn -> true end)
+      stub(Tuist.Environment, :google_auth_enabled?, fn -> false end)
+
+      {:ok, lv, _html} = live(conn, ~p"/users/register")
+
+      refute has_element?(lv, "a[href='/users/auth/google']")
+    end
+
+    test "hides the Okta button when Okta auth is disabled", %{conn: conn} do
+      stub(Tuist.Environment, :okta_oauth_configured?, fn -> true end)
+      stub(Tuist.Environment, :okta_auth_enabled?, fn -> false end)
+
+      {:ok, lv, _html} = live(conn, ~p"/users/register")
+
+      refute has_element?(lv, "a[href='/users/auth/okta']")
+    end
+
     test "redirects if already logged in", %{conn: conn} do
       user = user_fixture(preload: [:account])
 
