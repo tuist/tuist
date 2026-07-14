@@ -245,6 +245,17 @@ defmodule TuistWeb.RunnerJobLive do
   def workflow_path(_, _), do: nil
 
   @doc """
+  Path to the job's parent workflow run detail, or `nil` when the run
+  id is missing.
+  """
+  def run_path(account_name, %{workflow_run_id: run_id})
+      when is_binary(account_name) and is_integer(run_id) and run_id > 0 do
+    "/#{account_name}/runners/runs/#{run_id}"
+  end
+
+  def run_path(_, _), do: nil
+
+  @doc """
   Builds a deep link to a step in the job overview.
 
   The `step` query parameter is the single source of truth: LiveView
