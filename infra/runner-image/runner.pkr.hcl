@@ -337,12 +337,11 @@ build {
   # password using Apple's well-known key) + the autoLoginUser
   # preference. The encoded payload for password "runner" is the
   # 6 password bytes followed by 6 zero-pad bytes, each XOR'd
-  # against the 12-byte Apple key — total 12 bytes (one full
-  # key-length block).
+  # against the 11-byte Apple key.
   provisioner "shell" {
     inline = [
       "set -euo pipefail",
-      "printf '\\x0f\\xfc\\x3c\\x4d\\xb7\\xce\\xdd\\xea\\xa3\\xb9\\x1f\\xb5' > /tmp/kcpassword",
+      "printf '\\x0f\\xfc\\x3c\\x4d\\xb7\\xce\\xdd\\xea\\xa3\\xb9\\x1f\\x7d' > /tmp/kcpassword",
       "sudo install -m 0600 -o root -g wheel /tmp/kcpassword /etc/kcpassword",
       "rm -f /tmp/kcpassword",
       "sudo defaults write /Library/Preferences/com.apple.loginwindow autoLoginUser runner",
@@ -353,7 +352,7 @@ build {
       "sudo -u runner defaults write com.apple.screensaver idleTime -int 0",
       "sudo -u runner defaults write com.apple.screensaver askForPassword -int 0",
       "sudo -u runner defaults write com.apple.screensaver askForPasswordDelay -int 0",
-      "sudo /usr/bin/python3 - <<'CHECK'\nimport sys\nkey = bytes([0x7d, 0x89, 0x52, 0x23, 0xd2, 0xbc, 0xdd, 0xea, 0xa3, 0xb9, 0x1f])\nwith open('/etc/kcpassword', 'rb') as f:\n    enc = f.read()\ndec = bytes(b ^ key[i % len(key)] for i, b in enumerate(enc))\nif dec.startswith(b'<sealed>'):\n    sys.stderr.write('kcpassword was replaced by macOS with <sealed>; runner auto-login would boot to the password screen\\n')\n    sys.exit(1)\nCHECK"
+      "sudo /usr/bin/python3 - <<'CHECK'\nimport sys\nkey = bytes([0x7d, 0x89, 0x52, 0x23, 0xd2, 0xbc, 0xdd, 0xea, 0xa3, 0xb9, 0x1f])\nwith open('/etc/kcpassword', 'rb') as f:\n    enc = f.read()\ndec = bytes(b ^ key[i % len(key)] for i, b in enumerate(enc))\nif dec.startswith(b'<sealed>'):\n    sys.stderr.write('kcpassword was replaced by macOS with <sealed>; runner auto-login would boot to the password screen\\n')\n    sys.exit(1)\nif dec != b'runner' + bytes(6):\n    sys.stderr.write('kcpassword does not decode to the runner auto-login payload\\n')\n    sys.exit(1)\nCHECK"
     ]
   }
 
