@@ -46,4 +46,43 @@ defmodule Tuist.MCP.Components.Tools.SearchTuistTest do
              "isError" => true
            } = result
   end
+
+  test "returns structured release metadata" do
+    arguments = %{"query" => "result bundle", "source" => "releases"}
+
+    expect(Search, :search, fn ^arguments ->
+      {:ok,
+       %{
+         "query" => arguments["query"],
+         "results" => [
+           %{
+             "source" => "releases",
+             "title" => "CLI 4.202.2",
+             "url" => "https://github.com/tuist/tuist/releases/tag/4.202.2",
+             "snippet" => "Reassemble the requested result bundle.",
+             "product" => "CLI",
+             "version" => "4.202.2",
+             "published_at" => "2026-07-13T16:02:02Z",
+             "prerelease" => false
+           }
+         ]
+       }}
+    end)
+
+    result = SearchTuist.call(%Plug.Conn{}, arguments)
+
+    assert %{
+             "structuredContent" => %{
+               "results" => [
+                 %{
+                   "source" => "releases",
+                   "product" => "CLI",
+                   "version" => "4.202.2",
+                   "published_at" => "2026-07-13T16:02:02Z",
+                   "prerelease" => false
+                 }
+               ]
+             }
+           } = result
+  end
 end

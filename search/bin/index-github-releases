@@ -1,0 +1,178 @@
+#!/bin/bash
+# Indexes published GitHub releases from tuist/tuist into Typesense.
+# Drafts and screenshot-only releases are excluded. Prereleases remain indexed
+# so agent searches can opt into them, while the docs search filters them out.
+# Requires TYPESENSE_API_KEY and TYPESENSE_HOST when GITHUB_TOKEN is configured.
+# Tokenless installations skip this indexer because unauthenticated pagination
+# cannot retrieve the repository's full release history.
+set -euo pipefail
+
+GITHUB_REPO="tuist/tuist"
+GITHUB_TOKEN="${GITHUB_TOKEN:-}"
+
+if [ -z "$GITHUB_TOKEN" ]; then
+  echo "Skipping GitHub release indexing: GITHUB_TOKEN is not configured"
+  exit 0
+fi
+
+TYPESENSE_API_KEY="${TYPESENSE_API_KEY:?TYPESENSE_API_KEY is required}"
+TYPESENSE_HOST="${TYPESENSE_HOST:?TYPESENSE_HOST is required}"
+COLLECTION="github-releases"
+
+DOCUMENTS_FILE=$(mktemp)
+SPLIT_DIR=""
+
+cleanup() {
+  rm -f "$DOCUMENTS_FILE"
+  if [ -n "$SPLIT_DIR" ]; then
+    rm -rf "$SPLIT_DIR"
+  fi
+}
+trap cleanup EXIT
+
+typesense_request() {
+  local method="$1" path="$2"
+  shift 2
+  curl -sf -X "$method" "${TYPESENSE_HOST}${path}" \
+    -H "X-TYPESENSE-API-KEY: ${TYPESENSE_API_KEY}" \
+    -H "Content-Type: application/json" \
+    "$@" || true
+}
+
+echo "Fetching releases from ${GITHUB_REPO}..."
+
+url="https://api.github.com/repos/${GITHUB_REPO}/releases?per_page=100"
+total=0
+
+while [ -n "$url" ]; do
+  response_file=$(mktemp)
+  header_file=$(mktemp)
+
+  http_code=$(curl -sS -w "%{http_code}" \
+    -H "Accept: application/vnd.github+json" \
+    -H "X-GitHub-Api-Version: 2022-11-28" \
+    -H "User-Agent: TuistSearchIndexer/1.0" \
+    -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+    -D "$header_file" \
+    -o "$response_file" \
+    "$url") || http_code="000"
+
+  if [ "$http_code" = "403" ]; then
+    reset=$(grep -i "x-ratelimit-reset" "$header_file" | tr -d '\r' | awk '{print $2}')
+    now=$(date +%s)
+    wait=$((reset - now))
+    [ "$wait" -lt 1 ] && wait=1
+    echo "Rate limited, waiting ${wait}s..." >&2
+    sleep "$wait"
+    rm -f "$response_file" "$header_file"
+    continue
+  fi
+
+  if [ "$http_code" != "200" ]; then
+    echo "GitHub releases request failed with status ${http_code}" >&2
+    rm -f "$response_file" "$header_file"
+    exit 1
+  fi
+
+  count=$(jq 'length' "$response_file")
+  if [ "$count" -eq 0 ]; then
+    rm -f "$response_file" "$header_file"
+    break
+  fi
+
+  jq -c '
+    def product_name:
+      (.name // "") as $name
+      | if $name == "" then
+          if (.tag_name | contains("@")) then (.tag_name | split("@")[0]) else "Tuist" end
+        else
+          ($name | sub("\\s+v?[0-9][^ ]*$"; "")) as $product
+          | if $product == "" then "Tuist" else $product end
+        end;
+
+    .[]
+    | select(.draft == false)
+    | select(((.name // "") | test("^PR #[0-9]+ screenshots$") | not))
+    | ([((.body // "") | scan("https://github\\.com/tuist/tuist/pull/[0-9]+") | split("/")[-1])] | unique | sort) as $pull_requests
+    | {
+        title: (.name // .tag_name),
+        content: ((.body // "")[:10000]),
+        url: .html_url,
+        version: .tag_name,
+        product: product_name,
+        prerelease: .prerelease,
+        published_at: ((.published_at // .created_at) | fromdateiso8601),
+        published_at_iso: (.published_at // .created_at),
+        pull_request_numbers: $pull_requests,
+        release_group: (
+          if ($pull_requests | length) > 0 then
+            "pull-requests:" + ($pull_requests | join(","))
+          else
+            "release:" + .tag_name
+          end
+        ),
+        "hierarchy.lvl0": "Releases",
+        "hierarchy.lvl1": product_name,
+        "hierarchy.lvl2": (.name // .tag_name)
+      }
+  ' "$response_file" >> "$DOCUMENTS_FILE"
+
+  total=$((total + count))
+  printf "  Fetched %d releases...\r" "$total"
+
+  url=$(grep -i '^link:' "$header_file" | tr ',' '\n' | grep 'rel="next"' | sed 's/.*<\(.*\)>.*/\1/' || echo "")
+  rm -f "$response_file" "$header_file"
+done
+
+echo "  Fetched ${total} releases     "
+
+doc_count=$(wc -l < "$DOCUMENTS_FILE" | tr -d ' ')
+if [ "$doc_count" -eq 0 ]; then
+  echo "No searchable releases were found; refusing to replace '${COLLECTION}'" >&2
+  exit 1
+fi
+echo "Prepared ${doc_count} documents"
+
+typesense_request DELETE "/collections/${COLLECTION}"
+
+typesense_request POST "/collections" -d '{
+  "name": "'"${COLLECTION}"'",
+  "default_sorting_field": "published_at",
+  "fields": [
+    {"name": "title", "type": "string"},
+    {"name": "content", "type": "string"},
+    {"name": "url", "type": "string", "index": false},
+    {"name": "version", "type": "string"},
+    {"name": "product", "type": "string", "facet": true},
+    {"name": "prerelease", "type": "bool", "facet": true},
+    {"name": "published_at", "type": "int64"},
+    {"name": "published_at_iso", "type": "string", "index": false},
+    {"name": "pull_request_numbers", "type": "string[]"},
+    {"name": "release_group", "type": "string", "facet": true},
+    {"name": "hierarchy.lvl0", "type": "string", "facet": true},
+    {"name": "hierarchy.lvl1", "type": "string", "facet": true},
+    {"name": "hierarchy.lvl2", "type": "string"}
+  ]
+}'
+echo "Created collection '${COLLECTION}'"
+
+total_success=0
+SPLIT_DIR=$(mktemp -d)
+split -l 250 "$DOCUMENTS_FILE" "${SPLIT_DIR}/batch_"
+
+for batch_file in "${SPLIT_DIR}"/batch_*; do
+  [ -f "$batch_file" ] || continue
+  result=$(curl -sf -X POST "${TYPESENSE_HOST}/collections/${COLLECTION}/documents/import?action=create" \
+    -H "X-TYPESENSE-API-KEY: ${TYPESENSE_API_KEY}" \
+    -H "Content-Type: text/plain" \
+    --data-binary @"$batch_file")
+  successes=$(echo "$result" | jq -r 'select(.success == true) | 1' | wc -l | tr -d ' ')
+  total_success=$((total_success + successes))
+done
+
+if [ "$total_success" -ne "$doc_count" ]; then
+  echo "Indexed ${total_success}/${doc_count} documents into '${COLLECTION}'" >&2
+  exit 1
+fi
+
+echo "Indexed ${total_success}/${doc_count} documents into '${COLLECTION}'"
