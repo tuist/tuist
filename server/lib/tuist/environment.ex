@@ -1449,6 +1449,30 @@ defmodule Tuist.Environment do
     end
   end
 
+  @doc """
+  Static bearer token authorizing Grafana's Infinity datasource to run
+  read-only queries against the app database (the Business Intelligence
+  dashboard). Independently revocable from the Atlas workload-identity path;
+  unset (`nil`) disables the endpoint, which then responds 503.
+  """
+  def grafana_db_query_token do
+    case get([:grafana, :db_query_token], secrets()) do
+      token when token in [nil, ""] -> nil
+      token -> token
+    end
+  end
+
+  @doc """
+  Bucket size (requests per minute per IP) for the Grafana internal read-only
+  DB query endpoint.
+  """
+  def grafana_rate_limit_bucket_size(secrets \\ secrets()) do
+    case get([:grafana, :rate_limit_bucket_size], secrets, default_value: "600") do
+      bucket_size when is_integer(bucket_size) -> bucket_size
+      bucket_size when is_binary(bucket_size) -> String.to_integer(bucket_size)
+    end
+  end
+
   def typesense_search_api_key do
     get([:typesense, :search_api_key], secrets(), default_value: "RgIpKytJBtSQf9CoYKxIfVxh8ma5kzs6")
   end

@@ -186,6 +186,16 @@ defmodule TuistWeb.Router do
     plug ObservabilityContextPlug
   end
 
+  pipeline :grafana_internal_api do
+    plug :put_request_kind, "grafana_internal_api"
+    plug :accepts, ["json"]
+    plug TuistWeb.WarningsHeaderPlug
+    plug TuistWeb.Plugs.GrafanaRateLimitPlug
+    plug TuistWeb.Plugs.InternalGrafanaAuthPlug
+    plug SentryContextPlug
+    plug ObservabilityContextPlug
+  end
+
   pipeline :api_catalog do
     plug :put_request_kind, "api_catalog"
     plug :accepts, ["linkset"]
@@ -757,6 +767,16 @@ defmodule TuistWeb.Router do
     post "/atlas/db/query", AtlasDatabaseController, :query
     get "/atlas/db/tables", AtlasDatabaseController, :tables
     get "/atlas/db/tables/:schema/:name", AtlasDatabaseController, :describe
+  end
+
+  # Read-only SQL runner for Grafana's Infinity datasource (Business
+  # Intelligence dashboard). Same read-only engine as the Atlas runner, gated by
+  # a dedicated static token instead of Atlas workload identity because Grafana
+  # Cloud can't present a projected ServiceAccount token. Reached over PDC.
+  scope "/api/internal", TuistWeb.Internal do
+    pipe_through [:grafana_internal_api]
+
+    post "/grafana/db/query", GrafanaDatabaseController, :query
   end
 
   scope "/_internal", TuistWeb.Internal do
