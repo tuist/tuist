@@ -7,6 +7,7 @@ defmodule TuistWeb.RunnerWorkflowRunLive do
   alias Tuist.FeatureFlags
   alias Tuist.Runners
   alias Tuist.Runners.Jobs
+  alias Tuist.Utilities.DateFormatter
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.RunnerJobLive
   alias TuistWeb.RunnerWorkflowLive
@@ -49,7 +50,10 @@ defmodule TuistWeb.RunnerWorkflowRunLive do
      |> assign(:head_sha, representative.head_sha)
      |> assign(:run_attempt, representative.run_attempt)
      |> assign(:run_status, status)
+     |> assign(:run_started_at, run_started_at(jobs))
+     |> assign(:run_duration_ms, run_duration_ms(jobs, status))
      |> assign(:jobs, jobs)
+     |> assign(:jobs_count, length(jobs))
      |> assign(:can_cancel_runs, Runners.can_cancel_workflow_runs?(account))}
   end
 
@@ -105,8 +109,59 @@ defmodule TuistWeb.RunnerWorkflowRunLive do
     end
   end
 
+  # Earliest moment the run actually started running (falls back to the
+  # earliest enqueue when nothing has been picked up yet).
+  defp run_started_at(jobs) do
+    started = jobs |> Enum.map(& &1.started_at) |> Enum.reject(&is_nil/1)
+
+    case started do
+      [] -> jobs |> Enum.map(& &1.enqueued_at) |> Enum.reject(&is_nil/1) |> min_datetime()
+      list -> min_datetime(list)
+    end
+  end
+
+  # Wall-clock span of the run: elapsed-so-far while in progress, else
+  # last completion minus first start. Zero until a job has started.
+  defp run_duration_ms(jobs, status) do
+    started = jobs |> Enum.map(& &1.started_at) |> Enum.reject(&is_nil/1)
+    completed = jobs |> Enum.map(& &1.completed_at) |> Enum.reject(&is_nil/1)
+
+    cond do
+      started == [] ->
+        0
+
+      status.status == "in_progress" ->
+        DateTime.diff(DateTime.utc_now(), min_datetime(started), :millisecond)
+
+      completed == [] ->
+        0
+
+      true ->
+        DateTime.diff(max_datetime(completed), min_datetime(started), :millisecond)
+    end
+  end
+
+  defp min_datetime([]), do: nil
+  defp min_datetime(list), do: Enum.min(list, DateTime)
+  defp max_datetime([]), do: nil
+  defp max_datetime(list), do: Enum.max(list, DateTime)
+
   def run_cancellable?(%{status: "in_progress"}), do: true
   def run_cancellable?(_), do: false
+
+  # Run duration for the header card — an em dash until the run has
+  # actually started executing (a queued run has no meaningful span).
+  def run_duration_label(ms) when is_integer(ms) and ms > 0,
+    do: DateFormatter.format_duration_from_milliseconds(ms, fractional_seconds: false)
+
+  def run_duration_label(_), do: "–"
+
+  # Status icon kind for the run header, mirroring the job page's
+  # header badge treatment (green check / red alert / grey dashed …).
+  def header_status_kind(%{status: "completed", conclusion: "success"}), do: :success
+  def header_status_kind(%{status: "completed", conclusion: "failure"}), do: :failure
+  def header_status_kind(%{status: "completed"}), do: :warning
+  def header_status_kind(_), do: :processing
 
   # Per-job badge: a completed job shows its conclusion, otherwise its
   # lifecycle status. Reuses the workflow page's badge mappings.
@@ -116,6 +171,21 @@ defmodule TuistWeb.RunnerWorkflowRunLive do
   end
 
   def job_status_badge_props(%{status: status}), do: RunnerWorkflowLive.status_badge_props(status)
+
+  # A job's own wall-clock duration. Shown as an em dash until it has
+  # actually started, so a long-queued job doesn't read as a huge
+  # "duration".
+  def job_duration_label(%{status: status}) when status in ["queued", "claimed"], do: "–"
+
+  def job_duration_label(job) do
+    case RunnerWorkflowLive.duration_ms(job) do
+      ms when is_integer(ms) and ms > 0 -> DateFormatter.format_duration_from_milliseconds(ms, fractional_seconds: false)
+      _ -> "–"
+    end
+  end
+
+  def platform_label(fleet_name), do: RunnerJobLive.platform_label(fleet_name)
+  def platform_badge_color(fleet_name), do: RunnerJobLive.platform_badge_color(fleet_name)
 
   @doc """
   Path to the parent named workflow's detail page, or `nil` when the
@@ -138,6 +208,4 @@ defmodule TuistWeb.RunnerWorkflowRunLive do
   def job_path(account_name, job), do: RunnerJobLive.path(account_name, job)
 
   def github_run_url(repository, run_id), do: RunnerWorkflowLive.github_run_url(repository, run_id)
-
-  def job_duration_ms(job), do: RunnerWorkflowLive.duration_ms(job)
 end

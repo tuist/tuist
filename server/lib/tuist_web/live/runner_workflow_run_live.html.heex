@@ -1,9 +1,5 @@
 <div id="runner-workflow-run">
   <.button
-    label={dgettext("dashboard_runners", "Back to workflow")}
-    data-part="back-button"
-    variant="secondary"
-    size="medium"
     navigate={
       TuistWeb.RunnerWorkflowRunLive.workflow_path(
         @selected_account.name,
@@ -11,49 +7,42 @@
         @workflow_name
       ) || ~p"/#{@selected_account.name}/runners/workflows"
     }
+    variant="secondary"
+    size="medium"
+    label={dgettext("dashboard_runners", "Back to workflow")}
+    data-part="back-button"
   >
-    <:icon_left>
-      <.icon name="arrow_left" />
-    </:icon_left>
+    <:icon_left><.arrow_left /></:icon_left>
   </.button>
+
+  <% status_kind = TuistWeb.RunnerWorkflowRunLive.header_status_kind(@run_status) %>
+  <% run_props = TuistWeb.RunnerWorkflowLive.run_status_badge_props(@run_status) %>
 
   <div data-part="header">
     <div data-part="title-group">
       <div data-part="title">
+        <div :if={status_kind == :success} data-part="badge-success">
+          <div data-part="icon"><.circle_check /></div>
+        </div>
+        <div :if={status_kind == :failure} data-part="badge-failure">
+          <div data-part="icon"><.alert_circle /></div>
+        </div>
+        <div :if={status_kind == :warning} data-part="badge-warning">
+          <div data-part="icon"><.alert_hexagon /></div>
+        </div>
+        <div :if={status_kind == :processing} data-part="badge-processing">
+          <div data-part="icon"><.circle_dashed /></div>
+        </div>
         <h1 data-part="label">
           {TuistWeb.RunnerWorkflowLive.display_workflow(@workflow_name)}
         </h1>
-        <% run_props = TuistWeb.RunnerWorkflowLive.run_status_badge_props(@run_status) %>
-        <.status_badge label={run_props.label} status={run_props.status} />
-      </div>
-      <div data-part="badges">
-        <a
-          href={TuistWeb.RunnerWorkflowRunLive.github_run_url(@repository, @workflow_run_id)}
-          target="_blank"
-          rel="noopener noreferrer"
-          data-part="run-link"
-        >
-          <.badge label={@repository} color="primary" style="light-fill" size="large">
-            <:icon><.brand_github /></:icon>
-          </.badge>
-        </a>
-        <.badge
-          :if={@head_branch != ""}
-          label={@head_branch}
-          color="secondary"
-          style="light-fill"
-          size="large"
-        >
-          <:icon><.git_branch /></:icon>
-        </.badge>
       </div>
     </div>
-    <div
-      :if={@can_cancel_runs and TuistWeb.RunnerWorkflowRunLive.run_cancellable?(@run_status)}
-      data-part="actions"
-    >
+    <div data-part="actions">
       <.button
+        :if={@can_cancel_runs and TuistWeb.RunnerWorkflowRunLive.run_cancellable?(@run_status)}
         variant="destructive"
+        size="medium"
         label={dgettext("dashboard_runners", "Cancel run")}
         phx-click="cancel_run"
         data-confirm={
@@ -63,15 +52,86 @@
           )
         }
       />
+      <.button
+        href={TuistWeb.RunnerWorkflowRunLive.github_run_url(@repository, @workflow_run_id)}
+        target="_blank"
+        rel="noopener noreferrer"
+        variant="secondary"
+        size="medium"
+        label={dgettext("dashboard_runners", "GitHub")}
+      >
+        <:icon_left><.brand_github /></:icon_left>
+      </.button>
     </div>
   </div>
 
   <.card
-    title={dgettext("dashboard_runners", "Jobs")}
-    icon="stack_2"
-    data-part="runner-run-jobs-card"
+    title={dgettext("dashboard_runners", "Run Details")}
+    icon="git_merge"
+    data-part="run-details"
   >
-    <.card_section data-part="runner-run-jobs-card-section">
+    <.card_section data-part="run-details-section">
+      <div data-part="metadata-grid">
+        <div data-part="metadata-row">
+          <div data-part="metadata">
+            <div data-part="title">{dgettext("dashboard_runners", "Status")}</div>
+            <.status_badge label={run_props.label} status={run_props.status} />
+          </div>
+          <div data-part="metadata">
+            <div data-part="title">{dgettext("dashboard_runners", "Duration")}</div>
+            <span data-part="label">
+              <.history />
+              {TuistWeb.RunnerWorkflowRunLive.run_duration_label(@run_duration_ms)}
+            </span>
+          </div>
+          <div data-part="metadata">
+            <div data-part="title">{dgettext("dashboard_runners", "Started")}</div>
+            <span data-part="label">
+              {Tuist.Utilities.DateFormatter.from_now(@run_started_at)}
+            </span>
+          </div>
+          <div data-part="metadata">
+            <div data-part="title">{dgettext("dashboard_runners", "Jobs")}</div>
+            <span data-part="label">{Integer.to_string(@jobs_count)}</span>
+          </div>
+        </div>
+        <div data-part="metadata-row">
+          <div data-part="metadata">
+            <div data-part="title">{dgettext("dashboard_runners", "Branch")}</div>
+            <span data-part="label">
+              <.git_branch />
+              {if(@head_branch == "",
+                do: dgettext("dashboard_runners", "None"),
+                else: @head_branch
+              )}
+            </span>
+          </div>
+          <div data-part="metadata">
+            <div data-part="title">{dgettext("dashboard_runners", "Commit")}</div>
+            <span data-part="command-label">
+              {TuistWeb.Utilities.SHA.format_commit_sha(@head_sha)}
+            </span>
+          </div>
+          <div data-part="metadata">
+            <div data-part="title">{dgettext("dashboard_runners", "Repository")}</div>
+            <span data-part="label">
+              {if(@repository in [nil, ""],
+                do: dgettext("dashboard_runners", "None"),
+                else: @repository
+              )}
+            </span>
+          </div>
+          <div data-part="metadata">
+            <div data-part="title">{dgettext("dashboard_runners", "Attempt")}</div>
+            <span data-part="label">{"##{@run_attempt}"}</span>
+          </div>
+        </div>
+      </div>
+    </.card_section>
+  </.card>
+
+  <.card title={dgettext("dashboard_runners", "Jobs")} icon="stack_2" data-part="run-jobs">
+    <.card_section data-part="run-jobs-section">
       <.table
         id="runner-run-jobs-table"
         rows={@jobs}
@@ -88,6 +148,9 @@
         <:col :let={job} label={dgettext("dashboard_runners", "Job")}>
           <.text_cell label={if(job.job_name == "", do: "–", else: job.job_name)} />
         </:col>
+        <:col :let={job} label={dgettext("dashboard_runners", "Platform")}>
+          <.text_cell label={TuistWeb.RunnerWorkflowRunLive.platform_label(job.fleet_name)} />
+        </:col>
         <:col :let={job} label={dgettext("dashboard_runners", "Status")}>
           <% job_props = TuistWeb.RunnerWorkflowRunLive.job_status_badge_props(job) %>
           <.status_badge_cell label={job_props.label} status={job_props.status} />
@@ -95,11 +158,7 @@
         <:col :let={job} label={dgettext("dashboard_runners", "Duration")}>
           <.text_cell
             icon="history"
-            label={
-              Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
-                TuistWeb.RunnerWorkflowRunLive.job_duration_ms(job)
-              )
-            }
+            label={TuistWeb.RunnerWorkflowRunLive.job_duration_label(job)}
           />
         </:col>
       </.table>

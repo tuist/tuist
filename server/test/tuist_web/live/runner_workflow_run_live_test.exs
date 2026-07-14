@@ -60,6 +60,11 @@ defmodule TuistWeb.RunnerWorkflowRunLiveTest do
     # Job rows link to the job detail; header links back to the workflow.
     assert html =~ "/runners/runs/600010/jobs/60001"
     assert html =~ "/runners/workflows/tuist/tuist/Server"
+    # Redesigned layout: status header + Run Details metadata grid.
+    assert html =~ ~s(id="runner-workflow-run")
+    assert html =~ ~s(data-part="header")
+    assert html =~ ~s(data-part="run-details-section")
+    assert html =~ ~s(data-part="metadata-grid")
   end
 
   test "shows the Cancel button when in progress and the installation can cancel", %{conn: conn, account: account} do
