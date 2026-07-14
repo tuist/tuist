@@ -241,8 +241,10 @@ defmodule TuistWeb.UserRegistrationLive do
   end
 
   defp oauth_configured? do
-    Environment.github_oauth_configured?() || Environment.google_oauth_configured?() ||
-      Environment.okta_oauth_configured?() || Environment.apple_oauth_configured?()
+    (Environment.github_oauth_configured?() and Environment.github_auth_enabled?()) ||
+      (Environment.google_oauth_configured?() and Environment.google_auth_enabled?()) ||
+      (Environment.okta_oauth_configured?() and Environment.okta_auth_enabled?()) ||
+      (Environment.apple_oauth_configured?() and Environment.apple_auth_enabled?())
   end
 
   defp format_password_error(errors) do
@@ -259,28 +261,40 @@ defmodule TuistWeb.UserRegistrationLive do
   end
 
   def mount(_params, _session, socket) do
-    form =
-      to_form(%{}, as: "user")
+    if Environment.email_auth_enabled?() do
+      form =
+        to_form(%{}, as: "user")
 
-    socket =
-      socket
-      |> assign(:head_title, "#{dgettext("dashboard_auth", "Sign up")} · Tuist")
-      |> assign(:form, form)
-      |> assign(:success, false)
-      |> assign(:errors, %{})
-      |> assign(:github_configured?, Environment.github_oauth_configured?())
-      |> assign(:google_configured?, Environment.google_oauth_configured?())
-      |> assign(:okta_configured?, Environment.okta_oauth_configured?())
-      |> assign(:apple_configured?, Environment.apple_oauth_configured?())
+      socket =
+        socket
+        |> assign(:head_title, "#{dgettext("dashboard_auth", "Sign up")} · Tuist")
+        |> assign(:form, form)
+        |> assign(:success, false)
+        |> assign(:errors, %{})
+        |> assign(:github_configured?, Environment.github_oauth_configured?() and Environment.github_auth_enabled?())
+        |> assign(:google_configured?, Environment.google_oauth_configured?() and Environment.google_auth_enabled?())
+        |> assign(:okta_configured?, Environment.okta_oauth_configured?() and Environment.okta_auth_enabled?())
+        |> assign(:apple_configured?, Environment.apple_oauth_configured?() and Environment.apple_auth_enabled?())
 
-    {
-      :ok,
-      socket,
-      temporary_assigns: [form: nil]
-    }
+      {
+        :ok,
+        socket,
+        temporary_assigns: [form: nil]
+      }
+    else
+      {:ok, redirect(socket, to: ~p"/users/log_in")}
+    end
   end
 
   def handle_event("save", %{"user" => user_params}, socket) do
+    if Environment.email_auth_enabled?() do
+      save_user(user_params, socket)
+    else
+      {:noreply, redirect(socket, to: ~p"/users/log_in")}
+    end
+  end
+
+  defp save_user(user_params, socket) do
     case user_params
          |> Map.get("email", "")
          |> String.trim()

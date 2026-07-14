@@ -98,6 +98,63 @@ defmodule TuistWeb.UserLoginLiveTest do
       assert has_element?(lv, "input#email")
       assert has_element?(lv, "input#password")
     end
+
+    test "hides the password form and sign-up link when email auth is disabled", %{conn: conn} do
+      stub(Tuist.Environment, :email_auth_enabled?, fn -> false end)
+
+      {:ok, lv, html} = live(conn, ~p"/users/log_in")
+
+      refute has_element?(lv, "#login_form")
+      refute has_element?(lv, "input#password")
+      refute html =~ "Sign up"
+    end
+
+    test "still renders the SSO button when email auth is disabled", %{conn: conn} do
+      stub(Tuist.Environment, :email_auth_enabled?, fn -> false end)
+      stub(Tuist.Environment, :okta_oauth_configured?, fn -> true end)
+      stub(Tuist.Environment, :tuist_hosted?, fn -> false end)
+
+      {:ok, _lv, html} = live(conn, ~p"/users/log_in")
+
+      assert html =~ "SSO"
+    end
+
+    test "renders the Google button when Google is configured and enabled", %{conn: conn} do
+      stub(Tuist.Environment, :google_oauth_configured?, fn -> true end)
+
+      {:ok, lv, _html} = live(conn, ~p"/users/log_in")
+
+      assert has_element?(lv, "a[href='/users/auth/google']")
+    end
+
+    test "hides the Google button when Google auth is disabled", %{conn: conn} do
+      stub(Tuist.Environment, :google_oauth_configured?, fn -> true end)
+      stub(Tuist.Environment, :google_auth_enabled?, fn -> false end)
+
+      {:ok, lv, _html} = live(conn, ~p"/users/log_in")
+
+      refute has_element?(lv, "a[href='/users/auth/google']")
+    end
+
+    test "hides the Apple button when Apple auth is disabled", %{conn: conn} do
+      stub(Tuist.Environment, :apple_oauth_configured?, fn -> true end)
+      stub(Tuist.Environment, :apple_auth_enabled?, fn -> false end)
+
+      {:ok, lv, _html} = live(conn, ~p"/users/log_in")
+
+      refute has_element?(lv, "a[href='/users/auth/apple']")
+    end
+
+    test "drops Okta from the SSO button when Okta auth is disabled", %{conn: conn} do
+      stub(Tuist.Environment, :okta_oauth_configured?, fn -> true end)
+      stub(Tuist.Environment, :okta_auth_enabled?, fn -> false end)
+      stub(Tuist.Environment, :tuist_hosted?, fn -> false end)
+      stub(Tuist.Accounts, :sso_configured?, fn -> false end)
+
+      {:ok, _lv, html} = live(conn, ~p"/users/log_in")
+
+      refute html =~ "Log in with SSO"
+    end
   end
 
   describe "user login" do

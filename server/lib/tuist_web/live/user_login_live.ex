@@ -18,11 +18,12 @@ defmodule TuistWeb.UserLoginLive do
       |> assign(:head_title, "#{dgettext("dashboard_auth", "Log in")} · Tuist")
       |> assign(:form, form)
       |> assign(:github_configured?, Environment.github_oauth_configured?() and Environment.github_auth_enabled?())
-      |> assign(:google_configured?, Environment.google_oauth_configured?())
-      |> assign(:okta_configured?, Environment.okta_oauth_configured?())
-      |> assign(:apple_configured?, Environment.apple_oauth_configured?())
+      |> assign(:google_configured?, Environment.google_oauth_configured?() and Environment.google_auth_enabled?())
+      |> assign(:okta_configured?, Environment.okta_oauth_configured?() and Environment.okta_auth_enabled?())
+      |> assign(:apple_configured?, Environment.apple_oauth_configured?() and Environment.apple_auth_enabled?())
       |> assign(:sso_configured?, Accounts.sso_configured?())
       |> assign(:tuist_hosted?, Environment.tuist_hosted?())
+      |> assign(:email_auth_enabled?, Environment.email_auth_enabled?())
       |> assign(:test_user_login_enabled?, Environment.test_user_login_enabled?())
 
     {
@@ -112,7 +113,7 @@ defmodule TuistWeb.UserLoginLive do
               </.button>
             </div>
           </div>
-          <.line_divider :if={oauth_configured?(assigns)} text="OR" />
+          <.line_divider :if={oauth_configured?(assigns) and @email_auth_enabled?} text="OR" />
           <.alert
             :if={Flash.get(@flash, :info)}
             id="flash"
@@ -122,6 +123,7 @@ defmodule TuistWeb.UserLoginLive do
             title={Flash.get(@flash, :info)}
           />
           <.form
+            :if={@email_auth_enabled?}
             data-part="form"
             for={@form}
             id="login_form"
@@ -201,7 +203,7 @@ defmodule TuistWeb.UserLoginLive do
             </button>
           </form>
         </div>
-        <div data-part="bottom-link">
+        <div :if={@email_auth_enabled?} data-part="bottom-link">
           <span>{dgettext("dashboard_auth", "Don't have an account?")}</span>
           <.link_button
             navigate={~p"/users/register"}
