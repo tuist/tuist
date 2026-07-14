@@ -15,7 +15,7 @@ kuraController:
 registry:
   publicHost: registry-staging.tuist.dev
   serverUrl: https://staging.tuist.dev
-  deployEnv: stag
+  deployEnv: staging
   sentryEnv: stag
   ingress:
     host: registry-staging.tuist.dev
