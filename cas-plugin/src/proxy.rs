@@ -348,7 +348,20 @@ impl Snapshot {
             if declared > SNAPSHOT_DECOMPRESS_MAX_BYTES {
                 return None;
             }
-            let body = zstd::stream::decode_all(&bytes[13..]).ok()?;
+            // Decode the stream through a reader capped at `declared + 1` bytes,
+            // so a payload whose stream expands PAST its declared length (a zip
+            // bomb, or a corrupt frame) is rejected after one extra byte rather
+            // than allocating unboundedly. `decode_all` expands the whole stream
+            // into a Vec first — the length check below never gets to run. The
+            // cap is `declared + 1 <= SNAPSHOT_DECOMPRESS_MAX_BYTES + 1`, so the
+            // allocation is bounded regardless of what the stream claims.
+            use std::io::Read as _;
+            let mut decoder = zstd::stream::read::Decoder::new(&bytes[13..]).ok()?;
+            let mut body = Vec::new();
+            decoder
+                .take(declared as u64 + 1)
+                .read_to_end(&mut body)
+                .ok()?;
             if body.len() != declared {
                 return None;
             }
@@ -2537,6 +2550,19 @@ mod tests {
         let mut huge = wire.clone();
         huge[5..13].copy_from_slice(&(u64::MAX).to_le_bytes());
         assert!(Snapshot::decode(&huge).is_none());
+
+        // Zip bomb: a stream that expands far past a small declared length must
+        // be rejected — and the bounded decode stops one byte past `declared`
+        // rather than expanding the whole stream. The stream here inflates to
+        // 100 KiB while the envelope claims 8 bytes.
+        let bomb_body = vec![0u8; 100 * 1024];
+        let bomb_stream = zstd::stream::encode_all(&bomb_body[..], 3).unwrap();
+        let mut bomb = Vec::new();
+        bomb.extend_from_slice(b"TSNZ");
+        bomb.push(1);
+        bomb.extend_from_slice(&8u64.to_le_bytes());
+        bomb.extend_from_slice(&bomb_stream);
+        assert!(Snapshot::decode(&bomb).is_none());
     }
 
     #[test]
