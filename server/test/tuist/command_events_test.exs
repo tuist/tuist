@@ -2,7 +2,11 @@ defmodule Tuist.CommandEventsTest do
   use TuistTestSupport.Cases.DataCase, async: true
   use Mimic
 
+  import Ecto.Query
+
+  alias Tuist.ClickHouseRepo
   alias Tuist.CommandEvents
+  alias Tuist.CommandEvents.Event
   alias Tuist.Repo
   alias Tuist.Storage
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -125,6 +129,24 @@ defmodule Tuist.CommandEventsTest do
   end
 
   describe "get_command_event_by_id/1" do
+    test "stores environment without loading it in whole-struct queries" do
+      command_event =
+        CommandEventsFixtures.command_event_fixture(environment: %{"TUIST_USE_SWIFTERPM" => "1"})
+
+      assert {:ok, event} = CommandEvents.get_command_event_by_id(command_event.id)
+      assert event.environment == %{}
+
+      environment =
+        ClickHouseRepo.one(
+          from(e in Event,
+            where: e.id == ^command_event.id,
+            select: e.environment
+          )
+        )
+
+      assert environment == %{"TUIST_USE_SWIFTERPM" => "1"}
+    end
+
     test "returns a command event by uuid string" do
       # Given
       user = AccountsFixtures.user_fixture()

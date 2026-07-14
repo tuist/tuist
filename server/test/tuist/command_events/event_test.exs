@@ -3,6 +3,11 @@ defmodule Tuist.CommandEvents.EventTest do
 
   alias Tuist.CommandEvents.Event
 
+  test "does not load environment in whole-struct queries" do
+    assert :environment in Event.__schema__(:fields)
+    refute :environment in Event.__schema__(:query_fields)
+  end
+
   describe "changeset/1" do
     test "generates ID when not provided" do
       attrs = %{name: "test"}

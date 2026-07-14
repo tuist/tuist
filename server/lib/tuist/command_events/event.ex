@@ -57,7 +57,7 @@ defmodule Tuist.CommandEvents.Event do
     field :build_run_id, Ch, type: "Nullable(UUID)"
     field :test_run_id, Ch, type: "Nullable(UUID)"
     field :cache_endpoint, Ch, type: "String", default: ""
-    field :environment, Ch, type: "Map(String, String)", default: %{}
+    field :environment, Ch, type: "Map(String, String)", default: %{}, load_in_query: false
 
     # When the command was run - provided by the CLI, defaulting to current server time when missing.
     field :ran_at, Ch, type: "DateTime64(6)"

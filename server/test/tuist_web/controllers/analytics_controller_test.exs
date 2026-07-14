@@ -7,6 +7,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
   alias Tuist.Accounts
   alias Tuist.ClickHouseRepo
   alias Tuist.CommandEvents
+  alias Tuist.CommandEvents.Event
   alias Tuist.CommandEvents.Event.Buffer
   alias Tuist.Environment
   alias Tuist.Repo
@@ -122,7 +123,15 @@ defmodule TuistWeb.AnalyticsControllerTest do
       assert command_event.is_ci == false
       assert command_event.client_id == "client-id"
 
-      assert command_event.environment == %{
+      environment =
+        ClickHouseRepo.one(
+          from(e in Event,
+            where: e.id == ^command_event.id,
+            select: e.environment
+          )
+        )
+
+      assert environment == %{
                "TUIST_TOKEN" => "[redacted]",
                "TUIST_USE_SWIFTERPM" => "1"
              }

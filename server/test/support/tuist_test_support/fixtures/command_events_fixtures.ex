@@ -52,7 +52,8 @@ defmodule TuistTestSupport.Fixtures.CommandEventsFixtures do
           created_at: created_at,
           ran_at: ran_at,
           build_run_id: Keyword.get(attrs, :build_run_id),
-          test_run_id: Keyword.get(attrs, :test_run_id)
+          test_run_id: Keyword.get(attrs, :test_run_id),
+          environment: Keyword.get(attrs, :environment, %{})
         },
         preload: Keyword.get(attrs, :preload, [])
       )
