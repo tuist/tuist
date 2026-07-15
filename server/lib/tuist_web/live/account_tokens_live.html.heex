@@ -198,14 +198,15 @@
     </div>
     <div data-part="content">
       <div data-part="tokens-table">
-        <.table id="account-tokens-table" rows={@account_tokens}>
+        <.table
+          id="account-tokens-table"
+          rows={@account_tokens}
+          row_navigate={
+            fn token -> ~p"/#{@selected_account.name}/settings/tokens/#{token.id}" end
+          }
+        >
           <:col :let={token} label={dgettext("dashboard_account", "Name")}>
-            <.link
-              navigate={~p"/#{@selected_account.name}/settings/tokens/#{token.id}"}
-              data-part="token-name-link"
-            >
-              {token.name}
-            </.link>
+            <.text_cell label={token.name} />
           </:col>
           <:col :let={token} label={dgettext("dashboard_account", "Token")}>
             <.text_cell data-part="token-hint-cell" label={account_token_hint(token)} />

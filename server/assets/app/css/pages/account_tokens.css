@@ -86,24 +86,6 @@
       width: 12%;
     }
 
-    & [data-part="token-name-link"] {
-      display: inline-flex;
-      max-width: 100%;
-      overflow: hidden;
-      color: var(--noora-surface-label-primary);
-      font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
-      text-align: left;
-      text-decoration: none;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-
-      &:hover {
-        color: var(--noora-surface-label-primary);
-        text-decoration: underline;
-        text-underline-offset: 3px;
-      }
-    }
-
     & td:nth-child(2) [data-part="label"] {
       font-family: "Geist Mono", monospace;
     }

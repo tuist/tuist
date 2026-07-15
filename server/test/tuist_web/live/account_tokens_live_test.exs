@@ -190,6 +190,6 @@ defmodule TuistWeb.AccountTokensLiveTest do
   end
 
   defp account_token_hint(token) do
-    "tuist_" <> String.duplicate("•", 10) <> token.token_last_four
+    "tuist_" <> String.slice(token.id, 0, 8) <> String.duplicate("•", 6)
   end
 end

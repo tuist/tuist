@@ -161,7 +161,7 @@ defmodule TuistWeb.AccountTokenHelpers do
 
   def project_handle(account, project), do: "#{account.name}/#{project.name}"
 
-  def account_token_hint(%AccountToken{scopes: scopes, token_last_four: token_last_four}) do
+  def account_token_hint(%AccountToken{id: id, scopes: scopes}) do
     prefix =
       if AccountToken.scim_scope() in scopes do
         "tuist_scim_"
@@ -169,10 +169,7 @@ defmodule TuistWeb.AccountTokenHelpers do
         "tuist_"
       end
 
-    case token_last_four do
-      value when is_binary(value) and value != "" -> prefix <> String.duplicate("•", 10) <> value
-      _ -> prefix <> String.duplicate("•", 14)
-    end
+    prefix <> String.slice(id, 0, 8) <> String.duplicate("•", 6)
   end
 
   def expires_label(%AccountToken{expires_at: nil}), do: dgettext("dashboard_account", "Never")
