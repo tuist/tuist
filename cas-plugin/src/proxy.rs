@@ -72,6 +72,16 @@ const SNAPSHOT_MAX_INSTANCES: usize = 8;
 // Sized past the largest closure a single build replays (~37.5k on the CLI
 // fixture) so a right-sized namespace still warms completely.
 const PREMATERIALIZE_MAX_NODES: usize = 60_000;
+
+/// The bulk-warm budget, overridable for the full-ingestion layer: `0` lifts
+/// the cap entirely so the whole (trunk-scoped) snapshot is materialized into
+/// the local CAS ahead of any build. Default keeps the shipped bound.
+fn prematerialize_max_nodes() -> usize {
+    std::env::var("TUIST_CAS_PREMATERIALIZE_NODES")
+        .ok()
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(PREMATERIALIZE_MAX_NODES)
+}
 // View refresh: per-key hits taken while a snapshot was Ready get their
 // manifests re-published in the background (see Proxy.view_refresh). The
 // per-tick batch keeps a full cold build's backlog (~10k keys) draining in
@@ -2087,13 +2097,20 @@ impl Proxy {
             // link the demand loads share (562s vs the 134s a right-sized
             // namespace measured). The budget covers a large build's closure;
             // everything past it stays resolvable and self-heals on demand.
-            let mut budget = PREMATERIALIZE_MAX_NODES;
+            // With a trunk-scoped snapshot the closure IS the budget's target,
+            // so full ingestion (the layer above key caching) is the same loop
+            // with the cap lifted: TUIST_CAS_PREMATERIALIZE_NODES=0 warms the
+            // entire snapshot.
+            let configured = prematerialize_max_nodes();
+            let mut budget = configured;
             let mut enqueued = 0usize;
             for key_hash in &snapshot.key_order {
                 let Some(manifest) = snapshot.manifest(key_hash) else {
                     continue;
                 };
-                budget = budget.saturating_sub(manifest.len());
+                if configured != 0 {
+                    budget = budget.saturating_sub(manifest.len());
+                }
                 let id = self.job_counter.fetch_add(1, Ordering::Relaxed);
                 self.materialize_jobs.lock().unwrap().insert(
                     id,
@@ -2106,7 +2123,7 @@ impl Proxy {
                 );
                 self.prematerializer.enqueue(id.to_be_bytes().to_vec());
                 enqueued += 1;
-                if budget == 0 {
+                if configured != 0 && budget == 0 {
                     break;
                 }
             }
@@ -2115,6 +2132,27 @@ impl Proxy {
                     "snapshot warm capped for {instance}: {enqueued} newest of {} keys enqueued",
                     snapshot.key_order.len()
                 ));
+            }
+            if enqueued > 0 {
+                // Drain watcher: logs when the warm's jobs have all been
+                // processed, with wall time — the cost side of proactive
+                // ingestion, and the bench's "ingested, off critical path"
+                // gate. Watches the shared job map, so it reads drained only
+                // once demand jobs are also quiet (fine: the warm phase
+                // precedes any build).
+                let proxy: &'static Proxy = unsafe { &*(self as *const Proxy) };
+                let instance = instance.to_string();
+                let started = Instant::now();
+                std::thread::spawn(move || loop {
+                    std::thread::sleep(std::time::Duration::from_millis(500));
+                    if proxy.materialize_jobs.lock().unwrap().is_empty() {
+                        crate::log_line(&format!(
+                            "snapshot warm drained for {instance}: {enqueued} keys in {:.1}s",
+                            started.elapsed().as_secs_f64()
+                        ));
+                        return;
+                    }
+                });
             }
         }
     }

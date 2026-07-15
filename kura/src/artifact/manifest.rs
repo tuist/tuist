@@ -22,6 +22,8 @@ pub struct ArtifactManifest {
     pub size: u64,
     pub version_ms: u64,
     pub created_at_ms: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub branch: Option<String>,
 }
 
 impl ArtifactManifest {
@@ -77,6 +79,8 @@ pub struct PersistedManifestRecord {
     pub size: u64,
     pub version_ms: u64,
     pub created_at_ms: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub branch: Option<String>,
 }
 
 impl PersistedManifestRecord {
@@ -93,6 +97,7 @@ impl PersistedManifestRecord {
             size: manifest.size,
             version_ms: manifest.version_ms,
             created_at_ms: manifest.created_at_ms,
+            branch: manifest.branch.clone(),
         }
     }
 
@@ -110,6 +115,7 @@ impl PersistedManifestRecord {
             size: self.size,
             version_ms: self.version_ms,
             created_at_ms: self.created_at_ms,
+            branch: self.branch,
         })
     }
 }
@@ -135,6 +141,7 @@ mod tests {
             size: 128,
             version_ms: 100,
             created_at_ms: 90,
+            branch: None,
         };
 
         let metadata = manifest.metadata("acme");
@@ -164,6 +171,7 @@ mod tests {
             size: 64,
             version_ms: 200,
             created_at_ms: 150,
+            branch: None,
         };
 
         let restored = PersistedManifestRecord::from_manifest(&manifest)

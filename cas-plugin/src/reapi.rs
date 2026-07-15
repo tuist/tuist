@@ -284,6 +284,24 @@ fn authed_request<T>(message: T, auth: Option<&AuthValue>) -> tonic::Request<T> 
     request
 }
 
+/// The git branch a publish is attributed to, so kura can scope a trunk
+/// snapshot to it. Sourced from the environment for now — the validation
+/// harness sets it per build; the production path will carry it per publish
+/// from the plugin's `OP_PUBLISH` (the CLI bakes the branch as a plugin option).
+fn env_branch() -> Option<String> {
+    std::env::var("TUIST_CAS_BRANCH")
+        .ok()
+        .filter(|value| !value.is_empty())
+}
+
+/// The trunk branch a snapshot fetch asks kura to scope to (e.g. "main"). When
+/// unset, kura serves the unscoped snapshot exactly as before.
+fn env_trunk_branch() -> Option<String> {
+    std::env::var("TUIST_CAS_TRUNK_BRANCH")
+        .ok()
+        .filter(|value| !value.is_empty())
+}
+
 impl Remote {
     pub fn new(config: RemoteConfig, tokens: Arc<TokenProvider>) -> Arc<Self> {
         Arc::new(Self {
@@ -305,6 +323,25 @@ impl Remote {
 
     fn authed<T>(&self, message: T) -> tonic::Request<T> {
         authed_request(message, self.authorization().as_ref())
+    }
+
+    /// An authed request carrying one extra ASCII metadata header (e.g. the
+    /// branch a publish is attributed to). A malformed value is dropped rather
+    /// than failing the call — the header is advisory and kura defaults without
+    /// it.
+    fn authed_with<T>(
+        &self,
+        message: T,
+        header: &'static str,
+        value: Option<&str>,
+    ) -> tonic::Request<T> {
+        let mut request = self.authed(message);
+        if let Some(value) = value.filter(|value| !value.is_empty()) {
+            if let Ok(value) = tonic::metadata::MetadataValue::try_from(value) {
+                request.metadata_mut().insert(header, value);
+            }
+        }
+        request
     }
 
     fn channel(&self) -> Result<Channel, String> {
@@ -460,8 +497,13 @@ impl Remote {
             inline_output_files,
             ..Default::default()
         };
+        let trunk = env_trunk_branch();
         let response = retry_call(|| {
-            runtime().block_on(client.get_action_result(self.authed(request.clone())))
+            runtime().block_on(client.get_action_result(self.authed_with(
+                request.clone(),
+                "x-tuist-trunk-branch",
+                trunk.as_deref(),
+            )))
         });
         match response {
             Ok(response) => Ok(response
@@ -634,8 +676,22 @@ impl Remote {
                 action_result: Some(action_result),
                 ..Default::default()
             };
+            let branch = env_branch();
+            let trunk = env_trunk_branch();
             retry_call(|| {
-                runtime().block_on(client.update_action_result(self.authed(request.clone())))
+                // The trunk rides the write too: kura keeps trunk-baseline
+                // keys sticky against feature-branch republishes.
+                let mut request = self.authed_with(
+                    request.clone(),
+                    "x-tuist-branch",
+                    branch.as_deref(),
+                );
+                if let Some(trunk) = trunk.as_deref().filter(|trunk| !trunk.is_empty()) {
+                    if let Ok(value) = tonic::metadata::MetadataValue::try_from(trunk) {
+                        request.metadata_mut().insert("x-tuist-trunk-branch", value);
+                    }
+                }
+                runtime().block_on(client.update_action_result(request))
             })
             .map_err(|status| format!("update_action: {status}"))?;
             Ok(())

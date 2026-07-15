@@ -1344,6 +1344,7 @@ mod tests {
             size: 0,
             version_ms: 0,
             created_at_ms: 0,
+            branch: None,
         }
     }
 
@@ -1462,6 +1463,7 @@ mod tests {
             size,
             version_ms,
             created_at_ms: version_ms,
+            branch: None,
         }
     }
 

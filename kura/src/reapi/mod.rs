@@ -523,7 +523,13 @@ impl ReapiService {
         &self,
         namespace_id: &str,
         after: u64,
+        trunk: Option<&str>,
     ) -> Result<Vec<u8>, Status> {
+        // A trunk filter keeps its own cached index and full view under a
+        // compound key so a scoped snapshot and the unscoped one never collide;
+        // with no filter the key is just the namespace, preserving today's
+        // behavior exactly.
+        let cache_key = snapshot_cache_key(namespace_id, trunk);
         // Serve the cached index immediately, kicking the reconcile in the
         // background once the view is older than the freshness window: a
         // reconcile costs a namespace scan (tens of seconds on a large
@@ -537,14 +543,15 @@ impl ReapiService {
                 .indexes
                 .lock()
                 .expect("snapshot cache lock poisoned");
-            if let Some(index) = indexes.get_mut(namespace_id) {
+            if let Some(index) = indexes.get_mut(&cache_key) {
                 let stale = index.reconciled_at.elapsed() >= SNAPSHOT_RECONCILE_INTERVAL;
                 index.last_used = Instant::now();
+                let entries = index.entries.len();
                 let bytes = index.encode(after);
                 drop(indexes);
-                self.cache_full_view(namespace_id, after, &bytes);
+                self.cache_full_view(&cache_key, after, entries, &bytes);
                 if stale {
-                    let _build = self.ensure_index_build(namespace_id);
+                    let _build = self.ensure_index_build(namespace_id, trunk);
                 }
                 return Ok(bytes);
             }
@@ -561,10 +568,10 @@ impl ReapiService {
                 .served_full
                 .lock()
                 .expect("snapshot served_full lock poisoned")
-                .get(namespace_id)
+                .get(&cache_key)
                 .cloned();
             if let Some(cached) = cached {
-                let _build = self.ensure_index_build(namespace_id);
+                let _build = self.ensure_index_build(namespace_id, trunk);
                 return Ok((*cached).clone());
             }
         }
@@ -576,7 +583,7 @@ impl ReapiService {
         // every fetch for as long as the build ran). Past the bound the
         // client gets UNAVAILABLE, stays on the per-key path, and a later
         // fetch is served from the completed index.
-        let build = self.ensure_index_build(namespace_id);
+        let build = self.ensure_index_build(namespace_id, trunk);
         match tokio::time::timeout(SNAPSHOT_COLD_SERVE_WAIT, build).await {
             Ok(result) => result.map_err(|error| {
                 Status::internal(format!(
@@ -594,13 +601,14 @@ impl ReapiService {
             .indexes
             .lock()
             .expect("snapshot cache lock poisoned");
-        let Some(index) = indexes.get_mut(namespace_id) else {
+        let Some(index) = indexes.get_mut(&cache_key) else {
             return Err(Status::internal("snapshot index missing after build"));
         };
         index.last_used = Instant::now();
+        let entries = index.entries.len();
         let bytes = index.encode(after);
         drop(indexes);
-        self.cache_full_view(namespace_id, after, &bytes);
+        self.cache_full_view(&cache_key, after, entries, &bytes);
         Ok(bytes)
     }
 
@@ -609,15 +617,24 @@ impl ReapiService {
     /// reconcile returns it instead of shedding to UNAVAILABLE. A delta is
     /// relative to a client's watermark and cannot be replayed, so it is not
     /// cached.
-    fn cache_full_view(&self, namespace_id: &str, after: u64, bytes: &[u8]) {
+    fn cache_full_view(&self, cache_key: &str, after: u64, entries: usize, bytes: &[u8]) {
         if after != 0 {
+            return;
+        }
+        // Never cache an empty view as stale-servable: a namespace's first
+        // request often lands before anything is published (a client's startup
+        // prefetch), and serving that cached emptiness to later cold clients
+        // starves them of a real index that finished building moments later —
+        // the client fetches once per session, so an empty answer sticks for
+        // its whole build.
+        if entries == 0 {
             return;
         }
         self.snapshot_cache
             .served_full
             .lock()
             .expect("snapshot served_full lock poisoned")
-            .insert(namespace_id.to_owned(), std::sync::Arc::new(bytes.to_vec()));
+            .insert(cache_key.to_owned(), std::sync::Arc::new(bytes.to_vec()));
     }
 
     /// The namespace's in-flight index build, starting one when none is
@@ -627,18 +644,24 @@ impl ReapiService {
     /// progress survives request aborts and transient store errors alike.
     /// While the index is out, serves fall back to the cached full view
     /// (`served_full`) rather than the cold path.
-    fn ensure_index_build(&self, namespace_id: &str) -> SharedIndexBuild {
+    fn ensure_index_build(&self, namespace_id: &str, trunk: Option<&str>) -> SharedIndexBuild {
+        // Builds are keyed by the same compound cache key as the indexes they
+        // produce, so a trunk-scoped build and the unscoped one run and cache
+        // independently.
+        let cache_key = snapshot_cache_key(namespace_id, trunk);
         let mut builds = self
             .snapshot_cache
             .builds
             .lock()
             .expect("snapshot builds lock poisoned");
-        if let Some(build) = builds.get(namespace_id) {
+        if let Some(build) = builds.get(&cache_key) {
             return build.clone();
         }
         let cache = self.snapshot_cache.clone();
         let state = self.state.clone();
         let namespace = namespace_id.to_owned();
+        let trunk = trunk.map(str::to_owned);
+        let build_key = cache_key.clone();
         // Spawned while holding the builds lock, so the task's terminal
         // removal (which takes the same lock) cannot run before the insert
         // below — the entry it removes is always its own. The body is
@@ -646,18 +669,19 @@ impl ReapiService {
         // that leaked the entry left a dead shared future in the map, and
         // every later build request for the namespace resolved to that
         // corpse — snapshots stayed bricked until the pod restarted.
+        let cleanup_key = cache_key.clone();
         let cleanup_namespace = namespace.clone();
         let cleanup_cache = cache.clone();
         let task = tokio::spawn(async move {
             let outcome = futures_util::FutureExt::catch_unwind(std::panic::AssertUnwindSafe(
-                Self::run_index_build(cache, state, namespace),
+                Self::run_index_build(cache, state, namespace, trunk, build_key),
             ))
             .await;
             cleanup_cache
                 .builds
                 .lock()
                 .expect("snapshot builds lock poisoned")
-                .remove(&cleanup_namespace);
+                .remove(&cleanup_key);
             match outcome {
                 Ok(result) => result,
                 Err(_panic) => {
@@ -675,7 +699,7 @@ impl ReapiService {
         }
         .boxed()
         .shared();
-        builds.insert(namespace_id.to_owned(), build.clone());
+        builds.insert(cache_key, build.clone());
         build
     }
 
@@ -686,6 +710,8 @@ impl ReapiService {
         cache: std::sync::Arc<SnapshotCache>,
         state: SharedState,
         namespace: String,
+        trunk: Option<String>,
+        cache_key: String,
     ) -> Result<(), String> {
         tracing::info!(
             namespace_id = namespace.as_str(),
@@ -728,30 +754,31 @@ impl ReapiService {
             .indexes
             .lock()
             .expect("snapshot cache lock poisoned")
-            .remove(&namespace)
+            .remove(&cache_key)
             .unwrap_or_else(NamespaceSnapshotIndex::new);
-        let (mut index, result) = match reconcile_snapshot_index(&state, &namespace, index).await {
-            Ok(mut index) => {
-                index.reconciled_at = Instant::now();
-                (index, Ok(()))
-            }
-            Err((index, error)) => {
-                // The reconcile hands the index back so accumulated progress
-                // survives a transient store error; reinsert it. Background
-                // kicks drop the shared future without awaiting it, so this is
-                // the only place a repeated reconcile failure becomes visible.
-                tracing::warn!(
-                    namespace_id = namespace.as_str(),
-                    error = error.as_str(),
-                    "action-cache snapshot reconcile failed"
-                );
-                (index, Err(error))
-            }
-        };
+        let (mut index, result) =
+            match reconcile_snapshot_index(&state, &namespace, trunk.as_deref(), index).await {
+                Ok(mut index) => {
+                    index.reconciled_at = Instant::now();
+                    (index, Ok(()))
+                }
+                Err((index, error)) => {
+                    // The reconcile hands the index back so accumulated progress
+                    // survives a transient store error; reinsert it. Background
+                    // kicks drop the shared future without awaiting it, so this is
+                    // the only place a repeated reconcile failure becomes visible.
+                    tracing::warn!(
+                        namespace_id = namespace.as_str(),
+                        error = error.as_str(),
+                        "action-cache snapshot reconcile failed"
+                    );
+                    (index, Err(error))
+                }
+            };
         index.last_used = Instant::now();
         {
             let mut indexes = cache.indexes.lock().expect("snapshot cache lock poisoned");
-            indexes.insert(namespace.clone(), index);
+            indexes.insert(cache_key.clone(), index);
             while indexes.len() > SNAPSHOT_CACHE_MAX_NAMESPACES {
                 let oldest = indexes
                     .iter()
@@ -780,21 +807,23 @@ impl ReapiService {
 async fn reconcile_snapshot_index(
     state: &SharedState,
     namespace_id: &str,
+    trunk: Option<&str>,
     mut index: NamespaceSnapshotIndex,
 ) -> Result<NamespaceSnapshotIndex, (NamespaceSnapshotIndex, String)> {
     let started = Instant::now();
-    let manifests = match state
-        .store
-        .action_cache_manifests(namespace_id, SNAPSHOT_INDEX_MAX_ENTRIES)
-    {
-        Ok(manifests) => manifests,
-        Err(error) => {
-            return Err((
-                index,
-                format!("failed to enumerate the action cache: {error}"),
-            ));
-        }
-    };
+    let manifests =
+        match state
+            .store
+            .action_cache_manifests(namespace_id, snapshot_index_max_entries(), trunk)
+        {
+            Ok(manifests) => manifests,
+            Err(error) => {
+                return Err((
+                    index,
+                    format!("failed to enumerate the action cache: {error}"),
+                ));
+            }
+        };
     let scan_ms = started.elapsed().as_millis() as u64;
     // Diff the cached entries against the manifest keyspace: load only
     // new-or-changed entries, drop entries whose artifacts are gone.
@@ -1066,7 +1095,17 @@ impl ActionCache for ReapiService {
                 .iter()
                 .find_map(|hint| hint.strip_prefix(SNAPSHOT_AFTER_HINT)?.parse::<u64>().ok())
                 .unwrap_or(0);
-            let snapshot = self.serve_actioncache_snapshot(namespace_id, after).await?;
+            // A trunk-branch filter scopes the snapshot to the trunk baseline
+            // (entries tagged with this branch plus untagged/legacy entries).
+            // Absent or empty means the unfiltered, whole-namespace snapshot.
+            let trunk = request
+                .metadata()
+                .get("x-tuist-trunk-branch")
+                .and_then(|value| value.to_str().ok())
+                .filter(|value| !value.is_empty());
+            let snapshot = self
+                .serve_actioncache_snapshot(namespace_id, after, trunk)
+                .await?;
             let served = snapshot.len() as u64;
             let action_result = reapi::ActionResult {
                 output_files: vec![reapi::OutputFile {
@@ -1293,6 +1332,22 @@ impl ActionCache for ReapiService {
             artifact_hash: Some(digest.hash.clone()),
         };
         let principal = self.authorize_request(&request, extension.clone()).await?;
+        // The publishing client tags the entry with its git branch so a
+        // trunk-scoped snapshot can later exclude feature-branch results.
+        let branch = request
+            .metadata()
+            .get("x-tuist-branch")
+            .and_then(|value| value.to_str().ok())
+            .filter(|value| !value.is_empty())
+            .map(str::to_owned);
+        // The trunk rides the write too so the store can keep trunk-baseline
+        // keys sticky against feature republishes (see the damped persist).
+        let trunk = request
+            .metadata()
+            .get("x-tuist-trunk-branch")
+            .and_then(|value| value.to_str().ok())
+            .filter(|value| !value.is_empty())
+            .map(str::to_owned);
         let bytes = action_result.encode_to_vec();
         let targets = replication_targets(&self.state).await;
         let (manifest, applied) = self
@@ -1305,6 +1360,8 @@ impl ActionCache for ReapiService {
                 "application/x-protobuf",
                 &bytes,
                 &targets,
+                branch.as_deref(),
+                trunk.as_deref(),
             )
             .await
             .map_err(|error| Status::internal(format!("failed to store action result: {error}")))?;
@@ -2053,8 +2110,29 @@ const SNAPSHOT_CACHE_MAX_NAMESPACES: usize = 32;
 /// in memory at once, and a namespace with weeks of un-expired CI churn
 /// OOM-killed the pod on its first serve. With the cap, the scan buffer
 /// (≤2x cap of manifests) plus the moved `current` map dominate the build's
-/// transient memory — roughly cap x ~1KB.
+/// transient memory — roughly cap x ~1KB. The default; a local bench can lower
+/// it through `KURA_SNAPSHOT_INDEX_MAX_ENTRIES` to force the cap to bind.
 const SNAPSHOT_INDEX_MAX_ENTRIES: usize = 100_000;
+
+/// The snapshot index cap, `KURA_SNAPSHOT_INDEX_MAX_ENTRIES` when it parses and
+/// `SNAPSHOT_INDEX_MAX_ENTRIES` otherwise.
+fn snapshot_index_max_entries() -> usize {
+    std::env::var("KURA_SNAPSHOT_INDEX_MAX_ENTRIES")
+        .ok()
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(SNAPSHOT_INDEX_MAX_ENTRIES)
+}
+
+/// The snapshot-cache key for a namespace and optional trunk filter. With no
+/// filter it is the bare namespace id, so the unscoped snapshot keeps today's
+/// cache entries; a trunk filter appends the branch behind a NUL separator so a
+/// scoped snapshot never collides with the unscoped one.
+fn snapshot_cache_key(namespace_id: &str, trunk: Option<&str>) -> String {
+    match trunk {
+        Some(trunk) => format!("{namespace_id}\u{0}{trunk}"),
+        None => namespace_id.to_owned(),
+    }
+}
 
 /// The transient memory a bounded index build is budgeted for, held as a
 /// response-materialization-pool permit for the build's duration (adapted
@@ -2788,7 +2866,7 @@ mod tests {
         .await;
 
         service
-            .serve_actioncache_snapshot("ios", 0)
+            .serve_actioncache_snapshot("ios", 0, None)
             .await
             .expect("first serve should succeed");
         assert_eq!(
@@ -2815,7 +2893,7 @@ mod tests {
 
         backdate_snapshot_index(&service, "ios");
         service
-            .serve_actioncache_snapshot("ios", 0)
+            .serve_actioncache_snapshot("ios", 0, None)
             .await
             .expect("second serve should succeed");
         wait_for_snapshot_index(&service, "ios", |index| index.entries.len() == 1).await;
@@ -2995,7 +3073,7 @@ mod tests {
         // keep running and cache the index anyway. Dropping it with the
         // request meant every retry rebuilt from scratch, and a gateway
         // timeout made the snapshot permanently unservable.
-        let mut serve = Box::pin(service.serve_actioncache_snapshot("ios", 0));
+        let mut serve = Box::pin(service.serve_actioncache_snapshot("ios", 0, None));
         let first = futures_util::future::poll_immediate(serve.as_mut()).await;
         assert!(first.is_none(), "the first poll leaves the build in flight");
         drop(serve);
@@ -3022,7 +3100,7 @@ mod tests {
             "the finished build removed itself from the in-flight map"
         );
         let bytes = service
-            .serve_actioncache_snapshot("ios", 0)
+            .serve_actioncache_snapshot("ios", 0, None)
             .await
             .expect("the follow-up request serves from the cached index");
         assert_eq!(&bytes[..4], b"TSNZ");
@@ -3046,7 +3124,7 @@ mod tests {
             .expect("late entry should persist");
         backdate_snapshot_index(&service, "ios");
         service
-            .serve_actioncache_snapshot("ios", 0)
+            .serve_actioncache_snapshot("ios", 0, None)
             .await
             .expect("the post-publish serve succeeds");
         wait_for_snapshot_index(&service, "ios", |index| {
@@ -3122,7 +3200,7 @@ mod tests {
         }
 
         let bytes = service
-            .serve_actioncache_snapshot("ios", 0)
+            .serve_actioncache_snapshot("ios", 0, None)
             .await
             .expect("serve should succeed on the large namespace");
         assert_eq!(&bytes[..4], b"TSNZ");
@@ -3203,7 +3281,7 @@ mod tests {
             .expect("pool should be acquirable when idle");
         let serve = tokio::spawn({
             let service = service.clone();
-            async move { service.serve_actioncache_snapshot("ios", 0).await }
+            async move { service.serve_actioncache_snapshot("ios", 0, None).await }
         });
         tokio::time::sleep(std::time::Duration::from_millis(200)).await;
         assert!(
@@ -3271,7 +3349,7 @@ mod tests {
 
         // A full serve builds the index and caches the full view.
         let first = service
-            .serve_actioncache_snapshot("ios", 0)
+            .serve_actioncache_snapshot("ios", 0, None)
             .await
             .expect("first serve builds the index");
         assert_eq!(&first[..4], b"TSNZ");
@@ -3301,7 +3379,7 @@ mod tests {
         // the rebuild runs. Before `served_full`, this fell to the cold path.
         let stale = tokio::time::timeout(
             std::time::Duration::from_secs(2),
-            service.serve_actioncache_snapshot("ios", 0),
+            service.serve_actioncache_snapshot("ios", 0, None),
         )
         .await
         .expect("serve must not block on the stalled rebuild")
@@ -3327,7 +3405,7 @@ mod tests {
             .try_acquire_reapi_materialization(pool)
             .expect("pool should be acquirable when idle");
         let status = service
-            .serve_actioncache_snapshot("ios", 0)
+            .serve_actioncache_snapshot("ios", 0, None)
             .await
             .expect_err("cold serve should shed while the build is stuck");
         assert_eq!(status.code(), tonic::Code::Unavailable);
@@ -3336,7 +3414,7 @@ mod tests {
         drop(hog);
         let bytes = tokio::time::timeout(
             std::time::Duration::from_secs(120),
-            service.serve_actioncache_snapshot("ios", 0),
+            service.serve_actioncache_snapshot("ios", 0, None),
         )
         .await
         .expect("serve should not hang once the pool frees")

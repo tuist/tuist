@@ -1295,6 +1295,7 @@ async fn put_keyvalue(
             "application/json",
             &payload_bytes,
             &targets,
+            None,
         )
         .await
     {

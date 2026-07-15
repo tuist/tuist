@@ -218,6 +218,7 @@ struct PersistArtifactSpec<'a> {
     content_type: &'a str,
     version_ms: u64,
     replication_targets: &'a [String],
+    branch: Option<&'a str>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -640,6 +641,7 @@ impl Store {
             content_type,
             version_ms: now_ms(),
             replication_targets,
+            branch: None,
         };
         let (outcome, already_present) = self
             .persist_artifact_from_path_with_version(spec, source_path)
@@ -663,6 +665,7 @@ impl Store {
             content_type,
             version_ms,
             replication_targets: &[],
+            branch: None,
         };
         Ok(self
             .persist_artifact_from_path_with_version(spec, source_path)
@@ -730,6 +733,7 @@ impl Store {
             size,
             version_ms: persisted_version_ms,
             created_at_ms: persisted_version_ms,
+            branch: spec.branch.map(str::to_owned),
         };
         let metadata = manifest.metadata(&self.tenant_id);
 
@@ -1303,6 +1307,7 @@ impl Store {
             size: bytes.len() as u64,
             version_ms: persisted_version_ms,
             created_at_ms: persisted_version_ms,
+            branch: spec.branch.map(str::to_owned),
         };
         let metadata = manifest.metadata(&self.tenant_id);
 
@@ -1866,6 +1871,7 @@ impl Store {
             content_type,
             version_ms: now_ms(),
             replication_targets: &[],
+            branch: None,
         };
         let (outcome, already_present) = self
             .persist_artifact_from_bytes_with_version(spec, bytes)
@@ -1891,6 +1897,7 @@ impl Store {
             content_type,
             version_ms: now_ms(),
             replication_targets,
+            branch: None,
         };
         let (outcome, already_present) = self
             .persist_artifact_from_bytes_with_version(spec, bytes)
@@ -1914,6 +1921,7 @@ impl Store {
             content_type,
             version_ms: now_ms(),
             replication_targets: &[],
+            branch: None,
         };
         match self
             .persist_inline_artifact_with_version(spec, bytes)
@@ -1935,6 +1943,7 @@ impl Store {
     /// manifests; without damping, every cold machine in a fleet would bump
     /// the same entries' versions (and replicate the rewrites) on the same
     /// day.
+    #[allow(clippy::too_many_arguments)]
     pub async fn persist_inline_artifact_from_bytes_damped_and_enqueue(
         &self,
         producer: ArtifactProducer,
@@ -1943,16 +1952,33 @@ impl Store {
         content_type: &str,
         bytes: &[u8],
         replication_targets: &[String],
+        branch: Option<&str>,
+        trunk: Option<&str>,
     ) -> Result<(ArtifactManifest, bool), String> {
         let artifact_id = artifact_storage_id(producer, &self.tenant_id, namespace_id, key);
-        if let Some(existing) = self.manifest_from_db(&artifact_id)?
+        let existing = self.manifest_from_db(&artifact_id)?;
+        if let Some(existing) = &existing
             && existing.inline
-            && manifest_version_ms(&existing).saturating_add(REAPI_ACTION_CACHE_REFRESH_DAMPING_MS)
+            && manifest_version_ms(existing).saturating_add(REAPI_ACTION_CACHE_REFRESH_DAMPING_MS)
                 > now_ms()
             && self.inline_bytes(&artifact_id)?.as_deref() == Some(bytes)
         {
-            return Ok((existing, false));
+            return Ok((existing.clone(), false));
         }
+        // Trunk-sticky tagging: a key already in the trunk baseline (tagged
+        // with the trunk branch, or untagged/legacy) stays there. A feature
+        // build recomputing the same action republishes it — often with byte
+        // wobble that defeats the damping above — and must not steal the key
+        // from the trunk view. A publish FROM the trunk always (re)claims it.
+        let branch = match (&existing, trunk) {
+            (Some(existing), Some(trunk))
+                if branch != Some(trunk)
+                    && existing.branch.as_deref().is_none_or(|tag| tag == trunk) =>
+            {
+                existing.branch.as_deref()
+            }
+            _ => branch,
+        };
         self.persist_inline_artifact_from_bytes_and_enqueue(
             producer,
             namespace_id,
@@ -1960,11 +1986,13 @@ impl Store {
             content_type,
             bytes,
             replication_targets,
+            branch,
         )
         .await
         .map(|manifest| (manifest, true))
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn persist_inline_artifact_from_bytes_and_enqueue(
         &self,
         producer: ArtifactProducer,
@@ -1973,6 +2001,7 @@ impl Store {
         content_type: &str,
         bytes: &[u8],
         replication_targets: &[String],
+        branch: Option<&str>,
     ) -> Result<ArtifactManifest, String> {
         let spec = PersistArtifactSpec {
             producer,
@@ -1981,6 +2010,7 @@ impl Store {
             content_type,
             version_ms: now_ms(),
             replication_targets,
+            branch,
         };
         match self
             .persist_inline_artifact_with_version(spec, bytes)
@@ -2011,6 +2041,7 @@ impl Store {
             content_type,
             version_ms,
             replication_targets: &[],
+            branch: None,
         };
         Ok(self
             .persist_artifact_from_bytes_with_version(spec, bytes)
@@ -2035,6 +2066,7 @@ impl Store {
             content_type,
             version_ms,
             replication_targets: &[],
+            branch: None,
         };
         Ok(self
             .persist_inline_artifact_with_version(spec, bytes)
@@ -2668,13 +2700,19 @@ impl Store {
     /// entries a thousand to one, which starved every snapshot fetch into a
     /// client timeout. Namespaces written before the index existed are
     /// backfilled with one legacy scan on first use.
+    ///
+    /// When `trunk` is `Some`, only entries whose manifest carries that branch
+    /// or no branch at all (untagged/legacy entries stay in the trunk baseline)
+    /// are returned; the cap counts kept entries only. `None` returns every
+    /// action-cache entry regardless of branch.
     pub fn action_cache_manifests(
         &self,
         namespace_id: &str,
         max_entries: usize,
+        trunk: Option<&str>,
     ) -> Result<Vec<ArtifactManifest>, String> {
         if !self.action_cache_index_backfilled(namespace_id)? {
-            return self.backfill_action_cache_index(namespace_id, max_entries);
+            return self.backfill_action_cache_index(namespace_id, max_entries, trunk);
         }
         let prefix = action_cache_index_prefix(namespace_id);
         let iter = self.db.iterator_cf(
@@ -2708,7 +2746,11 @@ impl Store {
                         && manifest.key.starts_with("action_cache/")
                         && row_version == Some(manifest.version_ms) =>
                 {
-                    manifests.push(manifest);
+                    // A valid entry outside the trunk filter is skipped, not
+                    // deleted: it is a live entry for another branch.
+                    if manifest_in_trunk(&manifest, trunk) {
+                        manifests.push(manifest);
+                    }
                 }
                 _ => stale_rows.push(index_key.to_vec()),
             }
@@ -2749,6 +2791,7 @@ impl Store {
         &self,
         namespace_id: &str,
         max_entries: usize,
+        trunk: Option<&str>,
     ) -> Result<Vec<ArtifactManifest>, String> {
         let started = std::time::Instant::now();
         let prefix = format!("{namespace_id}\0");
@@ -2782,6 +2825,12 @@ impl Store {
                 manifest.artifact_id.as_bytes(),
             );
             rows += 1;
+            // The index row is written for every entry regardless of the trunk
+            // filter, so the built index stays complete; only the returned set
+            // is branch-scoped.
+            if !manifest_in_trunk(&manifest, trunk) {
+                continue;
+            }
             manifests.push(manifest);
             // Keep the working set bounded while scanning: shed the
             // oldest half whenever the buffer doubles the cap.
@@ -3915,6 +3964,17 @@ fn outbox_message_key(message: &OutboxMessage) -> String {
     format!("{lane}-{:020}-{}", now_ms(), Uuid::now_v7())
 }
 
+/// Whether a manifest belongs in a trunk-scoped snapshot: entries tagged with
+/// the trunk branch and untagged/legacy entries (no branch) form the trunk
+/// baseline; entries tagged with a different branch are excluded. `None` keeps
+/// every entry.
+fn manifest_in_trunk(manifest: &ArtifactManifest, trunk: Option<&str>) -> bool {
+    match trunk {
+        Some(trunk) => manifest.branch.as_deref() == Some(trunk) || manifest.branch.is_none(),
+        None => true,
+    }
+}
+
 fn encode_manifest_record(manifest: &ArtifactManifest) -> Result<Vec<u8>, String> {
     if manifest.is_segment_backed() {
         return SegmentLocationRecord::from_manifest(manifest).map(|record| record.encode());
@@ -4193,6 +4253,8 @@ mod tests {
                 "application/x-protobuf",
                 b"graph",
                 &[],
+                None,
+                None,
             )
             .await
             .expect("aged refresh should persist");
@@ -4206,6 +4268,8 @@ mod tests {
                 "application/x-protobuf",
                 b"graph",
                 &[],
+                None,
+                None,
             )
             .await
             .expect("damped refresh should succeed");
@@ -4223,11 +4287,120 @@ mod tests {
                 "application/x-protobuf",
                 b"graph-v2",
                 &[],
+                None,
+                None,
             )
             .await
             .expect("changed publish should persist");
         assert!(applied, "changed content always applies");
         assert!(changed.version_ms >= refreshed.version_ms);
+    }
+
+    #[tokio::test]
+    async fn action_cache_manifests_scope_to_the_trunk_branch() {
+        let (_temp_dir, _config, store) = temp_store();
+        async fn publish(store: &Store, key: &str, branch: Option<&str>) {
+            store
+                .persist_inline_artifact_from_bytes_damped_and_enqueue(
+                    ArtifactProducer::Reapi,
+                    "ios",
+                    key,
+                    "application/x-protobuf",
+                    b"graph",
+                    &[],
+                    branch,
+                    None,
+                )
+                .await
+                .expect("action-cache entry should persist");
+        }
+        publish(&store, "action_cache/aa/10", Some("main")).await;
+        publish(&store, "action_cache/bb/10", Some("feature")).await;
+
+        let trunk = store
+            .action_cache_manifests("ios", 10, Some("main"))
+            .expect("trunk scan should succeed");
+        assert_eq!(trunk.len(), 1, "the trunk snapshot excludes other branches");
+        assert_eq!(trunk[0].key, "action_cache/aa/10");
+        assert_eq!(trunk[0].branch.as_deref(), Some("main"));
+
+        let all = store
+            .action_cache_manifests("ios", 10, None)
+            .expect("unfiltered scan should succeed");
+        assert_eq!(all.len(), 2, "the unfiltered snapshot keeps every branch");
+
+        // An untagged (legacy) entry stays in the trunk baseline.
+        publish(&store, "action_cache/cc/10", None).await;
+        let trunk = store
+            .action_cache_manifests("ios", 10, Some("main"))
+            .expect("trunk scan should succeed");
+        let keys: Vec<&str> = trunk.iter().map(|manifest| manifest.key.as_str()).collect();
+        assert!(keys.contains(&"action_cache/aa/10"));
+        assert!(keys.contains(&"action_cache/cc/10"));
+        assert!(!keys.contains(&"action_cache/bb/10"));
+    }
+
+    #[tokio::test]
+    async fn trunk_baseline_tags_stick_against_feature_republishes() {
+        let (_temp_dir, _config, store) = temp_store();
+        async fn publish(store: &Store, key: &str, bytes: &[u8], branch: Option<&str>) {
+            store
+                .persist_inline_artifact_from_bytes_damped_and_enqueue(
+                    ArtifactProducer::Reapi,
+                    "ios",
+                    key,
+                    "application/x-protobuf",
+                    bytes,
+                    &[],
+                    branch,
+                    Some("main"),
+                )
+                .await
+                .expect("action-cache entry should persist");
+        }
+        // Distinct version_ms per publish: a same-millisecond republish is
+        // dropped as stale before any tagging logic runs.
+        let tick = || tokio::time::sleep(std::time::Duration::from_millis(2));
+        // A feature build recomputing a trunk key (even with byte wobble that
+        // defeats damping) must not steal it from the trunk baseline.
+        publish(&store, "action_cache/aa/10", b"graph", Some("main")).await;
+        tick().await;
+        publish(
+            &store,
+            "action_cache/aa/10",
+            b"graph-wobble",
+            Some("feature"),
+        )
+        .await;
+        // Same for untagged/legacy baseline entries.
+        publish(&store, "action_cache/bb/10", b"graph", None).await;
+        tick().await;
+        publish(
+            &store,
+            "action_cache/bb/10",
+            b"graph-wobble",
+            Some("feature"),
+        )
+        .await;
+        // A trunk publish reclaims a feature-tagged key.
+        publish(&store, "action_cache/cc/10", b"graph", Some("feature")).await;
+        tick().await;
+        publish(&store, "action_cache/cc/10", b"graph-wobble", Some("main")).await;
+
+        let trunk = store
+            .action_cache_manifests("ios", 10, Some("main"))
+            .expect("trunk scan should succeed");
+        let mut keys: Vec<&str> = trunk.iter().map(|manifest| manifest.key.as_str()).collect();
+        keys.sort_unstable();
+        assert_eq!(
+            keys,
+            vec![
+                "action_cache/aa/10",
+                "action_cache/bb/10",
+                "action_cache/cc/10"
+            ],
+            "trunk keys stay in (or return to) the trunk baseline"
+        );
     }
 
     #[tokio::test]
@@ -4299,7 +4472,7 @@ mod tests {
         assert!(exists(ArtifactProducer::Gradle, "artifact"));
         assert!(
             store
-                .action_cache_manifests("ios", 1_000)
+                .action_cache_manifests("ios", 1_000, None)
                 .expect("namespace scan should succeed")
                 .iter()
                 .all(|manifest| manifest.key != "action_cache/aa/10"),
@@ -4366,7 +4539,7 @@ mod tests {
         write(&store, &config, "action_cache/cc/10", 2_000).await;
 
         let manifests = store
-            .action_cache_manifests("ios", 2)
+            .action_cache_manifests("ios", 2, None)
             .expect("scan should succeed");
         let mut keys: Vec<&str> = manifests.iter().map(|m| m.key.as_str()).collect();
         keys.sort_unstable();
@@ -4377,7 +4550,7 @@ mod tests {
         );
         assert_eq!(
             store
-                .action_cache_manifests("ios", 10)
+                .action_cache_manifests("ios", 10, None)
                 .expect("scan should succeed")
                 .len(),
             3
@@ -4405,7 +4578,7 @@ mod tests {
         // Five entries against a cap of two crosses the in-scan shed
         // threshold (2x cap) as well as the final truncation.
         let manifests = store
-            .action_cache_manifests("ios", 2)
+            .action_cache_manifests("ios", 2, None)
             .expect("scan should succeed");
         let mut versions: Vec<u64> = manifests.iter().map(|m| m.version_ms).collect();
         versions.sort_unstable();
@@ -4430,7 +4603,10 @@ mod tests {
             .expect("artifact should persist");
         // First scan backfills the index; later writes must land in it
         // through the persist path rather than re-scanning the namespace.
-        assert_eq!(store.action_cache_manifests("ios", 10).unwrap().len(), 1);
+        assert_eq!(
+            store.action_cache_manifests("ios", 10, None).unwrap().len(),
+            1
+        );
         std::fs::write(&source, b"payload").expect("source should write");
         store
             .apply_replicated_artifact_from_path(
@@ -4444,7 +4620,7 @@ mod tests {
             .await
             .expect("artifact should persist");
         let manifests = store
-            .action_cache_manifests("ios", 10)
+            .action_cache_manifests("ios", 10, None)
             .expect("indexed scan should succeed");
         let mut keys: Vec<&str> = manifests.iter().map(|m| m.key.as_str()).collect();
         keys.sort_unstable();
@@ -4469,7 +4645,10 @@ mod tests {
             .expect("artifact should persist");
         // Backfill, then overwrite the same key at a newer version: the old
         // row must go, or capped indexed scans would double-count the key.
-        assert_eq!(store.action_cache_manifests("ios", 10).unwrap().len(), 1);
+        assert_eq!(
+            store.action_cache_manifests("ios", 10, None).unwrap().len(),
+            1
+        );
         std::fs::write(&source, b"payload").expect("source should write");
         store
             .apply_replicated_artifact_from_path(
@@ -4483,7 +4662,7 @@ mod tests {
             .await
             .expect("overwrite should persist");
         let manifests = store
-            .action_cache_manifests("ios", 10)
+            .action_cache_manifests("ios", 10, None)
             .expect("indexed scan should succeed");
         assert_eq!(manifests.len(), 1, "one row per live key");
         assert_eq!(manifests[0].version_ms, 5_000);
@@ -4507,13 +4686,16 @@ mod tests {
                 .await
                 .expect("artifact should persist");
         }
-        assert_eq!(store.action_cache_manifests("ios", 10).unwrap().len(), 2);
+        assert_eq!(
+            store.action_cache_manifests("ios", 10, None).unwrap().len(),
+            2
+        );
         let expired = store
             .expire_stale_action_cache_entries(1_500, 10)
             .expect("expiry should succeed");
         assert_eq!(expired, 1);
         let manifests = store
-            .action_cache_manifests("ios", 10)
+            .action_cache_manifests("ios", 10, None)
             .expect("indexed scan should succeed");
         assert_eq!(manifests.len(), 1);
         assert_eq!(manifests[0].key, "action_cache/bb/10");
@@ -5289,6 +5471,7 @@ mod tests {
             size: b"legacy-blob-payload".len() as u64,
             version_ms: 100,
             created_at_ms: 100,
+            branch: None,
         };
 
         store
@@ -6186,6 +6369,7 @@ mod tests {
                 "application/json",
                 br#"{"ok":true}"#,
                 &targets,
+                None,
             )
             .await
             .expect("artifact should persist");
@@ -6426,6 +6610,7 @@ mod tests {
                 "application/json",
                 br#"{"value":"ok"}"#,
                 &["http://peer-a".to_string()],
+                None,
             )
             .await
             .expect_err("write should fail after the durable commit");
