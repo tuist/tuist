@@ -191,6 +191,7 @@ defmodule Tuist do
       Runners.Analytics,
       Runners.Billing,
       Runners.Catalog,
+      Runners.Concurrency,
       Runners.Dispatch,
       Runners.Workers.CloseDisconnectedInteractiveSessionWorker,
       Runners.Workers.DispatchWorker,

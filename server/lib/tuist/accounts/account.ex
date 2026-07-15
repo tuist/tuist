@@ -12,6 +12,7 @@ defmodule Tuist.Accounts.Account do
   alias Tuist.Accounts.User
   alias Tuist.Billing.Subscription
   alias Tuist.Projects.Project
+  alias Tuist.Runners.ConcurrencyLimit
   alias Tuist.Slack.Installation, as: SlackInstallation
   alias Tuist.Vault.Binary
   alias Tuist.VCS.GitHubAppInstallation
@@ -66,6 +67,7 @@ defmodule Tuist.Accounts.Account do
     belongs_to :user, User
 
     has_many(:projects, Project, on_delete: :delete_all)
+    has_many(:runner_concurrency_limits, ConcurrencyLimit, on_delete: :delete_all)
     has_many(:subscriptions, Subscription, on_delete: :delete_all)
     has_many(:cache_endpoints, AccountCacheEndpoint, on_delete: :delete_all)
     has_one(:github_app_installation, GitHubAppInstallation, on_delete: :delete_all)
