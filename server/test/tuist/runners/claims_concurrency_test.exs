@@ -162,15 +162,17 @@ defmodule Tuist.Runners.ClaimsConcurrencyTest do
     parent = self()
 
     Task.async(fn ->
-      :ok = Sandbox.checkout(Repo, sandbox: false)
       send(parent, {:db_task_ready, self()})
 
-      try do
-        receive do
-          :go -> function.()
-        end
-      after
-        Sandbox.checkin(Repo)
+      receive do
+        :go ->
+          :ok = Sandbox.checkout(Repo, sandbox: false)
+
+          try do
+            function.()
+          after
+            Sandbox.checkin(Repo)
+          end
       end
     end)
   end
