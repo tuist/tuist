@@ -178,8 +178,7 @@ class TerminalScreen {
     let line = this.lines[this.cursorRow] || "";
     if (this.cursorColumn > line.length) line = line.padEnd(this.cursorColumn, " ");
 
-    this.lines[this.cursorRow] =
-      line.slice(0, this.cursorColumn) + character + line.slice(this.cursorColumn + 1);
+    this.lines[this.cursorRow] = line.slice(0, this.cursorColumn) + character + line.slice(this.cursorColumn + 1);
     this.cursorColumn += 1;
   }
 
@@ -428,10 +427,7 @@ class TerminalSimulation {
 
   echo(input) {
     const trimmed = input.trim();
-    if (
-      (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
-      (trimmed.startsWith("'") && trimmed.endsWith("'"))
-    ) {
+    if ((trimmed.startsWith('"') && trimmed.endsWith('"')) || (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
       return trimmed.slice(1, -1);
     }
 

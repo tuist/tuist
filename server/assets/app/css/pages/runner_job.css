@@ -905,8 +905,9 @@
     --runner-terminal-cursor-text: var(--runner-terminal-background);
 
     display: block;
-    outline: none;
+    cursor: text;
     box-sizing: border-box;
+    outline: none;
     box-shadow: var(--noora-border-light-default);
     border-radius: var(--noora-radius-3);
     background: var(--runner-terminal-background);
@@ -915,19 +916,16 @@
     height: min(56vh, 560px);
     min-height: 360px;
     overflow: auto;
+    scrollbar-color: var(--noora-surface-border-primary) transparent;
     color: var(--runner-terminal-text);
     font: var(--noora-font-weight-regular) var(--noora-font-code-medium);
-    cursor: text;
-    scrollbar-color: var(--noora-surface-border-primary) transparent;
 
     &:not([data-shell-path]):not([data-shell-simulation="true"]) {
       display: none;
     }
 
     &:focus {
-      box-shadow:
-        var(--noora-border-light-focus),
-        var(--noora-border-light-default);
+      box-shadow: var(--noora-border-light-focus), var(--noora-border-light-default);
     }
 
     & > [data-part="interactive-terminal-output"] {
@@ -973,25 +971,25 @@
     display: flex;
     position: relative;
     flex: 1;
-    align-self: stretch;
     justify-content: center;
     align-items: center;
+    align-self: stretch;
     background: var(--noora-surface-background-primary);
     min-width: 0;
     min-height: 0;
   }
 
   & [data-part="interactive-client-status"] {
-    position: absolute;
-    inset: 0;
     display: flex;
+    position: absolute;
     justify-content: center;
     align-items: center;
+    inset: 0;
     padding: var(--noora-spacing-6);
+    pointer-events: none;
     color: var(--noora-surface-label-secondary);
     font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
     text-align: center;
-    pointer-events: none;
 
     &[hidden] {
       display: none;
