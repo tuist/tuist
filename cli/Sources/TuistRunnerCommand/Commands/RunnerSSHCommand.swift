@@ -12,12 +12,20 @@ public struct RunnerSSHCommand: AsyncParsableCommand, NooraReadyCommand {
         CommandConfiguration(
             commandName: "ssh",
             _superCommandName: "runner",
-            abstract: "Open a shell on a running Tuist runner job."
+            abstract: "Open a shell for a running job.",
+            discussion: """
+            Pass either a Tuist runner job URL or the GitHub Actions workflow job ID.
+            The job ID identifies the specific runner job, not the workflow run.
+
+            Examples:
+              tuist runner ssh 87303732349
+              tuist runner ssh https://tuist.dev/tuist/runners/runs/29385019740/jobs/87256360989
+            """
         )
     }
 
     @Argument(
-        help: "A runner job URL or workflow job ID.",
+        help: "A runner job URL or job ID.",
         envKey: .runnerSSHJobRef
     )
     var jobRef: String
