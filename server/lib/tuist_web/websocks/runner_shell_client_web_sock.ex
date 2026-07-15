@@ -35,7 +35,7 @@ defmodule TuistWeb.RunnerShellClientWebSock do
           end
 
         state = %{session: active_session, connection_id: connection_id, runner_disconnect_ref: nil}
-        {:push, {:text, Jason.encode!(%{type: "status", status: status})}, state}
+        {:push, {:text, JSON.encode!(%{type: "status", status: status})}, state}
 
       {:error, reason} ->
         Logger.warning("runners: shell client failed to mark active",
@@ -57,7 +57,7 @@ defmodule TuistWeb.RunnerShellClientWebSock do
   end
 
   def handle_in({payload, [opcode: :text]}, %{session: session} = state) do
-    case Jason.decode(payload) do
+    case JSON.decode(payload) do
       {:ok, %{"type" => "resize", "columns" => columns, "rows" => rows}}
       when is_integer(columns) and is_integer(rows) and columns > 0 and rows > 0 ->
         :ok = InteractiveShellBroker.broadcast_to_runner(session.id, {:resize, columns, rows})
@@ -79,12 +79,12 @@ defmodule TuistWeb.RunnerShellClientWebSock do
 
   def handle_info({:runner_shell, :runner_connected}, state) do
     state = cancel_runner_disconnect_timeout(state)
-    {:push, {:text, Jason.encode!(%{type: "status", status: "connected"})}, state}
+    {:push, {:text, JSON.encode!(%{type: "status", status: "connected"})}, state}
   end
 
   def handle_info({:runner_shell, :runner_disconnected}, state) do
     state = schedule_runner_disconnect_timeout(state)
-    {:push, {:text, Jason.encode!(%{type: "status", status: "waiting"})}, state}
+    {:push, {:text, JSON.encode!(%{type: "status", status: "waiting"})}, state}
   end
 
   def handle_info({:runner_shell, {:runner_disconnect_timeout, ref}}, %{runner_disconnect_ref: ref} = state) do
@@ -94,7 +94,7 @@ defmodule TuistWeb.RunnerShellClientWebSock do
       {:ok, state}
     else
       Process.send_after(self(), {:runner_shell, :close_closed_session}, 0)
-      {:push, {:text, Jason.encode!(%{type: "exit", status: 255})}, state}
+      {:push, {:text, JSON.encode!(%{type: "exit", status: 255})}, state}
     end
   end
 
@@ -106,7 +106,7 @@ defmodule TuistWeb.RunnerShellClientWebSock do
 
   def handle_info({:runner_shell, {:runner_exit, status}}, state) do
     state = cancel_runner_disconnect_timeout(state)
-    {:push, {:text, Jason.encode!(%{type: "exit", status: status})}, state}
+    {:push, {:text, JSON.encode!(%{type: "exit", status: status})}, state}
   end
 
   def handle_info(_message, state), do: {:ok, state}

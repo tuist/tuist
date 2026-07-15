@@ -43,7 +43,7 @@ defmodule TuistWeb.RunnerShellAgentWebSock do
   end
 
   def handle_in({payload, [opcode: :text]}, %{session: session} = state) do
-    case Jason.decode(payload) do
+    case JSON.decode(payload) do
       {:ok, %{"type" => "exit", "status" => status}} ->
         _ = InteractiveSessions.close(session, "shell_exit")
         :ok = InteractiveShellBroker.broadcast_to_client(session.id, {:runner_exit, status})
@@ -60,15 +60,15 @@ defmodule TuistWeb.RunnerShellAgentWebSock do
   end
 
   def handle_info({:runner_shell, {:resize, columns, rows}}, state) do
-    {:push, {:text, Jason.encode!(%{type: "resize", columns: columns, rows: rows})}, state}
+    {:push, {:text, JSON.encode!(%{type: "resize", columns: columns, rows: rows})}, state}
   end
 
   def handle_info({:runner_shell, :client_connected}, state) do
-    {:push, {:text, Jason.encode!(%{type: "client", status: "connected"})}, state}
+    {:push, {:text, JSON.encode!(%{type: "client", status: "connected"})}, state}
   end
 
   def handle_info({:runner_shell, :client_disconnected}, state) do
-    {:push, {:text, Jason.encode!(%{type: "client", status: "disconnected"})}, state}
+    {:push, {:text, JSON.encode!(%{type: "client", status: "disconnected"})}, state}
   end
 
   def handle_info(_message, state), do: {:ok, state}
