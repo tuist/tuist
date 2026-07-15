@@ -12,30 +12,29 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-// renderSSHReachabilityScript must set UseDNS no (so sshd's reverse-DNS lookup
-// can't hang connection setup and exhaust the accept backlog) and install a
-// self-heal probe that reloads the ssh socket if :22 stops accepting.
+// renderSSHReachabilityScript must install a minute-interval probe that reloads
+// the ssh socket when loopback :22 stops accepting — draining the exhausted
+// accept backlog that wedges the operator's SSH management channel.
 func TestRenderSSHReachabilityScript(t *testing.T) {
 	s := renderSSHReachabilityScript()
 	for _, want := range []string{
-		"UseDNS no",
-		"/etc/ssh/sshd_config.d/100-tuist-usedns.conf",
-		"Include /etc/ssh/sshd_config.d/",
 		"nc -z -G 3 127.0.0.1 22",
 		"bootout system/com.openssh.sshd",
 		"bootstrap system /System/Library/LaunchDaemons/ssh.plist",
 		"dev.tuist.ssh-reachability",
 		"<key>StartInterval</key>",
+		"<key>RunAtLoad</key>",
 	} {
 		if !strings.Contains(s, want) {
 			t.Errorf("renderSSHReachabilityScript missing %q", want)
 		}
 	}
-	// The firewall was a wrong hypothesis (ALF is off on the minis); make sure
-	// we didn't leave firewall-poking or wholesale-disable commands behind.
-	for _, forbidden := range []string{"socketfilterfw", "systemsetup -setremotelogin", "pfctl -d"} {
+	// Dead ends from earlier wrong hypotheses: the app firewall was OFF, and
+	// UseDNS was already `no` (the drop-in was a no-op). Make sure neither
+	// crept back in.
+	for _, forbidden := range []string{"socketfilterfw", "systemsetup -setremotelogin", "UseDNS", "sshd_config.d", "pfctl -d"} {
 		if strings.Contains(s, forbidden) {
-			t.Errorf("renderSSHReachabilityScript should not touch the firewall/remote-login, found %q", forbidden)
+			t.Errorf("renderSSHReachabilityScript should not include the abandoned %q approach", forbidden)
 		}
 	}
 }

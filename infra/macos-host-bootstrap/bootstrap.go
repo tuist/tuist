@@ -1928,48 +1928,41 @@ func installNodeExporter(ctx context.Context, client *ssh.Client, cfg Config) er
 	return RunCommandWithStdin(ctx, client, renderNodeExporterScript(), bytes.NewReader(cfg.NodeExporterBinary))
 }
 
-// installSSHReachability keeps the host reachable over SSH so the operator's
-// only management channel (SSH → tart-kubelet updates) can't wedge. See
-// renderSSHReachabilityScript.
+// installSSHReachability installs the host-side self-heal that keeps the
+// operator's only management channel (SSH → tart-kubelet updates) from staying
+// wedged. See renderSSHReachabilityScript.
 func installSSHReachability(ctx context.Context, client *ssh.Client) error {
 	return RunCommand(ctx, client, renderSSHReachabilityScript())
 }
 
-// renderSSHReachabilityScript keeps inbound SSH (:22) healthy on the host.
+// renderSSHReachabilityScript installs a LaunchDaemon that keeps inbound SSH
+// (:22) from staying wedged on a runner mini.
 //
-// Diagnosed on a wedged prod runner: sshd does a reverse-DNS (PTR) lookup on
-// every connecting client by default (UseDNS). The runner role's PN networking
-// leaves the host resolver degraded, so each lookup HANGS during connection
-// setup. The CAPI operator dials :22 every ~30s; over weeks those half-open
-// connections piled into the accept backlog (observed: 128 sockets in
-// SYN_RCVD) until it filled and the kernel dropped every new SYN — so :22 timed
-// out on EVERY interface, loopback included, while our other listeners
-// (:8080/:9100/:5900) stayed fine. It was never a firewall (the macOS
-// application firewall was OFF and pf had no :22 rule); it was the accept path
-// wedging on the slow resolver.
+// Diagnosed from a host shell on a wedged mini: sshd was listening on *:22, the
+// macOS application firewall was OFF, pf had no :22 rule, and UseDNS was already
+// `no` — yet even 127.0.0.1:22 timed out. `netstat` showed the cause: ~128
+// sockets stuck in SYN_RCVD, i.e. the listen backlog is exhausted so the kernel
+// drops every new SYN. The runner's PN networking intermittently degrades the
+// host resolver (`si_destination_compare send failed`), which slows sshd's
+// per-connection name lookups; with the CAPI operator dialing :22 every ~30s
+// and each half-open connection lingering, the backlog fills and stays full
+// (self-perpetuating). Our other listeners (:8080/:9100/:5900) are unaffected
+// because they don't gate on the ssh accept path. It was never a firewall.
 //
-// Two host-side, self-healing parts:
-//  1. UseDNS no — a sshd_config.d drop-in so sshd never does the reverse-DNS
-//     lookup. Connections then complete instantly, so the backlog never fills.
-//     sshd is socket-activated (a fresh sshd per connection), so it re-reads
-//     this on the next connect — no reload needed. Operator auth is key-based
-//     and doesn't need reverse DNS.
-//  2. A minute-interval LaunchDaemon that probes loopback :22 and, if it isn't
-//     accepting, reloads the ssh socket (bootout+bootstrap) to drain a wedged
-//     backlog — a safety net so any future accept-path wedge self-heals in
-//     ~60s instead of stranding the host (recreation was the only recovery
-//     before). With UseDNS no in place this should never fire.
+// The fix is the recovery that worked live: reload the ssh socket
+// (bootout+bootstrap) to drain the backlog, made self-healing on the host — a
+// minute-interval probe of loopback :22 that reloads the socket whenever it
+// stops accepting. It acts only when actually wedged, so a healthy host is
+// untouched, and it keeps :22 reachable long enough for the operator to
+// converge — after which the drift retries that fill the backlog stop.
+// Recreating the mini was the only recovery before.
+//
+// (An earlier revision also wrote `UseDNS no` here, on the theory that
+// reverse-DNS was the slow lookup. UseDNS was already `no` on the minis, so
+// that drop-in was a no-op and is dropped; the accept-backlog drain is what
+// actually recovers a wedged host.)
 func renderSSHReachabilityScript() string {
 	return `set -euo pipefail
-# 1) UseDNS no — the root fix (see function comment).
-sudo mkdir -p /etc/ssh/sshd_config.d
-printf 'UseDNS no\n' | sudo tee /etc/ssh/sshd_config.d/100-tuist-usedns.conf >/dev/null
-# macOS sshd_config Includes sshd_config.d by default; add it defensively in
-# case a base image ever ships without the Include.
-grep -q '^Include /etc/ssh/sshd_config.d/' /etc/ssh/sshd_config || \
-  echo 'Include /etc/ssh/sshd_config.d/*' | sudo tee -a /etc/ssh/sshd_config >/dev/null
-
-# 2) Self-heal probe: drain the ssh accept backlog if :22 ever stops accepting.
 sudo tee /usr/local/bin/tuist-ssh-reachability >/dev/null <<'SSHREACH'
 #!/bin/sh
 set -u
