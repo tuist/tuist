@@ -165,6 +165,22 @@
             color: var(--noora-surface-label-primary);
             font: var(--noora-font-weight-regular) var(--noora-font-code-large);
           }
+
+          /* Metadata links (Workflow / Run) use the label text color
+             rather than the browser's default blue, but keep a
+             persistent underline so it's clear they're clickable. The
+             underline lightens on hover for feedback. */
+          & [data-part="workflow-link"],
+          & [data-part="run-link"] {
+            color: var(--noora-surface-label-primary);
+            text-decoration: underline;
+            text-decoration-color: var(--noora-surface-label-secondary);
+            text-underline-offset: 2px;
+
+            &:hover {
+              text-decoration-color: var(--noora-surface-label-primary);
+            }
+          }
         }
       }
     }

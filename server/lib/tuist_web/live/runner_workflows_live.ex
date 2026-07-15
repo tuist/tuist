@@ -70,8 +70,8 @@ defmodule TuistWeb.RunnerWorkflowsLive do
   # Bound the sort_by URL param to the values the backend knows how
   # to ORDER BY — anything else falls back to the default so a
   # malformed URL doesn't surface a 500.
-  defp sort_by_param(value) when value in ["workflow", "success_rate", "jobs", "avg_duration"], do: value
-  defp sort_by_param(_), do: "workflow"
+  defp sort_by_param(value) when value in ["workflow", "success_rate", "jobs", "avg_duration", "last_run"], do: value
+  defp sort_by_param(_), do: "last_run"
 
   # Sort order is bounded to asc|desc. The default differs by column
   # so a fresh sort feels right: alphabetical columns lean ascending,
@@ -271,7 +271,8 @@ defmodule TuistWeb.RunnerWorkflowsLive do
   def sort_by_label("jobs"), do: dgettext("dashboard_runners", "Jobs")
   def sort_by_label("success_rate"), do: dgettext("dashboard_runners", "Success rate")
   def sort_by_label("avg_duration"), do: dgettext("dashboard_runners", "Avg duration")
-  def sort_by_label(_workflow_default), do: dgettext("dashboard_runners", "Workflow")
+  def sort_by_label("workflow"), do: dgettext("dashboard_runners", "Workflow")
+  def sort_by_label(_last_run_default), do: dgettext("dashboard_runners", "Last run")
 
   # The trend chip on each widget reads "since last <unit>" — pair
   # the unit to the active preset so the comparison label matches

@@ -14,6 +14,7 @@ defmodule TuistWeb.RunnerWorkflowLive do
   alias Tuist.Runners.Analytics
   alias Tuist.Runners.Jobs
   alias Tuist.Utilities.DateFormatter
+  alias Tuist.VCS
   alias TuistWeb.Utilities.Query
 
   @page_size 20
@@ -41,6 +42,7 @@ defmodule TuistWeb.RunnerWorkflowLive do
      |> assign(:head_title, head_title)
      |> assign(:repository, repository)
      |> assign(:workflow_name, workflow_name)
+     |> assign(:github_base_url, VCS.github_base_url_for_account(selected_account.id))
      |> assign(:available_filters, available_filters())
      |> assign(:analytics_selected_widget, "total_jobs")
      |> assign(:job_duration_percentile, "avg")
@@ -69,7 +71,7 @@ defmodule TuistWeb.RunnerWorkflowLive do
       |> assign(:page, page)
       |> assign(:sort_by, sort_by)
       |> assign(:sort_order, sort_order)
-      |> assign_jobs(scope_opts)
+      |> assign_runs(scope_opts)
       |> assign_async(
         [:jobs_count, :failed_jobs_count, :jobs_duration, :queue_time],
         fn ->
@@ -86,28 +88,25 @@ defmodule TuistWeb.RunnerWorkflowLive do
     {:noreply, socket}
   end
 
-  defp assign_jobs(
+  # Lists workflow *runs* (grouped by workflow_run_id) for this named
+  # workflow, newest activity first. This page is a drill-down from the
+  # Workflows list, so runs — not individual jobs — are the rows;
+  # clicking a run opens its GitHub Actions run.
+  defp assign_runs(
          %{
            assigns: %{
              selected_account: account,
              active_filters: filters,
              page: page,
-             search: search,
-             sort_by: sort_by,
-             sort_order: sort_order
+             repository: repository,
+             workflow_name: workflow_name
            }
          } = socket,
-         scope_opts
+         _scope_opts
        ) do
-    base_opts =
-      scope_opts
-      |> maybe_put_search(search)
-      |> add_filter_opt(filters, "branch", :head_branch)
-      |> add_status_filter_opt(filters)
-      |> Keyword.put(:sort_by, sort_by)
-      |> Keyword.put(:sort_order, sort_order)
+    base_opts = add_filter_opt([], filters, "branch", :head_branch)
 
-    total = Jobs.count_for_account(account.id, base_opts)
+    total = Jobs.count_workflow_runs(account.id, repository, workflow_name, base_opts)
     total_pages = max(1, ceil_div(total, @page_size))
     page = min(page, total_pages)
     offset = (page - 1) * @page_size
@@ -117,18 +116,14 @@ defmodule TuistWeb.RunnerWorkflowLive do
       |> Keyword.put(:limit, @page_size)
       |> Keyword.put(:offset, offset)
 
-    jobs = Jobs.list_for_account(account.id, paged_opts)
+    runs = Jobs.list_workflow_runs(account.id, repository, workflow_name, paged_opts)
 
     socket
-    |> assign(:jobs, jobs)
+    |> assign(:runs, runs)
     |> assign(:page, page)
-    |> assign(:total_jobs, total)
+    |> assign(:total_runs, total)
     |> assign(:total_pages, total_pages)
   end
-
-  defp maybe_put_search(opts, ""), do: opts
-  defp maybe_put_search(opts, nil), do: opts
-  defp maybe_put_search(opts, value) when is_binary(value), do: Keyword.put(opts, :search, value)
 
   defp add_filter_opt(opts, filters, filter_id, opt_key) do
     case Enum.find(filters, &(&1.id == filter_id)) do
@@ -137,50 +132,8 @@ defmodule TuistWeb.RunnerWorkflowLive do
     end
   end
 
-  # Status filter routes the picked value to either `:status` (queued/
-  # claimed/running) or `:conclusion` (success/failure/cancelled/
-  # skipped) — same pattern as the Jobs page.
-  defp add_status_filter_opt(opts, filters) do
-    case Enum.find(filters, &(&1.id == "status")) do
-      %{value: value} when not is_nil(value) ->
-        value = to_string(value)
-
-        cond do
-          value in ~w(success failure cancelled skipped) ->
-            opts |> Keyword.put(:conclusion, value) |> Keyword.put(:status, "completed")
-
-          value in ~w(queued claimed running completed) ->
-            Keyword.put(opts, :status, value)
-
-          true ->
-            opts
-        end
-
-      _ ->
-        opts
-    end
-  end
-
   defp available_filters do
     [
-      %Filter.Filter{
-        id: "status",
-        field: :status,
-        display_name: dgettext("dashboard_runners", "Status"),
-        type: :option,
-        options: [:queued, :claimed, :running, :success, :failure, :cancelled, :skipped],
-        options_display_names: %{
-          queued: dgettext("dashboard_runners", "Queued"),
-          claimed: dgettext("dashboard_runners", "Claimed"),
-          running: dgettext("dashboard_runners", "Running"),
-          success: dgettext("dashboard_runners", "Success"),
-          failure: dgettext("dashboard_runners", "Failure"),
-          cancelled: dgettext("dashboard_runners", "Cancelled"),
-          skipped: dgettext("dashboard_runners", "Skipped")
-        },
-        operator: :==,
-        value: nil
-      },
       %Filter.Filter{
         id: "branch",
         field: :head_branch,
@@ -313,13 +266,84 @@ defmodule TuistWeb.RunnerWorkflowLive do
 
   def conclusion_badge_props("success"), do: %{label: dgettext("dashboard_runners", "Success"), status: "success"}
   def conclusion_badge_props("failure"), do: %{label: dgettext("dashboard_runners", "Failure"), status: "error"}
+  def conclusion_badge_props("timed_out"), do: %{label: dgettext("dashboard_runners", "Timed out"), status: "error"}
   def conclusion_badge_props("cancelled"), do: %{label: dgettext("dashboard_runners", "Cancelled"), status: "warning"}
+  def conclusion_badge_props("stale"), do: %{label: dgettext("dashboard_runners", "Stale"), status: "warning"}
+  def conclusion_badge_props("neutral"), do: %{label: dgettext("dashboard_runners", "Neutral"), status: "warning"}
+
+  def conclusion_badge_props("action_required"),
+    do: %{label: dgettext("dashboard_runners", "Action required"), status: "warning"}
+
   def conclusion_badge_props("skipped"), do: %{label: dgettext("dashboard_runners", "Skipped"), status: "warning"}
 
+  # Any other GitHub conclusion (startup_failure, …) — humanise the raw
+  # value rather than dropping it or mislabelling it as skipped.
   def conclusion_badge_props(other) when is_binary(other) and other != "",
-    do: %{label: String.capitalize(other), status: "warning"}
+    do: %{label: other |> String.replace("_", " ") |> String.capitalize(), status: "warning"}
 
   def conclusion_badge_props(_), do: nil
+
+  # Run-level status badge: an in-progress run (any job still going)
+  # shows Running; a completed run shows its rolled-up conclusion.
+  def run_status_badge_props(%{status: "in_progress"}),
+    do: %{label: dgettext("dashboard_runners", "Running"), status: "in_progress"}
+
+  def run_status_badge_props(%{status: "completed", conclusion: conclusion}),
+    do: conclusion_badge_props(conclusion) || %{label: dgettext("dashboard_runners", "Completed"), status: "success"}
+
+  def run_status_badge_props(_), do: %{label: dgettext("dashboard_runners", "Unknown"), status: "warning"}
+
+  @doc """
+  Internal path to a run's detail page. Each runs-list row navigates
+  here (the whole row is the link).
+  """
+  def run_path(account_name, run_id) when is_binary(account_name) and is_integer(run_id) and run_id > 0 do
+    "/#{account_name}/runners/runs/#{run_id}"
+  end
+
+  def run_path(_, _), do: nil
+
+  # Duration for a run row: elapsed-so-far for an in-progress run,
+  # else the completed span. Elapsed time counts from the earliest job
+  # `started_at`, not `enqueued_at`, so a run whose only job is still
+  # queued reads as 0 (rendered "–") rather than accumulating queue
+  # time. The SQL `duration_ms` is only meaningful once the run has a
+  # completed job, so guard on a positive value.
+  def run_duration_ms(%{status: "in_progress", started_at: started}) when not is_nil(started),
+    do: DateFormatter.ms_since(started)
+
+  def run_duration_ms(%{status: "in_progress"}), do: 0
+  def run_duration_ms(%{duration_ms: ms}) when is_integer(ms) and ms > 0, do: ms
+  def run_duration_ms(_), do: 0
+
+  # Duration label for a run row — an em dash until the run has
+  # actually started executing, so a still-queued run doesn't read as
+  # "0s". Mirrors the run detail page's treatment.
+  def run_duration_label(run) do
+    case run_duration_ms(run) do
+      ms when is_integer(ms) and ms > 0 -> DateFormatter.format_duration_from_milliseconds(ms)
+      _ -> "–"
+    end
+  end
+
+  @doc """
+  GitHub Actions run URL for the run detail's external link. `base_url`
+  is the account installation's host (`https://github.com` or a GitHub
+  Enterprise Server `client_url`), so the link points at the right host
+  for GHES installations rather than always assuming github.com.
+  """
+  def github_run_url(base_url, repository, run_id)
+      when is_binary(base_url) and base_url != "" and is_binary(repository) and is_integer(run_id) do
+    case String.split(repository, "/", parts: 2) do
+      [owner, name] when owner != "" and name != "" ->
+        "#{base_url}/#{owner}/#{name}/actions/runs/#{run_id}"
+
+      _ ->
+        "#"
+    end
+  end
+
+  def github_run_url(_, _, _), do: "#"
 
   def duration_ms(%{status: "queued", enqueued_at: enqueued}), do: DateFormatter.ms_since(enqueued)
   def duration_ms(%{status: "claimed", claimed_at: claimed}), do: DateFormatter.ms_since(claimed)
@@ -336,20 +360,22 @@ defmodule TuistWeb.RunnerWorkflowLive do
   def duration_ms(_), do: 0
 
   @doc """
-  Resolves the public repository URL for the header badge. GitHub
-  Actions webhooks always deliver `repository` as `<owner>/<name>`
-  so the canonical URL is just `https://github.com/<owner>/<name>`.
-  The helper short-circuits to `#` for malformed values so the
-  badge still renders without a broken outbound link.
+  Resolves the repository URL for the header badge. `base_url` is the
+  account installation's host (`https://github.com` or a GitHub
+  Enterprise Server `client_url`); GitHub Actions webhooks always
+  deliver `repository` as `<owner>/<name>`, so the URL is
+  `<base_url>/<owner>/<name>`. The helper short-circuits to `#` for
+  malformed values so the badge still renders without a broken
+  outbound link.
   """
-  def repository_url(repository) when is_binary(repository) do
+  def repository_url(base_url, repository) when is_binary(base_url) and base_url != "" and is_binary(repository) do
     case String.split(repository, "/", parts: 2) do
-      [owner, name] when owner != "" and name != "" -> "https://github.com/#{owner}/#{name}"
+      [owner, name] when owner != "" and name != "" -> "#{base_url}/#{owner}/#{name}"
       _ -> "#"
     end
   end
 
-  def repository_url(_), do: "#"
+  def repository_url(_, _), do: "#"
 
   def chart_options(dates) do
     %{

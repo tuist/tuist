@@ -11,8 +11,10 @@
 
   <% status_props = TuistWeb.RunnerJobLive.status_badge_props(@job) %>
   <% status_kind = TuistWeb.RunnerJobLive.header_status(@job) %>
-  <% github_url = TuistWeb.RunnerJobLive.github_job_url(@job) %>
+  <% github_url = TuistWeb.RunnerJobLive.github_job_url(@github_base_url, @job) %>
   <% platform_label = TuistWeb.RunnerJobLive.platform_label(@job.fleet_name) %>
+  <% workflow_link = TuistWeb.RunnerJobLive.workflow_path(@selected_account.name, @job) %>
+  <% run_link = TuistWeb.RunnerJobLive.run_path(@selected_account.name, @job) %>
 
   <div data-part="header">
     <div data-part="title-group">
@@ -160,6 +162,47 @@
               <div data-part="title">{dgettext("dashboard_runners", "Repository")}</div>
               <span data-part="label">
                 {if(@job.repository in [nil, ""], do: "None", else: @job.repository)}
+              </span>
+            </div>
+          </div>
+          <div data-part="metadata-row">
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_runners", "Workflow")}</div>
+              <span data-part="label">
+                <.link :if={workflow_link} navigate={workflow_link} data-part="workflow-link">
+                  {if(@job.workflow_name == "",
+                    do: dgettext("dashboard_runners", "None"),
+                    else: @job.workflow_name
+                  )}
+                </.link>
+                <span :if={!workflow_link}>
+                  {if(@job.workflow_name == "",
+                    do: dgettext("dashboard_runners", "None"),
+                    else: @job.workflow_name
+                  )}
+                </span>
+              </span>
+            </div>
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_runners", "Workflow run")}</div>
+              <span data-part="label">
+                <.link :if={run_link} navigate={run_link} data-part="run-link">
+                  {"##{@job.workflow_run_id}"}
+                </.link>
+                <span :if={!run_link}>{dgettext("dashboard_runners", "None")}</span>
+              </span>
+            </div>
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_runners", "Attempt")}</div>
+              <span data-part="label">{"##{@job.run_attempt}"}</span>
+            </div>
+            <div data-part="metadata">
+              <div data-part="title">{dgettext("dashboard_runners", "Finished")}</div>
+              <span data-part="label">
+                {if(is_nil(@job.completed_at),
+                  do: "–",
+                  else: Tuist.Utilities.DateFormatter.from_now(@job.completed_at)
+                )}
               </span>
             </div>
           </div>

@@ -68,6 +68,11 @@ defmodule TuistWeb.RunnerJobLiveTest do
     assert html =~ "Queued"
     # short_sha takes the first 7 chars
     assert html =~ "abcdef1"
+    # Links up to the parent workflow and to the workflow run.
+    assert html =~ ~s(data-part="workflow-link")
+    assert html =~ "/runners/workflows/tuist/tuist/Server"
+    assert html =~ ~s(data-part="run-link")
+    assert html =~ "/runners/runs/310010"
   end
 
   test "renders timeline durations once a job has run", %{conn: conn, account: account} do

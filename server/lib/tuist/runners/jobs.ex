@@ -682,6 +682,91 @@ defmodule Tuist.Runners.Jobs do
 
   def list_for_workflow_run(_, _, _, _), do: []
 
+  @doc """
+  Lists every job in a workflow run for an account, keyed only by
+  `workflow_run_id` (no repository needed — the run-detail page routes
+  on the id alone). Returns the full per-job state (status,
+  conclusion, branch, sha, timings) so the page can both render the
+  job rows and derive the run header + status rollup. Ordered by
+  start/claim/enqueue time so the run reads top-to-bottom in
+  execution order.
+  """
+  def jobs_for_run(account_id, workflow_run_id)
+      when is_integer(account_id) and is_integer(workflow_run_id) and workflow_run_id > 0 do
+    deduped =
+      Job
+      |> where([j], j.account_id == ^account_id and j.workflow_run_id == ^workflow_run_id)
+      |> group_by([j], j.workflow_job_id)
+      |> select([j], %{
+        workflow_job_id: j.workflow_job_id,
+        fleet_name: fragment("argMax(?, ?)", j.fleet_name, j.updated_at),
+        repository: fragment("argMax(?, ?)", j.repository, j.updated_at),
+        workflow_run_id: fragment("argMax(?, ?)", j.workflow_run_id, j.updated_at),
+        workflow_name: fragment("argMax(?, ?)", j.workflow_name, j.updated_at),
+        run_attempt: fragment("argMax(?, ?)", j.run_attempt, j.updated_at),
+        job_name: fragment("argMax(?, ?)", j.job_name, j.updated_at),
+        head_branch: fragment("argMax(?, ?)", j.head_branch, j.updated_at),
+        head_sha: fragment("argMax(?, ?)", j.head_sha, j.updated_at),
+        status: fragment("argMax(?, ?)", j.status, j.updated_at),
+        conclusion: fragment("argMax(?, ?)", j.conclusion, j.updated_at),
+        enqueued_at: fragment("argMax(?, ?)", j.enqueued_at, j.updated_at),
+        claimed_at: fragment("argMax(?, ?)", j.claimed_at, j.updated_at),
+        started_at: fragment("argMax(?, ?)", j.started_at, j.updated_at),
+        completed_at: fragment("argMax(?, ?)", j.completed_at, j.updated_at)
+      })
+
+    # A rerun keeps the run id but bumps run_attempt with new job ids;
+    # only the latest attempt is the current run, so drop the earlier
+    # attempts before the page counts jobs / sums duration.
+    with_max_attempt =
+      from(j in subquery(deduped),
+        select: %{
+          workflow_job_id: j.workflow_job_id,
+          fleet_name: j.fleet_name,
+          repository: j.repository,
+          workflow_run_id: j.workflow_run_id,
+          workflow_name: j.workflow_name,
+          run_attempt: j.run_attempt,
+          job_name: j.job_name,
+          head_branch: j.head_branch,
+          head_sha: j.head_sha,
+          status: j.status,
+          conclusion: j.conclusion,
+          enqueued_at: j.enqueued_at,
+          claimed_at: j.claimed_at,
+          started_at: j.started_at,
+          completed_at: j.completed_at,
+          run_max_attempt: fragment("max(?) OVER ()", j.run_attempt)
+        }
+      )
+
+    ClickHouseRepo.all(
+      from(j in subquery(with_max_attempt),
+        where: j.run_attempt == j.run_max_attempt,
+        order_by: [asc: fragment("coalesce(?, ?, ?)", j.started_at, j.claimed_at, j.enqueued_at), asc: j.workflow_job_id],
+        select: %{
+          workflow_job_id: j.workflow_job_id,
+          fleet_name: j.fleet_name,
+          repository: j.repository,
+          workflow_run_id: j.workflow_run_id,
+          workflow_name: j.workflow_name,
+          run_attempt: j.run_attempt,
+          job_name: j.job_name,
+          head_branch: j.head_branch,
+          head_sha: j.head_sha,
+          status: j.status,
+          conclusion: j.conclusion,
+          enqueued_at: j.enqueued_at,
+          claimed_at: j.claimed_at,
+          started_at: j.started_at,
+          completed_at: j.completed_at
+        }
+      )
+    )
+  end
+
+  def jobs_for_run(_, _), do: []
+
   # Inner dedup subquery for every multi-row read in this module.
   # GROUP BY workflow_job_id + argMax(field, updated_at) gives us
   # one row per workflow_job carrying its latest state — the same
@@ -1036,6 +1121,17 @@ defmodule Tuist.Runners.Jobs do
     )
   end
 
+  # "last_run" sorts by the workflow's most recent activity
+  # (max enqueued_at) — the default landing order so freshly-active
+  # workflows surface first.
+  defp workflows_order_by(query, "last_run", "asc") do
+    order_by(query, [j], asc: max(j.enqueued_at), asc: j.workflow_name)
+  end
+
+  defp workflows_order_by(query, "last_run", _desc) do
+    order_by(query, [j], desc: max(j.enqueued_at), asc: j.workflow_name)
+  end
+
   defp workflows_order_by(query, _workflow_default, "desc") do
     order_by(query, [j], desc: j.workflow_name, desc: j.repository)
   end
@@ -1121,6 +1217,166 @@ defmodule Tuist.Runners.Jobs do
       )
     )
   end
+
+  @doc """
+  Lists workflow *runs* for a named workflow (`repository` +
+  `workflow_name`), newest activity first, paginated. Unlike
+  `list_recent_workflow_runs_for_account/2` (analytics; completed
+  runs only) this includes still-running runs and stamps a run-level
+  `status` / `conclusion` rolled up from the run's jobs, so the
+  dashboard can render a status badge and a Cancel affordance per run.
+
+  Run status rollup:
+    * any job not `completed` → `status: "in_progress"` (a queued /
+      claimed / running job means the run is still going).
+    * all jobs `completed` → `status: "completed"` with `conclusion`
+      collapsed by precedence failure > timed_out > cancelled >
+      success, otherwise the run's own less common conclusion (stale,
+      neutral, …), falling back to skipped / unknown — never
+      mislabelling a non-success terminal state as skipped.
+
+  A workflow rerun keeps the same `workflow_run_id` but bumps
+  `run_attempt`; the rollup reflects only the run's latest attempt, so
+  a reran failure doesn't linger and job counts / durations aren't
+  doubled.
+
+  Options: `:limit`, `:offset`, `:head_branch` (exact), `:platform`.
+  """
+  def list_workflow_runs(account_id, repository, workflow_name, opts \\ [])
+
+  def list_workflow_runs(account_id, repository, workflow_name, opts)
+      when is_integer(account_id) and is_binary(repository) and repository != "" and is_binary(workflow_name) and
+             is_list(opts) do
+    limit = Keyword.get(opts, :limit, 20)
+    offset = Keyword.get(opts, :offset, 0)
+
+    account_id
+    |> workflow_runs_query(repository, workflow_name, opts)
+    |> order_by([j], desc: max(j.updated_at))
+    |> limit(^limit)
+    |> offset(^offset)
+    |> ClickHouseRepo.all()
+  end
+
+  def list_workflow_runs(_, _, _, _), do: []
+
+  @doc """
+  Counts distinct workflow runs for a named workflow — the total for
+  `list_workflow_runs/4` pagination. `workflow_run_id` is stable
+  across a job's lifecycle rows, so a plain `countDistinct` over the
+  filtered rows is exact without the inner dedup.
+  """
+  def count_workflow_runs(account_id, repository, workflow_name, opts \\ [])
+
+  def count_workflow_runs(account_id, repository, workflow_name, opts)
+      when is_integer(account_id) and is_binary(repository) and repository != "" and is_binary(workflow_name) and
+             is_list(opts) do
+    Job
+    |> where([j], j.account_id == ^account_id and j.workflow_run_id > 0)
+    |> where([j], j.repository == ^repository and j.workflow_name == ^workflow_name)
+    |> maybe_filter_run_branch(Keyword.get(opts, :head_branch))
+    |> maybe_filter_platform(Keyword.get(opts, :platform))
+    |> select([j], fragment("countDistinct(?)", j.workflow_run_id))
+    |> ClickHouseRepo.one()
+  end
+
+  def count_workflow_runs(_, _, _, _), do: 0
+
+  # Two-stage aggregation shared by list/count: inner dedupes to one
+  # row per workflow_job (argMax over lifecycle rows), outer rolls the
+  # deduped jobs up to one row per workflow_run_id with the run status.
+  defp workflow_runs_query(account_id, repository, workflow_name, opts) do
+    inner =
+      Job
+      |> where([j], j.account_id == ^account_id and j.workflow_run_id > 0)
+      |> where([j], j.repository == ^repository and j.workflow_name == ^workflow_name)
+      |> maybe_filter_run_branch(Keyword.get(opts, :head_branch))
+      |> maybe_filter_platform(Keyword.get(opts, :platform))
+      |> group_by([j], j.workflow_job_id)
+      |> select([j], %{
+        workflow_job_id: j.workflow_job_id,
+        workflow_run_id: fragment("argMax(?, ?)", j.workflow_run_id, j.updated_at),
+        workflow_name: fragment("argMax(?, ?)", j.workflow_name, j.updated_at),
+        repository: fragment("argMax(?, ?)", j.repository, j.updated_at),
+        head_branch: fragment("argMax(?, ?)", j.head_branch, j.updated_at),
+        head_sha: fragment("argMax(?, ?)", j.head_sha, j.updated_at),
+        run_attempt: fragment("argMax(?, ?)", j.run_attempt, j.updated_at),
+        status: fragment("argMax(?, ?)", j.status, j.updated_at),
+        conclusion: fragment("argMax(?, ?)", j.conclusion, j.updated_at),
+        enqueued_at: fragment("argMax(?, ?)", j.enqueued_at, j.updated_at),
+        started_at: fragment("argMax(?, ?)", j.started_at, j.updated_at),
+        completed_at: fragment("argMax(?, ?)", j.completed_at, j.updated_at),
+        updated_at: max(j.updated_at)
+      })
+
+    # A workflow rerun keeps the same workflow_run_id but bumps
+    # run_attempt and lands new job ids, so grouping by run id alone
+    # would fold a failed first attempt into its successful rerun
+    # (wrong status, doubled job count + duration). Tag each deduped
+    # job with its run's highest attempt, then roll up only the jobs
+    # from that latest attempt.
+    with_max_attempt =
+      from(j in subquery(inner),
+        select: %{
+          workflow_run_id: j.workflow_run_id,
+          workflow_name: j.workflow_name,
+          repository: j.repository,
+          head_branch: j.head_branch,
+          head_sha: j.head_sha,
+          run_attempt: j.run_attempt,
+          status: j.status,
+          conclusion: j.conclusion,
+          enqueued_at: j.enqueued_at,
+          started_at: j.started_at,
+          completed_at: j.completed_at,
+          updated_at: j.updated_at,
+          run_max_attempt: fragment("max(?) OVER (PARTITION BY ?)", j.run_attempt, j.workflow_run_id)
+        }
+      )
+
+    from(j in subquery(with_max_attempt),
+      where: j.run_attempt == j.run_max_attempt,
+      group_by: j.workflow_run_id,
+      select: %{
+        workflow_run_id: j.workflow_run_id,
+        workflow_name: fragment("argMax(?, ?)", j.workflow_name, j.updated_at),
+        repository: fragment("argMax(?, ?)", j.repository, j.updated_at),
+        head_branch: fragment("argMax(?, ?)", j.head_branch, j.updated_at),
+        head_sha: fragment("argMax(?, ?)", j.head_sha, j.updated_at),
+        run_attempt: fragment("argMax(?, ?)", j.run_attempt, j.updated_at),
+        job_count: fragment("count()"),
+        status: fragment("if(countIf(? != 'completed') > 0, 'in_progress', 'completed')", j.status),
+        conclusion:
+          fragment(
+            "multiIf(countIf(? = 'failure') > 0, 'failure', countIf(? = 'timed_out') > 0, 'timed_out', countIf(? = 'cancelled') > 0, 'cancelled', countIf(? = 'success') > 0, 'success', countIf(? NOT IN ('', 'skipped')) > 0, anyIf(?, ? NOT IN ('', 'skipped')), countIf(? = 'skipped') > 0, 'skipped', 'unknown')",
+            j.conclusion,
+            j.conclusion,
+            j.conclusion,
+            j.conclusion,
+            j.conclusion,
+            j.conclusion,
+            j.conclusion,
+            j.conclusion
+          ),
+        enqueued_at: min(j.enqueued_at),
+        started_at: min(j.started_at),
+        duration_ms:
+          fragment(
+            "maxIf(toUnixTimestamp64Milli(?), isNotNull(?)) - minIf(toUnixTimestamp64Milli(?), isNotNull(?))",
+            j.completed_at,
+            j.completed_at,
+            j.started_at,
+            j.started_at
+          ),
+        last_activity_at: max(j.updated_at)
+      }
+    )
+  end
+
+  defp maybe_filter_run_branch(query, nil), do: query
+  defp maybe_filter_run_branch(query, ""), do: query
+
+  defp maybe_filter_run_branch(query, branch) when is_binary(branch), do: where(query, [j], j.head_branch == ^branch)
 
   defp maybe_eq_workflow(query, nil, nil), do: query
 

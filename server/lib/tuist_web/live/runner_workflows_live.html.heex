@@ -399,7 +399,12 @@
               }
             />
           </:col>
-          <:col :let={w} label={dgettext("dashboard_runners", "Last run")}>
+          <:col
+            :let={w}
+            label={dgettext("dashboard_runners", "Last run")}
+            patch={TuistWeb.RunnerWorkflowsLive.column_sort_patch(assigns, "last_run")}
+            sort_order={@sort_by == "last_run" && @sort_order}
+          >
             <.text_cell sublabel={Tuist.Utilities.DateFormatter.from_now(w.last_run_at)} />
           </:col>
         </.table>

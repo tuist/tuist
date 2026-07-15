@@ -251,6 +251,47 @@ defmodule Tuist.Runners do
   end
 
   @doc """
+  Cancels a workflow run on GitHub on behalf of `account`. Requires
+  the account's GitHub App installation to hold `actions: write`
+  (gate with `can_cancel_workflow_runs?/1`). GitHub cancels every job
+  in the run and the resulting `workflow_job.completed` webhooks
+  reconcile our `runner_jobs` rows — we deliberately don't mutate
+  local state here, so the dashboard reflects GitHub's authoritative
+  transition. Returns `:ok`, `{:error, :no_installation}`, or the
+  client's `{:error, reason}` (e.g. `:forbidden`, `:not_found`).
+  """
+  def cancel_workflow_run(%{id: account_id}, repository, workflow_run_id)
+      when is_binary(repository) and repository != "" and is_integer(workflow_run_id) do
+    case VCS.get_github_app_installation_for_account(account_id) do
+      {:ok, installation} ->
+        GitHubClient.cancel_workflow_run(installation, repository, workflow_run_id)
+
+      {:error, :not_found} ->
+        {:error, :no_installation}
+    end
+  end
+
+  @doc """
+  Whether the account's GitHub App installation can cancel workflow
+  runs — i.e. it granted `actions: write`. Gates the dashboard's
+  Cancel affordance; fails closed on a missing installation or a
+  GitHub lookup error.
+  """
+  def can_cancel_workflow_runs?(%{id: account_id}) do
+    # Local dev has no real GitHub App installation to check
+    # `actions: write` against, so surface the affordance anyway to keep
+    # the cancel UI reachable while developing. Never applies outside dev.
+    if Tuist.Environment.dev?() do
+      true
+    else
+      case VCS.get_github_app_installation_for_account(account_id) do
+        {:ok, installation} -> GitHubClient.installation_has_actions_write?(installation)
+        {:error, _} -> false
+      end
+    end
+  end
+
+  @doc """
   Claims the next eligible queued workflow_job for the SA's fleet
   and mints a JIT for the workflow_job's account.
 

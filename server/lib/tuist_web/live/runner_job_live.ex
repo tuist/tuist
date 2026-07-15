@@ -16,6 +16,7 @@ defmodule TuistWeb.RunnerJobLive do
   alias Tuist.Runners.JobSteps
   alias Tuist.Runners.LogFormatter
   alias Tuist.Utilities.DateFormatter
+  alias Tuist.VCS
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.Utilities.Query
 
@@ -69,6 +70,7 @@ defmodule TuistWeb.RunnerJobLive do
          socket
          |> assign(:head_title, head_title)
          |> assign(:job, job)
+         |> assign(:github_base_url, VCS.github_base_url_for_account(selected_account.id))
          |> assign(:interactive, interactive_state(selected_account, current_user, job))
          |> assign(:steps, JobSteps.list_for_job(job.workflow_job_id))
          |> assign(:machine_metrics, machine_metrics)
@@ -203,13 +205,13 @@ defmodule TuistWeb.RunnerJobLive do
 
   def platform_badge_color(_), do: "neutral"
 
-  def github_job_url(%{repository: repository, workflow_run_id: run_id, workflow_job_id: job_id})
-      when is_binary(repository) and repository != "" and is_integer(run_id) and run_id > 0 and is_integer(job_id) and
-             job_id > 0 do
-    "https://github.com/#{repository}/actions/runs/#{run_id}/job/#{job_id}"
+  def github_job_url(base_url, %{repository: repository, workflow_run_id: run_id, workflow_job_id: job_id})
+      when is_binary(base_url) and base_url != "" and is_binary(repository) and repository != "" and is_integer(run_id) and
+             run_id > 0 and is_integer(job_id) and job_id > 0 do
+    "#{base_url}/#{repository}/actions/runs/#{run_id}/job/#{job_id}"
   end
 
-  def github_job_url(_), do: nil
+  def github_job_url(_, _), do: nil
 
   @doc """
   Builds the deep link to a single workflow_job. Mirrors GitHub's
@@ -224,6 +226,36 @@ defmodule TuistWeb.RunnerJobLive do
   end
 
   def path(_, _), do: nil
+
+  @doc """
+  Path to the parent workflow's detail page for a job, or `nil` when
+  the job carries no repository / workflow_name to address it. Lets
+  the job page link "up" to its workflow (and its runs).
+  """
+  def workflow_path(account_name, %{repository: repository, workflow_name: workflow_name})
+      when is_binary(account_name) and is_binary(repository) and is_binary(workflow_name) and workflow_name != "" do
+    case String.split(repository, "/", parts: 2) do
+      [owner, name] when owner != "" and name != "" ->
+        encoded = URI.encode(workflow_name, &URI.char_unreserved?/1)
+        "/#{account_name}/runners/workflows/#{owner}/#{name}/#{encoded}"
+
+      _ ->
+        nil
+    end
+  end
+
+  def workflow_path(_, _), do: nil
+
+  @doc """
+  Path to the job's parent workflow run detail, or `nil` when the run
+  id is missing.
+  """
+  def run_path(account_name, %{workflow_run_id: run_id})
+      when is_binary(account_name) and is_integer(run_id) and run_id > 0 do
+    "/#{account_name}/runners/runs/#{run_id}"
+  end
+
+  def run_path(_, _), do: nil
 
   @doc """
   Builds a deep link to a step in the job overview.

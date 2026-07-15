@@ -36,6 +36,7 @@
 @import "./pages/runner_jobs.css";
 @import "./pages/runner_profiles.css";
 @import "./pages/runner_workflow.css";
+@import "./pages/runner_workflow_run.css";
 @import "./pages/runner_workflows.css";
 @import "./pages/runners.css";
 @import "./pages/connect.css";

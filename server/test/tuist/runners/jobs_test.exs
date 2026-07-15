@@ -1134,4 +1134,99 @@ defmodule Tuist.Runners.JobsTest do
       assert Jobs.p95_concurrent_last_hour("fleet-old") == 0
     end
   end
+
+  describe "list_workflow_runs/4 and jobs_for_run/2" do
+    test "rolls a rerun up from its latest attempt only" do
+      account = account_fixture()
+      run_id = 880_001
+
+      # Attempt 1: two jobs, the first failed.
+      :ok =
+        completed_job_fixture(account, 88_101,
+          workflow_run_id: run_id,
+          run_attempt: 1,
+          workflow_name: "CI",
+          repository: "acme/app",
+          conclusion: "failure",
+          started_at: ~U[2026-06-01 10:00:00.000000Z],
+          completed_at: ~U[2026-06-01 10:05:00.000000Z]
+        )
+
+      :ok =
+        completed_job_fixture(account, 88_102,
+          workflow_run_id: run_id,
+          run_attempt: 1,
+          workflow_name: "CI",
+          repository: "acme/app",
+          conclusion: "success",
+          started_at: ~U[2026-06-01 10:00:00.000000Z],
+          completed_at: ~U[2026-06-01 10:04:00.000000Z]
+        )
+
+      # Attempt 2 (rerun): same jobs re-run green, GitHub mints new ids.
+      :ok =
+        completed_job_fixture(account, 88_201,
+          workflow_run_id: run_id,
+          run_attempt: 2,
+          workflow_name: "CI",
+          repository: "acme/app",
+          conclusion: "success",
+          started_at: ~U[2026-06-01 11:00:00.000000Z],
+          completed_at: ~U[2026-06-01 11:03:00.000000Z]
+        )
+
+      :ok =
+        completed_job_fixture(account, 88_202,
+          workflow_run_id: run_id,
+          run_attempt: 2,
+          workflow_name: "CI",
+          repository: "acme/app",
+          conclusion: "success",
+          started_at: ~U[2026-06-01 11:00:00.000000Z],
+          completed_at: ~U[2026-06-01 11:02:00.000000Z]
+        )
+
+      assert [run] = Jobs.list_workflow_runs(account.id, "acme/app", "CI")
+      assert run.workflow_run_id == run_id
+      assert run.run_attempt == 2
+      assert run.status == "completed"
+      # The failed first attempt must not drag the rerun down, and only
+      # the 2 latest-attempt jobs count — not all 4.
+      assert run.conclusion == "success"
+      assert run.job_count == 2
+
+      assert [88_201, 88_202] ==
+               account.id |> Jobs.jobs_for_run(run_id) |> Enum.map(& &1.workflow_job_id) |> Enum.sort()
+    end
+
+    test "preserves stale and timed_out conclusions instead of labelling them skipped" do
+      account = account_fixture()
+
+      :ok =
+        completed_job_fixture(account, 89_101,
+          workflow_run_id: 890_010,
+          workflow_name: "Nightly",
+          repository: "acme/app",
+          conclusion: "stale",
+          started_at: ~U[2026-06-02 10:00:00.000000Z],
+          completed_at: ~U[2026-06-02 10:01:00.000000Z]
+        )
+
+      :ok =
+        completed_job_fixture(account, 89_201,
+          workflow_run_id: 890_020,
+          workflow_name: "Nightly",
+          repository: "acme/app",
+          conclusion: "timed_out",
+          started_at: ~U[2026-06-02 09:00:00.000000Z],
+          completed_at: ~U[2026-06-02 09:30:00.000000Z]
+        )
+
+      runs = Jobs.list_workflow_runs(account.id, "acme/app", "Nightly")
+      by_id = Map.new(runs, &{&1.workflow_run_id, &1})
+
+      assert by_id[890_010].conclusion == "stale"
+      assert by_id[890_020].conclusion == "timed_out"
+    end
+  end
 end
