@@ -133,6 +133,38 @@ defmodule Tuist.Kura.Usage do
   end
 
   @doc """
+  Returns immutable billable egress rollups ingested in
+  `[start_dt, end_dt]`.
+
+  Selecting by ingestion time means a rollup delayed by Kura's durable outbox
+  remains discoverable after it arrives. Each row retains its original window
+  timestamp for billing-period attribution. Callers must use the deterministic
+  event ID to exclude rollups already reported to an external meter.
+  """
+  def billable_egress_events_by_ingestion(account_id, start_dt, end_dt) when is_integer(account_id) do
+    start_naive = to_naive(start_dt)
+    end_naive = to_naive(end_dt)
+
+    query =
+      from(e in UsageEvent,
+        where:
+          e.account_id == ^account_id and e.inserted_at >= ^start_naive and e.inserted_at <= ^end_naive and
+            e.traffic_plane == "public" and e.network_path == "public_internet" and
+            e.direction == "egress",
+        group_by: e.event_id,
+        select: %{
+          event_id: e.event_id,
+          window_start: fragment("argMax(?, ?)", e.window_start, e.inserted_at),
+          bytes: fragment("argMax(?, ?)", e.bytes, e.inserted_at)
+        }
+      )
+
+    query
+    |> ClickHouseRepo.all()
+    |> Enum.map(&Map.update!(&1, :bytes, fn bytes -> zeroed(bytes) end))
+  end
+
+  @doc """
   Returns cumulative billable egress bytes for each time bucket in
   `[start_dt, end_dt]`.
 

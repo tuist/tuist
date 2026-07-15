@@ -2,13 +2,16 @@ defmodule Tuist.BillingTest do
   use TuistTestSupport.Cases.DataCase, async: true
   use Mimic
 
+  alias Stripe.Checkout.Session
   alias Tuist.Accounts
   alias Tuist.Accounts.Account
   alias Tuist.Billing
   alias Tuist.Billing.Card
   alias Tuist.Billing.Customer
+  alias Tuist.Billing.KuraBillingEvent
   alias Tuist.Billing.PaymentMethod
   alias Tuist.Environment
+  alias Tuist.FeatureFlags
   alias Tuist.Kura.Usage
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.BillingFixtures
@@ -18,10 +21,12 @@ defmodule Tuist.BillingTest do
       %{
         "air" => %{
           "usage" => ["air.usage"],
+          "kura_usage" => ["air.kura-usage"],
           "flat_monthly" => ["air.flat.monthly"]
         },
         "pro" => %{
           "usage" => ["pro.usage"],
+          "kura_usage" => ["pro.kura-usage"],
           "flat_monthly" => ["pro.flat.monthly"],
           "flat_yearly" => ["pro.flat.yearly"]
         },
@@ -369,15 +374,15 @@ defmodule Tuist.BillingTest do
       account = Accounts.get_account_from_user(user)
       customer_id = account.customer_id
 
-      stub(Stripe.Checkout.Session, :create, fn %{
-                                                  success_url: "success_url",
-                                                  line_items: [
-                                                    %{price: "pro.usage"},
-                                                    %{price: "pro.flat.monthly", quantity: 1}
-                                                  ],
-                                                  mode: "subscription",
-                                                  customer: ^customer_id
-                                                } ->
+      stub(Session, :create, fn %{
+                                  success_url: "success_url",
+                                  line_items: [
+                                    %{price: "pro.usage"},
+                                    %{price: "pro.flat.monthly", quantity: 1}
+                                  ],
+                                  mode: "subscription",
+                                  customer: ^customer_id
+                                } ->
         {:ok, %{url: "session_url"}}
       end)
 
@@ -387,6 +392,30 @@ defmodule Tuist.BillingTest do
 
       # Then
       assert session_url == {:ok, {:external_redirect, "session_url"}}
+    end
+
+    test "attaches the Kura usage price only when Kura billing is enabled" do
+      user = AccountsFixtures.user_fixture(customer_id: "customer_id")
+      account = Accounts.get_account_from_user(user)
+      customer_id = account.customer_id
+
+      stub(FeatureFlags, :kura_billing_enabled?, fn ^account -> true end)
+
+      expect(Session, :create, fn %{
+                                    success_url: "success_url",
+                                    line_items: [
+                                      %{price: "pro.usage"},
+                                      %{price: "pro.kura-usage"},
+                                      %{price: "pro.flat.monthly", quantity: 1}
+                                    ],
+                                    mode: "subscription",
+                                    customer: ^customer_id
+                                  } ->
+        {:ok, %{url: "session_url"}}
+      end)
+
+      assert {:ok, {:external_redirect, "session_url"}} =
+               Billing.update_plan(%{plan: :pro, account: account, success_url: "success_url"})
     end
 
     test "updates a subscription to the pro plan if the current active plan is air" do
@@ -464,8 +493,8 @@ defmodule Tuist.BillingTest do
     end
   end
 
-  describe "update_remote_cache_hit_meter/2" do
-    test "sends the right API request to Stripe" do
+  describe "update_remote_cache_hit_meter/3" do
+    test "sends usage for the requested date to Stripe" do
       # Given
       user = AccountsFixtures.user_fixture(preload: [:account])
       customer_id = "customer_id"
@@ -477,6 +506,8 @@ defmodule Tuist.BillingTest do
                                                method: :post,
                                                endpoint: "/v1/billing/meter_events",
                                                params: %{
+                                                 identifier: "customer_id-remote-cache-hit-2026-07-13",
+                                                 timestamp: 1_783_900_800,
                                                  payload: %{
                                                    value: 10,
                                                    stripe_customer_id: ^customer_id
@@ -487,38 +518,49 @@ defmodule Tuist.BillingTest do
         {:ok, %{}}
       end)
 
-      stub(Tuist.CommandEvents, :get_yesterdays_remote_cache_hits_count_for_customer, fn ^customer_id -> 10 end)
+      stub(Tuist.CommandEvents, :get_remote_cache_hits_count_for_customer, fn ^customer_id, ~D[2026-07-13] -> 10 end)
 
       # When
-      Billing.update_remote_cache_hit_meter(account.customer_id, "job-1")
+      Billing.update_remote_cache_hit_meter(account.customer_id, "job-1", ~D[2026-07-13])
     end
   end
 
   describe "update_cache_egress_meter/3" do
-    test "sends yesterday's billable public egress bytes to Stripe" do
+    test "sends first-ingested billable rollups with their original timestamp" do
       customer_id = "customer_id"
-      now = ~U[2026-07-14 08:30:00Z]
+      reporting_date = ~D[2026-07-14]
+      event_id = "kura-event-1"
+      event_hash = :sha256 |> :crypto.hash(event_id) |> Base.encode16(case: :lower)
+      stripe_idempotency_key = "job-1-cache-egress-#{event_hash}"
+      stripe_identifier = "cache-egress-byte-#{event_hash}"
 
       %{account: account} =
         AccountsFixtures.user_fixture(customer_id: customer_id)
 
-      expect(Usage, :billable_egress_bytes, fn account_id, start_date, end_date ->
+      expect(Usage, :billable_egress_events_by_ingestion, fn account_id, start_date, end_date ->
         assert account_id == account.id
-        assert start_date == ~U[2026-07-13 00:00:00Z]
-        assert end_date == ~U[2026-07-13 23:59:59Z]
-        12_345
+        assert start_date == ~U[2026-07-14 00:00:00Z]
+        assert end_date == ~U[2026-07-14 23:59:59Z]
+
+        [
+          %{
+            event_id: event_id,
+            window_start: ~N[2026-07-13 18:42:00],
+            bytes: 12_345
+          }
+        ]
       end)
 
       expect(Stripe.Request, :make_request, fn %{
                                                  method: :post,
                                                  endpoint: "/v1/billing/meter_events",
                                                  headers: %{
-                                                   "Idempotency-Key" => "job-1-cache-egress-byte"
+                                                   "Idempotency-Key" => ^stripe_idempotency_key
                                                  },
                                                  params: %{
                                                    event_name: "cache_egress_byte",
-                                                   identifier: "customer_id-cache-egress-byte-2026-07-13",
-                                                   timestamp: 1_783_900_800,
+                                                   identifier: ^stripe_identifier,
+                                                   timestamp: 1_783_968_120,
                                                    payload: %{
                                                      value: 12_345,
                                                      stripe_customer_id: "customer_id"
@@ -528,17 +570,43 @@ defmodule Tuist.BillingTest do
         {:ok, %{}}
       end)
 
-      assert {:ok, %{}} = Billing.update_cache_egress_meter(account, "job-1", now)
+      assert {:ok, 1} = Billing.update_cache_egress_meter(account, "job-1", reporting_date)
+
+      assert %KuraBillingEvent{account_id: account_id, reported_at: %DateTime{}} =
+               Repo.get!(KuraBillingEvent, event_id)
+
+      assert account_id == account.id
     end
 
-    test "does not send a zero-value meter event" do
-      now = ~U[2026-07-14 08:30:00Z]
+    test "does not send an event that was already reported" do
+      reporting_date = ~D[2026-07-14]
+      event_id = "already-reported"
       %{account: account} = AccountsFixtures.user_fixture(customer_id: "customer_id")
 
-      expect(Usage, :billable_egress_bytes, fn _account_id, _start_date, _end_date -> 0 end)
+      Repo.insert_all(KuraBillingEvent, [
+        %{event_id: event_id, account_id: account.id, reported_at: ~U[2026-07-13 12:00:00Z]}
+      ])
+
+      expect(Usage, :billable_egress_events_by_ingestion, fn _account_id, _start_date, _end_date ->
+        [%{event_id: event_id, window_start: ~N[2026-07-13 12:00:00], bytes: 100}]
+      end)
+
       reject(&Stripe.Request.make_request/1)
 
-      assert {:ok, :no_usage} = Billing.update_cache_egress_meter(account, "job-1", now)
+      assert {:ok, 0} = Billing.update_cache_egress_meter(account, "job-2", reporting_date)
+    end
+
+    test "does not send a zero-value rollup" do
+      reporting_date = ~D[2026-07-14]
+      %{account: account} = AccountsFixtures.user_fixture(customer_id: "customer_id")
+
+      expect(Usage, :billable_egress_events_by_ingestion, fn _account_id, _start_date, _end_date ->
+        [%{event_id: "zero", window_start: ~N[2026-07-13 12:00:00], bytes: 0}]
+      end)
+
+      reject(&Stripe.Request.make_request/1)
+
+      assert {:ok, 0} = Billing.update_cache_egress_meter(account, "job-1", reporting_date)
     end
   end
 
@@ -605,12 +673,9 @@ defmodule Tuist.BillingTest do
     end
   end
 
-  describe "get_yesterdays_customer_llm_token_usage/1" do
-    test "sums only yesterday's token usage for the given customer" do
+  describe "get_customer_llm_token_usage/2" do
+    test "sums only the requested date's token usage for the given customer" do
       # Given
-      today = ~U[2025-01-02 12:00:00Z]
-      stub(DateTime, :utc_now, fn -> today end)
-
       org = AccountsFixtures.organization_fixture()
       account = Tuist.Repo.get_by!(Account, organization_id: org.id)
       account = Tuist.Repo.update!(Account.billing_changeset(account, %{customer_id: "cust_" <> UUIDv7.generate()}))
@@ -621,7 +686,7 @@ defmodule Tuist.BillingTest do
       other_account =
         Tuist.Repo.update!(Account.billing_changeset(other_account, %{customer_id: "cust_" <> UUIDv7.generate()}))
 
-      # Yesterday usage for target account (should be included)
+      # Requested-date usage for target account (should be included)
       {:ok, _} =
         Billing.create_token_usage(%{
           input_tokens: 100,
@@ -633,7 +698,7 @@ defmodule Tuist.BillingTest do
           timestamp: ~U[2025-01-01 08:00:00Z]
         })
 
-      # Today usage (outside yesterday) for target account (excluded)
+      # Next-day usage for target account (excluded)
       {:ok, _} =
         Billing.create_token_usage(%{
           input_tokens: 200,
@@ -645,7 +710,7 @@ defmodule Tuist.BillingTest do
           timestamp: ~U[2025-01-02 09:00:00Z]
         })
 
-      # Yesterday usage for another account (excluded by customer_id)
+      # Requested-date usage for another account (excluded by customer_id)
       {:ok, _} =
         Billing.create_token_usage(%{
           input_tokens: 300,
@@ -658,10 +723,54 @@ defmodule Tuist.BillingTest do
         })
 
       # When
-      {input, output} = Billing.get_yesterdays_customer_llm_token_usage(account.customer_id)
+      {input, output} = Billing.get_customer_llm_token_usage(account.customer_id, ~D[2025-01-01])
 
       # Then
       assert {input, output} == {100, 50}
+    end
+  end
+
+  describe "update_llm_token_meters/3" do
+    test "timestamps both meter events with the requested usage date" do
+      %{account: account} = AccountsFixtures.user_fixture(customer_id: "customer_id")
+
+      {:ok, _} =
+        Billing.create_token_usage(%{
+          input_tokens: 100,
+          output_tokens: 50,
+          model: "gpt-4",
+          feature: "qa",
+          feature_resource_id: UUIDv7.generate(),
+          account_id: account.id,
+          timestamp: ~U[2026-07-13 08:00:00Z]
+        })
+
+      expect(Stripe.Request, :make_request, 2, fn %{
+                                                    method: :post,
+                                                    endpoint: "/v1/billing/meter_events",
+                                                    params: %{
+                                                      event_name: event_name,
+                                                      identifier: identifier,
+                                                      timestamp: 1_783_900_800,
+                                                      payload: %{
+                                                        value: value,
+                                                        stripe_customer_id: "customer_id"
+                                                      }
+                                                    }
+                                                  } ->
+        expected =
+          case event_name do
+            "llm_input_token" -> {"customer_id-input-2026-07-13", 100}
+            "llm_output_token" -> {"customer_id-output-2026-07-13", 50}
+          end
+
+        assert {identifier, value} == expected
+
+        {:ok, %{}}
+      end)
+
+      assert {:ok, %{}} =
+               Billing.update_llm_token_meters("customer_id", "job-1", ~D[2026-07-13])
     end
   end
 

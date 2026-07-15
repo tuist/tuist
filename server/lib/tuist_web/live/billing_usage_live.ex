@@ -16,7 +16,7 @@ defmodule TuistWeb.BillingUsageLive do
   @impl true
   def mount(_params, _session, %{assigns: %{selected_account: account, current_user: current_user}} = socket) do
     if Authorization.authorize(:billing_update, current_user, account) != :ok or
-         not FeatureFlags.kura_enabled?(account) do
+         not FeatureFlags.kura_billing_enabled?(account) do
       raise TuistWeb.Errors.NotFoundError,
             dgettext("dashboard_usage", "The page you are looking for doesn't exist or has been moved.")
     end

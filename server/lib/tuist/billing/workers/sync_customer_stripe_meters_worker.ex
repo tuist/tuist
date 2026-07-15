@@ -9,16 +9,21 @@ defmodule Tuist.Billing.Workers.SyncCustomerStripeMetersWorker do
 
   alias Tuist.Accounts
   alias Tuist.Billing.Workers.SyncCustomerStripeMeterWorker
+  alias Tuist.FeatureFlags
 
   @impl Oban.Worker
 
-  def perform(%Oban.Job{args: %{"customer_id" => customer_id}}) do
-    date = Timex.format!(Tuist.Time.utc_now(), "{YYYY}.{0M}.{D}")
-    idempotency_key = "#{customer_id}-#{date}"
-
+  def perform(%Oban.Job{args: %{"customer_id" => customer_id, "usage_date" => usage_date}}) do
     {:ok, account} = Accounts.get_account_from_customer_id(customer_id)
 
-    meters = ["remote_cache_hit", "cache_egress"]
+    meters = ["remote_cache_hit"]
+
+    meters =
+      if FeatureFlags.kura_billing_enabled?(account) do
+        meters ++ ["cache_egress"]
+      else
+        meters
+      end
 
     meters =
       if FunWithFlags.enabled?(:qa_billing_enabled, for: account) do
@@ -32,7 +37,8 @@ defmodule Tuist.Billing.Workers.SyncCustomerStripeMetersWorker do
       &SyncCustomerStripeMeterWorker.new(%{
         customer_id: customer_id,
         meter: &1,
-        idempotency_key: idempotency_key
+        usage_date: usage_date,
+        idempotency_key: "#{customer_id}-#{usage_date}"
       })
     )
     |> Oban.insert_all()

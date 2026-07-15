@@ -332,6 +332,70 @@ defmodule Tuist.Kura.UsageTest do
       assert Usage.billable_egress_bytes(account_id, start_dt, end_dt) == 100
     end
 
+    test "returns each rollup on its ingestion date with its source timestamp" do
+      account_id = unique_account_id()
+      event_id = "delayed-#{System.unique_integer([:positive])}"
+
+      insert_event(%{
+        account_id: account_id,
+        event_id: event_id,
+        bytes: 250,
+        window_start: ~N[2026-05-01 23:59:00],
+        inserted_at: ~N[2026-05-03 00:05:00]
+      })
+
+      insert_event(%{
+        account_id: account_id,
+        event_id: event_id,
+        bytes: 250,
+        window_start: ~N[2026-05-01 23:59:00],
+        inserted_at: ~N[2026-05-04 00:05:00]
+      })
+
+      assert [
+               %{
+                 event_id: ^event_id,
+                 bytes: 250,
+                 window_start: ~N[2026-05-01 23:59:00]
+               }
+             ] =
+               Usage.billable_egress_events_by_ingestion(
+                 account_id,
+                 ~U[2026-05-03 00:00:00Z],
+                 ~U[2026-05-03 23:59:59Z]
+               )
+
+      assert [
+               %{
+                 event_id: ^event_id,
+                 bytes: 250,
+                 window_start: ~N[2026-05-01 23:59:00]
+               }
+             ] =
+               Usage.billable_egress_events_by_ingestion(
+                 account_id,
+                 ~U[2026-05-04 00:00:00Z],
+                 ~U[2026-05-04 23:59:59Z]
+               )
+    end
+
+    test "first-ingestion rollups exclude non-billable traffic" do
+      account_id = unique_account_id()
+      inserted_at = ~N[2026-05-03 00:05:00]
+
+      insert_event(%{account_id: account_id, bytes: 100, inserted_at: inserted_at})
+      insert_event(%{account_id: account_id, bytes: 200, direction: "ingress", inserted_at: inserted_at})
+      insert_event(%{account_id: account_id, bytes: 300, network_path: "private_network", inserted_at: inserted_at})
+      insert_event(%{account_id: account_id, bytes: 400, traffic_plane: "customer_operated", inserted_at: inserted_at})
+
+      assert [%{bytes: 100}] =
+               Usage.billable_egress_events_by_ingestion(
+                 account_id,
+                 ~U[2026-05-03 00:00:00Z],
+                 ~U[2026-05-03 23:59:59Z]
+               )
+    end
+
     test "uses the network path rather than the region name" do
       account_id = unique_account_id()
       {start_dt, end_dt} = window_span()

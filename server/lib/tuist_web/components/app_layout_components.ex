@@ -438,7 +438,7 @@ defmodule TuistWeb.AppLayoutComponents do
       <% billing_authorized? =
         Authorization.authorize(:account_update, @current_user, @selected_account) == :ok %>
       <.sidebar_group
-        :if={billing_authorized? and FeatureFlags.kura_enabled?(@selected_account)}
+        :if={billing_authorized? and FeatureFlags.kura_billing_enabled?(@selected_account)}
         id="sidebar-billing"
         label={dgettext("dashboard", "Billing")}
         icon="credit_card"
@@ -455,7 +455,7 @@ defmodule TuistWeb.AppLayoutComponents do
         />
       </.sidebar_group>
       <.sidebar_item
-        :if={billing_authorized? and not FeatureFlags.kura_enabled?(@selected_account)}
+        :if={billing_authorized? and not FeatureFlags.kura_billing_enabled?(@selected_account)}
         label={dgettext("dashboard", "Billing")}
         icon="credit_card"
         navigate={billing_path}

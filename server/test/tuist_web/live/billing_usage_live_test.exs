@@ -32,13 +32,13 @@ defmodule TuistWeb.BillingUsageLiveTest do
     %{conn: conn, account: account}
   end
 
-  defp stub_kura_flag(account, enabled?) do
+  defp stub_kura_billing_flag(account, enabled?) do
     stub(Environment, :dev?, fn -> false end)
     stub(Environment, :tuist_hosted?, fn -> true end)
     account_id = account.id
 
     stub(FunWithFlags, :enabled?, fn
-      :kura, [for: %{id: ^account_id}] -> enabled?
+      :kura_billing, [for: %{id: ^account_id}] -> enabled?
       flag, opts -> Mimic.call_original(FunWithFlags, :enabled?, [flag, opts])
     end)
   end
@@ -66,8 +66,8 @@ defmodule TuistWeb.BillingUsageLiveTest do
     IngestRepo.insert_all(UsageEvent, [Map.merge(base, attrs)])
   end
 
-  test "raises 404 when Kura is not enabled for the account", %{conn: conn, account: account} do
-    stub_kura_flag(account, false)
+  test "raises 404 when Kura billing is not enabled for the account", %{conn: conn, account: account} do
+    stub_kura_billing_flag(account, false)
 
     assert_raise TuistWeb.Errors.NotFoundError, fn ->
       live(conn, ~p"/#{account.name}/billing/usage")
@@ -75,7 +75,7 @@ defmodule TuistWeb.BillingUsageLiveTest do
   end
 
   test "renders only billable egress under Billing", %{conn: conn, account: account} do
-    stub_kura_flag(account, true)
+    stub_kura_billing_flag(account, true)
     insert_event(%{account_id: account.id, bytes: 1_000_000})
 
     insert_event(%{
@@ -105,7 +105,7 @@ defmodule TuistWeb.BillingUsageLiveTest do
   end
 
   test "renders an empty state when there is no billable egress", %{conn: conn, account: account} do
-    stub_kura_flag(account, true)
+    stub_kura_billing_flag(account, true)
 
     {:ok, lv, _html} = live(conn, ~p"/#{account.name}/billing/usage")
 
