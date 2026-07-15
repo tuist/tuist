@@ -126,6 +126,9 @@ defmodule TuistWeb.AccountTokensLiveTest do
     assert html =~ "Account token"
     assert html =~ "ios-only"
     assert html =~ account_token_hint(restricted_token)
+    refute html =~ "General"
+    refute html =~ "Integrations"
+    refute html =~ "Authentication"
     assert html =~ "Project access"
     assert html =~ "ios-app"
     assert html =~ "#{account.name}/ios-app"
