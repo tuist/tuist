@@ -336,6 +336,9 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 	if err := DisableIdleSleep(ctx, client); err != nil {
 		return hk.Observed(), fmt.Errorf("disable idle sleep: %w", err)
 	}
+	if err := installSSHReachability(ctx, client); err != nil {
+		return hk.Observed(), fmt.Errorf("install ssh reachability: %w", err)
+	}
 	if cfg.NodeName != "" {
 		if err := SetHostname(ctx, client, cfg.NodeName); err != nil {
 			return hk.Observed(), fmt.Errorf("set hostname: %w", err)
@@ -427,6 +430,9 @@ func UpdateTartKubelet(ctx context.Context, cfg Config) (string, error) {
 
 	if err := writeKubeconfig(ctx, client, cfg.Kubeconfig); err != nil {
 		return hk.Observed(), fmt.Errorf("refresh kubeconfig: %w", err)
+	}
+	if err := installSSHReachability(ctx, client); err != nil {
+		return hk.Observed(), fmt.Errorf("refresh ssh reachability: %w", err)
 	}
 	if err := installTartKubelet(ctx, client, cfg.TartKubeletBinary); err != nil {
 		return hk.Observed(), fmt.Errorf("install tart-kubelet: %w", err)
@@ -523,6 +529,7 @@ func HostConfigHash(cfg Config) string {
 		{"tailscale", renderTailscaleScript(cfg)},
 		{"node-exporter", renderNodeExporterScript()},
 		{"tart-kubelet-install", renderTartKubeletInstallScript()},
+		{"ssh-reachability", renderSSHReachabilityScript()},
 	} {
 		b.WriteString(part.name)
 		b.WriteByte('\x00')
@@ -1919,6 +1926,80 @@ func installNodeExporter(ctx context.Context, client *ssh.Client, cfg Config) er
 		return nil
 	}
 	return RunCommandWithStdin(ctx, client, renderNodeExporterScript(), bytes.NewReader(cfg.NodeExporterBinary))
+}
+
+// installSSHReachability keeps the host reachable over SSH so the operator's
+// only management channel (SSH → tart-kubelet updates) can't be wedged by the
+// macOS Application Firewall silently blocking sshd. See renderSSHReachabilityScript.
+func installSSHReachability(ctx context.Context, client *ssh.Client) error {
+	return RunCommand(ctx, client, renderSSHReachabilityScript())
+}
+
+// renderSSHReachabilityScript installs a self-healing LaunchDaemon that keeps
+// inbound SSH (:22) reachable on the host.
+//
+// The runner role boots Tart VMs with vmnet-shared networking, which flips on
+// the macOS Application Firewall. Once enabled it drops inbound sshd — `:22`
+// times out on EVERY interface (public and tailnet alike) while our own
+// listeners (tart-kubelet :8080, node_exporter :9100, VNC :5900) stay
+// reachable — which strands the host: the CAPI operator can only manage a mini
+// over SSH, and a reboot just re-applies the same state. The flip happens at
+// VM-run time (after bootstrap) and persists, and the operator's drift loop
+// only fires on config changes, so re-asserting from the controller can't heal
+// a mid-cycle flip. So this runs ON the host every minute (launchd
+// StartInterval), re-allowing sshd within ~60s of any firewall flip. Scoped to
+// sshd — it never disables the firewall wholesale.
+func renderSSHReachabilityScript() string {
+	return `set -euo pipefail
+sudo tee /usr/local/bin/tuist-ssh-reachability >/dev/null <<'SSHREACH'
+#!/bin/sh
+set -u
+# 1) Remote Login (sshd) enabled so there is a listener on :22.
+if [ "$(systemsetup -getremotelogin 2>/dev/null)" != "Remote Login: On" ]; then
+  systemsetup -setremotelogin on 2>/dev/null || true
+fi
+# 2) sshd allowed through the macOS Application Firewall. When the firewall
+#    auto-enables (VM networking), an app that isn't in its allow list is
+#    silently dropped — the exact :22-timeout symptom, with our other
+#    listeners unaffected because they were already allowed. Allowlist and
+#    unblock both Remote Login binaries; idempotent, no-op when already set.
+FW=/usr/libexec/ApplicationFirewall/socketfilterfw
+if [ -x "$FW" ]; then
+  for BIN in /usr/sbin/sshd /usr/libexec/sshd-keygen-wrapper; do
+    [ -e "$BIN" ] || continue
+    "$FW" --add "$BIN" >/dev/null 2>&1 || true
+    "$FW" --unblockapp "$BIN" >/dev/null 2>&1 || true
+  done
+fi
+SSHREACH
+sudo chmod 0755 /usr/local/bin/tuist-ssh-reachability
+sudo /usr/local/bin/tuist-ssh-reachability
+
+sudo tee /Library/LaunchDaemons/dev.tuist.ssh-reachability.plist >/dev/null <<'PLIST'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>dev.tuist.ssh-reachability</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/local/bin/tuist-ssh-reachability</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>StartInterval</key>
+  <integer>60</integer>
+  <key>StandardErrorPath</key>
+  <string>/var/log/tuist-ssh-reachability.log</string>
+</dict>
+</plist>
+PLIST
+sudo chown root:wheel /Library/LaunchDaemons/dev.tuist.ssh-reachability.plist
+sudo chmod 0644 /Library/LaunchDaemons/dev.tuist.ssh-reachability.plist
+sudo launchctl bootout system/dev.tuist.ssh-reachability 2>/dev/null || true
+sudo launchctl bootstrap system /Library/LaunchDaemons/dev.tuist.ssh-reachability.plist
+`
 }
 
 // renderNodeExporterScript is the static SSH script that installs the

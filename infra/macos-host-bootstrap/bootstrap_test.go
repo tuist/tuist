@@ -12,6 +12,32 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
+// renderSSHReachabilityScript must install a self-healing LaunchDaemon that
+// keeps sshd enabled and allowed through the macOS application firewall — the
+// operator's SSH management channel wedges otherwise. It must NOT disable the
+// firewall wholesale.
+func TestRenderSSHReachabilityScript(t *testing.T) {
+	s := renderSSHReachabilityScript()
+	for _, want := range []string{
+		"systemsetup -setremotelogin on",
+		"/usr/libexec/ApplicationFirewall/socketfilterfw",
+		"--unblockapp",
+		"/usr/sbin/sshd",
+		"dev.tuist.ssh-reachability",
+		"<key>StartInterval</key>",
+		"launchctl bootstrap system",
+	} {
+		if !strings.Contains(s, want) {
+			t.Errorf("renderSSHReachabilityScript missing %q", want)
+		}
+	}
+	for _, forbidden := range []string{"--setglobalstate off", "--setglobalstate\noff", "pfctl -d"} {
+		if strings.Contains(s, forbidden) {
+			t.Errorf("renderSSHReachabilityScript must not disable the firewall wholesale, found %q", forbidden)
+		}
+	}
+}
+
 // installTailscale must short-circuit on SkipTailscaleInstall before it
 // touches the SSH client — the tailnet-fallback caller relies on this so it
 // never stops tailscaled over the session that rides it. A nil client proves
