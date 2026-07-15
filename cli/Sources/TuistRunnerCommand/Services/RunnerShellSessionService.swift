@@ -30,11 +30,7 @@ enum RunnerShellSessionServiceError: LocalizedError, Equatable {
         case .invalidResponse:
             return "The server returned an invalid shell session response."
         case let .runnerSessionNotFound(jobRef):
-            return """
-            No live runner shell session was found for job \(jobRef). The runner job may have finished, the stopped step may \
-            have expired, or the job reference may belong to a different Tuist server. Dispatch a fresh smoke run, wait until \
-            the job is stopped on a live runner, then retry with the dashboard job URL or workflow job ID.
-            """
+            return "No live runner shell was found for job \(jobRef). Make sure the job is still running and stopped at an interactive step, then retry."
         case let .requestFailed(statusCode, message):
             return "The server couldn't start a runner shell session (\(statusCode)): \(message)"
         }
