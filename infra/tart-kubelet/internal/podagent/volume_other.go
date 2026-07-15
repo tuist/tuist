@@ -14,5 +14,7 @@ type unsupportedVolumeBackend struct{}
 
 var errUnsupported = fmt.Errorf("cache volumes require macOS")
 
-func (unsupportedVolumeBackend) cloneTree(string, string) error   { return errUnsupported }
-func (unsupportedVolumeBackend) freeBytes(string) (uint64, error) { return 0, errUnsupported }
+func (unsupportedVolumeBackend) cloneTree(string, string) error      { return errUnsupported }
+func (unsupportedVolumeBackend) freeBytes(string) (uint64, error)    { return 0, errUnsupported }
+func (unsupportedVolumeBackend) cloneFile(string, string) error      { return errUnsupported }
+func (unsupportedVolumeBackend) createSparseImage(string, int) error { return errUnsupported }

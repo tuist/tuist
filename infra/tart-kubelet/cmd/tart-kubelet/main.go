@@ -73,6 +73,7 @@ func main() {
 		disableVMGC        bool
 		runnerCacheRoot    string
 		cacheVolumeCapGiB  int
+		cacheVolumeCASGiB  int
 	)
 	flag.StringVar(&nodeName, "node-name", envOr("TART_KUBELET_NODE_NAME", ""), "Node name to register as. Defaults to os.Hostname() when empty.")
 	flag.StringVar(&providerID, "provider-id", envOr("TART_KUBELET_PROVIDER_ID", ""),
@@ -122,6 +123,12 @@ func main() {
 	flag.IntVar(&cacheVolumeCapGiB, "cache-volume-cap-gib", envIntOr("TART_KUBELET_CACHE_VOLUME_CAP_GIB", 20),
 		"Provisioned capacity (GiB) of each per-account cache master image. The image is sparse, so this is a "+
 			"ceiling, not an allocation; the runner-cache-root quota is the real aggregate bound.")
+	flag.IntVar(&cacheVolumeCASGiB, "cache-volume-cas-gib", envIntOr("TART_KUBELET_CACHE_VOLUME_CAS_GIB", 0),
+		"Logical cap (GiB) of each account's Xcode compilation-cache (CAS) disk image, and the extra "+
+			"admission headroom reserved per live branch for it. 0 (default) disables the CAS image: the "+
+			"binary cache still rides the virtio-fs tree, but the compilation cache is not persisted across VMs. "+
+			"The image is sparse (a ceiling, not an allocation). Kept separate from the tree because the CAS "+
+			"cannot live on virtio-fs (llcas mmap'd locking SIGBUSes there) and must ride a block-device image.")
 	flag.BoolVar(&disableVMGC, "disable-vm-gc", false,
 		"Disable the periodic orphan-VM garbage collector. The GC deletes every local "+
 			"Tart VM not backed by a Pod scheduled to this Node. On builder-fleet Nodes — "+
@@ -286,8 +293,9 @@ func main() {
 	// Runnable so its watermark evictor + observability sampler run on a
 	// ticker alongside the reconciler.
 	volumes := podagent.NewVolumeManager(runnerCacheRoot, cacheVolumeCapGiB, nil)
+	volumes.CASGiB = cacheVolumeCASGiB
 	if volumes.Enabled() {
-		setupLog.Info("per-account cache volumes enabled", "root", runnerCacheRoot, "cap-gib", cacheVolumeCapGiB)
+		setupLog.Info("per-account cache volumes enabled", "root", runnerCacheRoot, "cap-gib", cacheVolumeCapGiB, "cas-gib", cacheVolumeCASGiB)
 		if err := mgr.Add(volumes); err != nil {
 			setupLog.Error(err, "add cache-volume manager")
 			os.Exit(1)

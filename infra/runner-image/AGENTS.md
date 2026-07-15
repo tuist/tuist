@@ -51,7 +51,16 @@ runtime — no service, sudo entry, or auto-login targets it.
   master or discard it. The server also delivers a `cache_signing_grant` in
   the dispatch 200, exported as `TUIST_CACHE_SIGNING_GRANT` so the EE CLI signs
   artifacts with the account scope instead of the machine MAC — which is what
-  lets a clonefiled master validate across the account's VMs.
+  lets a clonefiled master validate across the account's VMs. The Xcode
+  compilation cache (CAS) rides a **separate** path: it can't live on the
+  virtio-fs share (llcas's mmap'd file locking SIGBUSes over virtio-fs), so the
+  host stages it as a sparse APFS disk *image* (`xcode-cas.sparseimage`) inside
+  the same branch share. `attach_cas_image` `hdiutil attach`es it as a real
+  block-device volume at `/Users/runner/xcode-cas` and exports
+  `TUIST_COMPILATION_CACHE_DIR`, which the CLI mapper turns into
+  `COMPILATION_CACHE_CAS_PATH`; `detach_cas_image` unmounts it after `./run.sh`
+  so the host promotes a quiesced image. Absent image ⇒ the compilation cache
+  runs VM-local (cold), unchanged. Gated on the host's `--cache-volume-cas-gib`.
 - `/opt/tuist/metrics-poll.sh` — the machine-metrics sampler.
   `dispatch-poll.sh` forks it into the background right before it
   starts `./run.sh`, so it samples whole-VM CPU/memory/network/disk

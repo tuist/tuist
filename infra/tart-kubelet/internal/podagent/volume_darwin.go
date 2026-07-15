@@ -48,6 +48,34 @@ func (darwinVolumeBackend) cloneTree(src, dst string) error {
 	return nil
 }
 
+// cloneFile CoW-clones a single file src to dst. `cp -c` forces clonefile(2)
+// (no -R: the CAS disk image is one file), so a cross-volume mistake surfaces
+// as an error instead of a silent full byte copy. dst must not exist.
+func (darwinVolumeBackend) cloneFile(src, dst string) error {
+	if _, err := os.Stat(src); err != nil {
+		return fmt.Errorf("clone source missing: %w", err)
+	}
+	if _, err := runCmd(2*time.Minute, "cp", "-c", src, dst); err != nil {
+		return err
+	}
+	return nil
+}
+
+// createSparseImage creates an empty sparse APFS disk image of logical size
+// sizeGiB at path (hdiutil appends `.sparseimage`). Sparse so an account's CAS
+// master costs only its real bytes, not the logical cap. The volume label is
+// fixed so the guest mounts it at a predictable path.
+func (darwinVolumeBackend) createSparseImage(path string, sizeGiB int) error {
+	_, err := runCmd(2*time.Minute, "hdiutil", "create",
+		"-size", fmt.Sprintf("%dg", sizeGiB),
+		"-type", "SPARSE",
+		"-fs", "APFS",
+		"-volname", "TuistCAS",
+		path,
+	)
+	return err
+}
+
 // freeBytes reports available bytes on the filesystem holding root via `df`.
 // statfs would avoid the fork, but df is dependency-free and the call is off
 // the per-job hot path (admission + reconcile tick only).

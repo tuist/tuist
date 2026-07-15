@@ -94,6 +94,14 @@ CACHE_SHARE="/Volumes/My Shared Files/cache"
 CACHE_MOUNT=""
 CACHE_INVENTORY_BEFORE=""
 STATUS_SHARE="/Volumes/My Shared Files/status"
+# The Xcode compilation cache (CAS) can't live on the virtio-fs share directly —
+# llcas's mmap'd file locking SIGBUSes over virtio-fs. The host stages it as a
+# sparse APFS disk IMAGE inside the branch share instead; the guest attaches it
+# as a real block device (whose block layer does plain read/write to the backing
+# file, dodging the mmap fault) and points the CLI's compilation cache at it.
+CAS_IMAGE_NAME="xcode-cas.sparseimage"
+CAS_MOUNT="/Users/runner/xcode-cas"
+CAS_ATTACHED=""
 # Presigned PUT URL for this account's master archive (from the dispatch
 # response); the HEAD report endpoint is the dispatch URL's sibling.
 VOLUME_HEAD_UPLOAD=""
@@ -137,6 +145,49 @@ mount_cache_volume() {
     export TUIST_CACHE_MAX_BYTES="${budget}"
   fi
   echo "$(date -u +%FT%TZ) dispatch-poll: cache share at ${CACHE_MOUNT}; TUIST_XDG_CACHE_HOME set (budget=${TUIST_CACHE_MAX_BYTES:-none})"
+}
+
+# attach_cas_image attaches the per-account CAS disk image the host clonefiled
+# into the branch (present only when the CAS-volume feature is on and the host
+# materialized one) as a block device, and points the CLI's compilation cache at
+# it via TUIST_COMPILATION_CACHE_DIR. Attaching gives a real APFS volume whose
+# block layer reads/writes the backing file — sidestepping the virtio-fs mmap
+# SIGBUS that a CAS pointed straight at the share would hit. Absent image => the
+# compilation cache falls to the VM-local default (cold, dies with the VM), which
+# is exactly today's behavior. Never blocks the job.
+attach_cas_image() {
+  [ -n "${CACHE_MOUNT}" ] || return 0
+  local img="${CACHE_MOUNT}/${CAS_IMAGE_NAME}"
+  [ -f "${img}" ] || { echo "$(date -u +%FT%TZ) dispatch-poll: no CAS image; compilation cache runs VM-local"; return 0; }
+  mkdir -p "${CAS_MOUNT}" 2>/dev/null || true
+  if hdiutil attach "${img}" -mountpoint "${CAS_MOUNT}" -nobrowse -owners on >/dev/null 2>&1; then
+    CAS_ATTACHED="${CAS_MOUNT}"
+    export TUIST_COMPILATION_CACHE_DIR="${CAS_MOUNT}"
+    echo "$(date -u +%FT%TZ) dispatch-poll: CAS image attached at ${CAS_MOUNT}; TUIST_COMPILATION_CACHE_DIR set"
+  else
+    echo "$(date -u +%FT%TZ) dispatch-poll: WARNING CAS image attach failed; compilation cache runs VM-local"
+  fi
+}
+
+# detach_cas_image unmounts the CAS image so the host promotes a quiesced,
+# consistent image after the VM halts (Finalize clonefiles the branch image into
+# the account's master). Called after the runner exits. Best-effort with a short
+# retry — a just-finished build may briefly hold a file open — then a forced
+# detach. Never blocks teardown.
+detach_cas_image() {
+  [ -n "${CAS_ATTACHED}" ] || return 0
+  local i=0
+  while [ "${i}" -lt 5 ]; do
+    if hdiutil detach "${CAS_ATTACHED}" >/dev/null 2>&1; then
+      echo "$(date -u +%FT%TZ) dispatch-poll: CAS image detached"
+      CAS_ATTACHED=""
+      return 0
+    fi
+    sleep 1
+    i=$((i + 1))
+  done
+  hdiutil detach "${CAS_ATTACHED}" -force >/dev/null 2>&1 || true
+  CAS_ATTACHED=""
 }
 
 # CACHE_READY_TIMEOUT bounds the wait for the host's cache-ready signal — the
@@ -348,6 +399,9 @@ while true; do
       # the cache-ready signal before the runner touches the cache, then
       # snapshot the pre-job inventory. Cold path on timeout; never blocks.
       wait_for_cache_ready
+      # Attach the per-account CAS disk image (if the host staged one) so the
+      # compilation cache resolves against a warm, block-device-backed store.
+      attach_cas_image
       # Force an NTP step before the job runs. A golden-base VM can be
       # handed a job within seconds of boot — before macOS `timed` has
       # synced the guest clock, which can start minutes behind. The
@@ -389,6 +443,10 @@ while true; do
       # writes nothing to the ingest path.
       ./run.sh --jitconfig "${jit}" --disableupdate
       rc=$?
+      # Detach the CAS image before the reports + VM halt so the host promotes a
+      # quiesced, consistent image (Finalize clonefiles the branch image into the
+      # account's master).
+      detach_cas_image
       # Report whether the job succeeded AND changed the cache so the reconciler
       # can promote the branch to the account's new master (or discard it).
       # Before the metrics tail + VM halt, while the mounted volume is still

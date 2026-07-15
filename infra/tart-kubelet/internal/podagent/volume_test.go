@@ -29,6 +29,26 @@ func (f *fakeBackend) cloneTree(src, dst string) error {
 	return copyTree(src, dst)
 }
 
+// cloneFile models an APFS single-file clonefile: copy the file. dst must not
+// exist, mirroring the real backend's `cp -c` (which fails on an existing dst).
+func (f *fakeBackend) cloneFile(src, dst string) error {
+	if _, err := os.Stat(dst); err == nil {
+		return os.ErrExist
+	}
+	b, err := os.ReadFile(src)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(dst, b, 0o644)
+}
+
+// createSparseImage models `hdiutil create` producing `<path>.sparseimage`: an
+// empty stand-in file so the manager's image path handling is exercised without
+// a real disk image (which needs a Mac). The content marks it a fresh image.
+func (f *fakeBackend) createSparseImage(path string, sizeGiB int) error {
+	return os.WriteFile(path+".sparseimage", []byte("fresh-sparse-image"), 0o644)
+}
+
 func copyTree(src, dst string) error {
 	info, err := os.Stat(src)
 	if err != nil {
@@ -114,6 +134,216 @@ func masterExists(m *VolumeManager, account string) bool {
 func branchTuistExists(att VolumeAttachment) bool {
 	_, err := os.Stat(filepath.Join(att.BranchPath, cacheHomeSubdir))
 	return err == nil
+}
+
+func branchCASImageExists(att VolumeAttachment) bool {
+	_, err := os.Stat(filepath.Join(att.BranchPath, casImageName))
+	return err == nil
+}
+
+func masterCASImageExists(m *VolumeManager, account string) bool {
+	_, err := os.Stat(m.masterCASImage(account, ReservedTuistCacheVolume))
+	return err == nil
+}
+
+// seedMasterCASImage plants an account's CAS master image, simulating a prior
+// promote on this host.
+func seedMasterCASImage(t *testing.T, m *VolumeManager, account, content string) {
+	t.Helper()
+	master := m.masterDir(account, ReservedTuistCacheVolume)
+	if err := os.MkdirAll(master, 0o777); err != nil {
+		t.Fatalf("seed master dir: %v", err)
+	}
+	if err := os.WriteFile(m.masterCASImage(account, ReservedTuistCacheVolume), []byte(content), 0o644); err != nil {
+		t.Fatalf("seed master CAS image: %v", err)
+	}
+}
+
+// writeBranchCASImage simulates the guest's build growing the attached CAS image
+// (its content changing) before promote.
+func writeBranchCASImage(t *testing.T, att VolumeAttachment, content string) {
+	t.Helper()
+	if err := os.WriteFile(filepath.Join(att.BranchPath, casImageName), []byte(content), 0o644); err != nil {
+		t.Fatalf("write branch CAS image: %v", err)
+	}
+}
+
+func readMasterCASImage(t *testing.T, m *VolumeManager, account string) string {
+	t.Helper()
+	b, err := os.ReadFile(m.masterCASImage(account, ReservedTuistCacheVolume))
+	if err != nil {
+		t.Fatalf("read master CAS image: %v", err)
+	}
+	return string(b)
+}
+
+// TestCASImageColdCreatesFresh: with the CAS feature on and no master image, a
+// cold first job (no master tree either) still gets a fresh sparse image in its
+// branch to attach and later promote.
+func TestCASImageColdCreatesFresh(t *testing.T) {
+	m, _ := newTestManager(t, 10)
+	m.CASGiB = 2
+	att := mustAllocate(t, m, "vm1")
+	warm, err := m.Materialize(att, "acct-a")
+	if err != nil {
+		t.Fatalf("Materialize: %v", err)
+	}
+	if warm {
+		t.Fatal("cold first job should report tree warm=false")
+	}
+	if !branchCASImageExists(att) {
+		t.Fatal("cold first job should get a fresh CAS image in its branch")
+	}
+}
+
+// TestCASImageWarmClonesMaster: an account with a master image gets it cloned
+// into the branch on Materialize.
+func TestCASImageWarmClonesMaster(t *testing.T) {
+	m, _ := newTestManager(t, 10)
+	m.CASGiB = 2
+	seedMasterCASImage(t, m, "acct-a", "warm-cas-bytes")
+	att := mustAllocate(t, m, "vm1")
+	if _, err := m.Materialize(att, "acct-a"); err != nil {
+		t.Fatalf("Materialize: %v", err)
+	}
+	if !branchCASImageExists(att) {
+		t.Fatal("branch should have the cloned CAS image")
+	}
+	b, _ := os.ReadFile(filepath.Join(att.BranchPath, casImageName))
+	if string(b) != "warm-cas-bytes" {
+		t.Fatalf("branch CAS image = %q, want the master's bytes", string(b))
+	}
+}
+
+// TestCASImageDisabledNoImage: with CASGiB=0 the CAS image is never created,
+// even though the binary tree lifecycle runs.
+func TestCASImageDisabledNoImage(t *testing.T) {
+	m, _ := newTestManager(t, 10) // CASGiB defaults to 0
+	att := mustAllocate(t, m, "vm1")
+	if _, err := m.Materialize(att, "acct-a"); err != nil {
+		t.Fatalf("Materialize: %v", err)
+	}
+	if branchCASImageExists(att) {
+		t.Fatal("CAS disabled: no image should be created")
+	}
+}
+
+// TestCASImagePromotedOnCompileOnlyJob: a job that succeeds but leaves the
+// binary cache clean (dirty=false) — a pure compile job — still promotes its
+// grown CAS image, because the CAS gate is success+account, not tree dirtiness.
+func TestCASImagePromotedOnCompileOnlyJob(t *testing.T) {
+	m, _ := newTestManager(t, 10)
+	m.CASGiB = 2
+	att := mustAllocate(t, m, "vm1")
+	if _, err := m.Materialize(att, "acct-a"); err != nil {
+		t.Fatalf("Materialize: %v", err)
+	}
+	att.SourceAccount = "acct-a"
+	writeBranchCASImage(t, att, "grown-cas")
+	// dirty=false: the binary tree didn't change, but the CAS did.
+	outcome, err := m.Finalize(att, "acct-a", true, false)
+	if err != nil {
+		t.Fatalf("Finalize: %v", err)
+	}
+	if outcome != VolumeOutcomeDiscarded {
+		t.Fatalf("binary tree should discard on a clean job, got %s", outcome)
+	}
+	if !masterCASImageExists(m, "acct-a") {
+		t.Fatal("compile-only job should still promote its CAS image")
+	}
+	if got := readMasterCASImage(t, m, "acct-a"); got != "grown-cas" {
+		t.Fatalf("master CAS image = %q, want grown-cas", got)
+	}
+}
+
+// TestCASImageNotPromotedOnAccountMismatch: the defense-in-depth guard also
+// covers the CAS image — a branch materialized for A must not promote into B.
+func TestCASImageNotPromotedOnAccountMismatch(t *testing.T) {
+	m, _ := newTestManager(t, 10)
+	m.CASGiB = 2
+	att := mustAllocate(t, m, "vm1")
+	if _, err := m.Materialize(att, "acct-a"); err != nil {
+		t.Fatalf("Materialize: %v", err)
+	}
+	att.SourceAccount = "acct-a"
+	writeBranchCASImage(t, att, "leak")
+	if _, err := m.Finalize(att, "acct-b", true, true); err != nil {
+		t.Fatalf("Finalize: %v", err)
+	}
+	if masterCASImageExists(m, "acct-b") {
+		t.Fatal("account mismatch must not promote the CAS image into B")
+	}
+}
+
+// TestBinaryPromotePreservesCASImage: promoting the binary tree must not drop
+// the sibling CAS image in the master (the subtree-swap change).
+func TestBinaryPromotePreservesCASImage(t *testing.T) {
+	m, _ := newTestManager(t, 10)
+	m.CASGiB = 2
+	// First job promotes both tree + CAS image for acct-a.
+	att1 := mustAllocate(t, m, "vm1")
+	if _, err := m.Materialize(att1, "acct-a"); err != nil {
+		t.Fatalf("Materialize1: %v", err)
+	}
+	att1.SourceAccount = "acct-a"
+	writeBranchCache(t, att1, "tree-v1")
+	writeBranchCASImage(t, att1, "cas-v1")
+	if o, err := m.Finalize(att1, "acct-a", true, true); err != nil || o != VolumeOutcomePromoted {
+		t.Fatalf("Finalize1: outcome=%s err=%v", o, err)
+	}
+	if !masterCASImageExists(m, "acct-a") {
+		t.Fatal("first job should promote the CAS image")
+	}
+	// Second job changes ONLY the binary tree and promotes; the CAS image sibling
+	// must survive the tree swap.
+	att2 := mustAllocate(t, m, "vm2")
+	if _, err := m.Materialize(att2, "acct-a"); err != nil {
+		t.Fatalf("Materialize2: %v", err)
+	}
+	att2.SourceAccount = "acct-a"
+	writeBranchCache(t, att2, "tree-v2")
+	// Note: no writeBranchCASImage here — but Materialize cloned the master image
+	// into att2's branch, so the promote re-promotes the same CAS bytes.
+	if o, err := m.Finalize(att2, "acct-a", true, true); err != nil || o != VolumeOutcomePromoted {
+		t.Fatalf("Finalize2: outcome=%s err=%v", o, err)
+	}
+	if !masterCASImageExists(m, "acct-a") {
+		t.Fatal("binary-tree promote dropped the sibling CAS image")
+	}
+	if got := readMasterCASImage(t, m, "acct-a"); got != "cas-v1" {
+		t.Fatalf("CAS image after tree promote = %q, want preserved cas-v1", got)
+	}
+}
+
+// TestConvergePreservesCASImage: a HEAD convergence (ReplaceMaster) replaces the
+// binary tree but must keep the local CAS image — the HEAD archive never carries
+// it.
+func TestConvergePreservesCASImage(t *testing.T) {
+	m, _ := newTestManager(t, 10)
+	m.CASGiB = 2
+	seedMasterCASImage(t, m, "acct-a", "local-cas")
+	// Seed a master tree too so convergence has something to replace.
+	masterTree := filepath.Join(m.masterDir("acct-a", ReservedTuistCacheVolume), cacheHomeSubdir)
+	if err := os.MkdirAll(filepath.Join(masterTree, "Binaries"), 0o777); err != nil {
+		t.Fatalf("seed master tree: %v", err)
+	}
+	// Build a converged source tree (an extracted fresher HEAD archive).
+	src := filepath.Join(t.TempDir(), "converged")
+	if err := os.MkdirAll(filepath.Join(src, cacheHomeSubdir, "Binaries"), 0o777); err != nil {
+		t.Fatalf("build converged src: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(src, cacheHomeSubdir, "Binaries", "new"), []byte("x"), 0o644); err != nil {
+		t.Fatalf("write converged: %v", err)
+	}
+	if err := m.ReplaceMaster("acct-a", ReservedTuistCacheVolume, src); err != nil {
+		t.Fatalf("ReplaceMaster: %v", err)
+	}
+	if !masterCASImageExists(m, "acct-a") {
+		t.Fatal("convergence dropped the local CAS image")
+	}
+	if got := readMasterCASImage(t, m, "acct-a"); got != "local-cas" {
+		t.Fatalf("CAS image after converge = %q, want preserved local-cas", got)
+	}
 }
 
 func TestVolumeDisabled(t *testing.T) {
