@@ -146,14 +146,13 @@ struct PBXProjectMapperTests {
 
         // Then
         #expect(project.packages.count == 1)
-        guard case let .remote(url, requirement) = project.packages[0] else {
+        guard case let .remote(url, requirement) = project.packages[0].kind else {
             Issue.record("Expected remote package")
             return
         }
         #expect(url == "https://github.com/example/package.git")
         #expect(requirement == .upToNextMajor("1.0.0"))
-        #expect(project.packageTraits?.first?.package == project.packages[0])
-        #expect(project.packageTraits?.first?.traits == ["FeatureA"])
+        #expect(project.packages[0].traits == ["FeatureA"])
     }
 
     @Test("Maps a project with known regions")

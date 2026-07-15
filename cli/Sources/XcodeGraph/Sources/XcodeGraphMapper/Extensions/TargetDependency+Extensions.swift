@@ -12,6 +12,8 @@ extension TargetDependency {
             return name
         case let .package(product, _, _):
             return product
+        case let .packageWithIdentity(product, _, _, _):
+            return product
         case let .framework(path, _, _):
             return path.basenameWithoutExt
         case let .xcframework(path, _, _, _):

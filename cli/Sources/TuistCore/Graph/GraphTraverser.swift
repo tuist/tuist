@@ -65,7 +65,7 @@ public class GraphTraverser: GraphTraversing {
 
     public var hasRemotePackages: Bool {
         graph.packages.values.flatMap(\.values).first(where: {
-            switch $0 {
+            switch $0.kind {
             case .remote: return true
             case .local: return false
             }

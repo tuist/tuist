@@ -633,14 +633,13 @@ struct ProjectDescriptorGeneratorTests {
         let projectPath = try AbsolutePath(validating: "/Project")
         let localPackagePath = try AbsolutePath(validating: "/LocalPackages/LocalPackageA")
         let target = Target.test(name: "A")
-        let package = Package.local(path: localPackagePath)
+        let package = Package.local(path: localPackagePath, traits: ["FeatureA"])
         let project = Project.test(
             path: projectPath,
             sourceRootPath: projectPath,
             name: "Project",
             targets: [target, .test(name: "B", dependencies: [.package(product: "A", type: .runtime)])],
-            packages: [package],
-            packageTraits: [.init(package: package, traits: ["FeatureA"])]
+            packages: [package]
         )
         let graphTarget = GraphTarget(path: project.path, target: target, project: project)
         let graph = Graph.test(
@@ -698,13 +697,12 @@ struct ProjectDescriptorGeneratorTests {
         // Given
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let target = Target.test(name: "A")
-        let package = Package.remote(url: "A", requirement: .exact("0.1"))
+        let package = Package.remote(url: "A", requirement: .exact("0.1"), traits: [])
         let project = Project.test(
             path: temporaryPath,
             name: "Project",
             targets: [target, .test(name: "B", dependencies: [.package(product: "A", type: .runtime)])],
-            packages: [package],
-            packageTraits: [.init(package: package, traits: [])]
+            packages: [package]
         )
 
         let graphTarget = GraphTarget.test(path: project.path, target: target, project: project)

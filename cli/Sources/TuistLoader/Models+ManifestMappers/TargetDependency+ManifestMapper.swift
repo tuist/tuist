@@ -88,6 +88,24 @@ extension XcodeGraph.TargetDependency {
             case .plugin:
                 return [.package(product: product, type: .plugin, condition: condition?.asGraphCondition)]
             }
+        case let .packageWithIdentity(product, package, type, condition):
+            switch type {
+            case .macro:
+                return [.package(product: product, package: package, type: .macro, condition: condition?.asGraphCondition)]
+            case .runtime:
+                return [.package(product: product, package: package, type: .runtime, condition: condition?.asGraphCondition)]
+            case .runtimeEmbedded:
+                return [
+                    .package(
+                        product: product,
+                        package: package,
+                        type: .runtimeEmbedded,
+                        condition: condition?.asGraphCondition
+                    ),
+                ]
+            case .plugin:
+                return [.package(product: product, package: package, type: .plugin, condition: condition?.asGraphCondition)]
+            }
         case let .sdk(name, type, status, condition):
             return [
                 .sdk(

@@ -114,6 +114,14 @@ public enum TargetDependency: Codable, Hashable, Sendable {
     ///   - condition: condition under which to use this dependency, `nil` if this should always be used
     case package(product: String, type: PackageType = .runtime, condition: PlatformCondition? = nil)
 
+    /// The representation used by `package(product:package:type:condition:)`.
+    case packageWithIdentity(
+        product: String,
+        package: String,
+        type: PackageType = .runtime,
+        condition: PlatformCondition? = nil
+    )
+
     /// Dependency on system library or framework
     ///
     /// - Parameters:
@@ -169,6 +177,25 @@ public enum TargetDependency: Codable, Hashable, Sendable {
         .target(name: target.name, condition: condition)
     }
 
+    /// Dependency on a swift package product using Xcode native integration, associated with its package identity.
+    ///
+    /// Use this overload when the project declares more than one native package so Tuist can scope package-specific
+    /// behavior, such as trait-based cache invalidation, to the package that owns the product.
+    ///
+    /// - Parameters:
+    ///   - product: The name of the output product.
+    ///   - package: The identity of the package that owns the product.
+    ///   - type: The type of package being integrated.
+    ///   - condition: condition under which to use this dependency, `nil` if this should always be used
+    public static func package(
+        product: String,
+        package: String,
+        type: PackageType = .runtime,
+        condition: PlatformCondition? = nil
+    ) -> TargetDependency {
+        .packageWithIdentity(product: product, package: package, type: type, condition: condition)
+    }
+
     public var typeName: String {
         switch self {
         case .target:
@@ -182,6 +209,8 @@ public enum TargetDependency: Codable, Hashable, Sendable {
         case .library:
             return "library"
         case .package:
+            return "package"
+        case .packageWithIdentity:
             return "package"
         case .sdk:
             return "sdk"

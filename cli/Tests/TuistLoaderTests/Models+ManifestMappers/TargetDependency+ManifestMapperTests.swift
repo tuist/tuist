@@ -115,6 +115,36 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
         XCTAssertEqual(type, .runtime)
     }
 
+    func test_from_when_package_has_identity() throws {
+        let legacyDependency = ProjectDescription.TargetDependency.package(product: "LegacyPackageProduct")
+        let dependency = ProjectDescription.TargetDependency.package(
+            product: "RuntimePackageProduct",
+            package: "runtime-package",
+            type: .runtime
+        )
+        let generatorPaths = GeneratorPaths(manifestDirectory: try AbsolutePath(validating: "/"), rootDirectory: "/")
+
+        for dependency in [legacyDependency, dependency] {
+            let encoded = try JSONEncoder().encode(dependency)
+            XCTAssertEqual(try JSONDecoder().decode(ProjectDescription.TargetDependency.self, from: encoded), dependency)
+        }
+
+        let got = try XcodeGraph.TargetDependency.from(
+            manifest: dependency,
+            generatorPaths: generatorPaths,
+            externalDependencies: [:]
+        )
+
+        XCTAssertEqual(got.count, 1)
+        guard case let .packageWithIdentity(product, package, type, _) = got[0] else {
+            XCTFail("Dependency should be an identity-associated package")
+            return
+        }
+        XCTAssertEqual(product, "RuntimePackageProduct")
+        XCTAssertEqual(package, "runtime-package")
+        XCTAssertEqual(type, .runtime)
+    }
+
     func test_from_when_package_runtimeEmbedded() throws {
         // Given
         let dependency = ProjectDescription.TargetDependency.package(

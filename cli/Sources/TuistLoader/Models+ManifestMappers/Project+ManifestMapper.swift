@@ -62,17 +62,16 @@ extension XcodeGraph.Project {
             }
             .flatMap { $0 }
             .sorted(by: { $0.path < $1.path })
-        let manifestPackages = manifest.packageDependencies?.map(\.package) ?? manifest.packages
-        let packages = try manifestPackages.map { try XcodeGraph.Package.from(manifest: $0, generatorPaths: generatorPaths) }
-        let packageTraits = try manifest.packageDependencies.flatMap { packageDependencies in
-            let packageTraits = try packageDependencies.compactMap { dependency -> XcodeGraph.PackageTraitSelection? in
-                guard dependency.traits != [.defaults] else { return nil }
-                return XcodeGraph.PackageTraitSelection(
-                    package: try XcodeGraph.Package.from(manifest: dependency.package, generatorPaths: generatorPaths),
-                    traits: dependency.traits.map(\.name).sorted()
+        let packages = if let packageDependencies = manifest.packageDependencies {
+            try packageDependencies.map { dependency in
+                try XcodeGraph.Package.from(
+                    manifest: dependency.package,
+                    traits: dependency.traits == [.defaults] ? nil : dependency.traits.map(\.name).sorted(),
+                    generatorPaths: generatorPaths
                 )
             }
-            return packageTraits.isEmpty ? nil : packageTraits
+        } else {
+            try manifest.packages.map { try XcodeGraph.Package.from(manifest: $0, generatorPaths: generatorPaths) }
         }
         let ideTemplateMacros = try manifest.fileHeaderTemplate
             .map { try IDETemplateMacros.from(manifest: $0, generatorPaths: generatorPaths) }
@@ -98,7 +97,6 @@ extension XcodeGraph.Project {
             filesGroup: .group(name: "Project"),
             targets: targets,
             packages: packages,
-            packageTraits: packageTraits,
             schemes: schemes,
             ideTemplateMacros: ideTemplateMacros,
             additionalFiles: additionalFiles,

@@ -53,9 +53,6 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
     /// Project swift packages.
     public var packages: [Package]
 
-    /// Trait selections for native packages. A missing package uses its default traits.
-    public var packageTraits: [PackageTraitSelection]?
-
     /// Project schemes
     public var schemes: [Scheme]
 
@@ -130,54 +127,6 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
         type: ProjectType,
         swiftPackageManagerScratchDirectory: AbsolutePath? = nil
     ) {
-        self.init(
-            path: path,
-            sourceRootPath: sourceRootPath,
-            xcodeProjPath: xcodeProjPath,
-            name: name,
-            organizationName: organizationName,
-            classPrefix: classPrefix,
-            defaultKnownRegions: defaultKnownRegions,
-            developmentRegion: developmentRegion,
-            options: options,
-            settings: settings,
-            filesGroup: filesGroup,
-            targets: targets,
-            packages: packages,
-            packageTraits: nil,
-            schemes: schemes,
-            ideTemplateMacros: ideTemplateMacros,
-            additionalFiles: additionalFiles,
-            resourceSynthesizers: resourceSynthesizers,
-            lastUpgradeCheck: lastUpgradeCheck,
-            type: type,
-            swiftPackageManagerScratchDirectory: swiftPackageManagerScratchDirectory
-        )
-    }
-
-    public init(
-        path: AbsolutePath,
-        sourceRootPath: AbsolutePath,
-        xcodeProjPath: AbsolutePath,
-        name: String,
-        organizationName: String?,
-        classPrefix: String?,
-        defaultKnownRegions: [String]?,
-        developmentRegion: String?,
-        options: Options,
-        settings: Settings,
-        filesGroup: ProjectGroup,
-        targets: [Target],
-        packages: [Package],
-        packageTraits: [PackageTraitSelection]?,
-        schemes: [Scheme],
-        ideTemplateMacros: IDETemplateMacros?,
-        additionalFiles: [FileElement],
-        resourceSynthesizers: [ResourceSynthesizer],
-        lastUpgradeCheck: Version?,
-        type: ProjectType,
-        swiftPackageManagerScratchDirectory: AbsolutePath? = nil
-    ) {
         self.path = path
         self.sourceRootPath = sourceRootPath
         self.xcodeProjPath = xcodeProjPath
@@ -189,7 +138,6 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
         self.options = options
         self.targets = Dictionary(uniqueKeysWithValues: targets.map { ($0.name, $0) })
         self.packages = packages
-        self.packageTraits = packageTraits
         self.schemes = schemes
         self.settings = settings
         self.filesGroup = filesGroup
@@ -244,7 +192,6 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
             filesGroup: ProjectGroup = .group(name: "Project"),
             targets: [Target] = [Target.test()],
             packages: [Package] = [],
-            packageTraits: [PackageTraitSelection]? = nil,
             schemes: [Scheme] = [],
             ideTemplateMacros: IDETemplateMacros? = nil,
             additionalFiles: [FileElement] = [],
@@ -267,7 +214,6 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
                 filesGroup: filesGroup,
                 targets: targets,
                 packages: packages,
-                packageTraits: packageTraits,
                 schemes: schemes,
                 ideTemplateMacros: ideTemplateMacros,
                 additionalFiles: additionalFiles,
@@ -293,7 +239,6 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
             filesGroup: ProjectGroup = .group(name: "Project"),
             targets: [Target] = [],
             packages: [Package] = [],
-            packageTraits: [PackageTraitSelection]? = nil,
             schemes: [Scheme] = [],
             ideTemplateMacros: IDETemplateMacros? = nil,
             additionalFiles: [FileElement] = [],
@@ -316,7 +261,6 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
                 filesGroup: filesGroup,
                 targets: targets,
                 packages: packages,
-                packageTraits: packageTraits,
                 schemes: schemes,
                 ideTemplateMacros: ideTemplateMacros,
                 additionalFiles: additionalFiles,

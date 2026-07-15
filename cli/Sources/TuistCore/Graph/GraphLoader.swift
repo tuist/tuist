@@ -196,6 +196,18 @@ public struct GraphLoader: GraphLoading {
                 return try loadPackage(fromPath: path, productName: product, type: .runtimeEmbedded)
             }
 
+        case let .packageWithIdentity(product, _, type, _):
+            switch type {
+            case .macro:
+                return try loadPackage(fromPath: path, productName: product, type: .macro)
+            case .runtime:
+                return try loadPackage(fromPath: path, productName: product, type: .runtime)
+            case .plugin:
+                return try loadPackage(fromPath: path, productName: product, type: .plugin)
+            case .runtimeEmbedded:
+                return try loadPackage(fromPath: path, productName: product, type: .runtimeEmbedded)
+            }
+
         case .xctest:
             return try platforms.sorted().first.map { platform in
                 try loadXCTestSDK(platform: platform)
@@ -384,7 +396,7 @@ public struct GraphLoader: GraphLoading {
 
 extension Package {
     fileprivate var name: String {
-        switch self {
+        switch kind {
         case let .local(path: path):
             return path.pathString
         case let .remote(url: url, requirement: _):

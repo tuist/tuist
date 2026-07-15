@@ -389,6 +389,8 @@ extension TargetDependency {
             return "library"
         case let .package(_, type, _):
             return "\(type.rawValue) package"
+        case let .packageWithIdentity(_, _, type, _):
+            return "\(type.rawValue) package"
         case .sdk:
             return "sdk"
         case .xcframework:
@@ -411,6 +413,8 @@ extension TargetDependency {
         case let .library(path, _, _, _):
             return path.basename
         case let .package(product, _, _):
+            return product
+        case let .packageWithIdentity(product, _, _, _):
             return product
         case let .sdk(name, _, _):
             return name

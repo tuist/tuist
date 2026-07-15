@@ -184,6 +184,14 @@ struct LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_lengt
                     target: target,
                     condition: condition
                 )
+            case let .packageWithIdentity(product: product, package: _, type: type, condition: condition):
+                try pbxTarget.addSwiftPackageProduct(
+                    productName: product,
+                    isPlugin: type == .plugin,
+                    pbxproj: pbxproj,
+                    target: target,
+                    condition: condition
+                )
             case .framework, .library, .project, .sdk, .target, .xcframework, .xctest:
                 break
             }

@@ -13,7 +13,7 @@ let project = Project(
             bundleId: "dev.tuist.native-package-traits",
             sources: ["Sources/**"],
             dependencies: [
-                .package(product: "FeaturePackage"),
+                .package(product: "FeaturePackage", package: "Package"),
             ]
         ),
     ]

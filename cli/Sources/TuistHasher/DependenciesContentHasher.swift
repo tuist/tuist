@@ -163,11 +163,27 @@ public struct DependenciesContentHasher: DependenciesContentHashing {
                 )
             }
         case let .package(product, type, _):
-            let packageTraits = try packageTraitsFingerprint(graphTarget.project.packageTraits)
+            let packageTraits = try packageTraitsFingerprint(
+                packageIdentity: nil,
+                packages: graphTarget.project.packages
+            )
             return DependenciesContentHash(
                 hashedPaths: hashedPaths,
                 hash: try contentHasher.hash(
                     ["package", product, type.rawValue, packageTraits]
+                        .compactMap { $0 }
+                        .joined(separator: "-")
+                )
+            )
+        case let .packageWithIdentity(product, package, type, _):
+            let packageTraits = try packageTraitsFingerprint(
+                packageIdentity: package,
+                packages: graphTarget.project.packages
+            )
+            return DependenciesContentHash(
+                hashedPaths: hashedPaths,
+                hash: try contentHasher.hash(
+                    ["package", product, package.lowercased(), type.rawValue, packageTraits]
                         .compactMap { $0 }
                         .joined(separator: "-")
                 )
@@ -185,19 +201,28 @@ public struct DependenciesContentHasher: DependenciesContentHashing {
         }
     }
 
-    private func packageTraitsFingerprint(_ packageTraits: [PackageTraitSelection]?) throws -> String? {
-        guard let packageTraits, !packageTraits.isEmpty else { return nil }
+    private func packageTraitsFingerprint(
+        packageIdentity: String?,
+        packages: [Package]
+    ) throws -> String? {
+        let matchingPackages = packageIdentity.map { identity in
+            packages.filter { $0.identity == identity.lowercased() }
+        }
+        let relevantPackages = if let matchingPackages, !matchingPackages.isEmpty {
+            matchingPackages
+        } else {
+            packages
+        }
+        let fingerprints = relevantPackages.compactMap { package -> PackageTraitsFingerprint? in
+            guard let traits = package.traits else { return nil }
+            return PackageTraitsFingerprint(identity: package.identity, traits: traits.sorted())
+        }
+        guard !fingerprints.isEmpty else { return nil }
 
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
 
-        let normalizedPackageTraits = try packageTraits
-            .map {
-                PackageTraitSelection(
-                    package: $0.package,
-                    traits: $0.traits.sorted()
-                )
-            }
+        let normalizedFingerprints = try fingerprints
             .map {
                 (
                     value: $0,
@@ -207,6 +232,11 @@ public struct DependenciesContentHasher: DependenciesContentHashing {
             .sorted { $0.sortKey < $1.sortKey }
             .map(\.value)
 
-        return String(decoding: try encoder.encode(normalizedPackageTraits), as: UTF8.self)
+        return String(decoding: try encoder.encode(normalizedFingerprints), as: UTF8.self)
+    }
+
+    private struct PackageTraitsFingerprint: Codable {
+        let identity: String
+        let traits: [String]
     }
 }

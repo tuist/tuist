@@ -71,15 +71,14 @@ struct PackageManifestMapperTests {
             contentHasher: MockContentHashing()
         )
 
-        #expect(mappedProject.packageTraits == [
-            .init(package: .local(path: "/Project/Package"), traits: ["FeatureA"]),
-            .init(
-                package: .remote(
-                    url: "https://example.com/package.git",
-                    requirement: .range(from: "1.0.0", to: "2.0.0")
-                ),
+        #expect(mappedProject.packages == [
+            .local(path: "/Project/Package", traits: ["FeatureA"]),
+            .remote(
+                url: "https://example.com/package.git",
+                requirement: .range(from: "1.0.0", to: "2.0.0"),
                 traits: []
             ),
+            .remote(url: "example.package", requirement: .exact("1.0.0")),
         ])
     }
 

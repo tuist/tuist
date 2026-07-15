@@ -313,8 +313,7 @@ struct ProjectDescriptorGenerator: ProjectDescriptorGenerating {
 
         Logger.current.debug("Processing \(project.packages.count) packages for project \(project.name)")
         for package in project.packages {
-            let traits = project.packageTraits?.first(where: { $0.package == package })?.traits
-            switch package {
+            switch package.kind {
             case let .local(path):
                 Logger.current.debug("Processing local package at \(path.pathString) for project \(project.name)")
                 let relativePath = path.relative(to: project.sourceRootPath).pathString
@@ -327,7 +326,7 @@ struct ProjectDescriptorGenerator: ProjectDescriptorGenerating {
 
                 let packageReference = XCLocalSwiftPackageReference(
                     relativePath: relativePath,
-                    traits: traits
+                    traits: package.traits
                 )
                 pbxproj.add(object: packageReference)
                 localPackageReferences[path.pathString] = packageReference
@@ -346,7 +345,7 @@ struct ProjectDescriptorGenerator: ProjectDescriptorGenerating {
                 let packageReference = XCRemoteSwiftPackageReference(
                     repositoryURL: url,
                     versionRequirement: requirement.xcodeprojValue,
-                    traits: traits
+                    traits: package.traits
                 )
                 remotePackageReferences[url] = packageReference
                 pbxproj.add(object: packageReference)

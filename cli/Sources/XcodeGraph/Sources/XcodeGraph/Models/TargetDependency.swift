@@ -48,6 +48,7 @@ public enum TargetDependency: Equatable, Hashable, Codable, Sendable {
         condition: PlatformCondition? = nil
     )
     case package(product: String, type: PackageType, condition: PlatformCondition? = nil)
+    case packageWithIdentity(product: String, package: String, type: PackageType, condition: PlatformCondition? = nil)
     case sdk(name: String, status: LinkingStatus, condition: PlatformCondition? = nil)
     case xctest
 
@@ -64,6 +65,8 @@ public enum TargetDependency: Equatable, Hashable, Codable, Sendable {
         case .library(path: _, publicHeaders: _, swiftModuleMap: _, condition: let condition):
             condition
         case .package(product: _, type: _, condition: let condition):
+            condition
+        case .packageWithIdentity(product: _, package: _, type: _, condition: let condition):
             condition
         case .sdk(name: _, status: _, condition: let condition):
             condition
@@ -85,9 +88,20 @@ public enum TargetDependency: Equatable, Hashable, Codable, Sendable {
             return .library(path: path, publicHeaders: headers, swiftModuleMap: moduleMap, condition: condition)
         case .package(product: let product, type: let type, condition: _):
             return .package(product: product, type: type, condition: condition)
+        case .packageWithIdentity(product: let product, package: let package, type: let type, condition: _):
+            return .packageWithIdentity(product: product, package: package, type: type, condition: condition)
         case .sdk(name: let name, status: let status, condition: _):
             return .sdk(name: name, status: status, condition: condition)
         case .xctest: return .xctest
         }
+    }
+
+    public static func package(
+        product: String,
+        package: String,
+        type: PackageType,
+        condition: PlatformCondition? = nil
+    ) -> TargetDependency {
+        .packageWithIdentity(product: product, package: package, type: type, condition: condition)
     }
 }
