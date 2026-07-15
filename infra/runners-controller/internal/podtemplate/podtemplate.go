@@ -369,7 +369,7 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 			Image:   pool.Spec.Image,
 			Command: []string{"sh", "-c"},
 			Args: []string{
-				"sed -i '/runner ALL=(ALL) NOPASSWD/d' /etc/sudoers || true; exec /usr/local/bin/runner-shell-agent.py",
+				"sed -i '/runner ALL=(ALL) NOPASSWD/d' /etc/sudoers || true; exec /usr/local/bin/runner-shell-agent",
 			},
 			Env:           shellEnv,
 			RestartPolicy: ptr(corev1.ContainerRestartPolicyAlways),

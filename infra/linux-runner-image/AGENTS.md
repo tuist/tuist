@@ -53,8 +53,9 @@ macOS image). Same single-shot lifecycle, much simpler substrate.
   JIT volume's backing filesystem every `TUIST_RUNNER_METRICS_INTERVAL`
   (default 15s) and POSTs to `…/pods/<pod>/metrics`. Best-effort;
   never affects the job.
-- `/usr/local/bin/runner-shell-agent.py` — interactive shell bridge.
-  Runs in the trusted `shell` native sidecar, waits for the poller to
+- `/usr/local/bin/runner-shell-agent` — interactive shell bridge.
+  Built from the Go source in `cmd/runner-shell-agent/` and run in
+  the trusted `shell` native sidecar. It waits for the poller to
   stage a JIT (claimed job), polls the server for authorized shell
   sessions, and forwards a PTY over the server-owned WebSocket tunnel.
   The sidecar holds the dispatch token, but removes this image's

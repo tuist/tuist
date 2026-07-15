@@ -16,6 +16,26 @@
 # Renovate auto-bumps RUNNER_VERSION via `renovate.json` config
 # matching the same pattern as the macOS image.
 
+ARG GO_VERSION=1.25
+
+FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-bookworm AS runner-shell-agent-builder
+
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY cmd ./cmd
+RUN --mount=type=cache,target=/root/.cache/go-build \
+    --mount=type=cache,target=/go/pkg/mod \
+    go test ./...
+
+ARG TARGETOS=linux
+ARG TARGETARCH=amd64
+RUN --mount=type=cache,target=/root/.cache/go-build \
+    --mount=type=cache,target=/go/pkg/mod \
+    GOOS=${TARGETOS} GOARCH=${TARGETARCH} CGO_ENABLED=0 \
+    go build -trimpath -ldflags="-s -w" -o /out/runner-shell-agent ./cmd/runner-shell-agent
+
 FROM ubuntu:22.04
 
 # renovate: datasource=github-releases depName=actions/runner
@@ -211,12 +231,12 @@ USER root
 COPY dispatch-poll.sh /usr/local/bin/dispatch-poll.sh
 COPY run-job.sh /usr/local/bin/run-job.sh
 COPY vitals.sh /usr/local/bin/vitals.sh
-COPY runner-shell-agent.py /usr/local/bin/runner-shell-agent.py
+COPY --from=runner-shell-agent-builder /out/runner-shell-agent /usr/local/bin/runner-shell-agent
 # metrics-sampler.sh runs in the `metrics` native-sidecar container
 # (holds the SA token like the poller; never the runner container) and
 # POSTs the microVM's machine metrics for the job detail page.
 COPY metrics-sampler.sh /usr/local/bin/metrics-sampler.sh
-RUN chmod +x /usr/local/bin/dispatch-poll.sh /usr/local/bin/run-job.sh /usr/local/bin/vitals.sh /usr/local/bin/runner-shell-agent.py /usr/local/bin/metrics-sampler.sh
+RUN chmod +x /usr/local/bin/dispatch-poll.sh /usr/local/bin/run-job.sh /usr/local/bin/vitals.sh /usr/local/bin/runner-shell-agent /usr/local/bin/metrics-sampler.sh
 
 USER runner
 

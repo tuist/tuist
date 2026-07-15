@@ -177,8 +177,8 @@ func TestBuild_LinuxShellSidecar(t *testing.T) {
 	if shell.RestartPolicy == nil || *shell.RestartPolicy != corev1.ContainerRestartPolicyAlways {
 		t.Errorf("shell sidecar RestartPolicy = %v, want Always", shell.RestartPolicy)
 	}
-	if got := strings.Join(append(shell.Command, shell.Args...), " "); !strings.Contains(got, "runner-shell-agent.py") {
-		t.Errorf("shell command = %v args = %v, want runner-shell-agent.py", shell.Command, shell.Args)
+	if got := strings.Join(append(shell.Command, shell.Args...), " "); !strings.Contains(got, "runner-shell-agent") {
+		t.Errorf("shell command = %v args = %v, want runner-shell-agent", shell.Command, shell.Args)
 	}
 	if got := strings.Join(shell.Args, " "); !strings.Contains(got, "runner ALL=(ALL) NOPASSWD") {
 		t.Errorf("shell args must remove the runner passwordless sudo rule before spawning PTYs; got %v", shell.Args)

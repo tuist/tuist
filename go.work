@@ -17,6 +17,7 @@ use (
 	./infra/cluster-api-provider-tuist
 	./infra/hetzner-robot-controller
 	./infra/kura-controller
+	./infra/linux-runner-image
 	./infra/macos-host-bootstrap
 	./infra/runners-controller
 	./infra/stable-egress-controller
