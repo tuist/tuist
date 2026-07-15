@@ -72,8 +72,13 @@ defmodule Tuist.Marketing.NimblePublisher.Builder do
   end
 
   defp convert_body(extname, body, opts) when extname in [".md", ".markdown", ".livemd"] do
-    mdex_options = Keyword.get(opts, :mdex_options, render: [unsafe: true])
-    MDEx.to_html!(body, mdex_options)
+    earmark_opts = Keyword.get(opts, :earmark_options, %Earmark.Options{})
+    html = Earmark.as_html!(body, earmark_opts)
+
+    case Keyword.get(opts, :highlighters, []) do
+      [] -> html
+      [_ | _] -> NimblePublisher.highlight(html)
+    end
   end
 
   defp convert_body(_extname, body, _opts) do

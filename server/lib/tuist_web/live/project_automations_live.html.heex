@@ -46,7 +46,6 @@
         </span>
       </div>
       <.modal
-        :if={@can_manage_automations}
         id="create-automation-modal"
         title={
           if @editing_automation_id,
@@ -893,7 +892,7 @@
           <.text_cell label={automation_summary(automation)} />
         </:col>
         <:col :let={automation} label="">
-          <.button_cell :if={@can_manage_automations}>
+          <.button_cell>
             <:button>
               <.button
                 icon_only
