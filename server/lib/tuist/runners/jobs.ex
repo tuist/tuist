@@ -1212,7 +1212,15 @@ defmodule Tuist.Runners.Jobs do
     * any job not `completed` → `status: "in_progress"` (a queued /
       claimed / running job means the run is still going).
     * all jobs `completed` → `status: "completed"` with `conclusion`
-      collapsed failure > cancelled > success > skipped.
+      collapsed by precedence failure > timed_out > cancelled >
+      success, otherwise the run's own less common conclusion (stale,
+      neutral, …), falling back to skipped / unknown — never
+      mislabelling a non-success terminal state as skipped.
+
+  A workflow rerun keeps the same `workflow_run_id` but bumps
+  `run_attempt`; the rollup reflects only the run's latest attempt, so
+  a reran failure doesn't linger and job counts / durations aren't
+  doubled.
 
   Options: `:limit`, `:offset`, `:head_branch` (exact), `:platform`.
   """
