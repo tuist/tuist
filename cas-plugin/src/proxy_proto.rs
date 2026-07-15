@@ -136,12 +136,7 @@ impl ProxyClient {
         Ok(stream)
     }
 
-    pub fn resolve(
-        &self,
-        cas_path: &str,
-        instance: &str,
-        key: &[u8],
-    ) -> Result<Resolution, String> {
+    pub fn resolve(&self, cas_path: &str, instance: &str, key: &[u8]) -> Result<Resolution, String> {
         let mut stream = self.connect().map_err(|e| format!("proxy connect: {e}"))?;
         write_request(
             &mut stream,
@@ -211,10 +206,7 @@ impl ProxyClient {
         if status == STATUS_HIT {
             Ok(())
         } else {
-            Err(format!(
-                "proxy invalidate: {}",
-                String::from_utf8_lossy(&body)
-            ))
+            Err(format!("proxy invalidate: {}", String::from_utf8_lossy(&body)))
         }
     }
 

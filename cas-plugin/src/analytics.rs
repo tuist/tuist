@@ -135,20 +135,14 @@ impl Analytics {
 /// build-log remarks and the `nodes` table the server reads (base64 the casID,
 /// then map `+`->`-`, `/`->`_`, keeping `=` padding: URL-safe base64).
 fn node_id_for(cas_id: &[u8]) -> String {
-    format!(
-        "0~{}",
-        base64::engine::general_purpose::URL_SAFE.encode(cas_id)
-    )
+    format!("0~{}", base64::engine::general_purpose::URL_SAFE.encode(cas_id))
 }
 
 /// The action-cache key as the server reads it: `"0~"` + URL-safe base64 of the
 /// key with its first byte dropped.
 fn keyvalue_key_for(key: &[u8]) -> String {
     let rest = key.get(1..).unwrap_or(&[]);
-    format!(
-        "0~{}",
-        base64::engine::general_purpose::URL_SAFE.encode(rest)
-    )
+    format!("0~{}", base64::engine::general_purpose::URL_SAFE.encode(rest))
 }
 
 /// Uppercase hex of a content digest — the `cas_outputs` key the proxy derives
@@ -179,8 +173,7 @@ pub fn parse_cas_references(data: &[u8]) -> Vec<(Vec<u8>, String)> {
                 let hex_bytes = &data[hex_start..hex_start + 64];
                 if let Ok(hex) = std::str::from_utf8(hex_bytes) {
                     if hex.bytes().all(|b| b.is_ascii_hexdigit()) {
-                        references
-                            .push((data[cas_start..cas_start + 64].to_vec(), hex.to_string()));
+                        references.push((data[cas_start..cas_start + 64].to_vec(), hex.to_string()));
                     }
                 }
                 offset = hex_start + 64;
@@ -257,15 +250,7 @@ fn write_record(
             "INSERT OR REPLACE INTO cas_outputs \
              (key, size, duration, compressed_size, created_at, transfer_duration, codec_duration) \
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-            rusqlite::params![
-                checksum,
-                size,
-                duration,
-                compressed_size,
-                created_at,
-                transfer,
-                codec
-            ],
+            rusqlite::params![checksum, size, duration, compressed_size, created_at, transfer, codec],
         ),
         Record::KeyValue {
             key,
@@ -298,10 +283,7 @@ mod tests {
         // so its created_at must be byte-compatible with that column.
         assert_eq!(iso8601_from_unix(0, 0), "1970-01-01T00:00:00.000");
         // 1_000_000_000 unix seconds is the well-known 2001-09-09T01:46:40 UTC.
-        assert_eq!(
-            iso8601_from_unix(1_000_000_000, 500),
-            "2001-09-09T01:46:40.500"
-        );
+        assert_eq!(iso8601_from_unix(1_000_000_000, 500), "2001-09-09T01:46:40.500");
     }
 
     #[test]
@@ -352,11 +334,7 @@ mod tests {
 
         let conn = Connection::open(&path).unwrap();
         let node_checksum: String = conn
-            .query_row(
-                "SELECT checksum FROM nodes WHERE key = '0~3q2-7w=='",
-                [],
-                |row| row.get(0),
-            )
+            .query_row("SELECT checksum FROM nodes WHERE key = '0~3q2-7w=='", [], |row| row.get(0))
             .expect("node row must land in the Swift-created table");
         assert_eq!(node_checksum, "ABC123");
         let (size, kind): (i64, String) = conn
@@ -370,9 +348,7 @@ mod tests {
         assert_eq!(kind, "write");
         // created_at written as TEXT (not a REAL), so it matches the column type.
         let created_at_type: String = conn
-            .query_row("SELECT typeof(created_at) FROM nodes LIMIT 1", [], |row| {
-                row.get(0)
-            })
+            .query_row("SELECT typeof(created_at) FROM nodes LIMIT 1", [], |row| row.get(0))
             .unwrap();
         assert_eq!(created_at_type, "text");
 

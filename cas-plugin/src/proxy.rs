@@ -70,40 +70,8 @@ const SNAPSHOT_IDLE_EVICT: Duration = Duration::from_secs(60 * 60);
 const SNAPSHOT_MAX_INSTANCES: usize = 8;
 // The bulk-warm budget, in value-graph nodes (each node is one blob fetch).
 // Sized past the largest closure a single build replays (~37.5k on the CLI
-// fixture) so a right-sized namespace still warms completely. NOTE: raising
-// this only helps builds whose closure EXCEEDS the budget (e.g. the ~145k-node
-// mastodon fixture), and even then only removes the uncovered-tail demands —
-// the ~1-per-key first-access races remain (measured: a build whose closure
-// fits the budget still demand-fetches ~0.9 blobs/key, and 8->16 workers did
-// not move it). On a SHARED namespace a larger budget over-fetches the
-// newest-first tail, so the default stays conservative; sweep via
-// TUIST_CAS_PREMATERIALIZE_NODES on a right-sized namespace to justify a raise.
-const PREMATERIALIZE_MAX_NODES_DEFAULT: usize = 60_000;
-
-fn prematerialize_max_nodes() -> usize {
-    std::env::var("TUIST_CAS_PREMATERIALIZE_NODES")
-        .ok()
-        .and_then(|value| value.parse().ok())
-        .unwrap_or(PREMATERIALIZE_MAX_NODES_DEFAULT)
-}
-
-// Worker counts for the two read-side pools, overridable for sweeps. Raising
-// the prematerializer from 8 did not reduce demand fetches in local A/B (the
-// residual demands are per-key first-access timing races, not throughput
-// bound), so the default stays put pending a right-sized-namespace sweep.
-fn prematerialize_workers() -> usize {
-    std::env::var("TUIST_CAS_PREMATERIALIZE_WORKERS")
-        .ok()
-        .and_then(|value| value.parse().ok())
-        .unwrap_or(8)
-}
-
-fn materialize_workers() -> usize {
-    std::env::var("TUIST_CAS_MATERIALIZE_WORKERS")
-        .ok()
-        .and_then(|value| value.parse().ok())
-        .unwrap_or(16)
-}
+// fixture) so a right-sized namespace still warms completely.
+const PREMATERIALIZE_MAX_NODES: usize = 60_000;
 // View refresh: per-key hits taken while a snapshot was Ready get their
 // manifests re-published in the background (see Proxy.view_refresh). The
 // per-tick batch keeps a full cold build's backlog (~10k keys) draining in
@@ -763,7 +731,6 @@ pub struct Proxy {
     // Per-node transfer analytics, written to cas_analytics.db for parity with
     // the Swift `CASAnalyticsDatabase`. `None` when no analytics path was configured.
     analytics: Option<crate::analytics::Analytics>,
-
 }
 
 impl Proxy {
@@ -806,11 +773,11 @@ impl Proxy {
         });
         // Demand jobs arrive at the build engine's serial rate, so a small
         // pool keeps up; the wavefront's bulk work does not flow through here.
-        proxy.materializer.configure(materialize_workers(), move |item| {
+        proxy.materializer.configure(16, move |item| {
             let proxy = unsafe { &*(proxy_addr as *const Proxy) };
             proxy.materialize_job(&item);
         });
-        proxy.prematerializer.configure(prematerialize_workers(), move |item| {
+        proxy.prematerializer.configure(8, move |item| {
             let proxy = unsafe { &*(proxy_addr as *const Proxy) };
             proxy.materialize_job(&item);
         });
@@ -1350,8 +1317,8 @@ impl Proxy {
         remote: &Arc<Remote>,
         digest: &reapi::Digest,
     ) -> Result<Option<Vec<u8>>, String> {
-        let coalescer = self.coalescer_for(instance);
-        coalescer.fetch(digest, |digests| remote.batch_read(digests))
+        self.coalescer_for(instance)
+            .fetch(digest, |digests| remote.batch_read(digests))
     }
 
     /// Serves one FETCH_OBJECT: a demand load found `digest` missing from the
@@ -2120,7 +2087,7 @@ impl Proxy {
             // link the demand loads share (562s vs the 134s a right-sized
             // namespace measured). The budget covers a large build's closure;
             // everything past it stays resolvable and self-heals on demand.
-            let mut budget = prematerialize_max_nodes();
+            let mut budget = PREMATERIALIZE_MAX_NODES;
             let mut enqueued = 0usize;
             for key_hash in &snapshot.key_order {
                 let Some(manifest) = snapshot.manifest(key_hash) else {
