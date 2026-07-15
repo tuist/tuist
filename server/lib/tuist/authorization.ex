@@ -379,6 +379,14 @@ defmodule Tuist.Authorization do
       desc("Allows users with ops access to read runner jobs, workflows, and live runner state.")
       allow([:authenticated_as_user, :ops_access])
     end
+
+    action :cancel do
+      desc("Allows members of an account to cancel a running workflow run.")
+      allow([:authenticated_as_user, user_role: :user])
+
+      desc("Allows the admin of an account to cancel a running workflow run.")
+      allow([:authenticated_as_user, user_role: :admin])
+    end
   end
 
   object :organization do

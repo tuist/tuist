@@ -715,6 +715,66 @@ defmodule Tuist.AuthorizationTest do
     assert Authorization.authorize(:runners_read, user, account) == {:error, :forbidden}
   end
 
+  test "can.cancel.account.runners when the subject is a member of an organization" do
+    # Given
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    user = AccountsFixtures.user_fixture()
+    Accounts.add_user_to_organization(user, organization, role: :user)
+
+    # When
+    assert Authorization.authorize(:runners_cancel, user, account) == :ok
+  end
+
+  test "can.cancel.account.runners when the subject is an admin of an organization" do
+    # Given
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    user = AccountsFixtures.user_fixture()
+    Accounts.add_user_to_organization(user, organization, role: :admin)
+
+    # When
+    assert Authorization.authorize(:runners_cancel, user, account) == :ok
+  end
+
+  test "cannot.cancel.account.runners when the subject doesn't belong to the organization" do
+    # Given
+    organization = AccountsFixtures.organization_fixture()
+    account = Accounts.get_account_from_organization(organization)
+    user = AccountsFixtures.user_fixture()
+
+    # When
+    assert Authorization.authorize(:runners_cancel, user, account) == {:error, :forbidden}
+  end
+
+  test "cannot.cancel.account.runners when the subject is only a Tuist operator" do
+    # Given — an operator can read runner state but must not cancel a
+    # customer's workflow run.
+    stub(Environment, :tuist_hosted?, fn -> true end)
+    user = AccountsFixtures.user_fixture(email: "operator-#{System.unique_integer([:positive])}@tuist.dev")
+    AccountsFixtures.oauth2_identity_fixture(user: user, provider: :google)
+    account = AccountsFixtures.organization_fixture(preload: [:account]).account
+    now = System.system_time(:second)
+
+    user = %{
+      user
+      | operator_grant: %{
+          tier: :admin,
+          account_id: account.id,
+          account_handle: account.name,
+          sub: user.email,
+          reason: "support",
+          jti: "1",
+          iat: now,
+          exp: now + 600
+        }
+    }
+
+    # When — the operator can read runners but not cancel.
+    assert Authorization.authorize(:runners_read, user, account) == :ok
+    assert Authorization.authorize(:runners_cancel, user, account) == {:error, :forbidden}
+  end
+
   test "can.read.account.organization when the subject is a user that is admin of an organization" do
     # Given
     organization = AccountsFixtures.organization_fixture()

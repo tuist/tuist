@@ -56,7 +56,17 @@ defmodule TuistWeb.RunnerWorkflowRunLive do
      |> assign(:jobs, jobs)
      |> assign(:jobs_count, length(jobs))
      |> assign(:github_base_url, VCS.github_base_url_for_account(account.id))
-     |> assign(:can_cancel_runs, Runners.can_cancel_workflow_runs?(account))}
+     |> assign(:can_cancel_runs, cancel_authorized?(current_user, account))}
+  end
+
+  # The Cancel affordance requires both the caller's role permitting the
+  # runners :cancel action (members + admins, not read-only tokens or
+  # operators) and the installation actually being able to cancel on
+  # GitHub. The role check short-circuits so we skip the GitHub token
+  # fetch for callers who couldn't cancel anyway.
+  defp cancel_authorized?(current_user, account) do
+    Authorization.authorize(:runners_cancel, current_user, account) == :ok and
+      Runners.can_cancel_workflow_runs?(account)
   end
 
   @impl true
@@ -64,10 +74,19 @@ defmodule TuistWeb.RunnerWorkflowRunLive do
     %{selected_account: account, current_user: current_user, repository: repository, workflow_run_id: run_id} =
       socket.assigns
 
-    with :ok <- Authorization.authorize(:runners_read, current_user, account),
-         :ok <- Runners.cancel_workflow_run(account, repository, run_id) do
-      {:noreply, put_flash(socket, :info, dgettext("dashboard_runners", "Cancelling the workflow run…"))}
+    if Authorization.authorize(:runners_cancel, current_user, account) == :ok do
+      cancel_run(socket, account, repository, run_id)
     else
+      {:noreply,
+       put_flash(socket, :error, dgettext("dashboard_runners", "You don't have permission to cancel this workflow run."))}
+    end
+  end
+
+  defp cancel_run(socket, account, repository, run_id) do
+    case Runners.cancel_workflow_run(account, repository, run_id) do
+      :ok ->
+        {:noreply, put_flash(socket, :info, dgettext("dashboard_runners", "Cancelling the workflow run…"))}
+
       {:error, :no_installation} ->
         {:noreply,
          put_flash(
