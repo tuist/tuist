@@ -232,6 +232,10 @@
     border-radius: var(--noora-radius-6);
     box-shadow: var(--noora-border-light-default);
     padding: var(--noora-spacing-5);
+
+    & + [data-part="scope-group"] {
+      margin-top: var(--noora-spacing-3);
+    }
   }
 
   & [data-part="scope-group-label"] {
