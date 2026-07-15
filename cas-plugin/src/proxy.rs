@@ -70,8 +70,40 @@ const SNAPSHOT_IDLE_EVICT: Duration = Duration::from_secs(60 * 60);
 const SNAPSHOT_MAX_INSTANCES: usize = 8;
 // The bulk-warm budget, in value-graph nodes (each node is one blob fetch).
 // Sized past the largest closure a single build replays (~37.5k on the CLI
-// fixture) so a right-sized namespace still warms completely.
-const PREMATERIALIZE_MAX_NODES: usize = 60_000;
+// fixture) so a right-sized namespace still warms completely. NOTE: raising
+// this only helps builds whose closure EXCEEDS the budget (e.g. the ~145k-node
+// mastodon fixture), and even then only removes the uncovered-tail demands —
+// the ~1-per-key first-access races remain (measured: a build whose closure
+// fits the budget still demand-fetches ~0.9 blobs/key, and 8->16 workers did
+// not move it). On a SHARED namespace a larger budget over-fetches the
+// newest-first tail, so the default stays conservative; sweep via
+// TUIST_CAS_PREMATERIALIZE_NODES on a right-sized namespace to justify a raise.
+const PREMATERIALIZE_MAX_NODES_DEFAULT: usize = 60_000;
+
+fn prematerialize_max_nodes() -> usize {
+    std::env::var("TUIST_CAS_PREMATERIALIZE_NODES")
+        .ok()
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(PREMATERIALIZE_MAX_NODES_DEFAULT)
+}
+
+// Worker counts for the two read-side pools, overridable for sweeps. Raising
+// the prematerializer from 8 did not reduce demand fetches in local A/B (the
+// residual demands are per-key first-access timing races, not throughput
+// bound), so the default stays put pending a right-sized-namespace sweep.
+fn prematerialize_workers() -> usize {
+    std::env::var("TUIST_CAS_PREMATERIALIZE_WORKERS")
+        .ok()
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(8)
+}
+
+fn materialize_workers() -> usize {
+    std::env::var("TUIST_CAS_MATERIALIZE_WORKERS")
+        .ok()
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(16)
+}
 // View refresh: per-key hits taken while a snapshot was Ready get their
 // manifests re-published in the background (see Proxy.view_refresh). The
 // per-tick batch keeps a full cold build's backlog (~10k keys) draining in
@@ -668,6 +700,78 @@ impl DemandCoalescer {
     }
 }
 
+/// Persistent, content-addressed cache of compressed CAS frames keyed by blob
+/// hash (the same bytes `remote.batch_read` returns). Blobs are immutable, so
+/// entries never go stale — only added (and, TODO, LRU-evicted). It sits in
+/// front of the network as a read-through cache: after the first fill, a cold
+/// build's remote reads become local disk reads, independent of DerivedData's
+/// lifecycle. Prototype: no size bound yet. Enabled via TUIST_CAS_MIRROR_DIR.
+struct BlobMirror {
+    root: PathBuf,
+    hits: AtomicU64,
+    misses: AtomicU64,
+    stored: AtomicU64,
+}
+
+impl BlobMirror {
+    fn open(root: PathBuf) -> BlobMirror {
+        let _ = std::fs::create_dir_all(&root);
+        BlobMirror {
+            root,
+            hits: AtomicU64::new(0),
+            misses: AtomicU64::new(0),
+            stored: AtomicU64::new(0),
+        }
+    }
+
+    fn path_for(&self, hash: &str) -> PathBuf {
+        // Shard by the first two hex chars to bound directory fan-out; the hash
+        // is hex from the REAPI digest, so it is always a safe filename.
+        let shard: &str = hash.get(0..2).unwrap_or("_");
+        self.root.join(shard).join(hash)
+    }
+
+    fn contains(&self, hash: &str) -> bool {
+        self.path_for(hash).exists()
+    }
+
+    fn get(&self, hash: &str) -> Option<Vec<u8>> {
+        match std::fs::read(self.path_for(hash)) {
+            Ok(bytes) => {
+                self.hits.fetch_add(1, Ordering::Relaxed);
+                Some(bytes)
+            }
+            Err(_) => {
+                self.misses.fetch_add(1, Ordering::Relaxed);
+                None
+            }
+        }
+    }
+
+    fn put(&self, hash: &str, bytes: &[u8]) {
+        let path = self.path_for(hash);
+        if let Some(parent) = path.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        // Write to a temp then rename so a concurrent reader never sees a
+        // half-written frame (content-addressed, so a racing double-write is fine).
+        let tmp = path.with_extension("tmp");
+        if std::fs::write(&tmp, bytes).is_ok() {
+            let _ = std::fs::rename(&tmp, &path);
+            self.stored.fetch_add(1, Ordering::Relaxed);
+        }
+    }
+
+    fn stats(&self) -> String {
+        format!(
+            "mirror hits={} misses={} stored={}",
+            self.hits.load(Ordering::Relaxed),
+            self.misses.load(Ordering::Relaxed),
+            self.stored.load(Ordering::Relaxed),
+        )
+    }
+}
+
 pub struct Proxy {
     grpc_url: String,
     tokens: Arc<TokenProvider>,
@@ -731,6 +835,15 @@ pub struct Proxy {
     // Per-node transfer analytics, written to cas_analytics.db for parity with
     // the Swift `CASAnalyticsDatabase`. `None` when no analytics path was configured.
     analytics: Option<crate::analytics::Analytics>,
+
+    // Persistent read-through blob cache. `None` unless TUIST_CAS_MIRROR_DIR is set.
+    mirror: Option<BlobMirror>,
+    // instance -> last-active wall-clock ms (persisted next to the registry). A
+    // build resolving for an instance marks it active; pre-ingest and startup
+    // snapshot prefetch skip instances not built on this machine within
+    // ACTIVE_WINDOW_MS, so the proxy never warms a project the developer has
+    // moved on from.
+    active_instances: Mutex<HashMap<String, u64>>,
 }
 
 impl Proxy {
@@ -744,6 +857,10 @@ impl Proxy {
         let path_instance = registry_path
             .as_deref()
             .map(load_registry)
+            .unwrap_or_default();
+        let active_instances = registry_path
+            .as_deref()
+            .map(|path| load_active(&active_path_for(path)))
             .unwrap_or_default();
         let proxy: &'static Proxy = Box::leak(Box::new(Proxy {
             grpc_url,
@@ -765,6 +882,11 @@ impl Proxy {
             view_refreshed: Mutex::new(HashSet::new()),
             demand_coalescers: Mutex::new(HashMap::new()),
             analytics,
+            mirror: std::env::var("TUIST_CAS_MIRROR_DIR")
+                .ok()
+                .filter(|dir| !dir.is_empty())
+                .map(|dir| BlobMirror::open(PathBuf::from(dir))),
+            active_instances: Mutex::new(active_instances),
         }));
         let proxy_addr = proxy as *const Proxy as usize;
         proxy.publisher.configure(8, move |item| {
@@ -773,11 +895,11 @@ impl Proxy {
         });
         // Demand jobs arrive at the build engine's serial rate, so a small
         // pool keeps up; the wavefront's bulk work does not flow through here.
-        proxy.materializer.configure(16, move |item| {
+        proxy.materializer.configure(materialize_workers(), move |item| {
             let proxy = unsafe { &*(proxy_addr as *const Proxy) };
             proxy.materialize_job(&item);
         });
-        proxy.prematerializer.configure(8, move |item| {
+        proxy.prematerializer.configure(prematerialize_workers(), move |item| {
             let proxy = unsafe { &*(proxy_addr as *const Proxy) };
             proxy.materialize_job(&item);
         });
@@ -1097,6 +1219,158 @@ impl Proxy {
     /// BUILD on a missing object, it does not recompile. Blob-level problems
     /// (a node absent on the server, a decode failure) skip that node; a
     /// transport error aborts and leaves the remaining instructions intact.
+    /// Read-through the persistent blob mirror: serve cached frames from local
+    /// disk, fetch only the misses from the remote, and back-fill the mirror
+    /// with what was fetched. A no-op passthrough when the mirror is disabled.
+    fn mirror_batch_read(
+        &self,
+        remote: &Remote,
+        digests: &[reapi::Digest],
+    ) -> Result<HashMap<String, Vec<u8>>, String> {
+        let Some(mirror) = self.mirror.as_ref() else {
+            return remote.batch_read(digests);
+        };
+        let mut out = HashMap::with_capacity(digests.len());
+        let mut misses = Vec::new();
+        for digest in digests {
+            match mirror.get(&digest.hash) {
+                Some(bytes) => {
+                    out.insert(digest.hash.clone(), bytes);
+                }
+                None => misses.push(digest.clone()),
+            }
+        }
+        if !misses.is_empty() {
+            let fetched = remote.batch_read(&misses)?;
+            for (hash, bytes) in fetched {
+                mirror.put(&hash, &bytes);
+                out.insert(hash, bytes);
+            }
+        }
+        Ok(out)
+    }
+
+    /// Proactively pull the entire snapshot closure into the mirror in the
+    /// background, so a later from-scratch build finds every blob as a local
+    /// read and its demands never cross the wire. `batch_read` chunks by
+    /// MAX_BATCH_BYTES internally, so handing it large slices is efficient.
+    /// The per-machine persistent CAS directory a generated project's build
+    /// reads from, derived from the same convention the CLI bakes into
+    /// `COMPILATION_CACHE_CAS_PATH` (`<state>/compilation-cache/<handle>`, with
+    /// the compiler appending `plugin`). Deriving it — rather than only learning
+    /// it from a build's declared path — lets the proxy warm the store before
+    /// the day's first build, and off that build's critical path.
+    fn persistent_cas_path(instance: &str) -> String {
+        // Mirror the CLI's state directory ($XDG_STATE_HOME/tuist, falling back
+        // to ~/.local/state/tuist) so the path derived here matches the one the
+        // generated project bakes into COMPILATION_CACHE_CAS_PATH exactly.
+        let base = std::env::var("XDG_STATE_HOME")
+            .ok()
+            .filter(|value| !value.is_empty())
+            .map(|xdg| format!("{xdg}/tuist"))
+            .or_else(|| {
+                std::env::var("HOME")
+                    .ok()
+                    .filter(|home| !home.is_empty())
+                    .map(|home| format!("{home}/.local/state/tuist"))
+            })
+            .unwrap_or_else(|| "/tmp/tuist".to_string());
+        let sanitized = instance.replace('/', "-");
+        format!("{base}/compilation-cache/{sanitized}/plugin")
+    }
+
+    /// Proactively materialize the snapshot's closure into the instance's
+    /// persistent CAS, off any build's critical path. Because that store
+    /// survives a DerivedData wipe, the next from-scratch build resolves against
+    /// the ready snapshot and loads every object locally — no per-object round
+    /// trip, and no re-ingest on a subsequent build. Idempotent: objects already
+    /// on disk are `is_local`-skipped, so repeated warms only fetch the delta a
+    /// new trunk snapshot introduced.
+    fn pre_ingest_snapshot(&self, instance: &str, snapshot: &Snapshot) {
+        if !self.instance_active(instance) {
+            return;
+        }
+        let cas_path = Self::persistent_cas_path(instance);
+        // The compiler creates this store on its first build; create it here too
+        // so a warm can precede that build. `open_cas` uses the same upstream
+        // plugin the build loads, so the store it opens is byte-compatible.
+        let _ = std::fs::create_dir_all(&cas_path);
+        let state = match self.path_state(&cas_path) {
+            Ok(state) => state,
+            Err(message) => {
+                crate::log_line(&format!(
+                    "pre-ingest: cannot open persistent CAS at {cas_path} for {instance}: {message}"
+                ));
+                return;
+            }
+        };
+        let remote = self.remote_for(instance);
+        let observed = state.gen_counter.load(Ordering::SeqCst);
+        let mut enqueued = 0usize;
+        for key_hash in &snapshot.key_order {
+            let Some(manifest) = snapshot.manifest(key_hash) else {
+                continue;
+            };
+            let id = self.job_counter.fetch_add(1, Ordering::Relaxed);
+            self.materialize_jobs.lock().unwrap().insert(
+                id,
+                MaterializeJob {
+                    cas_path: cas_path.clone(),
+                    remote: remote.clone(),
+                    manifest,
+                    observed,
+                },
+            );
+            self.prematerializer.enqueue(id.to_be_bytes().to_vec());
+            enqueued += 1;
+        }
+        crate::log_line(&format!(
+            "pre-ingest for {instance}: enqueued {enqueued} keys into persistent CAS {cas_path}"
+        ));
+    }
+
+    /// Record that a build resolved for this instance on this machine, so the
+    /// pre-ingest and startup snapshot prefetch stay scoped to projects the
+    /// developer is still building. Called once per instance per proxy session
+    /// (its first resolve), which is enough to carry a day-scale recency signal.
+    fn touch_instance(&self, instance: &str) {
+        self.active_instances
+            .lock()
+            .unwrap()
+            .insert(instance.to_string(), now_ms());
+        self.persist_active();
+    }
+
+    /// Whether the instance was built on this machine within ACTIVE_WINDOW_MS.
+    fn instance_active(&self, instance: &str) -> bool {
+        let now = now_ms();
+        self.active_instances
+            .lock()
+            .unwrap()
+            .get(instance)
+            .is_some_and(|&last| now.saturating_sub(last) <= ACTIVE_WINDOW_MS)
+    }
+
+    fn active_registry_path(&self) -> Option<PathBuf> {
+        self.registry_path.as_deref().map(active_path_for)
+    }
+
+    fn persist_active(&self) {
+        let Some(path) = self.active_registry_path() else {
+            return;
+        };
+        let mut body = String::new();
+        for (instance, ts) in self.active_instances.lock().unwrap().iter() {
+            if !instance.contains(['\t', '\n']) {
+                body.push_str(instance);
+                body.push('\t');
+                body.push_str(&ts.to_string());
+                body.push('\n');
+            }
+        }
+        let _ = std::fs::write(path, body);
+    }
+
     fn materialize_manifest(
         &self,
         remote: &Remote,
@@ -1148,7 +1422,7 @@ impl Proxy {
             let contents = if digests.is_empty() {
                 HashMap::new()
             } else {
-                remote.batch_read(&digests)?
+                self.mirror_batch_read(remote, &digests)?
             };
             let fetch_elapsed = phase.elapsed();
             state
@@ -1317,8 +1591,8 @@ impl Proxy {
         remote: &Arc<Remote>,
         digest: &reapi::Digest,
     ) -> Result<Option<Vec<u8>>, String> {
-        self.coalescer_for(instance)
-            .fetch(digest, |digests| remote.batch_read(digests))
+        let coalescer = self.coalescer_for(instance);
+        coalescer.fetch(digest, |digests| self.mirror_batch_read(remote, digests))
     }
 
     /// Serves one FETCH_OBJECT: a demand load found `digest` missing from the
@@ -1845,6 +2119,12 @@ impl Proxy {
             .cloned()
             .collect();
         for instance in instances {
+            // Only warm projects still being built on this machine; a registry
+            // that has accumulated months of instances must not fan out a
+            // snapshot fetch (and pre-ingest) for every one at every startup.
+            if !self.instance_active(&instance) {
+                continue;
+            }
             let remote = self.remote_for(&instance);
             self.ensure_snapshot(&instance, &remote);
         }
@@ -1861,6 +2141,10 @@ impl Proxy {
             }
             snapshots.insert(instance.to_string(), SnapshotState::Fetching);
         }
+        // First resolve for this instance this session: mark it active so
+        // pre-ingest and the next startup's snapshot prefetch stay scoped to
+        // projects still being built here.
+        self.touch_instance(instance);
         let proxy: &'static Proxy = unsafe { &*(self as *const Proxy) };
         let instance = instance.to_string();
         let remote = remote.clone();
@@ -1884,6 +2168,20 @@ impl Proxy {
                     ));
                     let snapshot = Arc::new(snapshot);
                     self.prematerialize_snapshot(instance, &snapshot);
+                    // Proactive pre-ingest: warm the whole closure into the
+                    // instance's PERSISTENT CAS now, off any build's critical
+                    // path, so a later from-scratch build resolves against the
+                    // ready snapshot and loads every object locally — no per-
+                    // object round trip, no re-ingest. Scoped to actively-built
+                    // projects (checked inside) and idempotent, so steady state
+                    // only fetches the delta a new trunk snapshot introduced.
+                    // Opt out with TUIST_CAS_PREINGEST=0.
+                    if std::env::var("TUIST_CAS_PREINGEST").as_deref() != Ok("0") {
+                        let proxy: &'static Proxy = unsafe { &*(self as *const Proxy) };
+                        let instance = instance.to_string();
+                        let snapshot = snapshot.clone();
+                        std::thread::spawn(move || proxy.pre_ingest_snapshot(&instance, &snapshot));
+                    }
                     SnapshotState::Ready {
                         snapshot,
                         full_at: Instant::now(),
@@ -2087,7 +2385,7 @@ impl Proxy {
             // link the demand loads share (562s vs the 134s a right-sized
             // namespace measured). The budget covers a large build's closure;
             // everything past it stays resolvable and self-heals on demand.
-            let mut budget = PREMATERIALIZE_MAX_NODES;
+            let mut budget = prematerialize_max_nodes();
             let mut enqueued = 0usize;
             for key_hash in &snapshot.key_order {
                 let Some(manifest) = snapshot.manifest(key_hash) else {
@@ -2168,6 +2466,9 @@ impl Proxy {
                 state.ms_decode.load(Ordering::Relaxed),
                 state.ms_store.load(Ordering::Relaxed),
             ));
+        }
+        if let Some(mirror) = self.mirror.as_ref() {
+            parts.push(mirror.stats());
         }
         parts.join(" | ")
     }
@@ -2314,6 +2615,42 @@ fn load_registry(path: &Path) -> HashMap<String, String> {
         for line in body.lines() {
             if let Some((cas_path, instance)) = line.split_once('\t') {
                 map.insert(cas_path.to_string(), instance.to_string());
+            }
+        }
+    }
+    map
+}
+
+/// How long after an instance's last build the proxy keeps warming its cache.
+/// Past this, a snapshot prefetch or pre-ingest for it is skipped so a machine
+/// that has moved on from a project stops paying to keep its trunk fresh.
+const ACTIVE_WINDOW_MS: u64 = 14 * 24 * 60 * 60 * 1000;
+
+/// Wall-clock milliseconds since the Unix epoch. Unlike the proxy's monotonic
+/// `epoch`, this is comparable across restarts, which is what a persisted
+/// last-active timestamp needs.
+fn now_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|elapsed| elapsed.as_millis() as u64)
+        .unwrap_or(0)
+}
+
+/// The active-instances file sits next to the registry (`<registry>.active`).
+fn active_path_for(registry: &Path) -> PathBuf {
+    let mut path = registry.to_path_buf().into_os_string();
+    path.push(".active");
+    PathBuf::from(path)
+}
+
+fn load_active(path: &Path) -> HashMap<String, u64> {
+    let mut map = HashMap::new();
+    if let Ok(body) = std::fs::read_to_string(path) {
+        for line in body.lines() {
+            if let Some((instance, ts)) = line.split_once('\t') {
+                if let Ok(ts) = ts.parse::<u64>() {
+                    map.insert(instance.to_string(), ts);
+                }
             }
         }
     }

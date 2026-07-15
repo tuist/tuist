@@ -79,7 +79,9 @@ impl Prefetcher {
     }
 
     fn ensure_started(&self) {
-        let Some((count, process)) = self.starter.lock().unwrap().take() else { return };
+        let Some((count, process)) = self.starter.lock().unwrap().take() else {
+            return;
+        };
         let mut workers = self.workers.lock().unwrap();
         for _ in 0..count.max(1) {
             let this: &'static Prefetcher = unsafe { &*(self as *const Prefetcher) };
