@@ -132,7 +132,6 @@ defmodule TuistWeb.AccountTokensLiveTest do
     assert html =~ "Project access"
     assert html =~ "account-token-permissions-table"
     assert html =~ "account-token-projects-table"
-    assert html =~ "Category"
     assert html =~ "Permission"
     assert html =~ "Scope"
     assert html =~ "ios-app"
@@ -143,6 +142,14 @@ defmodule TuistWeb.AccountTokensLiveTest do
     {:ok, _lv, html} = live(conn, ~p"/#{account.name}/settings/tokens/#{all_projects_token.id}")
 
     assert html =~ "all-projects"
+    assert html =~ "account:cache:write"
+    assert html =~ "project:cache:write"
+    assert html =~ "project:previews:write"
+    assert html =~ "project:bundles:write"
+    assert html =~ "project:tests:write"
+    assert html =~ "project:builds:write"
+    assert html =~ "project:runs:write"
+    refute html =~ "Category"
     assert html =~ "This token has access to all projects in this account."
   end
 

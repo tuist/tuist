@@ -79,9 +79,6 @@
           rows={permission_rows(@account_token.scopes)}
           row_key={fn permission -> permission.scope end}
         >
-          <:col :let={permission} label={dgettext("dashboard_account", "Category")}>
-            <.text_cell label={permission.group} />
-          </:col>
           <:col :let={permission} label={dgettext("dashboard_account", "Permission")}>
             <.text_and_description_cell
               label={permission.label}

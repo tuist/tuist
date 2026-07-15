@@ -385,15 +385,11 @@
 
   & #account-token-permissions-table {
     & th:first-child {
-      width: 22%;
+      width: 58%;
     }
 
     & th:nth-child(2) {
-      width: 48%;
-    }
-
-    & th:nth-child(3) {
-      width: 30%;
+      width: 42%;
     }
 
     & [data-part="description"] {
@@ -401,7 +397,7 @@
       font: var(--noora-font-weight-regular) var(--noora-font-body-small);
     }
 
-    & td:nth-child(3) [data-part="label"] {
+    & td:nth-child(2) [data-part="label"] {
       font-family: "Geist Mono", monospace;
     }
   }

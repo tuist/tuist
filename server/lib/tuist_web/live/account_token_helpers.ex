@@ -4,6 +4,7 @@ defmodule TuistWeb.AccountTokenHelpers do
   use Gettext, backend: TuistWeb.Gettext
 
   alias Tuist.Accounts.AccountToken
+  alias Tuist.Authorization.Checks
   alias Tuist.Utilities.DateFormatter
 
   def scope_options do
@@ -160,12 +161,17 @@ defmodule TuistWeb.AccountTokenHelpers do
   end
 
   def permission_rows(scopes) do
+    scope_options_by_scope =
+      scope_options()
+      |> Enum.flat_map(& &1.scopes)
+      |> Enum.reject(&(&1.scope in ["ci", "mcp"]))
+      |> Map.new(&{&1.scope, &1})
+
     scopes
-    |> selected_scope_groups()
-    |> Enum.flat_map(fn group ->
-      Enum.map(group.scopes, fn scope ->
-        Map.put(scope, :group, group.label)
-      end)
+    |> Checks.expand_scopes()
+    |> Enum.uniq()
+    |> Enum.map(fn scope ->
+      Map.get(scope_options_by_scope, scope, %{scope: scope, label: scope, description: ""})
     end)
   end
 
