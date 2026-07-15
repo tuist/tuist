@@ -9,6 +9,14 @@ import XCTest
 @testable import TuistLoader
 @testable import TuistTesting
 
+private enum LegacyTargetDependency: Codable {
+    case package(
+        product: String,
+        type: ProjectDescription.TargetDependency.PackageType,
+        condition: ProjectDescription.PlatformCondition?
+    )
+}
+
 final class DependencyManifestMapperTests: TuistUnitTestCase {
     func test_from_when_external_xcframework() throws {
         // Given
@@ -107,11 +115,12 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(got.count, 1)
-        guard case let .package(product, type, _) = got[0] else {
+        guard case let .package(product, package, type, _) = got[0] else {
             XCTFail("Dependency should be package")
             return
         }
         XCTAssertEqual(product, "RuntimePackageProduct")
+        XCTAssertNil(package)
         XCTAssertEqual(type, .runtime)
     }
 
@@ -128,6 +137,13 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
             let encoded = try JSONEncoder().encode(dependency)
             XCTAssertEqual(try JSONDecoder().decode(ProjectDescription.TargetDependency.self, from: encoded), dependency)
         }
+        let legacyEncoded = try JSONEncoder().encode(
+            LegacyTargetDependency.package(product: "LegacyPackageProduct", type: .runtime, condition: nil)
+        )
+        XCTAssertEqual(
+            try JSONDecoder().decode(ProjectDescription.TargetDependency.self, from: legacyEncoded),
+            legacyDependency
+        )
 
         let got = try XcodeGraph.TargetDependency.from(
             manifest: dependency,
@@ -136,7 +152,7 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
         )
 
         XCTAssertEqual(got.count, 1)
-        guard case let .packageWithIdentity(product, package, type, _) = got[0] else {
+        guard case let .package(product, package, type, _) = got[0] else {
             XCTFail("Dependency should be an identity-associated package")
             return
         }
@@ -162,11 +178,12 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(got.count, 1)
-        guard case let .package(product, type, _) = got[0] else {
+        guard case let .package(product, package, type, _) = got[0] else {
             XCTFail("Dependency should be package")
             return
         }
         XCTAssertEqual(product, "RuntimeEmbeddedPackageProduct")
+        XCTAssertNil(package)
         XCTAssertEqual(type, .runtimeEmbedded)
     }
 
@@ -184,11 +201,12 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(got.count, 1)
-        guard case let .package(product, type, _) = got[0] else {
+        guard case let .package(product, package, type, _) = got[0] else {
             XCTFail("Dependency should be package")
             return
         }
         XCTAssertEqual(product, "MacroPackageProduct")
+        XCTAssertNil(package)
         XCTAssertEqual(type, .macro)
     }
 
@@ -206,11 +224,12 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(got.count, 1)
-        guard case let .package(product, type, _) = got[0] else {
+        guard case let .package(product, package, type, _) = got[0] else {
             XCTFail("Dependency should be package")
             return
         }
         XCTAssertEqual(product, "PluginPackageProduct")
+        XCTAssertNil(package)
         XCTAssertEqual(type, .plugin)
     }
 

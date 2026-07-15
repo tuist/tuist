@@ -162,20 +162,7 @@ public struct DependenciesContentHasher: DependenciesContentHashing {
                     hash: try contentHasher.hash("library-\(libraryHash)-\(publicHeadersHash)")
                 )
             }
-        case let .package(product, type, _):
-            let packageTraits = try packageTraitsFingerprint(
-                packageIdentity: nil,
-                packages: graphTarget.project.packages
-            )
-            return DependenciesContentHash(
-                hashedPaths: hashedPaths,
-                hash: try contentHasher.hash(
-                    ["package", product, type.rawValue, packageTraits]
-                        .compactMap { $0 }
-                        .joined(separator: "-")
-                )
-            )
-        case let .packageWithIdentity(product, package, type, _):
+        case let .package(product, package, type, _):
             let packageTraits = try packageTraitsFingerprint(
                 packageIdentity: package,
                 packages: graphTarget.project.packages
@@ -183,7 +170,7 @@ public struct DependenciesContentHasher: DependenciesContentHashing {
             return DependenciesContentHash(
                 hashedPaths: hashedPaths,
                 hash: try contentHasher.hash(
-                    ["package", product, package.lowercased(), type.rawValue, packageTraits]
+                    ["package", product, package?.lowercased(), type.rawValue, packageTraits]
                         .compactMap { $0 }
                         .joined(separator: "-")
                 )

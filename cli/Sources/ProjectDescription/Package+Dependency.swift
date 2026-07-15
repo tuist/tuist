@@ -62,6 +62,24 @@ extension Package {
             self.traits = traits
         }
 
+        init?(legacyPackage: Package) {
+            traits = [.defaults]
+            switch legacyPackage {
+            case let .local(path):
+                kind = .fileSystem(path: path)
+            case let .remote(url, requirement):
+                kind = .sourceControl(
+                    location: url,
+                    requirement: SourceControlRequirement(packageRequirement: requirement)
+                )
+            case let .registry(identifier, requirement):
+                guard let requirement = RegistryRequirement(packageRequirement: requirement) else {
+                    return nil
+                }
+                kind = .registry(id: identifier, requirement: requirement)
+            }
+        }
+
         /// The corresponding legacy package value.
         public var package: Package {
             switch kind {
@@ -193,6 +211,23 @@ extension Package {
 }
 
 extension Package.Dependency.SourceControlRequirement {
+    fileprivate init(packageRequirement: Package.Requirement) {
+        switch packageRequirement {
+        case let .upToNextMajor(version):
+            self = .range(version ..< Version(version.major + 1, 0, 0))
+        case let .upToNextMinor(version):
+            self = .range(version ..< Version(version.major, version.minor + 1, 0))
+        case let .range(from, to):
+            self = .range(from ..< to)
+        case let .exact(version):
+            self = .exact(version)
+        case let .branch(branch):
+            self = .branch(branch)
+        case let .revision(revision):
+            self = .revision(revision)
+        }
+    }
+
     fileprivate var packageRequirement: Package.Requirement {
         switch self {
         case let .exact(version):
@@ -208,6 +243,21 @@ extension Package.Dependency.SourceControlRequirement {
 }
 
 extension Package.Dependency.RegistryRequirement {
+    fileprivate init?(packageRequirement: Package.Requirement) {
+        switch packageRequirement {
+        case let .upToNextMajor(version):
+            self = .range(version ..< Version(version.major + 1, 0, 0))
+        case let .upToNextMinor(version):
+            self = .range(version ..< Version(version.major, version.minor + 1, 0))
+        case let .range(from, to):
+            self = .range(from ..< to)
+        case let .exact(version):
+            self = .exact(version)
+        case .branch, .revision:
+            return nil
+        }
+    }
+
     fileprivate var packageRequirement: Package.Requirement {
         switch self {
         case let .exact(version):

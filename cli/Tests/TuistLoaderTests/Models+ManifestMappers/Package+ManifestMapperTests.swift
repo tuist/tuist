@@ -27,9 +27,9 @@ struct PackageManifestMapperTests {
 
         #expect(decodedPackagePath == Path("Package"))
         #expect(emptyProject.packages.isEmpty)
-        #expect(emptyProject.packageDependencies == nil)
-        #expect(project.packageDependencies == nil)
-        #expect(encodedObject["packageDependencies"] == nil)
+        #expect(emptyProject.packageDependencies.isEmpty)
+        #expect(project.packageDependencies.count == 1)
+        #expect(encodedObject["packageDependencies"] != nil)
         #expect(decoded == project)
     }
 
@@ -47,9 +47,48 @@ struct PackageManifestMapperTests {
         let decoded = try JSONDecoder().decode(ProjectDescription.Project.self, from: encoded)
 
         #expect(project.packages.count == 3)
-        #expect(project.packageDependencies?.count == 3)
-        #expect(project.packageDependencies?[2].traits == [.defaults])
+        #expect(project.packageDependencies.count == 3)
+        #expect(project.packageDependencies[2].traits == [.defaults])
         #expect(decoded == project)
+    }
+
+    @Test func projectDecodesLegacyPackageOnlyPayloadIntoCanonicalDependencies() throws {
+        let project = ProjectDescription.Project(
+            name: "Project",
+            packages: [ProjectDescription.Package.package(path: "Package")]
+        )
+        let encoded = try JSONEncoder().encode(project)
+        var encodedObject = try #require(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+        encodedObject.removeValue(forKey: "packageDependencies")
+
+        let decoded = try JSONDecoder().decode(
+            ProjectDescription.Project.self,
+            from: JSONSerialization.data(withJSONObject: encodedObject)
+        )
+
+        #expect(decoded.packages == project.packages)
+        #expect(decoded.packageDependencies.count == 1)
+        #expect(decoded.packageDependencies[0].traits == [.defaults])
+    }
+
+    @Test func legacyPackagesConvertToCanonicalDependenciesWithDefaultTraits() {
+        let project = ProjectDescription.Project(
+            name: "Project",
+            packages: [
+                ProjectDescription.Package.package(url: "https://example.com/package.git", from: "1.2.3"),
+                ProjectDescription.Package.package(id: "example.package", exact: "2.0.0"),
+            ]
+        )
+
+        #expect(project.packageDependencies == [
+            .init(
+                kind: .sourceControl(
+                    location: "https://example.com/package.git",
+                    requirement: .range("1.2.3" ..< "2.0.0")
+                )
+            ),
+            .init(kind: .registry(id: "example.package", requirement: .exact("2.0.0"))),
+        ])
     }
 
     @Test func projectRejectsConflictingEncodedPackageRepresentations() throws {

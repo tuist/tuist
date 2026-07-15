@@ -184,19 +184,7 @@ public struct GraphLoader: GraphLoading {
                 )
             }
 
-        case let .package(product, type, _):
-            switch type {
-            case .macro:
-                return try loadPackage(fromPath: path, productName: product, type: .macro)
-            case .runtime:
-                return try loadPackage(fromPath: path, productName: product, type: .runtime)
-            case .plugin:
-                return try loadPackage(fromPath: path, productName: product, type: .plugin)
-            case .runtimeEmbedded:
-                return try loadPackage(fromPath: path, productName: product, type: .runtimeEmbedded)
-            }
-
-        case let .packageWithIdentity(product, _, type, _):
+        case let .package(product, _, type, _):
             switch type {
             case .macro:
                 return try loadPackage(fromPath: path, productName: product, type: .macro)

@@ -59,11 +59,6 @@
 /// )
 /// ```
 public struct Project: Codable, Equatable, Sendable {
-    private enum PackageStorage: Equatable, Sendable {
-        case legacy([Package])
-        case dependencies([Package.Dependency])
-    }
-
     private enum CodingKeys: String, CodingKey {
         case name
         case organizationName
@@ -87,22 +82,16 @@ public struct Project: Codable, Equatable, Sendable {
     public let classPrefix: String?
     /// The project options.
     public let options: Options
-    private let packageStorage: PackageStorage
+    private let packageDependenciesStorage: [Package.Dependency]
 
     /// The Swift packages used by the project, represented using the legacy package model.
     public var packages: [Package] {
-        switch packageStorage {
-        case let .legacy(packages):
-            packages
-        case let .dependencies(dependencies):
-            dependencies.map(\.package)
-        }
+        packageDependenciesStorage.map(\.package)
     }
 
     /// Swift package dependencies using the Swift Package Manager-aligned model.
-    @_spi(TuistLoader) public var packageDependencies: [Package.Dependency]? {
-        guard case let .dependencies(dependencies) = packageStorage else { return nil }
-        return dependencies
+    @_spi(TuistLoader) public var packageDependencies: [Package.Dependency] {
+        packageDependenciesStorage
     }
 
     /// The targets of the project.
@@ -139,7 +128,7 @@ public struct Project: Codable, Equatable, Sendable {
             organizationName: organizationName,
             classPrefix: classPrefix,
             options: options,
-            packageStorage: packages.isEmpty ? .legacy([]) : .dependencies(packages),
+            packageDependencies: packages,
             settings: settings,
             targets: targets,
             schemes: schemes,
@@ -170,7 +159,12 @@ public struct Project: Codable, Equatable, Sendable {
             organizationName: organizationName,
             classPrefix: classPrefix,
             options: options,
-            packageStorage: .legacy(packages),
+            packageDependencies: packages.map { package in
+                guard let dependency = Package.Dependency(legacyPackage: package) else {
+                    preconditionFailure("Registry packages do not support branch or revision requirements")
+                }
+                return dependency
+            },
             settings: settings,
             targets: targets,
             schemes: schemes,
@@ -185,7 +179,7 @@ public struct Project: Codable, Equatable, Sendable {
         organizationName: String? = nil,
         classPrefix: String? = nil,
         options: Options = .options(),
-        packageStorage: PackageStorage,
+        packageDependencies: [Package.Dependency],
         settings: Settings? = nil,
         targets: [Target] = [],
         schemes: [Scheme] = [],
@@ -197,7 +191,7 @@ public struct Project: Codable, Equatable, Sendable {
         self.organizationName = organizationName
         self.classPrefix = classPrefix
         self.options = options
-        self.packageStorage = packageStorage
+        packageDependenciesStorage = packageDependencies
         self.targets = targets
         self.schemes = schemes
         self.settings = settings
@@ -229,9 +223,18 @@ public struct Project: Codable, Equatable, Sendable {
                     debugDescription: "Package dependencies do not match the legacy package representation"
                 )
             }
-            packageStorage = dependencies.isEmpty ? .legacy([]) : .dependencies(dependencies)
+            packageDependenciesStorage = dependencies
         } else {
-            packageStorage = .legacy(packages)
+            packageDependenciesStorage = try packages.map { package in
+                guard let dependency = Package.Dependency(legacyPackage: package) else {
+                    throw DecodingError.dataCorruptedError(
+                        forKey: .packages,
+                        in: container,
+                        debugDescription: "Registry packages do not support branch or revision requirements"
+                    )
+                }
+                return dependency
+            }
         }
     }
 
@@ -242,9 +245,7 @@ public struct Project: Codable, Equatable, Sendable {
         try container.encodeIfPresent(classPrefix, forKey: .classPrefix)
         try container.encode(options, forKey: .options)
         try container.encode(packages, forKey: .packages)
-        if case let .dependencies(dependencies) = packageStorage {
-            try container.encode(dependencies, forKey: .packageDependencies)
-        }
+        try container.encode(packageDependenciesStorage, forKey: .packageDependencies)
         try container.encode(targets, forKey: .targets)
         try container.encode(schemes, forKey: .schemes)
         try container.encodeIfPresent(settings, forKey: .settings)

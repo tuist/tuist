@@ -137,18 +137,7 @@ extension ProjectAutomation.Target {
                 publicHeaders: publicHeaders.pathString,
                 swiftModuleMap: swiftModuleMap?.pathString
             )
-        case let .package(product, type, _):
-            switch type {
-            case .macro:
-                return .packageMacro(product: product)
-            case .plugin:
-                return .packagePlugin(product: product)
-            case .runtime:
-                return .package(product: product)
-            case .runtimeEmbedded:
-                return .package(product: product, embedded: true)
-            }
-        case let .packageWithIdentity(product, _, type, _):
+        case let .package(product, _, type, _):
             switch type {
             case .macro:
                 return .packageMacro(product: product)

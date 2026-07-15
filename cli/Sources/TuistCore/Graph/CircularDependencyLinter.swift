@@ -125,7 +125,7 @@ public struct CircularDependencyLinter: CircularDependencyLinting {
             stack.append(.target(path: projectPath, name: toTarget))
             stack.append(.project(path: projectPath))
 
-        case .framework, .xcframework, .library, .package, .packageWithIdentity, .sdk, .xctest:
+        case .framework, .xcframework, .library, .package, .sdk, .xctest:
             break
         }
     }

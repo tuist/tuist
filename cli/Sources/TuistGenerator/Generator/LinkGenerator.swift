@@ -176,15 +176,7 @@ struct LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_lengt
     ) throws {
         for dependency in target.dependencies {
             switch dependency {
-            case let .package(product: product, type: type, condition: condition):
-                try pbxTarget.addSwiftPackageProduct(
-                    productName: product,
-                    isPlugin: type == .plugin,
-                    pbxproj: pbxproj,
-                    target: target,
-                    condition: condition
-                )
-            case let .packageWithIdentity(product: product, package: _, type: type, condition: condition):
+            case let .package(product: product, package: _, type: type, condition: condition):
                 try pbxTarget.addSwiftPackageProduct(
                     productName: product,
                     isPlugin: type == .plugin,
