@@ -866,15 +866,15 @@ defmodule TuistWeb.API.RunsController do
 
         build_attrs
         |> Builds.create_build()
-        |> handle_build_creation_result(params.id)
+        |> handle_build_creation_result(params.id, params.project.id)
     end
   end
 
-  defp handle_build_creation_result({:ok, build}, _build_id), do: {:ok, build}
+  defp handle_build_creation_result({:ok, build}, _build_id, _project_id), do: {:ok, build}
 
-  defp handle_build_creation_result({:error, changeset}, build_id) do
+  defp handle_build_creation_result({:error, changeset}, build_id, project_id) do
     if Keyword.has_key?(changeset.errors, :id) do
-      case Builds.get_build(build_id) do
+      case Builds.get_build(build_id, project_id: project_id) do
         {:ok, build} -> {:ok, build}
         {:error, :not_found} -> {:error, :creation_failed}
       end

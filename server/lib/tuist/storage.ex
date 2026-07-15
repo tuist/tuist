@@ -35,7 +35,16 @@ defmodule Tuist.Storage do
   end
 
   defp presigned_url(method, object_key, opts) do
-    query_params = Keyword.get(opts, :query_params, [])
+    query_params =
+      case Keyword.get(opts, :content_disposition) do
+        nil ->
+          Keyword.get(opts, :query_params, [])
+
+        content_disposition ->
+          Keyword.get(opts, :query_params, []) ++
+            [{"response-content-disposition", content_disposition}]
+      end
+
     actor = Keyword.fetch!(opts, :actor)
 
     case storage_provider(actor) do
@@ -273,6 +282,35 @@ defmodule Tuist.Storage do
     case result do
       {:ok, %{body: content}} -> content
       {:error, {:http_error, 404, _}} -> nil
+    end
+  end
+
+  def get_object_range(object_key, first..last//1 = range, actor) do
+    {time, result} =
+      Performance.measure_time_in_milliseconds(fn ->
+        case storage_provider(actor) do
+          :azure_blob ->
+            AzureBlob.get_object_range(object_key, range)
+
+          :s3 ->
+            {config, bucket_name} = s3_config_and_bucket(actor)
+
+            bucket_name
+            |> ExAws.S3.get_object(object_key, range: "bytes=#{first}-#{last}")
+            |> ExAws.request(Map.merge(config, fast_api_req_opts()))
+        end
+      end)
+
+    :telemetry.execute(
+      Tuist.Telemetry.event_name_storage_get_object_range(),
+      %{duration: time},
+      %{object_key: object_key, range: range}
+    )
+
+    case result do
+      {:ok, %{body: content}} -> {:ok, content}
+      {:error, {:http_error, 404, _}} -> {:error, :not_found}
+      {:error, reason} -> {:error, reason}
     end
   end
 

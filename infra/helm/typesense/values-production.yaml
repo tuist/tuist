@@ -1,0 +1,38 @@
+global:
+  commonLabels:
+    tuist.dev/service: typesense
+    tuist.dev/stack: managed
+
+ingress:
+  enabled: true
+  className: nginx
+  host: search.tuist.dev
+  tlsSecretName: typesense-tls
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-cloudflare
+    # Let external-dns own search.tuist.dev and keep it proxied through
+    # Cloudflare (matching the record's current behaviour). external-dns only
+    # takes over the record once the manually-created one is deleted, since it
+    # will not clobber a record it does not own.
+    external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
+
+runtimeSecrets:
+  externalSecret:
+    enabled: true
+
+networkPolicy:
+  enabled: true
+
+persistence:
+  size: 10Gi
+
+resources:
+  requests:
+    cpu: "250m"
+    memory: "512Mi"
+  limits:
+    cpu: "1"
+    memory: "1Gi"
+
+nodeSelector:
+  node.cluster.x-k8s.io/pool: general

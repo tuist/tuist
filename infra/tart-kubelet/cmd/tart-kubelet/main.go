@@ -71,6 +71,8 @@ func main() {
 		vncRelayHost       string
 		vncRelayPort       int
 		disableVMGC        bool
+		runnerCacheRoot    string
+		cacheVolumeCapGiB  int
 	)
 	flag.StringVar(&nodeName, "node-name", envOr("TART_KUBELET_NODE_NAME", ""), "Node name to register as. Defaults to os.Hostname() when empty.")
 	flag.StringVar(&providerID, "provider-id", envOr("TART_KUBELET_PROVIDER_ID", ""),
@@ -113,6 +115,13 @@ func main() {
 		"Host name to advertise for dashboard VNC relays. Empty advertises --node-ip. Managed tailnet deployments set this to the per-Mac Kubernetes egress Service DNS name so the server connects through the Tailscale operator instead of dialing the raw tailnet IP.")
 	flag.IntVar(&vncRelayPort, "vnc-relay-port", envIntOr("TART_KUBELET_VNC_RELAY_PORT", 0),
 		"Host port to bind and advertise for dashboard VNC relays. 0 chooses an ephemeral port. Managed tailnet deployments use a fixed port that is declared on the per-Mac Tailscale egress Service.")
+	flag.StringVar(&runnerCacheRoot, "runner-cache-root", envOr("TART_KUBELET_RUNNER_CACHE_ROOT", ""),
+		"Mount point of the quota-bounded APFS volume that holds per-account cache-volume images. "+
+			"Empty (default) disables cache volumes entirely: every VM boots on the status-quo cold path. "+
+			"Host bootstrap sets this to the runner-cache volume it provisions (e.g. /var/lib/tart-cache).")
+	flag.IntVar(&cacheVolumeCapGiB, "cache-volume-cap-gib", envIntOr("TART_KUBELET_CACHE_VOLUME_CAP_GIB", 20),
+		"Provisioned capacity (GiB) of each per-account cache master image. The image is sparse, so this is a "+
+			"ceiling, not an allocation; the runner-cache-root quota is the real aggregate bound.")
 	flag.BoolVar(&disableVMGC, "disable-vm-gc", false,
 		"Disable the periodic orphan-VM garbage collector. The GC deletes every local "+
 			"Tart VM not backed by a Pod scheduled to this Node. On builder-fleet Nodes — "+
@@ -271,6 +280,20 @@ func main() {
 		}
 	}
 
+	// Per-account cache volumes. Only active when the host was
+	// provisioned with a runner-cache root; otherwise a disabled manager
+	// no-ops and every VM boots on the cold path. Registered as a manager
+	// Runnable so its watermark evictor + observability sampler run on a
+	// ticker alongside the reconciler.
+	volumes := podagent.NewVolumeManager(runnerCacheRoot, cacheVolumeCapGiB, nil)
+	if volumes.Enabled() {
+		setupLog.Info("per-account cache volumes enabled", "root", runnerCacheRoot, "cap-gib", cacheVolumeCapGiB)
+		if err := mgr.Add(volumes); err != nil {
+			setupLog.Error(err, "add cache-volume manager")
+			os.Exit(1)
+		}
+	}
+
 	// Hydrate the Pod ↔ VM map from on-host state before reconciles
 	// fire. After a kubelet restart the in-memory store is empty but
 	// any Tart VMs from before the restart are still running
@@ -279,7 +302,7 @@ func main() {
 	// VM, and stop+delete it as stale — killing a healthy workload on
 	// every kubelet update. We do this synchronously, before
 	// mgr.Start, using a fresh non-cached client.
-	if err := recoverState(cfg, scheme, tartClient, store, nodeName); err != nil {
+	if err := recoverState(cfg, scheme, tartClient, store, volumes, nodeName); err != nil {
 		setupLog.Error(err, "state recovery failed; reconciles may treat existing VMs as stale")
 	}
 
@@ -311,6 +334,7 @@ func main() {
 		// Pod-bound, so it dies when the Pod is reaped regardless.
 		TokenMinter: &satoken.ClientMinter{Client: typedClient, ExpirationSeconds: 28800},
 		GC:          gcCollector,
+		Volumes:     volumes,
 		Recorder:    mgr.GetEventRecorderFor("tart-kubelet"),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "setup pod reconciler")
@@ -644,6 +668,7 @@ func recoverState(
 	scheme *runtime.Scheme,
 	tartClient *tart.Client,
 	store *podagent.Store,
+	volumes *podagent.VolumeManager,
 	nodeName string,
 ) error {
 	c, err := client.New(cfg, client.Options{Scheme: scheme})
@@ -699,7 +724,7 @@ func recoverState(
 			now := metav1.Now()
 			startTS = &now
 		}
-		store.Put(pod.Namespace, pod.Name, &podagent.Entry{
+		entry := &podagent.Entry{
 			VMName: vmName,
 			// Pod.Status.StartTime is when the API server first saw the
 			// Pod, not when we started the clone — observing
@@ -709,7 +734,20 @@ func recoverState(
 			// observation for recovered entries.
 			StartTS:      *startTS,
 			BootObserved: true,
-		})
+		}
+		// Reattach the cache-volume branch this VM is still virtio-fs-mounting
+		// so the startup SweepBranches keeps it (not reap it out from under the
+		// running job) and Finalize can still promote its warm set. Preserves the
+		// untrusted decision: an untrusted (fork) branch keeps SourceAccount empty
+		// so Finalize discards it — recovery never revives attacker content into
+		// the master. A missing branch leaves the entry on the cold path.
+		if att, ok := podagent.ReattachVolumeForPod(volumes, pod, vmName); ok {
+			entry.Volume = att
+			if statusDir, sdErr := tartClient.StatusDir(vmName); sdErr == nil {
+				entry.VolumeStatusDir = statusDir
+			}
+		}
+		store.Put(pod.Namespace, pod.Name, entry)
 		matched++
 	}
 	setupLog.Info("recovered VM state", "node", nodeName, "tart_vms", len(vms), "matched_pods", matched)

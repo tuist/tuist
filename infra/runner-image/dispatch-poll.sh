@@ -12,8 +12,9 @@
 # Server contract:
 #   POST <url> with header `Authorization: Bearer <sa_token>`
 #     200 with body { encoded_jit_config: "...", pool: "...", owner: "...",
-#                      cache_endpoint_url?: "..." }
+#                      cache_endpoint_url?: "...", cache_signing_grant?: "..." }
 #       -> export TUIST_CACHE_ENDPOINT when cache_endpoint_url is present,
+#          export TUIST_CACHE_SIGNING_GRANT when cache_signing_grant is present,
 #          then exec ./run.sh --jitconfig <jit> --disableupdate
 #     204  -> no work yet, keep polling
 #     401  -> auth failed, abort (the SA was likely GCed already)
@@ -167,6 +168,198 @@ else
   echo "$(date -u +%FT%TZ) dispatch-poll: runner-shell-agent missing or not executable"
 fi
 
+# Per-account cache volume, materialized after dispatch. tart-kubelet attaches
+# an EMPTY per-VM branch directory as a writable virtio-fs share at boot; after
+# dispatch binds this VM to an account, the host clonefiles that account's cache
+# master into the branch and writes a cache-ready marker. The guest points the
+# Tuist cache root at the share and waits for cache-ready before running so it
+# never touches the cache mid-materialization. Absent share => feature off /
+# admission declined => cold path, unchanged.
+CACHE_SHARE="/Volumes/My Shared Files/cache"
+CACHE_MOUNT=""
+CACHE_INVENTORY_BEFORE=""
+STATUS_SHARE="/Volumes/My Shared Files/status"
+# Presigned PUT URL for this account's master archive (from the dispatch
+# response); the HEAD report endpoint is the dispatch URL's sibling.
+VOLUME_HEAD_UPLOAD=""
+VOLUME_HEAD_REPORT_URL="${TUIST_RUNNER_DISPATCH_URL%/dispatch}/volume-head"
+
+# cache_inventory hashes the SORTED ENTRY NAMES (not mtimes) under the cache
+# subtrees whose churn means the job actually changed the cache: binaries
+# added/evicted, manifests or ProjectDescriptionHelpers compiled. Pure cache
+# hits only bump mtimes (they don't add/remove entries), so they don't move
+# this hash — matching the reconciler's rule that mtime-only deltas are not
+# dirty and must not trigger a promote that could clobber a concurrent writer.
+cache_inventory() {
+  [ -n "${CACHE_MOUNT}" ] || { echo "none"; return 0; }
+  local root="${CACHE_MOUNT}/tuist"
+  {
+    for d in Binaries Manifests ProjectDescriptionHelpers Plugins; do
+      /bin/ls -1 "${root}/${d}" 2>/dev/null | sed "s|^|${d}/|"
+    done
+  } | sort | shasum | awk '{print $1}'
+}
+
+# mount_cache_volume points TUIST_XDG_CACHE_HOME at the virtio-fs branch share
+# the host attached at boot, so the whole Tuist cache directory (Binaries,
+# Manifests, ProjectDescriptionHelpers, Plugins, ...) resolves against it. The
+# share is EMPTY at this point — the host fills it after dispatch, gated by
+# wait_for_cache_ready. Absent share => feature off / admission declined => cold
+# path. Never blocks.
+mount_cache_volume() {
+  [ -d "${CACHE_SHARE}" ] || return 0
+  CACHE_MOUNT="${CACHE_SHARE}"
+  mkdir -p "${CACHE_MOUNT}/tuist" 2>/dev/null || true
+  export TUIST_XDG_CACHE_HOME="${CACHE_MOUNT}"
+  # Byte budget for the CLI's per-generate LRU self-prune: the host stages the
+  # per-branch cap (≈80% of a master's provisioned size) into the status share
+  # so a full working set degrades to a hot tier (LRU keeps the most-used
+  # artifacts local, the tail misses to the remote) instead of churning at
+  # ENOSPC on the shared quota volume.
+  local budget
+  budget=$(cat "${STATUS_SHARE}/cache-max-bytes" 2>/dev/null)
+  if [ -n "${budget}" ] && [ "${budget}" -gt 0 ] 2>/dev/null; then
+    export TUIST_CACHE_MAX_BYTES="${budget}"
+  fi
+  echo "$(date -u +%FT%TZ) dispatch-poll: cache share at ${CACHE_MOUNT}; TUIST_XDG_CACHE_HOME set (budget=${TUIST_CACHE_MAX_BYTES:-none})"
+}
+
+# CACHE_READY_TIMEOUT bounds the wait for the host's cache-ready signal — the
+# most a job's start can be delayed by the cache. The host materializes from its
+# LOCAL master (a CoW clonefile, ~tens of ms, no network) before signalling;
+# freshness convergence (the only slow, download-bound step) runs in the
+# background off this path, so cache-ready normally lands within a second of the
+# host observing the dispatch. The ceiling only has to absorb reconcile
+# scheduling jitter (a missed watch falls back to the reconciler's ~30s
+# periodic requeue), so 60s is comfortable headroom. On timeout the guest
+# assumes the host is wedged and starts on a local cold cache rather than the
+# share, so it never blocks the job longer than this and a late host swap can't
+# corrupt the run.
+CACHE_READY_TIMEOUT=60
+
+# wait_for_cache_ready blocks (bounded) until the host signals it has
+# materialized the dispatched account's cache master into the branch share (or
+# determined there is none — a cold first job). Called after dispatch, before
+# the runner starts, so the guest never reads or writes the cache while the host
+# is still clonefiling into it. Also snapshots the pre-job inventory once the
+# cache is in place so report_cache_dirty can tell a real change from a pure-hit
+# run.
+#
+# On timeout the host may STILL be materializing and could swap the branch dir
+# out from under a running job, so the guest must not keep using the share:
+# it detaches to a local, private cold cache dir (a late host swap of the now-
+# abandoned branch is then harmless) and clears CACHE_MOUNT so the promote/HEAD
+# reports no-op for this cold job. Never blocks the job.
+wait_for_cache_ready() {
+  [ -n "${CACHE_MOUNT}" ] || return 0
+  local waited=0
+  while [ "${waited}" -lt "${CACHE_READY_TIMEOUT}" ]; do
+    if [ -f "${STATUS_SHARE}/cache-ready" ]; then
+      echo "$(date -u +%FT%TZ) dispatch-poll: cache-ready after ${waited}s"
+      CACHE_INVENTORY_BEFORE=$(cache_inventory)
+      return 0
+    fi
+    sleep 1
+    waited=$((waited + 1))
+  done
+  echo "$(date -u +%FT%TZ) dispatch-poll: cache-ready not signalled within ${CACHE_READY_TIMEOUT}s; detaching to a local cold cache"
+  local local_cache="/Users/runner/.tuist-cache-cold"
+  mkdir -p "${local_cache}/tuist" 2>/dev/null || true
+  export TUIST_XDG_CACHE_HOME="${local_cache}"
+  unset TUIST_CACHE_MAX_BYTES
+  # Abandon the share: no promote, no HEAD publish, no inventory diff.
+  CACHE_MOUNT=""
+  CACHE_INVENTORY_BEFORE=""
+}
+
+# report_cache_dirty writes the guest's dirty marker into the writable status
+# share so the reconciler can decide promote-vs-discard. "1" iff the job
+# succeeded (runner rc == 0) AND the cache inventory changed; "0" for a
+# read-only / pure-hit job OR a job whose runner exited non-zero (infra failure,
+# cancellation, runner crash). The marker's presence is itself the "job
+# completed" signal — its absence (VM crash before this point) makes the
+# reconciler discard the branch.
+#
+# Gating on rc carries the job result to the host so a failed run never promotes
+# its branch to the account's master — the host's own `tart run` clean-exit
+# signal reflects the VM halting, not the job's conclusion, so it can't make
+# this call on its own. (rc is the runner-process exit: it catches infra/runner
+# failures and cancellations; a job whose steps fail while the runner exits 0
+# still promotes, which is acceptable — those artifacts are content-addressed
+# and signature-validated, so they warm rather than corrupt.) Mirrors the rc
+# gate in report_volume_head so local promote and HEAD publish agree.
+report_cache_dirty() {
+  [ -n "${CACHE_MOUNT}" ] || return 0
+  [ -d "${STATUS_SHARE}" ] || return 0
+  local rc="${1:-1}" after dirty=0
+  after=$(cache_inventory)
+  if [ "${rc}" = "0" ] && [ "${after}" != "${CACHE_INVENTORY_BEFORE}" ]; then
+    dirty=1
+  fi
+  printf '%s' "${dirty}" > "${STATUS_SHARE}/cache-dirty" 2>/dev/null || true
+  echo "$(date -u +%FT%TZ) dispatch-poll: cache dirty=${dirty} (rc=${rc}) reported to host"
+}
+
+# stage_volume_head writes the account's cache-volume HEAD (from the dispatch
+# response) into the status share so the host can converge a stale master toward
+# it before materializing, and remembers the presigned upload URL for publishing
+# this job's result. Best-effort: an absent block just means no convergence.
+stage_volume_head() {
+  [ -d "${STATUS_SHARE}" ] || return 0
+  local gen digest download
+  gen=$(sed -n 's/.*"generation"[[:space:]]*:[[:space:]]*\([0-9]*\).*/\1/p' /tmp/dispatch.json)
+  digest=$(sed -n 's/.*"digest"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' /tmp/dispatch.json)
+  download=$(sed -n 's/.*"download_url"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' /tmp/dispatch.json)
+  VOLUME_HEAD_UPLOAD=$(sed -n 's/.*"upload_url"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' /tmp/dispatch.json)
+  [ -n "${download}" ] || return 0
+  printf '{"generation":%s,"digest":"%s","download_url":"%s"}' \
+    "${gen:-0}" "${digest}" "${download}" >"${STATUS_SHARE}/volume-head.json" 2>/dev/null || true
+}
+
+# report_volume_head publishes this job's warm set as the account's new HEAD:
+# only on a successful, cache-changing job it archives the cache (ditto zip
+# preserves the artifact-signature xattrs, so the master is portable to the
+# account's other hosts as-is), uploads it to the presigned master URL, and
+# bumps the account's HEAD to the new inventory digest. Best-effort; never
+# blocks teardown.
+report_volume_head() {
+  local rc="${1:-1}"
+  [ "${rc}" = "0" ] || return 0
+  [ -n "${CACHE_MOUNT}" ] && [ -n "${VOLUME_HEAD_UPLOAD}" ] || return 0
+  local after
+  after=$(cache_inventory)
+  [ "${after}" != "${CACHE_INVENTORY_BEFORE}" ] || return 0
+  local archive="/tmp/master-archive.zip"
+  rm -f "${archive}"
+  ditto -c -k --sequesterRsrc --keepParent "${CACHE_MOUNT}/tuist" "${archive}" 2>/dev/null || return 0
+  # This runs at teardown, after run.sh, before the EXIT trap halts the VM, so
+  # both requests MUST be bounded — an object-storage stall here would otherwise
+  # hang the script, keep the VM up, and stop the warm pool refilling. The PUT
+  # gets a generous ceiling (the archive can be a couple GB) but not unbounded;
+  # the tiny POST gets a short one. On any timeout, HEAD just isn't advanced
+  # (best-effort) and teardown proceeds.
+  #
+  # No -L on the PUT: the presigned upload URL is written directly (no redirect),
+  # so refuse to follow redirects — otherwise a compromised/misconfigured storage
+  # endpoint could 307 the upload to an internal address and receive the archive
+  # body (SSRF), the write-side twin of the download guard.
+  if ! curl -fsS --connect-timeout 10 --max-time 120 \
+    -X PUT --upload-file "${archive}" "${VOLUME_HEAD_UPLOAD}" >/dev/null 2>&1; then
+    echo "$(date -u +%FT%TZ) dispatch-poll: master upload failed/timed out; HEAD not advanced"
+    rm -f "${archive}"
+    return 0
+  fi
+  curl -fsS --connect-timeout 10 --max-time 15 -X POST \
+    -H "Authorization: Bearer ${SA_TOKEN}" -H "Content-Type: application/json" \
+    --data "{\"tree_digest\":\"${after}\"}" "${VOLUME_HEAD_REPORT_URL}" >/dev/null 2>&1 || true
+  echo "$(date -u +%FT%TZ) dispatch-poll: published volume HEAD (digest=${after})"
+  rm -f "${archive}"
+}
+
+# Mount before polling: the volume is attached at boot, independent of which
+# account dispatch later assigns, so it is ready well before the first job.
+mount_cache_volume
+
 # 2 s polling interval is the practical floor for "feels live" to
 # a customer staring at their CI dashboard without burning the
 # dispatch endpoint. Average pickup latency is ~1 s after a
@@ -220,7 +413,26 @@ while true; do
         echo "$(date -u +%FT%TZ) dispatch-poll: routing cache to runner-local endpoint ${cache_endpoint}"
         export TUIST_CACHE_ENDPOINT="${cache_endpoint}"
       fi
+      # Server-signed cache grant: a short-lived token scoping cache
+      # artifact signatures to this account instead of the machine MAC, so a
+      # warm volume's binaries validate as local hits across VMs. Same value-
+      # safety as the JIT (a base64url token, no embedded quotes). The Tuist EE
+      # CLI verifies it offline against a baked-in public key; absent/invalid/
+      # expired falls back to the MAC default, so this is purely additive.
+      cache_grant=$(sed -n 's/.*"cache_signing_grant"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' /tmp/dispatch.json)
+      if [ -n "${cache_grant}" ]; then
+        echo "$(date -u +%FT%TZ) dispatch-poll: cache signing grant delivered"
+        export TUIST_CACHE_SIGNING_GRANT="${cache_grant}"
+      fi
+      # Stage the account's volume HEAD for the host to converge a stale master
+      # toward before it materializes into this VM's branch.
+      stage_volume_head
       echo "$(date -u +%FT%TZ) dispatch-poll: dispatched, starting runner"
+      # Dispatch bound this VM to an account; the host is clonefiling that
+      # account's cache master into the branch share now. Wait (bounded) for
+      # the cache-ready signal before the runner touches the cache, then
+      # snapshot the pre-job inventory. Cold path on timeout; never blocks.
+      wait_for_cache_ready
       # Force an NTP step before the job runs. A golden-base VM can be
       # handed a job within seconds of boot — before macOS `timed` has
       # synced the guest clock, which can start minutes behind. The
@@ -262,6 +474,14 @@ while true; do
       # writes nothing to the ingest path.
       ./run.sh --jitconfig "${jit}" --disableupdate
       rc=$?
+      # Report whether the job succeeded AND changed the cache so the reconciler
+      # can promote the branch to the account's new master (or discard it).
+      # Before the metrics tail + VM halt, while the mounted volume is still
+      # readable. rc gates promotion — a failed run never advances the master.
+      report_cache_dirty "${rc}"
+      # On a successful, cache-changing job, publish this warm set as the
+      # account's new volume HEAD so other hosts converge toward it.
+      report_volume_head "${rc}"
       # Final metrics sample before the EXIT trap halts the VM. The
       # looping sampler is killed mid-sleep by the shutdown, so the last
       # interval — including "Complete job" — otherwise has no data point

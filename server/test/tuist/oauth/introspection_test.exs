@@ -264,6 +264,25 @@ defmodule Tuist.OAuth.IntrospectionTest do
       assert project_writes == []
     end
 
+    test "rejects user-issued OAuth grants for an unrelated tenant" do
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      unrelated = AccountsFixtures.organization_fixture(name: "oauth-unrelated-org")
+
+      {:ok, token, _claims} =
+        Tuist.Guardian.encode_and_sign(
+          user.account,
+          %{
+            "type" => "account",
+            "scopes" => ["account:cache:read", "project:cache:read"],
+            "all_projects" => true,
+            "user_id" => user.id
+          },
+          token_type: :access
+        )
+
+      assert Introspection.token_response(token, unrelated.account) == %{active: false}
+    end
+
     test "returns inactive when the token has no grant for the account" do
       user = AccountsFixtures.user_fixture(preload: [:account])
       unrelated = AccountsFixtures.organization_fixture(name: "unrelated-org")

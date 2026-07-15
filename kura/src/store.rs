@@ -34,12 +34,13 @@ use crate::{
         CAS_CAPACITY_DEFAULT_DISK_PERCENT, CAS_CAPACITY_MAX_DISK_PERCENT, DESIRED_CURRENT_SEGMENTS,
         DESIRED_NEW_SEGMENTS, DESIRED_OLD_SEGMENTS, MAX_DESIRED_SEGMENTS, MAX_MODULE_TOTAL_BYTES,
         MAX_SEGMENT_BYTES, REAPI_ACTION_CACHE_REFRESH_DAMPING_MS, ROCKSDB_BYTES_PER_SYNC,
-        ROCKSDB_CF_KEY_VALUE, ROCKSDB_CF_MANIFESTS, ROCKSDB_CF_MULTIPART_UPLOADS,
-        ROCKSDB_CF_NAMESPACE_ARTIFACTS, ROCKSDB_CF_NAMESPACE_TOMBSTONES, ROCKSDB_CF_OUTBOX,
-        ROCKSDB_CF_SEGMENT_ARTIFACTS, ROCKSDB_CF_SEGMENT_STATE, ROCKSDB_CF_USAGE_OUTBOX,
-        ROCKSDB_HARD_PENDING_COMPACTION_BYTES, ROCKSDB_LEVEL0_SLOWDOWN_TRIGGER,
-        ROCKSDB_LEVEL0_STOP_TRIGGER, ROCKSDB_SOFT_PENDING_COMPACTION_BYTES,
-        ROCKSDB_WAL_BYTES_PER_SYNC, SEGMENT_FREE_SPACE_MARGIN,
+        ROCKSDB_CF_ACTION_CACHE_INDEX, ROCKSDB_CF_KEY_VALUE, ROCKSDB_CF_MANIFESTS,
+        ROCKSDB_CF_MULTIPART_UPLOADS, ROCKSDB_CF_NAMESPACE_ARTIFACTS,
+        ROCKSDB_CF_NAMESPACE_TOMBSTONES, ROCKSDB_CF_OUTBOX, ROCKSDB_CF_SEGMENT_ARTIFACTS,
+        ROCKSDB_CF_SEGMENT_STATE, ROCKSDB_CF_USAGE_OUTBOX, ROCKSDB_HARD_PENDING_COMPACTION_BYTES,
+        ROCKSDB_LEVEL0_SLOWDOWN_TRIGGER, ROCKSDB_LEVEL0_STOP_TRIGGER,
+        ROCKSDB_SOFT_PENDING_COMPACTION_BYTES, ROCKSDB_WAL_BYTES_PER_SYNC,
+        SEGMENT_FREE_SPACE_MARGIN,
     },
     failpoints::{FailpointName, FailpointSet},
     io::{IoController, PersistentFile},
@@ -53,6 +54,7 @@ use crate::{
     },
     usage::UsageRollup,
     utils::{
+        action_cache_index_key, action_cache_index_prefix, action_cache_manifest_hash,
         artifact_storage_id, ensure_tmp_dir_capacity, module_key, namespace_artifact_index_key,
         now_ms, segment_artifact_index_key, segment_artifact_index_prefix, segment_path,
         temp_file_path,
@@ -405,6 +407,14 @@ impl Store {
                     &rocksdb_write_buffer_manager,
                 ),
             ),
+            ColumnFamilyDescriptor::new(
+                ROCKSDB_CF_ACTION_CACHE_INDEX,
+                rocksdb_column_family_options(
+                    config,
+                    &rocksdb_block_cache,
+                    &rocksdb_write_buffer_manager,
+                ),
+            ),
         ];
 
         let db_path = config.data_dir.join("rocksdb");
@@ -735,6 +745,28 @@ impl Store {
             namespace_artifact_index_key(&metadata.namespace_id, &artifact_id).as_bytes(),
             [],
         );
+        if manifest.producer == ArtifactProducer::Reapi
+            && let Some(action_hash) = action_cache_manifest_hash(&manifest.key)
+        {
+            if let Some(previous_manifest) = &existing
+                && let Some(previous_hash) = action_cache_manifest_hash(&previous_manifest.key)
+                && previous_manifest.version_ms != manifest.version_ms
+            {
+                batch.delete_cf(
+                    self.cf(ROCKSDB_CF_ACTION_CACHE_INDEX),
+                    action_cache_index_key(
+                        &manifest.namespace_id,
+                        previous_manifest.version_ms,
+                        previous_hash,
+                    ),
+                );
+            }
+            batch.put_cf(
+                self.cf(ROCKSDB_CF_ACTION_CACHE_INDEX),
+                action_cache_index_key(&manifest.namespace_id, manifest.version_ms, action_hash),
+                artifact_id.as_bytes(),
+            );
+        }
         if let Some(previous_manifest) = &existing
             && let Some(previous_segment_id) = &previous_manifest.segment_id
             && manifest.segment_id.as_deref() != Some(previous_segment_id.as_str())
@@ -1287,6 +1319,28 @@ impl Store {
             namespace_artifact_index_key(&metadata.namespace_id, &artifact_id).as_bytes(),
             [],
         );
+        if manifest.producer == ArtifactProducer::Reapi
+            && let Some(action_hash) = action_cache_manifest_hash(&manifest.key)
+        {
+            if let Some(previous_manifest) = &existing
+                && let Some(previous_hash) = action_cache_manifest_hash(&previous_manifest.key)
+                && previous_manifest.version_ms != manifest.version_ms
+            {
+                batch.delete_cf(
+                    self.cf(ROCKSDB_CF_ACTION_CACHE_INDEX),
+                    action_cache_index_key(
+                        &manifest.namespace_id,
+                        previous_manifest.version_ms,
+                        previous_hash,
+                    ),
+                );
+            }
+            batch.put_cf(
+                self.cf(ROCKSDB_CF_ACTION_CACHE_INDEX),
+                action_cache_index_key(&manifest.namespace_id, manifest.version_ms, action_hash),
+                artifact_id.as_bytes(),
+            );
+        }
         self.append_artifact_replication_messages(&mut batch, &manifest, spec.replication_targets)?;
 
         self.write_batch_sync(batch, "keyvalue batch")?;
@@ -2078,6 +2132,14 @@ impl Store {
                 if manifest.inline {
                     batch.delete_cf(self.cf(ROCKSDB_CF_KEY_VALUE), artifact_id.as_bytes());
                 }
+                if manifest.producer == ArtifactProducer::Reapi
+                    && let Some(action_hash) = action_cache_manifest_hash(&manifest.key)
+                {
+                    batch.delete_cf(
+                        self.cf(ROCKSDB_CF_ACTION_CACHE_INDEX),
+                        action_cache_index_key(namespace_id, manifest.version_ms, action_hash),
+                    );
+                }
                 if let Some(blob_path) = manifest.blob_path {
                     blob_paths.push(blob_path);
                 }
@@ -2093,6 +2155,14 @@ impl Store {
             batch.delete_cf(self.cf(ROCKSDB_CF_MANIFESTS), artifact_id.as_bytes());
             removed_artifact_ids.push(artifact_id);
         }
+
+        // Reset the action-cache index migration: surviving newer manifests
+        // keep their rows, but a wiped namespace must re-backfill rather than
+        // trust a marker written for the deleted keyspace.
+        batch.delete_cf(
+            self.cf(ROCKSDB_CF_KEY_VALUE),
+            Self::action_cache_index_marker_key(namespace_id).as_bytes(),
+        );
 
         if !delete_everything {
             self.append_namespace_delete_messages(
@@ -2515,6 +2585,18 @@ impl Store {
                 namespace_artifact_index_key(&manifest.namespace_id, &manifest.artifact_id)
                     .as_bytes(),
             );
+            if manifest.producer == ArtifactProducer::Reapi
+                && let Some(action_hash) = action_cache_manifest_hash(&manifest.key)
+            {
+                batch.delete_cf(
+                    self.cf(ROCKSDB_CF_ACTION_CACHE_INDEX),
+                    action_cache_index_key(
+                        &manifest.namespace_id,
+                        manifest.version_ms,
+                        action_hash,
+                    ),
+                );
+            }
             if let Some(segment_id) = &manifest.segment_id {
                 batch.delete_cf(
                     self.cf(ROCKSDB_CF_SEGMENT_ARTIFACTS),
@@ -2574,23 +2656,108 @@ impl Store {
 
     /// Every REAPI action-cache manifest in a namespace, for the instance-wide
     /// snapshot the REAPI layer serves (one round trip primes a cold client
-    /// with every key→value association). One ordered namespace-index scan
-    /// plus a manifest point-read per artifact.
-    /// Callers must bound `max_entries`: the scan is O(namespace) but the
-    /// returned set — and therefore the caller's memory — is capped at the
-    /// NEWEST `max_entries` manifests by write time. An unbounded collect over
-    /// a namespace that never expired anything OOM-killed production pods on
-    /// the first snapshot serve.
+    /// with every key→value association), capped at the NEWEST `max_entries`
+    /// by write time.
+    ///
+    /// Served from the dedicated action-cache index: a forward prefix scan
+    /// yields rows newest-first (the key embeds `!version_ms`), so the scan
+    /// touches at most `max_entries` action-cache rows plus their manifest
+    /// point-reads. The previous implementation walked the ENTIRE namespace
+    /// index and point-read every manifest just to filter out blobs — tens of
+    /// minutes on production namespaces where blobs outnumber action-cache
+    /// entries a thousand to one, which starved every snapshot fetch into a
+    /// client timeout. Namespaces written before the index existed are
+    /// backfilled with one legacy scan on first use.
     pub fn action_cache_manifests(
         &self,
         namespace_id: &str,
         max_entries: usize,
     ) -> Result<Vec<ArtifactManifest>, String> {
+        if !self.action_cache_index_backfilled(namespace_id)? {
+            return self.backfill_action_cache_index(namespace_id, max_entries);
+        }
+        let prefix = action_cache_index_prefix(namespace_id);
+        let iter = self.db.iterator_cf(
+            self.cf(ROCKSDB_CF_ACTION_CACHE_INDEX),
+            IteratorMode::From(&prefix, rocksdb::Direction::Forward),
+        );
+        let mut manifests = Vec::new();
+        // Rows whose manifest is gone or has moved to a different version:
+        // overwrites and deletes clean up their own rows, but a row written by
+        // a crashed batch or a pre-fix overwrite can linger — drop it here so
+        // the index converges instead of paying the dead point-read forever.
+        let mut stale_rows: Vec<Vec<u8>> = Vec::new();
+        for item in iter {
+            let (index_key, artifact_id) =
+                item.map_err(|error| format!("failed to iterate action-cache index: {error}"))?;
+            if !index_key.starts_with(&prefix) {
+                break;
+            }
+            if manifests.len() >= max_entries {
+                break;
+            }
+            let row_version = index_key
+                .get(prefix.len()..prefix.len() + 8)
+                .and_then(|bytes| <[u8; 8]>::try_from(bytes).ok())
+                .map(|bytes| !u64::from_be_bytes(bytes));
+            let artifact_id = std::str::from_utf8(&artifact_id)
+                .map_err(|error| format!("invalid action-cache index value: {error}"))?;
+            match self.manifest_from_db(artifact_id)? {
+                Some(manifest)
+                    if manifest.producer == ArtifactProducer::Reapi
+                        && manifest.key.starts_with("action_cache/")
+                        && row_version == Some(manifest.version_ms) =>
+                {
+                    manifests.push(manifest);
+                }
+                _ => stale_rows.push(index_key.to_vec()),
+            }
+        }
+        if !stale_rows.is_empty() {
+            let mut batch = WriteBatch::default();
+            for row in &stale_rows {
+                batch.delete_cf(self.cf(ROCKSDB_CF_ACTION_CACHE_INDEX), row);
+            }
+            self.write_batch_sync(batch, "action-cache index stale rows")?;
+        }
+        Ok(manifests)
+    }
+
+    fn action_cache_index_marker_key(namespace_id: &str) -> String {
+        format!("action_cache_index/backfilled/{namespace_id}")
+    }
+
+    fn action_cache_index_backfilled(&self, namespace_id: &str) -> Result<bool, String> {
+        self.db
+            .get_cf(
+                self.cf(ROCKSDB_CF_KEY_VALUE),
+                Self::action_cache_index_marker_key(namespace_id).as_bytes(),
+            )
+            .map(|marker| marker.is_some())
+            .map_err(|error| format!("failed to read action-cache index marker: {error}"))
+    }
+
+    /// One-time migration per namespace: the legacy full namespace scan,
+    /// writing an index row for EVERY action-cache manifest it encounters
+    /// (the index must be complete for later capped scans to be correct),
+    /// then the backfill marker — all in one batch, so a crash mid-scan
+    /// leaves the marker unset and the next call redoes the work. Returns
+    /// the newest `max_entries` like the indexed path. Only the snapshot
+    /// reconcile calls this, from its background build task, so the
+    /// scan's cost no longer sits on any request path.
+    fn backfill_action_cache_index(
+        &self,
+        namespace_id: &str,
+        max_entries: usize,
+    ) -> Result<Vec<ArtifactManifest>, String> {
+        let started = std::time::Instant::now();
         let prefix = format!("{namespace_id}\0");
         let iter = self.db.iterator_cf(
             self.cf(ROCKSDB_CF_NAMESPACE_ARTIFACTS),
             IteratorMode::From(prefix.as_bytes(), rocksdb::Direction::Forward),
         );
+        let mut batch = WriteBatch::default();
+        let mut rows = 0_usize;
         let mut manifests = Vec::new();
         for item in iter {
             let (index_key, _) =
@@ -2603,22 +2770,42 @@ impl Store {
             let Some(manifest) = self.manifest_from_db(artifact_id)? else {
                 continue;
             };
-            if manifest.producer == ArtifactProducer::Reapi
-                && manifest.key.starts_with("action_cache/")
-            {
-                manifests.push(manifest);
-                // Keep the working set bounded while scanning: shed the
-                // oldest half whenever the buffer doubles the cap.
-                if manifests.len() >= max_entries.saturating_mul(2).max(2) {
-                    manifests.sort_unstable_by(|a, b| b.version_ms.cmp(&a.version_ms));
-                    manifests.truncate(max_entries);
-                }
+            if manifest.producer != ArtifactProducer::Reapi {
+                continue;
+            }
+            let Some(action_hash) = action_cache_manifest_hash(&manifest.key) else {
+                continue;
+            };
+            batch.put_cf(
+                self.cf(ROCKSDB_CF_ACTION_CACHE_INDEX),
+                action_cache_index_key(namespace_id, manifest.version_ms, action_hash),
+                manifest.artifact_id.as_bytes(),
+            );
+            rows += 1;
+            manifests.push(manifest);
+            // Keep the working set bounded while scanning: shed the
+            // oldest half whenever the buffer doubles the cap.
+            if manifests.len() >= max_entries.saturating_mul(2).max(2) {
+                manifests.sort_unstable_by(|a, b| b.version_ms.cmp(&a.version_ms));
+                manifests.truncate(max_entries);
             }
         }
+        batch.put_cf(
+            self.cf(ROCKSDB_CF_KEY_VALUE),
+            Self::action_cache_index_marker_key(namespace_id).as_bytes(),
+            [],
+        );
+        self.write_batch_sync(batch, "action-cache index backfill")?;
         if manifests.len() > max_entries {
             manifests.sort_unstable_by(|a, b| b.version_ms.cmp(&a.version_ms));
             manifests.truncate(max_entries);
         }
+        tracing::info!(
+            namespace_id,
+            rows,
+            elapsed_ms = started.elapsed().as_millis() as u64,
+            "action-cache index backfilled"
+        );
         Ok(manifests)
     }
 
@@ -4223,6 +4410,113 @@ mod tests {
         let mut versions: Vec<u64> = manifests.iter().map(|m| m.version_ms).collect();
         versions.sort_unstable();
         assert_eq!(versions, vec![400, 500], "newest two survive the shed");
+    }
+
+    #[tokio::test]
+    async fn action_cache_index_serves_entries_written_after_backfill() {
+        let (_temp_dir, config, store) = temp_store();
+        let source = config.tmp_dir.join("uploads").join("payload");
+        std::fs::write(&source, b"payload").expect("source should write");
+        store
+            .apply_replicated_artifact_from_path(
+                ArtifactProducer::Reapi,
+                "ios",
+                "action_cache/aa/10",
+                "application/octet-stream",
+                &source,
+                1_000,
+            )
+            .await
+            .expect("artifact should persist");
+        // First scan backfills the index; later writes must land in it
+        // through the persist path rather than re-scanning the namespace.
+        assert_eq!(store.action_cache_manifests("ios", 10).unwrap().len(), 1);
+        std::fs::write(&source, b"payload").expect("source should write");
+        store
+            .apply_replicated_artifact_from_path(
+                ArtifactProducer::Reapi,
+                "ios",
+                "action_cache/bb/10",
+                "application/octet-stream",
+                &source,
+                2_000,
+            )
+            .await
+            .expect("artifact should persist");
+        let manifests = store
+            .action_cache_manifests("ios", 10)
+            .expect("indexed scan should succeed");
+        let mut keys: Vec<&str> = manifests.iter().map(|m| m.key.as_str()).collect();
+        keys.sort_unstable();
+        assert_eq!(keys, vec!["action_cache/aa/10", "action_cache/bb/10"]);
+    }
+
+    #[tokio::test]
+    async fn action_cache_index_replaces_the_row_on_overwrite() {
+        let (_temp_dir, config, store) = temp_store();
+        let source = config.tmp_dir.join("uploads").join("payload");
+        std::fs::write(&source, b"payload").expect("source should write");
+        store
+            .apply_replicated_artifact_from_path(
+                ArtifactProducer::Reapi,
+                "ios",
+                "action_cache/aa/10",
+                "application/octet-stream",
+                &source,
+                1_000,
+            )
+            .await
+            .expect("artifact should persist");
+        // Backfill, then overwrite the same key at a newer version: the old
+        // row must go, or capped indexed scans would double-count the key.
+        assert_eq!(store.action_cache_manifests("ios", 10).unwrap().len(), 1);
+        std::fs::write(&source, b"payload").expect("source should write");
+        store
+            .apply_replicated_artifact_from_path(
+                ArtifactProducer::Reapi,
+                "ios",
+                "action_cache/aa/10",
+                "application/octet-stream",
+                &source,
+                5_000,
+            )
+            .await
+            .expect("overwrite should persist");
+        let manifests = store
+            .action_cache_manifests("ios", 10)
+            .expect("indexed scan should succeed");
+        assert_eq!(manifests.len(), 1, "one row per live key");
+        assert_eq!(manifests[0].version_ms, 5_000);
+    }
+
+    #[tokio::test]
+    async fn action_cache_index_drops_rows_with_deleted_manifests() {
+        let (_temp_dir, config, store) = temp_store();
+        let source = config.tmp_dir.join("uploads").join("payload");
+        for (hash, version) in [("aa", 1_000_u64), ("bb", 2_000)] {
+            std::fs::write(&source, b"payload").expect("source should write");
+            store
+                .apply_replicated_artifact_from_path(
+                    ArtifactProducer::Reapi,
+                    "ios",
+                    &format!("action_cache/{hash}/10"),
+                    "application/octet-stream",
+                    &source,
+                    version,
+                )
+                .await
+                .expect("artifact should persist");
+        }
+        assert_eq!(store.action_cache_manifests("ios", 10).unwrap().len(), 2);
+        let expired = store
+            .expire_stale_action_cache_entries(1_500, 10)
+            .expect("expiry should succeed");
+        assert_eq!(expired, 1);
+        let manifests = store
+            .action_cache_manifests("ios", 10)
+            .expect("indexed scan should succeed");
+        assert_eq!(manifests.len(), 1);
+        assert_eq!(manifests[0].key, "action_cache/bb/10");
     }
 
     #[tokio::test]

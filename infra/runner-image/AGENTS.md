@@ -33,6 +33,25 @@ runtime — no service, sudo entry, or auto-login targets it.
   `tart run` returns and tart-kubelet flips the Pod to
   Succeeded — the watcher's GC + warm-pool refill are gated on
   that transition.
+  `dispatch-poll.sh` also drives the **per-account cache-volume** flow,
+  materialized after dispatch. tart-kubelet attaches
+  an *empty* per-VM branch directory as a writable virtio-fs share at
+  `/Volumes/My Shared Files/cache`; on boot the guest points
+  `TUIST_XDG_CACHE_HOME` at it and reads the host-staged per-branch byte
+  budget (`cache-max-bytes` in the `status` share) into
+  `TUIST_CACHE_MAX_BYTES` for the CLI's LRU self-prune. The share is empty
+  until dispatch: once the server stamps the pod's account label, the host
+  clonefiles that account's cache master into the branch and writes a
+  `cache-ready` marker. After receiving the JIT and before `./run.sh`, the
+  guest calls `wait_for_cache_ready` — a bounded (~30s) wait on that marker so
+  it never touches the cache mid-materialization — then snapshots the pre-job
+  inventory. Timeout / absent share ⇒ cold path, unchanged. After the job it
+  writes a `cache-dirty` marker (entry-inventory changed vs. pre-job) into the
+  `status` share so the reconciler can promote the branch to the account's new
+  master or discard it. The server also delivers a `cache_signing_grant` in
+  the dispatch 200, exported as `TUIST_CACHE_SIGNING_GRANT` so the EE CLI signs
+  artifacts with the account scope instead of the machine MAC — which is what
+  lets a clonefiled master validate across the account's VMs.
 - `/opt/tuist/metrics-poll.sh` — the machine-metrics sampler.
   `dispatch-poll.sh` forks it into the background right before it
   starts `./run.sh`, so it samples whole-VM CPU/memory/network/disk
@@ -148,7 +167,7 @@ Active profiles are the single source of truth in
 
 ```json
 // infra/runner-image/profiles.json
-["26.5", "26.4.1", "26.3", "26.0.1"]   // first entry = newest / default profile
+["26.6", "26.5", "26.4.1", "26.3", "26.0.1"]   // first entry = newest / default profile
 ```
 
 `check-releases` reads this into the `runner-image-matrix` output and

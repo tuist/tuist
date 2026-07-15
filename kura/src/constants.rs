@@ -92,3 +92,10 @@ pub const ROCKSDB_CF_OUTBOX: &str = "outbox";
 pub const ROCKSDB_CF_USAGE_OUTBOX: &str = "usage_outbox";
 pub const ROCKSDB_CF_SEGMENT_ARTIFACTS: &str = "segment_artifacts";
 pub const ROCKSDB_CF_SEGMENT_STATE: &str = "segment_state";
+/// Per-namespace index of REAPI action-cache entries ordered newest-first
+/// (the key embeds `!version_ms`), so the snapshot reconcile reads exactly
+/// its entry cap instead of scanning the whole namespace — point-reading
+/// millions of blob manifests just to filter them out took tens of minutes
+/// on production namespaces and every snapshot fetch timed out against it.
+/// Backfilled lazily per namespace on first use.
+pub const ROCKSDB_CF_ACTION_CACHE_INDEX: &str = "action_cache_index";

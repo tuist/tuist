@@ -215,6 +215,16 @@ type ScalewayAppleSiliconMachineStatus struct {
 	// +optional
 	HostConfigHash string `json:"hostConfigHash,omitempty"`
 
+	// FailedHostConfigHash records the desired HostConfigHash that
+	// exhausted its update-retry budget and drove the CR into the terminal
+	// Failed state. A broken config can never be applied, so HostConfigHash
+	// never advances to it and comparing desired-vs-last-applied would see
+	// drift forever and reset the retry cap every reconcile. Comparing
+	// desired-vs-FailedHostConfigHash instead keeps the cap for an unchanged
+	// broken config while still retrying a genuinely new one.
+	// +optional
+	FailedHostConfigHash string `json:"failedHostConfigHash,omitempty"`
+
 	// TartKubeletUpdateAttempts counts consecutive failures of the
 	// drift-loop's UpdateTartKubelet call. Reset to zero on success.
 	// Once it crosses the operator's max-attempts threshold the CR
