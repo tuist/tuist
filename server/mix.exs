@@ -103,6 +103,9 @@ defmodule Tuist.MixProject do
       {:flop, "~> 0.26.0"},
       {:timex, "~> 3.7.13"},
       {:prom_ex, git: "https://github.com/pepicrft/prom_ex", branch: "finch"},
+      # PromEx's standalone metrics server still runs on Cowboy even though
+      # the Phoenix endpoint runs on Bandit.
+      {:plug_cowboy, "~> 2.7"},
       {:ranch, "~> 2.2.0", override: true},
       {:hammer, "~> 7.0"},
       {:guardian, "~> 2.3"},
