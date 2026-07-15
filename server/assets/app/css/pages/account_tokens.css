@@ -364,9 +364,9 @@
   }
 
   & > [data-part="detail-grid"] {
-    display: grid;
+    display: flex;
     align-items: start;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    flex-direction: column;
     gap: var(--noora-spacing-6);
   }
 
@@ -428,11 +428,6 @@
   @media (max-width: 768px) {
     & > [data-part="detail-header"] {
       flex-direction: column;
-    }
-
-    & > [data-part="summary-card"] > [data-part="summary-card-section"] > [data-part="metadata-grid"],
-    & > [data-part="detail-grid"] {
-      grid-template-columns: 1fr;
     }
 
     & > [data-part="summary-card"] > [data-part="summary-card-section"] > [data-part="metadata-grid"] {
