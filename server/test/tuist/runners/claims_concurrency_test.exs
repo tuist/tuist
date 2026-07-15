@@ -10,6 +10,7 @@ defmodule Tuist.Runners.ClaimsConcurrencyTest do
   alias Tuist.Runners.Claims
   alias Tuist.Runners.ConcurrencyLimit
 
+  @db_task_ready_timeout 5_000
   @linux_resources %{platform: :linux, vcpus: 1, memory_gb: 1}
 
   setup do
@@ -125,18 +126,34 @@ defmodule Tuist.Runners.ClaimsConcurrencyTest do
   defp run_concurrently(functions) do
     tasks = Enum.map(functions, &prepare_db_task/1)
 
-    Enum.each(tasks, fn task ->
-      assert_receive {:db_task_ready, pid} when pid == task.pid
-    end)
+    tasks
+    |> MapSet.new(& &1.pid)
+    |> await_db_tasks(System.monotonic_time(:millisecond) + @db_task_ready_timeout)
 
     Enum.each(tasks, &send(&1.pid, :go))
     Task.await_many(tasks, 5_000)
   end
 
+  defp await_db_tasks(pending_pids, deadline) do
+    if MapSet.size(pending_pids) == 0 do
+      :ok
+    else
+      timeout = max(deadline - System.monotonic_time(:millisecond), 0)
+
+      receive do
+        {:db_task_ready, pid} ->
+          await_db_tasks(MapSet.delete(pending_pids, pid), deadline)
+      after
+        timeout ->
+          flunk("database tasks did not become ready: #{inspect(pending_pids)}")
+      end
+    end
+  end
+
   defp start_db_task(function) do
     task = prepare_db_task(function)
     pid = task.pid
-    assert_receive {:db_task_ready, ^pid}
+    assert_receive {:db_task_ready, ^pid}, @db_task_ready_timeout
     send(pid, :go)
     task
   end
@@ -186,7 +203,7 @@ defmodule Tuist.Runners.ClaimsConcurrencyTest do
       end)
 
     pid = task.pid
-    assert_receive {:platform_lock_held, ^pid}
+    assert_receive {:platform_lock_held, ^pid}, @db_task_ready_timeout
     task
   end
 
@@ -227,7 +244,7 @@ defmodule Tuist.Runners.ClaimsConcurrencyTest do
       end)
 
     pid = task.pid
-    assert_receive {:uncommitted_claim_inserted, ^pid}
+    assert_receive {:uncommitted_claim_inserted, ^pid}, @db_task_ready_timeout
     task
   end
 

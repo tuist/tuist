@@ -373,9 +373,11 @@ defmodule Tuist.Runners do
           node_name,
           candidate,
           resources,
-          excluded_account_ids,
-          excluded_workflow_job_ids,
-          attempts_left
+          %{
+            excluded_account_ids: excluded_account_ids,
+            excluded_workflow_job_ids: excluded_workflow_job_ids,
+            attempts_left: attempts_left
+          }
         )
 
       {:error, reason} ->
@@ -383,17 +385,11 @@ defmodule Tuist.Runners do
     end
   end
 
-  defp attempt_candidate(
-         namespace,
-         sa_name,
-         fleet_name,
-         node_name,
-         candidate,
-         resources,
-         excluded_account_ids,
-         excluded_workflow_job_ids,
-         attempts_left
-       ) do
+  defp attempt_candidate(namespace, sa_name, fleet_name, node_name, candidate, resources, %{
+         excluded_account_ids: excluded_account_ids,
+         excluded_workflow_job_ids: excluded_workflow_job_ids,
+         attempts_left: attempts_left
+       }) do
     case Claims.attempt(candidate.workflow_job_id, candidate.account_id, fleet_name, sa_name, resources) do
       {:ok, claim} ->
         # Record the affinity signal on every claim win, but only for fleets
