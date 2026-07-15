@@ -22,12 +22,19 @@ struct RunnerShellSession: Decodable {
 
 enum RunnerShellSessionServiceError: LocalizedError, Equatable {
     case invalidResponse
+    case runnerSessionNotFound(jobRef: String)
     case requestFailed(statusCode: Int, message: String)
 
     var errorDescription: String? {
         switch self {
         case .invalidResponse:
             return "The server returned an invalid shell session response."
+        case let .runnerSessionNotFound(jobRef):
+            return """
+            No live runner shell session was found for job \(jobRef). The runner job may have finished, the stopped step may \
+            have expired, or the job reference may belong to a different Tuist server. Dispatch a fresh smoke run, wait until \
+            the job is stopped on a live runner, then retry with the dashboard job URL or workflow job ID.
+            """
         case let .requestFailed(statusCode, message):
             return "The server couldn't start a runner shell session (\(statusCode)): \(message)"
         }
@@ -67,6 +74,10 @@ struct RunnerShellSessionService: RunnerShellSessionServicing {
         }
 
         guard 200 ..< 300 ~= httpResponse.statusCode else {
+            if httpResponse.statusCode == 404 {
+                throw RunnerShellSessionServiceError.runnerSessionNotFound(jobRef: jobRef)
+            }
+
             throw RunnerShellSessionServiceError.requestFailed(
                 statusCode: httpResponse.statusCode,
                 message: responseMessage(data) ?? HTTPURLResponse.localizedString(forStatusCode: httpResponse.statusCode)
