@@ -130,9 +130,15 @@ defmodule TuistWeb.AccountTokensLiveTest do
     refute html =~ "Integrations"
     refute html =~ "Authentication"
     assert html =~ "Project access"
+    assert html =~ "account-token-permissions-table"
+    assert html =~ "account-token-projects-table"
+    assert html =~ "Category"
+    assert html =~ "Permission"
+    assert html =~ "Scope"
     assert html =~ "ios-app"
     assert html =~ "#{account.name}/ios-app"
     refute html =~ "account-tokens-table"
+    refute html =~ "permission-item"
 
     {:ok, _lv, html} = live(conn, ~p"/#{account.name}/settings/tokens/#{all_projects_token.id}")
 

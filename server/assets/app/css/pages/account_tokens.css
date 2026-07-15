@@ -282,6 +282,10 @@
   flex-direction: column;
   gap: var(--noora-spacing-7);
 
+  & .noora-card {
+    width: 100%;
+  }
+
   & > [data-part="back-button"] {
     align-self: flex-start;
   }
@@ -321,23 +325,32 @@
   }
 
   & > [data-part="summary-card"] > [data-part="summary-card-section"] > [data-part="metadata-grid"] {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: var(--noora-spacing-7) var(--noora-spacing-8);
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-7);
+
+    & > [data-part="metadata-row"] {
+      display: flex;
+      flex-direction: row;
+      gap: var(--noora-spacing-8);
+    }
   }
 
   & [data-part="summary-card-section"] [data-part="metadata"] {
     display: flex;
+    flex: 1;
     flex-direction: column;
-    gap: var(--noora-spacing-2);
+    align-items: flex-start;
+    gap: var(--noora-spacing-4);
     min-width: 0;
 
     & > [data-part="label"] {
       color: var(--noora-surface-label-secondary);
-      font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+      font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
     }
 
     & > [data-part="value"] {
+      max-width: 100%;
       overflow: hidden;
       color: var(--noora-surface-label-primary);
       font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
@@ -352,6 +365,7 @@
 
   & > [data-part="detail-grid"] {
     display: grid;
+    align-items: start;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: var(--noora-spacing-6);
   }
@@ -363,52 +377,46 @@
     gap: var(--noora-spacing-4);
   }
 
-  & [data-part="permission-groups"],
-  & [data-part="permission-list"],
-  & [data-part="project-access"],
-  & [data-part="project-list"] {
-    display: flex;
-    flex-direction: column;
-    gap: var(--noora-spacing-4);
+  & #account-token-permissions-table table,
+  & #account-token-projects-table table {
+    min-width: 0;
+    table-layout: fixed;
   }
 
-  & [data-part="permission-group"] {
-    display: flex;
-    flex-direction: column;
-    gap: var(--noora-spacing-3);
-
-    & > h3 {
-      margin: 0;
-      color: var(--noora-surface-label-secondary);
-      font: var(--noora-font-weight-medium) var(--noora-font-body-small);
-    }
-  }
-
-  & [data-part="permission-item"],
-  & [data-part="project-item"] {
-    display: grid;
-    grid-template-columns: minmax(140px, 0.36fr) minmax(0, 0.64fr);
-    gap: var(--noora-spacing-2) var(--noora-spacing-4);
-    box-shadow: inset 0 1px 0 0 var(--noora-surface-border-primary);
-    padding-top: var(--noora-spacing-3);
-
-    & > [data-part="label"],
-    & > [data-part="name"] {
-      color: var(--noora-surface-label-primary);
-      font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+  & #account-token-permissions-table {
+    & th:first-child {
+      width: 22%;
     }
 
-    & > code {
-      overflow-wrap: anywhere;
+    & th:nth-child(2) {
+      width: 48%;
+    }
+
+    & th:nth-child(3) {
+      width: 30%;
+    }
+
+    & [data-part="description"] {
       color: var(--noora-surface-label-secondary);
       font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+    }
+
+    & td:nth-child(3) [data-part="label"] {
       font-family: "Geist Mono", monospace;
     }
+  }
 
-    & > [data-part="description"] {
-      grid-column: 2;
-      color: var(--noora-surface-label-secondary);
-      font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+  & #account-token-projects-table {
+    & th:first-child {
+      width: 38%;
+    }
+
+    & th:nth-child(2) {
+      width: 62%;
+    }
+
+    & td:nth-child(2) [data-part="label"] {
+      font-family: "Geist Mono", monospace;
     }
   }
 
@@ -427,12 +435,9 @@
       grid-template-columns: 1fr;
     }
 
-    & [data-part="permission-item"],
-    & [data-part="project-item"] {
-      grid-template-columns: 1fr;
-
-      & > [data-part="description"] {
-        grid-column: auto;
+    & > [data-part="summary-card"] > [data-part="summary-card-section"] > [data-part="metadata-grid"] {
+      & > [data-part="metadata-row"] {
+        flex-direction: column;
       }
     }
   }

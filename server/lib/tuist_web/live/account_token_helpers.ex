@@ -159,6 +159,16 @@ defmodule TuistWeb.AccountTokenHelpers do
     |> Enum.reject(&Enum.empty?(&1.scopes))
   end
 
+  def permission_rows(scopes) do
+    scopes
+    |> selected_scope_groups()
+    |> Enum.flat_map(fn group ->
+      Enum.map(group.scopes, fn scope ->
+        Map.put(scope, :group, group.label)
+      end)
+    end)
+  end
+
   def project_handle(account, project), do: "#{account.name}/#{project.name}"
 
   def account_token_hint(%AccountToken{id: id, scopes: scopes}) do
