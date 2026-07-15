@@ -8,6 +8,7 @@ defmodule TuistWeb.RunnerWorkflowRunLive do
   alias Tuist.Runners
   alias Tuist.Runners.Jobs
   alias Tuist.Utilities.DateFormatter
+  alias Tuist.VCS
   alias TuistWeb.Errors.NotFoundError
   alias TuistWeb.RunnerJobLive
   alias TuistWeb.RunnerWorkflowLive
@@ -54,6 +55,7 @@ defmodule TuistWeb.RunnerWorkflowRunLive do
      |> assign(:run_duration_ms, run_duration_ms(jobs, status))
      |> assign(:jobs, jobs)
      |> assign(:jobs_count, length(jobs))
+     |> assign(:github_base_url, VCS.github_base_url_for_account(account.id))
      |> assign(:can_cancel_runs, Runners.can_cancel_workflow_runs?(account))}
   end
 
@@ -217,5 +219,5 @@ defmodule TuistWeb.RunnerWorkflowRunLive do
 
   def job_path(account_name, job), do: RunnerJobLive.path(account_name, job)
 
-  def github_run_url(repository, run_id), do: RunnerWorkflowLive.github_run_url(repository, run_id)
+  def github_run_url(base_url, repository, run_id), do: RunnerWorkflowLive.github_run_url(base_url, repository, run_id)
 end

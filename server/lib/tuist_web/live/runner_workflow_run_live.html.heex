@@ -40,7 +40,7 @@
     </div>
     <div data-part="actions">
       <.button
-        href={TuistWeb.RunnerWorkflowRunLive.github_run_url(@repository, @workflow_run_id)}
+        href={TuistWeb.RunnerWorkflowRunLive.github_run_url(@github_base_url, @repository, @workflow_run_id)}
         target="_blank"
         rel="noopener noreferrer"
         variant="secondary"

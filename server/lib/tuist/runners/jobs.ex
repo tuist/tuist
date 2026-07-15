@@ -1341,6 +1341,7 @@ defmodule Tuist.Runners.Jobs do
             j.conclusion
           ),
         enqueued_at: min(j.enqueued_at),
+        started_at: min(j.started_at),
         duration_ms:
           fragment(
             "maxIf(toUnixTimestamp64Milli(?), isNotNull(?)) - minIf(toUnixTimestamp64Milli(?), isNotNull(?))",

@@ -3092,6 +3092,36 @@ defmodule Tuist.VCSTest do
     end
   end
 
+  describe "github_base_url_for_account/1" do
+    test "defaults to github.com when the account has no installation" do
+      user = AccountsFixtures.user_fixture()
+
+      assert VCS.github_base_url_for_account(user.account.id) == "https://github.com"
+    end
+
+    test "returns github.com for a github.com installation" do
+      user = AccountsFixtures.user_fixture()
+
+      {:ok, _} =
+        VCS.create_github_app_installation(%{account_id: user.account.id, installation_id: "gh-1"})
+
+      assert VCS.github_base_url_for_account(user.account.id) == "https://github.com"
+    end
+
+    test "returns the Enterprise host for a GitHub Enterprise Server installation" do
+      user = AccountsFixtures.user_fixture()
+
+      {:ok, _} =
+        VCS.create_github_app_installation(%{
+          account_id: user.account.id,
+          installation_id: "ghes-1",
+          client_url: "https://github.example.com"
+        })
+
+      assert VCS.github_base_url_for_account(user.account.id) == "https://github.example.com"
+    end
+  end
+
   describe "create_or_get_github_app_installation/1" do
     test "creates a GitHub app installation when it does not exist" do
       # Given

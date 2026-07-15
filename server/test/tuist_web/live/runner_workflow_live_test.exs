@@ -134,6 +134,28 @@ defmodule TuistWeb.RunnerWorkflowLiveTest do
     end
   end
 
+  describe "run duration" do
+    test "an in-progress run whose jobs haven't started reads zero / em dash" do
+      run = %{status: "in_progress", started_at: nil, duration_ms: 0}
+
+      assert TuistWeb.RunnerWorkflowLive.run_duration_ms(run) == 0
+      assert TuistWeb.RunnerWorkflowLive.run_duration_label(run) == "–"
+    end
+
+    test "an in-progress run counts elapsed from the earliest started_at, not the enqueue time" do
+      run = %{status: "in_progress", started_at: DateTime.add(DateTime.utc_now(), -30, :second), duration_ms: 0}
+
+      assert TuistWeb.RunnerWorkflowLive.run_duration_ms(run) >= 29_000
+    end
+
+    test "a completed run uses the rolled-up span" do
+      run = %{status: "completed", started_at: nil, duration_ms: 12_000}
+
+      assert TuistWeb.RunnerWorkflowLive.run_duration_ms(run) == 12_000
+      assert TuistWeb.RunnerWorkflowLive.run_duration_label(run) =~ "12"
+    end
+  end
+
   defp run_row_count(html) do
     length(String.split(html, "runner-workflow-runs-row-")) - 1
   end

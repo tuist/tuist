@@ -20,7 +20,7 @@
       </div>
       <div data-part="badges">
         <a
-          href={TuistWeb.RunnerWorkflowLive.repository_url(@repository)}
+          href={TuistWeb.RunnerWorkflowLive.repository_url(@github_base_url, @repository)}
           target="_blank"
           rel="noopener noreferrer"
           data-part="repository-link"
@@ -300,14 +300,7 @@
             <.text_cell label={Integer.to_string(run.job_count)} />
           </:col>
           <:col :let={run} label={dgettext("dashboard_runners", "Duration")}>
-            <.text_cell
-              icon="history"
-              label={
-                Tuist.Utilities.DateFormatter.format_duration_from_milliseconds(
-                  TuistWeb.RunnerWorkflowLive.run_duration_ms(run)
-                )
-              }
-            />
+            <.text_cell icon="history" label={TuistWeb.RunnerWorkflowLive.run_duration_label(run)} />
           </:col>
           <:col :let={run} label={dgettext("dashboard_runners", "Last activity")}>
             <.text_cell label={Tuist.Utilities.DateFormatter.from_now(run.last_activity_at)} />

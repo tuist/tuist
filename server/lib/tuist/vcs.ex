@@ -1305,6 +1305,23 @@ defmodule Tuist.VCS do
   end
 
   @doc """
+  Resolves the base GitHub URL for an account's runner installation:
+  the installation's `client_url` (a GitHub Enterprise Server host)
+  when connected, or `https://github.com` otherwise. Used to build
+  outbound run/job links that point at the right host for GHES
+  installations rather than always assuming github.com.
+  """
+  def github_base_url_for_account(account_id) do
+    case get_github_app_installation_for_account(account_id) do
+      {:ok, %GitHubAppInstallation{client_url: client_url}} when is_binary(client_url) and client_url != "" ->
+        client_url
+
+      _ ->
+        "https://github.com"
+    end
+  end
+
+  @doc """
   Gets a GitHub app installation by the manifest-flow App ID Tuist
   recorded when the customer registered an App on their GHES instance.
 

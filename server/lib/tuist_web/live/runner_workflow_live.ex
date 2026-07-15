@@ -14,6 +14,7 @@ defmodule TuistWeb.RunnerWorkflowLive do
   alias Tuist.Runners.Analytics
   alias Tuist.Runners.Jobs
   alias Tuist.Utilities.DateFormatter
+  alias Tuist.VCS
   alias TuistWeb.Utilities.Query
 
   @page_size 20
@@ -41,6 +42,7 @@ defmodule TuistWeb.RunnerWorkflowLive do
      |> assign(:head_title, head_title)
      |> assign(:repository, repository)
      |> assign(:workflow_name, workflow_name)
+     |> assign(:github_base_url, VCS.github_base_url_for_account(selected_account.id))
      |> assign(:available_filters, available_filters())
      |> assign(:analytics_selected_widget, "total_jobs")
      |> assign(:job_duration_percentile, "avg")
@@ -302,27 +304,46 @@ defmodule TuistWeb.RunnerWorkflowLive do
   def run_path(_, _), do: nil
 
   # Duration for a run row: elapsed-so-far for an in-progress run,
-  # else the completed span. The SQL `duration_ms` is only meaningful
-  # once the run has a completed job, so guard on a positive value.
-  def run_duration_ms(%{status: "in_progress", enqueued_at: enqueued}), do: DateFormatter.ms_since(enqueued)
+  # else the completed span. Elapsed time counts from the earliest job
+  # `started_at`, not `enqueued_at`, so a run whose only job is still
+  # queued reads as 0 (rendered "–") rather than accumulating queue
+  # time. The SQL `duration_ms` is only meaningful once the run has a
+  # completed job, so guard on a positive value.
+  def run_duration_ms(%{status: "in_progress", started_at: started}) when not is_nil(started),
+    do: DateFormatter.ms_since(started)
+
+  def run_duration_ms(%{status: "in_progress"}), do: 0
   def run_duration_ms(%{duration_ms: ms}) when is_integer(ms) and ms > 0, do: ms
   def run_duration_ms(_), do: 0
 
+  # Duration label for a run row — an em dash until the run has
+  # actually started executing, so a still-queued run doesn't read as
+  # "0s". Mirrors the run detail page's treatment.
+  def run_duration_label(run) do
+    case run_duration_ms(run) do
+      ms when is_integer(ms) and ms > 0 -> DateFormatter.format_duration_from_milliseconds(ms)
+      _ -> "–"
+    end
+  end
+
   @doc """
-  Public GitHub Actions run URL for a run row — the drill-down target
-  from the runs list (we don't host an internal run view yet).
+  GitHub Actions run URL for the run detail's external link. `base_url`
+  is the account installation's host (`https://github.com` or a GitHub
+  Enterprise Server `client_url`), so the link points at the right host
+  for GHES installations rather than always assuming github.com.
   """
-  def github_run_url(repository, run_id) when is_binary(repository) and is_integer(run_id) do
+  def github_run_url(base_url, repository, run_id)
+      when is_binary(base_url) and base_url != "" and is_binary(repository) and is_integer(run_id) do
     case String.split(repository, "/", parts: 2) do
       [owner, name] when owner != "" and name != "" ->
-        "https://github.com/#{owner}/#{name}/actions/runs/#{run_id}"
+        "#{base_url}/#{owner}/#{name}/actions/runs/#{run_id}"
 
       _ ->
         "#"
     end
   end
 
-  def github_run_url(_, _), do: "#"
+  def github_run_url(_, _, _), do: "#"
 
   def duration_ms(%{status: "queued", enqueued_at: enqueued}), do: DateFormatter.ms_since(enqueued)
   def duration_ms(%{status: "claimed", claimed_at: claimed}), do: DateFormatter.ms_since(claimed)
@@ -339,20 +360,22 @@ defmodule TuistWeb.RunnerWorkflowLive do
   def duration_ms(_), do: 0
 
   @doc """
-  Resolves the public repository URL for the header badge. GitHub
-  Actions webhooks always deliver `repository` as `<owner>/<name>`
-  so the canonical URL is just `https://github.com/<owner>/<name>`.
-  The helper short-circuits to `#` for malformed values so the
-  badge still renders without a broken outbound link.
+  Resolves the repository URL for the header badge. `base_url` is the
+  account installation's host (`https://github.com` or a GitHub
+  Enterprise Server `client_url`); GitHub Actions webhooks always
+  deliver `repository` as `<owner>/<name>`, so the URL is
+  `<base_url>/<owner>/<name>`. The helper short-circuits to `#` for
+  malformed values so the badge still renders without a broken
+  outbound link.
   """
-  def repository_url(repository) when is_binary(repository) do
+  def repository_url(base_url, repository) when is_binary(base_url) and base_url != "" and is_binary(repository) do
     case String.split(repository, "/", parts: 2) do
-      [owner, name] when owner != "" and name != "" -> "https://github.com/#{owner}/#{name}"
+      [owner, name] when owner != "" and name != "" -> "#{base_url}/#{owner}/#{name}"
       _ -> "#"
     end
   end
 
-  def repository_url(_), do: "#"
+  def repository_url(_, _), do: "#"
 
   def chart_options(dates) do
     %{

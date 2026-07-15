@@ -9,6 +9,7 @@ defmodule TuistWeb.RunnerWorkflowRunLiveTest do
   alias Tuist.Runners
   alias Tuist.Runners.Job
   alias Tuist.Runners.Jobs
+  alias Tuist.VCS
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistWeb.Errors.NotFoundError
 
@@ -176,6 +177,32 @@ defmodule TuistWeb.RunnerWorkflowRunLiveTest do
     refute html =~ "Attempt One"
     assert html =~ "Success"
     assert html =~ "#2"
+  end
+
+  test "the GitHub link points at github.com by default", %{conn: conn, account: account} do
+    enqueue_job(account, %{workflow_job_id: 63_001, workflow_run_id: 630_010, job_name: "Build"})
+
+    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/runners/runs/630010")
+
+    assert html =~ "https://github.com/tuist/tuist/actions/runs/630010"
+  end
+
+  test "the GitHub link uses the installation's Enterprise host", %{conn: conn, account: account} do
+    stub(Runners, :can_cancel_workflow_runs?, fn _ -> false end)
+
+    {:ok, _installation} =
+      VCS.create_github_app_installation(%{
+        account_id: account.id,
+        installation_id: "ghes-inst-1",
+        client_url: "https://github.example.com"
+      })
+
+    enqueue_job(account, %{workflow_job_id: 63_101, workflow_run_id: 631_010, job_name: "Build"})
+
+    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/runners/runs/631010")
+
+    assert html =~ "https://github.example.com/tuist/tuist/actions/runs/631010"
+    refute html =~ "https://github.com/tuist/tuist/actions/runs/631010"
   end
 
   test "404s for a run with no jobs for the account", %{conn: conn, account: account} do

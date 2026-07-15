@@ -11,7 +11,7 @@
 
   <% status_props = TuistWeb.RunnerJobLive.status_badge_props(@job) %>
   <% status_kind = TuistWeb.RunnerJobLive.header_status(@job) %>
-  <% github_url = TuistWeb.RunnerJobLive.github_job_url(@job) %>
+  <% github_url = TuistWeb.RunnerJobLive.github_job_url(@github_base_url, @job) %>
   <% platform_label = TuistWeb.RunnerJobLive.platform_label(@job.fleet_name) %>
   <% workflow_link = TuistWeb.RunnerJobLive.workflow_path(@selected_account.name, @job) %>
   <% run_link = TuistWeb.RunnerJobLive.run_path(@selected_account.name, @job) %>
