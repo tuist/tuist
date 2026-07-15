@@ -9,8 +9,8 @@ defmodule Tuist.Runners.InteractiveSessionsTest do
   alias Tuist.Runners.Claims
   alias Tuist.Runners.InteractiveSession
   alias Tuist.Runners.InteractiveSessionConnection
-  alias Tuist.Runners.InteractiveShellBroker
   alias Tuist.Runners.InteractiveSessions
+  alias Tuist.Runners.InteractiveShellBroker
   alias Tuist.Runners.RunnerSessions
   alias Tuist.Runners.Workers.CloseDisconnectedInteractiveSessionWorker
 
