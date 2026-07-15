@@ -276,15 +276,12 @@ defmodule TuistWeb.AccountTokensLive do
       |> List.delete(scope)
       |> normalize_selected_scopes()
     else
-      selected_scopes
-      |> remove_scopes(effective_selected_scopes([scope]))
-      |> then(&[scope | &1])
-      |> normalize_selected_scopes()
+      [scope]
     end
   end
 
   defp toggle_scope(scope, selected_scopes) do
-    selected_scopes = expand_presets_implying_scope(selected_scopes, scope)
+    selected_scopes = expand_presets_to_fine_grained_scopes(selected_scopes)
 
     selected_scopes =
       if scope in effective_selected_scopes(selected_scopes) do
@@ -338,19 +335,6 @@ defmodule TuistWeb.AccountTokensLive do
     |> with_implied_read_scopes()
   end
 
-  defp expand_presets_implying_scope(selected_scopes, scope) do
-    selected_presets =
-      Enum.filter(selected_scopes, fn selected_scope ->
-        selected_scope in @preset_scopes and scope in effective_selected_scopes([selected_scope])
-      end)
-
-    if Enum.empty?(selected_presets) do
-      selected_scopes
-    else
-      expand_presets_to_fine_grained_scopes(selected_scopes)
-    end
-  end
-
   defp expand_presets_to_fine_grained_scopes(selected_scopes) do
     selected_scopes
     |> Enum.flat_map(fn scope ->
@@ -386,12 +370,6 @@ defmodule TuistWeb.AccountTokensLive do
       [entity, subject, "write"] -> "#{entity}:#{subject}:read"
       _ -> nil
     end
-  end
-
-  defp remove_scopes(scopes, scopes_to_remove) do
-    scopes_to_remove = MapSet.new(scopes_to_remove)
-
-    Enum.reject(scopes, &MapSet.member?(scopes_to_remove, &1))
   end
 
   defp expires_at(params) do

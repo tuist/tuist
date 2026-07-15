@@ -204,6 +204,79 @@ defmodule TuistWeb.AccountTokensLiveTest do
     assert token.all_projects == true
   end
 
+  test "selecting the CI preset clears unrelated permissions", %{
+    conn: conn,
+    account: account
+  } do
+    {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/tokens")
+
+    render_hook(lv, "toggle_token_scope", %{"scope" => "ci"})
+    html = render_hook(lv, "toggle_token_scope_group", %{"group" => "account"})
+
+    assert scope_checked?(html, "account:members:read")
+    assert scope_checked?(html, "account:registry:read")
+
+    html = render_hook(lv, "toggle_token_scope", %{"scope" => "ci"})
+
+    assert scope_checked?(html, "ci")
+    assert scope_checked?(html, "account:cache:read")
+    assert scope_checked?(html, "account:cache:write")
+    assert scope_checked?(html, "project:builds:read")
+    assert scope_checked?(html, "project:builds:write")
+    refute scope_checked?(html, "account:members:read")
+    refute scope_checked?(html, "account:registry:read")
+    refute scope_checked?(html, "project:admin:read")
+
+    render_submit(lv, "create_account_token", %{
+      "account_token" => %{"name" => "ci-only", "expires" => ""}
+    })
+
+    {:ok, token} = Accounts.get_account_token_by_name(account, "ci-only")
+    assert token.scopes == ["ci"]
+  end
+
+  test "deselects the CI preset when fine-grained permissions change", %{
+    conn: conn,
+    account: account
+  } do
+    {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/tokens")
+
+    html = render_hook(lv, "toggle_token_scope", %{"scope" => "account:members:read"})
+
+    refute scope_checked?(html, "ci")
+    assert scope_checked?(html, "account:cache:read")
+    assert scope_checked?(html, "account:cache:write")
+    assert scope_checked?(html, "account:members:read")
+    assert scope_checked?(html, "project:builds:read")
+    assert scope_checked?(html, "project:builds:write")
+
+    render_submit(lv, "create_account_token", %{
+      "account_token" => %{"name" => "custom-ci-plus-members", "expires" => ""}
+    })
+
+    {:ok, token} = Accounts.get_account_token_by_name(account, "custom-ci-plus-members")
+
+    refute "ci" in token.scopes
+
+    assert token.scopes == [
+             "account:cache:read",
+             "account:cache:write",
+             "account:members:read",
+             "project:builds:read",
+             "project:builds:write",
+             "project:bundles:read",
+             "project:bundles:write",
+             "project:cache:read",
+             "project:cache:write",
+             "project:previews:read",
+             "project:previews:write",
+             "project:runs:read",
+             "project:runs:write",
+             "project:tests:read",
+             "project:tests:write"
+           ]
+  end
+
   test "creates a token with all account and project scopes selected from group toggles", %{
     conn: conn,
     account: account
