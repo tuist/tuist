@@ -64,20 +64,6 @@ public struct XcodeCacheSettingsProjectMapper: ProjectMapping {
                         upload: tuist.xcodeCache.upload,
                         to: baseSettings["OTHER_SWIFT_FLAGS"]
                     )
-                    // Relocate the compiler's CAS out of DerivedData to a persistent,
-                    // per-project location so it survives a DerivedData wipe: a cold
-                    // rebuild then replays from the warm local CAS instead of
-                    // re-fetching (and re-materializing) every object from kura. Xcode's
-                    // own size-LRU pruner bounds it and evicts least-recently-used
-                    // objects. Keyed per full handle so the proxy can pre-ingest into
-                    // the same path a build reads, and so the store stays content-scoped
-                    // to one project.
-                    let persistentCASPath = Environment.current.stateDirectory
-                        .appending(component: "compilation-cache")
-                        .appending(component: fullHandle.replacingOccurrences(of: "/", with: "-"))
-                    baseSettings["COMPILATION_CACHE_CAS_PATH"] = .string(persistentCASPath.pathString)
-                    baseSettings["COMPILATION_CACHE_KEEP_CAS_DIRECTORY"] = "YES"
-                    baseSettings["COMPILATION_CACHE_LIMIT_PERCENT"] = "50"
                 } else {
                     // Kura is enabled but the bundled dylib is absent, so the build
                     // silently falls back to local-only caching (no remote). Warn

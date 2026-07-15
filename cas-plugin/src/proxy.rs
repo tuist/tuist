@@ -1254,81 +1254,6 @@ impl Proxy {
     /// background, so a later from-scratch build finds every blob as a local
     /// read and its demands never cross the wire. `batch_read` chunks by
     /// MAX_BATCH_BYTES internally, so handing it large slices is efficient.
-    /// The per-machine persistent CAS directory a generated project's build
-    /// reads from, derived from the same convention the CLI bakes into
-    /// `COMPILATION_CACHE_CAS_PATH` (`<state>/compilation-cache/<handle>`, with
-    /// the compiler appending `plugin`). Deriving it — rather than only learning
-    /// it from a build's declared path — lets the proxy warm the store before
-    /// the day's first build, and off that build's critical path.
-    fn persistent_cas_path(instance: &str) -> String {
-        // Mirror the CLI's state directory ($XDG_STATE_HOME/tuist, falling back
-        // to ~/.local/state/tuist) so the path derived here matches the one the
-        // generated project bakes into COMPILATION_CACHE_CAS_PATH exactly.
-        let base = std::env::var("XDG_STATE_HOME")
-            .ok()
-            .filter(|value| !value.is_empty())
-            .map(|xdg| format!("{xdg}/tuist"))
-            .or_else(|| {
-                std::env::var("HOME")
-                    .ok()
-                    .filter(|home| !home.is_empty())
-                    .map(|home| format!("{home}/.local/state/tuist"))
-            })
-            .unwrap_or_else(|| "/tmp/tuist".to_string());
-        let sanitized = instance.replace('/', "-");
-        format!("{base}/compilation-cache/{sanitized}/plugin")
-    }
-
-    /// Proactively materialize the snapshot's closure into the instance's
-    /// persistent CAS, off any build's critical path. Because that store
-    /// survives a DerivedData wipe, the next from-scratch build resolves against
-    /// the ready snapshot and loads every object locally — no per-object round
-    /// trip, and no re-ingest on a subsequent build. Idempotent: objects already
-    /// on disk are `is_local`-skipped, so repeated warms only fetch the delta a
-    /// new trunk snapshot introduced.
-    fn pre_ingest_snapshot(&self, instance: &str, snapshot: &Snapshot) {
-        if !self.instance_active(instance) {
-            return;
-        }
-        let cas_path = Self::persistent_cas_path(instance);
-        // The compiler creates this store on its first build; create it here too
-        // so a warm can precede that build. `open_cas` uses the same upstream
-        // plugin the build loads, so the store it opens is byte-compatible.
-        let _ = std::fs::create_dir_all(&cas_path);
-        let state = match self.path_state(&cas_path) {
-            Ok(state) => state,
-            Err(message) => {
-                crate::log_line(&format!(
-                    "pre-ingest: cannot open persistent CAS at {cas_path} for {instance}: {message}"
-                ));
-                return;
-            }
-        };
-        let remote = self.remote_for(instance);
-        let observed = state.gen_counter.load(Ordering::SeqCst);
-        let mut enqueued = 0usize;
-        for key_hash in &snapshot.key_order {
-            let Some(manifest) = snapshot.manifest(key_hash) else {
-                continue;
-            };
-            let id = self.job_counter.fetch_add(1, Ordering::Relaxed);
-            self.materialize_jobs.lock().unwrap().insert(
-                id,
-                MaterializeJob {
-                    cas_path: cas_path.clone(),
-                    remote: remote.clone(),
-                    manifest,
-                    observed,
-                },
-            );
-            self.prematerializer.enqueue(id.to_be_bytes().to_vec());
-            enqueued += 1;
-        }
-        crate::log_line(&format!(
-            "pre-ingest for {instance}: enqueued {enqueued} keys into persistent CAS {cas_path}"
-        ));
-    }
-
     /// Record that a build resolved for this instance on this machine, so the
     /// pre-ingest and startup snapshot prefetch stay scoped to projects the
     /// developer is still building. Called once per instance per proxy session
@@ -2168,20 +2093,6 @@ impl Proxy {
                     ));
                     let snapshot = Arc::new(snapshot);
                     self.prematerialize_snapshot(instance, &snapshot);
-                    // Proactive pre-ingest: warm the whole closure into the
-                    // instance's PERSISTENT CAS now, off any build's critical
-                    // path, so a later from-scratch build resolves against the
-                    // ready snapshot and loads every object locally — no per-
-                    // object round trip, no re-ingest. Scoped to actively-built
-                    // projects (checked inside) and idempotent, so steady state
-                    // only fetches the delta a new trunk snapshot introduced.
-                    // Opt out with TUIST_CAS_PREINGEST=0.
-                    if std::env::var("TUIST_CAS_PREINGEST").as_deref() != Ok("0") {
-                        let proxy: &'static Proxy = unsafe { &*(self as *const Proxy) };
-                        let instance = instance.to_string();
-                        let snapshot = snapshot.clone();
-                        std::thread::spawn(move || proxy.pre_ingest_snapshot(&instance, &snapshot));
-                    }
                     SnapshotState::Ready {
                         snapshot,
                         full_at: Instant::now(),
