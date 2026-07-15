@@ -52,10 +52,15 @@ defmodule TuistWeb.Internal.KuraUsageController do
 
   defp managed_events(events) do
     Enum.map(events, fn event ->
+      # A managed node's explicit public/private classification is trusted. The
+      # ambiguous "unknown" sentinel (and a missing field on old pods) is
+      # re-derived from the region, otherwise a misconfigured managed pod that
+      # defaults to "unknown" for genuine public traffic would silently escape
+      # the egress meter. Any other unexpected value fails closed to "unknown".
       network_path =
         case event["network_path"] do
-          path when path in ["public_internet", "private_network", "unknown"] -> path
-          nil -> Regions.usage_network_path(event["region"])
+          path when path in ["public_internet", "private_network"] -> path
+          path when path in [nil, "unknown"] -> Regions.usage_network_path(event["region"])
           _ -> "unknown"
         end
 

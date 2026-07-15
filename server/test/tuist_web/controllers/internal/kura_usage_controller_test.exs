@@ -130,6 +130,18 @@ defmodule TuistWeb.Internal.KuraUsageControllerTest do
     assert [%UsageEvent{network_path: "private_network"}] = ClickHouseRepo.all(UsageEvent)
   end
 
+  test "re-derives an \"unknown\" managed network path from its region", %{conn: conn, kura_client: client} do
+    account = AccountsFixtures.organization_fixture(name: "acme").account
+    ProjectsFixtures.project_fixture(account: account, name: "ios")
+
+    event = build_event(%{"region" => "eu-central", "network_path" => "unknown"})
+
+    conn = post_events(conn, [event], authorization: authorization_header(client.id, client.secret))
+
+    assert %{"accepted" => 1} = json_response(conn, 202)
+    assert [%UsageEvent{network_path: "public_internet"}] = ClickHouseRepo.all(UsageEvent)
+  end
+
   test "fails closed for an invalid managed network path", %{conn: conn, kura_client: client} do
     account = AccountsFixtures.organization_fixture(name: "acme").account
     ProjectsFixtures.project_fixture(account: account, name: "ios")
