@@ -5,7 +5,9 @@ defmodule TuistWeb.RunnerWorkflowRunLiveTest do
 
   import Phoenix.LiveViewTest
 
+  alias Tuist.IngestRepo
   alias Tuist.Runners
+  alias Tuist.Runners.Job
   alias Tuist.Runners.Jobs
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistWeb.Errors.NotFoundError
@@ -44,6 +46,36 @@ defmodule TuistWeb.RunnerWorkflowRunLiveTest do
           attrs
         )
       )
+  end
+
+  defp insert_completed(account, attrs) do
+    row =
+      Map.merge(
+        %{
+          account_id: account.id,
+          fleet_name: "fleet-r",
+          repository: "tuist/tuist",
+          workflow_name: "Server",
+          run_attempt: 1,
+          job_name: "build",
+          head_branch: "main",
+          head_sha: "deadbee",
+          status: "completed",
+          conclusion: "success",
+          enqueued_at: ~U[2026-06-01 10:00:00.000000Z],
+          claimed_at: ~U[2026-06-01 10:00:00.000000Z],
+          started_at: ~U[2026-06-01 10:00:00.000000Z],
+          completed_at: ~U[2026-06-01 10:05:00.000000Z],
+          pod_name: "",
+          runner_name: "",
+          requested_dispatch_label: "",
+          updated_at: ~U[2026-06-01 10:05:00.000000Z]
+        },
+        attrs
+      )
+
+    {1, _} = IngestRepo.insert_all(Job, [row])
+    :ok
   end
 
   test "renders the run's jobs, status, and links up to the workflow", %{conn: conn, account: account} do
@@ -105,6 +137,45 @@ defmodule TuistWeb.RunnerWorkflowRunLiveTest do
 
     assert_received {:cancelled, account_id}
     assert account_id == account.id
+  end
+
+  test "renders a rolled-up stale conclusion without mislabelling it skipped", %{conn: conn, account: account} do
+    insert_completed(account, %{workflow_job_id: 62_001, workflow_run_id: 620_010, job_name: "Reap", conclusion: "stale"})
+
+    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/runners/runs/620010")
+
+    assert html =~ "Stale"
+    refute html =~ "Skipped"
+  end
+
+  test "collapses a rerun to its latest attempt", %{conn: conn, account: account} do
+    insert_completed(account, %{
+      workflow_job_id: 63_101,
+      workflow_run_id: 630_010,
+      run_attempt: 1,
+      job_name: "Attempt One",
+      conclusion: "failure"
+    })
+
+    insert_completed(account, %{
+      workflow_job_id: 63_201,
+      workflow_run_id: 630_010,
+      run_attempt: 2,
+      job_name: "Attempt Two",
+      conclusion: "success",
+      started_at: ~U[2026-06-01 11:00:00.000000Z],
+      completed_at: ~U[2026-06-01 11:03:00.000000Z],
+      updated_at: ~U[2026-06-01 11:03:00.000000Z]
+    })
+
+    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/runners/runs/630010")
+
+    # Only the latest attempt's job renders, and the failed first
+    # attempt doesn't drag the header down.
+    assert html =~ "Attempt Two"
+    refute html =~ "Attempt One"
+    assert html =~ "Success"
+    assert html =~ "#2"
   end
 
   test "404s for a run with no jobs for the account", %{conn: conn, account: account} do

@@ -98,26 +98,34 @@ defmodule TuistWeb.RunnerWorkflowRunLive do
   defp parse_run_id(_), do: nil
 
   # Roll the run's jobs up to a single status: any non-completed job
-  # keeps the run in progress; otherwise collapse the conclusions.
+  # keeps the run in progress; otherwise collapse the conclusions,
+  # preferring the most severe and preserving less common ones
+  # (stale, timed_out, …) rather than mislabelling them as skipped.
   defp run_status(jobs) do
-    cond do
-      Enum.any?(jobs, &(&1.status != "completed")) -> %{status: "in_progress", conclusion: ""}
-      Enum.any?(jobs, &(&1.conclusion == "failure")) -> %{status: "completed", conclusion: "failure"}
-      Enum.any?(jobs, &(&1.conclusion == "cancelled")) -> %{status: "completed", conclusion: "cancelled"}
-      Enum.any?(jobs, &(&1.conclusion == "success")) -> %{status: "completed", conclusion: "success"}
-      true -> %{status: "completed", conclusion: "skipped"}
+    if Enum.any?(jobs, &(&1.status != "completed")) do
+      %{status: "in_progress", conclusion: ""}
+    else
+      %{status: "completed", conclusion: rollup_conclusion(Enum.map(jobs, & &1.conclusion))}
     end
   end
 
-  # Earliest moment the run actually started running (falls back to the
-  # earliest enqueue when nothing has been picked up yet).
-  defp run_started_at(jobs) do
-    started = jobs |> Enum.map(& &1.started_at) |> Enum.reject(&is_nil/1)
-
-    case started do
-      [] -> jobs |> Enum.map(& &1.enqueued_at) |> Enum.reject(&is_nil/1) |> min_datetime()
-      list -> min_datetime(list)
+  defp rollup_conclusion(conclusions) do
+    cond do
+      "failure" in conclusions -> "failure"
+      "timed_out" in conclusions -> "timed_out"
+      "cancelled" in conclusions -> "cancelled"
+      "success" in conclusions -> "success"
+      other = Enum.find(conclusions, &(&1 not in ["", "skipped"])) -> other
+      "skipped" in conclusions -> "skipped"
+      true -> "unknown"
     end
+  end
+
+  # Earliest moment the run actually started running, or nil when no
+  # job has been picked up yet — a queued run has no start time, so the
+  # header reads "–" rather than passing off its enqueue time as a start.
+  defp run_started_at(jobs) do
+    jobs |> Enum.map(& &1.started_at) |> Enum.reject(&is_nil/1) |> min_datetime()
   end
 
   # Wall-clock span of the run: elapsed-so-far while in progress, else
@@ -143,7 +151,6 @@ defmodule TuistWeb.RunnerWorkflowRunLive do
 
   defp min_datetime([]), do: nil
   defp min_datetime(list), do: Enum.min(list, DateTime)
-  defp max_datetime([]), do: nil
   defp max_datetime(list), do: Enum.max(list, DateTime)
 
   def run_cancellable?(%{status: "in_progress"}), do: true
@@ -159,7 +166,10 @@ defmodule TuistWeb.RunnerWorkflowRunLive do
   # Status icon kind for the run header, mirroring the job page's
   # header badge treatment (green check / red alert / grey dashed …).
   def header_status_kind(%{status: "completed", conclusion: "success"}), do: :success
-  def header_status_kind(%{status: "completed", conclusion: "failure"}), do: :failure
+
+  def header_status_kind(%{status: "completed", conclusion: conclusion}) when conclusion in ["failure", "timed_out"],
+    do: :failure
+
   def header_status_kind(%{status: "completed"}), do: :warning
   def header_status_kind(_), do: :processing
 

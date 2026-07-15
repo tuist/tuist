@@ -264,11 +264,20 @@ defmodule TuistWeb.RunnerWorkflowLive do
 
   def conclusion_badge_props("success"), do: %{label: dgettext("dashboard_runners", "Success"), status: "success"}
   def conclusion_badge_props("failure"), do: %{label: dgettext("dashboard_runners", "Failure"), status: "error"}
+  def conclusion_badge_props("timed_out"), do: %{label: dgettext("dashboard_runners", "Timed out"), status: "error"}
   def conclusion_badge_props("cancelled"), do: %{label: dgettext("dashboard_runners", "Cancelled"), status: "warning"}
+  def conclusion_badge_props("stale"), do: %{label: dgettext("dashboard_runners", "Stale"), status: "warning"}
+  def conclusion_badge_props("neutral"), do: %{label: dgettext("dashboard_runners", "Neutral"), status: "warning"}
+
+  def conclusion_badge_props("action_required"),
+    do: %{label: dgettext("dashboard_runners", "Action required"), status: "warning"}
+
   def conclusion_badge_props("skipped"), do: %{label: dgettext("dashboard_runners", "Skipped"), status: "warning"}
 
+  # Any other GitHub conclusion (startup_failure, …) — humanise the raw
+  # value rather than dropping it or mislabelling it as skipped.
   def conclusion_badge_props(other) when is_binary(other) and other != "",
-    do: %{label: String.capitalize(other), status: "warning"}
+    do: %{label: other |> String.replace("_", " ") |> String.capitalize(), status: "warning"}
 
   def conclusion_badge_props(_), do: nil
 

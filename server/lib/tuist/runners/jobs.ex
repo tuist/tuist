@@ -675,40 +675,76 @@ defmodule Tuist.Runners.Jobs do
   """
   def jobs_for_run(account_id, workflow_run_id)
       when is_integer(account_id) and is_integer(workflow_run_id) and workflow_run_id > 0 do
-    Job
-    |> where([j], j.account_id == ^account_id and j.workflow_run_id == ^workflow_run_id)
-    |> group_by([j], j.workflow_job_id)
-    |> select([j], %{
-      workflow_job_id: j.workflow_job_id,
-      fleet_name: fragment("argMax(?, ?)", j.fleet_name, j.updated_at),
-      repository: fragment("argMax(?, ?)", j.repository, j.updated_at),
-      workflow_run_id: fragment("argMax(?, ?)", j.workflow_run_id, j.updated_at),
-      workflow_name: fragment("argMax(?, ?)", j.workflow_name, j.updated_at),
-      run_attempt: fragment("argMax(?, ?)", j.run_attempt, j.updated_at),
-      job_name: fragment("argMax(?, ?)", j.job_name, j.updated_at),
-      head_branch: fragment("argMax(?, ?)", j.head_branch, j.updated_at),
-      head_sha: fragment("argMax(?, ?)", j.head_sha, j.updated_at),
-      status: fragment("argMax(?, ?)", j.status, j.updated_at),
-      conclusion: fragment("argMax(?, ?)", j.conclusion, j.updated_at),
-      enqueued_at: fragment("argMax(?, ?)", j.enqueued_at, j.updated_at),
-      claimed_at: fragment("argMax(?, ?)", j.claimed_at, j.updated_at),
-      started_at: fragment("argMax(?, ?)", j.started_at, j.updated_at),
-      completed_at: fragment("argMax(?, ?)", j.completed_at, j.updated_at)
-    })
-    |> order_by([j],
-      asc:
-        fragment(
-          "coalesce(argMax(?, ?), argMax(?, ?), argMax(?, ?))",
-          j.started_at,
-          j.updated_at,
-          j.claimed_at,
-          j.updated_at,
-          j.enqueued_at,
-          j.updated_at
-        ),
-      asc: j.workflow_job_id
+    deduped =
+      Job
+      |> where([j], j.account_id == ^account_id and j.workflow_run_id == ^workflow_run_id)
+      |> group_by([j], j.workflow_job_id)
+      |> select([j], %{
+        workflow_job_id: j.workflow_job_id,
+        fleet_name: fragment("argMax(?, ?)", j.fleet_name, j.updated_at),
+        repository: fragment("argMax(?, ?)", j.repository, j.updated_at),
+        workflow_run_id: fragment("argMax(?, ?)", j.workflow_run_id, j.updated_at),
+        workflow_name: fragment("argMax(?, ?)", j.workflow_name, j.updated_at),
+        run_attempt: fragment("argMax(?, ?)", j.run_attempt, j.updated_at),
+        job_name: fragment("argMax(?, ?)", j.job_name, j.updated_at),
+        head_branch: fragment("argMax(?, ?)", j.head_branch, j.updated_at),
+        head_sha: fragment("argMax(?, ?)", j.head_sha, j.updated_at),
+        status: fragment("argMax(?, ?)", j.status, j.updated_at),
+        conclusion: fragment("argMax(?, ?)", j.conclusion, j.updated_at),
+        enqueued_at: fragment("argMax(?, ?)", j.enqueued_at, j.updated_at),
+        claimed_at: fragment("argMax(?, ?)", j.claimed_at, j.updated_at),
+        started_at: fragment("argMax(?, ?)", j.started_at, j.updated_at),
+        completed_at: fragment("argMax(?, ?)", j.completed_at, j.updated_at)
+      })
+
+    # A rerun keeps the run id but bumps run_attempt with new job ids;
+    # only the latest attempt is the current run, so drop the earlier
+    # attempts before the page counts jobs / sums duration.
+    with_max_attempt =
+      from(j in subquery(deduped),
+        select: %{
+          workflow_job_id: j.workflow_job_id,
+          fleet_name: j.fleet_name,
+          repository: j.repository,
+          workflow_run_id: j.workflow_run_id,
+          workflow_name: j.workflow_name,
+          run_attempt: j.run_attempt,
+          job_name: j.job_name,
+          head_branch: j.head_branch,
+          head_sha: j.head_sha,
+          status: j.status,
+          conclusion: j.conclusion,
+          enqueued_at: j.enqueued_at,
+          claimed_at: j.claimed_at,
+          started_at: j.started_at,
+          completed_at: j.completed_at,
+          run_max_attempt: fragment("max(?) OVER ()", j.run_attempt)
+        }
+      )
+
+    ClickHouseRepo.all(
+      from(j in subquery(with_max_attempt),
+        where: j.run_attempt == j.run_max_attempt,
+        order_by: [asc: fragment("coalesce(?, ?, ?)", j.started_at, j.claimed_at, j.enqueued_at), asc: j.workflow_job_id],
+        select: %{
+          workflow_job_id: j.workflow_job_id,
+          fleet_name: j.fleet_name,
+          repository: j.repository,
+          workflow_run_id: j.workflow_run_id,
+          workflow_name: j.workflow_name,
+          run_attempt: j.run_attempt,
+          job_name: j.job_name,
+          head_branch: j.head_branch,
+          head_sha: j.head_sha,
+          status: j.status,
+          conclusion: j.conclusion,
+          enqueued_at: j.enqueued_at,
+          claimed_at: j.claimed_at,
+          started_at: j.started_at,
+          completed_at: j.completed_at
+        }
+      )
     )
-    |> ClickHouseRepo.all()
   end
 
   def jobs_for_run(_, _), do: []
@@ -1247,7 +1283,33 @@ defmodule Tuist.Runners.Jobs do
         updated_at: max(j.updated_at)
       })
 
-    from(j in subquery(inner),
+    # A workflow rerun keeps the same workflow_run_id but bumps
+    # run_attempt and lands new job ids, so grouping by run id alone
+    # would fold a failed first attempt into its successful rerun
+    # (wrong status, doubled job count + duration). Tag each deduped
+    # job with its run's highest attempt, then roll up only the jobs
+    # from that latest attempt.
+    with_max_attempt =
+      from(j in subquery(inner),
+        select: %{
+          workflow_run_id: j.workflow_run_id,
+          workflow_name: j.workflow_name,
+          repository: j.repository,
+          head_branch: j.head_branch,
+          head_sha: j.head_sha,
+          run_attempt: j.run_attempt,
+          status: j.status,
+          conclusion: j.conclusion,
+          enqueued_at: j.enqueued_at,
+          started_at: j.started_at,
+          completed_at: j.completed_at,
+          updated_at: j.updated_at,
+          run_max_attempt: fragment("max(?) OVER (PARTITION BY ?)", j.run_attempt, j.workflow_run_id)
+        }
+      )
+
+    from(j in subquery(with_max_attempt),
+      where: j.run_attempt == j.run_max_attempt,
       group_by: j.workflow_run_id,
       select: %{
         workflow_run_id: j.workflow_run_id,
@@ -1260,7 +1322,12 @@ defmodule Tuist.Runners.Jobs do
         status: fragment("if(countIf(? != 'completed') > 0, 'in_progress', 'completed')", j.status),
         conclusion:
           fragment(
-            "if(countIf(? = 'failure') > 0, 'failure', if(countIf(? = 'cancelled') > 0, 'cancelled', if(countIf(? = 'success') > 0, 'success', 'skipped')))",
+            "multiIf(countIf(? = 'failure') > 0, 'failure', countIf(? = 'timed_out') > 0, 'timed_out', countIf(? = 'cancelled') > 0, 'cancelled', countIf(? = 'success') > 0, 'success', countIf(? NOT IN ('', 'skipped')) > 0, anyIf(?, ? NOT IN ('', 'skipped')), countIf(? = 'skipped') > 0, 'skipped', 'unknown')",
+            j.conclusion,
+            j.conclusion,
+            j.conclusion,
+            j.conclusion,
+            j.conclusion,
             j.conclusion,
             j.conclusion,
             j.conclusion
