@@ -3,7 +3,7 @@ defmodule Tuist.IngestRepo.Migrations.AddNetworkPathToKuraUsageEvents do
 
   def up do
     alter table(:kura_usage_events) do
-      add :network_path, :string, null: false, default: "unknown"
+      add :network_path, :string, default: "unknown"
     end
   end
 
