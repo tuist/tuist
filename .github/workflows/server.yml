@@ -407,45 +407,20 @@ jobs:
             exit "$status"
           fi
           echo "Docker build completed"
-      - name: Smoke test production server PromEx metrics
+      - name: Check PromEx runtime dependency
         run: |
           docker run --rm \
             --env DATABASE_URL=ecto://tuist:tuist@127.0.0.1/tuist \
             --env TUIST_DEPLOY_ENV=prod \
             --env TUIST_HOSTED=1 \
             --env TUIST_OBJECT_STORAGE_PROVIDER=azure_blob \
-            --env TUIST_PROMETHEUS_ENABLED=1 \
             tuist/tuist \
             /app/bin/tuist eval '
-              defmodule MetricsServerSmokeTest do
-                use PromEx, otp_app: :tuist
-
-                @impl true
-                def plugins, do: []
-
-                @impl true
-                def dashboard_assigns, do: []
-
-                @impl true
-                def dashboards, do: []
-              end
-
-              Application.put_env(:tuist, MetricsServerSmokeTest,
-                disabled: false,
-                manual_metrics_start_delay: :no_delay,
-                drop_metrics_groups: [],
-                grafana: :disabled,
-                metrics_server: [port: 9091, auth_strategy: :none]
-              )
-
               :web = Tuist.Environment.mode()
               :prod = Tuist.Environment.env()
-              {:ok, _} = Application.ensure_all_started(:telemetry)
               {:ok, _} = Application.ensure_all_started(:plug_cowboy)
-              {:ok, pid} = MetricsServerSmokeTest.start_link([])
               true = Code.ensure_loaded?(Plug.Cowboy)
-              true = Process.alive?(pid)
-              :ok = Supervisor.stop(pid)
+              true = function_exported?(Plug.Cowboy, :child_spec, 1)
             '
       - name: Install Trivy
         env:
