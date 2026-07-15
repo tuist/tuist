@@ -50,6 +50,33 @@ if [ -s "${CACHE_ENDPOINT_PATH}" ]; then
   fi
 fi
 echo "$(date -u +%FT%TZ) run-job: JIT staged, starting runner"
+# Idle-registration TTL watchdog. A JIT runner that registers with GitHub but
+# is never assigned a job sits registered-idle — for hours — freezing whatever
+# was staged at claim time (e.g. TUIST_CACHE_ENDPOINT). When
+# TUIST_RUNNER_IDLE_TTL_SECONDS > 0, arm a background timer before exec: if no
+# job has started within the TTL, SIGTERM the GitHub runner process so the Pod
+# completes (exit) and the RunnerPoolReconciler replaces it with a fresh Pod
+# that re-claims against the current server. The watchdog is disarmed the
+# instant a job starts by ACTIONS_RUNNER_HOOK_JOB_STARTED (job-started-hook.sh),
+# which kills it and drops the marker below — so an in-flight job is never
+# interrupted. Unset/0/non-numeric leaves the runner behaving exactly as before.
+IDLE_TTL=${TUIST_RUNNER_IDLE_TTL_SECONDS:-0}
+case "${IDLE_TTL}" in '' | *[!0-9]*) IDLE_TTL=0 ;; esac
+if [ "${IDLE_TTL}" -gt 0 ]; then
+  export ACTIONS_RUNNER_HOOK_JOB_STARTED=/usr/local/bin/job-started-hook.sh
+  idle_marker=/tmp/tuist-job-started
+  idle_pidfile=/tmp/tuist-idle-watchdog.pid
+  rm -f "${idle_marker}" "${idle_pidfile}"
+  (
+    sleep "${IDLE_TTL}"
+    # A job started meanwhile — the hook created the marker (and killed us,
+    # but re-check in case we woke in the same instant): nothing to recycle.
+    [ -f "${idle_marker}" ] && exit 0
+    echo "$(date -u +%FT%TZ) run-job: idle-registration TTL (${IDLE_TTL}s) exceeded with no job assigned, recycling"
+    pkill -TERM -f 'Runner.Listener run' 2>/dev/null || true
+  ) &
+  echo $! >"${idle_pidfile}"
+fi
 # Forensic vitals for this job's lifetime. Backgrounded so it
 # survives the `exec` below and keeps sampling until the container
 # (and microVM) dies; its last line before a mid-job death lands in

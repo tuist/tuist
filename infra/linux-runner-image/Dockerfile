@@ -106,6 +106,7 @@ RUN apt-get update \
         bzip2 \
         p7zip-full \
         file \
+        procps \
         git-lfs \
         openssh-client \
         postgresql-client \
@@ -210,12 +211,16 @@ USER root
 # infra/runners-controller/AGENTS.md for the split-credential shape.
 COPY dispatch-poll.sh /usr/local/bin/dispatch-poll.sh
 COPY run-job.sh /usr/local/bin/run-job.sh
+# job-started-hook.sh is wired as ACTIONS_RUNNER_HOOK_JOB_STARTED by run-job.sh
+# when the idle-registration watchdog is armed; it disarms the watchdog the
+# instant a job starts so a runner mid-job is never recycled.
+COPY job-started-hook.sh /usr/local/bin/job-started-hook.sh
 COPY vitals.sh /usr/local/bin/vitals.sh
 # metrics-sampler.sh runs in the `metrics` native-sidecar container
 # (holds the SA token like the poller; never the runner container) and
 # POSTs the microVM's machine metrics for the job detail page.
 COPY metrics-sampler.sh /usr/local/bin/metrics-sampler.sh
-RUN chmod +x /usr/local/bin/dispatch-poll.sh /usr/local/bin/run-job.sh /usr/local/bin/vitals.sh /usr/local/bin/metrics-sampler.sh
+RUN chmod +x /usr/local/bin/dispatch-poll.sh /usr/local/bin/run-job.sh /usr/local/bin/job-started-hook.sh /usr/local/bin/vitals.sh /usr/local/bin/metrics-sampler.sh
 
 USER runner
 
