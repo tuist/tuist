@@ -27,10 +27,6 @@ defmodule TuistWeb.ProjectAutomationsLive do
     socket =
       socket
       |> assign(:slack_configured, Environment.slack_configured?())
-      |> assign(
-        :can_manage_automations,
-        Authorization.authorize(:automation_alert_create, current_user, selected_project) == :ok
-      )
       |> assign(:head_title, "#{dgettext("dashboard_projects", "Automations")} · #{selected_project.name} · Tuist")
       |> assign(
         :automation_channel_selection_url,
@@ -404,24 +400,10 @@ defmodule TuistWeb.ProjectAutomationsLive do
     result =
       case assigns.editing_automation_id do
         nil ->
-          with :ok <-
-                 Authorization.authorize(
-                   :automation_alert_create,
-                   assigns.current_user,
-                   assigns.selected_project
-                 ) do
-            Automations.create_alert(attrs)
-          end
+          Automations.create_alert(attrs)
 
         id ->
-          with :ok <-
-                 Authorization.authorize(
-                   :automation_alert_update,
-                   assigns.current_user,
-                   assigns.selected_project
-                 ),
-               {:ok, automation} <- Automations.get_alert(id),
-               true <- automation.project_id == assigns.selected_project.id do
+          with {:ok, automation} <- Automations.get_alert(id) do
             Automations.update_alert(automation, attrs)
           end
       end
@@ -436,18 +418,13 @@ defmodule TuistWeb.ProjectAutomationsLive do
 
         {:noreply, socket}
 
-      _ ->
+      {:error, _} ->
         {:noreply, socket}
     end
   end
 
-  def handle_event(
-        "toggle_automation_enabled",
-        %{"id" => id},
-        %{assigns: %{selected_project: project, current_user: current_user}} = socket
-      ) do
-    with :ok <- Authorization.authorize(:automation_alert_update, current_user, project),
-         {:ok, automation} <- Automations.get_alert(id),
+  def handle_event("toggle_automation_enabled", %{"id" => id}, %{assigns: %{selected_project: project}} = socket) do
+    with {:ok, automation} <- Automations.get_alert(id),
          true <- automation.project_id == project.id,
          {:ok, _} <- Automations.update_alert(automation, %{enabled: not automation.enabled}) do
       {:noreply, assign_automations(socket, project)}
@@ -456,13 +433,8 @@ defmodule TuistWeb.ProjectAutomationsLive do
     end
   end
 
-  def handle_event(
-        "delete_automation",
-        %{"id" => id},
-        %{assigns: %{selected_project: project, current_user: current_user}} = socket
-      ) do
-    with :ok <- Authorization.authorize(:automation_alert_delete, current_user, project),
-         {:ok, automation} <- Automations.get_alert(id),
+  def handle_event("delete_automation", %{"id" => id}, %{assigns: %{selected_project: project}} = socket) do
+    with {:ok, automation} <- Automations.get_alert(id),
          true <- automation.project_id == project.id,
          {:ok, _} <- Automations.delete_alert(automation) do
       {:noreply, assign_automations(socket, project)}

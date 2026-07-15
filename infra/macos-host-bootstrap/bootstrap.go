@@ -266,6 +266,27 @@ type Config struct {
 	// reconciler sets it from `machine.Spec.GHActionsRunner != nil` on
 	// both the bootstrap and update paths.
 	DisableVMGC bool
+
+	// RunnerCacheVolumeGiB, when > 0, provisions a dedicated quota-bounded
+	// APFS volume (mounted at /Volumes/tuist-runner-cache) that holds the
+	// per-account cache-volume images, and passes
+	// `--runner-cache-root` to tart-kubelet so the feature turns on. The
+	// quota is the aggregate ceiling for ALL cache volumes on the host: it
+	// is the filesystem-enforced bound that statically encodes the priority
+	// that cache volumes always lose to the VM image path — even a buggy
+	// reconciler can only ENOSPC the cache volume itself, never the disk the
+	// golden clones need. Sized at provisioning as what the disk leaves
+	// after golden images, the max concurrent pod clones, and OS headroom.
+	// 0 (default) leaves cache volumes off: every VM boots on the cold path.
+	RunnerCacheVolumeGiB int
+
+	// CacheVolumeMasterCapGiB is the provisioned cap of each per-account
+	// master image, passed to tart-kubelet's --cache-volume-cap-gib. The
+	// image is sparse so this is a ceiling, not an allocation; the
+	// RunnerCacheVolumeGiB quota above is the real aggregate bound. 0
+	// defaults to tart-kubelet's own default (20 GiB). Only meaningful when
+	// RunnerCacheVolumeGiB > 0.
+	CacheVolumeMasterCapGiB int
 }
 
 // Run executes the bootstrap. Idempotent: re-running on a partially-
@@ -310,6 +331,9 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 	}
 	if err := installTart(ctx, client, cfg.TartTarball); err != nil {
 		return hk.Observed(), fmt.Errorf("install tart: %w", err)
+	}
+	if err := installRunnerCacheVolume(ctx, client, cfg); err != nil {
+		return hk.Observed(), fmt.Errorf("install runner cache volume: %w", err)
 	}
 	if err := installVMCachePNInterface(ctx, client, cfg); err != nil {
 		return hk.Observed(), fmt.Errorf("install vm cache pn interface: %w", err)
@@ -395,6 +419,14 @@ func UpdateTartKubelet(ctx context.Context, cfg Config) (string, error) {
 	if err := installTartKubelet(ctx, client, cfg.TartKubeletBinary); err != nil {
 		return hk.Observed(), fmt.Errorf("install tart-kubelet: %w", err)
 	}
+	// Re-run on the drift path so an already-bootstrapped host provisions the
+	// runner-cache volume when a fleet-config change first enables it.
+	// Idempotent: the provisioning script skips when the volume is already
+	// mounted, so this never resizes a live volume and no-ops on every
+	// subsequent roll.
+	if err := installRunnerCacheVolume(ctx, client, cfg); err != nil {
+		return hk.Observed(), fmt.Errorf("install runner cache volume: %w", err)
+	}
 	if err := installVMCachePNInterface(ctx, client, cfg); err != nil {
 		return hk.Observed(), fmt.Errorf("refresh vm cache pn interface: %w", err)
 	}
@@ -470,6 +502,7 @@ func HostConfigHash(cfg Config) string {
 		{"firewall", firewall},
 		{"vmnat", renderVMNATScript(cfg)},
 		{"pn-interface", renderVMCachePNInterfaceScript(cfg)},
+		{"runner-cache-volume", renderRunnerCacheVolumeScript(cfg)},
 		{"launchd", renderTartKubeletLaunchdScript(cfg)},
 		{"launchd-plist", renderLaunchdPlist(cfg)},
 		{"tailscale", renderTailscaleScript(cfg)},
@@ -768,6 +801,17 @@ func renderLaunchdPlist(cfg Config) string {
 	if cfg.VNCRelayPort > 0 {
 		vncRelayPortArg = fmt.Sprintf("\n    <string>--vnc-relay-port=%d</string>", cfg.VNCRelayPort)
 	}
+	// Turn on per-account cache volumes when the fleet provisioned
+	// a runner-cache volume. --runner-cache-root points at the auto-mounted
+	// quota volume; --cache-volume-cap-gib carries the per-master cap when
+	// the fleet overrides tart-kubelet's default.
+	runnerCacheArg := ""
+	if cfg.RunnerCacheVolumeGiB > 0 {
+		runnerCacheArg = fmt.Sprintf("\n    <string>--runner-cache-root=%s</string>", runnerCacheMountPoint)
+		if cfg.CacheVolumeMasterCapGiB > 0 {
+			runnerCacheArg += fmt.Sprintf("\n    <string>--cache-volume-cap-gib=%d</string>", cfg.CacheVolumeMasterCapGiB)
+		}
+	}
 	// Run tart-kubelet as the SSH user (m1). Apple's
 	// Virtualization.framework requires the calling process to be the
 	// same user that holds the live GUI console session — Tart's
@@ -790,7 +834,7 @@ func renderLaunchdPlist(cfg Config) string {
     <string>--kubeconfig=/etc/tart-kubelet/kubeconfig</string>
     <string>--host-cpu=%[2]d</string>
     <string>--host-memory-mb=%[3]d</string>
-    <string>--max-pods=%[4]d</string>%[6]s%[7]s%[8]s%[9]s%[10]s%[11]s
+    <string>--max-pods=%[4]d</string>%[6]s%[7]s%[8]s%[9]s%[10]s%[11]s%[12]s
   </array>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
@@ -804,7 +848,7 @@ func renderLaunchdPlist(cfg Config) string {
   </dict>
 </dict>
 </plist>
-`, cfg.NodeName, cpu, mem, maxPods, user, nodeLabelsArg, nodeIPSourceArg, providerIDArg, disableVMGCArg, vncRelayHostArg, vncRelayPortArg)
+`, cfg.NodeName, cpu, mem, maxPods, user, nodeLabelsArg, nodeIPSourceArg, providerIDArg, disableVMGCArg, vncRelayHostArg, vncRelayPortArg, runnerCacheArg)
 }
 
 func shellQuote(s string) string {
@@ -1518,6 +1562,88 @@ func installVMCachePNInterface(ctx context.Context, client *ssh.Client, cfg Conf
 		return nil
 	}
 	return RunCommand(ctx, client, renderVMCachePNInterfaceScript(cfg))
+}
+
+// runnerCacheVolumeName is the APFS volume name (and, via /Volumes/<name>, the
+// mount point) of the quota-bounded runner-cache root. Shared between the
+// provisioning script and the tart-kubelet launchd flag so the two can't
+// drift.
+const runnerCacheVolumeName = "tuist-runner-cache"
+
+// runnerCacheMountPoint is where the provisioned APFS volume auto-mounts and
+// where tart-kubelet's --runner-cache-root points.
+const runnerCacheMountPoint = "/Volumes/" + runnerCacheVolumeName
+
+// installRunnerCacheVolume provisions the quota-bounded APFS volume that holds
+// per-account cache-volume images. No-op when the fleet hasn't
+// opted in (RunnerCacheVolumeGiB == 0). Idempotent: it skips when the volume
+// is already mounted, so re-provisioning never grows/shrinks a live volume.
+//
+// Runs on both the first-boot (Run) and drift-update (UpdateTartKubelet)
+// paths so a fleet that opts into cache volumes after its minis are already
+// bootstrapped gets the volume on the next drift roll rather than only via
+// host replacement. The mounted-check keeps it a one-time host-shaping step:
+// an existing volume is never resized under live jobs (a cap change ships
+// via host replacement).
+func installRunnerCacheVolume(ctx context.Context, client *ssh.Client, cfg Config) error {
+	if cfg.RunnerCacheVolumeGiB <= 0 {
+		return nil
+	}
+	return RunCommand(ctx, client, renderRunnerCacheVolumeScript(cfg))
+}
+
+// renderRunnerCacheVolumeScript adds a dedicated APFS volume to the boot
+// container with a hard quota. The quota is the filesystem ceiling that fences
+// the whole cache subsystem: cache volumes can only ever ENOSPC themselves,
+// never the disk the VM images and golden clones need. Additional APFS volumes
+// in the boot container auto-mount at /Volumes/<name> on every boot.
+func renderRunnerCacheVolumeScript(cfg Config) string {
+	return fmt.Sprintf(`set -euo pipefail
+VOL=%[1]s
+MOUNT=%[2]s
+QUOTA_GIB=%[3]d
+OWNER=%[4]s
+# Provision the volume only if it isn't already mounted. Idempotent: a
+# provisioned volume is never resized under live jobs (a cap change ships via
+# host replacement).
+if ! /usr/sbin/diskutil info "$MOUNT" >/dev/null 2>&1; then
+  # Resolve the APFS container backing the boot volume; the cache volume shares
+  # that container's free space but is capped by its own quota. On modern macOS
+  # "/" is a sealed snapshot whose diskutil info labels the container "APFS
+  # Container:" (not "... Reference:"), so read the machine-readable plist key
+  # off the always-real Data volume; fall back to a text parse for older macOS.
+  CONTAINER=$(/usr/sbin/diskutil info -plist /System/Volumes/Data 2>/dev/null | /usr/bin/plutil -extract APFSContainerReference raw -o - - 2>/dev/null || true)
+  if [ -z "${CONTAINER:-}" ]; then
+    CONTAINER=$(/usr/sbin/diskutil info / | awk -F'[[:space:]]*:[[:space:]]*' '/APFS Container:/{print $2; exit}')
+  fi
+  if [ -z "${CONTAINER:-}" ]; then
+    echo "could not determine APFS container for /System/Volumes/Data" >&2
+    exit 1
+  fi
+  sudo /usr/sbin/diskutil apfs addVolume "$CONTAINER" APFS "$VOL" -quota "${QUOTA_GIB}GiB"
+  # addVolume auto-mounts at /Volumes/<name>; confirm before returning so a
+  # failed mount fails the bootstrap loudly rather than leaving tart-kubelet to
+  # ENOENT on its --runner-cache-root.
+  /usr/sbin/diskutil info "$MOUNT" >/dev/null
+  echo "provisioned runner-cache volume $VOL (${QUOTA_GIB} GiB quota) at $MOUNT"
+fi
+# The volume is created and auto-mounted by root, but tart-kubelet runs as
+# $OWNER and must create per-account and per-branch directories under the root.
+# Without a runner-owned root, the very first branch allocation fails and every
+# job silently falls back to a cold cache. Enforce ownership on EVERY run — not
+# only at first provision — so a volume left root-owned by an earlier bootstrap
+# is repaired rather than skipped by the mounted-volume early return.
+# enableOwnership makes the chown authoritative (auto-mounted data volumes can
+# otherwise ignore on-disk ownership).
+sudo /usr/sbin/diskutil enableOwnership "$MOUNT" >/dev/null 2>&1 || true
+sudo /usr/sbin/chown "$OWNER" "$MOUNT"
+sudo /bin/chmod 0755 "$MOUNT"
+# Verify the runner user can actually write the root before returning, so a
+# botched ownership fixup fails the bootstrap loudly instead of degrading every
+# job to cold at runtime.
+sudo -u "$OWNER" /bin/test -w "$MOUNT"
+echo "runner-cache volume at $MOUNT owned by $OWNER"
+`, runnerCacheVolumeName, runnerCacheMountPoint, cfg.RunnerCacheVolumeGiB, cfg.SSHUser)
 }
 
 // renderVMCachePNInterfaceScript materializes the per-host VLAN

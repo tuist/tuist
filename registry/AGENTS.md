@@ -96,9 +96,10 @@ already are on the managed clusters, installed by the platform chart):
   `onepassword`
 - cert-manager with a `ClusterIssuer` named `letsencrypt-cloudflare`
 - ingress-nginx
-- external-dns (for per-env hostnames; `registry.tuist.dev` itself
-  is owned by the existing Cloudflare Worker and is not managed by
-  external-dns)
+- external-dns (for per-env hostnames and the production
+  `registry-origin.tuist.dev` resolution alias; the production ingress still
+  routes and terminates certificates for `registry.tuist.dev`, which is owned
+  by the Cloudflare Worker and is not managed by external-dns)
 
 ### `REGISTRY` 1Password item
 Per environment vault (`tuist-k8s-{staging,canary,production}`), the

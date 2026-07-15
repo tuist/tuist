@@ -25,10 +25,28 @@ defmodule Tuist.Release do
         Ecto.Migrator.with_repo(repo, fn repo ->
           ensure_database_schema(repo)
           Ecto.Migrator.run(repo, :up, all: true)
+          assert_all_migrations_up(repo)
           grant_runtime_role(repo)
           grant_processor_role(repo)
           grant_swift_registry_sync_role(repo)
         end)
+    end
+  end
+
+  # A migration that brings the VM down instead of raising (an exit signal from a
+  # linked process, say) leaves `Ecto.Migrator.run/3` looking like it succeeded,
+  # so the deploy would report success and boot against a half-migrated database.
+  # Fail loudly instead of trusting the run's return value.
+  defp assert_all_migrations_up(repo) do
+    pending =
+      repo
+      |> Ecto.Migrator.migrations()
+      |> Enum.filter(fn {status, _version, _name} -> status == :down end)
+
+    if !Enum.empty?(pending) do
+      versions = Enum.map_join(pending, ", ", fn {_status, version, _name} -> version end)
+
+      raise "Migrations are still pending for #{inspect(repo)} after migrating: #{versions}"
     end
   end
 

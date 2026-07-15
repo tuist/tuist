@@ -1759,21 +1759,8 @@ defmodule Tuist.Tests do
         }
       end)
 
-    # The client uploads attachments and crash reports as soon as it receives the
-    # IDs in this response, and those endpoints authorize each upload against the
-    # test case run and its arguments. Both tables sit behind an ingestion buffer
-    # that only flushes periodically, so write them through before returning
-    # rather than leaving them to the asynchronous batch below, which would make
-    # the uploads race the flush and be rejected as not found.
-    TestCaseRun.Buffer.insert_all(test_case_runs)
-    TestCaseRun.Buffer.flush()
-
-    if Enum.any?(all_arguments) do
-      TestCaseRunArgument.Buffer.insert_all(all_arguments)
-      TestCaseRunArgument.Buffer.flush()
-    end
-
     Tuist.Tasks.run_async(fn ->
+      TestCaseRun.Buffer.insert_all(test_case_runs)
       TestCaseFailure.Buffer.insert_all(all_failures)
 
       if Enum.any?(all_repetitions) do
@@ -1782,6 +1769,10 @@ defmodule Tuist.Tests do
 
       if Enum.any?(all_attachments) do
         TestCaseRunAttachment.Buffer.insert_all(all_attachments)
+      end
+
+      if Enum.any?(all_arguments) do
+        TestCaseRunArgument.Buffer.insert_all(all_arguments)
       end
     end)
 

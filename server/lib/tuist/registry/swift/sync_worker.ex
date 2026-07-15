@@ -13,6 +13,7 @@ defmodule Tuist.Registry.Swift.SyncWorker do
   alias Tuist.Registry
   alias Tuist.Registry.Swift.Lock
   alias Tuist.Registry.Swift.Metadata
+  alias Tuist.Registry.Swift.Purge
   alias Tuist.Registry.Swift.ReleaseWorker
   alias Tuist.Registry.Swift.SwiftPackageIndex
   alias Tuist.Registry.Swift.SyncCursor
@@ -24,6 +25,7 @@ defmodule Tuist.Registry.Swift.SyncWorker do
 
   @sync_lock_ttl_seconds 3_000
   @package_lock_ttl_seconds 900
+  @release_lock_ttl_seconds 1_800
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: args}) do
@@ -37,29 +39,34 @@ defmodule Tuist.Registry.Swift.SyncWorker do
         :ok
 
       true ->
-        case Lock.try_acquire(:sync, @sync_lock_ttl_seconds) do
-          {:ok, :acquired} ->
-            try do
-              sync_packages(args, Registry.swift_registry_github_token())
-            after
-              Lock.release(:sync)
-            end
+        perform_sync(args, Registry.swift_registry_github_token())
+    end
+  end
 
-          {:error, :already_locked} ->
-            Logger.debug("Registry sync skipped: another node is the leader")
-            :ok
+  defp perform_sync(%{"force" => true, "repository_full_handle" => repository_full_handle, "version" => version}, token) do
+    force_resync_package_version_for_handle(repository_full_handle, version, token)
+  end
+
+  defp perform_sync(args, token) do
+    case Lock.try_acquire(:sync, @sync_lock_ttl_seconds) do
+      {:ok, :acquired} ->
+        try do
+          sync_packages(args, token)
+        after
+          Lock.release(:sync)
         end
+
+      {:error, :already_locked} ->
+        Logger.debug("Registry sync skipped: another node is the leader")
+        :ok
     end
   end
 
   defp sync_packages(args, token) do
     limit = Map.get(args, "limit", Registry.swift_registry_sync_limit())
-    allowlist = Registry.swift_registry_sync_allowlist()
 
-    case SwiftPackageIndex.list_packages(token) do
+    case list_packages(token) do
       {:ok, packages} ->
-        packages = apply_allowlist(packages, allowlist)
-
         case packages do
           [] ->
             :ok
@@ -71,28 +78,78 @@ defmodule Tuist.Registry.Swift.SyncWorker do
             :ok
         end
 
+      {:discard, _reason} = discard ->
+        discard
+
+      {:error, _reason} = error ->
+        error
+    end
+  end
+
+  defp force_resync_package_version_for_handle(repository_full_handle, version, token) do
+    normalized_version = KeyNormalizer.normalize_version(version)
+
+    if KeyNormalizer.valid_storage_version?(normalized_version) do
+      case list_packages(token) do
+        {:ok, packages} ->
+          case Enum.find(
+                 packages,
+                 &(String.downcase(&1.repository_full_handle) ==
+                     String.downcase(repository_full_handle))
+               ) do
+            nil ->
+              Logger.warning("Registry force resync skipped: package is not in the catalog: #{repository_full_handle}")
+
+              {:discard, :package_not_found}
+
+            package ->
+              force_resync_package_version(package, normalized_version, token)
+          end
+
+        {:discard, _reason} = discard ->
+          discard
+
+        {:error, _reason} = error ->
+          error
+      end
+    else
+      Logger.warning("Registry force resync skipped: invalid version #{version} for #{repository_full_handle}")
+
+      {:discard, :invalid_version}
+    end
+  end
+
+  defp list_packages(token) do
+    case SwiftPackageIndex.list_packages(token) do
+      {:ok, packages} ->
+        {:ok, apply_allowlist(packages, Registry.swift_registry_sync_allowlist())}
+
       {:error, reason} ->
-        if transient_fetch_error?(reason) do
-          # A transport/protocol blip talking to GitHub (connection closed
-          # mid-flight, timeout, DNS hiccup). This is a cron worker that
-          # fires every 10 minutes, so the next tick retries for free.
-          # Retrying the Oban job instead just replays the same failure up
-          # to max_attempts and pages Sentry each time for something
-          # un-actionable. Discard quietly; the warning keeps it in logs.
-          Logger.warning("Skipping SPI package list fetch after transient error: #{inspect(reason)}")
-          {:discard, reason}
-        else
-          # HTTP-status failures (403 rate/abuse limit, 5xx, an auth or
-          # scope problem) can be persistent and are worth surfacing, so
-          # they stay a hard error that retries and reports.
-          Logger.error("Failed to fetch SPI package list: #{inspect(reason)}")
-          {:error, reason}
-        end
+        package_list_error(reason)
+    end
+  end
+
+  defp package_list_error(reason) do
+    if transient_fetch_error?(reason) do
+      # A transport or protocol failure talking to GitHub (connection closed
+      # mid-flight, timeout, or name resolution failure). This is a cron worker that
+      # fires every 10 minutes, so the next tick retries for free.
+      # Retrying the Oban job instead just replays the same failure up
+      # to max_attempts and pages Sentry each time for something
+      # un-actionable. Discard quietly; the warning keeps it in logs.
+      Logger.warning("Skipping Swift Package Index list fetch after transient error: #{inspect(reason)}")
+      {:discard, reason}
+    else
+      # Response-status failures (403 rate or abuse limit, 5xx, an authentication or
+      # scope problem) can be persistent and are worth surfacing, so
+      # they stay a hard error that retries and reports.
+      Logger.error("Failed to fetch Swift Package Index list: #{inspect(reason)}")
+      {:error, reason}
     end
   end
 
   # Transport and protocol errors arrive as Req exception structs; a real
-  # HTTP response maps to a `{:http_error, status}` tuple upstream and is
+  # response maps to a `{:http_error, status}` tuple upstream and is
   # deliberately excluded here so 403s and 5xx keep surfacing.
   defp transient_fetch_error?(%Req.TransportError{}), do: true
   defp transient_fetch_error?(%Req.HTTPError{}), do: true
@@ -114,6 +171,10 @@ defmodule Tuist.Registry.Swift.SyncWorker do
     end
   end
 
+  defp force_resync_package_version(%{scope: scope, name: name, repository_full_handle: full_handle}, version, token) do
+    do_force_resync_package_version(scope, name, full_handle, version, token)
+  end
+
   defp do_sync_package(scope, name, full_handle, token) do
     metadata =
       case Metadata.get_package(scope, name) do
@@ -123,16 +184,82 @@ defmodule Tuist.Registry.Swift.SyncWorker do
 
     case TuistCommon.GitHub.list_tags(full_handle, token, @github_opts) do
       {:ok, tags} ->
-        missing_versions = missing_versions(tags, metadata)
-        updated_metadata = update_metadata(metadata, scope, name, full_handle)
-        :ok = Metadata.put_package(scope, name, updated_metadata)
-        enqueue_release_workers(scope, name, full_handle, missing_versions)
-        :ok
+        sync_tags(scope, name, full_handle, tags, metadata)
 
       {:error, reason} ->
         Logger.warning("Failed to fetch tags for #{scope}/#{name}: #{inspect(reason)}")
         :ok
     end
+  end
+
+  defp do_force_resync_package_version(scope, name, full_handle, version, token) do
+    case TuistCommon.GitHub.list_tags(full_handle, token, @github_opts) do
+      {:ok, tags} ->
+        case source_tag_for_version(tags, version) do
+          nil ->
+            Logger.warning("Registry force resync skipped: version #{version} is not a current tag for #{full_handle}")
+
+            {:discard, :version_not_found}
+
+          tag ->
+            with {:ok, _result} <- purge_package_version(scope, name, version) do
+              enqueue_release_worker(scope, name, full_handle, tag)
+            end
+        end
+
+      {:error, reason} ->
+        Logger.warning("Failed to fetch tags before force resyncing #{scope}/#{name}@#{version}: #{inspect(reason)}")
+
+        {:error, reason}
+    end
+  end
+
+  defp purge_package_version(scope, name, version) do
+    lock_key = {:release, scope, name, version}
+
+    case Lock.try_acquire(lock_key, @release_lock_ttl_seconds) do
+      {:ok, :acquired} ->
+        try do
+          purge_package_version_with_package_lock(scope, name, version)
+        after
+          Lock.release(lock_key)
+        end
+
+      {:error, :already_locked} ->
+        {:snooze, 30}
+    end
+  end
+
+  defp purge_package_version_with_package_lock(scope, name, version) do
+    lock_key = {:package, scope, name}
+
+    case Lock.try_acquire(lock_key, @package_lock_ttl_seconds) do
+      {:ok, :acquired} ->
+        try do
+          Purge.purge_version(scope, name, version)
+        after
+          Lock.release(lock_key)
+        end
+
+      {:error, :already_locked} ->
+        {:snooze, 30}
+    end
+  end
+
+  defp source_tag_for_version(tags, version) do
+    Enum.find(tags, fn tag ->
+      KeyNormalizer.valid_source_tag?(tag) and
+        not String.ends_with?(tag, "-dev") and
+        KeyNormalizer.normalize_version(tag) == version
+    end)
+  end
+
+  defp sync_tags(scope, name, full_handle, tags, metadata) do
+    missing_versions = missing_versions(tags, metadata)
+    updated_metadata = update_metadata(metadata, scope, name, full_handle)
+    :ok = Metadata.put_package(scope, name, updated_metadata)
+    enqueue_release_workers(scope, name, full_handle, missing_versions)
+    :ok
   end
 
   defp missing_versions(tags, metadata) do
@@ -152,10 +279,17 @@ defmodule Tuist.Registry.Swift.SyncWorker do
 
   defp enqueue_release_workers(scope, name, full_handle, versions) do
     Enum.each(versions, fn tag ->
-      %{scope: scope, name: name, repository_full_handle: full_handle, tag: tag}
-      |> ReleaseWorker.new()
-      |> Oban.insert()
+      enqueue_release_worker(scope, name, full_handle, tag)
     end)
+  end
+
+  defp enqueue_release_worker(scope, name, full_handle, tag) do
+    case %{scope: scope, name: name, repository_full_handle: full_handle, tag: tag}
+         |> ReleaseWorker.new()
+         |> Oban.insert() do
+      {:ok, _job} -> :ok
+      {:error, _reason} = error -> error
+    end
   end
 
   defp update_metadata(metadata, scope, name, full_handle) do

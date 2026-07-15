@@ -30,6 +30,7 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
     "repository not found",
     "does not appear to be a git repository",
     "the requested url returned error: 404",
+    "write access to repository not granted",
     "fatal: could not read username for",
     "not our ref",
     "did not contain",
@@ -351,7 +352,8 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
       String.starts_with?(nested_submodule_path, submodule_path <> "/")
   end
 
-  defp skippable_submodule_failure?(output) do
+  @doc false
+  def skippable_submodule_failure?(output) do
     Enum.any?(
       @skippable_submodule_failure_markers,
       &(output |> String.downcase() |> String.contains?(&1))

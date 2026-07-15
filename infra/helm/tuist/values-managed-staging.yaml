@@ -104,6 +104,13 @@ server:
 
   appUrl: https://staging.tuist.dev
 
+  # Cache-signing grant key: sync the Ed25519 PEM from the
+  # TUIST_CACHE_GRANT_PRIVATE_KEY 1Password item so dispatch mints
+  # account-scoped cache grants for runner jobs.
+  externalSecrets:
+    cacheGrant:
+      item: TUIST_CACHE_GRANT_PRIVATE_KEY
+
   # Stripe price IDs (identifiers, not secrets — the API keys live in the
   # STRIPE 1Password item). Staging's own (test-mode) IDs; the chart
   # JSON-encodes this into TUIST_STRIPE_PRICES.
@@ -448,6 +455,15 @@ ovhFleet:
 macosFleet:
   enabled: true
   replicas: 1
+  # Per-account cache volumes, validated on staging first. The quota is an
+  # APFS ceiling (shares the container's free space, not a reservation)
+  # fenced by admission + watermark eviction. A real Tuist cache master is
+  # ~2.4 GB (the 20 GiB masterCapGib is a sparse per-master ceiling), so
+  # 40 GiB holds ~16 masters — ample for the 1-2 accounts staging runs.
+  # Operator-wide, so it also provisions a (harmless, unused) volume on the
+  # xcresult host.
+  runnerCacheVolume:
+    gib: 40
   # Share the pre-ordered pool with runnersFleet (same prefix
   # below). Both MachineDeployments draw from one Scaleway-side
   # pool of `tuist-pool-*` hosts; the controller claims the first
