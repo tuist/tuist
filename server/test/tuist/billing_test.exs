@@ -151,6 +151,30 @@ defmodule Tuist.BillingTest do
     end
   end
 
+  describe "cache egress pricing" do
+    test "prices public cache egress by decimal gigabyte" do
+      assert Billing.cache_egress_price() == Money.new(10, :USD)
+      assert Billing.cache_egress_cost(15_000_000_000) == Money.new(150, :USD)
+    end
+
+    test "projects usage through the end of the billing period" do
+      start_at = ~U[2026-07-01 00:00:00Z]
+      now = ~U[2026-07-11 00:00:00Z]
+      end_at = ~U[2026-07-31 00:00:00Z]
+
+      assert Billing.projected_cache_egress_bytes(10_000_000_000, start_at, end_at, now) ==
+               30_000_000_000
+    end
+
+    test "does not project below already-recorded usage after a period closes" do
+      start_at = ~U[2026-07-01 00:00:00Z]
+      end_at = ~U[2026-08-01 00:00:00Z]
+      now = ~U[2026-08-02 00:00:00Z]
+
+      assert Billing.projected_cache_egress_bytes(10_000, start_at, end_at, now) == 10_000
+    end
+  end
+
   describe "on_subscription_change/1" do
     test "when an account for the given customer doesn't exist" do
       # When
@@ -847,13 +871,17 @@ defmodule Tuist.BillingTest do
 
       assert Billing.current_billing_period(account, now) == %{
                start_at: ~U[2026-07-01 00:00:00Z],
-               end_at: now
+               end_at: now,
+               closes_at: ~U[2026-08-01 00:00:00Z],
+               previous_start_at: ~U[2026-06-01 00:00:00Z],
+               previous_end_at: ~U[2026-06-30 23:59:59Z]
              }
     end
 
-    test "uses the active Stripe subscription period start" do
+    test "uses the active Stripe subscription period boundaries" do
       now = ~U[2026-07-14 10:30:00Z]
       period_start = ~U[2026-07-05 12:00:00Z]
+      period_end = ~U[2026-08-05 12:00:00Z]
       account = Accounts.get_account_from_user(AccountsFixtures.user_fixture())
 
       BillingFixtures.subscription_fixture(
@@ -862,12 +890,19 @@ defmodule Tuist.BillingTest do
       )
 
       expect(Stripe.Subscription, :retrieve, fn "sub_current_period" ->
-        {:ok, %{current_period_start: DateTime.to_unix(period_start)}}
+        {:ok,
+         %{
+           current_period_start: DateTime.to_unix(period_start),
+           current_period_end: DateTime.to_unix(period_end)
+         }}
       end)
 
       assert Billing.current_billing_period(account, now) == %{
                start_at: period_start,
-               end_at: now
+               end_at: now,
+               closes_at: period_end,
+               previous_start_at: ~U[2026-06-05 12:00:00Z],
+               previous_end_at: ~U[2026-07-05 11:59:59Z]
              }
     end
 
@@ -886,7 +921,10 @@ defmodule Tuist.BillingTest do
 
       assert Billing.current_billing_period(account, now) == %{
                start_at: ~U[2026-07-01 00:00:00Z],
-               end_at: now
+               end_at: now,
+               closes_at: ~U[2026-08-01 00:00:00Z],
+               previous_start_at: ~U[2026-06-01 00:00:00Z],
+               previous_end_at: ~U[2026-06-30 23:59:59Z]
              }
     end
   end

@@ -22,8 +22,12 @@ defmodule Tuist.Billing do
   # Unfortunately, this data can't be obtained and cached
   # from the Stripe's API, so we have to make sure it's in sync
   # with the values on Stripe.
+  @bytes_per_gigabyte 1_000_000_000
   @payment_thresholds %{remote_cache_hits: 200}
-  @unit_prices %{remote_cache_hit: Money.new(50, :USD)}
+  @unit_prices %{
+    cache_egress_gigabyte: Money.new(10, :USD),
+    remote_cache_hit: Money.new(50, :USD)
+  }
 
   def get_payment_thresholds do
     @payment_thresholds
@@ -31,6 +35,22 @@ defmodule Tuist.Billing do
 
   def get_unit_prices do
     @unit_prices
+  end
+
+  def cache_egress_price do
+    @unit_prices.cache_egress_gigabyte
+  end
+
+  def cache_egress_cost(bytes) when is_integer(bytes) and bytes >= 0 do
+    gigabytes = Decimal.div(Decimal.new(bytes), Decimal.new(@bytes_per_gigabyte))
+    Money.multiply(cache_egress_price(), gigabytes)
+  end
+
+  def projected_cache_egress_bytes(bytes, start_at, end_at, now) when is_integer(bytes) and bytes >= 0 do
+    elapsed_seconds = max(DateTime.diff(now, start_at, :second), 1)
+    period_seconds = max(DateTime.diff(end_at, start_at, :second), elapsed_seconds)
+
+    max(bytes, div(bytes * period_seconds, elapsed_seconds))
   end
 
   def get_plans do
@@ -497,29 +517,62 @@ defmodule Tuist.Billing do
   end
 
   @doc """
-  Returns the current billing period to date for an account.
+  Returns the current and previous billing period boundaries for an account.
 
-  Active subscriptions use Stripe's period boundary. Accounts without an
+  Active subscriptions use Stripe's period boundaries. Accounts without an
   active subscription use the current calendar month so metered usage still
   has a stable reset point before a price is attached.
   """
   def current_billing_period(%Account{} = account, now \\ Tuist.Time.utc_now()) do
-    start_at =
+    {start_at, closes_at} =
       case get_current_active_subscription(account) do
         nil ->
-          Timex.beginning_of_month(now)
+          calendar_month(now)
 
         %Subscription{subscription_id: subscription_id} ->
           case Stripe.Subscription.retrieve(subscription_id) do
-            {:ok, %{current_period_start: current_period_start}} ->
-              DateTime.from_unix!(current_period_start)
+            {:ok,
+             %{
+               current_period_start: current_period_start,
+               current_period_end: current_period_end
+             }}
+            when is_integer(current_period_start) and is_integer(current_period_end) ->
+              {DateTime.from_unix!(current_period_start), DateTime.from_unix!(current_period_end)}
+
+            {:ok, %{current_period_start: current_period_start}} when is_integer(current_period_start) ->
+              start_at = DateTime.from_unix!(current_period_start)
+              {start_at, Timex.shift(start_at, months: 1)}
 
             _ ->
-              Timex.beginning_of_month(now)
+              calendar_month(now)
           end
       end
 
-    %{start_at: start_at, end_at: now}
+    %{
+      start_at: start_at,
+      end_at: now,
+      closes_at: closes_at,
+      previous_start_at: previous_period_start(start_at, closes_at),
+      previous_end_at: DateTime.add(start_at, -1, :second)
+    }
+  end
+
+  defp calendar_month(now) do
+    start_at = Timex.beginning_of_month(now)
+    {start_at, Timex.shift(start_at, months: 1)}
+  end
+
+  defp previous_period_start(start_at, closes_at) do
+    cond do
+      DateTime.compare(Timex.shift(start_at, months: 1), closes_at) == :eq ->
+        Timex.shift(start_at, months: -1)
+
+      DateTime.compare(Timex.shift(start_at, years: 1), closes_at) == :eq ->
+        Timex.shift(start_at, years: -1)
+
+      true ->
+        DateTime.add(start_at, -DateTime.diff(closes_at, start_at, :second), :second)
+    end
   end
 
   @doc """

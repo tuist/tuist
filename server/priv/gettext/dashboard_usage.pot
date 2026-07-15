@@ -79,7 +79,6 @@ msgstr ""
 msgid "The page you are looking for doesn't exist or has been moved."
 msgstr ""
 
-#: lib/tuist_web/live/billing_usage_live.ex:103
 #: lib/tuist_web/live/usage_live.html.heex:105
 #: lib/tuist_web/live/usage_live.html.heex:246
 #, elixir-autogen, elixir-format
@@ -154,27 +153,6 @@ msgstr ""
 msgid "Cache usage"
 msgstr ""
 
-#: lib/tuist_web/live/billing_usage_live.html.heex:15
-#, elixir-autogen, elixir-format
-msgid "Billable cache traffic"
-msgstr ""
-
-#: lib/tuist_web/live/billing_usage_live.html.heex:6
-#, elixir-autogen, elixir-format
-msgid "Billable public cache traffic for this account. Private runner traffic is excluded."
-msgstr ""
-
-#: lib/tuist_web/live/billing_usage_live.ex:29
-#: lib/tuist_web/live/billing_usage_live.html.heex:4
-#, elixir-autogen, elixir-format
-msgid "Metered usage"
-msgstr ""
-
-#: lib/tuist_web/live/billing_usage_live.html.heex:25
-#, elixir-autogen, elixir-format
-msgid "No billable egress in this window yet"
-msgstr ""
-
 #: lib/tuist_web/live/usage_live.ex:246
 #, elixir-autogen, elixir-format
 msgid "No cache traffic in this window yet"
@@ -183,4 +161,71 @@ msgstr ""
 #: lib/tuist_web/live/usage_live.html.heex:6
 #, elixir-autogen, elixir-format
 msgid "Traffic and request volume served by Tuist Cache for this account."
+msgstr ""
+
+#: lib/tuist_web/live/billing_usage_live.html.heex:15
+#, elixir-autogen, elixir-format
+msgid "Bill overview"
+msgstr ""
+
+#: lib/tuist_web/live/billing_usage_live.ex:30
+#: lib/tuist_web/live/billing_usage_live.html.heex:4
+#, elixir-autogen, elixir-format
+msgid "Cache billing"
+msgstr ""
+
+#: lib/tuist_web/live/billing_usage_live.ex:124
+#: lib/tuist_web/live/billing_usage_live.html.heex:45
+#, elixir-autogen, elixir-format
+msgid "Cost to date"
+msgstr ""
+
+#: lib/tuist_web/live/billing_usage_live.html.heex:82
+#, elixir-autogen, elixir-format
+msgid "Current billing period"
+msgstr ""
+
+#: lib/tuist_web/live/billing_usage_live.html.heex:62
+#, elixir-autogen, elixir-format
+msgid "Estimated next cache bill"
+msgstr ""
+
+#: lib/tuist_web/live/billing_usage_live.html.heex:101
+#, elixir-autogen, elixir-format
+msgid "No billable cache downloads this period"
+msgstr ""
+
+#: lib/tuist_web/live/billing_usage_live.html.heex:28
+#, elixir-autogen, elixir-format
+msgid "Previous cache bill"
+msgstr ""
+
+#: lib/tuist_web/live/billing_usage_live.html.heex:65
+#, elixir-autogen, elixir-format
+msgid "Projected from usage since %{start_date}. The billing period closes %{end_date}."
+msgstr ""
+
+#: lib/tuist_web/live/billing_usage_live.html.heex:30
+#, elixir-autogen, elixir-format
+msgid "Public cache downloads from %{start_date} through %{end_date}, calculated at the current rate."
+msgstr ""
+
+#: lib/tuist_web/live/billing_usage_live.html.heex:48
+#, elixir-autogen, elixir-format
+msgid "Public cache downloads since %{start_date}."
+msgstr ""
+
+#: lib/tuist_web/live/billing_usage_live.html.heex:6
+#, elixir-autogen, elixir-format
+msgid "Track what public cache downloads cost. Private runner traffic is excluded."
+msgstr ""
+
+#: lib/tuist_web/live/billing_usage_live.html.heex:22
+#, elixir-autogen, elixir-format
+msgid "per gigabyte"
+msgstr ""
+
+#: lib/tuist_web/live/billing_usage_live.html.heex:89
+#, elixir-autogen, elixir-format
+msgid "to"
 msgstr ""

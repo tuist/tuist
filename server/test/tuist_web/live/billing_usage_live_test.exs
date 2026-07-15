@@ -76,7 +76,19 @@ defmodule TuistWeb.BillingUsageLiveTest do
 
   test "renders only billable egress under Billing", %{conn: conn, account: account} do
     stub_kura_billing_flag(account, true)
-    insert_event(%{account_id: account.id, bytes: 1_000_000})
+    current_period_start = Timex.beginning_of_month(DateTime.utc_now())
+
+    insert_event(%{account_id: account.id, bytes: 10_000_000_000})
+
+    insert_event(%{
+      account_id: account.id,
+      bytes: 20_000_000_000,
+      window_start:
+        current_period_start
+        |> Timex.shift(days: -1)
+        |> DateTime.to_naive()
+        |> NaiveDateTime.truncate(:second)
+    })
 
     insert_event(%{
       account_id: account.id,
@@ -94,9 +106,14 @@ defmodule TuistWeb.BillingUsageLiveTest do
     {:ok, lv, html} = live(conn, ~p"/#{account.name}/billing/usage")
     html = html <> render_async(lv, @render_async_timeout)
 
-    assert html =~ "Metered usage"
-    assert html =~ "Billable cache traffic"
+    assert html =~ "Cache billing"
+    assert html =~ "Bill overview"
+    assert html =~ "$0.10"
     assert html =~ "Private runner traffic is excluded"
+    assert html =~ "Previous cache bill"
+    assert html =~ "Estimated next cache bill"
+    assert render(element(lv, "#widget-previous-cache-bill")) =~ "$2.00"
+    assert render(element(lv, "#widget-cache-cost-to-date")) =~ "$1.00"
     assert has_element?(lv, "#billing-usage-egress-chart")
     assert has_element?(lv, ~s([id="sidebar-billing"]))
     refute has_element?(lv, "#widget-billable-egress")
@@ -109,23 +126,27 @@ defmodule TuistWeb.BillingUsageLiveTest do
 
     {:ok, lv, _html} = live(conn, ~p"/#{account.name}/billing/usage")
 
-    assert render_async(lv, @render_async_timeout) =~ "No billable egress in this window yet"
+    html = render_async(lv, @render_async_timeout)
+
+    assert html =~ "No billable cache downloads this period"
+    assert render(element(lv, "#widget-cache-cost-to-date")) =~ "$0.00"
+    assert render(element(lv, "#widget-estimated-next-cache-bill")) =~ "$0.00"
   end
 
-  test "builds a cumulative chart series" do
+  test "builds a cumulative cost chart series" do
     first_date = ~D[2026-07-01]
     second_date = ~D[2026-07-02]
 
     assert [
              %{
-               data: [[^first_date, 100], [^second_date, 300]],
-               name: "Egress",
+               data: [[^first_date, 1.0], [^second_date, 3.0]],
+               name: "Cost to date",
                type: "line"
              }
            ] =
              TuistWeb.BillingUsageLive.chart_series(%{
                dates: [first_date, second_date],
-               values: [100, 300]
+               values: [10_000_000_000, 30_000_000_000]
              })
   end
 end

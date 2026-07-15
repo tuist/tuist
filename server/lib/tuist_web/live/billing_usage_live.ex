@@ -24,9 +24,10 @@ defmodule TuistWeb.BillingUsageLive do
     {:ok,
      socket
      |> assign(:billing_period, Billing.current_billing_period(account))
+     |> assign(:cache_egress_price, Billing.cache_egress_price())
      |> assign(
        :head_title,
-       "#{dgettext("dashboard_usage", "Metered usage")} · #{account.name} · Tuist"
+       "#{dgettext("dashboard_usage", "Cache billing")} · #{account.name} · Tuist"
      )}
   end
 
@@ -34,17 +35,34 @@ defmodule TuistWeb.BillingUsageLive do
   def handle_params(
         _params,
         _uri,
-        %{assigns: %{selected_account: account, billing_period: %{start_at: start_dt, end_at: end_dt}}} = socket
+        %{
+          assigns: %{
+            selected_account: account,
+            billing_period: %{
+              start_at: start_dt,
+              end_at: end_dt,
+              closes_at: closes_at,
+              previous_start_at: previous_start_at,
+              previous_end_at: previous_end_at
+            }
+          }
+        } = socket
       ) do
     bucket = bucket_for_window(start_dt, end_dt)
 
     {:noreply,
      socket
      |> assign(:bucket, bucket)
-     |> assign_async(:billable_egress, fn ->
+     |> assign_async(:billing_usage, fn ->
+       current = Usage.billable_egress_time_series(account.id, start_dt, end_dt, bucket: bucket)
+
        {:ok,
         %{
-          billable_egress: Usage.billable_egress_time_series(account.id, start_dt, end_dt, bucket: bucket)
+          billing_usage: %{
+            current: current,
+            previous_total: Usage.billable_egress_bytes(account.id, previous_start_at, previous_end_at),
+            projected_total: Billing.projected_cache_egress_bytes(current.total, start_dt, closes_at, end_dt)
+          }
         }}
      end)}
   end
@@ -83,14 +101,14 @@ defmodule TuistWeb.BillingUsageLive do
         splitLine: %{lineStyle: %{color: "var:noora-chart-lines"}},
         axisLabel: %{
           color: "var:noora-surface-label-secondary",
-          formatter: "fn:formatBytes"
+          formatter: "${value}"
         }
       },
       tooltip:
         if bucket == :hour do
-          %{valueFormat: "fn:formatBytes", dateFormat: "hour"}
+          %{valueFormat: "${value}", dateFormat: "hour"}
         else
-          %{valueFormat: "fn:formatBytes"}
+          %{valueFormat: "${value}"}
         end
     }
   end
@@ -99,13 +117,37 @@ defmodule TuistWeb.BillingUsageLive do
     [
       %{
         color: "var:noora-chart-primary",
-        data: dates |> Enum.zip(values) |> Enum.map(&Tuple.to_list/1),
-        name: dgettext("dashboard_usage", "Egress"),
+        data:
+          dates
+          |> Enum.zip(values)
+          |> Enum.map(fn {date, bytes} -> [date, cost_value(bytes)] end),
+        name: dgettext("dashboard_usage", "Cost to date"),
         type: "line",
         smooth: 0.1,
         symbol: "none"
       }
     ]
+  end
+
+  def format_cost(bytes) when is_integer(bytes) do
+    bytes
+    |> Billing.cache_egress_cost()
+    |> format_cache_money()
+  end
+
+  def format_cache_money(%Money{} = money) do
+    "$" <> TuistWeb.CldrHelpers.format_number(Money.to_decimal(money), fractional_digits: 2)
+  end
+
+  def format_date(%DateTime{} = date), do: Calendar.strftime(date, "%b %-d, %Y")
+
+  def period_end(%DateTime{} = closes_at), do: DateTime.add(closes_at, -1, :second)
+
+  defp cost_value(bytes) do
+    bytes
+    |> Billing.cache_egress_cost()
+    |> Money.to_decimal()
+    |> Decimal.to_float()
   end
 
   defp bucket_for_window(start_dt, end_dt) do

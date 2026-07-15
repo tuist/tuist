@@ -2,6 +2,7 @@
 @import "./pages/account_settings.css";
 @import "./pages/auth.css";
 @import "./pages/billing.css";
+@import "./pages/billing_usage.css";
 @import "./pages/bundle.css";
 @import "./pages/bundles.css";
 @import "./pages/builds.css";
