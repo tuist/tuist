@@ -327,71 +327,138 @@ defmodule Tuist.Runners do
   defp claim_and_serve(namespace, sa_name, fleet_name, node_name, excluded_workflow_job_ids, attempts_left) do
     case pick_affine_candidate(fleet_name, node_name, excluded_workflow_job_ids) do
       {:ok, candidate} ->
-        case Claims.attempt(candidate.workflow_job_id, candidate.account_id, fleet_name, sa_name) do
-          {:ok, claim} ->
-            # Record the affinity signal on every claim win, but only for fleets
-            # that actually hold volumes (macOS): a volume for this account
-            # exists (or is about to) where its jobs ran, so future jobs of this
-            # account prefer this node. Volumeless fleets record nothing so their
-            # queues are never reordered for masters that don't exist.
-            if volume_affinity_enabled?(fleet_name) do
-              VolumeAffinities.record(node_name, candidate.account_id)
-            end
-
-            case Jobs.record_claimed(candidate, sa_name, claim.claimed_at) do
-              :ok ->
-                serve_claim(namespace, sa_name, fleet_name, candidate, claim)
-
-              {:error, :completed} ->
-                _ = Claims.release(candidate.workflow_job_id, claim.claimed_at)
-
-                claim_and_serve(
-                  namespace,
-                  sa_name,
-                  fleet_name,
-                  node_name,
-                  [candidate.workflow_job_id | excluded_workflow_job_ids],
-                  attempts_left - 1
-                )
-            end
-
-          {:error, :lost_race} ->
-            Logger.debug("runners: claim attempt lost race; trying next queued job",
-              fleet: fleet_name,
-              sa: sa_name,
-              workflow_job_id: candidate.workflow_job_id
-            )
-
-            claim_and_serve(
-              namespace,
-              sa_name,
-              fleet_name,
-              node_name,
-              [candidate.workflow_job_id | excluded_workflow_job_ids],
-              attempts_left - 1
-            )
-
-          {:error, :pod_in_use} ->
-            Logger.debug("runners: claim attempt declined",
-              reason: :pod_in_use,
-              fleet: fleet_name,
-              sa: sa_name
-            )
-
-            {:error, :pod_in_use}
-
-          {:error, reason} ->
-            Logger.warning("runners: dispatch_for_sa failed",
-              reason: inspect(reason),
-              fleet: fleet_name
-            )
-
-            {:error, reason}
-        end
+        candidate.workflow_job_id
+        |> Claims.attempt(candidate.account_id, fleet_name, sa_name)
+        |> handle_claim_attempt(
+          namespace,
+          sa_name,
+          fleet_name,
+          node_name,
+          excluded_workflow_job_ids,
+          attempts_left,
+          candidate
+        )
 
       {:error, :empty} ->
         {:error, :empty}
     end
+  end
+
+  defp handle_claim_attempt(
+         {:ok, claim},
+         namespace,
+         sa_name,
+         fleet_name,
+         node_name,
+         excluded_workflow_job_ids,
+         attempts_left,
+         candidate
+       ) do
+    record_volume_affinity(fleet_name, node_name, candidate.account_id)
+
+    case Jobs.record_claimed(candidate, sa_name, claim.claimed_at) do
+      :ok ->
+        serve_claim(namespace, sa_name, fleet_name, candidate, claim)
+
+      {:error, :completed} ->
+        _ = Claims.release(candidate.workflow_job_id, claim.claimed_at)
+
+        retry_claim_and_serve(
+          namespace,
+          sa_name,
+          fleet_name,
+          node_name,
+          excluded_workflow_job_ids,
+          attempts_left,
+          candidate
+        )
+    end
+  end
+
+  defp handle_claim_attempt(
+         {:error, :lost_race},
+         namespace,
+         sa_name,
+         fleet_name,
+         node_name,
+         excluded_workflow_job_ids,
+         attempts_left,
+         candidate
+       ) do
+    Logger.debug("runners: claim attempt lost race; trying next queued job",
+      fleet: fleet_name,
+      sa: sa_name,
+      workflow_job_id: candidate.workflow_job_id
+    )
+
+    retry_claim_and_serve(namespace, sa_name, fleet_name, node_name, excluded_workflow_job_ids, attempts_left, candidate)
+  end
+
+  defp handle_claim_attempt(
+         {:error, :pod_in_use},
+         _namespace,
+         sa_name,
+         fleet_name,
+         _node_name,
+         _excluded_workflow_job_ids,
+         _attempts_left,
+         _candidate
+       ) do
+    Logger.debug("runners: claim attempt declined",
+      reason: :pod_in_use,
+      fleet: fleet_name,
+      sa: sa_name
+    )
+
+    {:error, :pod_in_use}
+  end
+
+  defp handle_claim_attempt(
+         {:error, reason},
+         _namespace,
+         _sa_name,
+         fleet_name,
+         _node_name,
+         _excluded_workflow_job_ids,
+         _attempts_left,
+         _candidate
+       ) do
+    Logger.warning("runners: dispatch_for_sa failed",
+      reason: inspect(reason),
+      fleet: fleet_name
+    )
+
+    {:error, reason}
+  end
+
+  defp record_volume_affinity(fleet_name, node_name, account_id) do
+    # Record the affinity signal on every claim win, but only for fleets
+    # that actually hold volumes (macOS): a volume for this account
+    # exists (or is about to) where its jobs ran, so future jobs of this
+    # account prefer this node. Volumeless fleets record nothing so their
+    # queues are never reordered for masters that don't exist.
+    if volume_affinity_enabled?(fleet_name) do
+      VolumeAffinities.record(node_name, account_id)
+    end
+  end
+
+  defp retry_claim_and_serve(
+         namespace,
+         sa_name,
+         fleet_name,
+         node_name,
+         excluded_workflow_job_ids,
+         attempts_left,
+         candidate
+       ) do
+    claim_and_serve(
+      namespace,
+      sa_name,
+      fleet_name,
+      node_name,
+      [candidate.workflow_job_id | excluded_workflow_job_ids],
+      attempts_left - 1
+    )
   end
 
   # Fetch the K oldest queued candidates and let the volume-affinity policy

@@ -1008,16 +1008,6 @@ defmodule TuistWeb.RunnerJobLive do
       |> InteractiveSessions.current_for_job(job.workflow_job_id, :shell)
       |> with_shell_session_token(shell_session_token)
 
-    vnc_websocket_path =
-      if not vnc_dev_placeholder? and vnc_session_ready?(vnc_session) and is_binary(vnc_session_token) do
-        "/#{selected_account.name}/runners/interactive/vnc"
-      end
-
-    shell_websocket_path =
-      if shell_session_connectable?(shell_session) and is_binary(shell_session_token) do
-        "/#{selected_account.name}/runners/interactive/shell"
-      end
-
     %{
       can_read?: can_read?,
       macos?: macos?,
@@ -1028,13 +1018,29 @@ defmodule TuistWeb.RunnerJobLive do
       vnc_dev_placeholder?: vnc_dev_placeholder?,
       vnc_session: vnc_session,
       vnc_session_ready?: vnc_session_ready?(vnc_session),
-      vnc_websocket_path: vnc_websocket_path,
+      vnc_websocket_path: vnc_websocket_path(selected_account, vnc_dev_placeholder?, vnc_session, vnc_session_token),
       vnc_websocket_token: vnc_session_token,
       shell_requestable?: shell_requestable?,
       shell_session: shell_session,
-      shell_websocket_path: shell_websocket_path,
+      shell_websocket_path: shell_websocket_path(selected_account, shell_session, shell_session_token),
       shell_websocket_token: shell_session_token
     }
+  end
+
+  defp vnc_websocket_path(selected_account, vnc_dev_placeholder?, vnc_session, vnc_session_token) do
+    if vnc_websocket_available?(vnc_dev_placeholder?, vnc_session, vnc_session_token) do
+      "/#{selected_account.name}/runners/interactive/vnc"
+    end
+  end
+
+  defp vnc_websocket_available?(vnc_dev_placeholder?, vnc_session, vnc_session_token) do
+    not vnc_dev_placeholder? and vnc_session_ready?(vnc_session) and is_binary(vnc_session_token)
+  end
+
+  defp shell_websocket_path(selected_account, shell_session, shell_session_token) do
+    if shell_session_connectable?(shell_session) and is_binary(shell_session_token) do
+      "/#{selected_account.name}/runners/interactive/shell"
+    end
   end
 
   defp with_vnc_session_token(nil, _token), do: nil

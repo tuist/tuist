@@ -187,8 +187,18 @@ defmodule Tuist.Runners.InteractiveSessions do
   def validate_token(_token, %User{}), do: {:error, :invalid_or_expired}
 
   def validate_shell_pod(session_id, pod_name) when is_integer(session_id) and is_binary(pod_name) and pod_name != "" do
-    now = now()
     binding = binding_for_pod(pod_name)
+
+    case shell_session_for_pod(session_id, pod_name, binding) do
+      %InteractiveSession{} = session -> refresh_valid_shell_pod(session, pod_name, binding)
+      nil -> {:error, :not_found}
+    end
+  end
+
+  def validate_shell_pod(_session_id, _pod_name), do: {:error, :not_found}
+
+  defp shell_session_for_pod(session_id, pod_name, binding) do
+    now = now()
 
     InteractiveSession
     |> where(
@@ -198,19 +208,14 @@ defmodule Tuist.Runners.InteractiveSessions do
     )
     |> where_session_belongs_to_pod_or_binding(pod_name, binding)
     |> Repo.one()
-    |> case do
-      %InteractiveSession{} = session ->
-        case refresh_pod_from_binding(session, pod_name, binding) do
-          %InteractiveSession{} = refreshed -> {:ok, refreshed}
-          nil -> {:error, :not_found}
-        end
-
-      nil ->
-        {:error, :not_found}
-    end
   end
 
-  def validate_shell_pod(_session_id, _pod_name), do: {:error, :not_found}
+  defp refresh_valid_shell_pod(session, pod_name, binding) do
+    case refresh_pod_from_binding(session, pod_name, binding) do
+      %InteractiveSession{} = refreshed -> {:ok, refreshed}
+      nil -> {:error, :not_found}
+    end
+  end
 
   def mark_shell_ready(%InteractiveSession{kind: :shell, closed_at: nil} = session) do
     now = now()
@@ -715,40 +720,48 @@ defmodule Tuist.Runners.InteractiveSessions do
   defp refresh_pod_from_binding(nil, _pod_name, _binding), do: nil
 
   defp refresh_pod_from_binding(%InteractiveSession{} = session, pod_name, binding) do
-    cond do
-      is_nil(binding) ->
+    if binding_refreshable?(session, pod_name, binding) do
+      update_session_pod_from_binding(session, binding)
+    else
+      session
+    end
+  end
+
+  defp binding_refreshable?(_session, _pod_name, nil), do: false
+
+  defp binding_refreshable?(session, pod_name, binding) do
+    binding_matches_session?(binding, session) and binding_changed?(session, binding) and
+      requested_pod_matches_binding?(pod_name, binding)
+  end
+
+  defp binding_changed?(session, binding) do
+    session.pod_name != binding.pod_name or session.fleet_name != binding.fleet_name
+  end
+
+  defp requested_pod_matches_binding?(pod_name, _binding) when not is_binary(pod_name), do: true
+  defp requested_pod_matches_binding?("", _binding), do: true
+  defp requested_pod_matches_binding?(pod_name, binding), do: pod_name == binding.pod_name
+
+  defp update_session_pod_from_binding(session, binding) do
+    session
+    |> InteractiveSession.changeset(%{
+      pod_name: binding.pod_name,
+      fleet_name: binding.fleet_name,
+      updated_at: now()
+    })
+    |> Repo.update()
+    |> case do
+      {:ok, updated} ->
+        updated
+
+      {:error, changeset} ->
+        Logger.warning("runners: failed to reconcile interactive session pod from live binding",
+          session_id: session.id,
+          workflow_job_id: session.workflow_job_id,
+          changeset_errors: inspect(changeset.errors)
+        )
+
         session
-
-      not binding_matches_session?(binding, session) ->
-        session
-
-      session.pod_name == binding.pod_name and session.fleet_name == binding.fleet_name ->
-        session
-
-      is_binary(pod_name) and pod_name != "" and pod_name != binding.pod_name ->
-        session
-
-      true ->
-        session
-        |> InteractiveSession.changeset(%{
-          pod_name: binding.pod_name,
-          fleet_name: binding.fleet_name,
-          updated_at: now()
-        })
-        |> Repo.update()
-        |> case do
-          {:ok, updated} ->
-            updated
-
-          {:error, changeset} ->
-            Logger.warning("runners: failed to reconcile interactive session pod from live binding",
-              session_id: session.id,
-              workflow_job_id: session.workflow_job_id,
-              changeset_errors: inspect(changeset.errors)
-            )
-
-            session
-        end
     end
   end
 

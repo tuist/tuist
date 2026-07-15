@@ -15,45 +15,56 @@ defmodule TuistWeb.RunnerInteractiveShellAgentController do
 
   def show(conn, _params) do
     case authenticated_pod_name(conn) do
-      {:ok, pod_name} ->
-        case InteractiveSessions.current_shell_for_pod(pod_name) do
-          %InteractiveSession{} = session ->
-            json(conn, %{
-              session_id: session.id,
-              workflow_job_id: session.workflow_job_id,
-              websocket_url: websocket_url("/api/internal/runners/interactive/shell/#{session.id}/tunnel")
-            })
-
-          nil ->
-            log_shell_discovery_miss(conn, pod_name)
-            send_resp(conn, :no_content, "")
-        end
-
-      {:error, :missing_bearer} ->
-        conn |> put_status(:unauthorized) |> json(%{error: "missing bearer token"})
-
-      {:error, :unauthenticated} ->
-        Logger.warning("runners: tokenreview rejected token on shell tunnel discovery")
-        conn |> put_status(:unauthorized) |> json(%{error: "invalid token"})
-
-      {:error, :not_service_account} ->
-        Logger.warning("runners: tokenreview principal is not an SA on shell tunnel discovery")
-        conn |> put_status(:unauthorized) |> json(%{error: "not a service account"})
-
-      {:error, :wrong_namespace} ->
-        conn |> put_status(:unauthorized) |> json(%{error: "wrong namespace"})
-
-      {:error, :pod_identity_mismatch} ->
-        Logger.warning("runners: shell tunnel discovery pod identity mismatch")
-        conn |> put_status(:unauthorized) |> json(%{error: "pod identity mismatch"})
-
-      {:error, :not_in_cluster} ->
-        conn |> put_status(:service_unavailable) |> json(%{error: "kubernetes unavailable"})
-
-      {:error, reason} ->
-        Logger.error("runners: shell tunnel discovery failed", reason: inspect(reason))
-        conn |> put_status(:internal_server_error) |> json(%{error: "shell tunnel discovery failed"})
+      {:ok, pod_name} -> show_shell_session(conn, pod_name)
+      {:error, reason} -> show_authentication_error(conn, reason)
     end
+  end
+
+  defp show_shell_session(conn, pod_name) do
+    case InteractiveSessions.current_shell_for_pod(pod_name) do
+      %InteractiveSession{} = session ->
+        json(conn, %{
+          session_id: session.id,
+          workflow_job_id: session.workflow_job_id,
+          websocket_url: websocket_url("/api/internal/runners/interactive/shell/#{session.id}/tunnel")
+        })
+
+      nil ->
+        log_shell_discovery_miss(conn, pod_name)
+        send_resp(conn, :no_content, "")
+    end
+  end
+
+  defp show_authentication_error(conn, :missing_bearer) do
+    conn |> put_status(:unauthorized) |> json(%{error: "missing bearer token"})
+  end
+
+  defp show_authentication_error(conn, :unauthenticated) do
+    Logger.warning("runners: tokenreview rejected token on shell tunnel discovery")
+    conn |> put_status(:unauthorized) |> json(%{error: "invalid token"})
+  end
+
+  defp show_authentication_error(conn, :not_service_account) do
+    Logger.warning("runners: tokenreview principal is not an SA on shell tunnel discovery")
+    conn |> put_status(:unauthorized) |> json(%{error: "not a service account"})
+  end
+
+  defp show_authentication_error(conn, :wrong_namespace) do
+    conn |> put_status(:unauthorized) |> json(%{error: "wrong namespace"})
+  end
+
+  defp show_authentication_error(conn, :pod_identity_mismatch) do
+    Logger.warning("runners: shell tunnel discovery pod identity mismatch")
+    conn |> put_status(:unauthorized) |> json(%{error: "pod identity mismatch"})
+  end
+
+  defp show_authentication_error(conn, :not_in_cluster) do
+    conn |> put_status(:service_unavailable) |> json(%{error: "kubernetes unavailable"})
+  end
+
+  defp show_authentication_error(conn, reason) do
+    Logger.error("runners: shell tunnel discovery failed", reason: inspect(reason))
+    conn |> put_status(:internal_server_error) |> json(%{error: "shell tunnel discovery failed"})
   end
 
   def connect(conn, %{"session_id" => session_id}) do

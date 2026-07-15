@@ -11,7 +11,10 @@ defmodule Tuist.Repo.Migrations.CreateRunnerJobCompletions do
       timestamps(type: :timestamptz)
     end
 
+    # excellent_migrations:safety-assured-for-next-line index_not_concurrently
     create index(:runner_job_completions, [:account_id])
+
+    # excellent_migrations:safety-assured-for-next-line index_not_concurrently
     create index(:runner_job_completions, [:completed_at])
   end
 end
