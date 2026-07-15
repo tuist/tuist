@@ -257,9 +257,9 @@ type RunOptions struct {
 	// SharedDirs are Tart --dir mounts, for example env:/path:ro.
 	SharedDirs []string
 
-	// VNC enables Tart's host-owned experimental VNC server while keeping
-	// the VM headless. Tart prints a one-time password; Run captures it
-	// into RunHandle and redacts it from the VM log.
+	// VNC enables Tart's host-owned experimental VNC server. Tart prints a
+	// one-time password; Run captures it into RunHandle and redacts it from
+	// the VM log.
 	VNC bool
 }
 
@@ -321,9 +321,14 @@ func (c *Client) RunWithOptions(ctx context.Context, name string, opts RunOption
 	// runner Mac mini measured ~1.8x faster warm reads with caching=cached
 	// (7.7 vs 4.2 GB/s) and no durability tradeoff — these VMs are ephemeral
 	// (cloned per Pod, discarded on exit), so host caching is pure upside.
-	args := []string{"run", name, "--no-graphics"}
+	args := []string{"run", name}
 	if opts.VNC {
-		args = append(args, "--vnc-experimental")
+		// Keep Tart's generated-password VNC server, but attach the VM view so
+		// Virtualization.framework has a real display surface to mirror after
+		// the macOS guest auto-login session starts.
+		args = append(args, "--vnc-experimental", "--graphics")
+	} else {
+		args = append(args, "--no-graphics")
 	}
 	args = append(args, "--root-disk-opts", "caching=cached")
 	for _, dir := range opts.SharedDirs {
@@ -341,6 +346,12 @@ func (c *Client) RunWithOptions(ctx context.Context, name string, opts RunOption
 	// SIGKILL the VM. Setsid + cmd.Start (no Wait) leaves tart
 	// running independently.
 	cmd := exec.Command(c.Binary, args...)
+	if opts.VNC {
+		// Tart otherwise opens the VNC URL via NSWorkspace when --graphics is
+		// present. CI=1 keeps the URL on stdout where copyTartOutput can parse
+		// and redact the generated password.
+		cmd.Env = append(os.Environ(), "CI=1")
+	}
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
 
 	stdout, err := cmd.StdoutPipe()
