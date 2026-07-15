@@ -455,6 +455,7 @@ msgstr ""
 #: lib/tuist_web/live/runner_jobs_live.ex:584
 #: lib/tuist_web/live/runner_jobs_live.html.heex:543
 #: lib/tuist_web/live/runner_jobs_live.html.heex:586
+#: lib/tuist_web/live/runner_workflow_run_live.html.heex:12
 #: lib/tuist_web/live/runner_workflows_live.ex:274
 #: lib/tuist_web/live/runner_workflows_live.html.heex:311
 #: lib/tuist_web/live/runner_workflows_live.html.heex:354
@@ -1352,11 +1353,6 @@ msgstr ""
 #: lib/tuist_web/live/runner_workflow_live.html.heex:339
 #, elixir-autogen, elixir-format
 msgid "No runs yet for this workflow"
-msgstr ""
-
-#: lib/tuist_web/live/runner_workflow_run_live.html.heex:12
-#, elixir-autogen, elixir-format
-msgid "Back to workflow"
 msgstr ""
 
 #: lib/tuist_web/live/runner_workflow_run_live.html.heex:46
