@@ -123,34 +123,47 @@
                     <span data-part="sublabel">
                       {dgettext(
                         "dashboard_account",
-                        "Choose whether this token can access every project or only selected projects."
+                        "Select the projects this token can access. Keep all selected to include every project in this account."
                       )}
                     </span>
-                    <.button_group size="medium" data-part="project-access-mode">
-                      <.button_group_item
-                        type="button"
-                        label={dgettext("dashboard_account", "All projects")}
-                        phx-click="select_project_access"
-                        phx-value-access="all"
-                        data-selected={@project_access == "all"}
-                      />
-                      <.button_group_item
-                        type="button"
-                        label={dgettext("dashboard_account", "Specific projects")}
-                        phx-click="select_project_access"
-                        phx-value-access="specific"
-                        data-selected={@project_access == "specific"}
-                      />
-                    </.button_group>
 
                     <span :if={Enum.empty?(@available_projects)} data-part="empty-projects">
                       {dgettext(
                         "dashboard_account",
-                        "Create a project first to restrict this token to specific projects."
+                        "This account does not have projects yet. The token will apply to all projects in this account."
                       )}
                     </span>
 
-                    <div :if={@project_access == "specific"} data-part="project-checkbox-list">
+                    <div
+                      :if={not Enum.empty?(@available_projects)}
+                      data-part="project-checkbox-list"
+                    >
+                      <label
+                        id="account-token-project-select-all"
+                        data-part="project-checkbox"
+                        data-role="select-all"
+                        phx-click="toggle_all_project_access_projects"
+                      >
+                        <.checkbox_control
+                          checked={
+                            all_project_access_projects_selected?(
+                              @available_projects,
+                              @selected_project_ids
+                            )
+                          }
+                          indeterminate={
+                            project_access_projects_partially_selected?(
+                              @available_projects,
+                              @selected_project_ids
+                            )
+                          }
+                        />
+                        <div data-part="body">
+                          <span data-part="label">
+                            {dgettext("dashboard_account", "Select all projects")}
+                          </span>
+                        </div>
+                      </label>
                       <label
                         :for={project <- @available_projects}
                         id={"account-token-project-#{project.id}"}

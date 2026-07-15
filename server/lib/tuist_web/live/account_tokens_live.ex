@@ -30,8 +30,7 @@ defmodule TuistWeb.AccountTokensLive do
       socket
       |> assign(:account_tokens, account_tokens)
       |> assign(:available_projects, available_projects)
-      |> assign(:project_access, "all")
-      |> assign(:selected_project_ids, [])
+      |> assign(:selected_project_ids, project_ids(available_projects))
       |> assign(:selected_scopes, @default_scopes)
       |> assign(:new_account_token_plaintext, nil)
       |> assign(:new_account_token_form, new_account_token_form())
@@ -60,16 +59,16 @@ defmodule TuistWeb.AccountTokensLive do
 
   def handle_event("toggle_token_scope", _params, socket), do: {:noreply, socket}
 
-  def handle_event("select_project_access", %{"access" => access}, socket) when access in ["all", "specific"] do
-    socket =
-      socket
-      |> assign(:project_access, access)
-      |> maybe_clear_selected_project_ids(access)
+  def handle_event("toggle_all_project_access_projects", _params, socket) do
+    selected_project_ids =
+      if all_project_access_projects_selected?(socket.assigns.available_projects, socket.assigns.selected_project_ids) do
+        []
+      else
+        project_ids(socket.assigns.available_projects)
+      end
 
-    {:noreply, socket}
+    {:noreply, assign(socket, :selected_project_ids, selected_project_ids)}
   end
-
-  def handle_event("select_project_access", _params, socket), do: {:noreply, socket}
 
   def handle_event("toggle_project_access_project", %{"project-id" => project_id}, socket) do
     with {project_id, ""} <- Integer.parse(project_id),
@@ -113,8 +112,7 @@ defmodule TuistWeb.AccountTokensLive do
        |> assign(:new_account_token_plaintext, plaintext)
        |> assign(:new_account_token_form, new_account_token_form())
        |> assign(:selected_scopes, @default_scopes)
-       |> assign(:project_access, "all")
-       |> assign(:selected_project_ids, [])
+       |> assign(:selected_project_ids, project_ids(socket.assigns.available_projects))
        |> assign(:flash_message, nil)
        |> put_flash(
          :info,
@@ -145,7 +143,7 @@ defmodule TuistWeb.AccountTokensLive do
          assign(
            socket,
            :flash_message,
-           {"error", dgettext("dashboard_account", "Select at least one project or choose all projects.")}
+           {"error", dgettext("dashboard_account", "Select at least one project or select all projects.")}
          )}
 
       {:error, :invalid_expiration} ->
@@ -167,8 +165,7 @@ defmodule TuistWeb.AccountTokensLive do
      |> assign(:new_account_token_plaintext, nil)
      |> assign(:new_account_token_form, new_account_token_form())
      |> assign(:selected_scopes, @default_scopes)
-     |> assign(:project_access, "all")
-     |> assign(:selected_project_ids, [])
+     |> assign(:selected_project_ids, project_ids(socket.assigns.available_projects))
      |> push_event("close-modal", %{id: "create-account-token-modal"})}
   end
 
@@ -178,8 +175,7 @@ defmodule TuistWeb.AccountTokensLive do
      |> assign(:new_account_token_plaintext, nil)
      |> assign(:new_account_token_form, new_account_token_form())
      |> assign(:selected_scopes, @default_scopes)
-     |> assign(:project_access, "all")
-     |> assign(:selected_project_ids, [])}
+     |> assign(:selected_project_ids, project_ids(socket.assigns.available_projects))}
   end
 
   def handle_event("account_token_modal_open_change", _params, socket), do: {:noreply, socket}
@@ -222,20 +218,34 @@ defmodule TuistWeb.AccountTokensLive do
   defp token_scopes(%{assigns: %{selected_scopes: []}}), do: {:error, :missing_scopes}
   defp token_scopes(%{assigns: %{selected_scopes: scopes}}), do: {:ok, scopes}
 
-  defp token_project_access(%{assigns: %{project_access: "all"}}) do
+  defp token_project_access(%{assigns: %{available_projects: [], selected_project_ids: []}}) do
     {:ok, %{all_projects: true, project_ids: []}}
   end
 
-  defp token_project_access(%{assigns: %{project_access: "specific", selected_project_ids: []}}) do
+  defp token_project_access(%{assigns: %{selected_project_ids: []}}) do
     {:error, :missing_projects}
   end
 
-  defp token_project_access(%{assigns: %{project_access: "specific", selected_project_ids: project_ids}}) do
-    {:ok, %{all_projects: false, project_ids: project_ids}}
+  defp token_project_access(%{assigns: %{available_projects: available_projects, selected_project_ids: project_ids}}) do
+    if all_project_access_projects_selected?(available_projects, project_ids) do
+      {:ok, %{all_projects: true, project_ids: []}}
+    else
+      {:ok, %{all_projects: false, project_ids: project_ids}}
+    end
   end
 
-  defp maybe_clear_selected_project_ids(socket, "all"), do: assign(socket, :selected_project_ids, [])
-  defp maybe_clear_selected_project_ids(socket, _access), do: socket
+  defp all_project_access_projects_selected?(available_projects, selected_project_ids) do
+    available_project_ids = project_ids(available_projects)
+    available_project_ids != [] and Enum.all?(available_project_ids, &(&1 in selected_project_ids))
+  end
+
+  defp project_access_projects_partially_selected?(available_projects, selected_project_ids) do
+    available_project_ids = project_ids(available_projects)
+    selected_count = Enum.count(available_project_ids, &(&1 in selected_project_ids))
+    selected_count > 0 and selected_count < length(available_project_ids)
+  end
+
+  defp project_ids(projects), do: Enum.map(projects, & &1.id)
 
   defp expires_at(params) do
     params

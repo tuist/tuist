@@ -106,7 +106,7 @@ msgstr ""
 #: lib/tuist_web/live/account_settings_live.html.heex:157
 #: lib/tuist_web/live/account_settings_live.html.heex:247
 #: lib/tuist_web/live/account_settings_live.html.heex:319
-#: lib/tuist_web/live/account_tokens_live.html.heex:217
+#: lib/tuist_web/live/account_tokens_live.html.heex:230
 #: lib/tuist_web/live/authentication_settings_live.html.heex:518
 #: lib/tuist_web/live/cache_live.ex:604
 #: lib/tuist_web/live/cache_live.ex:840
@@ -508,7 +508,7 @@ msgid "Most Popular"
 msgstr ""
 
 #: lib/tuist_web/live/account_token_live.html.heex:40
-#: lib/tuist_web/live/account_tokens_live.html.heex:244
+#: lib/tuist_web/live/account_tokens_live.html.heex:257
 #: lib/tuist_web/live/authentication_settings_live.html.heex:538
 #: lib/tuist_web/live/cache_live.ex:818
 #: lib/tuist_web/live/cache_live.ex:859
@@ -1280,7 +1280,7 @@ msgid "Copy token"
 msgstr ""
 
 #: lib/tuist_web/live/account_token_live.html.heex:58
-#: lib/tuist_web/live/account_tokens_live.html.heex:256
+#: lib/tuist_web/live/account_tokens_live.html.heex:269
 #: lib/tuist_web/live/authentication_settings_live.html.heex:541
 #: lib/tuist_web/live/webhook_live.html.heex:89
 #, elixir-autogen, elixir-format
@@ -1292,7 +1292,7 @@ msgstr ""
 msgid "Dashboard"
 msgstr ""
 
-#: lib/tuist_web/live/account_tokens_live.html.heex:211
+#: lib/tuist_web/live/account_tokens_live.html.heex:224
 #: lib/tuist_web/live/authentication_settings_live.html.heex:512
 #: lib/tuist_web/live/cache_live.ex:832
 #: lib/tuist_web/live/members_live.ex:434
@@ -1302,7 +1302,7 @@ msgstr ""
 msgid "Done"
 msgstr ""
 
-#: lib/tuist_web/live/account_tokens_live.html.heex:222
+#: lib/tuist_web/live/account_tokens_live.html.heex:235
 #: lib/tuist_web/live/authentication_settings_live.html.heex:523
 #: lib/tuist_web/live/cache_live.ex:848
 #, elixir-autogen, elixir-format
@@ -1341,7 +1341,7 @@ msgid "Issue one bearer token per IdP. Revoke a token if it leaks or is no longe
 msgstr ""
 
 #: lib/tuist_web/live/account_token_live.html.heex:54
-#: lib/tuist_web/live/account_tokens_live.html.heex:253
+#: lib/tuist_web/live/account_tokens_live.html.heex:266
 #: lib/tuist_web/live/authentication_settings_live.html.heex:544
 #, elixir-autogen, elixir-format
 msgid "Last used"
@@ -1391,7 +1391,7 @@ msgstr ""
 msgid "Token name"
 msgstr ""
 
-#: lib/tuist_web/live/account_tokens_live.ex:133
+#: lib/tuist_web/live/account_tokens_live.ex:131
 #: lib/tuist_web/live/authentication_settings_live.ex:129
 #, elixir-autogen, elixir-format
 msgid "Token name is required."
@@ -1403,7 +1403,7 @@ msgid "Token not found."
 msgstr ""
 
 #: lib/tuist_web/live/account_token_live.ex:33
-#: lib/tuist_web/live/account_tokens_live.ex:44
+#: lib/tuist_web/live/account_tokens_live.ex:43
 #: lib/tuist_web/live/authentication_settings_live.html.heex:423
 #, elixir-autogen, elixir-format
 msgid "Tokens"
@@ -2218,7 +2218,7 @@ msgstr ""
 msgid "here"
 msgstr ""
 
-#: lib/tuist_web/live/account_tokens_live.ex:121
+#: lib/tuist_web/live/account_tokens_live.ex:119
 #, elixir-autogen, elixir-format
 msgid "%{name} was created."
 msgstr ""
@@ -2244,7 +2244,7 @@ msgstr ""
 msgid "Expiration"
 msgstr ""
 
-#: lib/tuist_web/live/account_tokens_live.ex:156
+#: lib/tuist_web/live/account_tokens_live.ex:154
 #, elixir-autogen, elixir-format
 msgid "Expiration must use a duration like 30d, 6m, or 1y."
 msgstr ""
@@ -2259,12 +2259,12 @@ msgstr ""
 msgid "Generate account token"
 msgstr ""
 
-#: lib/tuist_web/live/account_tokens_live.html.heex:263
+#: lib/tuist_web/live/account_tokens_live.html.heex:276
 #, elixir-autogen, elixir-format
 msgid "Generate one above to authenticate CI, automation, or integrations without using a user session."
 msgstr ""
 
-#: lib/tuist_web/live/account_tokens_live.html.heex:261
+#: lib/tuist_web/live/account_tokens_live.html.heex:274
 #, elixir-autogen, elixir-format
 msgid "No account tokens yet"
 msgstr ""
@@ -2279,18 +2279,18 @@ msgstr ""
 msgid "Revoke %{name}? This action cannot be undone."
 msgstr ""
 
-#: lib/tuist_web/live/account_tokens_live.html.heex:171
-#: lib/tuist_web/live/account_tokens_live.html.heex:250
+#: lib/tuist_web/live/account_tokens_live.html.heex:184
+#: lib/tuist_web/live/account_tokens_live.html.heex:263
 #, elixir-autogen, elixir-format
 msgid "Scopes"
 msgstr ""
 
-#: lib/tuist_web/live/account_tokens_live.ex:140
+#: lib/tuist_web/live/account_tokens_live.ex:138
 #, elixir-autogen, elixir-format
 msgid "Select at least one scope."
 msgstr ""
 
-#: lib/tuist_web/live/account_tokens_live.html.heex:174
+#: lib/tuist_web/live/account_tokens_live.html.heex:187
 #, elixir-autogen, elixir-format
 msgid "Select one or more scopes. Presets expand to several fine-grained permissions when the token is used."
 msgstr ""
@@ -2300,7 +2300,7 @@ msgstr ""
 msgid "Use a stable name so you can revoke or rotate this token later."
 msgstr ""
 
-#: lib/tuist_web/live/account_tokens_live.ex:129
+#: lib/tuist_web/live/account_tokens_live.ex:127
 #, elixir-autogen, elixir-format
 msgid "You are not authorized to create account tokens."
 msgstr ""
@@ -2554,7 +2554,7 @@ msgid "Create scoped tokens for CI, automation, and more."
 msgstr ""
 
 #: lib/tuist_web/live/account_token_live.html.heex:44
-#: lib/tuist_web/live/account_tokens_live.html.heex:247
+#: lib/tuist_web/live/account_tokens_live.html.heex:260
 #, elixir-autogen, elixir-format
 msgid "Token"
 msgstr ""
@@ -2620,27 +2620,22 @@ msgstr ""
 msgid "Scope"
 msgstr ""
 
-#: lib/tuist_web/live/account_tokens_live.html.heex:132
+#: lib/tuist_web/live/account_tokens_live.html.heex:163
 #, elixir-autogen, elixir-format
-msgid "All projects"
+msgid "Select all projects"
+msgstr ""
+
+#: lib/tuist_web/live/account_tokens_live.ex:146
+#, elixir-autogen, elixir-format
+msgid "Select at least one project or select all projects."
 msgstr ""
 
 #: lib/tuist_web/live/account_tokens_live.html.heex:124
 #, elixir-autogen, elixir-format
-msgid "Choose whether this token can access every project or only selected projects."
+msgid "Select the projects this token can access. Keep all selected to include every project in this account."
 msgstr ""
 
-#: lib/tuist_web/live/account_tokens_live.html.heex:147
+#: lib/tuist_web/live/account_tokens_live.html.heex:131
 #, elixir-autogen, elixir-format
-msgid "Create a project first to restrict this token to specific projects."
-msgstr ""
-
-#: lib/tuist_web/live/account_tokens_live.ex:148
-#, elixir-autogen, elixir-format
-msgid "Select at least one project or choose all projects."
-msgstr ""
-
-#: lib/tuist_web/live/account_tokens_live.html.heex:139
-#, elixir-autogen, elixir-format
-msgid "Specific projects"
+msgid "This account does not have projects yet. The token will apply to all projects in this account."
 msgstr ""

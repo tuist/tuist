@@ -27,6 +27,8 @@ defmodule TuistWeb.AccountTokensLiveTest do
   end
 
   test "lists organization account tokens", %{conn: conn, account: account} do
+    ProjectsFixtures.project_fixture(account: account, name: "ios-app")
+
     token =
       AccountsFixtures.account_token_fixture(
         account: account,
@@ -41,9 +43,9 @@ defmodule TuistWeb.AccountTokensLiveTest do
     assert html =~ "Account tokens"
     assert html =~ "Create scoped tokens for CI, automation, and more."
     assert html =~ "Project access"
-    assert html =~ "All projects"
-    assert html =~ "Specific projects"
+    assert html =~ "Select all projects"
     refute html =~ "Project handles"
+    refute html =~ "Specific projects"
     refute html =~ "Token values are shown once. Store the generated value before closing the dialog."
     assert html =~ "ci-main"
     assert html =~ account_token_hint(token)
@@ -53,6 +55,8 @@ defmodule TuistWeb.AccountTokensLiveTest do
   end
 
   test "lists personal account tokens", %{conn: conn, user: user} do
+    ProjectsFixtures.project_fixture(account: user.account, name: "personal-app")
+
     AccountsFixtures.account_token_fixture(
       account: user.account,
       name: "personal-ci",
@@ -65,9 +69,9 @@ defmodule TuistWeb.AccountTokensLiveTest do
     assert html =~ "personal-ci"
     assert html =~ "project:builds:write"
     assert html =~ "Project access"
-    assert html =~ "All projects"
-    assert html =~ "Specific projects"
+    assert html =~ "Select all projects"
     refute html =~ "Project handles"
+    refute html =~ "Specific projects"
   end
 
   test "creates a token, reveals it once, and stores project restrictions", %{
@@ -75,10 +79,11 @@ defmodule TuistWeb.AccountTokensLiveTest do
     account: account
   } do
     project = ProjectsFixtures.project_fixture(account: account, name: "ios-app")
+    ProjectsFixtures.project_fixture(account: account, name: "macos-app")
 
     {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/tokens")
 
-    render_hook(lv, "select_project_access", %{"access" => "specific"})
+    render_hook(lv, "toggle_all_project_access_projects", %{})
     render_hook(lv, "toggle_project_access_project", %{"project-id" => "#{project.id}"})
 
     html =
