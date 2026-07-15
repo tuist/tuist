@@ -1,7 +1,7 @@
 import FileSystem
 import Foundation
 import Path
-import ProjectDescription
+@_spi(TuistLoader) import ProjectDescription
 import Testing
 import TuistCore
 import TuistSupport
@@ -18,6 +18,7 @@ struct PackageManifestMapperTests {
         )
         let encoded = try JSONEncoder().encode(project)
         let decoded = try JSONDecoder().decode(ProjectDescription.Project.self, from: encoded)
+        let encodedObject = try #require(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
 
         let decodedPackagePath = switch project.packages[0] {
         case let .local(path): path
@@ -28,6 +29,7 @@ struct PackageManifestMapperTests {
         #expect(emptyProject.packages.isEmpty)
         #expect(emptyProject.packageDependencies == nil)
         #expect(project.packageDependencies == nil)
+        #expect(encodedObject["packageDependencies"] == nil)
         #expect(decoded == project)
     }
 
@@ -48,6 +50,23 @@ struct PackageManifestMapperTests {
         #expect(project.packageDependencies?.count == 3)
         #expect(project.packageDependencies?[2].traits == [.defaults])
         #expect(decoded == project)
+    }
+
+    @Test func projectRejectsConflictingEncodedPackageRepresentations() throws {
+        let project = ProjectDescription.Project(
+            name: "Project",
+            packages: [.package(path: "Package", traits: ["FeatureA"])]
+        )
+        let encoded = try JSONEncoder().encode(project)
+        var encodedObject = try #require(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+        encodedObject["packages"] = try JSONSerialization.jsonObject(
+            with: JSONEncoder().encode([ProjectDescription.Package.package(path: "OtherPackage")])
+        )
+        let conflictingData = try JSONSerialization.data(withJSONObject: encodedObject)
+
+        #expect(throws: DecodingError.self) {
+            try JSONDecoder().decode(ProjectDescription.Project.self, from: conflictingData)
+        }
     }
 
     @Test func mapsProjectPackageTraitsToXcodeGraph() async throws {

@@ -1,6 +1,6 @@
 import FileSystem
 import Foundation
-import ProjectDescription
+@_spi(TuistLoader) import ProjectDescription
 import TuistCore
 import XcodeGraph
 
