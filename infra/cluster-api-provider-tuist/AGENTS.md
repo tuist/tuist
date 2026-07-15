@@ -87,20 +87,28 @@ tart-kubelet binary change. The re-push is zero-downtime (running Tart VMs
 survive `UpdateTartKubelet`). Terminal-failed CRs are excluded until
 `Status.FailureReason` is cleared.
 
-The drift re-push SSHes over the **tailnet**, not the mini's public IP: once a
-runner mini starts booting Tart VMs its Internet Sharing / vmnet setup filters
-inbound `:22` on the public interface, so a public-IP dial times out and the
-whole fleet's roll wedges — while the same host stays reachable on the tailnet
-(that's the path its metrics are scraped over). `UpdateTartKubelet` therefore
-dials the mini's egress-Service DNS (`egressHost`, port 22 added to
-`reconcileTailscaleEgressService`), which routes through the ProxyGroup. This
+The drift re-push dials the mini's **public IP first, then falls back to the
+tailnet**. Once a runner mini starts booting Tart VMs its Internet Sharing /
+vmnet setup filters inbound `:22` on the public interface, so a public-IP dial
+times out and the fleet's roll wedges — while the same host stays reachable on
+the tailnet (that's the path its metrics are scraped over). So when the public
+handshake never completes (empty fingerprint = a pure connect failure, distinct
+from a mid-session error), `UpdateTartKubelet` retries over the mini's
+egress-Service DNS (`egressHost`, port 22 added to
+`reconcileTailscaleEgressService`), which routes through the ProxyGroup — this
 needs `tcp:22` in the `tag:tuist-k8s-<env>` → `tag:tuist-macmini-<env>` grant
-(`infra/tailscale/acls.json`, mirrored to the admin console). First-boot
-`bootstrap.Run` still uses the public IP — the mini hasn't joined the tailnet
-yet — and OSS/self-hosted clusters (no egress ProxyGroup) fall back to it too.
-Because the transport is controller-side only, it doesn't change
-`HostConfigHash`; already-terminal CRs still need `Status.FailureReason`
-cleared to retry over the new path.
+(`infra/tailscale/acls.json`, mirrored to the admin console). The fallback sets
+`SkipTailscaleInstall`: `installTailscale` stops tailscaled to swap its binary,
+which over a tailnet-transported session would drop the tunnel mid-update and
+strand the mini off the tailnet — so a tailnet-transported roll can't update
+Tailscale itself (rare; needs the public path or re-provisioning). Public-first
+means fresh/idle minis (public open, egress Service maybe not yet rewritten by
+the operator) never touch the tailnet path, and by the time a mini's public
+path is filtered its egress Service has long existed. cfg.IP is a pure dial
+target on the update path (HostConfigHash strips it), so the fallback re-points
+it without changing what's pushed; the whole transport is controller-side only,
+so `HostConfigHash` is unchanged and already-terminal CRs still need
+`Status.FailureReason` cleared to retry.
 
 Two auxiliary controllers run alongside it:
 

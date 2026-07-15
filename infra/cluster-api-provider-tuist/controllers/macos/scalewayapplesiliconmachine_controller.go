@@ -750,29 +750,13 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 		vncRelayHost := r.dashboardVNCRelayHost(machine.Name)
 		vncRelayPort := r.dashboardVNCRelayPort()
 
-		// Drift updates SSH over the tailnet, not the mini's public IP.
-		// A running runner mini filters inbound :22 on its public
-		// interface (Internet Sharing / vmnet reconfigures the public
-		// path once it starts booting Tart VMs), so the public-IP dial
-		// times out and the whole fleet's tart-kubelet rolls wedge —
-		// while the same host stays reachable on the tailnet (that's how
-		// its metrics are scraped). The egress Service already fronts the
-		// mini over the ProxyGroup; dialing its in-cluster DNS on :22
-		// (added to the Service below) routes the update through the
-		// tailnet, independent of whatever filters the public path. Only
-		// the drift path can use this: first-boot Run happens before the
-		// mini joins the tailnet, so it keeps the public IP. cfg.IP is a
-		// pure dial target on the update path (HostConfigHash strips it;
-		// nothing else reads it), so overriding it changes only where we
-		// connect, not what we push. Empty egress host (OSS/self-hosted,
-		// no tailnet) falls back to the public IP.
-		sshHost := ip
-		if egressHost := r.egressHost(machine.Name); egressHost != "" {
-			sshHost = egressHost
-		}
-
-		fingerprint, err := bootstrap.UpdateTartKubelet(ctx, bootstrap.Config{
-			IP:                sshHost,
+		// The drift update dials the mini's public IP first (see the
+		// tailnet fallback right after this call). cfg.IP is a pure dial
+		// target on the update path — HostConfigHash strips it and nothing
+		// else reads it — so the fallback re-points it without changing
+		// what we push.
+		updateCfg := bootstrap.Config{
+			IP:                ip,
 			SSHUser:           bootstrapCreds.SSHUsername,
 			SSHPrivateKey:     sshKey,
 			NodeName:          machine.Name,
@@ -824,7 +808,33 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			// in-flight image-bake VM mid-`tart push`.
 			DisableVMGC:          machine.Spec.GHActionsRunner != nil,
 			KnownHostFingerprint: bootstrapCreds.HostFingerprint,
-		})
+		}
+		fingerprint, err := bootstrap.UpdateTartKubelet(ctx, updateCfg)
+		// Tailnet fallback. A running runner mini filters inbound :22 on
+		// its public interface once Internet Sharing / vmnet reconfigures
+		// the public path (it starts booting Tart VMs), so the public dial
+		// times out and the whole fleet's rolls wedge — while the host
+		// stays reachable on the tailnet (that's how its metrics are
+		// scraped). An empty fingerprint means the SSH handshake never
+		// completed (a pure connect failure, distinct from a mid-session
+		// command error), so retry over the mini's egress-Service DNS,
+		// which routes through the ProxyGroup. Public-first keeps the
+		// common path fast and lets the tailscale reinstall run on a
+		// transport it can safely restart; the fallback sets
+		// SkipTailscaleInstall because stopping tailscaled to swap its
+		// binary would drop the very tunnel this session rides. Fresh /
+		// idle minis (public open) never reach the fallback, so this never
+		// races egress-Service creation (Stage 4) — by the time a mini's
+		// public path is filtered its Service has long existed.
+		if err != nil && fingerprint == "" {
+			if egressHost := r.egressHost(machine.Name); egressHost != "" && egressHost != ip {
+				logger.Info("public-IP tart-kubelet update dial failed; retrying over the tailnet",
+					"machine", machine.Name, "egressHost", egressHost, "cause", err.Error())
+				updateCfg.IP = egressHost
+				updateCfg.SkipTailscaleInstall = true
+				fingerprint, err = bootstrap.UpdateTartKubelet(ctx, updateCfg)
+			}
+		}
 		if fingerprint != "" && fingerprint != bootstrapCreds.HostFingerprint {
 			if perr := r.CredentialsManager.SetMachineHostFingerprint(ctx, machine.Name, fingerprint); perr != nil {
 				logger.Error(perr, "persist host fingerprint on update; will retry")
