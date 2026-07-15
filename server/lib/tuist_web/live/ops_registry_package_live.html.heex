@@ -1,0 +1,116 @@
+<div id="ops-registry-package">
+  <div data-part="header">
+    <.button navigate={~p"/ops/registry"} variant="secondary" size="small" label="Registry">
+      <:icon_left><.arrow_left /></:icon_left>
+    </.button>
+    <h1 data-part="title">{@scope}/{@name}</h1>
+    <p :if={@package.ok?} data-part="subtitle">
+      <.link
+        href={"https://github.com/#{@package.result.repository_full_handle}"}
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        {@package.result.repository_full_handle}
+      </.link>
+    </p>
+  </div>
+
+  <.card title="Versions" icon="versions">
+    <.card_section>
+      <div data-part="filters">
+        <.form for={%{}} phx-change="search" phx-submit="search" phx-debounce="300">
+          <.text_input
+            type="search"
+            id="ops-registry-version-search"
+            name="search"
+            placeholder="Search by version"
+            show_suffix={false}
+            value={@search}
+          />
+        </.form>
+      </div>
+
+      <%= if @package.ok? do %>
+        <% filtered_versions = filtered_versions(@package.result.versions, @search) %>
+        <% total_pages = total_pages(filtered_versions) %>
+        <% current_page = current_page(@page, total_pages) %>
+        <.table
+          id="ops-registry-versions-table"
+          rows={paginated_versions(filtered_versions, current_page)}
+          row_key={& &1.version}
+        >
+          <:col :let={version} label="Version">
+            <.text_cell label={version.version} data-monospace="true" />
+          </:col>
+          <:col :let={version} label="Status">
+            <.badge_cell
+              label={status_label(version.status)}
+              color={status_color(version.status)}
+              style="light-fill"
+            />
+          </:col>
+          <:col :let={version} label="Checksum or reason">
+            <.text_cell
+              label={detail_label(version)}
+              data-monospace={version.status == :available}
+            />
+          </:col>
+          <:col :let={version} label="Actions">
+            <.button_cell>
+              <:button>
+                <.button
+                  id={"force-resync-#{version.version}"}
+                  variant="secondary"
+                  size="small"
+                  label="Resync version"
+                  phx-click="force_resync"
+                  phx-value-version={version.version}
+                  data-confirm={
+                    "Resync #{@package.result.repository_full_handle}@#{version.version}? The stored artifacts for this version will be deleted and rebuilt."
+                  }
+                >
+                  <:icon_left><.icon name="reload" /></:icon_left>
+                </.button>
+              </:button>
+            </.button_cell>
+          </:col>
+          <:empty_state>
+            <.table_empty_state
+              icon="versions"
+              title="No versions"
+              subtitle={
+                if @search == "",
+                  do: "This package has no synced versions.",
+                  else: "No versions match the current search."
+              }
+            />
+          </:empty_state>
+        </.table>
+        <.pagination_group
+          :if={total_pages > 1}
+          current_page={current_page}
+          number_of_pages={total_pages}
+          page_patch={&page_path(@scope, @name, @query_params, &1)}
+        />
+      <% else %>
+        <.table id="ops-registry-versions-table" rows={[]}>
+          <:col label="Version"></:col>
+          <:col label="Status"></:col>
+          <:col label="Checksum or reason"></:col>
+          <:col label="Actions"></:col>
+          <:empty_state>
+            <.table_empty_state
+              icon="versions"
+              title={if @package.loading, do: "Loading versions", else: "Could not load package"}
+              subtitle={
+                if @package.loading,
+                  do: "Fetching the package metadata.",
+                  else: "Return to the registry and try again."
+              }
+            />
+          </:empty_state>
+        </.table>
+      <% end %>
+    </.card_section>
+  </.card>
+</div>

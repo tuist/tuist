@@ -19,6 +19,9 @@ defmodule Tuist.Runners.JobsTest do
       workflow_job_id: workflow_job_id,
       account_id: account.id,
       fleet_name: Keyword.get(opts, :fleet, "fleet-a"),
+      platform: Keyword.get(opts, :platform, "linux"),
+      vcpus: Keyword.get(opts, :vcpus, 4),
+      memory_gb: Keyword.get(opts, :memory_gb, 16),
       repository: Keyword.get(opts, :repository, "acme/cli"),
       workflow_run_id: Keyword.get(opts, :workflow_run_id, workflow_job_id * 10),
       run_attempt: Keyword.get(opts, :run_attempt, 1),
@@ -48,6 +51,9 @@ defmodule Tuist.Runners.JobsTest do
       workflow_job_id: workflow_job_id,
       account_id: account.id,
       fleet_name: Keyword.get(opts, :fleet, "fleet-a"),
+      platform: Keyword.get(opts, :platform, "linux"),
+      vcpus: Keyword.get(opts, :vcpus, 4),
+      memory_gb: Keyword.get(opts, :memory_gb, 16),
       repository: Keyword.get(opts, :repository, "acme/cli"),
       workflow_run_id: Keyword.get(opts, :workflow_run_id, workflow_job_id * 10),
       run_attempt: Keyword.get(opts, :run_attempt, 1),
@@ -442,11 +448,26 @@ defmodule Tuist.Runners.JobsTest do
       account_a = account_fixture()
       account_b = account_fixture()
 
-      :ok = enqueue_fixture(account_a, 2001, fleet: "fleet-x", repository: "acme/older")
+      :ok =
+        enqueue_fixture(account_a, 2001,
+          fleet: "fleet-x",
+          repository: "acme/older",
+          platform: "macos",
+          vcpus: 6,
+          memory_gb: 14
+        )
+
       Process.sleep(20)
       :ok = enqueue_fixture(account_b, 2002, fleet: "fleet-x", repository: "globex/newer")
 
-      assert {:ok, %{workflow_job_id: 2001, account_id: a_id}} =
+      assert {:ok,
+              %{
+                workflow_job_id: 2001,
+                account_id: a_id,
+                platform: "macos",
+                vcpus: 6,
+                memory_gb: 14
+              }} =
                Jobs.pick_queued("fleet-x", [])
 
       assert a_id == account_a.id

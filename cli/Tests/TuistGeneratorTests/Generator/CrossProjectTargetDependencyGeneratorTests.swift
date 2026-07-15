@@ -6,8 +6,8 @@ import XcodeGraph
 import XcodeProj
 @testable import TuistGenerator
 
-struct ForeignBuildCrossProjectDependencyGeneratorTests {
-    private let subject = ForeignBuildCrossProjectDependencyGenerator()
+struct CrossProjectTargetDependencyGeneratorTests {
+    private let subject = CrossProjectTargetDependencyGenerator()
 
     @Test func generate_wiresCrossProjectDependencyOnConsumer() async throws {
         let consumerPath = try AbsolutePath(validating: "/Workspace/Consumer")
@@ -94,6 +94,50 @@ struct ForeignBuildCrossProjectDependencyGeneratorTests {
         )
         #expect(productsGroup.name == "Products")
         #expect(consumerPbxProject.mainGroup.children.contains(remoteRef))
+    }
+
+    @Test func generate_wiresCrossProjectMacroDependencyOnConsumer() async throws {
+        let consumerPath = try AbsolutePath(validating: "/Workspace/Consumer")
+        let macroPath = try AbsolutePath(validating: "/Workspace/Macros")
+        let macroTarget = Target.test(name: "MacroImplementation", product: .macro)
+        let consumerTarget = Target.test(
+            name: "Feature",
+            dependencies: [.project(target: macroTarget.name, path: macroPath)]
+        )
+        let macroProject = Project.test(path: macroPath, targets: [macroTarget])
+        let consumerProject = Project.test(path: consumerPath, targets: [consumerTarget])
+        let graph = Graph.test(
+            projects: [
+                macroPath: macroProject,
+                consumerPath: consumerProject,
+            ],
+            dependencies: [
+                .target(name: consumerTarget.name, path: consumerPath): Set([
+                    .target(name: macroTarget.name, path: macroPath),
+                ]),
+            ]
+        )
+
+        let macroDescriptor = makeDescriptor(path: macroPath, nativeTargets: [macroTarget.name])
+        let consumerDescriptor = makeDescriptor(path: consumerPath, nativeTargets: [consumerTarget.name])
+
+        try subject.generate(
+            graphTraverser: GraphTraverser(graph: graph),
+            projectDescriptors: [macroDescriptor, consumerDescriptor]
+        )
+
+        let generatedConsumer = try #require(
+            consumerDescriptor.xcodeProj.pbxproj.nativeTargets.first(where: { $0.name == consumerTarget.name })
+        )
+        let dependency = try #require(generatedConsumer.dependencies.first)
+        let proxy = try #require(dependency.targetProxy)
+        #expect(dependency.name == macroTarget.name)
+        #expect(proxy.remoteInfo == macroTarget.name)
+        guard case let .fileReference(remoteRef) = proxy.containerPortal else {
+            Issue.record("Expected a remote project file reference")
+            return
+        }
+        #expect(remoteRef.path == "../Macros/Macros.xcodeproj")
     }
 
     @Test func generate_dedupesFileReferenceWhenMultipleConsumersShareAggregate() async throws {

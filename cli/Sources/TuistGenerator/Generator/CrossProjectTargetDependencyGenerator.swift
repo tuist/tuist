@@ -4,39 +4,36 @@ import TuistCore
 import XcodeGraph
 import XcodeProj
 
-/// Wires cross-project `PBXTargetDependency` edges for consumers that depend on a
-/// `foreignBuild()` aggregate located in another project.
+/// Wires cross-project target dependencies that Xcode cannot infer from product references.
 ///
-/// `foreignBuild()` aggregates produce no product under `BUILT_PRODUCTS_DIR`, so Xcode's implicit
-/// dependency discovery (which walks framework references and product paths) does not pick them
-/// up across project boundaries. Without an explicit cross-project `PBXTargetDependency`, the
-/// aggregate's build script is never invoked when the consumer is built, and the consumer keeps
-/// linking the stale artifact even after the foreign sources change.
+/// Foreign build aggregates produce no product that Xcode can use for implicit dependency discovery.
+/// Swift macro implementations need an explicit target edge so Xcode can discover and propagate their
+/// native macro metadata. This generator adds those edges when the dependency lives in another project.
 ///
-/// For each cross-project edge `(consumer -> foreign-build aggregate)` this generator adds the
+/// For each cross-project edge this generator adds the
 /// following to the consumer's pbxproj:
 ///
 /// - A `PBXFileReference` to the remote `.xcodeproj` (deduplicated per remote project).
 /// - A `PBXProject.projects` entry pairing that reference with an (empty) Products `PBXGroup`.
 /// - A `PBXContainerItemProxy` with `proxyType = .nativeTarget`,
 ///   `containerPortal = .fileReference(<remote .xcodeproj ref>)`, and
-///   `remoteGlobalID = .object(<remote aggregate>)`.
+///   `remoteGlobalID = .object(<remote target>)`.
 /// - A `PBXTargetDependency` wrapping the proxy, appended to the consumer target's
 ///   `dependencies`.
 ///
 /// XcodeProj's `ReferenceGenerator` assigns deterministic UUIDs lazily at encode time. The
 /// consumer pbxproj serializes the proxy's `remoteGlobalIDString` from the remote target's
-/// reference value, so we eagerly encode each aggregate-bearing pbxproj once up front to fix
-/// its UUIDs. When the writer later writes the consumer pbxproj, the proxy resolves to the
+/// reference value, so we eagerly encode each dependency pbxproj once up front to fix its
+/// UUIDs. When the writer later writes the consumer pbxproj, the proxy resolves to the
 /// stable remote UUID instead of the temporary placeholder.
-protocol ForeignBuildCrossProjectDependencyGenerating {
+protocol CrossProjectTargetDependencyGenerating {
     func generate(
         graphTraverser: GraphTraversing,
         projectDescriptors: [ProjectDescriptor]
     ) throws
 }
 
-struct ForeignBuildCrossProjectDependencyGenerator: ForeignBuildCrossProjectDependencyGenerating {
+struct CrossProjectTargetDependencyGenerator: CrossProjectTargetDependencyGenerating {
     func generate(
         graphTraverser: GraphTraversing,
         projectDescriptors: [ProjectDescriptor]
@@ -45,8 +42,8 @@ struct ForeignBuildCrossProjectDependencyGenerator: ForeignBuildCrossProjectDepe
         let edges = collectEdges(graphTraverser: graphTraverser)
         guard !edges.isEmpty else { return }
 
-        let aggregateProjectPaths = Set(edges.map(\.aggregateProjectPath))
-        for path in aggregateProjectPaths.sorted() {
+        let dependencyProjectPaths = Set(edges.map(\.dependencyProjectPath))
+        for path in dependencyProjectPaths.sorted() {
             guard let descriptor = descriptorsByPath[path] else { continue }
             _ = try descriptor.xcodeProj.pbxproj.dataRepresentation(outputSettings: PBXOutputSettings())
         }
@@ -65,8 +62,8 @@ struct ForeignBuildCrossProjectDependencyGenerator: ForeignBuildCrossProjectDepe
     private struct Edge: Hashable {
         let consumerProjectPath: AbsolutePath
         let consumerTargetName: String
-        let aggregateProjectPath: AbsolutePath
-        let aggregateTargetName: String
+        let dependencyProjectPath: AbsolutePath
+        let dependencyTargetName: String
         let condition: PlatformCondition?
     }
 
@@ -82,20 +79,23 @@ struct ForeignBuildCrossProjectDependencyGenerator: ForeignBuildCrossProjectDepe
                 guard target.foreignBuild == nil else { continue }
                 for reference in graphTraverser.directTargetDependencies(path: consumerPath, name: target.name) {
                     guard reference.graphTarget.path != consumerPath else { continue }
-                    guard reference.graphTarget.target.foreignBuild != nil else { continue }
+                    guard reference.graphTarget.target.foreignBuild != nil || reference.graphTarget.target.product == .macro
+                    else {
+                        continue
+                    }
                     edges.insert(Edge(
                         consumerProjectPath: consumerPath,
                         consumerTargetName: target.name,
-                        aggregateProjectPath: reference.graphTarget.path,
-                        aggregateTargetName: reference.graphTarget.target.name,
+                        dependencyProjectPath: reference.graphTarget.path,
+                        dependencyTargetName: reference.graphTarget.target.name,
                         condition: reference.condition
                     ))
                 }
             }
         }
         return edges.sorted { lhs, rhs in
-            (lhs.consumerProjectPath, lhs.consumerTargetName, lhs.aggregateProjectPath, lhs.aggregateTargetName)
-                < (rhs.consumerProjectPath, rhs.consumerTargetName, rhs.aggregateProjectPath, rhs.aggregateTargetName)
+            (lhs.consumerProjectPath, lhs.consumerTargetName, lhs.dependencyProjectPath, lhs.dependencyTargetName)
+                < (rhs.consumerProjectPath, rhs.consumerTargetName, rhs.dependencyProjectPath, rhs.dependencyTargetName)
         }
     }
 
@@ -106,7 +106,7 @@ struct ForeignBuildCrossProjectDependencyGenerator: ForeignBuildCrossProjectDepe
         fileRefCache: inout [FileRefKey: PBXFileReference]
     ) throws {
         guard let consumerDescriptor = descriptorsByPath[edge.consumerProjectPath],
-              let aggregateDescriptor = descriptorsByPath[edge.aggregateProjectPath],
+              let dependencyDescriptor = descriptorsByPath[edge.dependencyProjectPath],
               let consumerXcodeGraphTarget = graphTraverser.target(
                   path: edge.consumerProjectPath,
                   name: edge.consumerTargetName
@@ -114,29 +114,29 @@ struct ForeignBuildCrossProjectDependencyGenerator: ForeignBuildCrossProjectDepe
         else { return }
 
         let consumerPbxproj = consumerDescriptor.xcodeProj.pbxproj
-        let aggregatePbxproj = aggregateDescriptor.xcodeProj.pbxproj
+        let dependencyPbxproj = dependencyDescriptor.xcodeProj.pbxproj
 
         guard let consumerProject = consumerPbxproj.projects.first,
               let consumerTarget = consumerPbxproj.nativeTargets
               .first(where: { $0.name == edge.consumerTargetName }),
-              let aggregateTarget = aggregateTarget(named: edge.aggregateTargetName, in: aggregatePbxproj)
+              let dependencyTarget = target(named: edge.dependencyTargetName, in: dependencyPbxproj)
         else { return }
 
         let remoteProjectRef = remoteProjectFileReference(
             consumerProject: consumerProject,
             consumerPbxproj: consumerPbxproj,
             consumerXcodeprojDirectory: consumerDescriptor.xcodeprojPath.parentDirectory,
-            remoteXcodeprojPath: aggregateDescriptor.xcodeprojPath,
+            remoteXcodeprojPath: dependencyDescriptor.xcodeprojPath,
             cacheKey: FileRefKey(
                 consumerProjectPath: edge.consumerProjectPath,
-                remoteXcodeprojPath: aggregateDescriptor.xcodeprojPath
+                remoteXcodeprojPath: dependencyDescriptor.xcodeprojPath
             ),
             cache: &fileRefCache
         )
 
         if consumerTarget.dependencies.contains(where: { dependency in
             guard let proxy = dependency.targetProxy else { return false }
-            return proxy.remoteInfo == edge.aggregateTargetName
+            return proxy.remoteInfo == edge.dependencyTargetName
                 && proxy.containerPortal == .fileReference(remoteProjectRef)
         }) {
             return
@@ -144,19 +144,19 @@ struct ForeignBuildCrossProjectDependencyGenerator: ForeignBuildCrossProjectDepe
 
         let proxy = PBXContainerItemProxy(
             containerPortal: .fileReference(remoteProjectRef),
-            remoteGlobalID: .object(aggregateTarget),
+            remoteGlobalID: .object(dependencyTarget),
             proxyType: .nativeTarget,
-            remoteInfo: edge.aggregateTargetName
+            remoteInfo: edge.dependencyTargetName
         )
         consumerPbxproj.add(object: proxy)
 
-        let dependency = PBXTargetDependency(name: edge.aggregateTargetName, targetProxy: proxy)
+        let dependency = PBXTargetDependency(name: edge.dependencyTargetName, targetProxy: proxy)
         dependency.applyCondition(edge.condition, applicableTo: consumerXcodeGraphTarget)
         consumerPbxproj.add(object: dependency)
         consumerTarget.dependencies.append(dependency)
     }
 
-    private func aggregateTarget(named name: String, in pbxproj: PBXProj) -> PBXTarget? {
+    private func target(named name: String, in pbxproj: PBXProj) -> PBXTarget? {
         if let native = pbxproj.nativeTargets.first(where: { $0.name == name }) {
             return native
         }

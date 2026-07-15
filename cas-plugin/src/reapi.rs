@@ -19,11 +19,11 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant};
 
+pub use bazel_remote_apis::build::bazel::remote::execution::v2::Digest;
 use bazel_remote_apis::build::bazel::remote::execution::v2::{
     self as reapi, action_cache_client::ActionCacheClient, batch_update_blobs_request,
     content_addressable_storage_client::ContentAddressableStorageClient,
 };
-pub use bazel_remote_apis::build::bazel::remote::execution::v2::Digest;
 use sha2::{Digest as _, Sha256};
 use tonic::transport::{Channel, ClientTlsConfig, Endpoint};
 
@@ -277,7 +277,9 @@ type AuthValue = tonic::metadata::MetadataValue<tonic::metadata::Ascii>;
 fn authed_request<T>(message: T, auth: Option<&AuthValue>) -> tonic::Request<T> {
     let mut request = tonic::Request::new(message);
     if let Some(value) = auth {
-        request.metadata_mut().insert("authorization", value.clone());
+        request
+            .metadata_mut()
+            .insert("authorization", value.clone());
     }
     request
 }
@@ -425,8 +427,7 @@ impl Remote {
                         .filter_map(|file| {
                             Some(ManifestEntry {
                                 llcas_digest: unhex(&file.path)?,
-                                contents: (!file.contents.is_empty())
-                                    .then_some(file.contents),
+                                contents: (!file.contents.is_empty()).then_some(file.contents),
                                 blob: file.digest?,
                             })
                         })

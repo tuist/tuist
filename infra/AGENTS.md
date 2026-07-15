@@ -58,7 +58,7 @@ Go controller for `KuraInstance` and `KuraGateway` CRs (`kura.tuist.dev/v1alpha1
 Go kubelet-shaped agent that registers a Mac mini as a Kubernetes Node and maps Pods to Tart VMs. Interactive runner VNC is host-controlled here: runner VMs start with Tart's host-owned experimental VNC enabled, generated VNC credentials stay in host-control state, and a relay opens only while either a legacy host-local `vnc-control-dir/requests/<namespace>_<pod>` file exists or the server stamps its session annotation on the runner Pod.
 
 ### `registry-router/` — Cloudflare Worker for `registry.tuist.dev`
-Geo-routes cache registry requests to the nearest healthy cache origin based on the requester's continent. Unrelated to the Kubernetes migration.
+Routes public registry requests to the health-checked standalone registry frontend while preserving `registry.tuist.dev` as the request host and using `registry-origin.tuist.dev` only for origin resolution. Regional cache nodes remain automatic fallback origins during the cutover soak period.
 
 ### `cnpg/` — CloudNativePG bootstrap SQL
 SQL files for per-table GRANTs that don't fit CNPG's `managed.roles[]` declarative surface (`tuist_processor` writes on Oban tables; `tuist_ops_ro` extras on top of `pg_read_all_data`). The actual `Cluster` / `ScheduledBackup` / ESO Secret manifests are rendered by the main Helm chart whenever `postgresql.cnpg.enabled` is true or `postgresql.mode == "cnpg"`; this directory holds only the operator-run SQL that can't fit in the chart.

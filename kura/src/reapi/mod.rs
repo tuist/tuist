@@ -79,6 +79,14 @@ pub struct ReapiService {
 struct SnapshotCache {
     indexes: std::sync::Mutex<BTreeMap<String, NamespaceSnapshotIndex>>,
     builds: std::sync::Mutex<std::collections::HashMap<String, SharedIndexBuild>>,
+    /// The last FULL (`after == 0`) encoded snapshot per namespace. A reconcile
+    /// takes its index out of `indexes` for the build's duration, so a serve
+    /// landing during a rebuild would otherwise find nothing and shed a cold
+    /// client to UNAVAILABLE. Serving this last full view instead keeps them on
+    /// the (slightly stale) snapshot. Bounded at the wire ceiling per entry and
+    /// pruned with the index LRU — unlike cloning the whole index, whose
+    /// node table the entry cap does not bound.
+    served_full: std::sync::Mutex<BTreeMap<String, std::sync::Arc<Vec<u8>>>>,
 }
 
 type SharedIndexBuild = futures_util::future::Shared<BoxFuture<'static, Result<(), String>>>;
@@ -522,8 +530,7 @@ impl ReapiService {
         // namespace), and running it inline made every fetch pay it — 40s
         // measured for a serve whose encode and transfer account for a few
         // seconds. Staleness is bounded by the window plus the client's own
-        // delta cadence; a build in flight has taken the index out of the
-        // cache, so those requests fall through and share its completion.
+        // delta cadence.
         {
             let mut indexes = self
                 .snapshot_cache
@@ -535,10 +542,30 @@ impl ReapiService {
                 index.last_used = Instant::now();
                 let bytes = index.encode(after);
                 drop(indexes);
+                self.cache_full_view(namespace_id, after, &bytes);
                 if stale {
                     let _build = self.ensure_index_build(namespace_id);
                 }
                 return Ok(bytes);
+            }
+        }
+        // The index is out — either a reconcile has it, or it has never been
+        // built. For a full request, serve the last full view (stale) rather
+        // than shedding a cold client to UNAVAILABLE while a rebuild runs, and
+        // make sure a rebuild is in flight. A delta cannot be replayed this
+        // way, so it falls through to the cold path (its client keeps its
+        // current snapshot and retries).
+        if after == 0 {
+            let cached = self
+                .snapshot_cache
+                .served_full
+                .lock()
+                .expect("snapshot served_full lock poisoned")
+                .get(namespace_id)
+                .cloned();
+            if let Some(cached) = cached {
+                let _build = self.ensure_index_build(namespace_id);
+                return Ok((*cached).clone());
             }
         }
         // Cold path: wait briefly for the build so small (and already
@@ -571,14 +598,35 @@ impl ReapiService {
             return Err(Status::internal("snapshot index missing after build"));
         };
         index.last_used = Instant::now();
-        Ok(index.encode(after))
+        let bytes = index.encode(after);
+        drop(indexes);
+        self.cache_full_view(namespace_id, after, &bytes);
+        Ok(bytes)
+    }
+
+    /// Caches a full (`after == 0`) encoded view as the namespace's
+    /// `served_full`, so a serve that lands while the index is out for a
+    /// reconcile returns it instead of shedding to UNAVAILABLE. A delta is
+    /// relative to a client's watermark and cannot be replayed, so it is not
+    /// cached.
+    fn cache_full_view(&self, namespace_id: &str, after: u64, bytes: &[u8]) {
+        if after != 0 {
+            return;
+        }
+        self.snapshot_cache
+            .served_full
+            .lock()
+            .expect("snapshot served_full lock poisoned")
+            .insert(namespace_id.to_owned(), std::sync::Arc::new(bytes.to_vec()));
     }
 
     /// The namespace's in-flight index build, starting one when none is
-    /// running. Requests share a single reconcile; the spawned task owns the
-    /// index for its duration and reinserts it (with the LRU bound applied)
-    /// whether the reconcile succeeded or failed, so accumulated progress
-    /// survives request aborts and transient store errors alike.
+    /// running. Requests share a single reconcile; the spawned task takes the
+    /// index out for the reconcile and reinserts it (with the LRU bound
+    /// applied) whether the reconcile succeeded or failed, so accumulated
+    /// progress survives request aborts and transient store errors alike.
+    /// While the index is out, serves fall back to the cached full view
+    /// (`served_full`) rather than the cold path.
     fn ensure_index_build(&self, namespace_id: &str) -> SharedIndexBuild {
         let mut builds = self
             .snapshot_cache
@@ -670,6 +718,12 @@ impl ReapiService {
             );
             return Err("declined under memory pressure".to_owned());
         };
+        // Take the index out for the reconcile (it mutates in place). A serve
+        // landing while it is out does NOT fall to the cold path and answer
+        // UNAVAILABLE — the fast path's caller serves the last full view from
+        // `served_full` instead. Cloning the whole index to keep it in place
+        // would copy an unbounded node table (the entry cap does not bound it);
+        // the cached full encoding is bounded at the wire ceiling.
         let index = cache
             .indexes
             .lock()
@@ -682,9 +736,10 @@ impl ReapiService {
                 (index, Ok(()))
             }
             Err((index, error)) => {
-                // Background kicks drop the shared future without
-                // awaiting it, so this is the only place a repeated
-                // reconcile failure becomes visible.
+                // The reconcile hands the index back so accumulated progress
+                // survives a transient store error; reinsert it. Background
+                // kicks drop the shared future without awaiting it, so this is
+                // the only place a repeated reconcile failure becomes visible.
                 tracing::warn!(
                     namespace_id = namespace.as_str(),
                     error = error.as_str(),
@@ -704,6 +759,13 @@ impl ReapiService {
                     .map(|(namespace, _)| namespace.clone());
                 let Some(oldest) = oldest else { break };
                 indexes.remove(&oldest);
+                // Drop the evicted namespace's cached full view too, so
+                // `served_full` stays bounded alongside `indexes`.
+                cache
+                    .served_full
+                    .lock()
+                    .expect("snapshot served_full lock poisoned")
+                    .remove(&oldest);
             }
         }
         result
@@ -1945,11 +2007,37 @@ fn validate_digest_bytes(digest: &reapi::Digest, bytes: &[u8]) -> Result<(), Str
 /// the write-time watermark header and delta responses).
 pub const SNAPSHOT_ACTION_KEY: &[u8] = b"tuist-actioncache-snapshot/v2";
 const SNAPSHOT_OUTPUT_PATH: &str = "tuist-actioncache-snapshot";
-/// Hard ceiling on the encoded snapshot, with headroom under the 64MB
-/// message limit REAPI clients configure. Entries are encoded newest-first,
-/// so the ceiling sheds the OLDEST keys — the snapshot degrades into a
-/// recency window; dropped keys resolve through the per-key path.
-const SNAPSHOT_MAX_BYTES: usize = 48 << 20;
+/// The floor the compressed path's inclusion budget converges to. A body this
+/// size is guaranteed to compress under the wire ceiling, so the shrink
+/// retries always terminate at a safe view. Also the size below which no
+/// benefit is left on the table: the recency window shed the oldest keys.
+const SNAPSHOT_MIN_BUDGET_BYTES: usize = 48 << 20;
+
+/// Ceiling on the COMPRESSED wire size, with headroom under the 64MB message
+/// limit REAPI clients configure. Same transfer budget as the pre-compression
+/// snapshot, but it now carries several times the content — a shared
+/// namespace's snapshot rides the recency window down to a small suffix of
+/// oldest keys, and those sheds were the per-key ladder that made the snapshot
+/// net-negative over the WAN. Entries are encoded newest-first, so what sheds
+/// is the oldest; dropped keys resolve through the per-key path.
+const SNAPSHOT_WIRE_MAX_BYTES: usize = 48 << 20;
+
+/// How much UNCOMPRESSED body to include before it stops adding keys. Sized so
+/// the zstd output of a full body lands near the wire ceiling for this data's
+/// typical ratio; a body that compresses worse is re-encoded smaller (see
+/// `encode`). Also bounded in practice by the index's own entry cap.
+const SNAPSHOT_CONTENT_BUDGET_BYTES: usize = 144 << 20;
+
+/// Bounded shrink retries when a compressed body overshoots the wire ceiling.
+/// Each retry scales the content budget down from the observed ratio and can
+/// only fall to `SNAPSHOT_MIN_BUDGET_BYTES` (a provably-safe view), so this
+/// bounds the encode work, not the correctness.
+const SNAPSHOT_COMPRESS_MAX_ATTEMPTS: usize = 3;
+
+/// zstd level for the snapshot body. Level 3 runs at hundreds of MB/s and
+/// lands within a few percent of higher levels on hex-id node tables, so the
+/// serve stays CPU-cheap while the wire shrinks ~3x.
+const SNAPSHOT_ZSTD_LEVEL: i32 = 3;
 /// `inline_output_files` hint carrying the client's write-time watermark:
 /// when present, the response includes only entries written after it (a
 /// delta), letting a long-lived client refresh without refetching the world.
@@ -1960,7 +2048,7 @@ pub const SNAPSHOT_AFTER_HINT: &str = "tuist-snapshot-after:";
 const SNAPSHOT_CACHE_MAX_NAMESPACES: usize = 32;
 
 /// The most entries a snapshot index holds, counted from the newest write.
-/// This bounds the BUILD's memory the way SNAPSHOT_MAX_BYTES bounds the
+/// This bounds the BUILD's memory the way the wire ceiling bounds the
 /// response: reconciling against an unbounded keyspace held every manifest
 /// in memory at once, and a namespace with weeks of un-expired CI churn
 /// OOM-killed the pod on its first serve. With the cap, the scan buffer
@@ -2109,19 +2197,58 @@ impl NamespaceSnapshotIndex {
         }
     }
 
-    /// Encodes a view of the index, with a response-local node table so every
-    /// view is self-contained. A full view (`after == 0`) is newest-first
-    /// under the size ceiling — a recency window, so an oversized namespace
-    /// degrades to "the most recent keys, the rest per-key". A delta view
-    /// (`after > 0`) includes entries with `version_ms >= after`: inclusive,
-    /// because millisecond timestamps are not unique and a write landing in
-    /// an already-served millisecond must still reappear (re-sent boundary
-    /// entries merge idempotently client-side). Deltas are assembled
-    /// OLDEST-first and the header watermark is the newest version actually
-    /// included, so a delta that overflows the ceiling paginates — the next
-    /// request resumes where this one stopped — instead of the watermark
-    /// skipping past entries that were never sent.
+    /// Encodes a view for the wire, always zstd-compressed into the `TSNZ`
+    /// envelope. The body is included up to the larger content budget then
+    /// compressed; a body that compresses worse than budgeted is re-encoded
+    /// with a smaller budget scaled from the observed ratio, bounded to a few
+    /// tries that can only converge on the provably-safe minimum budget.
+    ///
+    /// Every snapshot client decodes `TSNZ`; the plain `TSNP` body still exists
+    /// (see `encode_body`) only because a NEW client may hit an OLD server mid
+    /// kura-mesh-roll and must read what those pods emit — this server never
+    /// emits it. The client falls back to the per-key path on any body it can't
+    /// decode, so there is nothing to negotiate.
     fn encode(&self, after: u64) -> Vec<u8> {
+        let mut budget = SNAPSHOT_CONTENT_BUDGET_BYTES;
+        let mut wire = Vec::new();
+        for attempt in 0..SNAPSHOT_COMPRESS_MAX_ATTEMPTS {
+            let body = self.encode_body(after, budget);
+            wire = compress_snapshot(&body);
+            if wire.len() <= SNAPSHOT_WIRE_MAX_BYTES {
+                return wire;
+            }
+            // Overshot: this batch compressed worse than the budget assumed.
+            // Scale the content budget down from the ratio we just measured
+            // (strictly shrinks, since the compressed size is over the
+            // ceiling) but never below the minimum budget, whose body is
+            // guaranteed to compress under the wire ceiling. So the retry
+            // converges on a safe view.
+            let ratio = (body.len() as f64 / wire.len().max(1) as f64).max(1.0);
+            let scaled = (SNAPSHOT_WIRE_MAX_BYTES as f64 * ratio * 0.9) as usize;
+            budget = scaled.min(budget * 9 / 10).max(SNAPSHOT_MIN_BUDGET_BYTES);
+            if attempt + 1 == SNAPSHOT_COMPRESS_MAX_ATTEMPTS {
+                tracing::warn!(
+                    wire_bytes = wire.len(),
+                    "action-cache snapshot still over the wire ceiling after compression retries; shipping the trimmed view"
+                );
+            }
+        }
+        wire
+    }
+
+    /// The uncompressed body, including keys until `budget` bytes of wire are
+    /// accounted, with a response-local node table so every view is
+    /// self-contained. `after == 0` is a full newest-first recency window (an
+    /// oversized namespace degrades to "the most recent keys, the rest
+    /// per-key"); a delta (`after > 0`) includes entries with
+    /// `version_ms >= after` — inclusive, because millisecond timestamps are
+    /// not unique and a write landing in an already-served millisecond must
+    /// reappear (re-sent boundary entries merge idempotently client-side) —
+    /// assembled oldest-first with the header watermark set to the newest
+    /// entry actually included, so an overflowing delta paginates rather than
+    /// skipping what it dropped. This is `encode`'s pre-compression input; it
+    /// is also the exact `TSNP` layout old kura pods still serve on the wire.
+    fn encode_body(&self, after: u64, budget: usize) -> Vec<u8> {
         let full = after == 0;
         let mut included: Vec<(&[u8; 32], &SnapshotIndexEntry)> = self
             .entries
@@ -2148,7 +2275,7 @@ impl NamespaceSnapshotIndex {
                     key_cost += 1 + self.nodes[node as usize].llcas.len() + 32 + 8;
                 }
             }
-            if estimated + key_cost > SNAPSHOT_MAX_BYTES {
+            if estimated + key_cost > budget {
                 if full {
                     // Recency window: this key is out, smaller older ones may fit.
                     continue;
@@ -2206,6 +2333,21 @@ impl NamespaceSnapshotIndex {
         }
         out
     }
+}
+
+/// Wraps a `TSNP` body in the `TSNZ` envelope: magic, version, the u64
+/// uncompressed length (so the client can size its buffer and reject a torn
+/// payload), then the zstd stream. Only clients that advertise zstd support
+/// receive this; everyone else gets the raw body.
+fn compress_snapshot(body: &[u8]) -> Vec<u8> {
+    let compressed = zstd::stream::encode_all(body, SNAPSHOT_ZSTD_LEVEL)
+        .expect("zstd encode of an in-memory buffer cannot fail");
+    let mut out = Vec::with_capacity(compressed.len() + 13);
+    out.extend_from_slice(b"TSNZ");
+    out.push(1);
+    out.extend_from_slice(&(body.len() as u64).to_le_bytes());
+    out.extend_from_slice(&compressed);
+    out
 }
 
 fn digest_key(digest: &reapi::Digest) -> Result<String, Status> {
@@ -2434,7 +2576,7 @@ mod tests {
         };
 
         // Full view: both keys, watermark = newest version, node table deduped.
-        let full = index.encode(0);
+        let full = index.encode_body(0, SNAPSHOT_MIN_BUDGET_BYTES);
         assert_eq!(&full[..4], b"TSNP");
         assert_eq!(full[4], 2);
         assert_eq!(u64::from_le_bytes(full[5..13].try_into().unwrap()), 200);
@@ -2442,7 +2584,7 @@ mod tests {
 
         // Delta view: only the key strictly newer than the cursor, with a
         // self-contained node table (root + the shared node).
-        let delta = index.encode(150);
+        let delta = index.encode_body(150, SNAPSHOT_MIN_BUDGET_BYTES);
         assert_eq!(u64::from_le_bytes(delta[5..13].try_into().unwrap()), 200);
         let node_count = read_u32(&delta, 13);
         assert_eq!(node_count, 2);
@@ -2459,16 +2601,45 @@ mod tests {
         // write landing in an already-served millisecond must reappear on the
         // next delta rather than being skipped until the full refresh. The
         // boundary key is re-sent (merge is idempotent client-side).
-        let boundary = index.encode(200);
+        let boundary = index.encode_body(200, SNAPSHOT_MIN_BUDGET_BYTES);
         assert_eq!(u64::from_le_bytes(boundary[5..13].try_into().unwrap()), 200);
         let node_count = read_u32(&boundary, 13);
         assert_eq!(node_count, 2, "boundary key re-sent");
 
         // Nothing at or past the cursor: an empty delta echoes it.
-        let empty = index.encode(300);
+        let empty = index.encode_body(300, SNAPSHOT_MIN_BUDGET_BYTES);
         assert_eq!(u64::from_le_bytes(empty[5..13].try_into().unwrap()), 300);
         let node_count = read_u32(&empty, 13);
         assert_eq!(node_count, 0);
+    }
+
+    #[test]
+    fn actioncache_snapshot_compressed_envelope_round_trips() {
+        let mut index = NamespaceSnapshotIndex::new();
+        let root = index.intern_node(vec![0xAA, 0xAA], [7; 32], 10);
+        let shared = index.intern_node(vec![0xBB], [8; 32], 20);
+        index.entries.insert(
+            [1; 32],
+            SnapshotIndexEntry {
+                version_ms: 100,
+                nodes: vec![root, shared],
+            },
+        );
+
+        // The compressed wire is the TSNZ envelope: magic, version 1, the
+        // uncompressed length, then the zstd stream that decodes to exactly
+        // the uncompressed body the same view would have produced.
+        let wire = index.encode(0);
+        assert_eq!(&wire[..4], b"TSNZ");
+        assert_eq!(wire[4], 1);
+        let declared = u64::from_le_bytes(wire[5..13].try_into().unwrap()) as usize;
+        let body = zstd::stream::decode_all(&wire[13..]).expect("zstd body should decode");
+        assert_eq!(body.len(), declared, "declared length matches the body");
+        assert_eq!(
+            body,
+            index.encode_body(0, SNAPSHOT_MIN_BUDGET_BYTES),
+            "body equals the plain TSNP view"
+        );
     }
 
     #[test]
@@ -2496,7 +2667,7 @@ mod tests {
         assert_eq!(index.nodes[0].llcas, vec![0xAA]);
         assert_eq!(index.node_index.get(&vec![0xAA]).copied(), Some(0));
         // The rebuilt table keeps serving: the full view carries the live key.
-        let full = index.encode(0);
+        let full = index.encode_body(0, SNAPSHOT_MIN_BUDGET_BYTES);
         assert_eq!(u64::from_le_bytes(full[5..13].try_into().unwrap()), 100);
     }
 
@@ -2854,7 +3025,7 @@ mod tests {
             .serve_actioncache_snapshot("ios", 0)
             .await
             .expect("the follow-up request serves from the cached index");
-        assert_eq!(&bytes[..4], b"TSNP");
+        assert_eq!(&bytes[..4], b"TSNZ");
 
         // A later publish must reach the next serve: every serve reconciles
         // afresh (a memoized index served forever is the production-staleness
@@ -2954,7 +3125,7 @@ mod tests {
             .serve_actioncache_snapshot("ios", 0)
             .await
             .expect("serve should succeed on the large namespace");
-        assert_eq!(&bytes[..4], b"TSNP");
+        assert_eq!(&bytes[..4], b"TSNZ");
         let indexes = service.snapshot_cache.indexes.lock().unwrap();
         let index = &indexes["ios"];
         assert_eq!(
@@ -3045,7 +3216,97 @@ mod tests {
             .expect("build should complete once the pool frees")
             .expect("serve task should not panic")
             .expect("serve should succeed");
-        assert_eq!(&bytes[..4], b"TSNP");
+        assert_eq!(&bytes[..4], b"TSNZ");
+    }
+
+    #[tokio::test]
+    async fn snapshot_serve_returns_the_cached_full_view_while_the_index_is_out_for_reconcile() {
+        let context = test_context(|_| {}).await;
+        let service = ReapiService {
+            snapshot_cache: Default::default(),
+            state: context.state.clone(),
+        };
+        let store = &context.state.store;
+        let uploads = context.state.config.tmp_dir.join("uploads");
+        std::fs::create_dir_all(&uploads).expect("uploads dir should create");
+        let entry_key = format!("action_cache/{}/10", hex::encode([0x44u8; 32]));
+        let entry_path = uploads.join("entry");
+        let entry_bytes = reapi::ActionResult {
+            output_files: vec![reapi::OutputFile {
+                path: hex::encode([0xABu8, 0xCD]),
+                digest: Some(reapi::Digest {
+                    hash: hex::encode([0x11u8; 32]),
+                    size_bytes: 7,
+                }),
+                ..Default::default()
+            }],
+            ..Default::default()
+        }
+        .encode_to_vec();
+        std::fs::write(&entry_path, &entry_bytes).expect("entry should write");
+        store
+            .apply_replicated_artifact_from_path(
+                ArtifactProducer::Reapi,
+                "ios",
+                &entry_key,
+                "application/octet-stream",
+                &entry_path,
+                100,
+            )
+            .await
+            .expect("entry should persist");
+        let blob_path = uploads.join("blob");
+        std::fs::write(&blob_path, b"payload").expect("blob should write");
+        store
+            .apply_replicated_artifact_from_path(
+                ArtifactProducer::Reapi,
+                "ios",
+                &blob_key(&format!("{}/7", hex::encode([0x11u8; 32]))),
+                "application/octet-stream",
+                &blob_path,
+                100,
+            )
+            .await
+            .expect("blob should persist");
+
+        // A full serve builds the index and caches the full view.
+        let first = service
+            .serve_actioncache_snapshot("ios", 0)
+            .await
+            .expect("first serve builds the index");
+        assert_eq!(&first[..4], b"TSNZ");
+        assert!(
+            service
+                .snapshot_cache
+                .served_full
+                .lock()
+                .unwrap()
+                .contains_key("ios"),
+            "the full view is cached for the rebuild window"
+        );
+
+        // Simulate a reconcile in flight: the index is OUT of the map. Exhaust
+        // the pool so the serve's kicked rebuild cannot reinsert it before the
+        // assertion.
+        service.snapshot_cache.indexes.lock().unwrap().remove("ios");
+        let pool = context.state.memory.reapi_materialization_pool_bytes();
+        let _hog = context
+            .state
+            .memory
+            .try_acquire_reapi_materialization(pool)
+            .expect("pool should be acquirable when idle");
+
+        // A full serve now finds no index but returns the cached full view
+        // immediately, rather than shedding a cold client to UNAVAILABLE while
+        // the rebuild runs. Before `served_full`, this fell to the cold path.
+        let stale = tokio::time::timeout(
+            std::time::Duration::from_secs(2),
+            service.serve_actioncache_snapshot("ios", 0),
+        )
+        .await
+        .expect("serve must not block on the stalled rebuild")
+        .expect("serve returns the cached full view, not UNAVAILABLE");
+        assert_eq!(stale, first, "serves the exact cached full view");
     }
 
     #[tokio::test(start_paused = true)]
@@ -3080,7 +3341,7 @@ mod tests {
         .await
         .expect("serve should not hang once the pool frees")
         .expect("serve should succeed after the build completes");
-        assert_eq!(&bytes[..4], b"TSNP");
+        assert_eq!(&bytes[..4], b"TSNZ");
     }
 
     use tokio::net::TcpListener;

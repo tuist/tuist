@@ -695,6 +695,12 @@ jobs:
         # rendered into the cluster-wide `kura` namespace, so Helm owns its
         # lifecycle. Its static shape lives in values-preview-kura.yaml; only
         # the per-preview identity is set here.
+        #
+        # --wait-for-jobs is load-bearing: --wait on its own only waits for the
+        # Deployments to go ready, not for Jobs to complete. Preview runs the
+        # migration as a regular Job (server.migrationJob.asHook=false), so
+        # without this Helm returns success while migrations are still running
+        # and the seed step below writes into a half-migrated database.
         run: |
           set -euo pipefail
           helm upgrade --install "$RELEASE" "$HELM_CHART_PATH" \
@@ -718,7 +724,7 @@ jobs:
             --set-string "kuraRuntime.instance.labels.tuist\.dev/preview-source=$SOURCE" \
             --set-file "kuraRuntime.instance.extensionScript=kura/ops/helm/kura/hooks/tuist.lua" \
             --set "server.kuraEndpointUrls[0]=https://$KURA_HOST" \
-            --atomic --timeout 20m --wait
+            --atomic --timeout 20m --wait --wait-for-jobs
       - name: Wait for KuraInstance
         run: |
           set -euo pipefail

@@ -513,11 +513,12 @@ fn spawn_snapshot_task(state: Arc<AppState>) {
                 match tokio::task::spawn_blocking(move || {
                     let snapshot = worker_state.store.snapshot();
                     let memory = process_memory_snapshot();
-                    (snapshot, memory)
+                    let jemalloc = jemalloc_stats_snapshot();
+                    (snapshot, memory, jemalloc)
                 })
                 .await
                 {
-                    Ok((Ok(snapshot), memory)) => {
+                    Ok((Ok(snapshot), memory, jemalloc)) => {
                         state
                             .metrics
                             .update_outbox_messages(snapshot.outbox_messages);
@@ -547,6 +548,13 @@ fn spawn_snapshot_task(state: Arc<AppState>) {
                             state
                                 .metrics
                                 .update_process_memory(memory.resident_bytes, memory.virtual_bytes);
+                            if let (Some(anon_bytes), Some(file_bytes)) =
+                                (memory.resident_anon_bytes, memory.resident_file_bytes)
+                            {
+                                state
+                                    .metrics
+                                    .update_process_resident_breakdown(anon_bytes, file_bytes);
+                            }
                             let pressure = state.memory.observe(memory.resident_bytes);
                             let target_bytes = state
                                 .memory
@@ -598,8 +606,15 @@ fn spawn_snapshot_task(state: Arc<AppState>) {
                                 .metrics
                                 .update_memory_pressure_state(pressure.as_i64());
                         }
+                        if let Some(jemalloc) = jemalloc {
+                            state.metrics.update_jemalloc_stats(
+                                jemalloc.allocated_bytes,
+                                jemalloc.resident_bytes,
+                                jemalloc.retained_bytes,
+                            );
+                        }
                     }
-                    Ok((Err(error), _)) => {
+                    Ok((Err(error), _, _)) => {
                         tracing::warn!("failed to collect store snapshot metrics: {error}");
                     }
                     Err(error) => {
@@ -885,22 +900,71 @@ fn spawn_drain_signal_task(_state: Arc<AppState>) {}
 struct ProcessMemorySnapshot {
     resident_bytes: u64,
     virtual_bytes: u64,
+    // Best-effort breakdown of resident memory into RssAnon (private pages:
+    // heap and stacks) and RssFile (pages backed by mapped files: mmap'd
+    // segments and the executable); these plus RssShmem sum to VmRSS. `None`
+    // on kernels < 4.5 that omit the lines, so it never fails the required
+    // resident/virtual sampling that drives memory-pressure control.
+    resident_anon_bytes: Option<u64>,
+    resident_file_bytes: Option<u64>,
 }
 
 #[cfg(target_os = "linux")]
 fn process_memory_snapshot() -> Option<ProcessMemorySnapshot> {
     let status = std::fs::read_to_string("/proc/self/status").ok()?;
-    let resident_bytes = parse_status_memory_kib(&status, "VmRSS:")?.saturating_mul(1024);
-    let virtual_bytes = parse_status_memory_kib(&status, "VmSize:")?.saturating_mul(1024);
+    let resident_bytes = parse_status_memory_bytes(&status, "VmRSS:")?;
+    let virtual_bytes = parse_status_memory_bytes(&status, "VmSize:")?;
+    let resident_anon_bytes = parse_status_memory_bytes(&status, "RssAnon:");
+    let resident_file_bytes = parse_status_memory_bytes(&status, "RssFile:");
     Some(ProcessMemorySnapshot {
         resident_bytes,
         virtual_bytes,
+        resident_anon_bytes,
+        resident_file_bytes,
     })
 }
 
 #[cfg(not(target_os = "linux"))]
 fn process_memory_snapshot() -> Option<ProcessMemorySnapshot> {
     None
+}
+
+/// jemalloc's own accounting via mallctl. It sees only jemalloc-managed memory
+/// — not mmap'd segment files or non-Rust (RocksDB/C++) allocations — so it
+/// complements the RssAnon/RssFile split rather than replacing it. `allocated`
+/// is live application bytes; `resident` the physical pages jemalloc holds
+/// (allocations plus metadata, fragmentation, and dirty pages); `retained` the
+/// virtual address space kept back from the OS. Together they can hint at — but
+/// do not prove — a leak (a steadily rising `allocated`) as opposed to
+/// fragmentation or allocator retention (`resident` well above `allocated`).
+struct JemallocStats {
+    allocated_bytes: u64,
+    resident_bytes: u64,
+    retained_bytes: u64,
+}
+
+#[cfg(not(target_env = "msvc"))]
+fn jemalloc_stats_snapshot() -> Option<JemallocStats> {
+    use tikv_jemalloc_ctl::{epoch, stats};
+    // jemalloc caches these values and only recomputes them when the epoch is
+    // advanced, so refresh first or every read returns a stale, previously
+    // cached snapshot.
+    epoch::advance().ok()?;
+    Some(JemallocStats {
+        allocated_bytes: stats::allocated::read().ok()? as u64,
+        resident_bytes: stats::resident::read().ok()? as u64,
+        retained_bytes: stats::retained::read().ok()? as u64,
+    })
+}
+
+#[cfg(target_env = "msvc")]
+fn jemalloc_stats_snapshot() -> Option<JemallocStats> {
+    None
+}
+
+#[cfg(target_os = "linux")]
+fn parse_status_memory_bytes(status: &str, field: &str) -> Option<u64> {
+    parse_status_memory_kib(status, field).map(|kib| kib.saturating_mul(1024))
 }
 
 #[cfg(target_os = "linux")]
@@ -983,6 +1047,44 @@ mod tests {
         // HTTP/2 (h2c REAPI gRPC) on the same socket.
         assert!(builder.is_http1_available());
         assert!(builder.is_http2_available());
+    }
+
+    #[cfg(not(target_env = "msvc"))]
+    #[test]
+    fn jemalloc_stats_snapshot_reads_live_allocator_stats() {
+        // Hold a sizeable allocation so `allocated` is unambiguously non-zero
+        // when we sample, exercising the real mallctl path (epoch refresh +
+        // typed stat reads) rather than the hardcoded render-test values.
+        let ballast: Vec<u8> = vec![7u8; 8 * 1024 * 1024];
+        let stats = jemalloc_stats_snapshot().expect("jemalloc stats available under jemalloc");
+        assert!(stats.allocated_bytes > 0);
+        assert!(stats.resident_bytes >= stats.allocated_bytes);
+        drop(ballast);
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn resident_rss_splits_into_anon_and_file() {
+        let status = "VmSize:\t 4194304 kB\n\
+             VmRSS:\t 1048576 kB\n\
+             RssAnon:\t  786432 kB\n\
+             RssFile:\t  262144 kB\n\
+             RssShmem:\t       0 kB\n";
+        assert_eq!(parse_status_memory_kib(status, "RssAnon:"), Some(786_432));
+        assert_eq!(parse_status_memory_kib(status, "RssFile:"), Some(262_144));
+
+        // The live process snapshot must also carry the split, and the two
+        // resident classes can never exceed total VmRSS (VmRSS = anon + file +
+        // shmem), which is the invariant a dashboard subtracting them relies on.
+        let snapshot = process_memory_snapshot().expect("linux process snapshot");
+        let anon = snapshot
+            .resident_anon_bytes
+            .expect("RssAnon present on kernels >= 4.5");
+        let file = snapshot
+            .resident_file_bytes
+            .expect("RssFile present on kernels >= 4.5");
+        assert!(anon > 0);
+        assert!(anon + file <= snapshot.resident_bytes);
     }
 
     // End-to-end proof that the co-hosted listener dispatches by path: an HTTP
