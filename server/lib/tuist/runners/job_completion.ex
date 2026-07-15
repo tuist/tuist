@@ -1,10 +1,10 @@
-defmodule Tuist.Runners.JobTerminal do
+defmodule Tuist.Runners.JobCompletion do
   @moduledoc """
-  Durable terminal marker for GitHub workflow jobs.
+  Durable completion marker for GitHub workflow jobs.
 
   `runner_jobs` remains the ClickHouse-backed lifecycle and history table, but
   queued/completed webhooks need a Postgres row they can lock and query
-  atomically so a late `queued` redelivery cannot resurrect terminal work.
+  atomically so a late `queued` redelivery cannot resurrect completed work.
   """
   use Ecto.Schema
 
@@ -12,7 +12,7 @@ defmodule Tuist.Runners.JobTerminal do
 
   @primary_key {:workflow_job_id, :integer, []}
 
-  schema "runner_job_terminals" do
+  schema "runner_job_completions" do
     field :conclusion, :string
     field :completed_at, :utc_datetime
 

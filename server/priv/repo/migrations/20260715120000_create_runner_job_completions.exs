@@ -1,8 +1,8 @@
-defmodule Tuist.Repo.Migrations.CreateRunnerJobTerminals do
+defmodule Tuist.Repo.Migrations.CreateRunnerJobCompletions do
   use Ecto.Migration
 
   def change do
-    create table(:runner_job_terminals, primary_key: false) do
+    create table(:runner_job_completions, primary_key: false) do
       add :workflow_job_id, :bigint, primary_key: true, null: false
       add :account_id, references(:accounts, on_delete: :delete_all), null: false
       add :conclusion, :string, null: false
@@ -11,7 +11,7 @@ defmodule Tuist.Repo.Migrations.CreateRunnerJobTerminals do
       timestamps(type: :timestamptz)
     end
 
-    create index(:runner_job_terminals, [:account_id])
-    create index(:runner_job_terminals, [:completed_at])
+    create index(:runner_job_completions, [:account_id])
+    create index(:runner_job_completions, [:completed_at])
   end
 end

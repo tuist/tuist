@@ -214,7 +214,7 @@ defmodule Tuist.Runners.Dispatch do
       # count immediately rather than waiting on the stale-claims
       # worker. The ordering lock below only serializes webhook
       # transitions for this workflow_job so a concurrent queued
-      # redelivery cannot resurrect the terminal row.
+      # redelivery cannot resurrect the completion row.
       :ok = Claims.complete(workflow_job_id)
 
       case Jobs.complete(workflow_job_id, conclusion) do
@@ -230,7 +230,7 @@ defmodule Tuist.Runners.Dispatch do
 
         {:error, :not_found} ->
           # The completed delivery can arrive before the queued delivery.
-          # If this job targets one of our pools, write a terminal row now
+          # If this job targets one of our pools, write a completion row now
           # so a late queued redelivery cannot resurrect canceled work.
           case record_completed_without_queued(payload, conclusion, installation_id) do
             {:ok, account_id} ->

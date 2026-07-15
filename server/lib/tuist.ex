@@ -207,7 +207,7 @@ defmodule Tuist do
       Runners.InteractiveSessions,
       Runners.Jobs,
       Runners.Job,
-      Runners.JobTerminal,
+      Runners.JobCompletion,
       Runners.JobLogs,
       Runners.JobLog,
       Runners.LogFormatter,

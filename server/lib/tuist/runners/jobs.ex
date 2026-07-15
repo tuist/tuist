@@ -60,7 +60,7 @@ defmodule Tuist.Runners.Jobs do
   alias Tuist.Repo
   alias Tuist.Runners.Catalog
   alias Tuist.Runners.Job
-  alias Tuist.Runners.JobTerminal
+  alias Tuist.Runners.JobCompletion
   alias Tuist.Runners.Telemetry
   alias Tuist.Tests.Test, as: TestRun
 
@@ -89,12 +89,12 @@ defmodule Tuist.Runners.Jobs do
   webhooks need a Postgres lock so a late `queued` or `waiting` delivery cannot
   observe "missing", race a concurrent completion, and write a newer queued row.
   """
-  def with_workflow_job_ordering_lock(workflow_job_id, fun)
-      when is_integer(workflow_job_id) and is_function(fun, 0) do
-    Repo.transaction(fn ->
+  def with_workflow_job_ordering_lock(workflow_job_id, fun) when is_integer(workflow_job_id) and is_function(fun, 0) do
+    fn ->
       acquire_workflow_job_ordering_lock(workflow_job_id)
       fun.()
-    end)
+    end
+    |> Repo.transaction()
     |> case do
       {:ok, result} -> result
       {:error, reason} -> {:error, reason}
@@ -236,7 +236,7 @@ defmodule Tuist.Runners.Jobs do
   def enqueue_if_missing(%{workflow_job_id: workflow_job_id} = attrs) when is_integer(workflow_job_id) do
     with_workflow_job_ordering_lock(workflow_job_id, fn ->
       cond do
-        terminal?(workflow_job_id) -> :ok
+        completion_recorded?(workflow_job_id) -> :ok
         is_nil(current(workflow_job_id)) -> enqueue(attrs)
         true -> :ok
       end
@@ -247,7 +247,7 @@ defmodule Tuist.Runners.Jobs do
   Records a completed job even when the queued row was never accepted.
 
   GitHub can deliver `workflow_job.completed` before its matching
-  `queued` delivery. Writing this terminal row gives later `queued`
+  `queued` delivery. Writing this completion row gives later `queued`
   redeliveries something to see so they cannot resurrect canceled work.
   """
   def record_completed(attrs, conclusion) when is_map(attrs) and is_binary(conclusion) do
@@ -357,8 +357,8 @@ defmodule Tuist.Runners.Jobs do
     workflow_job_id = Map.fetch!(candidate, :workflow_job_id)
 
     with_workflow_job_ordering_lock(workflow_job_id, fn ->
-      if terminal?(workflow_job_id) do
-        {:error, :terminal}
+      if completion_recorded?(workflow_job_id) do
+        {:error, :completed}
       else
         now = DateTime.utc_now()
 
@@ -390,7 +390,7 @@ defmodule Tuist.Runners.Jobs do
   """
   def record_running(workflow_job_id, runner_name) when is_integer(workflow_job_id) and is_binary(runner_name) do
     with_workflow_job_ordering_lock(workflow_job_id, fn ->
-      if terminal?(workflow_job_id) do
+      if completion_recorded?(workflow_job_id) do
         :ok
       else
         case current(workflow_job_id) do
@@ -440,7 +440,7 @@ defmodule Tuist.Runners.Jobs do
   """
   def record_queued(workflow_job_id) when is_integer(workflow_job_id) do
     with_workflow_job_ordering_lock(workflow_job_id, fn ->
-      if terminal?(workflow_job_id) do
+      if completion_recorded?(workflow_job_id) do
         :ok
       else
         case current(workflow_job_id) do
@@ -1361,7 +1361,7 @@ defmodule Tuist.Runners.Jobs do
       |> job_to_row()
       |> Map.merge(completion)
 
-    persist_terminal!(job.workflow_job_id, job.account_id, conclusion, now)
+    persist_completion!(job.workflow_job_id, job.account_id, conclusion, now)
     insert_row!(row)
 
     :telemetry.execute(
@@ -1394,7 +1394,7 @@ defmodule Tuist.Runners.Jobs do
       |> Map.put(:completed_at, now)
       |> Map.put(:updated_at, now)
 
-    persist_terminal!(Map.fetch!(row, :workflow_job_id), Map.fetch!(row, :account_id), conclusion, now)
+    persist_completion!(Map.fetch!(row, :workflow_job_id), Map.fetch!(row, :account_id), conclusion, now)
     insert_row!(row)
 
     :telemetry.execute(
@@ -1414,16 +1414,16 @@ defmodule Tuist.Runners.Jobs do
     end
   end
 
-  defp terminal?(workflow_job_id) do
-    Repo.exists?(from(terminal in JobTerminal, where: terminal.workflow_job_id == ^workflow_job_id))
+  defp completion_recorded?(workflow_job_id) do
+    Repo.exists?(from(completion in JobCompletion, where: completion.workflow_job_id == ^workflow_job_id))
   end
 
-  defp persist_terminal!(workflow_job_id, account_id, conclusion, completed_at) do
-    now = DateTime.utc_now() |> DateTime.truncate(:second)
+  defp persist_completion!(workflow_job_id, account_id, conclusion, completed_at) do
+    now = DateTime.truncate(DateTime.utc_now(), :second)
     completed_at = DateTime.truncate(completed_at, :second)
 
     Repo.insert_all(
-      JobTerminal,
+      JobCompletion,
       [
         %{
           workflow_job_id: workflow_job_id,

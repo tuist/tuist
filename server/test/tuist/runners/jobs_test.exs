@@ -7,7 +7,7 @@ defmodule Tuist.Runners.JobsTest do
   alias Tuist.IngestRepo
   alias Tuist.Repo
   alias Tuist.Runners.Job
-  alias Tuist.Runners.JobTerminal
+  alias Tuist.Runners.JobCompletion
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.RunnerSession
   alias Tuist.Runners.RunnerSessions
@@ -119,7 +119,7 @@ defmodule Tuist.Runners.JobsTest do
       assert Map.get(counts, "claimed", 0) == 1
     end
 
-    test "enqueue_if_missing honors a terminal guard even when ClickHouse has no row" do
+    test "enqueue_if_missing honors a completion guard even when ClickHouse has no row" do
       account = account_fixture()
 
       attrs = %{
@@ -136,11 +136,11 @@ defmodule Tuist.Runners.JobsTest do
         requested_dispatch_label: ""
       }
 
-      Repo.insert!(%JobTerminal{
+      Repo.insert!(%JobCompletion{
         workflow_job_id: attrs.workflow_job_id,
         account_id: account.id,
         conclusion: "cancelled",
-        completed_at: DateTime.utc_now() |> DateTime.truncate(:second)
+        completed_at: DateTime.truncate(DateTime.utc_now(), :second)
       })
 
       assert :ok = Jobs.enqueue_if_missing(attrs)
@@ -545,7 +545,7 @@ defmodule Tuist.Runners.JobsTest do
 
       assert :ok = Jobs.record_claimed(candidate, "pod-bs", DateTime.utc_now())
 
-      assert Tuist.Repo.all(from(s in RunnerSession, where: s.workflow_job_id == 5002)) == []
+      assert Repo.all(from(s in RunnerSession, where: s.workflow_job_id == 5002)) == []
     end
   end
 
@@ -1029,7 +1029,7 @@ defmodule Tuist.Runners.JobsTest do
       assert {:ok, _} = Jobs.complete(7200, "success")
 
       [session] =
-        Tuist.Repo.all(from(s in RunnerSession, where: s.workflow_job_id == 7200))
+        Repo.all(from(s in RunnerSession, where: s.workflow_job_id == 7200))
 
       # Webhook completion doesn't close the session — the
       # controller's `POST /api/internal/runners/pods/stopped` is

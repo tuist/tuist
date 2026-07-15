@@ -342,7 +342,7 @@ defmodule Tuist.Runners do
               :ok ->
                 serve_claim(namespace, sa_name, fleet_name, candidate, claim)
 
-              {:error, :terminal} ->
+              {:error, :completed} ->
                 _ = Claims.release(candidate.workflow_job_id, claim.claimed_at)
 
                 claim_and_serve(
