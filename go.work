@@ -19,6 +19,7 @@ use (
 	./infra/kura-controller
 	./infra/linux-runner-image
 	./infra/macos-host-bootstrap
+	./infra/runner-image
 	./infra/runners-controller
 	./infra/stable-egress-controller
 	./infra/tart-kubelet

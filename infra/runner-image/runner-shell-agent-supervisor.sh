@@ -1,8 +1,7 @@
 #!/bin/bash
 # Launchd-managed supervisor for the trusted interactive shell bridge.
 # It waits for inject-env.sh to materialize the Pod env/token files,
-# resolves python3 from the runner login environment, and restarts the
-# bridge if it exits while the VM is still alive.
+# and restarts the Go bridge if it exits while the VM is still alive.
 
 set -uo pipefail
 
@@ -53,26 +52,7 @@ while true; do
 done
 
 while true; do
-  shell_agent_python=""
-  if shell_agent_python="$(command -v python3 2>/dev/null)"; then
-    :
-  elif [ -x /opt/homebrew/bin/python3 ]; then
-    shell_agent_python=/opt/homebrew/bin/python3
-  elif [ -x /usr/local/bin/python3 ]; then
-    shell_agent_python=/usr/local/bin/python3
-  elif [ -x /usr/bin/python3 ]; then
-    shell_agent_python=/usr/bin/python3
-  elif [ -x /usr/bin/xcrun ] && shell_agent_python="$(/usr/bin/xcrun -f python3 2>/dev/null)"; then
-    :
-  fi
-
-  if [ -z "${shell_agent_python}" ]; then
-    echo "$(date -u +%FT%TZ) runner-shell-agent-supervisor: python3 missing; retrying in 10s"
-    sleep 10
-    continue
-  fi
-
-  if [ ! -x /opt/tuist/runner-shell-agent.py ]; then
+  if [ ! -x /opt/tuist/runner-shell-agent ]; then
     echo "$(date -u +%FT%TZ) runner-shell-agent-supervisor: runner-shell-agent missing or not executable; retrying in 10s"
     sleep 10
     continue
@@ -82,8 +62,8 @@ while true; do
     export TUIST_RUNNER_SHELL_PATH=/bin/zsh
   fi
 
-  echo "$(date -u +%FT%TZ) runner-shell-agent-supervisor: starting runner-shell-agent with ${shell_agent_python}"
-  "${shell_agent_python}" /opt/tuist/runner-shell-agent.py
+  echo "$(date -u +%FT%TZ) runner-shell-agent-supervisor: starting runner-shell-agent"
+  /opt/tuist/runner-shell-agent
   rc=$?
   echo "$(date -u +%FT%TZ) runner-shell-agent-supervisor: runner-shell-agent exited (rc=${rc}); restarting in 2s"
   sleep 2

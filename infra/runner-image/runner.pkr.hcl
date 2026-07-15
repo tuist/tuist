@@ -56,6 +56,7 @@ packer {
 #   /opt/tuist/dispatch-poll.sh                 <- the dispatch poll loop (root-owned)
 #   /opt/tuist/metrics-poll.sh                  <- machine-metrics sampler (forked during a job)
 #   /opt/tuist/inject-env.sh                    <- reads kubelet env mount → /etc/tuist.env
+#   /opt/tuist/runner-shell-agent               <- trusted interactive shell bridge
 #   /Applications/Xcode_<version>.app           <- inherited from the base
 #
 # The macos-tahoe-xcode base inherits macos-tahoe-base's `admin` user
@@ -183,19 +184,6 @@ build {
     ]
   }
 
-  # Python powers the trusted interactive shell bridge. The Xcode base
-  # intentionally doesn't promise Python for customer jobs, so install
-  # Homebrew's default `python` formula in this runner layer and assert
-  # that the runtime user can resolve `python3` through its login shell.
-  provisioner "shell" {
-    inline = [
-      "set -euo pipefail",
-      "/bin/zsh -lc 'brew list python >/dev/null 2>&1 || brew install python'",
-      "/bin/zsh -lc 'python3 --version'",
-      "sudo -u runner /bin/zsh -lc 'command -v python3 >/dev/null'"
-    ]
-  }
-
   # The runner auto-login opens a real desktop session so launchd can
   # run the GitHub Actions agent. On fresh macOS images that first
   # desktop can be intercepted by Setup Assistant's "Update Mac
@@ -288,8 +276,8 @@ build {
   }
 
   provisioner "file" {
-    source      = "${path.root}/runner-shell-agent.py"
-    destination = "/tmp/runner-shell-agent.py"
+    source      = "${path.root}/build/runner-shell-agent"
+    destination = "/tmp/runner-shell-agent"
   }
 
   provisioner "file" {
@@ -307,10 +295,10 @@ build {
       "echo 'admin' | sudo -S install -m 0755 /tmp/inject-env.sh /opt/tuist/inject-env.sh",
       "echo 'admin' | sudo -S install -m 0755 /tmp/dispatch-poll.sh /opt/tuist/dispatch-poll.sh",
       "echo 'admin' | sudo -S install -m 0755 /tmp/metrics-poll.sh /opt/tuist/metrics-poll.sh",
-      "echo 'admin' | sudo -S install -m 0755 /tmp/runner-shell-agent.py /opt/tuist/runner-shell-agent.py",
+      "echo 'admin' | sudo -S install -m 0755 /tmp/runner-shell-agent /opt/tuist/runner-shell-agent",
       "echo 'admin' | sudo -S install -m 0755 /tmp/runner-shell-agent-supervisor.sh /opt/tuist/runner-shell-agent-supervisor.sh",
       "echo 'admin' | sudo -S install -m 0644 -o root -g wheel /tmp/dev.tuist.runner-shell-agent.plist /Library/LaunchDaemons/dev.tuist.runner-shell-agent.plist",
-      "rm -f /tmp/inject-env.sh /tmp/dispatch-poll.sh /tmp/metrics-poll.sh /tmp/runner-shell-agent.py /tmp/runner-shell-agent-supervisor.sh /tmp/dev.tuist.runner-shell-agent.plist"
+      "rm -f /tmp/inject-env.sh /tmp/dispatch-poll.sh /tmp/metrics-poll.sh /tmp/runner-shell-agent /tmp/runner-shell-agent-supervisor.sh /tmp/dev.tuist.runner-shell-agent.plist"
     ]
   }
 
