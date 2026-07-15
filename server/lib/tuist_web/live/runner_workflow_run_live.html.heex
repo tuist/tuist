@@ -53,7 +53,7 @@
         :if={@can_cancel_runs and TuistWeb.RunnerWorkflowRunLive.run_cancellable?(@run_status)}
         variant="secondary"
         size="medium"
-        label={dgettext("dashboard_runners", "Cancel")}
+        label={dgettext("dashboard_runners", "Cancel workflow")}
         phx-click="cancel_run"
         data-confirm={
           dgettext(
