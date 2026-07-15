@@ -65,6 +65,8 @@ resources:
 # cluster runs the k8s-monitoring Helm release in the `observability`
 # namespace, exposing alloy at the same in-cluster Service name.
 config:
+  usage:
+    networkPath: public_internet
   telemetry:
     otlpTracesEndpoint: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4318/v1/traces
     deploymentEnvironment: production

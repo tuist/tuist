@@ -2540,6 +2540,7 @@ mod tests {
             batch_size: 100,
             max_buckets: 100,
             outbox_max_depth: 100,
+            network_path: crate::config::UsageNetworkPath::PublicInternet,
         }
     }
 

@@ -267,6 +267,7 @@ When `Optional` is `Yes`, the `Default` column shows what Kura uses today. `auto
 | `KURA_USAGE_BATCH_SIZE` | Maximum number of usage rollups sent in one control-plane request. | Yes | `1000` |
 | `KURA_USAGE_MAX_BUCKETS` | Maximum number of in-memory usage aggregation buckets. New buckets are rejected when this cap is reached. | Yes | `10000` |
 | `KURA_USAGE_OUTBOX_MAX_DEPTH` | Maximum number of durable usage rollups retained in RocksDB before closed windows stop flushing. | Yes | `100000` |
+| `KURA_USAGE_NETWORK_PATH` | Network path used by client traffic served by this instance: `public_internet`, `private_network`, or `unknown`. Billing accepts only public Internet egress. | Yes | `unknown` |
 | `KURA_MULTIPART_UPLOAD_TTL_MS` | How long an in-progress multipart upload may sit before the janitor expires it. | Yes | `86400000` |
 | `KURA_MULTIPART_JANITOR_INTERVAL_MS` | How often the multipart janitor scans for stale uploads. | Yes | `600000` |
 | `KURA_BOOTSTRAP_TIMEOUT_MS` | Maximum time a single bootstrap-from-peer task may run before it is cancelled. | Yes | `1800000` |
@@ -414,13 +415,15 @@ It also exposes analytics-specific runtime metrics for:
 
 ## Usage Metering
 
-When `KURA_CONTROL_PLANE_URL`, `KURA_CONTROL_PLANE_CLIENT_ID`, and `KURA_CONTROL_PLANE_CLIENT_SECRET` are set, Kura records first-party usage rollups for public cache traffic and pushes them to:
+When `KURA_CONTROL_PLANE_URL`, `KURA_CONTROL_PLANE_CLIENT_ID`, and `KURA_CONTROL_PLANE_CLIENT_SECRET` are set, Kura records first-party usage rollups for client cache traffic and pushes them to:
 
 ```text
 POST {KURA_CONTROL_PLANE_URL}/_internal/kura/usage
 ```
 
-Both surfaces are metered: the HTTP cache path records rollups with `protocol = "http"`, and the REAPI (gRPC) path — `ByteStream` read/write, CAS `BatchReadBlobs`/`BatchUpdateBlobs`, and ActionCache `GetActionResult` (including inlined stdout/stderr/output files) / `UpdateActionResult` — records them with `protocol = "grpc"` and `artifact_kind = "reapi"`, so Bazel and other REAPI clients count toward the same usage surface.
+Both surfaces are metered: the HTTP cache path records rollups with `protocol = "http"`, and the Remote Execution application programming interface path records rollups with `protocol = "grpc"` and `artifact_kind = "reapi"`, so Bazel and other compatible clients count toward the same usage surface.
+
+Every rollup records the configured `network_path`. Managed public instances use `public_internet`, runner-cache instances use `private_network`, and standalone instances default to `unknown`. The billing pipeline only accepts public Internet egress, so missing or invalid classifications fail closed.
 
 The hot path increments bounded in-memory counters keyed by tenant, namespace, node, region, traffic plane, direction, operation, protocol, artifact kind, and fixed time window. Closed windows are persisted to a dedicated RocksDB usage outbox, then delivered in bounded batches with HTTP Basic client credentials. Delivery is at least once; the control plane deduplicates by deterministic `event_id`.
 
