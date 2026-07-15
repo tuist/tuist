@@ -66,6 +66,12 @@ def websocket_url(session, discovery):
     return urllib.parse.urlunparse((scheme, discovered.netloc, websocket.path, websocket.params, websocket.query, websocket.fragment))
 
 
+def tls_client_context():
+    context = ssl.create_default_context()
+    context.minimum_version = ssl.TLSVersion.TLSv1_2
+    return context
+
+
 def wait_for_claim():
     jit_path = os.environ.get("TUIST_RUNNER_JIT_PATH")
     if not jit_path:
@@ -155,7 +161,7 @@ def connect_websocket(url, token):
     host = parsed.hostname
     raw = socket.create_connection((host, port), timeout=10)
     if parsed.scheme == "wss":
-        raw = ssl.create_default_context().wrap_socket(raw, server_hostname=host)
+        raw = tls_client_context().wrap_socket(raw, server_hostname=host)
 
     path = parsed.path or "/"
     if parsed.query:
