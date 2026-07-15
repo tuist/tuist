@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net"
 	"net/http"
 	"net/url"
@@ -521,7 +522,7 @@ func spawnShell() (*spawnedShell, error) {
 	}
 
 	if os.Geteuid() == 0 {
-		if err := os.Chown(tempDir, int(user.UID), int(user.GID)); err != nil {
+		if err := chownForUser(tempDir, user); err != nil {
 			cleanup()
 			return nil, err
 		}
@@ -678,6 +679,27 @@ func parseUint32(value string) (uint32, error) {
 		return 0, err
 	}
 	return uint32(parsed), nil
+}
+
+func chownForUser(path string, user shellUser) error {
+	uid, err := uint32ToInt(user.UID)
+	if err != nil {
+		return err
+	}
+	gid, err := uint32ToInt(user.GID)
+	if err != nil {
+		return err
+	}
+
+	return os.Chown(path, uid, gid)
+}
+
+func uint32ToInt(value uint32) (int, error) {
+	if uint64(value) > uint64(math.MaxInt) {
+		return 0, fmt.Errorf("value %d overflows int", value)
+	}
+
+	return int(value), nil
 }
 
 func shellPath(user shellUser) string {
@@ -880,7 +902,7 @@ func writeShellStartupFile(path string, body string, user shellUser) error {
 		return err
 	}
 	if os.Geteuid() == 0 {
-		if err := os.Chown(path, int(user.UID), int(user.GID)); err != nil {
+		if err := chownForUser(path, user); err != nil {
 			return err
 		}
 	}
