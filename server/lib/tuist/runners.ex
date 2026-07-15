@@ -145,9 +145,16 @@ defmodule Tuist.Runners do
   GitHub lookup error.
   """
   def can_cancel_workflow_runs?(%{id: account_id}) do
-    case VCS.get_github_app_installation_for_account(account_id) do
-      {:ok, installation} -> GitHubClient.installation_has_actions_write?(installation)
-      {:error, _} -> false
+    # Local dev has no real GitHub App installation to check
+    # `actions: write` against, so surface the affordance anyway to keep
+    # the cancel UI reachable while developing. Never applies outside dev.
+    if Tuist.Environment.dev?() do
+      true
+    else
+      case VCS.get_github_app_installation_for_account(account_id) do
+        {:ok, installation} -> GitHubClient.installation_has_actions_write?(installation)
+        {:error, _} -> false
+      end
     end
   end
 

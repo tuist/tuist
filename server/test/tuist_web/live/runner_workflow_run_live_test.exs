@@ -74,7 +74,7 @@ defmodule TuistWeb.RunnerWorkflowRunLiveTest do
     {:ok, _lv, html} = live(conn, ~p"/#{account.name}/runners/runs/610010")
 
     assert html =~ "cancel_run"
-    assert html =~ "Cancel run"
+    assert html =~ "Cancel"
   end
 
   test "hides the Cancel button when the installation cannot cancel", %{conn: conn, account: account} do
