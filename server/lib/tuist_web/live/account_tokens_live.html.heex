@@ -216,7 +216,9 @@
                           phx-click="toggle_token_scope"
                           phx-value-scope={scope_option.scope}
                         >
-                          <.checkbox_control checked={scope_option.scope in @selected_scopes} />
+                          <.checkbox_control checked={
+                            scope_option_selected?(scope_option, @selected_scopes)
+                          } />
                           <div data-part="body">
                             <span data-part="label">{scope_option.label}</span>
                             <code data-part="scope">{scope_option.scope}</code>

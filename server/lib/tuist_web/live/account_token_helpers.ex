@@ -155,15 +155,25 @@ defmodule TuistWeb.AccountTokenHelpers do
   end
 
   def permission_rows(scopes) do
+    scope_options = scope_options()
+
     scope_options_by_scope =
-      scope_options()
+      scope_options
       |> Enum.flat_map(& &1.scopes)
       |> Enum.reject(&(&1.scope in ["ci", "mcp"]))
       |> Map.new(&{&1.scope, &1})
 
+    scope_order =
+      scope_options
+      |> Enum.flat_map(& &1.scopes)
+      |> Enum.map(& &1.scope)
+      |> Enum.with_index()
+      |> Map.new()
+
     scopes
     |> Checks.expand_scopes()
-    |> Enum.uniq()
+    |> with_implied_read_scopes()
+    |> Enum.sort_by(&Map.get(scope_order, &1, 999))
     |> Enum.map(fn scope ->
       Map.get(scope_options_by_scope, scope, %{scope: scope, label: scope, description: ""})
     end)
@@ -195,4 +205,23 @@ defmodule TuistWeb.AccountTokenHelpers do
   def created_by_label(%AccountToken{created_by_account: %{name: name}}) when is_binary(name), do: name
 
   def created_by_label(_account_token), do: dgettext("dashboard_account", "Unknown")
+
+  defp with_implied_read_scopes(scopes) do
+    read_scopes =
+      scopes
+      |> Enum.map(&read_scope_for_write_scope/1)
+      |> Enum.reject(&is_nil/1)
+
+    scopes
+    |> Enum.concat(read_scopes)
+    |> Enum.filter(&(&1 in AccountToken.valid_scopes()))
+    |> Enum.uniq()
+  end
+
+  defp read_scope_for_write_scope(scope) do
+    case String.split(scope, ":") do
+      [entity, subject, "write"] -> "#{entity}:#{subject}:read"
+      _ -> nil
+    end
+  end
 end

@@ -10,9 +10,11 @@ defmodule TuistWeb.AccountTokensLive do
   alias Tuist.Accounts
   alias Tuist.Accounts.AccountToken
   alias Tuist.Authorization
+  alias Tuist.Authorization.Checks
   alias Tuist.Projects
 
   @default_scopes ["ci"]
+  @preset_scopes ["ci"]
 
   @valid_scopes AccountToken.valid_scopes()
 
@@ -47,14 +49,9 @@ defmodule TuistWeb.AccountTokensLive do
 
   @impl true
   def handle_event("toggle_token_scope", %{"scope" => scope}, socket) when scope in @valid_scopes do
-    selected_scopes =
-      if scope in socket.assigns.selected_scopes do
-        List.delete(socket.assigns.selected_scopes, scope)
-      else
-        [scope | socket.assigns.selected_scopes]
-      end
+    selected_scopes = toggle_scope(scope, socket.assigns.selected_scopes)
 
-    {:noreply, assign(socket, :selected_scopes, Enum.sort(selected_scopes))}
+    {:noreply, assign(socket, :selected_scopes, selected_scopes)}
   end
 
   def handle_event("toggle_token_scope", _params, socket), do: {:noreply, socket}
@@ -63,15 +60,16 @@ defmodule TuistWeb.AccountTokensLive do
     case Enum.find(socket.assigns.scope_options, &(&1.key == group_key)) do
       %{key: key} = group when key in ["account", "project"] ->
         group_scopes = scope_group_scopes(group)
+        selected_scopes = expand_presets_to_fine_grained_scopes(socket.assigns.selected_scopes)
 
         selected_scopes =
-          if all_scope_group_scopes_selected?(group, socket.assigns.selected_scopes) do
-            socket.assigns.selected_scopes -- group_scopes
+          if all_scope_group_scopes_selected?(group, selected_scopes) do
+            selected_scopes -- group_scopes
           else
-            Enum.uniq(socket.assigns.selected_scopes ++ group_scopes)
+            Enum.uniq(selected_scopes ++ group_scopes)
           end
 
-        {:noreply, assign(socket, :selected_scopes, Enum.sort(selected_scopes))}
+        {:noreply, assign(socket, :selected_scopes, normalize_selected_scopes(selected_scopes))}
 
       _ ->
         {:noreply, socket}
@@ -236,8 +234,12 @@ defmodule TuistWeb.AccountTokensLive do
     end
   end
 
-  defp token_scopes(%{assigns: %{selected_scopes: []}}), do: {:error, :missing_scopes}
-  defp token_scopes(%{assigns: %{selected_scopes: scopes}}), do: {:ok, scopes}
+  defp token_scopes(%{assigns: %{selected_scopes: scopes}}) do
+    case normalize_selected_scopes(scopes) do
+      [] -> {:error, :missing_scopes}
+      normalized_scopes -> {:ok, normalized_scopes}
+    end
+  end
 
   defp token_project_access(%{assigns: %{available_projects: [], selected_project_ids: []}}) do
     {:ok, %{all_projects: true, project_ids: []}}
@@ -268,19 +270,56 @@ defmodule TuistWeb.AccountTokensLive do
 
   defp project_ids(projects), do: Enum.map(projects, & &1.id)
 
+  defp toggle_scope(scope, selected_scopes) when scope in @preset_scopes do
+    if scope in selected_scopes do
+      selected_scopes
+      |> List.delete(scope)
+      |> normalize_selected_scopes()
+    else
+      selected_scopes
+      |> remove_scopes(effective_selected_scopes([scope]))
+      |> then(&[scope | &1])
+      |> normalize_selected_scopes()
+    end
+  end
+
+  defp toggle_scope(scope, selected_scopes) do
+    selected_scopes = expand_presets_implying_scope(selected_scopes, scope)
+
+    selected_scopes =
+      if scope in effective_selected_scopes(selected_scopes) do
+        List.delete(selected_scopes, scope)
+      else
+        [scope | selected_scopes]
+      end
+
+    normalize_selected_scopes(selected_scopes)
+  end
+
   defp selectable_scope_group?(%{key: key}), do: key in ["account", "project"]
 
   defp all_scope_group_scopes_selected?(group, selected_scopes) do
+    effective_selected_scopes = effective_selected_scopes(selected_scopes)
+
     group
     |> scope_group_scopes()
-    |> Enum.all?(&(&1 in selected_scopes))
+    |> Enum.all?(&(&1 in effective_selected_scopes))
   end
 
   defp scope_group_scopes_partially_selected?(group, selected_scopes) do
     group_scopes = scope_group_scopes(group)
-    selected_count = Enum.count(group_scopes, &(&1 in selected_scopes))
+    effective_selected_scopes = effective_selected_scopes(selected_scopes)
+    selected_count = Enum.count(group_scopes, &(&1 in effective_selected_scopes))
 
     selected_count > 0 and selected_count < length(group_scopes)
+  end
+
+  defp scope_option_selected?(%{scope: scope}, selected_scopes) when scope in @preset_scopes do
+    scope in selected_scopes
+  end
+
+  defp scope_option_selected?(%{scope: scope}, selected_scopes) do
+    scope in effective_selected_scopes(selected_scopes)
   end
 
   defp select_all_scope_group_label(%{key: "account"}) do
@@ -292,6 +331,68 @@ defmodule TuistWeb.AccountTokensLive do
   end
 
   defp scope_group_scopes(group), do: Enum.map(group.scopes, & &1.scope)
+
+  defp effective_selected_scopes(selected_scopes) do
+    selected_scopes
+    |> Checks.expand_scopes()
+    |> with_implied_read_scopes()
+  end
+
+  defp expand_presets_implying_scope(selected_scopes, scope) do
+    selected_presets =
+      Enum.filter(selected_scopes, fn selected_scope ->
+        selected_scope in @preset_scopes and scope in effective_selected_scopes([selected_scope])
+      end)
+
+    if Enum.empty?(selected_presets) do
+      selected_scopes
+    else
+      expand_presets_to_fine_grained_scopes(selected_scopes)
+    end
+  end
+
+  defp expand_presets_to_fine_grained_scopes(selected_scopes) do
+    selected_scopes
+    |> Enum.flat_map(fn scope ->
+      if scope in @preset_scopes do
+        effective_selected_scopes([scope])
+      else
+        [scope]
+      end
+    end)
+    |> normalize_selected_scopes()
+  end
+
+  defp normalize_selected_scopes(selected_scopes) do
+    selected_scopes
+    |> with_implied_read_scopes()
+    |> Enum.sort()
+  end
+
+  defp with_implied_read_scopes(scopes) do
+    read_scopes =
+      scopes
+      |> Enum.map(&read_scope_for_write_scope/1)
+      |> Enum.reject(&is_nil/1)
+
+    scopes
+    |> Enum.concat(read_scopes)
+    |> Enum.filter(&(&1 in @valid_scopes))
+    |> Enum.uniq()
+  end
+
+  defp read_scope_for_write_scope(scope) do
+    case String.split(scope, ":") do
+      [entity, subject, "write"] -> "#{entity}:#{subject}:read"
+      _ -> nil
+    end
+  end
+
+  defp remove_scopes(scopes, scopes_to_remove) do
+    scopes_to_remove = MapSet.new(scopes_to_remove)
+
+    Enum.reject(scopes, &MapSet.member?(scopes_to_remove, &1))
+  end
 
   defp expires_at(params) do
     params

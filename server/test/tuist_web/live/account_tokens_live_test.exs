@@ -50,6 +50,12 @@ defmodule TuistWeb.AccountTokensLiveTest do
     refute html =~ "Specific projects"
     refute html =~ "MCP"
     refute html =~ "#{account.name}/ios-app"
+    assert scope_checked?(html, "ci")
+    assert scope_checked?(html, "account:cache:read")
+    assert scope_checked?(html, "account:cache:write")
+    assert scope_checked?(html, "project:builds:read")
+    assert scope_checked?(html, "project:builds:write")
+    refute scope_checked?(html, "project:admin:read")
     refute html =~ "Token values are shown once. Store the generated value before closing the dialog."
     assert html =~ "ci-main"
     assert html =~ account_token_hint(token)
@@ -162,12 +168,19 @@ defmodule TuistWeb.AccountTokensLiveTest do
     {:ok, _lv, html} = live(conn, ~p"/#{account.name}/settings/tokens/#{all_projects_token.id}")
 
     assert html =~ "all-projects"
+    assert html =~ "account:cache:read"
     assert html =~ "account:cache:write"
+    assert html =~ "project:cache:read"
     assert html =~ "project:cache:write"
+    assert html =~ "project:previews:read"
     assert html =~ "project:previews:write"
+    assert html =~ "project:bundles:read"
     assert html =~ "project:bundles:write"
+    assert html =~ "project:tests:read"
     assert html =~ "project:tests:write"
+    assert html =~ "project:builds:read"
     assert html =~ "project:builds:write"
+    assert html =~ "project:runs:read"
     assert html =~ "project:runs:write"
     refute html =~ "Category"
     assert html =~ "This token has access to all projects in this account."
@@ -187,7 +200,7 @@ defmodule TuistWeb.AccountTokensLiveTest do
     })
 
     {:ok, token} = Accounts.get_account_token_by_name(account, "build-writer")
-    assert token.scopes == ["project:builds:write"]
+    assert token.scopes == ["project:builds:read", "project:builds:write"]
     assert token.all_projects == true
   end
 
@@ -270,5 +283,15 @@ defmodule TuistWeb.AccountTokensLiveTest do
 
   defp account_token_hint(token) do
     "tuist_" <> String.slice(token.id, 0, 8) <> String.duplicate("•", 6)
+  end
+
+  defp scope_checked?(html, scope) do
+    id = "#account-token-scope-#{String.replace(scope, ":", "-")}"
+
+    html
+    |> Floki.parse_fragment!()
+    |> Floki.find("#{id} .noora-checkbox-control")
+    |> Floki.attribute("data-state")
+    |> Kernel.==(["checked"])
   end
 end
