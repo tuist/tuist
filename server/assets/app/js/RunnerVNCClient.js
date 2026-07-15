@@ -43,6 +43,7 @@ function redBlueSwappedBytes(arr, offset, length) {
     const red = swapped[index];
     swapped[index] = swapped[index + 2];
     swapped[index + 2] = red;
+    swapped[index + 3] = 255;
   }
 
   return swapped;
@@ -61,7 +62,8 @@ function installColorChannelFix(rfb) {
 
   // Tart's `run --vnc-experimental` path is backed by Virtualization.framework's
   // VNC server, which currently sends BGRX/BGRA updates even though noVNC
-  // requests RGBA byte order for browser-native ImageData.
+  // requests RGBA byte order for browser-native ImageData. BGRX frames carry
+  // an unused fourth byte, so force the alpha channel opaque while converting.
   display.blitImage = (x, y, width, height, arr, offset = 0, fromQueue = false) => {
     if (fromQueue) return blitImage(x, y, width, height, arr, offset, fromQueue);
 
