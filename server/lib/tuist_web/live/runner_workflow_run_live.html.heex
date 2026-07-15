@@ -51,7 +51,7 @@
       </.button>
       <.button
         :if={@can_cancel_runs and TuistWeb.RunnerWorkflowRunLive.run_cancellable?(@run_status)}
-        variant="destructive"
+        variant="secondary"
         size="medium"
         label={dgettext("dashboard_runners", "Cancel")}
         phx-click="cancel_run"
