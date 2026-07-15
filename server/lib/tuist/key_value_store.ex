@@ -61,14 +61,8 @@ defmodule Tuist.KeyValueStore do
 
   defp get_from_redis(cache_key) do
     case Redix.command(Environment.redis_conn_name(), ["GET", cache_key(cache_key)]) do
-      {:ok, nil} ->
-        nil
-
-      {:ok, value} ->
-        case deserialize(value) do
-          {:ok, value} -> value
-          :error -> nil
-        end
+      {:ok, nil} -> nil
+      {:ok, value} -> :erlang.binary_to_term(value)
     end
   end
 
@@ -127,23 +121,7 @@ defmodule Tuist.KeyValueStore do
           value
 
         {:ok, value} ->
-          case deserialize(value) do
-            :error ->
-              value = func.()
-
-              Redix.command(Environment.redis_conn_name(), [
-                "SET",
-                cache_key,
-                :erlang.term_to_binary(value),
-                "EX",
-                div(cache_ttl, 1000)
-              ])
-
-              value
-
-            {:ok, value} ->
-              value
-          end
+          :erlang.binary_to_term(value)
       end
     end
 
@@ -260,12 +238,6 @@ defmodule Tuist.KeyValueStore do
   defp cache_key(cache_key) when is_list(cache_key), do: Enum.map_join(cache_key, "-", &to_string/1)
   defp cache_key(cache_key) when is_atom(cache_key), do: Atom.to_string(cache_key)
   defp cache_key(cache_key) when is_binary(cache_key), do: cache_key
-
-  defp deserialize(value) do
-    {:ok, :erlang.binary_to_term(value, [:safe])}
-  rescue
-    _error in ArgumentError -> :error
-  end
 
   defp use_redis?(opts) do
     Keyword.get(opts, :persist_across_deployments, false) and
