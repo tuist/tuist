@@ -1854,6 +1854,29 @@ defmodule Tuist.Accounts do
   end
 
   @doc """
+  Gets a specific account token by ID for a given account.
+  """
+  def get_account_token(%Account{} = account, token_id, opts \\ []) do
+    preload = Keyword.get(opts, :preload, [:projects, :created_by_account])
+
+    case UUIDv7.cast(token_id) do
+      {:ok, token_id} ->
+        case Repo.one(
+               from(t in AccountToken,
+                 where: t.id == ^token_id and t.account_id == ^account.id,
+                 preload: ^preload
+               )
+             ) do
+          nil -> {:error, :not_found}
+          token -> {:ok, token}
+        end
+
+      _ ->
+        {:error, :not_found}
+    end
+  end
+
+  @doc """
   Gets a specific account token by name for a given account.
   """
   def get_account_token_by_name(%Account{} = account, token_name, opts \\ []) do

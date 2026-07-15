@@ -5,12 +5,12 @@ defmodule TuistWeb.AccountTokensLive do
 
   import Noora.CheckboxControl
   import Phoenix.Component
+  import TuistWeb.AccountTokenHelpers
 
   alias Tuist.Accounts
   alias Tuist.Accounts.AccountToken
   alias Tuist.Authorization
   alias Tuist.Projects
-  alias Tuist.Utilities.DateFormatter
 
   @default_scopes ["ci"]
 
@@ -28,7 +28,6 @@ defmodule TuistWeb.AccountTokensLive do
     socket =
       socket
       |> assign(:account_tokens, account_tokens)
-      |> assign(:selected_account_token, select_account_token(account_tokens, nil))
       |> assign(:selected_scopes, @default_scopes)
       |> assign(:new_account_token_plaintext, nil)
       |> assign(:new_account_token_form, new_account_token_form())
@@ -36,10 +35,6 @@ defmodule TuistWeb.AccountTokensLive do
       |> assign(
         :can_create_tokens?,
         Authorization.authorize(:account_token_create, current_user, selected_account) == :ok
-      )
-      |> assign(
-        :can_delete_tokens?,
-        Authorization.authorize(:account_token_delete, current_user, selected_account) == :ok
       )
       |> assign(:scope_options, scope_options())
       |> assign(:head_title, "#{dgettext("dashboard_account", "Tokens")} · #{selected_account.name} · Tuist")
@@ -87,7 +82,6 @@ defmodule TuistWeb.AccountTokensLive do
       {:noreply,
        socket
        |> assign(:account_tokens, account_tokens)
-       |> assign(:selected_account_token, select_account_token(account_tokens, token_record.id))
        |> assign(:new_account_token_plaintext, plaintext)
        |> assign(:new_account_token_form, new_account_token_form())
        |> assign(:selected_scopes, @default_scopes)
@@ -137,10 +131,6 @@ defmodule TuistWeb.AccountTokensLive do
     end
   end
 
-  def handle_event("select_account_token", %{"id" => id}, socket) do
-    {:noreply, assign(socket, :selected_account_token, select_account_token(socket.assigns.account_tokens, id))}
-  end
-
   def handle_event("dismiss_account_token", _params, socket) do
     {:noreply,
      socket
@@ -160,40 +150,6 @@ defmodule TuistWeb.AccountTokensLive do
 
   def handle_event("account_token_modal_open_change", _params, socket), do: {:noreply, socket}
 
-  def handle_event("revoke_account_token", %{"name" => name}, socket) do
-    with :ok <- ensure_can_delete(socket),
-         {:ok, token} <- Accounts.get_account_token_by_name(socket.assigns.selected_account, name),
-         {:ok, _token} <- Accounts.delete_account_token(token) do
-      deleted_token_id = token.id
-
-      selected_token_id =
-        case socket.assigns.selected_account_token do
-          %AccountToken{id: ^deleted_token_id} -> nil
-          %AccountToken{id: id} -> id
-          _ -> nil
-        end
-
-      account_tokens = list_account_tokens(socket.assigns.selected_account)
-
-      {:noreply,
-       socket
-       |> assign(:account_tokens, account_tokens)
-       |> assign(:selected_account_token, select_account_token(account_tokens, selected_token_id))
-       |> assign(:flash_message, nil)}
-    else
-      {:error, :forbidden} ->
-        {:noreply,
-         assign(
-           socket,
-           :flash_message,
-           {"error", dgettext("dashboard_account", "You are not authorized to revoke account tokens.")}
-         )}
-
-      {:error, :not_found} ->
-        {:noreply, assign(socket, :flash_message, {"error", dgettext("dashboard_account", "Token not found.")})}
-    end
-  end
-
   defp list_account_tokens(account) do
     {tokens, _meta} =
       Accounts.list_account_tokens(account, %{
@@ -206,19 +162,8 @@ defmodule TuistWeb.AccountTokensLive do
     tokens
   end
 
-  defp select_account_token([], _token_id), do: nil
-
-  defp select_account_token(tokens, nil), do: List.first(tokens)
-
-  defp select_account_token(tokens, token_id) do
-    Enum.find(tokens, &(&1.id == token_id)) || List.first(tokens)
-  end
-
   defp ensure_can_create(%{assigns: %{can_create_tokens?: true}}), do: :ok
   defp ensure_can_create(_socket), do: {:error, :forbidden}
-
-  defp ensure_can_delete(%{assigns: %{can_delete_tokens?: true}}), do: :ok
-  defp ensure_can_delete(_socket), do: {:error, :forbidden}
 
   defp token_name(params) do
     case params |> Map.get("name", "") |> String.trim() do
@@ -272,149 +217,6 @@ defmodule TuistWeb.AccountTokensLive do
     to_form(%{"name" => "", "expires" => "", "project_handles" => ""}, as: "account_token")
   end
 
-  defp scope_options do
-    [
-      %{
-        label: dgettext("dashboard_account", "Presets"),
-        scopes: [
-          %{
-            scope: "ci",
-            label: dgettext("dashboard_account", "CI"),
-            description:
-              dgettext(
-                "dashboard_account",
-                "Cache writes, previews, bundles, tests, builds, and runs for CI jobs."
-              )
-          },
-          %{
-            scope: "mcp",
-            label: dgettext("dashboard_account", "MCP"),
-            description:
-              dgettext(
-                "dashboard_account",
-                "Read project metadata, cache, previews, bundles, tests, builds, and runs."
-              )
-          }
-        ]
-      },
-      %{
-        label: dgettext("dashboard_account", "Account"),
-        scopes: [
-          %{
-            scope: "account:cache:read",
-            label: dgettext("dashboard_account", "Cache read"),
-            description: dgettext("dashboard_account", "Read account-level cache entries.")
-          },
-          %{
-            scope: "account:cache:write",
-            label: dgettext("dashboard_account", "Cache write"),
-            description: dgettext("dashboard_account", "Read and write account-level cache entries.")
-          },
-          %{
-            scope: "account:members:read",
-            label: dgettext("dashboard_account", "Members read"),
-            description: dgettext("dashboard_account", "Read organization members and invitations.")
-          },
-          %{
-            scope: "account:members:write",
-            label: dgettext("dashboard_account", "Members write"),
-            description: dgettext("dashboard_account", "Manage organization members and invitations.")
-          },
-          %{
-            scope: "account:registry:read",
-            label: dgettext("dashboard_account", "Registry read"),
-            description: dgettext("dashboard_account", "Read packages from the account registry.")
-          },
-          %{
-            scope: "account:registry:write",
-            label: dgettext("dashboard_account", "Registry write"),
-            description: dgettext("dashboard_account", "Publish packages to the account registry.")
-          },
-          %{
-            scope: "account:scim:write",
-            label: dgettext("dashboard_account", "SCIM write"),
-            description: dgettext("dashboard_account", "Provision organization members through SCIM.")
-          }
-        ]
-      },
-      %{
-        label: dgettext("dashboard_account", "Project"),
-        scopes: [
-          %{
-            scope: "project:admin:read",
-            label: dgettext("dashboard_account", "Admin read"),
-            description: dgettext("dashboard_account", "Read project administration data.")
-          },
-          %{
-            scope: "project:admin:write",
-            label: dgettext("dashboard_account", "Admin write"),
-            description: dgettext("dashboard_account", "Manage project administration data.")
-          },
-          %{
-            scope: "project:cache:read",
-            label: dgettext("dashboard_account", "Cache read"),
-            description: dgettext("dashboard_account", "Read project cache entries.")
-          },
-          %{
-            scope: "project:cache:write",
-            label: dgettext("dashboard_account", "Cache write"),
-            description: dgettext("dashboard_account", "Read and write project cache entries.")
-          },
-          %{
-            scope: "project:previews:read",
-            label: dgettext("dashboard_account", "Previews read"),
-            description: dgettext("dashboard_account", "Read previews.")
-          },
-          %{
-            scope: "project:previews:write",
-            label: dgettext("dashboard_account", "Previews write"),
-            description: dgettext("dashboard_account", "Create and manage previews.")
-          },
-          %{
-            scope: "project:bundles:read",
-            label: dgettext("dashboard_account", "Bundles read"),
-            description: dgettext("dashboard_account", "Read bundle analytics.")
-          },
-          %{
-            scope: "project:bundles:write",
-            label: dgettext("dashboard_account", "Bundles write"),
-            description: dgettext("dashboard_account", "Upload and manage bundle data.")
-          },
-          %{
-            scope: "project:tests:read",
-            label: dgettext("dashboard_account", "Tests read"),
-            description: dgettext("dashboard_account", "Read test analytics.")
-          },
-          %{
-            scope: "project:tests:write",
-            label: dgettext("dashboard_account", "Tests write"),
-            description: dgettext("dashboard_account", "Upload and manage test data.")
-          },
-          %{
-            scope: "project:builds:read",
-            label: dgettext("dashboard_account", "Builds read"),
-            description: dgettext("dashboard_account", "Read build analytics.")
-          },
-          %{
-            scope: "project:builds:write",
-            label: dgettext("dashboard_account", "Builds write"),
-            description: dgettext("dashboard_account", "Upload and manage build data.")
-          },
-          %{
-            scope: "project:runs:read",
-            label: dgettext("dashboard_account", "Runs read"),
-            description: dgettext("dashboard_account", "Read runs.")
-          },
-          %{
-            scope: "project:runs:write",
-            label: dgettext("dashboard_account", "Runs write"),
-            description: dgettext("dashboard_account", "Create and manage runs.")
-          }
-        ]
-      }
-    ]
-  end
-
   defp format_changeset_errors(changeset) do
     changeset
     |> Ecto.Changeset.traverse_errors(fn {msg, opts} ->
@@ -426,40 +228,4 @@ defmodule TuistWeb.AccountTokensLive do
       "#{field}: #{Enum.join(errors, ", ")}"
     end)
   end
-
-  defp scopes_label(scopes), do: Enum.join(scopes, ", ")
-
-  defp selected_scope_groups(scopes) do
-    scope_options()
-    |> Enum.map(fn group ->
-      %{group | scopes: Enum.filter(group.scopes, &(&1.scope in scopes))}
-    end)
-    |> Enum.reject(&Enum.empty?(&1.scopes))
-  end
-
-  defp project_handle(account, project), do: "#{account.name}/#{project.name}"
-
-  defp account_token_hint(%AccountToken{scopes: scopes, token_last_four: token_last_four}) do
-    prefix =
-      if AccountToken.scim_scope() in scopes do
-        "tuist_scim_"
-      else
-        "tuist_"
-      end
-
-    case token_last_four do
-      value when is_binary(value) and value != "" -> prefix <> String.duplicate("•", 10) <> value
-      _ -> prefix <> String.duplicate("•", 14)
-    end
-  end
-
-  defp expires_label(%AccountToken{expires_at: nil}), do: dgettext("dashboard_account", "Never")
-
-  defp expires_label(%AccountToken{expires_at: expires_at}), do: DateFormatter.from_now(expires_at)
-
-  defp last_used_label(%AccountToken{last_used_at: nil}), do: dgettext("dashboard_account", "Never")
-
-  defp last_used_label(%AccountToken{last_used_at: last_used_at}), do: DateFormatter.from_now(last_used_at)
-
-  defp created_label(%AccountToken{inserted_at: inserted_at}), do: DateFormatter.from_now(inserted_at)
 end

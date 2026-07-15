@@ -43,9 +43,9 @@ defmodule TuistWeb.AccountTokensLiveTest do
     refute html =~ "Token values are shown once. Store the generated value before closing the dialog."
     assert html =~ "ci-main"
     assert html =~ account_token_hint(token)
+    assert html =~ ~p"/#{account.name}/settings/tokens/#{token.id}"
     assert html =~ "ci"
-    assert html =~ "Project access"
-    assert html =~ "This token has access to all projects in this account."
+    refute html =~ "Project access"
     assert html =~ "Never"
   end
 
@@ -61,7 +61,7 @@ defmodule TuistWeb.AccountTokensLiveTest do
 
     assert html =~ "personal-ci"
     assert html =~ "project:builds:write"
-    assert html =~ "This token has access to all projects in this account."
+    refute html =~ "Project access"
   end
 
   test "creates a token, reveals it once, and stores project restrictions", %{
@@ -97,11 +97,10 @@ defmodule TuistWeb.AccountTokensLiveTest do
     assert token.expires_at
     assert html =~ "ci-rotated"
     assert html =~ account_token_hint(token)
-    assert html =~ "ios-app"
-    assert html =~ "#{account.name}/ios-app"
+    assert html =~ ~p"/#{account.name}/settings/tokens/#{token.id}"
   end
 
-  test "shows token project access in the selected token detail", %{conn: conn, account: account} do
+  test "shows token project access on the token detail page", %{conn: conn, account: account} do
     project = ProjectsFixtures.project_fixture(account: account, name: "ios-app")
 
     all_projects_token =
@@ -121,19 +120,18 @@ defmodule TuistWeb.AccountTokensLiveTest do
         project_ids: [project.id]
       )
 
-    {:ok, lv, html} = live(conn, ~p"/#{account.name}/settings/tokens")
+    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/settings/tokens/#{restricted_token.id}")
 
+    assert html =~ "Tokens · #{account.name} · Tuist"
+    assert html =~ "Account token"
     assert html =~ "ios-only"
     assert html =~ account_token_hint(restricted_token)
-
-    html = render_click(lv, "select_account_token", %{"id" => restricted_token.id})
-
     assert html =~ "Project access"
     assert html =~ "ios-app"
     assert html =~ "#{account.name}/ios-app"
-    refute html =~ "<span>Projects</span>"
+    refute html =~ "account-tokens-table"
 
-    html = render_click(lv, "select_account_token", %{"id" => all_projects_token.id})
+    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/settings/tokens/#{all_projects_token.id}")
 
     assert html =~ "all-projects"
     assert html =~ "This token has access to all projects in this account."
@@ -170,15 +168,25 @@ defmodule TuistWeb.AccountTokensLiveTest do
   end
 
   test "revokes a token", %{conn: conn, account: account} do
-    AccountsFixtures.account_token_fixture(account: account, name: "old-ci")
+    token = AccountsFixtures.account_token_fixture(account: account, name: "old-ci")
 
-    {:ok, lv, html} = live(conn, ~p"/#{account.name}/settings/tokens")
+    {:ok, lv, html} = live(conn, ~p"/#{account.name}/settings/tokens/#{token.id}")
     assert html =~ "old-ci"
 
-    html = render_hook(lv, "revoke_account_token", %{"name" => "old-ci"})
+    assert {:error, {:live_redirect, %{to: redirect_to}}} =
+             render_hook(lv, "revoke_account_token", %{})
 
-    refute html =~ "old-ci"
+    assert redirect_to == ~p"/#{account.name}/settings/tokens"
     assert Accounts.get_account_token_by_name(account, "old-ci") == {:error, :not_found}
+  end
+
+  test "raises not found for a token in another account", %{conn: conn, account: account} do
+    other_account = AccountsFixtures.user_fixture().account
+    token = AccountsFixtures.account_token_fixture(account: other_account, name: "other-ci")
+
+    assert_raise TuistWeb.Errors.NotFoundError, fn ->
+      live(conn, ~p"/#{account.name}/settings/tokens/#{token.id}")
+    end
   end
 
   defp account_token_hint(token) do

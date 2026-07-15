@@ -507,8 +507,8 @@ msgstr ""
 msgid "Most Popular"
 msgstr ""
 
+#: lib/tuist_web/live/account_token_live.html.heex:50
 #: lib/tuist_web/live/account_tokens_live.html.heex:202
-#: lib/tuist_web/live/account_tokens_live.html.heex:266
 #: lib/tuist_web/live/authentication_settings_live.html.heex:538
 #: lib/tuist_web/live/cache_live.ex:818
 #: lib/tuist_web/live/cache_live.ex:859
@@ -732,6 +732,7 @@ msgstr ""
 
 #: lib/tuist_web/live/account_settings_live.ex:50
 #: lib/tuist_web/live/account_settings_live.html.heex:3
+#: lib/tuist_web/live/account_token_live.html.heex:3
 #: lib/tuist_web/live/account_tokens_live.html.heex:3
 #: lib/tuist_web/live/authentication_settings_live.html.heex:3
 #: lib/tuist_web/live/integrations_live.html.heex:2
@@ -816,6 +817,7 @@ msgid "United States"
 msgstr ""
 
 #: lib/tuist/vcs.ex:682
+#: lib/tuist_web/live/account_token_helpers.ex:190
 #, elixir-autogen, elixir-format
 msgid "Unknown"
 msgstr ""
@@ -930,6 +932,7 @@ msgid "Via shared Slack channel"
 msgstr ""
 
 #: lib/tuist_web/live/account_settings_live.ex:23
+#: lib/tuist_web/live/account_token_live.ex:19
 #: lib/tuist_web/live/account_tokens_live.ex:23
 #: lib/tuist_web/live/authentication_settings_live.ex:17
 #: lib/tuist_web/live/billing_live.ex:13
@@ -1277,8 +1280,8 @@ msgstr ""
 msgid "Copy token"
 msgstr ""
 
-#: lib/tuist_web/live/account_tokens_live.html.heex:222
-#: lib/tuist_web/live/account_tokens_live.html.heex:282
+#: lib/tuist_web/live/account_token_live.html.heex:66
+#: lib/tuist_web/live/account_tokens_live.html.heex:219
 #: lib/tuist_web/live/authentication_settings_live.html.heex:541
 #: lib/tuist_web/live/webhook_live.html.heex:89
 #, elixir-autogen, elixir-format
@@ -1338,8 +1341,8 @@ msgstr ""
 msgid "Issue one bearer token per IdP. Revoke a token if it leaks or is no longer needed."
 msgstr ""
 
-#: lib/tuist_web/live/account_tokens_live.html.heex:219
-#: lib/tuist_web/live/account_tokens_live.html.heex:278
+#: lib/tuist_web/live/account_token_live.html.heex:62
+#: lib/tuist_web/live/account_tokens_live.html.heex:216
 #: lib/tuist_web/live/authentication_settings_live.html.heex:544
 #, elixir-autogen, elixir-format
 msgid "Last used"
@@ -1355,8 +1358,8 @@ msgstr ""
 msgid "Name this token so you can identify it later (for example: \"Okta\")."
 msgstr ""
 
-#: lib/tuist_web/live/account_tokens_live.ex:456
-#: lib/tuist_web/live/account_tokens_live.ex:460
+#: lib/tuist_web/live/account_token_helpers.ex:178
+#: lib/tuist_web/live/account_token_helpers.ex:182
 #: lib/tuist_web/live/authentication_settings_live.html.heex:548
 #, elixir-autogen, elixir-format
 msgid "Never"
@@ -1389,19 +1392,19 @@ msgstr ""
 msgid "Token name"
 msgstr ""
 
-#: lib/tuist_web/live/account_tokens_live.ex:109
+#: lib/tuist_web/live/account_tokens_live.ex:103
 #: lib/tuist_web/live/authentication_settings_live.ex:129
 #, elixir-autogen, elixir-format
 msgid "Token name is required."
 msgstr ""
 
-#: lib/tuist_web/live/account_tokens_live.ex:193
 #: lib/tuist_web/live/authentication_settings_live.ex:176
 #, elixir-autogen, elixir-format
 msgid "Token not found."
 msgstr ""
 
-#: lib/tuist_web/live/account_tokens_live.ex:45
+#: lib/tuist_web/live/account_token_live.ex:33
+#: lib/tuist_web/live/account_tokens_live.ex:40
 #: lib/tuist_web/live/authentication_settings_live.html.heex:423
 #, elixir-autogen, elixir-format
 msgid "Tokens"
@@ -1818,6 +1821,7 @@ msgstr ""
 msgid "Signing secret rotated"
 msgstr ""
 
+#: lib/tuist_web/live/account_token_live.html.heex:46
 #: lib/tuist_web/live/webhook_event_live.html.heex:22
 #: lib/tuist_web/live/webhook_live.html.heex:65
 #, elixir-autogen, elixir-format
@@ -2092,7 +2096,7 @@ msgstr ""
 msgid "Registered nodes"
 msgstr ""
 
-#: lib/tuist_web/live/account_tokens_live.html.heex:249
+#: lib/tuist_web/live/account_token_live.html.heex:29
 #: lib/tuist_web/live/cache_live.ex:913
 #, elixir-autogen, elixir-format
 msgid "Revoke"
@@ -2215,11 +2219,12 @@ msgstr ""
 msgid "here"
 msgstr ""
 
-#: lib/tuist_web/live/account_tokens_live.ex:97
+#: lib/tuist_web/live/account_tokens_live.ex:91
 #, elixir-autogen, elixir-format
 msgid "%{name} was created."
 msgstr ""
 
+#: lib/tuist_web/live/account_token_live.html.heex:15
 #: lib/tuist_web/live/account_tokens_live.html.heex:23
 #, elixir-autogen, elixir-format
 msgid "Account tokens"
@@ -2240,12 +2245,12 @@ msgstr ""
 msgid "Expiration"
 msgstr ""
 
-#: lib/tuist_web/live/account_tokens_live.ex:124
+#: lib/tuist_web/live/account_tokens_live.ex:118
 #, elixir-autogen, elixir-format
 msgid "Expiration must use a duration like 30d, 6m, or 1y."
 msgstr ""
 
-#: lib/tuist_web/live/account_tokens_live.html.heex:274
+#: lib/tuist_web/live/account_token_live.html.heex:58
 #, elixir-autogen, elixir-format
 msgid "Expires"
 msgstr ""
@@ -2255,12 +2260,12 @@ msgstr ""
 msgid "Generate account token"
 msgstr ""
 
-#: lib/tuist_web/live/account_tokens_live.html.heex:229
+#: lib/tuist_web/live/account_tokens_live.html.heex:226
 #, elixir-autogen, elixir-format
 msgid "Generate one above to authenticate CI, automation, or integrations without using a user session."
 msgstr ""
 
-#: lib/tuist_web/live/account_tokens_live.html.heex:227
+#: lib/tuist_web/live/account_tokens_live.html.heex:224
 #, elixir-autogen, elixir-format
 msgid "No account tokens yet"
 msgstr ""
@@ -2275,7 +2280,7 @@ msgstr ""
 msgid "Optional. Use 30d, 6m, or 1y. Leave empty for a token that never expires."
 msgstr ""
 
-#: lib/tuist_web/live/account_tokens_live.ex:132
+#: lib/tuist_web/live/account_tokens_live.ex:126
 #, elixir-autogen, elixir-format
 msgid "Project %{handle} was not found in this account."
 msgstr ""
@@ -2285,18 +2290,18 @@ msgstr ""
 msgid "Project handles"
 msgstr ""
 
-#: lib/tuist_web/live/account_tokens_live.html.heex:255
+#: lib/tuist_web/live/account_token_live.html.heex:34
 #, elixir-autogen, elixir-format
 msgid "Revoke %{name}? This action cannot be undone."
 msgstr ""
 
 #: lib/tuist_web/live/account_tokens_live.html.heex:135
-#: lib/tuist_web/live/account_tokens_live.html.heex:216
+#: lib/tuist_web/live/account_tokens_live.html.heex:213
 #, elixir-autogen, elixir-format
 msgid "Scopes"
 msgstr ""
 
-#: lib/tuist_web/live/account_tokens_live.ex:116
+#: lib/tuist_web/live/account_tokens_live.ex:110
 #, elixir-autogen, elixir-format
 msgid "Select at least one scope."
 msgstr ""
@@ -2311,249 +2316,249 @@ msgstr ""
 msgid "Use a stable name so you can revoke or rotate this token later."
 msgstr ""
 
-#: lib/tuist_web/live/account_tokens_live.ex:105
+#: lib/tuist_web/live/account_tokens_live.ex:99
 #, elixir-autogen, elixir-format
 msgid "You are not authorized to create account tokens."
 msgstr ""
 
-#: lib/tuist_web/live/account_tokens_live.ex:189
+#: lib/tuist_web/live/account_token_live.ex:56
 #, elixir-autogen, elixir-format
 msgid "You are not authorized to revoke account tokens."
 msgstr ""
 
-#: lib/tuist_web/live/account_tokens_live.ex:301
+#: lib/tuist_web/live/account_token_helpers.ex:35
 #, elixir-autogen, elixir-format
 msgid "Account"
 msgstr ""
 
-#: lib/tuist_web/live/account_tokens_live.ex:345
+#: lib/tuist_web/live/account_token_helpers.ex:79
 #, elixir-autogen, elixir-format
 msgid "Admin read"
 msgstr ""
 
-#: lib/tuist_web/live/account_tokens_live.ex:350
+#: lib/tuist_web/live/account_token_helpers.ex:84
 #, elixir-autogen, elixir-format
 msgid "Admin write"
 msgstr ""
 
-#: lib/tuist_web/live/account_tokens_live.ex:395
+#: lib/tuist_web/live/account_token_helpers.ex:129
 #, elixir-autogen, elixir-format
 msgid "Builds read"
 msgstr ""
 
-#: lib/tuist_web/live/account_tokens_live.ex:400
+#: lib/tuist_web/live/account_token_helpers.ex:134
 #, elixir-autogen, elixir-format
 msgid "Builds write"
 msgstr ""
 
-#: lib/tuist_web/live/account_tokens_live.ex:375
+#: lib/tuist_web/live/account_token_helpers.ex:109
 #, elixir-autogen, elixir-format
 msgid "Bundles read"
 msgstr ""
 
-#: lib/tuist_web/live/account_tokens_live.ex:380
+#: lib/tuist_web/live/account_token_helpers.ex:114
 #, elixir-autogen, elixir-format
 msgid "Bundles write"
 msgstr ""
 
-#: lib/tuist_web/live/account_tokens_live.ex:282
+#: lib/tuist_web/live/account_token_helpers.ex:16
 #, elixir-autogen, elixir-format
 msgid "CI"
 msgstr ""
 
-#: lib/tuist_web/live/account_tokens_live.ex:305
-#: lib/tuist_web/live/account_tokens_live.ex:355
+#: lib/tuist_web/live/account_token_helpers.ex:39
+#: lib/tuist_web/live/account_token_helpers.ex:89
 #, elixir-autogen, elixir-format
 msgid "Cache read"
 msgstr ""
 
-#: lib/tuist_web/live/account_tokens_live.ex:310
-#: lib/tuist_web/live/account_tokens_live.ex:360
+#: lib/tuist_web/live/account_token_helpers.ex:44
+#: lib/tuist_web/live/account_token_helpers.ex:94
 #, elixir-autogen, elixir-format
 msgid "Cache write"
 msgstr ""
 
-#: lib/tuist_web/live/account_tokens_live.ex:284
+#: lib/tuist_web/live/account_token_helpers.ex:18
 #, elixir-autogen, elixir-format
 msgid "Cache writes, previews, bundles, tests, builds, and runs for CI jobs."
 msgstr ""
 
-#: lib/tuist_web/live/account_tokens_live.ex:371
+#: lib/tuist_web/live/account_token_helpers.ex:105
 #, elixir-autogen, elixir-format
 msgid "Create and manage previews."
 msgstr ""
 
-#: lib/tuist_web/live/account_tokens_live.ex:411
+#: lib/tuist_web/live/account_token_helpers.ex:145
 #, elixir-autogen, elixir-format
 msgid "Create and manage runs."
 msgstr ""
 
-#: lib/tuist_web/live/account_tokens_live.ex:291
+#: lib/tuist_web/live/account_token_helpers.ex:25
 #, elixir-autogen, elixir-format
 msgid "MCP"
 msgstr ""
 
-#: lib/tuist_web/live/account_tokens_live.ex:321
+#: lib/tuist_web/live/account_token_helpers.ex:55
 #, elixir-autogen, elixir-format
 msgid "Manage organization members and invitations."
 msgstr ""
 
-#: lib/tuist_web/live/account_tokens_live.ex:351
+#: lib/tuist_web/live/account_token_helpers.ex:85
 #, elixir-autogen, elixir-format
 msgid "Manage project administration data."
 msgstr ""
 
-#: lib/tuist_web/live/account_tokens_live.ex:315
+#: lib/tuist_web/live/account_token_helpers.ex:49
 #, elixir-autogen, elixir-format
 msgid "Members read"
 msgstr ""
 
-#: lib/tuist_web/live/account_tokens_live.ex:320
+#: lib/tuist_web/live/account_token_helpers.ex:54
 #, elixir-autogen, elixir-format
 msgid "Members write"
 msgstr ""
 
-#: lib/tuist_web/live/account_tokens_live.ex:278
+#: lib/tuist_web/live/account_token_helpers.ex:12
 #, elixir-autogen, elixir-format
 msgid "Presets"
 msgstr ""
 
-#: lib/tuist_web/live/account_tokens_live.ex:365
+#: lib/tuist_web/live/account_token_helpers.ex:99
 #, elixir-autogen, elixir-format
 msgid "Previews read"
 msgstr ""
 
-#: lib/tuist_web/live/account_tokens_live.ex:370
+#: lib/tuist_web/live/account_token_helpers.ex:104
 #, elixir-autogen, elixir-format
 msgid "Previews write"
 msgstr ""
 
-#: lib/tuist_web/live/account_tokens_live.ex:341
+#: lib/tuist_web/live/account_token_helpers.ex:75
 #, elixir-autogen, elixir-format
 msgid "Project"
 msgstr ""
 
-#: lib/tuist_web/live/account_tokens_live.ex:336
+#: lib/tuist_web/live/account_token_helpers.ex:70
 #, elixir-autogen, elixir-format
 msgid "Provision organization members through SCIM."
 msgstr ""
 
-#: lib/tuist_web/live/account_tokens_live.ex:331
+#: lib/tuist_web/live/account_token_helpers.ex:65
 #, elixir-autogen, elixir-format
 msgid "Publish packages to the account registry."
 msgstr ""
 
-#: lib/tuist_web/live/account_tokens_live.ex:306
+#: lib/tuist_web/live/account_token_helpers.ex:40
 #, elixir-autogen, elixir-format
 msgid "Read account-level cache entries."
 msgstr ""
 
-#: lib/tuist_web/live/account_tokens_live.ex:311
+#: lib/tuist_web/live/account_token_helpers.ex:45
 #, elixir-autogen, elixir-format
 msgid "Read and write account-level cache entries."
 msgstr ""
 
-#: lib/tuist_web/live/account_tokens_live.ex:361
+#: lib/tuist_web/live/account_token_helpers.ex:95
 #, elixir-autogen, elixir-format
 msgid "Read and write project cache entries."
 msgstr ""
 
-#: lib/tuist_web/live/account_tokens_live.ex:396
+#: lib/tuist_web/live/account_token_helpers.ex:130
 #, elixir-autogen, elixir-format
 msgid "Read build analytics."
 msgstr ""
 
-#: lib/tuist_web/live/account_tokens_live.ex:376
+#: lib/tuist_web/live/account_token_helpers.ex:110
 #, elixir-autogen, elixir-format
 msgid "Read bundle analytics."
 msgstr ""
 
-#: lib/tuist_web/live/account_tokens_live.ex:316
+#: lib/tuist_web/live/account_token_helpers.ex:50
 #, elixir-autogen, elixir-format
 msgid "Read organization members and invitations."
 msgstr ""
 
-#: lib/tuist_web/live/account_tokens_live.ex:326
+#: lib/tuist_web/live/account_token_helpers.ex:60
 #, elixir-autogen, elixir-format
 msgid "Read packages from the account registry."
 msgstr ""
 
-#: lib/tuist_web/live/account_tokens_live.ex:366
+#: lib/tuist_web/live/account_token_helpers.ex:100
 #, elixir-autogen, elixir-format
 msgid "Read previews."
 msgstr ""
 
-#: lib/tuist_web/live/account_tokens_live.ex:346
+#: lib/tuist_web/live/account_token_helpers.ex:80
 #, elixir-autogen, elixir-format
 msgid "Read project administration data."
 msgstr ""
 
-#: lib/tuist_web/live/account_tokens_live.ex:356
+#: lib/tuist_web/live/account_token_helpers.ex:90
 #, elixir-autogen, elixir-format
 msgid "Read project cache entries."
 msgstr ""
 
-#: lib/tuist_web/live/account_tokens_live.ex:293
+#: lib/tuist_web/live/account_token_helpers.ex:27
 #, elixir-autogen, elixir-format
 msgid "Read project metadata, cache, previews, bundles, tests, builds, and runs."
 msgstr ""
 
-#: lib/tuist_web/live/account_tokens_live.ex:406
+#: lib/tuist_web/live/account_token_helpers.ex:140
 #, elixir-autogen, elixir-format
 msgid "Read runs."
 msgstr ""
 
-#: lib/tuist_web/live/account_tokens_live.ex:386
+#: lib/tuist_web/live/account_token_helpers.ex:120
 #, elixir-autogen, elixir-format
 msgid "Read test analytics."
 msgstr ""
 
-#: lib/tuist_web/live/account_tokens_live.ex:325
+#: lib/tuist_web/live/account_token_helpers.ex:59
 #, elixir-autogen, elixir-format
 msgid "Registry read"
 msgstr ""
 
-#: lib/tuist_web/live/account_tokens_live.ex:330
+#: lib/tuist_web/live/account_token_helpers.ex:64
 #, elixir-autogen, elixir-format
 msgid "Registry write"
 msgstr ""
 
-#: lib/tuist_web/live/account_tokens_live.ex:405
+#: lib/tuist_web/live/account_token_helpers.ex:139
 #, elixir-autogen, elixir-format
 msgid "Runs read"
 msgstr ""
 
-#: lib/tuist_web/live/account_tokens_live.ex:410
+#: lib/tuist_web/live/account_token_helpers.ex:144
 #, elixir-autogen, elixir-format
 msgid "Runs write"
 msgstr ""
 
-#: lib/tuist_web/live/account_tokens_live.ex:335
+#: lib/tuist_web/live/account_token_helpers.ex:69
 #, elixir-autogen, elixir-format
 msgid "SCIM write"
 msgstr ""
 
-#: lib/tuist_web/live/account_tokens_live.ex:385
+#: lib/tuist_web/live/account_token_helpers.ex:119
 #, elixir-autogen, elixir-format
 msgid "Tests read"
 msgstr ""
 
-#: lib/tuist_web/live/account_tokens_live.ex:390
+#: lib/tuist_web/live/account_token_helpers.ex:124
 #, elixir-autogen, elixir-format
 msgid "Tests write"
 msgstr ""
 
-#: lib/tuist_web/live/account_tokens_live.ex:401
+#: lib/tuist_web/live/account_token_helpers.ex:135
 #, elixir-autogen, elixir-format
 msgid "Upload and manage build data."
 msgstr ""
 
-#: lib/tuist_web/live/account_tokens_live.ex:381
+#: lib/tuist_web/live/account_token_helpers.ex:115
 #, elixir-autogen, elixir-format
 msgid "Upload and manage bundle data."
 msgstr ""
 
-#: lib/tuist_web/live/account_tokens_live.ex:391
+#: lib/tuist_web/live/account_token_helpers.ex:125
 #, elixir-autogen, elixir-format
 msgid "Upload and manage test data."
 msgstr ""
@@ -2563,33 +2568,53 @@ msgstr ""
 msgid "Create scoped tokens for CI, automation, and more."
 msgstr ""
 
-#: lib/tuist_web/live/account_tokens_live.html.heex:213
-#: lib/tuist_web/live/account_tokens_live.html.heex:270
+#: lib/tuist_web/live/account_token_live.html.heex:54
+#: lib/tuist_web/live/account_tokens_live.html.heex:210
 #, elixir-autogen, elixir-format
 msgid "Token"
 msgstr ""
 
-#: lib/tuist_web/live/account_tokens_live.html.heex:243
+#: lib/tuist_web/live/account_token_live.html.heex:23
 #, elixir-autogen, elixir-format
 msgid "Account token"
 msgstr ""
 
-#: lib/tuist_web/live/account_tokens_live.html.heex:289
+#: lib/tuist_web/live/account_token_live.html.heex:79
 #, elixir-autogen, elixir-format
 msgid "Permissions"
 msgstr ""
 
-#: lib/tuist_web/live/account_tokens_live.html.heex:306
+#: lib/tuist_web/live/account_token_live.html.heex:100
 #, elixir-autogen, elixir-format
 msgid "Project access"
 msgstr ""
 
-#: lib/tuist_web/live/account_tokens_live.html.heex:318
+#: lib/tuist_web/live/account_token_live.html.heex:113
 #, elixir-autogen, elixir-format
 msgid "This token does not have access to any projects."
 msgstr ""
 
-#: lib/tuist_web/live/account_tokens_live.html.heex:309
+#: lib/tuist_web/live/account_token_live.html.heex:104
 #, elixir-autogen, elixir-format
 msgid "This token has access to all projects in this account."
+msgstr ""
+
+#: lib/tuist_web/live/account_token_live.ex:50
+#, elixir-autogen, elixir-format
+msgid "%{name} was revoked."
+msgstr ""
+
+#: lib/tuist_web/live/account_token_live.ex:38
+#, elixir-autogen, elixir-format
+msgid "Account token not found."
+msgstr ""
+
+#: lib/tuist_web/live/account_token_live.html.heex:70
+#, elixir-autogen, elixir-format
+msgid "Created by"
+msgstr ""
+
+#: lib/tuist_web/live/account_token_live.ex:59
+#, elixir-autogen, elixir-format
+msgid "Token could not be revoked."
 msgstr ""

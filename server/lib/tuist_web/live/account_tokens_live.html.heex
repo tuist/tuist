@@ -200,15 +200,12 @@
       <div data-part="tokens-table">
         <.table id="account-tokens-table" rows={@account_tokens}>
           <:col :let={token} label={dgettext("dashboard_account", "Name")}>
-            <button
-              type="button"
-              data-part="token-name-button"
-              data-selected={@selected_account_token && @selected_account_token.id == token.id}
-              phx-click="select_account_token"
-              phx-value-id={token.id}
+            <.link
+              navigate={~p"/#{@selected_account.name}/settings/tokens/#{token.id}"}
+              data-part="token-name-link"
             >
               {token.name}
-            </button>
+            </.link>
           </:col>
           <:col :let={token} label={dgettext("dashboard_account", "Token")}>
             <.text_cell data-part="token-hint-cell" label={account_token_hint(token)} />
@@ -234,107 +231,6 @@
             />
           </:empty_state>
         </.table>
-      </div>
-
-      <div :if={@selected_account_token} id="account-token-detail" data-part="token-detail">
-        <div data-part="detail-header">
-          <div data-part="detail-title-group">
-            <span data-part="eyebrow">
-              {dgettext("dashboard_account", "Account token")}
-            </span>
-            <h2>{@selected_account_token.name}</h2>
-          </div>
-          <.button
-            :if={@can_delete_tokens?}
-            label={dgettext("dashboard_account", "Revoke")}
-            variant="destructive"
-            size="medium"
-            phx-click="revoke_account_token"
-            phx-value-name={@selected_account_token.name}
-            data-confirm={
-              dgettext(
-                "dashboard_account",
-                "Revoke %{name}? This action cannot be undone.",
-                name: @selected_account_token.name
-              )
-            }
-          />
-        </div>
-
-        <div data-part="detail-metadata">
-          <div data-part="metadata-item">
-            <span data-part="label">{dgettext("dashboard_account", "Name")}</span>
-            <span data-part="value">{@selected_account_token.name}</span>
-          </div>
-          <div data-part="metadata-item">
-            <span data-part="label">{dgettext("dashboard_account", "Token")}</span>
-            <code data-part="value">{account_token_hint(@selected_account_token)}</code>
-          </div>
-          <div data-part="metadata-item">
-            <span data-part="label">{dgettext("dashboard_account", "Expires")}</span>
-            <span data-part="value">{expires_label(@selected_account_token)}</span>
-          </div>
-          <div data-part="metadata-item">
-            <span data-part="label">{dgettext("dashboard_account", "Last used")}</span>
-            <span data-part="value">{last_used_label(@selected_account_token)}</span>
-          </div>
-          <div data-part="metadata-item">
-            <span data-part="label">{dgettext("dashboard_account", "Created")}</span>
-            <span data-part="value">{created_label(@selected_account_token)}</span>
-          </div>
-        </div>
-
-        <div data-part="detail-grid">
-          <section data-part="detail-panel">
-            <h3>{dgettext("dashboard_account", "Permissions")}</h3>
-            <div data-part="permission-groups">
-              <div
-                :for={group <- selected_scope_groups(@selected_account_token.scopes)}
-                data-part="permission-group"
-              >
-                <h4>{group.label}</h4>
-                <div :for={scope_option <- group.scopes} data-part="permission-item">
-                  <span data-part="label">{scope_option.label}</span>
-                  <code>{scope_option.scope}</code>
-                  <span data-part="description">{scope_option.description}</span>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          <section data-part="detail-panel">
-            <h3>{dgettext("dashboard_account", "Project access")}</h3>
-            <div data-part="project-access">
-              <span :if={@selected_account_token.all_projects} data-part="access-summary">
-                {dgettext(
-                  "dashboard_account",
-                  "This token has access to all projects in this account."
-                )}
-              </span>
-
-              <%= if not @selected_account_token.all_projects do %>
-                <%= if Enum.empty?(@selected_account_token.projects) do %>
-                  <span data-part="access-summary">
-                    {dgettext(
-                      "dashboard_account",
-                      "This token does not have access to any projects."
-                    )}
-                  </span>
-                <% else %>
-                  <div data-part="project-list">
-                    <div
-                      :for={project <- @selected_account_token.projects}
-                      data-part="project-item"
-                    >
-                      <span>{project.name}</span>
-                      <code>{project_handle(@selected_account, project)}</code>
-                    </div>
-                  </div>
-                <% end %>
-              <% end %>
-            </div>
-          </section>
-        </div>
       </div>
     </div>
   </.card_section>

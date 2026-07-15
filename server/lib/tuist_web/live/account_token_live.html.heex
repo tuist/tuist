@@ -1,0 +1,130 @@
+<div id="account-token-detail-settings">
+  <h1 data-part="title">
+    {dgettext("dashboard_account", "Settings")}
+  </h1>
+  <TuistWeb.AppLayoutComponents.settings_tab_menu
+    selected_account={@selected_account}
+    current_path={@current_path}
+    current_user={@current_user}
+  />
+
+  <.button
+    navigate={~p"/#{@selected_account.name}/settings/tokens"}
+    variant="secondary"
+    size="medium"
+    label={dgettext("dashboard_account", "Account tokens")}
+    data-part="back-button"
+  >
+    <:icon_left><.arrow_left /></:icon_left>
+  </.button>
+
+  <div data-part="detail-header">
+    <div data-part="title-group">
+      <span data-part="eyebrow">{dgettext("dashboard_account", "Account token")}</span>
+      <h2 data-part="token-name">{@account_token.name}</h2>
+    </div>
+    <div data-part="actions">
+      <.button
+        :if={@can_delete_tokens?}
+        label={dgettext("dashboard_account", "Revoke")}
+        variant="destructive"
+        size="medium"
+        phx-click="revoke_account_token"
+        data-confirm={
+          dgettext(
+            "dashboard_account",
+            "Revoke %{name}? This action cannot be undone.",
+            name: @account_token.name
+          )
+        }
+      />
+    </div>
+  </div>
+
+  <.card_section data-part="summary-card">
+    <div data-part="section-header">
+      <span data-part="title">{dgettext("dashboard_account", "Summary")}</span>
+    </div>
+    <div data-part="metadata-grid">
+      <div data-part="metadata">
+        <span data-part="label">{dgettext("dashboard_account", "Name")}</span>
+        <span data-part="value">{@account_token.name}</span>
+      </div>
+      <div data-part="metadata">
+        <span data-part="label">{dgettext("dashboard_account", "Token")}</span>
+        <code data-part="value">{account_token_hint(@account_token)}</code>
+      </div>
+      <div data-part="metadata">
+        <span data-part="label">{dgettext("dashboard_account", "Expires")}</span>
+        <span data-part="value">{expires_label(@account_token)}</span>
+      </div>
+      <div data-part="metadata">
+        <span data-part="label">{dgettext("dashboard_account", "Last used")}</span>
+        <span data-part="value">{last_used_label(@account_token)}</span>
+      </div>
+      <div data-part="metadata">
+        <span data-part="label">{dgettext("dashboard_account", "Created")}</span>
+        <span data-part="value">{created_label(@account_token)}</span>
+      </div>
+      <div data-part="metadata">
+        <span data-part="label">{dgettext("dashboard_account", "Created by")}</span>
+        <span data-part="value">{created_by_label(@account_token)}</span>
+      </div>
+    </div>
+  </.card_section>
+
+  <div data-part="detail-grid">
+    <.card_section data-part="permissions-card">
+      <div data-part="section-header">
+        <span data-part="title">{dgettext("dashboard_account", "Permissions")}</span>
+      </div>
+      <div data-part="permission-groups">
+        <div
+          :for={group <- selected_scope_groups(@account_token.scopes)}
+          data-part="permission-group"
+        >
+          <h3>{group.label}</h3>
+          <div data-part="permission-list">
+            <div :for={scope_option <- group.scopes} data-part="permission-item">
+              <span data-part="label">{scope_option.label}</span>
+              <code>{scope_option.scope}</code>
+              <span data-part="description">{scope_option.description}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </.card_section>
+
+    <.card_section data-part="project-access-card">
+      <div data-part="section-header">
+        <span data-part="title">{dgettext("dashboard_account", "Project access")}</span>
+      </div>
+      <div data-part="project-access">
+        <span :if={@account_token.all_projects} data-part="access-summary">
+          {dgettext(
+            "dashboard_account",
+            "This token has access to all projects in this account."
+          )}
+        </span>
+
+        <%= if not @account_token.all_projects do %>
+          <%= if Enum.empty?(@account_token.projects) do %>
+            <span data-part="access-summary">
+              {dgettext(
+                "dashboard_account",
+                "This token does not have access to any projects."
+              )}
+            </span>
+          <% else %>
+            <div data-part="project-list">
+              <div :for={project <- @account_token.projects} data-part="project-item">
+                <span data-part="name">{project.name}</span>
+                <code>{project_handle(@selected_account, project)}</code>
+              </div>
+            </div>
+          <% end %>
+        <% end %>
+      </div>
+    </.card_section>
+  </div>
+</div>
