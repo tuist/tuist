@@ -12,28 +12,30 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-// renderSSHReachabilityScript must install a self-healing LaunchDaemon that
-// keeps sshd enabled and allowed through the macOS application firewall — the
-// operator's SSH management channel wedges otherwise. It must NOT disable the
-// firewall wholesale.
+// renderSSHReachabilityScript must set UseDNS no (so sshd's reverse-DNS lookup
+// can't hang connection setup and exhaust the accept backlog) and install a
+// self-heal probe that reloads the ssh socket if :22 stops accepting.
 func TestRenderSSHReachabilityScript(t *testing.T) {
 	s := renderSSHReachabilityScript()
 	for _, want := range []string{
-		"systemsetup -setremotelogin on",
-		"/usr/libexec/ApplicationFirewall/socketfilterfw",
-		"--unblockapp",
-		"/usr/sbin/sshd",
+		"UseDNS no",
+		"/etc/ssh/sshd_config.d/100-tuist-usedns.conf",
+		"Include /etc/ssh/sshd_config.d/",
+		"nc -z -G 3 127.0.0.1 22",
+		"bootout system/com.openssh.sshd",
+		"bootstrap system /System/Library/LaunchDaemons/ssh.plist",
 		"dev.tuist.ssh-reachability",
 		"<key>StartInterval</key>",
-		"launchctl bootstrap system",
 	} {
 		if !strings.Contains(s, want) {
 			t.Errorf("renderSSHReachabilityScript missing %q", want)
 		}
 	}
-	for _, forbidden := range []string{"--setglobalstate off", "--setglobalstate\noff", "pfctl -d"} {
+	// The firewall was a wrong hypothesis (ALF is off on the minis); make sure
+	// we didn't leave firewall-poking or wholesale-disable commands behind.
+	for _, forbidden := range []string{"socketfilterfw", "systemsetup -setremotelogin", "pfctl -d"} {
 		if strings.Contains(s, forbidden) {
-			t.Errorf("renderSSHReachabilityScript must not disable the firewall wholesale, found %q", forbidden)
+			t.Errorf("renderSSHReachabilityScript should not touch the firewall/remote-login, found %q", forbidden)
 		}
 	}
 }

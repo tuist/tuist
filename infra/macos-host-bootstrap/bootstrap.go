@@ -1929,47 +1929,58 @@ func installNodeExporter(ctx context.Context, client *ssh.Client, cfg Config) er
 }
 
 // installSSHReachability keeps the host reachable over SSH so the operator's
-// only management channel (SSH → tart-kubelet updates) can't be wedged by the
-// macOS Application Firewall silently blocking sshd. See renderSSHReachabilityScript.
+// only management channel (SSH → tart-kubelet updates) can't wedge. See
+// renderSSHReachabilityScript.
 func installSSHReachability(ctx context.Context, client *ssh.Client) error {
 	return RunCommand(ctx, client, renderSSHReachabilityScript())
 }
 
-// renderSSHReachabilityScript installs a self-healing LaunchDaemon that keeps
-// inbound SSH (:22) reachable on the host.
+// renderSSHReachabilityScript keeps inbound SSH (:22) healthy on the host.
 //
-// The runner role boots Tart VMs with vmnet-shared networking, which flips on
-// the macOS Application Firewall. Once enabled it drops inbound sshd — `:22`
-// times out on EVERY interface (public and tailnet alike) while our own
-// listeners (tart-kubelet :8080, node_exporter :9100, VNC :5900) stay
-// reachable — which strands the host: the CAPI operator can only manage a mini
-// over SSH, and a reboot just re-applies the same state. The flip happens at
-// VM-run time (after bootstrap) and persists, and the operator's drift loop
-// only fires on config changes, so re-asserting from the controller can't heal
-// a mid-cycle flip. So this runs ON the host every minute (launchd
-// StartInterval), re-allowing sshd within ~60s of any firewall flip. Scoped to
-// sshd — it never disables the firewall wholesale.
+// Diagnosed on a wedged prod runner: sshd does a reverse-DNS (PTR) lookup on
+// every connecting client by default (UseDNS). The runner role's PN networking
+// leaves the host resolver degraded, so each lookup HANGS during connection
+// setup. The CAPI operator dials :22 every ~30s; over weeks those half-open
+// connections piled into the accept backlog (observed: 128 sockets in
+// SYN_RCVD) until it filled and the kernel dropped every new SYN — so :22 timed
+// out on EVERY interface, loopback included, while our other listeners
+// (:8080/:9100/:5900) stayed fine. It was never a firewall (the macOS
+// application firewall was OFF and pf had no :22 rule); it was the accept path
+// wedging on the slow resolver.
+//
+// Two host-side, self-healing parts:
+//  1. UseDNS no — a sshd_config.d drop-in so sshd never does the reverse-DNS
+//     lookup. Connections then complete instantly, so the backlog never fills.
+//     sshd is socket-activated (a fresh sshd per connection), so it re-reads
+//     this on the next connect — no reload needed. Operator auth is key-based
+//     and doesn't need reverse DNS.
+//  2. A minute-interval LaunchDaemon that probes loopback :22 and, if it isn't
+//     accepting, reloads the ssh socket (bootout+bootstrap) to drain a wedged
+//     backlog — a safety net so any future accept-path wedge self-heals in
+//     ~60s instead of stranding the host (recreation was the only recovery
+//     before). With UseDNS no in place this should never fire.
 func renderSSHReachabilityScript() string {
 	return `set -euo pipefail
+# 1) UseDNS no — the root fix (see function comment).
+sudo mkdir -p /etc/ssh/sshd_config.d
+printf 'UseDNS no\n' | sudo tee /etc/ssh/sshd_config.d/100-tuist-usedns.conf >/dev/null
+# macOS sshd_config Includes sshd_config.d by default; add it defensively in
+# case a base image ever ships without the Include.
+grep -q '^Include /etc/ssh/sshd_config.d/' /etc/ssh/sshd_config || \
+  echo 'Include /etc/ssh/sshd_config.d/*' | sudo tee -a /etc/ssh/sshd_config >/dev/null
+
+# 2) Self-heal probe: drain the ssh accept backlog if :22 ever stops accepting.
 sudo tee /usr/local/bin/tuist-ssh-reachability >/dev/null <<'SSHREACH'
 #!/bin/sh
 set -u
-# 1) Remote Login (sshd) enabled so there is a listener on :22.
-if [ "$(systemsetup -getremotelogin 2>/dev/null)" != "Remote Login: On" ]; then
-  systemsetup -setremotelogin on 2>/dev/null || true
-fi
-# 2) sshd allowed through the macOS Application Firewall. When the firewall
-#    auto-enables (VM networking), an app that isn't in its allow list is
-#    silently dropped — the exact :22-timeout symptom, with our other
-#    listeners unaffected because they were already allowed. Allowlist and
-#    unblock both Remote Login binaries; idempotent, no-op when already set.
-FW=/usr/libexec/ApplicationFirewall/socketfilterfw
-if [ -x "$FW" ]; then
-  for BIN in /usr/sbin/sshd /usr/libexec/sshd-keygen-wrapper; do
-    [ -e "$BIN" ] || continue
-    "$FW" --add "$BIN" >/dev/null 2>&1 || true
-    "$FW" --unblockapp "$BIN" >/dev/null 2>&1 || true
-  done
+# Bounded loopback probe. If sshd's accept path has wedged (backlog full), the
+# connect gets no SYN-ACK and times out; reload the ssh LaunchDaemon to recreate
+# the listening socket and drain the backlog. Only acts when actually wedged, so
+# a healthy host is never disturbed.
+if ! /usr/bin/nc -z -G 3 127.0.0.1 22 >/dev/null 2>&1; then
+  logger "tuist-ssh-reachability: :22 not accepting; reloading ssh socket to drain backlog"
+  launchctl bootout system/com.openssh.sshd 2>/dev/null || true
+  launchctl bootstrap system /System/Library/LaunchDaemons/ssh.plist 2>/dev/null || true
 fi
 SSHREACH
 sudo chmod 0755 /usr/local/bin/tuist-ssh-reachability
