@@ -750,7 +750,12 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 		vncRelayHost := r.dashboardVNCRelayHost(machine.Name)
 		vncRelayPort := r.dashboardVNCRelayPort()
 
-		fingerprint, err := bootstrap.UpdateTartKubelet(ctx, bootstrap.Config{
+		// The drift update dials the mini's public IP first (see the
+		// tailnet fallback right after this call). cfg.IP is a pure dial
+		// target on the update path — HostConfigHash strips it and nothing
+		// else reads it — so the fallback re-points it without changing
+		// what we push.
+		updateCfg := bootstrap.Config{
 			IP:                ip,
 			SSHUser:           bootstrapCreds.SSHUsername,
 			SSHPrivateKey:     sshKey,
@@ -803,7 +808,33 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			// in-flight image-bake VM mid-`tart push`.
 			DisableVMGC:          machine.Spec.GHActionsRunner != nil,
 			KnownHostFingerprint: bootstrapCreds.HostFingerprint,
-		})
+		}
+		fingerprint, err := bootstrap.UpdateTartKubelet(ctx, updateCfg)
+		// Tailnet fallback. A running runner mini filters inbound :22 on
+		// its public interface once Internet Sharing / vmnet reconfigures
+		// the public path (it starts booting Tart VMs), so the public dial
+		// times out and the whole fleet's rolls wedge — while the host
+		// stays reachable on the tailnet (that's how its metrics are
+		// scraped). An empty fingerprint means the SSH handshake never
+		// completed (a pure connect failure, distinct from a mid-session
+		// command error), so retry over the mini's egress-Service DNS,
+		// which routes through the ProxyGroup. Public-first keeps the
+		// common path fast and lets the tailscale reinstall run on a
+		// transport it can safely restart; the fallback sets
+		// SkipTailscaleInstall because stopping tailscaled to swap its
+		// binary would drop the very tunnel this session rides. Fresh /
+		// idle minis (public open) never reach the fallback, so this never
+		// races egress-Service creation (Stage 4) — by the time a mini's
+		// public path is filtered its Service has long existed.
+		if err != nil && fingerprint == "" {
+			if egressHost := r.egressHost(machine.Name); egressHost != "" && egressHost != ip {
+				logger.Info("public-IP tart-kubelet update dial failed; retrying over the tailnet",
+					"machine", machine.Name, "egressHost", egressHost, "cause", err.Error())
+				updateCfg.IP = egressHost
+				updateCfg.SkipTailscaleInstall = true
+				fingerprint, err = bootstrap.UpdateTartKubelet(ctx, updateCfg)
+			}
+		}
 		if fingerprint != "" && fingerprint != bootstrapCreds.HostFingerprint {
 			if perr := r.CredentialsManager.SetMachineHostFingerprint(ctx, machine.Name, fingerprint); perr != nil {
 				logger.Error(perr, "persist host fingerprint on update; will retry")
@@ -1032,25 +1063,41 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileTailscaleEgressService(
 		if svc.Spec.ExternalName == "" {
 			svc.Spec.ExternalName = "placeholder." + r.EgressNamespace + ".svc.cluster.local"
 		}
-		// Two named ports — alloy-metrics filters on port_name to
-		// dispatch each to the right scrape job (see
+		// Named ports the ProxyGroup forwards to the mini over the
+		// tailnet. alloy-metrics filters on port_name to dispatch the
+		// scrape ports (9100/8080) to the right job (see
 		// infra/helm/k8s-monitoring/values.yaml's
-		// collectors.alloy-metrics.extraConfig).
+		// collectors.alloy-metrics.extraConfig); vnc-relay fronts the
+		// dashboard; ssh (:22) carries the tart-kubelet drift update, so
+		// the operator can roll host config over the tailnet when the
+		// mini's public :22 is filtered (see the update path above). The
+		// tailnet ACL must also grant tcp:22 from tag:tuist-k8s-<env> to
+		// tag:tuist-macmini-<env> (infra/tailscale/acls.json).
 		svc.Spec.Ports = []corev1.ServicePort{
 			{Name: "node-exporter", Port: 9100, Protocol: corev1.ProtocolTCP},
 			{Name: "tart-kubelet", Port: 8080, Protocol: corev1.ProtocolTCP},
 			{Name: "vnc-relay", Port: DashboardVNCRelayPort, Protocol: corev1.ProtocolTCP},
+			{Name: "ssh", Port: 22, Protocol: corev1.ProtocolTCP},
 		}
 		return nil
 	})
 	return err
 }
 
-func (r *ScalewayAppleSiliconMachineReconciler) dashboardVNCRelayHost(machineName string) string {
+// egressHost is the in-cluster DNS name of a mini's tailnet egress
+// Service (reconcileTailscaleEgressService). Resolving it routes any
+// cluster Pod to the mini over the ProxyGroup's tailnet identity, on the
+// ports the Service declares. Empty when the tailnet egress is disabled
+// (OSS / self-hosted), so callers fall back to the public IP.
+func (r *ScalewayAppleSiliconMachineReconciler) egressHost(machineName string) string {
 	if r.EgressProxyGroup == "" || r.EgressNamespace == "" {
 		return ""
 	}
 	return fmt.Sprintf("%s.%s.svc.cluster.local", machineName, r.EgressNamespace)
+}
+
+func (r *ScalewayAppleSiliconMachineReconciler) dashboardVNCRelayHost(machineName string) string {
+	return r.egressHost(machineName)
 }
 
 func (r *ScalewayAppleSiliconMachineReconciler) dashboardVNCRelayPort() int {

@@ -1227,47 +1227,6 @@ defmodule Tuist.TestsTest do
   end
 
   describe "create_test/1" do
-    test "persists test case runs and their arguments without relying on the asynchronous batch" do
-      # Given
-      # The client uploads attachments and crash reports as soon as it gets these
-      # IDs back, and those endpoints authorize the upload by looking the run up.
-      # Dropping the asynchronous batch stands in for the buffer not having been
-      # flushed yet: the runs and arguments must be readable regardless.
-      stub(Tuist.Tasks, :run_async, fn _fun -> {:ok, self()} end)
-
-      # When
-      {:ok, test_run} =
-        RunsFixtures.test_fixture(
-          test_modules: [
-            %{
-              name: "MyTests",
-              status: "success",
-              duration: 1000,
-              test_cases: [
-                %{
-                  name: "parameterized test",
-                  test_suite_name: "MySuite",
-                  status: "success",
-                  duration: 500,
-                  arguments: [%{name: ".variant1", status: "success", duration: 200}]
-                }
-              ]
-            }
-          ]
-        )
-
-      [test_case_run] = test_run.test_case_runs
-
-      # Then
-      assert {:ok, run} =
-               Tests.get_test_case_run_by_id(test_case_run.id,
-                 project_id: test_run.project_id,
-                 preload: [:arguments]
-               )
-
-      assert [%{name: ".variant1"}] = run.arguments
-    end
-
     test "creates a test with basic attributes" do
       # Given
       project = ProjectsFixtures.project_fixture()

@@ -61,7 +61,7 @@ defmodule Tuist.Docs.Loader do
 
   @mdex_options [
                   extension: [
-                    header_id_prefix: "",
+                    header_ids: "",
                     autolink: true,
                     table: true,
                     strikethrough: true,
@@ -337,7 +337,6 @@ defmodule Tuist.Docs.Loader do
 
     html =
       [markdown: processed_markdown]
-      |> Keyword.merge(@mdex_options)
       |> MDEx.new()
       |> MDExMermaid.attach(
         mermaid_init: "",
@@ -345,6 +344,7 @@ defmodule Tuist.Docs.Loader do
           ~s(id="mermaid-#{seq}" class="mermaid" phx-hook="MermaidDiagram" phx-update="ignore")
         end
       )
+      |> MDEx.Document.put_options(@mdex_options)
       |> MDEx.to_html!()
       |> convert_github_alerts()
       |> HTML.wrap_code_blocks()

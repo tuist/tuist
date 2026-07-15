@@ -28,6 +28,7 @@ defmodule Tuist.Accounts do
   alias Tuist.Environment
   alias Tuist.FeatureFlags
   alias Tuist.Repo
+  alias Tuist.Runners.Concurrency, as: RunnerConcurrency
   alias Tuist.Runners.Profiles, as: RunnerProfiles
 
   require Logger
@@ -355,7 +356,13 @@ defmodule Tuist.Accounts do
         {:ok, organization}
 
       {:error, part, changeset, _changes}
-      when part in [:organization, :account, :default_runner_profile, :default_macos_runner_profile] ->
+      when part in [
+             :organization,
+             :account,
+             :runner_concurrency_limits,
+             :default_runner_profile,
+             :default_macos_runner_profile
+           ] ->
         {:error, changeset}
 
       {:error, part, changeset, _changes} ->
@@ -405,6 +412,9 @@ defmodule Tuist.Accounts do
             )
         })
       )
+    end)
+    |> Multi.run(:runner_concurrency_limits, fn _repo, %{account: account} ->
+      RunnerConcurrency.create_default_limits(account)
     end)
     |> Multi.run(:default_runner_profile, fn _repo, %{account: account} ->
       RunnerProfiles.create_default_for_account(account)
@@ -695,6 +705,9 @@ defmodule Tuist.Accounts do
           })
         )
       end)
+      |> Multi.run(:runner_concurrency_limits, fn _repo, %{account: account} ->
+        RunnerConcurrency.create_default_limits(account)
+      end)
       |> Multi.run(:default_runner_profile, fn _repo, %{account: account} ->
         RunnerProfiles.create_default_for_account(account)
       end)
@@ -737,8 +750,9 @@ defmodule Tuist.Accounts do
           {:error, changeset}
         end
 
-      {:error, step, reason, _} when step in [:default_runner_profile, :default_macos_runner_profile] ->
-        Logger.error("create_user: default runner profile insert failed (#{step}): #{inspect(reason)}")
+      {:error, step, reason, _}
+      when step in [:runner_concurrency_limits, :default_runner_profile, :default_macos_runner_profile] ->
+        Logger.error("create_user: account bootstrap insert failed (#{step}): #{inspect(reason)}")
         {:error, :internal_server_error}
     end
   end

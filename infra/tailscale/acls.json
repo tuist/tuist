@@ -76,7 +76,13 @@
 		{"src": ["*"], "dst": ["*"], "ip": ["*"]},
 
 		// Per-env operator → matching-env Mac mini fleet on the
-		// three scrape ports:
+		// scrape ports plus SSH:
+		//   :22    tart-kubelet drift updates. The CAPI controller
+		//          rolls host config to already-bootstrapped minis
+		//          over the tailnet (reconcileTailscaleEgressService
+		//          fronts :22 on the ProxyGroup) because a running
+		//          runner mini filters inbound :22 on its public
+		//          interface, wedging the public-IP roll path.
 		//   :8080  controller-runtime metrics on tart-kubelet
 		//          (reconcile counts, errors, and the
 		//          tart_kubelet_vm_boot_duration_seconds histogram).
@@ -97,17 +103,17 @@
 		{
 			"src": ["tag:tuist-k8s-staging"],
 			"dst": ["tag:tuist-macmini-staging"],
-			"ip":  ["tcp:8080", "tcp:9091", "tcp:9100"],
+			"ip":  ["tcp:22", "tcp:8080", "tcp:9091", "tcp:9100"],
 		},
 		{
 			"src": ["tag:tuist-k8s-canary"],
 			"dst": ["tag:tuist-macmini-canary"],
-			"ip":  ["tcp:8080", "tcp:9091", "tcp:9100"],
+			"ip":  ["tcp:22", "tcp:8080", "tcp:9091", "tcp:9100"],
 		},
 		{
 			"src": ["tag:tuist-k8s-production"],
 			"dst": ["tag:tuist-macmini-production"],
-			"ip":  ["tcp:8080", "tcp:9091", "tcp:9100"],
+			"ip":  ["tcp:22", "tcp:8080", "tcp:9091", "tcp:9100"],
 		},
 
 		// Same-env Mac mini fleet → CNPG pooler proxy on tcp:5432.

@@ -41,6 +41,70 @@
     </.card_section>
   </.card>
 
+  <.card title={dgettext("dashboard", "Runner concurrency")} icon="server">
+    <.card_section>
+      <p data-part="runner-concurrency-description">
+        {dgettext(
+          "dashboard",
+          "Limits apply independently to Linux and macOS. A new runner starts only when both its vCPU and memory fit within that platform's remaining capacity."
+        )}
+      </p>
+      <.form
+        for={@runner_concurrency_form}
+        id="runner-concurrency-form"
+        phx-submit="update_runner_concurrency_limits"
+      >
+        <div data-part="runner-concurrency-platforms">
+          <fieldset>
+            <legend>{dgettext("dashboard", "Linux")}</legend>
+            <.text_input
+              field={@runner_concurrency_form[:runner_linux_vcpus_limit]}
+              input_type="number"
+              min={1}
+              label={dgettext("dashboard", "vCPU limit")}
+              required
+              show_required
+            />
+            <.text_input
+              field={@runner_concurrency_form[:runner_linux_memory_gb_limit]}
+              input_type="number"
+              min={1}
+              label={dgettext("dashboard", "Memory limit (GB)")}
+              required
+              show_required
+            />
+          </fieldset>
+          <fieldset>
+            <legend>{dgettext("dashboard", "macOS")}</legend>
+            <.text_input
+              field={@runner_concurrency_form[:runner_macos_vcpus_limit]}
+              input_type="number"
+              min={1}
+              label={dgettext("dashboard", "vCPU limit")}
+              required
+              show_required
+            />
+            <.text_input
+              field={@runner_concurrency_form[:runner_macos_memory_gb_limit]}
+              input_type="number"
+              min={1}
+              label={dgettext("dashboard", "Memory limit (GB)")}
+              required
+              show_required
+            />
+          </fieldset>
+        </div>
+        <div data-part="actions">
+          <.button
+            type="submit"
+            variant="primary"
+            label={dgettext("dashboard", "Save runner limits")}
+          />
+        </div>
+      </.form>
+    </.card_section>
+  </.card>
+
   <.card title={dgettext("dashboard", "Plan & billing")} icon="credit_card">
     <.card_section>
       <.table id="account-plan-table" rows={[@account]}>

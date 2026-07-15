@@ -3807,6 +3807,9 @@ completed_jobs
       workflow_job_id: workflow_job_id,
       account_id: runner_jobs_account_id,
       fleet_name: fleet,
+      platform: "macos",
+      vcpus: 6,
+      memory_gb: 14,
       repository: repo,
       workflow_run_id: workflow_job_id - 1000,
       workflow_name: job.workflow,
@@ -3824,6 +3827,9 @@ completed_jobs
         workflow_job_id: workflow_job_id,
         account_id: runner_jobs_account_id,
         fleet_name: fleet,
+        platform: "macos",
+        vcpus: 6,
+        memory_gb: 14,
         repository: repo,
         workflow_run_id: workflow_job_id - 1000,
         workflow_name: job.workflow,
@@ -4543,17 +4549,219 @@ if runner_linked_command_event_rows != [] do
   create_xcode_data_for_events.(runner_linked_command_event_rows, "Runner-linked runs")
 end
 
+# Concurrency history follows irregular but deterministic workday
+# schedules across the last 30 days. macOS mixes historical VM shapes
+# and overlapping jobs, while Linux mixes catalog shapes so vCPU and
+# memory peaks evolve independently. Both platforms sometimes reach,
+# but never exceed, their configured limits.
+macos_burst_patterns = [
+  [
+    %{hour: 7, shapes: [%{vcpus: 2, memory_gb: 4}, %{vcpus: 4, memory_gb: 8}]},
+    %{hour: 13, shapes: [%{vcpus: 6, memory_gb: 14}]},
+    %{hour: 19, shapes: [%{vcpus: 2, memory_gb: 4}]}
+  ],
+  [
+    %{hour: 8, shapes: [%{vcpus: 4, memory_gb: 8}]},
+    %{hour: 16, shapes: [%{vcpus: 2, memory_gb: 4}]},
+    %{hour: 21, shapes: [%{vcpus: 6, memory_gb: 14}]}
+  ],
+  [
+    %{hour: 6, shapes: [%{vcpus: 4, memory_gb: 8}]},
+    %{hour: 12, shapes: [%{vcpus: 6, memory_gb: 14}, %{vcpus: 6, memory_gb: 14}]},
+    %{hour: 18, shapes: [%{vcpus: 2, memory_gb: 4}]}
+  ],
+  [
+    %{hour: 9, shapes: [%{vcpus: 2, memory_gb: 4}, %{vcpus: 6, memory_gb: 14}]},
+    %{hour: 14, shapes: [%{vcpus: 4, memory_gb: 8}]},
+    %{hour: 20, shapes: [%{vcpus: 6, memory_gb: 14}]}
+  ],
+  [
+    %{hour: 7, shapes: [%{vcpus: 4, memory_gb: 8}]},
+    %{hour: 15, shapes: [%{vcpus: 6, memory_gb: 14}, %{vcpus: 4, memory_gb: 8}]},
+    %{hour: 22, shapes: [%{vcpus: 2, memory_gb: 4}]}
+  ],
+  [
+    %{hour: 10, shapes: [%{vcpus: 2, memory_gb: 4}]},
+    %{hour: 13, shapes: [%{vcpus: 6, memory_gb: 14}]},
+    %{hour: 17, shapes: [%{vcpus: 4, memory_gb: 8}, %{vcpus: 6, memory_gb: 14}]}
+  ]
+]
+
+linux_burst_patterns = [
+  [
+    %{hour: 6, shapes: [%{vcpus: 2, memory_gb: 4}, %{vcpus: 4, memory_gb: 8}]},
+    %{hour: 13, shapes: [%{vcpus: 8, memory_gb: 16}]},
+    %{hour: 19, shapes: [%{vcpus: 4, memory_gb: 16}]}
+  ],
+  [
+    %{
+      hour: 8,
+      shapes: [
+        %{vcpus: 1, memory_gb: 2},
+        %{vcpus: 2, memory_gb: 8},
+        %{vcpus: 4, memory_gb: 8}
+      ]
+    },
+    %{hour: 16, shapes: [%{vcpus: 8, memory_gb: 32}]}
+  ],
+  [
+    %{hour: 5, shapes: [%{vcpus: 4, memory_gb: 16}]},
+    %{hour: 11, shapes: [%{vcpus: 8, memory_gb: 16}, %{vcpus: 4, memory_gb: 8}]},
+    %{hour: 20, shapes: [%{vcpus: 2, memory_gb: 4}]}
+  ],
+  [
+    %{
+      hour: 7,
+      shapes: [
+        %{vcpus: 16, memory_gb: 32},
+        %{vcpus: 8, memory_gb: 16},
+        %{vcpus: 8, memory_gb: 16}
+      ]
+    },
+    %{hour: 18, shapes: [%{vcpus: 4, memory_gb: 8}, %{vcpus: 8, memory_gb: 32}]}
+  ],
+  [
+    %{hour: 9, shapes: [%{vcpus: 8, memory_gb: 16}, %{vcpus: 2, memory_gb: 8}]},
+    %{hour: 15, shapes: [%{vcpus: 4, memory_gb: 16}]},
+    %{hour: 21, shapes: [%{vcpus: 1, memory_gb: 2}]}
+  ],
+  [
+    %{hour: 6, shapes: [%{vcpus: 4, memory_gb: 8}, %{vcpus: 4, memory_gb: 16}]},
+    %{hour: 12, shapes: [%{vcpus: 8, memory_gb: 32}, %{vcpus: 2, memory_gb: 4}]},
+    %{hour: 19, shapes: [%{vcpus: 2, memory_gb: 8}]}
+  ],
+  [
+    %{hour: 8, shapes: [%{vcpus: 2, memory_gb: 4}]},
+    %{hour: 14, shapes: [%{vcpus: 16, memory_gb: 32}]},
+    %{hour: 20, shapes: [%{vcpus: 4, memory_gb: 8}, %{vcpus: 1, memory_gb: 2}]}
+  ]
+]
+
+runner_concurrency_rows =
+  Enum.flat_map(0..29, fn day_index ->
+    day_start =
+      now
+      |> DateTime.add(-(day_index + 1), :day)
+      |> then(&%{&1 | hour: 0, minute: 0, second: 0, microsecond: {0, 6}})
+
+    macos_jobs =
+      macos_burst_patterns
+      |> Enum.at(rem(day_index, length(macos_burst_patterns)))
+      |> Enum.with_index()
+      |> Enum.flat_map(fn {burst, burst_index} ->
+        burst.shapes
+        |> Enum.with_index()
+        |> Enum.map(fn {shape, overlapping_job_index} ->
+          %{
+            platform: "macos",
+            shape: shape,
+            claimed_at:
+              DateTime.add(
+                day_start,
+                burst.hour * 60 * 60 + overlapping_job_index * 4 * 60,
+                :second
+              ),
+            duration_minutes: 29 + rem(day_index * 7 + burst_index * 11 + overlapping_job_index * 3, 28)
+          }
+        end)
+      end)
+
+    linux_jobs =
+      linux_burst_patterns
+      |> Enum.at(rem(day_index, length(linux_burst_patterns)))
+      |> Enum.with_index()
+      |> Enum.flat_map(fn {burst, burst_index} ->
+        burst.shapes
+        |> Enum.with_index()
+        |> Enum.map(fn {shape, overlapping_job_index} ->
+          %{
+            platform: "linux",
+            shape: shape,
+            claimed_at:
+              DateTime.add(
+                day_start,
+                burst.hour * 60 * 60 + overlapping_job_index * 3 * 60,
+                :second
+              ),
+            duration_minutes: 24 + rem(day_index * 5 + burst_index * 13 + overlapping_job_index * 7, 36)
+          }
+        end)
+      end)
+
+    (macos_jobs ++ linux_jobs)
+    |> Enum.with_index()
+    |> Enum.map(fn {job, job_index} ->
+      workflow_job_id = 5_100_000 + day_index * 10 + job_index
+      completed_at = DateTime.add(job.claimed_at, job.duration_minutes, :minute)
+
+      fleet_name =
+        case job.platform do
+          "macos" -> "macos-xcode-26.4"
+          "linux" -> "tuist-runner-pool-linux-#{job.shape.vcpus}vcpu-#{job.shape.memory_gb}gb"
+        end
+
+      %{
+        workflow_job_id: workflow_job_id,
+        account_id: runner_jobs_account_id,
+        fleet_name: fleet_name,
+        platform: job.platform,
+        vcpus: job.shape.vcpus,
+        memory_gb: job.shape.memory_gb,
+        repository: Enum.at(runner_jobs_repos, rem(day_index + job_index, length(runner_jobs_repos))),
+        workflow_run_id: workflow_job_id - 1000,
+        workflow_name: if(job.platform == "macos", do: "Apple platform CI", else: "Linux CI"),
+        run_attempt: 1,
+        job_name: Enum.at(["build", "test", "lint", "package", "integration"], rem(job_index, 5)),
+        head_branch: Enum.at(runner_jobs_branches, rem(day_index + job_index, length(runner_jobs_branches))),
+        head_sha: random_sha.(),
+        status: "completed",
+        conclusion: if(rem(day_index * 3 + job_index, 17) == 0, do: "failure", else: "success"),
+        enqueued_at: DateTime.add(job.claimed_at, -(18 + rem(job_index * 13, 75)), :second),
+        claimed_at: job.claimed_at,
+        started_at: DateTime.add(job.claimed_at, 4 + rem(job_index, 8), :second),
+        completed_at: completed_at,
+        pod_name: "seeded-#{job.platform}-#{day_index}-#{job_index}",
+        runner_name: "tuist-#{job.platform}-runner-#{job_index}",
+        requested_dispatch_label: "tuist-default",
+        updated_at: DateTime.add(now, job_index, :microsecond)
+      }
+    end)
+  end)
+
+IngestRepo.insert_all(Job, runner_concurrency_rows)
+IO.puts("  - runner concurrency history: #{length(runner_concurrency_rows)} hourly job samples")
+
 # Running jobs — currently being executed
 running_jobs = [
-  %{workflow: "CLI", job_name: "Build Acceptance Tests", run_attempt: 1, started_seconds_ago: 124, repo_idx: 0},
-  %{workflow: "Server", job_name: "esbuild", run_attempt: 1, started_seconds_ago: 39, repo_idx: 0}
+  %{
+    workflow: "CLI",
+    job_name: "Build Acceptance Tests",
+    run_attempt: 1,
+    started_seconds_ago: 124,
+    repo_idx: 0,
+    fleet: "macos-xcode-26.4",
+    platform: "macos",
+    vcpus: 6,
+    memory_gb: 14
+  },
+  %{
+    workflow: "Server",
+    job_name: "esbuild",
+    run_attempt: 1,
+    started_seconds_ago: 39,
+    repo_idx: 0,
+    fleet: "tuist-runner-pool-linux-4vcpu-8gb",
+    platform: "linux",
+    vcpus: 4,
+    memory_gb: 8
+  }
 ]
 
 running_jobs
 |> Enum.with_index()
 |> Enum.each(fn {job, idx} ->
   workflow_job_id = 4_300_000 + idx
-  fleet = Enum.at(runner_jobs_fleets, rem(idx, length(runner_jobs_fleets)))
+  fleet = job.fleet
   branch = Enum.at(runner_jobs_branches, rem(idx, length(runner_jobs_branches)))
   repo = Enum.at(runner_jobs_repos, job.repo_idx)
 
@@ -4566,6 +4774,9 @@ running_jobs
       workflow_job_id: workflow_job_id,
       account_id: runner_jobs_account_id,
       fleet_name: fleet,
+      platform: job.platform,
+      vcpus: job.vcpus,
+      memory_gb: job.memory_gb,
       repository: repo,
       workflow_run_id: workflow_job_id - 1000,
       workflow_name: job.workflow,
@@ -4582,6 +4793,9 @@ running_jobs
         workflow_job_id: workflow_job_id,
         account_id: runner_jobs_account_id,
         fleet_name: fleet,
+        platform: job.platform,
+        vcpus: job.vcpus,
+        memory_gb: job.memory_gb,
         repository: repo,
         workflow_run_id: workflow_job_id - 1000,
         workflow_name: job.workflow,
@@ -4638,14 +4852,24 @@ end)
 
 # Claimed but not yet running — runner is minting a JIT
 claimed_jobs = [
-  %{workflow: "Server", job_name: "Security", run_attempt: 1, claimed_seconds_ago: 4, repo_idx: 0}
+  %{
+    workflow: "Server",
+    job_name: "Security",
+    run_attempt: 1,
+    claimed_seconds_ago: 4,
+    repo_idx: 0,
+    fleet: "macos-xcode-26.3",
+    platform: "macos",
+    vcpus: 6,
+    memory_gb: 14
+  }
 ]
 
 claimed_jobs
 |> Enum.with_index()
 |> Enum.each(fn {job, idx} ->
   workflow_job_id = 4_400_000 + idx
-  fleet = Enum.at(runner_jobs_fleets, rem(idx, length(runner_jobs_fleets)))
+  fleet = job.fleet
   branch = Enum.at(runner_jobs_branches, rem(idx, length(runner_jobs_branches)))
   repo = Enum.at(runner_jobs_repos, job.repo_idx)
 
@@ -4657,6 +4881,9 @@ claimed_jobs
       workflow_job_id: workflow_job_id,
       account_id: runner_jobs_account_id,
       fleet_name: fleet,
+      platform: job.platform,
+      vcpus: job.vcpus,
+      memory_gb: job.memory_gb,
       repository: repo,
       workflow_run_id: workflow_job_id - 1000,
       workflow_name: job.workflow,
@@ -4673,6 +4900,9 @@ claimed_jobs
         workflow_job_id: workflow_job_id,
         account_id: runner_jobs_account_id,
         fleet_name: fleet,
+        platform: job.platform,
+        vcpus: job.vcpus,
+        memory_gb: job.memory_gb,
         repository: repo,
         workflow_run_id: workflow_job_id - 1000,
         workflow_name: job.workflow,
@@ -4689,15 +4919,35 @@ end)
 
 # Queued — still waiting for a runner
 queued_jobs = [
-  %{workflow: "Server", job_name: "Format", run_attempt: 1, enqueued_seconds_ago: 9, repo_idx: 0},
-  %{workflow: "Release", job_name: "Release Gradle Plugin", run_attempt: 1, enqueued_seconds_ago: 22, repo_idx: 1}
+  %{
+    workflow: "Server",
+    job_name: "Format",
+    run_attempt: 1,
+    enqueued_seconds_ago: 9,
+    repo_idx: 0,
+    fleet: "macos-xcode-26.4",
+    platform: "macos",
+    vcpus: 6,
+    memory_gb: 14
+  },
+  %{
+    workflow: "Release",
+    job_name: "Release Gradle Plugin",
+    run_attempt: 1,
+    enqueued_seconds_ago: 22,
+    repo_idx: 1,
+    fleet: "tuist-runner-pool-linux-4vcpu-8gb",
+    platform: "linux",
+    vcpus: 4,
+    memory_gb: 8
+  }
 ]
 
 queued_jobs
 |> Enum.with_index()
 |> Enum.each(fn {job, idx} ->
   workflow_job_id = 4_500_000 + idx
-  fleet = Enum.at(runner_jobs_fleets, rem(idx, length(runner_jobs_fleets)))
+  fleet = job.fleet
   branch = Enum.at(runner_jobs_branches, rem(idx, length(runner_jobs_branches)))
   repo = Enum.at(runner_jobs_repos, job.repo_idx)
 
@@ -4708,6 +4958,9 @@ queued_jobs
       workflow_job_id: workflow_job_id,
       account_id: runner_jobs_account_id,
       fleet_name: fleet,
+      platform: job.platform,
+      vcpus: job.vcpus,
+      memory_gb: job.memory_gb,
       repository: repo,
       workflow_run_id: workflow_job_id - 1000,
       workflow_name: job.workflow,
@@ -4741,6 +4994,9 @@ if File.exists?(runner_smoke_log_path) do
       workflow_job_id: smoke_workflow_job_id,
       account_id: runner_jobs_account_id,
       fleet_name: "macos-xcode-26.4",
+      platform: "macos",
+      vcpus: 6,
+      memory_gb: 14,
       repository: "tuist/tuist",
       workflow_run_id: smoke_workflow_run_id,
       workflow_name: "macOS Runners Staging Smoke Test",
