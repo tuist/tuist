@@ -5,7 +5,9 @@ defmodule Tuist.Runners.JobsTest do
   import TuistTestSupport.Fixtures.AccountsFixtures
 
   alias Tuist.IngestRepo
+  alias Tuist.Repo
   alias Tuist.Runners.Job
+  alias Tuist.Runners.JobTerminal
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.RunnerSession
   alias Tuist.Runners.RunnerSessions
@@ -115,6 +117,35 @@ defmodule Tuist.Runners.JobsTest do
       counts = Jobs.status_counts(account.id)
       assert Map.get(counts, "queued", 0) == 0
       assert Map.get(counts, "claimed", 0) == 1
+    end
+
+    test "enqueue_if_missing honors a terminal guard even when ClickHouse has no row" do
+      account = account_fixture()
+
+      attrs = %{
+        workflow_job_id: 1004,
+        account_id: account.id,
+        fleet_name: "fleet-a",
+        repository: "acme/cli",
+        workflow_run_id: 10_040,
+        run_attempt: 1,
+        workflow_name: "",
+        job_name: "build",
+        head_branch: "main",
+        head_sha: "deadbeef",
+        requested_dispatch_label: ""
+      }
+
+      Repo.insert!(%JobTerminal{
+        workflow_job_id: attrs.workflow_job_id,
+        account_id: account.id,
+        conclusion: "cancelled",
+        completed_at: DateTime.utc_now() |> DateTime.truncate(:second)
+      })
+
+      assert :ok = Jobs.enqueue_if_missing(attrs)
+      assert {:error, :empty} = Jobs.pick_queued("fleet-a")
+      assert Jobs.status_counts(account.id) == %{}
     end
   end
 
@@ -545,6 +576,20 @@ defmodule Tuist.Runners.JobsTest do
       counts = Jobs.status_counts(account.id)
       assert Map.get(counts, "queued", 0) == 1
       assert Map.get(counts, "claimed", 0) == 0
+    end
+
+    test "does not re-surface a terminal job as queued" do
+      account = account_fixture()
+      :ok = enqueue_fixture(account, 6002, fleet: "fleet-q")
+      {:ok, candidate} = Jobs.pick_queued("fleet-q", [])
+      :ok = Jobs.record_claimed(candidate, "pod-1", DateTime.utc_now())
+      {:ok, _job} = Jobs.complete(6002, "cancelled")
+
+      assert :ok = Jobs.record_queued(6002)
+
+      counts = Jobs.status_counts(account.id)
+      assert Map.get(counts, "completed", 0) == 1
+      assert Map.get(counts, "queued", 0) == 0
     end
   end
 

@@ -208,58 +208,70 @@ defmodule Tuist.Runners.Dispatch do
   end
 
   defp mark_completed(payload, workflow_job_id, conclusion, raw_steps, installation_id, repository) do
-    # Free the PG cap slot FIRST. The customer's next dispatch
-    # poll (potentially seconds away) sees the freed inflight
-    # count immediately rather than waiting on the stale-claims
-    # worker. CH state transition is fire-and-forget — if it
-    # raises, the next dispatch is unaffected because cap
-    # accounting reads PG.
-    :ok = Claims.complete(workflow_job_id)
+    Jobs.with_workflow_job_ordering_lock(workflow_job_id, fn ->
+      # Free the PG cap slot FIRST. The customer's next dispatch
+      # poll (potentially seconds away) sees the freed inflight
+      # count immediately rather than waiting on the stale-claims
+      # worker. The ordering lock below only serializes webhook
+      # transitions for this workflow_job so a concurrent queued
+      # redelivery cannot resurrect the terminal row.
+      :ok = Claims.complete(workflow_job_id)
 
-    case Jobs.complete(workflow_job_id, conclusion) do
-      {:ok, %{account_id: account_id}} ->
-        # Persist steps after marking the job complete: the row's
-        # `account_id` is the denormalisation key on the step row, and
-        # an empty list (cancelled jobs sometimes ship no steps) is a
-        # safe no-op. Webhook retries collapse on the RMT key.
-        :ok = JobSteps.record(build_step_rows(workflow_job_id, account_id, raw_steps))
+      case Jobs.complete(workflow_job_id, conclusion) do
+        {:ok, %{account_id: account_id}} ->
+          record_completed_steps_and_logs(
+            workflow_job_id,
+            account_id,
+            raw_steps,
+            installation_id,
+            repository,
+            conclusion
+          )
 
-        # Fetch the full job log from GitHub's Actions Logs API and
-        # ingest it into `runner_job_logs`. The Logs API is the only
-        # stable source of step output — the runner Pod's stdout
-        # carries only Listener lifecycle, the Worker diag log only
-        # framework noise, and step content streams directly from the
-        # .NET Worker to GitHub's `ResultsLog`. See
-        # `Tuist.Runners.Workers.FetchLogsWorker`.
-        enqueue_log_fetch(workflow_job_id, account_id, installation_id, repository)
+        {:error, :not_found} ->
+          # The completed delivery can arrive before the queued delivery.
+          # If this job targets one of our pools, write a terminal row now
+          # so a late queued redelivery cannot resurrect canceled work.
+          case record_completed_without_queued(payload, conclusion, installation_id) do
+            {:ok, account_id} ->
+              record_completed_steps_and_logs(
+                workflow_job_id,
+                account_id,
+                raw_steps,
+                installation_id,
+                repository,
+                conclusion
+              )
 
-        Logger.info("runners: completed",
-          workflow_job_id: workflow_job_id,
-          conclusion: conclusion
-        )
+            ignored ->
+              ignored
+          end
+      end
+    end)
+  end
 
-        {:ok, :completed}
+  defp record_completed_steps_and_logs(workflow_job_id, account_id, raw_steps, installation_id, repository, conclusion) do
+    # Persist steps after marking the job complete: the row's
+    # `account_id` is the denormalisation key on the step row, and
+    # an empty list (cancelled jobs sometimes ship no steps) is a
+    # safe no-op. Webhook retries collapse on the RMT key.
+    :ok = JobSteps.record(build_step_rows(workflow_job_id, account_id, raw_steps))
 
-      {:error, :not_found} ->
-        # The completed delivery can arrive before the queued delivery.
-        # If this job targets one of our pools, write a terminal row now
-        # so a late queued redelivery cannot resurrect canceled work.
-        case record_completed_without_queued(payload, conclusion, installation_id) do
-          {:ok, account_id} ->
-            :ok = JobSteps.record(build_step_rows(workflow_job_id, account_id, raw_steps))
-            enqueue_log_fetch(workflow_job_id, account_id, installation_id, repository)
+    # Fetch the full job log from GitHub's Actions Logs API and
+    # ingest it into `runner_job_logs`. The Logs API is the only
+    # stable source of step output — the runner Pod's stdout
+    # carries only Listener lifecycle, the Worker diag log only
+    # framework noise, and step content streams directly from the
+    # .NET Worker to GitHub's `ResultsLog`. See
+    # `Tuist.Runners.Workers.FetchLogsWorker`.
+    enqueue_log_fetch(workflow_job_id, account_id, installation_id, repository)
 
-            Logger.info("runners: completed",
-              workflow_job_id: workflow_job_id,
-              conclusion: conclusion
-            )
+    Logger.info("runners: completed",
+      workflow_job_id: workflow_job_id,
+      conclusion: conclusion
+    )
 
-            {:ok, :completed}
-
-          ignored ->
-            ignored
-        end
-    end
+    {:ok, :completed}
   end
 
   defp record_completed_without_queued(payload, conclusion, installation_id) do

@@ -108,6 +108,10 @@ if [ -z "${SA_TOKEN}" ]; then
   exit 1
 fi
 
+SHELL_CLAIM_MARKER="${TUIST_RUNNER_SHELL_CLAIM_MARKER:-/tmp/tuist-runner-shell-claimed}"
+export TUIST_RUNNER_SHELL_CLAIM_MARKER="${SHELL_CLAIM_MARKER}"
+rm -f "${SHELL_CLAIM_MARKER}" 2>/dev/null || true
+
 shell_agent_lock_active() {
   local lock_dir=/tmp/tuist-runner-shell-agent.lock
   local pid_file="${lock_dir}/pid"
@@ -401,6 +405,7 @@ while true; do
         sleep "${interval}"
         continue
       fi
+      printf '%s\n' "$(date -u +%FT%TZ)" >"${SHELL_CLAIM_MARKER}" 2>/dev/null || true
       # Optional: route the job's Tuist cache at the account's private
       # runner-cache Kura node (in-cluster, near this runner) when the
       # server includes it. Exported here so the GitHub Actions runner —

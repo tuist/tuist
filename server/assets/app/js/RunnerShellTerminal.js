@@ -5,7 +5,6 @@ function websocketURL(path) {
 }
 
 const encoder = new TextEncoder();
-const decoder = new TextDecoder();
 const maxLines = 2000;
 
 const keySequences = {
@@ -448,6 +447,7 @@ export default {
   mounted() {
     this.output = this.el.querySelector('[data-part="interactive-terminal-output"]');
     this.screen = new TerminalScreen(this.output);
+    this.decoder = new TextDecoder();
     this.simulation = null;
     this.intentionalDisconnect = false;
     this.onKeyDown = (event) => this.handleKeyDown(event);
@@ -487,6 +487,7 @@ export default {
     }
 
     this.intentionalDisconnect = false;
+    this.decoder = new TextDecoder();
     this.el.dataset.connection = "connecting";
     this.socket = new WebSocket(websocketURL(path), [token]);
     this.socket.binaryType = "arraybuffer";
@@ -499,6 +500,7 @@ export default {
 
     this.socket.addEventListener("message", (event) => this.handleMessage(event));
     this.socket.addEventListener("close", () => {
+      this.flushDecoder();
       this.el.dataset.connection = "closed";
       if (!this.intentionalDisconnect) this.pushEvent("interactive_shell_disconnected", {});
     });
@@ -527,12 +529,14 @@ export default {
     }
 
     if (event.data instanceof ArrayBuffer) {
-      this.append(decoder.decode(new Uint8Array(event.data)));
+      this.append(this.decoder.decode(new Uint8Array(event.data), { stream: true }));
       return;
     }
 
     if (event.data instanceof Blob) {
-      event.data.arrayBuffer().then((buffer) => this.append(decoder.decode(new Uint8Array(buffer))));
+      event.data
+        .arrayBuffer()
+        .then((buffer) => this.append(this.decoder.decode(new Uint8Array(buffer), { stream: true })));
     }
   },
 
@@ -589,6 +593,11 @@ export default {
   append(text) {
     this.screen.write(text);
     this.el.scrollTop = this.el.scrollHeight;
+  },
+
+  flushDecoder() {
+    const remaining = this.decoder?.decode();
+    if (remaining) this.append(remaining);
   },
 
   connected() {

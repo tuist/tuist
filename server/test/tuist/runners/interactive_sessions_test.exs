@@ -9,6 +9,7 @@ defmodule Tuist.Runners.InteractiveSessionsTest do
   alias Tuist.Runners.Claims
   alias Tuist.Runners.InteractiveSession
   alias Tuist.Runners.InteractiveSessionConnection
+  alias Tuist.Runners.InteractiveShellBroker
   alias Tuist.Runners.InteractiveSessions
   alias Tuist.Runners.RunnerSessions
   alias Tuist.Runners.Workers.CloseDisconnectedInteractiveSessionWorker
@@ -565,6 +566,23 @@ defmodule Tuist.Runners.InteractiveSessionsTest do
       assert closed.close_reason == "pod_exit"
       assert DateTime.compare(closed.closed_at, ~U[2026-07-06 12:00:00Z]) == :eq
       assert InteractiveSessions.current_for_job(account.id, session.workflow_job_id, :vnc) == nil
+    end
+
+    test "notifies shell clients when their stopped pod closes the session" do
+      account = account_fixture()
+      user = user_fixture()
+      pod_name = "tuist-linux-runner-stopped"
+
+      {:ok, session} =
+        InteractiveSessions.request_shell(job(account, %{pod_name: pod_name, fleet_name: "linux-amd64"}), account, user)
+
+      :ok = InteractiveShellBroker.subscribe_client(session.id)
+
+      assert {:ok, closed} = InteractiveSessions.close_by_pod_name(pod_name, ~U[2026-07-06 12:00:00Z])
+
+      assert closed.id == session.id
+      refute InteractiveSessions.open?(session.id)
+      assert_receive {:runner_shell, :runner_disconnected}
     end
   end
 

@@ -18,6 +18,7 @@ defmodule Tuist.Runners.InteractiveSessions do
   alias Tuist.Runners.Claims
   alias Tuist.Runners.InteractiveSession
   alias Tuist.Runners.InteractiveSessionConnection
+  alias Tuist.Runners.InteractiveShellBroker
   alias Tuist.Runners.RunnerSessions
   alias Tuist.Runners.Workers.CloseDisconnectedInteractiveSessionWorker
 
@@ -88,6 +89,17 @@ defmodule Tuist.Runners.InteractiveSessions do
     |> order_by([session], desc: session.inserted_at)
     |> limit(1)
     |> Repo.one()
+  end
+
+  def open?(session_id) when is_integer(session_id) do
+    now = now()
+
+    InteractiveSession
+    |> where(
+      [session],
+      session.id == ^session_id and is_nil(session.closed_at) and session.expires_at > ^now
+    )
+    |> Repo.exists?()
   end
 
   def current_shell_for_pod(pod_name) when is_binary(pod_name) and pod_name != "" do
@@ -398,6 +410,10 @@ defmodule Tuist.Runners.InteractiveSessions do
 
       case result do
         {:ok, updated} ->
+          if updated.kind == :shell do
+            :ok = InteractiveShellBroker.broadcast_to_client(updated.id, :runner_disconnected)
+          end
+
           {:cont, {:ok, updated}}
 
         {:error, changeset} ->

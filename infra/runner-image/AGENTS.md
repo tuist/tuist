@@ -61,11 +61,11 @@ runtime — no service, sudo entry, or auto-login targets it.
 - `/opt/tuist/runner-shell-agent.py` — interactive shell bridge.
   `dev.tuist.runner-shell-agent` starts `runner-shell-agent-supervisor.sh`
   at boot and waits until `/etc/tuist.env` and `/etc/tuist-sa-token` are
-  materialized. It polls
-  the server for authorized shell sessions and forwards a PTY in the
-  runner VM over the server-owned WebSocket tunnel, so dashboard terminal
-  access and `tuist runner ssh` attach to the same ephemeral job
-  environment.
+  materialized, then blocks on `/tmp/tuist-runner-shell-claimed` until
+  `dispatch-poll.sh` receives a JIT claim. It polls the server for authorized
+  shell sessions and forwards a PTY in the runner VM over the server-owned
+  WebSocket tunnel, so dashboard terminal access and `tuist runner ssh` attach
+  to the same ephemeral job environment.
 - `/opt/tuist/runner-shell-agent-supervisor.sh` — restarts the trusted
   shell bridge while the single-shot runner VM is alive. It runs as root
   from a LaunchDaemon so terminal access does not depend on an unlocked

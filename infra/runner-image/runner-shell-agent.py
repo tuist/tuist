@@ -76,12 +76,12 @@ def tls_client_context():
 
 
 def wait_for_claim():
-    jit_path = os.environ.get("TUIST_RUNNER_JIT_PATH")
-    if not jit_path:
+    claim_marker_path = os.environ.get("TUIST_RUNNER_JIT_PATH") or os.environ.get("TUIST_RUNNER_SHELL_CLAIM_MARKER")
+    if not claim_marker_path:
         return
 
-    log(f"waiting for a claimed job (JIT at {jit_path}) before accepting shell sessions")
-    while not os.path.exists(jit_path):
+    log(f"waiting for a claimed job (marker at {claim_marker_path}) before accepting shell sessions")
+    while not os.path.exists(claim_marker_path):
         time.sleep(1)
 
 

@@ -8,6 +8,8 @@ defmodule TuistWeb.RunnerShellClientWebSock do
 
   require Logger
 
+  @runner_reconnect_grace_ms 10_000
+
   @impl WebSock
   def init(%{session: session}) do
     connection_id = Ecto.UUID.generate()
@@ -32,7 +34,7 @@ defmodule TuistWeb.RunnerShellClientWebSock do
             "waiting"
           end
 
-        state = %{session: active_session, connection_id: connection_id}
+        state = %{session: active_session, connection_id: connection_id, runner_disconnect_ref: nil}
         {:push, {:text, Jason.encode!(%{type: "status", status: status})}, state}
 
       {:error, reason} ->
@@ -76,14 +78,34 @@ defmodule TuistWeb.RunnerShellClientWebSock do
   end
 
   def handle_info({:runner_shell, :runner_connected}, state) do
+    state = cancel_runner_disconnect_timeout(state)
     {:push, {:text, Jason.encode!(%{type: "status", status: "connected"})}, state}
   end
 
   def handle_info({:runner_shell, :runner_disconnected}, state) do
+    state = schedule_runner_disconnect_timeout(state)
     {:push, {:text, Jason.encode!(%{type: "status", status: "waiting"})}, state}
   end
 
+  def handle_info({:runner_shell, {:runner_disconnect_timeout, ref}}, %{runner_disconnect_ref: ref} = state) do
+    state = cancel_runner_disconnect_timeout(state)
+
+    if InteractiveSessions.open?(state.session.id) do
+      {:ok, state}
+    else
+      Process.send_after(self(), {:runner_shell, :close_closed_session}, 0)
+      {:push, {:text, Jason.encode!(%{type: "exit", status: 255})}, state}
+    end
+  end
+
+  def handle_info({:runner_shell, {:runner_disconnect_timeout, _ref}}, state), do: {:ok, state}
+
+  def handle_info({:runner_shell, :close_closed_session}, state) do
+    {:stop, :normal, state}
+  end
+
   def handle_info({:runner_shell, {:runner_exit, status}}, state) do
+    state = cancel_runner_disconnect_timeout(state)
     {:push, {:text, Jason.encode!(%{type: "exit", status: status})}, state}
   end
 
@@ -108,5 +130,31 @@ defmodule TuistWeb.RunnerShellClientWebSock do
     )
 
     :ok = InteractiveShellBroker.broadcast_to_runner(session.id, :client_disconnected)
+  end
+
+  defp schedule_runner_disconnect_timeout(state) do
+    state = cancel_runner_disconnect_timeout(state)
+    ref = make_ref()
+
+    timer_ref =
+      Process.send_after(
+        self(),
+        {:runner_shell, {:runner_disconnect_timeout, ref}},
+        @runner_reconnect_grace_ms
+      )
+
+    state
+    |> Map.put(:runner_disconnect_ref, ref)
+    |> Map.put(:runner_disconnect_timer_ref, timer_ref)
+  end
+
+  defp cancel_runner_disconnect_timeout(state) do
+    if timer_ref = Map.get(state, :runner_disconnect_timer_ref) do
+      Process.cancel_timer(timer_ref)
+    end
+
+    state
+    |> Map.delete(:runner_disconnect_ref)
+    |> Map.delete(:runner_disconnect_timer_ref)
   end
 end

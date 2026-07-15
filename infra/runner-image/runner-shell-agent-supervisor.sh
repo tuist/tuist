@@ -42,6 +42,7 @@ while true; do
     source /etc/tuist.env
 
     if [ -n "${TUIST_RUNNER_DISPATCH_URL:-}" ] && [ -s /etc/tuist-sa-token ]; then
+      export TUIST_RUNNER_SHELL_CLAIM_MARKER="${TUIST_RUNNER_SHELL_CLAIM_MARKER:-/tmp/tuist-runner-shell-claimed}"
       echo "$(date -u +%FT%TZ) runner-shell-agent-supervisor: runner env/token ready (dispatch_url=${TUIST_RUNNER_DISPATCH_URL})"
       break
     fi

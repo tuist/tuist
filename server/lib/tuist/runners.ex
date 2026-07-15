@@ -338,8 +338,22 @@ defmodule Tuist.Runners do
               VolumeAffinities.record(node_name, candidate.account_id)
             end
 
-            Jobs.record_claimed(candidate, sa_name, claim.claimed_at)
-            serve_claim(namespace, sa_name, fleet_name, candidate, claim)
+            case Jobs.record_claimed(candidate, sa_name, claim.claimed_at) do
+              :ok ->
+                serve_claim(namespace, sa_name, fleet_name, candidate, claim)
+
+              {:error, :terminal} ->
+                _ = Claims.release(candidate.workflow_job_id, claim.claimed_at)
+
+                claim_and_serve(
+                  namespace,
+                  sa_name,
+                  fleet_name,
+                  node_name,
+                  [candidate.workflow_job_id | excluded_workflow_job_ids],
+                  attempts_left - 1
+                )
+            end
 
           {:error, :lost_race} ->
             Logger.debug("runners: claim attempt lost race; trying next queued job",
