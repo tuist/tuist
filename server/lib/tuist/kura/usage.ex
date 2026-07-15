@@ -8,7 +8,6 @@ defmodule Tuist.Kura.Usage do
   alias Tuist.Accounts
   alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
-  alias Tuist.Kura.Regions
   alias Tuist.Kura.UsageEvent
   alias Tuist.Projects
 
@@ -60,6 +59,7 @@ defmodule Tuist.Kura.Usage do
       node_id: event["node_id"],
       region: event["region"],
       traffic_plane: event["traffic_plane"],
+      network_path: event["network_path"] || "unknown",
       direction: event["direction"],
       operation: event["operation"],
       protocol: event["protocol"],
@@ -122,9 +122,9 @@ defmodule Tuist.Kura.Usage do
   @doc """
   Returns billable egress bytes for an account in `[start_dt, end_dt]`.
 
-  Billable egress is public client traffic served by Tuist-managed public
-  regions. Traffic served by private runner-cache regions, the local
-  controller, and customer-operated nodes is excluded.
+  Billable egress is public client traffic delivered over the public Internet.
+  Private and unknown network paths, peer traffic, and customer-operated nodes
+  are excluded.
   """
   def billable_egress_bytes(account_id, start_dt, end_dt) when is_integer(account_id) do
     account_id
@@ -357,6 +357,7 @@ defmodule Tuist.Kura.Usage do
           node_id: fragment("argMax(?, ?)", e.node_id, e.inserted_at),
           region: fragment("argMax(?, ?)", e.region, e.inserted_at),
           traffic_plane: fragment("argMax(?, ?)", e.traffic_plane, e.inserted_at),
+          network_path: fragment("argMax(?, ?)", e.network_path, e.inserted_at),
           window_start: fragment("argMax(?, ?)", e.window_start, e.inserted_at),
           bytes: fragment("argMax(?, ?)", e.bytes, e.inserted_at),
           request_count: fragment("argMax(?, ?)", e.request_count, e.inserted_at)
@@ -369,10 +370,8 @@ defmodule Tuist.Kura.Usage do
   defp maybe_billable_filter(query, false), do: query
 
   defp maybe_billable_filter(query, true) do
-    billable_region_identifiers = Regions.billable_egress_region_identifiers()
-
     from(e in subquery(query),
-      where: e.traffic_plane == "public" and e.region in ^billable_region_identifiers
+      where: e.traffic_plane == "public" and e.network_path == "public_internet"
     )
   end
 

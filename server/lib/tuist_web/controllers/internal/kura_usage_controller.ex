@@ -5,13 +5,14 @@ defmodule TuistWeb.Internal.KuraUsageController do
   alias Boruta.Oauth.Authorization.Client
   alias Tuist.Accounts.Account
   alias Tuist.Environment
+  alias Tuist.Kura.Regions
   alias Tuist.Kura.SelfHostedClients
   alias Tuist.Kura.Usage
 
   def create(conn, %{"schema_version" => 1, "events" => events}) when is_list(events) do
     case authorize(conn) do
       {:ok, :unconstrained} ->
-        ingest(conn, events)
+        ingest(conn, managed_events(events))
 
       {:ok, {:account, account}} ->
         if events_scoped_to_account?(events, account) do
@@ -49,12 +50,29 @@ defmodule TuistWeb.Internal.KuraUsageController do
     end
   end
 
-  # Billing trusts the credential that submitted an event, not a customer-
-  # controlled payload field. A self-hosted node may report public client
-  # traffic, but that traffic did not leave Tuist-managed infrastructure and
-  # must not contribute to the public egress meter.
+  defp managed_events(events) do
+    Enum.map(events, fn event ->
+      network_path =
+        case event["network_path"] do
+          path when path in ["public_internet", "private_network", "unknown"] -> path
+          nil -> Regions.usage_network_path(event["region"])
+          _ -> "unknown"
+        end
+
+      Map.put(event, "network_path", network_path)
+    end)
+  end
+
+  # Billing trusts the credential that submitted an event, not customer-
+  # controlled classification fields. Self-hosted traffic did not leave
+  # Tuist-managed infrastructure and must not contribute to the egress meter.
   defp customer_operated_events(events) do
-    Enum.map(events, &Map.put(&1, "traffic_plane", "customer_operated"))
+    Enum.map(events, fn event ->
+      Map.merge(event, %{
+        "traffic_plane" => "customer_operated",
+        "network_path" => "unknown"
+      })
+    end)
   end
 
   # A self-hosted credential may only report usage for its own tenant. Rejecting

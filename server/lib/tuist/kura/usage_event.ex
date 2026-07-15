@@ -12,6 +12,7 @@ defmodule Tuist.Kura.UsageEvent do
     field :node_id, :string
     field :region, :string
     field :traffic_plane, :string
+    field :network_path, :string
     field :direction, :string
     field :operation, :string
     field :protocol, :string

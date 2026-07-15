@@ -18,6 +18,7 @@ defmodule Tuist.Kura.UsageTest do
       node_id: "kura-test",
       region: "us-east",
       traffic_plane: "public",
+      network_path: "public_internet",
       direction: "egress",
       operation: "download",
       protocol: "http",
@@ -56,6 +57,7 @@ defmodule Tuist.Kura.UsageTest do
             "node_id" => "kura-0",
             "region" => "us-east-1",
             "traffic_plane" => "public",
+            "network_path" => "public_internet",
             "direction" => "egress",
             "operation" => "download",
             "protocol" => "http",
@@ -87,6 +89,7 @@ defmodule Tuist.Kura.UsageTest do
             "node_id" => "kura-0",
             "region" => "us-east-1",
             "traffic_plane" => "public",
+            "network_path" => "public_internet",
             "direction" => "egress",
             "operation" => "download",
             "protocol" => "http",
@@ -114,6 +117,7 @@ defmodule Tuist.Kura.UsageTest do
             "node_id" => "kura-0",
             "region" => "us-east-1",
             "traffic_plane" => "public",
+            "network_path" => "public_internet",
             "direction" => "egress",
             "operation" => "download",
             "protocol" => "http",
@@ -303,13 +307,21 @@ defmodule Tuist.Kura.UsageTest do
   end
 
   describe "billable egress" do
-    test "excludes ingress, private regions, and customer-operated traffic" do
+    test "excludes ingress, private and unknown paths, and customer-operated traffic" do
       account_id = unique_account_id()
       {start_dt, end_dt} = window_span()
 
       insert_event(%{account_id: account_id, direction: "egress", bytes: 100})
       insert_event(%{account_id: account_id, direction: "ingress", bytes: 500})
-      insert_event(%{account_id: account_id, region: "scw-fr-par-runners", bytes: 900})
+
+      insert_event(%{
+        account_id: account_id,
+        region: "scw-fr-par-runners",
+        network_path: "private_network",
+        bytes: 900
+      })
+
+      insert_event(%{account_id: account_id, network_path: "unknown", bytes: 700})
 
       insert_event(%{
         account_id: account_id,
@@ -320,7 +332,28 @@ defmodule Tuist.Kura.UsageTest do
       assert Usage.billable_egress_bytes(account_id, start_dt, end_dt) == 100
     end
 
-    test "returns a cumulative series across public managed regions" do
+    test "uses the network path rather than the region name" do
+      account_id = unique_account_id()
+      {start_dt, end_dt} = window_span()
+
+      insert_event(%{
+        account_id: account_id,
+        region: "scw-fr-par-runners",
+        network_path: "public_internet",
+        bytes: 300
+      })
+
+      insert_event(%{
+        account_id: account_id,
+        region: "us-east",
+        network_path: "private_network",
+        bytes: 900
+      })
+
+      assert Usage.billable_egress_bytes(account_id, start_dt, end_dt) == 300
+    end
+
+    test "returns a cumulative series for public Internet traffic" do
       account_id = unique_account_id()
       start_dt = ~U[2026-05-01 00:00:00Z]
       end_dt = ~U[2026-05-04 00:00:00Z]
@@ -342,6 +375,7 @@ defmodule Tuist.Kura.UsageTest do
       insert_event(%{
         account_id: account_id,
         region: "scw-fr-par-runners",
+        network_path: "private_network",
         bytes: 1_000,
         window_start: ~N[2026-05-03 12:00:00]
       })

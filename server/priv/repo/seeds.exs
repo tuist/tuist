@@ -4944,11 +4944,11 @@ kura_seed_projects = [
 ]
 
 kura_seed_nodes = [
-  {"kura-us-east-a", "us-east"},
-  {"kura-us-east-b", "us-east"},
-  {"kura-us-west-a", "us-west"},
-  {"kura-eu-central-a", "eu-central"},
-  {"kura-runner-cache-a", "scw-fr-par-runners"}
+  {"kura-us-east-a", "us-east", "public_internet"},
+  {"kura-us-east-b", "us-east", "public_internet"},
+  {"kura-us-west-a", "us-west", "public_internet"},
+  {"kura-eu-central-a", "eu-central", "public_internet"},
+  {"kura-runner-cache-a", "scw-fr-par-runners", "private_network"}
 ]
 
 kura_window_seconds = 3600
@@ -4974,7 +4974,7 @@ kura_directions = [
 kura_events =
   for hour_offset <- 1..kura_hours_back,
       {project, _account_handle} <- kura_seed_projects,
-      {node_id, region} <- kura_seed_nodes,
+      {node_id, region, network_path} <- kura_seed_nodes,
       {direction, operation, scale} <- kura_directions do
     window_start =
       now_naive
@@ -4997,6 +4997,7 @@ kura_events =
       node_id: node_id,
       region: region,
       traffic_plane: "public",
+      network_path: network_path,
       direction: direction,
       operation: operation,
       protocol: "http",

@@ -18,8 +18,8 @@ This context owns billing, plan management, and Stripe integration.
 ## Stripe Meter Contracts
 
 - `remote_cache_hit` records the legacy cache-hit count.
-- `cache_egress_byte` records public client egress from Tuist-managed Kura regions in bytes. Configure the Stripe meter with sum aggregation, `stripe_customer_id` as the customer mapping key, `value` as the value key, and a daily event window. The meter can collect usage before a price is attached.
-- Private runner-cache regions, the local controller, peer replication, and customer-operated Kura nodes must never contribute to `cache_egress_byte`.
+- `cache_egress_byte` records public client egress delivered over the public Internet in bytes. Configure the Stripe meter with sum aggregation, `stripe_customer_id` as the customer mapping key, `value` as the value key, and a daily event window. The meter can collect usage before a price is attached.
+- Only events with the public traffic plane and `public_internet` network path contribute to `cache_egress_byte`. Private and unknown paths, peer replication, and customer-operated Kura nodes must never contribute.
 
 ## Related Context
 - Parent business logic: `server/lib/tuist/AGENTS.md`

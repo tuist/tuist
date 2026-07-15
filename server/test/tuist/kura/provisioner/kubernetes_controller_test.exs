@@ -56,6 +56,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       refute Map.has_key?(spec, "podAnnotations")
 
       env = Map.new(spec["extraEnv"], &{&1["name"], &1["value"]})
+      assert env["KURA_USAGE_NETWORK_PATH"] == "public_internet"
       assert env["KURA_CONTROL_PLANE_URL"] == "https://tuist.dev"
       assert env["KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL"] == "https://tuist.dev"
       assert env["KURA_CONTROL_PLANE_CLIENT_ID"] == "00000000-0000-0000-0000-000000000001"
@@ -468,6 +469,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       refute Map.has_key?(spec, "grpcPublicHost")
 
       env = Map.new(spec["extraEnv"], &{&1["name"], &1["value"]})
+      assert env["KURA_USAGE_NETWORK_PATH"] == "unknown"
       assert env["KURA_CONTROL_PLANE_URL"] == "http://host.docker.internal:8080"
 
       assert env["KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL"] ==
@@ -777,6 +779,9 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       assert spec["exposeNodePort"] == true
       assert spec["clientCIDRs"] == ["172.16.0.0/22"]
       assert spec["podAnnotations"] == %{"kubernetes.io/egress-bandwidth" => "750M"}
+
+      env = Map.new(spec["extraEnv"], &{&1["name"], &1["value"]})
+      assert env["KURA_USAGE_NETWORK_PATH"] == "private_network"
     end
 
     test "omits node-port fields for cluster-DNS private regions" do

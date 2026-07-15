@@ -262,16 +262,14 @@ defmodule Tuist.Kura.RegionsTest do
     end
   end
 
-  describe "billable_egress_region_identifiers/0" do
-    test "includes public managed regions and excludes private and customer-operated regions" do
-      identifiers = Regions.billable_egress_region_identifiers()
-
-      assert "us-east" in identifiers
-      assert "us-west" in identifiers
-      assert "eu-central" in identifiers
-      refute "scw-fr-par-runners" in identifiers
-      refute "hetzner-staging-runners" in identifiers
-      refute "local-controller" in identifiers
+  describe "usage_network_path/1" do
+    test "classifies public, private, local, and unknown regions" do
+      assert Regions.usage_network_path("us-east") == "public_internet"
+      assert Regions.usage_network_path("eu-central") == "public_internet"
+      assert Regions.usage_network_path("scw-fr-par-runners") == "private_network"
+      assert Regions.usage_network_path("hetzner-staging-runners") == "private_network"
+      assert Regions.usage_network_path("local-controller") == "unknown"
+      assert Regions.usage_network_path("customer-datacenter") == "unknown"
     end
   end
 

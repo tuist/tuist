@@ -51,6 +51,7 @@ defmodule TuistWeb.BillingUsageLiveTest do
       node_id: "kura-test",
       region: "us-east",
       traffic_plane: "public",
+      network_path: "public_internet",
       direction: "egress",
       operation: "download",
       protocol: "http",
@@ -80,6 +81,7 @@ defmodule TuistWeb.BillingUsageLiveTest do
     insert_event(%{
       account_id: account.id,
       region: "scw-fr-par-runners",
+      network_path: "private_network",
       bytes: 20_000_000
     })
 

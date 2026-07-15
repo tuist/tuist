@@ -62,6 +62,7 @@ defmodule TuistWeb.UsageLiveTest do
       node_id: "kura-test",
       region: "us-east",
       traffic_plane: "public",
+      network_path: "public_internet",
       direction: "egress",
       operation: "download",
       protocol: "http",
