@@ -47,8 +47,7 @@ struct RunnerSSHCommandService: RunnerSSHCommandServicing {
         ) { _ in
             try await shellSessionService.create(
                 jobRef: jobRef,
-                serverURL: serverURL,
-                token: token.value
+                serverURL: serverURL
             )
         }
 

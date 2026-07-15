@@ -1,23 +1,11 @@
 import Foundation
-import TuistHTTP
 import TuistServer
 
-#if canImport(FoundationNetworking)
-    import FoundationNetworking
-#endif
-
-struct RunnerShellSession: Decodable {
+struct RunnerShellSession {
     let sessionID: Int
     let workflowJobID: Int
     let websocketURL: URL
     let websocketProtocol: String
-
-    enum CodingKeys: String, CodingKey {
-        case sessionID = "session_id"
-        case workflowJobID = "workflow_job_id"
-        case websocketURL = "websocket_url"
-        case websocketProtocol = "websocket_protocol"
-    }
 }
 
 enum RunnerShellSessionServiceError: LocalizedError, Equatable {
@@ -38,59 +26,69 @@ enum RunnerShellSessionServiceError: LocalizedError, Equatable {
 }
 
 protocol RunnerShellSessionServicing {
-    func create(jobRef: String, serverURL: URL, token: String) async throws -> RunnerShellSession
+    func create(jobRef: String, serverURL: URL) async throws -> RunnerShellSession
 }
 
 struct RunnerShellSessionService: RunnerShellSessionServicing {
-    private let urlSession: URLSession
+    func create(jobRef: String, serverURL: URL) async throws -> RunnerShellSession {
+        let client = Client.authenticated(serverURL: serverURL)
+        let response = try await client.createRunnerShellSession(query: .init(job_ref: jobRef))
 
-    init(urlSession: URLSession = .tuistShared) {
-        self.urlSession = urlSession
-    }
+        switch response {
+        case let .ok(ok):
+            switch ok.body {
+            case let .json(session):
+                guard let websocketURL = URL(string: session.websocket_url) else {
+                    throw RunnerShellSessionServiceError.invalidResponse
+                }
 
-    func create(jobRef: String, serverURL: URL, token: String) async throws -> RunnerShellSession {
-        var components = URLComponents(url: serverURL, resolvingAgainstBaseURL: false)
-        components?.path = "/api/runners/interactive/shell"
-        components?.queryItems = [
-            URLQueryItem(name: "job_ref", value: jobRef),
-        ]
-
-        guard let url = components?.url else {
-            throw RunnerShellSessionServiceError.invalidResponse
-        }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-
-        let (data, response) = try await urlSession.data(for: request)
-
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw RunnerShellSessionServiceError.invalidResponse
-        }
-
-        guard 200 ..< 300 ~= httpResponse.statusCode else {
-            if httpResponse.statusCode == 404 {
-                throw RunnerShellSessionServiceError.runnerSessionNotFound(jobRef: jobRef)
+                return RunnerShellSession(
+                    sessionID: session.session_id,
+                    workflowJobID: session.workflow_job_id,
+                    websocketURL: websocketURL,
+                    websocketProtocol: session.websocket_protocol
+                )
             }
-
-            throw RunnerShellSessionServiceError.requestFailed(
-                statusCode: httpResponse.statusCode,
-                message: responseMessage(data) ?? HTTPURLResponse.localizedString(forStatusCode: httpResponse.statusCode)
-            )
+        case .notFound:
+            throw RunnerShellSessionServiceError.runnerSessionNotFound(jobRef: jobRef)
+        case let .badRequest(badRequest):
+            throw RunnerShellSessionServiceError.requestFailed(statusCode: 400, message: errorMessage(badRequest.body))
+        case let .unauthorized(unauthorized):
+            throw RunnerShellSessionServiceError.requestFailed(statusCode: 401, message: errorMessage(unauthorized.body))
+        case let .forbidden(forbidden):
+            throw RunnerShellSessionServiceError.requestFailed(statusCode: 403, message: errorMessage(forbidden.body))
+        case let .unprocessableContent(unprocessable):
+            throw RunnerShellSessionServiceError.requestFailed(statusCode: 422, message: errorMessage(unprocessable.body))
+        case let .undocumented(statusCode, _):
+            throw RunnerShellSessionServiceError.requestFailed(statusCode: statusCode, message: "unexpected response")
         }
-
-        return try JSONDecoder().decode(RunnerShellSession.self, from: data)
     }
 
-    private func responseMessage(_ data: Data) -> String? {
-        guard
-            let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-            let message = object["message"] as? String ?? object["error"] as? String
-        else {
-            return nil
+    private func errorMessage(_ body: Operations.createRunnerShellSession.Output.BadRequest.Body) -> String {
+        switch body {
+        case let .json(error):
+            return error.message
         }
+    }
 
-        return message
+    private func errorMessage(_ body: Operations.createRunnerShellSession.Output.Unauthorized.Body) -> String {
+        switch body {
+        case let .json(error):
+            return error.message
+        }
+    }
+
+    private func errorMessage(_ body: Operations.createRunnerShellSession.Output.Forbidden.Body) -> String {
+        switch body {
+        case let .json(error):
+            return error.message
+        }
+    }
+
+    private func errorMessage(_ body: Operations.createRunnerShellSession.Output.UnprocessableContent.Body) -> String {
+        switch body {
+        case let .json(error):
+            return error.message
+        }
     }
 }

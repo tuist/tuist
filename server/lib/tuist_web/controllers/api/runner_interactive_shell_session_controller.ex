@@ -1,13 +1,61 @@
 defmodule TuistWeb.API.RunnerInteractiveShellSessionController do
+  use OpenApiSpex.ControllerSpecs
   use TuistWeb, :controller
 
+  alias OpenApiSpex.Schema
   alias Tuist.Accounts
   alias Tuist.Accounts.User
   alias Tuist.Authorization
   alias Tuist.Environment
   alias Tuist.Runners.InteractiveSessions
   alias Tuist.Runners.Jobs
+  alias TuistWeb.API.Schemas.Error
   alias TuistWeb.Authentication
+
+  tags(["Runners"])
+
+  operation(:create,
+    summary: "Create a runner shell session.",
+    description: "Creates an interactive shell session for a running runner job.",
+    operation_id: "createRunnerShellSession",
+    parameters: [
+      job_ref: [
+        in: :query,
+        type: :string,
+        required: true,
+        description: "A dashboard job URL, GitHub Actions job URL, or workflow job ID."
+      ]
+    ],
+    responses: %{
+      ok:
+        {"Runner shell session", "application/json",
+         %Schema{
+           title: "RunnerShellSession",
+           type: :object,
+           required: [
+             :session_id,
+             :workflow_job_id,
+             :state,
+             :expires_at,
+             :websocket_url,
+             :websocket_protocol
+           ],
+           properties: %{
+             session_id: %Schema{type: :integer, description: "The runner shell session ID."},
+             workflow_job_id: %Schema{type: :integer, description: "The GitHub Actions workflow job ID."},
+             state: %Schema{type: :string, description: "The current runner shell session state."},
+             expires_at: %Schema{type: :string, format: :"date-time", description: "When the session expires."},
+             websocket_url: %Schema{type: :string, description: "The WebSocket URL to connect to."},
+             websocket_protocol: %Schema{type: :string, description: "The WebSocket subprotocol token."}
+           }
+         }},
+      bad_request: {"The job reference is missing", "application/json", Error},
+      unauthorized: {"The request is not authenticated", "application/json", Error},
+      forbidden: {"The authenticated subject is not authorized", "application/json", Error},
+      not_found: {"The runner job was not found", "application/json", Error},
+      unprocessable_entity: {"Shell access is unavailable for the runner job", "application/json", Error}
+    }
+  )
 
   def create(conn, %{"job_ref" => job_ref}) when is_binary(job_ref) and job_ref != "" do
     current_user = Authentication.current_user(conn)
