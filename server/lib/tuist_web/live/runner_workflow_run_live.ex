@@ -62,7 +62,7 @@ defmodule TuistWeb.RunnerWorkflowRunLive do
     %{selected_account: account, current_user: current_user, repository: repository, workflow_run_id: run_id} =
       socket.assigns
 
-    with :ok <- Authorization.authorize(:runners_cancel, current_user, account),
+    with :ok <- Authorization.authorize(:runners_read, current_user, account),
          :ok <- Runners.cancel_workflow_run(account, repository, run_id) do
       {:noreply, put_flash(socket, :info, dgettext("dashboard_runners", "Cancelling the workflow run…"))}
     else
