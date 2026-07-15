@@ -1,4 +1,5 @@
 import Foundation
+import Noora
 import Path
 import TuistConfigLoader
 import TuistEnvironment
@@ -38,11 +39,18 @@ struct RunnerSSHCommandService: RunnerSSHCommandServicing {
             throw ServerSessionControllerError.unauthenticated
         }
 
-        let session = try await shellSessionService.create(
-            jobRef: jobRef,
-            serverURL: serverURL,
-            token: token.value
-        )
+        let session = try await Noora.current.progressStep(
+            message: "Connecting to runner...",
+            successMessage: "Connected to runner",
+            errorMessage: nil,
+            showSpinner: true
+        ) { _ in
+            try await shellSessionService.create(
+                jobRef: jobRef,
+                serverURL: serverURL,
+                token: token.value
+            )
+        }
 
         try await terminalClient.attach(to: session, authenticationToken: token.value)
     }

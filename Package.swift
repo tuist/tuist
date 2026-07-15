@@ -387,6 +387,8 @@ var tuistRunnerCommandDependencies: [Target.Dependency] = [
     "TuistEnvKey",
     "TuistConfigLoader",
     "TuistHTTP",
+    "TuistNooraExtension",
+    .product(name: "Noora", package: "tuist.Noora"),
 ]
 var tuistInspectCommandDependencies: [Target.Dependency] = [
     pathDependency,

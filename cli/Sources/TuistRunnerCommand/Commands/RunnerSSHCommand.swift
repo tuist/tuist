@@ -1,8 +1,11 @@
 import ArgumentParser
 import Foundation
 import TuistEnvKey
+import TuistNooraExtension
 
-public struct RunnerSSHCommand: AsyncParsableCommand {
+public struct RunnerSSHCommand: AsyncParsableCommand, NooraReadyCommand {
+    public var jsonThroughNoora: Bool { false }
+
     public init() {}
 
     public static var configuration: CommandConfiguration {
