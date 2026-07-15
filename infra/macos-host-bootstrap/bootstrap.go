@@ -147,6 +147,18 @@ type Config struct {
 	// one env advertises (see the tailscale-operator chart values).
 	TailscaleAcceptRoutes bool
 
+	// SkipTailscaleInstall skips the installTailscale step in
+	// UpdateTartKubelet. It exists for one caller: a drift update that
+	// SSHes over the tailnet (the fallback when the mini's public :22 is
+	// filtered). installTailscale stops tailscaled to swap its binary, so
+	// running it over a tailnet-transported session would drop the very
+	// tunnel the session rides — stranding the mini off the tailnet
+	// mid-update, before the script re-starts the daemon. First-boot Run
+	// (public transport) and public-IP updates leave this false and
+	// reinstall Tailscale normally. Transport-only: never set in the
+	// canonical config, so it doesn't affect HostConfigHash.
+	SkipTailscaleInstall bool
+
 	// VMKuraEgressCIDR, when non-empty, carves a Kura allowance out
 	// of the VM egress firewall (installVMEgressFirewall): Tart VMs
 	// may reach this CIDR — the cluster's Service CIDR, where the
@@ -484,6 +496,9 @@ func HostConfigHash(cfg Config) string {
 	// Per-host role signal (builder hosts set it); the launchd plist
 	// renderer keys --disable-vm-gc off it, so neutralize it too.
 	cfg.DisableVMGC = false
+	// Transport-only: gates whether installTailscale runs, changes no
+	// rendered output. Neutralized so it can never perturb the hash.
+	cfg.SkipTailscaleInstall = false
 
 	var b strings.Builder
 
@@ -1696,6 +1711,12 @@ sudo networksetup -setdhcp "pn Configuration" 2>/dev/null || sudo networksetup -
 // chart's per-env values gate the tailnet end-to-end, and a partial
 // config shouldn't half-bring-up a node.
 func installTailscale(ctx context.Context, client *ssh.Client, cfg Config) error {
+	// SkipTailscaleInstall short-circuits before touching the client: the
+	// caller is updating over the tailnet, where stopping tailscaled to
+	// swap its binary would drop this very session. See the field comment.
+	if cfg.SkipTailscaleInstall {
+		return nil
+	}
 	if len(cfg.TailscaleBinaries) == 0 || cfg.TailscaleAuthKey == "" {
 		return nil
 	}

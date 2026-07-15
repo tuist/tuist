@@ -6713,12 +6713,6 @@ paths:
                 x-struct:
                 x-validate:
           description: List of cache endpoints
-        '403':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-          description: Not authorized to perform this action
       summary: Get cache endpoints.
       tags:
         - Cache

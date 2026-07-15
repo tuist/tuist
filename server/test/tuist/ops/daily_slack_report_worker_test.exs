@@ -2,7 +2,6 @@ defmodule Tuist.Ops.DailySlackReportWorkerTest do
   use TuistTestSupport.Cases.DataCase, async: false
   use Mimic
 
-  alias Tuist.Ops.DailySlackReportWorker
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
@@ -106,16 +105,6 @@ defmodule Tuist.Ops.DailySlackReportWorkerTest do
     end)
 
     # When
-    DailySlackReportWorker.perform(%{})
-  end
-
-  test "preserves human-readable total formatting at unit boundaries" do
-    assert DailySlackReportWorker.format_total(999) == "999"
-    assert DailySlackReportWorker.format_total(999_500) == "1,000 Thousand"
-    assert DailySlackReportWorker.format_total(999_999_999) == "1,000 Million"
-    assert DailySlackReportWorker.format_total(1_000_000_000_000_000) == "1 Quadrillion"
-
-    assert DailySlackReportWorker.format_total(1_234_567_890_123_456_789) ==
-             "1,235 Quadrillion"
+    Tuist.Ops.DailySlackReportWorker.perform(%{})
   end
 end

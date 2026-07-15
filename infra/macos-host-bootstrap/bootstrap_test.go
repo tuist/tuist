@@ -1,6 +1,7 @@
 package bootstrap
 
 import (
+	"context"
 	"crypto/ed25519"
 	"crypto/rand"
 	"errors"
@@ -10,6 +11,33 @@ import (
 
 	"golang.org/x/crypto/ssh"
 )
+
+// installTailscale must short-circuit on SkipTailscaleInstall before it
+// touches the SSH client — the tailnet-fallback caller relies on this so it
+// never stops tailscaled over the session that rides it. A nil client proves
+// no client method is reached.
+func TestInstallTailscale_SkipShortCircuitsBeforeClient(t *testing.T) {
+	cfg := Config{
+		SkipTailscaleInstall: true,
+		TailscaleBinaries:    []byte("nonempty-archive"),
+		TailscaleAuthKey:     "tskey-abc",
+	}
+	if err := installTailscale(context.Background(), nil, cfg); err != nil {
+		t.Fatalf("installTailscale with SkipTailscaleInstall = %v, want nil (no client use)", err)
+	}
+}
+
+// SkipTailscaleInstall is a transport-only flag: it must not perturb the
+// fleet-wide HostConfigHash (else a tailnet-fallback update would look like a
+// config drift and re-roll the fleet).
+func TestSkipTailscaleInstall_DoesNotAffectHostConfigHash(t *testing.T) {
+	base := Config{TailscaleBinaries: []byte("archive"), TailscaleAuthKey: "k"}
+	skipped := base
+	skipped.SkipTailscaleInstall = true
+	if HostConfigHash(base) != HostConfigHash(skipped) {
+		t.Fatal("SkipTailscaleInstall changed HostConfigHash; it must be transport-only")
+	}
+}
 
 func TestHostKeyState_PinnedMismatchReturnsTypedError(t *testing.T) {
 	_, priv, err := ed25519.GenerateKey(rand.Reader)

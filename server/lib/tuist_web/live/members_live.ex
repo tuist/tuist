@@ -8,14 +8,9 @@ defmodule TuistWeb.MembersLive do
   alias Tuist.Accounts.User
   alias Tuist.Authorization
   alias Tuist.Environment
-  alias TuistWeb.Errors.UnauthorizedError
 
   @impl true
-  def mount(_params, _session, %{assigns: %{selected_account: account, current_user: current_user}} = socket) do
-    if Authorization.authorize(:organization_read, current_user, account) != :ok do
-      raise UnauthorizedError, dgettext("dashboard_account", "You are not authorized to perform this action.")
-    end
-
+  def mount(_params, _session, %{assigns: %{selected_account: account}} = socket) do
     socket =
       socket
       |> assign(
@@ -584,23 +579,19 @@ defmodule TuistWeb.MembersLive do
 
   def handle_event("save-member-role", %{"member-id" => member_id}, %{assigns: %{organization: organization}} = socket) do
     member_id_int = String.to_integer(member_id)
+    {^member_id_int, new_role} = socket.assigns.managing_member
 
-    with :ok <-
-           Authorization.authorize(:member_update, socket.assigns.current_user, socket.assigns.selected_account),
-         {^member_id_int, new_role} <- socket.assigns.managing_member,
-         [member, _role] <- Enum.find(socket.assigns.members, fn [m, _role] -> m.id == member_id_int end),
-         {:ok, _} <-
-           Accounts.update_user_role_in_organization(member, organization, String.to_existing_atom(new_role)) do
-      socket =
-        socket
-        |> assign_organization()
-        |> assign(managing_member: nil)
-        |> push_event("close-modal", %{id: "manage-role-modal-#{member_id}"})
+    [member, _role] = Enum.find(socket.assigns.members, fn [m, _role] -> m.id == member_id_int end)
 
-      {:noreply, socket}
-    else
-      _ -> {:noreply, socket}
-    end
+    {:ok, _} = Accounts.update_user_role_in_organization(member, organization, String.to_existing_atom(new_role))
+
+    socket =
+      socket
+      |> assign_organization()
+      |> assign(managing_member: nil)
+      |> push_event("close-modal", %{id: "manage-role-modal-#{member_id}"})
+
+    {:noreply, socket}
   end
 
   def handle_event("close-manage-role-modal-" <> member_id, _, socket) do
@@ -632,13 +623,7 @@ defmodule TuistWeb.MembersLive do
     #   url: &url(~p"/auth/invitations/#{&1}")
     # })
 
-    with :ok <-
-           Authorization.authorize(
-             :invitation_create,
-             socket.assigns.current_user,
-             socket.assigns.selected_account
-           ),
-         {:ok, invitation} <-
+    with {:ok, invitation} <-
            Accounts.invite_user_to_organization(
              email,
              %{
@@ -671,31 +656,27 @@ defmodule TuistWeb.MembersLive do
 
       {:noreply, socket}
     else
-      {:error, %Ecto.Changeset{} = changeset} ->
+      {:error, changeset} ->
         socket = assign(socket, form: to_form(changeset))
 
-        {:noreply, socket}
-
-      _ ->
         {:noreply, socket}
     end
   end
 
   def handle_event("confirm-remove-member", %{"member-id" => member_id}, socket) do
-    with :ok <-
-           Authorization.authorize(:member_delete, socket.assigns.current_user, socket.assigns.selected_account),
-         [member, _role] <-
-           Enum.find(socket.assigns.members, fn [m, _role] -> m.id == String.to_integer(member_id) end),
-         :ok <- Accounts.remove_user_from_organization(member, socket.assigns.organization) do
-      socket =
-        socket
-        |> assign_organization()
-        |> push_event("close-modal", %{id: "remove-member-modal-#{member_id}"})
+    :ok = Authorization.authorize(:member_update, socket.assigns.current_user, socket.assigns.selected_account)
 
-      {:noreply, socket}
-    else
-      _ -> {:noreply, socket}
-    end
+    [member, _role] = Enum.find(socket.assigns.members, fn [m, _role] -> m.id == String.to_integer(member_id) end)
+    organization = socket.assigns.organization
+
+    :ok = Accounts.remove_user_from_organization(member, organization)
+
+    socket =
+      socket
+      |> assign_organization()
+      |> push_event("close-modal", %{id: "remove-member-modal-#{member_id}"})
+
+    {:noreply, socket}
   end
 
   defp assign_organization(socket) do

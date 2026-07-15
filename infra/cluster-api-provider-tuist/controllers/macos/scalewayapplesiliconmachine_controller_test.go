@@ -521,11 +521,12 @@ func TestReconcileTailscaleEgressService_Create(t *testing.T) {
 	if got.Labels["tuist.dev/macmini-egress"] != "true" {
 		t.Errorf("macmini-egress label = %q, want true", got.Labels["tuist.dev/macmini-egress"])
 	}
-	if len(got.Spec.Ports) != 3 {
-		t.Fatalf("Spec.Ports len = %d, want 3", len(got.Spec.Ports))
+	if len(got.Spec.Ports) != 4 {
+		t.Fatalf("Spec.Ports len = %d, want 4", len(got.Spec.Ports))
 	}
-	// Ports must include the metrics scrape endpoints and vnc-relay:5900
-	// for dashboard interactive access through the Tailscale egress Service.
+	// Ports must include the metrics scrape endpoints, vnc-relay:5900 for
+	// dashboard interactive access, and ssh:22 for the tart-kubelet drift
+	// update — all through the Tailscale egress Service.
 	portByName := map[string]int32{}
 	for _, p := range got.Spec.Ports {
 		portByName[p.Name] = p.Port
@@ -538,6 +539,29 @@ func TestReconcileTailscaleEgressService_Create(t *testing.T) {
 	}
 	if portByName["vnc-relay"] != DashboardVNCRelayPort {
 		t.Errorf("vnc-relay port = %d, want %d", portByName["vnc-relay"], DashboardVNCRelayPort)
+	}
+	if portByName["ssh"] != 22 {
+		t.Errorf("ssh port = %d, want 22 (tart-kubelet drift update over the tailnet)", portByName["ssh"])
+	}
+}
+
+// egressHost returns the tailnet egress DNS name the drift update dials
+// (in place of the mini's public IP, whose inbound :22 a running runner
+// filters). Empty when the tailnet egress is disabled, so the update
+// falls back to the public IP on OSS / self-hosted clusters.
+func TestEgressHost(t *testing.T) {
+	r := newReconciler(t)
+
+	if got := r.egressHost("macmini-1"); got != "" {
+		t.Errorf("egressHost with egress disabled = %q, want empty (public-IP fallback)", got)
+	}
+
+	r.EgressProxyGroup = "macmini-egress"
+	r.EgressNamespace = "tailscale-operator"
+	r.EgressMagicDNSSuffix = "taild6d7bb.ts.net"
+	want := "macmini-1.tailscale-operator.svc.cluster.local"
+	if got := r.egressHost("macmini-1"); got != want {
+		t.Errorf("egressHost = %q, want %q", got, want)
 	}
 }
 
