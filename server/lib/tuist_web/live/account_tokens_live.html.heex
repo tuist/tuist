@@ -186,7 +186,11 @@
                         "Select one or more scopes. Presets expand to several fine-grained permissions when the token is used."
                       )}
                     </span>
-                    <div :for={group <- @scope_options} data-part="scope-group">
+                    <div
+                      :for={group <- @scope_options}
+                      data-part="scope-group"
+                      data-layout={if length(group.scopes) == 1, do: "single", else: "grid"}
+                    >
                       <h3 data-part="scope-group-label">{group.label}</h3>
                       <div data-part="scope-checkbox-list">
                         <label

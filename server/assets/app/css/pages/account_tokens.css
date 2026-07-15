@@ -236,6 +236,10 @@
     & + [data-part="scope-group"] {
       margin-top: var(--noora-spacing-3);
     }
+
+    &[data-layout="single"] [data-part="scope-checkbox"] {
+      grid-column: 1 / -1;
+    }
   }
 
   & [data-part="scope-group-label"] {
