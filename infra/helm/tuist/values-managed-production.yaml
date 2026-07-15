@@ -7,21 +7,20 @@
 #     --set server.image.tag=$GIT_SHA
 
 registry:
-  # The public host stays behind the registry-router Worker. The ingress keeps
-  # a separate host for routing and certificate identity so the Worker can
-  # connect to it directly without invoking its public route again.
+  # Clients stay on tuist.dev/api/registry while the Worker forwards requests
+  # to this dedicated ingress host. The ingress hostname is not advertised as
+  # a separate registry endpoint.
   enabled: true
-  publicHost: registry.tuist.dev
+  publicHost: tuist.dev
   serverUrl: https://tuist.dev
   deployEnv: production
   sentryEnv: prod
   poolSize: "10"
   ingress:
-    host: registry-origin.tuist.dev
+    host: registry.tuist.dev
     tlsSecretName: registry-tls
     annotations:
-      external-dns.alpha.kubernetes.io/hostname: registry-origin.tuist.dev
-      external-dns.alpha.kubernetes.io/ingress-hostname-source: annotation-only
+      external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
   resources:
     requests:
       cpu: "500m"
@@ -77,11 +76,10 @@ server:
     # env's config the release runs as.
     - name: TUIST_DEPLOY_ENV
       value: prod
-    # Keep advertising the legacy path until the Worker cutover is live. The
-    # cache origins only serve this prefix, and the standalone frontend keeps
-    # it as a compatibility route, so it works throughout the rollout.
+    # Keep clients on the existing registry base address while the Worker
+    # moves its origin from the cache nodes to the standalone frontend.
     - name: TUIST_REGISTRY_URL
-      value: https://registry.tuist.dev/api/registry/swift
+      value: https://tuist.dev/api/registry/swift
     # Enables the server-owned registry sync writer. Cache still writes
     # too until it is turned off as a separate step; the two coordinate
     # through the shared S3 sync lock, so dual-writing is safe.

@@ -344,8 +344,8 @@ defmodule TuistRegistryWeb.Swift.RegistryControllerTest do
     end
   end
 
-  describe "legacy /api/registry/swift/* prefix" do
-    test "serves availability identically and tags the response as deprecated", %{conn: conn} do
+  describe "/api/registry/swift/* prefix" do
+    test "serves availability", %{conn: conn} do
       conn =
         conn
         |> registry_json_conn()
@@ -353,11 +353,9 @@ defmodule TuistRegistryWeb.Swift.RegistryControllerTest do
 
       assert conn.status == 200
       assert get_resp_header(conn, "content-version") == ["1"]
-      assert get_resp_header(conn, "deprecation") == ["true"]
-      assert get_resp_header(conn, "sunset") == ["Thu, 31 Dec 2026 23:59:59 GMT"]
     end
 
-    test "serves list_releases with legacy-prefixed release URLs", %{conn: conn} do
+    test "serves list_releases with matching release URLs", %{conn: conn} do
       stub(Metadata, :get_package, fn "apple", "swift-argument-parser" ->
         {:ok, %{"releases" => %{"1.0.0" => %{}}}}
       end)
@@ -368,17 +366,13 @@ defmodule TuistRegistryWeb.Swift.RegistryControllerTest do
         |> get("/api/registry/swift/apple/swift-argument-parser")
 
       assert conn.status == 200
-      assert get_resp_header(conn, "deprecation") == ["true"]
       body = JSON.decode!(conn.resp_body)
-      # Generated URLs must match the inbound prefix. If a SwiftPM client
-      # reached us through the legacy path (potentially via the registry
-      # router Worker rewriting `tuist.dev/api/registry/swift/...`),
-      # resolving a `/swift/...` URL relative to the request would 404.
+
       assert body["releases"]["1.0.0"]["url"] ==
                "/api/registry/swift/apple/swift-argument-parser/1.0.0"
     end
 
-    test "default Package.swift Link header uses the legacy prefix", %{conn: conn} do
+    test "default Package.swift Link header uses the matching prefix", %{conn: conn} do
       manifest = "// swift-tools-version: 5.9\n"
 
       expect(S3, :get_object, fn _key, _opts -> {:ok, manifest} end)
@@ -402,24 +396,12 @@ defmodule TuistRegistryWeb.Swift.RegistryControllerTest do
         |> get("/api/registry/swift/apple/swift-argument-parser/1.0.0/Package.swift")
 
       assert conn.status == 200
-      assert get_resp_header(conn, "deprecation") == ["true"]
       [link] = get_resp_header(conn, "link")
 
       assert link =~
                ~s(<\/api\/registry\/swift\/apple\/swift-argument-parser\/1.0.0\/Package.swift?swift-version=5.9>)
 
       refute link =~ ~s(<\/swift\/apple\/)
-    end
-
-    test "canonical /swift/* responses do not carry the deprecation header", %{conn: conn} do
-      conn =
-        conn
-        |> registry_json_conn()
-        |> get("/swift/availability")
-
-      assert conn.status == 200
-      assert get_resp_header(conn, "deprecation") == []
-      assert get_resp_header(conn, "sunset") == []
     end
   end
 

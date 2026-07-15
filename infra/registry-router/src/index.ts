@@ -11,7 +11,7 @@ interface Env {
 const HEALTH_CHECK_TTL = 120;
 const HEALTH_CHECK_TIMEOUT = 5000;
 const EARTH_RADIUS_KM = 6371;
-const ORIGIN_HOST = "registry-origin.tuist.dev";
+const ORIGIN_HOST = "registry.tuist.dev";
 
 const CACHE_ORIGINS: CacheOrigin[] = [
   { host: "cache-eu-central.tuist.dev",   lat:  50.11, lon:    8.68 }, // Frankfurt
@@ -56,23 +56,10 @@ async function isOriginHealthy(host: string, env: Env): Promise<boolean> {
   return value !== "false";
 }
 
-function rewriteCanonicalPathForCache(url: URL): void {
-  if (url.pathname === "/swift") {
-    url.pathname = "/api/registry/swift";
-  } else if (url.pathname.startsWith("/swift/")) {
-    url.pathname = `/api/registry${url.pathname}`;
-  }
-}
-
-async function proxyToOrigin(
-  request: Request,
-  host: string,
-  options: { rewriteCanonicalPath?: boolean } = {},
-): Promise<Response | null> {
+async function proxyToOrigin(request: Request, host: string): Promise<Response | null> {
   try {
     const url = new URL(request.url);
     url.hostname = host;
-    if (options.rewriteCanonicalPath) rewriteCanonicalPathForCache(url);
 
     const originRequest = new Request(url.toString(), {
       method: request.method,
@@ -102,7 +89,7 @@ async function handleRequest(request: Request, env: Env): Promise<Response> {
   for (const { host } of sortedCacheOrigins(request)) {
     if (!(await isOriginHealthy(host, env))) continue;
 
-    const response = await proxyToOrigin(request, host, { rewriteCanonicalPath: true });
+    const response = await proxyToOrigin(request, host);
     if (response) return response;
   }
 

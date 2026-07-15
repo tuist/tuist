@@ -31,11 +31,10 @@ defmodule TuistWeb.WellKnownController do
   end
 
   @doc """
-  Advertises the package registry for this deployment so the CLI can
-  configure clients against `registry.tuist.dev` instead of hardcoding a
-  `<server>/api/registry/swift` path. Keyed by ecosystem so future ones
-  (e.g. Gradle) are additive rather than a breaking reshape. 404s when the
-  deployment exposes no registry (self-hosted).
+  Advertises the package registry for this deployment so the command-line
+  interface can configure clients without hardcoding a registry path. Keyed
+  by ecosystem so future additions do not require a breaking response change.
+  Returns 404 when the deployment exposes no registry.
   """
   def registry_discovery(conn, _params) do
     case Tuist.Registry.url() do
