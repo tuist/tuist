@@ -4,6 +4,7 @@ defmodule TuistWeb.OpsRegistryPackageLive do
   use Noora
 
   alias Tuist.Registry
+  alias TuistWeb.Utilities.Pagination
   alias TuistWeb.Utilities.Query
 
   @page_size 30
@@ -31,7 +32,7 @@ defmodule TuistWeb.OpsRegistryPackageLive do
      socket
      |> assign(:query_params, query_params)
      |> assign(:search, query_params["search"] || "")
-     |> assign(:page, parse_page(query_params["page"]))}
+     |> assign(:page, Pagination.parse_page(query_params["page"]))}
   end
 
   @impl true
@@ -98,20 +99,11 @@ defmodule TuistWeb.OpsRegistryPackageLive do
     end
   end
 
-  def paginated_versions(versions, page) do
-    Enum.slice(versions, (page - 1) * @page_size, @page_size)
-  end
+  def paginated_versions(versions, page), do: Pagination.paginate(versions, page, @page_size)
 
-  def total_pages(versions) do
-    versions
-    |> length()
-    |> Kernel./(@page_size)
-    |> Float.ceil()
-    |> trunc()
-    |> max(1)
-  end
+  def total_pages(versions), do: Pagination.total_pages(length(versions), @page_size)
 
-  def current_page(page, total_pages), do: min(page, total_pages)
+  def current_page(page, total_pages), do: Pagination.current_page(page, total_pages)
 
   def page_path(scope, name, query_params, page) do
     ~p"/ops/registry/#{scope}/#{name}?#{Map.put(query_params, "page", page)}"
@@ -131,13 +123,4 @@ defmodule TuistWeb.OpsRegistryPackageLive do
   end
 
   def detail_label(%{detail: detail}), do: detail
-
-  defp parse_page(nil), do: 1
-
-  defp parse_page(value) do
-    case Integer.parse(to_string(value)) do
-      {page, _} when page > 0 -> page
-      _ -> 1
-    end
-  end
 end
