@@ -51,9 +51,19 @@ func (darwinVolumeBackend) cloneTree(src, dst string) error {
 // cloneFile CoW-clones a single file src to dst. `cp -c` forces clonefile(2)
 // (no -R: the CAS disk image is one file), so a cross-volume mistake surfaces
 // as an error instead of a silent full byte copy. dst must not exist.
+//
+// src must be a regular file: `cp -c` FOLLOWS a command-line symlink, and the
+// only caller cloning a guest-writable path (the branch CAS image) could be
+// pointed at another account's master by a hostile job swapping the image for a
+// symlink. Reject non-regular sources here as a backend-level backstop to the
+// caller's own Lstat guard.
 func (darwinVolumeBackend) cloneFile(src, dst string) error {
-	if _, err := os.Stat(src); err != nil {
+	fi, err := os.Lstat(src)
+	if err != nil {
 		return fmt.Errorf("clone source missing: %w", err)
+	}
+	if !fi.Mode().IsRegular() {
+		return fmt.Errorf("refusing to clone non-regular file %s (mode %s)", src, fi.Mode())
 	}
 	if _, err := runCmd(2*time.Minute, "cp", "-c", src, dst); err != nil {
 		return err

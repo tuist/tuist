@@ -70,6 +70,12 @@ func ReattachVolumeForPod(volumes *VolumeManager, pod *corev1.Pod, vm string) (V
 // discarded.
 const dirtyMarkerFile = "cache-dirty"
 
+// runnerOkFile carries the runner's own exit status (rc == 0), written by the
+// guest at teardown independent of the dirty bit. It is the ONLY signal that a
+// job actually succeeded — cleanExit is true on any VM halt and the dirty marker
+// is written even on a failed run — so the CAS promote gates on it.
+const runnerOkFile = "runner-ok"
+
 // cacheReadyFile is the marker the host writes into the writable status share
 // once it has materialized the dispatched account's cache into the VM's branch
 // (or determined there is no master to materialize — a cold first job).
@@ -319,6 +325,14 @@ func (r *Reconciler) finalizeVolume(entry *Entry, actualAccount string, cleanExi
 	present, dirty := readDirtyMarker(entry.VolumeStatusDir)
 	succeeded := cleanExit && present
 
+	// The CAS image promotes on runner success (rc == 0), carried separately from
+	// the dirty bit, gated additionally on a clean VM halt so a crash mid-teardown
+	// never advances the master from an inconsistent image. Runs BEFORE Finalize,
+	// which removes the branch on discard, so a binary-clean compile-only job
+	// still persists its CAS.
+	runnerOk := cleanExit && readRunnerOk(entry.VolumeStatusDir)
+	r.Volumes.FinalizeCAS(entry.Volume, actualAccount, runnerOk)
+
 	outcome, err := r.Volumes.Finalize(entry.Volume, actualAccount, succeeded, dirty)
 	if err != nil {
 		log.Log.WithName("volume").Error(err, "finalize cache volume", "vm", entry.VMName, "account", actualAccount)
@@ -343,4 +357,17 @@ func readDirtyMarker(statusDir string) (present, dirty bool) {
 		return false, false
 	}
 	return true, strings.TrimSpace(string(b)) == "1"
+}
+
+// readRunnerOk reports whether the guest's runner-ok marker says the runner
+// exited 0. False when absent (crash / incomplete job) or "0" (failed run).
+func readRunnerOk(statusDir string) bool {
+	if statusDir == "" {
+		return false
+	}
+	b, err := os.ReadFile(filepath.Join(statusDir, runnerOkFile))
+	if err != nil {
+		return false
+	}
+	return strings.TrimSpace(string(b)) == "1"
 }

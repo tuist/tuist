@@ -31,7 +31,15 @@ func (f *fakeBackend) cloneTree(src, dst string) error {
 
 // cloneFile models an APFS single-file clonefile: copy the file. dst must not
 // exist, mirroring the real backend's `cp -c` (which fails on an existing dst).
+// Rejects non-regular sources, mirroring the darwin backend's symlink guard.
 func (f *fakeBackend) cloneFile(src, dst string) error {
+	fi, err := os.Lstat(src)
+	if err != nil {
+		return err
+	}
+	if !fi.Mode().IsRegular() {
+		return os.ErrInvalid
+	}
 	if _, err := os.Stat(dst); err == nil {
 		return os.ErrExist
 	}
@@ -240,7 +248,8 @@ func TestCASImagePromotedOnCompileOnlyJob(t *testing.T) {
 	}
 	att.SourceAccount = "acct-a"
 	writeBranchCASImage(t, att, "grown-cas")
-	// dirty=false: the binary tree didn't change, but the CAS did.
+	// Runner succeeded (rc==0) but the binary tree didn't change (dirty=false).
+	m.FinalizeCAS(att, "acct-a", true)
 	outcome, err := m.Finalize(att, "acct-a", true, false)
 	if err != nil {
 		t.Fatalf("Finalize: %v", err)
@@ -256,6 +265,27 @@ func TestCASImagePromotedOnCompileOnlyJob(t *testing.T) {
 	}
 }
 
+// TestCASImageNotPromotedOnFailedRun: a job whose runner exited non-zero must
+// NOT promote its CAS, even though the VM halted cleanly and the guest wrote the
+// dirty marker (present=true) — the promote gates on the runner-success signal,
+// not on marker presence or the clean VM halt.
+func TestCASImageNotPromotedOnFailedRun(t *testing.T) {
+	m, _ := newTestManager(t, 10)
+	m.CASGiB = 2
+	att := mustAllocate(t, m, "vm1")
+	if _, err := m.Materialize(att, "acct-a"); err != nil {
+		t.Fatalf("Materialize: %v", err)
+	}
+	att.SourceAccount = "acct-a"
+	writeBranchCASImage(t, att, "from-failed-run")
+	// runnerSucceeded=false models rc!=0. The binary path still sees a present
+	// marker / clean exit, but the CAS gate must reject.
+	m.FinalizeCAS(att, "acct-a", false)
+	if masterCASImageExists(m, "acct-a") {
+		t.Fatal("failed run must not promote its CAS image")
+	}
+}
+
 // TestCASImageNotPromotedOnAccountMismatch: the defense-in-depth guard also
 // covers the CAS image — a branch materialized for A must not promote into B.
 func TestCASImageNotPromotedOnAccountMismatch(t *testing.T) {
@@ -267,11 +297,40 @@ func TestCASImageNotPromotedOnAccountMismatch(t *testing.T) {
 	}
 	att.SourceAccount = "acct-a"
 	writeBranchCASImage(t, att, "leak")
+	m.FinalizeCAS(att, "acct-b", true)
 	if _, err := m.Finalize(att, "acct-b", true, true); err != nil {
 		t.Fatalf("Finalize: %v", err)
 	}
 	if masterCASImageExists(m, "acct-b") {
 		t.Fatal("account mismatch must not promote the CAS image into B")
+	}
+}
+
+// TestCASImageRejectsSymlinkBranchImage: the branch CAS image is on a guest-
+// writable share; a hostile job can replace it with a symlink to another
+// account's master. FinalizeCAS must refuse to clone a non-regular file, so no
+// cross-account CAS content is promoted.
+func TestCASImageRejectsSymlinkBranchImage(t *testing.T) {
+	m, _ := newTestManager(t, 10)
+	m.CASGiB = 2
+	// Victim account B has a master CAS image on the same volume.
+	seedMasterCASImage(t, m, "acct-b", "victim-B-cas")
+
+	att := mustAllocate(t, m, "vm1")
+	if _, err := m.Materialize(att, "acct-a"); err != nil {
+		t.Fatalf("Materialize: %v", err)
+	}
+	att.SourceAccount = "acct-a"
+	// Attacker swaps its branch image for a symlink to B's master image.
+	branchImg := filepath.Join(att.BranchPath, casImageName)
+	_ = os.Remove(branchImg)
+	if err := os.Symlink(m.masterCASImage("acct-b", ReservedTuistCacheVolume), branchImg); err != nil {
+		t.Fatalf("plant symlink: %v", err)
+	}
+	m.FinalizeCAS(att, "acct-a", true)
+	// A's master image must NOT have been created from B's content.
+	if masterCASImageExists(m, "acct-a") {
+		t.Fatalf("symlinked branch image was promoted: A's master = %q (leak of B)", readMasterCASImage(t, m, "acct-a"))
 	}
 }
 
@@ -288,6 +347,7 @@ func TestBinaryPromotePreservesCASImage(t *testing.T) {
 	att1.SourceAccount = "acct-a"
 	writeBranchCache(t, att1, "tree-v1")
 	writeBranchCASImage(t, att1, "cas-v1")
+	m.FinalizeCAS(att1, "acct-a", true)
 	if o, err := m.Finalize(att1, "acct-a", true, true); err != nil || o != VolumeOutcomePromoted {
 		t.Fatalf("Finalize1: outcome=%s err=%v", o, err)
 	}
@@ -304,6 +364,7 @@ func TestBinaryPromotePreservesCASImage(t *testing.T) {
 	writeBranchCache(t, att2, "tree-v2")
 	// Note: no writeBranchCASImage here — but Materialize cloned the master image
 	// into att2's branch, so the promote re-promotes the same CAS bytes.
+	m.FinalizeCAS(att2, "acct-a", true)
 	if o, err := m.Finalize(att2, "acct-a", true, true); err != nil || o != VolumeOutcomePromoted {
 		t.Fatalf("Finalize2: outcome=%s err=%v", o, err)
 	}

@@ -254,6 +254,20 @@ wait_for_cache_ready() {
 # still promotes, which is acceptable — those artifacts are content-addressed
 # and signature-validated, so they warm rather than corrupt.) Mirrors the rc
 # gate in report_volume_head so local promote and HEAD publish agree.
+# report_runner_ok writes the runner's own exit status (1 iff rc == 0) into the
+# status share as a signal SEPARATE from the dirty bit. The host promotes the
+# per-account CAS image on runner success alone (not the binary-cache dirty
+# bit, so a compile-only job still persists its CAS) — but the dirty marker is
+# written "0" even on a failed run and the VM always halts cleanly, so neither
+# is a safe success signal. This marker is. Written unconditionally at teardown
+# (independent of the cache mount), so a wedged/cold cache never suppresses it.
+report_runner_ok() {
+  [ -d "${STATUS_SHARE}" ] || return 0
+  local rc="${1:-1}" ok=0
+  [ "${rc}" = "0" ] && ok=1
+  printf '%s' "${ok}" > "${STATUS_SHARE}/runner-ok" 2>/dev/null || true
+}
+
 report_cache_dirty() {
   [ -n "${CACHE_MOUNT}" ] || return 0
   [ -d "${STATUS_SHARE}" ] || return 0
@@ -447,6 +461,9 @@ while true; do
       # quiesced, consistent image (Finalize clonefiles the branch image into the
       # account's master).
       detach_cas_image
+      # Carry the runner's real exit status to the host as the CAS-promote gate,
+      # separate from the dirty bit (which is "0" even on failure).
+      report_runner_ok "${rc}"
       # Report whether the job succeeded AND changed the cache so the reconciler
       # can promote the branch to the account's new master (or discard it).
       # Before the metrics tail + VM halt, while the mounted volume is still

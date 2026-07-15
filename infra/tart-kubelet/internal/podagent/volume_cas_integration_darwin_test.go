@@ -59,6 +59,7 @@ func TestCASImageIntegrationRealBackend(t *testing.T) {
 
 	// Binary tree content so the promote path runs.
 	writeBranchCache(t, att1, "tree-v1")
+	m.FinalizeCAS(att1, acct, true) // runner succeeded => promote the CAS image
 	outcome, err := m.Finalize(att1, acct, true, true)
 	if err != nil || outcome != VolumeOutcomePromoted {
 		t.Fatalf("Finalize (promote): outcome=%s err=%v", outcome, err)
@@ -94,6 +95,7 @@ func TestCASImageIntegrationRealBackend(t *testing.T) {
 
 	// --- Subtree-swap: a binary-tree promote must PRESERVE the sibling image.
 	writeBranchCache(t, att2, "tree-v2")
+	m.FinalizeCAS(att2, acct, true)
 	if o, err := m.Finalize(att2, acct, true, true); err != nil || o != VolumeOutcomePromoted {
 		t.Fatalf("Finalize2: outcome=%s err=%v", o, err)
 	}

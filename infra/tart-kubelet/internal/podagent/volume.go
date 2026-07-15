@@ -549,17 +549,6 @@ func (m *VolumeManager) Finalize(att VolumeAttachment, account string, jobSuccee
 		return VolumeOutcomeDiscarded, nil
 	}
 
-	// Promote the CAS image on its OWN gate, before the binary-tree decision.
-	// The CAS legitimately changes on a job that compiles new code even when the
-	// binary cache does not (a pure hit + compile job), so it must not be tied to
-	// the tree's `dirty` flag — only to success and account match. It runs before
-	// discard() so a binary-clean, compile-only job still persists its CAS. The
-	// image is content-addressed, so promoting a slightly-grown (or unchanged)
-	// image is always safe; last-writer-wins, like the tree.
-	if jobSucceeded && account != "" && att.SourceAccount == account {
-		m.promoteCASImageLocked(att, account)
-	}
-
 	branchTree := filepath.Join(att.BranchPath, cacheHomeSubdir)
 	if !jobSucceeded || !dirty || account == "" || att.SourceAccount != account {
 		return discard()
@@ -608,18 +597,54 @@ func (m *VolumeManager) Finalize(att VolumeAttachment, account string, jobSuccee
 	return VolumeOutcomePromoted, nil
 }
 
+// FinalizeCAS promotes the branch's CAS disk image into the account's master
+// when the runner exited 0 and the branch was materialized for this account.
+// It is SEPARATE from Finalize (the binary tree) because the CAS promotes on its
+// own gate — runner success alone, NOT the tree's dirty bit — so a compile-only
+// job that leaves the binary cache clean still persists its compilation cache.
+// Must be called BEFORE Finalize, which removes the branch on discard.
+//
+// runnerSucceeded MUST reflect the runner's own exit status (rc == 0), carried
+// separately from the dirty marker. The host's clean-VM-halt signal is true on
+// any exit (the VM always halts), and the dirty marker is written as "0" even on
+// a failed run — so both stay true for a failed or cancelled job. Gating the CAS
+// promote on either would advance the account's master from a failed run; only a
+// dedicated runner-success signal is safe.
+func (m *VolumeManager) FinalizeCAS(att VolumeAttachment, account string, runnerSucceeded bool) {
+	if !m.casEnabled() || !att.Attached {
+		return
+	}
+	if !runnerSucceeded || account == "" || att.SourceAccount != account {
+		return
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.promoteCASImageLocked(att, account)
+}
+
 // promoteCASImageLocked clones the branch's CAS disk image over the account's
 // master image (atomic tmp + rename), so the next job on this host materializes
 // the grown compilation cache. Best-effort and non-fatal; the caller holds m.mu
-// and has already checked success + account match. No-op when the CAS image is
-// disabled or the branch produced none (the guest never attached one — its CAS
-// ran VM-local this job).
+// and has already checked runner success + account match. No-op when the CAS
+// image is disabled or the branch produced none (the guest never attached one —
+// its CAS ran VM-local this job).
 func (m *VolumeManager) promoteCASImageLocked(att VolumeAttachment, account string) {
 	if !m.casEnabled() {
 		return
 	}
 	branchImg := m.branchCASImage(att)
-	if _, err := os.Stat(branchImg); err != nil {
+	// Lstat, not Stat: the branch is a guest-writable virtio-fs share, so a
+	// hostile job can unlink its own CAS image and drop a SYMLINK in its place
+	// pointing at another account's master image (a guessable numeric path on the
+	// same runner-cache volume). `cp -c` follows a command-line symlink, so
+	// cloning it would pull that account's CAS into this job's master — a
+	// cross-account leak. Refuse anything that isn't a plain regular file.
+	fi, err := os.Lstat(branchImg)
+	if err != nil {
+		return
+	}
+	if !fi.Mode().IsRegular() {
+		log.Log.WithName("volume-cas").Info("refusing to promote non-regular CAS image (possible symlink attack)", "account", account, "mode", fi.Mode().String())
 		return
 	}
 	logger := log.Log.WithName("volume-cas")
