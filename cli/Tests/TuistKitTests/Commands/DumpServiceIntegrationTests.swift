@@ -77,6 +77,9 @@ final class DumpServiceTests: TuistTestCase {
                 }
               },
               "organizationName": "tuist",
+              "packageDependencies": [
+
+              ],
               "packages": [
 
               ],
