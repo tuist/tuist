@@ -57,7 +57,7 @@ run-name: "Preview ${{ inputs.action || github.event.action || 'deploy' }} ${{ i
 # That resolution is checked against GHCR before being pinned, because a
 # reachable release tag is not necessarily a pushed image. When the newest
 # candidate has no image the deploy walks back and says so; when none do, it
-# fails fast instead of ImagePullBackOff-ing behind the `--atomic` timeout.
+# fails fast instead of ImagePullBackOff-ing behind the `helm --wait` timeout.
 #
 # Required GitHub Environment secret (server-k8s-preview):
 #   KUBECONFIG  - base64 kubeconfig for the preview workload cluster.
@@ -516,8 +516,8 @@ jobs:
           # A `kura@<semver>` tag reachable from the platform ref does not imply
           # a pushed image: `release-kura-docker` publishes `kura:<semver>` only
           # when a release is cut. Pinning a tag that was never pushed leaves the
-          # pod in ImagePullBackOff until `--atomic` times out and rolls back,
-          # ~20 min after the fact. Probe the registry instead and walk back to
+          # pod in ImagePullBackOff until `helm --wait` times out, ~20 min after
+          # the fact. Probe the registry instead and walk back to
           # the newest release that has an image, so the deploy either runs a
           # real image or fails immediately with an actionable error.
           # Only a 404 means "never pushed". Treating a 5xx or an auth failure
@@ -602,7 +602,7 @@ jobs:
       - name: Verify preview platform
         # The platform chart and the cluster-wide Kura controller are owned by
         # preview-platform-reconcile.yml. Fail fast with something actionable
-        # rather than letting `helm --atomic` time out on a KuraInstance no
+        # rather than letting `helm --wait` time out on a KuraInstance no
         # controller will ever reconcile.
         run: |
           set -euo pipefail
@@ -701,6 +701,16 @@ jobs:
         # migration as a regular Job (server.migrationJob.asHook=false), so
         # without this Helm returns success while migrations are still running
         # and the seed step below writes into a half-migrated database.
+        #
+        # Deliberately NOT --atomic. On failure --atomic uninstalls the release
+        # before the `Diagnostics on failure` step runs, so diagnostics found
+        # "No resources found" and captured zero pod logs — which is what made a
+        # failing ClickHouse migration and a server boot crash look identical
+        # from CI ("server not ready, progress deadline exceeded"), each needing
+        # an off-CI reproduction to tell apart. Without it the failed pods
+        # survive for diagnostics to read, and the preview-janitor reaps the
+        # botched namespace via its stuck-create path (state=creating older than
+        # STUCK_CREATE_AGE_SECONDS), so nothing is left orphaned.
         run: |
           set -euo pipefail
           helm upgrade --install "$RELEASE" "$HELM_CHART_PATH" \
@@ -724,7 +734,7 @@ jobs:
             --set-string "kuraRuntime.instance.labels.tuist\.dev/preview-source=$SOURCE" \
             --set-file "kuraRuntime.instance.extensionScript=kura/ops/helm/kura/hooks/tuist.lua" \
             --set "server.kuraEndpointUrls[0]=https://$KURA_HOST" \
-            --atomic --timeout 20m --wait --wait-for-jobs
+            --timeout 20m --wait --wait-for-jobs
       - name: Wait for KuraInstance
         run: |
           set -euo pipefail
@@ -1085,7 +1095,9 @@ jobs:
           echo "::group::events"
           kubectl -n "$NAMESPACE" get events --sort-by=.lastTimestamp | tail -50 || true
           echo "::endgroup::"
-          for component in server registry swift-registry-sync; do
+          # server-migration first: a failing migration Job is the most common
+          # deploy blocker, and its pod logs carry the actual database error.
+          for component in server-migration server registry swift-registry-sync; do
             echo "::group::$component pods"
             kubectl -n "$NAMESPACE" describe pods -l "app.kubernetes.io/component=$component" || true
             echo "::endgroup::"
@@ -1093,6 +1105,9 @@ jobs:
             for pod in $(kubectl -n "$NAMESPACE" get pods -l "app.kubernetes.io/component=$component" -o name 2>/dev/null); do
               echo "::group::$pod logs"
               kubectl -n "$NAMESPACE" logs "$pod" --all-containers --tail=300 || true
+              # A crash-looping container's current logs are its latest restart;
+              # the failure that started the loop is in the previous instance.
+              kubectl -n "$NAMESPACE" logs "$pod" --all-containers --previous --tail=300 2>/dev/null || true
               echo "::endgroup::"
             done
           done
