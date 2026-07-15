@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
 	"net"
 	"net/http"
 	"net/url"
@@ -59,6 +58,8 @@ type shellUser struct {
 	Name   string
 	UID    uint32
 	GID    uint32
+	UIDInt int
+	GIDInt int
 	Groups []uint32
 	Home   string
 	Shell  string
@@ -587,7 +588,15 @@ func lookupShellUser(name string) (shellUser, error) {
 	if err != nil {
 		return shellUser{}, fmt.Errorf("invalid uid for %s: %w", name, err)
 	}
+	uidInt, err := parseInt(account.Uid)
+	if err != nil {
+		return shellUser{}, fmt.Errorf("invalid uid for %s: %w", name, err)
+	}
 	gid, err := parseUint32(account.Gid)
+	if err != nil {
+		return shellUser{}, fmt.Errorf("invalid gid for %s: %w", name, err)
+	}
+	gidInt, err := parseInt(account.Gid)
 	if err != nil {
 		return shellUser{}, fmt.Errorf("invalid gid for %s: %w", name, err)
 	}
@@ -596,6 +605,8 @@ func lookupShellUser(name string) (shellUser, error) {
 		Name:   name,
 		UID:    uid,
 		GID:    gid,
+		UIDInt: uidInt,
+		GIDInt: gidInt,
 		Groups: supplementaryGroups(account, gid),
 		Home:   account.HomeDir,
 		Shell:  lookupUserShell(name),
@@ -681,25 +692,19 @@ func parseUint32(value string) (uint32, error) {
 	return uint32(parsed), nil
 }
 
-func chownForUser(path string, user shellUser) error {
-	uid, err := uint32ToInt(user.UID)
+func parseInt(value string) (int, error) {
+	parsed, err := strconv.Atoi(value)
 	if err != nil {
-		return err
+		return 0, err
 	}
-	gid, err := uint32ToInt(user.GID)
-	if err != nil {
-		return err
+	if parsed < 0 {
+		return 0, fmt.Errorf("value %d is negative", parsed)
 	}
-
-	return os.Chown(path, uid, gid)
+	return parsed, nil
 }
 
-func uint32ToInt(value uint32) (int, error) {
-	if uint64(value) > uint64(math.MaxInt) {
-		return 0, fmt.Errorf("value %d overflows int", value)
-	}
-
-	return int(value), nil
+func chownForUser(path string, user shellUser) error {
+	return os.Chown(path, user.UIDInt, user.GIDInt)
 }
 
 func shellPath(user shellUser) string {
