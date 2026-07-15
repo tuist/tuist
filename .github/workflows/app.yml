@@ -6,7 +6,6 @@ on:
       - main
     paths:
       - "app/**"
-      - "cli/Sources/**"
       - ".github/workflows/app.yml"
       - "Tuist/**"
       - ".xcode-version"
@@ -17,7 +16,6 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - "app/**"
-      - "cli/Sources/**"
       - ".github/workflows/app.yml"
       - "Tuist/**"
       - ".xcode-version"
