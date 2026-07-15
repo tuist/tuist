@@ -87,6 +87,21 @@ tart-kubelet binary change. The re-push is zero-downtime (running Tart VMs
 survive `UpdateTartKubelet`). Terminal-failed CRs are excluded until
 `Status.FailureReason` is cleared.
 
+The drift re-push SSHes over the **tailnet**, not the mini's public IP: once a
+runner mini starts booting Tart VMs its Internet Sharing / vmnet setup filters
+inbound `:22` on the public interface, so a public-IP dial times out and the
+whole fleet's roll wedges — while the same host stays reachable on the tailnet
+(that's the path its metrics are scraped over). `UpdateTartKubelet` therefore
+dials the mini's egress-Service DNS (`egressHost`, port 22 added to
+`reconcileTailscaleEgressService`), which routes through the ProxyGroup. This
+needs `tcp:22` in the `tag:tuist-k8s-<env>` → `tag:tuist-macmini-<env>` grant
+(`infra/tailscale/acls.json`, mirrored to the admin console). First-boot
+`bootstrap.Run` still uses the public IP — the mini hasn't joined the tailnet
+yet — and OSS/self-hosted clusters (no egress ProxyGroup) fall back to it too.
+Because the transport is controller-side only, it doesn't change
+`HostConfigHash`; already-terminal CRs still need `Status.FailureReason`
+cleared to retry over the new path.
+
 Two auxiliary controllers run alongside it:
 
 - **OrphanReclaimer** (`controllers/orphan_reclaimer.go`) — a
