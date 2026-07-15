@@ -44,7 +44,8 @@ defmodule TuistWeb.AccountTokensLiveTest do
     assert html =~ "ci-main"
     assert html =~ account_token_hint(token)
     assert html =~ "ci"
-    assert html =~ "All projects"
+    assert html =~ "Project access"
+    assert html =~ "This token has access to all projects in this account."
     assert html =~ "Never"
   end
 
@@ -60,7 +61,7 @@ defmodule TuistWeb.AccountTokensLiveTest do
 
     assert html =~ "personal-ci"
     assert html =~ "project:builds:write"
-    assert html =~ "All projects"
+    assert html =~ "This token has access to all projects in this account."
   end
 
   test "creates a token, reveals it once, and stores project restrictions", %{
@@ -97,6 +98,45 @@ defmodule TuistWeb.AccountTokensLiveTest do
     assert html =~ "ci-rotated"
     assert html =~ account_token_hint(token)
     assert html =~ "ios-app"
+    assert html =~ "#{account.name}/ios-app"
+  end
+
+  test "shows token project access in the selected token detail", %{conn: conn, account: account} do
+    project = ProjectsFixtures.project_fixture(account: account, name: "ios-app")
+
+    all_projects_token =
+      AccountsFixtures.account_token_fixture(
+        account: account,
+        name: "all-projects",
+        scopes: ["ci"],
+        all_projects: true
+      )
+
+    restricted_token =
+      AccountsFixtures.account_token_fixture(
+        account: account,
+        name: "ios-only",
+        scopes: ["project:builds:read"],
+        all_projects: false,
+        project_ids: [project.id]
+      )
+
+    {:ok, lv, html} = live(conn, ~p"/#{account.name}/settings/tokens")
+
+    assert html =~ "ios-only"
+    assert html =~ account_token_hint(restricted_token)
+
+    html = render_click(lv, "select_account_token", %{"id" => restricted_token.id})
+
+    assert html =~ "Project access"
+    assert html =~ "ios-app"
+    assert html =~ "#{account.name}/ios-app"
+    refute html =~ "<span>Projects</span>"
+
+    html = render_click(lv, "select_account_token", %{"id" => all_projects_token.id})
+
+    assert html =~ "all-projects"
+    assert html =~ "This token has access to all projects in this account."
   end
 
   test "creates a token with a fine-grained scope selected from the dashboard", %{
@@ -142,8 +182,6 @@ defmodule TuistWeb.AccountTokensLiveTest do
   end
 
   defp account_token_hint(token) do
-    prefix = String.slice("tuist_#{token.id}_", 0, 14)
-
-    "#{prefix}...#{token.token_last_four}"
+    "tuist_" <> String.duplicate("•", 10) <> token.token_last_four
   end
 end

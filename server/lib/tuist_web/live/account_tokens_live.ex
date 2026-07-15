@@ -23,9 +23,12 @@ defmodule TuistWeb.AccountTokensLive do
             dgettext("dashboard_account", "You are not authorized to perform this action.")
     end
 
+    account_tokens = list_account_tokens(selected_account)
+
     socket =
       socket
-      |> assign(:account_tokens, list_account_tokens(selected_account))
+      |> assign(:account_tokens, account_tokens)
+      |> assign(:selected_account_token, select_account_token(account_tokens, nil))
       |> assign(:selected_scopes, @default_scopes)
       |> assign(:new_account_token_plaintext, nil)
       |> assign(:new_account_token_form, new_account_token_form())
@@ -79,9 +82,12 @@ defmodule TuistWeb.AccountTokensLive do
              all_projects: project_handles == [],
              project_ids: Enum.map(projects, & &1.id)
            }) do
+      account_tokens = list_account_tokens(socket.assigns.selected_account)
+
       {:noreply,
        socket
-       |> assign(:account_tokens, list_account_tokens(socket.assigns.selected_account))
+       |> assign(:account_tokens, account_tokens)
+       |> assign(:selected_account_token, select_account_token(account_tokens, token_record.id))
        |> assign(:new_account_token_plaintext, plaintext)
        |> assign(:new_account_token_form, new_account_token_form())
        |> assign(:selected_scopes, @default_scopes)
@@ -131,6 +137,10 @@ defmodule TuistWeb.AccountTokensLive do
     end
   end
 
+  def handle_event("select_account_token", %{"id" => id}, socket) do
+    {:noreply, assign(socket, :selected_account_token, select_account_token(socket.assigns.account_tokens, id))}
+  end
+
   def handle_event("dismiss_account_token", _params, socket) do
     {:noreply,
      socket
@@ -154,9 +164,21 @@ defmodule TuistWeb.AccountTokensLive do
     with :ok <- ensure_can_delete(socket),
          {:ok, token} <- Accounts.get_account_token_by_name(socket.assigns.selected_account, name),
          {:ok, _token} <- Accounts.delete_account_token(token) do
+      deleted_token_id = token.id
+
+      selected_token_id =
+        case socket.assigns.selected_account_token do
+          %AccountToken{id: ^deleted_token_id} -> nil
+          %AccountToken{id: id} -> id
+          _ -> nil
+        end
+
+      account_tokens = list_account_tokens(socket.assigns.selected_account)
+
       {:noreply,
        socket
-       |> assign(:account_tokens, list_account_tokens(socket.assigns.selected_account))
+       |> assign(:account_tokens, account_tokens)
+       |> assign(:selected_account_token, select_account_token(account_tokens, selected_token_id))
        |> assign(:flash_message, nil)}
     else
       {:error, :forbidden} ->
@@ -182,6 +204,14 @@ defmodule TuistWeb.AccountTokensLive do
       })
 
     tokens
+  end
+
+  defp select_account_token([], _token_id), do: nil
+
+  defp select_account_token(tokens, nil), do: List.first(tokens)
+
+  defp select_account_token(tokens, token_id) do
+    Enum.find(tokens, &(&1.id == token_id)) || List.first(tokens)
   end
 
   defp ensure_can_create(%{assigns: %{can_create_tokens?: true}}), do: :ok
@@ -399,32 +429,28 @@ defmodule TuistWeb.AccountTokensLive do
 
   defp scopes_label(scopes), do: Enum.join(scopes, ", ")
 
-  defp projects_label(%AccountToken{all_projects: true}), do: dgettext("dashboard_account", "All projects")
-
-  defp projects_label(%AccountToken{projects: projects}) when is_list(projects) do
-    case Enum.map(projects, & &1.name) do
-      [] -> dgettext("dashboard_account", "No projects")
-      names -> Enum.join(names, ", ")
-    end
+  defp selected_scope_groups(scopes) do
+    scope_options()
+    |> Enum.map(fn group ->
+      %{group | scopes: Enum.filter(group.scopes, &(&1.scope in scopes))}
+    end)
+    |> Enum.reject(&Enum.empty?(&1.scopes))
   end
 
-  defp account_token_hint(%AccountToken{id: id, scopes: scopes, token_last_four: token_last_four}) do
-    if_result =
+  defp project_handle(account, project), do: "#{account.name}/#{project.name}"
+
+  defp account_token_hint(%AccountToken{scopes: scopes, token_last_four: token_last_four}) do
+    prefix =
       if AccountToken.scim_scope() in scopes do
-        "tuist_scim_#{id}_"
+        "tuist_scim_"
       else
-        "tuist_#{id}_"
+        "tuist_"
       end
 
-    prefix = String.slice(if_result, 0, 14)
-
-    suffix =
-      case token_last_four do
-        value when is_binary(value) and value != "" -> value
-        _ -> "****"
-      end
-
-    "#{prefix}...#{suffix}"
+    case token_last_four do
+      value when is_binary(value) and value != "" -> prefix <> String.duplicate("•", 10) <> value
+      _ -> prefix <> String.duplicate("•", 14)
+    end
   end
 
   defp expires_label(%AccountToken{expires_at: nil}), do: dgettext("dashboard_account", "Never")

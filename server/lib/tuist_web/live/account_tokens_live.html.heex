@@ -18,190 +18,197 @@
 
   <.card_section data-part="tokens-card">
     <div data-part="header">
-      <span data-part="title">
-        {dgettext("dashboard_account", "Account tokens")}
-      </span>
-      <span data-part="subtitle">
-        {dgettext(
-          "dashboard_account",
-          "Create scoped tokens for CI, automation, and more."
-        )}
-      </span>
-    </div>
-    <div data-part="content">
-      <div data-part="section" data-section="create">
-        <div data-part="field">
-          <.modal
-            id="create-account-token-modal"
-            title={dgettext("dashboard_account", "Generate account token")}
-            description={
-              dgettext(
-                "dashboard_account",
-                "Choose the scopes, optional expiration, and optional project restrictions for this token."
-              )
-            }
-            on_dismiss="dismiss_account_token"
-            on_open_change="account_token_modal_open_change"
-          >
-            <:trigger :let={attrs}>
-              <.button
-                label={dgettext("dashboard_account", "Generate token")}
-                variant="secondary"
-                size="medium"
-                disabled={not @can_create_tokens?}
-                {attrs}
-              />
-            </:trigger>
+      <div data-part="title-group">
+        <span data-part="title">
+          {dgettext("dashboard_account", "Account tokens")}
+        </span>
+        <span data-part="subtitle">
+          {dgettext(
+            "dashboard_account",
+            "Create scoped tokens for CI, automation, and more."
+          )}
+        </span>
+      </div>
+      <div data-part="actions">
+        <.modal
+          id="create-account-token-modal"
+          title={dgettext("dashboard_account", "Generate account token")}
+          description={
+            dgettext(
+              "dashboard_account",
+              "Choose the scopes, optional expiration, and optional project restrictions for this token."
+            )
+          }
+          on_dismiss="dismiss_account_token"
+          on_open_change="account_token_modal_open_change"
+        >
+          <:trigger :let={attrs}>
+            <.button
+              label={dgettext("dashboard_account", "Generate token")}
+              variant="secondary"
+              size="medium"
+              disabled={not @can_create_tokens?}
+              {attrs}
+            />
+          </:trigger>
 
-            <div data-part="modal-content-wrapper">
-              <.line_divider />
+          <div data-part="modal-content-wrapper">
+            <.line_divider />
 
-              <%= if @new_account_token_plaintext do %>
+            <%= if @new_account_token_plaintext do %>
+              <div data-part="modal-body">
+                <div data-part="modal-message">
+                  <span data-part="title">
+                    {dgettext("dashboard_account", "Token created")}
+                  </span>
+                  <span data-part="subtitle">
+                    {dgettext(
+                      "dashboard_account",
+                      "Copy it now. It will not be shown again after you close this dialog."
+                    )}
+                  </span>
+                </div>
+                <div data-part="read-only-value">
+                  <code id="new-account-token">{@new_account_token_plaintext}</code>
+                  <.button
+                    id="copy-account-token-button"
+                    variant="secondary"
+                    size="small"
+                    icon_only
+                    type="button"
+                    phx-hook="Clipboard"
+                    data-clipboard-value={@new_account_token_plaintext}
+                    aria-label={dgettext("dashboard_account", "Copy token")}
+                  >
+                    <.copy />
+                  </.button>
+                </div>
+              </div>
+            <% else %>
+              <.form
+                for={@new_account_token_form}
+                id="create-account-token-form"
+                phx-submit="create_account_token"
+              >
                 <div data-part="modal-body">
-                  <div data-part="modal-message">
-                    <span data-part="title">
-                      {dgettext("dashboard_account", "Token created")}
+                  <.text_input
+                    field={@new_account_token_form[:name]}
+                    type="basic"
+                    label={dgettext("dashboard_account", "Token name")}
+                    sublabel={
+                      dgettext(
+                        "dashboard_account",
+                        "Use a stable name so you can revoke or rotate this token later."
+                      )
+                    }
+                    placeholder="ci-main"
+                    required
+                  />
+                  <.text_input
+                    field={@new_account_token_form[:expires]}
+                    type="basic"
+                    label={dgettext("dashboard_account", "Expiration")}
+                    sublabel={
+                      dgettext(
+                        "dashboard_account",
+                        "Optional. Use 30d, 6m, or 1y. Leave empty for a token that never expires."
+                      )
+                    }
+                    placeholder="30d"
+                  />
+                  <.text_area
+                    field={@new_account_token_form[:project_handles]}
+                    label={dgettext("dashboard_account", "Project handles")}
+                    sublabel={
+                      dgettext(
+                        "dashboard_account",
+                        "Optional. Separate project handles with commas, spaces, or new lines. Leave empty for all projects in this account."
+                      )
+                    }
+                    placeholder="ios-app\nmacos-app"
+                    rows={3}
+                    max_length={500}
+                    resize="vertical"
+                  />
+                  <div data-part="scope-list">
+                    <span data-part="label">
+                      {dgettext("dashboard_account", "Scopes")}
                     </span>
-                    <span data-part="subtitle">
+                    <span data-part="sublabel">
                       {dgettext(
                         "dashboard_account",
-                        "Copy it now. It will not be shown again after you close this dialog."
+                        "Select one or more scopes. Presets expand to several fine-grained permissions when the token is used."
                       )}
                     </span>
-                  </div>
-                  <div data-part="read-only-value">
-                    <code id="new-account-token">{@new_account_token_plaintext}</code>
-                    <.button
-                      id="copy-account-token-button"
-                      variant="secondary"
-                      size="small"
-                      icon_only
-                      type="button"
-                      phx-hook="Clipboard"
-                      data-clipboard-value={@new_account_token_plaintext}
-                      aria-label={dgettext("dashboard_account", "Copy token")}
-                    >
-                      <.copy />
-                    </.button>
-                  </div>
-                </div>
-              <% else %>
-                <.form
-                  for={@new_account_token_form}
-                  id="create-account-token-form"
-                  phx-submit="create_account_token"
-                >
-                  <div data-part="modal-body">
-                    <.text_input
-                      field={@new_account_token_form[:name]}
-                      type="basic"
-                      label={dgettext("dashboard_account", "Token name")}
-                      sublabel={
-                        dgettext(
-                          "dashboard_account",
-                          "Use a stable name so you can revoke or rotate this token later."
-                        )
-                      }
-                      placeholder="ci-main"
-                      required
-                    />
-                    <.text_input
-                      field={@new_account_token_form[:expires]}
-                      type="basic"
-                      label={dgettext("dashboard_account", "Expiration")}
-                      sublabel={
-                        dgettext(
-                          "dashboard_account",
-                          "Optional. Use 30d, 6m, or 1y. Leave empty for a token that never expires."
-                        )
-                      }
-                      placeholder="30d"
-                    />
-                    <.text_area
-                      field={@new_account_token_form[:project_handles]}
-                      label={dgettext("dashboard_account", "Project handles")}
-                      sublabel={
-                        dgettext(
-                          "dashboard_account",
-                          "Optional. Separate project handles with commas, spaces, or new lines. Leave empty for all projects in this account."
-                        )
-                      }
-                      placeholder="ios-app\nmacos-app"
-                      rows={3}
-                      max_length={500}
-                      resize="vertical"
-                    />
-                    <div data-part="scope-list">
-                      <span data-part="label">
-                        {dgettext("dashboard_account", "Scopes")}
-                      </span>
-                      <span data-part="sublabel">
-                        {dgettext(
-                          "dashboard_account",
-                          "Select one or more scopes. Presets expand to several fine-grained permissions when the token is used."
-                        )}
-                      </span>
-                      <div :for={group <- @scope_options} data-part="scope-group">
-                        <h3 data-part="scope-group-label">{group.label}</h3>
-                        <div data-part="scope-checkbox-list">
-                          <label
-                            :for={scope_option <- group.scopes}
-                            id={"account-token-scope-#{String.replace(scope_option.scope, ":", "-")}"}
-                            data-part="scope-checkbox"
-                            phx-click="toggle_token_scope"
-                            phx-value-scope={scope_option.scope}
-                          >
-                            <.checkbox_control checked={scope_option.scope in @selected_scopes} />
-                            <div data-part="body">
-                              <span data-part="label">{scope_option.label}</span>
-                              <code data-part="scope">{scope_option.scope}</code>
-                              <span data-part="description">{scope_option.description}</span>
-                            </div>
-                          </label>
-                        </div>
+                    <div :for={group <- @scope_options} data-part="scope-group">
+                      <h3 data-part="scope-group-label">{group.label}</h3>
+                      <div data-part="scope-checkbox-list">
+                        <label
+                          :for={scope_option <- group.scopes}
+                          id={"account-token-scope-#{String.replace(scope_option.scope, ":", "-")}"}
+                          data-part="scope-checkbox"
+                          phx-click="toggle_token_scope"
+                          phx-value-scope={scope_option.scope}
+                        >
+                          <.checkbox_control checked={scope_option.scope in @selected_scopes} />
+                          <div data-part="body">
+                            <span data-part="label">{scope_option.label}</span>
+                            <code data-part="scope">{scope_option.scope}</code>
+                            <span data-part="description">{scope_option.description}</span>
+                          </div>
+                        </label>
                       </div>
                     </div>
                   </div>
-                </.form>
-              <% end %>
+                </div>
+              </.form>
+            <% end %>
 
-              <.line_divider />
-            </div>
+            <.line_divider />
+          </div>
 
-            <:footer>
-              <.modal_footer>
-                <:action>
-                  <%= if @new_account_token_plaintext do %>
-                    <.button
-                      label={dgettext("dashboard_account", "Done")}
-                      variant="primary"
-                      phx-click="dismiss_account_token"
-                    />
-                  <% else %>
-                    <.button
-                      label={dgettext("dashboard_account", "Cancel")}
-                      variant="secondary"
-                      phx-click="dismiss_account_token"
-                    />
-                    <.button
-                      label={dgettext("dashboard_account", "Generate")}
-                      variant="primary"
-                      type="submit"
-                      form="create-account-token-form"
-                      disabled={not @can_create_tokens?}
-                    />
-                  <% end %>
-                </:action>
-              </.modal_footer>
-            </:footer>
-          </.modal>
-        </div>
+          <:footer>
+            <.modal_footer>
+              <:action>
+                <%= if @new_account_token_plaintext do %>
+                  <.button
+                    label={dgettext("dashboard_account", "Done")}
+                    variant="primary"
+                    phx-click="dismiss_account_token"
+                  />
+                <% else %>
+                  <.button
+                    label={dgettext("dashboard_account", "Cancel")}
+                    variant="secondary"
+                    phx-click="dismiss_account_token"
+                  />
+                  <.button
+                    label={dgettext("dashboard_account", "Generate")}
+                    variant="primary"
+                    type="submit"
+                    form="create-account-token-form"
+                    disabled={not @can_create_tokens?}
+                  />
+                <% end %>
+              </:action>
+            </.modal_footer>
+          </:footer>
+        </.modal>
       </div>
-
+    </div>
+    <div data-part="content">
       <div data-part="tokens-table">
         <.table id="account-tokens-table" rows={@account_tokens}>
           <:col :let={token} label={dgettext("dashboard_account", "Name")}>
-            <.text_cell label={token.name} />
+            <button
+              type="button"
+              data-part="token-name-button"
+              data-selected={@selected_account_token && @selected_account_token.id == token.id}
+              phx-click="select_account_token"
+              phx-value-id={token.id}
+            >
+              {token.name}
+            </button>
           </:col>
           <:col :let={token} label={dgettext("dashboard_account", "Token")}>
             <.text_cell data-part="token-hint-cell" label={account_token_hint(token)} />
@@ -209,41 +216,11 @@
           <:col :let={token} label={dgettext("dashboard_account", "Scopes")}>
             <.text_cell label={scopes_label(token.scopes)} />
           </:col>
-          <:col :let={token} label={dgettext("dashboard_account", "Projects")}>
-            <.text_cell label={projects_label(token)} />
-          </:col>
-          <:col :let={token} label={dgettext("dashboard_account", "Expires")}>
-            <.text_cell label={expires_label(token)} />
-          </:col>
           <:col :let={token} label={dgettext("dashboard_account", "Last used")}>
             <.text_cell label={last_used_label(token)} />
           </:col>
           <:col :let={token} label={dgettext("dashboard_account", "Created")}>
             <.text_cell label={created_label(token)} />
-          </:col>
-          <:col :let={token} label="">
-            <.button_cell>
-              <:button>
-                <.button
-                  :if={@can_delete_tokens?}
-                  icon_only
-                  variant="secondary"
-                  size="small"
-                  phx-click="revoke_account_token"
-                  phx-value-name={token.name}
-                  aria-label={dgettext("dashboard_account", "Revoke token")}
-                  data-confirm={
-                    dgettext(
-                      "dashboard_account",
-                      "Revoke %{name}? This action cannot be undone.",
-                      name: token.name
-                    )
-                  }
-                >
-                  <.icon name="trash" />
-                </.button>
-              </:button>
-            </.button_cell>
           </:col>
           <:empty_state>
             <.table_empty_state
@@ -257,6 +234,107 @@
             />
           </:empty_state>
         </.table>
+      </div>
+
+      <div :if={@selected_account_token} id="account-token-detail" data-part="token-detail">
+        <div data-part="detail-header">
+          <div data-part="detail-title-group">
+            <span data-part="eyebrow">
+              {dgettext("dashboard_account", "Account token")}
+            </span>
+            <h2>{@selected_account_token.name}</h2>
+          </div>
+          <.button
+            :if={@can_delete_tokens?}
+            label={dgettext("dashboard_account", "Revoke")}
+            variant="destructive"
+            size="medium"
+            phx-click="revoke_account_token"
+            phx-value-name={@selected_account_token.name}
+            data-confirm={
+              dgettext(
+                "dashboard_account",
+                "Revoke %{name}? This action cannot be undone.",
+                name: @selected_account_token.name
+              )
+            }
+          />
+        </div>
+
+        <div data-part="detail-metadata">
+          <div data-part="metadata-item">
+            <span data-part="label">{dgettext("dashboard_account", "Name")}</span>
+            <span data-part="value">{@selected_account_token.name}</span>
+          </div>
+          <div data-part="metadata-item">
+            <span data-part="label">{dgettext("dashboard_account", "Token")}</span>
+            <code data-part="value">{account_token_hint(@selected_account_token)}</code>
+          </div>
+          <div data-part="metadata-item">
+            <span data-part="label">{dgettext("dashboard_account", "Expires")}</span>
+            <span data-part="value">{expires_label(@selected_account_token)}</span>
+          </div>
+          <div data-part="metadata-item">
+            <span data-part="label">{dgettext("dashboard_account", "Last used")}</span>
+            <span data-part="value">{last_used_label(@selected_account_token)}</span>
+          </div>
+          <div data-part="metadata-item">
+            <span data-part="label">{dgettext("dashboard_account", "Created")}</span>
+            <span data-part="value">{created_label(@selected_account_token)}</span>
+          </div>
+        </div>
+
+        <div data-part="detail-grid">
+          <section data-part="detail-panel">
+            <h3>{dgettext("dashboard_account", "Permissions")}</h3>
+            <div data-part="permission-groups">
+              <div
+                :for={group <- selected_scope_groups(@selected_account_token.scopes)}
+                data-part="permission-group"
+              >
+                <h4>{group.label}</h4>
+                <div :for={scope_option <- group.scopes} data-part="permission-item">
+                  <span data-part="label">{scope_option.label}</span>
+                  <code>{scope_option.scope}</code>
+                  <span data-part="description">{scope_option.description}</span>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section data-part="detail-panel">
+            <h3>{dgettext("dashboard_account", "Project access")}</h3>
+            <div data-part="project-access">
+              <span :if={@selected_account_token.all_projects} data-part="access-summary">
+                {dgettext(
+                  "dashboard_account",
+                  "This token has access to all projects in this account."
+                )}
+              </span>
+
+              <%= if not @selected_account_token.all_projects do %>
+                <%= if Enum.empty?(@selected_account_token.projects) do %>
+                  <span data-part="access-summary">
+                    {dgettext(
+                      "dashboard_account",
+                      "This token does not have access to any projects."
+                    )}
+                  </span>
+                <% else %>
+                  <div data-part="project-list">
+                    <div
+                      :for={project <- @selected_account_token.projects}
+                      data-part="project-item"
+                    >
+                      <span>{project.name}</span>
+                      <code>{project_handle(@selected_account, project)}</code>
+                    </div>
+                  </div>
+                <% end %>
+              <% end %>
+            </div>
+          </section>
+        </div>
       </div>
     </div>
   </.card_section>
