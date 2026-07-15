@@ -1,6 +1,8 @@
 name = "registry-router"
 main = "src/index.ts"
 compatibility_date = "2025-01-01"
+# Keep same-zone fetches on the origin path instead of invoking this Worker's public route again.
+compatibility_flags = ["global_fetch_private_origin"]
 
 routes = [
   { pattern = "registry.tuist.dev/*", zone_name = "tuist.dev" },

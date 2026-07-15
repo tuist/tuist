@@ -1,0 +1,71 @@
+<div id="ops-registry">
+  <div data-part="header">
+    <h1 data-part="title">Registry</h1>
+  </div>
+  <.card title="Swift packages" icon="package">
+    <.card_section>
+      <div data-part="filters">
+        <.form for={%{}} phx-change="search" phx-submit="search" phx-debounce="300">
+          <.text_input
+            type="search"
+            id="ops-registry-search"
+            name="search"
+            placeholder="Search by repository"
+            show_suffix={false}
+            value={@search}
+          />
+        </.form>
+      </div>
+
+      <%= if @packages.ok? do %>
+        <% filtered_packages = filtered_packages(@packages.result, @search) %>
+        <% total_pages = total_pages(filtered_packages) %>
+        <% current_page = current_page(@page, total_pages) %>
+        <.table
+          id="ops-registry-packages-table"
+          rows={paginated_packages(filtered_packages, current_page)}
+          row_key={& &1.repository_full_handle}
+          row_navigate={fn package -> ~p"/ops/registry/#{package.scope}/#{package.name}" end}
+        >
+          <:col :let={package} label="Package">
+            <.text_and_description_cell label={package.name} description={package.scope} />
+          </:col>
+          <:col :let={package} label="Repository">
+            <.text_cell label={package.repository_full_handle} icon="brand_github" />
+          </:col>
+          <:empty_state>
+            <.table_empty_state
+              icon="package"
+              title="No packages"
+              subtitle="No packages match the current search."
+            />
+          </:empty_state>
+        </.table>
+        <.pagination_group
+          :if={total_pages > 1}
+          current_page={current_page}
+          number_of_pages={total_pages}
+          page_patch={&page_path(@query_params, &1)}
+        />
+      <% else %>
+        <.table id="ops-registry-packages-table" rows={[]}>
+          <:col label="Package"></:col>
+          <:col label="Repository"></:col>
+          <:empty_state>
+            <.table_empty_state
+              icon="package"
+              title={
+                if @packages.loading, do: "Loading packages", else: "Could not load packages"
+              }
+              subtitle={
+                if @packages.loading,
+                  do: "Fetching the Swift package catalog.",
+                  else: "Refresh the page to try again."
+              }
+            />
+          </:empty_state>
+        </.table>
+      <% end %>
+    </.card_section>
+  </.card>
+</div>

@@ -123,6 +123,67 @@ var vmProvisionWorkSeconds = prometheus.NewHistogramVec(
 	[]string{"pool", "path"},
 )
 
+// cacheVolumeOutcomeTotal counts how per-account cache-volume branches end
+// their lives: promoted (became the account's new master),
+// discarded (read-only/clean/failed/never-dispatched job), or none (no volume
+// was attached — feature off or admission declined). promoted/(promoted+
+// discarded) is the warmth-capture rate.
+var cacheVolumeOutcomeTotal = prometheus.NewCounterVec(
+	prometheus.CounterOpts{
+		Name: "tart_kubelet_cache_volume_outcome_total",
+		Help: "Terminal disposition of per-account cache-volume branches, by outcome.",
+	},
+	[]string{"outcome"},
+)
+
+// cacheVolumeMaterializeTotal counts post-dispatch materializations by whether
+// a master existed for the dispatched account on this host: "warm" (the
+// account's master was clonefiled into the VM's branch) or "cold" (no master
+// yet — a first job for that account here, whose writes seed the master).
+// warm/(warm+cold) is the hit rate of the local warm set against dispatched
+// demand — the signal for whether affinity is routing jobs to hosts that hold
+// their account's master.
+var cacheVolumeMaterializeTotal = prometheus.NewCounterVec(
+	prometheus.CounterOpts{
+		Name: "tart_kubelet_cache_volume_materialize_total",
+		Help: "Post-dispatch cache materializations, by warm/cold.",
+	},
+	[]string{"result"},
+)
+
+// cacheVolumeConvergedTotal counts background fast-forwards of this host's
+// master to the account's HEAD — a host that was behind pulling the latest
+// master after a job started (off the job-start path), so the next job on it
+// starts fresher. A high rate relative to materialize means hosts are
+// frequently stale (jobs spread thin across hosts, or the cache churns fast).
+var cacheVolumeConvergedTotal = prometheus.NewCounter(
+	prometheus.CounterOpts{
+		Name: "tart_kubelet_cache_volume_converged_total",
+		Help: "Materialize-time master fast-forwards to the account's HEAD.",
+	},
+)
+
+// cacheVolumeResidentCount is the number of resident master images on this
+// host (all accounts, all volume names). Divided by the quota, it's the "how
+// many accounts does this host keep hot" signal.
+var cacheVolumeResidentCount = prometheus.NewGauge(
+	prometheus.GaugeOpts{
+		Name: "tart_kubelet_cache_volume_resident_count",
+		Help: "Resident per-account cache master images on this host.",
+	},
+)
+
+// cacheVolumeRootFreeBytes is statfs free space on the quota-bounded
+// runner-cache volume — the ground truth behind admission and watermark
+// eviction. A sustained decline toward the low watermark is the eviction-
+// pressure signal.
+var cacheVolumeRootFreeBytes = prometheus.NewGauge(
+	prometheus.GaugeOpts{
+		Name: "tart_kubelet_cache_volume_root_free_bytes",
+		Help: "Free bytes on the quota-bounded runner-cache root volume.",
+	},
+)
+
 func init() {
 	metrics.Registry.MustRegister(
 		vmBootDurationSeconds,
@@ -131,7 +192,44 @@ func init() {
 		goldenBaseMaterializedTotal,
 		goldenBaseReusedTotal,
 		vmProvisionWorkSeconds,
+		cacheVolumeOutcomeTotal,
+		cacheVolumeMaterializeTotal,
+		cacheVolumeConvergedTotal,
+		cacheVolumeResidentCount,
+		cacheVolumeRootFreeBytes,
 	)
+}
+
+// RecordVolumeOutcome increments the per-outcome count of finalized cache
+// volume branches.
+func RecordVolumeOutcome(outcome string) {
+	if outcome == "" {
+		outcome = string(VolumeOutcomeNone)
+	}
+	cacheVolumeOutcomeTotal.WithLabelValues(outcome).Inc()
+}
+
+// RecordVolumeMaterialized increments the warm/cold count of post-dispatch
+// cache materializations.
+func RecordVolumeMaterialized(warm bool) {
+	result := "cold"
+	if warm {
+		result = "warm"
+	}
+	cacheVolumeMaterializeTotal.WithLabelValues(result).Inc()
+}
+
+// RecordVolumeConverged increments the count of materialize-time master
+// fast-forwards to the account's HEAD.
+func RecordVolumeConverged() {
+	cacheVolumeConvergedTotal.Inc()
+}
+
+// RecordVolumeResident publishes the resident master count and root free
+// bytes, sampled on the reconcile tick.
+func RecordVolumeResident(count int, freeBytes uint64) {
+	cacheVolumeResidentCount.Set(float64(count))
+	cacheVolumeRootFreeBytes.Set(float64(freeBytes))
 }
 
 // RecordGoldenMaterialized increments the per-pool count of golden base

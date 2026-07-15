@@ -745,6 +745,7 @@ defmodule TuistWeb.Router do
     pipe_through [:non_authenticated_api]
 
     post "/runners/dispatch", RunnersController, :dispatch
+    post "/runners/volume-head", RunnersController, :report_volume_head
     get "/runners/desired_replicas", RunnersController, :desired_replicas
     post "/runners/pods/stopped", RunnerPodsController, :stopped
     post "/runners/pods/:pod_name/metrics", RunnerJobMetricsController, :create
@@ -841,6 +842,8 @@ defmodule TuistWeb.Router do
       live "/accounts", TuistWeb.OpsAccountsLive
       live "/accounts/:id", TuistWeb.OpsAccountLive
       live "/accounts/:id/kura/deployments/:deployment_id", TuistWeb.OpsAccountKuraDeploymentLive
+      live "/registry", TuistWeb.OpsRegistryLive
+      live "/registry/:scope/:name", TuistWeb.OpsRegistryPackageLive
       live "/db", TuistWeb.OpsDatabaseLive
       live "/db/tables/:schema/:name", TuistWeb.OpsDatabaseTableLive
     end

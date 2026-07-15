@@ -19,7 +19,12 @@ defmodule TuistWeb.RunnerJobMetricsControllerTest do
   end
 
   defp claim(account, workflow_job_id, pod_name) do
-    {:ok, _claim} = Claims.attempt(workflow_job_id, account.id, "linux-amd64", pod_name)
+    {:ok, _claim} =
+      Claims.attempt(workflow_job_id, account.id, "linux-amd64", pod_name, %{
+        platform: :linux,
+        vcpus: 2,
+        memory_gb: 8
+      })
   end
 
   defp sample(timestamp, attrs \\ %{}) do

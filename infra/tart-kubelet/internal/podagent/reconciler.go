@@ -110,6 +110,12 @@ type Reconciler struct {
 	// — when nil, the reconciler just surfaces the error.
 	GC *Collector
 
+	// Volumes manages per-account cache-volume images. Optional
+	// — when nil or disabled (no runner-cache root provisioned on this
+	// host), every VM boots on the status-quo cold path and the volume
+	// lifecycle no-ops.
+	Volumes *VolumeManager
+
 	// Recorder emits Pod Events (e.g. "CreatingVM") so the
 	// Scheduled→Running gap — previously a silent dead zone with no
 	// events between the scheduler placing the Pod and the VM getting
@@ -264,6 +270,13 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	// Store entry); only the published Phase differs.
 	if entry := r.Store.Get(pod.Namespace, pod.Name); entry != nil && entry.Run != nil {
 		if exitErr, exited := entry.Run.Exited(); exited {
+			// Promote or discard the cache-volume branch before tearing the
+			// VM down. A clean `tart run` exit (exitErr == nil) is the guest
+			// halting after its job flow completed; combined with the guest's
+			// dirty marker it promotes the branch to the account's new
+			// master. A crash (exitErr != nil) or a read-only/clean job
+			// discards it.
+			r.finalizeVolume(entry, pod.Labels[runnerAccountLabel], exitErr == nil)
 			_ = r.deleteByKey(ctx, pod.Namespace, pod.Name)
 
 			status := &corev1.PodStatus{Reason: "TartRunExited"}
@@ -295,6 +308,12 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		})
 		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 	}
+
+	// The server stamps the runner-account label when it claims a job for this
+	// VM (this reconcile is often triggered by that very label patch). Once the
+	// account is known, clonefile its cache master into the VM's branch and
+	// signal the guest. Idempotent: runs at most once per VM.
+	r.maybeMaterializeVolume(pod)
 
 	status, err := r.podStatus(ctx, pod)
 	if err != nil || status == nil {
@@ -407,11 +426,26 @@ func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
 	// liveness via IsRunning, exactly like recoverState's recovered
 	// entries. BootObserved is set because we didn't witness this boot.
 	if running, _ := r.Tart.IsRunning(ctx, vmName); running {
-		r.Store.Put(pod.Namespace, pod.Name, &Entry{
+		entry := &Entry{
 			VMName:       vmName,
 			StartTS:      metav1.Now(),
 			BootObserved: true,
-		})
+		}
+		// Same reattach as recoverState (via the shared helper, which preserves
+		// the untrusted decision so an untrusted branch can't be revived as
+		// promotable): this VM survived a restart with its cache branch still
+		// mounted, so rebind it (unless the startup sweep already reaped it
+		// because recovery missed this VM) so Finalize can promote a trusted
+		// warm set instead of losing it.
+		if r.Volumes != nil {
+			if att, ok := ReattachVolumeForPod(r.Volumes, pod, vmName); ok {
+				entry.Volume = att
+				if statusDir, sdErr := r.Tart.StatusDir(vmName); sdErr == nil {
+					entry.VolumeStatusDir = statusDir
+				}
+			}
+		}
+		r.Store.Put(pod.Namespace, pod.Name, entry)
 		return nil
 	}
 
@@ -435,6 +469,44 @@ func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
 	// pull/clone time the boot histogram (which starts at `tart run`) can't.
 	podProvisionDelaySeconds.WithLabelValues(pool).Observe(time.Since(pod.CreationTimestamp.Time).Seconds())
 
+	// Per-account cache volume. Allocate an EMPTY per-VM branch dir
+	// and share it into the guest as a writable virtio-fs mount at the cache
+	// root — no account data, no prediction. The dispatched account's master
+	// is clonefiled into the branch after the server stamps the runner-account
+	// label (maybeMaterializeVolume), so one account's cache can never reach a
+	// VM that runs another account's job. Done here — after the adoption
+	// early-return above — so a restart-adopted VM doesn't get a stray branch.
+	// A declined admission or a disabled feature leaves att.Attached false and
+	// the VM boots on the cold path.
+	sharedDirs := []string{"env:" + envDir + ":ro"}
+	att, err := r.allocateVolumeBranch(vmName)
+	if err != nil {
+		// A volume failure must never fail the job: it is best-effort warm
+		// state. Log via an Event and fall through to the cold path.
+		if r.Recorder != nil {
+			r.Recorder.Event(pod, corev1.EventTypeWarning, "CacheVolumeSkipped", fmt.Sprintf("cache volume not attached: %v", err))
+		}
+		att = VolumeAttachment{}
+	}
+	var statusDir string
+	if att.Attached {
+		// tart's --dir mounts read-write by default and only accepts a `:ro`
+		// modifier; a `:rw` suffix is parsed as part of the path and fails the
+		// VM config. Omit it — the guest needs rw to write the cache and the
+		// dirty marker, which is the default. The guest mounts the cache share
+		// at /Volumes/My Shared Files/cache and points its cache root there.
+		sharedDirs = append(sharedDirs, "cache:"+att.BranchPath)
+		if statusDir, err = r.Tart.StatusDir(vmName); err == nil {
+			sharedDirs = append(sharedDirs, "status:"+statusDir)
+			// Stage the per-branch byte budget for the guest's cache LRU prune
+			// before the VM boots (the whole shared quota volume's free space
+			// would be the wrong, far-too-large budget over a virtio-fs share).
+			writeCacheBudget(statusDir, r.Volumes.CapGiB)
+		} else {
+			statusDir = ""
+		}
+	}
+
 	// Record the Pod ↔ VM mapping before kicking the VM off so the
 	// rest of the system (deletePod, GC, recoverState) can keep
 	// track of it even if `tart run` exits oddly. Without this an
@@ -442,20 +514,24 @@ func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
 	// and the GC loop would happily reap it on the next pass —
 	// exactly the orphan we used to clean up reactively.
 	entry := &Entry{
-		VMName:  vmName,
-		StartTS: metav1.Now(),
+		VMName:          vmName,
+		StartTS:         metav1.Now(),
+		Volume:          att,
+		VolumeStatusDir: statusDir,
 	}
 	r.Store.Put(pod.Namespace, pod.Name, entry)
 
 	handle, err := r.Tart.RunWithOptions(ctx, vmName, tart.RunOptions{
-		SharedDirs: []string{"env:" + envDir + ":ro"},
+		SharedDirs: sharedDirs,
 		VNC:        vncCapableRunnerPod(pod),
 	})
 	if err != nil {
 		// Roll back the Store entry — the VM either never started
 		// (cmd.Start error) or `tart run` exited immediately, so
 		// there is no live VM for podStatus to observe and no
-		// background process for deletePod to tear down.
+		// background process for deletePod to tear down. Discard the
+		// prepared branch so it doesn't leak on the retry.
+		r.finalizeVolume(entry, "", false)
 		r.Store.Delete(pod.Namespace, pod.Name)
 		return fmt.Errorf("tart run: %w", err)
 	}
@@ -1015,6 +1091,14 @@ func contextWithTimeout(d time.Duration) (context.Context, context.CancelFunc) {
 }
 
 func (r *Reconciler) deletePod(ctx context.Context, pod *corev1.Pod) error {
+	// A Pod deleted out from under a running job (drain, scale-down,
+	// eviction) means the job was interrupted, so its cache-volume branch is
+	// discarded (cleanExit=false). A Pod deleted after a clean Succeeded
+	// transition already had its branch finalized on the terminal path, so
+	// this is a no-op there (the branch was consumed).
+	if entry := r.Store.Get(pod.Namespace, pod.Name); entry != nil {
+		r.finalizeVolume(entry, pod.Labels[runnerAccountLabel], false)
+	}
 	// VM teardown only. The caller removes the finalizer and force-
 	// completes the API object deletion afterward.
 	return r.deleteByKey(ctx, pod.Namespace, pod.Name)
@@ -1045,6 +1129,11 @@ func (r *Reconciler) deleteByKey(ctx context.Context, namespace, name string) er
 		entry.MetricsForwarder = nil
 	}
 	r.stopVNCForwarder(namespace, name, entry)
+
+	// Safety net: if the branch was not already finalized on a completion
+	// path (e.g. the Pod object vanished before we could observe its
+	// account), discard it so it never leaks. No-op once consumed.
+	r.finalizeVolume(entry, "", false)
 
 	_ = r.Tart.Stop(ctx, entry.VMName, 30*time.Second)
 	if err := r.Tart.Delete(ctx, entry.VMName); err != nil {
@@ -1101,9 +1190,18 @@ func (r *Reconciler) podStatus(ctx context.Context, pod *corev1.Pod) (*corev1.Po
 	}
 
 	if !running {
-		// VM exited cleanly. Tear down the Tart clone + Store
-		// entry so the host state mirrors what the API server
-		// will see post-update, then mark the Pod Succeeded so
+		// VM exited cleanly. A recovered VM (Run == nil after a kubelet
+		// restart) never passed through the terminal-phase finalize above, so
+		// promote/discard its cache branch HERE from the account label and the
+		// guest's dirty marker — the marker exists only on a clean job
+		// completion and already encodes job success (rc-gated), so treating the
+		// observed stop as a clean exit is correct. Without this, deleteByKey's
+		// safety-net finalize (empty account, cleanExit=false) would discard a
+		// successfully completed dirty branch instead of promoting it. Idempotent
+		// with the terminal path: finalize no-ops once the branch is consumed.
+		r.finalizeVolume(entry, pod.Labels[runnerAccountLabel], true)
+		// Tear down the Tart clone + Store entry so the host state mirrors what
+		// the API server will see post-update, then mark the Pod Succeeded so
 		// the watcher refills the warm pool.
 		_ = r.deleteByKey(ctx, pod.Namespace, pod.Name)
 		status.Phase = corev1.PodSucceeded
@@ -1331,6 +1429,14 @@ type Entry struct {
 	MetricsForwarder  *Forwarder
 	VNCForwarder      *TCPForwarder
 	VNCRelayTokenHash string
+
+	// Volume is the per-account cache-volume branch attached to this VM at
+	// boot. Zero value (Attached false) means the VM booted on
+	// the cold path; the finalize + cleanup steps then no-op.
+	Volume VolumeAttachment
+	// VolumeStatusDir is the host path of the writable share the guest
+	// writes its cache dirty marker into. Empty when no volume was attached.
+	VolumeStatusDir string
 }
 
 // Store is a tiny thread-safe map. Backed by in-memory state — on

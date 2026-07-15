@@ -21,7 +21,7 @@ defmodule Tuist.Marketing.MDExConverter do
       table: true,
       autolink: true,
       tasklist: true,
-      header_id_prefix: "",
+      header_ids: "",
       phoenix_heex: true,
       alerts: true
     ],
@@ -53,8 +53,8 @@ defmodule Tuist.Marketing.MDExConverter do
 
   defp build_document(markdown) do
     [markdown: markdown]
-    |> Keyword.merge(@mdex_options)
     |> MDEx.new()
+    |> MDEx.Document.put_options(@mdex_options)
     |> MDEx.Document.append_steps(wrap_code_blocks: &wrap_code_blocks/1)
   end
 
