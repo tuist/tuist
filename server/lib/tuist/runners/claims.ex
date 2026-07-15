@@ -62,6 +62,7 @@ defmodule Tuist.Runners.Claims do
 
   alias Tuist.Accounts.Account
   alias Tuist.Repo
+  alias Tuist.Runners.Catalog
   alias Tuist.Runners.Claim
   alias Tuist.Runners.Concurrency
   alias Tuist.Runners.ConcurrencyLimit
@@ -154,42 +155,66 @@ defmodule Tuist.Runners.Claims do
   end
 
   defp check_reserved_capacity(account_id, limit, resources) do
-    reserved = usage_for_platform(account_id, resources.platform)
+    with {:ok, reserved} <- usage_for_platform(account_id, resources.platform) do
+      # The transaction sees its own reservation; preserve the `fits?/3`
+      # contract by passing only the usage that existed before this claim.
+      used = %{
+        vcpus: reserved.vcpus - resources.vcpus,
+        memory_gb: reserved.memory_gb - resources.memory_gb
+      }
 
-    # The transaction sees its own reservation; preserve the `fits?/3`
-    # contract by passing only the usage that existed before this claim.
-    used = %{
-      vcpus: reserved.vcpus - resources.vcpus,
-      memory_gb: reserved.memory_gb - resources.memory_gb
-    }
+      limit = Concurrency.limit_resources(limit)
 
-    limit = Concurrency.limit_resources(limit)
-
-    if Concurrency.fits?(used, limit, resources) do
-      :ok
-    else
-      {:error,
-       {:concurrency_limit_reached,
-        %{
-          platform: resources.platform,
-          requested: resources,
-          used: used,
-          limit: limit
-        }}}
+      if Concurrency.fits?(used, limit, resources) do
+        :ok
+      else
+        {:error,
+         {:concurrency_limit_reached,
+          %{
+            platform: resources.platform,
+            requested: resources,
+            used: used,
+            limit: limit
+          }}}
+      end
     end
   end
 
   defp usage_for_platform(account_id, platform) do
-    {vcpus, memory_gb} =
-      Repo.one(
-        from(claim in Claim,
-          where: claim.account_id == ^account_id and claim.platform == ^platform,
-          select: {sum(claim.vcpus), sum(claim.memory_gb)}
-        )
-      )
+    Claim
+    |> where([claim], claim.account_id == ^account_id)
+    |> select([claim], %{
+      fleet_name: claim.fleet_name,
+      platform: claim.platform,
+      vcpus: claim.vcpus,
+      memory_gb: claim.memory_gb
+    })
+    |> Repo.all()
+    |> Enum.reduce_while({:ok, %{vcpus: 0, memory_gb: 0}}, fn claim, {:ok, usage} ->
+      case resources_for_claim(claim) do
+        {:ok, %{platform: ^platform} = resources} ->
+          {:cont,
+           {:ok,
+            %{
+              vcpus: usage.vcpus + resources.vcpus,
+              memory_gb: usage.memory_gb + resources.memory_gb
+            }}}
 
-    %{vcpus: vcpus || 0, memory_gb: memory_gb || 0}
+        {:ok, _other_platform} ->
+          {:cont, {:ok, usage}}
+
+        {:error, :invalid_resources} = error ->
+          {:halt, error}
+      end
+    end)
   end
+
+  defp resources_for_claim(%{platform: platform, vcpus: vcpus, memory_gb: memory_gb})
+       when platform in [:linux, :macos] and vcpus > 0 and memory_gb > 0 do
+    {:ok, %{platform: platform, vcpus: vcpus, memory_gb: memory_gb}}
+  end
+
+  defp resources_for_claim(%{fleet_name: fleet_name}), do: Catalog.resources_for_fleet(fleet_name)
 
   defp insert_claim(workflow_job_id, account_id, fleet_name, pod_name, resources) do
     now = DateTime.utc_now()

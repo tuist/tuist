@@ -130,7 +130,9 @@ defmodule Tuist.Runners.Concurrency do
         |> Map.fetch!(platform)
         |> Map.merge(%{account_id: account_id, platform: platform})
 
-      case %ConcurrencyLimit{} |> ConcurrencyLimit.changeset(attrs) |> Repo.insert() do
+      case %ConcurrencyLimit{}
+           |> ConcurrencyLimit.changeset(attrs)
+           |> Repo.insert(on_conflict: :nothing, conflict_target: [:account_id, :platform]) do
         {:ok, limit} -> {:cont, {:ok, [limit | limits]}}
         {:error, changeset} -> {:halt, {:error, changeset}}
       end
@@ -219,6 +221,7 @@ defmodule Tuist.Runners.Concurrency do
 
     latest_rows = latest_rows_query(account_id, end_dt)
     latest_jobs = latest_jobs_query(latest_rows, start_dt, end_dt)
+    linux_fleet_resources = Catalog.linux_fleet_resources()
 
     normalized_platforms =
       normalized_platforms_query(latest_jobs, %{
@@ -228,7 +231,15 @@ defmodule Tuist.Runners.Concurrency do
         macos_pool: macos_pool_prefix
       })
 
-    intervals = active_intervals_query(normalized_platforms, start_dt, end_dt, linux_default, macos_default)
+    intervals =
+      active_intervals_query(
+        normalized_platforms,
+        start_dt,
+        end_dt,
+        linux_default,
+        macos_default,
+        linux_fleet_resources
+      )
 
     intervals
     |> resource_events_query()
@@ -310,13 +321,18 @@ defmodule Tuist.Runners.Concurrency do
           ),
         stored_vcpus: job.stored_vcpus,
         stored_memory_gb: job.stored_memory_gb,
+        fleet_name: job.fleet_name,
         claimed_at: job.claimed_at,
         completed_at: job.completed_at
       }
     )
   end
 
-  defp active_intervals_query(normalized_platforms, start_dt, end_dt, linux_default, macos_default) do
+  defp active_intervals_query(normalized_platforms, start_dt, end_dt, linux_default, macos_default, linux_fleet_resources) do
+    linux_fleet_names = Enum.map(linux_fleet_resources, & &1.fleet_name)
+    linux_fleet_vcpus = Enum.map(linux_fleet_resources, & &1.vcpus)
+    linux_fleet_memory_gb = Enum.map(linux_fleet_resources, & &1.memory_gb)
+
     from(job in subquery(normalized_platforms),
       where: job.platform != "",
       select: %{
@@ -325,19 +341,37 @@ defmodule Tuist.Runners.Concurrency do
         active_until: fragment("least(ifNull(?, ?), ?)", job.completed_at, ^end_dt, ^end_dt),
         vcpus:
           fragment(
-            "if(? > 0, toInt64(?), if(? = 'linux', ?, ?))",
+            """
+            multiIf(
+              ? > 0, toInt64(?),
+              ? = 'linux', toInt64(transform(?, ?, ?, ?)),
+              toInt64(?)
+            )
+            """,
             job.stored_vcpus,
             job.stored_vcpus,
             job.platform,
+            job.fleet_name,
+            ^linux_fleet_names,
+            ^linux_fleet_vcpus,
             ^linux_default.vcpus,
             ^macos_default.vcpus
           ),
         memory_gb:
           fragment(
-            "if(? > 0, toInt64(?), if(? = 'linux', ?, ?))",
+            """
+            multiIf(
+              ? > 0, toInt64(?),
+              ? = 'linux', toInt64(transform(?, ?, ?, ?)),
+              toInt64(?)
+            )
+            """,
             job.stored_memory_gb,
             job.stored_memory_gb,
             job.platform,
+            job.fleet_name,
+            ^linux_fleet_names,
+            ^linux_fleet_memory_gb,
             ^linux_default.memory_gb,
             ^macos_default.memory_gb
           )

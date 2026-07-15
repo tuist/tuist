@@ -101,6 +101,37 @@ defmodule Tuist.Runners.ClaimsTest do
       assert {:ok, _} = Claims.attempt(1451, account.id, "fleet-linux", "pod-linux", linux_resources)
     end
 
+    test "derives resources for live claims written by an old replica" do
+      account = account_fixture()
+      now = DateTime.utc_now()
+
+      {1, _} =
+        Repo.insert_all(Claim, [
+          %{
+            workflow_job_id: 1455,
+            account_id: account.id,
+            fleet_name: "macos-26-5",
+            pod_name: "legacy-pod",
+            claimed_at: now,
+            platform: :linux,
+            vcpus: 0,
+            memory_gb: 0,
+            lifecycle_state: "running",
+            runner_name: "legacy-runner"
+          }
+        ])
+
+      assert {:error, {:concurrency_limit_reached, details}} =
+               Claims.attempt(1456, account.id, "macos-26-5", "new-pod", %{
+                 platform: :macos,
+                 vcpus: 12,
+                 memory_gb: 28
+               })
+
+      assert details.used == %{vcpus: 6, memory_gb: 14}
+      refute Repo.exists?(from(claim in Claim, where: claim.workflow_job_id == 1456))
+    end
+
     test "fails closed when a platform limit row is missing" do
       account = account_fixture()
 

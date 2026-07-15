@@ -3,7 +3,9 @@ defmodule Tuist.Runners.ConcurrencyTest do
 
   import TuistTestSupport.Fixtures.AccountsFixtures
 
+  alias Tuist.Accounts.Account
   alias Tuist.IngestRepo
+  alias Tuist.Repo
   alias Tuist.Runners.Catalog
   alias Tuist.Runners.Claims
   alias Tuist.Runners.Concurrency
@@ -35,6 +37,23 @@ defmodule Tuist.Runners.ConcurrencyTest do
 
     assert Concurrency.limits_for(organization.account, :linux) == %{vcpus: 32, memory_gb: 64}
     assert Concurrency.limits_for(organization.account, :macos) == %{vcpus: 12, memory_gb: 28}
+  end
+
+  test "database creates default limits for accounts inserted by an old replica" do
+    user = user_fixture()
+    Repo.delete!(user.account)
+
+    {:ok, account} =
+      %Account{}
+      |> Account.create_changeset(%{
+        name: user.account.name,
+        billing_email: user.email,
+        user_id: user.id
+      })
+      |> Repo.insert()
+
+    assert Concurrency.limits_for(account, :linux) == %{vcpus: 32, memory_gb: 64}
+    assert Concurrency.limits_for(account, :macos) == %{vcpus: 12, memory_gb: 28}
   end
 
   test "updates each platform's limits independently" do
@@ -178,6 +197,32 @@ defmodule Tuist.Runners.ConcurrencyTest do
 
     assert usage.linux.vcpus == [default.vcpus, 0]
     assert usage.linux.memory_gb == [default.memory_gb, 0]
+  end
+
+  test "uses the fleet's configured shape for legacy history" do
+    account = account_fixture()
+    shape = Enum.find(Catalog.shapes(:linux), &(!&1.default?))
+    fleet_name = Catalog.pool_name(Map.put(shape, :platform, :linux))
+
+    insert_completed_job(account.id, 92_101,
+      platform: "",
+      fleet_name: fleet_name,
+      vcpus: 0,
+      memory_gb: 0,
+      claimed_at: datetime("2026-07-10T10:10:00Z"),
+      completed_at: datetime("2026-07-10T10:40:00Z")
+    )
+
+    usage =
+      Concurrency.usage_over_time(
+        account.id,
+        datetime("2026-07-10T10:00:00Z"),
+        datetime("2026-07-10T11:00:00Z"),
+        :hour
+      )
+
+    assert usage.linux.vcpus == [shape.vcpus, 0]
+    assert usage.linux.memory_gb == [shape.memory_gb, 0]
   end
 
   test "does not count a requeued job as continuously claimed" do

@@ -31,7 +31,42 @@ defmodule Tuist.Repo.Migrations.AddRunnerResourceConcurrencyLimits do
              check: "memory_gb > 0"
            )
 
-    # Backfill the new table with the default policy before new account creation starts writing rows.
+    # Keep the invariant database-backed during rolling deploys. Creating the
+    # trigger takes a lock on `accounts`; once it is installed, old replicas
+    # that know nothing about concurrency limits still create both rows.
+    # excellent_migrations:safety-assured-for-next-line raw_sql_executed
+    execute(
+      """
+      CREATE FUNCTION create_default_runner_concurrency_limits()
+      RETURNS trigger AS $$
+      BEGIN
+        INSERT INTO runner_concurrency_limits
+          (account_id, platform, vcpus, memory_gb, inserted_at, updated_at)
+        VALUES
+          (NEW.id, 'linux', 32, 64, NOW(), NOW()),
+          (NEW.id, 'macos', 12, 28, NOW(), NOW())
+        ON CONFLICT (account_id, platform) DO NOTHING;
+
+        RETURN NEW;
+      END;
+      $$ LANGUAGE plpgsql;
+      """,
+      "DROP FUNCTION IF EXISTS create_default_runner_concurrency_limits()"
+    )
+
+    # excellent_migrations:safety-assured-for-next-line raw_sql_executed
+    execute(
+      """
+      CREATE TRIGGER create_default_runner_concurrency_limits
+      AFTER INSERT ON accounts
+      FOR EACH ROW
+      EXECUTE FUNCTION create_default_runner_concurrency_limits()
+      """,
+      "DROP TRIGGER IF EXISTS create_default_runner_concurrency_limits ON accounts"
+    )
+
+    # Backfill accounts that predate the trigger. The unique index makes this
+    # safe if account creation overlaps the migration.
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
     execute(
       """
@@ -40,6 +75,7 @@ defmodule Tuist.Repo.Migrations.AddRunnerResourceConcurrencyLimits do
       SELECT id, 'linux', 32, 64, NOW(), NOW() FROM accounts
       UNION ALL
       SELECT id, 'macos', 12, 28, NOW(), NOW() FROM accounts
+      ON CONFLICT (account_id, platform) DO NOTHING
       """,
       "DELETE FROM runner_concurrency_limits"
     )
