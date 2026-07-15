@@ -761,6 +761,25 @@ defmodule Tuist.BillingTest do
                end_at: now
              }
     end
+
+    test "falls back to the current calendar month when the Stripe subscription can't be retrieved" do
+      now = ~U[2026-07-14 10:30:00Z]
+      account = Accounts.get_account_from_user(AccountsFixtures.user_fixture())
+
+      BillingFixtures.subscription_fixture(
+        account_id: account.id,
+        subscription_id: "sub_unreachable"
+      )
+
+      expect(Stripe.Subscription, :retrieve, fn "sub_unreachable" ->
+        {:error, %Stripe.Error{source: :network, code: :network_error, message: "boom"}}
+      end)
+
+      assert Billing.current_billing_period(account, now) == %{
+               start_at: ~U[2026-07-01 00:00:00Z],
+               end_at: now
+             }
+    end
   end
 
   describe "upgrade_to_enterprise/2" do

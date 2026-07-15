@@ -462,10 +462,13 @@ defmodule Tuist.Billing do
           Timex.beginning_of_month(now)
 
         %Subscription{subscription_id: subscription_id} ->
-          {:ok, %{current_period_start: current_period_start}} =
-            Stripe.Subscription.retrieve(subscription_id)
+          case Stripe.Subscription.retrieve(subscription_id) do
+            {:ok, %{current_period_start: current_period_start}} ->
+              DateTime.from_unix!(current_period_start)
 
-          DateTime.from_unix!(current_period_start)
+            _ ->
+              Timex.beginning_of_month(now)
+          end
       end
 
     %{start_at: start_at, end_at: now}
