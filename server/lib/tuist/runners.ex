@@ -17,8 +17,9 @@ defmodule Tuist.Runners do
       owner refs — no `RunnerAssignment` CRD. Pod terminates →
       reconciler reaps the Pod + SA, then boots a replacement.
     * **Runner availability is gated by the `:runners` feature
-      flag** (`Tuist.FeatureFlags.runners_enabled?/1`) — the only
-      per-customer switch. There's no concurrency cap.
+      flag** (`Tuist.FeatureFlags.runners_enabled?/1`). Independent
+      Linux and macOS vCPU/RAM budgets protect shared capacity from
+      a single account consuming every runner.
     * **Two-store split for the workflow_job lifecycle.** Postgres
       `runner_claims` is the thin OLTP table — one row per
       currently-claimed workflow_job, used for atomic claim (`INSERT
@@ -32,7 +33,8 @@ defmodule Tuist.Runners do
   Claim flow:
 
       1. pick_queued from CH (candidate selection)
-      2. Claims.attempt/4 — atomic PG INSERT, lost-race-safe by PK
+      2. Claims.attempt/5 — atomic resource check + PG INSERT,
+         lost-race-safe by PK
       3. Jobs.record_claimed/3 — CH state for customer visibility
       4. mint JIT
       5. Jobs.record_running/2 — CH state once mint succeeds
@@ -310,12 +312,13 @@ defmodule Tuist.Runners do
       sa_name,
       fleet_name,
       node_name,
+      [],
       excluded_workflow_job_ids,
       @max_claim_attempts_per_dispatch
     )
   end
 
-  defp claim_and_serve(_namespace, sa_name, fleet_name, _node_name, _excluded_workflow_job_ids, 0) do
+  defp claim_and_serve(_namespace, sa_name, fleet_name, _node_name, _excluded_account_ids, _excluded_workflow_job_ids, 0) do
     Logger.debug("runners: claim attempts exhausted",
       fleet: fleet_name,
       sa: sa_name
@@ -324,19 +327,26 @@ defmodule Tuist.Runners do
     {:error, :lost_race}
   end
 
-  defp claim_and_serve(namespace, sa_name, fleet_name, node_name, excluded_workflow_job_ids, attempts_left) do
-    case pick_affine_candidate(fleet_name, node_name, excluded_workflow_job_ids) do
+  defp claim_and_serve(
+         namespace,
+         sa_name,
+         fleet_name,
+         node_name,
+         excluded_account_ids,
+         excluded_workflow_job_ids,
+         attempts_left
+       ) do
+    case pick_affine_candidate(fleet_name, node_name, excluded_account_ids, excluded_workflow_job_ids) do
       {:ok, candidate} ->
-        candidate.workflow_job_id
-        |> Claims.attempt(candidate.account_id, fleet_name, sa_name)
-        |> handle_claim_attempt(
+        claim_candidate(
           namespace,
           sa_name,
           fleet_name,
           node_name,
+          candidate,
+          excluded_account_ids,
           excluded_workflow_job_ids,
-          attempts_left,
-          candidate
+          attempts_left
         )
 
       {:error, :empty} ->
@@ -344,92 +354,140 @@ defmodule Tuist.Runners do
     end
   end
 
-  defp handle_claim_attempt(
-         {:ok, claim},
+  defp claim_candidate(
          namespace,
          sa_name,
          fleet_name,
          node_name,
+         candidate,
+         excluded_account_ids,
          excluded_workflow_job_ids,
-         attempts_left,
-         candidate
+         attempts_left
        ) do
-    record_volume_affinity(fleet_name, node_name, candidate.account_id)
+    case candidate_resources(candidate, fleet_name) do
+      {:ok, resources} ->
+        attempt_candidate(
+          namespace,
+          sa_name,
+          fleet_name,
+          node_name,
+          candidate,
+          resources,
+          %{
+            excluded_account_ids: excluded_account_ids,
+            excluded_workflow_job_ids: excluded_workflow_job_ids,
+            attempts_left: attempts_left
+          }
+        )
 
-    case Jobs.record_claimed(candidate, sa_name, claim.claimed_at) do
-      :ok ->
-        serve_claim(namespace, sa_name, fleet_name, candidate, claim)
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
 
-      {:error, :completed} ->
-        _ = Claims.release(candidate.workflow_job_id, claim.claimed_at)
+  defp attempt_candidate(namespace, sa_name, fleet_name, node_name, candidate, resources, retry_context) do
+    case Claims.attempt(candidate.workflow_job_id, candidate.account_id, fleet_name, sa_name, resources) do
+      {:ok, claim} ->
+        record_volume_affinity(fleet_name, node_name, candidate.account_id)
+
+        case Jobs.record_claimed(candidate, sa_name, claim.claimed_at) do
+          :ok ->
+            serve_claim(namespace, sa_name, fleet_name, candidate, claim)
+
+          {:error, :completed} ->
+            _ = Claims.release(candidate.workflow_job_id, claim.claimed_at)
+
+            retry_claim_and_serve(
+              namespace,
+              sa_name,
+              fleet_name,
+              node_name,
+              retry_context,
+              candidate,
+              :workflow_job
+            )
+        end
+
+      {:error, :lost_race} ->
+        Logger.debug("runners: claim attempt lost race; trying next queued job",
+          fleet: fleet_name,
+          sa: sa_name,
+          workflow_job_id: candidate.workflow_job_id
+        )
 
         retry_claim_and_serve(
           namespace,
           sa_name,
           fleet_name,
           node_name,
-          excluded_workflow_job_ids,
-          attempts_left,
-          candidate
+          retry_context,
+          candidate,
+          :workflow_job
         )
+
+      {:error, :account_busy} ->
+        Logger.debug("runners: account admission is busy; trying next account",
+          fleet: fleet_name,
+          sa: sa_name,
+          account_id: candidate.account_id
+        )
+
+        retry_claim_and_serve(
+          namespace,
+          sa_name,
+          fleet_name,
+          node_name,
+          retry_context,
+          candidate,
+          :account
+        )
+
+      {:error, {:concurrency_limit_reached, details}} ->
+        Logger.debug("runners: account reached platform concurrency limit; trying next account",
+          fleet: fleet_name,
+          sa: sa_name,
+          account_id: candidate.account_id,
+          reason: inspect({:concurrency_limit_reached, details})
+        )
+
+        retry_claim_and_serve(
+          namespace,
+          sa_name,
+          fleet_name,
+          node_name,
+          retry_context,
+          candidate,
+          :account
+        )
+
+      {:error, :pod_in_use} ->
+        Logger.debug("runners: claim attempt declined",
+          reason: :pod_in_use,
+          fleet: fleet_name,
+          sa: sa_name
+        )
+
+        {:error, :pod_in_use}
+
+      {:error, reason} ->
+        Logger.warning("runners: dispatch_for_sa failed",
+          reason: inspect(reason),
+          fleet: fleet_name
+        )
+
+        {:error, reason}
     end
   end
 
-  defp handle_claim_attempt(
-         {:error, :lost_race},
-         namespace,
-         sa_name,
-         fleet_name,
-         node_name,
-         excluded_workflow_job_ids,
-         attempts_left,
-         candidate
-       ) do
-    Logger.debug("runners: claim attempt lost race; trying next queued job",
-      fleet: fleet_name,
-      sa: sa_name,
-      workflow_job_id: candidate.workflow_job_id
-    )
+  defp candidate_resources(%{platform: "linux", vcpus: vcpus, memory_gb: memory_gb}, _fleet_name)
+       when is_integer(vcpus) and vcpus > 0 and is_integer(memory_gb) and memory_gb > 0,
+       do: {:ok, %{platform: :linux, vcpus: vcpus, memory_gb: memory_gb}}
 
-    retry_claim_and_serve(namespace, sa_name, fleet_name, node_name, excluded_workflow_job_ids, attempts_left, candidate)
-  end
+  defp candidate_resources(%{platform: "macos", vcpus: vcpus, memory_gb: memory_gb}, _fleet_name)
+       when is_integer(vcpus) and vcpus > 0 and is_integer(memory_gb) and memory_gb > 0,
+       do: {:ok, %{platform: :macos, vcpus: vcpus, memory_gb: memory_gb}}
 
-  defp handle_claim_attempt(
-         {:error, :pod_in_use},
-         _namespace,
-         sa_name,
-         fleet_name,
-         _node_name,
-         _excluded_workflow_job_ids,
-         _attempts_left,
-         _candidate
-       ) do
-    Logger.debug("runners: claim attempt declined",
-      reason: :pod_in_use,
-      fleet: fleet_name,
-      sa: sa_name
-    )
-
-    {:error, :pod_in_use}
-  end
-
-  defp handle_claim_attempt(
-         {:error, reason},
-         _namespace,
-         _sa_name,
-         fleet_name,
-         _node_name,
-         _excluded_workflow_job_ids,
-         _attempts_left,
-         _candidate
-       ) do
-    Logger.warning("runners: dispatch_for_sa failed",
-      reason: inspect(reason),
-      fleet: fleet_name
-    )
-
-    {:error, reason}
-  end
+  defp candidate_resources(_candidate, fleet_name), do: Catalog.resources_for_fleet(fleet_name)
 
   defp record_volume_affinity(fleet_name, node_name, account_id) do
     # Record the affinity signal on every claim win, but only for fleets
@@ -447,17 +505,46 @@ defmodule Tuist.Runners do
          sa_name,
          fleet_name,
          node_name,
-         excluded_workflow_job_ids,
-         attempts_left,
-         candidate
+         %{
+           excluded_account_ids: excluded_account_ids,
+           excluded_workflow_job_ids: excluded_workflow_job_ids,
+           attempts_left: attempts_left
+         },
+         candidate,
+         :workflow_job
        ) do
     claim_and_serve(
       namespace,
       sa_name,
       fleet_name,
       node_name,
+      excluded_account_ids,
       [candidate.workflow_job_id | excluded_workflow_job_ids],
       attempts_left - 1
+    )
+  end
+
+  defp retry_claim_and_serve(
+         namespace,
+         sa_name,
+         fleet_name,
+         node_name,
+         %{
+           excluded_account_ids: excluded_account_ids,
+           excluded_workflow_job_ids: excluded_workflow_job_ids,
+           attempts_left: attempts_left
+         },
+         candidate,
+         :account
+       ) do
+    claim_and_serve(
+      namespace,
+      sa_name,
+      fleet_name,
+      node_name,
+      [candidate.account_id | excluded_account_ids],
+      excluded_workflow_job_ids,
+      attempts_left
     )
   end
 
@@ -465,8 +552,13 @@ defmodule Tuist.Runners do
   # pick the one to hand this node: the oldest affine candidate within the
   # age tolerance of the head, else the head. With no node identity or no
   # affinity, this is exactly today's "oldest queued job".
-  defp pick_affine_candidate(fleet_name, node_name, excluded_workflow_job_ids) do
-    case Jobs.pick_queued_top_k(fleet_name, [], excluded_workflow_job_ids, volume_affinity_top_k()) do
+  defp pick_affine_candidate(fleet_name, node_name, excluded_account_ids, excluded_workflow_job_ids) do
+    case Jobs.pick_queued_top_k(
+           fleet_name,
+           excluded_account_ids,
+           excluded_workflow_job_ids,
+           volume_affinity_top_k()
+         ) do
       {:ok, candidates} ->
         if volume_affinity_enabled?(fleet_name) do
           {:ok,

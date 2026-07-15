@@ -42,6 +42,12 @@ const (
 	// jitFilePath is the file the poller writes the minted JIT to and
 	// the runner reads it from.
 	jitFilePath = jitMountPath + "/jit"
+	// shellSocketPath is shared through the work volume. The trusted
+	// shell sidecar owns server authentication, but the PTY child is
+	// spawned by a tiny socket server inside the runner container so
+	// the terminal sees the same filesystem, environment, and Docker
+	// socket as the running job.
+	shellSocketPath = "/home/runner/actions-runner/_work/.tuist-runner-shell.sock"
 )
 
 // Build returns the Pod manifest the controller stamps on the API
@@ -207,11 +213,21 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 			corev1.EnvVar{Name: "TUIST_RUNNER_JIT_OUTPUT_PATH", Value: jitFilePath},
 		)
 
-		// The runner container runs run-job.sh: read the staged JIT
-		// and exec ./run.sh under it. It carries no dispatch env and
-		// no token mount.
-		runnerCommand = []string{"/usr/local/bin/run-job.sh"}
-		runnerEnv = []corev1.EnvVar{{Name: "TUIST_RUNNER_JIT_PATH", Value: jitFilePath}}
+		// The runner container starts the local PTY socket server and
+		// then runs run-job.sh: read the staged JIT and exec ./run.sh
+		// under it. It carries no dispatch env and no token mount; the
+		// shell sidecar connects to the local socket only after the
+		// server has authorized a terminal session for this job.
+		runnerCommand = []string{
+			"sh",
+			"-c",
+			"TUIST_RUNNER_SHELL_PTY_SERVER=1 /usr/local/bin/runner-shell-agent & exec /usr/local/bin/run-job.sh",
+		}
+		runnerEnv = []corev1.EnvVar{
+			{Name: "TUIST_RUNNER_JIT_PATH", Value: jitFilePath},
+			{Name: "TUIST_RUNNER_SHELL_SOCKET", Value: shellSocketPath},
+			{Name: "TUIST_RUNNER_SHELL_WORKDIR", Value: "/home/runner/actions-runner/_work"},
+		}
 		volumes = append(volumes, corev1.Volume{Name: "work", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}})
 		runnerMounts = []corev1.VolumeMount{
 			{Name: "tuist-runner-jit", MountPath: jitMountPath, ReadOnly: true},
@@ -354,14 +370,14 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 
 		// Interactive shell bridge: a trusted native sidecar that
 		// holds the dispatch token, waits for a claimed job, polls the
-		// server for authorized shell sessions, and brokers a PTY over
-		// the server-owned WebSocket tunnel. It removes this image's
-		// hosted-runner passwordless sudo rule before spawning the
-		// customer-facing shell, so the shell cannot read the root-only
-		// projected token.
+		// server for authorized shell sessions, and brokers the server-
+		// owned WebSocket tunnel to the runner container's local PTY
+		// socket. The user-facing shell is spawned inside the runner
+		// container, while the dispatch token remains mounted only here.
 		shellEnv := append(append([]corev1.EnvVar{}, dispatchEnv...),
 			corev1.EnvVar{Name: "TUIST_RUNNER_JIT_PATH", Value: jitFilePath},
 			corev1.EnvVar{Name: "TUIST_RUNNER_TOKEN_PATH", Value: "/var/run/secrets/tuist-runner/token"},
+			corev1.EnvVar{Name: "TUIST_RUNNER_SHELL_SOCKET", Value: shellSocketPath},
 			corev1.EnvVar{Name: "TUIST_RUNNER_SHELL_WORKDIR", Value: "/home/runner/actions-runner/_work"},
 		)
 		initContainers = append(initContainers, corev1.Container{

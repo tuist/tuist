@@ -125,7 +125,13 @@ defmodule Tuist.Runners.InteractiveSessionsTest do
       assert {:ok, first} = InteractiveSessions.request_vnc(job, account, user)
       assert first.pod_name == "stale-vnc-pod"
 
-      assert {:ok, _claim} = Claims.attempt(70_004, account.id, first.fleet_name, "live-vnc-pod")
+      assert {:ok, _claim} =
+               Claims.attempt(70_004, account.id, first.fleet_name, "live-vnc-pod", %{
+                 platform: :macos,
+                 vcpus: 6,
+                 memory_gb: 14
+               })
+
       assert :ok = Claims.mark_running(70_004, "runner-vnc")
 
       assert {:ok, second} = InteractiveSessions.request_vnc(job, account, user)
@@ -236,7 +242,13 @@ defmodule Tuist.Runners.InteractiveSessionsTest do
       user = user_fixture()
       workflow_job_id = 70_111
 
-      assert {:ok, _claim} = Claims.attempt(workflow_job_id, account.id, "linux-amd64", "live-shell-pod")
+      assert {:ok, _claim} =
+               Claims.attempt(workflow_job_id, account.id, "linux-amd64", "live-shell-pod", %{
+                 platform: :linux,
+                 vcpus: 4,
+                 memory_gb: 8
+               })
+
       assert :ok = Claims.mark_running(workflow_job_id, "runner-shell")
 
       assert {:ok, %InteractiveSession{} = session} =
@@ -339,7 +351,13 @@ defmodule Tuist.Runners.InteractiveSessionsTest do
           user
         )
 
-      assert {:ok, _claim} = Claims.attempt(workflow_job_id, account.id, "linux-amd64", "live-shell-agent-pod")
+      assert {:ok, _claim} =
+               Claims.attempt(workflow_job_id, account.id, "linux-amd64", "live-shell-agent-pod", %{
+                 platform: :linux,
+                 vcpus: 4,
+                 memory_gb: 8
+               })
+
       assert :ok = Claims.mark_running(workflow_job_id, "runner-shell-agent")
 
       assert InteractiveSessions.current_shell_for_pod("live-shell-agent-pod").id == session.id

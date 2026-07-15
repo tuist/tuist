@@ -11,6 +11,7 @@ defmodule Tuist.Runners.DispatchTest do
   alias Tuist.Runners.Dispatch
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.JobSteps
+  alias Tuist.Runners.Profiles
   alias Tuist.VCS
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
@@ -360,7 +361,7 @@ defmodule Tuist.Runners.DispatchTest do
       stub(Catalog, :default_xcode_version, fn -> nil end)
 
       {:ok, profile} =
-        Tuist.Runners.Profiles.create(catalog_account, %{
+        Profiles.create(catalog_account, %{
           "name" => "default",
           "vcpus" => 4,
           "memory_gb" => 16
@@ -373,7 +374,10 @@ defmodule Tuist.Runners.DispatchTest do
       assert {:ok,
               %{
                 pool_name: "tuist-runner-pool-linux-4vcpu-16gb",
-                requested_dispatch_label: "tuist-default"
+                requested_dispatch_label: "tuist-default",
+                platform: :linux,
+                vcpus: 4,
+                memory_gb: 16
               }} =
                Dispatch.resolve_dispatch_target(account, ["self-hosted", "tuist-default"])
     end
@@ -483,6 +487,9 @@ defmodule Tuist.Runners.DispatchTest do
            "metadata" => %{"name" => "linux-pool"},
            "spec" => %{
              "dispatchLabel" => "tuist-linux-ubuntu-22-04",
+             "os" => "linux",
+             "podCPUMilli" => 7500,
+             "podMemoryMB" => 18_000,
              "runnerLabels" => ["self-hosted", "Linux", "X64"]
            }
          }}
@@ -492,7 +499,10 @@ defmodule Tuist.Runners.DispatchTest do
               %{
                 name: "linux-pool",
                 dispatch_label: "tuist-linux-ubuntu-22-04",
-                runner_labels: ["self-hosted", "Linux", "X64"]
+                runner_labels: ["self-hosted", "Linux", "X64"],
+                platform: :linux,
+                vcpus: 8,
+                memory_gb: 18
               }} = Dispatch.pool_summary_by_name("linux-pool")
     end
 

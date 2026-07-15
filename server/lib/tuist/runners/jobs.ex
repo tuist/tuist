@@ -259,7 +259,7 @@ defmodule Tuist.Runners.Jobs do
   @doc """
   Picks the oldest queued candidate on `fleet_name`. The
   caller's responsibility to then atomically claim it via
-  `Tuist.Runners.Claims.attempt/4`.
+  `Tuist.Runners.Claims.attempt/5`.
 
   `ineligible_account_ids` is an optional set of account_ids to
   exclude from candidate selection. `excluded_workflow_job_ids`
@@ -271,7 +271,7 @@ defmodule Tuist.Runners.Jobs do
   Deterministic ordering — `(enqueued_at ASC, workflow_job_id
   ASC)` — means two concurrent pollers see the SAME row as the
   next candidate. The actual claim race then collapses on
-  Postgres uniqueness in `Claims.attempt/4`.
+  Postgres uniqueness in `Claims.attempt/5`.
 
   The scan is floored at `@queued_lookback_seconds` on `enqueued_at`
   so ClickHouse prunes to recent partitions rather than aggregating
@@ -307,6 +307,9 @@ defmodule Tuist.Runners.Jobs do
         workflow_job_id: j.workflow_job_id,
         account_id: fragment("argMax(?, ?)", j.account_id, j.updated_at),
         fleet_name: fragment("argMax(?, ?)", j.fleet_name, j.updated_at),
+        platform: fragment("argMax(?, ?)", j.platform, j.updated_at),
+        vcpus: fragment("argMax(?, ?)", j.vcpus, j.updated_at),
+        memory_gb: fragment("argMax(?, ?)", j.memory_gb, j.updated_at),
         repository: fragment("argMax(?, ?)", j.repository, j.updated_at),
         workflow_run_id: fragment("argMax(?, ?)", j.workflow_run_id, j.updated_at),
         workflow_name: fragment("argMax(?, ?)", j.workflow_name, j.updated_at),
@@ -343,7 +346,7 @@ defmodule Tuist.Runners.Jobs do
 
   @doc """
   Records the `claimed` state transition for customer visibility.
-  Called after `Claims.attempt/4` succeeds and we're about to mint.
+  Called after `Claims.attempt/5` succeeds and we're about to mint.
 
   Does NOT open the per-Pod billing session — `Tuist.Runners`
   opens it only after `serve_claim/5` commits (JIT minted +

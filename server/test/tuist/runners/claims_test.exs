@@ -7,18 +7,24 @@ defmodule Tuist.Runners.ClaimsTest do
   alias Tuist.Repo
   alias Tuist.Runners.Claim
   alias Tuist.Runners.Claims
+  alias Tuist.Runners.ConcurrencyLimit
 
-  describe "attempt/4" do
+  @linux_resources %{platform: :linux, vcpus: 1, memory_gb: 1}
+
+  describe "attempt/5" do
     test "claims a workflow_job and returns the claim" do
       account = account_fixture()
 
       assert {:ok, %Claim{} = claim} =
-               Claims.attempt(1001, account.id, "fleet-a", "pod-1")
+               Claims.attempt(1001, account.id, "fleet-a", "pod-1", @linux_resources)
 
       assert claim.workflow_job_id == 1001
       assert claim.account_id == account.id
       assert claim.fleet_name == "fleet-a"
       assert claim.pod_name == "pod-1"
+      assert claim.platform == :linux
+      assert claim.vcpus == 1
+      assert claim.memory_gb == 1
       assert claim.lifecycle_state == "claimed"
       assert %DateTime{} = claim.claimed_at
     end
@@ -26,27 +32,126 @@ defmodule Tuist.Runners.ClaimsTest do
     test "returns :lost_race on a duplicate workflow_job_id" do
       account = account_fixture()
 
-      assert {:ok, _} = Claims.attempt(1002, account.id, "fleet-a", "pod-1")
-      assert {:error, :lost_race} = Claims.attempt(1002, account.id, "fleet-a", "pod-2")
+      assert {:ok, _} = Claims.attempt(1002, account.id, "fleet-a", "pod-1", @linux_resources)
+      assert {:error, :lost_race} = Claims.attempt(1002, account.id, "fleet-a", "pod-2", @linux_resources)
     end
 
     test "returns :pod_in_use when the same pod already has a live claim" do
       account = account_fixture()
 
-      assert {:ok, _} = Claims.attempt(1300, account.id, "fleet-a", "pod-1")
+      assert {:ok, _} = Claims.attempt(1300, account.id, "fleet-a", "pod-1", @linux_resources)
 
       # A customer-controlled workflow inside the VM that reads
       # /etc/tuist-sa-token and calls dispatch again must not be
       # able to claim a second job while the first is still
       # active — the live claim makes this fail-closed.
-      assert {:error, :pod_in_use} = Claims.attempt(1301, account.id, "fleet-a", "pod-1")
+      assert {:error, :pod_in_use} = Claims.attempt(1301, account.id, "fleet-a", "pod-1", @linux_resources)
+    end
+
+    test "enforces pod ownership across accounts" do
+      first_account = account_fixture()
+      second_account = account_fixture()
+
+      assert {:ok, _} = Claims.attempt(1310, first_account.id, "fleet-a", "shared-pod", @linux_resources)
+
+      assert {:error, :pod_in_use} =
+               Claims.attempt(1311, second_account.id, "fleet-a", "shared-pod", @linux_resources)
+    end
+
+    test "rejects invalid claim inputs" do
+      account = account_fixture()
+
+      assert {:error, :invalid_resources} =
+               Claims.attempt(0, account.id, "fleet-a", "pod-1", @linux_resources)
+
+      assert {:error, :invalid_resources} =
+               Claims.attempt(1320, account.id, "", "pod-1", @linux_resources)
+
+      assert {:error, :invalid_resources} =
+               Claims.attempt(1320, account.id, "fleet-a", "pod-1", %{
+                 platform: :linux,
+                 vcpus: 0,
+                 memory_gb: 1
+               })
+    end
+
+    test "atomically rejects a shape that would exceed a platform budget" do
+      account = account_fixture()
+      macos_resources = %{platform: :macos, vcpus: 6, memory_gb: 14}
+
+      assert {:ok, _} = Claims.attempt(1400, account.id, "fleet-macos", "pod-1", macos_resources)
+      assert {:ok, _} = Claims.attempt(1401, account.id, "fleet-macos", "pod-2", macos_resources)
+
+      assert {:error, {:concurrency_limit_reached, details}} =
+               Claims.attempt(1402, account.id, "fleet-macos", "pod-3", macos_resources)
+
+      assert details.platform == :macos
+      assert details.used == %{vcpus: 12, memory_gb: 28}
+      assert details.limit == %{vcpus: 12, memory_gb: 28}
+      assert details.requested == macos_resources
+      assert Claims.counts_per_account() == %{account.id => 2}
+    end
+
+    test "keeps Linux and macOS budgets independent" do
+      account = account_fixture()
+      macos_resources = %{platform: :macos, vcpus: 12, memory_gb: 28}
+      linux_resources = %{platform: :linux, vcpus: 2, memory_gb: 8}
+
+      assert {:ok, _} = Claims.attempt(1450, account.id, "fleet-macos", "pod-macos", macos_resources)
+      assert {:ok, _} = Claims.attempt(1451, account.id, "fleet-linux", "pod-linux", linux_resources)
+    end
+
+    test "derives resources for live claims written by an old replica" do
+      account = account_fixture()
+      now = DateTime.utc_now()
+
+      {1, _} =
+        Repo.insert_all(Claim, [
+          %{
+            workflow_job_id: 1455,
+            account_id: account.id,
+            fleet_name: "macos-26-5",
+            pod_name: "legacy-pod",
+            claimed_at: now,
+            platform: :linux,
+            vcpus: 0,
+            memory_gb: 0,
+            lifecycle_state: "running",
+            runner_name: "legacy-runner"
+          }
+        ])
+
+      assert {:error, {:concurrency_limit_reached, details}} =
+               Claims.attempt(1456, account.id, "macos-26-5", "new-pod", %{
+                 platform: :macos,
+                 vcpus: 12,
+                 memory_gb: 28
+               })
+
+      assert details.used == %{vcpus: 6, memory_gb: 14}
+      refute Repo.exists?(from(claim in Claim, where: claim.workflow_job_id == 1456))
+    end
+
+    test "fails closed when a platform limit row is missing" do
+      account = account_fixture()
+
+      Repo.delete_all(
+        from(limit in ConcurrencyLimit,
+          where: limit.account_id == ^account.id and limit.platform == :linux
+        )
+      )
+
+      assert {:error, :concurrency_limit_missing} =
+               Claims.attempt(1460, account.id, "fleet-linux", "pod-linux", @linux_resources)
+
+      refute Repo.exists?(from(claim in Claim, where: claim.workflow_job_id == 1460))
     end
   end
 
   describe "mark_running/2" do
     test "promotes a claimed row to running" do
       account = account_fixture()
-      {:ok, _} = Claims.attempt(1500, account.id, "fleet-a", "pod-1")
+      {:ok, _} = Claims.attempt(1500, account.id, "fleet-a", "pod-1", @linux_resources)
 
       assert :ok = Claims.mark_running(1500, "runner-abc")
 
@@ -63,7 +168,7 @@ defmodule Tuist.Runners.ClaimsTest do
   describe "release/2" do
     test "deletes a claim when (workflow_job_id, claimed_at) match" do
       account = account_fixture()
-      {:ok, claim} = Claims.attempt(2001, account.id, "fleet-a", "pod-1")
+      {:ok, claim} = Claims.attempt(2001, account.id, "fleet-a", "pod-1", @linux_resources)
 
       assert :ok = Claims.release(claim.workflow_job_id, claim.claimed_at)
       assert Claims.counts_per_account() == %{}
@@ -71,7 +176,7 @@ defmodule Tuist.Runners.ClaimsTest do
 
     test "returns :stale_claim when claimed_at has moved on" do
       account = account_fixture()
-      {:ok, _claim} = Claims.attempt(2002, account.id, "fleet-a", "pod-1")
+      {:ok, _claim} = Claims.attempt(2002, account.id, "fleet-a", "pod-1", @linux_resources)
 
       # Pretend the worker released and someone re-claimed with a
       # fresh handle — original serve's release shouldn't stomp.
@@ -92,12 +197,12 @@ defmodule Tuist.Runners.ClaimsTest do
       a = account_fixture()
       b = account_fixture()
 
-      {:ok, _} = Claims.attempt(3001, a.id, "fleet-cnt", "pod-a-1")
-      {:ok, _} = Claims.attempt(3002, a.id, "fleet-cnt", "pod-a-2")
-      {:ok, _} = Claims.attempt(3003, b.id, "fleet-cnt", "pod-b-1")
+      {:ok, _} = Claims.attempt(3001, a.id, "fleet-cnt", "pod-a-1", @linux_resources)
+      {:ok, _} = Claims.attempt(3002, a.id, "fleet-cnt", "pod-a-2", @linux_resources)
+      {:ok, _} = Claims.attempt(3003, b.id, "fleet-cnt", "pod-b-1", @linux_resources)
       # The count is account-level, so this fourth claim on a
       # different fleet must still roll up to account `a`'s total.
-      {:ok, _} = Claims.attempt(3004, a.id, "fleet-other", "pod-a-3")
+      {:ok, _} = Claims.attempt(3004, a.id, "fleet-other", "pod-a-3", @linux_resources)
 
       counts = Claims.counts_per_account()
       assert Map.get(counts, a.id) == 3
@@ -114,9 +219,9 @@ defmodule Tuist.Runners.ClaimsTest do
       a = account_fixture()
       b = account_fixture()
 
-      {:ok, _} = Claims.attempt(6001, a.id, "fleet-macos", "pod-m-1")
-      {:ok, _} = Claims.attempt(6002, a.id, "fleet-macos", "pod-m-2")
-      {:ok, _} = Claims.attempt(6003, b.id, "fleet-linux", "pod-l-1")
+      {:ok, _} = Claims.attempt(6001, a.id, "fleet-macos", "pod-m-1", @linux_resources)
+      {:ok, _} = Claims.attempt(6002, a.id, "fleet-macos", "pod-m-2", @linux_resources)
+      {:ok, _} = Claims.attempt(6003, b.id, "fleet-linux", "pod-l-1", @linux_resources)
 
       counts = Claims.counts_per_fleet()
       assert Map.get(counts, "fleet-macos") == 2
@@ -132,9 +237,9 @@ defmodule Tuist.Runners.ClaimsTest do
     test "returns active workflow_job IDs for one fleet" do
       account = account_fixture()
 
-      {:ok, _} = Claims.attempt(6101, account.id, "fleet-a", "pod-a-1")
-      {:ok, _} = Claims.attempt(6102, account.id, "fleet-a", "pod-a-2")
-      {:ok, _} = Claims.attempt(6103, account.id, "fleet-b", "pod-b-1")
+      {:ok, _} = Claims.attempt(6101, account.id, "fleet-a", "pod-a-1", @linux_resources)
+      {:ok, _} = Claims.attempt(6102, account.id, "fleet-a", "pod-a-2", @linux_resources)
+      {:ok, _} = Claims.attempt(6103, account.id, "fleet-b", "pod-b-1", @linux_resources)
 
       assert "fleet-a" |> Claims.workflow_job_ids_for_fleet() |> Enum.sort() == [6101, 6102]
     end
@@ -143,7 +248,7 @@ defmodule Tuist.Runners.ClaimsTest do
   describe "complete/1" do
     test "deletes the claim regardless of handle" do
       account = account_fixture()
-      {:ok, _} = Claims.attempt(5001, account.id, "fleet-c", "pod-1")
+      {:ok, _} = Claims.attempt(5001, account.id, "fleet-c", "pod-1", @linux_resources)
 
       assert :ok = Claims.complete(5001)
       assert Claims.counts_per_account() == %{}
@@ -157,8 +262,8 @@ defmodule Tuist.Runners.ClaimsTest do
   describe "list_stale/1" do
     test "returns claimed rows older than the threshold without deleting" do
       account = account_fixture()
-      {:ok, _} = Claims.attempt(4001, account.id, "fleet-stale", "pod-1")
-      {:ok, _} = Claims.attempt(4002, account.id, "fleet-stale", "pod-2")
+      {:ok, _} = Claims.attempt(4001, account.id, "fleet-stale", "pod-1", @linux_resources)
+      {:ok, _} = Claims.attempt(4002, account.id, "fleet-stale", "pod-2", @linux_resources)
 
       future = DateTime.add(DateTime.utc_now(), 3600, :second)
       stale = Claims.list_stale(future)
@@ -173,8 +278,8 @@ defmodule Tuist.Runners.ClaimsTest do
 
     test "skips claims that already transitioned to running" do
       account = account_fixture()
-      {:ok, _} = Claims.attempt(4200, account.id, "fleet-running", "pod-1")
-      {:ok, _} = Claims.attempt(4201, account.id, "fleet-running", "pod-2")
+      {:ok, _} = Claims.attempt(4200, account.id, "fleet-running", "pod-1", @linux_resources)
+      {:ok, _} = Claims.attempt(4201, account.id, "fleet-running", "pod-2", @linux_resources)
 
       # One claim is healthy and running for hours — must NOT be
       # reaped just because it's older than the threshold, since
@@ -190,7 +295,7 @@ defmodule Tuist.Runners.ClaimsTest do
 
     test "leaves fresh claims alone" do
       account = account_fixture()
-      {:ok, _} = Claims.attempt(4101, account.id, "fleet-fresh", "pod-1")
+      {:ok, _} = Claims.attempt(4101, account.id, "fleet-fresh", "pod-1", @linux_resources)
 
       past = DateTime.add(DateTime.utc_now(), -3600, :second)
       assert [] = Claims.list_stale(past)
@@ -201,8 +306,8 @@ defmodule Tuist.Runners.ClaimsTest do
   describe "live_pod_names/0" do
     test "returns the pod names of every live claim, claimed and running alike" do
       account = account_fixture()
-      {:ok, _} = Claims.attempt(5001, account.id, "fleet-a", "pod-claimed")
-      {:ok, _} = Claims.attempt(5002, account.id, "fleet-a", "pod-running")
+      {:ok, _} = Claims.attempt(5001, account.id, "fleet-a", "pod-claimed", @linux_resources)
+      {:ok, _} = Claims.attempt(5002, account.id, "fleet-a", "pod-running", @linux_resources)
       :ok = Claims.mark_running(5002, "runner-x")
 
       assert Claims.live_pod_names() == MapSet.new(["pod-claimed", "pod-running"])
@@ -216,7 +321,7 @@ defmodule Tuist.Runners.ClaimsTest do
   describe "by_pod_name/1" do
     test "resolves a live claim's workflow_job_id and account_id" do
       account = account_fixture()
-      {:ok, _} = Claims.attempt(6001, account.id, "fleet-a", "pod-1")
+      {:ok, _} = Claims.attempt(6001, account.id, "fleet-a", "pod-1", @linux_resources)
       :ok = Claims.mark_running(6001, "runner-x")
 
       assert {:ok, %{workflow_job_id: 6001, account_id: account_id}} = Claims.by_pod_name("pod-1")
@@ -231,7 +336,14 @@ defmodule Tuist.Runners.ClaimsTest do
   describe "by_workflow_job_id/1" do
     test "resolves the live claim for a workflow_job_id" do
       account = account_fixture()
-      {:ok, _} = Claims.attempt(6201, account.id, "fleet-a", "pod-1")
+
+      {:ok, _} =
+        Claims.attempt(6201, account.id, "fleet-a", "pod-1", %{
+          platform: :linux,
+          vcpus: 4,
+          memory_gb: 8
+        })
+
       :ok = Claims.mark_running(6201, "runner-x")
 
       assert {:ok,

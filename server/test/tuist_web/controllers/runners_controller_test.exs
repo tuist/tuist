@@ -26,7 +26,12 @@ defmodule TuistWeb.RunnersControllerTest do
           head_sha: "deadbeef"
         })
 
-      {:ok, _} = Claims.attempt(7_100_002, account.id, "fleet-scale", "pod-scale-1")
+      {:ok, _} =
+        Claims.attempt(7_100_002, account.id, "fleet-scale", "pod-scale-1", %{
+          platform: :linux,
+          vcpus: 1,
+          memory_gb: 1
+        })
 
       stub(K8sClient, :create_controller_token_review, fn "valid-token" ->
         {:ok, %{namespace: "tuist-runners-controller", name: "runners-controller"}}

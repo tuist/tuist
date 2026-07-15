@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto/tls"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -31,9 +32,29 @@ const (
 	maxTerminalDimension      = 1000
 )
 
+const (
+	localFrameStdin byte = iota + 1
+	localFrameStdout
+	localFrameResize
+	localFrameExit
+	localFrameClose
+)
+
 var tokenPaths = []string{
 	"/etc/tuist-sa-token",
 	"/var/run/secrets/tuist-runner/token",
+}
+
+var directHTTPTransport = &http.Transport{
+	Proxy:           nil,
+	DialContext:     (&net.Dialer{Timeout: 10 * time.Second, KeepAlive: 30 * time.Second}).DialContext,
+	TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS12},
+	IdleConnTimeout: 30 * time.Second,
+}
+
+var directHTTPClientInstance = &http.Client{
+	Timeout:   10 * time.Second,
+	Transport: directHTTPTransport,
 }
 
 type runnerSession struct {
@@ -82,7 +103,23 @@ type ptyMessage struct {
 	Err     error
 }
 
+type localShellFrame struct {
+	Type    byte
+	Payload []byte
+	Err     error
+}
+
 func main() {
+	if os.Getenv("TUIST_RUNNER_SHELL_PTY_SERVER") == "1" {
+		if err := serveLocalShellSocket(localShellSocketPath()); err != nil {
+			logf("local shell socket server failed: %v", err)
+			os.Exit(1)
+		}
+		return
+	}
+
+	defer closeDirectHTTPIdleConnections()
+
 	if os.Getenv("TUIST_RUNNER_DISPATCH_URL") == "" {
 		logf("TUIST_RUNNER_DISPATCH_URL unset; shell agent disabled")
 		os.Exit(0)
@@ -192,16 +229,11 @@ func waitForClaim() {
 }
 
 func directHTTPClient() *http.Client {
-	dialer := &net.Dialer{Timeout: 10 * time.Second, KeepAlive: 30 * time.Second}
+	return directHTTPClientInstance
+}
 
-	return &http.Client{
-		Timeout: 10 * time.Second,
-		Transport: &http.Transport{
-			Proxy:           nil,
-			DialContext:     dialer.DialContext,
-			TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS12},
-		},
-	}
+func closeDirectHTTPIdleConnections() {
+	directHTTPTransport.CloseIdleConnections()
 }
 
 func discoverSession(discovery string, token string) (*runnerSession, error) {
@@ -355,6 +387,14 @@ func bridgeSession(session runnerSession, token string, discovery string) error 
 	}
 	defer conn.Close()
 
+	if socketPath := localShellSocketPath(); socketPath != "" {
+		return bridgeRemoteShellSession(session, conn, socketPath)
+	}
+
+	return bridgeLocalShellSession(session, conn)
+}
+
+func bridgeLocalShellSession(session runnerSession, conn *websocket.Conn) error {
 	shell, err := spawnShell()
 	if err != nil {
 		return err
@@ -407,6 +447,69 @@ func bridgeSession(session runnerSession, token string, discovery string) error 
 	}
 }
 
+func bridgeRemoteShellSession(session runnerSession, conn *websocket.Conn, socketPath string) error {
+	shellConn, err := net.DialTimeout("unix", socketPath, 5*time.Second)
+	if err != nil {
+		return fmt.Errorf("connect local runner shell socket: %w", err)
+	}
+	defer shellConn.Close()
+
+	wsCh := make(chan wsMessage, 1)
+	shellCh := make(chan localShellFrame, 1)
+
+	go readWebSocket(conn, wsCh)
+	go readLocalShellFrames(shellConn, shellCh)
+
+	for {
+		select {
+		case message := <-wsCh:
+			if message.Err != nil {
+				return nil
+			}
+
+			switch message.Type {
+			case websocket.TextMessage:
+				action := handleTextFramePayload(message.Payload)
+				if action == "client_disconnected" {
+					_ = writeLocalShellFrame(shellConn, localFrameClose, nil)
+					logf("client disconnected; closing shell tunnel for session %d", session.SessionID)
+					return nil
+				}
+				if action == "resize" {
+					if err := writeLocalShellFrame(shellConn, localFrameResize, message.Payload); err != nil {
+						return err
+					}
+				}
+			case websocket.BinaryMessage:
+				if err := writeLocalShellFrame(shellConn, localFrameStdin, message.Payload); err != nil {
+					return err
+				}
+			}
+
+		case message := <-shellCh:
+			if message.Err != nil {
+				_ = sendShellExit(conn, 255)
+				return nil
+			}
+
+			switch message.Type {
+			case localFrameStdout:
+				if err := writeWebSocketMessage(conn, websocket.BinaryMessage, message.Payload); err != nil {
+					return err
+				}
+			case localFrameExit:
+				status := 0
+				var frame exitFrame
+				if err := json.Unmarshal(message.Payload, &frame); err == nil {
+					status = frame.Status
+				}
+				_ = sendShellExit(conn, status)
+				return nil
+			}
+		}
+	}
+}
+
 func readWebSocket(conn *websocket.Conn, ch chan<- wsMessage) {
 	for {
 		messageType, payload, err := conn.ReadMessage()
@@ -451,6 +554,21 @@ func writeWebSocketMessage(conn *websocket.Conn, messageType int, payload []byte
 }
 
 func handleTextFrame(ptyFile *os.File, payload []byte) string {
+	action := handleTextFramePayload(payload)
+	if action != "resize" {
+		return action
+	}
+
+	var message textFrame
+	if err := json.Unmarshal(payload, &message); err != nil {
+		return ""
+	}
+
+	_ = pty.Setsize(ptyFile, &pty.Winsize{Cols: uint16(message.Columns), Rows: uint16(message.Rows)})
+	return ""
+}
+
+func handleTextFramePayload(payload []byte) string {
 	var message textFrame
 	if err := json.Unmarshal(payload, &message); err != nil {
 		return ""
@@ -464,13 +582,163 @@ func handleTextFrame(ptyFile *os.File, payload []byte) string {
 		if message.Columns > maxTerminalDimension || message.Rows > maxTerminalDimension {
 			return ""
 		}
-		_ = pty.Setsize(ptyFile, &pty.Winsize{Cols: uint16(message.Columns), Rows: uint16(message.Rows)})
-
+		return "resize"
 	case message.Type == "client" && message.Status == "disconnected":
 		return "client_disconnected"
 	}
 
 	return ""
+}
+
+func localShellSocketPath() string {
+	return os.Getenv("TUIST_RUNNER_SHELL_SOCKET")
+}
+
+func serveLocalShellSocket(socketPath string) error {
+	if socketPath == "" {
+		return errors.New("TUIST_RUNNER_SHELL_SOCKET is required in PTY server mode")
+	}
+
+	if err := os.MkdirAll(filepath.Dir(socketPath), 0o700); err != nil {
+		return err
+	}
+	_ = os.Remove(socketPath)
+
+	listener, err := net.Listen("unix", socketPath)
+	if err != nil {
+		return err
+	}
+	defer listener.Close()
+	defer os.Remove(socketPath)
+
+	if err := os.Chmod(socketPath, 0o600); err != nil {
+		return err
+	}
+
+	logf("local shell socket listening at %s", socketPath)
+
+	for {
+		conn, err := listener.Accept()
+		if err != nil {
+			return err
+		}
+
+		if err := handleLocalShellConnection(conn); err != nil {
+			logf("local shell connection failed: %v", err)
+		}
+	}
+}
+
+func handleLocalShellConnection(conn net.Conn) error {
+	defer conn.Close()
+
+	shell, err := spawnShell()
+	if err != nil {
+		return err
+	}
+	defer shell.Cleanup()
+
+	inputCh := make(chan localShellFrame, 1)
+	ptyCh := make(chan ptyMessage, 1)
+	waitCh := make(chan int, 1)
+
+	go readLocalShellFrames(conn, inputCh)
+	go readPTY(shell.PTY, ptyCh)
+	go func() { waitCh <- commandExitStatus(shell.Command.Wait()) }()
+
+	for {
+		select {
+		case frame := <-inputCh:
+			if frame.Err != nil {
+				return nil
+			}
+
+			switch frame.Type {
+			case localFrameStdin:
+				if _, err := shell.PTY.Write(frame.Payload); err != nil {
+					return err
+				}
+			case localFrameResize:
+				_ = handleTextFrame(shell.PTY, frame.Payload)
+			case localFrameClose:
+				return nil
+			}
+
+		case message := <-ptyCh:
+			if message.Err != nil {
+				status := waitForExitStatus(waitCh, 2*time.Second, 0)
+				return writeLocalShellExit(conn, status)
+			}
+
+			if err := writeLocalShellFrame(conn, localFrameStdout, message.Payload); err != nil {
+				return err
+			}
+
+		case status := <-waitCh:
+			return writeLocalShellExit(conn, status)
+		}
+	}
+}
+
+func writeLocalShellExit(conn net.Conn, status int) error {
+	payload, err := json.Marshal(exitFrame{Type: "exit", Status: status})
+	if err != nil {
+		return err
+	}
+
+	return writeLocalShellFrame(conn, localFrameExit, payload)
+}
+
+func readLocalShellFrames(conn net.Conn, ch chan<- localShellFrame) {
+	for {
+		frame, err := readLocalShellFrame(conn)
+		if err != nil {
+			ch <- localShellFrame{Err: err}
+			return
+		}
+		ch <- frame
+	}
+}
+
+func readLocalShellFrame(reader io.Reader) (localShellFrame, error) {
+	var header [5]byte
+	if _, err := io.ReadFull(reader, header[:]); err != nil {
+		return localShellFrame{}, err
+	}
+
+	length := binary.BigEndian.Uint32(header[1:])
+	if length > maxWebSocketMessageBytes {
+		return localShellFrame{}, fmt.Errorf("local shell frame too large: %d", length)
+	}
+
+	payload := make([]byte, length)
+	if length > 0 {
+		if _, err := io.ReadFull(reader, payload); err != nil {
+			return localShellFrame{}, err
+		}
+	}
+
+	return localShellFrame{Type: header[0], Payload: payload}, nil
+}
+
+func writeLocalShellFrame(writer io.Writer, frameType byte, payload []byte) error {
+	if len(payload) > maxWebSocketMessageBytes {
+		return fmt.Errorf("local shell frame too large: %d", len(payload))
+	}
+
+	var header [5]byte
+	header[0] = frameType
+	binary.BigEndian.PutUint32(header[1:], uint32(len(payload)))
+
+	if _, err := writer.Write(header[:]); err != nil {
+		return err
+	}
+	if len(payload) == 0 {
+		return nil
+	}
+
+	_, err := writer.Write(payload)
+	return err
 }
 
 func commandExitStatus(err error) int {

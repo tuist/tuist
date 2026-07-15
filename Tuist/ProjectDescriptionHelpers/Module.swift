@@ -362,7 +362,7 @@ public enum Module: String, CaseIterable {
              .tuistExtension, .config, .nooraTesting, .loggerTesting,
              .accountCommand, .organizationCommand, .projectCommand, .bundleCommand,
              .registryCommand, .buildCommand, .generateCommand,
-             .runCommand, .runnerCommand, .shareCommand, .inspectCommand, .android, .reapi:
+             .runCommand, .shareCommand, .inspectCommand, .android, .reapi:
             return nil
         default:
             return "\(rawValue)Tests"

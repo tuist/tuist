@@ -201,6 +201,9 @@ func TestBuild_LinuxShellSidecar(t *testing.T) {
 	if got := envValue(shell.Env, "TUIST_RUNNER_TOKEN_PATH"); got != "/var/run/secrets/tuist-runner/token" {
 		t.Errorf("shell TOKEN_PATH = %q, want token mount path", got)
 	}
+	if got := envValue(shell.Env, "TUIST_RUNNER_SHELL_SOCKET"); got != shellSocketPath {
+		t.Errorf("shell socket path = %q, want %q", got, shellSocketPath)
+	}
 	if got := envValue(shell.Env, "TUIST_RUNNER_SHELL_WORKDIR"); got != "/home/runner/actions-runner/_work" {
 		t.Errorf("shell workdir = %q, want shared runner workspace", got)
 	}
@@ -532,7 +535,7 @@ func TestBuild_LinuxCredentialSplit(t *testing.T) {
 	poller := initContainerByName(t, pod, "poller")
 
 	// Runner: no token mount, no dispatch env, JIT mounted read-only,
-	// run-job.sh as the entrypoint.
+	// and a local PTY server started before run-job.sh.
 	if hasVolumeMount(runner.VolumeMounts, corev1.VolumeMount{Name: "tuist-runner-token", MountPath: "/var/run/secrets/tuist-runner"}) {
 		t.Errorf("runner must NOT mount the dispatch token; got %+v", runner.VolumeMounts)
 	}
@@ -550,11 +553,18 @@ func TestBuild_LinuxCredentialSplit(t *testing.T) {
 			t.Errorf("runner JIT mount should be read-only; got %+v", m)
 		}
 	}
-	if got, want := runner.Command, []string{"/usr/local/bin/run-job.sh"}; len(got) != 1 || got[0] != want[0] {
+	if got, want := runner.Command, []string{
+		"sh",
+		"-c",
+		"TUIST_RUNNER_SHELL_PTY_SERVER=1 /usr/local/bin/runner-shell-agent & exec /usr/local/bin/run-job.sh",
+	}; len(got) != len(want) || got[0] != want[0] || got[1] != want[1] || got[2] != want[2] {
 		t.Errorf("runner Command = %v, want %v", got, want)
 	}
 	if envValue(runner.Env, "TUIST_RUNNER_JIT_PATH") != jitFilePath {
 		t.Errorf("runner TUIST_RUNNER_JIT_PATH = %q, want %q", envValue(runner.Env, "TUIST_RUNNER_JIT_PATH"), jitFilePath)
+	}
+	if got := envValue(runner.Env, "TUIST_RUNNER_SHELL_SOCKET"); got != shellSocketPath {
+		t.Errorf("runner socket path = %q, want %q", got, shellSocketPath)
 	}
 
 	// Poller: holds the token (read-only), can write the JIT, runs the

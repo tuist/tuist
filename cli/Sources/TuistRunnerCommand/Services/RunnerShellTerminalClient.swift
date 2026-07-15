@@ -21,6 +21,14 @@ enum RunnerShellTerminalClientError: LocalizedError, Equatable {
     }
 }
 
+public struct RunnerShellRemoteExitError: Error, Equatable {
+    public let status: Int32
+
+    public init(status: Int32) {
+        self.status = status
+    }
+}
+
 protocol RunnerShellTerminalClienting {
     func attach(to session: RunnerShellSession, authenticationToken: String) async throws
 }
@@ -65,9 +73,15 @@ struct RunnerShellTerminalClient: RunnerShellTerminalClienting {
                 case let .data(data):
                     FileHandle.standardOutput.write(data)
                 case let .string(text):
-                    if Self.shouldClose(for: text) {
+                    guard let exitStatus = Self.exitStatus(for: text) else {
+                        continue
+                    }
+
+                    if exitStatus == 0 {
                         return
                     }
+
+                    throw RunnerShellRemoteExitError(status: Int32(clamping: exitStatus))
                 @unknown default:
                     continue
                 }
@@ -89,14 +103,15 @@ struct RunnerShellTerminalClient: RunnerShellTerminalClienting {
         try await webSocketTask.send(.string(text))
     }
 
-    private static func shouldClose(for text: String) -> Bool {
+    static func exitStatus(for text: String) -> Int? {
         guard let data = text.data(using: .utf8),
               let message = try? JSONDecoder().decode(RunnerShellControlMessage.self, from: data)
         else {
-            return false
+            return nil
         }
 
-        return message.type == "exit"
+        guard message.type == "exit" else { return nil }
+        return message.status
     }
 }
 
@@ -124,6 +139,7 @@ private struct TerminalSize: Encodable {
 
 private struct RunnerShellControlMessage: Decodable {
     let type: String
+    let status: Int?
 }
 
 private final class TerminalRawMode {
@@ -157,7 +173,7 @@ private final class TerminalRawMode {
     }
 }
 
-private final class StandardInputForwarder {
+private struct StandardInputForwarder {
     private let webSocketTask: URLSessionWebSocketTask
 
     init(webSocketTask: URLSessionWebSocketTask) {
@@ -184,7 +200,7 @@ private final class StandardInputForwarder {
     }
 }
 
-private final class TerminalResizeObserver {
+private struct TerminalResizeObserver {
     private let source: DispatchSourceSignal
 
     init(onResize: @escaping @Sendable () -> Void) {

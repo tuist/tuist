@@ -34,7 +34,13 @@ defmodule TuistWeb.RunnerShellClientWebSock do
             "waiting"
           end
 
-        state = %{session: active_session, connection_id: connection_id, runner_disconnect_ref: nil}
+        state =
+          schedule_session_expiry_timeout(%{
+            session: active_session,
+            connection_id: connection_id,
+            runner_disconnect_ref: nil
+          })
+
         {:push, {:text, JSON.encode!(%{type: "status", status: status})}, state}
 
       {:error, reason} ->
@@ -100,6 +106,18 @@ defmodule TuistWeb.RunnerShellClientWebSock do
 
   def handle_info({:runner_shell, {:runner_disconnect_timeout, _ref}}, state), do: {:ok, state}
 
+  def handle_info({:runner_shell, :session_expired}, state) do
+    _ = InteractiveSessions.close(state.session, "expired")
+    :ok = InteractiveShellBroker.broadcast_to_runner(state.session.id, :client_disconnected)
+    Process.send_after(self(), {:runner_shell, :close_expired_session}, 0)
+
+    {:push, {:text, JSON.encode!(%{type: "exit", status: 255})}, state}
+  end
+
+  def handle_info({:runner_shell, :close_expired_session}, state) do
+    {:stop, :normal, state}
+  end
+
   def handle_info({:runner_shell, :close_closed_session}, state) do
     {:stop, :normal, state}
   end
@@ -156,5 +174,15 @@ defmodule TuistWeb.RunnerShellClientWebSock do
     state
     |> Map.delete(:runner_disconnect_ref)
     |> Map.delete(:runner_disconnect_timer_ref)
+  end
+
+  defp schedule_session_expiry_timeout(%{session: %{expires_at: expires_at}} = state) do
+    delay_ms =
+      expires_at
+      |> DateTime.diff(DateTime.utc_now(), :millisecond)
+      |> max(0)
+
+    timer_ref = Process.send_after(self(), {:runner_shell, :session_expired}, delay_ms)
+    Map.put(state, :session_expiry_timer_ref, timer_ref)
   end
 end

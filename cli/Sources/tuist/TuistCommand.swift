@@ -285,6 +285,11 @@ public struct TuistCommand: AsyncParsableCommand {
             exit(withError: error)
         }
 
+        if let remoteExit = error as? RunnerShellRemoteExitError {
+            await finishHARRecordingBeforeExit()
+            _exit(remoteExit.status)
+        }
+
         var errorHandled = false
 
         #if os(macOS)

@@ -22,7 +22,7 @@ defmodule TuistWeb.RunnerShellAgentWebSock do
         )
 
         :ok = InteractiveShellBroker.broadcast_to_client(ready_session.id, :runner_connected)
-        {:ok, %{session: ready_session}}
+        {:ok, %{session: ready_session, exit_reported?: false}}
 
       {:error, reason} ->
         Logger.warning("runners: shell runner failed to mark ready",
@@ -47,7 +47,7 @@ defmodule TuistWeb.RunnerShellAgentWebSock do
       {:ok, %{"type" => "exit", "status" => status}} ->
         _ = InteractiveSessions.close(session, "shell_exit")
         :ok = InteractiveShellBroker.broadcast_to_client(session.id, {:runner_exit, status})
-        {:stop, :normal, state}
+        {:stop, :normal, %{state | exit_reported?: true}}
 
       _ ->
         {:ok, state}
@@ -74,6 +74,8 @@ defmodule TuistWeb.RunnerShellAgentWebSock do
   def handle_info(_message, state), do: {:ok, state}
 
   @impl WebSock
+  def terminate(_reason, %{exit_reported?: true}), do: :ok
+
   def terminate(_reason, %{session: session}) do
     Logger.info("runners: shell runner disconnected",
       session_id: session.id,
