@@ -40,12 +40,15 @@ defmodule TuistWeb.AccountTokensLiveTest do
     assert html =~ "Tokens · #{account.name} · Tuist"
     assert html =~ "Account tokens"
     assert html =~ "Create scoped tokens for CI, automation, and more."
+    assert html =~ "Project access"
+    assert html =~ "All projects"
+    assert html =~ "Specific projects"
+    refute html =~ "Project handles"
     refute html =~ "Token values are shown once. Store the generated value before closing the dialog."
     assert html =~ "ci-main"
     assert html =~ account_token_hint(token)
     assert html =~ ~p"/#{account.name}/settings/tokens/#{token.id}"
     assert html =~ "ci"
-    refute html =~ "Project access"
     assert html =~ "Never"
   end
 
@@ -61,7 +64,10 @@ defmodule TuistWeb.AccountTokensLiveTest do
 
     assert html =~ "personal-ci"
     assert html =~ "project:builds:write"
-    refute html =~ "Project access"
+    assert html =~ "Project access"
+    assert html =~ "All projects"
+    assert html =~ "Specific projects"
+    refute html =~ "Project handles"
   end
 
   test "creates a token, reveals it once, and stores project restrictions", %{
@@ -72,12 +78,14 @@ defmodule TuistWeb.AccountTokensLiveTest do
 
     {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/tokens")
 
+    render_hook(lv, "select_project_access", %{"access" => "specific"})
+    render_hook(lv, "toggle_project_access_project", %{"project-id" => "#{project.id}"})
+
     html =
       render_submit(lv, "create_account_token", %{
         "account_token" => %{
           "name" => "ci-rotated",
-          "expires" => "30d",
-          "project_handles" => project.name
+          "expires" => "30d"
         }
       })
 
@@ -163,7 +171,7 @@ defmodule TuistWeb.AccountTokensLiveTest do
     render_hook(lv, "toggle_token_scope", %{"scope" => "project:builds:write"})
 
     render_submit(lv, "create_account_token", %{
-      "account_token" => %{"name" => "build-writer", "expires" => "", "project_handles" => ""}
+      "account_token" => %{"name" => "build-writer", "expires" => ""}
     })
 
     {:ok, token} = Accounts.get_account_token_by_name(account, "build-writer")
@@ -176,7 +184,7 @@ defmodule TuistWeb.AccountTokensLiveTest do
 
     html =
       render_submit(lv, "create_account_token", %{
-        "account_token" => %{"name" => "bad-expiry", "expires" => "soon", "project_handles" => ""}
+        "account_token" => %{"name" => "bad-expiry", "expires" => "soon"}
       })
 
     assert html =~ "Expiration must use a duration like 30d, 6m, or 1y."

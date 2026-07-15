@@ -134,8 +134,7 @@
     gap: var(--noora-spacing-6);
     padding: var(--noora-spacing-7);
 
-    & .noora-text-input > .noora-label,
-    & .noora-text-area > .noora-label {
+    & .noora-text-input > .noora-label {
       flex-direction: column;
       align-items: flex-start;
       gap: var(--noora-spacing-2);
@@ -183,6 +182,38 @@
     }
   }
 
+  & [data-part="project-access-selector"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-3);
+
+    & > [data-part="label"] {
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+    }
+
+    & > [data-part="sublabel"],
+    & > [data-part="empty-projects"] {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+    }
+
+    & > [data-part="project-access-mode"] {
+      align-self: flex-start;
+    }
+  }
+
+  & [data-part="project-checkbox-list"] {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--noora-spacing-3);
+    box-shadow: var(--noora-border-light-default);
+    border-radius: var(--noora-radius-6);
+    padding: var(--noora-spacing-3);
+    max-height: 220px;
+    overflow-y: auto;
+  }
+
   & [data-part="scope-list"] {
     display: flex;
     flex-direction: column;
@@ -220,7 +251,8 @@
     gap: var(--noora-spacing-3);
   }
 
-  & [data-part="scope-checkbox"] {
+  & [data-part="scope-checkbox"],
+  & [data-part="project-checkbox"] {
     display: flex;
     flex-direction: row;
     align-items: flex-start;
@@ -245,7 +277,8 @@
       font: var(--noora-font-weight-medium) var(--noora-font-body-small);
     }
 
-    & [data-part="scope"] {
+    & [data-part="scope"],
+    & [data-part="handle"] {
       overflow-wrap: anywhere;
       color: var(--noora-surface-label-secondary);
       font: var(--noora-font-weight-regular) var(--noora-font-body-xsmall);
@@ -271,7 +304,8 @@
       }
     }
 
-    & [data-part="scope-checkbox-list"] {
+    & [data-part="scope-checkbox-list"],
+    & [data-part="project-checkbox-list"] {
       grid-template-columns: 1fr;
     }
   }

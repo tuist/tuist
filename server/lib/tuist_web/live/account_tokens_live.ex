@@ -24,10 +24,14 @@ defmodule TuistWeb.AccountTokensLive do
     end
 
     account_tokens = list_account_tokens(selected_account)
+    available_projects = list_account_projects(selected_account)
 
     socket =
       socket
       |> assign(:account_tokens, account_tokens)
+      |> assign(:available_projects, available_projects)
+      |> assign(:project_access, "all")
+      |> assign(:selected_project_ids, [])
       |> assign(:selected_scopes, @default_scopes)
       |> assign(:new_account_token_plaintext, nil)
       |> assign(:new_account_token_form, new_account_token_form())
@@ -56,17 +60,41 @@ defmodule TuistWeb.AccountTokensLive do
 
   def handle_event("toggle_token_scope", _params, socket), do: {:noreply, socket}
 
+  def handle_event("select_project_access", %{"access" => access}, socket) when access in ["all", "specific"] do
+    socket =
+      socket
+      |> assign(:project_access, access)
+      |> maybe_clear_selected_project_ids(access)
+
+    {:noreply, socket}
+  end
+
+  def handle_event("select_project_access", _params, socket), do: {:noreply, socket}
+
+  def handle_event("toggle_project_access_project", %{"project-id" => project_id}, socket) do
+    with {project_id, ""} <- Integer.parse(project_id),
+         true <- Enum.any?(socket.assigns.available_projects, &(&1.id == project_id)) do
+      selected_project_ids =
+        if project_id in socket.assigns.selected_project_ids do
+          List.delete(socket.assigns.selected_project_ids, project_id)
+        else
+          [project_id | socket.assigns.selected_project_ids]
+        end
+
+      {:noreply, assign(socket, :selected_project_ids, Enum.sort(selected_project_ids))}
+    else
+      _ -> {:noreply, socket}
+    end
+  end
+
+  def handle_event("toggle_project_access_project", _params, socket), do: {:noreply, socket}
+
   def handle_event("create_account_token", %{"account_token" => params}, socket) do
     with :ok <- ensure_can_create(socket),
          {:ok, name} <- token_name(params),
          {:ok, expires_at} <- expires_at(params),
          {:ok, scopes} <- token_scopes(socket),
-         project_handles = project_handles(params),
-         {:ok, projects} <-
-           Projects.get_projects_by_handles_for_account(
-             socket.assigns.selected_account,
-             project_handles
-           ),
+         {:ok, project_access} <- token_project_access(socket),
          {:ok, {token_record, plaintext}} <-
            Accounts.create_account_token(%{
              account: socket.assigns.selected_account,
@@ -74,8 +102,8 @@ defmodule TuistWeb.AccountTokensLive do
              created_by_account: socket.assigns.current_user.account,
              name: name,
              expires_at: expires_at,
-             all_projects: project_handles == [],
-             project_ids: Enum.map(projects, & &1.id)
+             all_projects: project_access.all_projects,
+             project_ids: project_access.project_ids
            }) do
       account_tokens = list_account_tokens(socket.assigns.selected_account)
 
@@ -85,6 +113,8 @@ defmodule TuistWeb.AccountTokensLive do
        |> assign(:new_account_token_plaintext, plaintext)
        |> assign(:new_account_token_form, new_account_token_form())
        |> assign(:selected_scopes, @default_scopes)
+       |> assign(:project_access, "all")
+       |> assign(:selected_project_ids, [])
        |> assign(:flash_message, nil)
        |> put_flash(
          :info,
@@ -110,20 +140,20 @@ defmodule TuistWeb.AccountTokensLive do
            {"error", dgettext("dashboard_account", "Select at least one scope.")}
          )}
 
+      {:error, :missing_projects} ->
+        {:noreply,
+         assign(
+           socket,
+           :flash_message,
+           {"error", dgettext("dashboard_account", "Select at least one project or choose all projects.")}
+         )}
+
       {:error, :invalid_expiration} ->
         {:noreply,
          assign(
            socket,
            :flash_message,
            {"error", dgettext("dashboard_account", "Expiration must use a duration like 30d, 6m, or 1y.")}
-         )}
-
-      {:error, :not_found, handle} ->
-        {:noreply,
-         assign(
-           socket,
-           :flash_message,
-           {"error", dgettext("dashboard_account", "Project %{handle} was not found in this account.", handle: handle)}
          )}
 
       {:error, changeset} ->
@@ -137,6 +167,8 @@ defmodule TuistWeb.AccountTokensLive do
      |> assign(:new_account_token_plaintext, nil)
      |> assign(:new_account_token_form, new_account_token_form())
      |> assign(:selected_scopes, @default_scopes)
+     |> assign(:project_access, "all")
+     |> assign(:selected_project_ids, [])
      |> push_event("close-modal", %{id: "create-account-token-modal"})}
   end
 
@@ -145,7 +177,9 @@ defmodule TuistWeb.AccountTokensLive do
      socket
      |> assign(:new_account_token_plaintext, nil)
      |> assign(:new_account_token_form, new_account_token_form())
-     |> assign(:selected_scopes, @default_scopes)}
+     |> assign(:selected_scopes, @default_scopes)
+     |> assign(:project_access, "all")
+     |> assign(:selected_project_ids, [])}
   end
 
   def handle_event("account_token_modal_open_change", _params, socket), do: {:noreply, socket}
@@ -162,6 +196,19 @@ defmodule TuistWeb.AccountTokensLive do
     tokens
   end
 
+  defp list_account_projects(account) do
+    {projects, _meta} =
+      Projects.list_projects(%{
+        filters: [%{field: :account_id, op: :==, value: account.id}],
+        order_by: [:name],
+        order_directions: [:asc],
+        page: 1,
+        page_size: 500
+      })
+
+    projects
+  end
+
   defp ensure_can_create(%{assigns: %{can_create_tokens?: true}}), do: :ok
   defp ensure_can_create(_socket), do: {:error, :forbidden}
 
@@ -175,14 +222,20 @@ defmodule TuistWeb.AccountTokensLive do
   defp token_scopes(%{assigns: %{selected_scopes: []}}), do: {:error, :missing_scopes}
   defp token_scopes(%{assigns: %{selected_scopes: scopes}}), do: {:ok, scopes}
 
-  defp project_handles(params) do
-    params
-    |> Map.get("project_handles", "")
-    |> String.split([",", "\n", " "], trim: true)
-    |> Enum.map(&String.trim/1)
-    |> Enum.reject(&(&1 == ""))
-    |> Enum.uniq()
+  defp token_project_access(%{assigns: %{project_access: "all"}}) do
+    {:ok, %{all_projects: true, project_ids: []}}
   end
+
+  defp token_project_access(%{assigns: %{project_access: "specific", selected_project_ids: []}}) do
+    {:error, :missing_projects}
+  end
+
+  defp token_project_access(%{assigns: %{project_access: "specific", selected_project_ids: project_ids}}) do
+    {:ok, %{all_projects: false, project_ids: project_ids}}
+  end
+
+  defp maybe_clear_selected_project_ids(socket, "all"), do: assign(socket, :selected_project_ids, [])
+  defp maybe_clear_selected_project_ids(socket, _access), do: socket
 
   defp expires_at(params) do
     params
@@ -214,7 +267,7 @@ defmodule TuistWeb.AccountTokensLive do
   defp shift_expiration(datetime, "y", years), do: Timex.shift(datetime, years: years)
 
   defp new_account_token_form do
-    to_form(%{"name" => "", "expires" => "", "project_handles" => ""}, as: "account_token")
+    to_form(%{"name" => "", "expires" => ""}, as: "account_token")
   end
 
   defp format_changeset_errors(changeset) do

@@ -116,20 +116,56 @@
                     }
                     placeholder="30d"
                   />
-                  <.text_area
-                    field={@new_account_token_form[:project_handles]}
-                    label={dgettext("dashboard_account", "Project handles")}
-                    sublabel={
-                      dgettext(
+                  <div data-part="project-access-selector">
+                    <span data-part="label">
+                      {dgettext("dashboard_account", "Project access")}
+                    </span>
+                    <span data-part="sublabel">
+                      {dgettext(
                         "dashboard_account",
-                        "Optional. Separate project handles with commas, spaces, or new lines. Leave empty for all projects in this account."
-                      )
-                    }
-                    placeholder="ios-app\nmacos-app"
-                    rows={3}
-                    max_length={500}
-                    resize="vertical"
-                  />
+                        "Choose whether this token can access every project or only selected projects."
+                      )}
+                    </span>
+                    <.button_group size="medium" data-part="project-access-mode">
+                      <.button_group_item
+                        type="button"
+                        label={dgettext("dashboard_account", "All projects")}
+                        phx-click="select_project_access"
+                        phx-value-access="all"
+                        data-selected={@project_access == "all"}
+                      />
+                      <.button_group_item
+                        type="button"
+                        label={dgettext("dashboard_account", "Specific projects")}
+                        phx-click="select_project_access"
+                        phx-value-access="specific"
+                        data-selected={@project_access == "specific"}
+                      />
+                    </.button_group>
+
+                    <span :if={Enum.empty?(@available_projects)} data-part="empty-projects">
+                      {dgettext(
+                        "dashboard_account",
+                        "Create a project first to restrict this token to specific projects."
+                      )}
+                    </span>
+
+                    <div :if={@project_access == "specific"} data-part="project-checkbox-list">
+                      <label
+                        :for={project <- @available_projects}
+                        id={"account-token-project-#{project.id}"}
+                        data-part="project-checkbox"
+                        phx-click="toggle_project_access_project"
+                        phx-value-project-id={project.id}
+                      >
+                        <.checkbox_control checked={project.id in @selected_project_ids} />
+                        <div data-part="body">
+                          <span data-part="label">{project.name}</span>
+                          <code data-part="handle">{@selected_account.name}/{project.name}</code>
+                        </div>
+                      </label>
+                    </div>
+                  </div>
                   <div data-part="scope-list">
                     <span data-part="label">
                       {dgettext("dashboard_account", "Scopes")}
