@@ -11,9 +11,7 @@ interface Env {
 const HEALTH_CHECK_TTL = 120;
 const HEALTH_CHECK_TIMEOUT = 5000;
 const EARTH_RADIUS_KM = 6371;
-const PUBLIC_REGISTRY_HOST = "registry.tuist.dev";
-// Cloudflare keeps this alias out of the request host and uses it only to resolve the ingress address.
-const ORIGIN_RESOLVE_HOST = "registry-origin.tuist.dev";
+const ORIGIN_HOST = "registry-origin.tuist.dev";
 
 const CACHE_ORIGINS: CacheOrigin[] = [
   { host: "cache-eu-central.tuist.dev",   lat:  50.11, lon:    8.68 }, // Frankfurt
@@ -69,7 +67,7 @@ function rewriteCanonicalPathForCache(url: URL): void {
 async function proxyToOrigin(
   request: Request,
   host: string,
-  options: { resolveOverride?: string; rewriteCanonicalPath?: boolean } = {},
+  options: { rewriteCanonicalPath?: boolean } = {},
 ): Promise<Response | null> {
   try {
     const url = new URL(request.url);
@@ -84,14 +82,11 @@ async function proxyToOrigin(
     });
     originRequest.headers.set("Host", host);
 
-    const response = await fetch(
-      originRequest,
-      options.resolveOverride ? { cf: { resolveOverride: options.resolveOverride } } : {},
-    );
+    const response = await fetch(originRequest);
     if (response.status >= 500) return null;
 
     const proxied = new Response(response.body, response);
-    proxied.headers.set("X-Served-By", options.resolveOverride ?? host);
+    proxied.headers.set("X-Served-By", host);
     return proxied;
   } catch {
     return null;
@@ -99,10 +94,8 @@ async function proxyToOrigin(
 }
 
 async function handleRequest(request: Request, env: Env): Promise<Response> {
-  if (await isOriginHealthy(ORIGIN_RESOLVE_HOST, env)) {
-    const response = await proxyToOrigin(request, PUBLIC_REGISTRY_HOST, {
-      resolveOverride: ORIGIN_RESOLVE_HOST,
-    });
+  if (await isOriginHealthy(ORIGIN_HOST, env)) {
+    const response = await proxyToOrigin(request, ORIGIN_HOST);
     if (response) return response;
   }
 
@@ -120,26 +113,34 @@ async function checkOrigin(
   host: string,
   healthKey: string,
   env: Env,
-  resolveOverride?: string,
 ): Promise<void> {
   try {
-    const response = await fetch(`https://${host}/up`, {
+    const healthRequest = new Request(`https://${host}/up`, {
       method: "GET",
       headers: { "User-Agent": "registry-router-healthcheck" },
       signal: AbortSignal.timeout(HEALTH_CHECK_TIMEOUT),
-      ...(resolveOverride ? { cf: { resolveOverride } } : {}),
     });
+    const response = await fetch(healthRequest);
+    await response.body?.cancel();
+
+    if (!response.ok) {
+      console.error(
+        `Health check returned ${response.status} ${response.statusText} for ${healthKey}`,
+      );
+    }
+
     await env.HEALTH.put(healthKey, String(response.ok), {
       expirationTtl: HEALTH_CHECK_TTL,
     });
-  } catch {
+  } catch (error) {
+    console.error(`Health check failed for ${healthKey}`, error);
     await env.HEALTH.put(healthKey, "false", { expirationTtl: HEALTH_CHECK_TTL });
   }
 }
 
 async function handleScheduled(env: Env): Promise<void> {
   const checks = [
-    checkOrigin(PUBLIC_REGISTRY_HOST, ORIGIN_RESOLVE_HOST, env, ORIGIN_RESOLVE_HOST),
+    checkOrigin(ORIGIN_HOST, ORIGIN_HOST, env),
     ...CACHE_ORIGINS.map(({ host }) => checkOrigin(host, host, env)),
   ];
 
