@@ -59,6 +59,27 @@ defmodule TuistWeb.AccountTokensLive do
 
   def handle_event("toggle_token_scope", _params, socket), do: {:noreply, socket}
 
+  def handle_event("toggle_token_scope_group", %{"group" => group_key}, socket) do
+    case Enum.find(socket.assigns.scope_options, &(&1.key == group_key)) do
+      %{key: key} = group when key in ["account", "project"] ->
+        group_scopes = scope_group_scopes(group)
+
+        selected_scopes =
+          if all_scope_group_scopes_selected?(group, socket.assigns.selected_scopes) do
+            socket.assigns.selected_scopes -- group_scopes
+          else
+            Enum.uniq(socket.assigns.selected_scopes ++ group_scopes)
+          end
+
+        {:noreply, assign(socket, :selected_scopes, Enum.sort(selected_scopes))}
+
+      _ ->
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event("toggle_token_scope_group", _params, socket), do: {:noreply, socket}
+
   def handle_event("toggle_all_project_access_projects", _params, socket) do
     selected_project_ids =
       if all_project_access_projects_selected?(socket.assigns.available_projects, socket.assigns.selected_project_ids) do
@@ -246,6 +267,31 @@ defmodule TuistWeb.AccountTokensLive do
   end
 
   defp project_ids(projects), do: Enum.map(projects, & &1.id)
+
+  defp selectable_scope_group?(%{key: key}), do: key in ["account", "project"]
+
+  defp all_scope_group_scopes_selected?(group, selected_scopes) do
+    group
+    |> scope_group_scopes()
+    |> Enum.all?(&(&1 in selected_scopes))
+  end
+
+  defp scope_group_scopes_partially_selected?(group, selected_scopes) do
+    group_scopes = scope_group_scopes(group)
+    selected_count = Enum.count(group_scopes, &(&1 in selected_scopes))
+
+    selected_count > 0 and selected_count < length(group_scopes)
+  end
+
+  defp select_all_scope_group_label(%{key: "account"}) do
+    dgettext("dashboard_account", "Select all account scopes")
+  end
+
+  defp select_all_scope_group_label(%{key: "project"}) do
+    dgettext("dashboard_account", "Select all project scopes")
+  end
+
+  defp scope_group_scopes(group), do: Enum.map(group.scopes, & &1.scope)
 
   defp expires_at(params) do
     params

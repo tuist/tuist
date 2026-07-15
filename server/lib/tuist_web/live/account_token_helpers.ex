@@ -10,6 +10,7 @@ defmodule TuistWeb.AccountTokenHelpers do
   def scope_options do
     [
       %{
+        key: "presets",
         label: dgettext("dashboard_account", "Presets"),
         scopes: [
           %{
@@ -20,19 +21,11 @@ defmodule TuistWeb.AccountTokenHelpers do
                 "dashboard_account",
                 "Cache writes, previews, bundles, tests, builds, and runs for CI jobs."
               )
-          },
-          %{
-            scope: "mcp",
-            label: dgettext("dashboard_account", "MCP"),
-            description:
-              dgettext(
-                "dashboard_account",
-                "Read project metadata, cache, previews, bundles, tests, builds, and runs."
-              )
           }
         ]
       },
       %{
+        key: "account",
         label: dgettext("dashboard_account", "Account"),
         scopes: [
           %{
@@ -73,6 +66,7 @@ defmodule TuistWeb.AccountTokenHelpers do
         ]
       },
       %{
+        key: "project",
         label: dgettext("dashboard_account", "Project"),
         scopes: [
           %{

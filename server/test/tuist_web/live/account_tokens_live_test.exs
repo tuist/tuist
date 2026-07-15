@@ -44,8 +44,12 @@ defmodule TuistWeb.AccountTokensLiveTest do
     assert html =~ "Create scoped tokens for CI, automation, and more."
     assert html =~ "Project access"
     assert html =~ "Select all projects"
+    assert html =~ "Select all account scopes"
+    assert html =~ "Select all project scopes"
     refute html =~ "Project handles"
     refute html =~ "Specific projects"
+    refute html =~ "MCP"
+    refute html =~ "#{account.name}/ios-app"
     refute html =~ "Token values are shown once. Store the generated value before closing the dialog."
     assert html =~ "ci-main"
     assert html =~ account_token_hint(token)
@@ -70,8 +74,11 @@ defmodule TuistWeb.AccountTokensLiveTest do
     assert html =~ "project:builds:write"
     assert html =~ "Project access"
     assert html =~ "Select all projects"
+    assert html =~ "Select all account scopes"
+    assert html =~ "Select all project scopes"
     refute html =~ "Project handles"
     refute html =~ "Specific projects"
+    refute html =~ "MCP"
   end
 
   test "creates a token, reveals it once, and stores project restrictions", %{
@@ -181,6 +188,49 @@ defmodule TuistWeb.AccountTokensLiveTest do
 
     {:ok, token} = Accounts.get_account_token_by_name(account, "build-writer")
     assert token.scopes == ["project:builds:write"]
+    assert token.all_projects == true
+  end
+
+  test "creates a token with all account and project scopes selected from group toggles", %{
+    conn: conn,
+    account: account
+  } do
+    {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/tokens")
+
+    render_hook(lv, "toggle_token_scope", %{"scope" => "ci"})
+    render_hook(lv, "toggle_token_scope_group", %{"group" => "account"})
+    render_hook(lv, "toggle_token_scope_group", %{"group" => "project"})
+
+    render_submit(lv, "create_account_token", %{
+      "account_token" => %{"name" => "full-access", "expires" => ""}
+    })
+
+    {:ok, token} = Accounts.get_account_token_by_name(account, "full-access")
+
+    assert token.scopes == [
+             "account:cache:read",
+             "account:cache:write",
+             "account:members:read",
+             "account:members:write",
+             "account:registry:read",
+             "account:registry:write",
+             "account:scim:write",
+             "project:admin:read",
+             "project:admin:write",
+             "project:builds:read",
+             "project:builds:write",
+             "project:bundles:read",
+             "project:bundles:write",
+             "project:cache:read",
+             "project:cache:write",
+             "project:previews:read",
+             "project:previews:write",
+             "project:runs:read",
+             "project:runs:write",
+             "project:tests:read",
+             "project:tests:write"
+           ]
+
     assert token.all_projects == true
   end
 

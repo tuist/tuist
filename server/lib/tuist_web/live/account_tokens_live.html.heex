@@ -53,8 +53,6 @@
           </:trigger>
 
           <div data-part="modal-content-wrapper">
-            <.line_divider />
-
             <%= if @new_account_token_plaintext do %>
               <div data-part="modal-body">
                 <div data-part="modal-message">
@@ -174,7 +172,6 @@
                         <.checkbox_control checked={project.id in @selected_project_ids} />
                         <div data-part="body">
                           <span data-part="label">{project.name}</span>
-                          <code data-part="handle">{@selected_account.name}/{project.name}</code>
                         </div>
                       </label>
                     </div>
@@ -192,6 +189,26 @@
                     <div :for={group <- @scope_options} data-part="scope-group">
                       <h3 data-part="scope-group-label">{group.label}</h3>
                       <div data-part="scope-checkbox-list">
+                        <label
+                          :if={selectable_scope_group?(group)}
+                          id={"account-token-scope-group-#{group.key}"}
+                          data-part="scope-checkbox"
+                          data-role="select-all"
+                          phx-click="toggle_token_scope_group"
+                          phx-value-group={group.key}
+                        >
+                          <.checkbox_control
+                            checked={all_scope_group_scopes_selected?(group, @selected_scopes)}
+                            indeterminate={
+                              scope_group_scopes_partially_selected?(group, @selected_scopes)
+                            }
+                          />
+                          <div data-part="body">
+                            <span data-part="label">
+                              {select_all_scope_group_label(group)}
+                            </span>
+                          </div>
+                        </label>
                         <label
                           :for={scope_option <- group.scopes}
                           id={"account-token-scope-#{String.replace(scope_option.scope, ":", "-")}"}
@@ -212,8 +229,6 @@
                 </div>
               </.form>
             <% end %>
-
-            <.line_divider />
           </div>
 
           <:footer>

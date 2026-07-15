@@ -109,6 +109,14 @@
     & > #create-account-token-modal-footer {
       flex-shrink: 0;
     }
+
+    & > [data-part="header"] {
+      box-shadow: inset 0 -1px 0 0 var(--noora-surface-border-primary);
+    }
+
+    & > #create-account-token-modal-footer [data-part="footer"] {
+      box-shadow: inset 0 1px 0 0 var(--noora-surface-border-primary);
+    }
   }
 
   & #create-account-token-modal-body {
@@ -117,15 +125,6 @@
     overflow-y: auto;
     padding: 0;
     min-height: 0;
-
-    & [data-part="modal-content-wrapper"] {
-      display: flex;
-      flex-direction: column;
-
-      & > .noora-line-divider {
-        flex-shrink: 0;
-      }
-    }
   }
 
   & [data-part="modal-body"] {
