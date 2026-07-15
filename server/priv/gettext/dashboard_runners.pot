@@ -52,7 +52,7 @@ msgstr ""
 #: lib/tuist_web/live/runner_jobs_live.html.heex:616
 #: lib/tuist_web/live/runner_workflow_live.ex:138
 #: lib/tuist_web/live/runner_workflow_live.html.heex:285
-#: lib/tuist_web/live/runner_workflow_run_live.html.heex:100
+#: lib/tuist_web/live/runner_workflow_run_live.html.heex:102
 #: lib/tuist_web/live/runners_live.html.heex:409
 #: lib/tuist_web/live/runners_live.html.heex:574
 #, elixir-autogen, elixir-format
@@ -62,6 +62,7 @@ msgstr ""
 #: lib/tuist_web/live/runner_jobs_live.html.heex:89
 #: lib/tuist_web/live/runner_profiles_live.html.heex:193
 #: lib/tuist_web/live/runner_profiles_live.html.heex:327
+#: lib/tuist_web/live/runner_workflow_run_live.html.heex:56
 #: lib/tuist_web/live/runner_workflows_live.html.heex:89
 #: lib/tuist_web/live/runners_live.html.heex:89
 #, elixir-autogen, elixir-format
@@ -90,7 +91,7 @@ msgstr ""
 
 #: lib/tuist_web/live/runner_jobs_live.html.heex:627
 #: lib/tuist_web/live/runner_workflow_live.html.heex:296
-#: lib/tuist_web/live/runner_workflow_run_live.html.heex:110
+#: lib/tuist_web/live/runner_workflow_run_live.html.heex:112
 #, elixir-autogen, elixir-format
 msgid "Commit"
 msgstr ""
@@ -121,8 +122,8 @@ msgstr ""
 #: lib/tuist_web/live/runner_jobs_live.html.heex:639
 #: lib/tuist_web/live/runner_workflow_live.ex:218
 #: lib/tuist_web/live/runner_workflow_live.html.heex:302
-#: lib/tuist_web/live/runner_workflow_run_live.html.heex:81
-#: lib/tuist_web/live/runner_workflow_run_live.html.heex:158
+#: lib/tuist_web/live/runner_workflow_run_live.html.heex:83
+#: lib/tuist_web/live/runner_workflow_run_live.html.heex:160
 #: lib/tuist_web/live/runners_live.html.heex:420
 #: lib/tuist_web/live/runners_live.html.heex:585
 #, elixir-autogen, elixir-format
@@ -169,7 +170,7 @@ msgstr ""
 #: lib/tuist_web/live/runner_jobs_live.html.heex:535
 #: lib/tuist_web/live/runner_jobs_live.html.heex:578
 #: lib/tuist_web/live/runner_workflow_live.ex:217
-#: lib/tuist_web/live/runner_workflow_run_live.html.heex:148
+#: lib/tuist_web/live/runner_workflow_run_live.html.heex:150
 #: lib/tuist_web/live/runners_live.html.heex:518
 #: lib/tuist_web/live/runners_live.html.heex:544
 #, elixir-autogen, elixir-format
@@ -182,8 +183,8 @@ msgstr ""
 #: lib/tuist_web/live/runner_jobs_live.html.heex:465
 #: lib/tuist_web/live/runner_workflow_live.html.heex:179
 #: lib/tuist_web/live/runner_workflow_live.html.heex:299
-#: lib/tuist_web/live/runner_workflow_run_live.html.heex:94
-#: lib/tuist_web/live/runner_workflow_run_live.html.heex:133
+#: lib/tuist_web/live/runner_workflow_run_live.html.heex:96
+#: lib/tuist_web/live/runner_workflow_run_live.html.heex:135
 #: lib/tuist_web/live/runner_workflows_live.ex:271
 #: lib/tuist_web/live/runner_workflows_live.html.heex:319
 #: lib/tuist_web/live/runner_workflows_live.html.heex:375
@@ -294,7 +295,7 @@ msgstr ""
 #: lib/tuist/runners/analytics.ex:945
 #: lib/tuist_web/live/runner_job_live.html.heex:162
 #: lib/tuist_web/live/runner_jobs_live.html.heex:597
-#: lib/tuist_web/live/runner_workflow_run_live.html.heex:116
+#: lib/tuist_web/live/runner_workflow_run_live.html.heex:118
 #: lib/tuist_web/live/runner_workflows_live.html.heex:365
 #: lib/tuist_web/live/runners_live.html.heex:400
 #: lib/tuist_web/live/runners_live.html.heex:555
@@ -337,8 +338,8 @@ msgstr ""
 #: lib/tuist_web/live/runner_jobs_live.html.heex:415
 #: lib/tuist_web/live/runner_jobs_live.html.heex:605
 #: lib/tuist_web/live/runner_workflow_live.html.heex:281
-#: lib/tuist_web/live/runner_workflow_run_live.html.heex:77
-#: lib/tuist_web/live/runner_workflow_run_live.html.heex:154
+#: lib/tuist_web/live/runner_workflow_run_live.html.heex:79
+#: lib/tuist_web/live/runner_workflow_run_live.html.heex:156
 #: lib/tuist_web/live/runners_live.html.heex:403
 #: lib/tuist_web/live/runners_live.html.heex:563
 #, elixir-autogen, elixir-format
@@ -772,7 +773,7 @@ msgstr ""
 #: lib/tuist_web/live/runner_jobs_live.html.heex:630
 #: lib/tuist_web/live/runner_profiles_live.html.heex:76
 #: lib/tuist_web/live/runner_profiles_live.html.heex:221
-#: lib/tuist_web/live/runner_workflow_run_live.html.heex:151
+#: lib/tuist_web/live/runner_workflow_run_live.html.heex:153
 #, elixir-autogen, elixir-format
 msgid "Platform"
 msgstr ""
@@ -802,7 +803,7 @@ msgid "Enqueued at"
 msgstr ""
 
 #: lib/tuist_web/live/runner_job_live.html.heex:45
-#: lib/tuist_web/live/runner_workflow_run_live.html.heex:61
+#: lib/tuist_web/live/runner_workflow_run_live.html.heex:48
 #, elixir-autogen, elixir-format
 msgid "GitHub"
 msgstr ""
@@ -811,8 +812,8 @@ msgstr ""
 #: lib/tuist_web/live/runner_job_live.html.heex:174
 #: lib/tuist_web/live/runner_job_live.html.heex:180
 #: lib/tuist_web/live/runner_job_live.html.heex:192
-#: lib/tuist_web/live/runner_workflow_run_live.html.heex:104
-#: lib/tuist_web/live/runner_workflow_run_live.html.heex:119
+#: lib/tuist_web/live/runner_workflow_run_live.html.heex:106
+#: lib/tuist_web/live/runner_workflow_run_live.html.heex:121
 #, elixir-autogen, elixir-format
 msgid "None"
 msgstr ""
@@ -1315,7 +1316,7 @@ msgstr ""
 msgid "Step"
 msgstr ""
 
-#: lib/tuist_web/live/runner_workflow_run_live.html.heex:49
+#: lib/tuist_web/live/runner_workflow_run_live.html.heex:59
 #, elixir-autogen, elixir-format
 msgid "Cancel this workflow run on GitHub? This cancels all of its jobs."
 msgstr ""
@@ -1355,23 +1356,18 @@ msgstr ""
 msgid "No runs yet for this workflow"
 msgstr ""
 
-#: lib/tuist_web/live/runner_workflow_run_live.html.heex:46
-#, elixir-autogen, elixir-format
-msgid "Cancel run"
-msgstr ""
-
 #: lib/tuist_web/live/runner_job_live.html.heex:196
-#: lib/tuist_web/live/runner_workflow_run_live.html.heex:125
+#: lib/tuist_web/live/runner_workflow_run_live.html.heex:127
 #, elixir-autogen, elixir-format
 msgid "Attempt"
 msgstr ""
 
-#: lib/tuist_web/live/runner_workflow_run_live.html.heex:69
+#: lib/tuist_web/live/runner_workflow_run_live.html.heex:71
 #, elixir-autogen, elixir-format
 msgid "Run Details"
 msgstr ""
 
-#: lib/tuist_web/live/runner_workflow_run_live.html.heex:88
+#: lib/tuist_web/live/runner_workflow_run_live.html.heex:90
 #, elixir-autogen, elixir-format
 msgid "Started"
 msgstr ""

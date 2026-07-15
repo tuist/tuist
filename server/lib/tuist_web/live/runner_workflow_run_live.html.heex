@@ -40,19 +40,6 @@
     </div>
     <div data-part="actions">
       <.button
-        :if={@can_cancel_runs and TuistWeb.RunnerWorkflowRunLive.run_cancellable?(@run_status)}
-        variant="destructive"
-        size="medium"
-        label={dgettext("dashboard_runners", "Cancel run")}
-        phx-click="cancel_run"
-        data-confirm={
-          dgettext(
-            "dashboard_runners",
-            "Cancel this workflow run on GitHub? This cancels all of its jobs."
-          )
-        }
-      />
-      <.button
         href={TuistWeb.RunnerWorkflowRunLive.github_run_url(@repository, @workflow_run_id)}
         target="_blank"
         rel="noopener noreferrer"
@@ -61,6 +48,21 @@
         label={dgettext("dashboard_runners", "GitHub")}
       >
         <:icon_left><.brand_github /></:icon_left>
+      </.button>
+      <.button
+        :if={@can_cancel_runs and TuistWeb.RunnerWorkflowRunLive.run_cancellable?(@run_status)}
+        variant="destructive"
+        size="medium"
+        label={dgettext("dashboard_runners", "Cancel")}
+        phx-click="cancel_run"
+        data-confirm={
+          dgettext(
+            "dashboard_runners",
+            "Cancel this workflow run on GitHub? This cancels all of its jobs."
+          )
+        }
+      >
+        <:icon_left><.cancel /></:icon_left>
       </.button>
     </div>
   </div>
