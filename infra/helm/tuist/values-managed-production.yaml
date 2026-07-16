@@ -544,8 +544,17 @@ macosFleet:
   # a single host keeps hot once affinity spreads them across the fleet.
   # Kept well under the 512 GB disk, which is dominated by the ~85 GB
   # golden VM image(s) (two during a digest roll) + per-job DerivedData.
+  # DISABLED (2026-07-16): rolling this to the prod fleet broke every
+  # macOS CI job — the guest mounts the virtio-fs cache share and exports
+  # TUIST_XDG_CACHE_HOME at it, but `mkdir -p $CACHE_MOUNT/tuist` in
+  # dispatch-poll.sh fails silently (`2>/dev/null || true`) while the env
+  # var is exported regardless, so the CLI dies with "Couldn't create the
+  # directory at /Volumes/My Shared Files/cache/tuist/... because its
+  # parent directory doesn't exists". Re-enable only once a real CI job
+  # is verified green on a cache-volume host (host-side provisioning
+  # checks are NOT sufficient — that gap is what let this reach prod).
   runnerCacheVolume:
-    gib: 80
+    gib: 0
   # Production tailnet — alloy-metrics scrapes PromEx (xcresult VM)
   # + node_exporter (host) over the tailnet. The pre-auth key lives
   # in the production 1Password vault under TAILSCALE/auth-key.

@@ -295,8 +295,20 @@ func (m *VolumeManager) Materialize(att VolumeAttachment, account string) (warm 
 	_ = os.RemoveAll(dest)
 	if err := os.Rename(tmp, dest); err != nil {
 		_ = os.RemoveAll(tmp)
+		// The guest has ALREADY exported TUIST_XDG_CACHE_HOME at this branch and
+		// the CLI aborts the whole job if its cache root is missing — so a failed
+		// swap must never leave the branch without one. Restore an empty, writable
+		// root: the job then runs cold (costing warmth) instead of dying.
+		_ = os.MkdirAll(dest, 0o777)
+		_ = os.Chmod(dest, 0o777)
 		return false, fmt.Errorf("swap materialized cache into place: %w", err)
 	}
+	// The cloned tree carries the MASTER's ownership/mode, not the branch's, so
+	// the guest's unprivileged runner user may be unable to write into the very
+	// root it was handed (it must create Plugins/, Binaries/, ... under it).
+	// AllocateBranch relaxes the branch root for exactly this reason; do the same
+	// for the materialized root so a warm job can write where a cold one could.
+	_ = os.Chmod(dest, 0o777)
 	// Mark the master used so LRU tracks materialization, not just promotion —
 	// an account whose jobs keep landing here stays hot.
 	_ = os.Chtimes(m.masterDir(account, att.VolumeName), m.now(), m.now())

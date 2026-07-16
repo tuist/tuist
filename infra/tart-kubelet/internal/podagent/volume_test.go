@@ -3,6 +3,7 @@ package podagent
 import (
 	"crypto/sha1"
 	"encoding/hex"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -20,9 +21,15 @@ type fakeBackend struct {
 	totalBytes uint64
 	perMaster  uint64
 	root       string
+	// cloneErr, when set, fails every clone — used to prove a failed
+	// materialize still leaves the guest a usable cache root.
+	cloneErr error
 }
 
 func (f *fakeBackend) cloneTree(src, dst string) error {
+	if f.cloneErr != nil {
+		return f.cloneErr
+	}
 	if _, err := os.Stat(dst); err == nil {
 		return os.ErrExist
 	}
@@ -436,6 +443,69 @@ func TestSweepBranchesRetainsReattached(t *testing.T) {
 	}
 	if m.liveBranches != 1 {
 		t.Fatalf("liveBranches after sweep = %d; want 1 (only the retained branch)", m.liveBranches)
+	}
+}
+
+// A warm materialize must hand the guest a cache root it can actually WRITE.
+// The clone carries the MASTER's ownership/mode, not the branch's 0777, so
+// without an explicit relax the guest's unprivileged runner user can't create
+// Plugins/ Binaries/ ... under it — and the CLI aborts the whole job (this is
+// what broke every macOS CI job once masters started existing; a cold job,
+// which creates the root itself, was unaffected, which is why it surfaced late).
+func TestMaterializeLeavesCacheRootGuestWritable(t *testing.T) {
+	m, _ := newTestManager(t, 100)
+	att := mustAllocate(t, m, "vm-warm")
+
+	// A master as Finalize stages it: restrictive mode, not guest-writable.
+	master := filepath.Join(m.masterDir("42", ReservedTuistCacheVolume), cacheHomeSubdir)
+	if err := os.MkdirAll(filepath.Join(master, "Binaries"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(master, 0o700); err != nil {
+		t.Fatal(err)
+	}
+
+	warm, err := m.Materialize(att, "42")
+	if err != nil || !warm {
+		t.Fatalf("Materialize = warm %v, err %v; want warm", warm, err)
+	}
+
+	dest := filepath.Join(att.BranchPath, cacheHomeSubdir)
+	fi, err := os.Stat(dest)
+	if err != nil {
+		t.Fatalf("materialized cache root missing: %v", err)
+	}
+	if fi.Mode().Perm() != 0o777 {
+		t.Errorf("materialized cache root mode = %#o, want 0777 so the guest can write it", fi.Mode().Perm())
+	}
+}
+
+// A failed swap must never strand the branch WITHOUT a cache root: the guest has
+// already exported TUIST_XDG_CACHE_HOME at it, and a missing root kills the job
+// rather than costing it warmth.
+func TestMaterializeFailureStillLeavesACacheRoot(t *testing.T) {
+	m, be := newTestManager(t, 100)
+	att := mustAllocate(t, m, "vm-fail")
+
+	// The guest creates the cache root at boot and exports TUIST_XDG_CACHE_HOME
+	// at it before the host ever materializes. A failed materialize must not
+	// destroy it — the clone must fail BEFORE the destructive swap, and the swap
+	// path must restore a root if it breaks partway.
+	dest := filepath.Join(att.BranchPath, cacheHomeSubdir)
+	if err := os.MkdirAll(dest, 0o777); err != nil {
+		t.Fatal(err)
+	}
+	master := filepath.Join(m.masterDir("42", ReservedTuistCacheVolume), cacheHomeSubdir)
+	if err := os.MkdirAll(master, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	be.cloneErr = errors.New("clonefile boom")
+
+	if _, err := m.Materialize(att, "42"); err == nil {
+		t.Fatal("expected Materialize to fail")
+	}
+	if _, err := os.Stat(dest); err != nil {
+		t.Fatalf("failed materialize left the branch with no cache root (the job would die, not run cold): %v", err)
 	}
 }
 
