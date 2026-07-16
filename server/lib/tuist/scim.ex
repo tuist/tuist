@@ -53,7 +53,6 @@ defmodule Tuist.SCIM do
     case %{
            account_id: account.id,
            encrypted_token_hash: encrypted,
-           token_last_four: AccountToken.last_four(raw),
            scopes: [AccountToken.scim_scope()],
            name: Map.get(attrs, :name),
            all_projects: false

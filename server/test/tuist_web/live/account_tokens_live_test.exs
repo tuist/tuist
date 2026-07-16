@@ -117,7 +117,6 @@ defmodule TuistWeb.AccountTokensLiveTest do
 
     {:ok, token} = Accounts.get_account_token_by_name(account, "ci-rotated")
     assert token.scopes == ["ci"]
-    assert token.token_last_four == String.slice(plaintext_token, -4, 4)
     assert token.all_projects == false
     assert Enum.map(token.projects, & &1.name) == ["ios-app"]
     assert token.expires_at

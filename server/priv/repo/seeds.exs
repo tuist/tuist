@@ -399,7 +399,6 @@ case okta_seed_value.(:scim_token, nil) do
         %AccountToken{id: okta_scim_token_id}
         |> AccountToken.scim_changeset(%{
           encrypted_token_hash: okta_scim_encrypted_token_hash,
-          token_last_four: AccountToken.last_four(okta_scim_token_raw),
           name: "Okta",
           account_id: organization_account.id,
           scopes: [AccountToken.scim_scope()],
@@ -411,7 +410,6 @@ case okta_seed_value.(:scim_token, nil) do
         token
         |> AccountToken.scim_changeset(%{
           encrypted_token_hash: okta_scim_encrypted_token_hash,
-          token_last_four: AccountToken.last_four(okta_scim_token_raw),
           name: "Okta",
           account_id: organization_account.id,
           scopes: [AccountToken.scim_scope()],
