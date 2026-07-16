@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -303,12 +304,20 @@ func (m *VolumeManager) Materialize(att VolumeAttachment, account string) (warm 
 		_ = os.Chmod(dest, 0o777)
 		return false, fmt.Errorf("swap materialized cache into place: %w", err)
 	}
-	// The cloned tree carries the MASTER's ownership/mode, not the branch's, so
-	// the guest's unprivileged runner user may be unable to write into the very
-	// root it was handed (it must create Plugins/, Binaries/, ... under it).
-	// AllocateBranch relaxes the branch root for exactly this reason; do the same
-	// for the materialized root so a warm job can write where a cold one could.
-	_ = os.Chmod(dest, 0o777)
+	// Relax the WHOLE materialized tree, not just its root.
+	//
+	// The clone carries the MASTER's ownership and mode: tart-kubelet runs as the
+	// host's console user (Virtualization.framework requires it), so every master
+	// it promotes is host-owned 0755, while the guest runs as its own
+	// unprivileged `runner` user. Across virtio-fs the two uids don't line up, so
+	// mode is the only lever we have — and a root-only chmod is not enough. The
+	// guest doesn't just create entries in `tuist/`; the CLI moves downloaded
+	// xcframeworks into `tuist/Binaries/<hash>` and prunes them again, which needs
+	// write on `Binaries/` itself, and re-signs artifacts in place, which needs
+	// write on the files. Relaxing only the root produced a job that could create
+	// `tuist/Plugins` and still died with
+	// `"X.xcframework" couldn't be moved to "<hash>"` (seen in production).
+	chmodTreeGuestWritable(dest)
 	// Mark the master used so LRU tracks materialization, not just promotion —
 	// an account whose jobs keep landing here stays hot.
 	_ = os.Chtimes(m.masterDir(account, att.VolumeName), m.now(), m.now())
@@ -478,6 +487,35 @@ func (m *VolumeManager) Finalize(att VolumeAttachment, account string, jobSuccee
 	_ = os.RemoveAll(att.BranchPath)
 	_ = os.Chtimes(master, m.now(), m.now())
 	return VolumeOutcomePromoted, nil
+}
+
+// chmodTreeGuestWritable makes every entry under root writable by the guest's
+// unprivileged user. Ownership can't be relied on (host and guest disagree on
+// uids across virtio-fs), so mode is the lever: directories get 0777 so the
+// guest can create, move and prune entries inside them; files get 0666 so it
+// can rewrite an artifact (the CLI re-signs on download).
+//
+// Best-effort per entry, and never fails the materialize: a tree we couldn't
+// fully relax is still better than no cache, and the guest write-probes the
+// share before trusting it. Cost is one walk of an already-cloned tree (the
+// clonefile itself is the expensive part), so this is not on the hot path.
+func chmodTreeGuestWritable(root string) {
+	_ = filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+		if d.IsDir() {
+			_ = os.Chmod(p, 0o777)
+			return nil
+		}
+		// Symlinks have no mode of their own worth setting; chmod would follow to
+		// the target and could escape the tree.
+		if d.Type()&fs.ModeSymlink != 0 {
+			return nil
+		}
+		_ = os.Chmod(p, 0o666)
+		return nil
+	})
 }
 
 // ReattachBranch reconstructs the attachment for a VM whose branch survived a

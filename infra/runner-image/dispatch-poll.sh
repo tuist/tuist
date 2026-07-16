@@ -222,6 +222,23 @@ cache_root_usable() {
     return 1
   fi
   rm -f "${probe}" 2>/dev/null || true
+  # Probing only the root is not enough, and assuming otherwise let a broken
+  # share through in production: on a WARM branch the host clones the account's
+  # master in, so the root can be writable while the subtrees underneath carry
+  # the master's ownership/mode. The CLI writes INSIDE those — it moves
+  # downloaded xcframeworks into tuist/Binaries/<hash> — and died there with
+  # `"X.xcframework" couldn't be moved to "<hash>"` while the root probe passed.
+  # Probe the subtrees the CLI actually writes.
+  local d
+  for d in Binaries Manifests ProjectDescriptionHelpers Plugins; do
+    [ -d "${root}/${d}" ] || continue
+    probe="${root}/${d}/.tuist-write-probe.$$"
+    if ! err=$( ( : >"${probe}" ) 2>&1 ); then
+      cache_diag "write probe in ${root}/${d}: ${err}" "${share}"
+      return 1
+    fi
+    rm -f "${probe}" 2>/dev/null || true
+  done
   return 0
 }
 
