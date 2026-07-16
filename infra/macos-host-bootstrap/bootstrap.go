@@ -336,6 +336,9 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 	if err := DisableIdleSleep(ctx, client); err != nil {
 		return hk.Observed(), fmt.Errorf("disable idle sleep: %w", err)
 	}
+	if err := installSSHReachability(ctx, client); err != nil {
+		return hk.Observed(), fmt.Errorf("install ssh reachability: %w", err)
+	}
 	if cfg.NodeName != "" {
 		if err := SetHostname(ctx, client, cfg.NodeName); err != nil {
 			return hk.Observed(), fmt.Errorf("set hostname: %w", err)
@@ -427,6 +430,9 @@ func UpdateTartKubelet(ctx context.Context, cfg Config) (string, error) {
 
 	if err := writeKubeconfig(ctx, client, cfg.Kubeconfig); err != nil {
 		return hk.Observed(), fmt.Errorf("refresh kubeconfig: %w", err)
+	}
+	if err := installSSHReachability(ctx, client); err != nil {
+		return hk.Observed(), fmt.Errorf("refresh ssh reachability: %w", err)
 	}
 	if err := installTartKubelet(ctx, client, cfg.TartKubeletBinary); err != nil {
 		return hk.Observed(), fmt.Errorf("install tart-kubelet: %w", err)
@@ -523,6 +529,7 @@ func HostConfigHash(cfg Config) string {
 		{"tailscale", renderTailscaleScript(cfg)},
 		{"node-exporter", renderNodeExporterScript()},
 		{"tart-kubelet-install", renderTartKubeletInstallScript()},
+		{"ssh-reachability", renderSSHReachabilityScript()},
 	} {
 		b.WriteString(part.name)
 		b.WriteByte('\x00')
@@ -1919,6 +1926,84 @@ func installNodeExporter(ctx context.Context, client *ssh.Client, cfg Config) er
 		return nil
 	}
 	return RunCommandWithStdin(ctx, client, renderNodeExporterScript(), bytes.NewReader(cfg.NodeExporterBinary))
+}
+
+// installSSHReachability installs the host-side self-heal that keeps the
+// operator's only management channel (SSH → tart-kubelet updates) from staying
+// wedged. See renderSSHReachabilityScript.
+func installSSHReachability(ctx context.Context, client *ssh.Client) error {
+	return RunCommand(ctx, client, renderSSHReachabilityScript())
+}
+
+// renderSSHReachabilityScript installs a LaunchDaemon that keeps inbound SSH
+// (:22) from staying wedged on a runner mini.
+//
+// Diagnosed from a host shell on a wedged mini: sshd was listening on *:22, the
+// macOS application firewall was OFF, pf had no :22 rule, and UseDNS was already
+// `no` — yet even 127.0.0.1:22 timed out. `netstat` showed the cause: ~128
+// sockets stuck in SYN_RCVD, i.e. the listen backlog is exhausted so the kernel
+// drops every new SYN. The runner's PN networking intermittently degrades the
+// host resolver (`si_destination_compare send failed`), which slows sshd's
+// per-connection name lookups; with the CAPI operator dialing :22 every ~30s
+// and each half-open connection lingering, the backlog fills and stays full
+// (self-perpetuating). Our other listeners (:8080/:9100/:5900) are unaffected
+// because they don't gate on the ssh accept path. It was never a firewall.
+//
+// The fix is the recovery that worked live: reload the ssh socket
+// (bootout+bootstrap) to drain the backlog, made self-healing on the host — a
+// minute-interval probe of loopback :22 that reloads the socket whenever it
+// stops accepting. It acts only when actually wedged, so a healthy host is
+// untouched, and it keeps :22 reachable long enough for the operator to
+// converge — after which the drift retries that fill the backlog stop.
+// Recreating the mini was the only recovery before.
+//
+// (An earlier revision also wrote `UseDNS no` here, on the theory that
+// reverse-DNS was the slow lookup. UseDNS was already `no` on the minis, so
+// that drop-in was a no-op and is dropped; the accept-backlog drain is what
+// actually recovers a wedged host.)
+func renderSSHReachabilityScript() string {
+	return `set -euo pipefail
+sudo tee /usr/local/bin/tuist-ssh-reachability >/dev/null <<'SSHREACH'
+#!/bin/sh
+set -u
+# Bounded loopback probe. If sshd's accept path has wedged (backlog full), the
+# connect gets no SYN-ACK and times out; reload the ssh LaunchDaemon to recreate
+# the listening socket and drain the backlog. Only acts when actually wedged, so
+# a healthy host is never disturbed.
+if ! /usr/bin/nc -z -G 3 127.0.0.1 22 >/dev/null 2>&1; then
+  logger "tuist-ssh-reachability: :22 not accepting; reloading ssh socket to drain backlog"
+  launchctl bootout system/com.openssh.sshd 2>/dev/null || true
+  launchctl bootstrap system /System/Library/LaunchDaemons/ssh.plist 2>/dev/null || true
+fi
+SSHREACH
+sudo chmod 0755 /usr/local/bin/tuist-ssh-reachability
+sudo /usr/local/bin/tuist-ssh-reachability
+
+sudo tee /Library/LaunchDaemons/dev.tuist.ssh-reachability.plist >/dev/null <<'PLIST'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>dev.tuist.ssh-reachability</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/local/bin/tuist-ssh-reachability</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>StartInterval</key>
+  <integer>60</integer>
+  <key>StandardErrorPath</key>
+  <string>/var/log/tuist-ssh-reachability.log</string>
+</dict>
+</plist>
+PLIST
+sudo chown root:wheel /Library/LaunchDaemons/dev.tuist.ssh-reachability.plist
+sudo chmod 0644 /Library/LaunchDaemons/dev.tuist.ssh-reachability.plist
+sudo launchctl bootout system/dev.tuist.ssh-reachability 2>/dev/null || true
+sudo launchctl bootstrap system /Library/LaunchDaemons/dev.tuist.ssh-reachability.plist
+`
 }
 
 // renderNodeExporterScript is the static SSH script that installs the
