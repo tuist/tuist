@@ -324,7 +324,7 @@ defmodule Tuist.Runners.ClaimsTest do
       {:ok, _} = Claims.attempt(6001, account.id, "fleet-a", "pod-1", @linux_resources)
       :ok = Claims.mark_running(6001, "runner-x")
 
-      assert 1 == Claims.complete_by_runner_name("runner-x")
+      assert 1 == Claims.complete_by_runner_name("runner-x", account.id)
       assert Claims.counts_per_account() == %{}
     end
 
@@ -340,19 +340,37 @@ defmodule Tuist.Runners.ClaimsTest do
 
       # J2 (6201) was cancelled while queued: no runner ever ran it, so
       # the payload carries no runner_name and nothing is released.
-      assert 0 == Claims.complete_by_runner_name("")
+      assert 0 == Claims.complete_by_runner_name("", account.id)
 
       # Both runners still counted: both Pods are alive, and B is
       # executing J1.
       assert Claims.counts_per_account() == %{account.id => 2}
 
       # J1 completes on runner-b — the executor's slot is the one freed.
-      assert 1 == Claims.complete_by_runner_name("runner-b")
+      assert 1 == Claims.complete_by_runner_name("runner-b", account.id)
       assert Claims.counts_per_account() == %{account.id => 1}
     end
 
     test "is idempotent when the runner's claim is already gone" do
-      assert 0 == Claims.complete_by_runner_name("ghost-runner")
+      account = account_fixture()
+      assert 0 == Claims.complete_by_runner_name("ghost-runner", account.id)
+    end
+
+    test "never releases a colliding runner_name belonging to another account" do
+      # Runner names are only unique within an account: any org can name
+      # its own self-hosted runners whatever it likes, and its webhooks
+      # authenticate as its own installation. A collision must not let
+      # one account's delivery free another account's live claim.
+      victim = account_fixture()
+      attacker = account_fixture()
+      {:ok, _} = Claims.attempt(9100, victim.id, "fleet-a", "victim-pod", @linux_resources)
+      :ok = Claims.mark_running(9100, "shared-name")
+
+      assert 0 == Claims.complete_by_runner_name("shared-name", attacker.id)
+      assert Claims.counts_per_account() == %{victim.id => 1}
+
+      assert 1 == Claims.complete_by_runner_name("shared-name", victim.id)
+      assert Claims.counts_per_account() == %{}
     end
   end
 
@@ -388,7 +406,7 @@ defmodule Tuist.Runners.ClaimsTest do
       {:ok, _} = Claims.attempt(7001, account.id, "fleet-a", "pod-1", @linux_resources)
       :ok = Claims.mark_running(7001, "runner-a")
 
-      assert :matched = Claims.record_execution("runner-a", 7001)
+      assert :matched = Claims.record_execution("runner-a", 7001, account.id)
 
       row = Repo.one(from(c in Claim, where: c.workflow_job_id == ^7001))
       assert row.executed_workflow_job_id == 7001
@@ -399,18 +417,30 @@ defmodule Tuist.Runners.ClaimsTest do
       {:ok, _} = Claims.attempt(7002, account.id, "fleet-a", "pod-1", @linux_resources)
       :ok = Claims.mark_running(7002, "runner-b")
 
-      assert :mismatch = Claims.record_execution("runner-b", 7099)
+      assert :mismatch = Claims.record_execution("runner-b", 7099, account.id)
 
       row = Repo.one(from(c in Claim, where: c.workflow_job_id == ^7002))
       assert row.executed_workflow_job_id == 7099
     end
 
     test "reports :unknown_runner when no live claim carries the runner_name" do
-      assert :unknown_runner = Claims.record_execution("ghost-runner", 7100)
+      account = account_fixture()
+      assert :unknown_runner = Claims.record_execution("ghost-runner", 7100, account.id)
     end
 
     test "is a no-op for an empty runner_name" do
-      assert :unknown_runner = Claims.record_execution("", 7101)
+      account = account_fixture()
+      assert :unknown_runner = Claims.record_execution("", 7101, account.id)
+    end
+
+    test "never binds a colliding runner_name belonging to another account" do
+      victim = account_fixture()
+      attacker = account_fixture()
+      {:ok, _} = Claims.attempt(7200, victim.id, "fleet-a", "victim-pod", @linux_resources)
+      :ok = Claims.mark_running(7200, "shared-name")
+
+      assert :unknown_runner = Claims.record_execution("shared-name", 7299, attacker.id)
+      assert Repo.one(from(c in Claim, where: c.workflow_job_id == ^7200)).executed_workflow_job_id == nil
     end
   end
 end

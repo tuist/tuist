@@ -120,7 +120,7 @@ defmodule Tuist.Runners.RunnerSessionsTest do
     test "resolves the pod to the job GitHub proved it is running" do
       account = account_fixture()
       session_fixture(account, pod_name: "pod-1", runner_name: "runner-1", workflow_job_id: 9001)
-      assert :matched = RunnerSessions.record_execution("runner-1", 9001)
+      assert :matched = RunnerSessions.record_execution("runner-1", 9001, account.id)
 
       assert {:ok, %{workflow_job_id: 9001, account_id: account_id}} =
                RunnerSessions.executed_job_for_pod("pod-1")
@@ -131,7 +131,7 @@ defmodule Tuist.Runners.RunnerSessionsTest do
     test "resolves to the executed job, not the claimed one" do
       account = account_fixture()
       session_fixture(account, pod_name: "pod-2", runner_name: "runner-2", workflow_job_id: 9002)
-      assert :mismatch = RunnerSessions.record_execution("runner-2", 9099)
+      assert :mismatch = RunnerSessions.record_execution("runner-2", 9099, account.id)
 
       assert {:ok, %{workflow_job_id: 9099}} = RunnerSessions.executed_job_for_pod("pod-2")
     end
@@ -150,7 +150,7 @@ defmodule Tuist.Runners.RunnerSessionsTest do
     test "returns :error once the session is closed" do
       account = account_fixture()
       session_fixture(account, pod_name: "pod-4", runner_name: "runner-4", workflow_job_id: 9004)
-      assert :matched = RunnerSessions.record_execution("runner-4", 9004)
+      assert :matched = RunnerSessions.record_execution("runner-4", 9004, account.id)
       {:ok, _} = RunnerSessions.close_by_pod_name("pod-4", DateTime.utc_now())
 
       assert RunnerSessions.executed_job_for_pod("pod-4") == :error
@@ -162,7 +162,7 @@ defmodule Tuist.Runners.RunnerSessionsTest do
       account = account_fixture()
       session = session_fixture(account, runner_name: "runner-a", workflow_job_id: 8001)
 
-      assert :matched = RunnerSessions.record_execution("runner-a", 8001)
+      assert :matched = RunnerSessions.record_execution("runner-a", 8001, account.id)
 
       assert Repo.get!(RunnerSession, session.id).executed_workflow_job_id == 8001
     end
@@ -171,7 +171,7 @@ defmodule Tuist.Runners.RunnerSessionsTest do
       account = account_fixture()
       session = session_fixture(account, runner_name: "runner-b", workflow_job_id: 8002)
 
-      assert :mismatch = RunnerSessions.record_execution("runner-b", 8099)
+      assert :mismatch = RunnerSessions.record_execution("runner-b", 8099, account.id)
 
       assert Repo.get!(RunnerSession, session.id).executed_workflow_job_id == 8099
     end
@@ -183,7 +183,7 @@ defmodule Tuist.Runners.RunnerSessionsTest do
       session_fixture(account, runner_name: "runner-c", workflow_job_id: 8003, ended_at: DateTime.utc_now())
       open = session_fixture(account, runner_name: "runner-c", workflow_job_id: 8004, ended_at: nil)
 
-      assert :matched = RunnerSessions.record_execution("runner-c", 8004)
+      assert :matched = RunnerSessions.record_execution("runner-c", 8004, account.id)
       assert Repo.get!(RunnerSession, open.id).executed_workflow_job_id == 8004
     end
 
@@ -192,16 +192,18 @@ defmodule Tuist.Runners.RunnerSessionsTest do
       closed = session_fixture(account, runner_name: "runner-d", workflow_job_id: 8005, ended_at: DateTime.utc_now())
 
       # `completed` backstop after a fast job's pod terminated.
-      assert :matched = RunnerSessions.record_execution("runner-d", 8005)
+      assert :matched = RunnerSessions.record_execution("runner-d", 8005, account.id)
       assert Repo.get!(RunnerSession, closed.id).executed_workflow_job_id == 8005
     end
 
     test "reports :unknown_runner when no session carries the runner_name" do
-      assert :unknown_runner = RunnerSessions.record_execution("ghost", 8100)
+      account = account_fixture()
+      assert :unknown_runner = RunnerSessions.record_execution("ghost", 8100, account.id)
     end
 
     test "is a no-op for an empty runner_name" do
-      assert :unknown_runner = RunnerSessions.record_execution("", 8101)
+      account = account_fixture()
+      assert :unknown_runner = RunnerSessions.record_execution("", 8101, account.id)
     end
   end
 end

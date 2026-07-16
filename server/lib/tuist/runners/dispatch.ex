@@ -86,7 +86,7 @@ defmodule Tuist.Runners.Dispatch do
   end
 
   def handle_webhook(%{"action" => "in_progress"} = payload, installation_id) when is_integer(installation_id) do
-    result = handle_in_progress(payload)
+    result = handle_in_progress(payload, installation_id)
     emit_webhook_telemetry("in_progress", result)
     result
   end
@@ -210,15 +210,35 @@ defmodule Tuist.Runners.Dispatch do
   # runner↔job binding. We record it (fixing metrics attribution and
   # measuring how often the claim was wrong) but never re-enqueue or
   # re-claim off it — the job is already executing.
-  defp handle_in_progress(payload) do
+  defp handle_in_progress(payload, installation_id) do
     job = Map.get(payload, "workflow_job", %{})
     workflow_job_id = Map.get(job, "id")
     runner_name = Map.get(job, "runner_name", "") || ""
 
-    if is_integer(workflow_job_id) and runner_name != "" do
-      record_execution(runner_name, workflow_job_id, "in_progress")
+    with true <- is_integer(workflow_job_id) and runner_name != "",
+         {:ok, account} <- webhook_account(payload, installation_id) do
+      record_execution(runner_name, workflow_job_id, account.id, "in_progress")
     else
-      :ignored
+      _ -> :ignored
+    end
+  end
+
+  # The account that owns the runners this webhook can speak for. A
+  # `runner_name` is only meaningful within the account that minted it —
+  # every other account controls the names of its own self-hosted
+  # runners — so attribution and release must be scoped to the account
+  # the delivery authenticates as, never matched globally by name.
+  defp webhook_account(payload, installation_id) do
+    owner =
+      payload
+      |> Map.get("repository", %{})
+      |> Map.get("full_name", "")
+      |> parse_full_name()
+      |> elem(0)
+
+    case resolve_account(installation_id, owner) do
+      nil -> {:error, :no_account}
+      account -> {:ok, account}
     end
   end
 
@@ -228,9 +248,9 @@ defmodule Tuist.Runners.Dispatch do
   # the common case; when they disagree — or when only one is still
   # present — we surface `:mismatch` so it's never silently the
   # weaker `:matched`.
-  defp record_execution(runner_name, executed_workflow_job_id, source) do
-    claim_outcome = Claims.record_execution(runner_name, executed_workflow_job_id)
-    session_outcome = RunnerSessions.record_execution(runner_name, executed_workflow_job_id)
+  defp record_execution(runner_name, executed_workflow_job_id, account_id, source) do
+    claim_outcome = Claims.record_execution(runner_name, executed_workflow_job_id, account_id)
+    session_outcome = RunnerSessions.record_execution(runner_name, executed_workflow_job_id, account_id)
     outcome = combine_attribution(claim_outcome, session_outcome)
 
     case outcome do
@@ -271,20 +291,32 @@ defmodule Tuist.Runners.Dispatch do
     repository = payload |> Map.get("repository", %{}) |> Map.get("full_name", "")
 
     if is_integer(workflow_job_id) do
+      # Attribution and claim release are scoped to the account this
+      # delivery authenticates as; a runner name is only ours to act on
+      # within the account that minted it. Without an account we can
+      # still transition the customer-facing job row, but must touch no
+      # runner state.
+      account_id =
+        case webhook_account(payload, installation_id) do
+          {:ok, account} -> account.id
+          {:error, _} -> nil
+        end
+
       # Backstop attribution before we free the claim: a dropped
       # `in_progress` still gets the runner→job binding recorded on
       # the durable session here. `runner_name` is null for a job
       # cancelled while still queued (no runner ever ran it), so this
       # is a no-op for that class.
-      if runner_name != "", do: RunnerSessions.record_execution(runner_name, workflow_job_id)
+      if runner_name != "" and account_id,
+        do: RunnerSessions.record_execution(runner_name, workflow_job_id, account_id)
 
-      mark_completed(workflow_job_id, conclusion, runner_name, raw_steps(job), installation_id, repository)
+      mark_completed(workflow_job_id, conclusion, runner_name, account_id, raw_steps(job), installation_id, repository)
     else
       :ignored
     end
   end
 
-  defp mark_completed(workflow_job_id, conclusion, runner_name, raw_steps, installation_id, repository) do
+  defp mark_completed(workflow_job_id, conclusion, runner_name, account_id, raw_steps, installation_id, repository) do
     # Free the PG cap slot FIRST. The customer's next dispatch
     # poll (potentially seconds away) sees the freed inflight
     # count immediately rather than waiting on the stale-claims
@@ -299,7 +331,7 @@ defmodule Tuist.Runners.Dispatch do
     # A job cancelled while queued has no runner_name — nothing ran, so
     # nothing is released; the claiming Pod keeps its slot until it
     # stops (idle timeout) or `OrphanedRunnersWorker` recovers it.
-    Claims.complete_by_runner_name(runner_name)
+    if account_id, do: Claims.complete_by_runner_name(runner_name, account_id)
 
     case Jobs.complete(workflow_job_id, conclusion) do
       {:ok, %{account_id: account_id}} ->

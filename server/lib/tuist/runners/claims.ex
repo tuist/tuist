@@ -356,12 +356,15 @@ defmodule Tuist.Runners.Claims do
 
   Idempotent. Returns the number of claims released.
   """
-  def complete_by_runner_name(runner_name) when is_binary(runner_name) and runner_name != "" do
-    {count, _} = Repo.delete_all(from(c in Claim, where: c.runner_name == ^runner_name))
+  def complete_by_runner_name(runner_name, account_id)
+      when is_binary(runner_name) and runner_name != "" and is_integer(account_id) do
+    {count, _} =
+      Repo.delete_all(from(c in Claim, where: c.runner_name == ^runner_name and c.account_id == ^account_id))
+
     count
   end
 
-  def complete_by_runner_name(_runner_name), do: 0
+  def complete_by_runner_name(_runner_name, _account_id), do: 0
 
   @doc """
   Releases the claim held by `pod_name` — DELETE'd from PG,
@@ -503,11 +506,12 @@ defmodule Tuist.Runners.Claims do
       (a dropped/late webhook, or the claim already completed). The
       durable session binding is the backstop for this case.
   """
-  def record_execution(runner_name, executed_workflow_job_id)
-      when is_binary(runner_name) and runner_name != "" and is_integer(executed_workflow_job_id) do
+  def record_execution(runner_name, executed_workflow_job_id, account_id)
+      when is_binary(runner_name) and runner_name != "" and is_integer(executed_workflow_job_id) and
+             is_integer(account_id) do
     claim =
       Claim
-      |> where([c], c.runner_name == ^runner_name)
+      |> where([c], c.runner_name == ^runner_name and c.account_id == ^account_id)
       |> limit(1)
       |> Repo.one()
 
@@ -517,7 +521,7 @@ defmodule Tuist.Runners.Claims do
 
       %Claim{workflow_job_id: claimed_job_id} ->
         Repo.update_all(
-          from(c in Claim, where: c.runner_name == ^runner_name),
+          from(c in Claim, where: c.runner_name == ^runner_name and c.account_id == ^account_id),
           set: [executed_workflow_job_id: executed_workflow_job_id]
         )
 
@@ -525,5 +529,5 @@ defmodule Tuist.Runners.Claims do
     end
   end
 
-  def record_execution(_runner_name, _executed_workflow_job_id), do: :unknown_runner
+  def record_execution(_runner_name, _executed_workflow_job_id, _account_id), do: :unknown_runner
 end

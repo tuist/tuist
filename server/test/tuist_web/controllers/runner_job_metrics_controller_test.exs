@@ -38,8 +38,8 @@ defmodule TuistWeb.RunnerJobMetricsControllerTest do
 
   # GitHub proves, via workflow_job.in_progress, that `runner_name` is
   # running `executed_job_id`.
-  defp prove_execution(runner_name, executed_job_id) do
-    RunnerSessions.record_execution(runner_name, executed_job_id)
+  defp prove_execution(account, runner_name, executed_job_id) do
+    RunnerSessions.record_execution(runner_name, executed_job_id, account.id)
   end
 
   defp sample(timestamp, attrs \\ %{}) do
@@ -67,7 +67,7 @@ defmodule TuistWeb.RunnerJobMetricsControllerTest do
     test "records the batch under the job GitHub proved the Pod is running", %{conn: conn} do
       account = account_fixture()
       session(account, 33_001, "runner-pod-1", "runner-1")
-      prove_execution("runner-1", 33_001)
+      prove_execution(account, "runner-1", 33_001)
       runner_token_stub("runner-pod-1")
 
       conn =
@@ -89,7 +89,7 @@ defmodule TuistWeb.RunnerJobMetricsControllerTest do
       # claimed job's chart shows another Pod's run.
       account = account_fixture()
       session(account, 33_010, "runner-pod-x", "runner-x")
-      prove_execution("runner-x", 33_099)
+      prove_execution(account, "runner-x", 33_099)
       runner_token_stub("runner-pod-x")
 
       conn =
@@ -109,7 +109,7 @@ defmodule TuistWeb.RunnerJobMetricsControllerTest do
       # on J1.
       account = account_fixture()
       session(account, 33_020, "runner-pod-b", "runner-b")
-      prove_execution("runner-b", 33_021)
+      prove_execution(account, "runner-b", 33_021)
       runner_token_stub("runner-pod-b")
 
       conn =
@@ -124,7 +124,7 @@ defmodule TuistWeb.RunnerJobMetricsControllerTest do
     test "returns 204 on an empty sample batch", %{conn: conn} do
       account = account_fixture()
       session(account, 33_002, "runner-pod-2", "runner-2")
-      prove_execution("runner-2", 33_002)
+      prove_execution(account, "runner-2", 33_002)
       runner_token_stub("runner-pod-2")
 
       conn =

@@ -67,15 +67,35 @@ fi
 # reconciler recycles it. A runner holding a job has written the
 # JOB_STARTED marker (via the runner's own hook) and is never touched.
 # 0 / unset disables the watchdog.
+# The job-start signal must be irreversible: everything under /tmp is
+# writable by the workflow, so a job that removes the marker (a broad
+# `rm -rf /tmp/*` cleanup step is enough) must not be able to make
+# itself look idle and get killed mid-run. Two independent latches:
+#
+#   1. The hook kills the watchdog outright. It runs before any workflow
+#      step, so by the time job code executes there is no watchdog left
+#      to mislead — deleting anything afterwards is inert.
+#   2. The watchdog polls for the marker and exits the moment it sees
+#      it, rather than reading it once at the deadline. This covers the
+#      hook failing to resolve the pid, and once it has exited a later
+#      deletion cannot bring it back.
+#
+# Neither latch can be undone from inside the job, which is the property
+# that matters: the workflow can only ever make the watchdog give up
+# earlier, never make it fire on a live job.
 JOB_STARTED_MARKER=/tmp/tuist-runner-job-started
 JOB_STARTED_HOOK=/tmp/tuist-runner-job-started-hook.sh
-rm -f "${JOB_STARTED_MARKER}"
+WATCHDOG_PID_FILE=/tmp/tuist-runner-watchdog.pid
+rm -f "${JOB_STARTED_MARKER}" "${WATCHDOG_PID_FILE}"
 cat >"${JOB_STARTED_HOOK}" <<HOOK
 #!/usr/bin/env bash
 # ACTIONS_RUNNER_HOOK_JOB_STARTED: the ephemeral runner runs this the
-# instant GitHub hands it a job. The marker tells the idle watchdog
-# this runner got real work and must never be reaped as idle.
+# instant GitHub hands it a job, before any workflow step. Cancel the
+# idle watchdog permanently, then drop the marker as a backstop.
 touch "${JOB_STARTED_MARKER}" 2>/dev/null || true
+_wpid="\$(cat "${WATCHDOG_PID_FILE}" 2>/dev/null || true)"
+[ -n "\${_wpid}" ] && kill "\${_wpid}" 2>/dev/null || true
+exit 0
 HOOK
 chmod +x "${JOB_STARTED_HOOK}"
 export ACTIONS_RUNNER_HOOK_JOB_STARTED="${JOB_STARTED_HOOK}"
@@ -90,13 +110,21 @@ trap 'kill -TERM "${runner_pid}" 2>/dev/null || true' TERM INT
 
 if [ "${idle_timeout}" -gt 0 ] 2>/dev/null; then
   (
-    sleep "${idle_timeout}"
+    waited=0
+    while [ "${waited}" -lt "${idle_timeout}" ]; do
+      # Latch and stand down for good the first time work is observed.
+      [ -e "${JOB_STARTED_MARKER}" ] && exit 0
+      kill -0 "${runner_pid}" 2>/dev/null || exit 0
+      sleep 1
+      waited=$((waited + 1))
+    done
     if [ ! -e "${JOB_STARTED_MARKER}" ] && kill -0 "${runner_pid}" 2>/dev/null; then
       echo "$(date -u +%FT%TZ) run-job: no job assigned within ${idle_timeout}s; terminating idle runner"
       kill -TERM "${runner_pid}" 2>/dev/null || true
     fi
   ) &
   watchdog_pid=$!
+  printf '%s' "${watchdog_pid}" >"${WATCHDOG_PID_FILE}" 2>/dev/null || true
 fi
 
 wait "${runner_pid}"

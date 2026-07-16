@@ -205,14 +205,21 @@ defmodule Tuist.Runners.RunnerSessions do
   late `completed` webhook can still bind the runner. Prefers the open
   session, falling back to the most recent closed one.
 
+  Scoped to `account_id` (resolved from the webhook's App installation):
+  a runner name is only ours to trust within the account that minted it,
+  and a customer's own self-hosted runners carry names that account
+  controls, so an unscoped lookup would let one account's webhook bind a
+  colliding runner name belonging to another.
+
   Idempotent. Returns `:matched` / `:mismatch` / `:unknown_runner`
-  mirroring `Claims.record_execution/2`.
+  mirroring `Claims.record_execution/3`.
   """
-  def record_execution(runner_name, executed_workflow_job_id)
-      when is_binary(runner_name) and runner_name != "" and is_integer(executed_workflow_job_id) do
+  def record_execution(runner_name, executed_workflow_job_id, account_id)
+      when is_binary(runner_name) and runner_name != "" and is_integer(executed_workflow_job_id) and
+             is_integer(account_id) do
     session =
       RunnerSession
-      |> where([s], s.runner_name == ^runner_name)
+      |> where([s], s.runner_name == ^runner_name and s.account_id == ^account_id)
       |> order_by([s], desc: is_nil(s.ended_at), desc: s.started_at)
       |> limit(1)
       |> Repo.one()
@@ -246,7 +253,7 @@ defmodule Tuist.Runners.RunnerSessions do
     end
   end
 
-  def record_execution(_runner_name, _executed_workflow_job_id), do: :unknown_runner
+  def record_execution(_runner_name, _executed_workflow_job_id, _account_id), do: :unknown_runner
 
   defp latest_for_pod(pod_name) do
     # Prefer the open row if one exists; otherwise return whichever

@@ -317,15 +317,22 @@ defmodule Tuist.Runners.DispatchTest do
   end
 
   describe "handle_webhook/2 in_progress" do
-    test "records the runner→job binding and reports matched" do
-      test_pid = self()
+    setup do
+      account = enabled_account()
+      stub(Accounts, :get_account_by_handle, fn _ -> account end)
+      %{account: account}
+    end
 
-      stub(Claims, :record_execution, fn "runner-a", 4300 ->
+    test "records the runner→job binding and reports matched", %{account: account} do
+      test_pid = self()
+      account_id = account.id
+
+      stub(Claims, :record_execution, fn "runner-a", 4300, ^account_id ->
         send(test_pid, {:claim_exec, "runner-a", 4300})
         :matched
       end)
 
-      stub(RunnerSessions, :record_execution, fn "runner-a", 4300 ->
+      stub(RunnerSessions, :record_execution, fn "runner-a", 4300, ^account_id ->
         send(test_pid, {:session_exec, "runner-a", 4300})
         :matched
       end)
@@ -338,24 +345,24 @@ defmodule Tuist.Runners.DispatchTest do
     end
 
     test "surfaces a claim↔execution mismatch when GitHub ran a different job" do
-      stub(Claims, :record_execution, fn "runner-b", 4400 -> :mismatch end)
-      stub(RunnerSessions, :record_execution, fn "runner-b", 4400 -> :mismatch end)
+      stub(Claims, :record_execution, fn "runner-b", 4400, _acct -> :mismatch end)
+      stub(RunnerSessions, :record_execution, fn "runner-b", 4400, _acct -> :mismatch end)
 
       assert {:ok, :mismatch} =
                Dispatch.handle_webhook(in_progress_payload(id: 4400, runner_name: "runner-b"), 1)
     end
 
     test "a mismatch on either store wins over a matched on the other" do
-      stub(Claims, :record_execution, fn _runner, _job -> :unknown_runner end)
-      stub(RunnerSessions, :record_execution, fn _runner, _job -> :mismatch end)
+      stub(Claims, :record_execution, fn _runner, _job, _acct -> :unknown_runner end)
+      stub(RunnerSessions, :record_execution, fn _runner, _job, _acct -> :mismatch end)
 
       assert {:ok, :mismatch} =
                Dispatch.handle_webhook(in_progress_payload(id: 4500, runner_name: "runner-c"), 1)
     end
 
     test "ignores when neither store knows the runner" do
-      stub(Claims, :record_execution, fn _runner, _job -> :unknown_runner end)
-      stub(RunnerSessions, :record_execution, fn _runner, _job -> :unknown_runner end)
+      stub(Claims, :record_execution, fn _runner, _job, _acct -> :unknown_runner end)
+      stub(RunnerSessions, :record_execution, fn _runner, _job, _acct -> :unknown_runner end)
 
       assert {:ignored, :unknown_runner} =
                Dispatch.handle_webhook(in_progress_payload(id: 4600, runner_name: "runner-d"), 1)
@@ -364,19 +371,38 @@ defmodule Tuist.Runners.DispatchTest do
     test "ignores an in_progress payload with no runner_name" do
       assert :ignored = Dispatch.handle_webhook(in_progress_payload(id: 4700), 1)
     end
+
+    test "ignores, touching no runner state, when the delivery resolves to no account" do
+      # A runner_name is only ours to act on within the account that
+      # minted it. With no account resolved from the installation we
+      # must not match the name against anyone's runners.
+      stub(Accounts, :get_account_by_handle, fn _ -> nil end)
+      reject(&Claims.record_execution/3)
+      reject(&RunnerSessions.record_execution/3)
+
+      assert :ignored =
+               Dispatch.handle_webhook(in_progress_payload(id: 4750, runner_name: "runner-x"), 1)
+    end
   end
 
   describe "handle_webhook/2 completed — attribution backstop" do
-    test "binds the runner→job on the durable session before completing" do
-      test_pid = self()
+    setup do
+      account = enabled_account()
+      stub(Accounts, :get_account_by_handle, fn _ -> account end)
+      %{account: account}
+    end
 
-      stub(RunnerSessions, :record_execution, fn "runner-late", 4800 ->
+    test "binds the runner→job on the durable session before completing", %{account: account} do
+      test_pid = self()
+      account_id = account.id
+
+      stub(RunnerSessions, :record_execution, fn "runner-late", 4800, ^account_id ->
         send(test_pid, {:session_exec, "runner-late", 4800})
         :matched
       end)
 
-      stub(Claims, :complete, fn _ -> :ok end)
-      stub(Jobs, :complete, fn _id, _conclusion -> {:ok, %{account_id: 1}} end)
+      stub(Claims, :complete_by_runner_name, fn "runner-late", ^account_id -> 1 end)
+      stub(Jobs, :complete, fn _id, _conclusion -> {:ok, %{account_id: account_id}} end)
       stub(JobSteps, :record, fn _ -> :ok end)
 
       assert {:ok, :completed} =
@@ -388,12 +414,35 @@ defmodule Tuist.Runners.DispatchTest do
       assert_receive {:session_exec, "runner-late", 4800}
     end
 
+    test "releases the executor's claim, scoped to the webhook's account", %{account: account} do
+      test_pid = self()
+      account_id = account.id
+
+      stub(RunnerSessions, :record_execution, fn _r, _j, _a -> :matched end)
+
+      stub(Claims, :complete_by_runner_name, fn runner, acct ->
+        send(test_pid, {:released, runner, acct})
+        1
+      end)
+
+      stub(Jobs, :complete, fn _id, _conclusion -> {:ok, %{account_id: account_id}} end)
+      stub(JobSteps, :record, fn _ -> :ok end)
+
+      assert {:ok, :completed} =
+               Dispatch.handle_webhook(
+                 completed_payload(id: 4850, runner_name: "runner-exec", steps: []),
+                 1
+               )
+
+      assert_receive {:released, "runner-exec", ^account_id}
+    end
+
     test "skips backstop attribution when the completed payload has no runner_name (cancelled-while-queued)" do
       stub(Claims, :complete, fn _ -> :ok end)
       stub(Jobs, :complete, fn _id, _conclusion -> {:ok, %{account_id: 1}} end)
       stub(JobSteps, :record, fn _ -> :ok end)
 
-      reject(&RunnerSessions.record_execution/2)
+      reject(&RunnerSessions.record_execution/3)
 
       assert {:ok, :completed} = Dispatch.handle_webhook(completed_payload(id: 4900, steps: []), 1)
     end

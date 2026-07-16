@@ -380,12 +380,25 @@ while true; do
       # VM and the reconciler recycles it. A runner holding a job has
       # written the JOB_STARTED marker (via the runner's own hook) and
       # is never touched. 0 / unset disables the watchdog.
+      # The job-start signal must be irreversible: /tmp is writable by
+      # the workflow, so a job that removes the marker (a broad
+      # `rm -rf /tmp/*` cleanup is enough) must not be able to make
+      # itself look idle and get killed mid-run. Two independent
+      # latches: the hook cancels the watchdog outright (it runs before
+      # any workflow step, so job code never sees a live watchdog), and
+      # the watchdog polls and stands down the moment it observes work
+      # rather than reading the marker once at the deadline. Neither can
+      # be undone from inside the job.
       JOB_STARTED_MARKER=/tmp/tuist-runner-job-started
       JOB_STARTED_HOOK=/tmp/tuist-runner-job-started-hook.sh
-      rm -f "${JOB_STARTED_MARKER}"
+      WATCHDOG_PID_FILE=/tmp/tuist-runner-watchdog.pid
+      rm -f "${JOB_STARTED_MARKER}" "${WATCHDOG_PID_FILE}"
       cat >"${JOB_STARTED_HOOK}" <<HOOK
 #!/bin/bash
 touch "${JOB_STARTED_MARKER}" 2>/dev/null || true
+_wpid="\$(cat "${WATCHDOG_PID_FILE}" 2>/dev/null || true)"
+[ -n "\${_wpid}" ] && kill "\${_wpid}" 2>/dev/null || true
+exit 0
 HOOK
       chmod +x "${JOB_STARTED_HOOK}"
       export ACTIONS_RUNNER_HOOK_JOB_STARTED="${JOB_STARTED_HOOK}"
@@ -411,13 +424,21 @@ HOOK
       runner_pid=$!
       if [ "${idle_timeout}" -gt 0 ] 2>/dev/null; then
         (
-          sleep "${idle_timeout}"
+          waited=0
+          while [ "${waited}" -lt "${idle_timeout}" ]; do
+            # Latch and stand down for good the first time work is observed.
+            [ -e "${JOB_STARTED_MARKER}" ] && exit 0
+            kill -0 "${runner_pid}" 2>/dev/null || exit 0
+            sleep 1
+            waited=$((waited + 1))
+          done
           if [ ! -e "${JOB_STARTED_MARKER}" ] && kill -0 "${runner_pid}" 2>/dev/null; then
             echo "$(date -u +%FT%TZ) dispatch-poll: no job assigned within ${idle_timeout}s; terminating idle runner"
             kill -TERM "${runner_pid}" 2>/dev/null || true
           fi
         ) &
         watchdog_pid=$!
+        printf '%s' "${watchdog_pid}" >"${WATCHDOG_PID_FILE}" 2>/dev/null || true
       fi
       wait "${runner_pid}"
       rc=$?
