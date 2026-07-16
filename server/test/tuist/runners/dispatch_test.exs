@@ -11,6 +11,9 @@ defmodule Tuist.Runners.DispatchTest do
   alias Tuist.Runners.Dispatch
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.JobSteps
+  alias Tuist.Runners.Profiles
+  alias Tuist.Runners.RunnerSessions
+  alias Tuist.VCS
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
   setup :verify_on_exit!
@@ -19,6 +22,12 @@ defmodule Tuist.Runners.DispatchTest do
     cache = :"runners_dispatch_#{System.unique_integer([:positive])}"
     start_supervised!({Cachex, name: cache})
     stub(Dispatch, :cache_name, fn -> cache end)
+
+    # Default: no installation row for the webhook's installation_id, so
+    # resolution falls back to the legacy `owner == account.name`
+    # convention the bulk of these cases exercise. The installation-first
+    # path has its own case that overrides this stub.
+    stub(VCS, :get_github_app_installation_by_installation_id, fn _ -> {:error, :not_found} end)
 
     # Disable the macOS protected-profile auto-bootstrap globally for
     # this suite. `Accounts.create_organization` and `Accounts.create_user`
@@ -40,13 +49,14 @@ defmodule Tuist.Runners.DispatchTest do
   defp queued_payload(opts) do
     owner = Keyword.get(opts, :owner, "tuist")
     labels = Keyword.get(opts, :labels, ["tuist-macos"])
+    workflow_job_id = Keyword.get(opts, :id, System.unique_integer([:positive]))
 
     %{
       "action" => "queued",
       "workflow_job" => %{
-        "id" => System.unique_integer([:positive]),
+        "id" => workflow_job_id,
         "labels" => labels,
-        "run_id" => 1,
+        "run_id" => Keyword.get(opts, :run_id, 1),
         "run_attempt" => 1,
         "name" => "Build",
         "head_branch" => "main",
@@ -64,23 +74,99 @@ defmodule Tuist.Runners.DispatchTest do
   end
 
   defp completed_payload(opts) do
+    owner = Keyword.get(opts, :owner, "tuist")
+    labels = Keyword.get(opts, :labels, ["tuist-macos"])
+
+    job =
+      maybe_put(
+        %{
+          "id" => Keyword.get(opts, :id, System.unique_integer([:positive])),
+          "labels" => labels,
+          "run_id" => Keyword.get(opts, :run_id, 1),
+          "run_attempt" => 1,
+          "name" => "Build",
+          "head_branch" => "main",
+          "head_sha" => "abc",
+          "conclusion" => Keyword.get(opts, :conclusion, "success"),
+          "steps" => Keyword.get(opts, :steps, [])
+        },
+        "runner_name",
+        Keyword.get(opts, :runner_name)
+      )
+
     %{
       "action" => "completed",
-      "workflow_job" => %{
-        "id" => Keyword.get(opts, :id, System.unique_integer([:positive])),
-        "conclusion" => Keyword.get(opts, :conclusion, "success"),
-        "steps" => Keyword.get(opts, :steps, [])
-      },
+      "workflow_job" => job,
+      "repository" => %{"full_name" => "#{owner}/repo"}
+    }
+  end
+
+  defp in_progress_payload(opts) do
+    %{
+      "action" => "in_progress",
+      "workflow_job" =>
+        maybe_put(
+          %{"id" => Keyword.get(opts, :id, System.unique_integer([:positive]))},
+          "runner_name",
+          Keyword.get(opts, :runner_name)
+        ),
       "repository" => %{"full_name" => "tuist/repo"}
     }
   end
 
+  defp maybe_put(map, _key, nil), do: map
+  defp maybe_put(map, key, value), do: Map.put(map, key, value)
+
   describe "handle_webhook/2" do
-    test "returns {:ignored, :no_account} when the org login doesn't match a Tuist account" do
+    test "returns {:ignored, :no_account} when neither the installation nor the org login match a Tuist account" do
       stub(Accounts, :get_account_by_handle, fn _ -> nil end)
 
       assert {:ignored, :no_account} =
                Dispatch.handle_webhook(queued_payload(owner: "ghost"), 1)
+    end
+
+    test "resolves the account via the installation even when the org login doesn't match the handle" do
+      account = enabled_account()
+
+      # The customer's GitHub org login differs from their Tuist handle,
+      # so the legacy name convention can't find them — but the App
+      # installation maps straight to the account.
+      stub(Accounts, :get_account_by_handle, fn _ -> nil end)
+      stub(VCS, :get_github_app_installation_by_installation_id, fn 123_975_483 -> {:ok, %{account_id: account.id}} end)
+
+      stub(Client, :list_runner_pools, fn _ns ->
+        {:ok, [pool_cr(name: "macos-pool", label: "tuist-macos")]}
+      end)
+
+      payload = queued_payload(owner: "DigitalSolutionsPest", labels: ["tuist-macos"])
+
+      assert {:ok, :queued} = Dispatch.handle_webhook(payload, 123_975_483)
+
+      counts = Jobs.status_counts(account.id)
+      assert Map.get(counts, "queued", 0) == 1
+    end
+
+    test "prefers the installation-resolved account over the handle match" do
+      installation_account = enabled_account()
+
+      # A different account happens to share the org login; the
+      # installation link is authoritative, so we must dispatch against
+      # the account that actually connected the App.
+      stub(Accounts, :get_account_by_handle, fn _ -> enabled_account() end)
+
+      stub(VCS, :get_github_app_installation_by_installation_id, fn _ ->
+        {:ok, %{account_id: installation_account.id}}
+      end)
+
+      stub(Client, :list_runner_pools, fn _ns ->
+        {:ok, [pool_cr(name: "macos-pool", label: "tuist-macos")]}
+      end)
+
+      payload = queued_payload(owner: "shared-login", labels: ["tuist-macos"])
+
+      assert {:ok, :queued} = Dispatch.handle_webhook(payload, 555)
+
+      assert Map.get(Jobs.status_counts(installation_account.id), "queued", 0) == 1
     end
 
     test "returns {:ignored, :runners_disabled} when runners aren't enabled for the account" do
@@ -172,7 +258,6 @@ defmodule Tuist.Runners.DispatchTest do
   describe "handle_webhook/2 completed" do
     test "writes the workflow_job steps to runner_job_steps and skips nameless entries" do
       test_pid = self()
-      stub(Claims, :complete, fn _ -> :ok end)
 
       stub(Jobs, :complete, fn _id, conclusion ->
         send(test_pid, {:completed, conclusion})
@@ -226,7 +311,6 @@ defmodule Tuist.Runners.DispatchTest do
 
     test "skips the steps write entirely when the payload carries no steps" do
       test_pid = self()
-      stub(Claims, :complete, fn _ -> :ok end)
       stub(Jobs, :complete, fn _id, _conclusion -> {:ok, %{account_id: 1}} end)
 
       stub(JobSteps, :record, fn rows ->
@@ -237,6 +321,173 @@ defmodule Tuist.Runners.DispatchTest do
       assert {:ok, :completed} = Dispatch.handle_webhook(completed_payload(steps: []), 1)
 
       assert_receive {:steps, []}
+    end
+
+    test "does not resurrect a canceled job when completed arrives before queued" do
+      account = enabled_account()
+      workflow_job_id = System.unique_integer([:positive])
+
+      stub(Accounts, :get_account_by_handle, fn _ -> account end)
+      stub(Claims, :complete, fn ^workflow_job_id -> :ok end)
+
+      stub(Client, :list_runner_pools, fn _ns ->
+        {:ok, [pool_cr(name: "macos-pool", label: "tuist-macos")]}
+      end)
+
+      completed =
+        completed_payload(
+          owner: account.name,
+          id: workflow_job_id,
+          conclusion: "cancelled",
+          labels: ["self-hosted", "tuist-macos"]
+        )
+
+      assert {:ok, :completed} = Dispatch.handle_webhook(completed, 1)
+
+      queued =
+        queued_payload(
+          owner: account.name,
+          id: workflow_job_id,
+          labels: ["self-hosted", "tuist-macos"]
+        )
+
+      assert {:ok, :queued} = Dispatch.handle_webhook(queued, 1)
+
+      assert {:ok, job} = Jobs.get_for_account(account.id, workflow_job_id)
+      assert job.status == "completed"
+      assert job.conclusion == "cancelled"
+      assert {:error, :empty} = Jobs.pick_queued("macos-pool")
+    end
+  end
+
+  describe "handle_webhook/2 in_progress" do
+    setup do
+      account = enabled_account()
+      stub(Accounts, :get_account_by_handle, fn _ -> account end)
+      %{account: account}
+    end
+
+    test "records the runner→job binding and reports matched", %{account: account} do
+      test_pid = self()
+      account_id = account.id
+
+      stub(Claims, :record_execution, fn "runner-a", 4300, ^account_id ->
+        send(test_pid, {:claim_exec, "runner-a", 4300})
+        :matched
+      end)
+
+      stub(RunnerSessions, :record_execution, fn "runner-a", 4300, ^account_id ->
+        send(test_pid, {:session_exec, "runner-a", 4300})
+        :matched
+      end)
+
+      assert {:ok, :matched} =
+               Dispatch.handle_webhook(in_progress_payload(id: 4300, runner_name: "runner-a"), 1)
+
+      assert_receive {:claim_exec, "runner-a", 4300}
+      assert_receive {:session_exec, "runner-a", 4300}
+    end
+
+    test "surfaces a claim↔execution mismatch when GitHub ran a different job" do
+      stub(Claims, :record_execution, fn "runner-b", 4400, _acct -> :mismatch end)
+      stub(RunnerSessions, :record_execution, fn "runner-b", 4400, _acct -> :mismatch end)
+
+      assert {:ok, :mismatch} =
+               Dispatch.handle_webhook(in_progress_payload(id: 4400, runner_name: "runner-b"), 1)
+    end
+
+    test "a mismatch on either store wins over a matched on the other" do
+      stub(Claims, :record_execution, fn _runner, _job, _acct -> :unknown_runner end)
+      stub(RunnerSessions, :record_execution, fn _runner, _job, _acct -> :mismatch end)
+
+      assert {:ok, :mismatch} =
+               Dispatch.handle_webhook(in_progress_payload(id: 4500, runner_name: "runner-c"), 1)
+    end
+
+    test "ignores when neither store knows the runner" do
+      stub(Claims, :record_execution, fn _runner, _job, _acct -> :unknown_runner end)
+      stub(RunnerSessions, :record_execution, fn _runner, _job, _acct -> :unknown_runner end)
+
+      assert {:ignored, :unknown_runner} =
+               Dispatch.handle_webhook(in_progress_payload(id: 4600, runner_name: "runner-d"), 1)
+    end
+
+    test "ignores an in_progress payload with no runner_name" do
+      assert :ignored = Dispatch.handle_webhook(in_progress_payload(id: 4700), 1)
+    end
+
+    test "ignores, touching no runner state, when the delivery resolves to no account" do
+      # A runner_name is only ours to act on within the account that
+      # minted it. With no account resolved from the installation we
+      # must not match the name against anyone's runners.
+      stub(Accounts, :get_account_by_handle, fn _ -> nil end)
+      reject(&Claims.record_execution/3)
+      reject(&RunnerSessions.record_execution/3)
+
+      assert :ignored =
+               Dispatch.handle_webhook(in_progress_payload(id: 4750, runner_name: "runner-x"), 1)
+    end
+  end
+
+  describe "handle_webhook/2 completed — attribution backstop" do
+    setup do
+      account = enabled_account()
+      stub(Accounts, :get_account_by_handle, fn _ -> account end)
+      %{account: account}
+    end
+
+    test "binds the runner→job on the durable session before completing", %{account: account} do
+      test_pid = self()
+      account_id = account.id
+
+      stub(RunnerSessions, :record_execution, fn "runner-late", 4800, ^account_id ->
+        send(test_pid, {:session_exec, "runner-late", 4800})
+        :matched
+      end)
+
+      stub(Claims, :complete_by_runner_name, fn "runner-late", ^account_id -> 1 end)
+      stub(Jobs, :complete, fn _id, _conclusion -> {:ok, %{account_id: account_id}} end)
+      stub(JobSteps, :record, fn _ -> :ok end)
+
+      assert {:ok, :completed} =
+               Dispatch.handle_webhook(
+                 completed_payload(id: 4800, runner_name: "runner-late", steps: []),
+                 1
+               )
+
+      assert_receive {:session_exec, "runner-late", 4800}
+    end
+
+    test "releases the executor's claim, scoped to the webhook's account", %{account: account} do
+      test_pid = self()
+      account_id = account.id
+
+      stub(RunnerSessions, :record_execution, fn _r, _j, _a -> :matched end)
+
+      stub(Claims, :complete_by_runner_name, fn runner, acct ->
+        send(test_pid, {:released, runner, acct})
+        1
+      end)
+
+      stub(Jobs, :complete, fn _id, _conclusion -> {:ok, %{account_id: account_id}} end)
+      stub(JobSteps, :record, fn _ -> :ok end)
+
+      assert {:ok, :completed} =
+               Dispatch.handle_webhook(
+                 completed_payload(id: 4850, runner_name: "runner-exec", steps: []),
+                 1
+               )
+
+      assert_receive {:released, "runner-exec", ^account_id}
+    end
+
+    test "skips backstop attribution when the completed payload has no runner_name (cancelled-while-queued)" do
+      stub(Jobs, :complete, fn _id, _conclusion -> {:ok, %{account_id: 1}} end)
+      stub(JobSteps, :record, fn _ -> :ok end)
+
+      reject(&RunnerSessions.record_execution/3)
+
+      assert {:ok, :completed} = Dispatch.handle_webhook(completed_payload(id: 4900, steps: []), 1)
     end
   end
 
@@ -263,7 +514,7 @@ defmodule Tuist.Runners.DispatchTest do
       stub(Catalog, :default_xcode_version, fn -> nil end)
 
       {:ok, profile} =
-        Tuist.Runners.Profiles.create(catalog_account, %{
+        Profiles.create(catalog_account, %{
           "name" => "default",
           "vcpus" => 4,
           "memory_gb" => 16
@@ -276,7 +527,10 @@ defmodule Tuist.Runners.DispatchTest do
       assert {:ok,
               %{
                 pool_name: "tuist-runner-pool-linux-4vcpu-16gb",
-                requested_dispatch_label: "tuist-default"
+                requested_dispatch_label: "tuist-default",
+                platform: :linux,
+                vcpus: 4,
+                memory_gb: 16
               }} =
                Dispatch.resolve_dispatch_target(account, ["self-hosted", "tuist-default"])
     end
@@ -386,6 +640,9 @@ defmodule Tuist.Runners.DispatchTest do
            "metadata" => %{"name" => "linux-pool"},
            "spec" => %{
              "dispatchLabel" => "tuist-linux-ubuntu-22-04",
+             "os" => "linux",
+             "podCPUMilli" => 7500,
+             "podMemoryMB" => 18_000,
              "runnerLabels" => ["self-hosted", "Linux", "X64"]
            }
          }}
@@ -395,7 +652,10 @@ defmodule Tuist.Runners.DispatchTest do
               %{
                 name: "linux-pool",
                 dispatch_label: "tuist-linux-ubuntu-22-04",
-                runner_labels: ["self-hosted", "Linux", "X64"]
+                runner_labels: ["self-hosted", "Linux", "X64"],
+                platform: :linux,
+                vcpus: 8,
+                memory_gb: 18
               }} = Dispatch.pool_summary_by_name("linux-pool")
     end
 

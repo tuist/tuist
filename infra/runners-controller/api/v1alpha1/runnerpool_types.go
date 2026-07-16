@@ -97,6 +97,29 @@ type RunnerPoolSpec struct {
 	// +optional
 	RuntimeClass string `json:"runtimeClass,omitempty"`
 
+	// IdleTimeoutSeconds bounds how long a runner that has registered
+	// with GitHub but has not been handed a job stays alive. The runner
+	// image's watchdog reads it as `TUIST_RUNNER_IDLE_TIMEOUT_SECONDS`:
+	// if no `ACTIONS_RUNNER_HOOK_JOB_STARTED` marker appears within the
+	// window, it terminates the runner so the Pod completes and the
+	// reconciler recycles it. A runner executing a job has written the
+	// marker and is never terminated. 0 disables the watchdog.
+	//
+	// The bound is necessary because GitHub assigns a queued job to any
+	// label-eligible runner, independently of which one the server
+	// minted for it. A runner whose job GitHub placed on a sibling
+	// otherwise waits indefinitely, holding warm-pool capacity that
+	// reads as busy — the Pod's owner label is stamped at claim, not at
+	// execution, so the reconciler cannot tell it apart from a runner
+	// mid-job. The in-Pod marker is the only signal that distinguishes
+	// them.
+	//
+	// This bounds only the post-claim window between registering and
+	// being handed work (normally seconds); a Pod still polling for a
+	// claim has no runner container yet and is unaffected.
+	// +optional
+	IdleTimeoutSeconds int32 `json:"idleTimeoutSeconds,omitempty"`
+
 	// Autoscaling is the optional queue-depth-driven autoscaling
 	// config for this pool. When `Enabled` is true the
 	// runners-controller patches `spec.replicas` on a 5 s cadence

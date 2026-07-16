@@ -28,6 +28,7 @@ defmodule Tuist.Accounts do
   alias Tuist.Environment
   alias Tuist.FeatureFlags
   alias Tuist.Repo
+  alias Tuist.Runners.Concurrency, as: RunnerConcurrency
   alias Tuist.Runners.Profiles, as: RunnerProfiles
 
   require Logger
@@ -355,7 +356,13 @@ defmodule Tuist.Accounts do
         {:ok, organization}
 
       {:error, part, changeset, _changes}
-      when part in [:organization, :account, :default_runner_profile, :default_macos_runner_profile] ->
+      when part in [
+             :organization,
+             :account,
+             :runner_concurrency_limits,
+             :default_runner_profile,
+             :default_macos_runner_profile
+           ] ->
         {:error, changeset}
 
       {:error, part, changeset, _changes} ->
@@ -405,6 +412,9 @@ defmodule Tuist.Accounts do
             )
         })
       )
+    end)
+    |> Multi.run(:runner_concurrency_limits, fn _repo, %{account: account} ->
+      RunnerConcurrency.create_default_limits(account)
     end)
     |> Multi.run(:default_runner_profile, fn _repo, %{account: account} ->
       RunnerProfiles.create_default_for_account(account)
@@ -695,6 +705,9 @@ defmodule Tuist.Accounts do
           })
         )
       end)
+      |> Multi.run(:runner_concurrency_limits, fn _repo, %{account: account} ->
+        RunnerConcurrency.create_default_limits(account)
+      end)
       |> Multi.run(:default_runner_profile, fn _repo, %{account: account} ->
         RunnerProfiles.create_default_for_account(account)
       end)
@@ -737,8 +750,9 @@ defmodule Tuist.Accounts do
           {:error, changeset}
         end
 
-      {:error, step, reason, _} when step in [:default_runner_profile, :default_macos_runner_profile] ->
-        Logger.error("create_user: default runner profile insert failed (#{step}): #{inspect(reason)}")
+      {:error, step, reason, _}
+      when step in [:runner_concurrency_limits, :default_runner_profile, :default_macos_runner_profile] ->
+        Logger.error("create_user: account bootstrap insert failed (#{step}): #{inspect(reason)}")
         {:error, :internal_server_error}
     end
   end
@@ -1987,15 +2001,36 @@ defmodule Tuist.Accounts do
   end
 
   def delete_account!(%Account{} = account) do
-    cond do
-      user?(account) ->
-        account_user = get_user_by_id(account.user_id)
-        delete_user(account_user)
+    result =
+      cond do
+        user?(account) ->
+          account_user = get_user_by_id(account.user_id)
+          delete_user(account_user)
 
-      organization?(account) ->
-        {:ok, account_organization} = get_organization_by_id(account.organization_id)
-        delete_organization!(account_organization)
-    end
+        organization?(account) ->
+          {:ok, account_organization} = get_organization_by_id(account.organization_id)
+          delete_organization!(account_organization)
+      end
+
+    purge_account_cache_masters(account)
+    result
+  end
+
+  # The runner cache-volume master archive is customer-derived build cache
+  # stored under an account_id-keyed prefix, outside the account-handle
+  # namespace that handle-based artifact retention sweeps — so nothing else
+  # removes it. Delete it explicitly on account deletion so it doesn't outlive
+  # the account. Best-effort: a storage failure must never fail the deletion.
+  defp purge_account_cache_masters(account) do
+    Tuist.Storage.delete_all_objects(Tuist.Runners.volume_master_object_prefix(account.id), account)
+    :ok
+  rescue
+    e ->
+      Logger.warning(
+        "failed to purge runner cache-volume masters on account deletion (account_id=#{account.id}): #{Exception.message(e)}"
+      )
+
+      :ok
   end
 
   def organization?(account), do: !is_nil(account.organization_id)

@@ -15,6 +15,12 @@ let package = Package(
             name: "LibraryB",
             targets: ["LibraryB"]
         ),
+        // A product whose name differs from the target backing it, used to validate
+        // scheme code coverage references against product names.
+        .library(
+            name: "LibraryC",
+            targets: ["LibraryCCore"]
+        ),
     ],
     dependencies: [
         // Dependencies declare other packages that this package depends on.
@@ -32,6 +38,10 @@ let package = Package(
         ),
         .target(
             name: "LibraryB",
+            dependencies: []
+        ),
+        .target(
+            name: "LibraryCCore",
             dependencies: []
         ),
     ]

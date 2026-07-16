@@ -441,6 +441,224 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       assert env["KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL"] == "https://tuist.dev"
     end
 
+    test "pins the CAS capacity to the region's declared storage size" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn -> nil end)
+
+      manifest =
+        KubernetesController.manifest(
+          "kura-tuist-eu-central-1",
+          "0.5.2",
+          %{name: "tuist"},
+          eu_region(%{storage_size: "50Gi"}),
+          %Server{},
+          "return true"
+        )
+
+      env = Map.new(manifest["spec"]["extraEnv"], &{&1["name"], &1["value"]})
+
+      # 50Gi less the 8Gi tmp ceiling and one 512Mi segment, less 3% for the
+      # index. Without this the runtime would size the ring from the node's whole
+      # disk instead.
+      assert env["KURA_CAS_CAPACITY_BYTES"] == "43223477125"
+    end
+
+    test "leaves a 20Gi volume room for staging and index alongside the ring" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn -> nil end)
+
+      manifest =
+        KubernetesController.manifest(
+          "kura-tuist-staging-runners-1",
+          "0.5.2",
+          %{name: "tuist"},
+          eu_region(%{storage_size: "20Gi"}),
+          %Server{},
+          "return true"
+        )
+
+      env = Map.new(manifest["spec"]["extraEnv"], &{&1["name"], &1["value"]})
+      capacity = String.to_integer(env["KURA_CAS_CAPACITY_BYTES"])
+
+      assert capacity == 11_977_590_046
+
+      # The reserves are fixed sizes, not a share, so the ring plus the tmp
+      # ceiling plus a rotation has to stay inside the volume. A flat percentage
+      # passes at 50Gi and overruns here, which on an enforced class is ENOSPC.
+      tmp = 8 * 1024 * 1024 * 1024
+      segment = 512 * 1024 * 1024
+      assert capacity + tmp + segment < 20 * 1024 * 1024 * 1024
+    end
+
+    test "every registered region derives a budget Kura can honour" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn -> nil end)
+
+      segment = 512 * 1024 * 1024
+      tmp = 8 * 1024 * 1024 * 1024
+      floor = 5 * segment
+
+      for region <- Enum.filter(Regions.all(), &(&1.provisioner == KubernetesController)) do
+        # Building the manifest at all is the assertion for the sizes: an
+        # unparseable quantity raises, so a typo in a spec fails here rather than
+        # degrading to the statvfs budget in production.
+        manifest =
+          KubernetesController.manifest(
+            "kura-tuist-#{region.id}-1",
+            "0.5.2",
+            %{name: "tuist"},
+            region,
+            %Server{},
+            "return true"
+          )
+
+        env = Map.new(manifest["spec"]["extraEnv"], &{&1["name"], &1["value"]})
+
+        case env["KURA_CAS_CAPACITY_BYTES"] do
+          nil ->
+            :ok
+
+          value ->
+            capacity = String.to_integer(value)
+            envelope = envelope_bytes(region)
+
+            assert capacity < Integer.pow(2, 64), "#{region.id} declares a capacity Kura's u64 config rejects"
+            assert capacity >= floor, "#{region.id} budgets under Kura's ring floor, which the runtime raises"
+
+            assert div(capacity, segment) * segment + tmp + segment <= envelope,
+                   "#{region.id} overruns its declared envelope once staging and a rotation are reserved"
+        end
+      end
+    end
+
+    test "omits the CAS capacity when the budget would land under Kura's ring floor" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn -> nil end)
+
+      # 10Gi clears the reserves, so a budget is derivable, but it comes to
+      # ~1.4GiB and Kura clamps the ring up to its 2.5GiB floor. Emitting the
+      # derived value would promise a ring the runtime does not honour, and the
+      # floor plus the reserves overruns the volume.
+      manifest =
+        KubernetesController.manifest(
+          "kura-tuist-under-floor-1",
+          "0.5.2",
+          %{name: "tuist"},
+          eu_region(%{storage_size: "10Gi"}),
+          %Server{},
+          "return true"
+        )
+
+      env = Map.new(manifest["spec"]["extraEnv"], &{&1["name"], &1["value"]})
+
+      refute Map.has_key?(env, "KURA_CAS_CAPACITY_BYTES")
+    end
+
+    test "emits a budget that Kura's ring floor does not raise" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn -> nil end)
+
+      manifest =
+        KubernetesController.manifest(
+          "kura-tuist-above-floor-1",
+          "0.5.2",
+          %{name: "tuist"},
+          eu_region(%{storage_size: "12Gi"}),
+          %Server{},
+          "return true"
+        )
+
+      env = Map.new(manifest["spec"]["extraEnv"], &{&1["name"], &1["value"]})
+      capacity = String.to_integer(env["KURA_CAS_CAPACITY_BYTES"])
+
+      segment = 512 * 1024 * 1024
+      floor = 5 * segment
+
+      # Above the floor the clamp is a no-op, so the ring Kura resolves is the
+      # segment count this budget buys and the reserves still hold.
+      assert capacity >= floor
+      assert div(capacity, segment) * segment + 8 * 1024 * 1024 * 1024 + segment < 12 * 1024 * 1024 * 1024
+    end
+
+    test "raises rather than falling back to statvfs when a region's size cannot be parsed" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn -> nil end)
+
+      assert_raise ArgumentError, ~r/unparseable storage quantity/, fn ->
+        KubernetesController.manifest(
+          "kura-tuist-typo-1",
+          "0.5.2",
+          %{name: "tuist"},
+          eu_region(%{storage_size: "1.5Ti"}),
+          %Server{},
+          "return true"
+        )
+      end
+    end
+
+    test "omits the CAS capacity when the declared size cannot fit staging" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn -> nil end)
+
+      manifest =
+        KubernetesController.manifest(
+          "kura-tuist-tiny-1",
+          "0.5.2",
+          %{name: "tuist"},
+          eu_region(%{storage_size: "8Gi"}),
+          %Server{},
+          "return true"
+        )
+
+      env = Map.new(manifest["spec"]["extraEnv"], &{&1["name"], &1["value"]})
+
+      refute Map.has_key?(env, "KURA_CAS_CAPACITY_BYTES")
+    end
+
+    test "budgets the CAS from disk_envelope_size without moving the declared storage size" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn -> nil end)
+
+      manifest =
+        KubernetesController.manifest(
+          "kura-tuist-scw-fr-par-1",
+          "0.5.2",
+          %{name: "tuist"},
+          eu_region(%{storage_size: "50Gi", disk_envelope_size: "200Gi"}),
+          %Server{},
+          "return true"
+        )
+
+      env = Map.new(manifest["spec"]["extraEnv"], &{&1["name"], &1["value"]})
+
+      # Budgeted from the 200Gi override, not the 50Gi claim.
+      assert env["KURA_CAS_CAPACITY_BYTES"] == "199452912517"
+
+      # storageSize must stay at the claim: the controller patches live PVCs up to
+      # spec.storageSize on every reconcile, and scw-local-nvme is not expandable,
+      # so raising it would wedge every instance that already exists.
+      assert manifest["spec"]["storageSize"] == "50Gi"
+    end
+
+    test "omits the CAS capacity when the region declares no storage size" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn -> nil end)
+
+      manifest =
+        KubernetesController.manifest(
+          "kura-tuist-eu-central-1",
+          "0.5.2",
+          %{name: "tuist"},
+          eu_region(),
+          %Server{},
+          "return true"
+        )
+
+      env = Map.new(manifest["spec"]["extraEnv"], &{&1["name"], &1["value"]})
+
+      refute Map.has_key?(env, "KURA_CAS_CAPACITY_BYTES")
+    end
+
     test "renders local controller overrides for kind testing" do
       stub(Tuist.Environment, :app_url, fn -> "http://localhost:8080" end)
 
@@ -685,6 +903,14 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
     end
   end
 
+  # The size the region's budget is derived against: the envelope override where
+  # the claim is a fiction, the claim itself otherwise.
+  defp envelope_bytes(%Regions{provisioner_config: config}) do
+    size = config[:disk_envelope_size] || config[:storage_size]
+    {quantity, "Gi"} = Integer.parse(size)
+    quantity * 1024 * 1024 * 1024
+  end
+
   defp eu_region(extra_config \\ %{}) do
     %Regions{
       id: "eu-central",
@@ -786,24 +1012,28 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
         "00000000-0000-0000-0000-000000000001"
       end)
 
+      # Synthetic: no catalog region is cluster-DNS private today (the one that
+      # was went with its node pool), but a private region that omits
+      # `data_plane` still falls back to it, so the manifest builder has to keep
+      # handling it.
       region = %Regions{
-        id: "hetzner-staging-runners",
+        id: "cluster-dns-runners",
         provisioner_config: %{
-          cluster_id: "staging",
+          cluster_id: "cluster-dns",
           private: true,
           private_url_template: "http://{instance}.kura.svc.cluster.local:4000",
           data_plane: :cluster_dns,
           client_cidrs: [],
           pod_annotations: %{},
-          node_selector: %{"node.cluster.x-k8s.io/pool" => "kura"},
-          storage_class: "hcloud-volumes",
+          node_selector: %{"node.cluster.x-k8s.io/pool" => "kura-cluster-dns"},
+          storage_class: "scw-local-nvme",
           replicas: 1
         }
       }
 
       spec =
         KubernetesController.manifest(
-          "kura-tuist-staging",
+          "kura-tuist-cluster-dns",
           "0.5.2",
           %{name: "tuist"},
           region,

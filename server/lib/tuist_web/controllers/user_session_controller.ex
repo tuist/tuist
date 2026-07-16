@@ -2,6 +2,7 @@ defmodule TuistWeb.UserSessionController do
   use TuistWeb, :controller
 
   alias Tuist.Accounts
+  alias Tuist.Environment
   alias TuistWeb.Authentication
 
   def create(conn, %{"_action" => "registered"} = params) do
@@ -19,6 +20,17 @@ defmodule TuistWeb.UserSessionController do
   end
 
   defp create(conn, params, info) do
+    if Environment.email_auth_enabled?() do
+      rate_limited_create(conn, params, info)
+    else
+      conn
+      |> put_flash(:error, "Email and password sign-in is disabled.")
+      |> redirect(to: ~p"/users/log_in")
+      |> halt()
+    end
+  end
+
+  defp rate_limited_create(conn, params, info) do
     case TuistWeb.RateLimit.Auth.hit(conn) do
       {:allow, _count} ->
         do_create(conn, params, info)

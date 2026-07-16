@@ -274,6 +274,23 @@ defmodule Tuist.GitHub.Client do
     )
   end
 
+  @doc """
+  Fetches a workflow run. The response carries `head_repository` (where the run's
+  head commit lives) and `repository` (the base) — comparing them tells whether
+  the run originates from a fork, which the runner dispatch uses to decide
+  whether a job may touch the shared per-account cache.
+  """
+  def get_workflow_run(%{repository_full_handle: repository_full_handle, installation: installation, run_id: run_id}) do
+    api_url = installation_api_url(installation)
+    url = "#{api_url}/repos/#{repository_full_handle}/actions/runs/#{run_id}"
+
+    github_request(&Req.get/1,
+      url: url,
+      installation: installation,
+      api_url: api_url
+    )
+  end
+
   def create_check_run(%{repository_full_handle: repository_full_handle, installation: installation} = params) do
     api_url = installation_api_url(installation)
     url = "#{api_url}/repos/#{repository_full_handle}/check-runs"

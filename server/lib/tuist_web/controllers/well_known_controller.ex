@@ -30,6 +30,28 @@ defmodule TuistWeb.WellKnownController do
     json(conn, AgentSkillsDiscovery.index())
   end
 
+  @doc """
+  Advertises the package registry for this deployment so the command-line
+  interface can configure clients without hardcoding a registry path. Keyed
+  by ecosystem so future additions do not require a breaking response change.
+  Returns 404 when the deployment exposes no registry.
+  """
+  def registry_discovery(conn, _params) do
+    case Tuist.Registry.url() do
+      nil ->
+        send_resp(conn, :not_found, "")
+
+      url ->
+        login_path = (URI.parse(url).path || "") <> "/login"
+
+        json(conn, %{
+          "ecosystems" => %{
+            "swift" => %{"url" => url, "loginAPIPath" => login_path}
+          }
+        })
+    end
+  end
+
   def openai_apps_challenge(conn, _params) do
     if Environment.tuist_hosted?() do
       conn

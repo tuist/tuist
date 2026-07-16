@@ -7,20 +7,20 @@
 #     --set server.image.tag=$GIT_SHA
 
 registry:
-  # Brings up the read frontend, its ingress, and the DNS-01 cert. It
-  # serves no user traffic until registry.tuist.dev's Cloudflare origin
-  # is repointed at this ingress, which is a separate, revertible step.
-  # The sync writer stays disabled below: cache remains the sole writer
-  # until the cutover.
+  # Clients stay on tuist.dev/api/registry while the Worker forwards requests
+  # to this dedicated ingress host. The ingress hostname is not advertised as
+  # a separate registry endpoint.
   enabled: true
-  publicHost: registry.tuist.dev
+  publicHost: tuist.dev
   serverUrl: https://tuist.dev
-  deployEnv: prod
+  deployEnv: production
   sentryEnv: prod
   poolSize: "10"
   ingress:
     host: registry.tuist.dev
     tlsSecretName: registry-tls
+    annotations:
+      external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
   resources:
     requests:
       cpu: "500m"
@@ -76,6 +76,10 @@ server:
     # env's config the release runs as.
     - name: TUIST_DEPLOY_ENV
       value: prod
+    # Keep clients on the existing registry base address while the Worker
+    # moves its origin from the cache nodes to the standalone frontend.
+    - name: TUIST_REGISTRY_URL
+      value: https://tuist.dev/api/registry/swift
     # Enables the server-owned registry sync writer. Cache still writes
     # too until it is turned off as a separate step; the two coordinate
     # through the shared S3 sync lock, so dual-writing is safe.
@@ -531,6 +535,26 @@ ovhFleets:
 # xcresult capacity offline.
 macosFleet:
   replicas: 2
+  # Per-account cache volumes. The quota is an APFS ceiling (shares the
+  # container's free space, not a reservation) fenced by admission +
+  # watermark eviction, so space pressure degrades a job to the cold
+  # path rather than risking ENOSPC. A real Tuist cache master is ~2.4 GB
+  # (the 20 GiB masterCapGib is a sparse per-master ceiling, not the
+  # typical size), so 80 GiB holds ~30 masters — well beyond the accounts
+  # a single host keeps hot once affinity spreads them across the fleet.
+  # Kept well under the 512 GB disk, which is dominated by the ~85 GB
+  # golden VM image(s) (two during a digest roll) + per-job DerivedData.
+  # DISABLED (2026-07-16): rolling this to the prod fleet broke every
+  # macOS CI job — the guest mounts the virtio-fs cache share and exports
+  # TUIST_XDG_CACHE_HOME at it, but `mkdir -p $CACHE_MOUNT/tuist` in
+  # dispatch-poll.sh fails silently (`2>/dev/null || true`) while the env
+  # var is exported regardless, so the CLI dies with "Couldn't create the
+  # directory at /Volumes/My Shared Files/cache/tuist/... because its
+  # parent directory doesn't exists". Re-enable only once a real CI job
+  # is verified green on a cache-volume host (host-side provisioning
+  # checks are NOT sufficient — that gap is what let this reach prod).
+  runnerCacheVolume:
+    gib: 0
   # Production tailnet — alloy-metrics scrapes PromEx (xcresult VM)
   # + node_exporter (host) over the tailnet. The pre-auth key lives
   # in the production 1Password vault under TAILSCALE/auth-key.
@@ -605,15 +629,20 @@ runnersFleet:
   #
   # Floors sum to 3 of the 9-slot budget; the remaining 6 slots are
   # dynamically apportioned by queue depth across the pools.
-  # The default (26.5) keeps the warm baseline since most traffic
+  # The default (26.6) keeps the warm baseline since most traffic
   # lands there; older Xcodes sit cold (floor 0) so an unused runner
   # doesn't tie up a host. Revisit once we open the runners to
   # general signups where the pool mix is unpredictable in advance.
   xcodeOverrides:
-    "26.5":
+    "26.6":
       autoscaling:
         enabled: true
         minWarmPoolFloor: 3
+        maxReplicas: 9
+    "26.5":
+      autoscaling:
+        enabled: true
+        minWarmPoolFloor: 0
         maxReplicas: 9
     "26.4.1":
       autoscaling:

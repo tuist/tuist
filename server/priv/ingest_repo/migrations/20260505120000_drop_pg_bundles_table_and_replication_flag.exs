@@ -19,21 +19,23 @@ defmodule Tuist.IngestRepo.Migrations.DropPgBundlesTableAndReplicationFlag do
   @disable_migration_lock true
 
   def up do
-    # PostgreSQL repo is not started during ClickHouse migrations.
-    case Repo.start_link() do
-      {:ok, _} -> :ok
-      {:error, {:already_started, _}} -> :ok
-    end
-
-    Repo.query!("DROP TABLE IF EXISTS bundles")
+    # The PostgreSQL repo is not started during ClickHouse migrations, and Ecto
+    # discards the task each migration runs in, so start it through
+    # `Ecto.Migrator.with_repo/2` instead of linking it to that task.
+    {:ok, _, _} =
+      Ecto.Migrator.with_repo(Repo, fn _repo ->
+        Repo.query!("DROP TABLE IF EXISTS bundles")
+      end)
   end
 
   def down do
-    case Repo.start_link() do
-      {:ok, _} -> :ok
-      {:error, {:already_started, _}} -> :ok
-    end
+    {:ok, _, _} =
+      Ecto.Migrator.with_repo(Repo, fn _repo ->
+        recreate_bundles_table()
+      end)
+  end
 
+  defp recreate_bundles_table do
     Repo.query!("""
     CREATE TABLE bundles (
       id uuid PRIMARY KEY,

@@ -92,7 +92,13 @@ defmodule Tuist.Runners.PromExPluginTest do
       stub_pool_list(["fleet-claims"])
 
       account = account_fixture()
-      {:ok, _} = Claims.attempt(123_456, account.id, "fleet-claims", "pod-x")
+
+      {:ok, _} =
+        Claims.attempt(123_456, account.id, "fleet-claims", "pod-x", %{
+          platform: :linux,
+          vcpus: 1,
+          memory_gb: 1
+        })
 
       PromExPlugin.execute_claims_telemetry_event()
 

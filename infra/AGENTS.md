@@ -57,8 +57,8 @@ Go controller for `KuraInstance` and `KuraGateway` CRs (`kura.tuist.dev/v1alpha1
 ### `tart-kubelet/` — Mac mini VM kubelet
 Go kubelet-shaped agent that registers a Mac mini as a Kubernetes Node and maps Pods to Tart VMs. Interactive runner VNC is host-controlled here: runner VMs start with Tart's host-owned experimental VNC enabled, generated VNC credentials stay in host-control state, and a relay opens only while either a legacy host-local `vnc-control-dir/requests/<namespace>_<pod>` file exists or the server stamps its session annotation on the runner Pod.
 
-### `registry-router/` — Cloudflare Worker for `registry.tuist.dev`
-Geo-routes cache registry requests to the nearest healthy cache origin based on the requester's continent. Unrelated to the Kubernetes migration.
+### `registry-router/` — Cloudflare Worker for the Tuist registry path
+Routes `tuist.dev/api/registry/*` to the health-checked standalone registry frontend at `registry.tuist.dev`. Regional cache nodes remain automatic fallback origins during the cutover soak period. The ingress hostname is an origin, not a separately advertised registry endpoint.
 
 ### `cnpg/` — CloudNativePG bootstrap SQL
 SQL files for per-table GRANTs that don't fit CNPG's `managed.roles[]` declarative surface (`tuist_processor` writes on Oban tables; `tuist_ops_ro` extras on top of `pg_read_all_data`). The actual `Cluster` / `ScheduledBackup` / ESO Secret manifests are rendered by the main Helm chart whenever `postgresql.cnpg.enabled` is true or `postgresql.mode == "cnpg"`; this directory holds only the operator-run SQL that can't fit in the chart.
@@ -69,7 +69,7 @@ End-to-end runbook for the bare-metal Mac mini fleet that bakes our Tart VM imag
 ### `grafana-dashboards/` — Grafana Cloud dashboards (managed only)
 Dashboard definitions synced with Grafana Cloud via [Git Sync](https://grafana.com/docs/grafana-cloud/as-code/observability-as-code/git-sync/). The `Tuist Dashboards` folder in Grafana Cloud is bound to this directory; changes propagate in both directions.
 
-Each file is a `dashboard.grafana.app/v1` resource. The raw dashboard JSON lives under `spec`; the wrapper (`apiVersion`, `kind`, `metadata.name`) is what Grafana Git Sync expects. `metadata.name` must match the dashboard UID.
+Each file is a `dashboard.grafana.app/v1` or `dashboard.grafana.app/v2` resource. The raw dashboard JSON lives under `spec`; the wrapper (`apiVersion`, `kind`, `metadata.name`) is what Grafana Git Sync expects. `metadata.name` must match the dashboard UID.
 
 **Editing workflow:**
 - Prefer editing dashboards in the Grafana UI. On save, Grafana opens a pull request against `tuist/tuist` with the updated file. Direct commits to `main` from Grafana are disabled, so every UI save goes through PR review.

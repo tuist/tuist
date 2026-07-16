@@ -7,7 +7,7 @@
     }
   },
   "authentication": {
-    "registry.tuist.dev": {
+    "tuist.dev": {
       "loginAPIPath": "/api/registry/swift/login",
       "type": "token"
     }
@@ -15,7 +15,7 @@
   "registries": {
     "[default]": {
       "supportsAvailability": false,
-      "url": "https://registry.tuist.dev/api/registry/swift"
+      "url": "https://tuist.dev/api/registry/swift"
     }
   },
   "version": 1

@@ -399,7 +399,7 @@ impl Config {
         let peer_gateway_url = lookup(KURA_PEER_GATEWAY_URL)
             .map(|value| value.trim().to_owned())
             .filter(|value| !value.is_empty());
-        let peers = lookup(KURA_PEERS)
+        let peers: Vec<String> = lookup(KURA_PEERS)
             .map(|value| {
                 value
                     .split(',')
@@ -408,7 +408,7 @@ impl Config {
                     .map(ToOwned::to_owned)
                     .collect()
             })
-            .or_else(|| node_url.as_ref().map(|value| vec![value.clone()]));
+            .unwrap_or_default();
         let discovery_dns_name = lookup(KURA_DISCOVERY_DNS_NAME)
             .map(|value| value.trim().to_owned())
             .filter(|value| !value.is_empty());
@@ -1178,9 +1178,7 @@ impl Config {
             }
         }
 
-        if let (Some(node_url), Some(peers), Some(internal_port)) =
-            (node_url.as_ref(), peers.as_ref(), internal_port)
-        {
+        if let (Some(node_url), Some(internal_port)) = (node_url.as_ref(), internal_port) {
             let expected_scheme = if peer_tls.is_some() { "https" } else { "http" };
             let scheme_error = if peer_tls.is_some() {
                 format!("{KURA_NODE_URL} must use https when peer mTLS is enabled")
@@ -1264,7 +1262,7 @@ impl Config {
             cas_capacity_bytes,
             node_url: node_url.expect("node_url should be present when configuration is valid"),
             peer_gateway_url,
-            peers: peers.expect("peers should be present when configuration is valid"),
+            peers,
             discovery_dns_name,
             global_discovery_dns_name,
             peer_tls,
@@ -1537,10 +1535,7 @@ mod tests {
             config_from(&[]).expect("expected config defaults to derive from host resources");
 
         assert_eq!(config.internal_port, 7443);
-        assert_eq!(
-            config.peers,
-            vec!["http://kura.example.com:7443".to_owned()]
-        );
+        assert!(config.peers.is_empty());
         assert_eq!(config.file_descriptor_pool_size, 1792);
         assert_eq!(config.file_descriptor_acquire_timeout_ms, 5_000);
         assert_eq!(config.drain_completion_timeout_ms, 240_000);

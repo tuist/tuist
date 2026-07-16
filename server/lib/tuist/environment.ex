@@ -505,6 +505,47 @@ defmodule Tuist.Environment do
     get([:ops, :reason_form_url], secrets, default_value: nil)
   end
 
+  @doc """
+  PEM-encoded Ed25519 PRIVATE key the server uses to sign per-account
+  cache-signing grants delivered to runner jobs. The runner's
+  Tuist EE CLI verifies the grant OFFLINE with the matching public half
+  baked into the binary, then scopes cached-artifact signatures to the
+  account instead of the machine MAC so a warm cache volume's binaries
+  validate as local hits across VMs. nil (default) disables grant minting:
+  dispatch omits the grant, the CLI falls back to the MAC default, and the
+  manifest/helper cache warmth still applies — the volume just re-pulls its
+  binaries, exactly as without the EE change. Provisioned per environment
+  from 1Password via ESO; distinct from the artifact-signing key.
+  """
+  def cache_grant_private_key(secrets \\ secrets()) do
+    System.get_env("TUIST_CACHE_GRANT_PRIVATE_KEY") || get([:cache_grant, :private_key], secrets)
+  end
+
+  @doc """
+  The `aud` claim stamped on cache-signing grants, pinned per environment
+  so a grant minted for one env can't be replayed in another. Must match
+  the audience the EE CLI enforces.
+  """
+  def cache_grant_audience(secrets \\ secrets()) do
+    get([:cache_grant, :audience], secrets, default_value: "tuist-runner-cache")
+  end
+
+  @doc """
+  Lifetime (seconds) of a cache-signing grant. Set to the job's maximum
+  lifetime plus a small margin: a leaked grant (runner jobs run arbitrary
+  user code that can read the environment) expires within the job's TTL,
+  so sustaining cross-machine reuse would require continuously harvesting
+  fresh grants from one's own live runner jobs — an authorized account
+  member who can already download the same artifacts with their account
+  token. Defaults to 7h (GitHub Actions' 6h job ceiling + margin).
+  """
+  def cache_grant_ttl_seconds(secrets \\ secrets()) do
+    case get([:cache_grant, :ttl_seconds], secrets, default_value: 25_200) do
+      value when is_integer(value) -> value
+      value when is_binary(value) -> String.to_integer(value)
+    end
+  end
+
   def posthog_api_key(secrets \\ secrets()) do
     get([:posthog, :api_key], secrets)
   end
@@ -843,6 +884,33 @@ defmodule Tuist.Environment do
   # sign-in method off.
   def github_auth_enabled? do
     truthy?(System.get_env("TUIST_GITHUB_AUTH_ENABLED", "1"))
+  end
+
+  # Email/password sign-in and self-serve registration are built in and have no
+  # "configured?" concept, so this lever lets a self-hosted operator turn them
+  # off entirely (for example on an SSO-only instance). It gates the login form,
+  # registration, and the password-reset flow, both in the UI and server-side.
+  # There is deliberately no lockout guard: disabling this while no OAuth/SSO
+  # provider is usable leaves the instance without a login method.
+  def email_auth_enabled? do
+    truthy?(System.get_env("TUIST_EMAIL_AUTH_ENABLED", "1"))
+  end
+
+  # Google, Okta, and Apple sign-in are shown whenever the provider is
+  # configured. These levers, mirroring `github_auth_enabled?/0`, let a
+  # self-hosted operator keep a provider configured while removing it as a
+  # sign-in option (button hidden and, for the Ueberauth providers, the sign-in
+  # callback closed).
+  def google_auth_enabled? do
+    truthy?(System.get_env("TUIST_GOOGLE_AUTH_ENABLED", "1"))
+  end
+
+  def okta_auth_enabled? do
+    truthy?(System.get_env("TUIST_OKTA_AUTH_ENABLED", "1"))
+  end
+
+  def apple_auth_enabled? do
+    truthy?(System.get_env("TUIST_APPLE_AUTH_ENABLED", "1"))
   end
 
   def github_app_configured?(secrets \\ secrets()) do

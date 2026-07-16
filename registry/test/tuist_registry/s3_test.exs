@@ -12,6 +12,26 @@ defmodule TuistRegistry.S3Test do
     :ok
   end
 
+  describe "presign_download_url/2" do
+    test "signs the requested response content type" do
+      key = "registry/swift/apple/swift-argument-parser/1.0.0/source_archive.zip"
+
+      expect(ExAws.Config, :new, fn :s3 -> :config end)
+
+      expect(ExAws.S3, :presigned_url, fn :config, :get, "test-registry-bucket", ^key, opts ->
+        assert opts == [
+                 expires_in: 600,
+                 query_params: [{"response-content-type", "application/zip"}]
+               ]
+
+        {:ok, "https://s3.example.com/source_archive.zip?signed=true"}
+      end)
+
+      assert S3.presign_download_url(key, type: :registry, content_type: "application/zip") ==
+               {:ok, "https://s3.example.com/source_archive.zip?signed=true"}
+    end
+  end
+
   describe "exists?/2" do
     test "does not cache positive results" do
       key = "registry/swift/apple/swift-argument-parser/1.0.0/source_archive.zip"

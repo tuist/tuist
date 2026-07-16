@@ -265,6 +265,32 @@ pub fn segment_artifact_index_prefix(segment_id: &str) -> String {
     format!("{segment_id}\0")
 }
 
+/// Row key in the action-cache index CF. The version is stored bitwise-NOT
+/// big-endian so a forward prefix scan yields entries newest-first and can
+/// stop at the snapshot's entry cap without sorting. The action hash keeps
+/// same-millisecond rows distinct; the row value is the artifact id.
+pub fn action_cache_index_key(namespace_id: &str, version_ms: u64, action_hash: &str) -> Vec<u8> {
+    let mut key = Vec::with_capacity(namespace_id.len() + 1 + 8 + action_hash.len());
+    key.extend_from_slice(namespace_id.as_bytes());
+    key.push(0);
+    key.extend_from_slice(&(!version_ms).to_be_bytes());
+    key.extend_from_slice(action_hash.as_bytes());
+    key
+}
+
+pub fn action_cache_index_prefix(namespace_id: &str) -> Vec<u8> {
+    let mut prefix = Vec::with_capacity(namespace_id.len() + 1);
+    prefix.extend_from_slice(namespace_id.as_bytes());
+    prefix.push(0);
+    prefix
+}
+
+/// The action hash of a REAPI action-cache manifest key
+/// (`action_cache/{hash}`), `None` for every other artifact.
+pub fn action_cache_manifest_hash(key: &str) -> Option<&str> {
+    key.strip_prefix("action_cache/")?.split('/').next()
+}
+
 pub fn now_ms() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)

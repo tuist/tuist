@@ -35,4 +35,11 @@ Running a job on the fleet takes three changes: connect GitHub, point `runs-on` 
          - run: tuist test
    ```
 
+   > [!IMPORTANT]
+   > **Select Xcode with the runner profile**
+   >
+   > A macOS runner image contains a single Xcode version, which Tuist selects before the job starts based on the profile. If you're migrating from GitHub-hosted runners, remove steps that use `xcode-select --switch` (or `xcode-select -s`) or other tools and actions to switch Xcode versions. Those steps commonly reference Xcode installations specific to GitHub-hosted images and can fail on Tuist Runners.
+   >
+   > To use another Xcode version, <.localized_link href="/guides/features/runners/profiles#creating-a-profile">create or choose a profile</.localized_link> with that version and update `runs-on`, for example `runs-on: tuist-xcode-26-4`. `xcodebuild`, `xcrun`, and `swift` will then use the profile's selected Xcode without any additional setup in the workflow.
+
 4. **Push and watch.** The job is queued, claimed by a runner, and streamed back to the **Runners** section of your Tuist dashboard, where you can follow its logs, steps, and machine metrics.

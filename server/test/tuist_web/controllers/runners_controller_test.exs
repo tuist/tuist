@@ -26,7 +26,12 @@ defmodule TuistWeb.RunnersControllerTest do
           head_sha: "deadbeef"
         })
 
-      {:ok, _} = Claims.attempt(7_100_002, account.id, "fleet-scale", "pod-scale-1")
+      {:ok, _} =
+        Claims.attempt(7_100_002, account.id, "fleet-scale", "pod-scale-1", %{
+          platform: :linux,
+          vcpus: 1,
+          memory_gb: 1
+        })
 
       stub(K8sClient, :create_controller_token_review, fn "valid-token" ->
         {:ok, %{namespace: "tuist-runners-controller", name: "runners-controller"}}
@@ -134,33 +139,29 @@ defmodule TuistWeb.RunnersControllerTest do
       account = account_fixture()
 
       # The endpoint lookup goes through `Regions.available/0`, which
-      # in test sees only the local controller region — surface both
-      # private regions the way a managed runtime would.
+      # in test sees only the local controller region — surface the
+      # private region the way a managed runtime would.
       stub(Tuist.Environment, :dev?, fn -> false end)
       stub(Tuist.Environment, :test?, fn -> false end)
 
       stub(Tuist.Environment, :kura_available_region_ids, fn ->
-        ["scw-fr-par-runners", "hetzner-staging-runners"]
+        ["scw-fr-par-runners"]
       end)
 
-      # Active runner-cache nodes in both private regions: the
-      # macOS-serving Scaleway one and the linux+macos staging one.
+      # The only private runner-cache region, serving macOS. Linux has none.
       scw_url = "http://kura-#{account.name}-scw-fr-par.kura.svc.cluster.local:4000"
-      staging_url = "http://kura-#{account.name}-staging.kura.svc.cluster.local:4000"
 
-      for {region, url} <- [{"scw-fr-par-runners", scw_url}, {"hetzner-staging-runners", staging_url}] do
-        Tuist.Repo.insert!(%Tuist.Kura.Server{
-          account_id: account.id,
-          region: region,
-          status: :active,
-          url: url,
-          # Fresh readiness heartbeat so the node-port server is served
-          # rather than failed over to the public cache (see
-          # Kura.runner_cache_endpoint_url/2).
-          last_ready_at: DateTime.truncate(DateTime.utc_now(), :second),
-          provisioner_node_ref: "kura-#{account.name}-#{region}"
-        })
-      end
+      Tuist.Repo.insert!(%Tuist.Kura.Server{
+        account_id: account.id,
+        region: "scw-fr-par-runners",
+        status: :active,
+        url: scw_url,
+        # Fresh readiness heartbeat so the node-port server is served
+        # rather than failed over to the public cache (see
+        # Kura.runner_cache_endpoint_url/2).
+        last_ready_at: DateTime.truncate(DateTime.utc_now(), :second),
+        provisioner_node_ref: "kura-#{account.name}-scw-fr-par-runners"
+      })
 
       stub(K8sClient, :create_token_review, fn "valid-token" ->
         {:ok, %{namespace: "tuist-runners", name: "pod-1"}}
@@ -185,11 +186,11 @@ defmodule TuistWeb.RunnersControllerTest do
         |> json_response(200)
       end
 
-      # Locality: each platform only ever sees a region that serves
-      # it. The Linux fleet must never receive the Scaleway URL —
-      # that node is co-located with the macOS fleet on the other
-      # side of a WAN.
-      assert dispatch.(true, :linux)["cache_endpoint_url"] == staging_url
+      # Locality: each platform only ever sees a region that serves it. The
+      # Linux fleet must never receive the Scaleway URL — that node is
+      # co-located with the macOS fleet on the other side of a WAN — and since
+      # no region serves Linux, it gets no URL rather than the wrong one.
+      refute Map.has_key?(dispatch.(true, :linux), "cache_endpoint_url")
       assert dispatch.(true, :macos)["cache_endpoint_url"] == scw_url
 
       # Reachability: a fleet off the cluster network gets no URL at
