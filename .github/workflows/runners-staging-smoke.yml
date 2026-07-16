@@ -84,6 +84,18 @@ jobs:
             *)                   echo "MODE: unexpected cache root" ;;
           esac
           [ -n "${root}" ] || { echo "No cache root exported; nothing to assert."; exit 0; }
+          # WARM vs COLD is the whole point. A previous run seeded
+          # tuist/Binaries/smoke-probe and (being dirty) promoted a master; if
+          # that probe is present BEFORE we write anything, the host
+          # materialized that master into this branch — i.e. this is the WARM
+          # path, where the cache root carries the MASTER's ownership/mode
+          # rather than the branch's 0777. That is the path production broke on;
+          # a cold run proves nothing about it.
+          if [ -e "${root}/tuist/Binaries/smoke-probe/marker" ]; then
+            echo "PATH: WARM — a master was materialized into this branch (this is the prod-breaking path)"
+          else
+            echo "PATH: COLD — no master materialized (guest creates tuist/ itself; does NOT exercise the prod break)"
+          fi
           ls -ld "${root}" "${root}/tuist" 2>&1 || true
           # The exact call that aborted every job in production.
           if ! mkdir -p "${root}/tuist/Plugins"; then
