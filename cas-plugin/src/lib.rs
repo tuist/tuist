@@ -2,10 +2,16 @@
 //! libToolchainCASPlugin for local storage and hashing, and adds kura-backed
 //! remoteness over the Bazel Remote Execution API (see reapi.rs).
 //!
-//! The build system runs in its fast "plugin-local" mode (no
-//! COMPILATION_CACHE_REMOTE_SERVICE_PATH); this plugin owns all remote
-//! traffic. Interception is deliberately not keyed on the `globally` flag,
-//! which is never set on this path.
+//! This plugin owns all remote traffic. `COMPILATION_CACHE_REMOTE_SERVICE_PATH`
+//! points at our proxy's socket, but Xcode's own remote client never sees it: we
+//! consume the matching `remote-service-path` option below rather than forwarding
+//! it to the wrapped plugin. The setting is still required, because it is what
+//! turns on the build system's clang caching lane, which routes C, Objective-C,
+//! precompiled modules and headers through whichever CAS plugin is configured.
+//! Without it, only Swift compilations are shared.
+//!
+//! Interception is therefore not keyed on the `globally` flag: the clang lane
+//! sets it and the Swift path does not, and both are ours to serve.
 
 pub mod analytics;
 pub mod proxy;

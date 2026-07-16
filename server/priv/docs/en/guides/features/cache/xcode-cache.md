@@ -16,14 +16,10 @@ The Xcode cache was introduced in Xcode 26. You might also see it referred to as
 >
 > The Xcode cache and the <.localized_link href="/guides/features/cache/module-cache">module cache</.localized_link> work at different granularity levels and complement each other. The module cache replaces whole modules with prebuilt `.xcframework`s before the build runs, while the Xcode cache reuses compilation outputs during the build.
 
-> [!IMPORTANT]
-> **Swift compilations are shared; C, Objective-C and modules are cached locally only**
+> [!TIP]
+> **If you clean, keep `CompilationCache.noindex`**
 >
-> Xcode keeps two separate caches under `DerivedData/CompilationCache.noindex`. Swift compilations go through Tuist's CAS plugin and are the ones shared with your team through the remote cache. C and Objective-C compilations, precompiled modules (`.pcm`) and precompiled headers go to Xcode's built-in cache instead, because clang does not load a compilation cache plugin. Those are still cached, but only on the machine that produced them.
->
-> This is a limitation of Xcode rather than a configuration issue — no build setting changes it. It means a machine that has never built your project (a fresh CI runner, or a colleague's first build) reuses your team's Swift compilations but still compiles C, Objective-C and modules itself.
->
-> Both caches live inside `DerivedData`, so deleting it discards them together. **If you clean, prefer deleting only the build products and keeping `CompilationCache.noindex`** — a rebuild then reuses everything, including the local C, Objective-C and module compilations.
+> The compilation cache lives inside `DerivedData`, so deleting `DerivedData` throws it away along with the build products. Prefer deleting only the build products: the rebuild then replays from the cache on disk, without fetching anything.
 
 
 ## Setup {#setup}
@@ -67,7 +63,12 @@ Note that `COMPILATION_CACHE_REMOTE_SERVICE_PATH` and `COMPILATION_CACHE_ENABLE_
 > [!NOTE]
 > **Socket Path**
 >
-> The socket path will be displayed when you run `tuist setup cache`. It's based on your project's full handle with slashes replaced by underscores.
+> The socket path will be displayed when you run `tuist setup cache` — copy it from there rather than assembling it by hand, since it differs depending on how your account's cache is served.
+
+> [!IMPORTANT]
+> **`COMPILATION_CACHE_REMOTE_SERVICE_PATH` is what shares C and Objective-C**
+>
+> It is easy to read this setting as "where the cache service lives" and treat it as optional. It is also the switch that decides whether C, Objective-C, precompiled modules and precompiled headers are shared at all: the build system only runs its caching for those when a remote cache service is configured. Leave it out and you still get Swift compilations shared, but every C/Objective-C file and every module is recompiled on any machine that has not built the project before.
 
 
 You can also specify these settings when running `xcodebuild` by adding the following flags, such as:
