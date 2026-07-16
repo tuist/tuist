@@ -15,20 +15,51 @@
       <h2 data-part="token-name">{@account_token.name}</h2>
     </div>
     <div data-part="actions">
-      <.button
+      <.modal
         :if={@can_delete_tokens?}
-        label={dgettext("dashboard_account", "Revoke")}
-        variant="secondary"
-        size="medium"
-        phx-click="revoke_account_token"
-        data-confirm={
+        id="revoke-account-token-modal"
+        title={dgettext("dashboard_account", "Revoke account token?")}
+        description={
           dgettext(
             "dashboard_account",
             "Revoke %{name}? This action cannot be undone.",
             name: @account_token.name
           )
         }
-      />
+        header_type="warning"
+        header_size="large"
+        on_dismiss="close_revoke_account_token_modal"
+      >
+        <:trigger :let={attrs}>
+          <.button
+            label={dgettext("dashboard_account", "Revoke")}
+            variant="secondary"
+            size="medium"
+            type="button"
+            {attrs}
+          />
+        </:trigger>
+        <:footer>
+          <.modal_footer>
+            <:action>
+              <.button
+                label={dgettext("dashboard_account", "Cancel")}
+                variant="secondary"
+                type="button"
+                phx-click="close_revoke_account_token_modal"
+              />
+            </:action>
+            <:action>
+              <.button
+                label={dgettext("dashboard_account", "Revoke")}
+                variant="destructive"
+                type="button"
+                phx-click="revoke_account_token"
+              />
+            </:action>
+          </.modal_footer>
+        </:footer>
+      </.modal>
     </div>
   </div>
 

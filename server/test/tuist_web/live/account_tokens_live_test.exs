@@ -385,6 +385,10 @@ defmodule TuistWeb.AccountTokensLiveTest do
 
     {:ok, lv, html} = live(conn, ~p"/#{account.name}/settings/tokens/#{token.id}")
     assert html =~ "old-ci"
+    assert html =~ ~s(id="revoke-account-token-modal")
+    assert html =~ "Revoke account token?"
+    assert html =~ "Revoke old-ci? This action cannot be undone."
+    refute html =~ "data-confirm"
 
     assert {:error, {:live_redirect, %{to: redirect_to}}} =
              render_hook(lv, "revoke_account_token", %{})
