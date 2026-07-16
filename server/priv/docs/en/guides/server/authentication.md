@@ -81,14 +81,11 @@ For CI environments that don't support OIDC, or when you need fine-grained contr
 
 The easiest way to create an account token is from the dashboard:
 
-1. Open the account in the Tuist dashboard.
+1. Open the organization in the Tuist dashboard.
 2. Go to **Settings** > **Tokens**.
 3. Select **Generate token**.
 4. Choose a name, optional expiration, project access, and the scopes the token needs.
 5. Copy the generated token value before closing the dialog. Token values are only shown once.
-
-> [!IMPORTANT]
-> Make sure you are viewing the account that owns the projects you want the token to access. This can be an organization account, not necessarily your personal account.
 
 You can also create account tokens from the CLI, which is useful for scripting or automation:
 
