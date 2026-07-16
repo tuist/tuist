@@ -25,7 +25,7 @@ defmodule TuistWeb.DocsLiveTest do
       assert has_element?(
                lv,
                ~s(a#docs-xcode-path[href="/en/docs/guides/features/cache/xcode-cache"]),
-               "Existing Xcode project"
+               "Xcode project"
              )
 
       assert has_element?(
@@ -37,7 +37,7 @@ defmodule TuistWeb.DocsLiveTest do
       assert has_element?(
                lv,
                ~s(a#docs-runners-path[href="/en/docs/guides/features/runners/getting-started"]),
-               "Tuist Runners"
+               "CI runners"
              )
     end
 

@@ -133,7 +133,7 @@ defmodule TuistWeb.DocsLive do
             <.link id="docs-xcode-path" patch={@xcode_path} data-part="feature-card">
               <div data-part="image">
                 <span data-part="icon"><.brand_apple /></span>
-                <span data-part="title">{dgettext("docs", "Existing Xcode project")}</span>
+                <span data-part="title">{dgettext("docs", "Xcode project")}</span>
               </div>
               <div data-part="body">
                 <p>
@@ -171,13 +171,13 @@ defmodule TuistWeb.DocsLive do
             <.link id="docs-runners-path" patch={@runners_path} data-part="feature-card">
               <div data-part="image">
                 <span data-part="icon"><.server /></span>
-                <span data-part="title">{dgettext("docs", "Tuist Runners")}</span>
+                <span data-part="title">{dgettext("docs", "CI runners")}</span>
               </div>
               <div data-part="body">
                 <p>
                   {dgettext(
                     "docs",
-                    "Run GitHub Actions workflows on managed macOS and Linux infrastructure next to your cache."
+                    "Run continuous integration workflows with GitHub Actions on managed macOS and Linux infrastructure next to your cache."
                   )}
                 </p>
                 <span data-part="journey-link">
@@ -585,7 +585,7 @@ defmodule TuistWeb.DocsLive do
           "Choose the path that matches how your team builds today. You can adopt Tuist without changing how your projects are generated."
         ),
         "",
-        "- #{markdown_link(dgettext("docs", "Existing Xcode project"), xcode_path)}: " <>
+        "- #{markdown_link(dgettext("docs", "Xcode project"), xcode_path)}: " <>
           dgettext(
             "docs",
             "Add compilation caching and insights without adopting project generation."
@@ -595,10 +595,10 @@ defmodule TuistWeb.DocsLive do
             "docs",
             "Connect remote caching, build insights, and test insights to your existing project."
           ),
-        "- #{markdown_link(dgettext("docs", "Tuist Runners"), runners_path)}: " <>
+        "- #{markdown_link(dgettext("docs", "CI runners"), runners_path)}: " <>
           dgettext(
             "docs",
-            "Run GitHub Actions workflows on managed macOS and Linux infrastructure next to your cache."
+            "Run continuous integration workflows with GitHub Actions on managed macOS and Linux infrastructure next to your cache."
           ),
         "",
         markdown_link(dgettext("docs", "Install Tuist"), install_path),
