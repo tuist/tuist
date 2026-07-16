@@ -74,8 +74,10 @@ jobs:
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
       # Install the Rust toolchain the cas-plugin bundle needs, resolving its
       # version from cas-plugin/mise.toml rather than pinning it here (single
-      # source of truth, matching how kura pins its toolchain).
+      # source of truth, matching how kura pins its toolchain). Older release
+      # branches that predate cas-plugin do not need this toolchain.
       - uses: jdx/mise-action@v4.0.1
+        if: ${{ hashFiles('cas-plugin/mise.toml') != '' }}
         with:
           version: ${{ env.MISE_VERSION }}
           install_args: rust
