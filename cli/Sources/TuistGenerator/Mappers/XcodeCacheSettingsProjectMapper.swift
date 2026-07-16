@@ -56,9 +56,27 @@ public struct XcodeCacheSettingsProjectMapper: ProjectMapping {
                     // Hand the plugin its per-project options as compiler flags, which
                     // reach every frontend — including an Xcode ⌘B build that carries
                     // no CLI environment — so the proxy can route (and honor the upload
-                    // policy) without the CLI. Swift only: clang/ObjC never loads the CAS
-                    // plugin (Xcode routes its compilation caching to the builtin CAS),
-                    // so C/ObjC is cached locally but never remote.
+                    // policy) without the CLI.
+                    //
+                    // Swift only: clang/ObjC never loads the CAS plugin (Xcode routes its
+                    // compilation caching to the builtin CAS at
+                    // `DerivedData/CompilationCache.noindex/builtin`), so C/ObjC/module/PCH
+                    // is cached locally but never published. This is the single largest
+                    // limit on how much of a build a remote cache can replay, and it is
+                    // Apple's to lift — no build setting changes it.
+                    //
+                    // It is worth being precise about what it costs, because it is easy to
+                    // misread as the cache being ineffective: the builtin CAS lives under
+                    // the shared DerivedData root, so wiping DerivedData deletes it. A
+                    // from-scratch build then restores every Swift key from the remote
+                    // snapshot and recompiles all of clang — measured on mastodon as 378
+                    // misses that are 100% clang (PCM/PrecompileModule/CompileC) with 0
+                    // Swift. The clang keys themselves are stable: keep that CAS across a
+                    // wipe and the same build replays 930/930 (70s -> 23s). Closing it
+                    // means seeding the builtin CAS, not tuning anything here.
+                    //
+                    // Corollary for anyone cleaning: drop Build products and keep
+                    // `CompilationCache.noindex`, and a rebuild replays completely.
                     baseSettings["OTHER_SWIFT_FLAGS"] = Self.appendingCASPluginOptions(
                         fullHandle: fullHandle,
                         upload: tuist.xcodeCache.upload,
