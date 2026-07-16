@@ -456,9 +456,17 @@ func TestMaterializeLeavesCacheRootGuestWritable(t *testing.T) {
 	m, _ := newTestManager(t, 100)
 	att := mustAllocate(t, m, "vm-warm")
 
-	// A master as Finalize stages it: restrictive mode, not guest-writable.
+	// A master as the host stages it: host-owned, restrictive, NOT guest-writable
+	// — including the subtree and the artifact inside it, which is what the CLI
+	// actually has to move into and rewrite.
 	master := filepath.Join(m.masterDir("42", ReservedTuistCacheVolume), cacheHomeSubdir)
 	if err := os.MkdirAll(filepath.Join(master, "Binaries"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(master, "Binaries", "marker"), []byte("cached"), 0o444); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(filepath.Join(master, "Binaries"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.Chmod(master, 0o700); err != nil {
@@ -477,6 +485,27 @@ func TestMaterializeLeavesCacheRootGuestWritable(t *testing.T) {
 	}
 	if fi.Mode().Perm() != 0o777 {
 		t.Errorf("materialized cache root mode = %#o, want 0777 so the guest can write it", fi.Mode().Perm())
+	}
+
+	// The root alone is NOT enough, and asserting only the root is why the
+	// incomplete fix shipped: the CLI moves downloaded xcframeworks into
+	// tuist/Binaries/<hash> and re-signs artifacts in place, so every directory
+	// AND file in the cloned tree must be guest-writable. Production failed with
+	// `"X.xcframework" couldn't be moved to "<hash>"` while the root was fine.
+	sub := filepath.Join(dest, "Binaries")
+	sfi, err := os.Stat(sub)
+	if err != nil {
+		t.Fatalf("materialized Binaries/ missing: %v", err)
+	}
+	if sfi.Mode().Perm() != 0o777 {
+		t.Errorf("materialized Binaries/ mode = %#o, want 0777 — the CLI must be able to move artifacts into it", sfi.Mode().Perm())
+	}
+	ffi, err := os.Stat(filepath.Join(sub, "marker"))
+	if err != nil {
+		t.Fatalf("materialized artifact missing: %v", err)
+	}
+	if ffi.Mode().Perm()&0o222 == 0 {
+		t.Errorf("materialized artifact mode = %#o, want writable — the CLI re-signs artifacts in place", ffi.Mode().Perm())
 	}
 }
 
