@@ -787,7 +787,7 @@ impl Metrics {
         );
         registry.register(
             "kura_membership_generation",
-            "Membership view generation; increments on every peer topology change, so a climbing value means the peer set is flapping",
+            "Membership view generation; increments on every peer topology change",
             membership_generation.clone(),
         );
         registry.register(
@@ -797,7 +797,7 @@ impl Metrics {
         );
         registry.register(
             "kura_bootstrap_completions_discarded_total",
-            "Completed bootstrap passes discarded because the peer left the membership view or the bootstrap epoch was reset mid-pass",
+            "Completed bootstrap passes that did not count toward the readiness gate",
             bootstrap_completions_discarded.clone(),
         );
         registry.register(
