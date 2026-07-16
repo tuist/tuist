@@ -24,7 +24,10 @@ global:
 # so each env flips this on in its own overlay once PDC_AGENT exists in its vault.
 pdcAgent:
   image:
-    tag: v0.0.61
+    # No `v` prefix: upstream's GitHub release is tagged `v0.0.61` but the
+    # published Docker Hub tag is `0.0.61`. Check hub.docker.com/r/grafana/
+    # pdc-agent/tags — not the GitHub releases page — when bumping this.
+    tag: "0.0.61"
   cluster: prod-eu-west-2
   hostedGrafanaId: "1028740"
 
