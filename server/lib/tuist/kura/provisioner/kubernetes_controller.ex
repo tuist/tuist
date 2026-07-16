@@ -29,6 +29,12 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   # Kura's MAX_SEGMENT_BYTES: the one extra segment a ring rotation appends
   # before evicting the oldest one.
   @kura_max_segment_bytes 512 * 1024 * 1024
+  # Kura's SegmentRingLimits::legacy_floor (DESIRED_OLD + DESIRED_CURRENT +
+  # DESIRED_NEW = 1 + 2 + 2 segments), which resolve_segment_ring_limits clamps
+  # the ring count up to. A budget below this is not honoured, so it is the
+  # smallest ring Kura will run and the floor any derived budget has to clear.
+  @kura_segment_ring_floor_segments 5
+  @kura_segment_ring_floor_bytes @kura_segment_ring_floor_segments * @kura_max_segment_bytes
   @impl true
   def provision(%{name: handle}, %Regions{} = region, %Server{}) do
     {:ok, instance_name(handle, region)}
@@ -422,20 +428,30 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   #
   # Budget from the size the region declares. That is normally storage_size, so
   # the ring stays inside the claim on a class that enforces it; a region whose
-  # claim bounds nothing (local-path) can override with cas_capacity_size rather
+  # claim bounds nothing (local-path) can override with disk_envelope_size rather
   # than inflate storage_size, which the controller would try to apply to the
   # live PVCs.
   defp cas_capacity_env(%Regions{} = region) do
-    with size when is_binary(size) <- cas_capacity_source(region),
-         {:ok, bytes} <- parse_storage_quantity(size),
-         capacity when is_integer(capacity) <- cas_capacity_bytes(bytes) do
-      [env_var("KURA_CAS_CAPACITY_BYTES", Integer.to_string(capacity))]
-    else
-      _ -> []
+    case cas_capacity_source(region) do
+      size when is_binary(size) and size != "" ->
+        size
+        |> parse_storage_quantity!(region)
+        |> cas_capacity_bytes()
+        |> cas_capacity_env_var()
+
+      # The region declares no size at all (self-hosted peers carry their own
+      # disk), so there is nothing to derive a budget from.
+      _ ->
+        []
     end
   end
 
-  defp cas_capacity_source(%Regions{provisioner_config: %{cas_capacity_size: size}}) when is_binary(size) and size != "",
+  defp cas_capacity_env_var(capacity) when is_integer(capacity),
+    do: [env_var("KURA_CAS_CAPACITY_BYTES", Integer.to_string(capacity))]
+
+  defp cas_capacity_env_var(nil), do: []
+
+  defp cas_capacity_source(%Regions{provisioner_config: %{disk_envelope_size: size}}) when is_binary(size) and size != "",
     do: size
 
   defp cas_capacity_source(%Regions{} = region), do: storage_size(region)
@@ -455,10 +471,33 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
     usable = storage_bytes - @kura_tmp_dir_max_bytes - @kura_max_segment_bytes
 
     if usable > 0 do
-      div(usable * 97, 100)
-      # Too small to carve a ring out of once staging is reserved. Emit nothing
-      # and let Kura fall back to its own statvfs default, which on a volume this
-      # size is both enforced and more conservative than anything derived here.
+      budget = div(usable * 97, 100)
+
+      # Kura sizes the ring in whole segments and clamps the count up to a legacy
+      # floor of @kura_segment_ring_floor_segments, so a budget under that floor
+      # is silently raised to it and the runtime uses more disk than we derived.
+      # Emitting a value we know will be overridden would make the reserves above
+      # a fiction, so emit only what Kura honours verbatim.
+      if budget >= @kura_segment_ring_floor_bytes, do: budget
+      # Too small to carve a ring out of once staging and the floor are reserved.
+      # Nothing this volume can hold satisfies the invariant, so emit nothing:
+      # there is no honest budget to declare, and a region this small is a
+      # misconfiguration to notice rather than a number to paper over.
+    end
+  end
+
+  # Region specs are compile-time constants, so an unparseable size is a typo
+  # that would otherwise degrade to exactly the statvfs behaviour this
+  # derivation exists to prevent. Fail loudly instead of silently regressing.
+  defp parse_storage_quantity!(value, %Regions{} = region) do
+    case parse_storage_quantity(value) do
+      {:ok, bytes} ->
+        bytes
+
+      :error ->
+        raise ArgumentError,
+              "region #{region.id} declares an unparseable storage quantity #{inspect(value)}; " <>
+                "expected an integer with an optional Ki/Mi/Gi/Ti suffix"
     end
   end
 

@@ -490,6 +490,112 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       assert capacity + tmp + segment < 20 * 1024 * 1024 * 1024
     end
 
+    test "every registered region derives a budget Kura can honour" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn -> nil end)
+
+      segment = 512 * 1024 * 1024
+      tmp = 8 * 1024 * 1024 * 1024
+      floor = 5 * segment
+
+      for region <- Enum.filter(Regions.all(), &(&1.provisioner == KubernetesController)) do
+        # Building the manifest at all is the assertion for the sizes: an
+        # unparseable quantity raises, so a typo in a spec fails here rather than
+        # degrading to the statvfs budget in production.
+        manifest =
+          KubernetesController.manifest(
+            "kura-tuist-#{region.id}-1",
+            "0.5.2",
+            %{name: "tuist"},
+            region,
+            %Server{},
+            "return true"
+          )
+
+        env = Map.new(manifest["spec"]["extraEnv"], &{&1["name"], &1["value"]})
+
+        case env["KURA_CAS_CAPACITY_BYTES"] do
+          nil ->
+            :ok
+
+          value ->
+            capacity = String.to_integer(value)
+            envelope = envelope_bytes(region)
+
+            assert capacity < Integer.pow(2, 64), "#{region.id} declares a capacity Kura's u64 config rejects"
+            assert capacity >= floor, "#{region.id} budgets under Kura's ring floor, which the runtime raises"
+
+            assert div(capacity, segment) * segment + tmp + segment <= envelope,
+                   "#{region.id} overruns its declared envelope once staging and a rotation are reserved"
+        end
+      end
+    end
+
+    test "omits the CAS capacity when the budget would land under Kura's ring floor" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn -> nil end)
+
+      # 10Gi clears the reserves, so a budget is derivable, but it comes to
+      # ~1.4GiB and Kura clamps the ring up to its 2.5GiB floor. Emitting the
+      # derived value would promise a ring the runtime does not honour, and the
+      # floor plus the reserves overruns the volume.
+      manifest =
+        KubernetesController.manifest(
+          "kura-tuist-under-floor-1",
+          "0.5.2",
+          %{name: "tuist"},
+          eu_region(%{storage_size: "10Gi"}),
+          %Server{},
+          "return true"
+        )
+
+      env = Map.new(manifest["spec"]["extraEnv"], &{&1["name"], &1["value"]})
+
+      refute Map.has_key?(env, "KURA_CAS_CAPACITY_BYTES")
+    end
+
+    test "emits a budget that Kura's ring floor does not raise" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn -> nil end)
+
+      manifest =
+        KubernetesController.manifest(
+          "kura-tuist-above-floor-1",
+          "0.5.2",
+          %{name: "tuist"},
+          eu_region(%{storage_size: "12Gi"}),
+          %Server{},
+          "return true"
+        )
+
+      env = Map.new(manifest["spec"]["extraEnv"], &{&1["name"], &1["value"]})
+      capacity = String.to_integer(env["KURA_CAS_CAPACITY_BYTES"])
+
+      segment = 512 * 1024 * 1024
+      floor = 5 * segment
+
+      # Above the floor the clamp is a no-op, so the ring Kura resolves is the
+      # segment count this budget buys and the reserves still hold.
+      assert capacity >= floor
+      assert div(capacity, segment) * segment + 8 * 1024 * 1024 * 1024 + segment < 12 * 1024 * 1024 * 1024
+    end
+
+    test "raises rather than falling back to statvfs when a region's size cannot be parsed" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn -> nil end)
+
+      assert_raise ArgumentError, ~r/unparseable storage quantity/, fn ->
+        KubernetesController.manifest(
+          "kura-tuist-typo-1",
+          "0.5.2",
+          %{name: "tuist"},
+          eu_region(%{storage_size: "1.5Ti"}),
+          %Server{},
+          "return true"
+        )
+      end
+    end
+
     test "omits the CAS capacity when the declared size cannot fit staging" do
       stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
       stub(Tuist.Environment, :kura_control_plane_client_id, fn -> nil end)
@@ -509,7 +615,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       refute Map.has_key?(env, "KURA_CAS_CAPACITY_BYTES")
     end
 
-    test "budgets the CAS from cas_capacity_size without moving the declared storage size" do
+    test "budgets the CAS from disk_envelope_size without moving the declared storage size" do
       stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
       stub(Tuist.Environment, :kura_control_plane_client_id, fn -> nil end)
 
@@ -518,7 +624,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
           "kura-tuist-scw-fr-par-1",
           "0.5.2",
           %{name: "tuist"},
-          eu_region(%{storage_size: "50Gi", cas_capacity_size: "200Gi"}),
+          eu_region(%{storage_size: "50Gi", disk_envelope_size: "200Gi"}),
           %Server{},
           "return true"
         )
@@ -795,6 +901,14 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
     test "does not expose per-account Kubernetes resources" do
       assert KubernetesController.resources_for(%Server{}) == %{}
     end
+  end
+
+  # The size the region's budget is derived against: the envelope override where
+  # the claim is a fiction, the claim itself otherwise.
+  defp envelope_bytes(%Regions{provisioner_config: config}) do
+    size = config[:disk_envelope_size] || config[:storage_size]
+    {quantity, "Gi"} = Integer.parse(size)
+    quantity * 1024 * 1024 * 1024
   end
 
   defp eu_region(extra_config \\ %{}) do

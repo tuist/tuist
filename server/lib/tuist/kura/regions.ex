@@ -203,9 +203,11 @@ defmodule Tuist.Kura.Regions do
       # A local-path volume is a directory on the node's shared NVMe, so the claim
       # above bounds nothing and this pool has been running near 137Gi per account
       # off Kura's statvfs default. This is the whole per-account disk envelope
-      # (ring + index + upload staging), so it lands the ring back on roughly what
-      # the pool already holds rather than shrinking a healthy cache to a claim
-      # that never applied. Three accounts leave the ~900G node about half free;
+      # (ring + index + upload staging) rather than the ring itself — the ring is
+      # what is left after the reserves, ~137GiB here — so it lands the ring back
+      # on roughly what the pool already holds rather than shrinking a healthy
+      # cache to a claim that never applied. Three accounts leave the ~900G node
+      # about half free;
       # the box tops out near five, so raising this or adding accounts past that
       # needs a second box, not a bigger number.
       #
@@ -215,7 +217,7 @@ defmodule Tuist.Kura.Regions do
       # would reject each resize and wedge the instances that already exist. Only
       # meaningful where the claim is a fiction — leave it unset on a class that
       # enforces the claim, so the ring stays inside the volume.
-      cas_capacity_size: "150Gi",
+      disk_envelope_size: "150Gi",
       runner_platforms: [:macos],
       # The macOS Tart VMs reach this pool over a Scaleway Private
       # Network, not the cluster's pod network, so cluster Service DNS
@@ -396,7 +398,7 @@ defmodule Tuist.Kura.Regions do
         # + a bounded storage_size.
         replicas: Map.get(spec, :replicas),
         storage_size: Map.get(spec, :storage_size),
-        cas_capacity_size: Map.get(spec, :cas_capacity_size),
+        disk_envelope_size: Map.get(spec, :disk_envelope_size),
         tuist_base_url: Tuist.Environment.kura_tuist_base_url(),
         node_selector: %{@managed_region_node_pool_label => spec.node_pool},
         # Tolerate the customer-facing cache nodes' taint so the cache pod
@@ -465,7 +467,7 @@ defmodule Tuist.Kura.Regions do
         node_selector: %{@managed_region_node_pool_label => spec.node_pool},
         storage_class: spec.storage_class,
         storage_size: spec.storage_size,
-        cas_capacity_size: Map.get(spec, :cas_capacity_size),
+        disk_envelope_size: Map.get(spec, :disk_envelope_size),
         replicas: 1,
         tuist_base_url: Tuist.Environment.kura_tuist_base_url(),
         # The runner-cache node replicates with the account's other nodes
@@ -495,7 +497,15 @@ defmodule Tuist.Kura.Regions do
         otlp_traces_endpoint: "http://127.0.0.1:4318/v1/traces",
         public_url: "http://localhost:#{@local_controller_kura_base_port + suffix}",
         replicas: 1,
-        storage_size: "10Gi"
+        storage_size: "10Gi",
+        # kind's local-path volumes bound nothing, so without an envelope Kura
+        # would fall back to statvfs and size the ring at half the developer's
+        # own disk. 10Gi cannot carry one: the reserves plus Kura's ring floor
+        # need ~11GiB, so a budget derived from it would be raised to the floor
+        # and silently overrun the claim. Declare the envelope the dev cache is
+        # actually allowed instead, on the claim rather than in it, since
+        # local-path rejects the expansion a bigger storage_size would trigger.
+        disk_envelope_size: "12Gi"
       }
     }
   end
