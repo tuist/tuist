@@ -639,6 +639,12 @@ fn sweep_spool(cas_addr: usize) {
         let path = entry.path();
         let name = entry.file_name();
         let Some(name) = name.to_str() else { continue };
+        // The proxy writes each record's publish tags beside it. Claiming one
+        // here would fail to decode and delete it, and the record it belongs to
+        // would then be re-tagged with whatever is checked out at that point.
+        if name.ends_with(crate::proxy::TAGS_SUFFIX) {
+            continue;
+        }
         let base = if let Some((base, claim_pid)) = name.split_once(".claim-") {
             // A claim from a live process is in flight; a dead claimant's
             // record is fair game again.

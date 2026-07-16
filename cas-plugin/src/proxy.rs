@@ -152,6 +152,43 @@ fn prematerialize_max_nodes() -> usize {
 ///
 /// `TUIST_CAS_INGEST_TRUNK=0` opts out, for a metered or slow link where
 /// pulling the trunk closure up front is not worth it.
+/// Suffix of the file that carries a spool record's publish tags. Both this
+/// proxy's `sweep` and the plugin's own `sweep_spool` walk the spool directory
+/// and must skip it.
+pub const TAGS_SUFFIX: &str = ".tags";
+
+/// The sidecar path for a record, keyed off the base name so it is still found
+/// once a sweeper has claimed the record as `<base>.claim-<pid>`.
+fn tags_path(record_path: &str) -> std::path::PathBuf {
+    let path = std::path::Path::new(record_path);
+    let name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or_default();
+    let base = name.split_once(".claim-").map(|(b, _)| b).unwrap_or(name);
+    path.with_file_name(format!("{base}{TAGS_SUFFIX}"))
+}
+
+/// `branch\ntrunk`, where an empty field encodes `None`. Neither resolver can
+/// yield an empty branch name, so the round trip is lossless: the same encoding
+/// the publish queue item uses.
+fn encode_tags(branch: &str, trunk: &str) -> Vec<u8> {
+    format!("{branch}\n{trunk}").into_bytes()
+}
+
+fn decode_tags(bytes: &[u8]) -> Option<(String, String)> {
+    let contents = std::str::from_utf8(bytes).ok()?;
+    let (branch, trunk) = contents.split_once('\n')?;
+    Some((branch.to_string(), trunk.to_string()))
+}
+
+/// Deletes a spool record and the tags written beside it. A leaked sidecar
+/// would be read back by whatever record later reuses that name.
+fn remove_record(record_path: &str) {
+    let _ = std::fs::remove_file(record_path);
+    let _ = std::fs::remove_file(tags_path(record_path));
+}
+
 fn ingest_trunk_enabled() -> bool {
     std::env::var("TUIST_CAS_INGEST_TRUNK").as_deref() != Ok("0")
 }
@@ -704,7 +741,16 @@ unsafe impl Sync for PathState {}
 
 /// One queued view refresh: the instance's client, the action key, and the
 /// manifest to re-publish.
-type ViewRefresh = (Arc<Remote>, Vec<u8>, Vec<ManifestEntry>);
+/// A per-key hit queued for background re-publish, with the tags bound when it
+/// was queued rather than when it drains: the drain runs on a maintenance tick,
+/// by which point the checkout may have moved.
+struct ViewRefresh {
+    remote: Arc<Remote>,
+    key: Vec<u8>,
+    manifest: Vec<ManifestEntry>,
+    branch: Option<String>,
+    trunk: Option<String>,
+}
 
 /// Result of a coalesced demand fetch, taken by exactly one waiter.
 enum DemandResult {
@@ -1183,6 +1229,7 @@ impl Proxy {
     fn resolve(
         &self,
         remote: &Arc<Remote>,
+        instance: &str,
         state: &'static PathState,
         key: &[u8],
         snapshot: Option<&Snapshot>,
@@ -1270,7 +1317,8 @@ impl Proxy {
         // this resolve's marks if a wipe/prune advances the counter mid-resolve.
         self.check_generation(state);
         let observed = state.gen_counter.load(Ordering::SeqCst);
-        let outcome = self.resolve_uncached(remote, state, key, observed, snapshot.is_some());
+        let outcome =
+            self.resolve_uncached(remote, instance, state, key, observed, snapshot.is_some());
         {
             let mut inflight = state.inflight.lock().unwrap();
             inflight.remove(key);
@@ -1282,6 +1330,7 @@ impl Proxy {
     fn resolve_uncached(
         &self,
         remote: &Arc<Remote>,
+        instance: &str,
         state: &'static PathState,
         key: &[u8],
         observed: u64,
@@ -1319,7 +1368,7 @@ impl Proxy {
         // machine. Without a snapshot, per-key is just the normal path and
         // says nothing about view membership.
         if snapshot_ready {
-            self.queue_view_refresh(remote, key, &manifest);
+            self.queue_view_refresh(remote, instance, key, &manifest);
         }
         let action_ms = phase.elapsed().as_millis() as u64;
         state.ms_action.fetch_add(action_ms, Ordering::Relaxed);
@@ -1784,6 +1833,36 @@ impl Proxy {
     }
 
     /// PUBLISH notify: queue the record for the publisher pool. Items encode
+    /// The tags to publish a record under, preferring the pair bound the first
+    /// time we accepted it.
+    ///
+    /// Binding at accept only holds for as long as we hold the queue, and the
+    /// record outlives that. It sits in the spool until its upload drains, so a
+    /// proxy restart mid-drain, or an unprimed Xcode build that spools before any
+    /// project has primed the path, leaves it for a later `sweep` or for the
+    /// plugin's own sweeper to re-send. Resolving there reads whatever is checked
+    /// out by then, which is exactly how a trunk build's orphaned outputs come
+    /// back tagged with the feature branch someone checked out afterwards.
+    ///
+    /// So the first accept, the closest we ever stand to the producing build,
+    /// writes the pair beside the record, and every later re-enqueue reads it
+    /// back. Best-effort by design: a record we never accepted while primed has
+    /// no sidecar, and resolving live is the only guess left.
+    fn record_tags(&self, instance: &str, record_path: &str) -> (String, String) {
+        let sidecar = tags_path(record_path);
+        if let Ok(contents) = std::fs::read(&sidecar) {
+            if let Some((branch, trunk)) = decode_tags(&contents) {
+                return (branch, trunk);
+            }
+        }
+        let branch = self.resolve_branch(instance).unwrap_or_default();
+        let trunk = self.resolve_trunk(instance).unwrap_or_default();
+        // A torn write would be read back as "no sidecar" and re-resolved, so
+        // failing here costs a re-resolve, never a wrong tag.
+        let _ = std::fs::write(&sidecar, encode_tags(&branch, &trunk));
+        (branch, trunk)
+    }
+
     /// instance + cas_path + the (branch, trunk) bound here + record path.
     ///
     /// The tags are resolved NOW, when the build hands us the record, and not
@@ -1799,8 +1878,7 @@ impl Proxy {
     /// GIT_CONTEXT_TTL, so this forks git at most once per TTL per instance,
     /// never per publish.
     fn enqueue_publish(&self, cas_path: &str, instance: &str, record_path: &str) {
-        let branch = self.resolve_branch(instance).unwrap_or_default();
-        let trunk = self.resolve_trunk(instance).unwrap_or_default();
+        let (branch, trunk) = self.record_tags(instance, record_path);
         let mut item = Vec::with_capacity(
             8 + instance.len() + cas_path.len() + branch.len() + trunk.len() + record_path.len(),
         );
@@ -1849,7 +1927,7 @@ impl Proxy {
         let Some(record) =
             PublishRecord::decode_body(&bytes, Some(std::path::PathBuf::from(&record_path)))
         else {
-            let _ = std::fs::remove_file(&record_path);
+            remove_record(&record_path);
             return;
         };
         // The client re-puts replayed results at the end of its job, so a warm
@@ -1860,13 +1938,13 @@ impl Proxy {
         // DIFFERENT value (a genuine local recompute) still publishes.
         if let Some(Resolution::Hit(value)) = state.resolved.lock().unwrap().get(&record.key) {
             if value == &record.value_digest {
-                let _ = std::fs::remove_file(&record_path);
+                remove_record(&record_path);
                 return;
             }
         }
         match self.publish(&remote, state, &record, branch.as_deref(), trunk.as_deref()) {
             Ok(()) => {
-                let _ = std::fs::remove_file(&record_path);
+                remove_record(&record_path);
                 state.stats_published.fetch_add(1, Ordering::Relaxed);
                 state.resolved.lock().unwrap().insert(
                     record.key.clone(),
@@ -1896,6 +1974,19 @@ impl Proxy {
             if manifest.first().map(|entry| entry.llcas_digest.as_slice())
                 == Some(record.value_digest.as_slice())
             {
+                // Same bytes, so there is nothing to upload. That used to end
+                // it, which meant a trunk build could recompute a result a
+                // feature branch had published first and never take the tag
+                // back: the entry stayed `feature` and stayed out of the trunk
+                // view forever, which is the reclaim half of what this scoping
+                // is for. Bytes are no longer the whole of an entry's identity,
+                // so re-send the manifest we just probed, carrying our tags and
+                // nothing else. The server damps a true no-op; we cannot tell
+                // one from here without asking what tag it holds, which is the
+                // round trip this would be making anyway.
+                if branch.is_some() || trunk.is_some() {
+                    remote.update_action(&record.key, &manifest, branch, trunk)?;
+                }
                 return Ok(());
             }
         }
@@ -2100,6 +2191,12 @@ impl Proxy {
             };
             for entry in entries.flatten() {
                 if let Some(name) = entry.file_name().to_str() {
+                    // A sidecar is not a record. Publishing one would fail to
+                    // decode and delete it, throwing away the tags it exists to
+                    // carry, and the record beside it would then resolve live.
+                    if name.ends_with(TAGS_SUFFIX) {
+                        continue;
+                    }
                     // Claims are ours alone now; reclaim anything.
                     let base = name.split_once(".claim-").map(|(b, _)| b.to_string());
                     let path = match base {
@@ -2131,7 +2228,13 @@ impl Proxy {
     /// `Proxy.view_refresh`). Inlined contents are stripped: the refresh only
     /// re-sends the llcas→blob mapping, and the blobs are already on the
     /// server (the per-key hit proved the entry serveable).
-    fn queue_view_refresh(&self, remote: &Arc<Remote>, key: &[u8], manifest: &[ManifestEntry]) {
+    fn queue_view_refresh(
+        &self,
+        remote: &Arc<Remote>,
+        instance: &str,
+        key: &[u8],
+        manifest: &[ManifestEntry],
+    ) {
         {
             let mut refreshed = self.view_refreshed.lock().unwrap();
             if refreshed.len() >= VIEW_REFRESH_MAX_QUEUE || !refreshed.insert(key.to_vec()) {
@@ -2148,7 +2251,13 @@ impl Proxy {
             .collect();
         let mut queue = self.view_refresh.lock().unwrap();
         if queue.len() < VIEW_REFRESH_MAX_QUEUE {
-            queue.push_back((remote.clone(), key.to_vec(), stripped));
+            queue.push_back(ViewRefresh {
+                remote: remote.clone(),
+                key: key.to_vec(),
+                manifest: stripped,
+                branch: self.resolve_branch(instance),
+                trunk: self.resolve_trunk(instance),
+            });
         }
     }
 
@@ -2158,16 +2267,26 @@ impl Proxy {
     pub fn refresh_view_keys(&self) {
         let mut sent = 0_usize;
         while sent < VIEW_REFRESH_PER_TICK {
-            let Some((remote, key, manifest)) = self.view_refresh.lock().unwrap().pop_front()
-            else {
+            let Some(refresh) = self.view_refresh.lock().unwrap().pop_front() else {
                 break;
             };
-            // These are re-publishes of entries already in the cache, so they
-            // ride without a branch/trunk: a same-bytes refresh inside the
-            // damping window is a no-op, and an aged one lands untagged in the
-            // trunk baseline (still included, still protected from feature
-            // steals) rather than being wrongly re-attributed.
-            if remote.update_action(&key, &manifest, None, None).is_err() {
+            // Carrying the tags of the build that took the hit is what makes this
+            // the reclaim path. These entries are, by definition, outside the
+            // trunk view: sending no tags would re-attribute every one of them to
+            // nobody, and an untagged entry is in EVERY trunk view, so a feature
+            // branch's own keys would flow into trunk's just by being read. With
+            // the tags, a feature hit stays out and a trunk hit takes the entry
+            // back.
+            if refresh
+                .remote
+                .update_action(
+                    &refresh.key,
+                    &refresh.manifest,
+                    refresh.branch.as_deref(),
+                    refresh.trunk.as_deref(),
+                )
+                .is_err()
+            {
                 break;
             }
             sent += 1;
@@ -2721,7 +2840,7 @@ impl Proxy {
                 self.ensure_snapshot(&instance, &remote);
                 let snapshot = self.snapshot_ready(&instance);
                 let outcome = self.path_state(&request.cas_path).and_then(|state| {
-                    self.resolve(&remote, state, &request.payload, snapshot.as_deref())
+                    self.resolve(&remote, &instance, state, &request.payload, snapshot.as_deref())
                 });
                 match outcome {
                     Ok(Some(value)) => write_response(&mut stream, STATUS_HIT, &value),
@@ -3153,6 +3272,128 @@ mod tests {
 
         drop(items);
         std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// Binding at accept only protects a record for as long as the queue holds it.
+    /// A proxy restart mid-drain, or a build that spooled before the path was
+    /// primed, leaves the record on disk for a later sweep to re-enqueue, and by
+    /// then the checkout has usually moved on.
+    #[test]
+    fn a_reswept_record_keeps_the_branch_that_produced_it() {
+        let dir = std::env::temp_dir().join(format!("tuist-sidecar-{}", std::process::id()));
+        std::fs::remove_dir_all(&dir).ok();
+        let root = dir.join("checkout");
+        std::fs::create_dir_all(&root).expect("temp dir");
+        let git = |args: &[&str]| {
+            let status = std::process::Command::new("git")
+                .arg("-C")
+                .arg(&root)
+                .args(args)
+                .output()
+                .expect("git");
+            assert!(status.status.success(), "git {args:?}");
+        };
+        git(&["init", "-b", "main"]);
+        git(&["config", "user.email", "bench@tuist.dev"]);
+        git(&["config", "user.name", "bench"]);
+        std::fs::write(root.join("file"), "contents").expect("write");
+        git(&["add", "."]);
+        git(&["commit", "-m", "initial"]);
+
+        let registry = dir.join("registry");
+        std::fs::write(
+            sources_path_for(&registry),
+            format!("tuist/mastodon\t{}\tmain\n", root.display()),
+        )
+        .expect("write sources");
+
+        let cas_path = dir.join("cas");
+        let spool = cas_path.join("tuist-spool");
+        std::fs::create_dir_all(&spool).expect("spool");
+        let record = spool.join("1234-0");
+        std::fs::write(&record, b"record").expect("record");
+        let record_path = record.to_string_lossy().into_owned();
+
+        let proxy = Proxy::new(
+            "http://127.0.0.1:1".into(),
+            crate::token::TokenProvider::from_env(),
+            String::new(),
+            Some(registry),
+            None,
+        );
+        let captured: Arc<Mutex<Vec<Vec<u8>>>> = Arc::new(Mutex::new(Vec::new()));
+        let sink = Arc::clone(&captured);
+        proxy
+            .publisher
+            .configure(1, move |item| sink.lock().unwrap().push(item));
+
+        // The build hands us the record while main is checked out.
+        proxy.enqueue_publish(
+            &cas_path.to_string_lossy(),
+            "tuist/mastodon",
+            &record_path,
+        );
+        assert!(
+            spool.join("1234-0.tags").exists(),
+            "accepting a record writes its tags beside it"
+        );
+
+        // The proxy dies before draining, someone checks out a feature branch,
+        // and a later sweep finds the record still sitting in the spool.
+        git(&["checkout", "-b", "feature"]);
+        proxy.git_cache.lock().unwrap().clear();
+        proxy.enqueue_publish(
+            &cas_path.to_string_lossy(),
+            "tuist/mastodon",
+            &record_path,
+        );
+
+        proxy
+            .publisher
+            .drain_stop_timeout(std::time::Duration::from_secs(10));
+        let items = captured.lock().unwrap();
+        assert_eq!(items.len(), 2);
+        let branch_of = |item: &[u8]| {
+            let (_, rest) = take_u16_field(item).expect("instance");
+            let (_, rest) = take_u16_field(rest).expect("cas path");
+            let (branch, _) = take_u16_field(rest).expect("branch");
+            String::from_utf8_lossy(branch).into_owned()
+        };
+        assert_eq!(branch_of(&items[0]), "main");
+        assert_eq!(
+            branch_of(&items[1]),
+            "main",
+            "the re-enqueued record keeps the branch it was produced on, not the one checked out now"
+        );
+
+        drop(items);
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// A sweeper claims a record by renaming it to `<base>.claim-<pid>`, so the
+    /// sidecar has to be found from the claimed name too.
+    #[test]
+    fn a_claimed_record_still_finds_its_tags() {
+        assert_eq!(tags_path("/spool/1234-0"), tags_path("/spool/1234-0.claim-9"));
+        assert_eq!(
+            tags_path("/spool/1234-0"),
+            std::path::PathBuf::from("/spool/1234-0.tags")
+        );
+    }
+
+    #[test]
+    fn tags_round_trip_through_the_sidecar() {
+        let encoded = encode_tags("feature/tags", "main");
+        assert_eq!(
+            decode_tags(&encoded),
+            Some(("feature/tags".to_string(), "main".to_string()))
+        );
+        // An absent branch is the empty field, the same encoding the queue uses.
+        assert_eq!(
+            decode_tags(&encode_tags("", "main")),
+            Some((String::new(), "main".to_string()))
+        );
+        assert_eq!(decode_tags(b"garbage"), None, "a torn write re-resolves");
     }
 
     // The CI branch column, which `tuist setup cache` writes only from inside a CI
