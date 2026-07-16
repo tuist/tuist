@@ -4,6 +4,49 @@ defmodule Tuist.Accounts.AccountTokenTest do
   alias Tuist.Accounts.AccountToken
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
+  describe "scope definitions" do
+    test "exposes user-creatable scopes from the canonical scope list" do
+      assert AccountToken.user_creatable_scopes() == [
+               "ci",
+               "account:cache:read",
+               "account:cache:write",
+               "account:members:read",
+               "account:members:write",
+               "account:registry:read",
+               "account:registry:write",
+               "project:previews:read",
+               "project:previews:write",
+               "project:admin:read",
+               "project:admin:write",
+               "project:cache:read",
+               "project:cache:write",
+               "project:bundles:read",
+               "project:bundles:write",
+               "project:tests:read",
+               "project:tests:write",
+               "project:builds:read",
+               "project:builds:write",
+               "project:runs:read",
+               "project:runs:write"
+             ]
+
+      refute "mcp" in AccountToken.user_creatable_scopes()
+      refute AccountToken.scim_scope() in AccountToken.user_creatable_scopes()
+    end
+
+    test "expands preset scopes from the account token definition" do
+      assert AccountToken.expand_scopes(["ci"]) == [
+               "account:cache:write",
+               "project:cache:write",
+               "project:previews:write",
+               "project:bundles:write",
+               "project:tests:write",
+               "project:builds:write",
+               "project:runs:write"
+             ]
+    end
+  end
+
   describe "create_changeset/1" do
     test "ensures an account_id is present" do
       # When

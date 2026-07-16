@@ -13,11 +13,11 @@ defmodule TuistWeb.AccountTokensLive do
   alias Tuist.Authorization.Checks
   alias Tuist.Projects
 
-  @default_scopes ["ci"]
-  @preset_scopes ["ci"]
+  @default_scopes [AccountToken.ci_scope()]
+  @preset_scopes [AccountToken.ci_scope()]
   @account_tokens_page_size 100
 
-  @creatable_scopes AccountToken.valid_scopes() -- [AccountToken.scim_scope()]
+  @creatable_scopes AccountToken.user_creatable_scopes()
 
   @impl true
   def mount(_params, _uri, %{assigns: %{selected_account: selected_account, current_user: current_user}} = socket) do

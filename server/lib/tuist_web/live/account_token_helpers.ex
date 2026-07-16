@@ -4,137 +4,31 @@ defmodule TuistWeb.AccountTokenHelpers do
   use Gettext, backend: TuistWeb.Gettext
 
   alias Tuist.Accounts.AccountToken
-  alias Tuist.Authorization.Checks
   alias Tuist.Utilities.DateFormatter
 
+  @ci_scope AccountToken.ci_scope()
+
   def scope_options do
+    user_creatable_scopes = AccountToken.user_creatable_scopes()
+
     [
       %{
         key: "presets",
         label: dgettext("dashboard_account", "Presets"),
-        scopes: [
-          %{
-            scope: "ci",
-            label: dgettext("dashboard_account", "CI"),
-            description:
-              dgettext(
-                "dashboard_account",
-                "Cache writes, previews, bundles, tests, builds, and runs for CI jobs."
-              )
-          }
-        ]
+        scopes:
+          user_creatable_scopes
+          |> Enum.filter(&AccountToken.preset_scope?/1)
+          |> Enum.map(&scope_option/1)
       },
       %{
         key: "account",
         label: dgettext("dashboard_account", "Account"),
-        scopes: [
-          %{
-            scope: "account:cache:read",
-            label: dgettext("dashboard_account", "Cache read"),
-            description: dgettext("dashboard_account", "Read account-level cache entries.")
-          },
-          %{
-            scope: "account:cache:write",
-            label: dgettext("dashboard_account", "Cache write"),
-            description: dgettext("dashboard_account", "Read and write account-level cache entries.")
-          },
-          %{
-            scope: "account:members:read",
-            label: dgettext("dashboard_account", "Members read"),
-            description: dgettext("dashboard_account", "Read organization members and invitations.")
-          },
-          %{
-            scope: "account:members:write",
-            label: dgettext("dashboard_account", "Members write"),
-            description: dgettext("dashboard_account", "Manage organization members and invitations.")
-          },
-          %{
-            scope: "account:registry:read",
-            label: dgettext("dashboard_account", "Registry read"),
-            description: dgettext("dashboard_account", "Read packages from the account registry.")
-          },
-          %{
-            scope: "account:registry:write",
-            label: dgettext("dashboard_account", "Registry write"),
-            description: dgettext("dashboard_account", "Publish packages to the account registry.")
-          }
-        ]
+        scopes: scope_options_for_entity(user_creatable_scopes, "account")
       },
       %{
         key: "project",
         label: dgettext("dashboard_account", "Project"),
-        scopes: [
-          %{
-            scope: "project:admin:read",
-            label: dgettext("dashboard_account", "Admin read"),
-            description: dgettext("dashboard_account", "Read project administration data.")
-          },
-          %{
-            scope: "project:admin:write",
-            label: dgettext("dashboard_account", "Admin write"),
-            description: dgettext("dashboard_account", "Manage project administration data.")
-          },
-          %{
-            scope: "project:cache:read",
-            label: dgettext("dashboard_account", "Cache read"),
-            description: dgettext("dashboard_account", "Read project cache entries.")
-          },
-          %{
-            scope: "project:cache:write",
-            label: dgettext("dashboard_account", "Cache write"),
-            description: dgettext("dashboard_account", "Read and write project cache entries.")
-          },
-          %{
-            scope: "project:previews:read",
-            label: dgettext("dashboard_account", "Previews read"),
-            description: dgettext("dashboard_account", "Read previews.")
-          },
-          %{
-            scope: "project:previews:write",
-            label: dgettext("dashboard_account", "Previews write"),
-            description: dgettext("dashboard_account", "Create and manage previews.")
-          },
-          %{
-            scope: "project:bundles:read",
-            label: dgettext("dashboard_account", "Bundles read"),
-            description: dgettext("dashboard_account", "Read bundle analytics.")
-          },
-          %{
-            scope: "project:bundles:write",
-            label: dgettext("dashboard_account", "Bundles write"),
-            description: dgettext("dashboard_account", "Upload and manage bundle data.")
-          },
-          %{
-            scope: "project:tests:read",
-            label: dgettext("dashboard_account", "Tests read"),
-            description: dgettext("dashboard_account", "Read test analytics.")
-          },
-          %{
-            scope: "project:tests:write",
-            label: dgettext("dashboard_account", "Tests write"),
-            description: dgettext("dashboard_account", "Upload and manage test data.")
-          },
-          %{
-            scope: "project:builds:read",
-            label: dgettext("dashboard_account", "Builds read"),
-            description: dgettext("dashboard_account", "Read build analytics.")
-          },
-          %{
-            scope: "project:builds:write",
-            label: dgettext("dashboard_account", "Builds write"),
-            description: dgettext("dashboard_account", "Upload and manage build data.")
-          },
-          %{
-            scope: "project:runs:read",
-            label: dgettext("dashboard_account", "Runs read"),
-            description: dgettext("dashboard_account", "Read runs.")
-          },
-          %{
-            scope: "project:runs:write",
-            label: dgettext("dashboard_account", "Runs write"),
-            description: dgettext("dashboard_account", "Create and manage runs.")
-          }
-        ]
+        scopes: scope_options_for_entity(user_creatable_scopes, "project")
       }
     ]
   end
@@ -155,7 +49,7 @@ defmodule TuistWeb.AccountTokenHelpers do
     scope_options_by_scope =
       scope_options
       |> Enum.flat_map(& &1.scopes)
-      |> Enum.reject(&(&1.scope in ["ci", "mcp"]))
+      |> Enum.reject(&AccountToken.preset_scope?(&1.scope))
       |> Map.new(&{&1.scope, &1})
 
     scope_order =
@@ -166,7 +60,7 @@ defmodule TuistWeb.AccountTokenHelpers do
       |> Map.new()
 
     scopes
-    |> Checks.expand_scopes()
+    |> AccountToken.expand_scopes()
     |> with_implied_read_scopes()
     |> Enum.sort_by(&Map.get(scope_order, &1, 999))
     |> Enum.map(fn scope ->
@@ -200,6 +94,147 @@ defmodule TuistWeb.AccountTokenHelpers do
   def created_by_label(%AccountToken{created_by_account: %{name: name}}) when is_binary(name), do: name
 
   def created_by_label(_account_token), do: dgettext("dashboard_account", "Unknown")
+
+  defp scope_options_for_entity(scopes, entity) do
+    scopes
+    |> Enum.filter(&match_scope_entity?(&1, entity))
+    |> Enum.map(&scope_option/1)
+  end
+
+  defp match_scope_entity?(scope, entity) do
+    case String.split(scope, ":", parts: 3) do
+      [^entity, _subject, _access] -> true
+      _ -> false
+    end
+  end
+
+  defp scope_option(@ci_scope) do
+    %{
+      scope: @ci_scope,
+      label: dgettext("dashboard_account", "CI"),
+      description:
+        dgettext(
+          "dashboard_account",
+          "Cache writes, previews, bundles, tests, builds, and runs for CI jobs."
+        )
+    }
+  end
+
+  defp scope_option(scope) do
+    case String.split(scope, ":", parts: 3) do
+      [entity, subject, access] ->
+        %{
+          scope: scope,
+          label: scope_label(subject, access),
+          description: scope_description(entity, subject, access)
+        }
+
+      _ ->
+        %{scope: scope, label: scope, description: ""}
+    end
+  end
+
+  defp scope_label("admin", "read"), do: dgettext("dashboard_account", "Admin read")
+  defp scope_label("admin", "write"), do: dgettext("dashboard_account", "Admin write")
+  defp scope_label("builds", "read"), do: dgettext("dashboard_account", "Builds read")
+  defp scope_label("builds", "write"), do: dgettext("dashboard_account", "Builds write")
+  defp scope_label("bundles", "read"), do: dgettext("dashboard_account", "Bundles read")
+  defp scope_label("bundles", "write"), do: dgettext("dashboard_account", "Bundles write")
+  defp scope_label("cache", "read"), do: dgettext("dashboard_account", "Cache read")
+  defp scope_label("cache", "write"), do: dgettext("dashboard_account", "Cache write")
+  defp scope_label("members", "read"), do: dgettext("dashboard_account", "Members read")
+  defp scope_label("members", "write"), do: dgettext("dashboard_account", "Members write")
+  defp scope_label("previews", "read"), do: dgettext("dashboard_account", "Previews read")
+  defp scope_label("previews", "write"), do: dgettext("dashboard_account", "Previews write")
+  defp scope_label("registry", "read"), do: dgettext("dashboard_account", "Registry read")
+  defp scope_label("registry", "write"), do: dgettext("dashboard_account", "Registry write")
+  defp scope_label("runs", "read"), do: dgettext("dashboard_account", "Runs read")
+  defp scope_label("runs", "write"), do: dgettext("dashboard_account", "Runs write")
+  defp scope_label("tests", "read"), do: dgettext("dashboard_account", "Tests read")
+  defp scope_label("tests", "write"), do: dgettext("dashboard_account", "Tests write")
+  defp scope_label(subject, access), do: "#{String.capitalize(subject)} #{access}"
+
+  defp scope_description("account", "cache", "read") do
+    dgettext("dashboard_account", "Read account-level cache entries.")
+  end
+
+  defp scope_description("account", "cache", "write") do
+    dgettext("dashboard_account", "Read and write account-level cache entries.")
+  end
+
+  defp scope_description("account", "members", "read") do
+    dgettext("dashboard_account", "Read organization members and invitations.")
+  end
+
+  defp scope_description("account", "members", "write") do
+    dgettext("dashboard_account", "Manage organization members and invitations.")
+  end
+
+  defp scope_description("account", "registry", "read") do
+    dgettext("dashboard_account", "Read packages from the account registry.")
+  end
+
+  defp scope_description("account", "registry", "write") do
+    dgettext("dashboard_account", "Publish packages to the account registry.")
+  end
+
+  defp scope_description("project", "admin", "read") do
+    dgettext("dashboard_account", "Read project administration data.")
+  end
+
+  defp scope_description("project", "admin", "write") do
+    dgettext("dashboard_account", "Manage project administration data.")
+  end
+
+  defp scope_description("project", "cache", "read") do
+    dgettext("dashboard_account", "Read project cache entries.")
+  end
+
+  defp scope_description("project", "cache", "write") do
+    dgettext("dashboard_account", "Read and write project cache entries.")
+  end
+
+  defp scope_description("project", "previews", "read") do
+    dgettext("dashboard_account", "Read previews.")
+  end
+
+  defp scope_description("project", "previews", "write") do
+    dgettext("dashboard_account", "Create and manage previews.")
+  end
+
+  defp scope_description("project", "bundles", "read") do
+    dgettext("dashboard_account", "Read bundle analytics.")
+  end
+
+  defp scope_description("project", "bundles", "write") do
+    dgettext("dashboard_account", "Upload and manage bundle data.")
+  end
+
+  defp scope_description("project", "tests", "read") do
+    dgettext("dashboard_account", "Read test analytics.")
+  end
+
+  defp scope_description("project", "tests", "write") do
+    dgettext("dashboard_account", "Upload and manage test data.")
+  end
+
+  defp scope_description("project", "builds", "read") do
+    dgettext("dashboard_account", "Read build analytics.")
+  end
+
+  defp scope_description("project", "builds", "write") do
+    dgettext("dashboard_account", "Upload and manage build data.")
+  end
+
+  defp scope_description("project", "runs", "read") do
+    dgettext("dashboard_account", "Read runs.")
+  end
+
+  defp scope_description("project", "runs", "write") do
+    dgettext("dashboard_account", "Create and manage runs.")
+  end
+
+  defp scope_description(_entity, _subject, _access), do: ""
 
   defp with_implied_read_scopes(scopes) do
     read_scopes =

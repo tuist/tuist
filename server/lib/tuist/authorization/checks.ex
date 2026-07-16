@@ -4,30 +4,10 @@ defmodule Tuist.Authorization.Checks do
   """
   alias Tuist.Accounts
   alias Tuist.Accounts.Account
+  alias Tuist.Accounts.AccountToken
   alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Accounts.User
   alias Tuist.Projects.Project
-
-  @scope_groups %{
-    "ci" => [
-      "account:cache:write",
-      "project:cache:write",
-      "project:previews:write",
-      "project:bundles:write",
-      "project:tests:write",
-      "project:builds:write",
-      "project:runs:write"
-    ],
-    "mcp" => [
-      "project:admin:read",
-      "project:cache:read",
-      "project:previews:read",
-      "project:bundles:read",
-      "project:tests:read",
-      "project:builds:read",
-      "project:runs:read"
-    ]
-  }
 
   def user_role(%User{} = authenticated_user, %Project{} = project, role) when role == :user do
     Accounts.owns_account_or_belongs_to_account_organization?(authenticated_user, %{
@@ -132,9 +112,7 @@ defmodule Tuist.Authorization.Checks do
   end
 
   def expand_scopes(scopes) do
-    Enum.flat_map(scopes, fn scope ->
-      Map.get(@scope_groups, scope, [scope])
-    end)
+    AccountToken.expand_scopes(scopes)
   end
 
   @doc """
