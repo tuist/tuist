@@ -34,19 +34,59 @@ struct SetupCacheCommandService {
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let serverAuthenticationController: ServerAuthenticationControlling
     private let manifestLoader: ManifestLoading
+    private let fileSystem: FileSysteming
 
     init(
         launchAgentService: LaunchAgentServicing = LaunchAgentService(),
         configLoader: ConfigLoading = ConfigLoader(),
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         serverAuthenticationController: ServerAuthenticationControlling = ServerAuthenticationController(),
-        manifestLoader: ManifestLoading = ManifestLoader.current
+        manifestLoader: ManifestLoading = ManifestLoader.current,
+        fileSystem: FileSysteming = FileSystem()
     ) {
         self.launchAgentService = launchAgentService
         self.configLoader = configLoader
         self.serverEnvironmentService = serverEnvironmentService
         self.serverAuthenticationController = serverAuthenticationController
         self.manifestLoader = manifestLoader
+        self.fileSystem = fileSystem
+    }
+
+    /// Records `fullHandle -> sourceRoot` in the proxy's sources registry
+    /// (`<state>/cas-proxy.sock.registry.sources`, honoring the same
+    /// `TUIST_CAS_PROXY_REGISTRY` override the proxy reads). The proxy derives
+    /// the branch and trunk of every publish live from this repo's git HEAD, so
+    /// nothing branch-specific is baked into a build setting. Upserts so setting
+    /// up a second project does not clobber the first.
+    private func registerSourceRoot(fullHandle: String, sourceRoot: AbsolutePath) async throws {
+        let sourcesPath: AbsolutePath
+        if let registry = Environment.current.variables["TUIST_CAS_PROXY_REGISTRY"] {
+            sourcesPath = try AbsolutePath(validating: registry + ".sources")
+        } else {
+            sourcesPath = Environment.current.stateDirectory
+                .appending(component: "cas-proxy.sock.registry.sources")
+        }
+
+        var entries: [String: String] = [:]
+        if try await fileSystem.exists(sourcesPath) {
+            let contents = try await fileSystem.readTextFile(at: sourcesPath)
+            for line in contents.split(separator: "\n") {
+                let parts = line.split(separator: "\t", maxSplits: 1).map(String.init)
+                if parts.count == 2 { entries[parts[0]] = parts[1] }
+            }
+        }
+        entries[fullHandle] = sourceRoot.pathString
+
+        let body = entries.sorted { $0.key < $1.key }
+            .map { "\($0.key)\t\($0.value)" }
+            .joined(separator: "\n") + "\n"
+        if try await !fileSystem.exists(sourcesPath.parentDirectory, isDirectory: true) {
+            try await fileSystem.makeDirectory(at: sourcesPath.parentDirectory)
+        }
+        if try await fileSystem.exists(sourcesPath) {
+            try await fileSystem.remove(sourcesPath)
+        }
+        try await fileSystem.writeText(body, at: sourcesPath)
     }
 
     func run(
@@ -74,6 +114,7 @@ struct SetupCacheCommandService {
         let kuraEnabled = ClientFeatureFlags.contains("kura")
         if kuraEnabled {
             try await installProxy(fullHandle: fullHandle, serverURL: serverURL)
+            try await registerSourceRoot(fullHandle: fullHandle, sourceRoot: path)
         } else {
             try await installLegacyDaemon(
                 fullHandle: fullHandle,

@@ -523,6 +523,15 @@ pub unsafe extern "C" fn llcas_cas_create(
     let proxy = explicit_socket
         .or_else(|| (!has_direct_endpoint).then(default_proxy_socket))
         .map(|socket_path| ProxyClient { socket_path });
+    // Which mode this frontend landed in, logged once per CAS create. A build
+    // that silently degrades to local-only (proxy unreachable, no endpoint) is
+    // otherwise indistinguishable from a cold cache: both just emit misses.
+    log_line(&format!(
+        "cas create: proxy={:?} direct_endpoint={} cas_dir={:?}",
+        proxy.as_ref().map(|client| client.socket_path.as_str()),
+        has_direct_endpoint,
+        state.ondisk_path,
+    ));
     // The account/project this build's cache belongs to, routed to the proxy.
     // Prefer the `tuist-instance` plugin option (baked into build settings by
     // `tuist generate`, so it reaches every compiler frontend including an Xcode
@@ -1598,7 +1607,16 @@ fn upload_process(cas_addr: usize, item: Vec<u8>) {
             if !uploads.is_empty() {
                 remote.batch_update(uploads)?;
             }
-            remote.update_action(&record.key, &entries)
+            // Direct-to-kura (no proxy): the branch/trunk this build is
+            // attributed to come from the environment the CLI set — there is no
+            // proxy here to derive them from the project's source root.
+            let branch = std::env::var("TUIST_CAS_BRANCH")
+                .ok()
+                .filter(|value| !value.is_empty());
+            let trunk = std::env::var("TUIST_CAS_TRUNK_BRANCH")
+                .ok()
+                .filter(|value| !value.is_empty());
+            remote.update_action(&record.key, &entries, branch.as_deref(), trunk.as_deref())
         })();
 
         match outcome {

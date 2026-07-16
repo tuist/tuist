@@ -92,7 +92,7 @@ fn main() {
     // stored version and turns the watermark comparison into a false negative.
     let published_at = now_ms();
     remote
-        .update_action(&action_key, &manifest)
+        .update_action(&action_key, &manifest, None, None)
         .expect("update_action failed");
     println!("[{published_at}] action result published");
 
@@ -132,7 +132,7 @@ fn main() {
     }];
     let republished_at = now_ms();
     remote
-        .update_action(&action_key, &manifest2)
+        .update_action(&action_key, &manifest2, None, None)
         .expect("re-publish failed");
     println!("[{republished_at}] action result RE-published (same key, new content)");
     if (0..10).any(|round| {
@@ -156,7 +156,7 @@ fn poll(
     published_at: u64,
 ) -> bool {
     tokens.refresh_if_expiring(Duration::from_secs(120));
-    match remote.get_snapshot(None) {
+    match remote.get_snapshot(None, None) {
         Ok(Some(bytes)) => match decode_snapshot_header(&bytes) {
             Some((watermark, nodes, keys)) => {
                 println!(

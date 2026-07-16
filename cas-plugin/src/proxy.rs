@@ -692,6 +692,28 @@ impl DemandCoalescer {
     }
 }
 
+/// A git context read from an instance's source root, memoized on a TTL.
+struct GitContext {
+    read_at: Instant,
+    /// The current checked-out branch (`git rev-parse --abbrev-ref HEAD`), or
+    /// `None` on a detached HEAD (CI) — the env override covers that case.
+    branch: Option<String>,
+    /// The repo's default branch (`origin/HEAD`), used as the trunk to scope the
+    /// snapshot to, or `None` when the remote head is unknown.
+    trunk: Option<String>,
+}
+
+/// How long a derived git context is reused before the proxy re-reads HEAD, so
+/// a branch switch is picked up within seconds without forking git per publish.
+const GIT_CONTEXT_TTL: Duration = Duration::from_secs(15);
+
+/// The (branch, trunk) pair `git_context` resolves, cloned out from under the
+/// cache lock.
+struct GitBranches {
+    branch: Option<String>,
+    trunk: Option<String>,
+}
+
 pub struct Proxy {
     grpc_url: String,
     tokens: Arc<TokenProvider>,
@@ -707,6 +729,15 @@ pub struct Proxy {
     // a proxy restart. See proxy_proto for why the fallback exists.
     path_instance: Mutex<HashMap<String, String>>,
     registry_path: Option<PathBuf>,
+    // instance -> the project's source root, registered by `tuist setup cache`
+    // (the per-project step that installs this proxy). The branch and trunk a
+    // publish is tagged with are derived live from this repo's git HEAD, so a
+    // branch switch needs no re-setup and nothing branch-specific ever enters a
+    // build setting (which could pollute the compile cache key).
+    instance_sources: Mutex<HashMap<String, PathBuf>>,
+    // instance -> the last git context read from its source root, refreshed on
+    // a short TTL so per-publish tagging is a cache hit, not a git fork.
+    git_cache: Mutex<HashMap<String, GitContext>>,
     paths: Mutex<HashMap<String, &'static PathState>>,
     publisher: Prefetcher,
     // Resolves/publishes that arrived with no declared instance and no primed
@@ -776,6 +807,13 @@ impl Proxy {
             epoch: Instant::now(),
             remotes: Mutex::new(HashMap::new()),
             path_instance: Mutex::new(path_instance),
+            instance_sources: Mutex::new(
+                registry_path
+                    .as_deref()
+                    .map(|path| load_sources(&sources_path_for(path)))
+                    .unwrap_or_default(),
+            ),
+            git_cache: Mutex::new(HashMap::new()),
             registry_path,
             paths: Mutex::new(HashMap::new()),
             publisher: Prefetcher::new(),
@@ -1585,7 +1623,7 @@ impl Proxy {
                 return;
             }
         }
-        match self.publish(&remote, state, &record) {
+        match self.publish(&instance, &remote, state, &record) {
             Ok(()) => {
                 let _ = std::fs::remove_file(&record_path);
                 state.stats_published.fetch_add(1, Ordering::Relaxed);
@@ -1602,6 +1640,7 @@ impl Proxy {
 
     fn publish(
         &self,
+        instance: &str,
         remote: &Remote,
         state: &'static PathState,
         record: &PublishRecord,
@@ -1706,7 +1745,9 @@ impl Proxy {
                 }
             }
         }
-        let result = remote.update_action(&record.key, &entries);
+        let branch = self.resolve_branch(instance);
+        let trunk = self.resolve_trunk(instance);
+        let result = remote.update_action(&record.key, &entries, branch.as_deref(), trunk.as_deref());
         if let Some(analytics) = &self.analytics {
             analytics.record_keyvalue(&record.key, "write", op_start.elapsed().as_secs_f64());
         }
@@ -1841,7 +1882,12 @@ impl Proxy {
             else {
                 break;
             };
-            if remote.update_action(&key, &manifest).is_err() {
+            // These are re-publishes of entries already in the cache, so they
+            // ride without a branch/trunk: a same-bytes refresh inside the
+            // damping window is a no-op, and an aged one lands untagged in the
+            // trunk baseline (still included, still protected from feature
+            // steals) rather than being wrongly re-attributed.
+            if remote.update_action(&key, &manifest, None, None).is_err() {
                 break;
             }
             sent += 1;
@@ -1896,7 +1942,7 @@ impl Proxy {
 
     /// One full snapshot fetch + decode, returning the resulting state.
     fn fetch_full_snapshot(&self, instance: &str, remote: &Arc<Remote>) -> SnapshotState {
-        match remote.get_snapshot(None) {
+        match remote.get_snapshot(None, self.resolve_trunk(instance).as_deref()) {
             Ok(Some(bytes)) => match Snapshot::decode(&bytes) {
                 Some(snapshot) => {
                     crate::log_line(&format!(
@@ -2020,7 +2066,8 @@ impl Proxy {
                     watermark,
                 } => {
                     let remote = self.remote_for(&instance);
-                    match remote.get_snapshot(Some(watermark)) {
+                    let trunk = self.resolve_trunk(&instance);
+                    match remote.get_snapshot(Some(watermark), trunk.as_deref()) {
                         Ok(Some(bytes)) => {
                             let Some(delta) = Snapshot::decode(&bytes) else {
                                 continue;
@@ -2090,6 +2137,86 @@ impl Proxy {
     /// local. Once per snapshot fetch (i.e. per proxy lifetime per
     /// instance); after a mid-day wipe, demand-driven jobs and per-object
     /// self-heals carry re-materialization.
+    /// The git branch a publish for this instance is attributed to: the env
+    /// override first (CI, whose HEAD is detached; or a manual build), then the
+    /// branch derived live from the instance's registered source root.
+    fn resolve_branch(&self, instance: &str) -> Option<String> {
+        if let Ok(branch) = std::env::var("TUIST_CAS_BRANCH") {
+            if !branch.is_empty() {
+                return Some(branch);
+            }
+        }
+        self.git_context(instance).branch
+    }
+
+    /// The trunk to scope this instance's snapshot to: the env override first,
+    /// then the source root's default branch (`origin/HEAD`).
+    fn resolve_trunk(&self, instance: &str) -> Option<String> {
+        if let Ok(trunk) = std::env::var("TUIST_CAS_TRUNK_BRANCH") {
+            if !trunk.is_empty() {
+                return Some(trunk);
+            }
+        }
+        self.git_context(instance).trunk
+    }
+
+    /// The instance's git context, memoized on GIT_CONTEXT_TTL. A refresh also
+    /// re-reads the sources registry, so a project set up after this proxy
+    /// started (a second project on the machine) is picked up without a restart.
+    fn git_context(&self, instance: &str) -> GitBranches {
+        {
+            let cache = self.git_cache.lock().unwrap();
+            if let Some(context) = cache.get(instance) {
+                if context.read_at.elapsed() < GIT_CONTEXT_TTL {
+                    return GitBranches {
+                        branch: context.branch.clone(),
+                        trunk: context.trunk.clone(),
+                    };
+                }
+            }
+        }
+        let root = self.source_root(instance);
+        let (branch, trunk) = match root {
+            Some(root) => (git_current_branch(&root), git_trunk_branch(&root)),
+            None => (None, None),
+        };
+        {
+            let cache = self.git_cache.lock().unwrap();
+            let changed = cache
+                .get(instance)
+                .map(|context| context.branch != branch || context.trunk != trunk)
+                .unwrap_or(true);
+            if changed {
+                crate::log_line(&format!(
+                    "git context for {instance}: branch={branch:?} trunk={trunk:?}"
+                ));
+            }
+        }
+        self.git_cache.lock().unwrap().insert(
+            instance.to_string(),
+            GitContext {
+                read_at: Instant::now(),
+                branch: branch.clone(),
+                trunk: trunk.clone(),
+            },
+        );
+        GitBranches { branch, trunk }
+    }
+
+    /// The instance's registered source root, reloading the sources registry so
+    /// a mapping written after startup is visible. Cheap: only runs on a TTL
+    /// miss in `git_context`.
+    fn source_root(&self, instance: &str) -> Option<PathBuf> {
+        if let Some(path) = self.registry_path.as_deref() {
+            let sources = load_sources(&sources_path_for(path));
+            let root = sources.get(instance).cloned();
+            *self.instance_sources.lock().unwrap() = sources;
+            root
+        } else {
+            self.instance_sources.lock().unwrap().get(instance).cloned()
+        }
+    }
+
     fn prematerialize_snapshot(&self, instance: &str, snapshot: &Snapshot) {
         let cas_paths: Vec<String> = self
             .path_instance
@@ -2112,10 +2239,14 @@ impl Proxy {
             // namespace measured). The budget covers a large build's closure;
             // everything past it stays resolvable and self-heals on demand.
             // With a trunk-scoped snapshot the closure IS the budget's target,
-            // so full ingestion (the layer above key caching) is the same loop
-            // with the cap lifted: TUIST_CAS_PREMATERIALIZE_NODES=0 warms the
-            // entire snapshot.
-            let configured = prematerialize_max_nodes();
+            // so full ingestion (the layer above key caching) warms all of it —
+            // the scoping already bounds it to the trunk, not the whole polluted
+            // namespace. Unscoped, keep the node budget (or TUIST_CAS_PREMATERIALIZE_NODES).
+            let configured = if self.resolve_trunk(instance).is_some() {
+                0
+            } else {
+                prematerialize_max_nodes()
+            };
             let mut budget = configured;
             let mut enqueued = 0usize;
             for key_hash in &snapshot.key_order {
@@ -2370,6 +2501,70 @@ fn load_registry(path: &Path) -> HashMap<String, String> {
         }
     }
     map
+}
+
+/// The instance -> source-root registry sits next to the cas_path registry,
+/// written by `tuist setup cache` (which knows both the full handle and the
+/// project path). `<registry>.sources`, TSV `instance\tsource-root`.
+fn sources_path_for(registry: &Path) -> PathBuf {
+    let mut path = registry.to_path_buf().into_os_string();
+    path.push(".sources");
+    PathBuf::from(path)
+}
+
+fn load_sources(path: &Path) -> HashMap<String, PathBuf> {
+    let mut map = HashMap::new();
+    if let Ok(body) = std::fs::read_to_string(path) {
+        for line in body.lines() {
+            if let Some((instance, root)) = line.split_once('\t') {
+                if !instance.is_empty() && !root.is_empty() {
+                    map.insert(instance.to_string(), PathBuf::from(root));
+                }
+            }
+        }
+    }
+    map
+}
+
+/// The currently checked-out branch of a repo, or `None` on a detached HEAD
+/// (git prints "HEAD") or when the path is not a repo.
+fn git_current_branch(root: &Path) -> Option<String> {
+    let output = std::process::Command::new("git")
+        .arg("-C")
+        .arg(root)
+        .args(["rev-parse", "--abbrev-ref", "HEAD"])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let branch = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if branch.is_empty() || branch == "HEAD" {
+        None
+    } else {
+        Some(branch)
+    }
+}
+
+/// A repo's default branch, read from `origin/HEAD` (e.g. "main"). `None` when
+/// the remote head is unset (a bare local repo) — the caller then leaves the
+/// snapshot unscoped or takes the env/server-provided trunk.
+fn git_trunk_branch(root: &Path) -> Option<String> {
+    let output = std::process::Command::new("git")
+        .arg("-C")
+        .arg(root)
+        .args(["symbolic-ref", "--short", "refs/remotes/origin/HEAD"])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let head = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    // `--short` yields "origin/main"; the trunk is the branch name.
+    head.rsplit('/')
+        .next()
+        .filter(|name| !name.is_empty())
+        .map(str::to_owned)
 }
 
 unsafe fn open_cas(up: &'static Upstream, path: &str) -> Result<llcas_cas_t, String> {

@@ -284,24 +284,6 @@ fn authed_request<T>(message: T, auth: Option<&AuthValue>) -> tonic::Request<T> 
     request
 }
 
-/// The git branch a publish is attributed to, so kura can scope a trunk
-/// snapshot to it. Sourced from the environment for now — the validation
-/// harness sets it per build; the production path will carry it per publish
-/// from the plugin's `OP_PUBLISH` (the CLI bakes the branch as a plugin option).
-fn env_branch() -> Option<String> {
-    std::env::var("TUIST_CAS_BRANCH")
-        .ok()
-        .filter(|value| !value.is_empty())
-}
-
-/// The trunk branch a snapshot fetch asks kura to scope to (e.g. "main"). When
-/// unset, kura serves the unscoped snapshot exactly as before.
-fn env_trunk_branch() -> Option<String> {
-    std::env::var("TUIST_CAS_TRUNK_BRANCH")
-        .ok()
-        .filter(|value| !value.is_empty())
-}
-
 impl Remote {
     pub fn new(config: RemoteConfig, tokens: Arc<TokenProvider>) -> Arc<Self> {
         Arc::new(Self {
@@ -485,7 +467,11 @@ impl Remote {
     /// server has no snapshot support (an ordinary not-found), and the caller
     /// stays on the per-key path.
     /// `after` asks for a delta: only entries written after that watermark.
-    pub fn get_snapshot(&self, after: Option<u64>) -> Result<Option<Vec<u8>>, String> {
+    pub fn get_snapshot(
+        &self,
+        after: Option<u64>,
+        trunk: Option<&str>,
+    ) -> Result<Option<Vec<u8>>, String> {
         let mut client = self.ac_client()?;
         let mut inline_output_files = vec!["*".to_string()];
         if let Some(after) = after {
@@ -497,12 +483,11 @@ impl Remote {
             inline_output_files,
             ..Default::default()
         };
-        let trunk = env_trunk_branch();
         let response = retry_call(|| {
             runtime().block_on(client.get_action_result(self.authed_with(
                 request.clone(),
                 "x-tuist-trunk-branch",
-                trunk.as_deref(),
+                trunk,
             )))
         });
         match response {
@@ -655,7 +640,13 @@ impl Remote {
 
     /// Publishes the entry. Called only after every blob in the manifest is
     /// known to be on the server.
-    pub fn update_action(&self, key: &[u8], manifest: &[ManifestEntry]) -> Result<(), String> {
+    pub fn update_action(
+        &self,
+        key: &[u8],
+        manifest: &[ManifestEntry],
+        branch: Option<&str>,
+        trunk: Option<&str>,
+    ) -> Result<(), String> {
         let started = Instant::now();
         let result = (|| {
             let mut client = self.ac_client()?;
@@ -676,17 +667,11 @@ impl Remote {
                 action_result: Some(action_result),
                 ..Default::default()
             };
-            let branch = env_branch();
-            let trunk = env_trunk_branch();
             retry_call(|| {
                 // The trunk rides the write too: kura keeps trunk-baseline
                 // keys sticky against feature-branch republishes.
-                let mut request = self.authed_with(
-                    request.clone(),
-                    "x-tuist-branch",
-                    branch.as_deref(),
-                );
-                if let Some(trunk) = trunk.as_deref().filter(|trunk| !trunk.is_empty()) {
+                let mut request = self.authed_with(request.clone(), "x-tuist-branch", branch);
+                if let Some(trunk) = trunk.filter(|trunk| !trunk.is_empty()) {
                     if let Ok(value) = tonic::metadata::MetadataValue::try_from(trunk) {
                         request.metadata_mut().insert("x-tuist-trunk-branch", value);
                     }
