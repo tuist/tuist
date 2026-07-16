@@ -217,43 +217,47 @@ defmodule Tuist.Runners.RunnerSessions do
   def record_execution(runner_name, executed_workflow_job_id, account_id)
       when is_binary(runner_name) and runner_name != "" and is_integer(executed_workflow_job_id) and
              is_integer(account_id) do
-    session =
-      RunnerSession
-      |> where([s], s.runner_name == ^runner_name and s.account_id == ^account_id)
-      |> order_by([s], desc: is_nil(s.ended_at), desc: s.started_at)
-      |> limit(1)
-      |> Repo.one()
-
-    case session do
-      nil ->
-        :unknown_runner
-
-      %RunnerSession{workflow_job_id: claimed_job_id} = session ->
-        session
-        |> Ecto.Changeset.cast(
-          %{
-            executed_workflow_job_id: executed_workflow_job_id,
-            updated_at: DateTime.truncate(DateTime.utc_now(), :second)
-          },
-          [:executed_workflow_job_id, :updated_at]
-        )
-        |> Repo.update()
-        |> case do
-          {:ok, _updated} ->
-            :ok
-
-          {:error, changeset} ->
-            Logger.warning("runners: failed to record session execution",
-              runner_name: runner_name,
-              changeset_errors: inspect(changeset.errors)
-            )
-        end
-
-        if claimed_job_id == executed_workflow_job_id, do: :matched, else: :mismatch
+    case session_for_runner(runner_name, account_id) do
+      nil -> :unknown_runner
+      %RunnerSession{} = session -> bind_execution(session, executed_workflow_job_id)
     end
   end
 
   def record_execution(_runner_name, _executed_workflow_job_id, _account_id), do: :unknown_runner
+
+  # Prefer the open session; fall back to the most recent closed one so a
+  # `completed` backstop can still bind after a fast job's pod is gone.
+  defp session_for_runner(runner_name, account_id) do
+    RunnerSession
+    |> where([s], s.runner_name == ^runner_name and s.account_id == ^account_id)
+    |> order_by([s], desc: is_nil(s.ended_at), desc: s.started_at)
+    |> limit(1)
+    |> Repo.one()
+  end
+
+  defp bind_execution(%RunnerSession{workflow_job_id: claimed_job_id} = session, executed_workflow_job_id) do
+    session
+    |> Ecto.Changeset.cast(
+      %{
+        executed_workflow_job_id: executed_workflow_job_id,
+        updated_at: DateTime.truncate(DateTime.utc_now(), :second)
+      },
+      [:executed_workflow_job_id, :updated_at]
+    )
+    |> Repo.update()
+    |> case do
+      {:ok, _updated} ->
+        :ok
+
+      {:error, changeset} ->
+        Logger.warning("runners: failed to record session execution",
+          runner_name: session.runner_name,
+          changeset_errors: inspect(changeset.errors)
+        )
+    end
+
+    if claimed_job_id == executed_workflow_job_id, do: :matched, else: :mismatch
+  end
 
   defp latest_for_pod(pod_name) do
     # Prefer the open row if one exists; otherwise return whichever
