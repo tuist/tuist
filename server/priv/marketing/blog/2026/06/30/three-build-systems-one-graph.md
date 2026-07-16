@@ -16,7 +16,7 @@ Every build system starts from the same place: a graph of tasks that describes w
 Stripped down, that graph is just tasks with arrows between them. Here's one for a small app, where a couple of sources compile and link into a binary while the resources get processed alongside, and everything converges on the bundle:
 
 ```mermaid
-graph LR
+graph TD
   model["Model.swift"] --> compile["compile"]
   view["View.swift"] --> compile
   compile --> link["link"]
@@ -146,6 +146,7 @@ The apps sit on top of the core, and this is where the graph shows up. On Apple 
 # once input "../apple/Sources/**/*"
 # once input "../core/include/core.h"
 # once fingerprint "swiftc --version"
+# once fingerprint "xcrun --sdk iphonesimulator --show-sdk-build-version"
 # once env "PATH"
 # once output "../apple/MyApp"
 # once cwd ".."
@@ -162,7 +163,7 @@ swiftc \
   -o apple/MyApp
 ```
 
-It links against the core through the `-L core/build/apple -lcore` on the `swiftc` line, and the `needs` line makes the core build run first. The second takes that binary and assembles the `.app`:
+It links against the core through the `-L core/build/apple -lcore` on the `swiftc` line, and the `needs` line makes the core build run first. The SDK is an input too, even though it never shows up in the source: `xcrun` resolves it at runtime, so the second `fingerprint` folds the SDK's build version into the key. Bump Xcode and the binary rebuilds, the same way a compiler bump does, instead of relinking against headers that moved underneath it. The second script takes that binary and assembles the `.app`:
 
 ```sh
 #!/usr/bin/env -S once exec -- /bin/bash
