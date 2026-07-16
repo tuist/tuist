@@ -515,6 +515,41 @@ struct SetupCacheCommandServiceTests {
         #expect(sources == "tuist/tuist\t\(root.pathString)\tmain\n")
     }
 
+    /// The registry is machine-wide, and setting one project up rewrites the whole
+    /// file, so every other project's row has to survive being read and written
+    /// back untouched. The columns are positional and a branch known without a
+    /// trunk leaves the trunk's place empty, which is exactly the shape a default
+    /// `split` drops: the branch would shift into the trunk's column and be
+    /// written back that way, and the proxy would then scope that project's
+    /// snapshot to its branch.
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func setupCache_keepsAnotherProjectsColumnsWhenItsTrunkIsEmpty() async throws {
+        // Given
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let registry = temporaryDirectory.appending(component: "cas-proxy.registry")
+        environment.variables["TUIST_CAS_PROXY_REGISTRY"] = registry.pathString
+        let sources = registry.parentDirectory.appending(component: "cas-proxy.registry.sources")
+        let fileSystem = FileSystem()
+        // Another project, on CI, whose trunk was never resolved.
+        try await fileSystem.writeText(
+            "other/project\t/src/other\t\tfeature/theirs\n",
+            at: sources
+        )
+
+        // When: this project's setup rewrites the file.
+        try await subject.run(path: nil)
+
+        // Then
+        let contents = try await fileSystem.readTextFile(at: sources)
+        #expect(
+            contents.contains("other/project\t/src/other\t\tfeature/theirs\n"),
+            "another project's row round-trips byte for byte: \(contents)"
+        )
+    }
+
     @Test(.inTemporaryDirectory, .withMockedEnvironment()) func setupCache_recordsTheBranchOnCI() async throws {
         // Given
         let environment = try #require(Environment.mocked)

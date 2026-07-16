@@ -151,12 +151,23 @@ struct SetupCacheCommandService {
         if try await fileSystem.exists(sourcesPath) {
             let contents = try await fileSystem.readTextFile(at: sourcesPath)
             for line in contents.split(separator: "\n") {
-                let parts = line.split(separator: "\t", maxSplits: 3).map(String.init)
-                if parts.count >= 2 {
+                // `omittingEmptySubsequences: false` is load-bearing: the columns
+                // are positional, and a branch known without a trunk writes the
+                // trunk's place empty. Dropping empty fields would shift the
+                // branch into the trunk's column and silently rewrite it that way
+                // for every OTHER project, since this rewrites the whole file.
+                let parts = line
+                    .split(separator: "\t", maxSplits: 3, omittingEmptySubsequences: false)
+                    .map(String.init)
+                if parts.count >= 2, !parts[0].isEmpty, !parts[1].isEmpty {
+                    let column = { (index: Int) -> String? in
+                        guard parts.count > index, !parts[index].isEmpty else { return nil }
+                        return parts[index]
+                    }
                     entries[parts[0]] = RegisteredSource(
                         root: parts[1],
-                        trunk: parts.count > 2 ? parts[2] : nil,
-                        branch: parts.count > 3 ? parts[3] : nil
+                        trunk: column(2),
+                        branch: column(3)
                     )
                 }
             }
