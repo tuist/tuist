@@ -189,6 +189,8 @@ config :logger, :console,
     :reconciling
   ]
 
+config :mdex_native, syntax_highlighter: :lumis
+
 config :mime, :types, %{
   "application/linkset+json" => ["linkset"],
   "application/scim+json" => ["scim+json"]
@@ -419,6 +421,8 @@ config :tuist, :urls,
   shop: "https://shop.tuist.dev"
 
 config :tuist_common, finch_name: Tuist.Finch
+
+config :tzdata, :http_client, Tuist.Tzdata.HTTPClient
 
 config :ueberauth, Ueberauth,
   base_path: "/users/auth",
