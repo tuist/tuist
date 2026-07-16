@@ -371,6 +371,27 @@ while true; do
         /opt/tuist/metrics-poll.sh &
       fi
       cd /Users/runner/actions-runner
+      # Idle-runner reaping (issue #11862). GitHub assigns a queued job
+      # to any label-eligible runner, not necessarily the one the
+      # server minted it for, so this runner may register and then wait
+      # forever for a job GitHub ran on a sibling — holding the VM (and
+      # its warm-pool slot) idle for hours. The watchdog terminates
+      # such a stranded runner after TUIST_RUNNER_IDLE_TIMEOUT_SECONDS;
+      # the EXIT trap then halts the VM and the reconciler recycles it.
+      # A runner that DID get a job writes the JOB_STARTED marker (via
+      # the runner's own hook) and is never touched. 0 / unset disables
+      # the watchdog (unchanged behaviour).
+      JOB_STARTED_MARKER=/tmp/tuist-runner-job-started
+      JOB_STARTED_HOOK=/tmp/tuist-runner-job-started-hook.sh
+      rm -f "${JOB_STARTED_MARKER}"
+      cat >"${JOB_STARTED_HOOK}" <<HOOK
+#!/bin/bash
+touch "${JOB_STARTED_MARKER}" 2>/dev/null || true
+HOOK
+      chmod +x "${JOB_STARTED_HOOK}"
+      export ACTIONS_RUNNER_HOOK_JOB_STARTED="${JOB_STARTED_HOOK}"
+      idle_timeout="${TUIST_RUNNER_IDLE_TIMEOUT_SECONDS:-0}"
+
       # `--jitconfig` implies ephemeral: the runner accepts one job
       # and exits. `--disableupdate` pins the runner to whatever
       # version is baked into the image; we bump that via Renovate
@@ -387,8 +408,21 @@ while true; do
       # API on `workflow_job: completed` (see
       # `Tuist.Runners.Workers.FetchLogsWorker`); the runner VM
       # writes nothing to the ingest path.
-      ./run.sh --jitconfig "${jit}" --disableupdate
+      ./run.sh --jitconfig "${jit}" --disableupdate &
+      runner_pid=$!
+      if [ "${idle_timeout}" -gt 0 ] 2>/dev/null; then
+        (
+          sleep "${idle_timeout}"
+          if [ ! -e "${JOB_STARTED_MARKER}" ] && kill -0 "${runner_pid}" 2>/dev/null; then
+            echo "$(date -u +%FT%TZ) dispatch-poll: no job assigned within ${idle_timeout}s; terminating idle runner"
+            kill -TERM "${runner_pid}" 2>/dev/null || true
+          fi
+        ) &
+        watchdog_pid=$!
+      fi
+      wait "${runner_pid}"
       rc=$?
+      [ -n "${watchdog_pid:-}" ] && kill "${watchdog_pid}" 2>/dev/null || true
       # Report whether the job succeeded AND changed the cache so the reconciler
       # can promote the branch to the account's new master (or discard it).
       # Before the metrics tail + VM halt, while the mounted volume is still

@@ -252,6 +252,33 @@ func TestBuild_RuntimeClassNameNilWhenUnset(t *testing.T) {
 	}
 }
 
+func TestBuild_IdleTimeoutEnvInjectedWhenSet(t *testing.T) {
+	// macOS runner container (the dispatch-poll loop runs in-VM).
+	macPool := basePool("")
+	macPool.Spec.IdleTimeoutSeconds = 300
+	macRunner := build(t, macPool).Spec.Containers[0]
+	if got := envValue(macRunner.Env, "TUIST_RUNNER_IDLE_TIMEOUT_SECONDS"); got != "300" {
+		t.Errorf("macOS runner TUIST_RUNNER_IDLE_TIMEOUT_SECONDS = %q, want \"300\"", got)
+	}
+
+	// Linux runner container (credential-free run-job.sh).
+	linuxPool := basePool("linux")
+	linuxPool.Spec.IdleTimeoutSeconds = 120
+	linuxRunner := build(t, linuxPool).Spec.Containers[0]
+	if got := envValue(linuxRunner.Env, "TUIST_RUNNER_IDLE_TIMEOUT_SECONDS"); got != "120" {
+		t.Errorf("Linux runner TUIST_RUNNER_IDLE_TIMEOUT_SECONDS = %q, want \"120\"", got)
+	}
+}
+
+func TestBuild_IdleTimeoutEnvAbsentWhenZero(t *testing.T) {
+	// 0 (the default) means the watchdog is disabled — no env at all,
+	// so the image keeps its unchanged behaviour.
+	runner := build(t, basePool("linux")).Spec.Containers[0]
+	if got := envValue(runner.Env, "TUIST_RUNNER_IDLE_TIMEOUT_SECONDS"); got != "" {
+		t.Errorf("TUIST_RUNNER_IDLE_TIMEOUT_SECONDS = %q, want it absent when IdleTimeoutSeconds is 0", got)
+	}
+}
+
 func TestBuild_LinuxDindWithoutKataFailsClosed(t *testing.T) {
 	// A Linux pool that would get the privileged dind sidecar but
 	// isn't pinned to kata-qemu must be refused — otherwise the

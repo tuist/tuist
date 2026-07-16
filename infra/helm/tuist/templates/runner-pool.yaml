@@ -64,6 +64,10 @@ spec:
     {{- end }}
   podCPUMilli: {{ $podCPU }}
   podMemoryMB: {{ $podMem }}
+  {{- $idleTimeout := dig "idleTimeoutSeconds" 0 $pool }}
+  {{- if gt (int $idleTimeout) 0 }}
+  idleTimeoutSeconds: {{ $idleTimeout }}
+  {{- end }}
   {{- if $autoscaling }}
   autoscaling:
     enabled: {{ dig "enabled" false $autoscaling }}
@@ -170,6 +174,10 @@ spec:
     {{- end }}
   podCPUMilli: {{ $podCPU }}
   podMemoryMB: {{ $podMem }}
+  {{- $idleTimeout := dig "idleTimeoutSeconds" 0 $override }}
+  {{- if gt (int $idleTimeout) 0 }}
+  idleTimeoutSeconds: {{ $idleTimeout }}
+  {{- end }}
   {{- if $autoscaling }}
   autoscaling:
     enabled: {{ dig "enabled" false $autoscaling }}

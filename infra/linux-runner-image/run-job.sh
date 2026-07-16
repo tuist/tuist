@@ -50,12 +50,56 @@ if [ -s "${CACHE_ENDPOINT_PATH}" ]; then
   fi
 fi
 echo "$(date -u +%FT%TZ) run-job: JIT staged, starting runner"
-# Forensic vitals for this job's lifetime. Backgrounded so it
-# survives the `exec` below and keeps sampling until the container
-# (and microVM) dies; its last line before a mid-job death lands in
-# the Pod logs, the only trail left once the VM is reaped. Guarded so
-# a missing script (older image) never blocks the runner.
+# Forensic vitals for this job's lifetime. Backgrounded so it keeps
+# sampling until the container (and microVM) dies; its last line
+# before a mid-job death lands in the Pod logs, the only trail left
+# once the VM is reaped. Guarded so a missing script (older image)
+# never blocks the runner.
 if [ -x /usr/local/bin/vitals.sh ]; then
   /usr/local/bin/vitals.sh &
 fi
-exec ./run.sh --jitconfig "${jit}" --disableupdate
+
+# Idle-runner reaping (issue #11862). GitHub assigns a queued job to
+# any label-eligible runner, not necessarily the one the server minted
+# for it, so this runner may register and then wait forever for a job
+# GitHub ran on a sibling. The watchdog terminates such a stranded
+# runner after TUIST_RUNNER_IDLE_TIMEOUT_SECONDS so the Pod completes
+# and the reconciler recycles it. A runner that DID get a job writes
+# the JOB_STARTED marker (via the runner's own hook) and is never
+# touched. 0 / unset disables the watchdog (unchanged behaviour).
+JOB_STARTED_MARKER=/tmp/tuist-runner-job-started
+JOB_STARTED_HOOK=/tmp/tuist-runner-job-started-hook.sh
+rm -f "${JOB_STARTED_MARKER}"
+cat >"${JOB_STARTED_HOOK}" <<HOOK
+#!/usr/bin/env bash
+# ACTIONS_RUNNER_HOOK_JOB_STARTED: the ephemeral runner runs this the
+# instant GitHub hands it a job. The marker tells the idle watchdog
+# this runner got real work and must never be reaped as idle.
+touch "${JOB_STARTED_MARKER}" 2>/dev/null || true
+HOOK
+chmod +x "${JOB_STARTED_HOOK}"
+export ACTIONS_RUNNER_HOOK_JOB_STARTED="${JOB_STARTED_HOOK}"
+
+idle_timeout="${TUIST_RUNNER_IDLE_TIMEOUT_SECONDS:-0}"
+
+./run.sh --jitconfig "${jit}" --disableupdate &
+runner_pid=$!
+
+# Forward pod-deletion SIGTERM to the runner so it deregisters cleanly.
+trap 'kill -TERM "${runner_pid}" 2>/dev/null || true' TERM INT
+
+if [ "${idle_timeout}" -gt 0 ] 2>/dev/null; then
+  (
+    sleep "${idle_timeout}"
+    if [ ! -e "${JOB_STARTED_MARKER}" ] && kill -0 "${runner_pid}" 2>/dev/null; then
+      echo "$(date -u +%FT%TZ) run-job: no job assigned within ${idle_timeout}s; terminating idle runner"
+      kill -TERM "${runner_pid}" 2>/dev/null || true
+    fi
+  ) &
+  watchdog_pid=$!
+fi
+
+wait "${runner_pid}"
+rc=$?
+[ -n "${watchdog_pid:-}" ] && kill "${watchdog_pid}" 2>/dev/null || true
+exit "${rc}"
