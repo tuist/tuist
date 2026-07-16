@@ -108,17 +108,30 @@ public struct TestService { // swiftlint:disable:this type_body_length
     private struct TestSchemeRun {
         let scheme: Scheme
         let testTargetNames: Set<String>?
+        let resultBundleName: String
+
+        init(
+            scheme: Scheme,
+            testTargetNames: Set<String>?,
+            resultBundleName: String? = nil
+        ) {
+            self.scheme = scheme
+            self.testTargetNames = testTargetNames
+            self.resultBundleName = resultBundleName ?? scheme.name
+        }
     }
 
     private struct ResolvedTestSchemeRun {
         let scheme: Scheme
         let testTargets: [TestIdentifier]
         let testTargetNames: Set<String>
+        let resultBundleName: String
     }
 
     private struct TestSchemeRunAssignments {
         var workspace: [Int: Set<String>] = [:]
         var project: [Int: Set<String>] = [:]
+        var hostlessWorkspace: [Int: Set<String>] = [:]
     }
 
     private let generatorFactory: GeneratorFactorying
@@ -1193,6 +1206,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         }
 
         var testSchemeRuns: [ResolvedTestSchemeRun] = []
+        let passthroughSkippedTargetNames = passthroughSkippedTestTargetNames(passthroughXcodeBuildArguments)
         for schemeRun in schemeRuns {
             let testScheme = schemeRun.scheme
             let testSchemeTargetNames = Set(
@@ -1206,18 +1220,19 @@ public struct TestService { // swiftlint:disable:this type_body_length
             let plannedTestTargetNames = schemeRun.testTargetNames.map {
                 testSchemeTargetNames.intersection($0)
             } ?? testSchemeTargetNames
-            if plannedTestTargetNames.isEmpty {
+            let runnableTestTargetNames = plannedTestTargetNames.subtracting(passthroughSkippedTargetNames)
+            if runnableTestTargetNames.isEmpty {
                 continue
             }
 
             let testSchemeTestTargets: [TestIdentifier]
             if testTargets.isEmpty, schemeRun.testTargetNames != nil {
-                testSchemeTestTargets = try plannedTestTargetNames.sorted().map {
+                testSchemeTestTargets = try runnableTestTargetNames.sorted().map {
                     try TestIdentifier(target: $0)
                 }
             } else {
                 testSchemeTestTargets = testTargets.filter {
-                    plannedTestTargetNames.contains($0.target)
+                    runnableTestTargetNames.contains($0.target)
                 }
             }
 
@@ -1226,13 +1241,14 @@ public struct TestService { // swiftlint:disable:this type_body_length
             }
 
             let runTestTargetNames = testSchemeTestTargets.isEmpty
-                ? plannedTestTargetNames
+                ? runnableTestTargetNames
                 : Set(testSchemeTestTargets.map(\.target))
             testSchemeRuns.append(
                 ResolvedTestSchemeRun(
                     scheme: testScheme,
                     testTargets: testSchemeTestTargets,
-                    testTargetNames: runTestTargetNames
+                    testTargetNames: runTestTargetNames,
+                    resultBundleName: schemeRun.resultBundleName
                 )
             )
         }
@@ -1249,7 +1265,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 let testScheme = testSchemeRun.scheme
                 let testSchemeResultBundlePath = schemeResultBundlePath(
                     resultBundlePath,
-                    schemeName: testScheme.name,
+                    schemeName: testSchemeRun.resultBundleName,
                     runningMultipleSchemes: runningMultipleSchemes
                 )
                 if runningMultipleSchemes, let testSchemeResultBundlePath {
@@ -1486,16 +1502,17 @@ public struct TestService { // swiftlint:disable:this type_body_length
             graphTraverser: graphTraverser
         )
 
-        guard !assignments.project.isEmpty else {
-            return workspaceSchemes.map { TestSchemeRun(scheme: $0, testTargetNames: nil) }
-        }
-
         Logger.current.debug(
-            "Workspace schemes include hosted tests and host-less unit tests; keeping hosted tests in workspace schemes and running host-less tests in generated project schemes."
+            "Workspace schemes include hosted tests and host-less unit tests; assigning them to separate scheme runs."
         )
         let workspaceRuns = testSchemeRuns(schemes: workspaceSchemes, assignments: assignments.workspace)
         let projectRuns = testSchemeRuns(schemes: projectSchemes, assignments: assignments.project)
-        return workspaceRuns + projectRuns
+        let hostlessWorkspaceRuns = testSchemeRuns(
+            schemes: workspaceSchemes,
+            assignments: assignments.hostlessWorkspace,
+            resultBundleNameSuffix: "Hostless"
+        )
+        return workspaceRuns + projectRuns + hostlessWorkspaceRuns
     }
 
     private func testTargetsByScheme(
@@ -1524,10 +1541,12 @@ public struct TestService { // swiftlint:disable:this type_body_length
         let targets = workspaceTargets.flatMap { $0 }.filter { seenTargets.insert($0).inserted }
 
         for target in targets {
-            if isHostlessUnitTest(target, graphTraverser: graphTraverser),
-               let index = narrowestSchemeIndex(containing: target, targetsByScheme: projectTargets)
-            {
-                assignments.project[index, default: []].insert(target.name)
+            if isHostlessUnitTest(target, graphTraverser: graphTraverser) {
+                if let index = narrowestSchemeIndex(containing: target, targetsByScheme: projectTargets) {
+                    assignments.project[index, default: []].insert(target.name)
+                } else if let index = widestSchemeIndex(containing: target, targetsByScheme: workspaceTargets) {
+                    assignments.hostlessWorkspace[index, default: []].insert(target.name)
+                }
             } else if let index = widestSchemeIndex(containing: target, targetsByScheme: workspaceTargets) {
                 assignments.workspace[index, default: []].insert(target.name)
             }
@@ -1555,11 +1574,18 @@ public struct TestService { // swiftlint:disable:this type_body_length
 
     private func testSchemeRuns(
         schemes: [Scheme],
-        assignments: [Int: Set<String>]
+        assignments: [Int: Set<String>],
+        resultBundleNameSuffix: String? = nil
     ) -> [TestSchemeRun] {
         schemes.indices.compactMap { index in
             guard let testTargetNames = assignments[index], !testTargetNames.isEmpty else { return nil }
-            return TestSchemeRun(scheme: schemes[index], testTargetNames: testTargetNames)
+            let scheme = schemes[index]
+            let resultBundleName = resultBundleNameSuffix.map { "\(scheme.name)-\($0)" }
+            return TestSchemeRun(
+                scheme: scheme,
+                testTargetNames: testTargetNames,
+                resultBundleName: resultBundleName
+            )
         }
     }
 
