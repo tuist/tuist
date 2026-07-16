@@ -9,7 +9,7 @@ Platform-level Helm umbrella chart installed **once per Kubernetes cluster** tha
 | `cert-manager` | TLS certificate issuance via Let's Encrypt + Cloudflare DNS-01 |
 | `ingress-nginx` | Ingress controller backed by a cloud LoadBalancer |
 | `kura-*-ingress-nginx` | Optional region-local Kura ingress controllers backed by shared regional cloud LoadBalancers |
-| `external-dns` | Sync Ingress / Service hostnames into Cloudflare DNS |
+| `external-dns` | Sync Ingress / Service hostnames into Cloudflare Domain Name System records |
 | `external-secrets` | Pull secrets from external stores (1Password, SOPS, etc.) into the cluster |
 | `metrics-server` | Resource metrics API (`pods.metrics.k8s.io`) consumed by HPAs and `kubectl top` |
 | `ClusterIssuer` | Shared Let's Encrypt issuer wired to Cloudflare DNS-01 |
@@ -64,6 +64,40 @@ the hour, and the janitor follows at minute 20 as the in-cluster backstop.
 The janitor is disabled by default because it needs cluster-wide delete access
 to dynamic preview namespaces. Keep it enabled only for the managed preview
 cluster overlay.
+
+## Certificate issuance policy
+
+Manage the `tuist.dev`
+[Certification Authority Authorization](https://www.rfc-editor.org/info/rfc8659/)
+policy manually in Cloudflare. It is a zone-level policy shared by every
+cluster, so it does not belong to the platform chart or a cluster reconciliation
+loop.
+
+Create these records at the zone apex:
+
+| Flags | Tag | Value |
+|---|---|---|
+| `0` | `issue` | `letsencrypt.org` |
+| `0` | `iodef` | `mailto:contact@tuist.dev` |
+
+Let's Encrypt issues certificates for cluster-hosted endpoints. Cloudflare
+automatically adds the authorizations required by its managed edge-certificate
+providers when a user-managed policy exists, so do not remove those generated
+records. The reporting destination is advisory; certificate authorities are
+not required to send reports.
+
+After changing the policy, verify the public response through two independent
+resolvers:
+
+```bash
+dig +short CAA tuist.dev @1.1.1.1
+dig +short CAA tuist.dev @8.8.8.8
+```
+
+Review the policy when either the cluster issuer or Cloudflare certificate
+configuration changes. See Cloudflare's
+[Certification Authority Authorization records documentation](https://developers.cloudflare.com/ssl/edge-certificates/caa-records/)
+for its generated-record behavior.
 
 ## Local validation
 
