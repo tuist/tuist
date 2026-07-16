@@ -1,6 +1,7 @@
 import FileSystem
 import Foundation
 import Path
+import struct TSCUtility.Version
 import TuistAlert
 import TuistConfigLoader
 import TuistConstants
@@ -116,6 +117,9 @@ struct SetupCacheCommandService {
                 )
             }
         } else if kuraEnabled {
+            // Resolved before the log call: `Logger.info` takes an autoclosure,
+            // which can't await.
+            let prefixMapping = await prefixMappingInstructions()
             Logger.current.info(
                 """
                 Xcode Cache setup is almost complete!
@@ -125,13 +129,14 @@ struct SetupCacheCommandService {
                 COMPILATION_CACHE_ENABLE_PLUGIN=YES
                 COMPILATION_CACHE_PLUGIN_PATH=<path to libtuist_cas_plugin.dylib>
                 COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS=YES
-                OTHER_SWIFT_FLAGS=$(inherited) -cas-plugin-option tuist-instance=\(fullHandle)
+                OTHER_SWIFT_FLAGS=$(inherited) -cas-plugin-option tuist-instance=\(fullHandle)\(prefixMapping)
 
                 `COMPILATION_CACHE_ENABLE_PLUGIN` and `COMPILATION_CACHE_PLUGIN_PATH` are not directly exposed by Xcode; add them as user-defined build settings. See the docs for the plugin path: https://tuist.dev/en/docs/guides/features/cache/xcode-cache
                 """
             )
         } else {
             let socketPath = Environment.current.cacheSocketPathString(for: fullHandle)
+            let prefixMapping = await prefixMappingInstructions()
             Logger.current.info(
                 """
                 Xcode Cache setup is almost complete!
@@ -140,12 +145,39 @@ struct SetupCacheCommandService {
                 COMPILATION_CACHE_ENABLE_CACHING=YES
                 COMPILATION_CACHE_REMOTE_SERVICE_PATH=\(socketPath)
                 COMPILATION_CACHE_ENABLE_PLUGIN=YES
-                COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS=YES
+                COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS=YES\(prefixMapping)
 
                 `COMPILATION_CACHE_REMOTE_SERVICE_PATH` and `COMPILATION_CACHE_ENABLE_PLUGIN` are not directly exposed by Xcode; add them as user-defined build settings.
                 """
             )
         }
+    }
+
+    /// The prefix-mapping settings to append to the manual build-setting
+    /// instructions, or an empty string on Xcode versions that don't implement
+    /// them.
+    ///
+    /// Without these, a compilation-cache key embeds absolute paths — most
+    /// importantly DerivedData's — so the same compilation caches under a
+    /// different key on every machine and artifacts can't be reused between
+    /// developers or between local and CI. Xcode 27 (Swift 6.4) is the first
+    /// version whose build system implements the source/build directory mappings,
+    /// and Apple ships them off by default (staged adoption), so they have to be
+    /// opted into. `tuist generate` sets them automatically; this is the
+    /// equivalent for projects Tuist doesn't generate.
+    private func prefixMappingInstructions() async -> String {
+        guard let version = try? await XcodeController.current.selectedVersion(),
+              version >= Version(27, 0, 0)
+        else { return "" }
+        return """
+
+        SWIFT_ENABLE_PREFIX_MAPPING=YES
+        SWIFT_ENABLE_PROJECT_PREFIX_MAPPING=YES
+        CLANG_ENABLE_PREFIX_MAPPING=YES
+        CLANG_ENABLE_PROJECT_PREFIX_MAPPING=YES
+
+        The four *_PREFIX_MAPPING settings make cache keys independent of where the project and DerivedData live, so artifacts are reusable across machines and CI. They are Xcode 27+ only, are not exposed by Xcode (add them as user-defined build settings), and enabling them changes every cache key — the next build re-populates the cache from cold, once.
+        """
     }
 
     /// Installs the machine-wide CAS proxy (kura path): one launchd agent that

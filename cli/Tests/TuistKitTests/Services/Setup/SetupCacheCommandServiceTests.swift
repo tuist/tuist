@@ -4,6 +4,7 @@ import Foundation
 import Mockable
 import Path
 import Testing
+import struct TSCUtility.Version
 import TuistAlert
 import TuistConfig
 import TuistConfigLoader
@@ -129,6 +130,36 @@ struct SetupCacheCommandServiceTests {
 
         TuistTest.expectLogs("Xcode Cache setup is almost complete!")
         TuistTest.expectLogs("COMPILATION_CACHE_PLUGIN_PATH=")
+    }
+
+    /// On Xcode 27+ the manual instructions must also mention the prefix-mapping
+    /// settings: they are what make cache keys independent of where the project and
+    /// DerivedData live, and — unlike generated projects, which `tuist generate`
+    /// wires up — a non-Tuist project has to set them by hand.
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment(),
+        .withMockedLogger(),
+        .withMockedXcodeController
+    ) func setupCache_withNonTuistProject_onXcode27_mentionsPrefixMapping() async throws {
+        // Given
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
+
+        let xcodeControllerMock = try #require(XcodeController.mocked)
+        given(xcodeControllerMock)
+            .selectedVersion()
+            .willReturn(Version(27, 0, 0))
+
+        // When
+        try await subject.run(path: nil)
+
+        // Then
+        TuistTest.expectLogs("SWIFT_ENABLE_PREFIX_MAPPING=YES")
+        TuistTest.expectLogs("SWIFT_ENABLE_PROJECT_PREFIX_MAPPING=YES")
+        TuistTest.expectLogs("CLANG_ENABLE_PREFIX_MAPPING=YES")
+        TuistTest.expectLogs("CLANG_ENABLE_PROJECT_PREFIX_MAPPING=YES")
     }
 
     @Test(.inTemporaryDirectory, .withMockedEnvironment()) func setupCache_withCustomURL() async throws {
