@@ -59,6 +59,12 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
     func test_resolve() async throws {
         // Given
         let path = try temporaryPath()
+        subject = SwiftPackageManagerController(
+            fileSystem: fileSystem,
+            commandRunner: { self.mockCommandRunner },
+            swifterPM: swifterPM,
+            environmentVariables: { ["TUIST_DISABLE_SWIFTERPM": "1"] }
+        )
         mockCommandRunner.succeedCommand([
             "swift",
             "package",
@@ -87,7 +93,7 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
             fileSystem: fileSystem,
             commandRunner: { self.mockCommandRunner },
             swifterPM: swifterPM,
-            environmentVariables: { ["TUIST_USE_SWIFTERPM": "1"] }
+            environmentVariables: { [:] }
         )
 
         // When
@@ -128,14 +134,14 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
         XCTAssertNil(request.cachedDirectoryMaterialization)
     }
 
-    func test_resolve_when_swifterpm_is_not_truthy_usesSwiftPackageManager() async throws {
+    func test_resolve_when_swifterpm_is_disabled_usesSwiftPackageManager() async throws {
         // Given
         let path = try temporaryPath()
         subject = SwiftPackageManagerController(
             fileSystem: fileSystem,
             commandRunner: { self.mockCommandRunner },
             swifterPM: swifterPM,
-            environmentVariables: { ["TUIST_USE_SWIFTERPM": "0"] }
+            environmentVariables: { ["TUIST_DISABLE_SWIFTERPM": "1"] }
         )
         mockCommandRunner.succeedCommand([
             "swift",
@@ -165,7 +171,7 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
             fileSystem: fileSystem,
             commandRunner: { self.mockCommandRunner },
             swifterPM: swifterPM,
-            environmentVariables: { ["TUIST_USE_SWIFTERPM": "1"] }
+            environmentVariables: { [:] }
         )
 
         // When
@@ -189,7 +195,7 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
             fileSystem: fileSystem,
             commandRunner: { self.mockCommandRunner },
             swifterPM: swifterPM,
-            environmentVariables: { ["TUIST_USE_SWIFTERPM": "1"] }
+            environmentVariables: { [:] }
         )
 
         // When
@@ -211,7 +217,7 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
             fileSystem: fileSystem,
             commandRunner: { self.mockCommandRunner },
             swifterPM: swifterPM,
-            environmentVariables: { ["TUIST_USE_SWIFTERPM": "1"] }
+            environmentVariables: { [:] }
         )
 
         // When
@@ -233,7 +239,7 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
             fileSystem: fileSystem,
             commandRunner: { self.mockCommandRunner },
             swifterPM: swifterPM,
-            environmentVariables: { ["TUIST_USE_SWIFTERPM": "1"] }
+            environmentVariables: { [:] }
         )
 
         // When
@@ -256,7 +262,7 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
             fileSystem: fileSystem,
             commandRunner: { self.mockCommandRunner },
             swifterPM: swifterPM,
-            environmentVariables: { ["TUIST_USE_SWIFTERPM": "1"] }
+            environmentVariables: { [:] }
         )
 
         // When
@@ -283,7 +289,7 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
             fileSystem: fileSystem,
             commandRunner: { self.mockCommandRunner },
             swifterPM: swifterPM,
-            environmentVariables: { ["TUIST_USE_SWIFTERPM": "1"] }
+            environmentVariables: { [:] }
         )
 
         // When
@@ -311,6 +317,12 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
     func test_update() async throws {
         // Given
         let path = try temporaryPath()
+        subject = SwiftPackageManagerController(
+            fileSystem: fileSystem,
+            commandRunner: { self.mockCommandRunner },
+            swifterPM: swifterPM,
+            environmentVariables: { ["TUIST_DISABLE_SWIFTERPM": "1"] }
+        )
         mockCommandRunner.succeedCommand([
             "swift",
             "package",
