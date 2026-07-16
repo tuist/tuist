@@ -5,7 +5,6 @@ compatibility_date = "2025-01-01"
 compatibility_flags = ["global_fetch_private_origin"]
 
 routes = [
-  { pattern = "registry.tuist.dev/*", zone_name = "tuist.dev" },
   { pattern = "tuist.dev/api/registry/*", zone_name = "tuist.dev" }
 ]
 

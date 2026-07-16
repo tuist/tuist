@@ -144,6 +144,12 @@ config :logger, :console,
     :pod_image,
     :pool_image,
     :fleet,
+    :state,
+    :connection_id,
+    :reported_pod,
+    :reported_pool,
+    :binding,
+    :open_sessions,
     :reason,
     :changeset_errors,
     :account,
@@ -182,6 +188,8 @@ config :logger, :console,
     :configured,
     :reconciling
   ]
+
+config :mdex_native, syntax_highlighter: :lumis
 
 config :mime, :types, %{
   "application/linkset+json" => ["linkset"],
@@ -413,6 +421,8 @@ config :tuist, :urls,
   shop: "https://shop.tuist.dev"
 
 config :tuist_common, finch_name: Tuist.Finch
+
+config :tzdata, :http_client, Tuist.Tzdata.HTTPClient
 
 config :ueberauth, Ueberauth,
   base_path: "/users/auth",

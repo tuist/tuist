@@ -383,8 +383,17 @@ macosFleet:
   # path rather than risking ENOSPC. A real Tuist cache master is ~2.4 GB
   # (the 20 GiB masterCapGib is a sparse per-master ceiling), so 40 GiB
   # holds ~16 masters — ample for canary's single replica.
+  # DISABLED (2026-07-16): rolling this to the prod fleet broke every
+  # macOS CI job — the guest mounts the virtio-fs cache share and exports
+  # TUIST_XDG_CACHE_HOME at it, but `mkdir -p $CACHE_MOUNT/tuist` in
+  # dispatch-poll.sh fails silently (`2>/dev/null || true`) while the env
+  # var is exported regardless, so the CLI dies with "Couldn't create the
+  # directory at /Volumes/My Shared Files/cache/tuist/... because its
+  # parent directory doesn't exists". Re-enable only once a real CI job
+  # is verified green on a cache-volume host (host-side provisioning
+  # checks are NOT sufficient — that gap is what let this reach prod).
   runnerCacheVolume:
-    gib: 40
+    gib: 0
   # Canary runs on the production tailnet (single shared tailnet
   # across canary + production — same Grafana, same admin console).
   # Staging has its own tailnet so a leaked staging key can't add
