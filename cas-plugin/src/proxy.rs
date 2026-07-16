@@ -73,6 +73,47 @@ const SNAPSHOT_ERROR_RETRY_INTERVAL: Duration = Duration::from_secs(60);
 const SNAPSHOT_IDLE_EVICT: Duration = Duration::from_secs(60 * 60);
 const SNAPSHOT_MAX_INSTANCES: usize = 8;
 
+// How long after the last CAS operation the machine still counts as busy. A
+// build's traffic arrives in bursts with gaps between them (a link step, a test
+// run, the developer reading a diagnostic), so a short window would read those
+// gaps as idle and start competing with the build it is meant to stay out of.
+const BUSY_AFTER_LAST_OP: Duration = Duration::from_secs(90);
+// One-minute load average per core above which the machine counts as busy. The
+// one-minute figure is the shortest the kernel keeps, so it already lags a
+// burst; staying under 1.0 keeps a core's worth of headroom for the developer.
+const BUSY_LOAD_PER_CORE: f64 = 0.6;
+// How often to say we are holding off. The tick is every 10s, so an unthrottled
+// line would bury the log through a long build.
+const BUSY_LOG_INTERVAL: Duration = Duration::from_secs(5 * 60);
+
+/// Why a machine in this state is too busy for background snapshot work, or
+/// None when it is free enough. `idle` is the time since the last CAS operation
+/// (None when no path has served one yet). Pure so the policy is unit-testable.
+fn busy_verdict(idle: Option<Duration>, load_per_core: Option<f64>) -> Option<String> {
+    if let Some(idle) = idle {
+        if idle < BUSY_AFTER_LAST_OP {
+            return Some(format!("a build was active {}s ago", idle.as_secs()));
+        }
+    }
+    match load_per_core {
+        Some(load) if load > BUSY_LOAD_PER_CORE => Some(format!("load is {load:.2} per core")),
+        _ => None,
+    }
+}
+
+/// The one-minute load average per core, or None if the platform will not say.
+fn load_per_core() -> Option<f64> {
+    let mut averages = [0f64; 3];
+    // SAFETY: getloadavg fills at most `nelem` entries of an array we own, and
+    // returns how many it wrote (-1 if it cannot).
+    let written = unsafe { libc::getloadavg(averages.as_mut_ptr(), 1) };
+    if written < 1 {
+        return None;
+    }
+    let cores = std::thread::available_parallelism().ok()?.get() as f64;
+    Some(averages[0] / cores)
+}
+
 /// The snapshot delta cadence, honoring TUIST_CAS_SNAPSHOT_DELTA_INTERVAL
 /// (seconds) and falling back to SNAPSHOT_DELTA_INTERVAL_DEFAULT_SECS.
 fn snapshot_delta_interval() -> Duration {
@@ -798,6 +839,9 @@ pub struct Proxy {
     // background on an instance's first resolve; while it is in flight (or
     // when the server has none) resolves use the per-key path.
     snapshots: Mutex<HashMap<String, SnapshotState>>,
+    // When we last said a refresh was held off for a busy machine (see
+    // `log_busy`).
+    busy_logged_at: Mutex<Option<Instant>>,
 
     // Keys answered by a per-key lookup while a snapshot was Ready: they fell
     // out of the server's size-capped wire view, which ranks by version — a
@@ -855,6 +899,7 @@ impl Proxy {
             materialize_jobs: Mutex::new(HashMap::new()),
             job_counter: AtomicU64::new(0),
             snapshots: Mutex::new(HashMap::new()),
+            busy_logged_at: Mutex::new(None),
             unprimed: AtomicU64::new(0),
             view_refresh: Mutex::new(VecDeque::new()),
             view_refreshed: Mutex::new(HashSet::new()),
@@ -1864,6 +1909,44 @@ impl Proxy {
         }
     }
 
+    /// Why background snapshot work should wait, or None when the machine is
+    /// free enough to do it. Two signals, both cheap enough for every tick:
+    ///
+    /// - a recent CAS operation, meaning a build is running (or just was). This
+    ///   is the traffic a refresh would actually be stealing from, and it is the
+    ///   one case where slowing the machine down also slows down the very build
+    ///   the cache exists to make fast.
+    /// - the load average per core, which catches whatever else is running,
+    ///   since a machine busy with something other than a build never touches
+    ///   the CAS and would otherwise read as idle.
+    ///
+    /// Note this does not sense network throughput. A build's own fetches are
+    /// covered by the first signal; unrelated saturation (a big download) is
+    /// not, and would need per-interface counters to see.
+    fn busy_reason(&self) -> Option<String> {
+        let now = self.epoch.elapsed();
+        let idle = self
+            .paths
+            .lock()
+            .unwrap()
+            .values()
+            .map(|state| Duration::from_millis(state.last_used.load(Ordering::Relaxed)))
+            .max()
+            .map(|last_op| now.saturating_sub(last_op));
+        busy_verdict(idle, load_per_core())
+    }
+
+    /// Rate-limits the "holding off" line to BUSY_LOG_INTERVAL.
+    fn log_busy(&self, reason: &str) {
+        let mut logged_at = self.busy_logged_at.lock().unwrap();
+        let now = Instant::now();
+        if logged_at.is_some_and(|at| now.duration_since(at) < BUSY_LOG_INTERVAL) {
+            return;
+        }
+        *logged_at = Some(now);
+        crate::log_line(&format!("snapshot refresh held off: {reason}"));
+    }
+
     /// Sweeps orphaned publication records for every known CAS path whose
     /// instance the proxy knows (an unprimed path has nothing to publish to).
     pub fn sweep(&self) {
@@ -2051,6 +2134,13 @@ impl Proxy {
     /// long-lived proxy), and BOUNDS the cache: instances idle past
     /// SNAPSHOT_IDLE_EVICT are dropped and the map is capped at
     /// SNAPSHOT_MAX_INSTANCES by evicting the least recently used.
+    ///
+    /// All of that fetching waits for a machine that is not busy (see
+    /// `busy_reason`); the point of a refresh is to have the trunk ready for the
+    /// *next* build, which makes it worth nothing and costly now if it lands in
+    /// the middle of this one. An instance's FIRST snapshot is not this path
+    /// (`ensure_snapshot` on demand, `prefetch_known_snapshots` at startup) and
+    /// is never held off: it is what the build in front of us is waiting on.
     pub fn refresh_snapshots(&self) {
         let now = Instant::now();
         enum Plan {
@@ -2110,6 +2200,19 @@ impl Proxy {
                     }
                     _ => {}
                 }
+            }
+        }
+        // Everything above is bookkeeping over what we already hold, so it runs
+        // regardless; what follows fetches and ingests, so it waits for a free
+        // machine. Checked only when something is actually due, both to keep the
+        // held-off line honest and because a due refresh is the only thing the
+        // wait costs: the next tick re-plans it, so nothing is dropped, it is
+        // deferred. A machine that is never free simply keeps the view it has,
+        // which costs hits and never correctness.
+        if !plans.is_empty() {
+            if let Some(reason) = self.busy_reason() {
+                self.log_busy(&reason);
+                return;
             }
         }
         for plan in plans {
@@ -3127,6 +3230,42 @@ mod tests {
     fn gone_cas_dir_is_reclaimed_regardless_of_idle() {
         assert!(should_reclaim(Duration::from_secs(0), true));
         assert!(should_reclaim(IDLE_RECLAIM + Duration::from_secs(1), true));
+    }
+
+    // A build that touched the CAS moments ago holds off a refresh, however
+    // quiet the CPU looks: between two bursts of compiles the load average has
+    // not caught up yet, and the build is exactly who we would be stealing from.
+    #[test]
+    fn recent_build_holds_off_a_refresh() {
+        let reason = busy_verdict(Some(BUSY_AFTER_LAST_OP - Duration::from_secs(1)), Some(0.0));
+        assert!(reason.is_some_and(|reason| reason.contains("build")));
+    }
+
+    // Once the build is long done and the machine is quiet, the refresh runs.
+    #[test]
+    fn quiet_machine_refreshes() {
+        assert!(
+            busy_verdict(Some(BUSY_AFTER_LAST_OP + Duration::from_secs(1)), Some(0.1)).is_none()
+        );
+        // A proxy that has served nothing yet has no last op to go on.
+        assert!(busy_verdict(None, Some(0.1)).is_none());
+    }
+
+    // Something other than a build can keep the machine busy: it never touches
+    // the CAS, so load is the only thing that sees it.
+    #[test]
+    fn loaded_machine_holds_off_a_refresh_with_no_build() {
+        let reason = busy_verdict(
+            Some(BUSY_AFTER_LAST_OP + Duration::from_secs(1)),
+            Some(BUSY_LOAD_PER_CORE + 0.1),
+        );
+        assert!(reason.is_some_and(|reason| reason.contains("load")));
+    }
+
+    // A platform that will not report load must not wedge the refresh forever.
+    #[test]
+    fn unknown_load_does_not_hold_off_a_refresh() {
+        assert!(busy_verdict(Some(BUSY_AFTER_LAST_OP + Duration::from_secs(1)), None).is_none());
     }
 
     fn generation(ino: u64, birth_nanos: u128) -> CasGeneration {
