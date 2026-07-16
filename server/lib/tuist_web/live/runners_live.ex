@@ -498,24 +498,12 @@ defmodule TuistWeb.RunnersLive do
   limit as a dashed line.
   """
   def concurrency_chart_series(values, limit, usage_label) do
-    admitted_usage = Enum.map(values, &if(&1 < limit, do: &1))
-    at_limit = Enum.map(values, &if(&1 >= limit, do: &1))
-
     [
       %{
-        data: admitted_usage,
+        data: Enum.map(values, &concurrency_bar(&1, limit)),
         itemStyle: %{color: "var:noora-chart-primary"},
         name: usage_label,
         type: "bar",
-        stack: "admitted-usage",
-        barMaxWidth: 18
-      },
-      %{
-        data: at_limit,
-        itemStyle: %{color: "var:noora-chart-destructive"},
-        name: dgettext("dashboard_runners", "Limit reached"),
-        type: "bar",
-        stack: "admitted-usage",
         barMaxWidth: 18
       },
       %{
@@ -533,6 +521,12 @@ defmodule TuistWeb.RunnersLive do
       }
     ]
   end
+
+  defp concurrency_bar(value, limit) when value >= limit do
+    %{value: value, itemStyle: %{color: "var:noora-chart-destructive"}}
+  end
+
+  defp concurrency_bar(value, _limit), do: value
 
   @doc """
   Shared ECharts options for concurrency resource charts.
