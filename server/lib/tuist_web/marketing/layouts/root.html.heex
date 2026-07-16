@@ -71,6 +71,12 @@
           edgeLabelBackground: "#131619", fontFamily: "Inter, sans-serif", fontSize: "14px",
         };
         mermaid.initialize({ startOnLoad: false, theme: "base", themeVariables: dark ? night : light });
+        // Wait for Inter to load before rendering. Mermaid measures label
+        // widths at run time; if it measures with a fallback font the node
+        // boxes come out too narrow and clip the labels once Inter swaps in.
+        if (document.fonts && document.fonts.ready) {
+          await document.fonts.ready;
+        }
         await mermaid.run({ querySelector: "pre.mermaid" });
       }
     </script>
