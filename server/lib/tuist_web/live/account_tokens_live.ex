@@ -15,8 +15,9 @@ defmodule TuistWeb.AccountTokensLive do
 
   @default_scopes ["ci"]
   @preset_scopes ["ci"]
+  @account_tokens_page_size 100
 
-  @valid_scopes AccountToken.valid_scopes()
+  @creatable_scopes AccountToken.valid_scopes() -- [AccountToken.scim_scope()]
 
   @impl true
   def mount(_params, _uri, %{assigns: %{selected_account: selected_account, current_user: current_user}} = socket) do
@@ -48,7 +49,7 @@ defmodule TuistWeb.AccountTokensLive do
   end
 
   @impl true
-  def handle_event("toggle_token_scope", %{"scope" => scope}, socket) when scope in @valid_scopes do
+  def handle_event("toggle_token_scope", %{"scope" => scope}, socket) when scope in @creatable_scopes do
     selected_scopes = toggle_scope(scope, socket.assigns.selected_scopes)
 
     {:noreply, assign(socket, :selected_scopes, selected_scopes)}
@@ -212,15 +213,25 @@ defmodule TuistWeb.AccountTokensLive do
   def handle_event("account_token_modal_open_change", _params, socket), do: {:noreply, socket}
 
   defp list_account_tokens(account) do
-    {tokens, _meta} =
+    list_account_tokens(account, 1, [])
+  end
+
+  defp list_account_tokens(account, page, acc) do
+    {tokens, meta} =
       Accounts.list_account_tokens(account, %{
         order_by: [:inserted_at],
         order_directions: [:desc],
-        page: 1,
-        page_size: 100
+        page: page,
+        page_size: @account_tokens_page_size
       })
 
-    tokens
+    acc = acc ++ tokens
+
+    if meta.has_next_page? do
+      list_account_tokens(account, page + 1, acc)
+    else
+      acc
+    end
   end
 
   defp list_account_projects(account) do
@@ -373,7 +384,7 @@ defmodule TuistWeb.AccountTokensLive do
 
     scopes
     |> Enum.concat(read_scopes)
-    |> Enum.filter(&(&1 in @valid_scopes))
+    |> Enum.filter(&(&1 in @creatable_scopes))
     |> Enum.uniq()
   end
 
@@ -398,7 +409,7 @@ defmodule TuistWeb.AccountTokensLive do
       [entity, subject, "read"] ->
         write_scope = "#{entity}:#{subject}:write"
 
-        if write_scope in @valid_scopes, do: write_scope
+        if write_scope in @creatable_scopes, do: write_scope
 
       _ ->
         nil

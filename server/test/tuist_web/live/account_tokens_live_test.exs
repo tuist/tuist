@@ -5,6 +5,8 @@ defmodule TuistWeb.AccountTokensLiveTest do
   import Phoenix.LiveViewTest
 
   alias Tuist.Accounts
+  alias Tuist.Accounts.AccountToken
+  alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
@@ -49,6 +51,8 @@ defmodule TuistWeb.AccountTokensLiveTest do
     refute html =~ "Project handles"
     refute html =~ "Specific projects"
     refute html =~ "MCP"
+    refute html =~ "SCIM write"
+    refute html =~ "account:scim:write"
     refute html =~ "#{account.name}/ios-app"
     assert account_tokens_table_headers(html) == ["Name", "Token", "Last used", "Created"]
     assert scope_checked?(html, "ci")
@@ -85,6 +89,26 @@ defmodule TuistWeb.AccountTokensLiveTest do
     refute html =~ "Project handles"
     refute html =~ "Specific projects"
     refute html =~ "MCP"
+    refute html =~ "SCIM write"
+    refute html =~ "account:scim:write"
+  end
+
+  test "lists tokens beyond the first account-token page", %{conn: conn, account: account} do
+    for index <- 1..105 do
+      %{
+        account_id: account.id,
+        encrypted_token_hash: "encrypted-token-#{index}",
+        scopes: ["ci"],
+        name: "token-#{index}",
+        all_projects: true
+      }
+      |> AccountToken.create_changeset()
+      |> Repo.insert!()
+    end
+
+    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/settings/tokens")
+
+    assert account_tokens_table_row_count(html) == 105
   end
 
   test "creates a token, reveals it once, and stores project restrictions", %{
@@ -326,7 +350,6 @@ defmodule TuistWeb.AccountTokensLiveTest do
              "account:members:write",
              "account:registry:read",
              "account:registry:write",
-             "account:scim:write",
              "project:admin:read",
              "project:admin:write",
              "project:builds:read",
@@ -344,6 +367,26 @@ defmodule TuistWeb.AccountTokensLiveTest do
            ]
 
     assert token.all_projects == true
+  end
+
+  test "ignores SCIM scope events in the generic account token creator", %{
+    conn: conn,
+    account: account
+  } do
+    {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/tokens")
+
+    html = render_hook(lv, "toggle_token_scope", %{"scope" => "account:scim:write"})
+
+    refute html =~ "account:scim:write"
+
+    render_submit(lv, "create_account_token", %{
+      "account_token" => %{"name" => "generic-token", "expires" => ""}
+    })
+
+    {:ok, token} = Accounts.get_account_token_by_name(account, "generic-token")
+
+    refute "account:scim:write" in token.scopes
+    assert token.scopes == ["ci"]
   end
 
   test "rejects invalid expiration values", %{conn: conn, account: account} do
@@ -417,6 +460,13 @@ defmodule TuistWeb.AccountTokensLiveTest do
     |> Floki.parse_fragment!()
     |> Floki.find("#account-tokens-table thead th")
     |> Enum.map(&Floki.text/1)
+  end
+
+  defp account_tokens_table_row_count(html) do
+    html
+    |> Floki.parse_fragment!()
+    |> Floki.find("#account-tokens-table tbody tr")
+    |> length()
   end
 
   defp scope_checked?(html, scope) do

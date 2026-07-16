@@ -57,11 +57,6 @@ defmodule TuistWeb.AccountTokenHelpers do
             scope: "account:registry:write",
             label: dgettext("dashboard_account", "Registry write"),
             description: dgettext("dashboard_account", "Publish packages to the account registry.")
-          },
-          %{
-            scope: "account:scim:write",
-            label: dgettext("dashboard_account", "SCIM write"),
-            description: dgettext("dashboard_account", "Provision organization members through SCIM.")
           }
         ]
       },
