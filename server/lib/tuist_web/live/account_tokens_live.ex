@@ -285,7 +285,7 @@ defmodule TuistWeb.AccountTokensLive do
 
     selected_scopes =
       if scope in effective_selected_scopes(selected_scopes) do
-        List.delete(selected_scopes, scope)
+        remove_scope_and_dependents(selected_scopes, scope)
       else
         [scope | selected_scopes]
       end
@@ -369,6 +369,27 @@ defmodule TuistWeb.AccountTokensLive do
     case String.split(scope, ":") do
       [entity, subject, "write"] -> "#{entity}:#{subject}:read"
       _ -> nil
+    end
+  end
+
+  defp remove_scope_and_dependents(selected_scopes, scope) do
+    scopes_to_remove =
+      [scope, write_scope_for_read_scope(scope)]
+      |> Enum.reject(&is_nil/1)
+      |> MapSet.new()
+
+    Enum.reject(selected_scopes, &MapSet.member?(scopes_to_remove, &1))
+  end
+
+  defp write_scope_for_read_scope(scope) do
+    case String.split(scope, ":") do
+      [entity, subject, "read"] ->
+        write_scope = "#{entity}:#{subject}:write"
+
+        if write_scope in @valid_scopes, do: write_scope
+
+      _ ->
+        nil
     end
   end
 

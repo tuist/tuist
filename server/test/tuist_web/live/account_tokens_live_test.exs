@@ -277,6 +277,33 @@ defmodule TuistWeb.AccountTokensLiveTest do
            ]
   end
 
+  test "deselecting a read permission also deselects its write permission", %{
+    conn: conn,
+    account: account
+  } do
+    {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/tokens")
+
+    html = render_hook(lv, "toggle_token_scope", %{"scope" => "account:cache:read"})
+
+    refute scope_checked?(html, "ci")
+    refute scope_checked?(html, "account:cache:read")
+    refute scope_checked?(html, "account:cache:write")
+    assert scope_checked?(html, "project:builds:read")
+    assert scope_checked?(html, "project:builds:write")
+
+    render_submit(lv, "create_account_token", %{
+      "account_token" => %{"name" => "ci-without-account-cache", "expires" => ""}
+    })
+
+    {:ok, token} = Accounts.get_account_token_by_name(account, "ci-without-account-cache")
+
+    refute "ci" in token.scopes
+    refute "account:cache:read" in token.scopes
+    refute "account:cache:write" in token.scopes
+    assert "project:builds:read" in token.scopes
+    assert "project:builds:write" in token.scopes
+  end
+
   test "creates a token with all account and project scopes selected from group toggles", %{
     conn: conn,
     account: account
