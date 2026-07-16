@@ -497,6 +497,39 @@ while true; do
         /opt/tuist/metrics-poll.sh &
       fi
       cd /Users/runner/actions-runner
+      # Idle watchdog. GitHub assigns a queued job to any label-eligible
+      # runner, not necessarily the one the server minted it for, so
+      # this runner can register and then wait indefinitely for a job
+      # GitHub ran on a sibling, holding the VM and its warm-pool slot
+      # idle. The watchdog terminates it after
+      # TUIST_RUNNER_IDLE_TIMEOUT_SECONDS; the EXIT trap then halts the
+      # VM and the reconciler recycles it. A runner holding a job has
+      # written the JOB_STARTED marker (via the runner's own hook) and
+      # is never touched. 0 / unset disables the watchdog.
+      # The job-start signal must be irreversible: /tmp is writable by
+      # the workflow, so a job that removes the marker (a broad
+      # `rm -rf /tmp/*` cleanup is enough) must not be able to make
+      # itself look idle and get killed mid-run. Two independent
+      # latches: the hook cancels the watchdog outright (it runs before
+      # any workflow step, so job code never sees a live watchdog), and
+      # the watchdog polls and stands down the moment it observes work
+      # rather than reading the marker once at the deadline. Neither can
+      # be undone from inside the job.
+      JOB_STARTED_MARKER=/tmp/tuist-runner-job-started
+      JOB_STARTED_HOOK=/tmp/tuist-runner-job-started-hook.sh
+      WATCHDOG_PID_FILE=/tmp/tuist-runner-watchdog.pid
+      rm -f "${JOB_STARTED_MARKER}" "${WATCHDOG_PID_FILE}"
+      cat >"${JOB_STARTED_HOOK}" <<HOOK
+#!/bin/bash
+touch "${JOB_STARTED_MARKER}" 2>/dev/null || true
+_wpid="\$(cat "${WATCHDOG_PID_FILE}" 2>/dev/null || true)"
+[ -n "\${_wpid}" ] && kill "\${_wpid}" 2>/dev/null || true
+exit 0
+HOOK
+      chmod +x "${JOB_STARTED_HOOK}"
+      export ACTIONS_RUNNER_HOOK_JOB_STARTED="${JOB_STARTED_HOOK}"
+      idle_timeout="${TUIST_RUNNER_IDLE_TIMEOUT_SECONDS:-0}"
+
       # `--jitconfig` implies ephemeral: the runner accepts one job
       # and exits. `--disableupdate` pins the runner to whatever
       # version is baked into the image; we bump that via Renovate
@@ -513,8 +546,36 @@ while true; do
       # API on `workflow_job: completed` (see
       # `Tuist.Runners.Workers.FetchLogsWorker`); the runner VM
       # writes nothing to the ingest path.
-      ./run.sh --jitconfig "${jit}" --disableupdate
+      ./run.sh --jitconfig "${jit}" --disableupdate &
+      runner_pid=$!
+      if [ "${idle_timeout}" -gt 0 ] 2>/dev/null; then
+        (
+          waited=0
+          while [ "${waited}" -lt "${idle_timeout}" ]; do
+            # Latch and stand down for good the first time work is observed.
+            [ -e "${JOB_STARTED_MARKER}" ] && exit 0
+            kill -0 "${runner_pid}" 2>/dev/null || exit 0
+            sleep 1
+            waited=$((waited + 1))
+          done
+          # The marker alone leaves a narrow race: the hook fires when the
+          # Worker STARTS the job, a second or more after the Listener has
+          # acknowledged the assignment, and an ephemeral runner killed
+          # post-acknowledgment marks the job failed rather than re-queuing
+          # it. The Runner.Worker process exists from the moment the
+          # Listener dispatches, before the hook runs.
+          if [ ! -e "${JOB_STARTED_MARKER}" ] && ! pgrep -f "Runner.Worker" >/dev/null 2>&1 &&
+            kill -0 "${runner_pid}" 2>/dev/null; then
+            echo "$(date -u +%FT%TZ) dispatch-poll: no job assigned within ${idle_timeout}s; terminating idle runner"
+            kill -TERM "${runner_pid}" 2>/dev/null || true
+          fi
+        ) &
+        watchdog_pid=$!
+        printf '%s' "${watchdog_pid}" >"${WATCHDOG_PID_FILE}" 2>/dev/null || true
+      fi
+      wait "${runner_pid}"
       rc=$?
+      [ -n "${watchdog_pid:-}" ] && kill "${watchdog_pid}" 2>/dev/null || true
       # Report whether the job succeeded AND changed the cache so the reconciler
       # can promote the branch to the account's new master (or discard it).
       # Before the metrics tail + VM halt, while the mounted volume is still

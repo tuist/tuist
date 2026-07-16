@@ -27,6 +27,12 @@ defmodule Tuist.Runners.Claim do
     # and must not be reaped at the 5-min threshold.
     field :lifecycle_state, :string, default: "claimed"
     field :runner_name, :string, default: ""
+    # The workflow_job GitHub actually ran on this runner, learned
+    # from the `in_progress` / `completed` webhook's `runner_name`.
+    # NULL until GitHub proves the runner ran something; may differ
+    # from `workflow_job_id` (the claim-time guess) or stay NULL for
+    # a runner GitHub never assigned work to.
+    field :executed_workflow_job_id, :integer
 
     belongs_to :account, Account
   end

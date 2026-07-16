@@ -48,6 +48,7 @@ defmodule Tuist.Runners.Dispatch do
   alias Tuist.Runners.JobSteps
   alias Tuist.Runners.Profile
   alias Tuist.Runners.Profiles
+  alias Tuist.Runners.RunnerSessions
   alias Tuist.Runners.Telemetry
   alias Tuist.Runners.Workers.FetchLogsWorker
   alias Tuist.VCS
@@ -79,6 +80,12 @@ defmodule Tuist.Runners.Dispatch do
   def handle_webhook(%{"action" => "waiting"} = payload, installation_id) when is_integer(installation_id) do
     result = handle_waiting(payload, installation_id)
     emit_webhook_telemetry("waiting", result)
+    result
+  end
+
+  def handle_webhook(%{"action" => "in_progress"} = payload, installation_id) when is_integer(installation_id) do
+    result = handle_in_progress(payload, installation_id)
+    emit_webhook_telemetry("in_progress", result)
     result
   end
 
@@ -194,20 +201,122 @@ defmodule Tuist.Runners.Dispatch do
     end
   end
 
+  # `workflow_job.in_progress` is the first event that carries the
+  # `runner_name` GitHub actually placed the job on. GitHub assigns
+  # queued jobs to any label-eligible runner independently of the
+  # server's claim, so this is the only real-time proof of the
+  # runner↔job binding. We record it (fixing metrics attribution and
+  # measuring how often the claim was wrong) but never re-enqueue or
+  # re-claim off it — the job is already executing.
+  defp handle_in_progress(payload, installation_id) do
+    job = Map.get(payload, "workflow_job", %{})
+    workflow_job_id = Map.get(job, "id")
+    runner_name = Map.get(job, "runner_name", "") || ""
+
+    with true <- is_integer(workflow_job_id) and runner_name != "",
+         {:ok, account} <- webhook_account(payload, installation_id) do
+      record_execution(runner_name, workflow_job_id, account.id)
+    else
+      _ -> :ignored
+    end
+  end
+
+  # The account that owns the runners this webhook can speak for. A
+  # `runner_name` is only meaningful within the account that minted it —
+  # every other account controls the names of its own self-hosted
+  # runners — so attribution and release must be scoped to the account
+  # the delivery authenticates as, never matched globally by name.
+  defp webhook_account(payload, installation_id) do
+    owner =
+      payload
+      |> Map.get("repository", %{})
+      |> Map.get("full_name", "")
+      |> parse_full_name()
+      |> elem(0)
+
+    case resolve_account(installation_id, owner) do
+      nil -> {:error, :no_account}
+      account -> {:ok, account}
+    end
+  end
+
+  # Binds the runner→job proof onto the live claim (drives metrics
+  # attribution while the job runs) and the durable session (the
+  # backstop that outlives the pod). The claim and session agree in
+  # the common case; when they disagree — or when only one is still
+  # present — we surface `:mismatch` so it's never silently the
+  # weaker `:matched`.
+  defp record_execution(runner_name, executed_workflow_job_id, account_id) do
+    claim_outcome = Claims.record_execution(runner_name, executed_workflow_job_id, account_id)
+    session_outcome = RunnerSessions.record_execution(runner_name, executed_workflow_job_id, account_id)
+    outcome = combine_attribution(claim_outcome, session_outcome)
+
+    case outcome do
+      :mismatch ->
+        Logger.info("runners: claim/execution mismatch",
+          runner_name: runner_name,
+          workflow_job_id: executed_workflow_job_id
+        )
+
+        {:ok, :mismatch}
+
+      :matched ->
+        {:ok, :matched}
+
+      :unknown_runner ->
+        # Neither a live claim nor a session carries this runner_name.
+        # Expected for a runner minted by another provider, or a
+        # dropped/very-late webhook whose rows are long gone.
+        {:ignored, :unknown_runner}
+    end
+  end
+
+  # A real `:matched`/`:mismatch` from either store beats
+  # `:unknown_runner`; a `:mismatch` anywhere wins over `:matched`
+  # (the claim can be gone while the durable session still proves the
+  # divergence, or vice-versa).
+  defp combine_attribution(:mismatch, _), do: :mismatch
+  defp combine_attribution(_, :mismatch), do: :mismatch
+  defp combine_attribution(:matched, _), do: :matched
+  defp combine_attribution(_, :matched), do: :matched
+  defp combine_attribution(_, _), do: :unknown_runner
+
   defp handle_completed(payload, installation_id) do
     job = Map.get(payload, "workflow_job", %{})
     workflow_job_id = Map.get(job, "id")
     conclusion = Map.get(job, "conclusion", "") || ""
+    runner_name = Map.get(job, "runner_name", "") || ""
     repository = payload |> Map.get("repository", %{}) |> Map.get("full_name", "")
 
     if is_integer(workflow_job_id) do
-      mark_completed(payload, workflow_job_id, conclusion, raw_steps(job), installation_id, repository)
+      # Attribution and claim release are scoped to the account this
+      # delivery authenticates as; a runner name is only ours to act on
+      # within the account that minted it. Without an account we can
+      # still transition the customer-facing job row, but must touch no
+      # runner state.
+      account_id =
+        case webhook_account(payload, installation_id) do
+          {:ok, account} -> account.id
+          {:error, _} -> nil
+        end
+
+      # Backstop attribution before we free the claim: a dropped
+      # `in_progress` still gets the runner→job binding recorded on
+      # the durable session here. `runner_name` is null for a job
+      # cancelled while still queued (no runner ever ran it), so this
+      # is a no-op for that class.
+      if runner_name != "" and account_id,
+        do: RunnerSessions.record_execution(runner_name, workflow_job_id, account_id)
+
+      mark_completed(payload, workflow_job_id, conclusion, account_id, raw_steps(job), installation_id, repository)
     else
       :ignored
     end
   end
 
-  defp mark_completed(payload, workflow_job_id, conclusion, raw_steps, installation_id, repository) do
+  defp mark_completed(payload, workflow_job_id, conclusion, account_id, raw_steps, installation_id, repository) do
+    runner_name = payload |> Map.get("workflow_job", %{}) |> Map.get("runner_name", "") || ""
+
     Jobs.with_workflow_job_ordering_lock(workflow_job_id, fn ->
       # Free the PG cap slot FIRST. The customer's next dispatch
       # poll (potentially seconds away) sees the freed inflight
@@ -215,7 +324,18 @@ defmodule Tuist.Runners.Dispatch do
       # worker. The ordering lock below only serializes webhook
       # transitions for this workflow_job so a concurrent queued
       # redelivery cannot resurrect the completion row.
-      :ok = Claims.complete(workflow_job_id)
+      #
+      # Release by EXECUTOR, not by the completed job's id: the Pod that
+      # claimed this job is not necessarily the one that ran it. Freeing
+      # by job id would release a slot still held by a runner executing
+      # someone else's claim, under-counting the account's live runners.
+      # A job cancelled while queued has no runner_name — nothing ran, so
+      # nothing is released; the claiming Pod keeps its slot until it stops
+      # (idle timeout → pod-stop → `Claims.release_by_pod_name/1`). Note
+      # `OrphanedRunnersWorker` cannot reach this class: `Jobs.complete/2`
+      # below flips the ClickHouse row to `completed`, and the worker only
+      # lists rows still `running` — so the watchdog is what frees it.
+      if account_id, do: Claims.complete_by_runner_name(runner_name, account_id)
 
       case Jobs.complete(workflow_job_id, conclusion) do
         {:ok, %{account_id: account_id}} ->

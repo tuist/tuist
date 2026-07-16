@@ -24,6 +24,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"strconv"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
@@ -446,6 +447,18 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 	// its _diag log is the only record, and it dies with the reaped Pod.
 	// Streaming _diag makes that exit reason durable.
 	runnerEnv = append(runnerEnv, corev1.EnvVar{Name: "ACTIONS_RUNNER_PRINT_LOG_TO_STDOUT", Value: "1"})
+
+	// Idle-runner reaping: the runner image's idle watchdog terminates a
+	// runner that registered but never had a job assigned once this many
+	// seconds elapse without an ACTIONS_RUNNER_HOOK_JOB_STARTED marker.
+	// Only injected when set (>0); the image treats an absent/0 value as
+	// "watchdog disabled". See RunnerPoolSpec.IdleTimeoutSeconds.
+	if pool.Spec.IdleTimeoutSeconds > 0 {
+		runnerEnv = append(runnerEnv, corev1.EnvVar{
+			Name:  "TUIST_RUNNER_IDLE_TIMEOUT_SECONDS",
+			Value: strconv.Itoa(int(pool.Spec.IdleTimeoutSeconds)),
+		})
+	}
 
 	return &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{

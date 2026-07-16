@@ -318,18 +318,151 @@ defmodule Tuist.Runners.ClaimsTest do
     end
   end
 
-  describe "by_pod_name/1" do
-    test "resolves a live claim's workflow_job_id and account_id" do
+  describe "complete_by_runner_name/1" do
+    test "releases the claim held by the runner that actually ran the job" do
       account = account_fixture()
       {:ok, _} = Claims.attempt(6001, account.id, "fleet-a", "pod-1", @linux_resources)
       :ok = Claims.mark_running(6001, "runner-x")
 
-      assert {:ok, %{workflow_job_id: 6001, account_id: account_id}} = Claims.by_pod_name("pod-1")
-      assert account_id == account.id
+      assert 1 == Claims.complete_by_runner_name("runner-x", account.id)
+      assert Claims.counts_per_account() == %{}
     end
 
-    test "returns :error when the pod holds no live claim" do
-      assert Claims.by_pod_name("unknown-pod") == :error
+    test "does not free a runner still executing a job it did not claim" do
+      # The issue's scenario: A claims J1, B claims J2, GitHub runs J1
+      # on B. J2's completion must NOT release B's slot — B is live and
+      # executing J1. Releasing by the completed job's id would.
+      account = account_fixture()
+      {:ok, _} = Claims.attempt(6200, account.id, "fleet-a", "pod-a", @linux_resources)
+      :ok = Claims.mark_running(6200, "runner-a")
+      {:ok, _} = Claims.attempt(6201, account.id, "fleet-a", "pod-b", @linux_resources)
+      :ok = Claims.mark_running(6201, "runner-b")
+
+      # J2 (6201) was cancelled while queued: no runner ever ran it, so
+      # the payload carries no runner_name and nothing is released.
+      assert 0 == Claims.complete_by_runner_name("", account.id)
+
+      # Both runners still counted: both Pods are alive, and B is
+      # executing J1.
+      assert Claims.counts_per_account() == %{account.id => 2}
+
+      # J1 completes on runner-b — the executor's slot is the one freed.
+      assert 1 == Claims.complete_by_runner_name("runner-b", account.id)
+      assert Claims.counts_per_account() == %{account.id => 1}
+    end
+
+    test "is idempotent when the runner's claim is already gone" do
+      account = account_fixture()
+      assert 0 == Claims.complete_by_runner_name("ghost-runner", account.id)
+    end
+
+    test "never releases a colliding runner_name belonging to another account" do
+      # Runner names are only unique within an account: any org can name
+      # its own self-hosted runners whatever it likes, and its webhooks
+      # authenticate as its own installation. A collision must not let
+      # one account's delivery free another account's live claim.
+      victim = account_fixture()
+      attacker = account_fixture()
+      {:ok, _} = Claims.attempt(9100, victim.id, "fleet-a", "victim-pod", @linux_resources)
+      :ok = Claims.mark_running(9100, "shared-name")
+
+      assert 0 == Claims.complete_by_runner_name("shared-name", attacker.id)
+      assert Claims.counts_per_account() == %{victim.id => 1}
+
+      assert 1 == Claims.complete_by_runner_name("shared-name", victim.id)
+      assert Claims.counts_per_account() == %{}
+    end
+  end
+
+  describe "release_by_pod_name/1" do
+    test "deletes the claim held by the pod and returns the count freed" do
+      account = account_fixture()
+      {:ok, _} = Claims.attempt(9001, account.id, "fleet-a", "pod-1", @linux_resources)
+      :ok = Claims.mark_running(9001, "runner-x")
+
+      assert 1 == Claims.release_by_pod_name("pod-1")
+      assert Claims.counts_per_account() == %{}
+    end
+
+    test "frees a stranded running claim regardless of lifecycle state" do
+      account = account_fixture()
+      {:ok, _} = Claims.attempt(9002, account.id, "fleet-a", "pod-2", @linux_resources)
+      # never minted — still `claimed`; a Pod that stopped pre-mint.
+      assert 1 == Claims.release_by_pod_name("pod-2")
+    end
+
+    test "returns 0 when the pod holds no claim (already completed before stop)" do
+      assert 0 == Claims.release_by_pod_name("idle-pod")
+    end
+
+    test "is a no-op for an empty pod_name" do
+      assert 0 == Claims.release_by_pod_name("")
+    end
+  end
+
+  describe "executing?/1" do
+    test "is true once GitHub proved the runner took some job" do
+      account = account_fixture()
+      {:ok, _} = Claims.attempt(7300, account.id, "fleet-a", "pod-1", @linux_resources)
+      :ok = Claims.mark_running(7300, "runner-a")
+
+      refute Claims.executing?(7300)
+
+      # GitHub handed this runner a sibling's job, not the one it claimed.
+      assert :mismatch = Claims.record_execution("runner-a", 7399, account.id)
+      assert Claims.executing?(7300)
+    end
+
+    test "is false for a claim with no proven execution, or no claim at all" do
+      account = account_fixture()
+      {:ok, _} = Claims.attempt(7301, account.id, "fleet-a", "pod-2", @linux_resources)
+
+      refute Claims.executing?(7301)
+      refute Claims.executing?(999_999)
+    end
+  end
+
+  describe "record_execution/2" do
+    test "binds the executed job and reports :matched when it equals the claim" do
+      account = account_fixture()
+      {:ok, _} = Claims.attempt(7001, account.id, "fleet-a", "pod-1", @linux_resources)
+      :ok = Claims.mark_running(7001, "runner-a")
+
+      assert :matched = Claims.record_execution("runner-a", 7001, account.id)
+
+      row = Repo.one(from(c in Claim, where: c.workflow_job_id == ^7001))
+      assert row.executed_workflow_job_id == 7001
+    end
+
+    test "reports :mismatch and binds the real job when GitHub ran a different one" do
+      account = account_fixture()
+      {:ok, _} = Claims.attempt(7002, account.id, "fleet-a", "pod-1", @linux_resources)
+      :ok = Claims.mark_running(7002, "runner-b")
+
+      assert :mismatch = Claims.record_execution("runner-b", 7099, account.id)
+
+      row = Repo.one(from(c in Claim, where: c.workflow_job_id == ^7002))
+      assert row.executed_workflow_job_id == 7099
+    end
+
+    test "reports :unknown_runner when no live claim carries the runner_name" do
+      account = account_fixture()
+      assert :unknown_runner = Claims.record_execution("ghost-runner", 7100, account.id)
+    end
+
+    test "is a no-op for an empty runner_name" do
+      account = account_fixture()
+      assert :unknown_runner = Claims.record_execution("", 7101, account.id)
+    end
+
+    test "never binds a colliding runner_name belonging to another account" do
+      victim = account_fixture()
+      attacker = account_fixture()
+      {:ok, _} = Claims.attempt(7200, victim.id, "fleet-a", "victim-pod", @linux_resources)
+      :ok = Claims.mark_running(7200, "shared-name")
+
+      assert :unknown_runner = Claims.record_execution("shared-name", 7299, attacker.id)
+      assert Repo.one(from(c in Claim, where: c.workflow_job_id == ^7200)).executed_workflow_job_id == nil
     end
   end
 
