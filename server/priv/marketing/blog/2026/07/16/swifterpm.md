@@ -4,7 +4,7 @@ category: "product"
 tags: ["product", "swift", "spm", "cli", "bazel", "buck2", "performance"]
 excerpt: "Our users kept telling us that resolving Swift packages was slow and that the resulting directories ate gigabytes of disk, and that pain has only grown as people run several agents across worktrees at once. So we built SwifterPM. It leaves resolution to the Swift Package Manager and makes everything around it faster: fetching the pinned sources, laying them out on disk, and reading their manifests. It is the default for Tuist generated projects starting today, with an environment variable to opt out, and it ships as a rule for Bazel and Buck2. Here is how it works, what it does not solve, and the benchmarks."
 author: pepicrft
-og_image_path: /marketing/images/blog/2026/06/08/swifterpm/og.jpg
+og_image_path: /marketing/images/blog/2026/07/16/swifterpm/og.jpg
 ---
 
 For a while now our users have been telling us the same thing, and lately they have been telling us louder. Installing the dependencies of their Swift packages is slow, and the directory where those dependencies get resolved takes an uncomfortable amount of disk space. The itch has been getting worse, not better, and the reason is easy to point at: people are doing far more concurrent work with coding agents, each agent on its own [git worktree](https://git-scm.com/docs/git-worktree), each resolving the same dependencies from scratch. Several copies of the same packages, resolved several times, sitting on disk several times over.
