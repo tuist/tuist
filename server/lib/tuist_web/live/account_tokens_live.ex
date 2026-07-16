@@ -147,34 +147,46 @@ defmodule TuistWeb.AccountTokensLive do
          )}
 
       {:error, :missing_name} ->
-        {:noreply, assign(socket, :flash_message, {"error", dgettext("dashboard_account", "Token name is required.")})}
+        {:noreply,
+         socket
+         |> assign(
+           :new_account_token_form,
+           new_account_token_form(params, name: {dgettext("dashboard_account", "Token name is required."), []})
+         )
+         |> assign(:flash_message, nil)}
 
       {:error, :missing_scopes} ->
         {:noreply,
-         assign(
-           socket,
-           :flash_message,
-           {"error", dgettext("dashboard_account", "Select at least one scope.")}
-         )}
+         socket
+         |> assign(:new_account_token_form, new_account_token_form(params))
+         |> assign(:flash_message, {"error", dgettext("dashboard_account", "Select at least one scope.")})}
 
       {:error, :missing_projects} ->
         {:noreply,
-         assign(
-           socket,
+         socket
+         |> assign(:new_account_token_form, new_account_token_form(params))
+         |> assign(
            :flash_message,
            {"error", dgettext("dashboard_account", "Select at least one project or select all projects.")}
          )}
 
       {:error, :invalid_expiration} ->
         {:noreply,
-         assign(
-           socket,
-           :flash_message,
-           {"error", dgettext("dashboard_account", "Expiration must use a duration like 30d, 6m, or 1y.")}
-         )}
+         socket
+         |> assign(
+           :new_account_token_form,
+           new_account_token_form(
+             params,
+             expires: {dgettext("dashboard_account", "Expiration must use a duration like 30d, 6m, or 1y."), []}
+           )
+         )
+         |> assign(:flash_message, nil)}
 
       {:error, changeset} ->
-        {:noreply, assign(socket, :flash_message, {"error", format_changeset_errors(changeset)})}
+        {:noreply,
+         socket
+         |> assign(:new_account_token_form, new_account_token_form(params))
+         |> assign(:flash_message, {"error", format_changeset_errors(changeset)})}
     end
   end
 
@@ -422,8 +434,10 @@ defmodule TuistWeb.AccountTokensLive do
   defp shift_expiration(datetime, "m", months), do: Timex.shift(datetime, months: months)
   defp shift_expiration(datetime, "y", years), do: Timex.shift(datetime, years: years)
 
-  defp new_account_token_form do
-    to_form(%{"name" => "", "expires" => ""}, as: "account_token")
+  defp new_account_token_form(params \\ %{}, errors \\ []) do
+    params = Map.merge(%{"name" => "", "expires" => ""}, Map.take(params, ["name", "expires"]))
+
+    to_form(params, as: "account_token", errors: errors)
   end
 
   defp format_changeset_errors(changeset) do

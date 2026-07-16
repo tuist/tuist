@@ -356,7 +356,28 @@ defmodule TuistWeb.AccountTokensLiveTest do
       })
 
     assert html =~ "Expiration must use a duration like 30d, 6m, or 1y."
+    document = Floki.parse_fragment!(html)
+    assert Floki.find(document, ~s([data-error="Expiration must use a duration like 30d, 6m, or 1y."])) != []
+    assert Floki.attribute(document, "#account_token_name", "value") == ["bad-expiry"]
+    assert Floki.attribute(document, "#account_token_expires", "value") == ["soon"]
     assert Accounts.get_account_token_by_name(account, "bad-expiry") == {:error, :not_found}
+  end
+
+  test "shows a Noora field error when the token name is missing", %{conn: conn, account: account} do
+    {:ok, lv, html} = live(conn, ~p"/#{account.name}/settings/tokens")
+
+    document = Floki.parse_fragment!(html)
+    assert Floki.attribute(document, "#account_token_name", "required") == []
+
+    html =
+      render_submit(lv, "create_account_token", %{
+        "account_token" => %{"name" => "", "expires" => ""}
+      })
+
+    assert html =~ "Token name is required."
+    document = Floki.parse_fragment!(html)
+    assert Floki.find(document, ~s([data-error="Token name is required."])) != []
+    assert Floki.attribute(document, "#account_token_name", "required") == []
   end
 
   test "revokes a token", %{conn: conn, account: account} do
