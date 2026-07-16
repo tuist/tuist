@@ -19,7 +19,7 @@ import XcodeGraph
 @Suite
 struct TestServiceSchemePlanningTests {
     @Test(.inTemporaryDirectory, .withMockedDependencies())
-    func run_isolates_hostless_tests_in_single_target_schemes() async throws {
+    func run_uses_non_overlapping_single_target_schemes_for_mixed_tests() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let scenario = SchemePlanningScenario(rootDirectory: temporaryDirectory)
         let fixture = TestServiceSchemePlanningFixture(scenario: scenario)
@@ -34,25 +34,27 @@ struct TestServiceSchemePlanningTests {
 
         #expect(fixture.testRuns == [
             CapturedTestRun(
-                scheme: "Sample-Workspace",
+                scheme: "AppSnapshotTests",
                 action: .test,
-                testTargets: [
-                    try TestIdentifier(target: "AppSnapshotTests"),
-                    try TestIdentifier(target: "AppTests"),
-                ],
-                resultBundlePath: temporaryDirectory.appending(component: "result-Sample-Workspace.xcresult"),
+                testTargets: [],
+                resultBundlePath: temporaryDirectory.appending(component: "result-AppSnapshotTests.xcresult"),
+                derivedDataPath: derivedDataPath
+            ),
+            CapturedTestRun(
+                scheme: "AppTests",
+                action: .test,
+                testTargets: [],
+                resultBundlePath: temporaryDirectory.appending(component: "result-AppTests.xcresult"),
                 derivedDataPath: derivedDataPath
             ),
             CapturedTestRun(
                 scheme: "FeatureTests",
                 action: .test,
-                testTargets: [try TestIdentifier(target: "FeatureTests")],
+                testTargets: [],
                 resultBundlePath: temporaryDirectory.appending(
                     component: "result-FeatureTests.xcresult"
                 ),
-                derivedDataPath: derivedDataPath.appending(
-                    components: "HostlessTests", "FeatureTests"
-                )
+                derivedDataPath: derivedDataPath
             ),
         ])
     }
@@ -100,9 +102,9 @@ struct TestServiceSchemePlanningTests {
 
         #expect(fixture.testRuns == [
             CapturedTestRun(
-                scheme: "Sample-Workspace",
+                scheme: "AppTests",
                 action: .test,
-                testTargets: [try TestIdentifier(target: "AppTests")],
+                testTargets: [],
                 resultBundlePath: nil,
                 derivedDataPath: nil
             ),
@@ -128,14 +130,11 @@ struct TestServiceSchemePlanningTests {
     }
 
     @Test(.inTemporaryDirectory, .withMockedDependencies())
-    func run_with_explicit_test_target_only_runs_its_isolated_invocation() async throws {
+    func run_with_explicit_test_target_only_runs_its_matching_single_target_scheme() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let scenario = SchemePlanningScenario(rootDirectory: temporaryDirectory)
         let passthroughDerivedDataPath = temporaryDirectory.appending(component: "PassedDerivedData")
-        let fixture = TestServiceSchemePlanningFixture(
-            scenario: scenario,
-            parsedDerivedDataPath: passthroughDerivedDataPath
-        )
+        let fixture = TestServiceSchemePlanningFixture(scenario: scenario)
 
         try await fixture.run(
             path: temporaryDirectory,
@@ -151,15 +150,13 @@ struct TestServiceSchemePlanningTests {
                 action: .test,
                 testTargets: [try TestIdentifier(target: "FeatureTests")],
                 resultBundlePath: nil,
-                derivedDataPath: passthroughDerivedDataPath.appending(
-                    components: "HostlessTests", "FeatureTests"
-                )
+                derivedDataPath: nil
             ),
         ])
     }
 
     @Test(.inTemporaryDirectory, .withMockedDependencies())
-    func run_keeps_a_hostless_target_without_a_compatible_scheme_in_the_workspace_invocation() async throws {
+    func run_uses_the_workspace_scheme_when_single_target_scheme_coverage_is_incomplete() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let scenario = SchemePlanningScenario(
             rootDirectory: temporaryDirectory,
@@ -177,22 +174,9 @@ struct TestServiceSchemePlanningTests {
             CapturedTestRun(
                 scheme: "Sample-Workspace",
                 action: .test,
-                testTargets: [
-                    try TestIdentifier(target: "AppSnapshotTests"),
-                    try TestIdentifier(target: "AppTests"),
-                    try TestIdentifier(target: "OrphanTests"),
-                ],
+                testTargets: [],
                 resultBundlePath: nil,
                 derivedDataPath: derivedDataPath
-            ),
-            CapturedTestRun(
-                scheme: "FeatureTests",
-                action: .test,
-                testTargets: [try TestIdentifier(target: "FeatureTests")],
-                resultBundlePath: nil,
-                derivedDataPath: derivedDataPath.appending(
-                    components: "HostlessTests", "FeatureTests"
-                )
             ),
         ])
     }
@@ -226,8 +210,18 @@ private struct SchemePlanningScenario {
         let appSnapshotTestsReference = TargetReference(projectPath: appProjectPath, name: appSnapshotTests.name)
         let featureTestsReference = TargetReference(projectPath: featureProjectPath, name: featureTests.name)
         let orphanTestsReference = TargetReference(projectPath: orphanProjectPath, name: orphanTests.name)
-        let appScheme = Scheme.test(
-            name: "App",
+        let appTestsScheme = Scheme.test(
+            name: "AppTests",
+            buildAction: .test(targets: [appReference]),
+            testAction: .test(targets: [.test(target: appTestsReference)])
+        )
+        let appSnapshotTestsScheme = Scheme.test(
+            name: "AppSnapshotTests",
+            buildAction: .test(targets: [appReference]),
+            testAction: .test(targets: [.test(target: appSnapshotTestsReference)])
+        )
+        let appAggregateScheme = Scheme.test(
+            name: "App-Aggregate",
             testAction: .test(
                 targets: [
                     .test(target: appTestsReference),
@@ -276,7 +270,7 @@ private struct SchemePlanningScenario {
         let appProject = Project.test(
             path: appProjectPath,
             targets: [app, appTests, appSnapshotTests],
-            schemes: [appScheme, allModulesScheme]
+            schemes: [appTestsScheme, appSnapshotTestsScheme, appAggregateScheme, allModulesScheme]
         )
         let featureProject = Project.test(
             path: featureProjectPath,
@@ -327,7 +321,9 @@ private struct SchemePlanningScenario {
         self.mapperEnvironment = mapperEnvironment
         testableSchemes = [
             allModulesScheme,
-            appScheme,
+            appAggregateScheme,
+            appSnapshotTestsScheme,
+            appTestsScheme,
             featureSchemeWithAppBuildContext,
             featureScheme,
             workspaceScheme,
@@ -358,10 +354,7 @@ private struct TestServiceSchemePlanningFixture {
         capture.runs
     }
 
-    init(
-        scenario: SchemePlanningScenario,
-        parsedDerivedDataPath: AbsolutePath? = nil
-    ) {
+    init(scenario: SchemePlanningScenario) {
         let capture = TestRunCapture()
         self.capture = capture
         let generator = MockGenerating()
@@ -437,7 +430,7 @@ private struct TestServiceSchemePlanningFixture {
             .willReturn(.test())
         given(xcodeBuildArgumentParser)
             .parse(.any)
-            .willReturn(.test(derivedDataPath: parsedDerivedDataPath, destination: nil))
+            .willReturn(.test(derivedDataPath: nil, destination: nil))
         given(derivedDataLocator)
             .locate(for: .any)
             .willReturn(scenario.rootDirectory.appending(component: "DerivedData"))
