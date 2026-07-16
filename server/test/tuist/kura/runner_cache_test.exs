@@ -11,18 +11,18 @@ defmodule Tuist.Kura.RunnerCacheTest do
 
   setup :set_mimic_from_context
 
-  # Drive Regions.available/0 to the real private-region catalog
-  # entries: `scw-fr-par-runners` serves [:macos] only,
-  # `hetzner-staging-runners` serves [:linux] only. Both provision
-  # through KubernetesController whose `provision/3` is pure (builds
-  # the instance name), and `destroy_server/1` only flips DB state —
-  # so reconcile runs for real against the sandbox.
+  # Drive Regions.available/0 to the real private-region catalog:
+  # `scw-fr-par-runners` serves [:macos] and is the only private region
+  # (Linux runners have none). It provisions through KubernetesController
+  # whose `provision/3` is pure (builds the instance name), and
+  # `destroy_server/1` only flips DB state — so reconcile runs for real
+  # against the sandbox.
   setup do
     stub(Tuist.Environment, :dev?, fn -> false end)
     stub(Tuist.Environment, :test?, fn -> false end)
 
     stub(Tuist.Environment, :kura_available_region_ids, fn ->
-      ["scw-fr-par-runners", "hetzner-staging-runners"]
+      ["scw-fr-par-runners"]
     end)
 
     stub(Tuist.Environment, :kura_runtime_image_tag, fn -> "0.5.2" end)
@@ -75,12 +75,12 @@ defmodule Tuist.Kura.RunnerCacheTest do
 
     assert :ok = RunnerCache.reconcile()
 
-    # Each fleet's cache lives next to it: Linux profiles get the
-    # Hetzner node, macOS profiles the Scaleway fr-par one. A
-    # Linux-only account never gets a node in the macOS-serving
-    # region — its URL would route cache traffic across the WAN.
-    assert server_regions(linux_only) == ["hetzner-staging-runners"]
-    assert server_regions(macos_too) == ["hetzner-staging-runners", "scw-fr-par-runners"]
+    # A region's cache only serves the fleet it sits next to. macOS
+    # profiles get the Scaleway fr-par node; there is no Linux-serving
+    # region, so a Linux-only account gets nothing rather than a node in
+    # the macOS region, whose URL would route cache traffic across the WAN.
+    assert server_regions(linux_only) == []
+    assert server_regions(macos_too) == ["scw-fr-par-runners"]
   end
 
   test "accounts without the runners flag get no nodes" do
@@ -97,15 +97,15 @@ defmodule Tuist.Kura.RunnerCacheTest do
     enable_runners_for([account.id])
 
     assert :ok = RunnerCache.reconcile()
-    assert server_regions(account) == ["hetzner-staging-runners", "scw-fr-par-runners"]
+    assert server_regions(account) == ["scw-fr-par-runners"]
 
-    # Dropping the macOS profile frees the macOS-serving node but
-    # keeps the node in the region that still serves the remaining
-    # Linux profile.
+    # Dropping the macOS profile leaves nothing the region serves, so its
+    # node is torn down. The remaining Linux profile has no region of its
+    # own to keep a node in.
     Repo.delete_all(from(p in Profile, where: p.account_id == ^account.id and p.platform == :macos))
 
     assert :ok = RunnerCache.reconcile()
-    assert server_regions(account) == ["hetzner-staging-runners"]
+    assert server_regions(account) == []
   end
 
   test "an enabled account beyond the first candidate page still gets a node" do
@@ -133,8 +133,8 @@ defmodule Tuist.Kura.RunnerCacheTest do
       for %{id: account_id} <- filler_accounts do
         %{
           account_id: account_id,
-          name: "linux",
-          platform: :linux,
+          name: "macos",
+          platform: :macos,
           vcpus: 4,
           memory_gb: 16,
           inserted_at: now_utc,
@@ -144,15 +144,15 @@ defmodule Tuist.Kura.RunnerCacheTest do
 
     Repo.insert_all(Profile, profile_rows)
 
-    enabled = account_with_profiles([:linux])
+    enabled = account_with_profiles([:macos])
     enable_runners_for([enabled.id])
 
     assert :ok = RunnerCache.reconcile()
 
-    assert server_regions(enabled) == ["hetzner-staging-runners"]
+    assert server_regions(enabled) == ["scw-fr-par-runners"]
   end
 
-  test "macOS-only accounts get no node in the linux-serving region" do
+  test "macOS-only accounts get a node in the macOS-serving region" do
     account = account_with_profiles([:macos])
     enable_runners_for([account.id])
 
