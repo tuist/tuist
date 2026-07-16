@@ -1,0 +1,111 @@
+{{- if .Values.pdcAgent.enabled }}
+{{- $secretName := include "tuist.componentName" (dict "root" . "component" "pdc-agent") }}
+{{- if not .Values.pdcAgent.image.tag }}
+{{- fail "pdcAgent.image.tag is required — running the agent on :latest silently drifts a component that holds a tunnel into the cluster." }}
+{{- end }}
+{{- if not .Values.pdcAgent.cluster }}
+{{- fail "pdcAgent.cluster is required — take it from Grafana Cloud > Connections > Private data source connections > Configuration Details." }}
+{{- end }}
+{{- if not .Values.pdcAgent.hostedGrafanaId }}
+{{- fail "pdcAgent.hostedGrafanaId is required — take it from Grafana Cloud > Connections > Private data source connections > Configuration Details." }}
+{{- end }}
+# Grafana Cloud Private Data source Connect (PDC) agent.
+#
+# Grafana Cloud is outside our network, so it cannot reach the in-cluster CNPG
+# Postgres directly. This agent dials out to Grafana Cloud and terminates a
+# tunnel, which lets a Grafana *Postgres* datasource query CNPG as the
+# CNPG-managed `tuist_ops_ro` role (login + pg_read_all_data). That keeps the
+# Business Intelligence dashboard on Grafana's built-in Postgres datasource —
+# no plugin, no bespoke query endpoint, and the panels' existing
+# $__timeFilter / $__timeGroup SQL works unchanged.
+#
+# `cluster` and `hostedGrafanaId` are stack identifiers (not secrets) and live
+# in the chart; only the signing token is a secret and comes from 1Password via
+# ESO. All three are minted together when the PDC network is created in
+# Grafana Cloud (Connections > Private data source connections).
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: {{ $secretName }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: pdc-agent
+spec:
+  refreshInterval: {{ .Values.pdcAgent.externalSecrets.refreshInterval | default "1h" }}
+  secretStoreRef:
+    name: {{ .Values.pdcAgent.externalSecrets.storeRef.name | default "onepassword" }}
+    kind: {{ .Values.pdcAgent.externalSecrets.storeRef.kind | default "ClusterSecretStore" }}
+  target:
+    name: {{ $secretName }}
+    creationPolicy: Owner
+    template:
+      engineVersion: v2
+      data:
+        # Same trailing-newline strip as the server config ExternalSecret: a
+        # token pasted through the 1P web UI otherwise carries a stray \n and
+        # fails the PDC handshake.
+        token: "{{ `{{ .token | trim }}` }}"
+  data:
+    - secretKey: token
+      remoteRef: { key: "{{ .Values.pdcAgent.externalSecrets.item }}/{{ .Values.pdcAgent.externalSecrets.tokenField }}" }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "tuist.componentName" (dict "root" . "component" "pdc-agent") }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: pdc-agent
+spec:
+  # The agent multiplexes every PDC-routed datasource query over one outbound
+  # tunnel; a second replica buys no throughput and just doubles the
+  # connections Grafana Cloud sees. Upstream ships 1 replica for the same reason.
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      {{- include "tuist.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: pdc-agent
+  template:
+    metadata:
+      labels:
+        {{- include "tuist.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: pdc-agent
+    spec:
+      securityContext:
+        runAsUser: 30000
+        runAsGroup: 30000
+        fsGroup: 30000
+      containers:
+        - name: pdc-agent
+          image: "{{ .Values.pdcAgent.image.repository }}:{{ .Values.pdcAgent.image.tag }}"
+          args:
+            - "-cluster"
+            - "$(CLUSTER)"
+            - "-token"
+            - "$(TOKEN)"
+            - "-gcloud-hosted-grafana-id"
+            - "$(HOSTED_GRAFANA_ID)"
+          env:
+            - name: CLUSTER
+              value: {{ .Values.pdcAgent.cluster | quote }}
+            - name: HOSTED_GRAFANA_ID
+              value: {{ .Values.pdcAgent.hostedGrafanaId | quote }}
+            - name: TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $secretName }}
+                  key: token
+          securityContext:
+            allowPrivilegeEscalation: false
+            privileged: false
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            {{- toYaml .Values.pdcAgent.resources | nindent 12 }}
+{{- end }}

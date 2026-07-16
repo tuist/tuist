@@ -34,6 +34,45 @@ pvReaper:
     limits:
       memory: "64Mi"
 
+# Grafana Cloud Private Data source Connect (PDC) agent. Off by default: it only
+# makes sense on the managed envs whose Grafana Cloud stack has a PDC network,
+# and self-hosters have no Grafana Cloud stack at all.
+#
+# Enabling it lets a Grafana *Postgres* datasource reach the in-cluster CNPG
+# database as the `tuist_ops_ro` role, which is what keeps the Business
+# Intelligence dashboard on Grafana's built-in Postgres datasource instead of a
+# plugin + bespoke query endpoint.
+#
+# cluster / hostedGrafanaId / the signing token are all minted together when the
+# PDC network is created in Grafana Cloud (Connections > Private data source
+# connections > Configuration Details). The first two are stack identifiers and
+# live here; the token is a secret and comes from 1Password via ESO.
+pdcAgent:
+  enabled: false
+  image:
+    repository: grafana/pdc-agent
+    # Required when enabled — see the guard in templates/pdc-agent.yaml.
+    tag: ""
+  cluster: ""
+  hostedGrafanaId: ""
+  externalSecrets:
+    refreshInterval: 1h
+    storeRef:
+      name: onepassword
+      kind: ClusterSecretStore
+    # 1P item holding the PDC signing token (scope: pdc-signing:write), in the
+    # per-env vault the ClusterSecretStore is bound to.
+    item: PDC_AGENT
+    tokenField: password
+  # Mirrors upstream's manifest: the agent is a single tunnel process, not a
+  # throughput-scaled workload.
+  resources:
+    requests:
+      cpu: "1"
+      memory: 1Gi
+    limits:
+      memory: 1Gi
+
 kuraController:
   enabled: false
   namespace: kura
