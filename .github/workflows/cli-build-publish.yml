@@ -214,6 +214,11 @@ jobs:
               "$ACCOUNT_HOME/.swiftpm"
             sleep $((attempt * 10))
           done
+        env:
+          # Swift 6.2.4's registry client otherwise downloads up to one package
+          # per CPU concurrently, which can trigger FoundationNetworking's
+          # redirect handling crash before the CLI starts compiling.
+          SWIFTPM_MAX_CONCURRENT_OPERATIONS: 1
 
       - name: Upload CLI Linux artifacts
         id: upload
