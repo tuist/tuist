@@ -48,6 +48,18 @@ pub const OP_INVALIDATE: u8 = 3;
 /// yet (or that a prune removed). Runs on compiler worker threads, never on the
 /// build engine's serial task-setup path, so it may block on the remote.
 pub const OP_FETCH_OBJECT: u8 = 4;
+/// This build's upload policy, declared once per CAS create. Only the plugin
+/// reads `xcodeCache.upload` (it arrives as a compiler option, which the proxy
+/// never sees), but the proxy writes on its own behalf: a per-key hit queues a
+/// re-publish that ranks the entry back into the view. That write never passes
+/// through the plugin's check, so a machine configured not to upload was still
+/// writing to the server. payload = 1 byte, 0 = do not upload.
+///
+/// Additive on purpose: a proxy too old to know this op answers "bad op", the
+/// plugin ignores that, and the machine keeps the behaviour it has today. That
+/// is worth more than a protocol bump here, which a long-lived agent would turn
+/// into every build on the machine degrading to local-only until it restarts.
+pub const OP_DECLARE_UPLOAD: u8 = 5;
 
 pub const STATUS_MISS: u8 = 0;
 pub const STATUS_HIT: u8 = 1;
@@ -207,6 +219,32 @@ impl ProxyClient {
             Ok(())
         } else {
             Err(format!("proxy invalidate: {}", String::from_utf8_lossy(&body)))
+        }
+    }
+
+    /// Best-effort: an older proxy rejects the op, and the caller wants the
+    /// build to proceed either way.
+    pub fn declare_upload(&self, cas_path: &str, instance: &str, upload: bool) -> Result<(), String> {
+        let mut stream = self.connect().map_err(|e| format!("proxy connect: {e}"))?;
+        write_request(
+            &mut stream,
+            &Request {
+                version: PROTOCOL_VERSION,
+                op: OP_DECLARE_UPLOAD,
+                cas_path: cas_path.to_string(),
+                instance: instance.to_string(),
+                payload: vec![u8::from(upload)],
+            },
+        )
+        .map_err(|e| format!("proxy send: {e}"))?;
+        let (status, body) = read_response(&mut stream).map_err(|e| format!("proxy recv: {e}"))?;
+        if status == STATUS_HIT {
+            Ok(())
+        } else {
+            Err(format!(
+                "proxy declare_upload: {}",
+                String::from_utf8_lossy(&body)
+            ))
         }
     }
 

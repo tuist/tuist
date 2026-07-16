@@ -18,7 +18,8 @@ use std::time::{Duration, Instant, UNIX_EPOCH};
 
 use crate::prefetch::Prefetcher;
 use crate::proxy_proto::{
-    read_request, write_response, Request, OP_FETCH_OBJECT, OP_INVALIDATE, OP_PUBLISH, OP_RESOLVE,
+    read_request, write_response, Request, OP_DECLARE_UPLOAD, OP_FETCH_OBJECT, OP_INVALIDATE,
+    OP_PUBLISH, OP_RESOLVE,
     STATUS_ERROR, STATUS_HIT, STATUS_MISS,
 };
 use crate::reapi::{self, ManifestEntry, Remote, RemoteConfig};
@@ -977,6 +978,9 @@ pub struct Proxy {
     // identical re-publishes of entries fresher than a day, so a fleet of
     // cold machines cannot stampede version bumps.
     view_refresh: Mutex<VecDeque<ViewRefresh>>,
+    /// Per cas_path upload policy, declared by the plugin at CAS create. Absent
+    /// means a client too old to say, which is the behaviour it already has.
+    path_upload: Mutex<HashMap<String, bool>>,
     view_refreshed: Mutex<HashSet<Vec<u8>>>,
 
     // instance -> demand-fetch coalescer, created on first demand miss. Groups
@@ -1025,6 +1029,7 @@ impl Proxy {
             busy_logged_at: Mutex::new(None),
             unprimed: AtomicU64::new(0),
             view_refresh: Mutex::new(VecDeque::new()),
+            path_upload: Mutex::new(HashMap::new()),
             view_refreshed: Mutex::new(HashSet::new()),
             demand_coalescers: Mutex::new(HashMap::new()),
             active_instances: Mutex::new(HashSet::new()),
@@ -1143,6 +1148,17 @@ impl Proxy {
             ));
             proxy.prematerialize_snapshot(&instance, &snapshot);
         });
+    }
+
+    /// This path's upload policy. Unknown means a plugin too old to declare it,
+    /// and the answer there has to be the behaviour that client already gets.
+    fn upload_enabled(&self, cas_path: &str) -> bool {
+        self.path_upload
+            .lock()
+            .unwrap()
+            .get(cas_path)
+            .copied()
+            .unwrap_or(true)
     }
 
     /// Whether a build for this instance has touched this proxy since it
@@ -1368,7 +1384,7 @@ impl Proxy {
         // machine. Without a snapshot, per-key is just the normal path and
         // says nothing about view membership.
         if snapshot_ready {
-            self.queue_view_refresh(remote, instance, key, &manifest);
+            self.queue_view_refresh(remote, &state.cas_path, instance, key, &manifest);
         }
         let action_ms = phase.elapsed().as_millis() as u64;
         state.ms_action.fetch_add(action_ms, Ordering::Relaxed);
@@ -2241,10 +2257,19 @@ impl Proxy {
     fn queue_view_refresh(
         &self,
         remote: &Arc<Remote>,
+        cas_path: &str,
         instance: &str,
         key: &[u8],
         manifest: &[ManifestEntry],
     ) {
+        // A refresh is a write, and this one is ours, not the build's: nothing
+        // the compiler asked for produced it. A machine told not to upload does
+        // not get to write to the server because the proxy found reading
+        // interesting, so the read-only case declines and pays the per-key round
+        // trip it was always paying.
+        if !self.upload_enabled(cas_path) {
+            return;
+        }
         {
             let mut refreshed = self.view_refreshed.lock().unwrap();
             if refreshed.len() >= VIEW_REFRESH_MAX_QUEUE || !refreshed.insert(key.to_vec()) {
@@ -2872,6 +2897,14 @@ impl Proxy {
                 } else {
                     self.note_unprimed(&request.cas_path);
                 }
+                write_response(&mut stream, STATUS_HIT, &[])
+            }
+            OP_DECLARE_UPLOAD => {
+                let upload = request.payload.first().copied().unwrap_or(1) != 0;
+                self.path_upload
+                    .lock()
+                    .unwrap()
+                    .insert(request.cas_path.clone(), upload);
                 write_response(&mut stream, STATUS_HIT, &[])
             }
             OP_INVALIDATE => {
@@ -4027,6 +4060,52 @@ mod tests {
         assert!(
             compiler_view.load_present(&digest),
             "an object stored after the wipe must be visible to a handle opened              independently: otherwise the proxy is writing into a deleted store"
+        );
+    }
+
+    /// A view refresh is the proxy writing on its own initiative: nothing the
+    /// compiler asked for produces it, so it never passes the plugin's upload
+    /// check. A machine configured not to upload must not write to the server
+    /// because the proxy found reading interesting.
+    #[test]
+    fn a_read_only_build_queues_no_view_refresh() {
+        let proxy = test_proxy();
+        let remote = proxy.remote_for("tuist/mastodon");
+        let manifest = vec![ManifestEntry {
+            llcas_digest: vec![0xAA],
+            blob: reapi::Digest {
+                hash: "bb".repeat(32),
+                size_bytes: 7,
+            },
+            contents: None,
+        }];
+
+        // Undeclared is a plugin too old to say, and it keeps what it has today.
+        proxy.queue_view_refresh(&remote, "/cas", "tuist/mastodon", b"key-1", &manifest);
+        assert_eq!(proxy.view_refresh.lock().unwrap().len(), 1);
+
+        proxy
+            .path_upload
+            .lock()
+            .unwrap()
+            .insert("/cas".to_string(), false);
+        proxy.queue_view_refresh(&remote, "/cas", "tuist/mastodon", b"key-2", &manifest);
+        assert_eq!(
+            proxy.view_refresh.lock().unwrap().len(),
+            1,
+            "a read-only path adds nothing to the refresh queue"
+        );
+
+        proxy
+            .path_upload
+            .lock()
+            .unwrap()
+            .insert("/cas".to_string(), true);
+        proxy.queue_view_refresh(&remote, "/cas", "tuist/mastodon", b"key-3", &manifest);
+        assert_eq!(
+            proxy.view_refresh.lock().unwrap().len(),
+            2,
+            "an uploading path still refreshes"
         );
     }
 
