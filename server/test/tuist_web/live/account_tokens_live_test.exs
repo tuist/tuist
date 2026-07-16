@@ -6,6 +6,7 @@ defmodule TuistWeb.AccountTokensLiveTest do
 
   alias Tuist.Accounts
   alias Tuist.Accounts.AccountToken
+  alias Tuist.Projects.Project
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
@@ -111,6 +112,25 @@ defmodule TuistWeb.AccountTokensLiveTest do
     assert account_tokens_table_row_count(html) == 105
   end
 
+  test "lists projects beyond the first project page in the access selector", %{conn: conn, account: account} do
+    project =
+      Enum.reduce(1..501, nil, fn index, _project ->
+        %Project{}
+        |> Project.create_changeset(%{
+          token: Tuist.Tokens.generate_token(),
+          account_id: account.id,
+          name: "project-#{String.pad_leading("#{index}", 3, "0")}",
+          created_at: DateTime.utc_now()
+        })
+        |> Repo.insert!()
+      end)
+
+    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/settings/tokens")
+
+    assert html =~ "project-501"
+    assert html =~ ~s(id="account-token-project-#{project.id}")
+  end
+
   test "creates a token, reveals it once, and stores project restrictions", %{
     conn: conn,
     account: account
@@ -147,6 +167,21 @@ defmodule TuistWeb.AccountTokensLiveTest do
     assert html =~ "ci-rotated"
     assert html =~ account_token_hint(token)
     assert html =~ ~p"/#{account.name}/settings/tokens/#{token.id}"
+  end
+
+  test "rechecks create authorization when submitting", %{conn: conn, user: user, account: account} do
+    {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/tokens")
+
+    organization = account |> Repo.preload(:organization) |> Map.fetch!(:organization)
+    {:ok, _role} = Accounts.update_user_role_in_organization(user, organization, :user)
+
+    html =
+      render_submit(lv, "create_account_token", %{
+        "account_token" => %{"name" => "stale-admin-token", "expires" => ""}
+      })
+
+    assert html =~ "You are not authorized to create account tokens."
+    assert Accounts.get_account_token_by_name(account, "stale-admin-token") == {:error, :not_found}
   end
 
   test "shows token project access on the token detail page", %{conn: conn, account: account} do
@@ -440,6 +475,19 @@ defmodule TuistWeb.AccountTokensLiveTest do
 
     assert redirect_to == ~p"/#{account.name}/settings/tokens"
     assert Accounts.get_account_token_by_name(account, "old-ci") == {:error, :not_found}
+  end
+
+  test "rechecks delete authorization when revoking", %{conn: conn, user: user, account: account} do
+    token = AccountsFixtures.account_token_fixture(account: account, name: "stale-admin-ci")
+
+    {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/tokens/#{token.id}")
+
+    organization = account |> Repo.preload(:organization) |> Map.fetch!(:organization)
+    {:ok, _role} = Accounts.update_user_role_in_organization(user, organization, :user)
+
+    render_hook(lv, "revoke_account_token", %{})
+
+    assert {:ok, _token} = Accounts.get_account_token_by_name(account, "stale-admin-ci")
   end
 
   test "raises not found for a token in another account", %{conn: conn, account: account} do

@@ -64,6 +64,9 @@ defmodule TuistWeb.AccountTokenLive do
     {:noreply, push_event(socket, "close-modal", %{id: "revoke-account-token-modal"})}
   end
 
-  defp ensure_can_delete(%{assigns: %{can_delete_tokens?: true}}), do: :ok
+  defp ensure_can_delete(%{assigns: %{current_user: current_user, selected_account: selected_account}}) do
+    Authorization.authorize(:account_token_delete, current_user, selected_account)
+  end
+
   defp ensure_can_delete(_socket), do: {:error, :forbidden}
 end

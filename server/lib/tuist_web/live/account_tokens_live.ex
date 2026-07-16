@@ -16,6 +16,7 @@ defmodule TuistWeb.AccountTokensLive do
   @default_scopes [AccountToken.ci_scope()]
   @preset_scopes [AccountToken.ci_scope()]
   @account_tokens_page_size 100
+  @account_projects_page_size 500
 
   @creatable_scopes AccountToken.user_creatable_scopes()
 
@@ -235,19 +236,32 @@ defmodule TuistWeb.AccountTokensLive do
   end
 
   defp list_account_projects(account) do
-    {projects, _meta} =
+    list_account_projects(account, 1, [])
+  end
+
+  defp list_account_projects(account, page, acc) do
+    {projects, meta} =
       Projects.list_projects(%{
         filters: [%{field: :account_id, op: :==, value: account.id}],
         order_by: [:name],
         order_directions: [:asc],
-        page: 1,
-        page_size: 500
+        page: page,
+        page_size: @account_projects_page_size
       })
 
-    projects
+    acc = acc ++ projects
+
+    if meta.has_next_page? do
+      list_account_projects(account, page + 1, acc)
+    else
+      acc
+    end
   end
 
-  defp ensure_can_create(%{assigns: %{can_create_tokens?: true}}), do: :ok
+  defp ensure_can_create(%{assigns: %{current_user: current_user, selected_account: selected_account}}) do
+    Authorization.authorize(:account_token_create, current_user, selected_account)
+  end
+
   defp ensure_can_create(_socket), do: {:error, :forbidden}
 
   defp token_name(params) do
