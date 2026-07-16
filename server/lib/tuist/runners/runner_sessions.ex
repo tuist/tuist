@@ -155,6 +155,59 @@ defmodule Tuist.Runners.RunnerSessions do
     end
   end
 
+  @doc """
+  Records the workflow_job GitHub actually ran on the runner named
+  `runner_name`, on the durable session row (which outlives the pod).
+  Called from the `workflow_job.in_progress` / `completed` webhook.
+
+  The session is the attribution backstop for `Claims.record_execution/2`:
+  a fast job whose pod is already gone still has its session row, so a
+  late `completed` webhook can still bind the runner. Prefers the open
+  session, falling back to the most recent closed one.
+
+  Idempotent. Returns `:matched` / `:mismatch` / `:unknown_runner`
+  mirroring `Claims.record_execution/2`.
+  """
+  def record_execution(runner_name, executed_workflow_job_id)
+      when is_binary(runner_name) and runner_name != "" and is_integer(executed_workflow_job_id) do
+    session =
+      RunnerSession
+      |> where([s], s.runner_name == ^runner_name)
+      |> order_by([s], desc: is_nil(s.ended_at), desc: s.started_at)
+      |> limit(1)
+      |> Repo.one()
+
+    case session do
+      nil ->
+        :unknown_runner
+
+      %RunnerSession{workflow_job_id: claimed_job_id} = session ->
+        session
+        |> Ecto.Changeset.cast(
+          %{
+            executed_workflow_job_id: executed_workflow_job_id,
+            updated_at: DateTime.truncate(DateTime.utc_now(), :second)
+          },
+          [:executed_workflow_job_id, :updated_at]
+        )
+        |> Repo.update()
+        |> case do
+          {:ok, _updated} ->
+            :ok
+
+          {:error, changeset} ->
+            Logger.warning("runners: failed to record session execution",
+              runner_name: runner_name,
+              changeset_errors: inspect(changeset.errors)
+            )
+        end
+
+        if claimed_job_id == executed_workflow_job_id, do: :matched, else: :mismatch
+    end
+  end
+
+  def record_execution(_runner_name, _executed_workflow_job_id), do: :unknown_runner
+
   defp latest_for_pod(pod_name) do
     # Prefer the open row if one exists; otherwise return whichever
     # closed row is most recent — the close path may need to clamp

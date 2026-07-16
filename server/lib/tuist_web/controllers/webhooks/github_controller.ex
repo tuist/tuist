@@ -229,13 +229,15 @@ defmodule TuistWeb.Webhooks.GitHubController do
   # Actions that the dispatch pipeline persists or claims against.
   # `waiting` is GitHub's self-hosted-runner state for jobs waiting
   # on capacity, so it must reach the worker even though the UI labels
-  # the same job as queued. Every other action (notably `in_progress`,
-  # ~33 % of `workflow_job` traffic) falls through to the catch-all
-  # `:ignored` branch in the worker. Short-circuiting here removes
-  # the Oban.insert (and its Postgres write) for those events, which
-  # under burst load was costing us ~one PG checkout per webhook for
-  # work the worker was going to discard anyway.
-  @dispatchable_workflow_job_actions ~w(queued waiting completed)
+  # the same job as queued. `in_progress` is the first event carrying
+  # the `runner_name` GitHub actually placed the job on — the only
+  # real-time proof of the runner↔job binding, which the worker uses
+  # to correct metrics attribution and measure claim↔execution
+  # mismatches. Any remaining action falls through to the catch-all
+  # `:ignored` branch in the worker; short-circuiting those here
+  # removes the Oban.insert (and its Postgres write) for events the
+  # worker would discard anyway.
+  @dispatchable_workflow_job_actions ~w(queued waiting in_progress completed)
 
   defp handle_workflow_job(conn, params) do
     installation_id =

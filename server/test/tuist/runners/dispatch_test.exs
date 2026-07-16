@@ -12,6 +12,7 @@ defmodule Tuist.Runners.DispatchTest do
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.JobSteps
   alias Tuist.Runners.Profiles
+  alias Tuist.Runners.RunnerSessions
   alias Tuist.VCS
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
@@ -72,16 +73,39 @@ defmodule Tuist.Runners.DispatchTest do
   end
 
   defp completed_payload(opts) do
+    job =
+      maybe_put(
+        %{
+          "id" => Keyword.get(opts, :id, System.unique_integer([:positive])),
+          "conclusion" => Keyword.get(opts, :conclusion, "success"),
+          "steps" => Keyword.get(opts, :steps, [])
+        },
+        "runner_name",
+        Keyword.get(opts, :runner_name)
+      )
+
     %{
       "action" => "completed",
-      "workflow_job" => %{
-        "id" => Keyword.get(opts, :id, System.unique_integer([:positive])),
-        "conclusion" => Keyword.get(opts, :conclusion, "success"),
-        "steps" => Keyword.get(opts, :steps, [])
-      },
+      "workflow_job" => job,
       "repository" => %{"full_name" => "tuist/repo"}
     }
   end
+
+  defp in_progress_payload(opts) do
+    %{
+      "action" => "in_progress",
+      "workflow_job" =>
+        maybe_put(
+          %{"id" => Keyword.get(opts, :id, System.unique_integer([:positive]))},
+          "runner_name",
+          Keyword.get(opts, :runner_name)
+        ),
+      "repository" => %{"full_name" => "tuist/repo"}
+    }
+  end
+
+  defp maybe_put(map, _key, nil), do: map
+  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 
   describe "handle_webhook/2" do
     test "returns {:ignored, :no_account} when neither the installation nor the org login match a Tuist account" do
@@ -289,6 +313,89 @@ defmodule Tuist.Runners.DispatchTest do
       assert {:ok, :completed} = Dispatch.handle_webhook(completed_payload(steps: []), 1)
 
       assert_receive {:steps, []}
+    end
+  end
+
+  describe "handle_webhook/2 in_progress" do
+    test "records the runner→job binding and reports matched" do
+      test_pid = self()
+
+      stub(Claims, :record_execution, fn "runner-a", 4300 ->
+        send(test_pid, {:claim_exec, "runner-a", 4300})
+        :matched
+      end)
+
+      stub(RunnerSessions, :record_execution, fn "runner-a", 4300 ->
+        send(test_pid, {:session_exec, "runner-a", 4300})
+        :matched
+      end)
+
+      assert {:ok, :matched} =
+               Dispatch.handle_webhook(in_progress_payload(id: 4300, runner_name: "runner-a"), 1)
+
+      assert_receive {:claim_exec, "runner-a", 4300}
+      assert_receive {:session_exec, "runner-a", 4300}
+    end
+
+    test "surfaces a claim↔execution mismatch when GitHub ran a different job" do
+      stub(Claims, :record_execution, fn "runner-b", 4400 -> :mismatch end)
+      stub(RunnerSessions, :record_execution, fn "runner-b", 4400 -> :mismatch end)
+
+      assert {:ok, :mismatch} =
+               Dispatch.handle_webhook(in_progress_payload(id: 4400, runner_name: "runner-b"), 1)
+    end
+
+    test "a mismatch on either store wins over a matched on the other" do
+      stub(Claims, :record_execution, fn _runner, _job -> :unknown_runner end)
+      stub(RunnerSessions, :record_execution, fn _runner, _job -> :mismatch end)
+
+      assert {:ok, :mismatch} =
+               Dispatch.handle_webhook(in_progress_payload(id: 4500, runner_name: "runner-c"), 1)
+    end
+
+    test "ignores when neither store knows the runner" do
+      stub(Claims, :record_execution, fn _runner, _job -> :unknown_runner end)
+      stub(RunnerSessions, :record_execution, fn _runner, _job -> :unknown_runner end)
+
+      assert {:ignored, :unknown_runner} =
+               Dispatch.handle_webhook(in_progress_payload(id: 4600, runner_name: "runner-d"), 1)
+    end
+
+    test "ignores an in_progress payload with no runner_name" do
+      assert :ignored = Dispatch.handle_webhook(in_progress_payload(id: 4700), 1)
+    end
+  end
+
+  describe "handle_webhook/2 completed — attribution backstop" do
+    test "binds the runner→job on the durable session before completing" do
+      test_pid = self()
+
+      stub(RunnerSessions, :record_execution, fn "runner-late", 4800 ->
+        send(test_pid, {:session_exec, "runner-late", 4800})
+        :matched
+      end)
+
+      stub(Claims, :complete, fn _ -> :ok end)
+      stub(Jobs, :complete, fn _id, _conclusion -> {:ok, %{account_id: 1}} end)
+      stub(JobSteps, :record, fn _ -> :ok end)
+
+      assert {:ok, :completed} =
+               Dispatch.handle_webhook(
+                 completed_payload(id: 4800, runner_name: "runner-late", steps: []),
+                 1
+               )
+
+      assert_receive {:session_exec, "runner-late", 4800}
+    end
+
+    test "skips backstop attribution when the completed payload has no runner_name (cancelled-while-queued)" do
+      stub(Claims, :complete, fn _ -> :ok end)
+      stub(Jobs, :complete, fn _id, _conclusion -> {:ok, %{account_id: 1}} end)
+      stub(JobSteps, :record, fn _ -> :ok end)
+
+      reject(&RunnerSessions.record_execution/2)
+
+      assert {:ok, :completed} = Dispatch.handle_webhook(completed_payload(id: 4900, steps: []), 1)
     end
   end
 

@@ -689,24 +689,35 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
       refute_enqueued(worker: DispatchWorker)
     end
 
-    test "200s without enqueueing for action=in_progress (worker would treat it as ignored)",
+    test "enqueues for action=in_progress so the worker can record the runner→job binding",
          %{conn: conn} do
+      installation_id = System.unique_integer([:positive])
+      delivery_guid = "deadbeef-in-progress"
+
       conn =
         conn
         |> put_req_header("x-github-event", "workflow_job")
-        |> put_req_header("x-github-delivery", "deadbeef-in-progress")
+        |> put_req_header("x-github-delivery", delivery_guid)
 
       params = %{
         "action" => "in_progress",
-        "installation" => %{"id" => System.unique_integer([:positive])},
-        "workflow_job" => %{"id" => 1, "labels" => ["tuist-macos"]},
+        "installation" => %{"id" => installation_id},
+        "workflow_job" => %{"id" => 1, "labels" => ["tuist-macos"], "runner_name" => "runner-x"},
         "repository" => %{"full_name" => "tuist/tuist"}
       }
 
       result = GitHubController.handle(conn, params)
 
       assert result.status == 200
-      refute_enqueued(worker: DispatchWorker)
+
+      assert_enqueued(
+        worker: DispatchWorker,
+        args: %{
+          "payload" => params,
+          "installation_id" => installation_id,
+          "delivery_guid" => delivery_guid
+        }
+      )
     end
 
     test "200s without enqueueing for unknown actions", %{conn: conn} do

@@ -16,9 +16,12 @@ defmodule TuistWeb.RunnerJobMetricsController do
   VM is the only vantage point.
 
   The runner does not know which job it's running — that mapping lives
-  in `runner_claims`. We resolve `pod_name` to its live claim's
-  `workflow_job_id` and `account_id` here. A Pod with no live claim
-  (idle/warm, or its job already finished) is a no-op.
+  in `runner_claims`. We resolve `pod_name` to its live claim and
+  `account_id` here, preferring the `executed_workflow_job_id` GitHub
+  proved the runner ran (via the `in_progress` webhook) over the
+  claim-time `workflow_job_id` guess, so samples land on the job that
+  actually ran on the Pod. A Pod with no live claim (idle/warm, or its
+  job already finished) is a no-op.
 
   ## Contract
 

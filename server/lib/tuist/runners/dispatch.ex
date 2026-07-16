@@ -50,6 +50,7 @@ defmodule Tuist.Runners.Dispatch do
   alias Tuist.Runners.JobSteps
   alias Tuist.Runners.Profile
   alias Tuist.Runners.Profiles
+  alias Tuist.Runners.RunnerSessions
   alias Tuist.Runners.Telemetry
   alias Tuist.Runners.Workers.FetchLogsWorker
   alias Tuist.VCS
@@ -81,6 +82,12 @@ defmodule Tuist.Runners.Dispatch do
   def handle_webhook(%{"action" => "waiting"} = payload, installation_id) when is_integer(installation_id) do
     result = handle_waiting(payload, installation_id)
     emit_webhook_telemetry("waiting", result)
+    result
+  end
+
+  def handle_webhook(%{"action" => "in_progress"} = payload, installation_id) when is_integer(installation_id) do
+    result = handle_in_progress(payload)
+    emit_webhook_telemetry("in_progress", result)
     result
   end
 
@@ -196,13 +203,81 @@ defmodule Tuist.Runners.Dispatch do
     end
   end
 
+  # `workflow_job.in_progress` is the first event that carries the
+  # `runner_name` GitHub actually placed the job on. GitHub assigns
+  # queued jobs to any label-eligible runner independently of the
+  # server's claim, so this is the only real-time proof of the
+  # runner↔job binding. We record it (fixing metrics attribution and
+  # measuring how often the claim was wrong) but never re-enqueue or
+  # re-claim off it — the job is already executing.
+  defp handle_in_progress(payload) do
+    job = Map.get(payload, "workflow_job", %{})
+    workflow_job_id = Map.get(job, "id")
+    runner_name = Map.get(job, "runner_name", "") || ""
+
+    if is_integer(workflow_job_id) and runner_name != "" do
+      record_execution(runner_name, workflow_job_id, "in_progress")
+    else
+      :ignored
+    end
+  end
+
+  # Binds the runner→job proof onto the live claim (drives metrics
+  # attribution while the job runs) and the durable session (the
+  # backstop that outlives the pod). The claim and session agree in
+  # the common case; when they disagree — or when only one is still
+  # present — we surface `:mismatch` so it's never silently the
+  # weaker `:matched`.
+  defp record_execution(runner_name, executed_workflow_job_id, source) do
+    claim_outcome = Claims.record_execution(runner_name, executed_workflow_job_id)
+    session_outcome = RunnerSessions.record_execution(runner_name, executed_workflow_job_id)
+    outcome = combine_attribution(claim_outcome, session_outcome)
+
+    case outcome do
+      :mismatch ->
+        Logger.info("runners: claim/execution mismatch (source=#{source})",
+          runner_name: runner_name,
+          workflow_job_id: executed_workflow_job_id
+        )
+
+        {:ok, :mismatch}
+
+      :matched ->
+        {:ok, :matched}
+
+      :unknown_runner ->
+        # Neither a live claim nor a session carries this runner_name.
+        # Expected for a runner minted by another provider, or a
+        # dropped/very-late webhook whose rows are long gone.
+        {:ignored, :unknown_runner}
+    end
+  end
+
+  # A real `:matched`/`:mismatch` from either store beats
+  # `:unknown_runner`; a `:mismatch` anywhere wins over `:matched`
+  # (the claim can be gone while the durable session still proves the
+  # divergence, or vice-versa).
+  defp combine_attribution(:mismatch, _), do: :mismatch
+  defp combine_attribution(_, :mismatch), do: :mismatch
+  defp combine_attribution(:matched, _), do: :matched
+  defp combine_attribution(_, :matched), do: :matched
+  defp combine_attribution(_, _), do: :unknown_runner
+
   defp handle_completed(payload, installation_id) do
     job = Map.get(payload, "workflow_job", %{})
     workflow_job_id = Map.get(job, "id")
     conclusion = Map.get(job, "conclusion", "") || ""
+    runner_name = Map.get(job, "runner_name", "") || ""
     repository = payload |> Map.get("repository", %{}) |> Map.get("full_name", "")
 
     if is_integer(workflow_job_id) do
+      # Backstop attribution before we free the claim: a dropped
+      # `in_progress` still gets the runner→job binding recorded on
+      # the durable session here. `runner_name` is null for a job
+      # cancelled while still queued (no runner ever ran it), so this
+      # is a no-op for that class.
+      if runner_name != "", do: RunnerSessions.record_execution(runner_name, workflow_job_id)
+
       mark_completed(workflow_job_id, conclusion, raw_steps(job), installation_id, repository)
     else
       :ignored

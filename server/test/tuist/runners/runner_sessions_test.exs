@@ -115,4 +115,52 @@ defmodule Tuist.Runners.RunnerSessionsTest do
       assert MapSet.equal?(RunnerSessions.live_pod_names(), MapSet.new())
     end
   end
+
+  describe "record_execution/2" do
+    test "binds the executed job on the open session and reports :matched" do
+      account = account_fixture()
+      session = session_fixture(account, runner_name: "runner-a", workflow_job_id: 8001)
+
+      assert :matched = RunnerSessions.record_execution("runner-a", 8001)
+
+      assert Repo.get!(RunnerSession, session.id).executed_workflow_job_id == 8001
+    end
+
+    test "reports :mismatch and binds the real job GitHub ran" do
+      account = account_fixture()
+      session = session_fixture(account, runner_name: "runner-b", workflow_job_id: 8002)
+
+      assert :mismatch = RunnerSessions.record_execution("runner-b", 8099)
+
+      assert Repo.get!(RunnerSession, session.id).executed_workflow_job_id == 8099
+    end
+
+    test "prefers the open session over a closed one for the same runner_name" do
+      account = account_fixture()
+      # A closed prior session and a fresh open one can share a runner_name
+      # in theory; the open row is the one currently executing.
+      session_fixture(account, runner_name: "runner-c", workflow_job_id: 8003, ended_at: DateTime.utc_now())
+      open = session_fixture(account, runner_name: "runner-c", workflow_job_id: 8004, ended_at: nil)
+
+      assert :matched = RunnerSessions.record_execution("runner-c", 8004)
+      assert Repo.get!(RunnerSession, open.id).executed_workflow_job_id == 8004
+    end
+
+    test "falls back to the durable closed session when the pod is already gone" do
+      account = account_fixture()
+      closed = session_fixture(account, runner_name: "runner-d", workflow_job_id: 8005, ended_at: DateTime.utc_now())
+
+      # `completed` backstop after a fast job's pod terminated.
+      assert :matched = RunnerSessions.record_execution("runner-d", 8005)
+      assert Repo.get!(RunnerSession, closed.id).executed_workflow_job_id == 8005
+    end
+
+    test "reports :unknown_runner when no session carries the runner_name" do
+      assert :unknown_runner = RunnerSessions.record_execution("ghost", 8100)
+    end
+
+    test "is a no-op for an empty runner_name" do
+      assert :unknown_runner = RunnerSessions.record_execution("", 8101)
+    end
+  end
 end

@@ -331,5 +331,50 @@ defmodule Tuist.Runners.ClaimsTest do
     test "returns :error when the pod holds no live claim" do
       assert Claims.by_pod_name("unknown-pod") == :error
     end
+
+    test "prefers the executed_workflow_job_id GitHub proved over the claimed guess" do
+      account = account_fixture()
+      {:ok, _} = Claims.attempt(6100, account.id, "fleet-a", "pod-1", @linux_resources)
+      :ok = Claims.mark_running(6100, "runner-x")
+
+      # GitHub placed a different job on this runner than the one
+      # the claim was minted for — metrics must follow execution.
+      assert :mismatch = Claims.record_execution("runner-x", 6199)
+
+      assert {:ok, %{workflow_job_id: 6199, account_id: account_id}} = Claims.by_pod_name("pod-1")
+      assert account_id == account.id
+    end
+  end
+
+  describe "record_execution/2" do
+    test "binds the executed job and reports :matched when it equals the claim" do
+      account = account_fixture()
+      {:ok, _} = Claims.attempt(7001, account.id, "fleet-a", "pod-1", @linux_resources)
+      :ok = Claims.mark_running(7001, "runner-a")
+
+      assert :matched = Claims.record_execution("runner-a", 7001)
+
+      row = Repo.one(from(c in Claim, where: c.workflow_job_id == ^7001))
+      assert row.executed_workflow_job_id == 7001
+    end
+
+    test "reports :mismatch and binds the real job when GitHub ran a different one" do
+      account = account_fixture()
+      {:ok, _} = Claims.attempt(7002, account.id, "fleet-a", "pod-1", @linux_resources)
+      :ok = Claims.mark_running(7002, "runner-b")
+
+      assert :mismatch = Claims.record_execution("runner-b", 7099)
+
+      row = Repo.one(from(c in Claim, where: c.workflow_job_id == ^7002))
+      assert row.executed_workflow_job_id == 7099
+    end
+
+    test "reports :unknown_runner when no live claim carries the runner_name" do
+      assert :unknown_runner = Claims.record_execution("ghost-runner", 7100)
+    end
+
+    test "is a no-op for an empty runner_name" do
+      assert :unknown_runner = Claims.record_execution("", 7101)
+    end
   end
 end

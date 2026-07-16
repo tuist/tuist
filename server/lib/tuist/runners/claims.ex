@@ -430,16 +430,25 @@ defmodule Tuist.Runners.Claims do
 
   @doc """
   Resolves the live claim (`claimed` or `running`) owning `pod_name`
-  to its `workflow_job_id` and `account_id`. The metrics ingest
-  endpoint uses this to map a sampled Pod back to the job it's running,
-  so the runners-controller can POST samples keyed by Pod name without
-  knowing job ids. Returns `:error` when the Pod holds no live claim
-  (an idle/warm Pod, or one whose job already released its claim).
+  to the job it is actually running and its `account_id`. The metrics
+  ingest endpoint uses this to map a sampled Pod back to the job it's
+  running, so the runners-controller can POST samples keyed by Pod
+  name without knowing job ids. Returns `:error` when the Pod holds
+  no live claim (an idle/warm Pod, or one whose job already released
+  its claim).
+
+  Attribution: prefers `executed_workflow_job_id` (the job GitHub
+  proved this runner ran, via `record_execution/2`) over the
+  claim-time `workflow_job_id` guess, so samples land on the job that
+  actually ran on the Pod rather than the one it was minted for.
   """
   def by_pod_name(pod_name) when is_binary(pod_name) do
     Claim
     |> where([c], c.pod_name == ^pod_name)
-    |> select([c], %{workflow_job_id: c.workflow_job_id, account_id: c.account_id})
+    |> select([c], %{
+      workflow_job_id: coalesce(c.executed_workflow_job_id, c.workflow_job_id),
+      account_id: c.account_id
+    })
     |> limit(1)
     |> Repo.one()
     |> case do
@@ -447,4 +456,46 @@ defmodule Tuist.Runners.Claims do
       claim -> {:ok, claim}
     end
   end
+
+  @doc """
+  Records the workflow_job GitHub actually placed on the runner named
+  `runner_name`, learned from the `workflow_job.in_progress` /
+  `completed` webhook. The mint-chosen `runner_name` is unique per
+  runner and stored on the claim at `mark_running/2`, so it resolves
+  the live claim regardless of which job the claim was minted for.
+
+  Idempotent: repeated deliveries set the same value. Returns which
+  of the three attribution outcomes occurred so the webhook path can
+  emit it as telemetry:
+
+    * `:matched` — GitHub ran the job the claim was minted for.
+    * `:mismatch` — GitHub ran a *different* job on this runner than
+      the one claimed (the claim↔execution mismatch we're measuring).
+    * `:unknown_runner` — no live claim carries this `runner_name`
+      (a dropped/late webhook, or the claim already completed). The
+      durable session binding is the backstop for this case.
+  """
+  def record_execution(runner_name, executed_workflow_job_id)
+      when is_binary(runner_name) and runner_name != "" and is_integer(executed_workflow_job_id) do
+    claim =
+      Claim
+      |> where([c], c.runner_name == ^runner_name)
+      |> limit(1)
+      |> Repo.one()
+
+    case claim do
+      nil ->
+        :unknown_runner
+
+      %Claim{workflow_job_id: claimed_job_id} ->
+        Repo.update_all(
+          from(c in Claim, where: c.runner_name == ^runner_name),
+          set: [executed_workflow_job_id: executed_workflow_job_id]
+        )
+
+        if claimed_job_id == executed_workflow_job_id, do: :matched, else: :mismatch
+    end
+  end
+
+  def record_execution(_runner_name, _executed_workflow_job_id), do: :unknown_runner
 end
