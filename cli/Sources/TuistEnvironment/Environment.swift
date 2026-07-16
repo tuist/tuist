@@ -415,8 +415,15 @@ public struct Environment: Environmenting {
         "tuist.cache.\(fullHandle.replacingOccurrences(of: "/", with: "_"))"
     }
 
+    /// Anchored to `HOME` rather than `stateDirectory` on purpose, even though the
+    /// two agree by default. `stateDirectory` honors `XDG_STATE_HOME`, and the
+    /// plugin resolves this same path from `HOME` alone inside compiler frontends,
+    /// which carry no CLI environment (`default_proxy_socket` in cas-plugin says so
+    /// on its side). Honoring XDG here would point Xcode at a socket the proxy is
+    /// not listening on, and Xcode answers an unreachable service by retrying every
+    /// cache request rather than failing fast.
     public func casProxySocketPath() -> AbsolutePath {
-        stateDirectory.appending(component: "cas-proxy.sock")
+        homeDirectory.appending(components: [".local", "state", "tuist", "cas-proxy.sock"])
     }
 
     public func casProxySocketPathString() -> String {

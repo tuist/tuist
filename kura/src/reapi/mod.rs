@@ -668,7 +668,16 @@ impl ReapiService {
         // starves them of a real index that finished building moments later —
         // the client fetches once per session, so an empty answer sticks for
         // its whole build.
+        //
+        // Dropping any view already cached under this key is part of that:
+        // leaving it would serve an obsolete non-empty view to a request landing
+        // during a later reconcile, long after the namespace emptied.
         if entries == 0 {
+            self.snapshot_cache
+                .served_full
+                .lock()
+                .expect("snapshot served_full lock poisoned")
+                .remove(cache_key);
             return;
         }
         self.snapshot_cache

@@ -156,12 +156,18 @@ struct SetupCacheCommandService {
         // they rely on today, until they are migrated to kura.
         let kuraEnabled = ClientFeatureFlags.contains("kura")
         if kuraEnabled {
-            try await installProxy(fullHandle: fullHandle, serverURL: serverURL)
+            // Register the source root BEFORE starting the proxy. The proxy
+            // prefetches a snapshot for every instance it already knows as soon as
+            // it boots, and it keys that snapshot by instance alone: if it starts
+            // first, an upgraded machine prefetches an unscoped view and keeps
+            // serving it until the next full refresh, however promptly the mapping
+            // lands afterwards.
             try await registerSourceRoot(
                 fullHandle: fullHandle,
                 sourceRoot: path,
                 trunk: await trunkBranch(fullHandle: fullHandle, serverURL: serverURL)
             )
+            try await installProxy(fullHandle: fullHandle, serverURL: serverURL)
         } else {
             try await installLegacyDaemon(
                 fullHandle: fullHandle,

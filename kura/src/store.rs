@@ -33,7 +33,8 @@ use crate::{
     constants::{
         CAS_CAPACITY_DEFAULT_DISK_PERCENT, CAS_CAPACITY_MAX_DISK_PERCENT, DESIRED_CURRENT_SEGMENTS,
         DESIRED_NEW_SEGMENTS, DESIRED_OLD_SEGMENTS, MAX_DESIRED_SEGMENTS, MAX_MODULE_TOTAL_BYTES,
-        MAX_SEGMENT_BYTES, REAPI_ACTION_CACHE_REFRESH_DAMPING_MS, ROCKSDB_BYTES_PER_SYNC,
+        ACTION_CACHE_TRUNK_SCAN_FACTOR, MAX_SEGMENT_BYTES, REAPI_ACTION_CACHE_REFRESH_DAMPING_MS,
+        ROCKSDB_BYTES_PER_SYNC,
         ROCKSDB_CF_ACTION_CACHE_INDEX, ROCKSDB_CF_KEY_VALUE, ROCKSDB_CF_MANIFESTS,
         ROCKSDB_CF_MULTIPART_UPLOADS, ROCKSDB_CF_NAMESPACE_ARTIFACTS,
         ROCKSDB_CF_NAMESPACE_TOMBSTONES, ROCKSDB_CF_OUTBOX, ROCKSDB_CF_SEGMENT_ARTIFACTS,
@@ -1976,15 +1977,22 @@ impl Store {
     ) -> Result<(ArtifactManifest, bool), String> {
         let artifact_id = artifact_storage_id(producer, &self.tenant_id, namespace_id, key);
         let existing = self.manifest_from_db(&artifact_id)?;
+        let branch = sticky_branch(existing.as_ref(), branch, trunk);
+        // Damp only when the write would change nothing, INCLUDING the tag. An
+        // entry a feature branch published first is tagged `feature`, so trunk
+        // republishing the identical bytes must still write: damping it would
+        // leave the key tagged `feature` and therefore outside the trunk
+        // snapshot, for the whole damping window, for a key trunk demonstrably
+        // builds. That is the pollution this scoping exists to remove.
         if let Some(existing) = &existing
             && existing.inline
+            && existing.branch.as_deref() == branch
             && manifest_version_ms(existing).saturating_add(REAPI_ACTION_CACHE_REFRESH_DAMPING_MS)
                 > now_ms()
             && self.inline_bytes(&artifact_id)?.as_deref() == Some(bytes)
         {
             return Ok((existing.clone(), false));
         }
-        let branch = sticky_branch(existing.as_ref(), branch, trunk);
         self.persist_inline_artifact_from_bytes_and_enqueue(
             producer,
             namespace_id,
@@ -2759,6 +2767,17 @@ impl Store {
         // a crashed batch or a pre-fix overwrite can linger — drop it here so
         // the index converges instead of paying the dead point-read forever.
         let mut stale_rows: Vec<Vec<u8>> = Vec::new();
+        // Bound the WORK, not only the output. Untrunked, the two were the same:
+        // every live row counted toward `max_entries`, so the walk stopped after
+        // `max_entries` point-reads. Filtering by trunk breaks that, because a
+        // skipped feature row still costs its point-read and never advances the
+        // cap — so a namespace whose newest entries are feature churn would be
+        // read end to end on every view rebuild, and the rebuild is periodic.
+        // Newest-first ordering means the rows examined first are the ones worth
+        // keeping, so stopping early yields a smaller but still current trunk
+        // view rather than a wrong one.
+        let scan_budget = max_entries.saturating_mul(ACTION_CACHE_TRUNK_SCAN_FACTOR);
+        let mut scanned = 0usize;
         for item in iter {
             let (index_key, artifact_id) =
                 item.map_err(|error| format!("failed to iterate action-cache index: {error}"))?;
@@ -2766,6 +2785,20 @@ impl Store {
                 break;
             }
             if manifests.len() >= max_entries {
+                break;
+            }
+            scanned += 1;
+            if trunk.is_some() && scanned > scan_budget {
+                // Say so rather than quietly return a short view: a namespace
+                // that trips this is telling us its trunk entries are buried
+                // under feature churn, which is what a branch-keyed index would
+                // fix at the source.
+                tracing::warn!(
+                    namespace_id,
+                    scanned,
+                    kept = manifests.len(),
+                    "action-cache trunk scan hit its budget; view truncated"
+                );
                 break;
             }
             let row_version = index_key
@@ -4504,6 +4537,101 @@ mod tests {
             vec!["action_cache/bb/10", "action_cache/cc/10"],
             "a replicated feature entry stays out of the trunk view; an untagged one stays in"
         );
+    }
+
+    // Damping must not outrank the tag. A feature build publishes a key first, so
+    // it is tagged `feature`; trunk then builds the same action and republishes
+    // the IDENTICAL bytes well inside the damping window. Damping the write would
+    // leave the key `feature`-tagged and therefore missing from the trunk view for
+    // up to a day, for a key trunk provably builds — the exact pollution this
+    // scoping removes.
+    #[tokio::test]
+    async fn trunk_reclaims_an_identical_entry_a_feature_branch_published_first() {
+        let (_temp_dir, _config, store) = temp_store();
+        store
+            .persist_inline_artifact_from_bytes_damped_and_enqueue(
+                ArtifactProducer::Reapi,
+                "ios",
+                "action_cache/aa/10",
+                "application/x-protobuf",
+                b"graph",
+                &[],
+                Some("feature"),
+                Some("main"),
+            )
+            .await
+            .expect("feature entry should persist");
+        assert!(
+            store
+                .action_cache_manifests("ios", 10, Some("main"))
+                .expect("trunk scan should succeed")
+                .is_empty(),
+            "the feature build's key starts outside the trunk view"
+        );
+
+        let (_manifest, applied) = store
+            .persist_inline_artifact_from_bytes_damped_and_enqueue(
+                ArtifactProducer::Reapi,
+                "ios",
+                "action_cache/aa/10",
+                "application/x-protobuf",
+                b"graph", // byte-identical, and inside the damping window
+                &[],
+                Some("main"),
+                Some("main"),
+            )
+            .await
+            .expect("trunk republish should persist");
+
+        assert!(applied, "the tag changes, so the write must not be damped");
+        let keys: Vec<String> = store
+            .action_cache_manifests("ios", 10, Some("main"))
+            .expect("trunk scan should succeed")
+            .into_iter()
+            .map(|manifest| manifest.key)
+            .collect();
+        assert_eq!(
+            keys,
+            vec!["action_cache/aa/10"],
+            "trunk reclaims the key it demonstrably builds"
+        );
+    }
+
+    // The mirror of the above: once the tag already matches, an identical
+    // re-publish inside the window is still damped, which is what keeps a fleet
+    // of cold machines from stampeding version bumps for the same entry.
+    #[tokio::test]
+    async fn identical_trunk_republish_stays_damped_when_the_tag_already_matches() {
+        let (_temp_dir, _config, store) = temp_store();
+        for _ in 0..1 {
+            store
+                .persist_inline_artifact_from_bytes_damped_and_enqueue(
+                    ArtifactProducer::Reapi,
+                    "ios",
+                    "action_cache/aa/10",
+                    "application/x-protobuf",
+                    b"graph",
+                    &[],
+                    Some("main"),
+                    Some("main"),
+                )
+                .await
+                .expect("trunk entry should persist");
+        }
+        let (_manifest, applied) = store
+            .persist_inline_artifact_from_bytes_damped_and_enqueue(
+                ArtifactProducer::Reapi,
+                "ios",
+                "action_cache/aa/10",
+                "application/x-protobuf",
+                b"graph",
+                &[],
+                Some("main"),
+                Some("main"),
+            )
+            .await
+            .expect("identical republish should succeed");
+        assert!(!applied, "nothing changes, so the write is damped");
     }
 
     #[tokio::test]

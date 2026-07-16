@@ -52,6 +52,13 @@ pub const REAPI_ACTION_CACHE_EXPIRY_MAX_DELETES: usize = 100_000;
 // an identical re-publish only applies when the stored version has aged past
 // it — one refresh per entry per window fleet-wide.
 pub const REAPI_ACTION_CACHE_REFRESH_DAMPING_MS: u64 = 24 * 60 * 60 * 1000;
+// How many index rows a trunk-scoped snapshot build may examine per entry it is
+// allowed to keep. A trunk filter skips feature rows after paying their
+// point-read, so without a ceiling the walk is bounded by the namespace's size
+// rather than by the view's, on every periodic rebuild. Generous on purpose: it
+// is a backstop against a pathologically feature-heavy namespace, not a tuning
+// knob, and a namespace that trips it logs and wants a branch-keyed index.
+pub const ACTION_CACHE_TRUNK_SCAN_FACTOR: usize = 8;
 // Not a cap on total bootstrap runtime — it is the maximum time a bootstrap may
 // go *without forward progress* (a fetched page or applied artifact) before it
 // is abandoned and retried. A large cold pull that keeps making progress runs to
