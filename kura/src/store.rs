@@ -219,6 +219,10 @@ struct PersistArtifactSpec<'a> {
     version_ms: u64,
     replication_targets: &'a [String],
     branch: Option<&'a str>,
+    /// Rides the replication messages this persist enqueues so a peer can
+    /// re-run the trunk-sticky rule against its own view. Not stored: the
+    /// trunk is a property of the publishing build, not of the artifact.
+    trunk: Option<&'a str>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -642,6 +646,7 @@ impl Store {
             version_ms: now_ms(),
             replication_targets,
             branch: None,
+            trunk: None,
         };
         let (outcome, already_present) = self
             .persist_artifact_from_path_with_version(spec, source_path)
@@ -666,6 +671,7 @@ impl Store {
             version_ms,
             replication_targets: &[],
             branch: None,
+            trunk: None,
         };
         Ok(self
             .persist_artifact_from_path_with_version(spec, source_path)
@@ -787,7 +793,12 @@ impl Store {
                 [],
             );
         }
-        self.append_artifact_replication_messages(&mut batch, &manifest, spec.replication_targets)?;
+        self.append_artifact_replication_messages(
+            &mut batch,
+            &manifest,
+            spec.replication_targets,
+            spec.trunk,
+        )?;
 
         self.write_batch_sync(batch, "manifest batch")?;
         self.hit_failpoint(FailpointName::AfterMetadataCommitBeforeReturn)
@@ -1346,7 +1357,12 @@ impl Store {
                 artifact_id.as_bytes(),
             );
         }
-        self.append_artifact_replication_messages(&mut batch, &manifest, spec.replication_targets)?;
+        self.append_artifact_replication_messages(
+            &mut batch,
+            &manifest,
+            spec.replication_targets,
+            spec.trunk,
+        )?;
 
         self.write_batch_sync(batch, "keyvalue batch")?;
         self.maybe_cache_manifest(manifest.clone());
@@ -1872,6 +1888,7 @@ impl Store {
             version_ms: now_ms(),
             replication_targets: &[],
             branch: None,
+            trunk: None,
         };
         let (outcome, already_present) = self
             .persist_artifact_from_bytes_with_version(spec, bytes)
@@ -1898,6 +1915,7 @@ impl Store {
             version_ms: now_ms(),
             replication_targets,
             branch: None,
+            trunk: None,
         };
         let (outcome, already_present) = self
             .persist_artifact_from_bytes_with_version(spec, bytes)
@@ -1922,6 +1940,7 @@ impl Store {
             version_ms: now_ms(),
             replication_targets: &[],
             branch: None,
+            trunk: None,
         };
         match self
             .persist_inline_artifact_with_version(spec, bytes)
@@ -1965,20 +1984,7 @@ impl Store {
         {
             return Ok((existing.clone(), false));
         }
-        // Trunk-sticky tagging: a key already in the trunk baseline (tagged
-        // with the trunk branch, or untagged/legacy) stays there. A feature
-        // build recomputing the same action republishes it — often with byte
-        // wobble that defeats the damping above — and must not steal the key
-        // from the trunk view. A publish FROM the trunk always (re)claims it.
-        let branch = match (&existing, trunk) {
-            (Some(existing), Some(trunk))
-                if branch != Some(trunk)
-                    && existing.branch.as_deref().is_none_or(|tag| tag == trunk) =>
-            {
-                existing.branch.as_deref()
-            }
-            _ => branch,
-        };
+        let branch = sticky_branch(existing.as_ref(), branch, trunk);
         self.persist_inline_artifact_from_bytes_and_enqueue(
             producer,
             namespace_id,
@@ -1987,6 +1993,7 @@ impl Store {
             bytes,
             replication_targets,
             branch,
+            trunk,
         )
         .await
         .map(|manifest| (manifest, true))
@@ -2002,6 +2009,7 @@ impl Store {
         bytes: &[u8],
         replication_targets: &[String],
         branch: Option<&str>,
+        trunk: Option<&str>,
     ) -> Result<ArtifactManifest, String> {
         let spec = PersistArtifactSpec {
             producer,
@@ -2011,6 +2019,7 @@ impl Store {
             version_ms: now_ms(),
             replication_targets,
             branch,
+            trunk,
         };
         match self
             .persist_inline_artifact_with_version(spec, bytes)
@@ -2042,6 +2051,7 @@ impl Store {
             version_ms,
             replication_targets: &[],
             branch: None,
+            trunk: None,
         };
         Ok(self
             .persist_artifact_from_bytes_with_version(spec, bytes)
@@ -2050,6 +2060,11 @@ impl Store {
             .apply_outcome())
     }
 
+    /// Apply an inline artifact replicated from a peer. `branch` is the tag the
+    /// origin resolved and `trunk` the publishing build's trunk; a peer that
+    /// sends neither (an older node, or any non-REAPI write) applies untagged,
+    /// exactly as before.
+    #[allow(clippy::too_many_arguments)]
     pub async fn apply_replicated_inline_artifact_from_bytes(
         &self,
         producer: ArtifactProducer,
@@ -2058,7 +2073,25 @@ impl Store {
         content_type: &str,
         bytes: &[u8],
         version_ms: u64,
+        branch: Option<&str>,
+        trunk: Option<&str>,
     ) -> Result<ArtifactApplyOutcome, String> {
+        // Re-run the trunk-sticky rule against THIS node's view. The origin
+        // could only apply it against its own: a feature build publishing a
+        // trunk key to a peer that does not hold it yet resolves the tag to
+        // `feature`, and applying that verbatim would steal the key out of the
+        // trunk baseline here — the same theft the rule prevents locally, just
+        // arriving over replication. Only a trunk-carrying publish reaches the
+        // lookup, so a peer that sends none costs no read.
+        let existing = match trunk {
+            Some(_) => self.manifest_from_db(&artifact_storage_id(
+                producer,
+                &self.tenant_id,
+                namespace_id,
+                key,
+            ))?,
+            None => None,
+        };
         let spec = PersistArtifactSpec {
             producer,
             namespace_id,
@@ -2066,7 +2099,8 @@ impl Store {
             content_type,
             version_ms,
             replication_targets: &[],
-            branch: None,
+            branch: sticky_branch(existing.as_ref(), branch, trunk),
+            trunk: None,
         };
         Ok(self
             .persist_inline_artifact_with_version(spec, bytes)
@@ -3072,6 +3106,7 @@ impl Store {
         batch: &mut WriteBatch,
         manifest: &ArtifactManifest,
         replication_targets: &[String],
+        trunk: Option<&str>,
     ) -> Result<(), String> {
         for target in replication_targets {
             self.append_outbox_message(
@@ -3086,6 +3121,10 @@ impl Store {
                         artifact_id: manifest.artifact_id.clone(),
                         inline: manifest.inline,
                         version_ms: manifest.version_ms,
+                        // The tag as resolved here, so the peer does not have to
+                        // infer it from a request header it never saw.
+                        branch: manifest.branch.clone(),
+                        trunk: trunk.map(str::to_owned),
                     },
                 },
             )?;
@@ -3964,6 +4003,29 @@ fn outbox_message_key(message: &OutboxMessage) -> String {
     format!("{lane}-{:020}-{}", now_ms(), Uuid::now_v7())
 }
 
+/// The branch tag a publish should land with, honoring trunk-stickiness: a key
+/// already in the trunk baseline (tagged with the trunk branch, or
+/// untagged/legacy) keeps its tag. A feature build recomputing the same action
+/// republishes it — often with byte wobble that defeats the refresh damping —
+/// and must not steal the key from the trunk view. A publish FROM the trunk
+/// always (re)claims it, and with no trunk to compare against the publish's own
+/// tag stands.
+fn sticky_branch<'a>(
+    existing: Option<&'a ArtifactManifest>,
+    branch: Option<&'a str>,
+    trunk: Option<&str>,
+) -> Option<&'a str> {
+    match (existing, trunk) {
+        (Some(existing), Some(trunk))
+            if branch != Some(trunk)
+                && existing.branch.as_deref().is_none_or(|tag| tag == trunk) =>
+        {
+            existing.branch.as_deref()
+        }
+        _ => branch,
+    }
+}
+
 /// Whether a manifest belongs in a trunk-scoped snapshot: entries tagged with
 /// the trunk branch and untagged/legacy entries (no branch) form the trunk
 /// baseline; entries tagged with a different branch are excluded. `None` keeps
@@ -4241,6 +4303,8 @@ mod tests {
                 "application/x-protobuf",
                 b"graph",
                 now_ms() - 2 * day,
+                None,
+                None,
             )
             .await
             .expect("seed should persist");
@@ -4401,6 +4465,133 @@ mod tests {
             ],
             "trunk keys stay in (or return to) the trunk baseline"
         );
+    }
+
+    #[tokio::test]
+    async fn replicated_entries_carry_their_branch_across_the_mesh() {
+        let (_temp_dir, _config, store) = temp_store();
+        async fn apply(store: &Store, key: &str, version_ms: u64, branch: Option<&str>) {
+            store
+                .apply_replicated_inline_artifact_from_bytes(
+                    ArtifactProducer::Reapi,
+                    "ios",
+                    key,
+                    "application/x-protobuf",
+                    b"graph",
+                    version_ms,
+                    branch,
+                    None,
+                )
+                .await
+                .expect("replicated entry should apply");
+        }
+        // A peer's feature entry keeps its tag instead of landing untagged in
+        // this node's trunk baseline — the pollution the branch tag exists to
+        // prevent, arriving over replication rather than from a client.
+        apply(&store, "action_cache/aa/10", 1_000, Some("feature")).await;
+        // A message from a node that predates the field carries no branch; it
+        // applies untagged, which is what every replicated entry did before.
+        apply(&store, "action_cache/bb/10", 1_000, None).await;
+        apply(&store, "action_cache/cc/10", 1_000, Some("main")).await;
+
+        let trunk = store
+            .action_cache_manifests("ios", 10, Some("main"))
+            .expect("trunk scan should succeed");
+        let mut keys: Vec<&str> = trunk.iter().map(|manifest| manifest.key.as_str()).collect();
+        keys.sort_unstable();
+        assert_eq!(
+            keys,
+            vec!["action_cache/bb/10", "action_cache/cc/10"],
+            "a replicated feature entry stays out of the trunk view; an untagged one stays in"
+        );
+    }
+
+    #[tokio::test]
+    async fn replicated_feature_entries_cannot_steal_a_trunk_baseline_key() {
+        let (_temp_dir, _config, store) = temp_store();
+        // The origin resolves the tag against ITS OWN view, so a feature build
+        // publishing a trunk key to a peer that does not hold it yet resolves
+        // `feature` and replicates that. This node holds the key in its trunk
+        // baseline and must not hand it over.
+        store
+            .persist_inline_artifact_from_bytes_damped_and_enqueue(
+                ArtifactProducer::Reapi,
+                "ios",
+                "action_cache/aa/10",
+                "application/x-protobuf",
+                b"graph",
+                &[],
+                Some("main"),
+                Some("main"),
+            )
+            .await
+            .expect("trunk entry should persist");
+        let seeded = store
+            .action_cache_manifests("ios", 10, Some("main"))
+            .expect("trunk scan should succeed");
+        assert_eq!(seeded.len(), 1, "the key starts in the trunk baseline");
+
+        store
+            .apply_replicated_inline_artifact_from_bytes(
+                ArtifactProducer::Reapi,
+                "ios",
+                "action_cache/aa/10",
+                "application/x-protobuf",
+                b"graph-wobble",
+                seeded[0].version_ms + 1_000,
+                Some("feature"),
+                Some("main"),
+            )
+            .await
+            .expect("replicated republish should apply");
+
+        let trunk = store
+            .action_cache_manifests("ios", 10, Some("main"))
+            .expect("trunk scan should succeed");
+        assert_eq!(
+            trunk.len(),
+            1,
+            "the key stays in the trunk view against a replicated feature republish"
+        );
+        assert_eq!(trunk[0].branch.as_deref(), Some("main"));
+
+        // A replicated publish FROM the trunk still reclaims the key.
+        store
+            .apply_replicated_inline_artifact_from_bytes(
+                ArtifactProducer::Reapi,
+                "ios",
+                "action_cache/bb/10",
+                "application/x-protobuf",
+                b"graph",
+                1_000,
+                Some("feature"),
+                Some("main"),
+            )
+            .await
+            .expect("replicated feature entry should apply");
+        store
+            .apply_replicated_inline_artifact_from_bytes(
+                ArtifactProducer::Reapi,
+                "ios",
+                "action_cache/bb/10",
+                "application/x-protobuf",
+                b"graph-wobble",
+                2_000,
+                Some("main"),
+                Some("main"),
+            )
+            .await
+            .expect("replicated trunk entry should apply");
+        let reclaimed = store
+            .manifest_from_db(&artifact_storage_id(
+                ArtifactProducer::Reapi,
+                &store.tenant_id,
+                "ios",
+                "action_cache/bb/10",
+            ))
+            .expect("manifest read should succeed")
+            .expect("entry should exist");
+        assert_eq!(reclaimed.branch.as_deref(), Some("main"));
     }
 
     #[tokio::test]
@@ -5170,6 +5361,8 @@ mod tests {
                 "application/octet-stream",
                 bytes,
                 version_ms,
+                None,
+                None,
             )
             .await
             .expect("failed to apply replicated inline artifact");
@@ -6277,6 +6470,8 @@ mod tests {
                     artifact_id: "blob-artifact".into(),
                     inline: false,
                     version_ms: 1,
+                    branch: None,
+                    trunk: None,
                 },
             })
             .expect("failed to enqueue bulk message");
@@ -6291,6 +6486,8 @@ mod tests {
                     artifact_id: "entry-artifact".into(),
                     inline: true,
                     version_ms: 2,
+                    branch: None,
+                    trunk: None,
                 },
             })
             .expect("failed to enqueue metadata message");
@@ -6370,6 +6567,7 @@ mod tests {
                 br#"{"ok":true}"#,
                 &targets,
                 None,
+                None,
             )
             .await
             .expect("artifact should persist");
@@ -6395,6 +6593,8 @@ mod tests {
                     artifact_id: manifest.artifact_id.clone(),
                     version_ms: manifest.version_ms,
                     inline: true,
+                    branch: None,
+                    trunk: None,
                 }
             );
         }
@@ -6610,6 +6810,7 @@ mod tests {
                 "application/json",
                 br#"{"value":"ok"}"#,
                 &["http://peer-a".to_string()],
+                None,
                 None,
             )
             .await
