@@ -1671,6 +1671,16 @@ impl Proxy {
         declared_instance: &str,
         digest: &[u8],
     ) -> Result<bool, String> {
+        // Restat before answering. A demand fetch can be the FIRST thing to
+        // arrive after a wipe: the compiler asks for an object it could not
+        // load, and nothing makes a resolve come first. Every answer below is
+        // about whatever store this handle is bound to, so bound to a deleted
+        // one, `load_present` reports an object the compiler cannot see and a
+        // fetch stores into a directory nothing reads. Both end as the
+        // `missing object` the rebind exists to prevent, and clang does not
+        // survive that one. The resolve path restats for the same reason; this
+        // is the door it does not cover.
+        self.check_generation(state);
         if state.load_present(digest) {
             return Ok(true);
         }
@@ -4017,6 +4027,36 @@ mod tests {
         assert!(
             compiler_view.load_present(&digest),
             "an object stored after the wipe must be visible to a handle opened              independently: otherwise the proxy is writing into a deleted store"
+        );
+    }
+
+    // A demand fetch is a door into the same store, and it does not have to come
+    // after a resolve: the compiler asks for an object the moment it fails to
+    // load one. If a wipe lands in between, this is the first thing to touch the
+    // dead handle, and answering "present" from it tells the compiler an object
+    // is there that its own live CAS has never seen.
+    #[test]
+    fn a_demand_fetch_arriving_first_after_a_wipe_does_not_answer_from_the_dead_store() {
+        let dir = TempCasDir::new("wipe-fetch");
+        let state = path_state_for(&dir.path());
+        let digest = store_probe_object(state, b"present-before-the-wipe");
+        let proxy = test_proxy();
+        assert!(
+            proxy
+                .fetch_object(state, &dir.path(), "", &digest)
+                .expect("fetch should not error"),
+            "sanity: served from the live store before the wipe"
+        );
+
+        // No resolve in between: the wipe, then the fetch.
+        dir.wipe();
+
+        assert!(
+            !proxy
+                .fetch_object(state, &dir.path(), "", &digest)
+                .expect("fetch should not error"),
+            "a fetch after a wipe must not report an object the compiler's own CAS \
+             cannot see: that is the `missing object` this rebind exists to prevent"
         );
     }
 
