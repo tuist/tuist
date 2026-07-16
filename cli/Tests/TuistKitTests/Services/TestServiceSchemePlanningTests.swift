@@ -159,20 +159,42 @@ struct TestServiceSchemePlanningTests {
     }
 
     @Test(.inTemporaryDirectory, .withMockedDependencies())
-    func run_fails_planning_when_a_hostless_target_has_no_compatible_scheme() async throws {
+    func run_keeps_a_hostless_target_without_a_compatible_scheme_in_the_workspace_invocation() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let scenario = SchemePlanningScenario(
             rootDirectory: temporaryDirectory,
             includeHostlessTargetWithoutScheme: true
         )
         let fixture = TestServiceSchemePlanningFixture(scenario: scenario)
+        let derivedDataPath = temporaryDirectory.appending(component: "DerivedData")
 
-        await #expect(
-            throws: TestServiceError.hostlessTestTargetWithoutCompatibleScheme(target: "OrphanTests")
-        ) {
-            try await fixture.run(path: temporaryDirectory)
-        }
-        #expect(fixture.testRuns.isEmpty)
+        try await fixture.run(
+            path: temporaryDirectory,
+            derivedDataPath: derivedDataPath
+        )
+
+        #expect(fixture.testRuns == [
+            CapturedTestRun(
+                scheme: "Sample-Workspace",
+                action: .test,
+                testTargets: [
+                    try TestIdentifier(target: "AppSnapshotTests"),
+                    try TestIdentifier(target: "AppTests"),
+                    try TestIdentifier(target: "OrphanTests"),
+                ],
+                resultBundlePath: nil,
+                derivedDataPath: derivedDataPath
+            ),
+            CapturedTestRun(
+                scheme: "FeatureTests",
+                action: .test,
+                testTargets: [try TestIdentifier(target: "FeatureTests")],
+                resultBundlePath: nil,
+                derivedDataPath: derivedDataPath.appending(
+                    components: "HostlessTests", "FeatureTests"
+                )
+            ),
+        ])
     }
 }
 
