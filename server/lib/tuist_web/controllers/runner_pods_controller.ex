@@ -94,12 +94,12 @@ defmodule TuistWeb.RunnerPodsController do
   end
 
   # Free the account's concurrency budget the instant a Pod stops. In
-  # the common path the job's `completed` webhook already released the
-  # claim before the Pod halted, so this frees nothing. A non-zero
-  # release means the Pod stopped while still holding a claim — a
-  # stranded Pod (GitHub ran its claimed job on a different runner) or
-  # a crash mid-job — which is exactly the over-charge #11862 tracks,
-  # so we surface it as recovery telemetry.
+  # the common path the executing runner's `completed` webhook already
+  # released the claim before the Pod halted, so this frees nothing. A
+  # non-zero release means the Pod stopped while still holding one — a
+  # Pod stranded because GitHub ran its claimed job on a different
+  # runner, or a crash mid-job — so it is surfaced as recovery
+  # telemetry rather than freed silently.
   defp release_stranded_claim(pod_name) do
     case Claims.release_by_pod_name(pod_name) do
       0 ->

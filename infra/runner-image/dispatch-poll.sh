@@ -371,16 +371,15 @@ while true; do
         /opt/tuist/metrics-poll.sh &
       fi
       cd /Users/runner/actions-runner
-      # Idle-runner reaping (issue #11862). GitHub assigns a queued job
-      # to any label-eligible runner, not necessarily the one the
-      # server minted it for, so this runner may register and then wait
-      # forever for a job GitHub ran on a sibling — holding the VM (and
-      # its warm-pool slot) idle for hours. The watchdog terminates
-      # such a stranded runner after TUIST_RUNNER_IDLE_TIMEOUT_SECONDS;
-      # the EXIT trap then halts the VM and the reconciler recycles it.
-      # A runner that DID get a job writes the JOB_STARTED marker (via
-      # the runner's own hook) and is never touched. 0 / unset disables
-      # the watchdog (unchanged behaviour).
+      # Idle watchdog. GitHub assigns a queued job to any label-eligible
+      # runner, not necessarily the one the server minted it for, so
+      # this runner can register and then wait indefinitely for a job
+      # GitHub ran on a sibling, holding the VM and its warm-pool slot
+      # idle. The watchdog terminates it after
+      # TUIST_RUNNER_IDLE_TIMEOUT_SECONDS; the EXIT trap then halts the
+      # VM and the reconciler recycles it. A runner holding a job has
+      # written the JOB_STARTED marker (via the runner's own hook) and
+      # is never touched. 0 / unset disables the watchdog.
       JOB_STARTED_MARKER=/tmp/tuist-runner-job-started
       JOB_STARTED_HOOK=/tmp/tuist-runner-job-started-hook.sh
       rm -f "${JOB_STARTED_MARKER}"

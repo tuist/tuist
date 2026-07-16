@@ -271,8 +271,8 @@ func TestBuild_IdleTimeoutEnvInjectedWhenSet(t *testing.T) {
 }
 
 func TestBuild_IdleTimeoutEnvAbsentWhenZero(t *testing.T) {
-	// 0 (the default) means the watchdog is disabled — no env at all,
-	// so the image keeps its unchanged behaviour.
+	// 0 means the watchdog is disabled: the env is omitted entirely
+	// rather than passed as "0", so the image never arms it.
 	runner := build(t, basePool("linux")).Spec.Containers[0]
 	if got := envValue(runner.Env, "TUIST_RUNNER_IDLE_TIMEOUT_SECONDS"); got != "" {
 		t.Errorf("TUIST_RUNNER_IDLE_TIMEOUT_SECONDS = %q, want it absent when IdleTimeoutSeconds is 0", got)

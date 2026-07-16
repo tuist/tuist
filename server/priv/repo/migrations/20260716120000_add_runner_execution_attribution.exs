@@ -1,8 +1,8 @@
 defmodule Tuist.Repo.Migrations.AddRunnerExecutionAttribution do
   use Ecto.Migration
 
-  # Attribution: learn which workflow_job a runner ACTUALLY ran from
-  # GitHub, rather than trusting the claim-time guess.
+  # `executed_workflow_job_id` records which workflow_job a runner
+  # actually ran, as reported by GitHub.
   #
   # A runner is minted with a name we choose and registered with the
   # pool's shared labels. GitHub assigns queued jobs to any

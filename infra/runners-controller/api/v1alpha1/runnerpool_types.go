@@ -98,21 +98,25 @@ type RunnerPoolSpec struct {
 	RuntimeClass string `json:"runtimeClass,omitempty"`
 
 	// IdleTimeoutSeconds bounds how long a runner that has registered
-	// with GitHub but never had a job assigned to it stays alive. The
-	// runner image exports it to `run.sh`'s idle watchdog: once the
-	// runner registers, if no `ACTIONS_RUNNER_HOOK_JOB_STARTED` marker
-	// appears within this window, the watchdog terminates the runner so
-	// the Pod completes and the reconciler recycles it.
+	// with GitHub but has not been handed a job stays alive. The runner
+	// image's watchdog reads it as `TUIST_RUNNER_IDLE_TIMEOUT_SECONDS`:
+	// if no `ACTIONS_RUNNER_HOOK_JOB_STARTED` marker appears within the
+	// window, it terminates the runner so the Pod completes and the
+	// reconciler recycles it. A runner executing a job has written the
+	// marker and is never terminated. 0 disables the watchdog.
 	//
-	// This is the reaping half of the claim↔execution mismatch fix
-	// (issue #11862): GitHub assigns queued jobs to any label-eligible
-	// runner independently of which one the server minted for the job,
-	// so a runner minted "for" job X frequently registers and then
-	// waits forever for a job GitHub ran on a sibling. Without a
-	// timeout it holds warm-pool capacity and reads as busy (the
-	// owner label is stamped at claim, not at execution) for hours.
-	// A runner that IS running a job writes the marker and is never
-	// terminated mid-job. 0 (the default) disables the watchdog.
+	// The bound is necessary because GitHub assigns a queued job to any
+	// label-eligible runner, independently of which one the server
+	// minted for it. A runner whose job GitHub placed on a sibling
+	// otherwise waits indefinitely, holding warm-pool capacity that
+	// reads as busy — the Pod's owner label is stamped at claim, not at
+	// execution, so the reconciler cannot tell it apart from a runner
+	// mid-job. The in-Pod marker is the only signal that distinguishes
+	// them.
+	//
+	// This bounds only the post-claim window between registering and
+	// being handed work (normally seconds); a Pod still polling for a
+	// claim has no runner container yet and is unaffected.
 	// +optional
 	IdleTimeoutSeconds int32 `json:"idleTimeoutSeconds,omitempty"`
 

@@ -231,9 +231,9 @@ defmodule TuistWeb.Webhooks.GitHubController do
   # on capacity, so it must reach the worker even though the UI labels
   # the same job as queued. `in_progress` is the first event carrying
   # the `runner_name` GitHub actually placed the job on — the only
-  # real-time proof of the runner↔job binding, which the worker uses
-  # to correct metrics attribution and measure claim↔execution
-  # mismatches. Any remaining action falls through to the catch-all
+  # real-time proof of the runner↔job binding, which the worker binds
+  # onto the runner's claim and session so metrics attribute to the
+  # job that ran. Any remaining action falls through to the catch-all
   # `:ignored` branch in the worker; short-circuiting those here
   # removes the Oban.insert (and its Postgres write) for events the
   # worker would discard anyway.

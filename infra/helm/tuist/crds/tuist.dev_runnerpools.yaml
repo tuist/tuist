@@ -103,13 +103,20 @@ spec:
                   type: integer
                   description: |
                     Bounds how long a runner that registered with GitHub but
-                    never had a job assigned stays alive. The runner image's
-                    idle watchdog terminates it once this many seconds elapse
-                    without an ACTIONS_RUNNER_HOOK_JOB_STARTED marker, so a
-                    runner GitHub minted for a job it ran on a sibling doesn't
-                    hold warm-pool capacity for hours (issue #11862). A runner
-                    running a job writes the marker and is never terminated
-                    mid-job. 0 / absent disables the watchdog.
+                    has not been handed a job stays alive. The runner image's
+                    watchdog terminates it once this many seconds elapse
+                    without an ACTIONS_RUNNER_HOOK_JOB_STARTED marker; a runner
+                    executing a job has written the marker and is never
+                    terminated. 0 / absent disables the watchdog.
+
+                    The bound is necessary because GitHub assigns a queued job
+                    to any label-eligible runner, so a runner whose job landed
+                    on a sibling otherwise waits indefinitely, holding
+                    warm-pool capacity that reads as busy (the Pod's owner
+                    label is stamped at claim, not at execution). It bounds
+                    only the post-claim window between registering and being
+                    handed work; a Pod still polling for a claim is
+                    unaffected.
                 runtimeClass:
                   type: string
                   description: |
