@@ -2,14 +2,14 @@
 title: "SwifterPM: faster Swift package resolution for generated, Bazel, and Buck2 projects"
 category: "product"
 tags: ["product", "swift", "spm", "cli", "bazel", "buck2", "performance"]
-excerpt: "Our users kept telling us that resolving Swift packages was slow and that the resulting directories ate gigabytes of disk, and that pain has only grown as people run several agents across worktrees at once. So we built SwifterPM. It leaves resolution to the Swift Package Manager and makes everything around it faster: fetching the pinned sources, laying them out on disk, and reading their manifests. It is available today as an opt-in feature for Tuist generated projects and as a rule for Bazel and Buck2. Here is how it works, what it does not solve, and the benchmarks."
+excerpt: "Our users kept telling us that resolving Swift packages was slow and that the resulting directories ate gigabytes of disk, and that pain has only grown as people run several agents across worktrees at once. So we built SwifterPM. It leaves resolution to the Swift Package Manager and makes everything around it faster: fetching the pinned sources, laying them out on disk, and reading their manifests. It is the default for Tuist generated projects starting today, with an environment variable to opt out, and it ships as a rule for Bazel and Buck2. Here is how it works, what it does not solve, and the benchmarks."
 author: pepicrft
 og_image_path: /marketing/images/blog/2026/06/08/swifterpm/og.jpg
 ---
 
 For a while now our users have been telling us the same thing, and lately they have been telling us louder. Installing the dependencies of their Swift packages is slow, and the directory where those dependencies get resolved takes an uncomfortable amount of disk space. The itch has been getting worse, not better, and the reason is easy to point at: people are doing far more concurrent work with coding agents, each agent on its own [git worktree](https://git-scm.com/docs/git-worktree), each resolving the same dependencies from scratch. Several copies of the same packages, resolved several times, sitting on disk several times over.
 
-At Tuist we could not let that sit. If there is one thing we are about, it is productivity, and we should not be in the business of letting slow things stay slow. So we did something about it. It is called [**SwifterPM**](https://github.com/tuist/swifterpm). It leaves the resolution itself to the Swift Package Manager and makes everything around it much faster: getting the pinned sources onto disk, and reading their manifests.
+At Tuist we could not let that sit. If there is one thing we are about, it is productivity, and we should not be in the business of letting slow things stay slow. So we did something about it. It is called [**SwifterPM**](https://github.com/tuist/tuist/tree/main/swifterpm). It leaves the resolution itself to the Swift Package Manager and makes everything around it much faster: getting the pinned sources onto disk, and reading their manifests.
 
 ## Where the time and the disk go
 
@@ -58,7 +58,7 @@ So instead of trying to avoid compiling the manifest, SwifterPM pays that cost d
 
 ## The benchmarks
 
-Numbers, since they are the point. These come from the [SwifterPM benchmark script](https://github.com/tuist/swifterpm/blob/main/mise/tasks/benchmark/resolution.sh), three runs each, on macOS 26 with Apple Swift 6.3.2. Both tools run against the same `Package.resolved` with forced resolved versions, so we are comparing the cost of getting those exact pins onto disk and nothing else. SwiftPM is pointed at its own isolated cache so its cold run is not accidentally warmed by caches already on the machine, and the manifest cache is left off on both sides. Cold resolution wipes the package-local scratch directories and each tool's shared cache before each run. Worktree-warm resolution wipes the package-local scratch but keeps the primed shared cache, which is exactly what happens when you switch to another clean worktree, the scenario that hurts most with agents.
+Numbers, since they are the point. These come from the [SwifterPM benchmark script](https://github.com/tuist/tuist/blob/main/swifterpm/mise/tasks/benchmark/resolution.sh), three runs each, on macOS 26 with Apple Swift 6.3.2. Both tools run against the same `Package.resolved` with forced resolved versions, so we are comparing the cost of getting those exact pins onto disk and nothing else. SwiftPM is pointed at its own isolated cache so its cold run is not accidentally warmed by caches already on the machine, and the manifest cache is left off on both sides. Cold resolution wipes the package-local scratch directories and each tool's shared cache before each run. Worktree-warm resolution wipes the package-local scratch but keeps the primed shared cache, which is exactly what happens when you switch to another clean worktree, the scenario that hurts most with agents.
 
 | Codebase | Scenario | SwiftPM | SwifterPM | Speedup |
 |:---|:---|---:|---:|---:|
@@ -69,11 +69,11 @@ Numbers, since they are the point. These come from the [SwifterPM benchmark scri
 
 The cold runs are already a clear win, between 1.75x and 3.47x faster, even though that is the moment SwifterPM is doing its most expensive up-front work, compiling and persisting every manifest. But the cold run is not the number to fixate on. The one that matters is worktree-warm, because that is the cost a developer running several agents actually pays, again and again, all day. There a resolution of Pocket Casts' modules drops from over two minutes to under a second, and Firefox from fifteen seconds to under half a second. Notice that those two warm times are close to each other even though Pocket Casts is about ten times the graph that Firefox is when resolved cold. Once the global store is primed, warm restoration is mostly laying down symlinks, so it stays sub-second more or less regardless of how big the graph is. Disk follows the same shape: the global store is populated once instead of being copied into every worktree.
 
-## How to turn it on
+## How to use it
 
-We have been rolling this out as an opt-in feature, because we would rather validate it carefully than surprise anyone. There may be graph scenarios we do not handle yet, and the honest way to find them is with real projects.
+If you use Tuist generated projects, there is nothing to turn on. `tuist install` uses SwifterPM before generation by default. We validated it against real graphs before flipping that default, but there may still be scenarios we do not handle yet, and if you hit one you can fall back to SwiftPM by setting `TUIST_DISABLE_SWIFTERPM=1` in your environment while we fix it.
 
-If you use Tuist generated projects, set `TUIST_USE_SWIFTERPM=1` in your environment and `tuist install` will use SwifterPM before generation. If you use Bazel, SwifterPM ships a Bzlmod extension with the same resolver shape as `rules_swift_package_manager`:
+If you use Bazel, SwifterPM ships a Bzlmod extension with the same resolver shape as `rules_swift_package_manager`:
 
 ```python
 bazel_dep(name = "swifterpm", version = "0.9.0")
@@ -109,4 +109,4 @@ Which brings me to the part I want to put in writing. We are open to upstreaming
 
 We had to move on this quickly, because our users could not keep waiting for some future Xcode release to maybe address it. As long as we stay aligned with how resolution works, with the state files SwiftPM writes, and with what the clients (Bazel, Buck2, and Tuist) expect, we are in a good spot. Apple will keep adding things at the language and manifest level, as they did with [traits](https://github.com/swiftlang/swift-evolution/blob/main/proposals/0450-swiftpm-package-traits.md), and that does not really change the resolution logic underneath.
 
-Give it a try. If you hit a graph we do not handle yet, please [open an issue](https://github.com/tuist/swifterpm/issues) and include your Swift version and the errors you saw, so we can take a look. This has been a genuinely fun piece to work on, and as always, we will keep iterating in the open and sharing what we find.
+Give it a try. If you hit a graph we do not handle yet, please [open an issue](https://github.com/tuist/tuist/issues) and include your Swift version and the errors you saw, so we can take a look. This has been a genuinely fun piece to work on, and as always, we will keep iterating in the open and sharing what we find.
