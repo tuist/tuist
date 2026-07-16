@@ -57,9 +57,12 @@ runtime — no service, sudo entry, or auto-login targets it.
   host stages it as a sparse APFS disk *image* (`xcode-cas.sparseimage`) inside
   the same branch share. `attach_cas_image` `hdiutil attach`es it as a real
   block-device volume at `/Users/runner/xcode-cas`, then writes an xcconfig
-  pointing `COMPILATION_CACHE_CAS_PATH` at a single per-account store on it and
-  exports **`XCODE_XCCONFIG_FILE`**; `detach_cas_image` unsets it and unmounts
-  after `./run.sh` so the host promotes a quiesced image. Absent image ⇒ the
+  pointing `COMPILATION_CACHE_CAS_PATH` at a single per-account
+  `CompilationCache.noindex` store on it and exports **`XCODE_XCCONFIG_FILE`**;
+  `detach_cas_image` unsets it and unmounts after `./run.sh` so the host promotes
+  a quiesced image. The store carries Xcode's own `.noindex` name because that
+  suffix is what keeps Spotlight out of it — otherwise `mds` would index a
+  multi-GB, high-file-count CAS on a mounted volume. Absent image ⇒ the
   compilation cache runs VM-local (cold), unchanged. Gated on the host's
   `--cache-volume-cas-gib`.
   `XCODE_XCCONFIG_FILE` is the mechanism because the common case is a plain

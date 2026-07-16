@@ -192,7 +192,12 @@ attach_cas_image() {
   # needs none. The image is already per-account (one trust domain), the store is
   # content-addressed, and a VM runs one job at a time, so sharing it across an
   # account's projects is safe and dedups their common dependencies.
-  local store="${CAS_MOUNT}/store"
+  #
+  # Named CompilationCache.noindex — the name Xcode itself uses — because the
+  # `.noindex` suffix is what keeps Spotlight out of it. Without it, mds would
+  # index a multi-GB, high-file-count CAS on a mounted volume: wasted CPU on
+  # every job, and churn against a store the host is about to clonefile.
+  local store="${CAS_MOUNT}/CompilationCache.noindex"
   mkdir -p "${store}" 2>/dev/null || true
   {
     # Chain a pre-existing user xcconfig rather than clobbering it — the variable
