@@ -4,13 +4,11 @@ defmodule Tuist.Runners.Dispatch do
 
   Handles three action values:
 
-    * `queued` — INSERTs a `runner_jobs` row (status='queued') in
-      ClickHouse. A polling Pod's next dispatch claim will pick
-      it up.
-    * `waiting` — INSERTs the same queued row only if the job is
-      missing. GitHub can emit this state when a self-hosted job is
-      waiting for capacity; a late duplicate must not regress an
-      already claimed/running job.
+    * `queued` / `waiting` — INSERTs a `runner_jobs` row
+      (status='queued') in ClickHouse only when the job is missing.
+      A polling Pod's next dispatch claim will pick it up. GitHub can
+      redeliver these states after cancellation, so a late duplicate
+      must not regress an already claimed/running/completed job.
     * `completed` — UPDATEs the matching row via RMT (status='completed',
       conclusion, completed_at).
 
@@ -123,7 +121,7 @@ defmodule Tuist.Runners.Dispatch do
   defp webhook_outcome(_), do: "unknown"
 
   defp handle_queued(payload, installation_id) do
-    handle_queueable(payload, installation_id, &Jobs.enqueue/1)
+    handle_queueable(payload, installation_id, &Jobs.enqueue_if_missing/1)
   end
 
   defp handle_waiting(payload, installation_id) do
@@ -203,50 +201,93 @@ defmodule Tuist.Runners.Dispatch do
     repository = payload |> Map.get("repository", %{}) |> Map.get("full_name", "")
 
     if is_integer(workflow_job_id) do
-      mark_completed(workflow_job_id, conclusion, raw_steps(job), installation_id, repository)
+      mark_completed(payload, workflow_job_id, conclusion, raw_steps(job), installation_id, repository)
     else
       :ignored
     end
   end
 
-  defp mark_completed(workflow_job_id, conclusion, raw_steps, installation_id, repository) do
-    # Free the PG cap slot FIRST. The customer's next dispatch
-    # poll (potentially seconds away) sees the freed inflight
-    # count immediately rather than waiting on the stale-claims
-    # worker. CH state transition is fire-and-forget — if it
-    # raises, the next dispatch is unaffected because cap
-    # accounting reads PG.
-    :ok = Claims.complete(workflow_job_id)
+  defp mark_completed(payload, workflow_job_id, conclusion, raw_steps, installation_id, repository) do
+    Jobs.with_workflow_job_ordering_lock(workflow_job_id, fn ->
+      # Free the PG cap slot FIRST. The customer's next dispatch
+      # poll (potentially seconds away) sees the freed inflight
+      # count immediately rather than waiting on the stale-claims
+      # worker. The ordering lock below only serializes webhook
+      # transitions for this workflow_job so a concurrent queued
+      # redelivery cannot resurrect the completion row.
+      :ok = Claims.complete(workflow_job_id)
 
-    case Jobs.complete(workflow_job_id, conclusion) do
-      {:ok, %{account_id: account_id}} ->
-        # Persist steps after marking the job complete: the row's
-        # `account_id` is the denormalisation key on the step row, and
-        # an empty list (cancelled jobs sometimes ship no steps) is a
-        # safe no-op. Webhook retries collapse on the RMT key.
-        :ok = JobSteps.record(build_step_rows(workflow_job_id, account_id, raw_steps))
+      case Jobs.complete(workflow_job_id, conclusion) do
+        {:ok, %{account_id: account_id}} ->
+          record_completed_steps_and_logs(
+            workflow_job_id,
+            account_id,
+            raw_steps,
+            installation_id,
+            repository,
+            conclusion
+          )
 
-        # Fetch the full job log from GitHub's Actions Logs API and
-        # ingest it into `runner_job_logs`. The Logs API is the only
-        # stable source of step output — the runner Pod's stdout
-        # carries only Listener lifecycle, the Worker diag log only
-        # framework noise, and step content streams directly from the
-        # .NET Worker to GitHub's `ResultsLog`. See
-        # `Tuist.Runners.Workers.FetchLogsWorker`.
-        enqueue_log_fetch(workflow_job_id, account_id, installation_id, repository)
+        {:error, :not_found} ->
+          # The completed delivery can arrive before the queued delivery.
+          # If this job targets one of our pools, write a completion row now
+          # so a late queued redelivery cannot resurrect canceled work.
+          case record_completed_without_queued(payload, conclusion, installation_id) do
+            {:ok, account_id} ->
+              record_completed_steps_and_logs(
+                workflow_job_id,
+                account_id,
+                raw_steps,
+                installation_id,
+                repository,
+                conclusion
+              )
 
-        Logger.info("runners: completed",
-          workflow_job_id: workflow_job_id,
-          conclusion: conclusion
-        )
+            ignored ->
+              ignored
+          end
+      end
+    end)
+  end
 
-        {:ok, :completed}
+  defp record_completed_steps_and_logs(workflow_job_id, account_id, raw_steps, installation_id, repository, conclusion) do
+    # Persist steps after marking the job complete: the row's
+    # `account_id` is the denormalisation key on the step row, and
+    # an empty list (cancelled jobs sometimes ship no steps) is a
+    # safe no-op. Webhook retries collapse on the RMT key.
+    :ok = JobSteps.record(build_step_rows(workflow_job_id, account_id, raw_steps))
 
-      {:error, :not_found} ->
-        # We didn't accept this workflow_job at queue time
-        # (a different provider's job, or a delivery race).
-        # Nothing to mark complete; not our concern.
-        :ignored
+    # Fetch the full job log from GitHub's Actions Logs API and
+    # ingest it into `runner_job_logs`. The Logs API is the only
+    # stable source of step output — the runner Pod's stdout
+    # carries only Listener lifecycle, the Worker diag log only
+    # framework noise, and step content streams directly from the
+    # .NET Worker to GitHub's `ResultsLog`. See
+    # `Tuist.Runners.Workers.FetchLogsWorker`.
+    enqueue_log_fetch(workflow_job_id, account_id, installation_id, repository)
+
+    Logger.info("runners: completed",
+      workflow_job_id: workflow_job_id,
+      conclusion: conclusion
+    )
+
+    {:ok, :completed}
+  end
+
+  defp record_completed_without_queued(payload, conclusion, installation_id) do
+    job = Map.get(payload, "workflow_job", %{})
+    repo = Map.get(payload, "repository", %{})
+    full_name = Map.get(repo, "full_name", "")
+    {owner, _repo_name} = parse_full_name(full_name)
+    requested = Map.get(job, "labels", [])
+
+    with {:ok, account} <- fetch_enabled_account(installation_id, owner),
+         {:ok, target} <- resolve_dispatch_target(account, requested),
+         :ok <- Jobs.record_completed(enqueue_attrs(account, target, full_name, job), conclusion) do
+      {:ok, account.id}
+    else
+      {:error, reason} when reason in [:no_account, :runners_disabled, :no_matching_pool, :no_pools, :ambiguous_pool] ->
+        {:ignored, reason}
     end
   end
 
@@ -284,6 +325,9 @@ defmodule Tuist.Runners.Dispatch do
       account_id: account.id,
       fleet_name: target.pool_name,
       requested_dispatch_label: target.requested_dispatch_label,
+      platform: Atom.to_string(target.platform),
+      vcpus: target.vcpus,
+      memory_gb: target.memory_gb,
       repository: full_name,
       workflow_run_id: get_integer(job, "run_id"),
       workflow_name: get_string(job, "workflow_name"),
@@ -327,7 +371,10 @@ defmodule Tuist.Runners.Dispatch do
         {:ok,
          %{
            pool_name: Catalog.pool_name(profile),
-           requested_dispatch_label: Profile.dispatch_label(profile)
+           requested_dispatch_label: Profile.dispatch_label(profile),
+           platform: profile.platform,
+           vcpus: profile.vcpus,
+           memory_gb: profile.memory_gb
          }}
 
       {:error, :no_matching_profile} = err ->
@@ -337,8 +384,15 @@ defmodule Tuist.Runners.Dispatch do
 
   defp resolve_legacy_pool(requested_labels) do
     case match_pool(requested_labels) do
-      {:ok, %{name: name, dispatch_label: label}} ->
-        {:ok, %{pool_name: name, requested_dispatch_label: label}}
+      {:ok, %{name: name, dispatch_label: label} = pool} ->
+        {:ok,
+         %{
+           pool_name: name,
+           requested_dispatch_label: label,
+           platform: pool.platform,
+           vcpus: pool.vcpus,
+           memory_gb: pool.memory_gb
+         }}
 
       {:error, _} = err ->
         err
@@ -545,7 +599,17 @@ defmodule Tuist.Runners.Dispatch do
 
   defp pool_summary(%{"metadata" => %{"name" => name}, "spec" => %{"dispatchLabel" => label} = spec})
        when is_binary(name) and is_binary(label) and label != "" do
-    %{name: name, dispatch_label: label, runner_labels: extract_runner_labels(spec)}
+    platform = extract_pool_platform(spec)
+    default_shape = Catalog.default_shape(platform) || %{vcpus: 1, memory_gb: 1}
+
+    %{
+      name: name,
+      dispatch_label: label,
+      runner_labels: extract_runner_labels(spec),
+      platform: platform,
+      vcpus: extract_pool_vcpus(spec, default_shape.vcpus),
+      memory_gb: extract_pool_memory_gb(spec, default_shape.memory_gb)
+    }
   end
 
   defp pool_summary(_), do: nil
@@ -561,6 +625,19 @@ defmodule Tuist.Runners.Dispatch do
   end
 
   defp extract_runner_labels(_), do: []
+
+  defp extract_pool_platform(%{"os" => "linux"}), do: :linux
+  defp extract_pool_platform(_), do: :macos
+
+  defp extract_pool_vcpus(%{"podCPUMilli" => cpu_milli}, _default) when is_integer(cpu_milli) and cpu_milli > 0,
+    do: div(cpu_milli + 999, 1000)
+
+  defp extract_pool_vcpus(_spec, default), do: default
+
+  defp extract_pool_memory_gb(%{"podMemoryMB" => memory_mb}, _default) when is_integer(memory_mb) and memory_mb > 0,
+    do: div(memory_mb + 1023, 1024)
+
+  defp extract_pool_memory_gb(_spec, default), do: default
 
   defp namespace, do: Environment.runners_namespace()
 

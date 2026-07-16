@@ -2716,6 +2716,12 @@ components:
           type: integer
           x-struct:
           x-validate:
+        end_cursor:
+          description: Opaque cursor pointing at the last item of the current page. Pass it as the `after` query parameter to fetch the next page. Always `nil` when using page-based pagination.
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
         has_next_page:
           description: Whether there are more pages available.
           type: boolean
@@ -2731,8 +2737,15 @@ components:
           type: integer
           x-struct:
           x-validate:
+        start_cursor:
+          description: Opaque cursor pointing at the first item of the current page. Pass it as the `before` query parameter to fetch the previous page. Always `nil` when using page-based pagination.
+          nullable: true
+          type: string
+          x-struct:
+          x-validate:
         total_count:
-          description: Total number of items.
+          description: Total number of items. Always `nil` when using cursor-based pagination.
+          nullable: true
           type: integer
           x-struct:
           x-validate:
@@ -2745,7 +2758,6 @@ components:
         - has_next_page
         - has_previous_page
         - page_size
-        - total_count
       title: PaginationMetadata
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.PaginationMetadata
@@ -2857,6 +2869,56 @@ components:
       title: ProjectToken
       type: object
       x-struct: Elixir.TuistWeb.API.Schemas.ProjectToken
+      x-validate:
+    GenerationsIndexBefore:
+      description: Cursor for backward pagination. Pass the `start_cursor` from a previous response to fetch the previous (newer) page.
+      title: GenerationsIndexBefore
+      type: string
+      x-struct:
+      x-validate:
+    RunnerShellSession:
+      properties:
+        expires_at:
+          description: When the session expires.
+          format: date-time
+          type: string
+          x-struct:
+          x-validate:
+        session_id:
+          description: The runner shell session ID.
+          type: integer
+          x-struct:
+          x-validate:
+        state:
+          description: The current runner shell session state.
+          type: string
+          x-struct:
+          x-validate:
+        websocket_protocol:
+          description: The WebSocket subprotocol token.
+          type: string
+          x-struct:
+          x-validate:
+        websocket_url:
+          description: The WebSocket URL to connect to.
+          type: string
+          x-struct:
+          x-validate:
+        workflow_job_id:
+          description: The GitHub Actions workflow job ID.
+          type: integer
+          x-struct:
+          x-validate:
+      required:
+        - session_id
+        - workflow_job_id
+        - state
+        - expires_at
+        - websocket_url
+        - websocket_protocol
+      title: RunnerShellSession
+      type: object
+      x-struct:
       x-validate:
     ArtifactUploadURL:
       description: The URL to upload an artifact.
@@ -3809,8 +3871,7 @@ components:
       x-struct:
       x-validate:
     GenerationsIndexPage:
-      default: 1
-      description: The page number to return.
+      description: Deprecated and ignored. Offset pagination has been removed in favor of cursor pagination; use `after`/`before`. This parameter is still accepted so older clients degrade gracefully instead of erroring.
       minimum: 1
       title: GenerationsIndexPage
       type: integer
@@ -4212,6 +4273,12 @@ components:
         - hit_remote
         - miss
       title: CacheTaskStatus
+      type: string
+      x-struct:
+      x-validate:
+    GenerationsIndexAfter:
+      description: Cursor for forward pagination. Pass the `end_cursor` from a previous response to fetch the next (older) page. Omit both `after` and `before` to fetch the first page.
+      title: GenerationsIndexAfter
       type: string
       x-struct:
       x-validate:
@@ -6646,6 +6713,12 @@ paths:
                 x-struct:
                 x-validate:
           description: List of cache endpoints
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Not authorized to perform this action
       summary: Get cache endpoints.
       tags:
         - Cache
@@ -8668,6 +8741,14 @@ paths:
       callbacks: {}
       operationId: listBundles
       parameters:
+        - description: Filter bundles by git branch.
+          in: query
+          name: git_branch
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
         - description: Page number for pagination.
           in: query
           name: page
@@ -8690,14 +8771,6 @@ paths:
           required: false
           schema:
             type: integer
-            x-struct:
-            x-validate:
-        - description: Filter bundles by git branch.
-          in: query
-          name: git_branch
-          required: false
-          schema:
-            type: string
             x-struct:
             x-validate:
         - description: The handle of the project.
@@ -17875,6 +17948,102 @@ paths:
       summary: It completes a multi-part upload
       tags:
         - Analytics
+  /api/runners/interactive/shell:
+    post:
+      callbacks: {}
+      description: Creates an interactive shell session for a running runner job.
+      operationId: createRunnerShellSession
+      parameters:
+        - description: A dashboard job URL, GitHub Actions job URL, or workflow job ID.
+          in: query
+          name: job_ref
+          required: true
+          schema:
+            type: string
+            x-struct:
+            x-validate:
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                properties:
+                  expires_at:
+                    description: When the session expires.
+                    format: date-time
+                    type: string
+                    x-struct:
+                    x-validate:
+                  session_id:
+                    description: The runner shell session ID.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                  state:
+                    description: The current runner shell session state.
+                    type: string
+                    x-struct:
+                    x-validate:
+                  websocket_protocol:
+                    description: The WebSocket subprotocol token.
+                    type: string
+                    x-struct:
+                    x-validate:
+                  websocket_url:
+                    description: The WebSocket URL to connect to.
+                    type: string
+                    x-struct:
+                    x-validate:
+                  workflow_job_id:
+                    description: The GitHub Actions workflow job ID.
+                    type: integer
+                    x-struct:
+                    x-validate:
+                required:
+                  - session_id
+                  - workflow_job_id
+                  - state
+                  - expires_at
+                  - websocket_url
+                  - websocket_protocol
+                title: RunnerShellSession
+                type: object
+                x-struct:
+                x-validate:
+          description: Runner shell session
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The job reference is missing
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The request is not authenticated
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The authenticated subject is not authorized
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The runner job was not found
+        '422':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Shell access is unavailable for the runner job
+      summary: Create a runner shell session.
+      tags:
+        - Runners
   /api/projects/{account_handle}/{project_handle}/previews/{preview_id}/icons:
     post:
       callbacks: {}
@@ -18965,16 +19134,36 @@ paths:
             type: integer
             x-struct:
             x-validate:
-        - description: ''
+        - deprecated: true
+          description: ''
           in: query
           name: page
           required: false
           schema:
-            default: 1
-            description: The page number to return.
+            description: Deprecated and ignored. Offset pagination has been removed in favor of cursor pagination; use `after`/`before`. This parameter is still accepted so older clients degrade gracefully instead of erroring.
             minimum: 1
             title: GenerationsIndexPage
             type: integer
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: after
+          required: false
+          schema:
+            description: Cursor for forward pagination. Pass the `end_cursor` from a previous response to fetch the next (older) page. Omit both `after` and `before` to fetch the first page.
+            title: GenerationsIndexAfter
+            type: string
+            x-struct:
+            x-validate:
+        - description: ''
+          in: query
+          name: before
+          required: false
+          schema:
+            description: Cursor for backward pagination. Pass the `start_cursor` from a previous response to fetch the previous (newer) page.
+            title: GenerationsIndexBefore
+            type: string
             x-struct:
             x-validate:
       responses:

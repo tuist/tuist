@@ -32,6 +32,7 @@ defmodule TuistRegistry.S3 do
   ## Options
 
     * `:type` - The storage type. Only `:registry` is supported.
+    * `:content_type` - Overrides the content type returned by object storage.
 
   Returns `{:ok, url}` on success or `{:error, reason}` on failure.
   Returns `{:error, :registry_disabled}` if type is `:registry` and registry storage is not configured.
@@ -45,7 +46,17 @@ defmodule TuistRegistry.S3 do
 
       bucket ->
         config = ExAws.Config.new(:s3)
-        ExAws.S3.presigned_url(config, :get, bucket, key, expires_in: 600)
+
+        presign_opts =
+          case Keyword.fetch(opts, :content_type) do
+            {:ok, content_type} ->
+              [expires_in: 600, query_params: [{"response-content-type", content_type}]]
+
+            :error ->
+              [expires_in: 600]
+          end
+
+        ExAws.S3.presigned_url(config, :get, bucket, key, presign_opts)
     end
   end
 

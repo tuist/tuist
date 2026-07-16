@@ -1759,8 +1759,21 @@ defmodule Tuist.Tests do
         }
       end)
 
+    # The client uploads attachments and crash reports as soon as it receives the
+    # IDs in this response, and those endpoints authorize each upload against the
+    # test case run and its arguments. Both tables sit behind an ingestion buffer
+    # that only flushes periodically, so write them through before returning
+    # rather than leaving them to the asynchronous batch below, which would make
+    # the uploads race the flush and be rejected as not found.
+    TestCaseRun.Buffer.insert_all(test_case_runs)
+    TestCaseRun.Buffer.flush()
+
+    if Enum.any?(all_arguments) do
+      TestCaseRunArgument.Buffer.insert_all(all_arguments)
+      TestCaseRunArgument.Buffer.flush()
+    end
+
     Tuist.Tasks.run_async(fn ->
-      TestCaseRun.Buffer.insert_all(test_case_runs)
       TestCaseFailure.Buffer.insert_all(all_failures)
 
       if Enum.any?(all_repetitions) do
@@ -1769,10 +1782,6 @@ defmodule Tuist.Tests do
 
       if Enum.any?(all_attachments) do
         TestCaseRunAttachment.Buffer.insert_all(all_attachments)
-      end
-
-      if Enum.any?(all_arguments) do
-        TestCaseRunArgument.Buffer.insert_all(all_arguments)
       end
     end)
 
@@ -3196,6 +3205,21 @@ defmodule Tuist.Tests do
       )
 
     case ClickHouseRepo.one(query) do
+      nil -> {:error, :not_found}
+      attachment -> {:ok, attachment}
+    end
+  end
+
+  def get_test_case_run_attachment(test_case_run_id, attachment_id) do
+    query =
+      from(a in TestCaseRunAttachment,
+        where: a.test_case_run_id == ^test_case_run_id and a.id == ^attachment_id,
+        limit: 1
+      )
+
+    # Crash report uploads immediately read a newly created attachment through a different
+    # ClickHouse pool, so this lookup must not use stale replica metadata.
+    case ClickHouseRepo.one(query, settings: [select_sequential_consistency: 1]) do
       nil -> {:error, :not_found}
       attachment -> {:ok, attachment}
     end

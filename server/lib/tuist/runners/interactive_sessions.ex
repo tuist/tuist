@@ -15,8 +15,11 @@ defmodule Tuist.Runners.InteractiveSessions do
   alias Tuist.Kubernetes.Client, as: K8sClient
   alias Tuist.Repo
   alias Tuist.Runners.Catalog
+  alias Tuist.Runners.Claims
   alias Tuist.Runners.InteractiveSession
   alias Tuist.Runners.InteractiveSessionConnection
+  alias Tuist.Runners.InteractiveShellBroker
+  alias Tuist.Runners.RunnerSessions
   alias Tuist.Runners.Workers.CloseDisconnectedInteractiveSessionWorker
 
   require Logger
@@ -45,7 +48,9 @@ defmodule Tuist.Runners.InteractiveSessions do
     with :ok <- validate_vnc_job(job) do
       case current_for_job(account_id, workflow_job_id, :vnc) do
         %InteractiveSession{} = session ->
-          refresh_token(session, user_id)
+          session
+          |> refresh_pod_from_job(job)
+          |> refresh_token(user_id)
 
         nil ->
           create_session(job, user_id, :vnc)
@@ -54,6 +59,24 @@ defmodule Tuist.Runners.InteractiveSessions do
   end
 
   def request_vnc(_job, _account, _user), do: {:error, :account_mismatch}
+
+  def request_shell(%{workflow_job_id: workflow_job_id, account_id: account_id} = job, %Account{id: account_id}, %User{
+        id: user_id
+      }) do
+    with :ok <- validate_shell_job(job) do
+      case current_for_job(account_id, workflow_job_id, :shell) do
+        %InteractiveSession{} = session ->
+          session
+          |> refresh_pod_from_job(job)
+          |> refresh_token(user_id)
+
+        nil ->
+          create_session(job, user_id, :shell)
+      end
+    end
+  end
+
+  def request_shell(_job, _account, _user), do: {:error, :account_mismatch}
 
   def current_for_job(account_id, workflow_job_id, kind)
       when is_integer(account_id) and is_integer(workflow_job_id) and kind in [:vnc, :shell] do
@@ -67,6 +90,63 @@ defmodule Tuist.Runners.InteractiveSessions do
     |> limit(1)
     |> Repo.one()
   end
+
+  def open?(session_id) when is_integer(session_id) do
+    now = now()
+
+    InteractiveSession
+    |> where(
+      [session],
+      session.id == ^session_id and is_nil(session.closed_at) and session.expires_at > ^now
+    )
+    |> Repo.exists?()
+  end
+
+  def current_shell_for_pod(pod_name) when is_binary(pod_name) and pod_name != "" do
+    now = now()
+    binding = binding_for_pod(pod_name)
+
+    InteractiveSession
+    |> where(
+      [session],
+      session.kind == :shell and is_nil(session.closed_at) and
+        session.expires_at > ^now
+    )
+    |> where_session_belongs_to_pod_or_binding(pod_name, binding)
+    |> order_by([session], desc: session.inserted_at)
+    |> limit(1)
+    |> Repo.one()
+    |> refresh_pod_from_binding(pod_name, binding)
+  end
+
+  def current_shell_for_pod(_pod_name), do: nil
+
+  def shell_discovery_miss_context(pod_name) when is_binary(pod_name) and pod_name != "" do
+    now = now()
+
+    open_sessions =
+      InteractiveSession
+      |> where(
+        [session],
+        session.kind == :shell and is_nil(session.closed_at) and session.expires_at > ^now
+      )
+      |> order_by([session], desc: session.inserted_at)
+      |> limit(5)
+      |> select([session], %{
+        id: session.id,
+        workflow_job_id: session.workflow_job_id,
+        account_id: session.account_id,
+        pod_name: session.pod_name,
+        fleet_name: session.fleet_name,
+        state: session.state,
+        inserted_at: session.inserted_at
+      })
+      |> Repo.all()
+
+    %{binding: binding_for_pod(pod_name), open_sessions: open_sessions}
+  end
+
+  def shell_discovery_miss_context(_pod_name), do: %{binding: nil, open_sessions: []}
 
   def validate_token(token, %Account{id: account_id}, %User{id: user_id}) when is_binary(token) and token != "" do
     now = now()
@@ -86,6 +166,75 @@ defmodule Tuist.Runners.InteractiveSessions do
   end
 
   def validate_token(_token, %Account{}, %User{}), do: {:error, :invalid_or_expired}
+
+  def validate_token(token, %User{id: user_id}) when is_binary(token) and token != "" do
+    now = now()
+    hash = token_hash(token)
+
+    InteractiveSession
+    |> where(
+      [session],
+      session.token_hash == ^hash and session.requested_by_user_id == ^user_id and is_nil(session.closed_at) and
+        session.expires_at > ^now
+    )
+    |> Repo.one()
+    |> case do
+      %InteractiveSession{} = session -> {:ok, session}
+      nil -> {:error, :invalid_or_expired}
+    end
+  end
+
+  def validate_token(_token, %User{}), do: {:error, :invalid_or_expired}
+
+  def validate_shell_pod(session_id, pod_name) when is_integer(session_id) and is_binary(pod_name) and pod_name != "" do
+    binding = binding_for_pod(pod_name)
+
+    case shell_session_for_pod(session_id, pod_name, binding) do
+      %InteractiveSession{} = session -> refresh_valid_shell_pod(session, pod_name, binding)
+      nil -> {:error, :not_found}
+    end
+  end
+
+  def validate_shell_pod(_session_id, _pod_name), do: {:error, :not_found}
+
+  defp shell_session_for_pod(session_id, pod_name, binding) do
+    now = now()
+
+    InteractiveSession
+    |> where(
+      [session],
+      session.id == ^session_id and session.kind == :shell and
+        is_nil(session.closed_at) and session.expires_at > ^now
+    )
+    |> where_session_belongs_to_pod_or_binding(pod_name, binding)
+    |> Repo.one()
+  end
+
+  defp refresh_valid_shell_pod(session, pod_name, binding) do
+    case refresh_pod_from_binding(session, pod_name, binding) do
+      %InteractiveSession{} = refreshed -> {:ok, refreshed}
+      nil -> {:error, :not_found}
+    end
+  end
+
+  def mark_shell_ready(%InteractiveSession{kind: :shell, closed_at: nil} = session) do
+    now = now()
+
+    attrs =
+      maybe_put_ready_state(
+        %{
+          last_activity_at: now,
+          updated_at: now
+        },
+        session
+      )
+
+    session
+    |> InteractiveSession.changeset(attrs)
+    |> Repo.update()
+  end
+
+  def mark_shell_ready(%InteractiveSession{}), do: {:error, :closed_session}
 
   def request_vnc_relay(%InteractiveSession{kind: :vnc, closed_at: nil} = session) do
     now = now()
@@ -196,6 +345,23 @@ defmodule Tuist.Runners.InteractiveSessions do
 
   def schedule_disconnect_close(%InteractiveSession{}, _connection_id, _opts), do: {:ok, :inactive_session}
 
+  def close_disconnected_connection(%InteractiveSession{id: id}, connection_id)
+      when is_binary(connection_id) and connection_id != "" do
+    now = now()
+
+    InteractiveSessionConnection
+    |> where(
+      [connection],
+      connection.interactive_session_id == ^id and connection.connection_id == ^connection_id and
+        is_nil(connection.disconnected_at)
+    )
+    |> Repo.update_all(set: [disconnected_at: now, updated_at: now])
+
+    close_if_disconnected(id, connection_id)
+  end
+
+  def close_disconnected_connection(%InteractiveSession{}, _connection_id), do: {:ok, :inactive_session}
+
   def close_if_disconnected(session_id, connection_id)
       when is_integer(session_id) and is_binary(connection_id) and connection_id != "" do
     case close_disconnected(session_id, connection_id) do
@@ -219,8 +385,13 @@ defmodule Tuist.Runners.InteractiveSessions do
   def close_for_job(account_id, workflow_job_id, kind, reason \\ "user")
       when is_integer(account_id) and is_integer(workflow_job_id) and kind in [:vnc, :shell] do
     case current_for_job(account_id, workflow_job_id, kind) do
-      nil -> {:ok, :no_open_session}
-      %InteractiveSession{} = session -> close(session, reason)
+      nil ->
+        {:ok, :no_open_session}
+
+      %InteractiveSession{} = session ->
+        with :ok <- clear_vnc_relay_request(session) do
+          close(session, reason)
+        end
     end
   end
 
@@ -244,6 +415,10 @@ defmodule Tuist.Runners.InteractiveSessions do
 
       case result do
         {:ok, updated} ->
+          if updated.kind == :shell do
+            :ok = InteractiveShellBroker.broadcast_to_client(updated.id, :runner_disconnected)
+          end
+
           {:cont, {:ok, updated}}
 
         {:error, changeset} ->
@@ -286,6 +461,13 @@ defmodule Tuist.Runners.InteractiveSessions do
 
   def vnc_requestable?(_), do: false
 
+  def shell_requestable?(%{fleet_name: fleet_name, status: status, pod_name: pod_name}) do
+    Catalog.fleet_platform(fleet_name) in [:macos, :linux] and status in ["claimed", "running"] and
+      is_binary(pod_name) and pod_name != ""
+  end
+
+  def shell_requestable?(_), do: false
+
   defp sync_vnc_relay_state_from_pod(session, pod) do
     annotations = get_in(pod, ["metadata", "annotations"]) || %{}
     session_id = Integer.to_string(session.id)
@@ -327,6 +509,22 @@ defmodule Tuist.Runners.InteractiveSessions do
   defp validate_vnc_job(job) do
     cond do
       Catalog.fleet_platform(job.fleet_name) != :macos ->
+        {:error, :unsupported_platform}
+
+      job.status not in ["claimed", "running"] ->
+        {:error, :job_not_running}
+
+      not is_binary(job.pod_name) or job.pod_name == "" ->
+        {:error, :pod_unavailable}
+
+      true ->
+        :ok
+    end
+  end
+
+  defp validate_shell_job(job) do
+    cond do
+      Catalog.fleet_platform(job.fleet_name) not in [:macos, :linux] ->
         {:error, :unsupported_platform}
 
       job.status not in ["claimed", "running"] ->
@@ -474,12 +672,13 @@ defmodule Tuist.Runners.InteractiveSessions do
   defp create_session(job, user_id, kind) do
     {token, hash} = build_token()
     now = now()
+    binding = binding_for_job(job)
 
     attrs = %{
       account_id: job.account_id,
       workflow_job_id: job.workflow_job_id,
-      pod_name: job.pod_name,
-      fleet_name: job.fleet_name,
+      pod_name: session_pod_name(job, binding),
+      fleet_name: session_fleet_name(job, binding),
       kind: kind,
       state: :requested,
       token_hash: hash,
@@ -497,11 +696,104 @@ defmodule Tuist.Runners.InteractiveSessions do
 
       {:error, changeset} ->
         case current_for_job(job.account_id, job.workflow_job_id, kind) do
-          %InteractiveSession{} = session -> refresh_token(session, user_id)
-          nil -> {:error, changeset}
+          %InteractiveSession{} = session ->
+            session
+            |> refresh_pod_from_binding()
+            |> refresh_token(user_id)
+
+          nil ->
+            {:error, changeset}
         end
     end
   end
+
+  defp refresh_pod_from_binding(%InteractiveSession{} = session) do
+    refresh_pod_from_binding(session, nil, binding_for_session(session))
+  end
+
+  defp refresh_pod_from_job(%InteractiveSession{} = session, job) do
+    binding = binding_for_job(job)
+
+    refresh_pod_from_candidate(session, session_pod_name(job, binding), session_fleet_name(job, binding))
+  end
+
+  defp refresh_pod_from_binding(nil, _pod_name, _binding), do: nil
+
+  defp refresh_pod_from_binding(%InteractiveSession{} = session, pod_name, binding) do
+    if binding_refreshable?(session, pod_name, binding) do
+      update_session_pod_from_binding(session, binding)
+    else
+      session
+    end
+  end
+
+  defp binding_refreshable?(_session, _pod_name, nil), do: false
+
+  defp binding_refreshable?(session, pod_name, binding) do
+    binding_matches_session?(binding, session) and binding_changed?(session, binding) and
+      requested_pod_matches_binding?(pod_name, binding)
+  end
+
+  defp binding_changed?(session, binding) do
+    session.pod_name != binding.pod_name or session.fleet_name != binding.fleet_name
+  end
+
+  defp requested_pod_matches_binding?(pod_name, _binding) when not is_binary(pod_name), do: true
+  defp requested_pod_matches_binding?("", _binding), do: true
+  defp requested_pod_matches_binding?(pod_name, binding), do: pod_name == binding.pod_name
+
+  defp update_session_pod_from_binding(session, binding) do
+    session
+    |> InteractiveSession.changeset(%{
+      pod_name: binding.pod_name,
+      fleet_name: binding.fleet_name,
+      updated_at: now()
+    })
+    |> Repo.update()
+    |> case do
+      {:ok, updated} ->
+        updated
+
+      {:error, changeset} ->
+        Logger.warning("runners: failed to reconcile interactive session pod from live binding",
+          session_id: session.id,
+          workflow_job_id: session.workflow_job_id,
+          changeset_errors: inspect(changeset.errors)
+        )
+
+        session
+    end
+  end
+
+  defp refresh_pod_from_candidate(%InteractiveSession{} = session, pod_name, fleet_name)
+       when is_binary(pod_name) and pod_name != "" and is_binary(fleet_name) and fleet_name != "" do
+    if session.pod_name == pod_name and session.fleet_name == fleet_name do
+      session
+    else
+      session
+      |> InteractiveSession.changeset(%{
+        pod_name: pod_name,
+        fleet_name: fleet_name,
+        updated_at: now()
+      })
+      |> Repo.update()
+      |> case do
+        {:ok, updated} ->
+          updated
+
+        {:error, changeset} ->
+          Logger.warning("runners: failed to reconcile interactive session pod from current job",
+            session_id: session.id,
+            workflow_job_id: session.workflow_job_id,
+            changeset_errors: inspect(changeset.errors)
+          )
+
+          session
+      end
+    end
+  end
+
+  defp refresh_pod_from_candidate(%InteractiveSession{} = session, _pod_name, _fleet_name), do: session
 
   defp refresh_token(%InteractiveSession{} = session, user_id) do
     {token, hash} = build_token()
@@ -521,6 +813,80 @@ defmodule Tuist.Runners.InteractiveSessions do
       {:error, changeset} -> {:error, changeset}
     end
   end
+
+  defp refresh_token(nil, _user_id), do: {:error, :not_found}
+
+  defp binding_for_pod(pod_name) do
+    case Claims.by_pod_name(pod_name) do
+      {:ok, binding} ->
+        binding
+
+      :error ->
+        runner_session_for_pod(pod_name)
+    end
+  end
+
+  defp claim_for_workflow_job(workflow_job_id) when is_integer(workflow_job_id) do
+    case Claims.by_workflow_job_id(workflow_job_id) do
+      {:ok, binding} -> binding
+      :error -> nil
+    end
+  end
+
+  defp binding_for_job(%{workflow_job_id: workflow_job_id, account_id: account_id}) do
+    case claim_for_workflow_job(workflow_job_id) do
+      %{account_id: ^account_id} = binding -> binding
+      _binding -> runner_session_for_workflow_job(workflow_job_id, account_id)
+    end
+  end
+
+  defp binding_for_session(%InteractiveSession{} = session) do
+    binding_for_job(%{workflow_job_id: session.workflow_job_id, account_id: session.account_id})
+  end
+
+  defp runner_session_for_pod(pod_name) do
+    case RunnerSessions.live_for_pod(pod_name) do
+      {:ok, binding} -> binding
+      :error -> nil
+    end
+  end
+
+  defp runner_session_for_workflow_job(workflow_job_id, account_id) do
+    case RunnerSessions.live_for_workflow_job(workflow_job_id, account_id) do
+      {:ok, binding} -> binding
+      :error -> nil
+    end
+  end
+
+  defp binding_matches_session?(binding, %InteractiveSession{} = session) do
+    session.workflow_job_id == binding.workflow_job_id and session.account_id == binding.account_id
+  end
+
+  defp where_session_belongs_to_pod_or_binding(query, pod_name, nil) do
+    where(query, [session], session.pod_name == ^pod_name)
+  end
+
+  defp where_session_belongs_to_pod_or_binding(query, pod_name, binding) do
+    where(
+      query,
+      [session],
+      session.pod_name == ^pod_name or
+        (session.workflow_job_id == ^binding.workflow_job_id and session.account_id == ^binding.account_id)
+    )
+  end
+
+  defp session_pod_name(_job, %{pod_name: claim_pod_name}) when is_binary(claim_pod_name) and claim_pod_name != "" do
+    claim_pod_name
+  end
+
+  defp session_pod_name(%{pod_name: pod_name}, _claim), do: pod_name
+
+  defp session_fleet_name(_job, %{fleet_name: claim_fleet_name})
+       when is_binary(claim_fleet_name) and claim_fleet_name != "" do
+    claim_fleet_name
+  end
+
+  defp session_fleet_name(%{fleet_name: fleet_name}, _claim), do: fleet_name
 
   defp create_connection(interactive_session_id, connection_id, connected_at) do
     %InteractiveSessionConnection{}

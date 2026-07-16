@@ -133,13 +133,19 @@ defmodule Tuist.Oban.RuntimeConfig do
 
   Only `:web` may. Every other mode runs as the least-privilege
   `tuist_processor` Postgres role, which can't satisfy
-  `Oban.Met.Reporter`'s leader-path `CREATE OR REPLACE FUNCTION` query
-  (the role lacks `CREATE` on the schema) — Reporter would crash on
-  every checkpoint. Non-`:web` pods also carry an empty crontab, so a
-  non-web leader silently halts every scheduled job.
+  leader-only plugins. Non-`:web` pods also carry an empty crontab, so
+  a non-web leader silently halts every scheduled job.
   """
   def peer_eligible?(:web), do: true
   def peer_eligible?(_), do: false
+
+  @doc """
+  Whether Oban Met may auto-start for a pod mode.
+
+  Met is useful on the web tier for Oban Web metrics, but processor-style
+  pods do not need it and run with least-privilege database roles.
+  """
+  def met_auto_start?(mode), do: peer_eligible?(mode)
 
   defp self_hosted_artifact_retention_crons(artifact_retention_days) do
     database_crons =

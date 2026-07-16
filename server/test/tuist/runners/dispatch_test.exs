@@ -11,6 +11,7 @@ defmodule Tuist.Runners.DispatchTest do
   alias Tuist.Runners.Dispatch
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.JobSteps
+  alias Tuist.Runners.Profiles
   alias Tuist.VCS
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
@@ -47,13 +48,14 @@ defmodule Tuist.Runners.DispatchTest do
   defp queued_payload(opts) do
     owner = Keyword.get(opts, :owner, "tuist")
     labels = Keyword.get(opts, :labels, ["tuist-macos"])
+    workflow_job_id = Keyword.get(opts, :id, System.unique_integer([:positive]))
 
     %{
       "action" => "queued",
       "workflow_job" => %{
-        "id" => System.unique_integer([:positive]),
+        "id" => workflow_job_id,
         "labels" => labels,
-        "run_id" => 1,
+        "run_id" => Keyword.get(opts, :run_id, 1),
         "run_attempt" => 1,
         "name" => "Build",
         "head_branch" => "main",
@@ -71,14 +73,23 @@ defmodule Tuist.Runners.DispatchTest do
   end
 
   defp completed_payload(opts) do
+    owner = Keyword.get(opts, :owner, "tuist")
+    labels = Keyword.get(opts, :labels, ["tuist-macos"])
+
     %{
       "action" => "completed",
       "workflow_job" => %{
         "id" => Keyword.get(opts, :id, System.unique_integer([:positive])),
+        "labels" => labels,
+        "run_id" => Keyword.get(opts, :run_id, 1),
+        "run_attempt" => 1,
+        "name" => "Build",
+        "head_branch" => "main",
+        "head_sha" => "abc",
         "conclusion" => Keyword.get(opts, :conclusion, "success"),
         "steps" => Keyword.get(opts, :steps, [])
       },
-      "repository" => %{"full_name" => "tuist/repo"}
+      "repository" => %{"full_name" => "#{owner}/repo"}
     }
   end
 
@@ -289,6 +300,42 @@ defmodule Tuist.Runners.DispatchTest do
 
       assert_receive {:steps, []}
     end
+
+    test "does not resurrect a canceled job when completed arrives before queued" do
+      account = enabled_account()
+      workflow_job_id = System.unique_integer([:positive])
+
+      stub(Accounts, :get_account_by_handle, fn _ -> account end)
+      stub(Claims, :complete, fn ^workflow_job_id -> :ok end)
+
+      stub(Client, :list_runner_pools, fn _ns ->
+        {:ok, [pool_cr(name: "macos-pool", label: "tuist-macos")]}
+      end)
+
+      completed =
+        completed_payload(
+          owner: account.name,
+          id: workflow_job_id,
+          conclusion: "cancelled",
+          labels: ["self-hosted", "tuist-macos"]
+        )
+
+      assert {:ok, :completed} = Dispatch.handle_webhook(completed, 1)
+
+      queued =
+        queued_payload(
+          owner: account.name,
+          id: workflow_job_id,
+          labels: ["self-hosted", "tuist-macos"]
+        )
+
+      assert {:ok, :queued} = Dispatch.handle_webhook(queued, 1)
+
+      assert {:ok, job} = Jobs.get_for_account(account.id, workflow_job_id)
+      assert job.status == "completed"
+      assert job.conclusion == "cancelled"
+      assert {:error, :empty} = Jobs.pick_queued("macos-pool")
+    end
   end
 
   describe "resolve_dispatch_target/2 — profile path" do
@@ -314,7 +361,7 @@ defmodule Tuist.Runners.DispatchTest do
       stub(Catalog, :default_xcode_version, fn -> nil end)
 
       {:ok, profile} =
-        Tuist.Runners.Profiles.create(catalog_account, %{
+        Profiles.create(catalog_account, %{
           "name" => "default",
           "vcpus" => 4,
           "memory_gb" => 16
@@ -327,7 +374,10 @@ defmodule Tuist.Runners.DispatchTest do
       assert {:ok,
               %{
                 pool_name: "tuist-runner-pool-linux-4vcpu-16gb",
-                requested_dispatch_label: "tuist-default"
+                requested_dispatch_label: "tuist-default",
+                platform: :linux,
+                vcpus: 4,
+                memory_gb: 16
               }} =
                Dispatch.resolve_dispatch_target(account, ["self-hosted", "tuist-default"])
     end
@@ -437,6 +487,9 @@ defmodule Tuist.Runners.DispatchTest do
            "metadata" => %{"name" => "linux-pool"},
            "spec" => %{
              "dispatchLabel" => "tuist-linux-ubuntu-22-04",
+             "os" => "linux",
+             "podCPUMilli" => 7500,
+             "podMemoryMB" => 18_000,
              "runnerLabels" => ["self-hosted", "Linux", "X64"]
            }
          }}
@@ -446,7 +499,10 @@ defmodule Tuist.Runners.DispatchTest do
               %{
                 name: "linux-pool",
                 dispatch_label: "tuist-linux-ubuntu-22-04",
-                runner_labels: ["self-hosted", "Linux", "X64"]
+                runner_labels: ["self-hosted", "Linux", "X64"],
+                platform: :linux,
+                vcpus: 8,
+                memory_gb: 18
               }} = Dispatch.pool_summary_by_name("linux-pool")
     end
 

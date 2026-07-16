@@ -779,7 +779,7 @@ defmodule TuistWeb.RunnerJobLiveTest do
     refute has_element?(lv2, ~s{.noora-tab-menu-horizontal-item[data-selected]}, "Overview")
   end
 
-  test "automatically requests a VNC session from the Interactive tab", %{
+  test "automatically requests a VNC session from the VNC tab", %{
     conn: conn,
     account: account
   } do
@@ -804,9 +804,9 @@ defmodule TuistWeb.RunnerJobLiveTest do
     :ok = Jobs.record_running(31_750, "tuist-runner-vnc")
 
     {:ok, lv, html} =
-      live(conn, ~p"/#{account.name}/runners/runs/317500/jobs/31750?tab=interactive")
+      live(conn, ~p"/#{account.name}/runners/runs/317500/jobs/31750?tab=vnc")
 
-    assert html =~ "Interactive access"
+    assert html =~ "VNC"
     assert html =~ "Waiting for runner relay"
     refute html =~ "macOS desktop"
     refute html =~ "VNC session for the live runner desktop."
@@ -860,7 +860,7 @@ defmodule TuistWeb.RunnerJobLiveTest do
     |> Repo.update!()
 
     {:ok, lv, html} =
-      live(conn, ~p"/#{account.name}/runners/runs/317520/jobs/31752?tab=interactive")
+      live(conn, ~p"/#{account.name}/runners/runs/317520/jobs/31752?tab=vnc")
 
     refute html =~ "VNC session ready"
 
@@ -875,6 +875,52 @@ defmodule TuistWeb.RunnerJobLiveTest do
            )
 
     refute html =~ "/runners/interactive/vnc/"
+  end
+
+  test "closes the VNC session when the browser client disconnects", %{
+    conn: conn,
+    account: account,
+    user: user
+  } do
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_757,
+        account_id: account.id,
+        fleet_name: Catalog.pool_name(%{platform: :macos, xcode_version: "26.4"}),
+        repository: "tuist/tuist",
+        workflow_run_id: 317_570,
+        workflow_name: "Server",
+        run_attempt: 1,
+        job_name: "Disconnecting VNC",
+        head_branch: "main",
+        head_sha: "abc"
+      })
+
+    {:ok, candidate} =
+      Jobs.pick_queued(Catalog.pool_name(%{platform: :macos, xcode_version: "26.4"}), [])
+
+    :ok = Jobs.record_claimed(candidate, "macos-pod-disconnecting-vnc", DateTime.utc_now())
+    :ok = Jobs.record_running(31_757, "tuist-runner-disconnecting-vnc")
+
+    {:ok, job} = Jobs.get_for_account(account.id, 31_757)
+    {:ok, session} = InteractiveSessions.request_vnc(job, account, user)
+
+    session
+    |> InteractiveSession.changeset(%{state: :ready})
+    |> Repo.update!()
+
+    {:ok, lv, _html} =
+      live(conn, ~p"/#{account.name}/runners/runs/317570/jobs/31757?tab=vnc")
+
+    lv
+    |> element(~s{#runner-vnc-client})
+    |> render_hook("interactive_vnc_disconnected", %{})
+
+    closed = Repo.reload!(session)
+    assert closed.state == :closed
+    assert closed.close_reason == "browser_disconnect"
+    refute has_element?(lv, ~s{#runner-vnc-client})
+    assert has_element?(lv, ~s{#request-vnc-session-button})
   end
 
   test "renders a local development VNC placeholder with a fake ready session", %{
@@ -905,9 +951,9 @@ defmodule TuistWeb.RunnerJobLiveTest do
     :ok = Jobs.record_running(31_753, "tuist-runner-dev-vnc")
 
     {:ok, lv, html} =
-      live(conn, ~p"/#{account.name}/runners/runs/317530/jobs/31753?tab=interactive")
+      live(conn, ~p"/#{account.name}/runners/runs/317530/jobs/31753?tab=vnc")
 
-    assert html =~ "Interactive access"
+    assert html =~ "VNC"
     refute has_element?(lv, ~s{[data-part="interactive-dev-preview"]})
     assert has_element?(lv, ~s{[data-part="interactive-viewport-frame"]})
     assert html =~ "VNC session ready"
@@ -922,7 +968,7 @@ defmodule TuistWeb.RunnerJobLiveTest do
     assert session.relay_ready_at
   end
 
-  test "does not show the Interactive tab for queued macOS jobs", %{conn: conn, account: account} do
+  test "does not show interactive access tabs for queued macOS jobs", %{conn: conn, account: account} do
     :ok =
       Jobs.enqueue(%{
         workflow_job_id: 31_751,
@@ -940,8 +986,159 @@ defmodule TuistWeb.RunnerJobLiveTest do
     {:ok, lv, _html} =
       live(conn, ~p"/#{account.name}/runners/runs/317510/jobs/31751?tab=interactive")
 
-    refute has_element?(lv, ~s{.noora-tab-menu-horizontal-item}, "Interactive")
+    refute has_element?(lv, ~s{.noora-tab-menu-horizontal-item}, "Terminal")
+    refute has_element?(lv, ~s{.noora-tab-menu-horizontal-item}, "VNC")
     assert has_element?(lv, ~s{.noora-tab-menu-horizontal-item[data-selected]}, "Overview")
+  end
+
+  test "automatically requests a shell session from the Terminal tab for Linux jobs and waits for the runner", %{
+    conn: conn,
+    account: account
+  } do
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_754,
+        account_id: account.id,
+        fleet_name: "linux-amd64",
+        repository: "tuist/tuist",
+        workflow_run_id: 317_540,
+        workflow_name: "Server",
+        run_attempt: 1,
+        job_name: "Linux shell",
+        head_branch: "main",
+        head_sha: "abc"
+      })
+
+    {:ok, candidate} = Jobs.pick_queued("linux-amd64", [])
+    :ok = Jobs.record_claimed(candidate, "linux-pod-shell", DateTime.utc_now())
+    :ok = Jobs.record_running(31_754, "tuist-runner-linux-shell")
+
+    {:ok, lv, html} =
+      live(conn, ~p"/#{account.name}/runners/runs/317540/jobs/31754?tab=terminal")
+
+    assert html =~ "Terminal"
+    assert html =~ "Waiting for runner shell"
+    assert has_element?(lv, ~s{#runner-shell-session})
+    refute has_element?(lv, ~s{#runner-shell-terminal[phx-hook="RunnerShellTerminal"]})
+
+    refute has_element?(lv, ~s{#runner-vnc-session})
+    refute has_element?(lv, ~s{#request-vnc-session-button})
+
+    session = Repo.get_by!(InteractiveSession, workflow_job_id: 31_754, kind: :shell)
+    assert session.state == :requested
+    assert session.pod_name == "linux-pod-shell"
+    assert session.requested_by_user_id
+  end
+
+  test "renders the shell terminal once the runner shell is ready", %{
+    conn: conn,
+    account: account,
+    user: user
+  } do
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_756,
+        account_id: account.id,
+        fleet_name: "linux-amd64",
+        repository: "tuist/tuist",
+        workflow_run_id: 317_560,
+        workflow_name: "Server",
+        run_attempt: 1,
+        job_name: "Ready Linux shell",
+        head_branch: "main",
+        head_sha: "abc"
+      })
+
+    {:ok, candidate} = Jobs.pick_queued("linux-amd64", [])
+    :ok = Jobs.record_claimed(candidate, "linux-pod-shell-ready", DateTime.utc_now())
+    :ok = Jobs.record_running(31_756, "tuist-runner-linux-shell-ready")
+
+    {:ok, job} = Jobs.get_for_account(account.id, 31_756)
+    {:ok, session} = InteractiveSessions.request_shell(job, account, user)
+    {:ok, _session} = InteractiveSessions.mark_shell_ready(session)
+
+    {:ok, lv, html} =
+      live(conn, ~p"/#{account.name}/runners/runs/317560/jobs/31756?tab=terminal")
+
+    refute html =~ "Waiting for runner shell"
+
+    assert has_element?(
+             lv,
+             ~s{#runner-shell-terminal[phx-hook="RunnerShellTerminal"][data-shell-path="/#{account.name}/runners/interactive/shell"][data-shell-token]}
+           )
+  end
+
+  test "closes the shell session when the browser terminal disconnects", %{
+    conn: conn,
+    account: account,
+    user: user
+  } do
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_758,
+        account_id: account.id,
+        fleet_name: "linux-amd64",
+        repository: "tuist/tuist",
+        workflow_run_id: 317_580,
+        workflow_name: "Server",
+        run_attempt: 1,
+        job_name: "Disconnecting Linux shell",
+        head_branch: "main",
+        head_sha: "abc"
+      })
+
+    {:ok, candidate} = Jobs.pick_queued("linux-amd64", [])
+    :ok = Jobs.record_claimed(candidate, "linux-pod-shell-disconnecting", DateTime.utc_now())
+    :ok = Jobs.record_running(31_758, "tuist-runner-linux-shell-disconnecting")
+
+    {:ok, job} = Jobs.get_for_account(account.id, 31_758)
+    {:ok, session} = InteractiveSessions.request_shell(job, account, user)
+    {:ok, _session} = InteractiveSessions.mark_shell_ready(session)
+
+    {:ok, lv, _html} =
+      live(conn, ~p"/#{account.name}/runners/runs/317580/jobs/31758?tab=terminal")
+
+    lv
+    |> element(~s{#runner-shell-terminal})
+    |> render_hook("interactive_shell_disconnected", %{})
+
+    closed = Repo.reload!(session)
+    assert closed.state == :closed
+    assert closed.close_reason == "browser_disconnect"
+    refute has_element?(lv, ~s{#runner-shell-terminal})
+    assert has_element?(lv, ~s{#request-shell-session-button})
+  end
+
+  test "renders a local terminal simulation without requesting a shell session", %{
+    conn: conn,
+    account: account
+  } do
+    stub(Environment, :dev?, fn -> true end)
+
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 31_755,
+        account_id: account.id,
+        fleet_name: "linux-amd64",
+        repository: "tuist/tuist",
+        workflow_run_id: 317_550,
+        workflow_name: "Server",
+        run_attempt: 1,
+        job_name: "Local shell simulation",
+        head_branch: "main",
+        head_sha: "abc"
+      })
+
+    {:ok, lv, html} =
+      live(
+        conn,
+        ~p"/#{account.name}/runners/runs/317550/jobs/31755?tab=terminal&terminal_simulation=1"
+      )
+
+    assert html =~ "Terminal"
+    assert has_element?(lv, ~s{#runner-shell-terminal[data-shell-simulation="true"]})
+    refute has_element?(lv, ~s{#request-shell-session-button})
+    refute Repo.get_by(InteractiveSession, workflow_job_id: 31_755, kind: :shell)
   end
 
   test "renders the machine metrics charts on the Metrics tab", %{conn: conn, account: account} do
