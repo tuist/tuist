@@ -1050,14 +1050,14 @@ msgstr ""
 msgid "Tuist"
 msgstr ""
 
-#: lib/tuist_web/marketing/layouts/root.html.heex:82
 #: lib/tuist_web/marketing/layouts/root.html.heex:88
+#: lib/tuist_web/marketing/layouts/root.html.heex:94
 #, elixir-autogen, elixir-format
 msgid "Tuist Blog"
 msgstr ""
 
-#: lib/tuist_web/marketing/layouts/root.html.heex:97
 #: lib/tuist_web/marketing/layouts/root.html.heex:103
+#: lib/tuist_web/marketing/layouts/root.html.heex:109
 #, elixir-autogen, elixir-format
 msgid "Tuist Changelog"
 msgstr ""
