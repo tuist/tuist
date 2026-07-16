@@ -62,28 +62,24 @@
 
   & #account-tokens-table {
     & table {
-      min-width: 720px;
+      min-width: 640px;
       table-layout: fixed;
     }
 
     & th:first-child {
-      width: 25%;
+      width: 34%;
     }
 
     & th:nth-child(2) {
-      width: 24%;
+      width: 34%;
     }
 
     & th:nth-child(3) {
-      width: 27%;
+      width: 16%;
     }
 
     & th:nth-child(4) {
-      width: 12%;
-    }
-
-    & th:nth-child(5) {
-      width: 12%;
+      width: 16%;
     }
 
     & td:nth-child(2) [data-part="label"] {

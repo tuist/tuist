@@ -50,6 +50,7 @@ defmodule TuistWeb.AccountTokensLiveTest do
     refute html =~ "Specific projects"
     refute html =~ "MCP"
     refute html =~ "#{account.name}/ios-app"
+    assert account_tokens_table_headers(html) == ["Name", "Token", "Last used", "Created"]
     assert scope_checked?(html, "ci")
     assert scope_checked?(html, "account:cache:read")
     assert scope_checked?(html, "account:cache:write")
@@ -60,7 +61,6 @@ defmodule TuistWeb.AccountTokensLiveTest do
     assert html =~ "ci-main"
     assert html =~ account_token_hint(token)
     assert html =~ ~p"/#{account.name}/settings/tokens/#{token.id}"
-    assert html =~ "ci"
     assert html =~ "Never"
   end
 
@@ -77,7 +77,7 @@ defmodule TuistWeb.AccountTokensLiveTest do
     {:ok, _lv, html} = live(conn, ~p"/#{user.account.name}/settings/tokens")
 
     assert html =~ "personal-ci"
-    assert html =~ "project:builds:write"
+    assert account_tokens_table_headers(html) == ["Name", "Token", "Last used", "Created"]
     assert html =~ "Project access"
     assert html =~ "Select all projects"
     assert html =~ "Select all account scopes"
@@ -404,6 +404,13 @@ defmodule TuistWeb.AccountTokensLiveTest do
 
   defp account_token_hint(token) do
     "tuist_" <> String.slice(token.id, 0, 8) <> String.duplicate("•", 6)
+  end
+
+  defp account_tokens_table_headers(html) do
+    html
+    |> Floki.parse_fragment!()
+    |> Floki.find("#account-tokens-table thead th")
+    |> Enum.map(&Floki.text/1)
   end
 
   defp scope_checked?(html, scope) do

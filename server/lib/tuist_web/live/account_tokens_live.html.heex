@@ -280,9 +280,6 @@
           <:col :let={token} label={dgettext("dashboard_account", "Token")}>
             <.text_cell data-part="token-hint-cell" label={account_token_hint(token)} />
           </:col>
-          <:col :let={token} label={dgettext("dashboard_account", "Scopes")}>
-            <.text_cell label={scopes_label(token.scopes)} />
-          </:col>
           <:col :let={token} label={dgettext("dashboard_account", "Last used")}>
             <.text_cell label={last_used_label(token)} />
           </:col>
