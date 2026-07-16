@@ -507,7 +507,7 @@ struct SetupCacheCommandServiceTests {
         // When
         try await subject.run(path: nil)
 
-        // Then: off CI the branch column is omitted on purpose — HEAD is attached, so
+        // Then: off CI the branch column is omitted on purpose. HEAD is attached, so
         // the proxy reads the branch live and a value recorded here would rot.
         let root = try await Environment.current.pathRelativeToWorkingDirectory(nil)
         let sources = try await FileSystem().readTextFile(at: registry.parentDirectory
