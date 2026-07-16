@@ -257,6 +257,26 @@ defmodule Tuist.Authorization.ChecksTest do
              ) == false
     end
 
+    test "returns true for an OAuth token issued by an organization member", %{
+      organization: organization,
+      user: user
+    } do
+      Accounts.add_user_to_organization(user, organization, role: :user)
+
+      subject = %AuthenticatedAccount{account: user.account, scopes: [], issued_by: user}
+
+      assert Checks.accounts_match(subject, organization.account) == true
+    end
+
+    test "returns false for an OAuth token issued by a user outside the organization", %{
+      organization: organization,
+      user: user
+    } do
+      subject = %AuthenticatedAccount{account: user.account, scopes: [], issued_by: user}
+
+      assert Checks.accounts_match(subject, organization.account) == false
+    end
+
     test "returns true when the project accounts match", %{
       organization: organization
     } do

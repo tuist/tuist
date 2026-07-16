@@ -1227,6 +1227,47 @@ defmodule Tuist.TestsTest do
   end
 
   describe "create_test/1" do
+    test "persists test case runs and their arguments without relying on the asynchronous batch" do
+      # Given
+      # The client uploads attachments and crash reports as soon as it gets these
+      # IDs back, and those endpoints authorize the upload by looking the run up.
+      # Dropping the asynchronous batch stands in for the buffer not having been
+      # flushed yet: the runs and arguments must be readable regardless.
+      stub(Tuist.Tasks, :run_async, fn _fun -> {:ok, self()} end)
+
+      # When
+      {:ok, test_run} =
+        RunsFixtures.test_fixture(
+          test_modules: [
+            %{
+              name: "MyTests",
+              status: "success",
+              duration: 1000,
+              test_cases: [
+                %{
+                  name: "parameterized test",
+                  test_suite_name: "MySuite",
+                  status: "success",
+                  duration: 500,
+                  arguments: [%{name: ".variant1", status: "success", duration: 200}]
+                }
+              ]
+            }
+          ]
+        )
+
+      [test_case_run] = test_run.test_case_runs
+
+      # Then
+      assert {:ok, run} =
+               Tests.get_test_case_run_by_id(test_case_run.id,
+                 project_id: test_run.project_id,
+                 preload: [:arguments]
+               )
+
+      assert [%{name: ".variant1"}] = run.arguments
+    end
+
     test "creates a test with basic attributes" do
       # Given
       project = ProjectsFixtures.project_fixture()
@@ -8482,6 +8523,41 @@ defmodule Tuist.TestsTest do
 
       # Then
       assert {:error, :not_found} = result
+    end
+  end
+
+  describe "get_test_case_run_attachment/2" do
+    test "returns the attachment for the given test case run" do
+      test_case_run_id = UUIDv7.generate()
+
+      attachment =
+        RunsFixtures.test_case_run_attachment_fixture(test_case_run_id: test_case_run_id)
+
+      assert {:ok, result} =
+               Tests.get_test_case_run_attachment(test_case_run_id, attachment.id)
+
+      assert result.id == attachment.id
+    end
+
+    test "uses a sequentially consistent read" do
+      test_case_run_id = UUIDv7.generate()
+      attachment_id = UUIDv7.generate()
+
+      expect(ClickHouseRepo, :one, fn _query, opts ->
+        assert opts == [settings: [select_sequential_consistency: 1]]
+        nil
+      end)
+
+      assert {:error, :not_found} =
+               Tests.get_test_case_run_attachment(test_case_run_id, attachment_id)
+    end
+
+    test "returns an error when the attachment belongs to another test case run" do
+      attachment =
+        RunsFixtures.test_case_run_attachment_fixture(test_case_run_id: UUIDv7.generate())
+
+      assert {:error, :not_found} =
+               Tests.get_test_case_run_attachment(UUIDv7.generate(), attachment.id)
     end
   end
 

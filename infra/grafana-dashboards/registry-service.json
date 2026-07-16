@@ -49,7 +49,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "app": "grafana-assistant-app",
-                        "expr": "sum by (method, path) (rate(tuist_registry_prom_ex_phoenix_http_requests_total{namespace=~\"^($environment)$\", pod=~\"$pod\"}[$__rate_interval]))",
+                        "expr": "sum by (method, path) (rate(tuist_registry_prom_ex_phoenix_http_request_duration_milliseconds_count{env=~\"$environment\", pod=~\"$pod\"}[$__rate_interval]))",
                         "instant": false,
                         "queryType": "range",
                         "range": true
@@ -174,7 +174,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "app": "grafana-assistant-app",
-                        "expr": "histogram_quantile(0.95, sum by (path, le) (rate(tuist_registry_prom_ex_phoenix_http_request_duration_milliseconds_bucket{namespace=~\"^($environment)$\", pod=~\"$pod\"}[$__rate_interval])))",
+                        "expr": "histogram_quantile(0.95, sum by (path, le) (rate(tuist_registry_prom_ex_phoenix_http_request_duration_milliseconds_bucket{env=~\"$environment\", pod=~\"$pod\"}[$__rate_interval])))",
                         "instant": false,
                         "queryType": "range",
                         "range": true
@@ -505,7 +505,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum by (env, result) (rate(tuist_registry_s3_head_requests_total{env=~\"$environment\", pod=~\"$pod\"}[$__rate_interval]))",
+                        "expr": "sum by (env, result) (rate(tuist_registry_s3_head_duration_milliseconds_count{env=~\"$environment\", pod=~\"$pod\"}[$__rate_interval]))",
                         "legendFormat": "{{env}} {{result}}",
                         "range": true
                       },
@@ -753,7 +753,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "app": "grafana-assistant-app",
-                        "expr": "100 * sum by (namespace, url) (tuist_registry_prom_ex_finch_pool_in_use_connections{namespace=~\"^($environment)$\", pod=~\"$pod\"}) / clamp_min(sum by (namespace, url) (tuist_registry_prom_ex_finch_pool_size{namespace=~\"^($environment)$\", pod=~\"$pod\"}), 1)",
+                        "expr": "100 * sum by (env, url) (tuist_registry_prom_ex_finch_pool_in_use_connections{env=~\"$environment\", pod=~\"$pod\"}) / clamp_min(sum by (env, url) (tuist_registry_prom_ex_finch_pool_size{env=~\"$environment\", pod=~\"$pod\"}), 1)",
                         "instant": false,
                         "queryType": "range",
                         "range": true
@@ -880,7 +880,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "app": "grafana-assistant-app",
-                        "expr": "histogram_quantile(0.95, sum by (path, le) (rate(tuist_registry_prom_ex_phoenix_http_response_size_bytes_bucket{namespace=~\"^($environment)$\", pod=~\"$pod\"}[$__rate_interval])))",
+                        "expr": "histogram_quantile(0.95, sum by (path, le) (rate(tuist_registry_prom_ex_phoenix_http_response_size_bytes_bucket{env=~\"$environment\", pod=~\"$pod\"}[$__rate_interval])))",
                         "instant": false,
                         "queryType": "range",
                         "range": true
@@ -1005,7 +1005,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "app": "grafana-assistant-app",
-                        "expr": "count(container_cpu_usage_seconds_total{namespace=~\"^($environment)$\", container=\"registry\", pod=~\"tuist-tuist-registry.*\"})",
+                        "expr": "sum(kube_deployment_status_replicas_ready{env=~\"$environment\", deployment=\"tuist-tuist-registry\"})",
                         "instant": true,
                         "queryType": "instant",
                         "range": false
@@ -1091,14 +1091,38 @@
                       "kind": "DataQuery",
                       "spec": {
                         "app": "grafana-assistant-app",
-                        "expr": "tuist_registry_prom_ex_beam_memory_allocated_bytes{namespace=\"$environment\"}",
+                        "expr": "max by (env, pod) (tuist_registry_prom_ex_beam_memory_allocated_bytes{env=~\"$environment\", pod=~\"$pod\"})",
                         "instant": false,
+                        "legendFormat": "{{env}} {{pod}} total",
                         "queryType": "range",
                         "range": true
                       },
                       "version": "v0"
                     },
                     "refId": "A"
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "app": "grafana-assistant-app",
+                        "expr": "max by (env, pod) (tuist_registry_prom_ex_beam_memory_processes_total_bytes{env=~\"$environment\", pod=~\"$pod\"})",
+                        "instant": false,
+                        "legendFormat": "{{env}} {{pod}} processes",
+                        "queryType": "range",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "B"
                   }
                 }
               ],
@@ -1216,7 +1240,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "app": "grafana-assistant-app",
-                        "expr": "sum by (namespace, pod) (rate(container_cpu_usage_seconds_total{namespace=~\"^($environment)$\", pod=~\"$pod\", container=\"registry\"}[$__rate_interval]))",
+                        "expr": "sum by (env, pod) (rate(container_cpu_usage_seconds_total{env=~\"$environment\", pod=~\"$pod\", container=\"registry\"}[$__rate_interval]))",
                         "instant": false,
                         "queryType": "range",
                         "range": true
@@ -1341,7 +1365,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "app": "grafana-assistant-app",
-                        "expr": "tuist_registry_prom_ex_beam_stats_process_count{namespace=\"$environment\"}",
+                        "expr": "max by (env, pod) (tuist_registry_prom_ex_beam_stats_process_count{env=~\"$environment\", pod=~\"$pod\"})",
                         "instant": false,
                         "queryType": "range",
                         "range": true
@@ -1466,7 +1490,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "app": "grafana-assistant-app",
-                        "expr": "sum(increase(kube_pod_container_status_restarts_total{namespace=~\"^($environment)$\", pod=~\"$pod\", container=\"registry\"}[$__range]))",
+                        "expr": "sum(increase(kube_pod_container_status_restarts_total{env=~\"$environment\", pod=~\"$pod\", container=\"registry\"}[$__range]))",
                         "instant": true,
                         "queryType": "instant",
                         "range": false
@@ -1552,14 +1576,38 @@
                       "kind": "DataQuery",
                       "spec": {
                         "app": "grafana-assistant-app",
-                        "expr": "tuist_registry_prom_ex_beam_stats_active_task_count{namespace=\"$environment\", type=\"normal\"}",
+                        "expr": "max by (env, pod) (tuist_registry_prom_ex_beam_stats_active_task_count{env=~\"$environment\", pod=~\"$pod\", type=\"normal\"})",
                         "instant": false,
+                        "legendFormat": "{{env}} {{pod}} normal",
                         "queryType": "range",
                         "range": true
                       },
                       "version": "v0"
                     },
                     "refId": "A"
+                  }
+                },
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "query": {
+                      "datasource": {
+                        "name": "$datasource"
+                      },
+                      "group": "prometheus",
+                      "kind": "DataQuery",
+                      "spec": {
+                        "app": "grafana-assistant-app",
+                        "expr": "max by (env, pod) (tuist_registry_prom_ex_beam_stats_active_task_count{env=~\"$environment\", pod=~\"$pod\", type=\"dirty\"})",
+                        "instant": false,
+                        "legendFormat": "{{env}} {{pod}} dirty",
+                        "queryType": "range",
+                        "range": true
+                      },
+                      "version": "v0"
+                    },
+                    "refId": "B"
                   }
                 }
               ],
@@ -1817,7 +1865,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "app": "grafana-assistant-app",
-                        "expr": "sum(rate(tuist_registry_prom_ex_phoenix_http_requests_total{namespace=~\"^($environment)$\", pod=~\"$pod\"}[$__rate_interval]))",
+                        "expr": "sum(rate(tuist_registry_prom_ex_phoenix_http_request_duration_milliseconds_count{env=~\"$environment\", pod=~\"$pod\"}[$__rate_interval]))",
                         "instant": true,
                         "queryType": "instant",
                         "range": false
@@ -1900,7 +1948,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "app": "grafana-assistant-app",
-                        "expr": "100 * (sum(rate(tuist_registry_prom_ex_phoenix_http_requests_total{namespace=~\"^($environment)$\", pod=~\"$pod\", status_class=\"5xx\"}[$__rate_interval])) or vector(0)) / clamp_min(sum(rate(tuist_registry_prom_ex_phoenix_http_requests_total{namespace=~\"^($environment)$\", pod=~\"$pod\"}[$__rate_interval])), 0.001)",
+                        "expr": "100 * (sum(rate(tuist_registry_prom_ex_phoenix_http_request_duration_milliseconds_count{env=~\"$environment\", pod=~\"$pod\", status_class=\"5xx\"}[$__rate_interval])) or vector(0)) / clamp_min(sum(rate(tuist_registry_prom_ex_phoenix_http_request_duration_milliseconds_count{env=~\"$environment\", pod=~\"$pod\"}[$__rate_interval])), 0.001)",
                         "instant": true,
                         "queryType": "instant",
                         "range": false
@@ -1993,7 +2041,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "app": "grafana-assistant-app",
-                        "expr": "histogram_quantile(0.95, sum by (le) (rate(tuist_registry_prom_ex_phoenix_http_request_duration_milliseconds_bucket{namespace=~\"^($environment)$\", pod=~\"$pod\"}[$__rate_interval])))",
+                        "expr": "histogram_quantile(0.95, sum by (le) (rate(tuist_registry_prom_ex_phoenix_http_request_duration_milliseconds_bucket{env=~\"$environment\", pod=~\"$pod\"}[$__rate_interval])))",
                         "instant": true,
                         "queryType": "instant",
                         "range": false
@@ -2084,7 +2132,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum(increase(tuist_registry_swift_download_total{env=~\"$environment\", pod=~\"$pod\"}[$__range]))",
+                        "expr": "sum(increase(tuist_registry_prom_ex_phoenix_http_request_duration_milliseconds_count{env=~\"$environment\", pod=~\"$pod\", method=\"GET\", path=~\"/(api/registry/)?swift/:scope/:name/:version\", status_class=\"3xx\"}[$__range])) or vector(0)",
                         "instant": true,
                         "range": false
                       },
@@ -2165,7 +2213,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "code",
-                        "expr": "sum(increase(tuist_registry_swift_manifest_total{env=~\"$environment\", pod=~\"$pod\"}[$__range]))",
+                        "expr": "sum(increase(tuist_registry_prom_ex_phoenix_http_request_duration_milliseconds_count{env=~\"$environment\", pod=~\"$pod\", method=\"GET\", path=~\"/(api/registry/)?swift/:scope/:name/:version/Package[.]swift\", status_class=\"2xx\"}[$__range])) or vector(0)",
                         "instant": true,
                         "range": false
                       },
@@ -2246,7 +2294,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "app": "grafana-assistant-app",
-                        "expr": "sum by (namespace) (rate(tuist_registry_prom_ex_phoenix_http_requests_total{namespace=~\"^($environment)$\", pod=~\"$pod\"}[$__rate_interval]))",
+                        "expr": "sum by (env) (rate(tuist_registry_prom_ex_phoenix_http_request_duration_milliseconds_count{env=~\"$environment\", pod=~\"$pod\"}[$__rate_interval]))",
                         "instant": false,
                         "queryType": "range",
                         "range": true
@@ -2371,7 +2419,7 @@
                       "kind": "DataQuery",
                       "spec": {
                         "app": "grafana-assistant-app",
-                        "expr": "sum by (namespace, status_class) (rate(tuist_registry_prom_ex_phoenix_http_requests_total{namespace=~\"^($environment)$\", pod=~\"$pod\", status_class=~\"4xx|5xx\"}[$__rate_interval]))",
+                        "expr": "sum by (env, status_class) (rate(tuist_registry_prom_ex_phoenix_http_request_duration_milliseconds_count{env=~\"$environment\", pod=~\"$pod\", status_class=~\"4xx|5xx\"}[$__rate_interval]))",
                         "instant": false,
                         "queryType": "range",
                         "range": true
@@ -2981,11 +3029,11 @@
           },
           "hide": "dontHide",
           "includeAll": true,
-          "label": "Namespace",
+          "label": "Environment",
           "multi": true,
           "name": "environment",
           "options": [],
-          "query": "tuist,tuist-canary,tuist-staging",
+          "query": "production,canary,staging",
           "skipUrlSync": false,
           "valuesFormat": "csv"
         }
@@ -2999,7 +3047,7 @@
             "text": "All",
             "value": "$__all"
           },
-          "definition": "label_values(container_cpu_usage_seconds_total{namespace=~\"^($environment)$\", container=\"registry\"}, pod)",
+          "definition": "label_values(container_cpu_usage_seconds_total{env=~\"$environment\", container=\"registry\"}, pod)",
           "hide": "dontHide",
           "includeAll": true,
           "label": "Pod",
@@ -3014,7 +3062,7 @@
             "kind": "DataQuery",
             "spec": {
               "qryType": 1,
-              "query": "label_values()",
+              "query": "label_values(container_cpu_usage_seconds_total{env=~\"$environment\", container=\"registry\"}, pod)",
               "refId": "PrometheusVariableQueryEditor-VariableQuery"
             },
             "version": "v0"

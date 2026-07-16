@@ -48,21 +48,88 @@ defmodule TuistWeb.RunnersLiveTest do
     :ok = Jobs.record_running(70_001, "runner-x")
     {:ok, _} = Jobs.complete(70_001, "success")
 
-    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/runners")
+    {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners")
+    html = render_async(lv)
 
     assert html =~ "Total jobs"
     assert html =~ "Avg. job duration"
     assert html =~ "Avg. workflow duration"
+    assert html =~ "Concurrency"
+    assert html =~ "12 vCPU limit"
+    assert html =~ "28 GB limit"
+    assert html =~ "runners-concurrency-platform-dropdown"
+    assert html =~ "runners-concurrency-macos-vcpus-chart"
+    assert html =~ "runners-concurrency-macos-memory-chart"
+    assert html =~ ~s(class="noora-card__section " data-part="concurrency-chart")
+    refute html =~ "runners-concurrency-linux-vcpus-chart"
+    refute html =~ "No limit hits"
+    refute html =~ "Limit reached in"
+    assert concurrency_after_analytics?(html)
     assert html =~ "Recent jobs"
     assert html =~ "Server"
     assert html =~ "Docker build"
   end
 
   test "shows empty state when the account has no jobs", %{conn: conn, account: account} do
-    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/runners")
+    {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners")
+    html = render_async(lv)
 
     assert html =~ "Workflows"
+    assert html =~ "Concurrency"
     assert html =~ "Recent jobs"
     assert html =~ "No jobs yet"
+  end
+
+  test "shows only the selected concurrency platform", %{conn: conn, account: account} do
+    {:ok, lv, _html} =
+      live(conn, ~p"/#{account.name}/runners?concurrency-platform=linux")
+
+    html = render_async(lv)
+
+    assert html =~ "32 vCPU limit"
+    assert html =~ "64 GB limit"
+    assert html =~ "runners-concurrency-linux-vcpus-chart"
+    assert html =~ "runners-concurrency-linux-memory-chart"
+    refute html =~ "runners-concurrency-macos-vcpus-chart"
+  end
+
+  test "marks limit buckets and renders the configured threshold" do
+    [usage, limit] = TuistWeb.RunnersLive.concurrency_chart_series([6, 12, 18], 12, "Peak CPU")
+
+    assert usage.name == "Peak CPU"
+    assert usage.itemStyle.color == "var:noora-chart-primary"
+
+    assert usage.data == [
+             6,
+             %{value: 12, itemStyle: %{color: "var:noora-chart-destructive"}},
+             %{value: 18, itemStyle: %{color: "var:noora-chart-destructive"}}
+           ]
+
+    assert limit.data == [12, 12, 12]
+    assert limit.itemStyle.color == "var:noora-chart-destructive"
+    assert limit.lineStyle.type == "dashed"
+
+    assert TuistWeb.RunnersLive.concurrency_chart_options("last-7-days").legend.left == "left"
+
+    assert TuistWeb.RunnersLive.concurrency_chart_options("last-24-hours").xAxis.axisLabel.formatter ==
+             "fn:toLocaleDateHour"
+
+    assert TuistWeb.RunnersLive.concurrency_chart_options("last-7-days").xAxis.axisLabel.formatter ==
+             "fn:toLocaleDate"
+
+    assert TuistWeb.RunnersLive.concurrency_chart_options("last-7-days").xAxis.axisLabel.interval == 23
+
+    assert TuistWeb.RunnersLive.concurrency_chart_options("last-30-days").xAxis.axisLabel.formatter ==
+             "fn:toLocaleDate"
+
+    assert TuistWeb.RunnersLive.concurrency_chart_options("last-30-days").xAxis.axisLabel.interval == 47
+
+    assert TuistWeb.RunnersLive.concurrency_chart_options("last-7-days").tooltip.dateFormat == "hour"
+  end
+
+  defp concurrency_after_analytics?(html) do
+    {analytics_position, _} = :binary.match(html, "data-part=\"analytics\"")
+    {concurrency_position, _} = :binary.match(html, "data-part=\"concurrency-card\"")
+    concurrency_position > analytics_position
   end
 end

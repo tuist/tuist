@@ -677,6 +677,131 @@ struct SwiftPackageManagerGraphLoaderTests {
     }
 
     @Test
+    func load_when_two_source_control_dependencies_declare_the_same_package_name() async throws {
+        // Unrelated packages are free to declare the same name in their manifest, which swifterpm writes to
+        // `packageRef.name`. They must not be deduplicated against each other, otherwise the discarded package's
+        // products are reported as not being valid configured external dependencies.
+        // https://github.com/tuist/tuist/issues/11867
+        try await withMockedDependencies {
+            try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) {
+                temporaryDirectory in
+                // Given
+                let packageSettings = PackageSettings.test()
+
+                let workspacePath = temporaryDirectory.appending(components: [
+                    ".build", "workspace-state.json",
+                ])
+                try await fileSystem.makeDirectory(at: workspacePath.parentDirectory)
+                try await fileSystem.writeText(
+                    """
+                    {
+                      "object" : {
+                        "artifacts" : [],
+                        "dependencies" : [
+                          {
+                            "basedOn" : null,
+                            "packageRef" : {
+                              "identity" : "Charts",
+                              "kind" : "remoteSourceControl",
+                              "location" : "https://github.com/danielgindi/Charts.git",
+                              "name" : "DGCharts"
+                            },
+                            "state" : {
+                              "checkoutState" : {
+                                "revision" : "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                                "version" : "5.1.0"
+                              },
+                              "name" : "sourceControlCheckout"
+                            },
+                            "subpath" : "Charts"
+                          },
+                          {
+                            "basedOn" : null,
+                            "packageRef" : {
+                              "identity" : "Charts-fork",
+                              "kind" : "remoteSourceControl",
+                              "location" : "https://github.com/acme/Charts-fork.git",
+                              "name" : "DGCharts"
+                            },
+                            "state" : {
+                              "checkoutState" : {
+                                "revision" : "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                                "version" : "6.0.0"
+                              },
+                              "name" : "sourceControlCheckout"
+                            },
+                            "subpath" : "Charts-fork"
+                          },
+                        ],
+                      }
+                    }
+                    """,
+                    at: workspacePath
+                )
+
+                try await fileSystem.makeDirectory(
+                    at: temporaryDirectory.appending(components: [".build", "Derived"])
+                )
+                try await fileSystem.touch(
+                    temporaryDirectory.appending(components: [
+                        ".build", "Derived", "Package.resolved",
+                    ])
+                )
+                try await fileSystem.touch(
+                    temporaryDirectory.appending(component: "Package.resolved")
+                )
+
+                given(packageInfoMapper)
+                    .resolveExternalDependencies(
+                        path: .any,
+                        packagePath: .any,
+                        packageInfos: .any,
+                        packageToFolder: .any,
+                        packageToTargetsToArtifactPaths: .any,
+                        packageModuleAliases: .any,
+                        packageSettings: .any
+                    )
+                    .willReturn([:])
+
+                // When
+                let (got, _) = try await subject.load(
+                    packagePath: temporaryDirectory.appending(component: "Package.swift"),
+                    packageSettings: packageSettings,
+                    disableSandbox: true
+                )
+
+                // Then: both packages are kept, so both contribute their products.
+                #expect(
+                    got.externalProjects.values.map(\.hash).compactMap { $0 }.sorted() == [
+                        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                        "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                    ]
+                )
+
+                let checkoutsFolder = temporaryDirectory.appending(components: [".build", "checkouts"])
+                #expect(
+                    got.externalProjects.keys.map(\.pathString).sorted() == [
+                        checkoutsFolder.appending(component: "Charts").pathString,
+                        checkoutsFolder.appending(component: "Charts-fork").pathString,
+                    ]
+                )
+
+                verify(packageInfoMapper)
+                    .resolveExternalDependencies(
+                        path: .any,
+                        packagePath: .any,
+                        packageInfos: .matching { $0.count == 2 },
+                        packageToFolder: .matching { $0.count == 2 },
+                        packageToTargetsToArtifactPaths: .any,
+                        packageModuleAliases: .any,
+                        packageSettings: .any
+                    )
+                    .called(1)
+            }
+        }
+    }
+
+    @Test
     func load_whenWorkspaceStateContainsPrebuilts_sanitizesPathsAndPassesPackagePrebuiltsToMapper() async throws {
         try await withMockedDependencies {
             try await fileSystem.runInTemporaryDirectory(prefix: UUID().uuidString) { temporaryDirectory in

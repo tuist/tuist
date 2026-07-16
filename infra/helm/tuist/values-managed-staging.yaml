@@ -462,6 +462,13 @@ macosFleet:
   # 40 GiB holds ~16 masters — ample for the 1-2 accounts staging runs.
   # Operator-wide, so it also provisions a (harmless, unused) volume on the
   # xcresult host.
+  # Staging is the proving ground for the cache volume: it carries the
+  # fail-safe guest (a share it cannot write is abandoned for a local cold
+  # cache instead of failing the job) plus cache_diag, so a bad share costs
+  # warmth and names itself in the runner log. Canary/production stay at 0
+  # until a real CI job is verified green here — host-side checks (volume
+  # provisioned, config converged) are NOT evidence; trusting them is what
+  # broke every macOS job in production on 2026-07-16.
   runnerCacheVolume:
     gib: 40
   # Share the pre-ordered pool with runnersFleet (same prefix

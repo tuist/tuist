@@ -50,6 +50,31 @@ source /etc/tuist.env
 
 : "${TUIST_RUNNER_DISPATCH_URL:?TUIST_RUNNER_DISPATCH_URL not set}"
 
+keep_desktop_interactive() {
+  # ByHost screensaver preferences are tied to the cloned VM's
+  # runtime host UUID, so the image-build defaults alone are not
+  # enough. Re-apply them inside the booted runner session before a
+  # job can be probed over VNC.
+  sudo pmset -a sleep 0 displaysleep 0 disksleep 0 >/dev/null 2>&1 || true
+  sudo defaults write /Library/Preferences/com.apple.loginwindow autoLoginUser -string runner >/dev/null 2>&1 || true
+  sudo defaults write /Library/Preferences/.GlobalPreferences com.apple.autologout.AutoLogOutDelay -int 0 >/dev/null 2>&1 || true
+
+  defaults write com.apple.screensaver idleTime -int 0 >/dev/null 2>&1 || true
+  defaults write com.apple.screensaver askForPassword -bool false >/dev/null 2>&1 || true
+  defaults write com.apple.screensaver askForPasswordDelay -int 0 >/dev/null 2>&1 || true
+  defaults -currentHost write com.apple.screensaver idleTime -int 0 >/dev/null 2>&1 || true
+  defaults -currentHost write com.apple.screensaver askForPassword -bool false >/dev/null 2>&1 || true
+  defaults -currentHost write com.apple.screensaver askForPasswordDelay -int 0 >/dev/null 2>&1 || true
+  /usr/bin/killall cfprefsd >/dev/null 2>&1 || true
+
+  if [ -x /usr/bin/caffeinate ]; then
+    /usr/bin/caffeinate -dims -w "$$" >/dev/null 2>&1 &
+    echo "$(date -u +%FT%TZ) dispatch-poll: desktop sleep and screen lock disabled"
+  fi
+}
+
+keep_desktop_interactive
+
 # In-VM cluster DNS for the runner-cache path. When the
 # runners-controller staged TUIST_CLUSTER_DNS_IP (macOS pools in
 # environments whose Mac minis have the tailnet route into the
@@ -81,6 +106,45 @@ SA_TOKEN="$(cat "${SA_TOKEN_PATH}")"
 if [ -z "${SA_TOKEN}" ]; then
   echo "$(date -u +%FT%TZ) dispatch-poll: SA token empty; aborting"
   exit 1
+fi
+
+SHELL_CLAIM_MARKER="${TUIST_RUNNER_SHELL_CLAIM_MARKER:-/tmp/tuist-runner-shell-claimed}"
+export TUIST_RUNNER_SHELL_CLAIM_MARKER="${SHELL_CLAIM_MARKER}"
+rm -f "${SHELL_CLAIM_MARKER}" 2>/dev/null || true
+
+shell_agent_lock_active() {
+  local lock_dir=/tmp/tuist-runner-shell-agent.lock
+  local pid_file="${lock_dir}/pid"
+  local lock_pid=""
+
+  if [ ! -d "${lock_dir}" ]; then
+    return 1
+  fi
+
+  if [ -f "${pid_file}" ]; then
+    read -r lock_pid <"${pid_file}" || lock_pid=""
+  fi
+
+  if [ -n "${lock_pid}" ] && kill -0 "${lock_pid}" 2>/dev/null; then
+    return 0
+  fi
+
+  echo "$(date -u +%FT%TZ) dispatch-poll: removing stale runner-shell-agent lock"
+  rm -rf "${lock_dir}"
+  return 1
+}
+
+if shell_agent_lock_active; then
+  echo "$(date -u +%FT%TZ) dispatch-poll: runner-shell-agent supervisor already active"
+elif [ -x /opt/tuist/runner-shell-agent-supervisor.sh ]; then
+  echo "$(date -u +%FT%TZ) dispatch-poll: starting runner-shell-agent supervisor"
+  (
+    trap - EXIT
+    exec /bin/zsh -lc 'exec /opt/tuist/runner-shell-agent-supervisor.sh'
+  ) &
+  echo "$(date -u +%FT%TZ) dispatch-poll: runner-shell-agent supervisor pid=$!"
+else
+  echo "$(date -u +%FT%TZ) dispatch-poll: runner-shell-agent missing or not executable"
 fi
 
 # Per-account cache volume, materialized after dispatch. tart-kubelet attaches
@@ -132,10 +196,67 @@ cache_inventory() {
 # share is EMPTY at this point — the host fills it after dispatch, gated by
 # wait_for_cache_ready. Absent share => feature off / admission declined => cold
 # path. Never blocks.
+# use_local_cold_cache points the CLI at a private, local cache dir and
+# abandons the share (no promote, no HEAD publish, no inventory diff). Used
+# whenever the share is unusable, so a broken cache can only ever cost the job
+# its warm start — never fail it. Exporting TUIST_XDG_CACHE_HOME at a root the
+# CLI can't write is worse than not setting it at all: the CLI aborts on its
+# first cache write and the whole job dies.
+use_local_cold_cache() {
+  local reason="$1"
+  local local_cache="/Users/runner/.tuist-cache-cold"
+  mkdir -p "${local_cache}/tuist" 2>/dev/null || true
+  export TUIST_XDG_CACHE_HOME="${local_cache}"
+  unset TUIST_CACHE_MAX_BYTES
+  CACHE_MOUNT=""
+  CACHE_INVENTORY_BEFORE=""
+  echo "$(date -u +%FT%TZ) dispatch-poll: cache share unusable (${reason}); running on a local cold cache"
+}
+
+# cache_root_usable proves this user can actually create the Tuist cache root
+# on the share AND write inside it. Existence is not enough: the host
+# materializes a warm branch by cloning the account's master tree into place,
+# and that tree carries the master's ownership/mode — so `tuist/` can exist yet
+# be unwritable by the guest's unprivileged runner user. A write probe is the
+# only honest check.
+cache_root_usable() {
+  local share="$1"
+  local root="${share}/tuist"
+  local err
+  if ! err=$(mkdir -p "${root}" 2>&1); then
+    cache_diag "mkdir ${root}: ${err}" "${share}"
+    return 1
+  fi
+  local probe="${root}/.tuist-write-probe.$$"
+  if ! err=$( ( : >"${probe}" ) 2>&1 ); then
+    cache_diag "write probe in ${root}: ${err}" "${share}"
+    return 1
+  fi
+  rm -f "${probe}" 2>/dev/null || true
+  return 0
+}
+
+# cache_diag records WHY the share was rejected. The failure mode this guards
+# against was diagnosed only from a CLI error that misreported a failed mkdir as
+# "parent directory doesn't exists", which sent us chasing the wrong layer — so
+# capture the real errno plus the ownership/mode of the share and root here. If
+# the fallback ever fires, this is the evidence, and no one has to guess.
+cache_diag() {
+  local why="$1" share="$2"
+  echo "$(date -u +%FT%TZ) dispatch-poll: cache-root check failed: ${why}"
+  echo "$(date -u +%FT%TZ) dispatch-poll: whoami=$(id -un 2>/dev/null) uid=$(id -u 2>/dev/null)"
+  ls -ld "${share}" "${share}/tuist" 2>&1 | while read -r l; do
+    echo "$(date -u +%FT%TZ) dispatch-poll: cache-root stat: ${l}"
+  done
+}
+
 mount_cache_volume() {
   [ -d "${CACHE_SHARE}" ] || return 0
+  if ! cache_root_usable "${CACHE_SHARE}"; then
+    use_local_cold_cache "cannot create or write ${CACHE_SHARE}/tuist"
+    return 0
+  fi
   CACHE_MOUNT="${CACHE_SHARE}"
-  mkdir -p "${CACHE_MOUNT}/tuist" 2>/dev/null || true
   export TUIST_XDG_CACHE_HOME="${CACHE_MOUNT}"
   # Byte budget for the CLI's per-generate LRU self-prune: the host stages the
   # per-branch cap (≈80% of a master's provisioned size) into the status share
@@ -272,20 +393,24 @@ wait_for_cache_ready() {
   while [ "${waited}" -lt "${CACHE_READY_TIMEOUT}" ]; do
     if [ -f "${STATUS_SHARE}/cache-ready" ]; then
       echo "$(date -u +%FT%TZ) dispatch-poll: cache-ready after ${waited}s"
+      # Re-prove the cache root NOW, not just at boot. Between then and here the
+      # host swapped in the account's master tree (or failed partway), so the
+      # root we validated at boot may be gone or owned/moded such that this user
+      # can't write it. Falling back to a cold cache costs warmth; running on an
+      # unwritable root kills the job.
+      if ! cache_root_usable "${CACHE_MOUNT}"; then
+        use_local_cold_cache "cache root not writable after host materialize"
+        return 0
+      fi
       CACHE_INVENTORY_BEFORE=$(cache_inventory)
       return 0
     fi
     sleep 1
     waited=$((waited + 1))
   done
-  echo "$(date -u +%FT%TZ) dispatch-poll: cache-ready not signalled within ${CACHE_READY_TIMEOUT}s; detaching to a local cold cache"
-  local local_cache="/Users/runner/.tuist-cache-cold"
-  mkdir -p "${local_cache}/tuist" 2>/dev/null || true
-  export TUIST_XDG_CACHE_HOME="${local_cache}"
-  unset TUIST_CACHE_MAX_BYTES
-  # Abandon the share: no promote, no HEAD publish, no inventory diff.
-  CACHE_MOUNT=""
-  CACHE_INVENTORY_BEFORE=""
+  # On timeout the host may STILL be materializing and could swap the branch dir
+  # out from under a running job, so abandon the share entirely.
+  use_local_cold_cache "cache-ready not signalled within ${CACHE_READY_TIMEOUT}s"
 }
 
 # report_cache_dirty writes the guest's dirty marker into the writable status
@@ -431,6 +556,7 @@ while true; do
         sleep "${interval}"
         continue
       fi
+      printf '%s\n' "$(date -u +%FT%TZ)" >"${SHELL_CLAIM_MARKER}" 2>/dev/null || true
       # Optional: route the job's Tuist cache at the account's private
       # runner-cache Kura node (in-cluster, near this runner) when the
       # server includes it. Exported here so the GitHub Actions runner —
@@ -489,6 +615,39 @@ while true; do
         /opt/tuist/metrics-poll.sh &
       fi
       cd /Users/runner/actions-runner
+      # Idle watchdog. GitHub assigns a queued job to any label-eligible
+      # runner, not necessarily the one the server minted it for, so
+      # this runner can register and then wait indefinitely for a job
+      # GitHub ran on a sibling, holding the VM and its warm-pool slot
+      # idle. The watchdog terminates it after
+      # TUIST_RUNNER_IDLE_TIMEOUT_SECONDS; the EXIT trap then halts the
+      # VM and the reconciler recycles it. A runner holding a job has
+      # written the JOB_STARTED marker (via the runner's own hook) and
+      # is never touched. 0 / unset disables the watchdog.
+      # The job-start signal must be irreversible: /tmp is writable by
+      # the workflow, so a job that removes the marker (a broad
+      # `rm -rf /tmp/*` cleanup is enough) must not be able to make
+      # itself look idle and get killed mid-run. Two independent
+      # latches: the hook cancels the watchdog outright (it runs before
+      # any workflow step, so job code never sees a live watchdog), and
+      # the watchdog polls and stands down the moment it observes work
+      # rather than reading the marker once at the deadline. Neither can
+      # be undone from inside the job.
+      JOB_STARTED_MARKER=/tmp/tuist-runner-job-started
+      JOB_STARTED_HOOK=/tmp/tuist-runner-job-started-hook.sh
+      WATCHDOG_PID_FILE=/tmp/tuist-runner-watchdog.pid
+      rm -f "${JOB_STARTED_MARKER}" "${WATCHDOG_PID_FILE}"
+      cat >"${JOB_STARTED_HOOK}" <<HOOK
+#!/bin/bash
+touch "${JOB_STARTED_MARKER}" 2>/dev/null || true
+_wpid="\$(cat "${WATCHDOG_PID_FILE}" 2>/dev/null || true)"
+[ -n "\${_wpid}" ] && kill "\${_wpid}" 2>/dev/null || true
+exit 0
+HOOK
+      chmod +x "${JOB_STARTED_HOOK}"
+      export ACTIONS_RUNNER_HOOK_JOB_STARTED="${JOB_STARTED_HOOK}"
+      idle_timeout="${TUIST_RUNNER_IDLE_TIMEOUT_SECONDS:-0}"
+
       # `--jitconfig` implies ephemeral: the runner accepts one job
       # and exits. `--disableupdate` pins the runner to whatever
       # version is baked into the image; we bump that via Renovate
@@ -505,8 +664,37 @@ while true; do
       # API on `workflow_job: completed` (see
       # `Tuist.Runners.Workers.FetchLogsWorker`); the runner VM
       # writes nothing to the ingest path.
-      ./run.sh --jitconfig "${jit}" --disableupdate
+      ./run.sh --jitconfig "${jit}" --disableupdate &
+      runner_pid=$!
+      if [ "${idle_timeout}" -gt 0 ] 2>/dev/null; then
+        (
+          waited=0
+          while [ "${waited}" -lt "${idle_timeout}" ]; do
+            # Latch and stand down for good the first time work is observed.
+            [ -e "${JOB_STARTED_MARKER}" ] && exit 0
+            kill -0 "${runner_pid}" 2>/dev/null || exit 0
+            sleep 1
+            waited=$((waited + 1))
+          done
+          # The marker alone leaves a narrow race: the hook fires when the
+          # Worker STARTS the job, a second or more after the Listener has
+          # acknowledged the assignment, and an ephemeral runner killed
+          # post-acknowledgment marks the job failed rather than re-queuing
+          # it. The Runner.Worker process exists from the moment the
+          # Listener dispatches, before the hook runs.
+          if [ ! -e "${JOB_STARTED_MARKER}" ] && ! pgrep -f "Runner.Worker" >/dev/null 2>&1 &&
+            kill -0 "${runner_pid}" 2>/dev/null; then
+            echo "$(date -u +%FT%TZ) dispatch-poll: no job assigned within ${idle_timeout}s; terminating idle runner"
+            kill -TERM "${runner_pid}" 2>/dev/null || true
+          fi
+        ) &
+        watchdog_pid=$!
+        printf '%s' "${watchdog_pid}" >"${WATCHDOG_PID_FILE}" 2>/dev/null || true
+      fi
+      wait "${runner_pid}"
       rc=$?
+      # The runner is gone, so the idle watchdog has nothing left to police.
+      [ -n "${watchdog_pid:-}" ] && kill "${watchdog_pid}" 2>/dev/null || true
       # Detach the CAS image before the reports + VM halt so the host promotes a
       # quiesced, consistent image (Finalize clonefiles the branch image into the
       # account's master).

@@ -38,6 +38,9 @@ spec:
         # per pod. See helm/k8s-monitoring/values.yaml for the
         # annotation→config mapping.
         prometheus.io/port-name: metrics
+        {{- if and .Values.server.serviceAccount.create .Values.server.migrationJob.asHook }}
+        tuist.dev/server-service-account-revision: {{ .Release.Revision | quote }}
+        {{- end }}
         {{- with .Values.server.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -191,6 +194,20 @@ spec:
             # Pod actually polls, regardless of the helm release name.
             - name: TUIST_RUNNERS_LINUX_POOL_NAME_PREFIX
               value: {{ include "tuist.componentName" (dict "root" . "component" "runner-pool-linux") | quote }}
+            {{- with .Values.runnersFleetLinux.pools }}
+            # Operator-defined pools predate persisted runner resources.
+            # Inject their pod sizing so new replicas can account for queued
+            # jobs and live claims written by old replicas.
+            {{- $serverPools := list }}
+            {{- range . }}
+            {{- $podCPU := dig "pod" "cpuMilli" 4000 . | int }}
+            {{- $podMemory := dig "pod" "memoryMB" 16384 . | int }}
+            {{- $pool := dict "name" (.name | toString) "cpuMilli" $podCPU "memoryMB" $podMemory }}
+            {{- $serverPools = append $serverPools $pool }}
+            {{- end }}
+            - name: TUIST_RUNNER_LINUX_POOLS
+              value: {{ $serverPools | toJson | quote }}
+            {{- end }}
             {{- with .Values.runnersFleetLinux.shapes }}
             # Single source of truth for the shape catalog: inject the
             # same `runnersFleetLinux.shapes` list that renders the

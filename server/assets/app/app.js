@@ -42,6 +42,7 @@ import CopyToClipboard from "./js/CopyToClipboard.js";
 import DownloadAsFile from "./js/DownloadAsFile.js";
 import ScrollToTail from "./js/ScrollToTail.js";
 import RunnerMetricsHighlight from "./js/RunnerMetricsHighlight.js";
+import RunnerShellTerminal from "./js/RunnerShellTerminal.js";
 import RunnerVNCClient from "./js/RunnerVNCClient.js";
 import RunnerVNCFullscreen from "./js/RunnerVNCFullscreen.js";
 import { setupQueryMemory } from "./js/QueryMemory.js";
@@ -70,6 +71,7 @@ Hooks.CopyToClipboard = CopyToClipboard;
 Hooks.DownloadAsFile = DownloadAsFile;
 Hooks.ScrollToTail = ScrollToTail;
 Hooks.RunnerMetricsHighlight = RunnerMetricsHighlight;
+Hooks.RunnerShellTerminal = RunnerShellTerminal;
 Hooks.RunnerVNCClient = RunnerVNCClient;
 Hooks.RunnerVNCFullscreen = RunnerVNCFullscreen;
 

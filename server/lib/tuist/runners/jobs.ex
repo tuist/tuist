@@ -33,13 +33,11 @@ defmodule Tuist.Runners.Jobs do
 
   ## Idempotency
 
-  Webhook retries of `workflow_job.queued` INSERT another row
-  with the same `workflow_job_id`. RMT merge collapses them; both
-  rows carry the same `queued` state so the merge is a no-op
-  visible to clients. `workflow_job.waiting` uses `enqueue_if_missing/1`
-  because GitHub can emit it while waiting for self-hosted capacity;
-  it should create a missing row without regressing an already-claimed
-  job back to queued.
+  Webhook retries of `workflow_job.queued` and `workflow_job.waiting`
+  use `enqueue_if_missing/1`. GitHub can redeliver those events after
+  later lifecycle events (especially cancellation), so they must create
+  a missing row without regressing an already-claimed, running, or
+  completed job back to queued.
 
   ## Read pattern (no `FINAL`)
 
@@ -59,8 +57,10 @@ defmodule Tuist.Runners.Jobs do
   alias Tuist.CommandEvents.Event
   alias Tuist.IngestRepo
   alias Tuist.Projects
+  alias Tuist.Repo
   alias Tuist.Runners.Catalog
   alias Tuist.Runners.Job
+  alias Tuist.Runners.JobCompletion
   alias Tuist.Runners.Telemetry
   alias Tuist.Tests.Test, as: TestRun
 
@@ -81,6 +81,25 @@ defmodule Tuist.Runners.Jobs do
   # far enough beyond the 24h backstop to survive worker downtime, so a
   # still-claimable job is never pruned out of view.
   @queued_lookback_seconds 7 * 86_400
+
+  @doc """
+  Serializes GitHub workflow_job events for a single `workflow_job_id`.
+
+  ClickHouse is still the lifecycle history store, but queued/completed
+  webhooks need a Postgres lock so a late `queued` or `waiting` delivery cannot
+  observe "missing", race a concurrent completion, and write a newer queued row.
+  """
+  def with_workflow_job_ordering_lock(workflow_job_id, fun) when is_integer(workflow_job_id) and is_function(fun, 0) do
+    fn ->
+      acquire_workflow_job_ordering_lock(workflow_job_id)
+      fun.()
+    end
+    |> Repo.transaction()
+    |> case do
+      {:ok, result} -> result
+      {:error, reason} -> {:error, reason}
+    end
+  end
 
   @doc """
   Latest `enqueued_at` per `requested_dispatch_label` for an account.
@@ -215,16 +234,32 @@ defmodule Tuist.Runners.Jobs do
   back to queued.
   """
   def enqueue_if_missing(%{workflow_job_id: workflow_job_id} = attrs) when is_integer(workflow_job_id) do
-    case current(workflow_job_id) do
-      nil -> enqueue(attrs)
-      %Job{} -> :ok
-    end
+    with_workflow_job_ordering_lock(workflow_job_id, fn ->
+      cond do
+        completion_recorded?(workflow_job_id) -> :ok
+        is_nil(current(workflow_job_id)) -> enqueue(attrs)
+        true -> :ok
+      end
+    end)
+  end
+
+  @doc """
+  Records a completed job even when the queued row was never accepted.
+
+  GitHub can deliver `workflow_job.completed` before its matching
+  `queued` delivery. Writing this completion row gives later `queued`
+  redeliveries something to see so they cannot resurrect canceled work.
+  """
+  def record_completed(attrs, conclusion) when is_map(attrs) and is_binary(conclusion) do
+    with_workflow_job_ordering_lock(Map.fetch!(attrs, :workflow_job_id), fn ->
+      record_completed_locked(attrs, conclusion)
+    end)
   end
 
   @doc """
   Picks the oldest queued candidate on `fleet_name`. The
   caller's responsibility to then atomically claim it via
-  `Tuist.Runners.Claims.attempt/4`.
+  `Tuist.Runners.Claims.attempt/5`.
 
   `ineligible_account_ids` is an optional set of account_ids to
   exclude from candidate selection. `excluded_workflow_job_ids`
@@ -236,7 +271,7 @@ defmodule Tuist.Runners.Jobs do
   Deterministic ordering — `(enqueued_at ASC, workflow_job_id
   ASC)` — means two concurrent pollers see the SAME row as the
   next candidate. The actual claim race then collapses on
-  Postgres uniqueness in `Claims.attempt/4`.
+  Postgres uniqueness in `Claims.attempt/5`.
 
   The scan is floored at `@queued_lookback_seconds` on `enqueued_at`
   so ClickHouse prunes to recent partitions rather than aggregating
@@ -272,6 +307,9 @@ defmodule Tuist.Runners.Jobs do
         workflow_job_id: j.workflow_job_id,
         account_id: fragment("argMax(?, ?)", j.account_id, j.updated_at),
         fleet_name: fragment("argMax(?, ?)", j.fleet_name, j.updated_at),
+        platform: fragment("argMax(?, ?)", j.platform, j.updated_at),
+        vcpus: fragment("argMax(?, ?)", j.vcpus, j.updated_at),
+        memory_gb: fragment("argMax(?, ?)", j.memory_gb, j.updated_at),
         repository: fragment("argMax(?, ?)", j.repository, j.updated_at),
         workflow_run_id: fragment("argMax(?, ?)", j.workflow_run_id, j.updated_at),
         workflow_name: fragment("argMax(?, ?)", j.workflow_name, j.updated_at),
@@ -308,7 +346,7 @@ defmodule Tuist.Runners.Jobs do
 
   @doc """
   Records the `claimed` state transition for customer visibility.
-  Called after `Claims.attempt/4` succeeds and we're about to mint.
+  Called after `Claims.attempt/5` succeeds and we're about to mint.
 
   Does NOT open the per-Pod billing session — `Tuist.Runners`
   opens it only after `serve_claim/5` commits (JIT minted +
@@ -319,20 +357,34 @@ defmodule Tuist.Runners.Jobs do
   customer never received.
   """
   def record_claimed(candidate, pod_name, claimed_at) when is_map(candidate) and is_binary(pod_name) do
-    now = DateTime.utc_now()
+    workflow_job_id = Map.fetch!(candidate, :workflow_job_id)
 
-    row = Map.merge(candidate, %{status: "claimed", claimed_at: claimed_at, pod_name: pod_name, updated_at: now})
+    with_workflow_job_ordering_lock(workflow_job_id, fn ->
+      if completion_recorded?(workflow_job_id) do
+        {:error, :completed}
+      else
+        now = DateTime.utc_now()
 
-    insert_row!(row)
+        row =
+          Map.merge(candidate, %{
+            status: "claimed",
+            claimed_at: claimed_at,
+            pod_name: pod_name,
+            updated_at: now
+          })
 
-    :telemetry.execute(
-      Telemetry.event_name_job_claim(),
-      %{count: 1, queue_time_ms: duration_ms(candidate[:enqueued_at], claimed_at)},
-      %{fleet: Map.get(candidate, :fleet_name, ""), outcome: "ok"}
-    )
+        insert_row!(row)
 
-    broadcast_status_change(Map.get(candidate, :account_id), "claimed")
-    :ok
+        :telemetry.execute(
+          Telemetry.event_name_job_claim(),
+          %{count: 1, queue_time_ms: duration_ms(candidate[:enqueued_at], claimed_at)},
+          %{fleet: Map.get(candidate, :fleet_name, ""), outcome: "ok"}
+        )
+
+        broadcast_status_change(Map.get(candidate, :account_id), "claimed")
+        :ok
+      end
+    end)
   end
 
   @doc """
@@ -340,42 +392,48 @@ defmodule Tuist.Runners.Jobs do
   about to register with GitHub.
   """
   def record_running(workflow_job_id, runner_name) when is_integer(workflow_job_id) and is_binary(runner_name) do
-    case current(workflow_job_id) do
-      nil ->
-        Logger.warning("runners: no CH row to transition to running",
-          workflow_job_id: workflow_job_id
-        )
-
+    with_workflow_job_ordering_lock(workflow_job_id, fn ->
+      if completion_recorded?(workflow_job_id) do
         :ok
+      else
+        case current(workflow_job_id) do
+          nil ->
+            Logger.warning("runners: no CH row to transition to running",
+              workflow_job_id: workflow_job_id
+            )
 
-      %Job{} = job ->
-        now = DateTime.utc_now()
+            :ok
 
-        row =
-          job
-          |> job_to_row()
-          |> Map.merge(%{
-            status: "running",
-            started_at: now,
-            runner_name: runner_name,
-            updated_at: now
-          })
+          %Job{} = job ->
+            now = DateTime.utc_now()
 
-        insert_row!(row)
+            row =
+              job
+              |> job_to_row()
+              |> Map.merge(%{
+                status: "running",
+                started_at: now,
+                runner_name: runner_name,
+                updated_at: now
+              })
 
-        :telemetry.execute(
-          Telemetry.event_name_job_running(),
-          %{
-            count: 1,
-            queue_to_running_ms: duration_ms(job.enqueued_at, now),
-            claim_to_running_ms: duration_ms(job.claimed_at, now)
-          },
-          %{fleet: job.fleet_name || ""}
-        )
+            insert_row!(row)
 
-        broadcast_status_change(job.account_id, "running")
-        :ok
-    end
+            :telemetry.execute(
+              Telemetry.event_name_job_running(),
+              %{
+                count: 1,
+                queue_to_running_ms: duration_ms(job.enqueued_at, now),
+                claim_to_running_ms: duration_ms(job.claimed_at, now)
+              },
+              %{fleet: job.fleet_name || ""}
+            )
+
+            broadcast_status_change(job.account_id, "running")
+            :ok
+        end
+      end
+    end)
   end
 
   @doc """
@@ -384,34 +442,40 @@ defmodule Tuist.Runners.Jobs do
   responsible for having already DELETE'd the matching PG claim.
   """
   def record_queued(workflow_job_id) when is_integer(workflow_job_id) do
-    case current(workflow_job_id) do
-      nil ->
+    with_workflow_job_ordering_lock(workflow_job_id, fn ->
+      if completion_recorded?(workflow_job_id) do
         :ok
+      else
+        case current(workflow_job_id) do
+          nil ->
+            :ok
 
-      %Job{} = job ->
-        now = DateTime.utc_now()
+          %Job{} = job ->
+            now = DateTime.utc_now()
 
-        row =
-          job
-          |> job_to_row()
-          |> Map.merge(%{
-            status: "queued",
-            claimed_at: nil,
-            pod_name: "",
-            updated_at: now
-          })
+            row =
+              job
+              |> job_to_row()
+              |> Map.merge(%{
+                status: "queued",
+                claimed_at: nil,
+                pod_name: "",
+                updated_at: now
+              })
 
-        insert_row!(row)
+            insert_row!(row)
 
-        :telemetry.execute(
-          Telemetry.event_name_job_requeued(),
-          %{count: 1},
-          %{fleet: job.fleet_name || ""}
-        )
+            :telemetry.execute(
+              Telemetry.event_name_job_requeued(),
+              %{count: 1},
+              %{fleet: job.fleet_name || ""}
+            )
 
-        broadcast_status_change(job.account_id, "queued")
-        :ok
-    end
+            broadcast_status_change(job.account_id, "queued")
+            :ok
+        end
+      end
+    end)
   end
 
   @doc """
@@ -428,45 +492,12 @@ defmodule Tuist.Runners.Jobs do
   via `Tuist.Runners.JobSteps.record/1` before invoking this.
   """
   def complete(workflow_job_id, conclusion) when is_integer(workflow_job_id) and is_binary(conclusion) do
-    case current(workflow_job_id) do
-      nil ->
-        {:error, :not_found}
-
-      %Job{} = job ->
-        now = DateTime.utc_now()
-
-        completion = %{
-          status: "completed",
-          conclusion: conclusion,
-          completed_at: now,
-          updated_at: now
-        }
-
-        row =
-          job
-          |> job_to_row()
-          |> Map.merge(completion)
-
-        insert_row!(row)
-
-        :telemetry.execute(
-          Telemetry.event_name_job_completed(),
-          %{
-            count: 1,
-            run_time_ms: duration_ms(job.started_at, now),
-            queue_time_ms: duration_ms(job.enqueued_at, job.claimed_at),
-            total_time_ms: duration_ms(job.enqueued_at, now)
-          },
-          %{
-            fleet: job.fleet_name || "",
-            conclusion: normalise_conclusion(conclusion)
-          }
-        )
-
-        broadcast_status_change(job.account_id, "completed")
-
-        {:ok, Map.merge(job, completion)}
-    end
+    with_workflow_job_ordering_lock(workflow_job_id, fn ->
+      case current(workflow_job_id) do
+        nil -> {:error, :not_found}
+        %Job{} = job -> complete_locked(job, conclusion)
+      end
+    end)
   end
 
   @doc """
@@ -796,6 +827,18 @@ defmodule Tuist.Runners.Jobs do
   defp maybe_filter_like(query, :head_branch, value) when is_binary(value) do
     pattern = "%#{value}%"
     where(query, [j], ilike(j.head_branch, ^pattern))
+  end
+
+  @doc """
+  Returns the merged current state for a single `workflow_job_id`
+  across all accounts. Callers must perform account authorization on
+  the returned job before exposing it.
+  """
+  def get(workflow_job_id) when is_integer(workflow_job_id) do
+    case current(workflow_job_id) do
+      nil -> {:error, :not_found}
+      job -> {:ok, job}
+    end
   end
 
   @doc """
@@ -1304,6 +1347,101 @@ defmodule Tuist.Runners.Jobs do
     |> order_by([j], desc: j.updated_at)
     |> limit(1)
     |> ClickHouseRepo.one()
+  end
+
+  defp complete_locked(%Job{} = job, conclusion) do
+    now = DateTime.utc_now()
+
+    completion = %{
+      status: "completed",
+      conclusion: conclusion,
+      completed_at: now,
+      updated_at: now
+    }
+
+    row =
+      job
+      |> job_to_row()
+      |> Map.merge(completion)
+
+    persist_completion!(job.workflow_job_id, job.account_id, conclusion, now)
+    insert_row!(row)
+
+    :telemetry.execute(
+      Telemetry.event_name_job_completed(),
+      %{
+        count: 1,
+        run_time_ms: duration_ms(job.started_at, now),
+        queue_time_ms: duration_ms(job.enqueued_at, job.claimed_at),
+        total_time_ms: duration_ms(job.enqueued_at, now)
+      },
+      %{
+        fleet: job.fleet_name || "",
+        conclusion: normalise_conclusion(conclusion)
+      }
+    )
+
+    broadcast_status_change(job.account_id, "completed")
+
+    {:ok, Map.merge(job, completion)}
+  end
+
+  defp record_completed_locked(attrs, conclusion) do
+    now = DateTime.utc_now()
+
+    row =
+      attrs
+      |> Map.put(:status, "completed")
+      |> Map.put(:conclusion, conclusion)
+      |> Map.put_new(:enqueued_at, now)
+      |> Map.put(:completed_at, now)
+      |> Map.put(:updated_at, now)
+
+    persist_completion!(Map.fetch!(row, :workflow_job_id), Map.fetch!(row, :account_id), conclusion, now)
+    insert_row!(row)
+
+    :telemetry.execute(
+      Telemetry.event_name_job_completed(),
+      %{count: 1, run_time_ms: 0, queue_time_ms: 0, total_time_ms: 0},
+      %{fleet: Map.get(row, :fleet_name, ""), conclusion: normalise_conclusion(conclusion)}
+    )
+
+    broadcast_status_change(Map.get(attrs, :account_id), "completed")
+    :ok
+  end
+
+  defp acquire_workflow_job_ordering_lock(workflow_job_id) do
+    case Repo.query("SELECT pg_advisory_xact_lock($1)", [workflow_job_id]) do
+      {:ok, _result} -> :ok
+      {:error, reason} -> Repo.rollback({:lock_failed, reason})
+    end
+  end
+
+  defp completion_recorded?(workflow_job_id) do
+    Repo.exists?(from(completion in JobCompletion, where: completion.workflow_job_id == ^workflow_job_id))
+  end
+
+  defp persist_completion!(workflow_job_id, account_id, conclusion, completed_at) do
+    now = DateTime.truncate(DateTime.utc_now(), :second)
+    completed_at = DateTime.truncate(completed_at, :second)
+
+    Repo.insert_all(
+      JobCompletion,
+      [
+        %{
+          workflow_job_id: workflow_job_id,
+          account_id: account_id,
+          conclusion: conclusion,
+          completed_at: completed_at,
+          inserted_at: now,
+          updated_at: now
+        }
+      ],
+      conflict_target: [:workflow_job_id],
+      on_conflict: {:replace, [:account_id, :conclusion, :completed_at, :updated_at]}
+    )
+
+    :ok
   end
 
   defp insert_row!(row) do
