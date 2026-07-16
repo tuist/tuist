@@ -130,55 +130,61 @@ defmodule TuistWeb.DocsLive do
           </div>
 
           <div data-part="journey-cards">
-            <.link id="docs-xcode-path" patch={@xcode_path} data-part="journey-card">
-              <span data-part="journey-icon"><.brand_apple /></span>
-              <div data-part="journey-content">
-                <h3>{dgettext("docs", "Existing Xcode project")}</h3>
+            <.link id="docs-xcode-path" patch={@xcode_path} data-part="feature-card">
+              <div data-part="image">
+                <span data-part="icon"><.brand_apple /></span>
+                <span data-part="title">{dgettext("docs", "Existing Xcode project")}</span>
+              </div>
+              <div data-part="body">
                 <p>
                   {dgettext(
                     "docs",
                     "Add compilation caching and insights without adopting project generation."
                   )}
                 </p>
+                <span data-part="journey-link">
+                  {dgettext("docs", "Explore Xcode")}
+                  <.arrow_right />
+                </span>
               </div>
-              <span data-part="journey-link">
-                {dgettext("docs", "Explore Xcode")}
-                <.arrow_right />
-              </span>
             </.link>
 
-            <.link id="docs-gradle-path" patch={@gradle_path} data-part="journey-card">
-              <span data-part="journey-icon"><.settings /></span>
-              <div data-part="journey-content">
-                <h3>{dgettext("docs", "Gradle project")}</h3>
+            <.link id="docs-gradle-path" patch={@gradle_path} data-part="feature-card">
+              <div data-part="image">
+                <span data-part="icon"><.settings /></span>
+                <span data-part="title">{dgettext("docs", "Gradle project")}</span>
+              </div>
+              <div data-part="body">
                 <p>
                   {dgettext(
                     "docs",
                     "Connect remote caching, build insights, and test insights to your existing project."
                   )}
                 </p>
+                <span data-part="journey-link">
+                  {dgettext("docs", "Start with Gradle")}
+                  <.arrow_right />
+                </span>
               </div>
-              <span data-part="journey-link">
-                {dgettext("docs", "Start with Gradle")}
-                <.arrow_right />
-              </span>
             </.link>
 
-            <.link id="docs-runners-path" patch={@runners_path} data-part="journey-card">
-              <span data-part="journey-icon"><.server /></span>
-              <div data-part="journey-content">
-                <h3>{dgettext("docs", "Tuist Runners")}</h3>
+            <.link id="docs-runners-path" patch={@runners_path} data-part="feature-card">
+              <div data-part="image">
+                <span data-part="icon"><.server /></span>
+                <span data-part="title">{dgettext("docs", "Tuist Runners")}</span>
+              </div>
+              <div data-part="body">
                 <p>
                   {dgettext(
                     "docs",
                     "Run GitHub Actions workflows on managed macOS and Linux infrastructure next to your cache."
                   )}
                 </p>
+                <span data-part="journey-link">
+                  {dgettext("docs", "Start with runners")}
+                  <.arrow_right />
+                </span>
               </div>
-              <span data-part="journey-link">
-                {dgettext("docs", "Start with runners")}
-                <.arrow_right />
-              </span>
             </.link>
           </div>
 
