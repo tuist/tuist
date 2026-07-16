@@ -6,6 +6,7 @@ import TuistConfigLoader
 import TuistConstants
 import TuistCore
 import TuistEnvironment
+import TuistGit
 import TuistLaunchctl
 import TuistLoader
 import TuistLogging
@@ -28,6 +29,15 @@ enum SetupCacheCommandServiceError: Equatable, LocalizedError {
     }
 }
 
+/// A row of the CAS proxy's sources registry, whose columns the proxy parses in
+/// this order (see `load_sources` in cas-plugin).
+private struct RegisteredSource {
+    let root: String
+    let trunk: String?
+    /// Recorded only on CI. See `ciBranch`.
+    let branch: String?
+}
+
 struct SetupCacheCommandService {
     private let launchAgentService: LaunchAgentServicing
     private let configLoader: ConfigLoading
@@ -36,6 +46,7 @@ struct SetupCacheCommandService {
     private let manifestLoader: ManifestLoading
     private let fileSystem: FileSysteming
     private let getProjectService: GetProjectServicing
+    private let gitController: GitControlling
 
     init(
         launchAgentService: LaunchAgentServicing = LaunchAgentService(),
@@ -44,7 +55,8 @@ struct SetupCacheCommandService {
         serverAuthenticationController: ServerAuthenticationControlling = ServerAuthenticationController(),
         manifestLoader: ManifestLoading = ManifestLoader.current,
         fileSystem: FileSysteming = FileSystem(),
-        getProjectService: GetProjectServicing = GetProjectService()
+        getProjectService: GetProjectServicing = GetProjectService(),
+        gitController: GitControlling = GitController()
     ) {
         self.launchAgentService = launchAgentService
         self.configLoader = configLoader
@@ -53,6 +65,7 @@ struct SetupCacheCommandService {
         self.manifestLoader = manifestLoader
         self.fileSystem = fileSystem
         self.getProjectService = getProjectService
+        self.gitController = gitController
     }
 
     /// The project's default branch, which is what a trunk-scoped cache snapshot
@@ -71,9 +84,30 @@ struct SetupCacheCommandService {
         }
     }
 
-    /// Records `fullHandle -> sourceRoot, trunk` in the proxy's sources registry
-    /// (`<state>/cas-proxy.sock.registry.sources`, honoring the same
-    /// `TUIST_CAS_PROXY_REGISTRY` override the proxy reads). Two things the proxy
+    /// The branch to record for a CI checkout, whose HEAD is detached and so tells
+    /// the proxy's `git rev-parse` nothing. Every provider exposes it in the
+    /// environment instead, which `GitController` already knows how to read, but
+    /// only this command runs inside the job and can see it: the proxy is a launchd
+    /// agent and does not inherit the job's environment.
+    ///
+    /// `nil` off CI on purpose. A developer's HEAD is attached, so the proxy
+    /// derives the branch live and stays correct across a `git checkout`, where a
+    /// value recorded once at setup would rot into mis-tagging every later publish.
+    private func ciBranch(sourceRoot: AbsolutePath) async -> String? {
+        guard Environment.current.isCI else { return nil }
+        do {
+            return try await gitController.gitInfo(workingDirectory: sourceRoot).branch
+        } catch {
+            Logger.current.debug(
+                "Could not resolve the CI branch for the cache proxy: \(error). Publishes from this job will be untagged."
+            )
+            return nil
+        }
+    }
+
+    /// Records `fullHandle -> sourceRoot, trunk, branch` in the proxy's sources
+    /// registry (`<state>/cas-proxy.sock.registry.sources`, honoring the same
+    /// `TUIST_CAS_PROXY_REGISTRY` override the proxy reads). Three things the proxy
     /// cannot know on its own:
     ///
     /// - The source root, from which it derives the branch of every publish live
@@ -84,12 +118,15 @@ struct SetupCacheCommandService {
     ///   a server-side decision. The proxy would otherwise have to guess it from
     ///   the local clone's `origin/HEAD`, which is a property of how the machine
     ///   cloned rather than of the project.
+    /// - The branch, but only on CI. See `ciBranch`: the proxy prefers its live
+    ///   git reading and only falls back to this when HEAD is detached.
     ///
     /// Upserts, so setting up a second project does not clobber the first.
     private func registerSourceRoot(
         fullHandle: String,
         sourceRoot: AbsolutePath,
-        trunk: String?
+        trunk: String?,
+        branch: String?
     ) async throws {
         let sourcesPath: AbsolutePath
         if let registry = Environment.current.variables["TUIST_CAS_PROXY_REGISTRY"] {
@@ -99,25 +136,36 @@ struct SetupCacheCommandService {
                 .appending(component: "cas-proxy.sock.registry.sources")
         }
 
-        // instance -> (source root, trunk). The trunk column is optional: a
-        // registry written before this shipped, or by a setup that could not
-        // reach the server, still parses and leaves the proxy on its git-derived
-        // fallback.
-        var entries: [String: (root: String, trunk: String?)] = [:]
+        // instance -> (source root, trunk, branch). Both trailing columns are
+        // optional: a registry written before either shipped, or by a setup that
+        // could not reach the server, still parses and leaves the proxy on its
+        // git-derived fallback.
+        var entries: [String: RegisteredSource] = [:]
         if try await fileSystem.exists(sourcesPath) {
             let contents = try await fileSystem.readTextFile(at: sourcesPath)
             for line in contents.split(separator: "\n") {
-                let parts = line.split(separator: "\t", maxSplits: 2).map(String.init)
+                let parts = line.split(separator: "\t", maxSplits: 3).map(String.init)
                 if parts.count >= 2 {
-                    entries[parts[0]] = (root: parts[1], trunk: parts.count > 2 ? parts[2] : nil)
+                    entries[parts[0]] = RegisteredSource(
+                        root: parts[1],
+                        trunk: parts.count > 2 ? parts[2] : nil,
+                        branch: parts.count > 3 ? parts[3] : nil
+                    )
                 }
             }
         }
-        entries[fullHandle] = (root: sourceRoot.pathString, trunk: trunk)
+        entries[fullHandle] = RegisteredSource(root: sourceRoot.pathString, trunk: trunk, branch: branch)
 
         let body = entries.sorted { $0.key < $1.key }
             .map { key, value in
-                if let trunk = value.trunk, !trunk.isEmpty {
+                // The branch column is positional, so a branch without a trunk
+                // still has to leave the trunk's place empty.
+                let trunk = value.trunk.flatMap { $0.isEmpty ? nil : $0 }
+                let branch = value.branch.flatMap { $0.isEmpty ? nil : $0 }
+                if let branch {
+                    return "\(key)\t\(value.root)\t\(trunk ?? "")\t\(branch)"
+                }
+                if let trunk {
                     return "\(key)\t\(value.root)\t\(trunk)"
                 }
                 return "\(key)\t\(value.root)"
@@ -165,7 +213,8 @@ struct SetupCacheCommandService {
             try await registerSourceRoot(
                 fullHandle: fullHandle,
                 sourceRoot: path,
-                trunk: await trunkBranch(fullHandle: fullHandle, serverURL: serverURL)
+                trunk: await trunkBranch(fullHandle: fullHandle, serverURL: serverURL),
+                branch: await ciBranch(sourceRoot: path)
             )
             try await installProxy(fullHandle: fullHandle, serverURL: serverURL)
         } else {

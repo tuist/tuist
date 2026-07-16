@@ -777,6 +777,13 @@ struct GitBranches {
 struct RegisteredSource {
     /// The project's checkout, which the branch of each publish is read from.
     root: PathBuf,
+    /// The branch `tuist setup cache` saw, recorded ONLY on CI, whose checkout is
+    /// detached and so tells `git rev-parse` nothing. A launchd agent does not
+    /// inherit the job's environment, so the provider's branch variable is
+    /// unreachable from here and the command inside the job has to hand it over.
+    /// Never recorded off CI, where reading git live is both possible and correct
+    /// across a `git checkout`.
+    ci_branch: Option<String>,
     /// The project's default branch, as the server knows it. Authoritative over
     /// the checkout's `origin/HEAD`: which branch is trunk is a property of the
     /// project, not of how this machine happened to clone it (a fork, a mirror,
@@ -2299,15 +2306,25 @@ impl Proxy {
     /// instance); after a mid-day wipe, demand-driven jobs and per-object
     /// self-heals carry re-materialization.
     /// The git branch a publish for this instance is attributed to: the env
-    /// override first (CI, whose HEAD is detached; or a manual build), then the
-    /// branch derived live from the instance's registered source root.
+    /// override first (a manual build or a bench), then the branch derived live
+    /// from the instance's registered source root, then the branch
+    /// `tuist setup cache` recorded for a CI checkout.
+    ///
+    /// Live git outranks the recorded branch because it survives a `git checkout`
+    /// under this long-lived proxy, and it is only absent when HEAD is detached.
+    /// The recorded branch is therefore reached exactly on CI, which is where git
+    /// cannot answer and where an untagged publish would otherwise land in every
+    /// project's trunk baseline: CI is the fleet's main publisher, so leaving it
+    /// untagged would pollute the very view this scoping exists to keep clean.
     fn resolve_branch(&self, instance: &str) -> Option<String> {
         if let Ok(branch) = std::env::var("TUIST_CAS_BRANCH") {
             if !branch.is_empty() {
                 return Some(branch);
             }
         }
-        self.git_context(instance).branch
+        self.git_context(instance)
+            .branch
+            .or_else(|| self.registered_source(instance).and_then(|source| source.ci_branch))
     }
 
     /// The trunk to scope this instance's snapshot to: the env override first,
@@ -2377,6 +2394,7 @@ impl Proxy {
         let clone = |source: &RegisteredSource| RegisteredSource {
             root: source.root.clone(),
             trunk: source.trunk.clone(),
+            ci_branch: source.ci_branch.clone(),
         };
         if let Some(path) = self.registry_path.as_deref() {
             let sources = load_sources(&sources_path_for(path));
@@ -2690,10 +2708,12 @@ fn load_sources(path: &Path) -> HashMap<String, RegisteredSource> {
     let mut map = HashMap::new();
     if let Ok(body) = std::fs::read_to_string(path) {
         for line in body.lines() {
-            // `instance \t source-root [\t trunk]`. The trunk column is optional:
-            // a registry written by an older setup, or by one that could not
-            // reach the server, still parses and leaves the trunk to be derived
-            // from the checkout.
+            // `instance \t source-root [\t trunk [\t ci-branch]]`. Both trailing
+            // columns are optional: a registry written by an older setup, or by
+            // one that could not reach the server, still parses and leaves the
+            // trunk to be derived from the checkout. The trunk's place is held
+            // empty when a branch was recorded without one, so the columns stay
+            // positional.
             let mut columns = line.split('\t');
             let (Some(instance), Some(root)) = (columns.next(), columns.next()) else {
                 continue;
@@ -2706,6 +2726,7 @@ fn load_sources(path: &Path) -> HashMap<String, RegisteredSource> {
                 RegisteredSource {
                     root: PathBuf::from(root),
                     trunk: columns.next().filter(|trunk| !trunk.is_empty()).map(str::to_owned),
+                    ci_branch: columns.next().filter(|branch| !branch.is_empty()).map(str::to_owned),
                 },
             );
         }
@@ -2884,6 +2905,49 @@ mod tests {
         let legacy = sources.get("tuist/legacy").expect("legacy entry");
         assert_eq!(legacy.root, PathBuf::from("/src/legacy"));
         assert_eq!(legacy.trunk, None, "an absent trunk column is not a path");
+        assert_eq!(
+            scoped.ci_branch, None,
+            "a registry written before the branch column carries no branch"
+        );
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    // The CI branch column, which `tuist setup cache` writes only from inside a CI
+    // job (the proxy is a launchd agent and never sees the provider's branch
+    // variable). A branch recorded without a trunk keeps the trunk's place, so the
+    // columns stay positional.
+    #[test]
+    fn sources_registry_reads_the_ci_branch_column() {
+        let dir = std::env::temp_dir().join(format!("tuist-sources-ci-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        let path = dir.join("registry.sources");
+        std::fs::write(
+            &path,
+            "tuist/ci\t/src/ci\tmain\tfeature/x\n\
+             tuist/no-trunk\t/src/no-trunk\t\tfeature/y\n\
+             tuist/dev\t/src/dev\tmain\n",
+        )
+        .expect("write registry");
+
+        let sources = load_sources(&path);
+        let ci = sources.get("tuist/ci").expect("ci entry");
+        assert_eq!(ci.trunk.as_deref(), Some("main"));
+        assert_eq!(ci.ci_branch.as_deref(), Some("feature/x"));
+
+        let no_trunk = sources.get("tuist/no-trunk").expect("no-trunk entry");
+        assert_eq!(no_trunk.trunk, None, "the empty trunk column is not a trunk");
+        assert_eq!(
+            no_trunk.ci_branch.as_deref(),
+            Some("feature/y"),
+            "the branch is still found in its own column"
+        );
+
+        let dev = sources.get("tuist/dev").expect("dev entry");
+        assert_eq!(
+            dev.ci_branch, None,
+            "a developer's row records no branch: the proxy reads git live"
+        );
 
         std::fs::remove_dir_all(&dir).ok();
     }
