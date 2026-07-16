@@ -481,6 +481,31 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       assert env["KURA_CAS_CAPACITY_BYTES"] == "8589934592"
     end
 
+    test "budgets the CAS from cas_capacity_size without moving the declared storage size" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn -> nil end)
+
+      manifest =
+        KubernetesController.manifest(
+          "kura-tuist-scw-fr-par-1",
+          "0.5.2",
+          %{name: "tuist"},
+          eu_region(%{storage_size: "50Gi", cas_capacity_size: "200Gi"}),
+          %Server{},
+          "return true"
+        )
+
+      env = Map.new(manifest["spec"]["extraEnv"], &{&1["name"], &1["value"]})
+
+      # 80% of the 200Gi override, not of the 50Gi claim.
+      assert env["KURA_CAS_CAPACITY_BYTES"] == "171798691840"
+
+      # storageSize must stay at the claim: the controller patches live PVCs up to
+      # spec.storageSize on every reconcile, and scw-local-nvme is not expandable,
+      # so raising it would wedge every instance that already exists.
+      assert manifest["spec"]["storageSize"] == "50Gi"
+    end
+
     test "omits the CAS capacity when the region declares no storage size" do
       stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
       stub(Tuist.Environment, :kura_control_plane_client_id, fn -> nil end)

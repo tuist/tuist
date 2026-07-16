@@ -410,16 +410,26 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   # single node over-commit it (2 replicas x 50% of the disk = 100% of it). The
   # box then crosses kubelet's imagefs eviction threshold long before any replica
   # reaches its own budget, so Kura's ring rotation never gets to evict and the
-  # node evicts the whole region instead. Pin the budget to the volume the region
-  # actually asked for so the ring stays inside the PVC contract on any backing.
+  # node evicts the whole region instead.
+  #
+  # Budget from the size the region declares. That is normally storage_size, so
+  # the ring stays inside the claim on a class that enforces it; a region whose
+  # claim bounds nothing (local-path) can override with cas_capacity_size rather
+  # than inflate storage_size, which the controller would try to apply to the
+  # live PVCs.
   defp cas_capacity_env(%Regions{} = region) do
-    with size when is_binary(size) <- storage_size(region),
+    with size when is_binary(size) <- cas_capacity_source(region),
          {:ok, bytes} <- parse_storage_quantity(size) do
       [env_var("KURA_CAS_CAPACITY_BYTES", Integer.to_string(cas_capacity_bytes(bytes)))]
     else
       _ -> []
     end
   end
+
+  defp cas_capacity_source(%Regions{provisioner_config: %{cas_capacity_size: size}}) when is_binary(size) and size != "",
+    do: size
+
+  defp cas_capacity_source(%Regions{} = region), do: storage_size(region)
 
   # Kura appends a new segment before evicting the oldest one, so a ring sized to
   # the entire volume can still run it full mid-rotation. Kura reserves the same

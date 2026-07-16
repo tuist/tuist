@@ -197,17 +197,20 @@ defmodule Tuist.Kura.Regions do
       # via the local-path provisioner (`scw-local-nvme` StorageClass,
       # installed on the pool out-of-band).
       storage_class: "scw-local-nvme",
-      # Sized against the box, not the old nominal 50Gi: this is what the CAS
-      # budget is derived from, and the runner cache had been running at roughly
-      # 150Gi per account off the statvfs default long before that default was
-      # pinned. Three accounts at 80% of this still leave the ~900G node close to
-      # half free. Only the CAS budget moves for instances that already exist —
-      # a StatefulSet's volumeClaimTemplates are immutable and the controller
-      # recreates on a storage *class* change, not a size one, so their PVCs keep
-      # reading 50Gi. Nothing enforces that number on a local-path volume (it is
-      # a directory on the shared disk), so the claim is cosmetic; the budget
-      # below is the real limit.
-      storage_size: "200Gi",
+      storage_size: "50Gi",
+      # A local-path volume is a directory on the node's shared NVMe, so the
+      # claim above bounds nothing and this pool's cache has been running near
+      # 150Gi per account off Kura's statvfs default. Budget it against the box
+      # it actually shares rather than shrinking a healthy cache ~3.5x to a
+      # number that never applied; three accounts at 80% of this still leave the
+      # ~900G node about half free. Kept separate from storage_size because
+      # raising the claim is not a no-op: the controller patches existing PVCs up
+      # to spec.storageSize on every reconcile, and scw-local-nvme sets
+      # allowVolumeExpansion: false, so the API would reject each resize and wedge
+      # the instances that already exist. Only meaningful where the claim is a
+      # fiction — leave it unset on a class that enforces the claim, so the ring
+      # stays inside the volume.
+      cas_capacity_size: "200Gi",
       runner_platforms: [:macos],
       # The macOS Tart VMs reach this pool over a Scaleway Private
       # Network, not the cluster's pod network, so cluster Service DNS
@@ -397,6 +400,7 @@ defmodule Tuist.Kura.Regions do
         # + a bounded storage_size.
         replicas: Map.get(spec, :replicas),
         storage_size: Map.get(spec, :storage_size),
+        cas_capacity_size: Map.get(spec, :cas_capacity_size),
         tuist_base_url: Tuist.Environment.kura_tuist_base_url(),
         node_selector: %{@managed_region_node_pool_label => spec.node_pool},
         # Tolerate the customer-facing cache nodes' taint so the cache pod
@@ -465,6 +469,7 @@ defmodule Tuist.Kura.Regions do
         node_selector: %{@managed_region_node_pool_label => spec.node_pool},
         storage_class: spec.storage_class,
         storage_size: spec.storage_size,
+        cas_capacity_size: Map.get(spec, :cas_capacity_size),
         replicas: 1,
         tuist_base_url: Tuist.Environment.kura_tuist_base_url(),
         # The runner-cache node replicates with the account's other nodes

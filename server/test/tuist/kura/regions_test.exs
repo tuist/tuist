@@ -240,6 +240,13 @@ defmodule Tuist.Kura.RegionsTest do
       assert scw_config.private == true
       assert scw_config.storage_class == "scw-local-nvme"
       assert scw_config.replicas == 1
+
+      # The cache budget rides cas_capacity_size, and the claim stays put:
+      # scw-local-nvme is not expandable, and the controller patches live PVCs up
+      # to spec.storageSize on every reconcile, so raising the claim would wedge
+      # every runner-cache instance that already exists.
+      assert scw_config.storage_size == "50Gi"
+      assert scw_config.cas_capacity_size == "200Gi"
       assert scw_config.node_selector == %{"node.cluster.x-k8s.io/pool" => "kura-scw-fr-par"}
       refute Map.has_key?(scw_config, :public_host_template)
       refute Map.has_key?(scw_config, :ingress_class_name)
