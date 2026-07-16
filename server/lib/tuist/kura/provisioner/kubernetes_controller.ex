@@ -21,6 +21,14 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   @namespace "kura"
   @manifest_revision "2026-07-16-cas-capacity-v1"
   @manifest_revision_annotation "tuist.dev/kura-manifest-revision"
+  # Mirrors Kura's DEFAULT_TMP_DIR_MAX_BYTES (kura/src/constants.rs): 4 x
+  # MAX_REPLICATION_BODY_BYTES, itself 4 x MAX_SEGMENT_BYTES. We never set
+  # KURA_TMP_DIR_MAX_BYTES, so this default is what upload staging can reach
+  # inside the data volume. Keep in sync if either constant moves.
+  @kura_tmp_dir_max_bytes 8 * 1024 * 1024 * 1024
+  # Kura's MAX_SEGMENT_BYTES: the one extra segment a ring rotation appends
+  # before evicting the oldest one.
+  @kura_max_segment_bytes 512 * 1024 * 1024
   @impl true
   def provision(%{name: handle}, %Regions{} = region, %Server{}) do
     {:ok, instance_name(handle, region)}
@@ -419,8 +427,9 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   # live PVCs.
   defp cas_capacity_env(%Regions{} = region) do
     with size when is_binary(size) <- cas_capacity_source(region),
-         {:ok, bytes} <- parse_storage_quantity(size) do
-      [env_var("KURA_CAS_CAPACITY_BYTES", Integer.to_string(cas_capacity_bytes(bytes)))]
+         {:ok, bytes} <- parse_storage_quantity(size),
+         capacity when is_integer(capacity) <- cas_capacity_bytes(bytes) do
+      [env_var("KURA_CAS_CAPACITY_BYTES", Integer.to_string(capacity))]
     else
       _ -> []
     end
@@ -431,11 +440,27 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
   defp cas_capacity_source(%Regions{} = region), do: storage_size(region)
 
-  # Kura appends a new segment before evicting the oldest one, so a ring sized to
-  # the entire volume can still run it full mid-rotation. Kura reserves the same
-  # headroom itself (CAS_CAPACITY_MAX_DISK_PERCENT); apply it here against the
-  # volume size, which is the denominator it cannot infer on a local-path volume.
-  defp cas_capacity_bytes(storage_bytes), do: div(storage_bytes * 80, 100)
+  # KURA_CAS_CAPACITY_BYTES budgets the CAS segment ring only, but the ring is
+  # not the only thing in the data dir: the controller points KURA_TMP_DIR at
+  # <data dir>/tmp, so upload staging shares the volume, and RocksDB's index sits
+  # beside it with no budget of its own. Size the ring against what is left after
+  # them rather than taking a flat percentage — the tmp budget is a fixed 8 GiB,
+  # so a percentage that fits a 50Gi volume overruns a 20Gi one.
+  #
+  # Reserves, in order: the tmp dir's own ceiling; one extra segment, which a
+  # rotation appends before it evicts the oldest one; and a few percent for the
+  # RocksDB index, which tracks entry count rather than bytes (measured ~1.2% of
+  # resident segment bytes on a production instance, so 3% is slack).
+  defp cas_capacity_bytes(storage_bytes) do
+    usable = storage_bytes - @kura_tmp_dir_max_bytes - @kura_max_segment_bytes
+
+    if usable > 0 do
+      div(usable * 97, 100)
+      # Too small to carve a ring out of once staging is reserved. Emit nothing
+      # and let Kura fall back to its own statvfs default, which on a volume this
+      # size is both enforced and more conservative than anything derived here.
+    end
+  end
 
   defp parse_storage_quantity(value) do
     case Integer.parse(value) do

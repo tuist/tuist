@@ -246,7 +246,7 @@ defmodule Tuist.Kura.RegionsTest do
       # to spec.storageSize on every reconcile, so raising the claim would wedge
       # every runner-cache instance that already exists.
       assert scw_config.storage_size == "50Gi"
-      assert scw_config.cas_capacity_size == "200Gi"
+      assert scw_config.cas_capacity_size == "150Gi"
       assert scw_config.node_selector == %{"node.cluster.x-k8s.io/pool" => "kura-scw-fr-par"}
       refute Map.has_key?(scw_config, :public_host_template)
       refute Map.has_key?(scw_config, :ingress_class_name)

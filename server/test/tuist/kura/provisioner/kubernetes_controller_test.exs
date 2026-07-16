@@ -457,28 +457,56 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       env = Map.new(manifest["spec"]["extraEnv"], &{&1["name"], &1["value"]})
 
-      # 80% of 50Gi, leaving the headroom a ring rotation needs. Without this the
-      # runtime would size the ring from the node's whole disk instead.
-      assert env["KURA_CAS_CAPACITY_BYTES"] == "42949672960"
+      # 50Gi less the 8Gi tmp ceiling and one 512Mi segment, less 3% for the
+      # index. Without this the runtime would size the ring from the node's whole
+      # disk instead.
+      assert env["KURA_CAS_CAPACITY_BYTES"] == "43223477125"
     end
 
-    test "scales the CAS capacity with a smaller declared storage size" do
+    test "leaves a 20Gi volume room for staging and index alongside the ring" do
       stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
       stub(Tuist.Environment, :kura_control_plane_client_id, fn -> nil end)
 
       manifest =
         KubernetesController.manifest(
-          "kura-tuist-scw-fr-par-1",
+          "kura-tuist-staging-runners-1",
           "0.5.2",
           %{name: "tuist"},
-          eu_region(%{storage_size: "10Gi"}),
+          eu_region(%{storage_size: "20Gi"}),
+          %Server{},
+          "return true"
+        )
+
+      env = Map.new(manifest["spec"]["extraEnv"], &{&1["name"], &1["value"]})
+      capacity = String.to_integer(env["KURA_CAS_CAPACITY_BYTES"])
+
+      assert capacity == 11_977_590_046
+
+      # The reserves are fixed sizes, not a share, so the ring plus the tmp
+      # ceiling plus a rotation has to stay inside the volume. A flat percentage
+      # passes at 50Gi and overruns here, which on an enforced class is ENOSPC.
+      tmp = 8 * 1024 * 1024 * 1024
+      segment = 512 * 1024 * 1024
+      assert capacity + tmp + segment < 20 * 1024 * 1024 * 1024
+    end
+
+    test "omits the CAS capacity when the declared size cannot fit staging" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn -> nil end)
+
+      manifest =
+        KubernetesController.manifest(
+          "kura-tuist-tiny-1",
+          "0.5.2",
+          %{name: "tuist"},
+          eu_region(%{storage_size: "8Gi"}),
           %Server{},
           "return true"
         )
 
       env = Map.new(manifest["spec"]["extraEnv"], &{&1["name"], &1["value"]})
 
-      assert env["KURA_CAS_CAPACITY_BYTES"] == "8589934592"
+      refute Map.has_key?(env, "KURA_CAS_CAPACITY_BYTES")
     end
 
     test "budgets the CAS from cas_capacity_size without moving the declared storage size" do
@@ -497,8 +525,8 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       env = Map.new(manifest["spec"]["extraEnv"], &{&1["name"], &1["value"]})
 
-      # 80% of the 200Gi override, not of the 50Gi claim.
-      assert env["KURA_CAS_CAPACITY_BYTES"] == "171798691840"
+      # Budgeted from the 200Gi override, not the 50Gi claim.
+      assert env["KURA_CAS_CAPACITY_BYTES"] == "199452912517"
 
       # storageSize must stay at the claim: the controller patches live PVCs up to
       # spec.storageSize on every reconcile, and scw-local-nvme is not expandable,
