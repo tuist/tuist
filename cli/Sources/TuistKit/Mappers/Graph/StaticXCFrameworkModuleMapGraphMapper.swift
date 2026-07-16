@@ -117,29 +117,36 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
             }
 
             if !staticObjcXCFrameworksWithLibrariesLinkedByDynamicXCFrameworkDependencies.isEmpty {
-                settings["OTHER_SWIFT_FLAGS"] = .array(
-                    staticObjcXCFrameworksWithLibrariesLinkedByDynamicXCFrameworkDependencies.flatMap { xcframework -> [String] in
-                        [
-                            "-Xcc",
-                            moduleMapFlag(
-                                for: xcframework,
-                                derivedDirectory: derivedDirectory,
-                                project: project
-                            ),
-                        ]
-                    }
-                )
-                settings["OTHER_C_FLAGS"] = .array(
-                    staticObjcXCFrameworksWithLibrariesLinkedByDynamicXCFrameworkDependencies.flatMap { xcframework -> [String] in
-                        [
-                            moduleMapFlag(
-                                for: xcframework,
-                                derivedDirectory: derivedDirectory,
-                                project: project
-                            ),
-                        ]
-                    }
-                )
+                // Only flat layouts point at a module map. Nested ones are left for clang to
+                // discover from whichever `Headers` root wins the search path, so that the module
+                // and the headers its umbrella imports always come from the same directory.
+                let flatXCFrameworks = staticObjcXCFrameworksWithLibrariesLinkedByDynamicXCFrameworkDependencies
+                    .filter { Self.nestedModuleMap(for: $0) == nil }
+                if !flatXCFrameworks.isEmpty {
+                    settings["OTHER_SWIFT_FLAGS"] = .array(
+                        flatXCFrameworks.flatMap { xcframework -> [String] in
+                            [
+                                "-Xcc",
+                                moduleMapFlag(
+                                    for: xcframework,
+                                    derivedDirectory: derivedDirectory,
+                                    project: project
+                                ),
+                            ]
+                        }
+                    )
+                    settings["OTHER_C_FLAGS"] = .array(
+                        flatXCFrameworks.flatMap { xcframework -> [String] in
+                            [
+                                moduleMapFlag(
+                                    for: xcframework,
+                                    derivedDirectory: derivedDirectory,
+                                    project: project
+                                ),
+                            ]
+                        }
+                    )
+                }
                 settings["HEADER_SEARCH_PATHS"] = .array(
                     staticObjcXCFrameworksWithLibrariesLinkedByDynamicXCFrameworkDependencies
                         .compactMap { xcframework -> String? in
@@ -202,23 +209,31 @@ public struct StaticXCFrameworkModuleMapGraphMapper: GraphMapping {
     /// root (the subdirectory's parent) on the search path so those prefixed imports resolve;
     /// "flat" xcframeworks keep their headers directly next to the module map. Returns the
     /// xcframework's module map when the layout is nested.
+    ///
+    /// Nested layouts are deliberately *not* passed to clang with `-fmodule-map-file`. Whenever
+    /// anything else still references the xcframework, Xcode's `ProcessXCFramework` copies the
+    /// same headers into `$(BUILT_PRODUCTS_DIR)/include/<ModuleName>/`, which is searched ahead of
+    /// `HEADER_SEARCH_PATHS`. Naming a module map here would define the module over one copy of
+    /// the headers while `#import <ModuleName/Header.h>` resolved to the other, which clang
+    /// reports as `umbrella header for module 'X' does not include header 'Y.h'` or, once that
+    /// copy makes a second module map reachable, `import of shadowed module`. Leaving the module
+    /// map out lets clang discover it next to whichever headers actually win the search path, so
+    /// the module is always defined over the copy its umbrella imports.
     private static func nestedModuleMap(for xcframework: GraphDependency.XCFramework) -> AbsolutePath? {
         guard let moduleMap = xcframework.moduleMaps.first else { return nil }
         return moduleMap.parentDirectory.basename == xcframework.path.basenameWithoutExt ? moduleMap : nil
     }
 
+    /// Only called for flat layouts, which point at the derived module map whose umbrella header was
+    /// rewritten to drop the `<ModuleName/...>` prefix so it resolves against the module map's own
+    /// directory.
     private func moduleMapFlag(
         for xcframework: GraphDependency.XCFramework,
         derivedDirectory: AbsolutePath,
         project: Project
     ) -> String {
         let name = xcframework.path.basenameWithoutExt
-        // Nested layouts point at the xcframework's own module map: its umbrella imports the
-        // headers with the `<ModuleName/...>` prefix, which resolves against the `Headers` root.
-        // Flat layouts point at the derived module map, whose umbrella header was rewritten to
-        // drop the prefix so it resolves against the module map's own directory.
-        let moduleMapPath = Self.nestedModuleMap(for: xcframework)
-            ?? derivedDirectory.appending(components: name, "Headers", "module.modulemap")
+        let moduleMapPath = derivedDirectory.appending(components: name, "Headers", "module.modulemap")
         return "-fmodule-map-file=\"$(SRCROOT)/\(moduleMapPath.relative(to: project.path).pathString)\""
     }
 
