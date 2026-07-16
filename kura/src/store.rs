@@ -2010,25 +2010,30 @@ impl Store {
     ) -> Result<(ArtifactManifest, bool), String> {
         let artifact_id = artifact_storage_id(producer, &self.tenant_id, namespace_id, key);
         let existing = self.manifest_from_db(&artifact_id)?;
-        // Damping deliberately outranks the tag, and does NOT compare it.
+        // Damping compares the TAG as well as the bytes, because an entry is no
+        // longer identified by its bytes alone. Without it, a trunk build that
+        // recomputes a result a feature branch published first is damped on the
+        // bytes and its tag never lands, so the entry stays feature-scoped and
+        // stays out of the trunk view: the reclaim the client is asking for is
+        // dropped here, silently, by the one check it has to pass.
         //
-        // This was tried once and reverted, for reasons that no longer hold: the
-        // refresh path then re-published with no branch and no trunk, so a tag
-        // comparison declined to damp and wrote the entry untagged, and the
-        // client's dedupe meant a tag-only update never arrived anyway. Both are
-        // fixed, and untagged is no longer the trunk baseline, so the trap it was
-        // reverted for is gone.
+        // This was tried once and reverted, for reasons that no longer hold. The
+        // refresh path then re-published with no branch, so comparing tags saw
+        // `Some("feature")` against `None`, declined to damp, and wrote the entry
+        // untagged into what was then the trunk baseline. That path now carries
+        // its tags, `sticky_branch` no longer lets an absent branch overwrite a
+        // present one, and untagged is no longer the baseline. Three reasons the
+        // old shape was a trap, all gone.
         //
-        // It stays out because it is no longer needed here. A byte-identical
-        // publish now carries its tags to the server, and a per-key hit refreshes
-        // under the tags of the build that took it, so reclaim happens on those
-        // paths with the manifest in hand. Comparing tags here would only add a
-        // way for the damping probe (a read taken outside the write lock) to
-        // disagree with the tag the persist resolves under it.
+        // Resolving the tag here is a probe, not the decision: the persist below
+        // re-resolves it under the per-artifact write lock. A peer committing in
+        // between can only cost a damp we should have taken, or a write we did
+        // not need, and the next publish settles it either way.
         if let Some(existing) = &existing
             && existing.inline
             && manifest_version_ms(existing).saturating_add(REAPI_ACTION_CACHE_REFRESH_DAMPING_MS)
                 > now_ms()
+            && sticky_branch(Some(existing), branch, trunk) == existing.branch.as_deref()
             && self.inline_bytes(&artifact_id)?.as_deref() == Some(bytes)
         {
             return Ok((existing.clone(), false));
@@ -4123,6 +4128,12 @@ fn sticky_branch<'a>(
         {
             existing.branch.as_deref()
         }
+        // A publisher that names no branch is not asserting that the entry has
+        // none; it is saying it cannot tell. It must not overwrite what a
+        // publisher that could tell recorded, or a node too old to send the
+        // header would untag a trunk key and drop it out of the trunk view by
+        // republishing it.
+        (Some(existing), _) if branch.is_none() => existing.branch.as_deref(),
         _ => branch,
     }
 }
@@ -4615,6 +4626,78 @@ mod tests {
             "the trunk entry is found under the feature churn instead of the view being truncated"
         );
         assert_eq!(trunk[0].key, "action_cache/zzz");
+    }
+
+    /// The reclaim the whole scoping depends on, in the shape it actually happens:
+    /// two builds computing the same action produce the SAME bytes, so nothing
+    /// about the value changes and only the tag does. Damping is the one check
+    /// that stands between the client's tag-only update and the entry.
+    #[tokio::test]
+    async fn trunk_reclaims_an_identical_result_a_feature_published_first() {
+        let (_temp_dir, _config, store) = temp_store();
+        async fn publish(store: &Store, branch: Option<&str>) -> ArtifactManifest {
+            store
+                .persist_inline_artifact_from_bytes_damped_and_enqueue(
+                    ArtifactProducer::Reapi,
+                    "ios",
+                    "action_cache/aa/10",
+                    "application/x-protobuf",
+                    b"identical",
+                    &[],
+                    branch,
+                    Some("main"),
+                )
+                .await
+                .expect("action-cache entry should persist")
+                .0
+        }
+        // A feature build gets there first.
+        publish(&store, Some("feature")).await;
+        // Trunk recomputes it: same bytes, well inside the damping window.
+        let reclaimed = publish(&store, Some("main")).await;
+        assert_eq!(
+            reclaimed.branch.as_deref(),
+            Some("main"),
+            "a tag-only update is not a no-op, so damping must not swallow it"
+        );
+        let trunk = store
+            .action_cache_manifests("ios", 10, Some("main"))
+            .expect("trunk scan should succeed");
+        assert_eq!(trunk.len(), 1, "and the entry is back in the trunk view");
+    }
+
+    /// A node too old to send the header, or a publisher whose checkout it could
+    /// not resolve, says nothing about provenance. Letting that erase a tag would
+    /// evict a trunk key from the trunk view by republishing it.
+    #[tokio::test]
+    async fn a_publish_that_names_no_branch_does_not_erase_one() {
+        let (_temp_dir, _config, store) = temp_store();
+        async fn publish(store: &Store, bytes: &[u8], branch: Option<&str>) -> ArtifactManifest {
+            store
+                .persist_inline_artifact_from_bytes_damped_and_enqueue(
+                    ArtifactProducer::Reapi,
+                    "ios",
+                    "action_cache/aa/10",
+                    "application/x-protobuf",
+                    bytes,
+                    &[],
+                    branch,
+                    // No trunk either: an older client sends neither header.
+                    None,
+                )
+                .await
+                .expect("action-cache entry should persist")
+                .0
+        }
+        publish(&store, b"graph", Some("main")).await;
+        tokio::time::sleep(std::time::Duration::from_millis(2)).await;
+        // Different bytes, so damping cannot be what saves the tag.
+        let after = publish(&store, b"graph-wobble", None).await;
+        assert_eq!(
+            after.branch.as_deref(),
+            Some("main"),
+            "an untagged republish keeps the tag someone who knew it recorded"
+        );
     }
 
     #[tokio::test]
