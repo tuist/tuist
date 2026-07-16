@@ -116,6 +116,47 @@ defmodule Tuist.Runners.RunnerSessionsTest do
     end
   end
 
+  describe "executed_job_for_pod/1" do
+    test "resolves the pod to the job GitHub proved it is running" do
+      account = account_fixture()
+      session_fixture(account, pod_name: "pod-1", runner_name: "runner-1", workflow_job_id: 9001)
+      assert :matched = RunnerSessions.record_execution("runner-1", 9001)
+
+      assert {:ok, %{workflow_job_id: 9001, account_id: account_id}} =
+               RunnerSessions.executed_job_for_pod("pod-1")
+
+      assert account_id == account.id
+    end
+
+    test "resolves to the executed job, not the claimed one" do
+      account = account_fixture()
+      session_fixture(account, pod_name: "pod-2", runner_name: "runner-2", workflow_job_id: 9002)
+      assert :mismatch = RunnerSessions.record_execution("runner-2", 9099)
+
+      assert {:ok, %{workflow_job_id: 9099}} = RunnerSessions.executed_job_for_pod("pod-2")
+    end
+
+    test "returns :error until execution is proven (never guesses the claimed job)" do
+      account = account_fixture()
+      session_fixture(account, pod_name: "pod-3", runner_name: "runner-3", workflow_job_id: 9003)
+
+      assert RunnerSessions.executed_job_for_pod("pod-3") == :error
+    end
+
+    test "returns :error for a pod with no session" do
+      assert RunnerSessions.executed_job_for_pod("ghost-pod") == :error
+    end
+
+    test "returns :error once the session is closed" do
+      account = account_fixture()
+      session_fixture(account, pod_name: "pod-4", runner_name: "runner-4", workflow_job_id: 9004)
+      assert :matched = RunnerSessions.record_execution("runner-4", 9004)
+      {:ok, _} = RunnerSessions.close_by_pod_name("pod-4", DateTime.utc_now())
+
+      assert RunnerSessions.executed_job_for_pod("pod-4") == :error
+    end
+  end
+
   describe "record_execution/2" do
     test "binds the executed job on the open session and reports :matched" do
       account = account_fixture()

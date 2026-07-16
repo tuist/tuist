@@ -318,31 +318,41 @@ defmodule Tuist.Runners.ClaimsTest do
     end
   end
 
-  describe "by_pod_name/1" do
-    test "resolves a live claim's workflow_job_id and account_id" do
+  describe "complete_by_runner_name/1" do
+    test "releases the claim held by the runner that actually ran the job" do
       account = account_fixture()
       {:ok, _} = Claims.attempt(6001, account.id, "fleet-a", "pod-1", @linux_resources)
       :ok = Claims.mark_running(6001, "runner-x")
 
-      assert {:ok, %{workflow_job_id: 6001, account_id: account_id}} = Claims.by_pod_name("pod-1")
-      assert account_id == account.id
+      assert 1 == Claims.complete_by_runner_name("runner-x")
+      assert Claims.counts_per_account() == %{}
     end
 
-    test "returns :error when the pod holds no live claim" do
-      assert Claims.by_pod_name("unknown-pod") == :error
-    end
-
-    test "prefers the executed_workflow_job_id GitHub proved over the claimed guess" do
+    test "does not free a runner still executing a job it did not claim" do
+      # The issue's scenario: A claims J1, B claims J2, GitHub runs J1
+      # on B. J2's completion must NOT release B's slot — B is live and
+      # executing J1. Releasing by the completed job's id would.
       account = account_fixture()
-      {:ok, _} = Claims.attempt(6100, account.id, "fleet-a", "pod-1", @linux_resources)
-      :ok = Claims.mark_running(6100, "runner-x")
+      {:ok, _} = Claims.attempt(6200, account.id, "fleet-a", "pod-a", @linux_resources)
+      :ok = Claims.mark_running(6200, "runner-a")
+      {:ok, _} = Claims.attempt(6201, account.id, "fleet-a", "pod-b", @linux_resources)
+      :ok = Claims.mark_running(6201, "runner-b")
 
-      # GitHub placed a different job on this runner than the one
-      # the claim was minted for — metrics must follow execution.
-      assert :mismatch = Claims.record_execution("runner-x", 6199)
+      # J2 (6201) was cancelled while queued: no runner ever ran it, so
+      # the payload carries no runner_name and nothing is released.
+      assert 0 == Claims.complete_by_runner_name("")
 
-      assert {:ok, %{workflow_job_id: 6199, account_id: account_id}} = Claims.by_pod_name("pod-1")
-      assert account_id == account.id
+      # Both runners still counted: both Pods are alive, and B is
+      # executing J1.
+      assert Claims.counts_per_account() == %{account.id => 2}
+
+      # J1 completes on runner-b — the executor's slot is the one freed.
+      assert 1 == Claims.complete_by_runner_name("runner-b")
+      assert Claims.counts_per_account() == %{account.id => 1}
+    end
+
+    test "is idempotent when the runner's claim is already gone" do
+      assert 0 == Claims.complete_by_runner_name("ghost-runner")
     end
   end
 

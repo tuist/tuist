@@ -156,6 +156,46 @@ defmodule Tuist.Runners.RunnerSessions do
   end
 
   @doc """
+  Resolves `pod_name` to the workflow_job GitHub **proved** is running
+  on it, plus the owning `account_id`. Returns `:error` when execution
+  hasn't been proven for this Pod.
+
+  This is the read side of the attribution binding, and it deliberately
+  refuses to guess. Resolving through the claim instead would attribute
+  samples to the job the Pod was *minted for*, which is wrong twice
+  over:
+
+    * Before GitHub assigns a job (or on a runner it never assigns one
+      to), the Pod's idle CPU/memory would be charted on a job that is
+      running on a different Pod entirely.
+    * A Pod executing a job it didn't claim can have no live claim at
+      all — the claim is released by whichever runner finished — so its
+      real samples would be dropped.
+
+  The session is keyed to the Pod and outlives it, so it answers both
+  cases correctly: samples land only once `in_progress` (or the
+  `completed` backstop) names this Pod's runner, and they land on the
+  job that actually ran.
+
+  Scoped to the open session: a Pod between jobs (warm, or torn down)
+  is not sampling for anyone.
+  """
+  def executed_job_for_pod(pod_name) when is_binary(pod_name) and pod_name != "" do
+    RunnerSession
+    |> where([s], s.pod_name == ^pod_name and is_nil(s.ended_at) and not is_nil(s.executed_workflow_job_id))
+    |> order_by([s], desc: s.started_at)
+    |> select([s], %{workflow_job_id: s.executed_workflow_job_id, account_id: s.account_id})
+    |> limit(1)
+    |> Repo.one()
+    |> case do
+      nil -> :error
+      session -> {:ok, session}
+    end
+  end
+
+  def executed_job_for_pod(_pod_name), do: :error
+
+  @doc """
   Records the workflow_job GitHub actually ran on the runner named
   `runner_name`, on the durable session row (which outlives the pod).
   Called from the `workflow_job.in_progress` / `completed` webhook.

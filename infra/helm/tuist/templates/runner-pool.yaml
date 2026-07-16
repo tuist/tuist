@@ -64,7 +64,7 @@ spec:
     {{- end }}
   podCPUMilli: {{ $podCPU }}
   podMemoryMB: {{ $podMem }}
-  {{- $idleTimeout := dig "idleTimeoutSeconds" 0 $pool }}
+  {{- $idleTimeout := dig "idleTimeoutSeconds" ($.Values.runnersFleet.idleTimeoutSeconds | default 0) $pool }}
   {{- if gt (int $idleTimeout) 0 }}
   idleTimeoutSeconds: {{ $idleTimeout }}
   {{- end }}
@@ -174,7 +174,7 @@ spec:
     {{- end }}
   podCPUMilli: {{ $podCPU }}
   podMemoryMB: {{ $podMem }}
-  {{- $idleTimeout := dig "idleTimeoutSeconds" 0 $override }}
+  {{- $idleTimeout := dig "idleTimeoutSeconds" ($.Values.runnersFleet.idleTimeoutSeconds | default 0) $override }}
   {{- if gt (int $idleTimeout) 0 }}
   idleTimeoutSeconds: {{ $idleTimeout }}
   {{- end }}
@@ -236,6 +236,10 @@ spec:
     {{- end }}
   podCPUMilli: {{ $podCPU }}
   podMemoryMB: {{ $podMem }}
+  {{- $idleTimeout := dig "idleTimeoutSeconds" ($.Values.runnersFleetLinux.idleTimeoutSeconds | default 0) $pool }}
+  {{- if gt (int $idleTimeout) 0 }}
+  idleTimeoutSeconds: {{ $idleTimeout }}
+  {{- end }}
   {{- if $runtimeClass }}
   runtimeClass: {{ $runtimeClass | quote }}
   {{- end }}
@@ -311,6 +315,10 @@ spec:
     {{- end }}
   podCPUMilli: {{ $podCPU }}
   podMemoryMB: {{ $podMem }}
+  {{- $idleTimeout := dig "idleTimeoutSeconds" ($.Values.runnersFleetLinux.idleTimeoutSeconds | default 0) $shape }}
+  {{- if gt (int $idleTimeout) 0 }}
+  idleTimeoutSeconds: {{ $idleTimeout }}
+  {{- end }}
   {{- if $shapeRuntimeClass }}
   runtimeClass: {{ $shapeRuntimeClass | quote }}
   {{- end }}

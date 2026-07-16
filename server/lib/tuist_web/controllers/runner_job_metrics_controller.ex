@@ -15,13 +15,19 @@ defmodule TuistWeb.RunnerJobMetricsController do
   outside (the macOS Tart fleet's kubelet serves no stats API), so the
   VM is the only vantage point.
 
-  The runner does not know which job it's running — that mapping lives
-  in `runner_claims`. We resolve `pod_name` to its live claim and
-  `account_id` here, preferring the `executed_workflow_job_id` GitHub
-  proved the runner ran (via the `in_progress` webhook) over the
-  claim-time `workflow_job_id` guess, so samples land on the job that
-  actually ran on the Pod. A Pod with no live claim (idle/warm, or its
-  job already finished) is a no-op.
+  The runner does not know which job it's running. We resolve `pod_name`
+  to the job GitHub **proved** is running on it, via the Pod's open
+  `runner_sessions` row (`RunnerSessions.executed_job_for_pod/1`) — the
+  binding learned from the `workflow_job.in_progress` webhook's
+  `runner_name`.
+
+  Resolving through the Pod's *claim* would be wrong: GitHub assigns
+  jobs to any label-eligible runner, so the claim names the job the Pod
+  was minted for, not the one it runs. That would chart an idle
+  runner's samples on a job executing elsewhere, and would drop the
+  real samples of a Pod running a job it didn't claim (which may hold
+  no live claim at all). Samples for a Pod with no proven execution —
+  warm, idle, or not yet assigned — are a no-op.
 
   ## Contract
 
@@ -50,8 +56,8 @@ defmodule TuistWeb.RunnerJobMetricsController do
 
   use TuistWeb, :controller
 
-  alias Tuist.Runners.Claims
   alias Tuist.Runners.JobMetrics
+  alias Tuist.Runners.RunnerSessions
   alias TuistWeb.RunnerPodAuth
 
   require Logger
@@ -78,7 +84,7 @@ defmodule TuistWeb.RunnerJobMetricsController do
   def create(conn, %{"pod_name" => pod_name} = params) when is_binary(pod_name) and pod_name != "" do
     with :ok <- RunnerPodAuth.authenticate(conn, pod_name),
          {:ok, samples} <- parse_samples(params) do
-      case Claims.by_pod_name(pod_name) do
+      case RunnerSessions.executed_job_for_pod(pod_name) do
         {:ok, %{workflow_job_id: workflow_job_id, account_id: account_id}} ->
           :ok = JobMetrics.record(workflow_job_id, account_id, samples)
           send_resp(conn, :no_content, "")

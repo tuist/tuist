@@ -320,19 +320,48 @@ defmodule Tuist.Runners.Claims do
 
   @doc """
   Deletes the claim for `workflow_job_id` regardless of handle.
-  Called from the `workflow_job.completed` webhook to free the
-  cap slot the instant GitHub tells us the job finished — without
-  this the slot stays occupied until `StaleClaimsWorker` sweeps
-  it (~5 min later), which is a real UX issue for a customer who
-  just freed a slot and wants to claim the next workflow_job.
 
-  Idempotent — repeated webhook deliveries are a no-op. Returns
-  `:ok` whether or not a row existed.
+  **Recovery path only.** This releases the claim of whichever Pod
+  *claimed* the job, which is not necessarily the Pod that *ran* it —
+  GitHub assigns jobs to any label-eligible runner. The completed
+  webhook must therefore NOT use this (see `complete_by_runner_name/1`);
+  it exists for `OrphanedRunnersWorker`, where a GitHub-side terminal
+  status has already proven the claim is stale and the slot is leaked.
+
+  Idempotent — repeated deliveries are a no-op. Returns `:ok` whether
+  or not a row existed.
   """
   def complete(workflow_job_id) when is_integer(workflow_job_id) do
     Repo.delete_all(from(c in Claim, where: c.workflow_job_id == ^workflow_job_id))
     :ok
   end
+
+  @doc """
+  Releases the claim held by the runner that GitHub says actually ran
+  the job — keyed by the `runner_name` on the `workflow_job.completed`
+  payload, not by the completed job's id.
+
+  Job-keyed release is wrong under the claim↔execution mismatch: if Pod
+  A claimed J1 and Pod B claimed J2, but GitHub ran J1 on B, then
+  releasing on J2's completion would free B's slot while B is still
+  executing J1 — the account's budget would under-count a live runner
+  and admit work above its limit. Releasing by executor frees exactly
+  the runner that finished, whichever job it was minted for.
+
+  A job cancelled while still queued carries no `runner_name` (no
+  runner ever ran it); nothing is released, because the Pod that
+  claimed it is still alive and may still be handed a sibling job. Its
+  slot is reclaimed when that Pod stops (idle timeout / scale-down) or
+  by `OrphanedRunnersWorker`.
+
+  Idempotent. Returns the number of claims released.
+  """
+  def complete_by_runner_name(runner_name) when is_binary(runner_name) and runner_name != "" do
+    {count, _} = Repo.delete_all(from(c in Claim, where: c.runner_name == ^runner_name))
+    count
+  end
+
+  def complete_by_runner_name(_runner_name), do: 0
 
   @doc """
   Releases the claim held by `pod_name` — DELETE'd from PG,
@@ -454,35 +483,6 @@ defmodule Tuist.Runners.Claims do
     from(c in Claim, select: c.pod_name, distinct: true)
     |> Repo.all()
     |> MapSet.new()
-  end
-
-  @doc """
-  Resolves the live claim (`claimed` or `running`) owning `pod_name`
-  to the job it is actually running and its `account_id`. The metrics
-  ingest endpoint uses this to map a sampled Pod back to the job it's
-  running, so the runners-controller can POST samples keyed by Pod
-  name without knowing job ids. Returns `:error` when the Pod holds
-  no live claim (an idle/warm Pod, or one whose job already released
-  its claim).
-
-  Attribution: prefers `executed_workflow_job_id` (the job GitHub
-  proved this runner ran, via `record_execution/2`) over the
-  claim-time `workflow_job_id` guess, so samples land on the job that
-  actually ran on the Pod rather than the one it was minted for.
-  """
-  def by_pod_name(pod_name) when is_binary(pod_name) do
-    Claim
-    |> where([c], c.pod_name == ^pod_name)
-    |> select([c], %{
-      workflow_job_id: coalesce(c.executed_workflow_job_id, c.workflow_job_id),
-      account_id: c.account_id
-    })
-    |> limit(1)
-    |> Repo.one()
-    |> case do
-      nil -> :error
-      claim -> {:ok, claim}
-    end
   end
 
   @doc """

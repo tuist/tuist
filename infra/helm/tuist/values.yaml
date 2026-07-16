@@ -1365,6 +1365,23 @@ macosFleet:
 # compromised runner's reachability into the cluster.
 runnersFleet:
   enabled: false
+  # Default `spec.idleTimeoutSeconds` for every macOS pool (per-pool /
+  # per-xcodeOverride `idleTimeoutSeconds` wins). Bounds how long a
+  # runner that registered with GitHub but was never handed a job stays
+  # alive: GitHub assigns a queued job to any label-eligible runner, so
+  # a runner minted for a job GitHub ran on a sibling otherwise waits
+  # forever, holding warm-pool capacity and reading as busy (its owner
+  # label is stamped at claim, not execution). See issue #11862.
+  #
+  # This only bounds the post-claim window between the runner
+  # registering and GitHub assigning it work — normally seconds. It
+  # does NOT touch a warm Pod still polling for a claim (that's the
+  # poller init container), so it causes no warm-pool churn. 300s
+  # matches the stale-claim / orphan-recovery thresholds and leaves
+  # generous headroom over the sub-30s happy path. A runner that IS
+  # running a job writes the JOB_STARTED marker and is never reaped.
+  # 0 disables the watchdog.
+  idleTimeoutSeconds: 300
   name: ""              # default: <release>-runners-fleet — CAPI MachineDeployment name.
   # Kubernetes namespace customer runner Pods live in. Helm-owned;
   # `helm.sh/resource-policy: keep` so an uninstall doesn't yank in-
@@ -1545,6 +1562,12 @@ runnersFleet:
 #      Pods are the signal to provision more hosts).
 runnersFleetLinux:
   enabled: false
+  # Default `spec.idleTimeoutSeconds` for every Linux pool / shape
+  # (per-pool / per-shape `idleTimeoutSeconds` wins). Same rationale
+  # and semantics as `runnersFleet.idleTimeoutSeconds` above; on the
+  # Linux split shape the watchdog lives in the credential-free
+  # `run-job.sh` runner container. 0 disables it.
+  idleTimeoutSeconds: 300
   # Value of the `node.cluster.x-k8s.io/pool=` label CAPI's
   # label-sync propagates from the runner MachineDeployment to
   # each runner Node. Must match the

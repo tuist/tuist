@@ -278,20 +278,28 @@ defmodule Tuist.Runners.Dispatch do
       # is a no-op for that class.
       if runner_name != "", do: RunnerSessions.record_execution(runner_name, workflow_job_id)
 
-      mark_completed(workflow_job_id, conclusion, raw_steps(job), installation_id, repository)
+      mark_completed(workflow_job_id, conclusion, runner_name, raw_steps(job), installation_id, repository)
     else
       :ignored
     end
   end
 
-  defp mark_completed(workflow_job_id, conclusion, raw_steps, installation_id, repository) do
+  defp mark_completed(workflow_job_id, conclusion, runner_name, raw_steps, installation_id, repository) do
     # Free the PG cap slot FIRST. The customer's next dispatch
     # poll (potentially seconds away) sees the freed inflight
     # count immediately rather than waiting on the stale-claims
     # worker. CH state transition is fire-and-forget — if it
     # raises, the next dispatch is unaffected because cap
     # accounting reads PG.
-    :ok = Claims.complete(workflow_job_id)
+    #
+    # Release by EXECUTOR, not by the completed job's id: the Pod that
+    # claimed this job is not necessarily the one that ran it. Freeing
+    # by job id would release a slot still held by a runner executing
+    # someone else's claim, under-counting the account's live runners.
+    # A job cancelled while queued has no runner_name — nothing ran, so
+    # nothing is released; the claiming Pod keeps its slot until it
+    # stops (idle timeout) or `OrphanedRunnersWorker` recovers it.
+    Claims.complete_by_runner_name(runner_name)
 
     case Jobs.complete(workflow_job_id, conclusion) do
       {:ok, %{account_id: account_id}} ->
