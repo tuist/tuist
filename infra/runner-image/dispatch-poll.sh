@@ -121,10 +121,67 @@ cache_inventory() {
 # share is EMPTY at this point — the host fills it after dispatch, gated by
 # wait_for_cache_ready. Absent share => feature off / admission declined => cold
 # path. Never blocks.
+# use_local_cold_cache points the CLI at a private, local cache dir and
+# abandons the share (no promote, no HEAD publish, no inventory diff). Used
+# whenever the share is unusable, so a broken cache can only ever cost the job
+# its warm start — never fail it. Exporting TUIST_XDG_CACHE_HOME at a root the
+# CLI can't write is worse than not setting it at all: the CLI aborts on its
+# first cache write and the whole job dies.
+use_local_cold_cache() {
+  local reason="$1"
+  local local_cache="/Users/runner/.tuist-cache-cold"
+  mkdir -p "${local_cache}/tuist" 2>/dev/null || true
+  export TUIST_XDG_CACHE_HOME="${local_cache}"
+  unset TUIST_CACHE_MAX_BYTES
+  CACHE_MOUNT=""
+  CACHE_INVENTORY_BEFORE=""
+  echo "$(date -u +%FT%TZ) dispatch-poll: cache share unusable (${reason}); running on a local cold cache"
+}
+
+# cache_root_usable proves this user can actually create the Tuist cache root
+# on the share AND write inside it. Existence is not enough: the host
+# materializes a warm branch by cloning the account's master tree into place,
+# and that tree carries the master's ownership/mode — so `tuist/` can exist yet
+# be unwritable by the guest's unprivileged runner user. A write probe is the
+# only honest check.
+cache_root_usable() {
+  local share="$1"
+  local root="${share}/tuist"
+  local err
+  if ! err=$(mkdir -p "${root}" 2>&1); then
+    cache_diag "mkdir ${root}: ${err}" "${share}"
+    return 1
+  fi
+  local probe="${root}/.tuist-write-probe.$$"
+  if ! err=$( ( : >"${probe}" ) 2>&1 ); then
+    cache_diag "write probe in ${root}: ${err}" "${share}"
+    return 1
+  fi
+  rm -f "${probe}" 2>/dev/null || true
+  return 0
+}
+
+# cache_diag records WHY the share was rejected. The failure mode this guards
+# against was diagnosed only from a CLI error that misreported a failed mkdir as
+# "parent directory doesn't exists", which sent us chasing the wrong layer — so
+# capture the real errno plus the ownership/mode of the share and root here. If
+# the fallback ever fires, this is the evidence, and no one has to guess.
+cache_diag() {
+  local why="$1" share="$2"
+  echo "$(date -u +%FT%TZ) dispatch-poll: cache-root check failed: ${why}"
+  echo "$(date -u +%FT%TZ) dispatch-poll: whoami=$(id -un 2>/dev/null) uid=$(id -u 2>/dev/null)"
+  ls -ld "${share}" "${share}/tuist" 2>&1 | while read -r l; do
+    echo "$(date -u +%FT%TZ) dispatch-poll: cache-root stat: ${l}"
+  done
+}
+
 mount_cache_volume() {
   [ -d "${CACHE_SHARE}" ] || return 0
+  if ! cache_root_usable "${CACHE_SHARE}"; then
+    use_local_cold_cache "cannot create or write ${CACHE_SHARE}/tuist"
+    return 0
+  fi
   CACHE_MOUNT="${CACHE_SHARE}"
-  mkdir -p "${CACHE_MOUNT}/tuist" 2>/dev/null || true
   export TUIST_XDG_CACHE_HOME="${CACHE_MOUNT}"
   # Byte budget for the CLI's per-generate LRU self-prune: the host stages the
   # per-branch cap (≈80% of a master's provisioned size) into the status share
@@ -171,20 +228,24 @@ wait_for_cache_ready() {
   while [ "${waited}" -lt "${CACHE_READY_TIMEOUT}" ]; do
     if [ -f "${STATUS_SHARE}/cache-ready" ]; then
       echo "$(date -u +%FT%TZ) dispatch-poll: cache-ready after ${waited}s"
+      # Re-prove the cache root NOW, not just at boot. Between then and here the
+      # host swapped in the account's master tree (or failed partway), so the
+      # root we validated at boot may be gone or owned/moded such that this user
+      # can't write it. Falling back to a cold cache costs warmth; running on an
+      # unwritable root kills the job.
+      if ! cache_root_usable "${CACHE_MOUNT}"; then
+        use_local_cold_cache "cache root not writable after host materialize"
+        return 0
+      fi
       CACHE_INVENTORY_BEFORE=$(cache_inventory)
       return 0
     fi
     sleep 1
     waited=$((waited + 1))
   done
-  echo "$(date -u +%FT%TZ) dispatch-poll: cache-ready not signalled within ${CACHE_READY_TIMEOUT}s; detaching to a local cold cache"
-  local local_cache="/Users/runner/.tuist-cache-cold"
-  mkdir -p "${local_cache}/tuist" 2>/dev/null || true
-  export TUIST_XDG_CACHE_HOME="${local_cache}"
-  unset TUIST_CACHE_MAX_BYTES
-  # Abandon the share: no promote, no HEAD publish, no inventory diff.
-  CACHE_MOUNT=""
-  CACHE_INVENTORY_BEFORE=""
+  # On timeout the host may STILL be materializing and could swap the branch dir
+  # out from under a running job, so abandon the share entirely.
+  use_local_cold_cache "cache-ready not signalled within ${CACHE_READY_TIMEOUT}s"
 }
 
 # report_cache_dirty writes the guest's dirty marker into the writable status
