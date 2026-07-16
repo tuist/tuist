@@ -405,6 +405,145 @@
     }
   }
 
+  /* Starting paths */
+  & [data-part="start"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-6);
+    padding-top: var(--noora-spacing-6);
+  }
+
+  & [data-part="start-heading"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-3);
+
+    & h2 {
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-medium) var(--noora-font-heading-xlarge);
+    }
+
+    & p {
+      max-width: 720px;
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-body-large);
+    }
+  }
+
+  & [data-part="journey-cards"] {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--noora-spacing-5);
+  }
+
+  & [data-part="journey-card"],
+  & [data-part="journey-card"]:link,
+  & [data-part="journey-card"]:visited {
+    display: flex;
+    position: relative;
+    flex-direction: column;
+    gap: var(--noora-spacing-5);
+    transition:
+      transform 0.15s ease,
+      box-shadow 0.15s ease;
+    box-sizing: border-box;
+    box-shadow: var(--noora-light-border-default);
+    border-radius: var(--noora-radius-6);
+    background: radial-gradient(
+        circle at top right,
+        color-mix(in oklch, var(--noora-purple-200) 45%, transparent),
+        transparent 48%
+      ),
+      var(--noora-surface-background-primary);
+    padding: var(--noora-spacing-6);
+    min-height: 260px;
+    overflow: hidden;
+    color: var(--noora-surface-label-primary);
+    text-decoration: none;
+  }
+
+  & [data-part="journey-card"]:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--noora-light-border-focus);
+  }
+
+  & [data-part="journey-card"]:focus-visible {
+    outline: none;
+    box-shadow: var(--noora-light-border-focus);
+  }
+
+  & [data-part="journey-icon"] {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    border-radius: var(--noora-radius-4);
+    background: color-mix(in oklch, var(--noora-purple-200) 52%, transparent);
+    width: 44px;
+    height: 44px;
+    color: var(--noora-purple-600);
+
+    & svg {
+      width: var(--noora-icon-size-medium);
+      height: var(--noora-icon-size-medium);
+    }
+  }
+
+  & [data-part="journey-content"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-3);
+
+    & h3 {
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
+    }
+
+    & p {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-body-medium);
+    }
+  }
+
+  & [data-part="journey-link"] {
+    display: flex;
+    align-items: center;
+    gap: var(--noora-spacing-2);
+    margin-top: auto;
+    color: var(--noora-purple-600);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+
+    & svg {
+      width: var(--noora-icon-size-small);
+      height: var(--noora-icon-size-small);
+    }
+  }
+
+  & [data-part="secondary-actions"] {
+    display: flex;
+    align-items: center;
+    gap: var(--noora-spacing-6);
+
+    & a,
+    & a:link,
+    & a:visited {
+      display: flex;
+      align-items: center;
+      gap: var(--noora-spacing-2);
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-medium) var(--noora-font-body-small);
+      text-decoration: none;
+    }
+
+    & a:hover {
+      color: var(--noora-purple-600);
+    }
+
+    & svg {
+      width: var(--noora-icon-size-small);
+      height: var(--noora-icon-size-small);
+    }
+  }
+
   /* Section intros */
   & [data-part="section-intro"] {
     display: flex;
@@ -656,6 +795,22 @@
   }
 
   #docs-overview {
+    & [data-part="journey-cards"] {
+      grid-template-columns: 1fr;
+    }
+
+    & [data-part="journey-card"],
+    & [data-part="journey-card"]:link,
+    & [data-part="journey-card"]:visited {
+      min-height: 0;
+    }
+
+    & [data-part="secondary-actions"] {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: var(--noora-spacing-3);
+    }
+
     & [data-part="hero-cards"] {
       flex-direction: column;
     }

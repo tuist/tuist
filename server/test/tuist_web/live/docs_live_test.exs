@@ -19,13 +19,44 @@ defmodule TuistWeb.DocsLiveTest do
   end
 
   describe "docs overview" do
-    test "renders the install card as a clickable link target", %{conn: conn} do
+    test "renders setup-specific starting paths", %{conn: conn} do
       {:ok, lv, _html} = live(conn, ~p"/en/docs")
 
       assert has_element?(
                lv,
-               ~s([data-part="hero-card"]#docs-install-card[phx-click][role="link"][tabindex="0"])
+               ~s(a#docs-xcode-path[href="/en/docs/guides/features/cache/xcode-cache"]),
+               "Existing Xcode project"
              )
+
+      assert has_element?(
+               lv,
+               ~s(a#docs-gradle-path[href="/en/docs/guides/install-gradle-plugin"]),
+               "Gradle project"
+             )
+
+      assert has_element?(
+               lv,
+               ~s(a#docs-runners-path[href="/en/docs/guides/features/runners/getting-started"]),
+               "Tuist Runners"
+             )
+    end
+
+    test "routes the generic cache card to the cache overview", %{conn: conn} do
+      {:ok, lv, _html} = live(conn, ~p"/en/docs")
+
+      assert has_element?(
+               lv,
+               ~s(a#docs-cache-card[href="/en/docs/guides/features/cache"]),
+               "Cache"
+             )
+    end
+
+    test "positions Tuist as build infrastructure for Xcode and Gradle", %{conn: conn} do
+      {:ok, lv, _html} = live(conn, ~p"/en/docs")
+
+      assert has_element?(lv, "h1", "One platform for faster build toolchains")
+      assert has_element?(lv, "#start-with-your-setup", "Start with your setup")
+      assert has_element?(lv, "#learn-more", "Explore Tuist's capabilities")
     end
 
     test "shows a Log in button with return_to when the user is not authenticated", %{
