@@ -294,15 +294,32 @@ mount_cache_volume() {
 # `tuist setup cache`). This only tells a build that ALREADY caches where to keep
 # its store, so a project that never opted in is unaffected.
 #
-# xcconfig sits BELOW project/target-defined settings, so a project that sets
-# COMPILATION_CACHE_CAS_PATH itself still wins — an escape hatch, and the reason
-# we cannot force a stray target-level value onto the image (documented limit).
+# PRECEDENCE, measured — `XCODE_XCCONFIG_FILE` OVERRIDES project/target-defined
+# settings (swift-build calls it `environmentConfigPath`, "the xcconfig overrides
+# file from an environment variable", sibling to `-xcconfig`; verified: an
+# xcconfig PRODUCT_NAME beats the target's). So this FORCES the CAS location:
+# a target-level COMPILATION_CACHE_CAS_PATH does NOT win.
+#
+# That is deliberate here. On an ephemeral runner a project-set CAS path is
+# either somewhere on the VM's own disk — thrown away with the VM, so no worse
+# off — or on the virtio-fs share, where llcas SIGBUSes and takes the build down
+# with it. Forcing the image is the only option that both persists and doesn't
+# crash. The escape hatch is a workflow's OWN xcconfig: it is `#include`d LAST
+# below, so anything it sets (including the CAS path) wins over these defaults.
 attach_cas_image() {
   [ -n "${CACHE_MOUNT}" ] || return 0
   local img="${CACHE_MOUNT}/${CAS_IMAGE_NAME}"
   [ -f "${img}" ] || { echo "$(date -u +%FT%TZ) dispatch-poll: no CAS image; compilation cache runs VM-local"; return 0; }
   mkdir -p "${CAS_MOUNT}" 2>/dev/null || true
-  if ! hdiutil attach "${img}" -mountpoint "${CAS_MOUNT}" -nobrowse -owners on >/dev/null 2>&1; then
+  # `-owners off`: the image outlives the runner image that made it, but the
+  # `runner` user is created WITHOUT a fixed UID (`sysadminctl -addUser runner`),
+  # so its UID can shift between runner-image releases. With ownership enforced, a
+  # store written as the old UID becomes unwritable to the new one — and since
+  # `mkdir -p` on an existing dir succeeds, we would happily export a CAS path the
+  # build cannot write. Disabling ownership makes the mounting user own everything
+  # regardless of what UID wrote it. Safe here: the image is already per-account
+  # (one trust domain) and holds no security boundary of its own.
+  if ! hdiutil attach "${img}" -mountpoint "${CAS_MOUNT}" -nobrowse -owners off >/dev/null 2>&1; then
     echo "$(date -u +%FT%TZ) dispatch-poll: WARNING CAS image attach failed; compilation cache runs VM-local"
     return 0
   fi
@@ -320,18 +337,32 @@ attach_cas_image() {
   # every job, and churn against a store the host is about to clonefile.
   local store="${CAS_MOUNT}/CompilationCache.noindex"
   mkdir -p "${store}" 2>/dev/null || true
+  # Never export a store the build can't write. `mkdir -p` says nothing about an
+  # ALREADY-EXISTING dir, so prove writability rather than assume it: an
+  # unwritable store must degrade to a VM-local cache (a cold job) instead of
+  # pointing every compile at a path that errors.
+  if ! touch "${store}/.writable" 2>/dev/null; then
+    echo "$(date -u +%FT%TZ) dispatch-poll: WARNING CAS store not writable; detaching, compilation cache runs VM-local"
+    hdiutil detach "${CAS_MOUNT}" -force >/dev/null 2>&1 || true
+    CAS_ATTACHED=""
+    return 0
+  fi
+  rm -f "${store}/.writable" 2>/dev/null || true
   {
-    # Chain a pre-existing user xcconfig rather than clobbering it — the variable
-    # is a single slot. (A workflow that exports it AFTER us still wins; the CAS
-    # then falls back to VM-local, which degrades warmth but never breaks a job.)
-    if [ -n "${XCODE_XCCONFIG_FILE:-}" ] && [ -f "${XCODE_XCCONFIG_FILE}" ]; then
-      printf '#include "%s"\n' "${XCODE_XCCONFIG_FILE}"
-    fi
     printf 'COMPILATION_CACHE_CAS_PATH = %s\n' "${store}"
     printf 'COMPILATION_CACHE_KEEP_CAS_DIRECTORY = YES\n'
     # Bound the store to a fraction of the dedicated image volume, so llcas prunes
     # before the image can hit ENOSPC.
     printf 'COMPILATION_CACHE_LIMIT_PERCENT = 80\n'
+    # A pre-existing user xcconfig is chained LAST, not first: the variable is a
+    # single slot, so we must carry theirs rather than clobber it — and including
+    # it after our defaults means anything they set explicitly (the CAS path
+    # included) wins. That is the opt-out for a repo that runs its own CAS.
+    # (A workflow that exports the variable AFTER us still wins outright; the CAS
+    # then falls back to VM-local, which costs warmth but never breaks a job.)
+    if [ -n "${XCODE_XCCONFIG_FILE:-}" ] && [ -f "${XCODE_XCCONFIG_FILE}" ]; then
+      printf '#include "%s"\n' "${XCODE_XCCONFIG_FILE}"
+    fi
   } > "${CAS_XCCONFIG}"
   export XCODE_XCCONFIG_FILE="${CAS_XCCONFIG}"
   echo "$(date -u +%FT%TZ) dispatch-poll: CAS image attached at ${CAS_MOUNT}; XCODE_XCCONFIG_FILE -> ${CAS_XCCONFIG} (store=${store})"
