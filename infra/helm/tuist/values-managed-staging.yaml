@@ -56,10 +56,11 @@ server:
       # `kura-dedibox` pool (the eu-central cutover). `scw-fr-par-runners` is the
       # macOS-serving private runner-cache region: a Scaleway fr-par Linux node
       # pool next to the Mac mini fleet, on its own `kura-scw-fr-par` pool, so
-      # the Macs' cache traffic never crosses the WAN. The former Linux
-      # runner-cache region `hetzner-staging-runners` is dropped: it lived on the
-      # Hetzner ccx13 `kura` pool that the cutover deletes, and no customers use
-      # the staging Linux runner cache. `ca-east` (Canada East / OVHcloud BHS) is
+      # the Macs' cache traffic never crosses the WAN. Linux runners have no
+      # private cache region: the former `hetzner-staging-runners` lived on the
+      # Hetzner ccx13 `kura` pool the cutover deleted, no customers used the
+      # staging Linux runner cache, and the region spec is gone with the pool.
+      # `ca-east` (Canada East / OVHcloud BHS) is
       # the OVH bare-metal validation region — a geographic id; OVH is an
       # implementation detail behind it (ovhFleet below, replicas 1).
       value: eu-central,scw-fr-par-runners,ca-east

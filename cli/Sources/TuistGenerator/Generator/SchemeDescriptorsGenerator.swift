@@ -420,18 +420,27 @@ struct SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             environments = environmentVariables(arguments.environmentVariables)
         }
 
+        let localPackageProducts = graphTraverser.consumedLocalPackageProducts()
         let codeCoverageTargets = try testAction.codeCoverageTargets
             .compactMap { (target: TargetReference) -> XCScheme.BuildableReference? in
-                guard let graphTarget = graphTraverser.target(
+                if let graphTarget = graphTraverser.target(
                     path: target.projectPath, name: target.name
-                )
-                else { return nil }
-                return try testCoverageTargetReferences(
-                    graphTarget: graphTarget,
-                    graphTraverser: graphTraverser,
-                    generatedProjects: generatedProjects,
-                    rootPath: rootPath
-                )
+                ) {
+                    return try testCoverageTargetReferences(
+                        graphTarget: graphTarget,
+                        graphTraverser: graphTraverser,
+                        generatedProjects: generatedProjects,
+                        rootPath: rootPath
+                    )
+                }
+                // Coverage targets can reference products of local Swift packages, which are
+                // not part of the graph. Xcode resolves them through the package directory
+                // used as the referenced container. Only names matching a consumed package
+                // product are emitted; other names would produce an empty coverage report.
+                if localPackageProducts[target.projectPath]?.contains(target.name) == true {
+                    return packageTargetBuildableReference(target: target, rootPath: rootPath)
+                }
+                return nil
             }
 
         var macroExpansion: XCScheme.BuildableReference?
@@ -1092,6 +1101,26 @@ struct SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             buildableName: target.productNameWithExtension,
             blueprintName: target.name,
             buildableIdentifier: "primary"
+        )
+    }
+
+    /// Creates a buildable reference for a product of a local Swift package.
+    /// Package products are not part of the generated projects, so the reference points to
+    /// the package directory the same way Xcode does when the product is selected manually.
+    ///
+    /// - Parameters:
+    ///     - target: The target reference, with the package directory as its project path
+    ///       and a package product as its name.
+    ///     - rootPath: Path to the project or workspace.
+    private func packageTargetBuildableReference(
+        target: TargetReference,
+        rootPath: AbsolutePath
+    ) -> XCScheme.BuildableReference {
+        XCScheme.BuildableReference(
+            referencedContainer: "container:\(target.projectPath.relative(to: rootPath).pathString)",
+            blueprintIdentifier: target.name,
+            buildableName: target.name,
+            blueprintName: target.name
         )
     }
 

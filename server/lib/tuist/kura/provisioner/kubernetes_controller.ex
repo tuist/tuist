@@ -19,8 +19,22 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   alias Tuist.Kura.Server
 
   @namespace "kura"
-  @manifest_revision "2026-07-09-mesh-peers-sync-v1"
+  @manifest_revision "2026-07-16-cas-capacity-v1"
   @manifest_revision_annotation "tuist.dev/kura-manifest-revision"
+  # Mirrors Kura's DEFAULT_TMP_DIR_MAX_BYTES (kura/src/constants.rs): 4 x
+  # MAX_REPLICATION_BODY_BYTES, itself 4 x MAX_SEGMENT_BYTES. We never set
+  # KURA_TMP_DIR_MAX_BYTES, so this default is what upload staging can reach
+  # inside the data volume. Keep in sync if either constant moves.
+  @kura_tmp_dir_max_bytes 8 * 1024 * 1024 * 1024
+  # Kura's MAX_SEGMENT_BYTES: the one extra segment a ring rotation appends
+  # before evicting the oldest one.
+  @kura_max_segment_bytes 512 * 1024 * 1024
+  # Kura's SegmentRingLimits::legacy_floor (DESIRED_OLD + DESIRED_CURRENT +
+  # DESIRED_NEW = 1 + 2 + 2 segments), which resolve_segment_ring_limits clamps
+  # the ring count up to. A budget below this is not honoured, so it is the
+  # smallest ring Kura will run and the floor any derived budget has to clear.
+  @kura_segment_ring_floor_segments 5
+  @kura_segment_ring_floor_bytes @kura_segment_ring_floor_segments * @kura_max_segment_bytes
   @impl true
   def provision(%{name: handle}, %Regions{} = region, %Server{}) do
     {:ok, instance_name(handle, region)}
@@ -397,9 +411,115 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
         "KURA_CONTROL_PLANE_CLIENT_ID",
         Environment.kura_control_plane_client_id()
       ) ++
+      cas_capacity_env(region) ++
       mesh_peers_sync_env(region) ++
       telemetry_env(region)
   end
+
+  # With KURA_CAS_CAPACITY_BYTES unset, Kura sizes its CAS segment ring from
+  # statvfs() on the data dir. Every managed region is backed by the local-path
+  # provisioner, where a volume is a plain directory on the node's shared disk,
+  # so statvfs reports the whole box instead of the PVC's declared size: each
+  # replica budgets a fraction of the box, and replicas co-located on a region's
+  # single node over-commit it (2 replicas x 50% of the disk = 100% of it). The
+  # box then crosses kubelet's imagefs eviction threshold long before any replica
+  # reaches its own budget, so Kura's ring rotation never gets to evict and the
+  # node evicts the whole region instead.
+  #
+  # Budget from the size the region declares. That is normally storage_size, so
+  # the ring stays inside the claim on a class that enforces it; a region whose
+  # claim bounds nothing (local-path) can override with disk_envelope_size rather
+  # than inflate storage_size, which the controller would try to apply to the
+  # live PVCs.
+  defp cas_capacity_env(%Regions{} = region) do
+    case cas_capacity_source(region) do
+      size when is_binary(size) and size != "" ->
+        size
+        |> parse_storage_quantity!(region)
+        |> cas_capacity_bytes()
+        |> cas_capacity_env_var()
+
+      # The region declares no size at all (self-hosted peers carry their own
+      # disk), so there is nothing to derive a budget from.
+      _ ->
+        []
+    end
+  end
+
+  defp cas_capacity_env_var(capacity) when is_integer(capacity),
+    do: [env_var("KURA_CAS_CAPACITY_BYTES", Integer.to_string(capacity))]
+
+  defp cas_capacity_env_var(nil), do: []
+
+  defp cas_capacity_source(%Regions{provisioner_config: %{disk_envelope_size: size}}) when is_binary(size) and size != "",
+    do: size
+
+  defp cas_capacity_source(%Regions{} = region), do: storage_size(region)
+
+  # KURA_CAS_CAPACITY_BYTES budgets the CAS segment ring only, but the ring is
+  # not the only thing in the data dir: the controller points KURA_TMP_DIR at
+  # <data dir>/tmp, so upload staging shares the volume, and RocksDB's index sits
+  # beside it with no budget of its own. Size the ring against what is left after
+  # them rather than taking a flat percentage — the tmp budget is a fixed 8 GiB,
+  # so a percentage that fits a 50Gi volume overruns a 20Gi one.
+  #
+  # Reserves, in order: the tmp dir's own ceiling; one extra segment, which a
+  # rotation appends before it evicts the oldest one; and a few percent for the
+  # RocksDB index, which tracks entry count rather than bytes (measured ~1.2% of
+  # resident segment bytes on a production instance, so 3% is slack).
+  defp cas_capacity_bytes(storage_bytes) do
+    usable = storage_bytes - @kura_tmp_dir_max_bytes - @kura_max_segment_bytes
+
+    if usable > 0 do
+      budget = div(usable * 97, 100)
+
+      # Kura sizes the ring in whole segments and clamps the count up to a legacy
+      # floor of @kura_segment_ring_floor_segments, so a budget under that floor
+      # is silently raised to it and the runtime uses more disk than we derived.
+      # Emitting a value we know will be overridden would make the reserves above
+      # a fiction, so emit only what Kura honours verbatim.
+      if budget >= @kura_segment_ring_floor_bytes, do: budget
+      # Too small to carve a ring out of once staging and the floor are reserved.
+      # Nothing this volume can hold satisfies the invariant, so emit nothing:
+      # there is no honest budget to declare, and a region this small is a
+      # misconfiguration to notice rather than a number to paper over.
+    end
+  end
+
+  # Region specs are compile-time constants, so an unparseable size is a typo
+  # that would otherwise degrade to exactly the statvfs behaviour this
+  # derivation exists to prevent. Fail loudly instead of silently regressing.
+  defp parse_storage_quantity!(value, %Regions{} = region) do
+    case parse_storage_quantity(value) do
+      {:ok, bytes} ->
+        bytes
+
+      :error ->
+        raise ArgumentError,
+              "region #{region.id} declares an unparseable storage quantity #{inspect(value)}; " <>
+                "expected an integer with an optional Ki/Mi/Gi/Ti suffix"
+    end
+  end
+
+  defp parse_storage_quantity(value) do
+    case Integer.parse(value) do
+      {quantity, suffix} when quantity > 0 ->
+        case storage_multiplier(String.trim(suffix)) do
+          nil -> :error
+          multiplier -> {:ok, quantity * multiplier}
+        end
+
+      _ ->
+        :error
+    end
+  end
+
+  defp storage_multiplier(""), do: 1
+  defp storage_multiplier("Ki"), do: 1024
+  defp storage_multiplier("Mi"), do: 1024 * 1024
+  defp storage_multiplier("Gi"), do: 1024 * 1024 * 1024
+  defp storage_multiplier("Ti"), do: 1024 * 1024 * 1024 * 1024
+  defp storage_multiplier(_), do: nil
 
   # Managed pods fetch the account's self-hosted peer list from the control
   # plane at boot and on cadence, so a self-hosted peer joining or leaving

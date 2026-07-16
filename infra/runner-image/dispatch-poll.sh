@@ -213,12 +213,18 @@ use_local_cold_cache() {
   echo "$(date -u +%FT%TZ) dispatch-poll: cache share unusable (${reason}); running on a local cold cache"
 }
 
-# cache_root_usable proves this user can actually create the Tuist cache root
-# on the share AND write inside it. Existence is not enough: the host
-# materializes a warm branch by cloning the account's master tree into place,
-# and that tree carries the master's ownership/mode — so `tuist/` can exist yet
-# be unwritable by the guest's unprivileged runner user. A write probe is the
-# only honest check.
+# cache_root_usable checks the one thing the guest can actually know: that it
+# can create its cache root on the share at all (share present, not read-only).
+#
+# It deliberately does NOT try to verify that the materialized tree is writable.
+# That was tried and is a trap: the host clones the account's master in, so the
+# root can be writable while a subtree isn't, and no probe here can be complete
+# — the CLI writes across 9+ subtrees and a probe only covers what someone
+# remembered to list. A partial probe passes while the share is broken and hands
+# the CLI a cache that kills the job, which is exactly what happened in
+# production. Writability is settled on the host, where it is knowable: 0777 is
+# uid-independent, so a tree the host successfully relaxes IS writable by the
+# guest, and a tree it cannot relax is never handed over at all.
 cache_root_usable() {
   local share="$1"
   local root="${share}/tuist"
@@ -227,20 +233,14 @@ cache_root_usable() {
     cache_diag "mkdir ${root}: ${err}" "${share}"
     return 1
   fi
-  local probe="${root}/.tuist-write-probe.$$"
-  if ! err=$( ( : >"${probe}" ) 2>&1 ); then
-    cache_diag "write probe in ${root}: ${err}" "${share}"
-    return 1
-  fi
-  rm -f "${probe}" 2>/dev/null || true
   return 0
 }
 
-# cache_diag records WHY the share was rejected. The failure mode this guards
-# against was diagnosed only from a CLI error that misreported a failed mkdir as
-# "parent directory doesn't exists", which sent us chasing the wrong layer — so
-# capture the real errno plus the ownership/mode of the share and root here. If
-# the fallback ever fires, this is the evidence, and no one has to guess.
+# cache_diag records WHY the share was rejected. The original failure was
+# diagnosed only from a CLI error that misreported a failed mkdir as "parent
+# directory doesn't exists", which sent the investigation to the wrong layer —
+# so capture the real errno plus the ownership/mode here. If the fallback ever
+# fires, this is the evidence and no one has to guess.
 cache_diag() {
   local why="$1" share="$2"
   echo "$(date -u +%FT%TZ) dispatch-poll: cache-root check failed: ${why}"
