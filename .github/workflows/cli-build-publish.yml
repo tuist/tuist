@@ -190,7 +190,21 @@ jobs:
           sed -i "s/@TaskLocal public static var version: String! = \".*\"/@TaskLocal public static var version: String! = \"${{ inputs.version }}\"/" "cli/Sources/TuistConstants/Constants.swift"
 
       - name: Bundle CLI
-        run: ./mise/tasks/cli/bundle-linux.sh
+        run: |
+          for attempt in 1 2 3; do
+            if ./mise/tasks/cli/bundle-linux.sh; then
+              exit 0
+            fi
+
+            if [ "$attempt" -eq 3 ]; then
+              echo "::error::Linux CLI bundle failed after ${attempt} attempts."
+              exit 1
+            fi
+
+            echo "::warning::Linux CLI bundle attempt ${attempt} failed; clearing SwiftPM state before retrying."
+            rm -rf "${BUILD_PATH:-.build}" build "$HOME/.cache/org.swift.swiftpm" "$HOME/.swiftpm"
+            sleep $((attempt * 10))
+          done
 
       - name: Upload CLI Linux artifacts
         id: upload
