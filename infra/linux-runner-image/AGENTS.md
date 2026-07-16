@@ -27,6 +27,22 @@ macOS image). Same single-shot lifecycle, much simpler substrate.
   (`TUIST_RUNNER_JIT_PATH`) and `exec`s
   `./run.sh --jitconfig <jit> --disableupdate`, or exits 0 if no
   JIT was staged (410 drain / poller abort). Holds no SA token.
+  When `TUIST_RUNNER_IDLE_TTL_SECONDS > 0` it also arms an
+  idle-registration watchdog before exec: a JIT runner that
+  registers with GitHub but is never handed a job sits
+  registered-idle for hours, freezing whatever it staged at claim
+  time (e.g. `TUIST_CACHE_ENDPOINT`). The watchdog `pkill`s the
+  `Runner.Listener` after the TTL with no job, so the Pod completes
+  and the reconciler replaces it with a fresh Pod that re-claims
+  against the current server. Unset/0 disables it (the default), so
+  the runner behaves exactly as before until the controller wires
+  the env.
+- `/usr/local/bin/job-started-hook.sh` —
+  `ACTIONS_RUNNER_HOOK_JOB_STARTED`. Runs just before a job's steps
+  and disarms the idle watchdog (kills it, drops
+  `/tmp/tuist-job-started`), so a runner that *does* get a job is
+  never recycled mid-job. Always exits 0 (a non-zero started-hook
+  fails the job).
 - `/usr/local/bin/vitals.sh` — periodic resource-vitals emitter.
   `run-job.sh` backgrounds it just before exec'ing the runner (the
   dispatch-poll rollout-bridge path does too), so it samples for the
