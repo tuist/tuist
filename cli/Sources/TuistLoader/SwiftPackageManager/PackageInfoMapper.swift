@@ -182,9 +182,9 @@ public struct PackageInfoMapper: PackageInfoMapping {
 
     /// Resolves all SwiftPackageManager dependencies.
     /// - Parameters:
-    ///   - packageInfos: All available `PackageInfo`s
-    ///   - packageToFolder: Mapping from a package name to its local folder
-    ///   - packageToTargetsToArtifactPaths: Mapping from a package name its targets' names to artifacts' paths
+    ///   - packageInfos: All available `PackageInfo`s, keyed by package identity
+    ///   - packageToFolder: Mapping from a package identity to its local folder
+    ///   - packageToTargetsToArtifactPaths: Mapping from a package identity to its targets' names to artifacts' paths
     /// - Returns: Mapped project
     public func resolveExternalDependencies(
         path: AbsolutePath,
