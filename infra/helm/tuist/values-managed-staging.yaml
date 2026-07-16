@@ -590,21 +590,12 @@ runnersFleet:
   # allocator caps the joint sum so two pools both asking for 9
   # don't double-book the cluster.
   xcodeOverrides:
-    # TEMPORARY — REVERT BEFORE MERGE. These two pools are pinned to
-    # dispatch-built images (`runner-image.yml --ref
-    # claude/fix-runner-cache-volume-fail-safe`) carrying the fail-safe
-    # dispatch-poll.sh, so a real CI job can prove the cache volume on staging
-    # before this lands. A `:macos-*-<git-sha>` tag is dispatch-only and must
-    # never ride a release — the release flow bumps `runnerImageSemver` and
-    # every pool refreshes in lockstep; a SHA pin would freeze these two.
     "26.6":
-      imageTag: "macos-26-6-ab1e3a03"
       autoscaling:
         enabled: true
         minWarmPoolFloor: 1
         maxReplicas: 1
     "26.5":
-      imageTag: "macos-26-5-ab1e3a03"
       autoscaling:
         enabled: true
         minWarmPoolFloor: 0
