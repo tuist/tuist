@@ -5,6 +5,7 @@ defmodule TuistWeb.Internal.KuraUsageControllerTest do
   alias Boruta.Oauth.Client
   alias Tuist.ClickHouseRepo
   alias Tuist.Environment
+  alias Tuist.Kura.SelfHostedClients
   alias Tuist.Kura.UsageEvent
   alias Tuist.OAuth.Clients
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -46,6 +47,7 @@ defmodule TuistWeb.Internal.KuraUsageControllerTest do
         "node_id" => "kura-0",
         "region" => "eu-central",
         "traffic_plane" => "public",
+        "network_path" => "public_internet",
         "direction" => "egress",
         "operation" => "download",
         "protocol" => "http",
@@ -86,6 +88,7 @@ defmodule TuistWeb.Internal.KuraUsageControllerTest do
                event_id: "event-1",
                account_id: account_id,
                project_id: project_id,
+               network_path: "public_internet",
                bytes: 123,
                request_count: 2
              }
@@ -93,6 +96,63 @@ defmodule TuistWeb.Internal.KuraUsageControllerTest do
 
     assert account_id == account.id
     assert project_id == project.id
+  end
+
+  test "marks usage submitted by a customer-operated node as non-billable", %{conn: conn} do
+    stub(Environment, :tuist_hosted?, fn -> false end)
+    account = AccountsFixtures.organization_fixture(name: "acme").account
+    ProjectsFixtures.project_fixture(account: account, name: "ios")
+
+    {:ok, {client, secret}} =
+      SelfHostedClients.create_self_hosted_client(account, %{name: "customer cache"})
+
+    conn =
+      post_events(conn, [build_event()], authorization: authorization_header(client.client_id, secret))
+
+    assert %{"accepted" => 1} = json_response(conn, 202)
+
+    assert [%UsageEvent{traffic_plane: "customer_operated", network_path: "unknown"}] =
+             ClickHouseRepo.all(UsageEvent)
+  end
+
+  test "classifies old managed events from their deployment region", %{conn: conn, kura_client: client} do
+    account = AccountsFixtures.organization_fixture(name: "acme").account
+    ProjectsFixtures.project_fixture(account: account, name: "ios")
+
+    event =
+      %{"region" => "scw-fr-par-runners"}
+      |> build_event()
+      |> Map.delete("network_path")
+
+    conn = post_events(conn, [event], authorization: authorization_header(client.id, client.secret))
+
+    assert %{"accepted" => 1} = json_response(conn, 202)
+    assert [%UsageEvent{network_path: "private_network"}] = ClickHouseRepo.all(UsageEvent)
+  end
+
+  test "re-derives an \"unknown\" managed network path from its region", %{conn: conn, kura_client: client} do
+    account = AccountsFixtures.organization_fixture(name: "acme").account
+    ProjectsFixtures.project_fixture(account: account, name: "ios")
+
+    event = build_event(%{"region" => "eu-central", "network_path" => "unknown"})
+
+    conn = post_events(conn, [event], authorization: authorization_header(client.id, client.secret))
+
+    assert %{"accepted" => 1} = json_response(conn, 202)
+    assert [%UsageEvent{network_path: "public_internet"}] = ClickHouseRepo.all(UsageEvent)
+  end
+
+  test "fails closed for an invalid managed network path", %{conn: conn, kura_client: client} do
+    account = AccountsFixtures.organization_fixture(name: "acme").account
+    ProjectsFixtures.project_fixture(account: account, name: "ios")
+
+    conn =
+      post_events(conn, [build_event(%{"network_path" => "public"})],
+        authorization: authorization_header(client.id, client.secret)
+      )
+
+    assert %{"accepted" => 1} = json_response(conn, 202)
+    assert [%UsageEvent{network_path: "unknown"}] = ClickHouseRepo.all(UsageEvent)
   end
 
   test "rejects missing credentials", %{conn: conn} do

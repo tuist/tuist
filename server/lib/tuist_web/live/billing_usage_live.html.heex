@@ -1,0 +1,135 @@
+<div id="billing-usage">
+  <div data-part="page-header">
+    <div data-part="header">
+      <h1 data-part="title">{dgettext("dashboard_usage", "Cache billing")}</h1>
+      <span data-part="subtitle">
+        {dgettext(
+          "dashboard_usage",
+          "Track what public cache downloads cost. Private runner traffic is excluded."
+        )}
+      </span>
+    </div>
+  </div>
+
+  <.card
+    title={dgettext("dashboard_usage", "Bill overview")}
+    icon="credit_card"
+    data-part="bill-overview"
+  >
+    <:actions>
+      <span data-part="unit-price">
+        <strong>{TuistWeb.BillingUsageLive.format_cache_money(@cache_egress_price)}</strong>
+        {dgettext("dashboard_usage", "per gigabyte")}
+      </span>
+    </:actions>
+    <div data-part="widgets">
+      <.widget
+        id="widget-previous-cache-bill"
+        title={dgettext("dashboard_usage", "Previous cache bill")}
+        description={
+          dgettext(
+            "dashboard_usage",
+            "Public cache downloads from %{start_date} through %{end_date}, calculated at the current rate.",
+            start_date: TuistWeb.BillingUsageLive.format_date(@billing_period.previous_start_at),
+            end_date: TuistWeb.BillingUsageLive.format_date(@billing_period.previous_end_at)
+          )
+        }
+        value={
+          if @billing_usage.ok?,
+            do: TuistWeb.BillingUsageLive.format_cost(@billing_usage.result.previous_total)
+        }
+        loading={!@billing_usage.ok?}
+      />
+      <.widget
+        id="widget-cache-cost-to-date"
+        title={dgettext("dashboard_usage", "Cost to date")}
+        legend_color="secondary"
+        description={
+          dgettext(
+            "dashboard_usage",
+            "Public cache downloads since %{start_date}.",
+            start_date: TuistWeb.BillingUsageLive.format_date(@billing_period.start_at)
+          )
+        }
+        value={
+          if @billing_usage.ok?,
+            do: TuistWeb.BillingUsageLive.format_cost(@billing_usage.result.current.total)
+        }
+        loading={!@billing_usage.ok?}
+      />
+      <.widget
+        id="widget-estimated-next-cache-bill"
+        title={dgettext("dashboard_usage", "Estimated next cache bill")}
+        legend_color="primary"
+        description={
+          dgettext(
+            "dashboard_usage",
+            "Projected from usage since %{start_date}. The billing period closes %{end_date}.",
+            start_date: TuistWeb.BillingUsageLive.format_date(@billing_period.start_at),
+            end_date: TuistWeb.BillingUsageLive.format_date(@billing_period.closes_at)
+          )
+        }
+        value={
+          if @billing_usage.ok?,
+            do: TuistWeb.BillingUsageLive.format_cost(@billing_usage.result.projected_total)
+        }
+        loading={!@billing_usage.ok?}
+      />
+    </div>
+  </.card>
+
+  <.card
+    title={dgettext("dashboard_usage", "Current billing period")}
+    icon="chart_column"
+    data-part="current-period"
+  >
+    <:actions>
+      <span data-part="billing-period">
+        {TuistWeb.BillingUsageLive.format_date(@billing_period.start_at)}
+        {dgettext("dashboard_usage", "to")}
+        {TuistWeb.BillingUsageLive.format_date(
+          TuistWeb.BillingUsageLive.period_end(@billing_period.closes_at)
+        )}
+      </span>
+    </:actions>
+    <.card_section data-part="billing-cost-chart-section">
+      <%= cond do %>
+        <% !@billing_usage.ok? -> %>
+          <.skeleton_chart />
+        <% @billing_usage.result.current.total == 0 -> %>
+          <.empty_card_section
+            title={dgettext("dashboard_usage", "No billable cache downloads this period")}
+            get_started_href="https://tuist.dev/en/docs"
+          >
+            <:image>
+              <img
+                src={~p"/images/empty_line_chart_light.png"}
+                data-theme="light"
+                loading="lazy"
+                decoding="async"
+              />
+              <img
+                src={~p"/images/empty_line_chart_dark.png"}
+                data-theme="dark"
+                loading="lazy"
+                decoding="async"
+              />
+            </:image>
+          </.empty_card_section>
+        <% true -> %>
+          <.chart
+            id="billing-usage-egress-chart"
+            type="line"
+            extra_options={
+              TuistWeb.BillingUsageLive.chart_options(
+                @billing_usage.result.current.dates,
+                @bucket
+              )
+            }
+            series={TuistWeb.BillingUsageLive.chart_series(@billing_usage.result.current)}
+            y_axis_min={0}
+          />
+      <% end %>
+    </.card_section>
+  </.card>
+</div>

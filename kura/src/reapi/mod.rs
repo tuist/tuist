@@ -4447,6 +4447,7 @@ end
             batch_size: 100,
             max_buckets: 100,
             outbox_max_depth: 100,
+            network_path: crate::config::UsageNetworkPath::PublicInternet,
         }
     }
 
@@ -4546,6 +4547,7 @@ end
         assert_eq!(upload.tenant_id, "acme");
         assert_eq!(upload.namespace_id, "ios");
         assert_eq!(upload.traffic_plane, "public");
+        assert_eq!(upload.network_path, "public_internet");
         assert_eq!(upload.direction, "ingress");
         assert_eq!(upload.protocol, "grpc");
         assert_eq!(upload.artifact_kind, "reapi");
@@ -4562,6 +4564,7 @@ end
         assert_eq!(download.tenant_id, "acme");
         assert_eq!(download.namespace_id, "ios");
         assert_eq!(download.traffic_plane, "public");
+        assert_eq!(download.network_path, "public_internet");
         assert_eq!(download.direction, "egress");
         assert_eq!(download.protocol, "grpc");
         assert_eq!(download.artifact_kind, "reapi");

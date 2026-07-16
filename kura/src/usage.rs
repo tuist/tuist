@@ -11,7 +11,11 @@ use serde::{Deserialize, Serialize};
 use tokio::time::{MissedTickBehavior, interval, sleep};
 use tracing::warn;
 
-use crate::{config::UsageConfig, metrics::Metrics, state::SharedState};
+use crate::{
+    config::{UsageConfig, UsageNetworkPath},
+    metrics::Metrics,
+    state::SharedState,
+};
 
 const USAGE_PATH: &str = "/_internal/kura/usage";
 
@@ -38,6 +42,8 @@ pub struct UsageRollup {
     pub node_id: String,
     pub region: String,
     pub traffic_plane: String,
+    #[serde(default = "unknown_network_path")]
+    pub network_path: String,
     pub direction: String,
     pub operation: String,
     pub protocol: String,
@@ -238,12 +244,13 @@ impl Usage {
 
     fn rollup_for_bucket(&self, key: &UsageBucketKey, bucket: &UsageBucket) -> UsageRollup {
         let event_id = format!(
-            "{}:{}:{}:{}:{}:{}:{}:{}:{}",
+            "{}:{}:{}:{}:{}:{}:{}:{}:{}:{}",
             self.inner.node_id,
             key.window_start_unix_seconds,
             key.tenant_id,
             key.namespace_id,
             key.traffic_plane,
+            self.inner.config.network_path.as_str(),
             key.direction,
             key.operation,
             key.protocol,
@@ -259,6 +266,7 @@ impl Usage {
             node_id: self.inner.node_id.clone(),
             region: self.inner.region.clone(),
             traffic_plane: key.traffic_plane.to_owned(),
+            network_path: self.inner.config.network_path.as_str().to_owned(),
             direction: key.direction.to_owned(),
             operation: key.operation.to_owned(),
             protocol: key.protocol.to_owned(),
@@ -284,6 +292,10 @@ impl Usage {
             .map(|(key, bucket)| self.rollup_for_bucket(key, bucket))
             .collect()
     }
+}
+
+fn unknown_network_path() -> String {
+    UsageNetworkPath::Unknown.as_str().to_owned()
 }
 
 async fn flush_loop(state: SharedState) {
@@ -463,6 +475,7 @@ mod tests {
             batch_size: 100,
             max_buckets,
             outbox_max_depth: 100,
+            network_path: UsageNetworkPath::PublicInternet,
         }
     }
 
@@ -512,6 +525,31 @@ mod tests {
     #[test]
     fn usage_node_id_falls_back_to_raw_string_for_unparseable_url() {
         assert_eq!(usage_node_id("not a url"), "not a url");
+    }
+
+    #[test]
+    fn old_rollups_default_to_an_unknown_network_path() {
+        let rollup: UsageRollup = serde_json::from_str(
+            r#"{
+                "event_id":"event-1",
+                "tenant_id":"acme",
+                "namespace_id":"ios",
+                "window_start_unix_seconds":1777968000,
+                "window_seconds":60,
+                "node_id":"kura-0",
+                "region":"us-east",
+                "traffic_plane":"public",
+                "direction":"egress",
+                "operation":"download",
+                "protocol":"http",
+                "artifact_kind":"xcframework",
+                "bytes":100,
+                "request_count":1
+            }"#,
+        )
+        .expect("old usage rollup should remain readable");
+
+        assert_eq!(rollup.network_path, "unknown");
     }
 
     #[test]
@@ -612,6 +650,7 @@ mod tests {
         assert_eq!(rollup.window_seconds, 60);
         assert_eq!(rollup.region, "test-region");
         assert_eq!(rollup.node_id, "node-1.kura.local");
+        assert_eq!(rollup.network_path, "public_internet");
     }
 
     #[test]
@@ -638,7 +677,7 @@ mod tests {
         assert_eq!(second.len(), 1);
         assert_eq!(first[0].1.event_id, second[0].1.event_id);
         let expected = format!(
-            "node-1.kura.local:{past_window}:acme:ios:public:egress:download:http:xcframework"
+            "node-1.kura.local:{past_window}:acme:ios:public:public_internet:egress:download:http:xcframework"
         );
         assert_eq!(first[0].1.event_id, expected);
     }

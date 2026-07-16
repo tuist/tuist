@@ -5,17 +5,18 @@ defmodule TuistWeb.Internal.KuraUsageController do
   alias Boruta.Oauth.Authorization.Client
   alias Tuist.Accounts.Account
   alias Tuist.Environment
+  alias Tuist.Kura.Regions
   alias Tuist.Kura.SelfHostedClients
   alias Tuist.Kura.Usage
 
   def create(conn, %{"schema_version" => 1, "events" => events}) when is_list(events) do
     case authorize(conn) do
       {:ok, :unconstrained} ->
-        ingest(conn, events)
+        ingest(conn, managed_events(events))
 
       {:ok, {:account, account}} ->
         if events_scoped_to_account?(events, account) do
-          ingest(conn, events)
+          ingest(conn, customer_operated_events(events))
         else
           conn
           |> put_status(:forbidden)
@@ -47,6 +48,36 @@ defmodule TuistWeb.Internal.KuraUsageController do
         |> put_status(:payload_too_large)
         |> json(%{error: "too_many_events"})
     end
+  end
+
+  defp managed_events(events) do
+    Enum.map(events, fn event ->
+      # A managed node's explicit public/private classification is trusted. The
+      # ambiguous "unknown" sentinel (and a missing field on old pods) is
+      # re-derived from the region, otherwise a misconfigured managed pod that
+      # defaults to "unknown" for genuine public traffic would silently escape
+      # the egress meter. Any other unexpected value fails closed to "unknown".
+      network_path =
+        case event["network_path"] do
+          path when path in ["public_internet", "private_network"] -> path
+          path when path in [nil, "unknown"] -> Regions.usage_network_path(event["region"])
+          _ -> "unknown"
+        end
+
+      Map.put(event, "network_path", network_path)
+    end)
+  end
+
+  # Billing trusts the credential that submitted an event, not customer-
+  # controlled classification fields. Self-hosted traffic did not leave
+  # Tuist-managed infrastructure and must not contribute to the egress meter.
+  defp customer_operated_events(events) do
+    Enum.map(events, fn event ->
+      Map.merge(event, %{
+        "traffic_plane" => "customer_operated",
+        "network_path" => "unknown"
+      })
+    end)
   end
 
   # A self-hosted credential may only report usage for its own tenant. Rejecting

@@ -10,17 +10,24 @@ defmodule Tuist.Billing do
   alias Tuist.Accounts.Account
   alias Tuist.Billing.Card
   alias Tuist.Billing.Customer
+  alias Tuist.Billing.KuraBillingEvent
   alias Tuist.Billing.PaymentMethod
   alias Tuist.Billing.Subscription
   alias Tuist.Billing.TokenUsage
   alias Tuist.CommandEvents
+  alias Tuist.FeatureFlags
+  alias Tuist.Kura.Usage
   alias Tuist.Repo
 
   # Unfortunately, this data can't be obtained and cached
   # from the Stripe's API, so we have to make sure it's in sync
   # with the values on Stripe.
+  @bytes_per_gigabyte 1_000_000_000
   @payment_thresholds %{remote_cache_hits: 200}
-  @unit_prices %{remote_cache_hit: Money.new(50, :USD)}
+  @unit_prices %{
+    cache_egress_gigabyte: Money.new(10, :USD),
+    remote_cache_hit: Money.new(50, :USD)
+  }
 
   def get_payment_thresholds do
     @payment_thresholds
@@ -28,6 +35,22 @@ defmodule Tuist.Billing do
 
   def get_unit_prices do
     @unit_prices
+  end
+
+  def cache_egress_price do
+    @unit_prices.cache_egress_gigabyte
+  end
+
+  def cache_egress_cost(bytes) when is_integer(bytes) and bytes >= 0 do
+    gigabytes = Decimal.div(Decimal.new(bytes), Decimal.new(@bytes_per_gigabyte))
+    Money.multiply(cache_egress_price(), gigabytes)
+  end
+
+  def projected_cache_egress_bytes(bytes, start_at, end_at, now) when is_integer(bytes) and bytes >= 0 do
+    elapsed_seconds = max(DateTime.diff(now, start_at, :second), 1)
+    period_seconds = max(DateTime.diff(end_at, start_at, :second), elapsed_seconds)
+
+    max(bytes, div(bytes * period_seconds, elapsed_seconds))
   end
 
   def get_plans do
@@ -99,12 +122,10 @@ defmodule Tuist.Billing do
     session
   end
 
-  def update_remote_cache_hit_meter(customer_id, idempotency_key) do
-    count = CommandEvents.get_yesterdays_remote_cache_hits_count_for_customer(customer_id)
+  def update_remote_cache_hit_meter(customer_id, idempotency_key, usage_date) do
+    count = CommandEvents.get_remote_cache_hits_count_for_customer(customer_id, usage_date)
     path = Stripe.OpenApi.Path.replace_path_params("/v1/billing/meter_events", [], [])
-
-    identifier =
-      "#{customer_id}-#{Timex.format!(Tuist.Time.utc_now(), "{YYYY}.{0M}.{D}")}"
+    timestamp = usage_date |> day_bounds() |> elem(0) |> DateTime.to_unix()
 
     {:ok, _} =
       []
@@ -112,7 +133,8 @@ defmodule Tuist.Billing do
       |> Stripe.Request.put_endpoint(path)
       |> Stripe.Request.put_params(%{
         event_name: "remote_cache_hit",
-        identifier: identifier,
+        identifier: "#{customer_id}-remote-cache-hit-#{Date.to_iso8601(usage_date)}",
+        timestamp: timestamp,
         payload: %{
           value: count,
           stripe_customer_id: customer_id
@@ -122,12 +144,91 @@ defmodule Tuist.Billing do
       |> Stripe.Request.make_request()
   end
 
+  @doc """
+  Reports billable Kura rollups ingested on the given reporting date.
+
+  Each immutable Kura rollup becomes one Stripe event with its original window
+  timestamp. This preserves subscription-period boundaries. A PostgreSQL ledger
+  prevents repeated Kura deliveries from being submitted again, while selecting
+  by ingestion time lets asynchronously delivered rollups be reported on a later
+  day. Private runner-cache and customer-operated traffic never reaches the meter.
+  """
+  def update_cache_egress_meter(%Account{customer_id: customer_id} = account, idempotency_key, reporting_date)
+      when is_binary(customer_id) and is_struct(reporting_date, Date) do
+    {start_at, end_at} = day_bounds(reporting_date)
+
+    events =
+      account.id
+      |> Usage.billable_egress_events_by_ingestion(start_at, end_at)
+      |> Enum.reject(&(&1.bytes == 0))
+      |> reject_reported_kura_events(account.id)
+
+    {result, reported_event_ids} =
+      Enum.reduce_while(events, {{:ok, 0}, []}, fn event, {{:ok, count}, reported_event_ids} ->
+        case report_cache_egress_event(customer_id, idempotency_key, event) do
+          {:ok, _} -> {:cont, {{:ok, count + 1}, [event.event_id | reported_event_ids]}}
+          {:error, _} = error -> {:halt, {error, reported_event_ids}}
+        end
+      end)
+
+    record_reported_kura_events(account.id, reported_event_ids)
+    result
+  end
+
+  defp reject_reported_kura_events([], _account_id), do: []
+
+  defp reject_reported_kura_events(events, account_id) do
+    event_ids = Enum.map(events, & &1.event_id)
+
+    reported_event_ids =
+      from(e in KuraBillingEvent,
+        where: e.account_id == ^account_id and e.event_id in ^event_ids,
+        select: e.event_id
+      )
+      |> Repo.all()
+      |> MapSet.new()
+
+    Enum.reject(events, &MapSet.member?(reported_event_ids, &1.event_id))
+  end
+
+  defp record_reported_kura_events(_account_id, []), do: :ok
+
+  defp record_reported_kura_events(account_id, event_ids) do
+    reported_at = DateTime.truncate(Tuist.Time.utc_now(), :second)
+
+    entries =
+      Enum.map(event_ids, &%{event_id: &1, account_id: account_id, reported_at: reported_at})
+
+    Repo.insert_all(KuraBillingEvent, entries, on_conflict: :nothing, conflict_target: :event_id)
+    :ok
+  end
+
+  defp report_cache_egress_event(customer_id, idempotency_key, event) do
+    path = Stripe.OpenApi.Path.replace_path_params("/v1/billing/meter_events", [], [])
+    event_hash = :sha256 |> :crypto.hash(event.event_id) |> Base.encode16(case: :lower)
+
+    []
+    |> Stripe.Request.new_request(%{"Idempotency-Key" => "#{idempotency_key}-cache-egress-#{event_hash}"})
+    |> Stripe.Request.put_endpoint(path)
+    |> Stripe.Request.put_params(%{
+      event_name: "cache_egress_byte",
+      identifier: "cache-egress-byte-#{event_hash}",
+      timestamp: event.window_start |> DateTime.from_naive!("Etc/UTC") |> DateTime.to_unix(),
+      payload: %{
+        value: event.bytes,
+        stripe_customer_id: customer_id
+      }
+    })
+    |> Stripe.Request.put_method(:post)
+    |> Stripe.Request.make_request()
+  end
+
   def update_plan(%{plan: plan, account: %Account{} = account, success_url: success_url}) do
     customer_id = account.customer_id
 
     current_subscription = get_current_active_subscription(account)
 
-    subscription_items = get_subscription_items(to_string(plan))
+    subscription_items = get_subscription_items(to_string(plan), account)
 
     if is_nil(current_subscription) do
       {:ok, session} =
@@ -154,10 +255,19 @@ defmodule Tuist.Billing do
     end
   end
 
-  defp get_subscription_items(plan) do
+  defp get_subscription_items(plan, account) do
     available_prices = Tuist.Environment.stripe_prices()
 
-    usage_prices = Enum.map(available_prices[plan]["usage"], &%{price: &1})
+    usage_price_ids = available_prices[plan]["usage"]
+
+    usage_price_ids =
+      if FeatureFlags.kura_billing_enabled?(account) do
+        usage_price_ids ++ Map.get(available_prices[plan], "kura_usage", [])
+      else
+        usage_price_ids
+      end
+
+    usage_prices = Enum.map(usage_price_ids, &%{price: &1})
 
     flat_prices =
       available_prices[plan]["flat_monthly"]
@@ -407,6 +517,65 @@ defmodule Tuist.Billing do
   end
 
   @doc """
+  Returns the current and previous billing period boundaries for an account.
+
+  Active subscriptions use Stripe's period boundaries. Accounts without an
+  active subscription use the current calendar month so metered usage still
+  has a stable reset point before a price is attached.
+  """
+  def current_billing_period(%Account{} = account, now \\ Tuist.Time.utc_now()) do
+    {start_at, closes_at} =
+      case get_current_active_subscription(account) do
+        nil ->
+          calendar_month(now)
+
+        %Subscription{subscription_id: subscription_id} ->
+          case Stripe.Subscription.retrieve(subscription_id) do
+            {:ok,
+             %{
+               current_period_start: current_period_start,
+               current_period_end: current_period_end
+             }}
+            when is_integer(current_period_start) and is_integer(current_period_end) ->
+              {DateTime.from_unix!(current_period_start), DateTime.from_unix!(current_period_end)}
+
+            {:ok, %{current_period_start: current_period_start}} when is_integer(current_period_start) ->
+              start_at = DateTime.from_unix!(current_period_start)
+              {start_at, Timex.shift(start_at, months: 1)}
+
+            _ ->
+              calendar_month(now)
+          end
+      end
+
+    %{
+      start_at: start_at,
+      end_at: now,
+      closes_at: closes_at,
+      previous_start_at: previous_period_start(start_at, closes_at),
+      previous_end_at: DateTime.add(start_at, -1, :second)
+    }
+  end
+
+  defp calendar_month(now) do
+    start_at = Timex.beginning_of_month(now)
+    {start_at, Timex.shift(start_at, months: 1)}
+  end
+
+  defp previous_period_start(start_at, closes_at) do
+    cond do
+      DateTime.compare(Timex.shift(start_at, months: 1), closes_at) == :eq ->
+        Timex.shift(start_at, months: -1)
+
+      DateTime.compare(Timex.shift(start_at, years: 1), closes_at) == :eq ->
+        Timex.shift(start_at, years: -1)
+
+      true ->
+        DateTime.add(start_at, -DateTime.diff(closes_at, start_at, :second), :second)
+    end
+  end
+
+  @doc """
   Creates a new token usage record for billing purposes.
   """
   def create_token_usage(attrs) do
@@ -559,20 +728,18 @@ defmodule Tuist.Billing do
   end
 
   @doc """
-  Gets LLM token usage for a specific customer for the current billing period (yesterday).
+  Gets language-model token usage for a specific customer and reporting date.
   Returns {input_tokens, output_tokens}.
   """
-  def get_yesterdays_customer_llm_token_usage(customer_id) do
-    now = DateTime.utc_now()
-    start_of_yesterday = now |> Timex.shift(days: -1) |> Timex.beginning_of_day()
-    end_of_yesterday = now |> Timex.shift(days: -1) |> Timex.end_of_day()
+  def get_customer_llm_token_usage(customer_id, usage_date) do
+    {start_at, end_at} = day_bounds(usage_date)
 
     Repo.one(
       from(tu in TokenUsage,
         join: a in assoc(tu, :account),
         where:
-          a.customer_id == ^customer_id and tu.timestamp >= ^start_of_yesterday and
-            tu.timestamp <= ^end_of_yesterday,
+          a.customer_id == ^customer_id and tu.timestamp >= ^start_at and
+            tu.timestamp <= ^end_at,
         select: {sum(tu.input_tokens), sum(tu.output_tokens)}
       )
     )
@@ -582,12 +749,11 @@ defmodule Tuist.Billing do
   Updates both LLM input and output token usage meters in Stripe for a specific customer.
   Fetches the current period token usage and updates both meters.
   """
-  def update_llm_token_meters(customer_id, idempotency_key) do
-    {input_tokens, output_tokens} = get_yesterdays_customer_llm_token_usage(customer_id)
+  def update_llm_token_meters(customer_id, idempotency_key, usage_date) do
+    {input_tokens, output_tokens} = get_customer_llm_token_usage(customer_id, usage_date)
     path = Stripe.OpenApi.Path.replace_path_params("/v1/billing/meter_events", [], [])
-
-    input_identifier =
-      "#{customer_id}-input-#{Timex.format!(Tuist.Time.utc_now(), "{YYYY}.{0M}.{D}")}"
+    usage_date_string = Date.to_iso8601(usage_date)
+    timestamp = usage_date |> day_bounds() |> elem(0) |> DateTime.to_unix()
 
     {:ok, _} =
       []
@@ -595,7 +761,8 @@ defmodule Tuist.Billing do
       |> Stripe.Request.put_endpoint(path)
       |> Stripe.Request.put_params(%{
         event_name: "llm_input_token",
-        identifier: input_identifier,
+        identifier: "#{customer_id}-input-#{usage_date_string}",
+        timestamp: timestamp,
         payload: %{
           value: input_tokens,
           stripe_customer_id: customer_id
@@ -604,16 +771,14 @@ defmodule Tuist.Billing do
       |> Stripe.Request.put_method(:post)
       |> Stripe.Request.make_request()
 
-    output_identifier =
-      "#{customer_id}-output-#{Timex.format!(Tuist.Time.utc_now(), "{YYYY}.{0M}.{D}")}"
-
     {:ok, _} =
       []
       |> Stripe.Request.new_request(%{"Idempotency-Key" => "#{idempotency_key}-output"})
       |> Stripe.Request.put_endpoint(path)
       |> Stripe.Request.put_params(%{
         event_name: "llm_output_token",
-        identifier: output_identifier,
+        identifier: "#{customer_id}-output-#{usage_date_string}",
+        timestamp: timestamp,
         payload: %{
           value: output_tokens,
           stripe_customer_id: customer_id
@@ -621,6 +786,12 @@ defmodule Tuist.Billing do
       })
       |> Stripe.Request.put_method(:post)
       |> Stripe.Request.make_request()
+  end
+
+  defp day_bounds(%Date{} = date) do
+    start_at = DateTime.new!(date, ~T[00:00:00], "Etc/UTC")
+    end_at = date |> Date.add(1) |> DateTime.new!(~T[00:00:00], "Etc/UTC") |> DateTime.add(-1, :second)
+    {start_at, end_at}
   end
 
   # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity

@@ -16,8 +16,9 @@ defmodule Tuist.Kura.UsageTest do
       account_id: Map.fetch!(attrs, :account_id),
       project_id: 0,
       node_id: "kura-test",
-      region: "us-east-1",
+      region: "us-east",
       traffic_plane: "public",
+      network_path: "public_internet",
       direction: "egress",
       operation: "download",
       protocol: "http",
@@ -56,6 +57,7 @@ defmodule Tuist.Kura.UsageTest do
             "node_id" => "kura-0",
             "region" => "us-east-1",
             "traffic_plane" => "public",
+            "network_path" => "public_internet",
             "direction" => "egress",
             "operation" => "download",
             "protocol" => "http",
@@ -87,6 +89,7 @@ defmodule Tuist.Kura.UsageTest do
             "node_id" => "kura-0",
             "region" => "us-east-1",
             "traffic_plane" => "public",
+            "network_path" => "public_internet",
             "direction" => "egress",
             "operation" => "download",
             "protocol" => "http",
@@ -114,6 +117,7 @@ defmodule Tuist.Kura.UsageTest do
             "node_id" => "kura-0",
             "region" => "us-east-1",
             "traffic_plane" => "public",
+            "network_path" => "public_internet",
             "direction" => "egress",
             "operation" => "download",
             "protocol" => "http",
@@ -185,6 +189,58 @@ defmodule Tuist.Kura.UsageTest do
       assert %{egress: %{bytes: 100}} = Usage.totals(mine, start_dt, end_dt)
     end
 
+    test "includes private runner-cache and customer-operated traffic" do
+      account_id = unique_account_id()
+      {start_dt, end_dt} = window_span()
+
+      insert_event(%{account_id: account_id, region: "us-east", bytes: 100, request_count: 1})
+
+      insert_event(%{
+        account_id: account_id,
+        region: "scw-fr-par-runners",
+        bytes: 900,
+        request_count: 9
+      })
+
+      insert_event(%{
+        account_id: account_id,
+        region: "customer-datacenter",
+        bytes: 800,
+        request_count: 8
+      })
+
+      assert %{
+               egress: %{bytes: 1_800, request_count: 18},
+               request_count: 18
+             } = Usage.totals(account_id, start_dt, end_dt)
+    end
+
+    test "includes non-public traffic planes" do
+      account_id = unique_account_id()
+      {start_dt, end_dt} = window_span()
+
+      insert_event(%{account_id: account_id, region: "us-east", bytes: 100, request_count: 1})
+
+      insert_event(%{
+        account_id: account_id,
+        region: "us-east",
+        traffic_plane: "peer",
+        bytes: 900,
+        request_count: 9
+      })
+
+      insert_event(%{
+        account_id: account_id,
+        region: "us-east",
+        traffic_plane: "customer_operated",
+        bytes: 800,
+        request_count: 8
+      })
+
+      assert %{egress: %{bytes: 1_800, request_count: 18}} =
+               Usage.totals(account_id, start_dt, end_dt)
+    end
+
     # Kura delivers usage events at-least-once: a network blip between the
     # node and the control plane can land the same event_id twice. The query
     # path has to dedupe by event_id so retries don't inflate the customer's
@@ -250,6 +306,152 @@ defmodule Tuist.Kura.UsageTest do
     end
   end
 
+  describe "billable egress" do
+    test "excludes ingress, private and unknown paths, and customer-operated traffic" do
+      account_id = unique_account_id()
+      {start_dt, end_dt} = window_span()
+
+      insert_event(%{account_id: account_id, direction: "egress", bytes: 100})
+      insert_event(%{account_id: account_id, direction: "ingress", bytes: 500})
+
+      insert_event(%{
+        account_id: account_id,
+        region: "scw-fr-par-runners",
+        network_path: "private_network",
+        bytes: 900
+      })
+
+      insert_event(%{account_id: account_id, network_path: "unknown", bytes: 700})
+
+      insert_event(%{
+        account_id: account_id,
+        traffic_plane: "customer_operated",
+        bytes: 800
+      })
+
+      assert Usage.billable_egress_bytes(account_id, start_dt, end_dt) == 100
+    end
+
+    test "returns each rollup on its ingestion date with its source timestamp" do
+      account_id = unique_account_id()
+      event_id = "delayed-#{System.unique_integer([:positive])}"
+
+      insert_event(%{
+        account_id: account_id,
+        event_id: event_id,
+        bytes: 250,
+        window_start: ~N[2026-05-01 23:59:00],
+        inserted_at: ~N[2026-05-03 00:05:00]
+      })
+
+      insert_event(%{
+        account_id: account_id,
+        event_id: event_id,
+        bytes: 250,
+        window_start: ~N[2026-05-01 23:59:00],
+        inserted_at: ~N[2026-05-04 00:05:00]
+      })
+
+      assert [
+               %{
+                 event_id: ^event_id,
+                 bytes: 250,
+                 window_start: ~N[2026-05-01 23:59:00]
+               }
+             ] =
+               Usage.billable_egress_events_by_ingestion(
+                 account_id,
+                 ~U[2026-05-03 00:00:00Z],
+                 ~U[2026-05-03 23:59:59Z]
+               )
+
+      assert [
+               %{
+                 event_id: ^event_id,
+                 bytes: 250,
+                 window_start: ~N[2026-05-01 23:59:00]
+               }
+             ] =
+               Usage.billable_egress_events_by_ingestion(
+                 account_id,
+                 ~U[2026-05-04 00:00:00Z],
+                 ~U[2026-05-04 23:59:59Z]
+               )
+    end
+
+    test "first-ingestion rollups exclude non-billable traffic" do
+      account_id = unique_account_id()
+      inserted_at = ~N[2026-05-03 00:05:00]
+
+      insert_event(%{account_id: account_id, bytes: 100, inserted_at: inserted_at})
+      insert_event(%{account_id: account_id, bytes: 200, direction: "ingress", inserted_at: inserted_at})
+      insert_event(%{account_id: account_id, bytes: 300, network_path: "private_network", inserted_at: inserted_at})
+      insert_event(%{account_id: account_id, bytes: 400, traffic_plane: "customer_operated", inserted_at: inserted_at})
+
+      assert [%{bytes: 100}] =
+               Usage.billable_egress_events_by_ingestion(
+                 account_id,
+                 ~U[2026-05-03 00:00:00Z],
+                 ~U[2026-05-03 23:59:59Z]
+               )
+    end
+
+    test "uses the network path rather than the region name" do
+      account_id = unique_account_id()
+      {start_dt, end_dt} = window_span()
+
+      insert_event(%{
+        account_id: account_id,
+        region: "scw-fr-par-runners",
+        network_path: "public_internet",
+        bytes: 300
+      })
+
+      insert_event(%{
+        account_id: account_id,
+        region: "us-east",
+        network_path: "private_network",
+        bytes: 900
+      })
+
+      assert Usage.billable_egress_bytes(account_id, start_dt, end_dt) == 300
+    end
+
+    test "returns a cumulative series for public Internet traffic" do
+      account_id = unique_account_id()
+      start_dt = ~U[2026-05-01 00:00:00Z]
+      end_dt = ~U[2026-05-04 00:00:00Z]
+
+      insert_event(%{
+        account_id: account_id,
+        region: "us-east",
+        bytes: 100,
+        window_start: ~N[2026-05-01 12:00:00]
+      })
+
+      insert_event(%{
+        account_id: account_id,
+        region: "eu-central",
+        bytes: 200,
+        window_start: ~N[2026-05-02 12:00:00]
+      })
+
+      insert_event(%{
+        account_id: account_id,
+        region: "scw-fr-par-runners",
+        network_path: "private_network",
+        bytes: 1_000,
+        window_start: ~N[2026-05-03 12:00:00]
+      })
+
+      assert %{
+               dates: [~D[2026-05-01], ~D[2026-05-02], ~D[2026-05-03], ~D[2026-05-04]],
+               values: [100, 300, 300, 300],
+               total: 300
+             } = Usage.billable_egress_time_series(account_id, start_dt, end_dt, bucket: :day)
+    end
+  end
+
   describe "per_region/4" do
     test "rolls up egress + ingress bytes per region across nodes" do
       account_id = unique_account_id()
@@ -258,7 +460,7 @@ defmodule Tuist.Kura.UsageTest do
       insert_event(%{
         account_id: account_id,
         node_id: "kura-a",
-        region: "us-east-1",
+        region: "us-east",
         direction: "egress",
         bytes: 1_000,
         request_count: 4
@@ -267,7 +469,7 @@ defmodule Tuist.Kura.UsageTest do
       insert_event(%{
         account_id: account_id,
         node_id: "kura-b",
-        region: "us-east-1",
+        region: "us-east",
         direction: "ingress",
         bytes: 200,
         request_count: 2
@@ -276,15 +478,15 @@ defmodule Tuist.Kura.UsageTest do
       insert_event(%{
         account_id: account_id,
         node_id: "kura-c",
-        region: "eu-west-1",
+        region: "eu-central",
         direction: "egress",
         bytes: 400,
         request_count: 1
       })
 
       assert [
-               %{region: "us-east-1", egress_bytes: 1_000, ingress_bytes: 200, request_count: 6},
-               %{region: "eu-west-1", egress_bytes: 400, ingress_bytes: 0, request_count: 1}
+               %{region: "us-east", egress_bytes: 1_000, ingress_bytes: 200, request_count: 6},
+               %{region: "eu-central", egress_bytes: 400, ingress_bytes: 0, request_count: 1}
              ] = Usage.per_region(account_id, start_dt, end_dt)
     end
   end
@@ -296,14 +498,14 @@ defmodule Tuist.Kura.UsageTest do
 
       insert_event(%{
         account_id: account_id,
-        region: "us-east-1",
+        region: "us-east",
         bytes: 100,
         window_start: ~N[2026-05-02 09:00:00]
       })
 
       insert_event(%{
         account_id: account_id,
-        region: "eu-west-1",
+        region: "eu-central",
         bytes: 50,
         window_start: ~N[2026-05-02 10:00:00]
       })
@@ -311,10 +513,10 @@ defmodule Tuist.Kura.UsageTest do
       result = Usage.traffic_time_series_by_region(account_id, start_dt, end_dt, bucket: :day)
 
       regions = Enum.map(result, & &1.region)
-      assert "us-east-1" in regions
-      assert "eu-west-1" in regions
+      assert "us-east" in regions
+      assert "eu-central" in regions
 
-      us = Enum.find(result, &(&1.region == "us-east-1"))
+      us = Enum.find(result, &(&1.region == "us-east"))
       assert us.total == 100
       assert length(us.values) == length(us.dates)
       assert Enum.sum(us.values) == 100
@@ -326,7 +528,7 @@ defmodule Tuist.Kura.UsageTest do
 
       insert_event(%{
         account_id: account_id,
-        region: "us-east-1",
+        region: "us-east",
         bytes: 999_999,
         request_count: 7,
         window_start: ~N[2026-05-02 09:00:00]
@@ -335,7 +537,7 @@ defmodule Tuist.Kura.UsageTest do
       result =
         Usage.traffic_time_series_by_region(account_id, start_dt, end_dt, bucket: :day, metric: :requests)
 
-      us = Enum.find(result, &(&1.region == "us-east-1"))
+      us = Enum.find(result, &(&1.region == "us-east"))
       # request_count sum, not bytes — proves the metric switch landed.
       assert us.total == 7
     end
@@ -346,7 +548,7 @@ defmodule Tuist.Kura.UsageTest do
 
       insert_event(%{
         account_id: account_id,
-        region: "us-east-1",
+        region: "us-east",
         direction: "egress",
         bytes: 100,
         window_start: ~N[2026-05-02 09:00:00]
@@ -354,7 +556,7 @@ defmodule Tuist.Kura.UsageTest do
 
       insert_event(%{
         account_id: account_id,
-        region: "us-east-1",
+        region: "us-east",
         direction: "ingress",
         bytes: 999,
         window_start: ~N[2026-05-02 09:00:00]
@@ -366,7 +568,7 @@ defmodule Tuist.Kura.UsageTest do
           direction: "egress"
         )
 
-      assert [%{region: "us-east-1", total: 100}] = result
+      assert [%{region: "us-east", total: 100}] = result
     end
 
     test "uses hourly buckets when bucket: :hour" do
@@ -376,14 +578,14 @@ defmodule Tuist.Kura.UsageTest do
 
       insert_event(%{
         account_id: account_id,
-        region: "us-east-1",
+        region: "us-east",
         bytes: 50,
         window_start: ~N[2026-05-02 07:00:00]
       })
 
       result = Usage.traffic_time_series_by_region(account_id, start_dt, end_dt, bucket: :hour)
 
-      us = Enum.find(result, &(&1.region == "us-east-1"))
+      us = Enum.find(result, &(&1.region == "us-east"))
       # 6h–12h inclusive of both ends ⇒ 7 hourly buckets, only one non-zero.
       assert length(us.dates) == 7
       assert us.total == 50

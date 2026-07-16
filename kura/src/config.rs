@@ -73,6 +73,7 @@ const KURA_USAGE_DELIVERY_INTERVAL_MS: &str = "KURA_USAGE_DELIVERY_INTERVAL_MS";
 const KURA_USAGE_BATCH_SIZE: &str = "KURA_USAGE_BATCH_SIZE";
 const KURA_USAGE_MAX_BUCKETS: &str = "KURA_USAGE_MAX_BUCKETS";
 const KURA_USAGE_OUTBOX_MAX_DEPTH: &str = "KURA_USAGE_OUTBOX_MAX_DEPTH";
+const KURA_USAGE_NETWORK_PATH: &str = "KURA_USAGE_NETWORK_PATH";
 const KURA_OUTBOX_MAX_DEPTH: &str = "KURA_OUTBOX_MAX_DEPTH";
 const KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND: &str =
     "KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND";
@@ -225,6 +226,25 @@ pub struct UsageConfig {
     pub batch_size: usize,
     pub max_buckets: usize,
     pub outbox_max_depth: usize,
+    pub network_path: UsageNetworkPath,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum UsageNetworkPath {
+    PublicInternet,
+    PrivateNetwork,
+    #[default]
+    Unknown,
+}
+
+impl UsageNetworkPath {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::PublicInternet => "public_internet",
+            Self::PrivateNetwork => "private_network",
+            Self::Unknown => "unknown",
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -1080,6 +1100,17 @@ impl Config {
                 "{KURA_USAGE_OUTBOX_MAX_DEPTH} must be greater than 0"
             ));
         }
+        let usage_network_path = match lookup(KURA_USAGE_NETWORK_PATH).as_deref() {
+            Some("public_internet") => UsageNetworkPath::PublicInternet,
+            Some("private_network") => UsageNetworkPath::PrivateNetwork,
+            Some("unknown") | None => UsageNetworkPath::Unknown,
+            Some(value) => {
+                invalid.push(format!(
+                    "{KURA_USAGE_NETWORK_PATH} must be public_internet, private_network, or unknown; got {value}"
+                ));
+                UsageNetworkPath::Unknown
+            }
+        };
         let control_plane_url = lookup(KURA_CONTROL_PLANE_URL)
             .or_else(|| lookup(KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL))
             .map(|value| value.trim().trim_end_matches('/').to_owned())
@@ -1110,6 +1141,7 @@ impl Config {
                         batch_size: usage_batch_size,
                         max_buckets: usage_max_buckets,
                         outbox_max_depth: usage_outbox_max_depth,
+                        network_path: usage_network_path,
                     }),
                     Err(error) => {
                         invalid.push(format!(
@@ -1970,6 +2002,51 @@ mod tests {
             config.sentry_dsn.as_deref(),
             Some("https://public@example.ingest.sentry.io/12345")
         );
+    }
+
+    #[test]
+    fn from_lookup_parses_usage_network_path() {
+        let config = config_from(&[
+            (KURA_CONTROL_PLANE_URL, "https://tuist.dev"),
+            (KURA_CONTROL_PLANE_CLIENT_ID, "kura"),
+            (KURA_CONTROL_PLANE_CLIENT_SECRET, "secret"),
+            (KURA_USAGE_NETWORK_PATH, "private_network"),
+        ])
+        .expect("expected usage network path to parse");
+
+        assert_eq!(
+            config
+                .usage
+                .expect("usage should be configured")
+                .network_path,
+            UsageNetworkPath::PrivateNetwork
+        );
+    }
+
+    #[test]
+    fn from_lookup_defaults_usage_network_path_to_unknown() {
+        let config = config_from(&[
+            (KURA_CONTROL_PLANE_URL, "https://tuist.dev"),
+            (KURA_CONTROL_PLANE_CLIENT_ID, "kura"),
+            (KURA_CONTROL_PLANE_CLIENT_SECRET, "secret"),
+        ])
+        .expect("expected usage configuration to parse");
+
+        assert_eq!(
+            config
+                .usage
+                .expect("usage should be configured")
+                .network_path,
+            UsageNetworkPath::Unknown
+        );
+    }
+
+    #[test]
+    fn from_lookup_rejects_invalid_usage_network_path() {
+        let error = config_from(&[(KURA_USAGE_NETWORK_PATH, "public")])
+            .expect_err("expected invalid usage network path to fail");
+
+        assert!(error.contains(KURA_USAGE_NETWORK_PATH));
     }
 
     #[test]

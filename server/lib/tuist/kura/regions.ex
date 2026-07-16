@@ -238,6 +238,24 @@ defmodule Tuist.Kura.Regions do
   def all, do: managed_regions() ++ [local_controller_region()]
 
   @doc """
+  Classifies the client network path for usage events emitted by a region.
+
+  Public managed regions serve clients through the public Internet. Private
+  runner-cache regions serve adjacent runners over private networking. The local
+  controller and unknown regions fail closed as `"unknown"`.
+  """
+  def usage_network_path(%__MODULE__{} = region) do
+    cond do
+      private?(region) -> "private_network"
+      Enum.any?(@managed_region_specs, &(&1.id == region.id)) -> "public_internet"
+      true -> "unknown"
+    end
+  end
+
+  def usage_network_path(region_id) when is_binary(region_id), do: region_id |> get() |> usage_network_path()
+  def usage_network_path(_), do: "unknown"
+
+  @doc """
   Regions exposed in the current runtime environment. Dev/test sees
   only the controller-backed local region so a developer can't
   accidentally provision into managed infrastructure. Managed runtimes

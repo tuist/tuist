@@ -35,6 +35,14 @@ defmodule TuistWeb.RedirectPlugTest do
       assert conn.halted
     end
 
+    test "redirects an account-level path without adding an empty project segment", %{conn: conn} do
+      conn = %{conn | path_params: %{"account_handle" => "acme"}}
+
+      conn = RedirectPlug.call(conn, to: "/cache/usage")
+
+      assert redirected_to(conn, 301) == "/acme/cache/usage"
+    end
+
     test "handles empty query string", %{conn: conn} do
       conn = %{
         conn

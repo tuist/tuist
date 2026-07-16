@@ -36,6 +36,29 @@ defmodule Tuist.RegistryTest do
            ]
   end
 
+  test "does not raise on non-SemVer version keys and sorts them after valid versions" do
+    expect(SwiftPackageIndex, :list_packages, fn nil ->
+      {:ok, [package("apple", "swift-argument-parser")]}
+    end)
+
+    expect(Metadata, :get_package, fn "apple", "swift-argument-parser" ->
+      {:ok,
+       %{
+         "releases" => %{
+           "1.2.3" => %{"checksum" => "abc123"},
+           "not-a-semver" => %{"checksum" => "def456"}
+         }
+       }}
+    end)
+
+    assert {:ok, package} = Registry.get_swift_package("apple", "swift-argument-parser")
+
+    assert package.versions == [
+             %{version: "1.2.3", status: :available, detail: "abc123"},
+             %{version: "not-a-semver", status: :available, detail: "def456"}
+           ]
+  end
+
   test "returns a catalog package without versions when metadata does not exist" do
     expect(SwiftPackageIndex, :list_packages, fn nil ->
       {:ok, [package("apple", "swift-argument-parser")]}

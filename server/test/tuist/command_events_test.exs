@@ -902,8 +902,8 @@ defmodule Tuist.CommandEventsTest do
     end
   end
 
-  describe "get_yesterdays_remote_cache_hits_count_for_customer/1" do
-    test "counts only yesterday's events for the customer's projects" do
+  describe "get_remote_cache_hits_count_for_customer/2" do
+    test "counts only the requested date's events for the customer's projects" do
       # Given
       %{account: %{id: account_id}, id: user_id} =
         AccountsFixtures.user_fixture(customer_id: "cust_" <> UUIDv7.generate())
@@ -913,9 +913,6 @@ defmodule Tuist.CommandEventsTest do
 
       project = ProjectsFixtures.project_fixture(account_id: account_id)
       other_project = ProjectsFixtures.project_fixture(account_id: other_account_id)
-
-      today = ~U[2025-01-02 12:00:00Z]
-      stub(DateTime, :utc_now, fn -> today end)
 
       CommandEventsFixtures.command_event_fixture(
         name: "generate",
@@ -953,7 +950,7 @@ defmodule Tuist.CommandEventsTest do
 
       # When
       customer_id = Repo.get!(Tuist.Accounts.Account, account_id).customer_id
-      count = CommandEvents.get_yesterdays_remote_cache_hits_count_for_customer(customer_id)
+      count = CommandEvents.get_remote_cache_hits_count_for_customer(customer_id, ~D[2025-01-01])
 
       # Then
       assert count == 2

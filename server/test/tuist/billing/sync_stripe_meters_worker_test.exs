@@ -53,12 +53,12 @@ defmodule Tuist.Billing.Workers.SyncStripeMetersWorkerWorkerTest do
     # Then
     assert_enqueued(
       worker: SyncCustomerStripeMetersWorker,
-      args: %{customer_id: first_account_customer_id}
+      args: %{customer_id: first_account_customer_id, usage_date: "2024-04-29"}
     )
 
     assert_enqueued(
       worker: SyncCustomerStripeMetersWorker,
-      args: %{customer_id: second_account_customer_id}
+      args: %{customer_id: second_account_customer_id, usage_date: "2024-04-29"}
     )
 
     all_jobs = all_enqueued(worker: SyncCustomerStripeMetersWorker)
@@ -94,7 +94,7 @@ defmodule Tuist.Billing.Workers.SyncStripeMetersWorkerWorkerTest do
     # Then
     assert_enqueued(
       worker: SyncCustomerStripeMetersWorker,
-      args: %{customer_id: customer_with_tokens}
+      args: %{customer_id: customer_with_tokens, usage_date: "2024-04-29"}
     )
 
     all_jobs = all_enqueued(worker: SyncCustomerStripeMetersWorker)
@@ -134,9 +134,26 @@ defmodule Tuist.Billing.Workers.SyncStripeMetersWorkerWorkerTest do
     SyncStripeMetersWorker.perform(%Oban.Job{args: %{}})
 
     # Then
-    assert_enqueued(worker: SyncCustomerStripeMetersWorker, args: %{customer_id: customer_id})
+    assert_enqueued(
+      worker: SyncCustomerStripeMetersWorker,
+      args: %{customer_id: customer_id, usage_date: "2024-04-29"}
+    )
 
     all_jobs = all_enqueued(worker: SyncCustomerStripeMetersWorker)
     assert length(all_jobs) == 1
+  end
+
+  test "preserves an explicitly requested reporting date" do
+    customer_id = "customer-backfill-#{UUIDv7.generate()}"
+    AccountsFixtures.user_fixture(customer_id: customer_id)
+
+    SyncStripeMetersWorker.perform(%Oban.Job{
+      args: %{"usage_date" => "2024-03-10"}
+    })
+
+    assert_enqueued(
+      worker: SyncCustomerStripeMetersWorker,
+      args: %{customer_id: customer_id, usage_date: "2024-03-10"}
+    )
   end
 end

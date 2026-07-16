@@ -56,6 +56,8 @@ spec:
   {{- end }}
   storageSize: {{ $instance.storageSize }}
   extraEnv:
+    - name: KURA_USAGE_NETWORK_PATH
+      value: {{ ternary "private_network" "public_internet" $instance.private }}
     - name: KURA_CONTROL_PLANE_URL
       value: {{ $controlPlaneURL }}
     - name: KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL

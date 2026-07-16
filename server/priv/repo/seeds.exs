@@ -5056,15 +5056,30 @@ end
 # subscription model. We then forge a week of Oban delivery jobs so the chart,
 # stats, and table on the detail page have data the moment you log in.
 
+seeded_webhook_definitions = [
+  {"Notion automation", "https://example.com/notion/tuist", ["test_case.created", "test_case.updated"]},
+  {"Slack relay", "https://example.com/slack/tuist", ["preview.created", "preview.deleted"]}
+]
+
+seeded_webhook_names = Enum.map(seeded_webhook_definitions, &elem(&1, 0))
+
+# Only select cleartext identity fields here. Re-seeding may happen after the
+# development encryption key changes, and loading an old encrypted secret or
+# URL would fail before the seed can refresh unrelated data.
+existing_seeded_webhook_endpoints =
+  from(e in Tuist.Webhooks.WebhookEndpoint,
+    where: e.account_id == ^organization.account.id and e.name in ^seeded_webhook_names,
+    select: struct(e, [:id, :account_id, :name])
+  )
+  |> Repo.all()
+  |> Map.new(&{&1.name, &1})
+
 webhook_endpoints_with_events =
   Enum.map(
-    [
-      {"Notion automation", "https://example.com/notion/tuist", ["test_case.created", "test_case.updated"]},
-      {"Slack relay", "https://example.com/slack/tuist", ["preview.created", "preview.deleted"]}
-    ],
+    seeded_webhook_definitions,
     fn {name, url, event_types} ->
       endpoint =
-        case Repo.get_by(Tuist.Webhooks.WebhookEndpoint, account_id: organization.account.id, name: name) do
+        case Map.get(existing_seeded_webhook_endpoints, name) do
           nil ->
             {:ok, endpoint, _secret} =
               Tuist.Webhooks.create_endpoint(organization.account.id, %{
@@ -5174,7 +5189,8 @@ IO.puts("  - webhook delivery attempts: #{length(webhook_attempts)}")
 # =============================================================================
 #
 # Synthetic hourly rollups across a handful of Kura nodes in multiple regions
-# so the Usage page renders a non-empty chart and per-node table in dev. We
+# so the Cache and Billing usage pages render non-empty widgets and charts in
+# development. We
 # spread events across the seeded projects of the `tuist` organization so the
 # project filter dropdown has more than one selectable option.
 
@@ -5184,10 +5200,11 @@ kura_seed_projects = [
 ]
 
 kura_seed_nodes = [
-  {"kura-us-east-1-a", "us-east-1"},
-  {"kura-us-east-1-b", "us-east-1"},
-  {"kura-eu-west-1-a", "eu-west-1"},
-  {"kura-ap-south-1-a", "ap-south-1"}
+  {"kura-us-east-a", "us-east", "public_internet"},
+  {"kura-us-east-b", "us-east", "public_internet"},
+  {"kura-us-west-a", "us-west", "public_internet"},
+  {"kura-eu-central-a", "eu-central", "public_internet"},
+  {"kura-runner-cache-a", "scw-fr-par-runners", "private_network"}
 ]
 
 kura_window_seconds = 3600
@@ -5213,7 +5230,7 @@ kura_directions = [
 kura_events =
   for hour_offset <- 1..kura_hours_back,
       {project, _account_handle} <- kura_seed_projects,
-      {node_id, region} <- kura_seed_nodes,
+      {node_id, region, network_path} <- kura_seed_nodes,
       {direction, operation, scale} <- kura_directions do
     window_start =
       now_naive
@@ -5236,6 +5253,7 @@ kura_events =
       node_id: node_id,
       region: region,
       traffic_plane: "public",
+      network_path: network_path,
       direction: direction,
       operation: operation,
       protocol: "http",
@@ -5266,6 +5284,8 @@ IO.puts("  - #{seed_config.previews} previews")
 IO.puts("  - #{seed_config.bundles} bundles")
 IO.puts("  - #{length(android_test_runs)} android test runs")
 IO.puts("  - #{length(gradle_builds)} gradle builds")
+IO.puts("  - cache usage: /#{organization.account.name}/cache/usage")
+IO.puts("  - billing usage: /#{organization.account.name}/billing/usage")
 IO.puts("  - runner-linked build detail: /#{organization.account.name}/tuist/builds/build-runs/#{linked_runner_build_id}")
 IO.puts("  - runner-linked test detail: /#{organization.account.name}/tuist/tests/test-runs/#{linked_runner_test_id}")
 IO.puts("")

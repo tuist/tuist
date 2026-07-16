@@ -39,6 +39,16 @@ defmodule Tuist.FeatureFlags do
     FunWithFlags.enabled?(:kura_cache, for: account)
   end
 
+  @doc """
+  Whether Kura usage should be exposed and submitted for billing for the given
+  account. Billing is account-gated independently from Kura availability so
+  traffic can be validated before a contract includes the corresponding price.
+  Customer-operated deployments never submit usage to Tuist billing.
+  """
+  def kura_billing_enabled?(account) do
+    Environment.tuist_hosted?() and FunWithFlags.enabled?(:kura_billing, for: account)
+  end
+
   defimpl FunWithFlags.Actor, for: Tuist.Accounts.User do
     def id(%{id: id}) do
       "user:#{id}"

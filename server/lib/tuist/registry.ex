@@ -117,10 +117,19 @@ defmodule Tuist.Registry do
         }
       end)
 
-    Enum.sort_by(
-      available_versions ++ skipped_versions,
-      &Version.parse!(&1.version),
-      {:desc, Version}
-    )
+    Enum.sort(available_versions ++ skipped_versions, &version_after_or_equal?/2)
+  end
+
+  # Descending version sort that tolerates non-SemVer keys. Metadata may carry
+  # legacy or malformed version strings that `Version.parse!/1` would raise on,
+  # so unparseable versions sort after parseable ones and fall back to a lexical
+  # comparison among themselves.
+  defp version_after_or_equal?(%{version: a}, %{version: b}) do
+    case {Version.parse(a), Version.parse(b)} do
+      {{:ok, version_a}, {:ok, version_b}} -> Version.compare(version_a, version_b) != :lt
+      {{:ok, _}, :error} -> true
+      {:error, {:ok, _}} -> false
+      {:error, :error} -> a >= b
+    end
   end
 end

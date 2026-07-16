@@ -59,6 +59,7 @@ defmodule Tuist.Kura.Usage do
       node_id: event["node_id"],
       region: event["region"],
       traffic_plane: event["traffic_plane"],
+      network_path: event["network_path"] || "unknown",
       direction: event["direction"],
       operation: event["operation"],
       protocol: event["protocol"],
@@ -116,6 +117,85 @@ defmodule Tuist.Kura.Usage do
       request_count: current.request_count,
       request_count_trend: trend(previous.request_count, current.request_count)
     }
+  end
+
+  @doc """
+  Returns billable egress bytes for an account in `[start_dt, end_dt]`.
+
+  Billable egress is public client traffic delivered over the public Internet.
+  Private and unknown network paths, peer traffic, and customer-operated nodes
+  are excluded.
+  """
+  def billable_egress_bytes(account_id, start_dt, end_dt) when is_integer(account_id) do
+    account_id
+    |> totals_in_range(start_dt, end_dt, direction: "egress", billable: true)
+    |> get_in([:egress, :bytes])
+  end
+
+  @doc """
+  Returns immutable billable egress rollups ingested in
+  `[start_dt, end_dt]`.
+
+  Selecting by ingestion time means a rollup delayed by Kura's durable outbox
+  remains discoverable after it arrives. Each row retains its original window
+  timestamp for billing-period attribution. Callers must use the deterministic
+  event ID to exclude rollups already reported to an external meter.
+  """
+  def billable_egress_events_by_ingestion(account_id, start_dt, end_dt) when is_integer(account_id) do
+    start_naive = to_naive(start_dt)
+    end_naive = to_naive(end_dt)
+
+    query =
+      from(e in UsageEvent,
+        where:
+          e.account_id == ^account_id and e.inserted_at >= ^start_naive and e.inserted_at <= ^end_naive and
+            e.traffic_plane == "public" and e.network_path == "public_internet" and
+            e.direction == "egress",
+        group_by: e.event_id,
+        select: %{
+          event_id: e.event_id,
+          window_start: fragment("argMax(?, ?)", e.window_start, e.inserted_at),
+          bytes: fragment("argMax(?, ?)", e.bytes, e.inserted_at)
+        }
+      )
+
+    query
+    |> ClickHouseRepo.all()
+    |> Enum.map(&Map.update!(&1, :bytes, fn bytes -> zeroed(bytes) end))
+  end
+
+  @doc """
+  Returns cumulative billable egress bytes for each time bucket in
+  `[start_dt, end_dt]`.
+
+  The returned total matches the final cumulative value. Pass `:bucket` as
+  either `:hour` or `:day`.
+  """
+  def billable_egress_time_series(account_id, start_dt, end_dt, opts \\ []) when is_integer(account_id) do
+    opts =
+      opts
+      |> Keyword.put(:billable, true)
+      |> Keyword.put(:direction, "egress")
+      |> Keyword.put(:metric, :bytes)
+
+    series = traffic_time_series_by_region(account_id, start_dt, end_dt, opts)
+    bucket = Keyword.get(opts, :bucket, :day)
+    dates = bucket_seq(start_dt, end_dt, bucket)
+
+    values =
+      series
+      |> Enum.map(& &1.values)
+      |> Enum.zip_with(&Enum.sum/1)
+
+    cumulative_values =
+      values
+      |> Enum.map_reduce(0, fn value, total ->
+        next_total = total + value
+        {next_total, next_total}
+      end)
+      |> elem(0)
+
+    %{dates: dates, values: cumulative_values, total: List.last(cumulative_values) || 0}
   end
 
   defp totals_in_range(account_id, start_dt, end_dt, opts) do
@@ -300,17 +380,30 @@ defmodule Tuist.Kura.Usage do
       |> maybe_project_filter(Keyword.get(opts, :project_id))
       |> maybe_direction_filter(Keyword.get(opts, :direction))
 
-    from(e in base,
-      group_by: e.event_id,
-      select: %{
-        project_id: fragment("argMax(?, ?)", e.project_id, e.inserted_at),
-        direction: fragment("argMax(?, ?)", e.direction, e.inserted_at),
-        node_id: fragment("argMax(?, ?)", e.node_id, e.inserted_at),
-        region: fragment("argMax(?, ?)", e.region, e.inserted_at),
-        window_start: fragment("argMax(?, ?)", e.window_start, e.inserted_at),
-        bytes: fragment("argMax(?, ?)", e.bytes, e.inserted_at),
-        request_count: fragment("argMax(?, ?)", e.request_count, e.inserted_at)
-      }
+    deduped =
+      from(e in base,
+        group_by: e.event_id,
+        select: %{
+          project_id: fragment("argMax(?, ?)", e.project_id, e.inserted_at),
+          direction: fragment("argMax(?, ?)", e.direction, e.inserted_at),
+          node_id: fragment("argMax(?, ?)", e.node_id, e.inserted_at),
+          region: fragment("argMax(?, ?)", e.region, e.inserted_at),
+          traffic_plane: fragment("argMax(?, ?)", e.traffic_plane, e.inserted_at),
+          network_path: fragment("argMax(?, ?)", e.network_path, e.inserted_at),
+          window_start: fragment("argMax(?, ?)", e.window_start, e.inserted_at),
+          bytes: fragment("argMax(?, ?)", e.bytes, e.inserted_at),
+          request_count: fragment("argMax(?, ?)", e.request_count, e.inserted_at)
+        }
+      )
+
+    maybe_billable_filter(deduped, Keyword.get(opts, :billable, false))
+  end
+
+  defp maybe_billable_filter(query, false), do: query
+
+  defp maybe_billable_filter(query, true) do
+    from(e in subquery(query),
+      where: e.traffic_plane == "public" and e.network_path == "public_internet"
     )
   end
 

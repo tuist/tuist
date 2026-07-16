@@ -19,6 +19,7 @@ defmodule TuistWeb.OpsDatabaseLive do
   use Noora
 
   alias Tuist.Ops.Database
+  alias TuistWeb.Utilities.Pagination
 
   @sections ~w(overview tables indexes activity replication backups query)
   @page_size 20
@@ -93,14 +94,7 @@ defmodule TuistWeb.OpsDatabaseLive do
   defp validate_section(s) when s in @sections, do: s
   defp validate_section(_), do: "overview"
 
-  defp parse_page(nil), do: 1
-
-  defp parse_page(value) do
-    case Integer.parse(to_string(value)) do
-      {p, _} when p > 0 -> p
-      _ -> 1
-    end
-  end
+  defp parse_page(value), do: Pagination.parse_page(value)
 
   # Render a SQL result cell. Match the look of a SQL UI (Supabase /
   # pgweb / DBeaver): no quotes around strings and no decorators around
@@ -147,16 +141,12 @@ defmodule TuistWeb.OpsDatabaseLive do
   @doc "The current page's slice of the result rows."
   def displayed_rows(nil, _), do: []
 
-  def displayed_rows(%{rows: rows}, page) do
-    Enum.slice(rows, (page - 1) * @page_size, @page_size)
-  end
+  def displayed_rows(%{rows: rows}, page), do: Pagination.paginate(rows, page, @page_size)
 
   @doc "Total page count for the result-set pager (1 when empty)."
   def total_pages(nil), do: 1
 
-  def total_pages(%{rows: rows}) do
-    rows |> length() |> Kernel./(@page_size) |> Float.ceil() |> trunc() |> max(1)
-  end
+  def total_pages(%{rows: rows}), do: Pagination.total_pages(length(rows), @page_size)
 
   @doc "Page size — exposed so the template can render the page meta."
   def page_size, do: @page_size

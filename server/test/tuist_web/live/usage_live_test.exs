@@ -60,8 +60,9 @@ defmodule TuistWeb.UsageLiveTest do
       event_id: "evt-#{System.unique_integer([:positive])}",
       project_id: 0,
       node_id: "kura-test",
-      region: "us-east-1",
+      region: "us-east",
       traffic_plane: "public",
+      network_path: "public_internet",
       direction: "egress",
       operation: "download",
       protocol: "http",
@@ -76,25 +77,33 @@ defmodule TuistWeb.UsageLiveTest do
     IngestRepo.insert_all(UsageEvent, [Map.merge(base, attrs)])
   end
 
+  test "redirects the legacy Usage path to Cache usage", %{conn: conn, account: account} do
+    conn = get(conn, ~p"/#{account.name}/usage")
+
+    assert redirected_to(conn, 301) == ~p"/#{account.name}/cache/usage"
+  end
+
   describe "Kura feature flag gate" do
     test "raises 404 when Kura is not enabled for the account", %{conn: conn, account: account} do
       disable_kura(account)
 
       assert_raise TuistWeb.Errors.NotFoundError, fn ->
-        live(conn, ~p"/#{account.name}/usage")
+        live(conn, ~p"/#{account.name}/cache/usage")
       end
     end
 
     test "renders the page when Kura is enabled", %{conn: conn, account: account} do
       enable_kura(account)
 
-      {:ok, _lv, html} = live(conn, ~p"/#{account.name}/usage")
+      {:ok, _lv, html} = live(conn, ~p"/#{account.name}/cache/usage")
 
-      assert html =~ "Usage"
+      assert html =~ "Cache usage"
       assert html =~ "Cache traffic"
       assert html =~ "Egress"
       assert html =~ "Ingress"
       assert html =~ "Requests"
+      assert html =~ ~s(id="sidebar-cache")
+      assert html =~ ~s(href="/#{account.name}/cache/usage")
     end
 
     test "renders the page on the hosted server when the flag is on", %{conn: conn, account: account} do
@@ -105,9 +114,9 @@ defmodule TuistWeb.UsageLiveTest do
       stub(Environment, :tuist_hosted?, fn -> true end)
       stub_kura_flag(account, true)
 
-      {:ok, _lv, html} = live(conn, ~p"/#{account.name}/usage")
+      {:ok, _lv, html} = live(conn, ~p"/#{account.name}/cache/usage")
 
-      assert html =~ "Usage"
+      assert html =~ "Cache usage"
     end
   end
 
@@ -118,15 +127,15 @@ defmodule TuistWeb.UsageLiveTest do
     end
 
     test "shows the subtitle and project + date filters", %{conn: conn, account: account} do
-      {:ok, _lv, html} = live(conn, ~p"/#{account.name}/usage")
+      {:ok, _lv, html} = live(conn, ~p"/#{account.name}/cache/usage")
 
-      assert html =~ "Traffic and request volume served by Tuist Cache"
+      assert html =~ "Traffic and request volume served by Tuist Cache for this account"
       assert html =~ "Project:"
       assert html =~ "Last 30 days"
     end
 
     test "shows the empty state when there's no Kura traffic", %{conn: conn, account: account} do
-      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage")
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/cache/usage")
 
       html = render_async(lv, @render_async_timeout)
 
@@ -144,12 +153,22 @@ defmodule TuistWeb.UsageLiveTest do
         window_start: NaiveDateTime.utc_now(:second)
       })
 
-      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage")
+      insert_event(%{
+        account_id: account.id,
+        node_id: "collocated-runner-cache",
+        region: "scw-fr-par-runners",
+        bytes: 20_000_000,
+        request_count: 20,
+        window_start: NaiveDateTime.utc_now(:second)
+      })
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/cache/usage")
 
       html = render_async(lv, @render_async_timeout)
 
       assert html =~ "Traffic by region"
-      assert html =~ "us-east-1"
+      assert html =~ "us-east"
+      assert html =~ "scw-fr-par-runners"
       refute html =~ "kura-test-node"
       # 1 MB rendered through ByteFormatter
       assert html =~ "MB"
@@ -170,14 +189,14 @@ defmodule TuistWeb.UsageLiveTest do
     end
 
     test "egress is the default selected widget", %{conn: conn, account: account} do
-      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage")
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/cache/usage")
 
       _ = render_async(lv, @render_async_timeout)
       assert has_element?(lv, ~s|[phx-value-widget="egress"][data-selected]|)
     end
 
     test "clicking a widget patches the URL with ?widget=ingress", %{conn: conn, account: account} do
-      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage")
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/cache/usage")
 
       _ = render_async(lv, @render_async_timeout)
 
@@ -185,12 +204,12 @@ defmodule TuistWeb.UsageLiveTest do
       |> element(~s|[phx-value-widget="ingress"]|)
       |> render_click()
 
-      assert_patch(lv, ~p"/#{account.name}/usage?widget=ingress")
+      assert_patch(lv, ~p"/#{account.name}/cache/usage?widget=ingress")
       assert has_element?(lv, ~s|[phx-value-widget="ingress"][data-selected]|)
     end
 
     test "honors widget=requests in the URL on initial mount", %{conn: conn, account: account} do
-      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage?widget=requests")
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/cache/usage?widget=requests")
 
       _ = render_async(lv, @render_async_timeout)
       assert has_element?(lv, ~s|[phx-value-widget="requests"][data-selected]|)
@@ -200,7 +219,7 @@ defmodule TuistWeb.UsageLiveTest do
       conn: conn,
       account: account
     } do
-      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/usage?widget=bogus")
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/cache/usage?widget=bogus")
 
       _ = render_async(lv, @render_async_timeout)
       assert has_element?(lv, ~s|[phx-value-widget="egress"][data-selected]|)
