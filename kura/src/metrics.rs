@@ -129,6 +129,9 @@ pub struct Metrics {
     traffic_state: Gauge,
     ready_state: Gauge,
     drain_state: Gauge,
+    membership_generation: Gauge,
+    membership_peer_changes: Family<MembershipChangeLabels, Counter>,
+    bootstrap_completions_discarded: Counter,
     initial_discovery_completed: Gauge,
     writer_lock_owned: Gauge,
     writer_lock_acquire_failures: Counter,
@@ -285,6 +288,9 @@ impl Metrics {
         let traffic_state = Gauge::default();
         let ready_state = Gauge::default();
         let drain_state = Gauge::default();
+        let membership_generation = Gauge::default();
+        let membership_peer_changes = Family::<MembershipChangeLabels, Counter>::default();
+        let bootstrap_completions_discarded = Counter::default();
         let initial_discovery_completed = Gauge::default();
         let writer_lock_owned = Gauge::default();
         let writer_lock_acquire_failures = Counter::default();
@@ -780,6 +786,21 @@ impl Metrics {
             ready_state.clone(),
         );
         registry.register(
+            "kura_membership_generation",
+            "Membership view generation; increments on every peer topology change, so a climbing value means the peer set is flapping",
+            membership_generation.clone(),
+        );
+        registry.register(
+            "kura_membership_peer_changes_total",
+            "Peers that entered (change=discovered) or left (change=lost) the membership view",
+            membership_peer_changes.clone(),
+        );
+        registry.register(
+            "kura_bootstrap_completions_discarded_total",
+            "Completed bootstrap passes discarded because the peer left the membership view or the bootstrap epoch was reset mid-pass",
+            bootstrap_completions_discarded.clone(),
+        );
+        registry.register(
             "kura_drain_state",
             "Current drain state for this node: 1=draining, 0=not draining",
             drain_state.clone(),
@@ -922,6 +943,9 @@ impl Metrics {
             traffic_state,
             ready_state,
             drain_state,
+            membership_generation,
+            membership_peer_changes,
+            bootstrap_completions_discarded,
             initial_discovery_completed,
             writer_lock_owned,
             writer_lock_acquire_failures,
@@ -1580,6 +1604,26 @@ impl Metrics {
             .set(if writer_lock_owned { 1 } else { 0 });
     }
 
+    pub fn update_membership_generation(&self, generation: u64) {
+        self.membership_generation
+            .set(i64::try_from(generation).unwrap_or(i64::MAX));
+    }
+
+    pub fn record_membership_peer_changes(&self, change: &str, count: usize) {
+        if count == 0 {
+            return;
+        }
+        self.membership_peer_changes
+            .get_or_create(&MembershipChangeLabels {
+                change: change.to_owned(),
+            })
+            .inc_by(count as u64);
+    }
+
+    pub fn record_bootstrap_completion_discarded(&self) {
+        self.bootstrap_completions_discarded.inc();
+    }
+
     pub fn record_writer_lock_acquire_failure(&self) {
         self.writer_lock_acquire_failures.inc();
     }
@@ -1833,6 +1877,11 @@ struct GeoIpRefreshLabels {
     result: String,
 }
 
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+struct MembershipChangeLabels {
+    change: String,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1926,6 +1975,10 @@ mod tests {
         metrics.update_background_work_paused("outbox", true);
         metrics.record_memory_action("manifest_cache_trim");
         metrics.update_runtime_state(1, true, false, true, true);
+        metrics.update_membership_generation(7);
+        metrics.record_membership_peer_changes("lost", 1);
+        metrics.record_membership_peer_changes("discovered", 2);
+        metrics.record_bootstrap_completion_discarded();
         metrics.record_writer_lock_acquire_failure();
         metrics.record_node_geo(&NodeLocation {
             country: Some("US".into()),
@@ -2039,6 +2092,11 @@ mod tests {
         assert!(rendered.contains("kura_memory_actions_total"));
         assert!(rendered.contains("kura_traffic_state"));
         assert!(rendered.contains("kura_ready_state"));
+        assert!(rendered.contains("kura_membership_generation"));
+        assert!(rendered.contains("kura_membership_peer_changes_total"));
+        assert!(rendered.contains("change=\"lost\""));
+        assert!(rendered.contains("change=\"discovered\""));
+        assert!(rendered.contains("kura_bootstrap_completions_discarded_total"));
         assert!(rendered.contains("kura_drain_state"));
         assert!(rendered.contains("kura_initial_discovery_completed"));
         assert!(rendered.contains("kura_writer_lock_owned"));

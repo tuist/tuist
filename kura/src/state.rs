@@ -11,6 +11,8 @@ use tokio::{
     time::{Duration, Instant},
 };
 
+use tracing::{info, warn};
+
 use crate::{
     analytics::Analytics,
     bandwidth::BandwidthLimiter,
@@ -255,13 +257,16 @@ impl ReadinessState {
         true
     }
 
-    fn note_bootstrap_succeeded(&mut self, peer: &str, epoch: u64) {
+    fn note_bootstrap_succeeded(&mut self, peer: &str, epoch: u64) -> bool {
         self.bootstrap_inflight_peers.remove(peer);
         // A completion from a pass started before the last progress reset does
         // not count as bootstrapped; the peer re-enters peers_needing_bootstrap
         // and gets a fresh pass.
         if epoch == self.bootstrap_epoch && self.known_peers.contains(peer) {
             self.bootstrapped_peers.insert(peer.to_string());
+            true
+        } else {
+            false
         }
     }
 
@@ -358,7 +363,7 @@ impl AppState {
     ) -> MembershipUpdate {
         let known_peers = peer_nodes.keys().cloned().collect::<BTreeSet<_>>();
 
-        {
+        let membership_update = {
             let mut readiness = self.readiness.lock().await;
             let membership_update = readiness.apply_membership(
                 members,
@@ -370,7 +375,27 @@ impl AppState {
                 self.runtime.clear_serving();
             }
             membership_update
+        };
+        // A lost peer silently drops its bootstrapped mark and re-enters the
+        // bootstrap gate when it returns, so topology changes must be loud:
+        // a flapping peer set is the difference between a 30-minute bootstrap
+        // and one that never converges.
+        if !membership_update.lost_peers.is_empty() {
+            warn!(
+                "membership changed: lost peers {:?} (discovered {:?}); their bootstrapped state is forgotten until they are re-bootstrapped",
+                membership_update.lost_peers, membership_update.discovered_peers
+            );
+        } else if !membership_update.discovered_peers.is_empty() {
+            info!(
+                "membership changed: discovered peers {:?}",
+                membership_update.discovered_peers
+            );
         }
+        self.metrics
+            .record_membership_peer_changes("discovered", membership_update.discovered_peers.len());
+        self.metrics
+            .record_membership_peer_changes("lost", membership_update.lost_peers.len());
+        membership_update
     }
 
     pub async fn peers_needing_bootstrap(&self) -> Vec<String> {
@@ -413,10 +438,22 @@ impl AppState {
     }
 
     pub async fn note_bootstrap_succeeded(&self, peer: &str, epoch: u64) {
-        self.readiness
+        let recorded = self
+            .readiness
             .lock()
             .await
             .note_bootstrap_succeeded(peer, epoch);
+        if !recorded {
+            // The pass ran to completion but no longer counts toward the
+            // readiness gate — the peer flapped out of the membership view or
+            // the bootstrap epoch was reset mid-pass. The peer gets a fresh
+            // pass, so repeated discards are how a bootstrap loops forever
+            // without ever logging a failure.
+            warn!(
+                "bootstrap completion for {peer} discarded (membership changed or epoch reset mid-pass); the peer will be re-bootstrapped"
+            );
+            self.metrics.record_bootstrap_completion_discarded();
+        }
     }
 
     #[cfg(test)]
@@ -603,6 +640,7 @@ impl AppState {
             report.initial_discovery_completed,
             report.writer_lock_owned,
         );
+        self.metrics.update_membership_generation(report.generation);
         self.metrics.update_bootstrap_peers(
             report.known_peers.len(),
             report.bootstrapped_peers.len(),
