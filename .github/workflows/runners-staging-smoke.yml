@@ -96,6 +96,20 @@ jobs:
           fi
           rm -f "${root}/tuist/Plugins/.smoke-probe"
           echo "OK: created and wrote ${root}/tuist/Plugins"
+          # Leave a REAL cache entry. The host's dirty check hashes the entries
+          # INSIDE Binaries/Manifests/ProjectDescriptionHelpers/Plugins, so an
+          # empty dir leaves the inventory unchanged => not dirty => no promote
+          # => no master => the next run is cold again and the WARM path (a
+          # master cloned into the branch, carrying the master's ownership/mode)
+          # is never exercised. That warm path is where production actually
+          # broke, so the smoke must seed it.
+          if ! mkdir -p "${root}/tuist/Binaries/smoke-probe" || \
+             ! echo probe > "${root}/tuist/Binaries/smoke-probe/marker"; then
+            echo "FAIL: cannot write a cache entry under ${root}/tuist/Binaries"
+            exit 1
+          fi
+          echo "OK: seeded ${root}/tuist/Binaries/smoke-probe (job is now dirty -> promotes a master)"
+          ls -ld "${root}/tuist/Binaries" "${root}/tuist/Binaries/smoke-probe"
 
       - name: Public reachability check
         run: |
