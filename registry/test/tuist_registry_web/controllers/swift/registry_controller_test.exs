@@ -172,7 +172,9 @@ defmodule TuistRegistryWeb.Swift.RegistryControllerTest do
     test "redirects with See Other to presigned S3 URL when artifact exists", %{conn: conn} do
       expect(S3, :exists?, fn _key, _opts -> true end)
 
-      expect(S3, :presign_download_url, fn _key, _opts ->
+      expect(S3, :presign_download_url, fn _key, opts ->
+        assert opts == [type: :registry, content_type: "application/zip"]
+
         {:ok, "https://s3.example.com/registry/swift/apple/swift-argument-parser/1.0.0/source_archive.zip?signed=true"}
       end)
 

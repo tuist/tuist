@@ -38,8 +38,9 @@ managed environments that expose the registry service directly.
 
 ## Serving model
 - **Source archives** are served as `303` redirects to presigned Tigris
-  URLs. SE-0292 §4.4 explicitly permits this shape for signed archive
-  URLs.
+  URLs. The signed request overrides the object response content type with
+  `application/zip`, including for existing objects with generic metadata.
+  SE-0292 §4.4 explicitly permits this shape for signed archive URLs.
 - **Default `Package.swift`** is loaded from Tigris into memory and
   served in-process with an alternate-manifest `Link` header attached.
 - **Version-specific manifests** are also loaded from Tigris and served
