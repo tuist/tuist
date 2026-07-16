@@ -1,5 +1,4 @@
 import Mockable
-import Path
 import Testing
 import TuistCore
 import XcodeGraph
@@ -8,19 +7,14 @@ import XcodeGraph
 
 struct DependenciesContentHasherPackageTraitsTests {
     @Test func hashChangesWhenPackageTraitsChange() async throws {
-        let filePath = try AbsolutePath(validating: "/file1")
-        let dependency = TargetDependency.package(product: "foo", package: "file1", type: .runtime)
+        let dependency = TargetDependency.package(product: "foo", type: .runtime)
         let firstGraphTarget = GraphTarget.test(
             target: Target.test(dependencies: [dependency]),
-            project: Project.test(
-                packages: [.local(path: filePath, traits: ["FeatureA"])]
-            )
+            project: Project.test(packageTraits: ["package": ["FeatureA"]])
         )
         let secondGraphTarget = GraphTarget.test(
             target: Target.test(dependencies: [dependency]),
-            project: Project.test(
-                packages: [.local(path: filePath, traits: ["FeatureB"])]
-            )
+            project: Project.test(packageTraits: ["package": ["FeatureB"]])
         )
         let subject = makeSubject()
 
@@ -39,95 +33,49 @@ struct DependenciesContentHasherPackageTraitsTests {
     }
 
     @Test func hashDoesNotChangeWhenPackageTraitsAreReordered() async throws {
-        let firstPackagePath = try AbsolutePath(validating: "/file1")
-        let secondPackagePath = try AbsolutePath(validating: "/file2")
-        let dependency = TargetDependency.package(product: "foo", package: "file1", type: .runtime)
-        let firstGraphTarget = GraphTarget.test(
-            target: Target.test(dependencies: [dependency]),
-            project: Project.test(
-                packages: [
-                    .local(path: firstPackagePath, traits: ["FeatureA", "FeatureB"]),
-                    .local(path: secondPackagePath, traits: ["FeatureC"]),
-                ]
-            )
-        )
-        let secondGraphTarget = GraphTarget.test(
-            target: Target.test(dependencies: [dependency]),
-            project: Project.test(
-                packages: [
-                    .local(path: secondPackagePath, traits: ["FeatureC"]),
-                    .local(path: firstPackagePath, traits: ["FeatureB", "FeatureA"]),
-                ]
-            )
-        )
-        let subject = makeSubject()
-
-        let firstHash = try await subject.hash(
-            graphTarget: firstGraphTarget,
-            hashedTargets: [:],
-            hashedPaths: [:]
-        ).hash
-        let secondHash = try await subject.hash(
-            graphTarget: secondGraphTarget,
-            hashedTargets: [:],
-            hashedPaths: [:]
-        ).hash
-
-        #expect(firstHash == secondHash)
-    }
-
-    @Test func hashDoesNotChangeWhenUnrelatedPackageTraitsChange() async throws {
-        let firstPackagePath = try AbsolutePath(validating: "/file1")
-        let secondPackagePath = try AbsolutePath(validating: "/file2")
-        let dependency = TargetDependency.package(product: "foo", package: "file2", type: .runtime)
-        let firstGraphTarget = GraphTarget.test(
-            target: Target.test(dependencies: [dependency]),
-            project: Project.test(
-                packages: [
-                    .local(path: firstPackagePath, traits: ["FeatureA"]),
-                    .local(path: secondPackagePath, traits: ["FeatureB"]),
-                ]
-            )
-        )
-        let secondGraphTarget = GraphTarget.test(
-            target: Target.test(dependencies: [dependency]),
-            project: Project.test(
-                packages: [
-                    .local(path: firstPackagePath, traits: ["FeatureC"]),
-                    .local(path: secondPackagePath, traits: ["FeatureB"]),
-                ]
-            )
-        )
-        let subject = makeSubject()
-
-        let firstHash = try await subject.hash(
-            graphTarget: firstGraphTarget,
-            hashedTargets: [:],
-            hashedPaths: [:]
-        ).hash
-        let secondHash = try await subject.hash(
-            graphTarget: secondGraphTarget,
-            hashedTargets: [:],
-            hashedPaths: [:]
-        ).hash
-
-        #expect(firstHash == secondHash)
-    }
-
-    @Test func legacyPackageDependencyConservativelyHashesAllExplicitTraits() async throws {
-        let filePath = try AbsolutePath(validating: "/file1")
         let dependency = TargetDependency.package(product: "foo", type: .runtime)
         let firstGraphTarget = GraphTarget.test(
             target: Target.test(dependencies: [dependency]),
             project: Project.test(
-                packages: [.local(path: filePath, traits: ["FeatureA"])]
+                packageTraits: [
+                    "first": ["FeatureA", "FeatureB"],
+                    "second": ["FeatureC"],
+                ]
             )
         )
         let secondGraphTarget = GraphTarget.test(
             target: Target.test(dependencies: [dependency]),
             project: Project.test(
-                packages: [.local(path: filePath, traits: ["FeatureB"])]
+                packageTraits: [
+                    "second": ["FeatureC"],
+                    "first": ["FeatureB", "FeatureA"],
+                ]
             )
+        )
+        let subject = makeSubject()
+
+        let firstHash = try await subject.hash(
+            graphTarget: firstGraphTarget,
+            hashedTargets: [:],
+            hashedPaths: [:]
+        ).hash
+        let secondHash = try await subject.hash(
+            graphTarget: secondGraphTarget,
+            hashedTargets: [:],
+            hashedPaths: [:]
+        ).hash
+
+        #expect(firstHash == secondHash)
+    }
+
+    @Test func structuredFingerprintDistinguishesHyphenatedProductAndPackageNames() async throws {
+        let firstGraphTarget = GraphTarget.test(
+            target: Target.test(dependencies: [.package(product: "foo-bar", type: .runtime)]),
+            project: Project.test(packageTraits: ["baz": []])
+        )
+        let secondGraphTarget = GraphTarget.test(
+            target: Target.test(dependencies: [.package(product: "foo", type: .runtime)]),
+            project: Project.test(packageTraits: ["bar-baz": []])
         )
         let subject = makeSubject()
 
@@ -143,6 +91,23 @@ struct DependenciesContentHasherPackageTraitsTests {
         ).hash
 
         #expect(firstHash != secondHash)
+    }
+
+    @Test func packagesWithoutExplicitTraitsKeepTheLegacyHash() async throws {
+        let dependency = TargetDependency.package(product: "foo", type: .runtime)
+        let graphTarget = GraphTarget.test(
+            target: Target.test(dependencies: [dependency]),
+            project: Project.test()
+        )
+        let subject = makeSubject()
+
+        let hash = try await subject.hash(
+            graphTarget: graphTarget,
+            hashedTargets: [:],
+            hashedPaths: [:]
+        ).hash
+
+        #expect(hash == "package-foo-runtime-hash-hash")
     }
 
     private func makeSubject() -> DependenciesContentHasher {

@@ -162,18 +162,24 @@ public struct DependenciesContentHasher: DependenciesContentHashing {
                     hash: try contentHasher.hash("library-\(libraryHash)-\(publicHeadersHash)")
                 )
             }
-        case let .package(product, package, type, _):
-            let packageTraits = try packageTraitsFingerprint(
-                packageIdentity: package,
-                packages: graphTarget.project.packages
+        case let .package(product, type, _):
+            let packageTraits = packageTraitsFingerprint(graphTarget.project.packageTraits)
+            guard let packageTraits else {
+                return DependenciesContentHash(
+                    hashedPaths: hashedPaths,
+                    hash: try contentHasher.hash("package-\(product)-\(type.rawValue)")
+                )
+            }
+            let fingerprint = PackageDependencyFingerprint(
+                product: product,
+                type: type.rawValue,
+                packageTraits: packageTraits
             )
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
             return DependenciesContentHash(
                 hashedPaths: hashedPaths,
-                hash: try contentHasher.hash(
-                    ["package", product, package?.lowercased(), type.rawValue, packageTraits]
-                        .compactMap { $0 }
-                        .joined(separator: "-")
-                )
+                hash: try contentHasher.hash(String(decoding: try encoder.encode(fingerprint), as: UTF8.self))
             )
         case let .sdk(name, status, _):
             return DependenciesContentHash(
@@ -188,38 +194,17 @@ public struct DependenciesContentHasher: DependenciesContentHashing {
         }
     }
 
-    private func packageTraitsFingerprint(
-        packageIdentity: String?,
-        packages: [Package]
-    ) throws -> String? {
-        let matchingPackages = packageIdentity.map { identity in
-            packages.filter { $0.identity == identity.lowercased() }
-        }
-        let relevantPackages = if let matchingPackages, !matchingPackages.isEmpty {
-            matchingPackages
-        } else {
-            packages
-        }
-        let fingerprints = relevantPackages.compactMap { package -> PackageTraitsFingerprint? in
-            guard let traits = package.traits else { return nil }
-            return PackageTraitsFingerprint(identity: package.identity, traits: traits.sorted())
-        }
-        guard !fingerprints.isEmpty else { return nil }
+    private func packageTraitsFingerprint(_ packageTraits: [String: [String]]?) -> [PackageTraitsFingerprint]? {
+        guard let packageTraits, !packageTraits.isEmpty else { return nil }
+        return packageTraits
+            .map { PackageTraitsFingerprint(identity: $0.key, traits: $0.value.sorted()) }
+            .sorted { $0.identity < $1.identity }
+    }
 
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
-
-        let normalizedFingerprints = try fingerprints
-            .map {
-                (
-                    value: $0,
-                    sortKey: String(decoding: try encoder.encode($0), as: UTF8.self)
-                )
-            }
-            .sorted { $0.sortKey < $1.sortKey }
-            .map(\.value)
-
-        return String(decoding: try encoder.encode(normalizedFingerprints), as: UTF8.self)
+    private struct PackageDependencyFingerprint: Codable {
+        let product: String
+        let type: String
+        let packageTraits: [PackageTraitsFingerprint]
     }
 
     private struct PackageTraitsFingerprint: Codable {
