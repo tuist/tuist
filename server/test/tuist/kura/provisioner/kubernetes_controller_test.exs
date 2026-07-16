@@ -441,6 +441,65 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       assert env["KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL"] == "https://tuist.dev"
     end
 
+    test "pins the CAS capacity to the region's declared storage size" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn -> nil end)
+
+      manifest =
+        KubernetesController.manifest(
+          "kura-tuist-eu-central-1",
+          "0.5.2",
+          %{name: "tuist"},
+          eu_region(%{storage_size: "50Gi"}),
+          %Server{},
+          "return true"
+        )
+
+      env = Map.new(manifest["spec"]["extraEnv"], &{&1["name"], &1["value"]})
+
+      # 80% of 50Gi, leaving the headroom a ring rotation needs. Without this the
+      # runtime would size the ring from the node's whole disk instead.
+      assert env["KURA_CAS_CAPACITY_BYTES"] == "42949672960"
+    end
+
+    test "scales the CAS capacity with a smaller declared storage size" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn -> nil end)
+
+      manifest =
+        KubernetesController.manifest(
+          "kura-tuist-scw-fr-par-1",
+          "0.5.2",
+          %{name: "tuist"},
+          eu_region(%{storage_size: "10Gi"}),
+          %Server{},
+          "return true"
+        )
+
+      env = Map.new(manifest["spec"]["extraEnv"], &{&1["name"], &1["value"]})
+
+      assert env["KURA_CAS_CAPACITY_BYTES"] == "8589934592"
+    end
+
+    test "omits the CAS capacity when the region declares no storage size" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn -> nil end)
+
+      manifest =
+        KubernetesController.manifest(
+          "kura-tuist-eu-central-1",
+          "0.5.2",
+          %{name: "tuist"},
+          eu_region(),
+          %Server{},
+          "return true"
+        )
+
+      env = Map.new(manifest["spec"]["extraEnv"], &{&1["name"], &1["value"]})
+
+      refute Map.has_key?(env, "KURA_CAS_CAPACITY_BYTES")
+    end
+
     test "renders local controller overrides for kind testing" do
       stub(Tuist.Environment, :app_url, fn -> "http://localhost:8080" end)
 

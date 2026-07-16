@@ -19,7 +19,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   alias Tuist.Kura.Server
 
   @namespace "kura"
-  @manifest_revision "2026-07-09-mesh-peers-sync-v1"
+  @manifest_revision "2026-07-16-cas-capacity-v1"
   @manifest_revision_annotation "tuist.dev/kura-manifest-revision"
   @impl true
   def provision(%{name: handle}, %Regions{} = region, %Server{}) do
@@ -397,9 +397,55 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
         "KURA_CONTROL_PLANE_CLIENT_ID",
         Environment.kura_control_plane_client_id()
       ) ++
+      cas_capacity_env(region) ++
       mesh_peers_sync_env(region) ++
       telemetry_env(region)
   end
+
+  # With KURA_CAS_CAPACITY_BYTES unset, Kura sizes its CAS segment ring from
+  # statvfs() on the data dir. Every managed region is backed by the local-path
+  # provisioner, where a volume is a plain directory on the node's shared disk,
+  # so statvfs reports the whole box instead of the PVC's declared size: each
+  # replica budgets a fraction of the box, and replicas co-located on a region's
+  # single node over-commit it (2 replicas x 50% of the disk = 100% of it). The
+  # box then crosses kubelet's imagefs eviction threshold long before any replica
+  # reaches its own budget, so Kura's ring rotation never gets to evict and the
+  # node evicts the whole region instead. Pin the budget to the volume the region
+  # actually asked for so the ring stays inside the PVC contract on any backing.
+  defp cas_capacity_env(%Regions{} = region) do
+    with size when is_binary(size) <- storage_size(region),
+         {:ok, bytes} <- parse_storage_quantity(size) do
+      [env_var("KURA_CAS_CAPACITY_BYTES", Integer.to_string(cas_capacity_bytes(bytes)))]
+    else
+      _ -> []
+    end
+  end
+
+  # Kura appends a new segment before evicting the oldest one, so a ring sized to
+  # the entire volume can still run it full mid-rotation. Kura reserves the same
+  # headroom itself (CAS_CAPACITY_MAX_DISK_PERCENT); apply it here against the
+  # volume size, which is the denominator it cannot infer on a local-path volume.
+  defp cas_capacity_bytes(storage_bytes), do: div(storage_bytes * 80, 100)
+
+  defp parse_storage_quantity(value) do
+    case Integer.parse(value) do
+      {quantity, suffix} when quantity > 0 ->
+        case storage_multiplier(String.trim(suffix)) do
+          nil -> :error
+          multiplier -> {:ok, quantity * multiplier}
+        end
+
+      _ ->
+        :error
+    end
+  end
+
+  defp storage_multiplier(""), do: 1
+  defp storage_multiplier("Ki"), do: 1024
+  defp storage_multiplier("Mi"), do: 1024 * 1024
+  defp storage_multiplier("Gi"), do: 1024 * 1024 * 1024
+  defp storage_multiplier("Ti"), do: 1024 * 1024 * 1024 * 1024
+  defp storage_multiplier(_), do: nil
 
   # Managed pods fetch the account's self-hosted peer list from the control
   # plane at boot and on cadence, so a self-hosted peer joining or leaving

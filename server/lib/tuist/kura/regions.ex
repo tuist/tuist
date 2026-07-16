@@ -197,7 +197,17 @@ defmodule Tuist.Kura.Regions do
       # via the local-path provisioner (`scw-local-nvme` StorageClass,
       # installed on the pool out-of-band).
       storage_class: "scw-local-nvme",
-      storage_size: "50Gi",
+      # Sized against the box, not the old nominal 50Gi: this is what the CAS
+      # budget is derived from, and the runner cache had been running at roughly
+      # 150Gi per account off the statvfs default long before that default was
+      # pinned. Three accounts at 80% of this still leave the ~900G node close to
+      # half free. Only the CAS budget moves for instances that already exist —
+      # a StatefulSet's volumeClaimTemplates are immutable and the controller
+      # recreates on a storage *class* change, not a size one, so their PVCs keep
+      # reading 50Gi. Nothing enforces that number on a local-path volume (it is
+      # a directory on the shared disk), so the claim is cosmetic; the budget
+      # below is the real limit.
+      storage_size: "200Gi",
       runner_platforms: [:macos],
       # The macOS Tart VMs reach this pool over a Scaleway Private
       # Network, not the cluster's pod network, so cluster Service DNS
