@@ -80,8 +80,8 @@ public struct XcodeCacheSettingsProjectMapper: ProjectMapping {
                     //
                     // The path points at the machine-wide proxy, not a per-project daemon,
                     // and the plugin CONSUMES this option rather than forwarding it to the
-                    // wrapped Apple plugin — whose own remote client would otherwise run its
-                    // much slower choreography against this socket. So it turns the lane on
+                    // wrapped Apple plugin, whose own remote client would otherwise run its
+                    // much slower choreography against this socket. So the flag flips
                     // without handing Apple's client the connection.
                     baseSettings["COMPILATION_CACHE_REMOTE_SERVICE_PATH"] = .string(
                         Environment.current.casProxySocketPathString()

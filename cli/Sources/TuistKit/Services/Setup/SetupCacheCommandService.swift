@@ -217,7 +217,7 @@ struct SetupCacheCommandService {
                 COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS=YES
                 OTHER_SWIFT_FLAGS=$(inherited) -cas-plugin-option tuist-instance=\(fullHandle)
 
-                `COMPILATION_CACHE_REMOTE_SERVICE_PATH` is what lets C, Objective-C and precompiled modules be shared too — without it only Swift is, and a machine with a cold cache recompiles the rest.
+                `COMPILATION_CACHE_REMOTE_SERVICE_PATH` is what lets C, Objective-C and precompiled modules be shared too. Without it only Swift is shared, and a machine with a cold cache recompiles the rest.
 
                 `COMPILATION_CACHE_ENABLE_PLUGIN`, `COMPILATION_CACHE_PLUGIN_PATH` and `COMPILATION_CACHE_REMOTE_SERVICE_PATH` are not directly exposed by Xcode; add them as user-defined build settings. See the docs for the plugin path: https://tuist.dev/en/docs/guides/features/cache/xcode-cache
                 """

@@ -63,7 +63,7 @@ Note that `COMPILATION_CACHE_REMOTE_SERVICE_PATH` and `COMPILATION_CACHE_ENABLE_
 > [!NOTE]
 > **Socket Path**
 >
-> The socket path will be displayed when you run `tuist setup cache` — copy it from there rather than assembling it by hand, since it differs depending on how your account's cache is served.
+> The socket path will be displayed when you run `tuist setup cache`. Copy it from there rather than assembling it by hand, since it differs depending on how your account's cache is served.
 
 > [!IMPORTANT]
 > **`COMPILATION_CACHE_REMOTE_SERVICE_PATH` is what shares C and Objective-C**
