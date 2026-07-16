@@ -6,9 +6,7 @@ defmodule TuistWeb.RunnerJobMetricsControllerTest do
 
   alias Tuist.Environment
   alias Tuist.Kubernetes.Client, as: K8sClient
-  alias Tuist.Repo
   alias Tuist.Runners.JobMetrics
-  alias Tuist.Runners.RunnerSession
   alias Tuist.Runners.RunnerSessions
 
   # The runner presents its own per-pod SA token (audience
@@ -24,16 +22,17 @@ defmodule TuistWeb.RunnerJobMetricsControllerTest do
   # `claimed_job_id` is the job the Pod was minted for — which is NOT
   # necessarily the one GitHub runs on it.
   defp session(account, claimed_job_id, pod_name, runner_name) do
-    Repo.insert!(%RunnerSession{
-      account_id: account.id,
-      workflow_job_id: claimed_job_id,
-      fleet_name: "linux-amd64",
-      pod_name: pod_name,
-      runner_name: runner_name,
-      started_at: DateTime.utc_now(),
-      inserted_at: DateTime.truncate(DateTime.utc_now(), :second),
-      updated_at: DateTime.truncate(DateTime.utc_now(), :second)
-    })
+    {:ok, session} =
+      RunnerSessions.open(%{
+        workflow_job_id: claimed_job_id,
+        account_id: account.id,
+        fleet_name: "linux-amd64",
+        pod_name: pod_name,
+        runner_name: runner_name,
+        started_at: DateTime.utc_now()
+      })
+
+    session
   end
 
   # GitHub proves, via workflow_job.in_progress, that `runner_name` is

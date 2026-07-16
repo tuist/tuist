@@ -258,7 +258,6 @@ defmodule Tuist.Runners.DispatchTest do
   describe "handle_webhook/2 completed" do
     test "writes the workflow_job steps to runner_job_steps and skips nameless entries" do
       test_pid = self()
-      stub(Claims, :complete, fn _ -> :ok end)
 
       stub(Jobs, :complete, fn _id, conclusion ->
         send(test_pid, {:completed, conclusion})
@@ -312,7 +311,6 @@ defmodule Tuist.Runners.DispatchTest do
 
     test "skips the steps write entirely when the payload carries no steps" do
       test_pid = self()
-      stub(Claims, :complete, fn _ -> :ok end)
       stub(Jobs, :complete, fn _id, _conclusion -> {:ok, %{account_id: 1}} end)
 
       stub(JobSteps, :record, fn rows ->
@@ -484,7 +482,6 @@ defmodule Tuist.Runners.DispatchTest do
     end
 
     test "skips backstop attribution when the completed payload has no runner_name (cancelled-while-queued)" do
-      stub(Claims, :complete, fn _ -> :ok end)
       stub(Jobs, :complete, fn _id, _conclusion -> {:ok, %{account_id: 1}} end)
       stub(JobSteps, :record, fn _ -> :ok end)
 

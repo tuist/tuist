@@ -29,16 +29,21 @@ defmodule Tuist.Repo.Migrations.AddRunnerExecutionAttribution do
       add :executed_workflow_job_id, :bigint
     end
 
-    # Webhook attribution resolves the live claim by the GitHub-
-    # reported runner_name. Partial: the default "" (pre-mint) is
-    # never looked up and would bloat the index.
+    # Webhook attribution resolves the live claim by the GitHub-reported
+    # runner_name.
     # excellent_migrations:safety-assured-for-next-line index_not_concurrently
-    create index(:runner_claims, [:runner_name], where: "runner_name <> ''")
+    create index(:runner_claims, [:runner_name])
 
-    # Durable attribution backstop: the session outlives the pod, so
-    # a `completed` webhook can still bind the runner after a fast
-    # job's pod is gone.
+    # Durable attribution backstop: the session outlives the pod, so a
+    # `completed` webhook can still bind the runner after a fast job's pod
+    # is gone. Deliberately NOT partial on `runner_name <> ''`: the lookup
+    # is parameterized equality through Ecto's prepared statements, and
+    # Postgres cannot prove `$1 <> ''` when building a generic plan, so a
+    # partial index is invisible to it — on an append-only table that grows
+    # forever, this is the hottest new query path. Partiality would also
+    # exclude almost nothing, since every session gets a real runner_name
+    # at open.
     # excellent_migrations:safety-assured-for-next-line index_not_concurrently
-    create index(:runner_sessions, [:runner_name], where: "runner_name <> ''")
+    create index(:runner_sessions, [:runner_name])
   end
 end

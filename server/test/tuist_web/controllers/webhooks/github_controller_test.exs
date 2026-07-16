@@ -720,6 +720,29 @@ defmodule TuistWeb.Webhooks.GitHubControllerTest do
       )
     end
 
+    test "200s without enqueueing for action=in_progress on a non-Tuist runner label", %{conn: conn} do
+      # VCS-only customers get an in_progress for every job that runs on a
+      # GitHub-hosted runner. Those can never match one of our claims, and
+      # admitting them would restore the per-event Oban insert this
+      # short-circuit exists to avoid.
+      conn =
+        conn
+        |> put_req_header("x-github-event", "workflow_job")
+        |> put_req_header("x-github-delivery", "deadbeef-in-progress-foreign")
+
+      params = %{
+        "action" => "in_progress",
+        "installation" => %{"id" => System.unique_integer([:positive])},
+        "workflow_job" => %{"id" => 1, "labels" => ["ubuntu-latest"], "runner_name" => "GitHub Actions 2"},
+        "repository" => %{"full_name" => "tuist/tuist"}
+      }
+
+      result = GitHubController.handle(conn, params)
+
+      assert result.status == 200
+      refute_enqueued(worker: DispatchWorker)
+    end
+
     test "200s without enqueueing for unknown actions", %{conn: conn} do
       conn =
         conn

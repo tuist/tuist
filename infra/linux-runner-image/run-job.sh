@@ -118,7 +118,17 @@ if [ "${idle_timeout}" -gt 0 ] 2>/dev/null; then
       sleep 1
       waited=$((waited + 1))
     done
-    if [ ! -e "${JOB_STARTED_MARKER}" ] && kill -0 "${runner_pid}" 2>/dev/null; then
+    # The marker alone leaves a narrow race: the hook fires when the
+    # Worker STARTS the job, a second or more after the Listener has
+    # already acknowledged the assignment — so a job handed over in the
+    # last seconds of the budget could still be TERMed as idle after
+    # GitHub irrevocably placed it, and an ephemeral runner killed
+    # post-acknowledgment marks the job failed rather than re-queuing it.
+    # The Runner.Worker process exists from the moment the Listener
+    # dispatches, before the hook runs, so it is the authoritative
+    # "this runner has work" signal.
+    if [ ! -e "${JOB_STARTED_MARKER}" ] && ! pgrep -f "Runner.Worker" >/dev/null 2>&1 &&
+      kill -0 "${runner_pid}" 2>/dev/null; then
       echo "$(date -u +%FT%TZ) run-job: no job assigned within ${idle_timeout}s; terminating idle runner"
       kill -TERM "${runner_pid}" 2>/dev/null || true
     fi
@@ -127,7 +137,18 @@ if [ "${idle_timeout}" -gt 0 ] 2>/dev/null; then
   printf '%s' "${watchdog_pid}" >"${WATCHDOG_PID_FILE}" 2>/dev/null || true
 fi
 
+# Re-wait until the runner is really gone. `wait` returns the moment a
+# trapped signal arrives (128+15), so a single wait would let this script —
+# the container's main process — exit milliseconds after SIGTERM, and the
+# runtime would SIGKILL run.sh mid-cleanup. Under `exec` the runner was the
+# main process and got the full terminationGracePeriod to cancel the job,
+# report status and deregister; looping restores that window, and leaves rc
+# as the runner's real exit code rather than a blanket 143.
 wait "${runner_pid}"
 rc=$?
+while kill -0 "${runner_pid}" 2>/dev/null; do
+  wait "${runner_pid}"
+  rc=$?
+done
 [ -n "${watchdog_pid:-}" ] && kill "${watchdog_pid}" 2>/dev/null || true
 exit "${rc}"

@@ -215,7 +215,7 @@ defmodule Tuist.Runners.Dispatch do
 
     with true <- is_integer(workflow_job_id) and runner_name != "",
          {:ok, account} <- webhook_account(payload, installation_id) do
-      record_execution(runner_name, workflow_job_id, account.id, "in_progress")
+      record_execution(runner_name, workflow_job_id, account.id)
     else
       _ -> :ignored
     end
@@ -246,14 +246,14 @@ defmodule Tuist.Runners.Dispatch do
   # the common case; when they disagree — or when only one is still
   # present — we surface `:mismatch` so it's never silently the
   # weaker `:matched`.
-  defp record_execution(runner_name, executed_workflow_job_id, account_id, source) do
+  defp record_execution(runner_name, executed_workflow_job_id, account_id) do
     claim_outcome = Claims.record_execution(runner_name, executed_workflow_job_id, account_id)
     session_outcome = RunnerSessions.record_execution(runner_name, executed_workflow_job_id, account_id)
     outcome = combine_attribution(claim_outcome, session_outcome)
 
     case outcome do
       :mismatch ->
-        Logger.info("runners: claim/execution mismatch (source=#{source})",
+        Logger.info("runners: claim/execution mismatch",
           runner_name: runner_name,
           workflow_job_id: executed_workflow_job_id
         )
@@ -330,8 +330,11 @@ defmodule Tuist.Runners.Dispatch do
       # by job id would release a slot still held by a runner executing
       # someone else's claim, under-counting the account's live runners.
       # A job cancelled while queued has no runner_name — nothing ran, so
-      # nothing is released; the claiming Pod keeps its slot until it
-      # stops (idle timeout) or `OrphanedRunnersWorker` recovers it.
+      # nothing is released; the claiming Pod keeps its slot until it stops
+      # (idle timeout → pod-stop → `Claims.release_by_pod_name/1`). Note
+      # `OrphanedRunnersWorker` cannot reach this class: `Jobs.complete/2`
+      # below flips the ClickHouse row to `completed`, and the worker only
+      # lists rows still `running` — so the watchdog is what frees it.
       if account_id, do: Claims.complete_by_runner_name(runner_name, account_id)
 
       case Jobs.complete(workflow_job_id, conclusion) do

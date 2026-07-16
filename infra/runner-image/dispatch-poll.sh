@@ -558,7 +558,14 @@ HOOK
             sleep 1
             waited=$((waited + 1))
           done
-          if [ ! -e "${JOB_STARTED_MARKER}" ] && kill -0 "${runner_pid}" 2>/dev/null; then
+          # The marker alone leaves a narrow race: the hook fires when the
+          # Worker STARTS the job, a second or more after the Listener has
+          # acknowledged the assignment, and an ephemeral runner killed
+          # post-acknowledgment marks the job failed rather than re-queuing
+          # it. The Runner.Worker process exists from the moment the
+          # Listener dispatches, before the hook runs.
+          if [ ! -e "${JOB_STARTED_MARKER}" ] && ! pgrep -f "Runner.Worker" >/dev/null 2>&1 &&
+            kill -0 "${runner_pid}" 2>/dev/null; then
             echo "$(date -u +%FT%TZ) dispatch-poll: no job assigned within ${idle_timeout}s; terminating idle runner"
             kill -TERM "${runner_pid}" 2>/dev/null || true
           fi

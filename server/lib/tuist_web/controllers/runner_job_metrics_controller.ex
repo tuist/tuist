@@ -58,6 +58,7 @@ defmodule TuistWeb.RunnerJobMetricsController do
 
   alias Tuist.Runners.JobMetrics
   alias Tuist.Runners.RunnerSessions
+  alias Tuist.Runners.Telemetry
   alias TuistWeb.RunnerPodAuth
 
   require Logger
@@ -90,6 +91,18 @@ defmodule TuistWeb.RunnerJobMetricsController do
           send_resp(conn, :no_content, "")
 
         :error ->
+          # No proven binding yet (or none coming). Samples taken before
+          # `in_progress` is delivered and drained through Oban are dropped
+          # rather than charted on a guess, so a job's startup ramp can be
+          # missing under webhook latency. Counted so the loss is visible
+          # rather than silent — the samplers are fail-open and never
+          # resend, so this is unrecoverable data.
+          :telemetry.execute(
+            Telemetry.event_name_recovery(),
+            %{count: length(samples)},
+            %{kind: "metrics_dropped_awaiting_attribution"}
+          )
+
           send_resp(conn, :no_content, "")
       end
     else

@@ -400,6 +400,28 @@ defmodule Tuist.Runners.ClaimsTest do
     end
   end
 
+  describe "executing?/1" do
+    test "is true once GitHub proved the runner took some job" do
+      account = account_fixture()
+      {:ok, _} = Claims.attempt(7300, account.id, "fleet-a", "pod-1", @linux_resources)
+      :ok = Claims.mark_running(7300, "runner-a")
+
+      refute Claims.executing?(7300)
+
+      # GitHub handed this runner a sibling's job, not the one it claimed.
+      assert :mismatch = Claims.record_execution("runner-a", 7399, account.id)
+      assert Claims.executing?(7300)
+    end
+
+    test "is false for a claim with no proven execution, or no claim at all" do
+      account = account_fixture()
+      {:ok, _} = Claims.attempt(7301, account.id, "fleet-a", "pod-2", @linux_resources)
+
+      refute Claims.executing?(7301)
+      refute Claims.executing?(999_999)
+    end
+  end
+
   describe "record_execution/2" do
     test "binds the executed job and reports :matched when it equals the claim" do
       account = account_fixture()

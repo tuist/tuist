@@ -227,12 +227,21 @@ defmodule Tuist.Runners.RunnerSessions do
 
   # Prefer the open session; fall back to the most recent closed one so a
   # `completed` backstop can still bind after a fast job's pod is gone.
+  # Same policy as `latest_for_pod/1`, expressed once — see
+  # `prefer_open_then_latest/1`.
   defp session_for_runner(runner_name, account_id) do
     RunnerSession
     |> where([s], s.runner_name == ^runner_name and s.account_id == ^account_id)
+    |> prefer_open_then_latest()
+    |> Repo.one()
+  end
+
+  # "Prefer the row still open, else the most recent closed one." Both the
+  # runner_name and pod_name lookups want exactly this ordering.
+  defp prefer_open_then_latest(query) do
+    query
     |> order_by([s], desc: is_nil(s.ended_at), desc: s.started_at)
     |> limit(1)
-    |> Repo.one()
   end
 
   defp bind_execution(%RunnerSession{workflow_job_id: claimed_job_id} = session, executed_workflow_job_id) do

@@ -237,7 +237,30 @@ defmodule TuistWeb.Webhooks.GitHubController do
   # `:ignored` branch in the worker; short-circuiting those here
   # removes the Oban.insert (and its Postgres write) for events the
   # worker would discard anyway.
-  @dispatchable_workflow_job_actions ~w(queued waiting in_progress completed)
+  @dispatchable_workflow_job_actions ~w(queued waiting completed)
+
+  # `in_progress` is the only action we admit conditionally. It carries the
+  # `runner_name` GitHub actually placed the job on — the sole real-time
+  # proof of the runner↔job binding — but it also fires for every job of
+  # every installation, including VCS-only customers whose jobs run on
+  # GitHub-hosted runners and can never match one of our claims. Admitting
+  # it unconditionally would restore exactly the per-event Oban insert this
+  # short-circuit exists to avoid, for traffic that always ends in
+  # `:unknown_runner`. `workflow_job.labels` is in the payload here, so a
+  # job that cannot possibly target a Tuist pool is dropped at the door and
+  # the binding is kept only for jobs that can actually match.
+  @tuist_runner_label_prefix "tuist-"
+
+  defp dispatchable_workflow_job?("in_progress", params) do
+    params
+    |> get_in(["workflow_job", "labels"])
+    |> List.wrap()
+    |> Enum.any?(fn label ->
+      is_binary(label) and String.starts_with?(String.downcase(label), @tuist_runner_label_prefix)
+    end)
+  end
+
+  defp dispatchable_workflow_job?(action, _params), do: action in @dispatchable_workflow_job_actions
 
   defp handle_workflow_job(conn, params) do
     installation_id =
@@ -253,7 +276,7 @@ defmodule TuistWeb.Webhooks.GitHubController do
       is_nil(installation_id) ->
         conn |> put_status(:ok) |> json(%{status: "ok"})
 
-      action not in @dispatchable_workflow_job_actions ->
+      not dispatchable_workflow_job?(action, params) ->
         conn |> put_status(:ok) |> json(%{status: "ok"})
 
       true ->

@@ -546,6 +546,24 @@ defmodule Tuist.Runners.Claims do
   end
 
   @doc """
+  Whether the runner holding the claim for `workflow_job_id` has been
+  proven to be executing some job — i.e. `executed_workflow_job_id` is
+  set, whichever job it turned out to be.
+
+  This is the busy signal for recovery paths that would otherwise judge a
+  claim by its *claimed* job's GitHub status: a runner can be hard at work
+  on a sibling's job while the job it was minted for still sits queued.
+  Releasing such a claim would delete a live runner's reservation mid-job.
+  """
+  def executing?(workflow_job_id) when is_integer(workflow_job_id) do
+    Repo.exists?(
+      from(c in Claim,
+        where: c.workflow_job_id == ^workflow_job_id and not is_nil(c.executed_workflow_job_id)
+      )
+    )
+  end
+
+  @doc """
   Records the workflow_job GitHub actually placed on the runner named
   `runner_name`, learned from the `workflow_job.in_progress` /
   `completed` webhook. The mint-chosen `runner_name` is unique per
