@@ -226,7 +226,7 @@ defmodule TuistRegistryWeb.Swift.RegistryController do
         })
       end
 
-      case S3.presign_download_url(key, type: :registry) do
+      case S3.presign_download_url(key, type: :registry, content_type: "application/zip") do
         {:ok, url} ->
           conn
           |> put_resp_header("content-version", "1")

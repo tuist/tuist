@@ -116,6 +116,82 @@ defmodule Tuist.Runners.RunnerSessionsTest do
     end
   end
 
+  describe "live_for_pod/1" do
+    test "returns the latest open runner session binding for a pod" do
+      account = account_fixture()
+      pod_name = "pod-live-binding"
+
+      session_fixture(account,
+        workflow_job_id: 81_001,
+        pod_name: pod_name,
+        fleet_name: "fleet-old",
+        started_at: ~U[2026-05-26 12:00:00.000000Z]
+      )
+
+      session_fixture(account,
+        workflow_job_id: 81_002,
+        pod_name: pod_name,
+        fleet_name: "fleet-new",
+        started_at: ~U[2026-05-26 12:05:00.000000Z]
+      )
+
+      assert {:ok,
+              %{
+                workflow_job_id: 81_002,
+                account_id: account_id,
+                fleet_name: "fleet-new",
+                pod_name: ^pod_name
+              }} = RunnerSessions.live_for_pod(pod_name)
+
+      assert account_id == account.id
+    end
+
+    test "ignores closed runner sessions" do
+      account = account_fixture()
+      session_fixture(account, pod_name: "pod-closed-binding", ended_at: DateTime.utc_now())
+
+      assert RunnerSessions.live_for_pod("pod-closed-binding") == :error
+    end
+  end
+
+  describe "live_for_workflow_job/2" do
+    test "returns the latest open runner session binding for a workflow job and account" do
+      account = account_fixture()
+
+      session_fixture(account,
+        workflow_job_id: 82_001,
+        pod_name: "pod-job-old",
+        fleet_name: "fleet-old",
+        started_at: ~U[2026-05-26 12:00:00.000000Z]
+      )
+
+      session_fixture(account,
+        workflow_job_id: 82_001,
+        pod_name: "pod-job-new",
+        fleet_name: "fleet-new",
+        started_at: ~U[2026-05-26 12:05:00.000000Z]
+      )
+
+      assert {:ok,
+              %{
+                workflow_job_id: 82_001,
+                account_id: account_id,
+                fleet_name: "fleet-new",
+                pod_name: "pod-job-new"
+              }} = RunnerSessions.live_for_workflow_job(82_001, account.id)
+
+      assert account_id == account.id
+    end
+
+    test "does not cross account boundaries" do
+      account = account_fixture()
+      other_account = account_fixture()
+      session_fixture(account, workflow_job_id: 82_002, pod_name: "pod-owner")
+
+      assert RunnerSessions.live_for_workflow_job(82_002, other_account.id) == :error
+    end
+  end
+
   describe "executed_job_for_pod/1" do
     test "resolves the pod to the job GitHub proved it is running" do
       account = account_fixture()

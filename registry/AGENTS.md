@@ -1,8 +1,10 @@
 # Tuist Registry Service
 
-This directory contains the standalone Tuist package registry service
-deployed at `https://registry.tuist.dev`. **The pod is a stateless read
-frontend.** The server-owned writer lives under `Tuist.Registry.Swift.*`
+This directory contains the standalone Tuist package registry service. In
+production, clients reach it at `https://tuist.dev/api/registry/swift` through
+the registry Worker, which forwards requests to the `registry.tuist.dev`
+ingress. **The pod is a stateless read frontend.** The server-owned writer
+lives under `Tuist.Registry.Swift.*`
 and runs in a separate `TUIST_MODE=swift_registry_sync` pod (see
 `server/AGENTS.md` and
 `infra/helm/tuist/templates/swift-registry-sync-deployment.yaml`). During
@@ -12,20 +14,13 @@ previews exercise the server-owned writer. Do not redeploy cache from the
 current main branch before cutover because its registry cron has already
 been removed.
 
-The service is multi-ecosystem by design: each ecosystem mounts its own
-protocol-compliant API surface under a path prefix that names the
-ecosystem. Today the only ecosystem is the **Swift Package Registry**
-(SwiftPM, SE-0292), reachable at `/swift/*`.
-
-The same Swift surface is also served under the legacy
-`/api/registry/swift/*` prefix that cache exposed before the registry
-was extracted, so existing clients keep working through the cutover.
-Responses on the legacy prefix carry RFC 8594 `Deprecation: true` and
-`Sunset` headers; the canonical `/swift/*` prefix does not.
+The service currently hosts the **Swift Package Registry** under
+`/api/registry/swift/*`. The same surface is available under `/swift/*` for
+managed environments that expose the registry service directly.
 
 ## Responsibilities
-- Serve the per-ecosystem read API (currently `/swift/*` and the legacy
-  `/api/registry/swift/*`).
+- Serve the Swift Package Registry read surface under
+  `/api/registry/swift/*` and `/swift/*`.
 - Read package metadata from S3 (`registry/metadata/<scope>/<name>/index.json`).
 - Emit 303 redirects to presigned S3 URLs for source archives.
 - Serve manifest bodies in-process. Default `Package.swift` responses
@@ -43,8 +38,9 @@ Responses on the legacy prefix carry RFC 8594 `Deprecation: true` and
 
 ## Serving model
 - **Source archives** are served as `303` redirects to presigned Tigris
-  URLs. SE-0292 §4.4 explicitly permits this shape for signed archive
-  URLs.
+  URLs. The signed request overrides the object response content type with
+  `application/zip`, including for existing objects with generic metadata.
+  SE-0292 §4.4 explicitly permits this shape for signed archive URLs.
 - **Default `Package.swift`** is loaded from Tigris into memory and
   served in-process with an alternate-manifest `Link` header attached.
 - **Version-specific manifests** are also loaded from Tigris and served
@@ -75,7 +71,9 @@ Responses on the legacy prefix carry RFC 8594 `Deprecation: true` and
 - Run Credo with `mise run credo`.
 
 ## Deployment
-- The production host is `registry.tuist.dev`.
+- The production client address is `https://tuist.dev/api/registry/swift`.
+- The production ingress host is `registry.tuist.dev` and is used by the
+  registry Worker as its origin.
 - The managed deployment is Kubernetes-based via the `registry` component in
   `infra/helm/tuist`.
 - It runs in the same Helm release and namespace as the server for each
@@ -96,10 +94,8 @@ already are on the managed clusters, installed by the platform chart):
   `onepassword`
 - cert-manager with a `ClusterIssuer` named `letsencrypt-cloudflare`
 - ingress-nginx
-- external-dns (for per-env hostnames and the production
-  `registry-origin.tuist.dev` resolution alias; the production ingress still
-  routes and terminates certificates for `registry.tuist.dev`, which is owned
-  by the Cloudflare Worker and is not managed by external-dns)
+- external-dns (for per-environment hostnames, including the production
+  `registry.tuist.dev` ingress origin)
 
 ### `REGISTRY` 1Password item
 Per environment vault (`tuist-k8s-{staging,canary,production}`), the
@@ -122,20 +118,22 @@ After a deploy, verify with:
 # pick the right env
 HOST=registry-canary.tuist.dev      # canary
 INGRESS=91.98.12.147                # canary cluster ingress
-# production: HOST=registry.tuist.dev, INGRESS=91.98.14.217
+# production: HOST=registry.tuist.dev, INGRESS=91.98.14.217, PREFIX=/api/registry/swift
 # staging:    HOST=registry-staging.tuist.dev, INGRESS=91.98.219.17
+
+PREFIX=${PREFIX:-/swift}
 
 curl -sS --resolve "$HOST:443:$INGRESS" "https://$HOST/up"
 # expect: 200
 
 curl -sS --resolve "$HOST:443:$INGRESS" \
   -H 'Accept: application/vnd.swift.registry.v1+json' \
-  "https://$HOST/swift/availability"
+  "https://$HOST$PREFIX/availability"
 # expect: 200, Content-Version: 1
 
 curl -sS --resolve "$HOST:443:$INGRESS" \
   -H 'Accept: application/vnd.swift.registry.v1+json' \
-  "https://$HOST/swift/alamofire/alamofire"
+  "https://$HOST$PREFIX/alamofire/alamofire"
 # expect: 200 with a JSON releases map (or 404 if the bucket has no
 # data for the scope yet, which is distinct from 5xx)
 ```

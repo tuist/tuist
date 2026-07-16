@@ -443,4 +443,33 @@ defmodule Tuist.Runners.ClaimsTest do
       assert Repo.one(from(c in Claim, where: c.workflow_job_id == ^7200)).executed_workflow_job_id == nil
     end
   end
+
+  describe "by_workflow_job_id/1" do
+    test "resolves the live claim for a workflow_job_id" do
+      account = account_fixture()
+
+      {:ok, _} =
+        Claims.attempt(6201, account.id, "fleet-a", "pod-1", %{
+          platform: :linux,
+          vcpus: 4,
+          memory_gb: 8
+        })
+
+      :ok = Claims.mark_running(6201, "runner-x")
+
+      assert {:ok,
+              %{
+                workflow_job_id: 6201,
+                account_id: account_id,
+                fleet_name: "fleet-a",
+                pod_name: "pod-1"
+              }} = Claims.by_workflow_job_id(6201)
+
+      assert account_id == account.id
+    end
+
+    test "returns :error when no live claim exists for the workflow_job_id" do
+      assert Claims.by_workflow_job_id(9_999_999) == :error
+    end
+  end
 end

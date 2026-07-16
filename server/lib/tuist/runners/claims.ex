@@ -489,11 +489,73 @@ defmodule Tuist.Runners.Claims do
   end
 
   @doc """
+  Resolves the live claim (`claimed` or `running`) owning `pod_name` to
+  the workflow_job it was minted for, plus its account and fleet.
+  Interactive access (terminal / VNC) uses it to reconcile the
+  customer-facing job view against the Pod that actually holds the claim.
+
+  Note this answers with the **claimed** job, which is not necessarily
+  the one the Pod is running: GitHub assigns a queued job to any
+  label-eligible runner. Anything that must follow real execution (e.g.
+  machine metrics) uses `RunnerSessions.executed_job_for_pod/1`, which
+  only answers once GitHub has proven the binding.
+
+  Returns `:error` when the Pod holds no live claim (an idle/warm Pod,
+  or one whose job already released its claim).
+  """
+  def by_pod_name(pod_name) when is_binary(pod_name) do
+    Claim
+    |> where([c], c.pod_name == ^pod_name)
+    |> select([c], %{
+      workflow_job_id: c.workflow_job_id,
+      account_id: c.account_id,
+      fleet_name: c.fleet_name,
+      pod_name: c.pod_name
+    })
+    |> limit(1)
+    |> Repo.one()
+    |> case do
+      nil -> :error
+      claim -> {:ok, claim}
+    end
+  end
+
+  @doc """
+  Resolves the live claim for `workflow_job_id`.
+
+  This is the OLTP source of truth for which Pod currently owns a runner
+  job. ClickHouse can lag or briefly carry an older lifecycle row, so
+  interactive access uses this to reconcile the customer-facing job view
+  with the actual claimed Pod before opening a terminal or VNC relay.
+  """
+  def by_workflow_job_id(workflow_job_id) when is_integer(workflow_job_id) do
+    Claim
+    |> where([c], c.workflow_job_id == ^workflow_job_id)
+    |> select([c], %{
+      workflow_job_id: c.workflow_job_id,
+      account_id: c.account_id,
+      fleet_name: c.fleet_name,
+      pod_name: c.pod_name
+    })
+    |> limit(1)
+    |> Repo.one()
+    |> case do
+      nil -> :error
+      claim -> {:ok, claim}
+    end
+  end
+
+  @doc """
   Records the workflow_job GitHub actually placed on the runner named
   `runner_name`, learned from the `workflow_job.in_progress` /
   `completed` webhook. The mint-chosen `runner_name` is unique per
   runner and stored on the claim at `mark_running/2`, so it resolves
   the live claim regardless of which job the claim was minted for.
+
+  Scoped to `account_id` (resolved from the webhook's App installation):
+  a runner name is only ours to act on within the account that minted
+  it, since every other account controls the names of its own
+  self-hosted runners.
 
   Idempotent: repeated deliveries set the same value. Returns which
   of the three attribution outcomes occurred so the webhook path can
