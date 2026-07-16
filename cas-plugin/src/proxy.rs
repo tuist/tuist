@@ -44,7 +44,11 @@ const MAX_PUBLISH_CACHE: usize = 500_000;
 const MAX_PENDING_OBJECTS: usize = 1_000_000;
 
 // Snapshot refresh cadence and cache bounds (see `refresh_snapshots`).
-const SNAPSHOT_DELTA_INTERVAL: Duration = Duration::from_secs(120);
+// Default cadence for the incremental (watermark-scoped) snapshot delta of an
+// active instance, overridable via TUIST_CAS_SNAPSHOT_DELTA_INTERVAL (seconds).
+// A delta is a cheap fetch of only the trunk entries newer than what we hold,
+// so this trades trunk freshness against a small periodic round trip.
+const SNAPSHOT_DELTA_INTERVAL_DEFAULT_SECS: u64 = 10 * 60;
 // How long a FETCH_OBJECT with no registered instruction waits for the
 // instance's snapshot to arrive before answering not-found (it runs on a
 // compiler worker thread, which demand fetches already block on network I/O).
@@ -68,6 +72,16 @@ const DEMAND_BATCH_LINGER: Duration = Duration::from_millis(3);
 const SNAPSHOT_ERROR_RETRY_INTERVAL: Duration = Duration::from_secs(60);
 const SNAPSHOT_IDLE_EVICT: Duration = Duration::from_secs(60 * 60);
 const SNAPSHOT_MAX_INSTANCES: usize = 8;
+
+/// The snapshot delta cadence, honoring TUIST_CAS_SNAPSHOT_DELTA_INTERVAL
+/// (seconds) and falling back to SNAPSHOT_DELTA_INTERVAL_DEFAULT_SECS.
+fn snapshot_delta_interval() -> Duration {
+    std::env::var("TUIST_CAS_SNAPSHOT_DELTA_INTERVAL")
+        .ok()
+        .and_then(|value| value.parse::<u64>().ok())
+        .map(Duration::from_secs)
+        .unwrap_or(Duration::from_secs(SNAPSHOT_DELTA_INTERVAL_DEFAULT_SECS))
+}
 // The bulk-warm budget, in value-graph nodes (each node is one blob fetch).
 // Sized past the largest closure a single build replays (~37.5k on the CLI
 // fixture) so a right-sized namespace still warms completely.
@@ -1926,7 +1940,7 @@ impl Proxy {
     }
 
     /// Called from the maintenance loop: keeps Ready snapshots fresh with
-    /// deltas (SNAPSHOT_DELTA_INTERVAL), replaces them wholesale on
+    /// deltas (snapshot_delta_interval), replaces them wholesale on
     /// SNAPSHOT_FULL_INTERVAL (deltas only ADD; the full fetch re-applies the
     /// server's blob-presence gate after evictions), retries Absent after
     /// SNAPSHOT_RETRY_INTERVAL (the server may have been upgraded under this
@@ -1975,7 +1989,7 @@ impl Proxy {
                             plans.push(Plan::Full {
                                 instance: instance.clone(),
                             });
-                        } else if now.duration_since(*refreshed_at) > SNAPSHOT_DELTA_INTERVAL {
+                        } else if now.duration_since(*refreshed_at) > snapshot_delta_interval() {
                             plans.push(Plan::Delta {
                                 instance: instance.clone(),
                                 watermark: snapshot.watermark,
