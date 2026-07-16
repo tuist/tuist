@@ -978,12 +978,55 @@ impl Proxy {
         // machine" is known, which is what bounds trunk ingestion (see
         // `instance_active`).
         if let Some(instance) = &instance {
-            let mut active = self.active_instances.lock().unwrap();
-            if !active.contains(instance) {
-                active.insert(instance.clone());
+            // `insert` reports the transition, and the guard is dropped before
+            // the hook: what it kicks off takes locks of its own.
+            let newly_active = self
+                .active_instances
+                .lock()
+                .unwrap()
+                .insert(instance.clone());
+            if newly_active {
+                self.ingest_on_activation(instance);
             }
         }
         instance
+    }
+
+    /// Ingests the trunk closure of an instance that has just become active but
+    /// whose snapshot arrived before it did.
+    ///
+    /// The startup prefetch warms under the node budget by design: nothing is
+    /// active that early, and that is exactly what stops a restart from pulling
+    /// the closure of every project the registry has ever seen. But the budget
+    /// then sticks. The snapshot is Ready, nothing re-materializes it, and the
+    /// first build after a restart — the build the prefetch exists to help —
+    /// would wait out SNAPSHOT_FULL_INTERVAL for the closure it was meant to
+    /// have. So the same signal that bounds the fan-out lifts the budget, for
+    /// this one instance, the moment it stops being a guess.
+    ///
+    /// Reachable once per instance per proxy lifetime. It no-ops unless a
+    /// snapshot is already Ready: an instance whose snapshot lands after the
+    /// build (the on-demand path) is materialized with the instance already
+    /// active and needs nothing here.
+    fn ingest_on_activation(&self, instance: &str) {
+        if self.snapshot_ready(instance).is_none() {
+            return;
+        }
+        let proxy: &'static Proxy = unsafe { &*(self as *const Proxy) };
+        let instance = instance.to_string();
+        // Off-thread: this runs from a resolve, and `resolve_trunk` can fork git.
+        std::thread::spawn(move || {
+            if !ingest_trunk_enabled() || proxy.resolve_trunk(&instance).is_none() {
+                return;
+            }
+            let Some(snapshot) = proxy.snapshot_ready(&instance) else {
+                return;
+            };
+            crate::log_line(&format!(
+                "ingesting {instance}'s trunk closure: prefetched before any build, so it warmed under the node budget"
+            ));
+            proxy.prematerialize_snapshot(&instance, &snapshot);
+        });
     }
 
     /// Whether a build for this instance has touched this proxy since it
@@ -993,6 +1036,10 @@ impl Proxy {
     /// projects the developer may not have opened in months. In-memory on
     /// purpose — a fresh proxy ingests nothing until you actually build, which
     /// is the conservative direction.
+    ///
+    /// It gates the budget rather than the warm, so a prefetched-but-inactive
+    /// instance still warms its newest nodes; `ingest_on_activation` is what
+    /// lifts the budget once the guess resolves into a real build.
     fn instance_active(&self, instance: &str) -> bool {
         self.active_instances.lock().unwrap().contains(instance)
     }
