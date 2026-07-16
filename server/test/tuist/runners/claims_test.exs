@@ -346,6 +346,32 @@ defmodule Tuist.Runners.ClaimsTest do
     end
   end
 
+  describe "release_by_pod_name/1" do
+    test "deletes the claim held by the pod and returns the count freed" do
+      account = account_fixture()
+      {:ok, _} = Claims.attempt(9001, account.id, "fleet-a", "pod-1", @linux_resources)
+      :ok = Claims.mark_running(9001, "runner-x")
+
+      assert 1 == Claims.release_by_pod_name("pod-1")
+      assert Claims.counts_per_account() == %{}
+    end
+
+    test "frees a stranded running claim regardless of lifecycle state" do
+      account = account_fixture()
+      {:ok, _} = Claims.attempt(9002, account.id, "fleet-a", "pod-2", @linux_resources)
+      # never minted — still `claimed`; a Pod that stopped pre-mint.
+      assert 1 == Claims.release_by_pod_name("pod-2")
+    end
+
+    test "returns 0 when the pod holds no claim (already completed before stop)" do
+      assert 0 == Claims.release_by_pod_name("idle-pod")
+    end
+
+    test "is a no-op for an empty pod_name" do
+      assert 0 == Claims.release_by_pod_name("")
+    end
+  end
+
   describe "record_execution/2" do
     test "binds the executed job and reports :matched when it equals the claim" do
       account = account_fixture()

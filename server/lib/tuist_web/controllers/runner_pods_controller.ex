@@ -12,8 +12,10 @@ defmodule TuistWeb.RunnerPodsController do
 
   use TuistWeb, :controller
 
+  alias Tuist.Runners.Claims
   alias Tuist.Runners.InteractiveSessions
   alias Tuist.Runners.RunnerSessions
+  alias Tuist.Runners.Telemetry
   alias TuistWeb.RunnerControllerAuth
 
   require Logger
@@ -43,6 +45,7 @@ defmodule TuistWeb.RunnerPodsController do
          {:ok, ended_at} <- parse_timestamp(params, "ended_at"),
          {:ok, _} <- RunnerSessions.close_by_pod_name(pod_name, ended_at),
          {:ok, _} <- InteractiveSessions.close_by_pod_name(pod_name, ended_at) do
+      release_stranded_claim(pod_name)
       send_resp(conn, :no_content, "")
     else
       {:error, :missing_bearer} ->
@@ -87,6 +90,29 @@ defmodule TuistWeb.RunnerPodsController do
       {:error, reason} ->
         Logger.error("runners: pods/stopped failed", reason: inspect(reason))
         conn |> put_status(:internal_server_error) |> json(%{error: "pods/stopped failed"})
+    end
+  end
+
+  # Free the account's concurrency budget the instant a Pod stops. In
+  # the common path the job's `completed` webhook already released the
+  # claim before the Pod halted, so this frees nothing. A non-zero
+  # release means the Pod stopped while still holding a claim — a
+  # stranded Pod (GitHub ran its claimed job on a different runner) or
+  # a crash mid-job — which is exactly the over-charge #11862 tracks,
+  # so we surface it as recovery telemetry.
+  defp release_stranded_claim(pod_name) do
+    case Claims.release_by_pod_name(pod_name) do
+      0 ->
+        :ok
+
+      count ->
+        Logger.warning("runners: released stranded claim on pod stop", pod: pod_name)
+
+        :telemetry.execute(
+          Telemetry.event_name_recovery(),
+          %{count: count},
+          %{kind: "stranded_claim_released"}
+        )
     end
   end
 
