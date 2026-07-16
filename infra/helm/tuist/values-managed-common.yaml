@@ -15,6 +15,19 @@ global:
     tuist.dev/service: server
     tuist.dev/stack: managed
 
+# Grafana Cloud PDC agent. `cluster` + `hostedGrafanaId` identify our Grafana
+# Cloud stack (stacks-1028740) and are the same for every managed env, so they
+# live here; only the per-env signing token differs and comes from that env's
+# 1Password vault (PDC_AGENT/password) via ESO.
+#
+# Still `enabled: false` everywhere: the agent CrashLoops without a real token,
+# so each env flips this on in its own overlay once PDC_AGENT exists in its vault.
+pdcAgent:
+  image:
+    tag: v0.0.61
+  cluster: prod-eu-west-2
+  hostedGrafanaId: "1028740"
+
 kuraController:
   enabled: true
   namespace: kura
