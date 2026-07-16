@@ -55,8 +55,8 @@ use crate::{
     },
     usage::UsageRollup,
     utils::{
-        action_cache_index_key, action_cache_index_prefix, action_cache_index_value,
-        action_cache_manifest_hash, decode_action_cache_index_value, IndexRowBranch,
+        action_cache_index_key, action_cache_index_key_branch, action_cache_index_prefix,
+        action_cache_manifest_hash, IndexRowBranch,
         artifact_storage_id, ensure_tmp_dir_capacity, module_key, namespace_artifact_index_key,
         now_ms, segment_artifact_index_key, segment_artifact_index_prefix, segment_path,
         temp_file_path,
@@ -770,13 +770,21 @@ impl Store {
                         &manifest.namespace_id,
                         previous_manifest.version_ms,
                         previous_hash,
+                        // The row was keyed under the tag it held then, not the
+                        // one being written now.
+                        previous_manifest.branch.as_deref(),
                     ),
                 );
             }
             batch.put_cf(
                 self.cf(ROCKSDB_CF_ACTION_CACHE_INDEX),
-                action_cache_index_key(&manifest.namespace_id, manifest.version_ms, action_hash),
-                action_cache_index_value(manifest.branch.as_deref(), &artifact_id),
+                action_cache_index_key(
+                    &manifest.namespace_id,
+                    manifest.version_ms,
+                    action_hash,
+                    manifest.branch.as_deref(),
+                ),
+                artifact_id.as_bytes(),
             );
         }
         if let Some(previous_manifest) = &existing
@@ -1366,13 +1374,21 @@ impl Store {
                         &manifest.namespace_id,
                         previous_manifest.version_ms,
                         previous_hash,
+                        // The row was keyed under the tag it held then, not the
+                        // one being written now.
+                        previous_manifest.branch.as_deref(),
                     ),
                 );
             }
             batch.put_cf(
                 self.cf(ROCKSDB_CF_ACTION_CACHE_INDEX),
-                action_cache_index_key(&manifest.namespace_id, manifest.version_ms, action_hash),
-                action_cache_index_value(manifest.branch.as_deref(), &artifact_id),
+                action_cache_index_key(
+                    &manifest.namespace_id,
+                    manifest.version_ms,
+                    action_hash,
+                    manifest.branch.as_deref(),
+                ),
+                artifact_id.as_bytes(),
             );
         }
         self.append_artifact_replication_messages(
@@ -2230,7 +2246,12 @@ impl Store {
                 {
                     batch.delete_cf(
                         self.cf(ROCKSDB_CF_ACTION_CACHE_INDEX),
-                        action_cache_index_key(namespace_id, manifest.version_ms, action_hash),
+                        action_cache_index_key(
+                            namespace_id,
+                            manifest.version_ms,
+                            action_hash,
+                            manifest.branch.as_deref(),
+                        ),
                     );
                 }
                 if let Some(blob_path) = manifest.blob_path {
@@ -2687,6 +2708,7 @@ impl Store {
                         &manifest.namespace_id,
                         manifest.version_ms,
                         action_hash,
+                        manifest.branch.as_deref(),
                     ),
                 );
             }
@@ -2807,14 +2829,15 @@ impl Store {
             if manifests.len() >= max_entries {
                 break;
             }
-            let (row_branch, artifact_id) = decode_action_cache_index_value(&artifact_id)?;
             // The row's own tag settles the filter for every entry indexed since
             // the branch was recorded, which is the whole point of carrying it.
-            if let IndexRowBranch::Known(branch) = row_branch
+            if let IndexRowBranch::Known(branch) = action_cache_index_key_branch(&index_key, prefix.len())
                 && !branch_in_trunk(branch, trunk)
             {
                 continue;
             }
+            let artifact_id = std::str::from_utf8(&artifact_id)
+                .map_err(|error| format!("invalid action-cache index value: {error}"))?;
             read += 1;
             if trunk.is_some() && read > read_budget {
                 // Say so rather than quietly return a short view: a namespace
@@ -2858,23 +2881,19 @@ impl Store {
         Ok(manifests)
     }
 
-    /// Versioned: the rows now carry their branch, and a namespace indexed before
-    /// that would otherwise keep its pre-branch rows forever and go on paying a
-    /// point-read to reject every feature entry. Bumping the version re-runs the
-    /// one-time backfill per namespace, which rewrites every row in the new
-    /// format. Correct either way, since a pre-branch row still reads its tag
-    /// from the manifest; this is what makes it stop being slow.
+    /// Deliberately NOT versioned to force a rebuild when the branch joined the
+    /// key. The branch is part of the key, so rewriting a row under the new
+    /// format writes a second row rather than overwriting the old one, and a
+    /// forced rebuild would leave every entry indexed twice.
     ///
-    /// This index is local derived state and is never replicated, so a rolling
-    /// deploy needs nothing from it: each node reads only rows it wrote. A
-    /// DOWNGRADE is the one direction that costs anything. The older binary takes
-    /// a row value to be the whole artifact id, fails to find that manifest, and
-    /// retires the row as stale, so it walks back to an empty index and serves
-    /// short views until ordinary publishes refill it. Slow, bounded, and
-    /// self-healing rather than wrong: an entry missing from a view is fetched
-    /// per key.
+    /// It needs no rebuild. A row written before the branch reports its tag as
+    /// unknown and asks the manifest, exactly as it did before, and the next
+    /// publish of that entry supersedes it: the new row carries the tag, and the
+    /// old one is left pointing at a stale version, which the scan already
+    /// retires. The migration therefore rides along with the republishes that
+    /// re-tagging needs anyway.
     fn action_cache_index_marker_key(namespace_id: &str) -> String {
-        format!("action_cache_index/backfilled/v2/{namespace_id}")
+        format!("action_cache_index/backfilled/{namespace_id}")
     }
 
     fn action_cache_index_backfilled(&self, namespace_id: &str) -> Result<bool, String> {
@@ -2929,8 +2948,13 @@ impl Store {
             };
             batch.put_cf(
                 self.cf(ROCKSDB_CF_ACTION_CACHE_INDEX),
-                action_cache_index_key(namespace_id, manifest.version_ms, action_hash),
-                action_cache_index_value(manifest.branch.as_deref(), &manifest.artifact_id),
+                action_cache_index_key(
+                    namespace_id,
+                    manifest.version_ms,
+                    action_hash,
+                    manifest.branch.as_deref(),
+                ),
+                manifest.artifact_id.as_bytes(),
             );
             rows += 1;
             // The index row is written for every entry regardless of the trunk
@@ -4499,6 +4523,49 @@ mod tests {
             .action_cache_manifests("ios", 10, None)
             .expect("unfiltered scan should succeed");
         assert_eq!(all.len(), 3, "an unscoped view still keeps every entry");
+    }
+
+    /// The rollback contract, pinned. A node that predates the branch reads the
+    /// version out of the key at a fixed offset and the artifact id out of the
+    /// value, and never parses what sits between them. Both have to survive the
+    /// branch being appended, or that node retires every row it cannot read and
+    /// deletes the index out from under itself.
+    #[test]
+    fn an_index_key_keeps_its_version_where_an_older_node_looks_for_it() {
+        let prefix = action_cache_index_prefix("ios");
+        for branch in [None, Some("main"), Some("feature/some-long-name")] {
+            let key = action_cache_index_key("ios", 1_234, "abc123", branch);
+            assert!(key.starts_with(&prefix), "namespace prefix scan still matches");
+            let version = key
+                .get(prefix.len()..prefix.len() + 8)
+                .expect("version sits at a fixed offset");
+            let version = !u64::from_be_bytes(version.try_into().expect("8 bytes"));
+            assert_eq!(version, 1_234, "an older node still reads the version");
+        }
+    }
+
+    #[test]
+    fn an_index_row_reports_its_branch_and_a_pre_branch_row_admits_it_cannot() {
+        let prefix_len = action_cache_index_prefix("ios").len();
+        let tagged = action_cache_index_key("ios", 1, "abc123", Some("main"));
+        assert!(matches!(
+            action_cache_index_key_branch(&tagged, prefix_len),
+            IndexRowBranch::Known(Some("main"))
+        ));
+        // Untagged is known, and distinct from unknown: it answers the filter.
+        let untagged = action_cache_index_key("ios", 1, "abc123", None);
+        assert!(matches!(
+            action_cache_index_key_branch(&untagged, prefix_len),
+            IndexRowBranch::Known(None)
+        ));
+        // A row written before the branch: no separator after the action hash.
+        let mut legacy = action_cache_index_prefix("ios");
+        legacy.extend_from_slice(&(!1u64).to_be_bytes());
+        legacy.extend_from_slice(b"abc123");
+        assert!(matches!(
+            action_cache_index_key_branch(&legacy, prefix_len),
+            IndexRowBranch::Unknown
+        ));
     }
 
     /// Trunk entries have to be reachable when they are buried under feature
