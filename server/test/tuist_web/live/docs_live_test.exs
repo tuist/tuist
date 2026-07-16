@@ -24,6 +24,12 @@ defmodule TuistWeb.DocsLiveTest do
 
       assert has_element?(
                lv,
+               ~s(a#docs-generated-xcode-path[href="/en/docs/tutorials/xcode/create-a-generated-project"]),
+               "Generated Xcode project"
+             )
+
+      assert has_element?(
+               lv,
                ~s(a#docs-xcode-path[href="/en/docs/guides/features/cache/xcode-cache"]),
                "Xcode project"
              )

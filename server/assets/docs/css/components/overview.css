@@ -432,7 +432,7 @@
 
   & [data-part="journey-cards"] {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: var(--noora-spacing-5);
   }
 
@@ -740,6 +740,18 @@
 }
 
 /* Responsive */
+@media (min-width: 1281px) {
+  #docs-overview [data-part="journey-cards"] [data-part="title"] {
+    font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
+  }
+}
+
+@media (min-width: 1025px) and (max-width: 1280px) {
+  #docs-overview [data-part="journey-cards"] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 1024px) {
   #docs-page-layout:has(#docs-overview) #docs-layout {
     grid-template-columns: 1fr;

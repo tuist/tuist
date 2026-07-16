@@ -92,6 +92,10 @@ defmodule TuistWeb.DocsLive do
     assigns =
       assigns
       |> assign(:install_path, docs_path("/#{assigns.locale}/guides/install-tuist"))
+      |> assign(
+        :generated_xcode_path,
+        docs_path("/#{assigns.locale}/tutorials/xcode/create-a-generated-project")
+      )
       |> assign(:xcode_path, docs_path("/#{assigns.locale}/guides/features/cache/xcode-cache"))
       |> assign(:gradle_path, docs_path("/#{assigns.locale}/guides/install-gradle-plugin"))
       |> assign(:runners_path, docs_path("/#{assigns.locale}/guides/features/runners/getting-started"))
@@ -121,15 +125,32 @@ defmodule TuistWeb.DocsLive do
         <section data-part="start">
           <div data-part="start-heading">
             <h2 id="start-with-your-setup">{dgettext("docs", "Start with your setup")}</h2>
-            <p>
-              {dgettext(
-                "docs",
-                "Choose the path that matches how your team builds today. You can adopt Tuist without changing how your projects are generated."
-              )}
-            </p>
           </div>
 
           <div data-part="journey-cards">
+            <.link
+              id="docs-generated-xcode-path"
+              patch={@generated_xcode_path}
+              data-part="feature-card"
+            >
+              <div data-part="image">
+                <span data-part="icon"><.brand_tuist /></span>
+                <span data-part="title">{dgettext("docs", "Generated Xcode project")}</span>
+              </div>
+              <div data-part="body">
+                <p>
+                  {dgettext(
+                    "docs",
+                    "Generate and maintain your Xcode project with module caching and selective testing."
+                  )}
+                </p>
+                <span data-part="journey-link">
+                  {dgettext("docs", "Start generating")}
+                  <.arrow_right />
+                </span>
+              </div>
+            </.link>
+
             <.link id="docs-xcode-path" patch={@xcode_path} data-part="feature-card">
               <div data-part="image">
                 <span data-part="icon"><.brand_apple /></span>
@@ -139,11 +160,11 @@ defmodule TuistWeb.DocsLive do
                 <p>
                   {dgettext(
                     "docs",
-                    "Add compilation caching and insights without adopting project generation."
+                    "Connect compilation caching and insights to an existing Xcode project."
                   )}
                 </p>
                 <span data-part="journey-link">
-                  {dgettext("docs", "Explore Xcode")}
+                  {dgettext("docs", "Start with Xcode")}
                   <.arrow_right />
                 </span>
               </div>
@@ -547,6 +568,10 @@ defmodule TuistWeb.DocsLive do
     test_insights_path = docs_path("/#{locale}/guides/features/test-insights")
     previews_path = docs_path("/#{locale}/guides/features/previews")
     install_path = docs_path("/#{locale}/guides/install-tuist")
+
+    generated_xcode_path =
+      docs_path("/#{locale}/tutorials/xcode/create-a-generated-project")
+
     xcode_path = docs_path("/#{locale}/guides/features/cache/xcode-cache")
     gradle_path = docs_path("/#{locale}/guides/install-gradle-plugin")
     runners_path = docs_path("/#{locale}/guides/features/runners/getting-started")
@@ -580,15 +605,15 @@ defmodule TuistWeb.DocsLive do
         "",
         "## " <> dgettext("docs", "Start with your setup"),
         "",
-        dgettext(
-          "docs",
-          "Choose the path that matches how your team builds today. You can adopt Tuist without changing how your projects are generated."
-        ),
-        "",
+        "- #{markdown_link(dgettext("docs", "Generated Xcode project"), generated_xcode_path)}: " <>
+          dgettext(
+            "docs",
+            "Generate and maintain your Xcode project with module caching and selective testing."
+          ),
         "- #{markdown_link(dgettext("docs", "Xcode project"), xcode_path)}: " <>
           dgettext(
             "docs",
-            "Add compilation caching and insights without adopting project generation."
+            "Connect compilation caching and insights to an existing Xcode project."
           ),
         "- #{markdown_link(dgettext("docs", "Gradle project"), gradle_path)}: " <>
           dgettext(
