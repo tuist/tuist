@@ -4653,6 +4653,9 @@ mod tests {
         }
         // A feature build gets there first.
         publish(&store, Some("feature")).await;
+        // Distinct version_ms: a same-millisecond republish is dropped as stale
+        // before any tagging runs, which makes this pass or fail on the clock.
+        tokio::time::sleep(std::time::Duration::from_millis(2)).await;
         // Trunk recomputes it: same bytes, well inside the damping window.
         let reclaimed = publish(&store, Some("main")).await;
         assert_eq!(

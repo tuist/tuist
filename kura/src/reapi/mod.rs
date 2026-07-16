@@ -583,7 +583,20 @@ impl ReapiService {
                 .indexes
                 .lock()
                 .expect("snapshot cache lock poisoned");
-            if let Some(index) = indexes.get_mut(&cache_key) {
+            // An index that built EMPTY does not get to answer, however fresh it
+            // is. The freshness window trades staleness for round trips, and that
+            // trade only makes sense when there is something to serve: a
+            // populated index that is 60s out of date costs its client a few
+            // keys, an empty one costs it every key it came for. And it does not
+            // come back to find out we were only a minute behind, because it
+            // fetches once per session. So a namespace that published its first
+            // entries just after an empty build would starve every client that
+            // arrived inside the window. Falling through builds and serves the
+            // real thing, which is what an absent index already does, and the
+            // build is shared so concurrent serves pay for one.
+            if let Some(index) = indexes.get_mut(&cache_key)
+                && !index.entries.is_empty()
+            {
                 let stale = index.reconciled_at.elapsed() >= SNAPSHOT_RECONCILE_INTERVAL;
                 index.last_used = Instant::now();
                 let entries = index.entries.len();
@@ -2916,6 +2929,49 @@ mod tests {
             "a namespace nobody fetches must not keep paying for a scan every window"
         );
         assert!(!should_refresh_snapshot_index(fresh, idle));
+    }
+
+    /// A namespace that publishes its first entries just after an empty index was
+    /// built would otherwise serve nothing for the rest of the freshness window,
+    /// and a client fetches once per session, so "the rest of the window" is the
+    /// rest of its build. An empty index has to go back to the store instead of
+    /// answering, however recently it was reconciled.
+    #[tokio::test]
+    async fn a_fresh_but_empty_index_is_rebuilt_rather_than_served() {
+        let context = test_context(|_| {}).await;
+        let service = ReapiService {
+            snapshot_cache: Default::default(),
+            state: context.state.clone(),
+        };
+        // Reconciled just now, and empty: the shape a namespace has when its
+        // first client prefetched before anything was published.
+        let stamped = Instant::now();
+        let mut index = NamespaceSnapshotIndex::new();
+        index.reconciled_at = stamped;
+        service
+            .snapshot_cache
+            .indexes
+            .lock()
+            .unwrap()
+            .insert(snapshot_cache_key("ios", None), index);
+
+        service
+            .serve_actioncache_snapshot("ios", 0, None)
+            .await
+            .expect("serve should succeed");
+
+        let reconciled_at = service
+            .snapshot_cache
+            .indexes
+            .lock()
+            .unwrap()
+            .get(&snapshot_cache_key("ios", None))
+            .map(|index| index.reconciled_at);
+        assert!(
+            reconciled_at.is_some_and(|at| at > stamped),
+            "the serve went back to the store instead of answering from an empty \
+             index that happened to be fresh"
+        );
     }
 
     #[tokio::test]
