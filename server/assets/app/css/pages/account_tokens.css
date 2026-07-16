@@ -94,9 +94,7 @@
     max-height: calc(100dvh - 48px);
   }
 
-  & #create-account-token-modal
-    > [data-part="positioner"]
-    > [data-part="content"][data-state="open"] {
+  & #create-account-token-modal > [data-part="positioner"] > [data-part="content"][data-state="open"] {
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -117,11 +115,11 @@
 
   & #create-account-token-modal-body {
     flex: 1 1 auto;
+    padding: 0;
+    min-height: 0;
     overflow-x: hidden;
     overflow-y: auto;
     overscroll-behavior: none;
-    padding: 0;
-    min-height: 0;
   }
 
   & [data-part="modal-body"] {
@@ -226,8 +224,8 @@
     display: flex;
     flex-direction: column;
     gap: var(--noora-spacing-3);
-    border-radius: var(--noora-radius-6);
     box-shadow: var(--noora-border-light-default);
+    border-radius: var(--noora-radius-6);
     padding: var(--noora-spacing-5);
 
     & + [data-part="scope-group"] {
@@ -257,9 +255,9 @@
     flex-direction: row;
     align-items: flex-start;
     gap: var(--noora-spacing-4);
+    cursor: pointer;
     border-radius: var(--noora-radius-4);
     padding: var(--noora-spacing-3);
-    cursor: pointer;
 
     &:hover {
       background: var(--noora-surface-background-secondary);
@@ -290,10 +288,10 @@
 
     & [data-part="scope"],
     & [data-part="handle"] {
-      overflow-wrap: anywhere;
       color: var(--noora-surface-label-secondary);
       font: var(--noora-font-weight-regular) var(--noora-font-body-xsmall);
       font-family: "Geist Mono", monospace;
+      overflow-wrap: anywhere;
     }
 
     & [data-part="description"] {
@@ -338,8 +336,8 @@
   & > [data-part="detail-header"] {
     display: flex;
     flex-direction: row;
-    align-items: flex-start;
     justify-content: space-between;
+    align-items: flex-start;
     gap: var(--noora-spacing-6);
 
     & > [data-part="title-group"] {
@@ -355,9 +353,9 @@
 
       & > [data-part="token-name"] {
         margin: 0;
-        overflow-wrap: anywhere;
         color: var(--noora-surface-label-primary);
         font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
+        overflow-wrap: anywhere;
       }
     }
 
@@ -410,8 +408,8 @@
 
   & > [data-part="detail-grid"] {
     display: flex;
-    align-items: start;
     flex-direction: column;
+    align-items: start;
     gap: var(--noora-spacing-6);
   }
 
