@@ -128,12 +128,19 @@ struct SetupCacheCommandService {
         trunk: String?,
         branch: String?
     ) async throws {
+        // Derived from the proxy's OWN socket, not from `stateDirectory`. The two
+        // agree by default and diverge under `XDG_STATE_HOME`, which the socket
+        // deliberately ignores (see `casProxySocketPath`) because the plugin must
+        // resolve it from HOME alone. Writing this file where the proxy is not
+        // reading loses the source root and trunk silently: unscoped snapshots and
+        // untagged publishes, with nothing to show for it.
         let sourcesPath: AbsolutePath
         if let registry = Environment.current.variables["TUIST_CAS_PROXY_REGISTRY"] {
             sourcesPath = try AbsolutePath(validating: registry + ".sources")
         } else {
-            sourcesPath = Environment.current.stateDirectory
-                .appending(component: "cas-proxy.sock.registry.sources")
+            sourcesPath = try AbsolutePath(
+                validating: Environment.current.casProxySocketPath().pathString + ".registry.sources"
+            )
         }
 
         // instance -> (source root, trunk, branch). Both trailing columns are
@@ -337,6 +344,11 @@ struct SetupCacheCommandService {
         // endpoint at launch.
         if let cacheEndpoint = Environment.current.variables["TUIST_CACHE_ENDPOINT"] {
             environmentVariables["TUIST_CACHE_ENDPOINT"] = cacheEndpoint
+        }
+        // Without this the agent falls back to `<socket>.registry` and never reads
+        // the sources file written beside the override above.
+        if let registry = Environment.current.variables["TUIST_CAS_PROXY_REGISTRY"] {
+            environmentVariables["TUIST_CAS_PROXY_REGISTRY"] = registry
         }
 
         // One proxy per machine. Boot out any legacy per-project cache daemon so

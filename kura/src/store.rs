@@ -1977,22 +1977,31 @@ impl Store {
     ) -> Result<(ArtifactManifest, bool), String> {
         let artifact_id = artifact_storage_id(producer, &self.tenant_id, namespace_id, key);
         let existing = self.manifest_from_db(&artifact_id)?;
-        let branch = sticky_branch(existing.as_ref(), branch, trunk);
-        // Damp only when the write would change nothing, INCLUDING the tag. An
-        // entry a feature branch published first is tagged `feature`, so trunk
-        // republishing the identical bytes must still write: damping it would
-        // leave the key tagged `feature` and therefore outside the trunk
-        // snapshot, for the whole damping window, for a key trunk demonstrably
-        // builds. That is the pollution this scoping exists to remove.
+        // Damping deliberately outranks the tag, and does NOT compare it.
+        //
+        // Making the tag part of this condition looks right (it would let trunk
+        // reclaim a key a feature branch published first with identical bytes)
+        // and is a trap: `refresh_view_keys` re-publishes cached manifests with
+        // no branch and no trunk, so a tag comparison sees `Some("feature")` vs
+        // `None`, declines to damp, and writes the entry UNTAGGED. Untagged is
+        // the trunk baseline, so every refreshed feature entry would land in the
+        // very view this scoping keeps clean. Reverted for that reason; the
+        // reclaim it bought was mostly unreachable anyway, because the client
+        // dedupes a re-publish whose value digest already matches and so never
+        // sends the tag-only update.
+        //
+        // Reclaiming a feature-tagged key for trunk needs the refresh path to
+        // carry branch/trunk (the instance is not threaded into `view_refresh`
+        // today) AND the client-side dedupe to allow a tag-only update.
         if let Some(existing) = &existing
             && existing.inline
-            && existing.branch.as_deref() == branch
             && manifest_version_ms(existing).saturating_add(REAPI_ACTION_CACHE_REFRESH_DAMPING_MS)
                 > now_ms()
             && self.inline_bytes(&artifact_id)?.as_deref() == Some(bytes)
         {
             return Ok((existing.clone(), false));
         }
+        let branch = sticky_branch(existing.as_ref(), branch, trunk);
         self.persist_inline_artifact_from_bytes_and_enqueue(
             producer,
             namespace_id,
@@ -4539,67 +4548,8 @@ mod tests {
         );
     }
 
-    // Damping must not outrank the tag. A feature build publishes a key first, so
-    // it is tagged `feature`; trunk then builds the same action and republishes
-    // the IDENTICAL bytes well inside the damping window. Damping the write would
-    // leave the key `feature`-tagged and therefore missing from the trunk view for
-    // up to a day, for a key trunk provably builds — the exact pollution this
-    // scoping removes.
-    #[tokio::test]
-    async fn trunk_reclaims_an_identical_entry_a_feature_branch_published_first() {
-        let (_temp_dir, _config, store) = temp_store();
-        store
-            .persist_inline_artifact_from_bytes_damped_and_enqueue(
-                ArtifactProducer::Reapi,
-                "ios",
-                "action_cache/aa/10",
-                "application/x-protobuf",
-                b"graph",
-                &[],
-                Some("feature"),
-                Some("main"),
-            )
-            .await
-            .expect("feature entry should persist");
-        assert!(
-            store
-                .action_cache_manifests("ios", 10, Some("main"))
-                .expect("trunk scan should succeed")
-                .is_empty(),
-            "the feature build's key starts outside the trunk view"
-        );
-
-        let (_manifest, applied) = store
-            .persist_inline_artifact_from_bytes_damped_and_enqueue(
-                ArtifactProducer::Reapi,
-                "ios",
-                "action_cache/aa/10",
-                "application/x-protobuf",
-                b"graph", // byte-identical, and inside the damping window
-                &[],
-                Some("main"),
-                Some("main"),
-            )
-            .await
-            .expect("trunk republish should persist");
-
-        assert!(applied, "the tag changes, so the write must not be damped");
-        let keys: Vec<String> = store
-            .action_cache_manifests("ios", 10, Some("main"))
-            .expect("trunk scan should succeed")
-            .into_iter()
-            .map(|manifest| manifest.key)
-            .collect();
-        assert_eq!(
-            keys,
-            vec!["action_cache/aa/10"],
-            "trunk reclaims the key it demonstrably builds"
-        );
-    }
-
-    // The mirror of the above: once the tag already matches, an identical
-    // re-publish inside the window is still damped, which is what keeps a fleet
-    // of cold machines from stampeding version bumps for the same entry.
+    // An identical re-publish inside the window is damped, which is what keeps a
+    // fleet of cold machines from stampeding version bumps for the same entry.
     #[tokio::test]
     async fn identical_trunk_republish_stays_damped_when_the_tag_already_matches() {
         let (_temp_dir, _config, store) = temp_store();
