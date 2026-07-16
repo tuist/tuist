@@ -389,6 +389,9 @@ defmodule TuistWeb.AccountTokensLiveTest do
     assert html =~ "Revoke account token?"
     assert html =~ "Revoke old-ci? This action cannot be undone."
     refute html =~ "data-confirm"
+    document = Floki.parse_fragment!(html)
+    assert length(Floki.find(document, "#revoke-account-token-modal-portal .noora-line-divider")) == 2
+    assert Floki.find(document, ~s([data-part="revoke-account-token-modal-content"])) != []
 
     assert {:error, {:live_redirect, %{to: redirect_to}}} =
              render_hook(lv, "revoke_account_token", %{})

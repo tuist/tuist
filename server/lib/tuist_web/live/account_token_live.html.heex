@@ -19,13 +19,6 @@
         :if={@can_delete_tokens?}
         id="revoke-account-token-modal"
         title={dgettext("dashboard_account", "Revoke account token?")}
-        description={
-          dgettext(
-            "dashboard_account",
-            "Revoke %{name}? This action cannot be undone.",
-            name: @account_token.name
-          )
-        }
         header_type="warning"
         header_size="large"
         on_dismiss="close_revoke_account_token_modal"
@@ -39,6 +32,17 @@
             {attrs}
           />
         </:trigger>
+        <.line_divider />
+        <div data-part="revoke-account-token-modal-content">
+          <p data-part="revoke-account-token-message">
+            {dgettext(
+              "dashboard_account",
+              "Revoke %{name}? This action cannot be undone.",
+              name: @account_token.name
+            )}
+          </p>
+        </div>
+        <.line_divider />
         <:footer>
           <.modal_footer>
             <:action>
