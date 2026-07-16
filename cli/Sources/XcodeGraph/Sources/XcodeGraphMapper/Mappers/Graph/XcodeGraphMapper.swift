@@ -137,7 +137,7 @@ public struct XcodeGraphMapper: XcodeGraphMapping {
         var packageInfos: [AbsolutePath: PackageInfo] = [:]
         var packagesByName: [String: AbsolutePath] = [:]
         for projectPackage in projects.values.flatMap(\.packages) {
-            switch projectPackage.kind {
+            switch projectPackage {
             case .remote:
                 break
             case let .local(path: packagePath):

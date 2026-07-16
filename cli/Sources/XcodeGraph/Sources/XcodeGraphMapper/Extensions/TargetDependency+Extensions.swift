@@ -10,7 +10,7 @@ extension TargetDependency {
             return target
         case let .sdk(name, _, _):
             return name
-        case let .package(product, _, _, _):
+        case let .package(product, _, _):
             return product
         case let .framework(path, _, _):
             return path.basenameWithoutExt

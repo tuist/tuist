@@ -72,12 +72,17 @@ struct PackageManifestMapperTests {
     }
 
     @Test func legacyPackagesConvertToCanonicalDependenciesWithDefaultTraits() {
+        let legacyPackages: [ProjectDescription.Package] = [
+            .package(url: "https://example.com/package.git", from: "1.2.3"),
+            .package(
+                url: "https://example.com/minor-package.git",
+                .upToNextMinor(from: "1.2.3")
+            ),
+            .package(id: "example.package", exact: "2.0.0"),
+        ]
         let project = ProjectDescription.Project(
             name: "Project",
-            packages: [
-                ProjectDescription.Package.package(url: "https://example.com/package.git", from: "1.2.3"),
-                ProjectDescription.Package.package(id: "example.package", exact: "2.0.0"),
-            ]
+            packages: legacyPackages
         )
 
         #expect(project.packageDependencies == [
@@ -87,7 +92,33 @@ struct PackageManifestMapperTests {
                     requirement: .range("1.2.3" ..< "2.0.0")
                 )
             ),
+            .init(
+                kind: .sourceControl(
+                    location: "https://example.com/minor-package.git",
+                    requirement: .range("1.2.3" ..< "1.3.0")
+                )
+            ),
             .init(kind: .registry(id: "example.package", requirement: .exact("2.0.0"))),
+        ])
+        #expect(project.packages == legacyPackages)
+    }
+
+    @Test func legacyRegistryBranchAndRevisionRequirementsRemainOperational() {
+        let project = ProjectDescription.Project(
+            name: "Project",
+            packages: [
+                ProjectDescription.Package.registry(identifier: "example.branch", requirement: .branch("main")),
+                ProjectDescription.Package.registry(identifier: "example.revision", requirement: .revision("abc123")),
+            ]
+        )
+
+        #expect(project.packageDependencies == [
+            .init(
+                kind: .sourceControl(location: "example.branch", requirement: .branch("main"))
+            ),
+            .init(
+                kind: .sourceControl(location: "example.revision", requirement: .revision("abc123"))
+            ),
         ])
     }
 
@@ -113,8 +144,8 @@ struct PackageManifestMapperTests {
         let project = ProjectDescription.Project(
             name: "Project",
             packages: [
-                .package(path: "Package", traits: ["FeatureA"]),
-                .package(url: "https://example.com/package.git", from: "1.0.0", traits: []),
+                .package(path: "LocalPackage", traits: ["FeatureA"]),
+                .package(url: "https://example.com/remote-package.git", from: "1.0.0", traits: []),
                 .package(id: "example.package", exact: "1.0.0"),
             ]
         )
@@ -130,13 +161,16 @@ struct PackageManifestMapperTests {
         )
 
         #expect(mappedProject.packages == [
-            .local(path: "/Project/Package", traits: ["FeatureA"]),
+            .local(path: "/Project/LocalPackage"),
             .remote(
-                url: "https://example.com/package.git",
-                requirement: .range(from: "1.0.0", to: "2.0.0"),
-                traits: []
+                url: "https://example.com/remote-package.git",
+                requirement: .upToNextMajor("1.0.0")
             ),
             .remote(url: "example.package", requirement: .exact("1.0.0")),
+        ])
+        #expect(mappedProject.packageTraits == [
+            "localpackage": ["FeatureA"],
+            "remote-package": [],
         ])
     }
 
@@ -179,8 +213,51 @@ struct PackageManifestMapperTests {
         #expect(
             registryDependency.package == .registry(
                 identifier: "example.package",
-                requirement: .range(from: "1.0.0", to: "2.0.0")
+                requirement: .upToNextMajor(from: "1.0.0")
             )
         )
+    }
+
+    @Test func sourceControlFactoriesMatchSwiftPackageManagerLabels() {
+        let exact = ProjectDescription.Package.Dependency.package(
+            url: "https://example.com/package.git",
+            exact: "1.0.0",
+            traits: ["FeatureA"]
+        )
+        let branch = ProjectDescription.Package.Dependency.package(
+            url: "https://example.com/package.git",
+            branch: "main"
+        )
+        let revision = ProjectDescription.Package.Dependency.package(
+            url: "https://example.com/package.git",
+            revision: "abc123"
+        )
+
+        #expect(exact.kind == .sourceControl(
+            location: "https://example.com/package.git",
+            requirement: .exact("1.0.0")
+        ))
+        #expect(exact.traits == ["FeatureA"])
+        #expect(branch.kind == .sourceControl(
+            location: "https://example.com/package.git",
+            requirement: .branch("main")
+        ))
+        #expect(revision.kind == .sourceControl(
+            location: "https://example.com/package.git",
+            requirement: .revision("abc123")
+        ))
+    }
+
+    @Test func packageDependencyTraitEncodingIsDeterministic() throws {
+        let first = ProjectDescription.Package.Dependency.package(
+            path: "Package",
+            traits: ["FeatureB", "FeatureA"]
+        )
+        let second = ProjectDescription.Package.Dependency.package(
+            path: "Package",
+            traits: ["FeatureA", "FeatureB"]
+        )
+
+        #expect(try JSONEncoder().encode(first) == JSONEncoder().encode(second))
     }
 }

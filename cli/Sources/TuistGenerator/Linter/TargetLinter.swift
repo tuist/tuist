@@ -387,7 +387,7 @@ extension TargetDependency {
             return "framework"
         case .library:
             return "library"
-        case let .package(_, _, type, _):
+        case let .package(_, type, _):
             return "\(type.rawValue) package"
         case .sdk:
             return "sdk"
@@ -410,7 +410,7 @@ extension TargetDependency {
             return path.basename
         case let .library(path, _, _, _):
             return path.basename
-        case let .package(product, _, _, _):
+        case let .package(product, _, _):
             return product
         case let .sdk(name, _, _):
             return name

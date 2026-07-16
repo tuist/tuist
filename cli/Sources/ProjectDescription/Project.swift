@@ -159,12 +159,7 @@ public struct Project: Codable, Equatable, Sendable {
             organizationName: organizationName,
             classPrefix: classPrefix,
             options: options,
-            packageDependencies: packages.map { package in
-                guard let dependency = Package.Dependency(legacyPackage: package) else {
-                    preconditionFailure("Registry packages do not support branch or revision requirements")
-                }
-                return dependency
-            },
+            packageDependencies: packages.map { Package.Dependency(legacyPackage: $0) },
             settings: settings,
             targets: targets,
             schemes: schemes,
@@ -225,16 +220,7 @@ public struct Project: Codable, Equatable, Sendable {
             }
             packageDependenciesStorage = dependencies
         } else {
-            packageDependenciesStorage = try packages.map { package in
-                guard let dependency = Package.Dependency(legacyPackage: package) else {
-                    throw DecodingError.dataCorruptedError(
-                        forKey: .packages,
-                        in: container,
-                        debugDescription: "Registry packages do not support branch or revision requirements"
-                    )
-                }
-                return dependency
-            }
+            packageDependenciesStorage = packages.map { Package.Dependency(legacyPackage: $0) }
         }
     }
 

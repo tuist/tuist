@@ -184,7 +184,7 @@ public struct GraphLoader: GraphLoading {
                 )
             }
 
-        case let .package(product, _, type, _):
+        case let .package(product, type, _):
             switch type {
             case .macro:
                 return try loadPackage(fromPath: path, productName: product, type: .macro)
@@ -384,7 +384,7 @@ public struct GraphLoader: GraphLoading {
 
 extension Package {
     fileprivate var name: String {
-        switch kind {
+        switch self {
         case let .local(path: path):
             return path.pathString
         case let .remote(url: url, requirement: _):

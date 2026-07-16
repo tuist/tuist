@@ -11,16 +11,15 @@ extension XcodeGraph.Package {
     ///   - generatorPaths: Generator paths.
     static func from(
         manifest: ProjectDescription.Package,
-        traits: [String]? = nil,
         generatorPaths: GeneratorPaths
     ) throws -> XcodeGraph.Package {
         switch manifest {
         case let .local(path: local):
-            return .local(path: try generatorPaths.resolve(path: local), traits: traits)
+            return .local(path: try generatorPaths.resolve(path: local))
         case let .remote(url: url, requirement: version):
-            return .remote(url: url, requirement: .from(manifest: version), traits: traits)
+            return .remote(url: url, requirement: .from(manifest: version))
         case let .registry(identifier: identifier, requirement: version):
-            return .remote(url: identifier, requirement: .from(manifest: version), traits: traits)
+            return .remote(url: identifier, requirement: .from(manifest: version))
         }
     }
 }

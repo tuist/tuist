@@ -66,7 +66,7 @@ extension ProjectAutomation.Project {
 
 extension ProjectAutomation.Package {
     static func from(_ package: XcodeGraph.Package) -> ProjectAutomation.Package {
-        switch package.kind {
+        switch package {
         case let .remote(url, _):
             return ProjectAutomation.Package(kind: ProjectAutomation.Package.PackageKind.remote, path: url)
         case let .local(path):
@@ -137,7 +137,7 @@ extension ProjectAutomation.Target {
                 publicHeaders: publicHeaders.pathString,
                 swiftModuleMap: swiftModuleMap?.pathString
             )
-        case let .package(product, _, type, _):
+        case let .package(product, type, _):
             switch type {
             case .macro:
                 return .packageMacro(product: product)

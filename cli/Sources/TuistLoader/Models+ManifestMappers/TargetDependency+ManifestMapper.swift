@@ -77,13 +77,12 @@ extension XcodeGraph.TargetDependency {
                     condition: condition?.asGraphCondition
                 ),
             ]
-        case let .package(product, package, type, condition):
+        case let .package(product, type, condition):
             switch type {
             case .macro:
                 return [
                     .package(
                         product: product,
-                        package: package,
                         type: .macro,
                         condition: condition?.asGraphCondition
                     ),
@@ -92,7 +91,6 @@ extension XcodeGraph.TargetDependency {
                 return [
                     .package(
                         product: product,
-                        package: package,
                         type: .runtime,
                         condition: condition?.asGraphCondition
                     ),
@@ -101,7 +99,6 @@ extension XcodeGraph.TargetDependency {
                 return [
                     .package(
                         product: product,
-                        package: package,
                         type: .runtimeEmbedded,
                         condition: condition?.asGraphCondition
                     ),
@@ -110,7 +107,6 @@ extension XcodeGraph.TargetDependency {
                 return [
                     .package(
                         product: product,
-                        package: package,
                         type: .plugin,
                         condition: condition?.asGraphCondition
                     ),

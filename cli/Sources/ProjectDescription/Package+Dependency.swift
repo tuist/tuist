@@ -1,6 +1,11 @@
 extension Package {
     /// A Swift package dependency and its enabled traits.
     public struct Dependency: Codable, Equatable, Sendable {
+        private enum CodingKeys: String, CodingKey {
+            case kind
+            case traits
+        }
+
         /// The type of package dependency.
         public enum Kind: Codable, Equatable, Sendable {
             /// A dependency located at a local path.
@@ -62,7 +67,19 @@ extension Package {
             self.traits = traits
         }
 
-        init?(legacyPackage: Package) {
+        public init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            kind = try container.decode(Kind.self, forKey: .kind)
+            traits = Set(try container.decode([Trait].self, forKey: .traits))
+        }
+
+        public func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            try container.encode(kind, forKey: .kind)
+            try container.encode(traits.sorted { $0.name < $1.name }, forKey: .traits)
+        }
+
+        init(legacyPackage: Package) {
             traits = [.defaults]
             switch legacyPackage {
             case let .local(path):
@@ -73,10 +90,14 @@ extension Package {
                     requirement: SourceControlRequirement(packageRequirement: requirement)
                 )
             case let .registry(identifier, requirement):
-                guard let requirement = RegistryRequirement(packageRequirement: requirement) else {
-                    return nil
+                if let requirement = RegistryRequirement(packageRequirement: requirement) {
+                    kind = .registry(id: identifier, requirement: requirement)
+                } else {
+                    kind = .sourceControl(
+                        location: identifier,
+                        requirement: SourceControlRequirement(packageRequirement: requirement)
+                    )
                 }
-                kind = .registry(id: identifier, requirement: requirement)
             }
         }
 
@@ -112,6 +133,33 @@ extension Package {
             traits: Set<Trait> = [.defaults]
         ) -> Dependency {
             .init(kind: .sourceControl(location: url, requirement: requirement), traits: traits)
+        }
+
+        /// Creates a remote package dependency using an exact version and enabled traits.
+        public static func package(
+            url: String,
+            exact version: Version,
+            traits: Set<Trait> = [.defaults]
+        ) -> Dependency {
+            .package(url: url, .exact(version), traits: traits)
+        }
+
+        /// Creates a remote package dependency using a branch and enabled traits.
+        public static func package(
+            url: String,
+            branch: String,
+            traits: Set<Trait> = [.defaults]
+        ) -> Dependency {
+            .package(url: url, .branch(branch), traits: traits)
+        }
+
+        /// Creates a remote package dependency using a revision and enabled traits.
+        public static func package(
+            url: String,
+            revision: String,
+            traits: Set<Trait> = [.defaults]
+        ) -> Dependency {
+            .package(url: url, .revision(revision), traits: traits)
         }
 
         /// Creates a remote package dependency using a version range and enabled traits.
@@ -233,7 +281,7 @@ extension Package.Dependency.SourceControlRequirement {
         case let .exact(version):
             .exact(version)
         case let .range(range):
-            .range(from: range.lowerBound, to: range.upperBound)
+            range.packageRequirement
         case let .revision(revision):
             .revision(revision)
         case let .branch(branch):
@@ -263,7 +311,23 @@ extension Package.Dependency.RegistryRequirement {
         case let .exact(version):
             .exact(version)
         case let .range(range):
-            .range(from: range.lowerBound, to: range.upperBound)
+            range.packageRequirement
         }
+    }
+}
+
+extension Range where Bound == Version {
+    fileprivate var packageRequirement: Package.Requirement {
+        let nextMajor = Version(lowerBound.major + 1, 0, 0)
+        if upperBound == nextMajor {
+            return .upToNextMajor(from: lowerBound)
+        }
+
+        let nextMinor = Version(lowerBound.major, lowerBound.minor + 1, 0)
+        if upperBound == nextMinor {
+            return .upToNextMinor(from: lowerBound)
+        }
+
+        return .range(from: lowerBound, to: upperBound)
     }
 }

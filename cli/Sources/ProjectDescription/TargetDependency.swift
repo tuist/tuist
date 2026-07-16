@@ -110,15 +110,9 @@ public enum TargetDependency: Codable, Hashable, Sendable {
     /// - Parameters:
     ///   - product: The name of the output product. ${PRODUCT_NAME} inside Xcode.
     ///              e.g. RxSwift
-    ///   - package: The identity of the package that owns the product, if known.
     ///   - type: The type of package being integrated.
     ///   - condition: condition under which to use this dependency, `nil` if this should always be used
-    case package(
-        product: String,
-        package: String? = nil,
-        type: PackageType = .runtime,
-        condition: PlatformCondition? = nil
-    )
+    case package(product: String, type: PackageType = .runtime, condition: PlatformCondition? = nil)
 
     /// Dependency on system library or framework
     ///
