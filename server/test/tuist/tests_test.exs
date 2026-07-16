@@ -8526,6 +8526,41 @@ defmodule Tuist.TestsTest do
     end
   end
 
+  describe "get_test_case_run_attachment/2" do
+    test "returns the attachment for the given test case run" do
+      test_case_run_id = UUIDv7.generate()
+
+      attachment =
+        RunsFixtures.test_case_run_attachment_fixture(test_case_run_id: test_case_run_id)
+
+      assert {:ok, result} =
+               Tests.get_test_case_run_attachment(test_case_run_id, attachment.id)
+
+      assert result.id == attachment.id
+    end
+
+    test "uses a sequentially consistent read" do
+      test_case_run_id = UUIDv7.generate()
+      attachment_id = UUIDv7.generate()
+
+      expect(ClickHouseRepo, :one, fn _query, opts ->
+        assert opts == [settings: [select_sequential_consistency: 1]]
+        nil
+      end)
+
+      assert {:error, :not_found} =
+               Tests.get_test_case_run_attachment(test_case_run_id, attachment_id)
+    end
+
+    test "returns an error when the attachment belongs to another test case run" do
+      attachment =
+        RunsFixtures.test_case_run_attachment_fixture(test_case_run_id: UUIDv7.generate())
+
+      assert {:error, :not_found} =
+               Tests.get_test_case_run_attachment(UUIDv7.generate(), attachment.id)
+    end
+  end
+
   describe "get_attachment/2" do
     test "returns attachment matching test_case_run_id and file_name" do
       # Given

@@ -3203,6 +3203,21 @@ defmodule Tuist.Tests do
     end
   end
 
+  def get_test_case_run_attachment(test_case_run_id, attachment_id) do
+    query =
+      from(a in TestCaseRunAttachment,
+        where: a.test_case_run_id == ^test_case_run_id and a.id == ^attachment_id,
+        limit: 1
+      )
+
+    # Crash report uploads immediately read a newly created attachment through a different
+    # ClickHouse pool, so this lookup must not use stale replica metadata.
+    case ClickHouseRepo.one(query, settings: [select_sequential_consistency: 1]) do
+      nil -> {:error, :not_found}
+      attachment -> {:ok, attachment}
+    end
+  end
+
   def get_attachment(test_case_run_id, file_name) do
     query =
       from(a in TestCaseRunAttachment,
