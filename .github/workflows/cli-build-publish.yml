@@ -202,7 +202,14 @@ jobs:
             fi
 
             echo "::warning::Linux CLI bundle attempt ${attempt} failed; clearing SwiftPM state before retrying."
-            rm -rf "${BUILD_PATH:-.build}" build "$HOME/.cache/org.swift.swiftpm" "$HOME/.swiftpm"
+            ACCOUNT_HOME="$(getent passwd "$(id -u)" | cut -d: -f6)"
+            rm -rf \
+              "${BUILD_PATH:-.build}" \
+              build \
+              "$HOME/.cache/org.swift.swiftpm" \
+              "$HOME/.swiftpm" \
+              "$ACCOUNT_HOME/.cache/org.swift.swiftpm" \
+              "$ACCOUNT_HOME/.swiftpm"
             sleep $((attempt * 10))
           done
 
