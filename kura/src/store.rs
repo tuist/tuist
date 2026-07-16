@@ -1291,7 +1291,19 @@ impl Store {
         let artifact_id =
             artifact_storage_id(spec.producer, &self.tenant_id, spec.namespace_id, spec.key);
 
+        // Hold the per-artifact write lock across the read, the sticky-tag
+        // decision and the commit. The tag is a read-modify-write over the
+        // stored manifest, so computing it from a read taken outside the lock
+        // lets a feature build that observed "no entry" resume after a trunk
+        // build committed `main`, and overwrite it with the `feature` tag it
+        // precomputed, and with a newer version, so nothing downstream rejects
+        // it. The key then leaves the trunk baseline it had just joined.
+        let _write_guard = self.artifact_write_lock_for(&artifact_id).lock().await;
+
         let existing = self.manifest_from_db(&artifact_id)?;
+        // Widens the read-to-commit window a racing writer would have to hit.
+        self.hit_failpoint(FailpointName::AfterInlineManifestReadBeforeCommit)
+            .await?;
         if let Some(existing) = &existing
             && existing.inline
             && self.inline_bytes(&artifact_id)?.is_some()
@@ -1300,6 +1312,10 @@ impl Store {
             self.note_artifact_exists(&artifact_id);
             return Ok(PersistArtifactOutcome::IgnoredStale(existing.clone()));
         }
+        // Resolved here, under the lock, from the read above: every inline
+        // writer goes through this function, so this is the one place where the
+        // tag decision and the write it feeds cannot be split by a racing peer.
+        let branch = sticky_branch(existing.as_ref(), spec.branch, spec.trunk);
         if self.namespace_tombstone_blocks(spec.namespace_id, spec.version_ms)? {
             return Ok(PersistArtifactOutcome::IgnoredTombstone);
         }
@@ -1319,7 +1335,7 @@ impl Store {
             size: bytes.len() as u64,
             version_ms: persisted_version_ms,
             created_at_ms: persisted_version_ms,
-            branch: spec.branch.map(str::to_owned),
+            branch: branch.map(str::to_owned),
         };
         let metadata = manifest.metadata(&self.tenant_id);
 
@@ -2001,7 +2017,9 @@ impl Store {
         {
             return Ok((existing.clone(), false));
         }
-        let branch = sticky_branch(existing.as_ref(), branch, trunk);
+        // The tag is resolved by the persist below, under the per-artifact write
+        // lock. Deciding it from `existing` here would race: this read is only
+        // the damping probe, and a peer can commit between it and the write.
         self.persist_inline_artifact_from_bytes_and_enqueue(
             producer,
             namespace_id,
@@ -2093,22 +2111,14 @@ impl Store {
         branch: Option<&str>,
         trunk: Option<&str>,
     ) -> Result<ArtifactApplyOutcome, String> {
-        // Re-run the trunk-sticky rule against THIS node's view. The origin
-        // could only apply it against its own: a feature build publishing a
-        // trunk key to a peer that does not hold it yet resolves the tag to
-        // `feature`, and applying that verbatim would steal the key out of the
-        // trunk baseline here — the same theft the rule prevents locally, just
-        // arriving over replication. Only a trunk-carrying publish reaches the
-        // lookup, so a peer that sends none costs no read.
-        let existing = match trunk {
-            Some(_) => self.manifest_from_db(&artifact_storage_id(
-                producer,
-                &self.tenant_id,
-                namespace_id,
-                key,
-            ))?,
-            None => None,
-        };
+        // The trunk-sticky rule is re-run against THIS node's view by the persist
+        // below (under the per-artifact write lock, from its own read). The origin
+        // could only apply the rule against its own view: a feature build
+        // publishing a trunk key to a peer that does not hold it yet resolves the
+        // tag to `feature`, and applying that verbatim would steal the key out of
+        // the trunk baseline here: the same theft the rule prevents locally, just
+        // arriving over replication. Forwarding `trunk` is what asks for the
+        // re-run; a peer that sends none applies untagged, exactly as before.
         let spec = PersistArtifactSpec {
             producer,
             namespace_id,
@@ -2116,8 +2126,8 @@ impl Store {
             content_type,
             version_ms,
             replication_targets: &[],
-            branch: sticky_branch(existing.as_ref(), branch, trunk),
-            trunk: None,
+            branch,
+            trunk,
         };
         Ok(self
             .persist_inline_artifact_with_version(spec, bytes)
@@ -4506,6 +4516,74 @@ mod tests {
                 "action_cache/cc/10"
             ],
             "trunk keys stay in (or return to) the trunk baseline"
+        );
+    }
+
+    // The tag is a read-modify-write over the stored manifest, so it is only as
+    // sound as the serialization around it. Two builds publishing the same shared
+    // action concurrently (routine: one namespace, many machines) must not be able
+    // to interleave their read and their commit, or the feature build writes the
+    // `feature` tag it decided on when the key looked absent, over the `main` the
+    // trunk build committed meanwhile, and with a version nothing downstream
+    // rejects. The failpoint pins that interleaving instead of racing for it.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn a_concurrent_feature_publish_cannot_overwrite_the_trunk_tag() {
+        let (_temp_dir, _config, store) = temp_store();
+        let store = Arc::new(store);
+        store.failpoints().set_once(
+            FailpointName::AfterInlineManifestReadBeforeCommit,
+            FailpointAction::Sleep(std::time::Duration::from_millis(300)),
+        );
+
+        let feature_store = Arc::clone(&store);
+        // Reads first (and stalls on the failpoint holding nothing but its own
+        // read), so it is the one whose decision is stale by the time it writes.
+        let feature = tokio::spawn(async move {
+            feature_store
+                .persist_inline_artifact_from_bytes_damped_and_enqueue(
+                    ArtifactProducer::Reapi,
+                    "ios",
+                    "action_cache/aa/10",
+                    "application/x-protobuf",
+                    b"graph-from-feature",
+                    &[],
+                    Some("feature"),
+                    Some("main"),
+                )
+                .await
+                .expect("feature publish should persist");
+        });
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        let trunk_store = Arc::clone(&store);
+        let trunk = tokio::spawn(async move {
+            trunk_store
+                .persist_inline_artifact_from_bytes_damped_and_enqueue(
+                    ArtifactProducer::Reapi,
+                    "ios",
+                    "action_cache/aa/10",
+                    "application/x-protobuf",
+                    b"graph-from-trunk",
+                    &[],
+                    Some("main"),
+                    Some("main"),
+                )
+                .await
+                .expect("trunk publish should persist");
+        });
+        feature.await.expect("feature task");
+        trunk.await.expect("trunk task");
+
+        let trunk_view = store
+            .action_cache_manifests("ios", 10, Some("main"))
+            .expect("trunk scan should succeed");
+        let keys: Vec<&str> = trunk_view
+            .iter()
+            .map(|manifest| manifest.key.as_str())
+            .collect();
+        assert_eq!(
+            keys,
+            vec!["action_cache/aa/10"],
+            "the key stays in the trunk baseline whichever publish commits first"
         );
     }
 

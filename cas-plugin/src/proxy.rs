@@ -1784,13 +1784,36 @@ impl Proxy {
     }
 
     /// PUBLISH notify: queue the record for the publisher pool. Items encode
-    /// instance + cas_path + record path.
+    /// instance + cas_path + the (branch, trunk) bound here + record path.
+    ///
+    /// The tags are resolved NOW, when the build hands us the record, and not
+    /// where they are used (the upload, which runs after the queue wait, the
+    /// existence probe and the closure's blob transfers, tens of seconds over
+    /// a WAN link, and mostly AFTER the build that produced them has exited).
+    /// Resolving there reads whatever is checked out by then, so a `git checkout`
+    /// straight after a build permanently re-tags that build's still-draining
+    /// outputs with the new branch: a trunk build's outputs land tagged
+    /// `feature` and drop out of the trunk view they belong in.
+    ///
+    /// Binding at accept costs nothing: `git_context` is memoized on
+    /// GIT_CONTEXT_TTL, so this forks git at most once per TTL per instance,
+    /// never per publish.
     fn enqueue_publish(&self, cas_path: &str, instance: &str, record_path: &str) {
-        let mut item = Vec::with_capacity(4 + instance.len() + cas_path.len() + record_path.len());
+        let branch = self.resolve_branch(instance).unwrap_or_default();
+        let trunk = self.resolve_trunk(instance).unwrap_or_default();
+        let mut item = Vec::with_capacity(
+            8 + instance.len() + cas_path.len() + branch.len() + trunk.len() + record_path.len(),
+        );
         item.extend_from_slice(&(instance.len() as u16).to_be_bytes());
         item.extend_from_slice(instance.as_bytes());
         item.extend_from_slice(&(cas_path.len() as u16).to_be_bytes());
         item.extend_from_slice(cas_path.as_bytes());
+        // Empty encodes `None`: neither resolver can yield an empty branch name
+        // (both reject it), so the round trip is lossless.
+        item.extend_from_slice(&(branch.len() as u16).to_be_bytes());
+        item.extend_from_slice(branch.as_bytes());
+        item.extend_from_slice(&(trunk.len() as u16).to_be_bytes());
+        item.extend_from_slice(trunk.as_bytes());
         item.extend_from_slice(record_path.as_bytes());
         self.publisher.enqueue(item);
     }
@@ -1799,11 +1822,19 @@ impl Proxy {
         let Some((instance, rest)) = take_u16_field(item) else {
             return;
         };
-        let Some((cas_path, record_path)) = take_u16_field(rest) else {
+        let Some((cas_path, rest)) = take_u16_field(rest) else {
+            return;
+        };
+        let Some((branch, rest)) = take_u16_field(rest) else {
+            return;
+        };
+        let Some((trunk, record_path)) = take_u16_field(rest) else {
             return;
         };
         let instance = String::from_utf8_lossy(instance).into_owned();
         let cas_path = String::from_utf8_lossy(cas_path).into_owned();
+        let branch = non_empty(&String::from_utf8_lossy(branch));
+        let trunk = non_empty(&String::from_utf8_lossy(trunk));
         let record_path = String::from_utf8_lossy(record_path).into_owned();
         let remote = self.remote_for(&instance);
         let Ok(state) = self.path_state(&cas_path) else {
@@ -1833,7 +1864,7 @@ impl Proxy {
                 return;
             }
         }
-        match self.publish(&instance, &remote, state, &record) {
+        match self.publish(&remote, state, &record, branch.as_deref(), trunk.as_deref()) {
             Ok(()) => {
                 let _ = std::fs::remove_file(&record_path);
                 state.stats_published.fetch_add(1, Ordering::Relaxed);
@@ -1848,12 +1879,15 @@ impl Proxy {
         }
     }
 
+    /// `branch`/`trunk` are the tags bound when this record was accepted (see
+    /// `enqueue_publish`), not resolved here: by now the checkout may have moved.
     fn publish(
         &self,
-        instance: &str,
         remote: &Remote,
         state: &'static PathState,
         record: &PublishRecord,
+        branch: Option<&str>,
+        trunk: Option<&str>,
     ) -> Result<(), String> {
         let op_start = Instant::now();
         // Existence probe: only the first entry's digest is compared, so skip
@@ -1955,9 +1989,7 @@ impl Proxy {
                 }
             }
         }
-        let branch = self.resolve_branch(instance);
-        let trunk = self.resolve_trunk(instance);
-        let result = remote.update_action(&record.key, &entries, branch.as_deref(), trunk.as_deref());
+        let result = remote.update_action(&record.key, &entries, branch, trunk);
         if let Some(analytics) = &self.analytics {
             analytics.record_keyvalue(&record.key, "write", op_start.elapsed().as_secs_f64());
         }
@@ -2775,6 +2807,12 @@ impl Proxy {
     }
 }
 
+/// An owned copy of `value`, or `None` when it is empty. Publisher items encode
+/// an absent branch or trunk as a zero-length field.
+fn non_empty(value: &str) -> Option<String> {
+    (!value.is_empty()).then(|| value.to_owned())
+}
+
 /// Reads a `u16`-length-prefixed field from the front of `buf`, returning it
 /// and the remainder. `None` if the buffer is truncated.
 fn take_u16_field(buf: &[u8]) -> Option<(&[u8], &[u8])> {
@@ -3025,6 +3063,95 @@ mod tests {
             "a registry written before the branch column carries no branch"
         );
 
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    // Publishing is asynchronous and durable: a record is queued here and uploaded
+    // by a pool thread later, after the queue wait and the closure's WAN transfers
+    // typically after the build that produced it has exited. Resolving the tags
+    // at the upload would therefore read whatever HEAD says by then, so a
+    // `git checkout` right after a trunk build would re-tag that build's
+    // still-draining outputs `feature` and drop them out of the trunk view.
+    #[test]
+    fn a_queued_publish_keeps_the_branch_it_was_accepted_on() {
+        let dir = std::env::temp_dir().join(format!("tuist-publish-tag-{}", std::process::id()));
+        std::fs::remove_dir_all(&dir).ok();
+        let root = dir.join("checkout");
+        std::fs::create_dir_all(&root).expect("temp dir");
+        let git = |args: &[&str]| {
+            let status = std::process::Command::new("git")
+                .arg("-C")
+                .arg(&root)
+                .args(args)
+                .output()
+                .expect("git");
+            assert!(status.status.success(), "git {args:?}");
+        };
+        git(&["init", "-b", "main"]);
+        git(&["config", "user.email", "bench@tuist.dev"]);
+        git(&["config", "user.name", "bench"]);
+        std::fs::write(root.join("file"), "contents").expect("write");
+        git(&["add", "."]);
+        git(&["commit", "-m", "initial"]);
+
+        let registry = dir.join("registry");
+        std::fs::write(
+            sources_path_for(&registry),
+            format!("tuist/mastodon\t{}\tmain\n", root.display()),
+        )
+        .expect("write sources");
+
+        let proxy = Proxy::new(
+            "http://127.0.0.1:1".into(),
+            crate::token::TokenProvider::from_env(),
+            String::new(),
+            Some(registry),
+            None,
+        );
+        let captured: Arc<Mutex<Vec<Vec<u8>>>> = Arc::new(Mutex::new(Vec::new()));
+        let sink = Arc::clone(&captured);
+        // Replaces the publisher's real worker before any enqueue starts it, so
+        // the queued items land here instead of being uploaded to a remote.
+        proxy
+            .publisher
+            .configure(1, move |item| sink.lock().unwrap().push(item));
+
+        proxy.enqueue_publish("/cas", "tuist/mastodon", "/spool/on-main");
+        git(&["checkout", "-b", "feature"]);
+        // The proxy would otherwise reuse the memoized context for GIT_CONTEXT_TTL;
+        // expiring it is what a real checkout gets for free by waiting.
+        proxy.git_cache.lock().unwrap().clear();
+        proxy.enqueue_publish("/cas", "tuist/mastodon", "/spool/on-feature");
+
+        proxy
+            .publisher
+            .drain_stop_timeout(std::time::Duration::from_secs(10));
+        let items = captured.lock().unwrap();
+        assert_eq!(items.len(), 2, "both records queued");
+        let tags = |item: &[u8]| {
+            let (_, rest) = take_u16_field(item).expect("instance");
+            let (_, rest) = take_u16_field(rest).expect("cas path");
+            let (branch, rest) = take_u16_field(rest).expect("branch");
+            let (trunk, record) = take_u16_field(rest).expect("trunk");
+            (
+                String::from_utf8_lossy(branch).into_owned(),
+                String::from_utf8_lossy(trunk).into_owned(),
+                String::from_utf8_lossy(record).into_owned(),
+            )
+        };
+        let (branch, trunk, record) = tags(&items[0]);
+        assert_eq!(record, "/spool/on-main");
+        assert_eq!(
+            branch, "main",
+            "the record accepted on main stays tagged main after the checkout moved"
+        );
+        assert_eq!(trunk, "main");
+        let (branch, trunk, record) = tags(&items[1]);
+        assert_eq!(record, "/spool/on-feature");
+        assert_eq!(branch, "feature", "a later record takes the new branch");
+        assert_eq!(trunk, "main", "the trunk is the project's, not the checkout's");
+
+        drop(items);
         std::fs::remove_dir_all(&dir).ok();
     }
 
