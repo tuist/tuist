@@ -63,6 +63,40 @@ jobs:
           # set by Tart and the host CPU model leaks via sysctl.
           sysctl -n machdep.cpu.brand_string
 
+      - name: Cache volume — reproduce the prod failure
+        # The cache-volume rollout broke every macOS CI job with
+        # "Couldn't create the directory at path
+        # /Volumes/My Shared Files/cache/tuist/Plugins because its parent
+        # directory doesn't exists". dispatch-poll.sh exports
+        # TUIST_XDG_CACHE_HOME into the runner env, so this step sees exactly
+        # what the CLI would and performs the same first write. This is the
+        # evidence that was missing before production: a real job exercising a
+        # cache-volume host, not a host-side "volume provisioned" check.
+        run: |
+          set -uo pipefail
+          root="${TUIST_XDG_CACHE_HOME:-}"
+          echo "TUIST_XDG_CACHE_HOME=${root:-<unset>}"
+          echo "TUIST_CACHE_MAX_BYTES=${TUIST_CACHE_MAX_BYTES:-<unset>}"
+          case "${root}" in
+            *"My Shared Files"*) echo "MODE: cache volume share ACTIVE (the path that broke prod)" ;;
+            *tuist-cache-cold*)  echo "MODE: FAIL-SAFE fired — share was unusable, running local cold cache" ;;
+            "")                  echo "MODE: no cache volume (feature off / host didn't converge)" ;;
+            *)                   echo "MODE: unexpected cache root" ;;
+          esac
+          [ -n "${root}" ] || { echo "No cache root exported; nothing to assert."; exit 0; }
+          ls -ld "${root}" "${root}/tuist" 2>&1 || true
+          # The exact call that aborted every job in production.
+          if ! mkdir -p "${root}/tuist/Plugins"; then
+            echo "FAIL: cannot create ${root}/tuist/Plugins — this is the prod break"
+            exit 1
+          fi
+          if ! touch "${root}/tuist/Plugins/.smoke-probe"; then
+            echo "FAIL: cannot write inside ${root}/tuist/Plugins"
+            exit 1
+          fi
+          rm -f "${root}/tuist/Plugins/.smoke-probe"
+          echo "OK: created and wrote ${root}/tuist/Plugins"
+
       - name: Public reachability check
         run: |
           set -euo pipefail
