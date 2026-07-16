@@ -350,6 +350,17 @@ struct SetupCacheCommandService {
         if let registry = Environment.current.variables["TUIST_CAS_PROXY_REGISTRY"] {
             environmentVariables["TUIST_CAS_PROXY_REGISTRY"] = registry
         }
+        // Trunk ingestion pays for itself only where the machine can warm the CAS
+        // BEFORE a build: it pulls the trunk closure in the background so the next
+        // build finds it local. CI has no such window. The proxy and the build
+        // start together, so ingestion would race the build it is meant to help
+        // and compete for the bandwidth that build's own demand fetches need. Our
+        // runners have less use for it still: their CAS arrives warm on an
+        // attached volume, which is the mechanism there. The key cache (one round
+        // trip, orders of magnitude lighter) still applies on CI.
+        if Environment.current.isCI {
+            environmentVariables["TUIST_CAS_INGEST_TRUNK"] = "0"
+        }
 
         // One proxy per machine. Boot out any legacy per-project cache daemon so
         // the two do not both run.
