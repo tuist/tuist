@@ -13,7 +13,7 @@ use std::os::unix::fs::MetadataExt;
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, Condvar, Mutex};
+use std::sync::{Arc, Condvar, Mutex, RwLock};
 use std::time::{Duration, Instant, UNIX_EPOCH};
 
 use crate::prefetch::Prefetcher;
@@ -192,7 +192,14 @@ fn generation_changed(stored: Option<CasGeneration>, current: Option<CasGenerati
 /// until killed.
 pub struct PathState {
     up: &'static Upstream,
-    cas: llcas_cas_t,
+    // The handle addressing the store at `cas_path`. Behind a lock because it
+    // is REBOUND when the directory is wiped and recreated: an llcas handle
+    // holds the store's files open, so after an `rm -rf DerivedData` the old
+    // handle keeps answering from the deleted directory's still-open inodes --
+    // reads report objects the compiler cannot see, and writes land where
+    // nothing will ever read them. Readers hold the guard across their whole
+    // FFI call so a swap can never dispose a handle mid-use.
+    cas: RwLock<llcas_cas_t>,
     // The on-disk CAS directory this state wraps, kept so a resolve can restat
     // it for wipe detection (see `generation`).
     cas_path: String,
@@ -526,12 +533,75 @@ impl PathState {
         // Clearing it wholesale meant one mid-build prune signal threw away
         // the read-ahead wavefront's work and sent every later lookup back to
         // the remote (measured: ~2x the remote round trips of the key set).
+        // Keeping it is only safe while that guard probes the store the
+        // consumer reads: a wipe must rebind the handle (see `reopen_cas`)
+        // BEFORE this runs, or every retained Hit is re-verified against the
+        // deleted store and served as a `missing object` build failure.
         for shard in &self.known_local {
             shard.lock().unwrap().clear();
         }
         // `pending_objects` is also KEPT: entries are content-addressed fetch
         // instructions, valid for any incarnation of the store — after a wipe
         // they let demand loads refill exactly what is asked for.
+    }
+
+    /// Rebinds `cas` to the store that now lives at `cas_path`, releasing the
+    /// handle to the previous one. Called when a wipe is detected: an llcas
+    /// handle keeps the store's files open, so a deleted directory's inodes stay
+    /// alive and reachable THROUGH THAT HANDLE ALONE. Everything the proxy does
+    /// with it afterwards addresses a store no other process can see -- and
+    /// silently: the reads answer SUCCESS and the writes report success.
+    /// Dropping the marks is not enough on its own, because `load_present`
+    /// re-learns them from that same handle.
+    ///
+    /// The fresh handle is opened before the lock is taken, so a failure leaves
+    /// the existing one in place; the stale handle is disposed only once the
+    /// swap holds the write lock, where no thread can be inside a call with it.
+    /// Disposing (rather than leaking) also lets go of the deleted store's
+    /// inodes, which is what actually returns the disk the user meant to free.
+    fn reopen_cas(&self) -> Result<(), String> {
+        let fresh = unsafe { open_cas(self.up, &self.cas_path)? };
+        let mut cas = self.cas.write().unwrap();
+        let stale = std::mem::replace(&mut *cas, fresh);
+        unsafe { (self.up.llcas_cas_dispose)(stale) };
+        Ok(())
+    }
+
+    /// Authoritative on-disk presence for `digest`: an actual llcas load, the
+    /// same call the consumer will make, bypassing the known-local cache. Used
+    /// both by `is_local` (which memoizes a positive result) and to guard a
+    /// cached Hit against a wiped local CAS, where the in-memory marks lie.
+    /// Only as authoritative as the handle is current -- see `reopen_cas`.
+    fn load_present(&self, digest: &[u8]) -> bool {
+        // Held across the probe: a concurrent `reopen_cas` must not dispose the
+        // handle between the objectid lookup and the containment check.
+        let cas = self.cas.read().unwrap();
+        unsafe {
+            let digest_t = llcas_digest_t {
+                data: digest.as_ptr(),
+                size: digest.len(),
+            };
+            let mut id = llcas_objectid_t { opaque: 0 };
+            let mut error: *mut std::ffi::c_char = std::ptr::null_mut();
+            if (self.up.llcas_cas_get_objectid)(*cas, digest_t, &mut id, &mut error) {
+                if !error.is_null() {
+                    (self.up.llcas_string_dispose)(error);
+                }
+                return false;
+            }
+            // Existence check, not a data load: this runs once per served hit
+            // and once per manifest-entry probe, so loading object bytes here
+            // put real I/O on the resolve path (thousands of loads per warm
+            // build). A wiped or pruned store answers NOTFOUND either way,
+            // which is all the stale-hit guard needs.
+            let mut contains_error: *mut std::ffi::c_char = std::ptr::null_mut();
+            let result =
+                (self.up.llcas_cas_contains_object)(*cas, id, false, &mut contains_error);
+            if !contains_error.is_null() {
+                (self.up.llcas_string_dispose)(contains_error);
+            }
+            result == LLCAS_LOOKUP_RESULT_SUCCESS
+        }
     }
 }
 
@@ -850,7 +920,7 @@ impl Proxy {
         let cas = unsafe { open_cas(up, cas_path)? };
         let state: &'static PathState = Box::leak(Box::new(PathState {
             up,
-            cas,
+            cas: RwLock::new(cas),
             cas_path: cas_path.to_string(),
             generation: Mutex::new(cas_generation(cas_path)),
             gen_counter: AtomicU64::new(0),
@@ -921,7 +991,7 @@ impl Proxy {
         match fast_path(
             &state.resolved,
             key,
-            |value| self.load_present(state, value) || state.fetchable(value),
+            |value| state.load_present(value) || state.fetchable(value),
             || state.invalidate(),
         ) {
             FastPath::Hit(value) => return Ok(Some(value)),
@@ -964,7 +1034,7 @@ impl Proxy {
                     _ => None,
                 };
                 if let Some(value) = peeked {
-                    if self.load_present(state, &value) || state.fetchable(&value) {
+                    if state.load_present(&value) || state.fetchable(&value) {
                         return Ok(Some(value));
                     }
                 }
@@ -1333,7 +1403,7 @@ impl Proxy {
         declared_instance: &str,
         digest: &[u8],
     ) -> Result<bool, String> {
-        if self.load_present(state, digest) {
+        if state.load_present(digest) {
             return Ok(true);
         }
         let pending = state.pending_objects.lock().unwrap().get(digest).cloned();
@@ -1440,20 +1510,36 @@ impl Proxy {
     }
 
     /// Detects a wiped-and-recreated on-disk CAS (a deleted DerivedData under
-    /// this long-lived proxy) from a change in the CAS directory's identity and
-    /// drops the now-stale in-memory marks (`resolved`, `known_local`,
-    /// `publish_cache`) so a resolve re-probes and re-materializes authoritatively.
-    /// Called at the head of every resolve, so it covers uncached/changed keys
-    /// and parallel builds, not only re-requested cached Hits. The generation
-    /// lock is held across the invalidation so a concurrent resolve can't observe
-    /// the new generation as unchanged and filter against `known_local` while it
-    /// is being cleared.
+    /// this long-lived proxy) from a change in the CAS directory's identity,
+    /// rebinds the CAS handle to the new store, and drops the now-stale
+    /// in-memory marks (`resolved`, `known_local`, `publish_cache`) so a resolve
+    /// re-probes and re-materializes authoritatively. Called at the head of
+    /// every resolve, so it covers uncached/changed keys and parallel builds,
+    /// not only re-requested cached Hits. The generation lock is held across the
+    /// invalidation so a concurrent resolve can't observe the new generation as
+    /// unchanged and filter against `known_local` while it is being cleared.
+    ///
+    /// The handle is rebound BEFORE the counter is bumped, so a resolve that
+    /// probed the old store cannot have its answer committed: it snapshotted
+    /// `observed` before the bump, so `committable` drops the write. Dropping
+    /// the marks without rebinding would achieve nothing -- `load_present` would
+    /// re-learn every one of them from the deleted store (see `reopen_cas`).
     fn check_generation(&self, state: &PathState) {
         let Some(current) = cas_generation(&state.cas_path) else {
             return;
         };
         let mut stored = state.generation.lock().unwrap();
         if generation_changed(*stored, Some(current)) {
+            if let Err(message) = state.reopen_cas() {
+                // Leave `stored` untouched so the next resolve retries: serving
+                // from the old handle is answering about a store that no longer
+                // exists, which fails the compiler with `missing object`.
+                crate::log_line(&format!(
+                    "cas reopen after wipe failed for {}: {message}",
+                    state.cas_path
+                ));
+                return;
+            }
             state.invalidate();
             state.publish_cache.lock().unwrap().clear();
         }
@@ -1464,7 +1550,7 @@ impl Proxy {
         if state.shard(digest).lock().unwrap().contains(digest) {
             return true;
         }
-        if self.load_present(state, digest) {
+        if state.load_present(digest) {
             // Memoize the authoritative load only while still on this generation:
             // a wipe/prune that cleared the shards must not have this present-now
             // fact re-inserted for what may already be a replaced store.
@@ -1475,39 +1561,6 @@ impl Proxy {
             true
         } else {
             false
-        }
-    }
-
-    /// Authoritative on-disk presence for `digest`: an actual llcas load, the
-    /// same call the consumer will make, bypassing the known-local cache. Used
-    /// both by `is_local` (which memoizes a positive result) and to guard a
-    /// cached Hit against a wiped local CAS, where the in-memory marks lie.
-    fn load_present(&self, state: &PathState, digest: &[u8]) -> bool {
-        unsafe {
-            let digest_t = llcas_digest_t {
-                data: digest.as_ptr(),
-                size: digest.len(),
-            };
-            let mut id = llcas_objectid_t { opaque: 0 };
-            let mut error: *mut std::ffi::c_char = std::ptr::null_mut();
-            if (state.up.llcas_cas_get_objectid)(state.cas, digest_t, &mut id, &mut error) {
-                if !error.is_null() {
-                    (state.up.llcas_string_dispose)(error);
-                }
-                return false;
-            }
-            // Existence check, not a data load: this runs once per served hit
-            // and once per manifest-entry probe, so loading object bytes here
-            // put real I/O on the resolve path (thousands of loads per warm
-            // build). A wiped or pruned store answers NOTFOUND either way,
-            // which is all the stale-hit guard needs.
-            let mut contains_error: *mut std::ffi::c_char = std::ptr::null_mut();
-            let result =
-                (state.up.llcas_cas_contains_object)(state.cas, id, false, &mut contains_error);
-            if !contains_error.is_null() {
-                (state.up.llcas_string_dispose)(contains_error);
-            }
-            result == LLCAS_LOOKUP_RESULT_SUCCESS
         }
     }
 
@@ -2080,6 +2133,13 @@ impl Proxy {
             let Ok(state) = self.path_state(&cas_path) else {
                 continue;
             };
+            // Restat before warming. Nothing else on this path is a resolve, so
+            // without this a snapshot arriving after a wipe warms through a
+            // handle bound to the deleted store: the fetches cost bandwidth, the
+            // stores land where nothing reads them, and they hold the wiped
+            // directory's inodes on disk. The resolve that eventually rebinds
+            // discards it all. One restat per snapshot, not per key.
+            self.check_generation(state);
             let observed = state.gen_counter.load(Ordering::SeqCst);
             // Warm newest-first (the wire order) and stop at the node budget:
             // a shared namespace's snapshot carries every project's history,
@@ -2344,6 +2404,10 @@ unsafe fn open_cas(up: &'static Upstream, path: &str) -> Result<llcas_cas_t, Str
 }
 
 unsafe fn store_node(state: &PathState, node: &reapi::Node) -> Result<(), String> {
+    // Held for the whole store: the ref objectids are only meaningful to the
+    // handle that minted them, and a wipe must not swap it out mid-write.
+    let cas_guard = state.cas.read().unwrap();
+    let cas = *cas_guard;
     let mut ref_ids = Vec::with_capacity(node.refs.len());
     for reference in &node.refs {
         let digest = llcas_digest_t {
@@ -2352,7 +2416,7 @@ unsafe fn store_node(state: &PathState, node: &reapi::Node) -> Result<(), String
         };
         let mut id = llcas_objectid_t { opaque: 0 };
         let mut error: *mut std::ffi::c_char = std::ptr::null_mut();
-        if (state.up.llcas_cas_get_objectid)(state.cas, digest, &mut id, &mut error) {
+        if (state.up.llcas_cas_get_objectid)(cas, digest, &mut id, &mut error) {
             if !error.is_null() {
                 (state.up.llcas_string_dispose)(error);
             }
@@ -2367,7 +2431,7 @@ unsafe fn store_node(state: &PathState, node: &reapi::Node) -> Result<(), String
     let mut stored = llcas_objectid_t { opaque: 0 };
     let mut error: *mut std::ffi::c_char = std::ptr::null_mut();
     let failed = (state.up.llcas_cas_store_object)(
-        state.cas,
+        cas,
         data,
         ref_ids.as_ptr(),
         ref_ids.len(),
@@ -2387,13 +2451,17 @@ unsafe fn encode_node_blob(
     state: &PathState,
     digest: &[u8],
 ) -> Result<(Vec<u8>, Vec<Vec<u8>>), String> {
+    // Held for the whole decode: the loaded object and every id/digest borrowed
+    // out of it below belong to this handle, so a wipe must not dispose it here.
+    let cas_guard = state.cas.read().unwrap();
+    let cas = *cas_guard;
     let digest_t = llcas_digest_t {
         data: digest.as_ptr(),
         size: digest.len(),
     };
     let mut id = llcas_objectid_t { opaque: 0 };
     let mut id_error: *mut std::ffi::c_char = std::ptr::null_mut();
-    if (state.up.llcas_cas_get_objectid)(state.cas, digest_t, &mut id, &mut id_error) {
+    if (state.up.llcas_cas_get_objectid)(cas, digest_t, &mut id, &mut id_error) {
         if !id_error.is_null() {
             (state.up.llcas_string_dispose)(id_error);
         }
@@ -2401,21 +2469,21 @@ unsafe fn encode_node_blob(
     }
     let mut loaded = llcas_loaded_object_t { opaque: 0 };
     let mut load_error: *mut std::ffi::c_char = std::ptr::null_mut();
-    let result = (state.up.llcas_cas_load_object)(state.cas, id, &mut loaded, &mut load_error);
+    let result = (state.up.llcas_cas_load_object)(cas, id, &mut loaded, &mut load_error);
     if !load_error.is_null() {
         (state.up.llcas_string_dispose)(load_error);
     }
     if result != LLCAS_LOOKUP_RESULT_SUCCESS {
         return Err("local load".into());
     }
-    let data = (state.up.llcas_loaded_object_get_data)(state.cas, loaded);
+    let data = (state.up.llcas_loaded_object_get_data)(cas, loaded);
     let node_data = std::slice::from_raw_parts(data.data as *const u8, data.size);
-    let refs = (state.up.llcas_loaded_object_get_refs)(state.cas, loaded);
-    let count = (state.up.llcas_object_refs_get_count)(state.cas, refs);
+    let refs = (state.up.llcas_loaded_object_get_refs)(cas, loaded);
+    let count = (state.up.llcas_object_refs_get_count)(cas, refs);
     let mut ref_digests = Vec::with_capacity(count);
     for index in 0..count {
-        let child = (state.up.llcas_object_refs_get_id)(state.cas, refs, index);
-        let digest = (state.up.llcas_objectid_get_digest)(state.cas, child);
+        let child = (state.up.llcas_object_refs_get_id)(cas, refs, index);
+        let digest = (state.up.llcas_objectid_get_digest)(cas, child);
         ref_digests.push(std::slice::from_raw_parts(digest.data, digest.size).to_vec());
     }
     let blob = reapi::compress_frame(&reapi::encode_frame(&ref_digests, node_data));
@@ -2829,6 +2897,178 @@ mod tests {
         assert_ne!(
             before, after,
             "a recreated CAS directory must read as a new generation"
+        );
+    }
+
+    // A Proxy with no remote: the wipe tests only drive `check_generation`,
+    // which is local-only (restat, rebind, drop marks).
+    fn test_proxy() -> &'static Proxy {
+        Proxy::new(
+            "http://127.0.0.1:1".to_string(),
+            crate::token::TokenProvider::from_env(),
+            crate::upstream_path(),
+            None,
+            None,
+        )
+    }
+
+    // Builds a PathState over a real on-disk CAS at `path`, the way `path_state`
+    // does, so the wipe tests drive the production probe rather than a copy.
+    fn path_state_for(path: &str) -> &'static PathState {
+        let up = unsafe { Upstream::load(&crate::upstream_path()).unwrap() };
+        let up: &'static Upstream = Box::leak(Box::new(up));
+        let cas = unsafe { open_cas(up, path).unwrap() };
+        Box::leak(Box::new(PathState {
+            up,
+            cas: RwLock::new(cas),
+            cas_path: path.to_string(),
+            generation: Mutex::new(cas_generation(path)),
+            gen_counter: AtomicU64::new(0),
+            resolved: Mutex::new(HashMap::new()),
+            inflight: Mutex::new(HashSet::new()),
+            inflight_cvar: Condvar::new(),
+            known_local: std::array::from_fn(|_| Mutex::new(HashSet::new())),
+            publish_cache: Mutex::new(HashMap::new()),
+            last_used: AtomicU64::new(0),
+            pending_objects: Mutex::new(HashMap::new()),
+            stats_resolves: AtomicU64::new(0),
+            stats_remote_hits: AtomicU64::new(0),
+            stats_misses: AtomicU64::new(0),
+            stats_snapshot_hits: AtomicU64::new(0),
+            stats_demand_fetched: AtomicU64::new(0),
+            stats_blobs_fetched: AtomicU64::new(0),
+            stats_blobs_inlined: AtomicU64::new(0),
+            stats_published: AtomicU64::new(0),
+            ms_action: AtomicU64::new(0),
+            ms_filter: AtomicU64::new(0),
+            ms_fetch: AtomicU64::new(0),
+            ms_decode: AtomicU64::new(0),
+            ms_store: AtomicU64::new(0),
+        }))
+    }
+
+    // Stores a childless object and returns its digest.
+    fn store_probe_object(state: &PathState, payload: &[u8]) -> Vec<u8> {
+        unsafe {
+            let cas = *state.cas.read().unwrap();
+            let data = llcas_data_t {
+                data: payload.as_ptr() as *const std::ffi::c_void,
+                size: payload.len(),
+            };
+            let mut id = llcas_objectid_t { opaque: 0 };
+            let mut error: *mut std::ffi::c_char = std::ptr::null_mut();
+            assert!(
+                !(state.up.llcas_cas_store_object)(
+                    cas,
+                    data,
+                    std::ptr::null(),
+                    0,
+                    &mut id,
+                    &mut error
+                ),
+                "store must succeed"
+            );
+            let digest = (state.up.llcas_objectid_get_digest)(cas, id);
+            std::slice::from_raw_parts(digest.data, digest.size).to_vec()
+        }
+    }
+
+    struct TempCasDir(std::path::PathBuf);
+
+    impl TempCasDir {
+        fn new(tag: &str) -> Self {
+            let dir = std::env::temp_dir().join(format!("cas-{tag}-{}", std::process::id()));
+            let _ = std::fs::remove_dir_all(&dir);
+            std::fs::create_dir_all(&dir).unwrap();
+            Self(dir)
+        }
+        fn path(&self) -> String {
+            self.0.to_string_lossy().into_owned()
+        }
+        // The user action: `rm -rf DerivedData`, then the build recreates it.
+        fn wipe(&self) {
+            std::fs::remove_dir_all(&self.0).unwrap();
+            std::fs::create_dir_all(&self.0).unwrap();
+        }
+    }
+
+    impl Drop for TempCasDir {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    // The regression this whole guard exists for. An llcas handle pins the store
+    // it opened: after the directory is wiped, the pre-wipe handle still answers
+    // from the deleted inodes, so `load_present` reports objects the compiler
+    // cannot see. `is_local` trusts it, skips re-fetching, and clang -- which
+    // FAILS rather than recompiles on a missing object -- breaks the build.
+    // Rebinding the handle is what makes the probe authoritative again.
+    #[test]
+    fn load_present_does_not_answer_from_a_wiped_store() {
+        let dir = TempCasDir::new("wipe-read");
+        let state = path_state_for(&dir.path());
+        let digest = store_probe_object(state, b"tuist-cas-wipe-probe");
+        assert!(
+            state.load_present(&digest),
+            "sanity: the object is present before the wipe"
+        );
+
+        dir.wipe();
+        state.reopen_cas().unwrap();
+
+        assert!(
+            !state.load_present(&digest),
+            "a wiped store must read as empty: reporting the object present              skips the re-fetch and fails the compiler with `missing object`"
+        );
+    }
+
+    // The write half: a store through a pre-wipe handle reports success but
+    // lands in the deleted store, so re-fetching alone could never heal the
+    // build. After rebinding, what the proxy writes is what the compiler reads.
+    #[test]
+    fn stores_after_a_wipe_land_in_the_live_store() {
+        let dir = TempCasDir::new("wipe-write");
+        let state = path_state_for(&dir.path());
+
+        dir.wipe();
+        state.reopen_cas().unwrap();
+
+        let digest = store_probe_object(state, b"stored-after-the-wipe");
+        // A handle opened fresh is what the compiler in its own process gets.
+        let compiler_view = path_state_for(&dir.path());
+        assert!(
+            compiler_view.load_present(&digest),
+            "an object stored after the wipe must be visible to a handle opened              independently: otherwise the proxy is writing into a deleted store"
+        );
+    }
+
+    // check_generation is the only caller that rebinds, and it must do so from
+    // the wipe signal alone -- the marks it drops are worthless while the handle
+    // they get re-learned through still points at the deleted store.
+    #[test]
+    fn a_wipe_rebinds_the_handle_and_drops_the_marks() {
+        let dir = TempCasDir::new("wipe-guard");
+        let state = path_state_for(&dir.path());
+        let digest = store_probe_object(state, b"marked-local-before-the-wipe");
+        state.shard(&digest).lock().unwrap().insert(digest.clone());
+        let before = state.gen_counter.load(Ordering::SeqCst);
+
+        dir.wipe();
+        let proxy = test_proxy();
+        proxy.check_generation(state);
+
+        assert!(
+            state.gen_counter.load(Ordering::SeqCst) > before,
+            "a wipe must advance the generation so in-flight writes are dropped"
+        );
+        assert!(
+            !state.shard(&digest).lock().unwrap().contains(&digest),
+            "the known-local mark must be dropped"
+        );
+        assert!(
+            !state.load_present(&digest),
+            "and the probe behind it must now read the live store"
         );
     }
 }
