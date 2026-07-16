@@ -278,6 +278,54 @@ pub fn action_cache_index_key(namespace_id: &str, version_ms: u64, action_hash: 
     key
 }
 
+/// What an index row knows about its entry's branch, so a trunk-scoped scan can
+/// answer the filter from the row itself.
+pub enum IndexRowBranch<'a> {
+    /// Written before the branch was recorded in the row. Only the manifest
+    /// knows, and reading it is the cost the tag exists to avoid.
+    Unknown,
+    /// The entry's tag, `None` for an untagged (trunk-baseline) entry.
+    Known(Option<&'a str>),
+}
+
+/// Row value in the action-cache index CF: `{branch}\0{artifact_id}`, with an
+/// empty branch for an untagged entry.
+///
+/// The branch is duplicated out of the manifest on purpose. The scan is
+/// newest-first over a whole namespace, and a trunk-scoped view has to reject
+/// every entry belonging to another branch. Reading the tag from the manifest
+/// means a random point-read per rejected row, so a namespace whose recent
+/// history is feature churn paid a full random read for every entry it then
+/// threw away. Carrying it here makes the rejection cost one sequential step.
+pub fn action_cache_index_value(branch: Option<&str>, artifact_id: &str) -> Vec<u8> {
+    let branch = branch.unwrap_or_default();
+    let mut value = Vec::with_capacity(branch.len() + 1 + artifact_id.len());
+    value.extend_from_slice(branch.as_bytes());
+    value.push(0);
+    value.extend_from_slice(artifact_id.as_bytes());
+    value
+}
+
+/// Reads a row value written by either format. A value with no separator is a
+/// pre-branch row: a bare artifact id, whose branch only the manifest knows.
+pub fn decode_action_cache_index_value(
+    value: &[u8],
+) -> Result<(IndexRowBranch<'_>, &str), String> {
+    let invalid = |error| format!("invalid action-cache index value: {error}");
+    match value.iter().position(|byte| *byte == 0) {
+        Some(split) => {
+            let branch = std::str::from_utf8(&value[..split]).map_err(invalid)?;
+            let artifact_id = std::str::from_utf8(&value[split + 1..]).map_err(invalid)?;
+            let branch = (!branch.is_empty()).then_some(branch);
+            Ok((IndexRowBranch::Known(branch), artifact_id))
+        }
+        None => Ok((
+            IndexRowBranch::Unknown,
+            std::str::from_utf8(value).map_err(invalid)?,
+        )),
+    }
+}
+
 pub fn action_cache_index_prefix(namespace_id: &str) -> Vec<u8> {
     let mut prefix = Vec::with_capacity(namespace_id.len() + 1);
     prefix.extend_from_slice(namespace_id.as_bytes());

@@ -55,7 +55,8 @@ use crate::{
     },
     usage::UsageRollup,
     utils::{
-        action_cache_index_key, action_cache_index_prefix, action_cache_manifest_hash,
+        action_cache_index_key, action_cache_index_prefix, action_cache_index_value,
+        action_cache_manifest_hash, decode_action_cache_index_value, IndexRowBranch,
         artifact_storage_id, ensure_tmp_dir_capacity, module_key, namespace_artifact_index_key,
         now_ms, segment_artifact_index_key, segment_artifact_index_prefix, segment_path,
         temp_file_path,
@@ -775,7 +776,7 @@ impl Store {
             batch.put_cf(
                 self.cf(ROCKSDB_CF_ACTION_CACHE_INDEX),
                 action_cache_index_key(&manifest.namespace_id, manifest.version_ms, action_hash),
-                artifact_id.as_bytes(),
+                action_cache_index_value(manifest.branch.as_deref(), &artifact_id),
             );
         }
         if let Some(previous_manifest) = &existing
@@ -1371,7 +1372,7 @@ impl Store {
             batch.put_cf(
                 self.cf(ROCKSDB_CF_ACTION_CACHE_INDEX),
                 action_cache_index_key(&manifest.namespace_id, manifest.version_ms, action_hash),
-                artifact_id.as_bytes(),
+                action_cache_index_value(manifest.branch.as_deref(), &artifact_id),
             );
         }
         self.append_artifact_replication_messages(
@@ -2786,17 +2787,18 @@ impl Store {
         // a crashed batch or a pre-fix overwrite can linger — drop it here so
         // the index converges instead of paying the dead point-read forever.
         let mut stale_rows: Vec<Vec<u8>> = Vec::new();
-        // Bound the WORK, not only the output. Untrunked, the two were the same:
-        // every live row counted toward `max_entries`, so the walk stopped after
-        // `max_entries` point-reads. Filtering by trunk breaks that, because a
-        // skipped feature row still costs its point-read and never advances the
-        // cap — so a namespace whose newest entries are feature churn would be
-        // read end to end on every view rebuild, and the rebuild is periodic.
-        // Newest-first ordering means the rows examined first are the ones worth
-        // keeping, so stopping early yields a smaller but still current trunk
-        // view rather than a wrong one.
-        let scan_budget = max_entries.saturating_mul(ACTION_CACHE_TRUNK_SCAN_FACTOR);
-        let mut scanned = 0usize;
+        // Bounds the point-reads, which are the work: each is a random read into
+        // the manifests CF, where advancing the iterator is a sequential step over
+        // a compact CF. A row that carries its branch answers the trunk filter
+        // without being read at all, so feature churn no longer costs anything to
+        // reject and no longer eats this budget. What remains under it is rows
+        // written before the branch was recorded, plus stale rows: both have to
+        // ask the manifest, and both are finite and self-clearing. Newest-first
+        // means the rows examined first are the ones worth keeping, so stopping
+        // early yields a smaller but still current trunk view rather than a wrong
+        // one.
+        let read_budget = max_entries.saturating_mul(ACTION_CACHE_TRUNK_SCAN_FACTOR);
+        let mut read = 0usize;
         for item in iter {
             let (index_key, artifact_id) =
                 item.map_err(|error| format!("failed to iterate action-cache index: {error}"))?;
@@ -2806,17 +2808,25 @@ impl Store {
             if manifests.len() >= max_entries {
                 break;
             }
-            scanned += 1;
-            if trunk.is_some() && scanned > scan_budget {
+            let (row_branch, artifact_id) = decode_action_cache_index_value(&artifact_id)?;
+            // The row's own tag settles the filter for every entry indexed since
+            // the branch was recorded, which is the whole point of carrying it.
+            if let IndexRowBranch::Known(branch) = row_branch
+                && !branch_in_trunk(branch, trunk)
+            {
+                continue;
+            }
+            read += 1;
+            if trunk.is_some() && read > read_budget {
                 // Say so rather than quietly return a short view: a namespace
                 // that trips this is telling us its trunk entries are buried
                 // under feature churn, which is what a branch-keyed index would
                 // fix at the source.
                 tracing::warn!(
                     namespace_id,
-                    scanned,
+                    read,
                     kept = manifests.len(),
-                    "action-cache trunk scan hit its budget; view truncated"
+                    "action-cache trunk scan hit its read budget; view truncated"
                 );
                 break;
             }
@@ -2824,8 +2834,6 @@ impl Store {
                 .get(prefix.len()..prefix.len() + 8)
                 .and_then(|bytes| <[u8; 8]>::try_from(bytes).ok())
                 .map(|bytes| !u64::from_be_bytes(bytes));
-            let artifact_id = std::str::from_utf8(&artifact_id)
-                .map_err(|error| format!("invalid action-cache index value: {error}"))?;
             match self.manifest_from_db(artifact_id)? {
                 Some(manifest)
                     if manifest.producer == ArtifactProducer::Reapi
@@ -2851,8 +2859,23 @@ impl Store {
         Ok(manifests)
     }
 
+    /// Versioned: the rows now carry their branch, and a namespace indexed before
+    /// that would otherwise keep its pre-branch rows forever and go on paying a
+    /// point-read to reject every feature entry. Bumping the version re-runs the
+    /// one-time backfill per namespace, which rewrites every row in the new
+    /// format. Correct either way, since a pre-branch row still reads its tag
+    /// from the manifest; this is what makes it stop being slow.
+    ///
+    /// This index is local derived state and is never replicated, so a rolling
+    /// deploy needs nothing from it: each node reads only rows it wrote. A
+    /// DOWNGRADE is the one direction that costs anything. The older binary takes
+    /// a row value to be the whole artifact id, fails to find that manifest, and
+    /// retires the row as stale, so it walks back to an empty index and serves
+    /// short views until ordinary publishes refill it. Slow, bounded, and
+    /// self-healing rather than wrong: an entry missing from a view is fetched
+    /// per key.
     fn action_cache_index_marker_key(namespace_id: &str) -> String {
-        format!("action_cache_index/backfilled/{namespace_id}")
+        format!("action_cache_index/backfilled/v2/{namespace_id}")
     }
 
     fn action_cache_index_backfilled(&self, namespace_id: &str) -> Result<bool, String> {
@@ -2908,7 +2931,7 @@ impl Store {
             batch.put_cf(
                 self.cf(ROCKSDB_CF_ACTION_CACHE_INDEX),
                 action_cache_index_key(namespace_id, manifest.version_ms, action_hash),
-                manifest.artifact_id.as_bytes(),
+                action_cache_index_value(manifest.branch.as_deref(), &manifest.artifact_id),
             );
             rows += 1;
             // The index row is written for every entry regardless of the trunk
@@ -4083,8 +4106,14 @@ fn sticky_branch<'a>(
 /// baseline; entries tagged with a different branch are excluded. `None` keeps
 /// every entry.
 fn manifest_in_trunk(manifest: &ArtifactManifest, trunk: Option<&str>) -> bool {
+    branch_in_trunk(manifest.branch.as_deref(), trunk)
+}
+
+/// The same rule against a bare tag, so an index row and a manifest cannot drift
+/// apart on what belongs in a trunk view.
+fn branch_in_trunk(branch: Option<&str>, trunk: Option<&str>) -> bool {
     match trunk {
-        Some(trunk) => manifest.branch.as_deref() == Some(trunk) || manifest.branch.is_none(),
+        Some(trunk) => branch == Some(trunk) || branch.is_none(),
         None => true,
     }
 }
@@ -4454,6 +4483,55 @@ mod tests {
         assert!(keys.contains(&"action_cache/aa/10"));
         assert!(keys.contains(&"action_cache/cc/10"));
         assert!(!keys.contains(&"action_cache/bb/10"));
+    }
+
+    /// Trunk entries have to be reachable when they are buried under feature
+    /// churn, which is the whole situation this scoping exists for. Rejecting a
+    /// feature row costs nothing now that the row carries its own tag, so the
+    /// churn cannot exhaust the budget that bounds reads before the walk reaches
+    /// the trunk entries underneath it.
+    #[tokio::test]
+    async fn action_cache_manifests_reach_trunk_entries_buried_under_feature_churn() {
+        let (_temp_dir, _config, store) = temp_store();
+        async fn publish(store: &Store, key: &str, branch: Option<&str>) {
+            store
+                .persist_inline_artifact_from_bytes_damped_and_enqueue(
+                    ArtifactProducer::Reapi,
+                    "ios",
+                    key,
+                    "application/x-protobuf",
+                    b"graph",
+                    &[],
+                    branch,
+                    None,
+                )
+                .await
+                .expect("action-cache entry should persist");
+        }
+        // Oldest, and last in the index under either ordering: it loses the
+        // newest-first comparison on version, and `zzz` loses the action-hash tie
+        // that a same-millisecond publish falls back on.
+        publish(&store, "action_cache/zzz", Some("main")).await;
+        // Enough feature rows ahead of it to exceed `max_entries * FACTOR`, which
+        // is what used to end the walk before it ever arrived.
+        for index in 0..(ACTION_CACHE_TRUNK_SCAN_FACTOR * 2) {
+            publish(&store, &format!("action_cache/f{index:02}"), Some("feature")).await;
+        }
+
+        // The first call backfills and sets the marker; only after it does the
+        // indexed path (the one with the budget) run at all.
+        store
+            .action_cache_manifests("ios", 1, Some("main"))
+            .expect("backfill should succeed");
+        let trunk = store
+            .action_cache_manifests("ios", 1, Some("main"))
+            .expect("indexed trunk scan should succeed");
+        assert_eq!(
+            trunk.len(),
+            1,
+            "the trunk entry is found under the feature churn instead of the view being truncated"
+        );
+        assert_eq!(trunk[0].key, "action_cache/zzz");
     }
 
     #[tokio::test]
