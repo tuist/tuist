@@ -898,24 +898,28 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
         "00000000-0000-0000-0000-000000000001"
       end)
 
+      # Synthetic: no catalog region is cluster-DNS private today (the one that
+      # was went with its node pool), but a private region that omits
+      # `data_plane` still falls back to it, so the manifest builder has to keep
+      # handling it.
       region = %Regions{
-        id: "hetzner-staging-runners",
+        id: "cluster-dns-runners",
         provisioner_config: %{
-          cluster_id: "staging",
+          cluster_id: "cluster-dns",
           private: true,
           private_url_template: "http://{instance}.kura.svc.cluster.local:4000",
           data_plane: :cluster_dns,
           client_cidrs: [],
           pod_annotations: %{},
-          node_selector: %{"node.cluster.x-k8s.io/pool" => "kura"},
-          storage_class: "hcloud-volumes",
+          node_selector: %{"node.cluster.x-k8s.io/pool" => "kura-cluster-dns"},
+          storage_class: "scw-local-nvme",
           replicas: 1
         }
       }
 
       spec =
         KubernetesController.manifest(
-          "kura-tuist-staging",
+          "kura-tuist-cluster-dns",
           "0.5.2",
           %{name: "tuist"},
           region,

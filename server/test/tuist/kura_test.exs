@@ -581,7 +581,7 @@ defmodule Tuist.KuraTest do
       stub(Tuist.Environment, :test?, fn -> false end)
 
       stub(Tuist.Environment, :kura_available_region_ids, fn ->
-        ["scw-fr-par-runners", "hetzner-staging-runners"]
+        ["eu-central", "scw-fr-par-runners"]
       end)
 
       :ok
@@ -637,7 +637,7 @@ defmodule Tuist.KuraTest do
       stub(Tuist.Environment, :test?, fn -> false end)
 
       stub(Tuist.Environment, :kura_available_region_ids, fn ->
-        ["scw-fr-par-runners", "hetzner-staging-runners"]
+        ["eu-central", "scw-fr-par-runners"]
       end)
 
       user = AccountsFixtures.user_fixture()
@@ -704,14 +704,16 @@ defmodule Tuist.KuraTest do
       assert DateTime.compare(refreshed.last_ready_at, stamp) == :eq
     end
 
-    test "is a no-op for cluster-DNS private servers" do
+    test "is a no-op outside a node-port region" do
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
 
+      # Only a node-port region carries an endpoint worth refreshing; anywhere
+      # else the URL is Service DNS and never moves.
       {:ok, server} =
         Kura.create_server(%{
           account_id: account.id,
-          region: "hetzner-staging-runners",
+          region: "eu-central",
           image_tag: "0.5.2"
         })
 
@@ -733,7 +735,7 @@ defmodule Tuist.KuraTest do
       stub(Tuist.Environment, :test?, fn -> false end)
 
       stub(Tuist.Environment, :kura_available_region_ids, fn ->
-        ["scw-fr-par-runners", "hetzner-staging-runners"]
+        ["eu-central", "scw-fr-par-runners"]
       end)
 
       user = AccountsFixtures.user_fixture()
@@ -773,34 +775,10 @@ defmodule Tuist.KuraTest do
       assert Kura.runner_cache_endpoint_url(account, :macos) == nil
     end
 
-    test "cluster-DNS private servers serve regardless of the heartbeat" do
-      stub(Tuist.Environment, :dev?, fn -> false end)
-      stub(Tuist.Environment, :test?, fn -> false end)
-
-      stub(Tuist.Environment, :kura_available_region_ids, fn ->
-        ["scw-fr-par-runners", "hetzner-staging-runners"]
-      end)
-
-      user = AccountsFixtures.user_fixture()
-      account = Accounts.get_account_from_user(user)
-
-      {:ok, server} =
-        Kura.create_server(%{
-          account_id: account.id,
-          region: "hetzner-staging-runners",
-          image_tag: "0.5.2"
-        })
-
-      stub(Provisioner, :public_url, fn _account, %Server{} -> "http://kura-tuist.kura.svc.cluster.local" end)
-      {:ok, active} = Kura.activate_server(server, "0.5.2")
-
-      # The node-port heartbeat path never runs for cluster-DNS, so last_ready_at
-      # stays ancient — it must still serve (the in-cluster Service gates readiness).
-      ancient = ~U[2020-01-01 00:00:00Z]
-      Server |> Repo.get!(active.id) |> Ecto.Changeset.change(last_ready_at: ancient) |> Repo.update!()
-
-      assert Kura.runner_cache_endpoint_url(account, :linux) == active.url
-    end
+    # The heartbeat-exempt path for cluster-DNS private servers has no test:
+    # every private region is node-port today, so the configuration cannot be
+    # built. `private_runner_cache_url/2` keeps the branch because it is what a
+    # private region that omits `data_plane` would fall back to.
   end
 
   describe "runner_cache_endpoint_url/2 public in-cluster fallback" do
@@ -920,22 +898,17 @@ defmodule Tuist.KuraTest do
     end
 
     test "prefers a serving private runner-cache node over the public fallback", %{account: account} do
-      stub(Tuist.Environment, :kura_available_region_ids, fn ->
-        ["eu-central", "hetzner-staging-runners"]
-      end)
-
       activate_public_server!(account, "eu-central")
 
       {:ok, private} =
-        Kura.create_server(%{account_id: account.id, region: "hetzner-staging-runners", image_tag: "0.5.2"})
+        Kura.create_server(%{account_id: account.id, region: "scw-fr-par-runners", image_tag: "0.5.2"})
 
-      stub(Provisioner, :public_url, fn _account, %Server{} ->
-        "http://kura-private.kura.svc.cluster.local"
-      end)
-
+      expect(Provisioner, :external_endpoint, fn %Server{} -> {:ok, "http://172.16.0.2:30815"} end)
       {:ok, active_private} = Kura.activate_server(private, "0.5.2")
 
-      assert Kura.runner_cache_endpoint_url(account, :linux) == active_private.url
+      # activate_server/2 stamps last_ready_at, so the node serves at once and
+      # wins over the public server's in-cluster URL.
+      assert Kura.runner_cache_endpoint_url(account, :macos) == active_private.url
     end
 
     test "requires an active, CLI-visible public server", %{account: account} do

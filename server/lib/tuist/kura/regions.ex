@@ -175,16 +175,18 @@ defmodule Tuist.Kura.Regions do
   #
   #   * `scw-fr-par-runners` is pinned to Scaleway fr-par capacity next
   #     to the Apple-Silicon Mac mini fleet, so it serves `:macos` only —
-  #     handing its URL to a Hetzner Linux runner would route cache
-  #     traffic across the WAN, which is worse than the public ingress
-  #     it's meant to replace.
-  #   * `hetzner-staging-runners` lives in the staging umbrella
-  #     cluster's Hetzner (Falkenstein) node pool next to the Linux
-  #     kata Pods, so it serves `:linux` only. The staging Mac minis
-  #     CAN reach it over the tailnet, but they sit in Scaleway fr-par
-  #     — their cache lives in `scw-fr-par-runners`, the same region
-  #     spec production uses, so staging exercises the co-located
-  #     topology rather than a WAN-crossing one.
+  #     handing its URL to a Linux runner would route cache traffic
+  #     across the WAN, which is worse than the public ingress it's
+  #     meant to replace.
+  #
+  # Linux runners have no private cache region. `hetzner-staging-runners`
+  # was one, on the staging cluster's Hetzner node pool, but that pool is
+  # gone: the Kura fleet is bare metal (Dedibox/OVH/Scaleway Elastic
+  # Metal) and staging's Linux runners moved to the `runners-linux` pool.
+  # The spec outlived the pool and kept minting instances that could
+  # never schedule, so it was removed rather than repointed — staging's
+  # Mac minis already exercise the co-located topology through
+  # `scw-fr-par-runners`, the same spec production uses.
   @private_region_specs [
     %{
       id: "scw-fr-par-runners",
@@ -238,15 +240,6 @@ defmodule Tuist.Kura.Regions do
       tolerations: [
         %{"key" => "tuist.dev/runner-cache", "operator" => "Exists", "effect" => "NoSchedule"}
       ]
-    },
-    %{
-      id: "hetzner-staging-runners",
-      display_name: "Hetzner staging (runner cache)",
-      cluster_id: "staging",
-      node_pool: "kura",
-      storage_class: @managed_region_storage_class,
-      storage_size: "20Gi",
-      runner_platforms: [:linux]
     }
   ]
 

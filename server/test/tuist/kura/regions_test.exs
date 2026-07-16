@@ -97,7 +97,7 @@ defmodule Tuist.Kura.RegionsTest do
     end
 
     test "enables the per-account peer mesh on managed and private regions" do
-      for id <- ["us-east", "us-west", "eu-central", "scw-fr-par-runners", "hetzner-staging-runners"] do
+      for id <- ["us-east", "us-west", "eu-central", "ca-east", "scw-fr-par-runners"] do
         assert Regions.get(id).provisioner_config.mesh == true,
                "expected region #{id} to enable the peer mesh"
       end
@@ -108,8 +108,11 @@ defmodule Tuist.Kura.RegionsTest do
                %{"key" => "tuist.dev/runner-cache", "operator" => "Exists", "effect" => "NoSchedule"}
              ]
 
-      # The Hetzner runner-cache pool isn't tainted, so its region carries no toleration.
-      assert Regions.get("hetzner-staging-runners").provisioner_config.tolerations == []
+      # The customer-facing cache pools carry their own taint, not the
+      # runner-cache one, so their regions never tolerate it.
+      assert Regions.get("eu-central").provisioner_config.tolerations == [
+               %{"key" => "tuist.dev/kura-cache", "operator" => "Exists", "effect" => "NoSchedule"}
+             ]
     end
 
     test "exposes a local controller-backed region for kind smoke tests" do
@@ -235,7 +238,7 @@ defmodule Tuist.Kura.RegionsTest do
   end
 
   describe "private runner-cache regions" do
-    test "scaleway and hetzner-staging runner regions are registered as private" do
+    test "the scaleway runner region is registered as private" do
       assert %Regions{provisioner_config: scw_config} = Regions.get("scw-fr-par-runners")
       assert scw_config.private == true
       assert scw_config.storage_class == "scw-local-nvme"
@@ -251,18 +254,15 @@ defmodule Tuist.Kura.RegionsTest do
       refute Map.has_key?(scw_config, :public_host_template)
       refute Map.has_key?(scw_config, :ingress_class_name)
 
-      assert %Regions{provisioner_config: hetzner_config} = Regions.get("hetzner-staging-runners")
-      assert hetzner_config.private == true
-      assert hetzner_config.storage_class == "hcloud-volumes"
-      assert hetzner_config.replicas == 1
-      assert hetzner_config.node_selector == %{"node.cluster.x-k8s.io/pool" => "kura"}
+      # The only private region. Linux runners have no cache region of their
+      # own: the Hetzner-backed staging one was removed with its node pool.
+      assert Regions.all() |> Enum.filter(&Regions.private?/1) |> Enum.map(& &1.id) == ["scw-fr-par-runners"]
     end
   end
 
   describe "private?/1" do
     test "is true only for private regions" do
       assert Regions.private?(Regions.get("scw-fr-par-runners"))
-      assert Regions.private?(Regions.get("hetzner-staging-runners"))
       refute Regions.private?(Regions.get("eu-central"))
       refute Regions.private?(Regions.get("local-controller"))
       refute Regions.private?(nil)
@@ -278,17 +278,14 @@ defmodule Tuist.Kura.RegionsTest do
       refute Regions.serves_runner_platform?(scw, :linux)
     end
 
-    test "staging hetzner region serves only the co-located linux fleet" do
-      staging = Regions.get("hetzner-staging-runners")
-
-      assert staging.runner_platforms == [:linux]
-      assert Regions.serves_runner_platform?(staging, :linux)
-      refute Regions.serves_runner_platform?(staging, :macos)
+    test "no region serves the linux fleet" do
+      # The Hetzner-backed staging region was the only :linux one, and it went
+      # with its node pool. Linux runners fall back to the public endpoint.
+      refute Enum.any?(Regions.all(), &Regions.serves_runner_platform?(&1, :linux))
     end
 
-    test "scw region uses the node-port data plane; hetzner stays on cluster DNS" do
+    test "scw region uses the node-port data plane; customer regions stay on cluster DNS" do
       assert Regions.node_port_data_plane?(Regions.get("scw-fr-par-runners"))
-      refute Regions.node_port_data_plane?(Regions.get("hetzner-staging-runners"))
       refute Regions.node_port_data_plane?(Regions.get("eu-central"))
       refute Regions.node_port_data_plane?(nil)
     end
@@ -304,13 +301,13 @@ defmodule Tuist.Kura.RegionsTest do
     test "excludes private regions a customer cannot pick" do
       stub(Tuist.Environment, :dev?, fn -> false end)
       stub(Tuist.Environment, :test?, fn -> false end)
-      stub(Tuist.Environment, :kura_available_region_ids, fn -> ["eu-central", "hetzner-staging-runners"] end)
+      stub(Tuist.Environment, :kura_available_region_ids, fn -> ["eu-central", "scw-fr-par-runners"] end)
 
       available_ids = Enum.map(Regions.available(), & &1.id)
       selectable_ids = Enum.map(Regions.selectable(), & &1.id)
 
-      assert "hetzner-staging-runners" in available_ids
-      refute "hetzner-staging-runners" in selectable_ids
+      assert "scw-fr-par-runners" in available_ids
+      refute "scw-fr-par-runners" in selectable_ids
       assert "eu-central" in selectable_ids
     end
   end
