@@ -94,17 +94,16 @@ defmodule TuistWeb.RunnersLiveTest do
   end
 
   test "marks limit buckets and renders the configured threshold" do
-    [admitted_usage, at_limit, limit] =
-      TuistWeb.RunnersLive.concurrency_chart_series([6, 12, 18], 12, "Peak CPU")
+    [usage, limit] = TuistWeb.RunnersLive.concurrency_chart_series([6, 12, 18], 12, "Peak CPU")
 
-    assert admitted_usage.data == [6, nil, nil]
-    assert admitted_usage.name == "Peak CPU"
-    assert admitted_usage.itemStyle.color == "var:noora-chart-primary"
+    assert usage.name == "Peak CPU"
+    assert usage.itemStyle.color == "var:noora-chart-primary"
 
-    assert at_limit.data == [nil, 12, 18]
-    assert at_limit.name == "Limit reached"
-    assert at_limit.itemStyle.color == "var:noora-chart-destructive"
-    assert at_limit.stack == admitted_usage.stack
+    assert usage.data == [
+             6,
+             %{value: 12, itemStyle: %{color: "var:noora-chart-destructive"}},
+             %{value: 18, itemStyle: %{color: "var:noora-chart-destructive"}}
+           ]
 
     assert limit.data == [12, 12, 12]
     assert limit.itemStyle.color == "var:noora-chart-destructive"
