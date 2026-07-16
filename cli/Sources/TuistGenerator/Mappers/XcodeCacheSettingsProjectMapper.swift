@@ -44,24 +44,15 @@ public struct XcodeCacheSettingsProjectMapper: ProjectMapping {
 
         baseSettings["COMPILATION_CACHE_ENABLE_CACHING"] = "YES"
         if let fullHandle = tuist.fullHandle {
-            // On the macOS runner fleet the host attaches a per-account, block-
-            // device-backed compilation cache and exports TUIST_COMPILATION_CACHE_DIR.
-            // Point Xcode's CAS at it (persistent, per project handle) and keep it
-            // across builds so the warm store survives a DerivedData wipe. The store
-            // cannot live on the virtio-fs share directly — llcas's mmap'd file
-            // locking faults with SIGBUS there — so the host mounts it as a disk
-            // image and this dir is that mount. LIMIT_PERCENT bounds the store to a
-            // fraction of that dedicated image volume, leaving ENOSPC headroom. Off
-            // runners the env is unset and this whole block is a no-op (Xcode keeps
-            // its default in-DerivedData CAS).
-            if let casDir = Environment.current.variables["TUIST_COMPILATION_CACHE_DIR"],
-               !casDir.isEmpty
-            {
-                let handleComponent = fullHandle.replacingOccurrences(of: "/", with: "_")
-                baseSettings["COMPILATION_CACHE_CAS_PATH"] = .string("\(casDir)/\(handleComponent)")
-                baseSettings["COMPILATION_CACHE_KEEP_CAS_DIRECTORY"] = "YES"
-                baseSettings["COMPILATION_CACHE_LIMIT_PERCENT"] = "80"
-            }
+            // NOTE: the CAS *location* is deliberately NOT set here. On the macOS
+            // runner fleet the host attaches a per-account compilation-cache disk
+            // image and injects COMPILATION_CACHE_CAS_PATH into every build via
+            // XCODE_XCCONFIG_FILE (see infra/runner-image/dispatch-poll.sh). That
+            // is the only layer that reaches the common case — a plain
+            // `xcodebuild build` against a project Tuist never generated — which a
+            // project mapper cannot touch. Setting it here too would give
+            // generated projects a different (higher-precedence) store than
+            // everything else on the same runner.
             if kuraEnabled {
                 // kura path: route Xcode's compilation caching through the Tuist
                 // CAS plugin, which owns remote (kura) read/write-through via the

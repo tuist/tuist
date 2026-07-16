@@ -102,6 +102,9 @@ STATUS_SHARE="/Volumes/My Shared Files/status"
 CAS_IMAGE_NAME="xcode-cas.sparseimage"
 CAS_MOUNT="/Users/runner/xcode-cas"
 CAS_ATTACHED=""
+# The xcconfig that points every xcodebuild in the job at the attached image.
+# Lives on the VM's own disk, not the share: xcodebuild only reads it.
+CAS_XCCONFIG="/Users/runner/.tuist-cas.xcconfig"
 # Presigned PUT URL for this account's master archive (from the dispatch
 # response); the HEAD report endpoint is the dispatch URL's sibling.
 VOLUME_HEAD_UPLOAD=""
@@ -149,24 +152,63 @@ mount_cache_volume() {
 
 # attach_cas_image attaches the per-account CAS disk image the host clonefiled
 # into the branch (present only when the CAS-volume feature is on and the host
-# materialized one) as a block device, and points the CLI's compilation cache at
-# it via TUIST_COMPILATION_CACHE_DIR. Attaching gives a real APFS volume whose
-# block layer reads/writes the backing file — sidestepping the virtio-fs mmap
-# SIGBUS that a CAS pointed straight at the share would hit. Absent image => the
-# compilation cache falls to the VM-local default (cold, dies with the VM), which
-# is exactly today's behavior. Never blocks the job.
+# materialized one) as a block device, and points EVERY xcodebuild build in the
+# job at it. Attaching gives a real APFS volume whose block layer reads/writes
+# the backing file — sidestepping the virtio-fs mmap SIGBUS that a CAS pointed
+# straight at the share would hit. Absent image => the compilation cache falls to
+# the VM-local default (cold, dies with the VM), i.e. today's behavior. Never
+# blocks the job.
+#
+# The CAS location rides XCODE_XCCONFIG_FILE, not a build setting Tuist writes
+# into a project: the common case is a plain `xcodebuild build` against a project
+# Tuist never generated and never wraps, so a project mapper (generate-only) and
+# `tuist xcodebuild` (wrapper-only) both miss it. An xcconfig injected through the
+# environment is the one layer every xcodebuild invocation honors. Measured on
+# staging: COMPILATION_CACHE_* exported as plain env vars does NOTHING (xcodebuild
+# does not read build settings from the environment); via XCODE_XCCONFIG_FILE a
+# raw build caches onto the image and replays warm.
+#
+# Deliberately does NOT set COMPILATION_CACHE_ENABLE_CACHING: enabling the cache
+# stays the project's opt-in (generated settings, or the manual ones from
+# `tuist setup cache`). This only tells a build that ALREADY caches where to keep
+# its store, so a project that never opted in is unaffected.
+#
+# xcconfig sits BELOW project/target-defined settings, so a project that sets
+# COMPILATION_CACHE_CAS_PATH itself still wins — an escape hatch, and the reason
+# we cannot force a stray target-level value onto the image (documented limit).
 attach_cas_image() {
   [ -n "${CACHE_MOUNT}" ] || return 0
   local img="${CACHE_MOUNT}/${CAS_IMAGE_NAME}"
   [ -f "${img}" ] || { echo "$(date -u +%FT%TZ) dispatch-poll: no CAS image; compilation cache runs VM-local"; return 0; }
   mkdir -p "${CAS_MOUNT}" 2>/dev/null || true
-  if hdiutil attach "${img}" -mountpoint "${CAS_MOUNT}" -nobrowse -owners on >/dev/null 2>&1; then
-    CAS_ATTACHED="${CAS_MOUNT}"
-    export TUIST_COMPILATION_CACHE_DIR="${CAS_MOUNT}"
-    echo "$(date -u +%FT%TZ) dispatch-poll: CAS image attached at ${CAS_MOUNT}; TUIST_COMPILATION_CACHE_DIR set"
-  else
+  if ! hdiutil attach "${img}" -mountpoint "${CAS_MOUNT}" -nobrowse -owners on >/dev/null 2>&1; then
     echo "$(date -u +%FT%TZ) dispatch-poll: WARNING CAS image attach failed; compilation cache runs VM-local"
+    return 0
   fi
+  CAS_ATTACHED="${CAS_MOUNT}"
+
+  # One store per account image. Not per project handle: a raw xcodebuild knows
+  # no Tuist handle, so a handle-keyed path could not be produced here — and it
+  # needs none. The image is already per-account (one trust domain), the store is
+  # content-addressed, and a VM runs one job at a time, so sharing it across an
+  # account's projects is safe and dedups their common dependencies.
+  local store="${CAS_MOUNT}/store"
+  mkdir -p "${store}" 2>/dev/null || true
+  {
+    # Chain a pre-existing user xcconfig rather than clobbering it — the variable
+    # is a single slot. (A workflow that exports it AFTER us still wins; the CAS
+    # then falls back to VM-local, which degrades warmth but never breaks a job.)
+    if [ -n "${XCODE_XCCONFIG_FILE:-}" ] && [ -f "${XCODE_XCCONFIG_FILE}" ]; then
+      printf '#include "%s"\n' "${XCODE_XCCONFIG_FILE}"
+    fi
+    printf 'COMPILATION_CACHE_CAS_PATH = %s\n' "${store}"
+    printf 'COMPILATION_CACHE_KEEP_CAS_DIRECTORY = YES\n'
+    # Bound the store to a fraction of the dedicated image volume, so llcas prunes
+    # before the image can hit ENOSPC.
+    printf 'COMPILATION_CACHE_LIMIT_PERCENT = 80\n'
+  } > "${CAS_XCCONFIG}"
+  export XCODE_XCCONFIG_FILE="${CAS_XCCONFIG}"
+  echo "$(date -u +%FT%TZ) dispatch-poll: CAS image attached at ${CAS_MOUNT}; XCODE_XCCONFIG_FILE -> ${CAS_XCCONFIG} (store=${store})"
 }
 
 # detach_cas_image unmounts the CAS image so the host promotes a quiesced,
@@ -176,6 +218,9 @@ attach_cas_image() {
 # detach. Never blocks teardown.
 detach_cas_image() {
   [ -n "${CAS_ATTACHED}" ] || return 0
+  # Stop pointing builds at a store that is about to go away.
+  unset XCODE_XCCONFIG_FILE
+  rm -f "${CAS_XCCONFIG}" 2>/dev/null || true
   local i=0
   while [ "${i}" -lt 5 ]; do
     if hdiutil detach "${CAS_ATTACHED}" >/dev/null 2>&1; then

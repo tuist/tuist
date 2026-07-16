@@ -56,11 +56,27 @@ runtime — no service, sudo entry, or auto-login targets it.
   virtio-fs share (llcas's mmap'd file locking SIGBUSes over virtio-fs), so the
   host stages it as a sparse APFS disk *image* (`xcode-cas.sparseimage`) inside
   the same branch share. `attach_cas_image` `hdiutil attach`es it as a real
-  block-device volume at `/Users/runner/xcode-cas` and exports
-  `TUIST_COMPILATION_CACHE_DIR`, which the CLI mapper turns into
-  `COMPILATION_CACHE_CAS_PATH`; `detach_cas_image` unmounts it after `./run.sh`
-  so the host promotes a quiesced image. Absent image ⇒ the compilation cache
-  runs VM-local (cold), unchanged. Gated on the host's `--cache-volume-cas-gib`.
+  block-device volume at `/Users/runner/xcode-cas`, then writes an xcconfig
+  pointing `COMPILATION_CACHE_CAS_PATH` at a single per-account store on it and
+  exports **`XCODE_XCCONFIG_FILE`**; `detach_cas_image` unsets it and unmounts
+  after `./run.sh` so the host promotes a quiesced image. Absent image ⇒ the
+  compilation cache runs VM-local (cold), unchanged. Gated on the host's
+  `--cache-volume-cas-gib`.
+  `XCODE_XCCONFIG_FILE` is the mechanism because the common case is a plain
+  `xcodebuild build` against a project Tuist never generated and never wraps —
+  which the generate-time project mapper and the `tuist xcodebuild` wrapper both
+  miss. It is the one layer every xcodebuild invocation honors. (Measured on
+  staging: `COMPILATION_CACHE_*` exported as plain env vars does nothing —
+  xcodebuild does not read build settings from the environment.) Consequences to
+  know: the xcconfig deliberately does **not** set
+  `COMPILATION_CACHE_ENABLE_CACHING` (enabling the cache stays the project's
+  opt-in; this only says *where* an already-caching build keeps its store); it
+  chains a pre-existing `XCODE_XCCONFIG_FILE` via `#include` rather than
+  clobbering it, but a workflow exporting that variable *after* us wins and the
+  CAS falls back to VM-local; and because an xcconfig sits below
+  project/target-defined settings, a project that sets
+  `COMPILATION_CACHE_CAS_PATH` itself still wins — an escape hatch, and the
+  reason a stray target-level value cannot be forced onto the image.
 - `/opt/tuist/metrics-poll.sh` — the machine-metrics sampler.
   `dispatch-poll.sh` forks it into the background right before it
   starts `./run.sh`, so it samples whole-VM CPU/memory/network/disk
