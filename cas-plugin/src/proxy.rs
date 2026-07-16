@@ -96,6 +96,24 @@ fn prematerialize_max_nodes() -> usize {
         .and_then(|value| value.parse().ok())
         .unwrap_or(PREMATERIALIZE_MAX_NODES)
 }
+
+/// Whether to fully ingest a trunk-scoped snapshot into the local CAS ahead of
+/// the build, rather than warming only the newest `PREMATERIALIZE_MAX_NODES`.
+///
+/// On by default where it is affordable and where it pays: the scoping bounds
+/// the warm to the project's trunk closure instead of a whole shared namespace,
+/// the warm runs off any build's critical path, it is idempotent (objects
+/// already on disk are skipped, so steady state only fetches the delta a new
+/// trunk snapshot introduced), and Xcode's own size-LRU bounds the store it
+/// lands in. Measured on a mastodon-sized project: ~12s of off-path fetching
+/// turns a from-scratch trunk build from ~57s into ~33s at 50ms RTT, cutting
+/// demand stalls ~14x.
+///
+/// `TUIST_CAS_INGEST_TRUNK=0` opts out, for a metered or slow link where
+/// pulling the trunk closure up front is not worth it.
+fn ingest_trunk_enabled() -> bool {
+    std::env::var("TUIST_CAS_INGEST_TRUNK").as_deref() != Ok("0")
+}
 // View refresh: per-key hits taken while a snapshot was Ready get their
 // manifests re-published in the background (see Proxy.view_refresh). The
 // per-tick batch keeps a full cold build's backlog (~10k keys) draining in
@@ -714,6 +732,18 @@ struct GitBranches {
     trunk: Option<String>,
 }
 
+/// What `tuist setup cache` recorded for an instance.
+struct RegisteredSource {
+    /// The project's checkout, which the branch of each publish is read from.
+    root: PathBuf,
+    /// The project's default branch, as the server knows it. Authoritative over
+    /// the checkout's `origin/HEAD`: which branch is trunk is a property of the
+    /// project, not of how this machine happened to clone it (a fork, a mirror,
+    /// or a clone whose remote head was never set all get it wrong locally).
+    /// `None` when setup could not reach the server.
+    trunk: Option<String>,
+}
+
 pub struct Proxy {
     grpc_url: String,
     tokens: Arc<TokenProvider>,
@@ -734,7 +764,10 @@ pub struct Proxy {
     // publish is tagged with are derived live from this repo's git HEAD, so a
     // branch switch needs no re-setup and nothing branch-specific ever enters a
     // build setting (which could pollute the compile cache key).
-    instance_sources: Mutex<HashMap<String, PathBuf>>,
+    instance_sources: Mutex<HashMap<String, RegisteredSource>>,
+    // Instances a build has touched since this proxy started; bounds trunk
+    // ingestion to projects actually in use (see `instance_active`).
+    active_instances: Mutex<HashSet<String>>,
     // instance -> the last git context read from its source root, refreshed on
     // a short TTL so per-publish tagging is a cache hit, not a git fork.
     git_cache: Mutex<HashMap<String, GitContext>>,
@@ -826,6 +859,7 @@ impl Proxy {
             view_refresh: Mutex::new(VecDeque::new()),
             view_refreshed: Mutex::new(HashSet::new()),
             demand_coalescers: Mutex::new(HashMap::new()),
+            active_instances: Mutex::new(HashSet::new()),
             analytics,
         }));
         let proxy_addr = proxy as *const Proxy as usize;
@@ -876,15 +910,39 @@ impl Proxy {
     /// empty one falls back to whatever a prior build primed. `None` means an
     /// unprimed ⌘B build: the caller degrades it to a miss.
     fn resolve_instance(&self, cas_path: &str, declared: &str) -> Option<String> {
-        if !declared.is_empty() {
+        let instance = if !declared.is_empty() {
             let mut map = self.path_instance.lock().unwrap();
             if map.get(cas_path).map(String::as_str) != Some(declared) {
                 map.insert(cas_path.to_string(), declared.to_string());
                 self.persist_registry(&map);
             }
-            return Some(declared.to_string());
+            Some(declared.to_string())
+        } else {
+            self.path_instance.lock().unwrap().get(cas_path).cloned()
+        };
+        // Every caller of this is real build traffic (a resolve, a demand fetch,
+        // a publish), and nothing else reaches it — the startup prefetch does
+        // not. So this is the seam where "a project is being built on this
+        // machine" is known, which is what bounds trunk ingestion (see
+        // `instance_active`).
+        if let Some(instance) = &instance {
+            let mut active = self.active_instances.lock().unwrap();
+            if !active.contains(instance) {
+                active.insert(instance.clone());
+            }
         }
-        self.path_instance.lock().unwrap().get(cas_path).cloned()
+        instance
+    }
+
+    /// Whether a build for this instance has touched this proxy since it
+    /// started. Trunk ingestion is gated on it, because the registry accumulates
+    /// every project ever built on the machine: without this, one proxy restart
+    /// would fan out and pull the full trunk closure of all of them (GBs) for
+    /// projects the developer may not have opened in months. In-memory on
+    /// purpose — a fresh proxy ingests nothing until you actually build, which
+    /// is the conservative direction.
+    fn instance_active(&self, instance: &str) -> bool {
+        self.active_instances.lock().unwrap().contains(instance)
     }
 
     fn persist_registry(&self, map: &HashMap<String, String>) {
@@ -2175,9 +2233,15 @@ impl Proxy {
                 }
             }
         }
-        let root = self.source_root(instance);
-        let (branch, trunk) = match root {
-            Some(root) => (git_current_branch(&root), git_trunk_branch(&root)),
+        let source = self.registered_source(instance);
+        let (branch, trunk) = match source {
+            // The server's default branch wins over the checkout's `origin/HEAD`;
+            // the latter is only a fallback for a setup that could not reach the
+            // server, or a registry written before setup recorded the trunk.
+            Some(source) => (
+                git_current_branch(&source.root),
+                source.trunk.or_else(|| git_trunk_branch(&source.root)),
+            ),
             None => (None, None),
         };
         {
@@ -2203,17 +2267,21 @@ impl Proxy {
         GitBranches { branch, trunk }
     }
 
-    /// The instance's registered source root, reloading the sources registry so
+    /// What setup registered for the instance, reloading the sources registry so
     /// a mapping written after startup is visible. Cheap: only runs on a TTL
     /// miss in `git_context`.
-    fn source_root(&self, instance: &str) -> Option<PathBuf> {
+    fn registered_source(&self, instance: &str) -> Option<RegisteredSource> {
+        let clone = |source: &RegisteredSource| RegisteredSource {
+            root: source.root.clone(),
+            trunk: source.trunk.clone(),
+        };
         if let Some(path) = self.registry_path.as_deref() {
             let sources = load_sources(&sources_path_for(path));
-            let root = sources.get(instance).cloned();
+            let source = sources.get(instance).map(clone);
             *self.instance_sources.lock().unwrap() = sources;
-            root
+            source
         } else {
-            self.instance_sources.lock().unwrap().get(instance).cloned()
+            self.instance_sources.lock().unwrap().get(instance).map(clone)
         }
     }
 
@@ -2241,8 +2309,11 @@ impl Proxy {
             // With a trunk-scoped snapshot the closure IS the budget's target,
             // so full ingestion (the layer above key caching) warms all of it —
             // the scoping already bounds it to the trunk, not the whole polluted
-            // namespace. Unscoped, keep the node budget (or TUIST_CAS_PREMATERIALIZE_NODES).
-            let configured = if self.resolve_trunk(instance).is_some() {
+            // namespace. Unscoped, or opted out, keep the node budget.
+            let configured = if self.resolve_trunk(instance).is_some()
+                && ingest_trunk_enabled()
+                && self.instance_active(instance)
+            {
                 0
             } else {
                 prematerialize_max_nodes()
@@ -2512,15 +2583,28 @@ fn sources_path_for(registry: &Path) -> PathBuf {
     PathBuf::from(path)
 }
 
-fn load_sources(path: &Path) -> HashMap<String, PathBuf> {
+fn load_sources(path: &Path) -> HashMap<String, RegisteredSource> {
     let mut map = HashMap::new();
     if let Ok(body) = std::fs::read_to_string(path) {
         for line in body.lines() {
-            if let Some((instance, root)) = line.split_once('\t') {
-                if !instance.is_empty() && !root.is_empty() {
-                    map.insert(instance.to_string(), PathBuf::from(root));
-                }
+            // `instance \t source-root [\t trunk]`. The trunk column is optional:
+            // a registry written by an older setup, or by one that could not
+            // reach the server, still parses and leaves the trunk to be derived
+            // from the checkout.
+            let mut columns = line.split('\t');
+            let (Some(instance), Some(root)) = (columns.next(), columns.next()) else {
+                continue;
+            };
+            if instance.is_empty() || root.is_empty() {
+                continue;
             }
+            map.insert(
+                instance.to_string(),
+                RegisteredSource {
+                    root: PathBuf::from(root),
+                    trunk: columns.next().filter(|trunk| !trunk.is_empty()).map(str::to_owned),
+                },
+            );
         }
     }
     map
@@ -2673,6 +2757,33 @@ unsafe fn encode_node_blob(
 mod tests {
     use super::*;
     use std::cell::Cell;
+
+    #[test]
+    fn sources_registry_keeps_reading_entries_written_without_a_trunk() {
+        let dir = std::env::temp_dir().join(format!("tuist-sources-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        let path = dir.join("registry.sources");
+        // Row 1 is what a setup that reached the server writes; row 2 is the
+        // older two-column form (and what a setup that could not reach the
+        // server still writes). Both must parse, and the old one must leave the
+        // trunk to be derived from the checkout rather than swallowing a column.
+        std::fs::write(
+            &path,
+            "tuist/mastodon\t/src/mastodon\tmain\ntuist/legacy\t/src/legacy\n",
+        )
+        .expect("write registry");
+
+        let sources = load_sources(&path);
+        assert_eq!(sources.len(), 2);
+        let scoped = sources.get("tuist/mastodon").expect("scoped entry");
+        assert_eq!(scoped.root, PathBuf::from("/src/mastodon"));
+        assert_eq!(scoped.trunk.as_deref(), Some("main"));
+        let legacy = sources.get("tuist/legacy").expect("legacy entry");
+        assert_eq!(legacy.root, PathBuf::from("/src/legacy"));
+        assert_eq!(legacy.trunk, None, "an absent trunk column is not a path");
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
 
     #[test]
     fn snapshot_decodes_the_server_wire_format() {

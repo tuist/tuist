@@ -35,6 +35,7 @@ struct SetupCacheCommandService {
     private let serverAuthenticationController: ServerAuthenticationControlling
     private let manifestLoader: ManifestLoading
     private let fileSystem: FileSysteming
+    private let getProjectService: GetProjectServicing
 
     init(
         launchAgentService: LaunchAgentServicing = LaunchAgentService(),
@@ -42,7 +43,8 @@ struct SetupCacheCommandService {
         serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
         serverAuthenticationController: ServerAuthenticationControlling = ServerAuthenticationController(),
         manifestLoader: ManifestLoading = ManifestLoader.current,
-        fileSystem: FileSysteming = FileSystem()
+        fileSystem: FileSysteming = FileSystem(),
+        getProjectService: GetProjectServicing = GetProjectService()
     ) {
         self.launchAgentService = launchAgentService
         self.configLoader = configLoader
@@ -50,15 +52,45 @@ struct SetupCacheCommandService {
         self.serverAuthenticationController = serverAuthenticationController
         self.manifestLoader = manifestLoader
         self.fileSystem = fileSystem
+        self.getProjectService = getProjectService
     }
 
-    /// Records `fullHandle -> sourceRoot` in the proxy's sources registry
+    /// The project's default branch, which is what a trunk-scoped cache snapshot
+    /// is anchored to. Best-effort: a setup that cannot reach the server still
+    /// installs a working cache, and the proxy falls back to deriving the trunk
+    /// from the checkout's `origin/HEAD`.
+    private func trunkBranch(fullHandle: String, serverURL: URL) async -> String? {
+        do {
+            return try await getProjectService.getProject(fullHandle: fullHandle, serverURL: serverURL)
+                .defaultBranch
+        } catch {
+            Logger.current.debug(
+                "Could not resolve \(fullHandle)'s default branch for the cache proxy: \(error). The proxy will derive the trunk from the checkout instead."
+            )
+            return nil
+        }
+    }
+
+    /// Records `fullHandle -> sourceRoot, trunk` in the proxy's sources registry
     /// (`<state>/cas-proxy.sock.registry.sources`, honoring the same
-    /// `TUIST_CAS_PROXY_REGISTRY` override the proxy reads). The proxy derives
-    /// the branch and trunk of every publish live from this repo's git HEAD, so
-    /// nothing branch-specific is baked into a build setting. Upserts so setting
-    /// up a second project does not clobber the first.
-    private func registerSourceRoot(fullHandle: String, sourceRoot: AbsolutePath) async throws {
+    /// `TUIST_CAS_PROXY_REGISTRY` override the proxy reads). Two things the proxy
+    /// cannot know on its own:
+    ///
+    /// - The source root, from which it derives the branch of every publish live
+    ///   off this repo's git HEAD. Nothing branch-specific is baked into a build
+    ///   setting, which would enter the compiler's cache key and split the cache
+    ///   per branch.
+    /// - The trunk, which is the *project's* configured default branch and hence
+    ///   a server-side decision. The proxy would otherwise have to guess it from
+    ///   the local clone's `origin/HEAD`, which is a property of how the machine
+    ///   cloned rather than of the project.
+    ///
+    /// Upserts, so setting up a second project does not clobber the first.
+    private func registerSourceRoot(
+        fullHandle: String,
+        sourceRoot: AbsolutePath,
+        trunk: String?
+    ) async throws {
         let sourcesPath: AbsolutePath
         if let registry = Environment.current.variables["TUIST_CAS_PROXY_REGISTRY"] {
             sourcesPath = try AbsolutePath(validating: registry + ".sources")
@@ -67,18 +99,29 @@ struct SetupCacheCommandService {
                 .appending(component: "cas-proxy.sock.registry.sources")
         }
 
-        var entries: [String: String] = [:]
+        // instance -> (source root, trunk). The trunk column is optional: a
+        // registry written before this shipped, or by a setup that could not
+        // reach the server, still parses and leaves the proxy on its git-derived
+        // fallback.
+        var entries: [String: (root: String, trunk: String?)] = [:]
         if try await fileSystem.exists(sourcesPath) {
             let contents = try await fileSystem.readTextFile(at: sourcesPath)
             for line in contents.split(separator: "\n") {
-                let parts = line.split(separator: "\t", maxSplits: 1).map(String.init)
-                if parts.count == 2 { entries[parts[0]] = parts[1] }
+                let parts = line.split(separator: "\t", maxSplits: 2).map(String.init)
+                if parts.count >= 2 {
+                    entries[parts[0]] = (root: parts[1], trunk: parts.count > 2 ? parts[2] : nil)
+                }
             }
         }
-        entries[fullHandle] = sourceRoot.pathString
+        entries[fullHandle] = (root: sourceRoot.pathString, trunk: trunk)
 
         let body = entries.sorted { $0.key < $1.key }
-            .map { "\($0.key)\t\($0.value)" }
+            .map { key, value in
+                if let trunk = value.trunk, !trunk.isEmpty {
+                    return "\(key)\t\(value.root)\t\(trunk)"
+                }
+                return "\(key)\t\(value.root)"
+            }
             .joined(separator: "\n") + "\n"
         if try await !fileSystem.exists(sourcesPath.parentDirectory, isDirectory: true) {
             try await fileSystem.makeDirectory(at: sourcesPath.parentDirectory)
@@ -114,7 +157,11 @@ struct SetupCacheCommandService {
         let kuraEnabled = ClientFeatureFlags.contains("kura")
         if kuraEnabled {
             try await installProxy(fullHandle: fullHandle, serverURL: serverURL)
-            try await registerSourceRoot(fullHandle: fullHandle, sourceRoot: path)
+            try await registerSourceRoot(
+                fullHandle: fullHandle,
+                sourceRoot: path,
+                trunk: await trunkBranch(fullHandle: fullHandle, serverURL: serverURL)
+            )
         } else {
             try await installLegacyDaemon(
                 fullHandle: fullHandle,
