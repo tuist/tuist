@@ -304,20 +304,33 @@ func (m *VolumeManager) Materialize(att VolumeAttachment, account string) (warm 
 		_ = os.Chmod(dest, 0o777)
 		return false, fmt.Errorf("swap materialized cache into place: %w", err)
 	}
-	// Relax the WHOLE materialized tree, not just its root.
+	// Relax the WHOLE materialized tree, and treat failure as fatal to the
+	// materialize.
 	//
 	// The clone carries the MASTER's ownership and mode: tart-kubelet runs as the
 	// host's console user (Virtualization.framework requires it), so every master
 	// it promotes is host-owned 0755, while the guest runs as its own
 	// unprivileged `runner` user. Across virtio-fs the two uids don't line up, so
-	// mode is the only lever we have — and a root-only chmod is not enough. The
-	// guest doesn't just create entries in `tuist/`; the CLI moves downloaded
-	// xcframeworks into `tuist/Binaries/<hash>` and prunes them again, which needs
-	// write on `Binaries/` itself, and re-signs artifacts in place, which needs
-	// write on the files. Relaxing only the root produced a job that could create
-	// `tuist/Plugins` and still died with
+	// mode is the only lever — and a root-only chmod is not enough. The CLI moves
+	// downloaded xcframeworks into `tuist/Binaries/<hash>` and re-signs artifacts
+	// in place, so it needs write on the subtrees and the files, not just the
+	// root. Relaxing only the root produced a job that could create
+	// `tuist/Plugins` yet still died with
 	// `"X.xcframework" couldn't be moved to "<hash>"` (seen in production).
-	chmodTreeGuestWritable(dest)
+	//
+	// This is the ONLY place that can settle it: 0777 is uid-independent, so a
+	// tree we successfully relax is writable by the guest whatever its uid. The
+	// guest cannot check this for itself — it would have to enumerate every path
+	// the CLI might touch (the master carries 9+ subtrees) and would rubber-stamp
+	// whatever it forgot. So if we cannot hand over a provably writable tree, we
+	// hand over none: drop it and let the job run cold, which costs warmth
+	// instead of the job.
+	if err := chmodTreeGuestWritable(dest); err != nil {
+		_ = os.RemoveAll(dest)
+		_ = os.MkdirAll(dest, 0o777)
+		_ = os.Chmod(dest, 0o777)
+		return false, fmt.Errorf("make materialized cache tree guest-writable: %w", err)
+	}
 	// Mark the master used so LRU tracks materialization, not just promotion —
 	// an account whose jobs keep landing here stays hot.
 	_ = os.Chtimes(m.masterDir(account, att.VolumeName), m.now(), m.now())
@@ -499,22 +512,21 @@ func (m *VolumeManager) Finalize(att VolumeAttachment, account string, jobSuccee
 // fully relax is still better than no cache, and the guest write-probes the
 // share before trusting it. Cost is one walk of an already-cloned tree (the
 // clonefile itself is the expensive part), so this is not on the hot path.
-func chmodTreeGuestWritable(root string) {
-	_ = filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
+func chmodTreeGuestWritable(root string) error {
+	return filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
-			return nil
+			return err
 		}
-		if d.IsDir() {
-			_ = os.Chmod(p, 0o777)
-			return nil
-		}
-		// Symlinks have no mode of their own worth setting; chmod would follow to
-		// the target and could escape the tree.
+		// Symlinks have no mode of their own worth setting, and chmod would follow
+		// to the target — possibly outside the tree.
 		if d.Type()&fs.ModeSymlink != 0 {
 			return nil
 		}
-		_ = os.Chmod(p, 0o666)
-		return nil
+		mode := os.FileMode(0o666)
+		if d.IsDir() {
+			mode = 0o777
+		}
+		return os.Chmod(p, mode)
 	})
 }
 
