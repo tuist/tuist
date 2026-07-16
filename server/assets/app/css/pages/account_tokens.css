@@ -469,13 +469,17 @@
   & #revoke-account-token-modal > [data-part="positioner"] > [data-part="content"] {
     width: min(520px, calc(100vw - 48px));
     max-width: 520px;
+
+    & > [data-part="header"] {
+      padding-bottom: var(--noora-spacing-3);
+    }
   }
 
   & #revoke-account-token-modal-body {
     padding: 0;
 
     & [data-part="revoke-account-token-modal-content"] {
-      padding: var(--noora-spacing-6) var(--noora-spacing-7);
+      padding: var(--noora-spacing-2) var(--noora-spacing-7) var(--noora-spacing-6);
     }
 
     & [data-part="revoke-account-token-message"] {
