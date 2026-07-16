@@ -44,15 +44,6 @@ public struct XcodeCacheSettingsProjectMapper: ProjectMapping {
 
         baseSettings["COMPILATION_CACHE_ENABLE_CACHING"] = "YES"
         if let fullHandle = tuist.fullHandle {
-            // NOTE: the CAS *location* is deliberately NOT set here. On the macOS
-            // runner fleet the host attaches a per-account compilation-cache disk
-            // image and injects COMPILATION_CACHE_CAS_PATH into every build via
-            // XCODE_XCCONFIG_FILE (see infra/runner-image/dispatch-poll.sh). That
-            // is the only layer that reaches the common case — a plain
-            // `xcodebuild build` against a project Tuist never generated — which a
-            // project mapper cannot touch. Setting it here too would give
-            // generated projects a different (higher-precedence) store than
-            // everything else on the same runner.
             if kuraEnabled {
                 // kura path: route Xcode's compilation caching through the Tuist
                 // CAS plugin, which owns remote (kura) read/write-through via the
