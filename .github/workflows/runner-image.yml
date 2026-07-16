@@ -48,6 +48,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: infra/runner-image/go.mod
+
       # Log in BEFORE Packer build so Tart's clone of the
       # macos-tahoe-xcode base (a private ghcr.io/tuist/* image)
       # authenticates. crane writes creds to ~/.docker/config.json,
@@ -68,6 +72,13 @@ jobs:
         run: packer init -upgrade runner.pkr.hcl
 
       - uses: ./.github/actions/reclaim-tart-disk
+
+      - name: Build runner shell agent
+        working-directory: infra/runner-image
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          go build -trimpath -ldflags="-s -w" -o build/runner-shell-agent ./cmd/runner-shell-agent
 
       - name: Build image
         id: build

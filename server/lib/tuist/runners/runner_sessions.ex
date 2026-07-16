@@ -204,4 +204,53 @@ defmodule Tuist.Runners.RunnerSessions do
     |> Repo.all()
     |> MapSet.new()
   end
+
+  @doc """
+  Resolves the currently open billing session for `pod_name`.
+
+  Interactive runner access uses this as a fallback live binding when
+  the shorter-lived `runner_claims` row is already gone but the Pod is
+  still running the workflow job.
+  """
+  def live_for_pod(pod_name) when is_binary(pod_name) and pod_name != "" do
+    RunnerSession
+    |> where([s], s.pod_name == ^pod_name and is_nil(s.ended_at))
+    |> order_by([s], desc: s.started_at)
+    |> select([s], %{
+      workflow_job_id: s.workflow_job_id,
+      account_id: s.account_id,
+      fleet_name: s.fleet_name,
+      pod_name: s.pod_name
+    })
+    |> limit(1)
+    |> Repo.one()
+    |> case do
+      nil -> :error
+      session -> {:ok, session}
+    end
+  end
+
+  @doc """
+  Resolves the currently open billing session for a workflow job.
+  """
+  def live_for_workflow_job(workflow_job_id, account_id) when is_integer(workflow_job_id) and is_integer(account_id) do
+    RunnerSession
+    |> where(
+      [s],
+      s.workflow_job_id == ^workflow_job_id and s.account_id == ^account_id and is_nil(s.ended_at)
+    )
+    |> order_by([s], desc: s.started_at)
+    |> select([s], %{
+      workflow_job_id: s.workflow_job_id,
+      account_id: s.account_id,
+      fleet_name: s.fleet_name,
+      pod_name: s.pod_name
+    })
+    |> limit(1)
+    |> Repo.one()
+    |> case do
+      nil -> :error
+      session -> {:ok, session}
+    end
+  end
 end

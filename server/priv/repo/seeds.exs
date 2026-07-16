@@ -4723,6 +4723,17 @@ running_jobs = [
     platform: "linux",
     vcpus: 4,
     memory_gb: 8
+  },
+  %{
+    workflow: "Build and Test",
+    job_name: "Linux Unit Tests",
+    run_attempt: 1,
+    started_seconds_ago: 18,
+    repo_idx: 0,
+    fleet: "tuist-runner-pool-linux-4vcpu-8gb",
+    platform: "linux",
+    vcpus: 4,
+    memory_gb: 8
   }
 ]
 

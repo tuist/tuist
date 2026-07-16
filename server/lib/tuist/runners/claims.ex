@@ -439,7 +439,37 @@ defmodule Tuist.Runners.Claims do
   def by_pod_name(pod_name) when is_binary(pod_name) do
     Claim
     |> where([c], c.pod_name == ^pod_name)
-    |> select([c], %{workflow_job_id: c.workflow_job_id, account_id: c.account_id})
+    |> select([c], %{
+      workflow_job_id: c.workflow_job_id,
+      account_id: c.account_id,
+      fleet_name: c.fleet_name,
+      pod_name: c.pod_name
+    })
+    |> limit(1)
+    |> Repo.one()
+    |> case do
+      nil -> :error
+      claim -> {:ok, claim}
+    end
+  end
+
+  @doc """
+  Resolves the live claim for `workflow_job_id`.
+
+  This is the OLTP source of truth for which Pod currently owns a runner
+  job. ClickHouse can lag or briefly carry an older lifecycle row, so
+  interactive access uses this to reconcile the customer-facing job view
+  with the actual claimed Pod before opening a terminal or VNC relay.
+  """
+  def by_workflow_job_id(workflow_job_id) when is_integer(workflow_job_id) do
+    Claim
+    |> where([c], c.workflow_job_id == ^workflow_job_id)
+    |> select([c], %{
+      workflow_job_id: c.workflow_job_id,
+      account_id: c.account_id,
+      fleet_name: c.fleet_name,
+      pod_name: c.pod_name
+    })
     |> limit(1)
     |> Repo.one()
     |> case do

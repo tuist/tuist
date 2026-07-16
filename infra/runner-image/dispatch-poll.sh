@@ -50,6 +50,31 @@ source /etc/tuist.env
 
 : "${TUIST_RUNNER_DISPATCH_URL:?TUIST_RUNNER_DISPATCH_URL not set}"
 
+keep_desktop_interactive() {
+  # ByHost screensaver preferences are tied to the cloned VM's
+  # runtime host UUID, so the image-build defaults alone are not
+  # enough. Re-apply them inside the booted runner session before a
+  # job can be probed over VNC.
+  sudo pmset -a sleep 0 displaysleep 0 disksleep 0 >/dev/null 2>&1 || true
+  sudo defaults write /Library/Preferences/com.apple.loginwindow autoLoginUser -string runner >/dev/null 2>&1 || true
+  sudo defaults write /Library/Preferences/.GlobalPreferences com.apple.autologout.AutoLogOutDelay -int 0 >/dev/null 2>&1 || true
+
+  defaults write com.apple.screensaver idleTime -int 0 >/dev/null 2>&1 || true
+  defaults write com.apple.screensaver askForPassword -bool false >/dev/null 2>&1 || true
+  defaults write com.apple.screensaver askForPasswordDelay -int 0 >/dev/null 2>&1 || true
+  defaults -currentHost write com.apple.screensaver idleTime -int 0 >/dev/null 2>&1 || true
+  defaults -currentHost write com.apple.screensaver askForPassword -bool false >/dev/null 2>&1 || true
+  defaults -currentHost write com.apple.screensaver askForPasswordDelay -int 0 >/dev/null 2>&1 || true
+  /usr/bin/killall cfprefsd >/dev/null 2>&1 || true
+
+  if [ -x /usr/bin/caffeinate ]; then
+    /usr/bin/caffeinate -dims -w "$$" >/dev/null 2>&1 &
+    echo "$(date -u +%FT%TZ) dispatch-poll: desktop sleep and screen lock disabled"
+  fi
+}
+
+keep_desktop_interactive
+
 # In-VM cluster DNS for the runner-cache path. When the
 # runners-controller staged TUIST_CLUSTER_DNS_IP (macOS pools in
 # environments whose Mac minis have the tailnet route into the
@@ -81,6 +106,45 @@ SA_TOKEN="$(cat "${SA_TOKEN_PATH}")"
 if [ -z "${SA_TOKEN}" ]; then
   echo "$(date -u +%FT%TZ) dispatch-poll: SA token empty; aborting"
   exit 1
+fi
+
+SHELL_CLAIM_MARKER="${TUIST_RUNNER_SHELL_CLAIM_MARKER:-/tmp/tuist-runner-shell-claimed}"
+export TUIST_RUNNER_SHELL_CLAIM_MARKER="${SHELL_CLAIM_MARKER}"
+rm -f "${SHELL_CLAIM_MARKER}" 2>/dev/null || true
+
+shell_agent_lock_active() {
+  local lock_dir=/tmp/tuist-runner-shell-agent.lock
+  local pid_file="${lock_dir}/pid"
+  local lock_pid=""
+
+  if [ ! -d "${lock_dir}" ]; then
+    return 1
+  fi
+
+  if [ -f "${pid_file}" ]; then
+    read -r lock_pid <"${pid_file}" || lock_pid=""
+  fi
+
+  if [ -n "${lock_pid}" ] && kill -0 "${lock_pid}" 2>/dev/null; then
+    return 0
+  fi
+
+  echo "$(date -u +%FT%TZ) dispatch-poll: removing stale runner-shell-agent lock"
+  rm -rf "${lock_dir}"
+  return 1
+}
+
+if shell_agent_lock_active; then
+  echo "$(date -u +%FT%TZ) dispatch-poll: runner-shell-agent supervisor already active"
+elif [ -x /opt/tuist/runner-shell-agent-supervisor.sh ]; then
+  echo "$(date -u +%FT%TZ) dispatch-poll: starting runner-shell-agent supervisor"
+  (
+    trap - EXIT
+    exec /bin/zsh -lc 'exec /opt/tuist/runner-shell-agent-supervisor.sh'
+  ) &
+  echo "$(date -u +%FT%TZ) dispatch-poll: runner-shell-agent supervisor pid=$!"
+else
+  echo "$(date -u +%FT%TZ) dispatch-poll: runner-shell-agent missing or not executable"
 fi
 
 # Per-account cache volume, materialized after dispatch. tart-kubelet attaches
@@ -377,6 +441,7 @@ while true; do
         sleep "${interval}"
         continue
       fi
+      printf '%s\n' "$(date -u +%FT%TZ)" >"${SHELL_CLAIM_MARKER}" 2>/dev/null || true
       # Optional: route the job's Tuist cache at the account's private
       # runner-cache Kura node (in-cluster, near this runner) when the
       # server includes it. Exported here so the GitHub Actions runner —
