@@ -4,6 +4,7 @@ category: "engineering"
 tags: ["engineering", "build-systems", "bazel", "gradle", "rust"]
 excerpt: "Underneath the surface syntax, every build system is the same graph. After years building remote caching for them, we got curious about what actually makes one tick, and what a build system would look like if you designed it today for coding harnesses."
 author: pepicrft
+og_image_path: /marketing/images/blog/2026/06/30/og.png
 ---
 For as long as we've worked on Tuist, we've looked at build systems from the outside. We [generate projects](https://docs.tuist.dev) that sit on top of Xcode's build system, and our caching plugs into that same one. Most of the job is to meet a build system where it is and make it faster or less painful to live with. We rarely had a reason to open one up. From the outside it's a box: you feed it a project, it hands you back an app, and you can build a lot on top of that without ever asking how the box works.
 
