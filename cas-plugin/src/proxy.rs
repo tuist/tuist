@@ -2272,9 +2272,10 @@ impl Proxy {
             };
             // Carrying the tags of the build that took the hit is what makes this
             // the reclaim path. These entries are, by definition, outside the
-            // trunk view: sending no tags would re-attribute every one of them to
-            // nobody, and an untagged entry is in EVERY trunk view, so a feature
-            // branch's own keys would flow into trunk's just by being read. With
+            // trunk view, and this is often the only thing that will ever put one
+            // back: sending no tags would re-attribute every one of them to
+            // nobody, and an untagged entry is in NO trunk view, so trunk's own
+            // keys would be dropped from it by the very act of reading them. With
             // the tags, a feature hit stays out and a trunk hit takes the entry
             // back.
             if refresh

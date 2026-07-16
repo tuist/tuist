@@ -1996,20 +1996,19 @@ impl Store {
         let existing = self.manifest_from_db(&artifact_id)?;
         // Damping deliberately outranks the tag, and does NOT compare it.
         //
-        // Making the tag part of this condition looks right (it would let trunk
-        // reclaim a key a feature branch published first with identical bytes)
-        // and is a trap: `refresh_view_keys` re-publishes cached manifests with
-        // no branch and no trunk, so a tag comparison sees `Some("feature")` vs
-        // `None`, declines to damp, and writes the entry UNTAGGED. Untagged is
-        // the trunk baseline, so every refreshed feature entry would land in the
-        // very view this scoping keeps clean. Reverted for that reason; the
-        // reclaim it bought was mostly unreachable anyway, because the client
-        // dedupes a re-publish whose value digest already matches and so never
-        // sends the tag-only update.
+        // This was tried once and reverted, for reasons that no longer hold: the
+        // refresh path then re-published with no branch and no trunk, so a tag
+        // comparison declined to damp and wrote the entry untagged, and the
+        // client's dedupe meant a tag-only update never arrived anyway. Both are
+        // fixed, and untagged is no longer the trunk baseline, so the trap it was
+        // reverted for is gone.
         //
-        // Reclaiming a feature-tagged key for trunk needs the refresh path to
-        // carry branch/trunk (the instance is not threaded into `view_refresh`
-        // today) AND the client-side dedupe to allow a tag-only update.
+        // It stays out because it is no longer needed here. A byte-identical
+        // publish now carries its tags to the server, and a per-key hit refreshes
+        // under the tags of the build that took it, so reclaim happens on those
+        // paths with the manifest in hand. Comparing tags here would only add a
+        // way for the damping probe (a read taken outside the write lock) to
+        // disagree with the tag the persist resolves under it.
         if let Some(existing) = &existing
             && existing.inline
             && manifest_version_ms(existing).saturating_add(REAPI_ACTION_CACHE_REFRESH_DAMPING_MS)
@@ -2764,7 +2763,7 @@ impl Store {
     /// backfilled with one legacy scan on first use.
     ///
     /// When `trunk` is `Some`, only entries whose manifest carries that branch
-    /// or no branch at all (untagged/legacy entries stay in the trunk baseline)
+    /// only (an untagged entry is not in the baseline: see `branch_in_trunk`)
     /// are returned; the cap counts kept entries only. `None` returns every
     /// action-cache entry regardless of branch.
     pub fn action_cache_manifests(
@@ -4079,12 +4078,15 @@ fn outbox_message_key(message: &OutboxMessage) -> String {
 }
 
 /// The branch tag a publish should land with, honoring trunk-stickiness: a key
-/// already in the trunk baseline (tagged with the trunk branch, or
-/// untagged/legacy) keeps its tag. A feature build recomputing the same action
-/// republishes it — often with byte wobble that defeats the refresh damping —
-/// and must not steal the key from the trunk view. A publish FROM the trunk
-/// always (re)claims it, and with no trunk to compare against the publish's own
-/// tag stands.
+/// already in the trunk baseline (tagged with the trunk branch) keeps its tag. A
+/// feature build recomputing the same action republishes it, often with byte
+/// wobble that defeats the refresh damping, and must not steal the key from the
+/// trunk view. A publish FROM the trunk always (re)claims it, and with no trunk
+/// to compare against the publish's own tag stands.
+///
+/// An untagged entry has nothing to protect: it is not in the baseline, so the
+/// first publisher to name a branch may claim it, which is how the fleet retags
+/// what it inherited.
 fn sticky_branch<'a>(
     existing: Option<&'a ArtifactManifest>,
     branch: Option<&'a str>,
@@ -4093,7 +4095,7 @@ fn sticky_branch<'a>(
     match (existing, trunk) {
         (Some(existing), Some(trunk))
             if branch != Some(trunk)
-                && existing.branch.as_deref().is_none_or(|tag| tag == trunk) =>
+                && existing.branch.as_deref() == Some(trunk) =>
         {
             existing.branch.as_deref()
         }
@@ -4111,9 +4113,16 @@ fn manifest_in_trunk(manifest: &ArtifactManifest, trunk: Option<&str>) -> bool {
 
 /// The same rule against a bare tag, so an index row and a manifest cannot drift
 /// apart on what belongs in a trunk view.
+///
+/// An untagged entry is NOT in the trunk baseline. `None` means the publisher
+/// could not tell us which branch produced it (no registered checkout, a moved
+/// or renamed one, a node older than the tag), and treating "unknown" as "trunk"
+/// resolves every one of those the least safe way: silently, into the one view
+/// this scoping exists to keep clean. Excluded, an unknown entry costs a per-key
+/// round trip and gets re-tagged by the refresh path the first time it is read.
 fn branch_in_trunk(branch: Option<&str>, trunk: Option<&str>) -> bool {
     match trunk {
-        Some(trunk) => branch == Some(trunk) || branch.is_none(),
+        Some(trunk) => branch == Some(trunk),
         None => true,
     }
 }
@@ -4474,15 +4483,22 @@ mod tests {
             .expect("unfiltered scan should succeed");
         assert_eq!(all.len(), 2, "the unfiltered snapshot keeps every branch");
 
-        // An untagged (legacy) entry stays in the trunk baseline.
+        // An untagged entry is not in the trunk baseline: its publisher could not
+        // say which branch produced it, and a trunk view is the wrong place to
+        // resolve that doubt. It is still served per key, and the first publisher
+        // to name a branch claims it.
         publish(&store, "action_cache/cc/10", None).await;
         let trunk = store
             .action_cache_manifests("ios", 10, Some("main"))
             .expect("trunk scan should succeed");
         let keys: Vec<&str> = trunk.iter().map(|manifest| manifest.key.as_str()).collect();
         assert!(keys.contains(&"action_cache/aa/10"));
-        assert!(keys.contains(&"action_cache/cc/10"));
+        assert!(!keys.contains(&"action_cache/cc/10"));
         assert!(!keys.contains(&"action_cache/bb/10"));
+        let all = store
+            .action_cache_manifests("ios", 10, None)
+            .expect("unfiltered scan should succeed");
+        assert_eq!(all.len(), 3, "an unscoped view still keeps every entry");
     }
 
     /// Trunk entries have to be reachable when they are buried under feature
@@ -4566,7 +4582,8 @@ mod tests {
             Some("feature"),
         )
         .await;
-        // Same for untagged/legacy baseline entries.
+        // An untagged entry is NOT in the baseline, so it has nothing to protect:
+        // the feature publish below claims it, and it leaves the trunk view.
         publish(&store, "action_cache/bb/10", b"graph", None).await;
         tick().await;
         publish(
@@ -4588,12 +4605,9 @@ mod tests {
         keys.sort_unstable();
         assert_eq!(
             keys,
-            vec![
-                "action_cache/aa/10",
-                "action_cache/bb/10",
-                "action_cache/cc/10"
-            ],
-            "trunk keys stay in (or return to) the trunk baseline"
+            vec!["action_cache/aa/10", "action_cache/cc/10"],
+            "a trunk key survives a feature republish (aa) and is reclaimed by a \
+             trunk one (cc); an untagged key is claimed by whoever names a branch (bb)"
         );
     }
 
@@ -4687,8 +4701,9 @@ mod tests {
         // this node's trunk baseline — the pollution the branch tag exists to
         // prevent, arriving over replication rather than from a client.
         apply(&store, "action_cache/aa/10", 1_000, Some("feature")).await;
-        // A message from a node that predates the field carries no branch; it
-        // applies untagged, which is what every replicated entry did before.
+        // A message from a node that predates the field carries no branch. It
+        // applies untagged, and untagged is not the trunk baseline: an older
+        // node's entries do not get to claim trunk by omission.
         apply(&store, "action_cache/bb/10", 1_000, None).await;
         apply(&store, "action_cache/cc/10", 1_000, Some("main")).await;
 
@@ -4699,8 +4714,8 @@ mod tests {
         keys.sort_unstable();
         assert_eq!(
             keys,
-            vec!["action_cache/bb/10", "action_cache/cc/10"],
-            "a replicated feature entry stays out of the trunk view; an untagged one stays in"
+            vec!["action_cache/cc/10"],
+            "only a replicated entry tagged with the trunk is in the trunk view"
         );
     }
 
