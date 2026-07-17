@@ -819,6 +819,37 @@ jobs:
           # so dependent pods (Pending or otherwise) go with the Job.
           echo "$stale_jobs" | xargs -r kubectl -n "$NAMESPACE" delete job \
             --ignore-not-found --cascade=foreground --timeout=2m
+      - name: Adopt server ServiceAccount into the Helm release
+        # The server ServiceAccount used to render as a Helm *hook*
+        # (before-hook-creation), which churned its UID every deploy and
+        # broke bound-token auth. It is now a normal release resource, but a
+        # hook-created object carries no `meta.helm.sh/release-*` ownership
+        # annotations, so the first `helm upgrade` after the switch would
+        # fail its import check with "invalid ownership metadata". Stamp the
+        # ownership annotations + managed-by label (and strip the now-stale
+        # hook annotations) so helm adopts the live SA in place, preserving
+        # its UID. Idempotent: once the SA is a tracked resource this is a
+        # no-op, and it tolerates first installs where the SA does not exist
+        # yet. Applies to every environment because the production cascade
+        # deploys canary first — a production-only manual step would not gate
+        # it. SA name is `server.serviceAccount.name` in
+        # values-managed-common.yaml.
+        run: |
+          set -euo pipefail
+          SA_NAME=tuist-server
+
+          if ! kubectl -n "$NAMESPACE" get serviceaccount "$SA_NAME" >/dev/null 2>&1; then
+            echo "ServiceAccount $SA_NAME not present yet (first install); nothing to adopt."
+            exit 0
+          fi
+
+          kubectl -n "$NAMESPACE" annotate serviceaccount "$SA_NAME" \
+            "meta.helm.sh/release-name=$HELM_RELEASE_NAME" \
+            "meta.helm.sh/release-namespace=$NAMESPACE" --overwrite
+          kubectl -n "$NAMESPACE" label serviceaccount "$SA_NAME" \
+            app.kubernetes.io/managed-by=Helm --overwrite
+          kubectl -n "$NAMESPACE" annotate serviceaccount "$SA_NAME" \
+            helm.sh/hook- helm.sh/hook-weight- helm.sh/hook-delete-policy-
       - name: helm upgrade --install
         # App secrets never pass through --set: the chart runs in
         # `server.managedSecrets: true` mode, which reads DATABASE_URL /
