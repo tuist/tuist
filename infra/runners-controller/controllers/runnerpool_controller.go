@@ -170,7 +170,17 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	}
 	defer func() {
 		metrics.RecordPodPhases(pool.Name, phaseReplicas.pending, phaseReplicas.running, phaseReplicas.unknown)
-		metrics.RecordOldestPendingPodAge(pool.Name, phaseReplicas.oldestPendingAge(r.now()))
+		// darwin only: Pending means "no VM yet" for a Tart pool, but it
+		// is the healthy steady state for a Linux one. Linux warm-standby
+		// Pods run their dispatch poller as an init container and kubelet
+		// holds a Pod in Pending for as long as any init container runs,
+		// so an idle Linux runner reports Pending for its whole life —
+		// hours, by design. Publishing this for Linux would peg every
+		// idle pool at its warm-pool age. A Linux equivalent has to read
+		// the poller's own lifecycle, not the Pod phase.
+		if pool.Spec.OS == "darwin" {
+			metrics.RecordOldestPendingPodAge(pool.Name, phaseReplicas.oldestPendingAge(r.now()))
+		}
 	}()
 
 	alive := 0

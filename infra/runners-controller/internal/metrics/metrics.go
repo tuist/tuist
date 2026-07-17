@@ -100,10 +100,13 @@ var (
 	}, []string{poolLabel, phaseLabel})
 
 	// oldestPendingPodAge is how long the pool's least-recently-created
-	// un-Running Pod has been waiting. A Pod is Pending from creation
-	// until tart-kubelet has its VM up, so this is the boot path's
-	// equivalent of queue age: normally tens of seconds, and unbounded
-	// when a host stalls mid image-pull.
+	// un-Running Pod has been waiting. **darwin pools only** — see the
+	// caller in runnerpool_controller.go. On a Tart pool, Pending means
+	// the VM isn't up, so this is the boot path's equivalent of queue
+	// age: tens of seconds normally, unbounded when a host stalls mid
+	// image-pull. On a Linux pool, Pending is the healthy steady state
+	// (the dispatch poller is an init container), so the same reading
+	// would peg every idle pool at its warm-pool age.
 	//
 	// The count in phaseReplicas cannot substitute. A pool that keeps
 	// one Pod Pending because it is steadily replacing single-shot
@@ -113,7 +116,7 @@ var (
 	// that never boots is absent from it entirely.
 	oldestPendingPodAge = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "tuist_runners_pool_oldest_pending_pod_age_seconds",
-		Help: "Age of the pool's oldest alive Pod that has not reached Running (0 when none).",
+		Help: "Age of a darwin pool's oldest alive Pod that has not reached Running (0 when none).",
 	}, []string{poolLabel})
 )
 

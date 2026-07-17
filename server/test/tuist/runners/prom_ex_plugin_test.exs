@@ -91,10 +91,17 @@ defmodule Tuist.Runners.PromExPluginTest do
 
       account = account_fixture()
 
+      # Relative to now, not fixed dates: the poll only scans back
+      # `@queue_lookback_days`, so absolute timestamps would age out of
+      # the window and silently drop the expected count.
+      now = DateTime.utc_now()
+      oldest_enqueued_at = DateTime.add(now, -4 * 60 * 60, :second)
+      newer_enqueued_at = DateTime.add(now, -30 * 60, :second)
+
       # Two queued jobs on one fleet: the gauge tracks the oldest.
       for {id, enqueued_at} <- [
-            {999_010, ~U[2026-07-16 22:39:43.000000Z]},
-            {999_011, ~U[2026-07-17 02:00:00.000000Z]}
+            {999_010, oldest_enqueued_at},
+            {999_011, newer_enqueued_at}
           ] do
         :ok =
           Jobs.enqueue(%{
@@ -117,8 +124,7 @@ defmodule Tuist.Runners.PromExPluginTest do
                       %{count: 2, oldest_age_seconds: oldest_age_seconds}, %{fleet: "fleet-age"}},
                      500
 
-      expected = DateTime.diff(DateTime.utc_now(), ~U[2026-07-16 22:39:43.000000Z], :second)
-      assert_in_delta oldest_age_seconds, expected, 60
+      assert_in_delta oldest_age_seconds, 4 * 60 * 60, 60
     end
 
     test "reports zero age for a fleet with an empty queue", %{handler_id: handler_id} do

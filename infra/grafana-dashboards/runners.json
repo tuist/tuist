@@ -1501,7 +1501,7 @@
       },
       {
         "datasource": "$datasource",
-        "description": "How long each pool's oldest un-booted Pod has been waiting. A Pod is Pending from creation until tart-kubelet has its VM up, so this is the boot path's queue age: normally tens of seconds, unbounded when a host stalls mid image-pull. Neither neighbouring signal sees that. The Pending count reads the same whether a pool is steadily replacing single-shot runners or has one Pod wedged for hours, and tart-kubelet's provision histogram is observed only when a VM finally starts, so a Pod that never boots is absent from it entirely. The node stays Ready throughout and `kube_pod_status_unschedulable` stays 0 \u2014 these Pods are scheduled, just not booted.",
+        "description": "How long each macOS pool's oldest un-booted Pod has been waiting. On a Tart pool a Pod is Pending from creation until tart-kubelet has its VM up, so this is the boot path's queue age: normally tens of seconds, unbounded when a host stalls mid image-pull. Neither neighbouring signal sees that. The Pending count reads the same whether a pool is steadily replacing single-shot runners or has one Pod wedged for hours, and tart-kubelet's provision histogram is observed only when a VM finally starts, so a Pod that never boots is absent from it entirely. The node stays Ready throughout and `kube_pod_status_unschedulable` stays 0 \u2014 these Pods are scheduled, just not booted. macOS only, and not filtered by $platform: on Linux, Pending is the healthy steady state (the dispatch poller is an init container), so an idle Linux pool would sit at its warm-pool age here and read as wedged.",
         "fieldConfig": {
           "defaults": {
             "color": {
@@ -1552,7 +1552,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "max by (pool) (tuist_runners_pool_oldest_pending_pod_age_seconds{pool=~\".*$platform.*\", env=\"$env\"})",
+            "expr": "max by (pool) (tuist_runners_pool_oldest_pending_pod_age_seconds{pool=~\".*runner-pool-macos.*\", env=\"$env\"})",
             "legendFormat": "{{pool}}",
             "refId": "A"
           }
