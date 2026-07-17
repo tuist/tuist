@@ -40,6 +40,7 @@ server:
   # JSON-encodes this into TUIST_STRIPE_PRICES.
   stripe:
     prices:
+      runners: {}
       air:
         usage: ["price_1PIYcvLWue9IBlPS8el65GXj"]
         flat_monthly: ["price_1PIYcvLWue9IBlPSGvUJIZ5Y"]

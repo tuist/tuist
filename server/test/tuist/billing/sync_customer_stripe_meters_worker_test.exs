@@ -13,7 +13,10 @@ defmodule Tuist.Billing.Workers.SyncCustomerStripeMetersWorkerWorkerTest do
     date = Timex.format!(Tuist.Time.utc_now(), "{YYYY}.{0M}.{D}")
     idempotency_key = "#{customer_id}-#{date}"
 
-    stub(FunWithFlags, :enabled?, fn :qa_billing_enabled, [for: ^account] -> true end)
+    stub(FunWithFlags, :enabled?, fn
+      :qa_billing_enabled, [for: ^account] -> true
+      :runner_billing_enabled, [for: ^account] -> false
+    end)
 
     expect(Tuist.Billing, :update_remote_cache_hit_meter, fn ^customer_id, ^idempotency_key ->
       {:ok, :updated}
@@ -38,7 +41,10 @@ defmodule Tuist.Billing.Workers.SyncCustomerStripeMetersWorkerWorkerTest do
     date = Timex.format!(Tuist.Time.utc_now(), "{YYYY}.{0M}.{D}")
     idempotency_key = "#{customer_id}-#{date}"
 
-    stub(FunWithFlags, :enabled?, fn :qa_billing_enabled, [for: ^account] -> false end)
+    stub(FunWithFlags, :enabled?, fn
+      :qa_billing_enabled, [for: ^account] -> false
+      :runner_billing_enabled, [for: ^account] -> false
+    end)
 
     expect(Tuist.Billing, :update_remote_cache_hit_meter, fn ^customer_id, ^idempotency_key ->
       {:ok, :updated}
@@ -47,6 +53,32 @@ defmodule Tuist.Billing.Workers.SyncCustomerStripeMetersWorkerWorkerTest do
     # When/Then (no expectation set on update_llm_token_meters, so it must not be called)
     SyncCustomerStripeMetersWorker.perform(%Oban.Job{
       id: 456,
+      args: %{"customer_id" => customer_id}
+    })
+  end
+
+  test "updates runner meters when runner billing is enabled for the account" do
+    customer_id = UUIDv7.generate()
+    %{account: account} = AccountsFixtures.user_fixture(customer_id: customer_id)
+
+    date = Timex.format!(Tuist.Time.utc_now(), "{YYYY}.{0M}.{D}")
+    idempotency_key = "#{customer_id}-#{date}"
+
+    stub(FunWithFlags, :enabled?, fn
+      :qa_billing_enabled, [for: ^account] -> false
+      :runner_billing_enabled, [for: ^account] -> true
+    end)
+
+    expect(Tuist.Billing, :update_remote_cache_hit_meter, fn ^customer_id, ^idempotency_key ->
+      {:ok, :updated}
+    end)
+
+    expect(Tuist.Billing, :update_runner_meters, fn ^customer_id, ^idempotency_key ->
+      {:ok, :updated}
+    end)
+
+    SyncCustomerStripeMetersWorker.perform(%Oban.Job{
+      id: 789,
       args: %{"customer_id" => customer_id}
     })
   end

@@ -15,6 +15,7 @@ defmodule Tuist.Billing do
   alias Tuist.Billing.TokenUsage
   alias Tuist.CommandEvents
   alias Tuist.Repo
+  alias Tuist.Runners.Billing, as: RunnerBilling
 
   # Unfortunately, this data can't be obtained and cached
   # from the Stripe's API, so we have to make sure it's in sync
@@ -122,6 +123,55 @@ defmodule Tuist.Billing do
       |> Stripe.Request.make_request()
   end
 
+  @doc """
+  Reports yesterday's gross runner usage to one Stripe meter per
+  machine specification.
+
+  Meter values are milliseconds. Configure each Stripe price to
+  transform 60,000 units into one billed minute, then set the
+  machine-specific amount on that price. Prepaid usage remains a
+  Stripe billing credit applied to these prices; it never changes
+  the usage reported here.
+  """
+  def update_runner_meters(customer_id, idempotency_key) do
+    {:ok, account} = Accounts.get_account_from_customer_id(customer_id)
+    {start_of_yesterday, end_of_yesterday} = yesterday_window()
+    usage_date = DateTime.to_date(start_of_yesterday)
+
+    account.id
+    |> RunnerBilling.compute_milliseconds_by_machine(start_of_yesterday, end_of_yesterday)
+    |> Enum.reject(&(&1.total_ms == 0))
+    |> Enum.reduce_while({:ok, []}, fn usage, {:ok, reported} ->
+      event_name = RunnerBilling.meter_event_name(usage)
+      identifier = "#{customer_id}-#{event_name}-#{Date.to_iso8601(usage_date)}"
+
+      result =
+        []
+        |> Stripe.Request.new_request(%{"Idempotency-Key" => "#{idempotency_key}-#{event_name}"})
+        |> Stripe.Request.put_endpoint(Stripe.OpenApi.Path.replace_path_params("/v1/billing/meter_events", [], []))
+        |> Stripe.Request.put_params(%{
+          event_name: event_name,
+          identifier: identifier,
+          timestamp: DateTime.to_unix(start_of_yesterday),
+          payload: %{
+            value: usage.total_ms,
+            stripe_customer_id: customer_id
+          }
+        })
+        |> Stripe.Request.put_method(:post)
+        |> Stripe.Request.make_request()
+
+      case result do
+        {:ok, event} -> {:cont, {:ok, [event | reported]}}
+        {:error, _reason} = error -> {:halt, error}
+      end
+    end)
+    |> case do
+      {:ok, reported} -> {:ok, Enum.reverse(reported)}
+      {:error, _reason} = error -> error
+    end
+  end
+
   def update_plan(%{plan: plan, account: %Account{} = account, success_url: success_url}) do
     customer_id = account.customer_id
 
@@ -157,14 +207,18 @@ defmodule Tuist.Billing do
   defp get_subscription_items(plan) do
     available_prices = Tuist.Environment.stripe_prices()
 
-    usage_prices = Enum.map(available_prices[plan]["usage"], &%{price: &1})
+    usage_prices =
+      available_prices[plan]["usage"]
+      |> List.wrap()
+      |> Enum.map(&%{price: &1})
 
     flat_prices =
       available_prices[plan]["flat_monthly"]
+      |> List.wrap()
       |> Enum.map(&%{price: &1, quantity: 1})
       |> Enum.take(1)
 
-    usage_prices ++ flat_prices
+    usage_prices ++ runner_subscription_items(available_prices) ++ flat_prices
   end
 
   @doc """
@@ -224,11 +278,30 @@ defmodule Tuist.Billing do
     available_prices = Tuist.Environment.stripe_prices()
     key = if cadence == "yearly", do: "flat_yearly", else: "flat_monthly"
 
+    usage_prices =
+      available_prices["enterprise"]["usage"]
+      |> List.wrap()
+      |> Enum.map(&%{price: &1})
+
     # Enterprise is negotiated per-deal; start the subscription with 0 seats
     # so sales can fill in the actual quantity on Stripe without us guessing.
-    (available_prices["enterprise"][key] || [])
-    |> Enum.take(1)
-    |> Enum.map(&%{price: &1, quantity: 0})
+    flat_prices =
+      available_prices["enterprise"][key]
+      |> List.wrap()
+      |> Enum.take(1)
+      |> Enum.map(&%{price: &1, quantity: 0})
+
+    usage_prices ++ runner_subscription_items(available_prices) ++ flat_prices
+  end
+
+  defp runner_subscription_items(available_prices) do
+    available_prices
+    |> Map.get("runners", %{})
+    |> Enum.sort_by(&elem(&1, 0))
+    |> Enum.flat_map(fn
+      {_meter_event_name, price_id} when is_binary(price_id) and price_id != "" -> [%{price: price_id}]
+      _ -> []
+    end)
   end
 
   @doc """
@@ -304,20 +377,26 @@ defmodule Tuist.Billing do
 
     plan =
       available_prices
-      |> Enum.filter(&plan_valid?(&1, subscription_prices))
+      |> Enum.filter(fn prices ->
+        plan_prices?(prices) and plan_valid?(prices, subscription_prices)
+      end)
       |> Enum.map(&elem(&1, 0))
       |> List.first()
 
     if plan == nil, do: :none, else: plan
   end
 
+  defp plan_prices?({_plan, prices}) do
+    is_map(prices) and Map.has_key?(prices, "flat_monthly")
+  end
+
   defp plan_valid?({plan, plan_prices}, subscription_prices) do
     if plan == "enterprise" do
-      flat = plan_prices["flat_monthly"] ++ plan_prices["flat_yearly"]
+      flat = List.wrap(plan_prices["flat_monthly"]) ++ List.wrap(plan_prices["flat_yearly"])
       Enum.any?(flat, &Enum.member?(subscription_prices, &1))
     else
-      usage = plan_prices["usage"]
-      flat = plan_prices["flat_monthly"]
+      usage = List.wrap(plan_prices["usage"])
+      flat = List.wrap(plan_prices["flat_monthly"])
 
       # The subscription must:
       #   - Include all the usage-based prices
@@ -563,9 +642,7 @@ defmodule Tuist.Billing do
   Returns {input_tokens, output_tokens}.
   """
   def get_yesterdays_customer_llm_token_usage(customer_id) do
-    now = DateTime.utc_now()
-    start_of_yesterday = now |> Timex.shift(days: -1) |> Timex.beginning_of_day()
-    end_of_yesterday = now |> Timex.shift(days: -1) |> Timex.end_of_day()
+    {start_of_yesterday, end_of_yesterday} = yesterday_window()
 
     Repo.one(
       from(tu in TokenUsage,
@@ -621,6 +698,15 @@ defmodule Tuist.Billing do
       })
       |> Stripe.Request.put_method(:post)
       |> Stripe.Request.make_request()
+  end
+
+  defp yesterday_window do
+    now = DateTime.utc_now()
+
+    {
+      now |> Timex.shift(days: -1) |> Timex.beginning_of_day(),
+      now |> Timex.shift(days: -1) |> Timex.end_of_day()
+    }
   end
 
   # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity

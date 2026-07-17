@@ -19,3 +19,4 @@ This context owns billing, plan management, and Stripe integration.
 - Parent business logic: `server/lib/tuist/AGENTS.md`
 - Web layer: `server/lib/tuist_web/AGENTS.md`
 - Migrations: `server/priv/AGENTS.md`
+- Runner metering and Stripe setup: `server/runner-billing.md`

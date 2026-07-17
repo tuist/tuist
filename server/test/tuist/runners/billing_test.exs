@@ -5,6 +5,7 @@ defmodule Tuist.Runners.BillingTest do
 
   alias Tuist.Repo
   alias Tuist.Runners.Billing
+  alias Tuist.Runners.Catalog
   alias Tuist.Runners.RunnerSession
 
   defp session_fixture(account, attrs) do
@@ -153,6 +154,86 @@ defmodule Tuist.Runners.BillingTest do
       )
 
       assert Billing.compute_milliseconds(account.id, period_start, period_end) == 11 * 60 * 1_000
+    end
+  end
+
+  describe "compute_milliseconds_by_machine/4" do
+    test "groups usage by platform and machine specification" do
+      account = account_fixture()
+      period_start = ~U[2026-05-01 00:00:00.000000Z]
+      period_end = ~U[2026-05-02 00:00:00.000000Z]
+
+      session_fixture(account,
+        fleet_name: "linux-first",
+        platform: :linux,
+        vcpus: 2,
+        memory_gb: 8,
+        started_at: ~U[2026-05-01 10:00:00.000000Z],
+        ended_at: ~U[2026-05-01 10:05:00.000000Z]
+      )
+
+      session_fixture(account,
+        fleet_name: "linux-second",
+        platform: :linux,
+        vcpus: 2,
+        memory_gb: 8,
+        started_at: ~U[2026-05-01 11:00:00.000000Z],
+        ended_at: ~U[2026-05-01 11:10:00.000000Z]
+      )
+
+      session_fixture(account,
+        fleet_name: "macos-xcode-26-5",
+        platform: :macos,
+        vcpus: 6,
+        memory_gb: 14,
+        started_at: ~U[2026-05-01 12:00:00.000000Z],
+        ended_at: ~U[2026-05-01 12:07:00.000000Z]
+      )
+
+      assert [
+               %{platform: :linux, vcpus: 2, memory_gb: 8, total_ms: 900_000},
+               %{platform: :macos, vcpus: 6, memory_gb: 14, total_ms: 420_000}
+             ] = Billing.compute_milliseconds_by_machine(account.id, period_start, period_end)
+    end
+
+    test "falls back to the fleet catalog for historical sessions" do
+      account = account_fixture()
+      period_start = ~U[2026-05-01 00:00:00.000000Z]
+      period_end = ~U[2026-05-02 00:00:00.000000Z]
+
+      session_fixture(account,
+        fleet_name: Catalog.pool_name(%{platform: :linux, vcpus: 2, memory_gb: 8}),
+        started_at: ~U[2026-05-01 10:00:00.000000Z],
+        ended_at: ~U[2026-05-01 10:03:00.000000Z]
+      )
+
+      assert [%{platform: :linux, vcpus: 2, memory_gb: 8, total_ms: 180_000}] =
+               Billing.compute_milliseconds_by_machine(account.id, period_start, period_end)
+    end
+  end
+
+  describe "meter_event_name/1" do
+    test "includes the platform and full machine specification" do
+      assert Billing.meter_event_name(%{platform: :macos, vcpus: 6, memory_gb: 14}) ==
+               "runner_macos_6_vcpu_14_gb_milliseconds"
+    end
+  end
+
+  describe "billable_machines/0" do
+    test "returns one Stripe meter definition per configured machine shape" do
+      machines = Billing.billable_machines()
+
+      assert Enum.map(machines, & &1.meter_event_name) == [
+               "runner_linux_1_vcpu_2_gb_milliseconds",
+               "runner_linux_2_vcpu_4_gb_milliseconds",
+               "runner_linux_2_vcpu_8_gb_milliseconds",
+               "runner_linux_4_vcpu_8_gb_milliseconds",
+               "runner_linux_4_vcpu_16_gb_milliseconds",
+               "runner_linux_8_vcpu_16_gb_milliseconds",
+               "runner_linux_8_vcpu_32_gb_milliseconds",
+               "runner_linux_16_vcpu_32_gb_milliseconds",
+               "runner_macos_6_vcpu_14_gb_milliseconds"
+             ]
     end
   end
 

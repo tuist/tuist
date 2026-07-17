@@ -585,10 +585,10 @@ stay aligned without relying on the runtime secret bundle.
 {{/*
 Stripe price IDs. These are not secrets (just identifiers for the products in
 Stripe), so they live in chart values as a readable plan -> category -> [ids]
-map instead of the secret store. `Tuist.Environment.stripe_prices/1` reads
-TUIST_STRIPE_PRICES as a JSON string, so the chart just JSON-encodes the map.
-Emits nothing when server.stripe.prices is empty (self-hosted installs without
-Stripe).
+map plus a top-level runner meter event name -> price id map instead of the
+secret store. `Tuist.Environment.stripe_prices/1` reads TUIST_STRIPE_PRICES as
+a JSON string, so the chart just JSON-encodes the map. Emits nothing when
+server.stripe.prices is empty (self-hosted installs without Stripe).
 */}}
 {{- define "tuist.stripePricesEnv" -}}
 {{- with .Values.server.stripe.prices }}

@@ -2,6 +2,7 @@ defmodule Tuist.BillingTest do
   use TuistTestSupport.Cases.DataCase, async: true
   use Mimic
 
+  alias Stripe.Checkout.Session
   alias Tuist.Accounts
   alias Tuist.Accounts.Account
   alias Tuist.Billing
@@ -9,6 +10,7 @@ defmodule Tuist.BillingTest do
   alias Tuist.Billing.Customer
   alias Tuist.Billing.PaymentMethod
   alias Tuist.Environment
+  alias Tuist.Runners.Billing, as: RunnerBilling
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.BillingFixtures
 
@@ -25,9 +27,11 @@ defmodule Tuist.BillingTest do
           "flat_yearly" => ["pro.flat.yearly"]
         },
         "enterprise" => %{
+          "usage" => ["enterprise.usage"],
           "flat_monthly" => ["enterprise.flat.monthly"],
           "flat_yearly" => ["enterprise.flat.yearly"]
-        }
+        },
+        "runners" => %{}
       }
     end)
 
@@ -362,21 +366,59 @@ defmodule Tuist.BillingTest do
   end
 
   describe "update_plan/1" do
+    test "adds every configured runner meter price to a new subscription" do
+      # Given
+      user = AccountsFixtures.user_fixture(customer_id: "customer_id")
+      account = Accounts.get_account_from_user(user)
+      customer_id = account.customer_id
+
+      stub(Environment, :stripe_prices, fn ->
+        %{
+          "pro" => %{
+            "usage" => ["pro.usage"],
+            "flat_monthly" => ["pro.flat.monthly"]
+          },
+          "runners" => %{
+            "runner_macos_6_vcpu_14_gb_milliseconds" => "runner.macos.6.14",
+            "runner_linux_2_vcpu_8_gb_milliseconds" => "runner.linux.2.8"
+          }
+        }
+      end)
+
+      expect(Session, :create, fn %{
+                                    success_url: "success_url",
+                                    line_items: [
+                                      %{price: "pro.usage"},
+                                      %{price: "runner.linux.2.8"},
+                                      %{price: "runner.macos.6.14"},
+                                      %{price: "pro.flat.monthly", quantity: 1}
+                                    ],
+                                    mode: "subscription",
+                                    customer: ^customer_id
+                                  } ->
+        {:ok, %{url: "session_url"}}
+      end)
+
+      # When/then
+      assert Billing.update_plan(%{plan: :pro, account: account, success_url: "success_url"}) ==
+               {:ok, {:external_redirect, "session_url"}}
+    end
+
     test "creates a new session when upgrading to the pro plan if there is no current active subscription" do
       # Given
       user = AccountsFixtures.user_fixture(customer_id: "customer_id")
       account = Accounts.get_account_from_user(user)
       customer_id = account.customer_id
 
-      stub(Stripe.Checkout.Session, :create, fn %{
-                                                  success_url: "success_url",
-                                                  line_items: [
-                                                    %{price: "pro.usage"},
-                                                    %{price: "pro.flat.monthly", quantity: 1}
-                                                  ],
-                                                  mode: "subscription",
-                                                  customer: ^customer_id
-                                                } ->
+      stub(Session, :create, fn %{
+                                  success_url: "success_url",
+                                  line_items: [
+                                    %{price: "pro.usage"},
+                                    %{price: "pro.flat.monthly", quantity: 1}
+                                  ],
+                                  mode: "subscription",
+                                  customer: ^customer_id
+                                } ->
         {:ok, %{url: "session_url"}}
       end)
 
@@ -463,6 +505,42 @@ defmodule Tuist.BillingTest do
     end
   end
 
+  test "runner price configuration is ignored when identifying a subscription plan" do
+    # Given
+    user = AccountsFixtures.user_fixture(customer_id: "customer_id")
+    account = Accounts.get_account_from_user(user)
+
+    stub(Environment, :stripe_prices, fn ->
+      %{
+        "pro" => %{
+          "usage" => ["pro.usage"],
+          "flat_monthly" => ["pro.flat.monthly"]
+        },
+        "runners" => %{
+          "runner_linux_2_vcpu_8_gb_milliseconds" => "runner.linux.2.8"
+        }
+      }
+    end)
+
+    # When
+    Billing.on_subscription_change(%{
+      id: "sub_with_runner",
+      status: "active",
+      customer: "customer_id",
+      default_payment_method: "pm_some-id",
+      items: %{
+        data: [
+          %{price: %{id: "pro.usage"}},
+          %{price: %{id: "pro.flat.monthly"}},
+          %{price: %{id: "runner.linux.2.8"}}
+        ]
+      }
+    })
+
+    # Then
+    assert %{plan: :pro} = Billing.get_current_active_subscription(account)
+  end
+
   describe "update_remote_cache_hit_meter/2" do
     test "sends the right API request to Stripe" do
       # Given
@@ -490,6 +568,59 @@ defmodule Tuist.BillingTest do
 
       # When
       Billing.update_remote_cache_hit_meter(account.customer_id, "job-1")
+    end
+  end
+
+  describe "update_runner_meters/2" do
+    test "reports exact milliseconds to the machine-specific meter" do
+      customer_id = "customer-#{UUIDv7.generate()}"
+      %{account: account} = AccountsFixtures.user_fixture(customer_id: customer_id)
+      account_id = account.id
+      now = ~U[2026-07-17 10:20:30.000000Z]
+      start_of_yesterday = ~U[2026-07-16 00:00:00.000000Z]
+      end_of_yesterday = ~U[2026-07-16 23:59:59.999999Z]
+      event_name = "runner_linux_4_vcpu_16_gb_milliseconds"
+
+      stub(DateTime, :utc_now, fn -> now end)
+
+      expect(RunnerBilling, :compute_milliseconds_by_machine, fn ^account_id, ^start_of_yesterday, ^end_of_yesterday ->
+        [%{platform: :linux, vcpus: 4, memory_gb: 16, total_ms: 750_125}]
+      end)
+
+      expect(RunnerBilling, :meter_event_name, fn %{platform: :linux, vcpus: 4, memory_gb: 16} ->
+        event_name
+      end)
+
+      expect(Stripe.Request, :make_request, fn %{
+                                                 method: :post,
+                                                 endpoint: "/v1/billing/meter_events",
+                                                 params: %{
+                                                   event_name: ^event_name,
+                                                   identifier: identifier,
+                                                   timestamp: timestamp,
+                                                   payload: %{
+                                                     value: 750_125,
+                                                     stripe_customer_id: ^customer_id
+                                                   }
+                                                 }
+                                               } ->
+        assert identifier == "#{customer_id}-#{event_name}-2026-07-16"
+        assert timestamp == DateTime.to_unix(start_of_yesterday)
+        {:ok, %{id: "meter-event"}}
+      end)
+
+      assert {:ok, [%{id: "meter-event"}]} = Billing.update_runner_meters(customer_id, "job-1")
+    end
+
+    test "does not send events when the account had no runner usage" do
+      customer_id = "customer-#{UUIDv7.generate()}"
+      %{account: account} = AccountsFixtures.user_fixture(customer_id: customer_id)
+      account_id = account.id
+
+      stub(RunnerBilling, :compute_milliseconds_by_machine, fn ^account_id, _, _ -> [] end)
+      reject(&Stripe.Request.make_request/1)
+
+      assert {:ok, []} = Billing.update_runner_meters(customer_id, "job-2")
     end
   end
 
@@ -699,7 +830,10 @@ defmodule Tuist.BillingTest do
 
       expect(Stripe.Subscription, :create, fn %{
                                                 customer: "customer_id",
-                                                items: [%{price: "enterprise.flat.monthly", quantity: 0}],
+                                                items: [
+                                                  %{price: "enterprise.usage"},
+                                                  %{price: "enterprise.flat.monthly", quantity: 0}
+                                                ],
                                                 collection_method: "send_invoice",
                                                 days_until_due: 30
                                               } ->
@@ -747,6 +881,7 @@ defmodule Tuist.BillingTest do
                                                 items: [
                                                   %{id: "pro.flat.monthly", deleted: true},
                                                   %{id: "pro.usage", deleted: true},
+                                                  %{price: "enterprise.usage"},
                                                   %{price: "enterprise.flat.yearly", quantity: 0}
                                                 ],
                                                 collection_method: "send_invoice",

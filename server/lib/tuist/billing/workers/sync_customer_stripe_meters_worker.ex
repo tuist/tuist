@@ -28,6 +28,10 @@ defmodule Tuist.Billing.Workers.SyncCustomerStripeMetersWorker do
       {:ok, _} = Billing.update_llm_token_meters(customer_id, idempotency_key)
     end
 
+    if FunWithFlags.enabled?(:runner_billing_enabled, for: account) do
+      {:ok, _} = Billing.update_runner_meters(customer_id, idempotency_key)
+    end
+
     :ok
   end
 end

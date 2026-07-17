@@ -23,6 +23,28 @@ defmodule Tuist.Runners.RunnerSessionsTest do
     Repo.insert!(struct(RunnerSession, Map.merge(defaults, Map.new(attrs))))
   end
 
+  describe "open/1" do
+    test "persists the machine resources used for billing" do
+      account = account_fixture()
+
+      assert {:ok, session} =
+               RunnerSessions.open(%{
+                 workflow_job_id: 79_001,
+                 account_id: account.id,
+                 fleet_name: "tuist-runner-pool-linux-4vcpu-16gb",
+                 platform: :linux,
+                 vcpus: 4,
+                 memory_gb: 16,
+                 pod_name: "pod-resource-billing",
+                 started_at: DateTime.utc_now()
+               })
+
+      assert session.platform == :linux
+      assert session.vcpus == 4
+      assert session.memory_gb == 16
+    end
+  end
+
   describe "close_by_pod_name/2" do
     test "sets ended_at on the open session matching pod_name" do
       account = account_fixture()

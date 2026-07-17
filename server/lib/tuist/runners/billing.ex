@@ -39,6 +39,19 @@ defmodule Tuist.Runners.Billing do
   or hours happens at the formatting boundary. Daily series use
   the same interval-intersection but bucketed per UTC day, so a
   session that spans midnight contributes to both days.
+
+  ## Stripe reporting
+
+  Each `(platform, vcpus, memory_gb)` combination reports to a
+  separate Stripe meter. The meter receives milliseconds and its
+  price transforms 60,000 units into one billed minute. Keeping
+  machine types separate lets Stripe own their different prices.
+
+  Usage is always reported gross. Prepaid runner access is a
+  money-denominated Stripe billing credit grant scoped to the
+  runner meter prices, rather than minutes subtracted in Tuist.
+  That keeps mixed machine types fungible without pretending that
+  every machine minute has the same value.
   """
 
   import Ecto.Query
@@ -47,6 +60,12 @@ defmodule Tuist.Runners.Billing do
   alias Tuist.Runners.Analytics
   alias Tuist.Runners.Catalog
   alias Tuist.Runners.RunnerSession
+
+  require Logger
+
+  defguardp valid_machine_resources(platform, vcpus, memory_gb)
+            when platform in [:linux, :macos] and is_integer(vcpus) and vcpus > 0 and is_integer(memory_gb) and
+                   memory_gb > 0
 
   @default_window_days 30
 
@@ -152,6 +171,92 @@ defmodule Tuist.Runners.Billing do
       %{total_ms: ms} when is_integer(ms) -> ms
       _ -> 0
     end
+  end
+
+  @doc """
+  Returns billable milliseconds grouped by immutable machine
+  specification for the requested window.
+
+  New sessions persist their resource selection directly. Rows
+  created during the rollout can have no stored resource values;
+  those fall back to the fleet catalog. An unresolvable historical
+  fleet is omitted with a warning so billing remains biased toward
+  undercharging.
+  """
+  def compute_milliseconds_by_machine(account_id, %DateTime{} = period_start, %DateTime{} = period_end, opts \\ [])
+      when is_integer(account_id) do
+    now = DateTime.utc_now()
+
+    account_id
+    |> sessions_overlapping(period_start, period_end)
+    |> scope(opts)
+    |> group_by([s], [s.fleet_name, s.platform, s.vcpus, s.memory_gb])
+    |> select([s], %{
+      fleet_name: s.fleet_name,
+      platform: s.platform,
+      vcpus: s.vcpus,
+      memory_gb: s.memory_gb,
+      total_ms:
+        fragment(
+          """
+          COALESCE(SUM(GREATEST(
+            0,
+            (EXTRACT(EPOCH FROM (
+              LEAST(
+                COALESCE(?, ?),
+                ?,
+                ? + make_interval(secs => ?)
+              ) - GREATEST(?, ?)
+            )) * 1000)::bigint
+          )), 0)::bigint
+          """,
+          s.ended_at,
+          ^now,
+          ^period_end,
+          s.started_at,
+          ^@max_session_lifetime_seconds,
+          s.started_at,
+          ^period_start
+        )
+    })
+    |> Repo.all()
+    |> Enum.reduce(%{}, &merge_machine_usage/2)
+    |> Enum.map(fn {{platform, vcpus, memory_gb}, total_ms} ->
+      %{platform: platform, vcpus: vcpus, memory_gb: memory_gb, total_ms: total_ms}
+    end)
+    |> Enum.sort_by(&{&1.platform, &1.vcpus, &1.memory_gb})
+  end
+
+  @doc """
+  Returns every machine specification that needs a Stripe meter and
+  metered price in the current runner catalog.
+
+  Linux shapes and operator-defined pools are both included. macOS
+  Xcode versions are deliberately collapsed onto their machine shape:
+  changing the image does not create a different billable machine.
+  Each result carries the exact meter event name emitted by Tuist.
+  """
+  def billable_machines do
+    linux_machines =
+      Enum.map(Catalog.linux_fleet_resources(), &Map.take(&1, [:platform, :vcpus, :memory_gb]))
+
+    macos_machines =
+      Enum.map(Catalog.shapes(:macos), fn shape ->
+        %{platform: :macos, vcpus: shape.vcpus, memory_gb: shape.memory_gb}
+      end)
+
+    (linux_machines ++ macos_machines)
+    |> Enum.uniq_by(&{&1.platform, &1.vcpus, &1.memory_gb})
+    |> Enum.sort_by(&{&1.platform, &1.vcpus, &1.memory_gb})
+    |> Enum.map(&Map.put(&1, :meter_event_name, meter_event_name(&1)))
+  end
+
+  @doc """
+  Stable Stripe meter event name for a runner machine specification.
+  """
+  def meter_event_name(%{platform: platform, vcpus: vcpus, memory_gb: memory_gb})
+      when valid_machine_resources(platform, vcpus, memory_gb) do
+    "runner_#{platform}_#{vcpus}_vcpu_#{memory_gb}_gb_milliseconds"
   end
 
   @doc """
@@ -301,6 +406,27 @@ defmodule Tuist.Runners.Billing do
       where: is_nil(s.ended_at) or s.ended_at >= ^period_start
     )
   end
+
+  defp merge_machine_usage(row, usage) do
+    case resources_for_session(row) do
+      {:ok, %{platform: platform, vcpus: vcpus, memory_gb: memory_gb}} ->
+        Map.update(usage, {platform, vcpus, memory_gb}, row.total_ms, &(&1 + row.total_ms))
+
+      {:error, :invalid_resources} ->
+        Logger.warning(
+          "runners: omitting #{row.total_ms} billing milliseconds with unknown resources for fleet #{row.fleet_name}"
+        )
+
+        usage
+    end
+  end
+
+  defp resources_for_session(%{platform: platform, vcpus: vcpus, memory_gb: memory_gb})
+       when valid_machine_resources(platform, vcpus, memory_gb) do
+    {:ok, %{platform: platform, vcpus: vcpus, memory_gb: memory_gb}}
+  end
+
+  defp resources_for_session(%{fleet_name: fleet_name}), do: Catalog.resources_for_fleet(fleet_name)
 
   defp scope(query, opts) do
     query

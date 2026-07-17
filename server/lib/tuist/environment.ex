@@ -809,9 +809,10 @@ defmodule Tuist.Environment do
 
   def stripe_prices(secrets \\ secrets()) do
     case get([:stripe, :prices], secrets) do
-      # TUIST_STRIPE_PRICES carries the plan -> category -> [price ids] map as a
-      # JSON string (rendered by the chart / set in mise for dev). A raw map is
-      # only seen in tests that stub it directly.
+      # TUIST_STRIPE_PRICES carries the plan -> category -> [price ids] map and
+      # the top-level runner meter event name -> price id map as a JSON string
+      # (rendered by the chart / set in mise for dev). A raw map is only seen in
+      # tests that stub it directly.
       prices when is_map(prices) -> prices
       prices when is_binary(prices) -> JSON.decode!(prices)
       _ -> nil

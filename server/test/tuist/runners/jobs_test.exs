@@ -1042,6 +1042,9 @@ defmodule Tuist.Runners.JobsTest do
           workflow_job_id: 7200,
           account_id: account.id,
           fleet_name: "fleet-bs-close",
+          platform: :linux,
+          vcpus: 2,
+          memory_gb: 8,
           pod_name: "pod-bs-close",
           runner_name: "runner-bs",
           started_at: claimed_at
