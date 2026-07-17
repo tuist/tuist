@@ -1,0 +1,132 @@
+# TEMPORARY — DO NOT MERGE. Delete once the cache-volume design is settled.
+#
+# Pins down why `tuist cache` dies on a warm cache volume, and whether the
+# proposed fix actually works — before any of it gets written in Go.
+#
+# Observed in production (spec #76, volume enabled):
+#
+#   NSCocoaErrorDomain 512 "Resources couldn't be copied to Algorithms.framework"
+#     NSUnderlyingError = NSPOSIXErrorDomain Code=62 "Too many levels of symbolic links"
+#     dest: <share>/tuist/Binaries/<hash>/Algorithms.xcframework/macos-arm64_x86_64/…/Resources
+#
+# The permission fix (#11884) works — the whole tree materialises 0777 and
+# "couldn't be moved" never appears. This is a different, deeper failure: the
+# master held 230 binaries and ZERO symlinks, and every cached framework was an
+# iOS/simulator slice (flat). macOS frameworks are versioned bundles
+# (Resources -> Versions/Current/Resources, Current -> A), so the theory is that
+# symlinks don't survive virtio-fs. Known-broken elsewhere (docker/for-mac#6277,
+# podman#16102) but nobody documents Apple's mechanism — so measure it.
+#
+# Every check runs against BOTH the virtio-fs share and a local-disk control, so
+# a failure is attributable to the share rather than to the probe.
+name: TMP VirtioFS Symlink Probe
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    name: VirtioFS Symlink Probe
+    runs-on: tuist-macos
+    timeout-minutes: 20
+    steps:
+      - name: Probe
+        run: |
+          set +e
+          SHARE="/Volumes/My Shared Files/cache"
+          echo "whoami: $(whoami) ($(id -u):$(id -g))"
+          if [ ! -d "${SHARE}" ]; then
+            echo "NO CACHE SHARE — this VM booted before the flag; probe is VOID."
+            exit 1
+          fi
+          echo "share: $(ls -ld "${SHARE}")"
+
+          # Build a macOS versioned-framework layout and report every step.
+          # $1 = root to build under, $2 = label for the output.
+          probe_tree() {
+            local root="$1" label="$2"
+            local D="${root}/Foo.framework"
+            echo ""
+            echo "=============== ${label} :: ${root}"
+            rm -rf "${D}" 2>/dev/null
+            mkdir -p "${D}/Versions/A/Resources" 2>&1 || { echo "  mkdir FAILED"; return; }
+            echo "marker" > "${D}/Versions/A/Resources/Info.plist" 2>&1 || echo "  write FAILED"
+
+            # 1. Can a relative symlink be created at all?
+            ln -s A "${D}/Versions/Current" 2>&1 && echo "  [1] ln -s A Versions/Current: OK" || echo "  [1] ln -s FAILED"
+            ln -s Versions/Current/Resources "${D}/Resources" 2>&1 && echo "  [2] ln -s Versions/Current/Resources Resources: OK" || echo "  [2] ln -s FAILED"
+
+            # 2. Is it stored AS a symlink, and does readlink return the target
+            #    we wrote? A wrong target here IS the bug — a link that resolves
+            #    to itself is exactly what produces ELOOP.
+            echo "  [3] lstat Current : $(ls -ld "${D}/Versions/Current" 2>&1 | awk '{print $1, $NF}')"
+            echo "  [4] readlink Current : '$(readlink "${D}/Versions/Current" 2>&1)'  (want 'A')"
+            echo "  [5] readlink Resources : '$(readlink "${D}/Resources" 2>&1)'  (want 'Versions/Current/Resources')"
+
+            # 3. Does resolution work, or ELOOP?
+            if ls "${D}/Resources/" >/dev/null 2>&1; then
+              echo "  [6] resolve Resources/: OK -> $(ls "${D}/Resources/" | tr '\n' ' ')"
+            else
+              echo "  [6] resolve Resources/: FAILED -> $(ls "${D}/Resources/" 2>&1 | head -1)"
+            fi
+            if cat "${D}/Resources/Info.plist" >/dev/null 2>&1; then
+              echo "  [7] read through symlink: OK"
+            else
+              echo "  [7] read through symlink: FAILED -> $(cat "${D}/Resources/Info.plist" 2>&1 | head -1)"
+            fi
+
+            # 4. The real operation that failed in production: copy a whole
+            #    framework bundle in (what CacheLocalStorage.store does).
+            local SRC="/tmp/src-fw-$$"
+            rm -rf "${SRC}"; mkdir -p "${SRC}/Bar.framework/Versions/A/Resources"
+            echo x > "${SRC}/Bar.framework/Versions/A/Resources/Info.plist"
+            ln -s A "${SRC}/Bar.framework/Versions/Current"
+            ln -s Versions/Current/Resources "${SRC}/Bar.framework/Resources"
+            if cp -R "${SRC}/Bar.framework" "${root}/Bar.framework" 2>/tmp/cp-err-$$; then
+              echo "  [8] cp -R framework bundle in: OK"
+            else
+              echo "  [8] cp -R framework bundle in: FAILED -> $(head -1 /tmp/cp-err-$$)"
+            fi
+            rm -rf "${SRC}"
+          }
+
+          # Control: local disk. Anything failing HERE is the probe's fault.
+          probe_tree "/tmp/local-control-$$" "LOCAL DISK (control)"
+          # Subject: the virtio-fs share.
+          probe_tree "${SHARE}/tuist/probe-$$" "VIRTIO-FS SHARE (subject)"
+
+          # THE PROPOSED FIX: a disk image ON the share, mounted by the guest.
+          # Only one regular file crosses virtio-fs; the filesystem inside is
+          # real APFS, so symlinks are native and `-owners off` makes the
+          # host/guest uid mismatch (runner 502 vs m1 501) irrelevant.
+          echo ""
+          echo "=============== PROPOSED FIX: disk image on the share"
+          IMG="${SHARE}/probe-$$.sparseimage"
+          MNT="/tmp/probe-mnt-$$"
+          mkdir -p "${MNT}"
+          if hdiutil create -size 4g -fs APFS -volname CacheProbe -type SPARSE -quiet "${IMG}" 2>&1; then
+            echo "  [A] hdiutil create on the share: OK ($(du -h "${IMG}" 2>/dev/null | cut -f1))"
+          else
+            echo "  [A] hdiutil create on the share: FAILED"
+          fi
+          if hdiutil attach "${IMG}" -owners off -mountpoint "${MNT}" -nobrowse -quiet 2>&1; then
+            echo "  [B] hdiutil attach -owners off: OK"
+            probe_tree "${MNT}" "INSIDE THE MOUNTED IMAGE (the fix)"
+            echo ""
+            echo "  --- write throughput inside the image (block I/O over virtio-fs):"
+            dd if=/dev/zero of="${MNT}/blob" bs=1m count=512 2>&1 | tail -1 | sed 's/^/    /'
+            rm -f "${MNT}/blob"
+            hdiutil detach "${MNT}" -quiet 2>&1 && echo "  [C] hdiutil detach: OK" || echo "  [C] hdiutil detach: FAILED"
+          else
+            echo "  [B] hdiutil attach: FAILED — fix is a NO-GO, fall back to tar-on-share"
+          fi
+          rm -f "${IMG}"
+          rm -rf "${SHARE}/tuist/probe-$$" 2>/dev/null
+          echo ""
+          echo "probe complete"
+          exit 0
