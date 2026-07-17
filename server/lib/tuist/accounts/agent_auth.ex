@@ -330,40 +330,42 @@ defmodule Tuist.Accounts.AgentAuth do
         now = DateTime.truncate(Time.utc_now(), :second)
         {:ok, registration} = registration |> AgentRegistration.poll_changeset(now) |> Repo.update()
 
-        case registration.status do
-          :claimed ->
-            registration = Repo.preload(registration, claimed_by_user: :account)
-
-            with {:ok, token} <- issue_protocol_access_token(registration),
-                 {:ok, signed} <-
-                   AgentAuthSigningKey.sign(registration, audience,
-                     version: 2,
-                     email: registration.claimed_by_user.email,
-                     email_verified: true
-                   ) do
-              insert_event!(registration, :assertion_issued, %{
-                claimed_by_user_id: registration.claimed_by_user_id,
-                metadata: %{version: 2},
-                occurred_at: now
-              })
-
-              Map.merge(token, %{
-                identity_assertion: signed.assertion,
-                assertion_expires_at: signed.expires_at
-              })
-            end
-
-          _ ->
-            if otp_expired?(registration) do
-              {:error, :expired_token}
-            else
-              {:error, :authorization_pending}
-            end
-        end
+        resolve_polled_claim(registration, audience, now)
       end
     end
     |> Repo.transaction()
     |> unwrap_repo_transaction()
+  end
+
+  defp resolve_polled_claim(%{status: :claimed} = registration, audience, now) do
+    registration = Repo.preload(registration, claimed_by_user: :account)
+
+    with {:ok, token} <- issue_protocol_access_token(registration),
+         {:ok, signed} <-
+           AgentAuthSigningKey.sign(registration, audience,
+             version: 2,
+             email: registration.claimed_by_user.email,
+             email_verified: true
+           ) do
+      insert_event!(registration, :assertion_issued, %{
+        claimed_by_user_id: registration.claimed_by_user_id,
+        metadata: %{version: 2},
+        occurred_at: now
+      })
+
+      Map.merge(token, %{
+        identity_assertion: signed.assertion,
+        assertion_expires_at: signed.expires_at
+      })
+    end
+  end
+
+  defp resolve_polled_claim(registration, _audience, _now) do
+    if otp_expired?(registration) do
+      {:error, :expired_token}
+    else
+      {:error, :authorization_pending}
+    end
   end
 
   def revoke_protocol_access_token(token) when is_binary(token) do
