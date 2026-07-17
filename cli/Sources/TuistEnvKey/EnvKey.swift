@@ -496,6 +496,12 @@ public enum EnvKey: String, CaseIterable {
     case bazelSetupPath = "TUIST_BAZEL_SETUP_PATH"
     case bazelCredentialHelperPath = "TUIST_BAZEL_CREDENTIAL_HELPER_PATH"
 
+    // RUN REPORT
+    // Shared by every command that can write a run report, so it's not prefixed with a
+    // command name like the options above. Unrelated to the `tuist run` options.
+
+    case runReportPath = "TUIST_RUN_REPORT_PATH"
+
     public var envValueString: String? {
         Environment.current.tuistVariables[rawValue]
     }

@@ -48,6 +48,7 @@ public class TrackableCommand {
     private let serverAuthenticationController: ServerAuthenticationControlling
     private let fileSystem: FileSysteming
     private let gitHubActionsJobSummaryService: GitHubActionsJobSummaryServicing
+    private let runReportFileService: RunReportFileServicing
     private let bestEffortForegroundUploadTimeout: Duration
     private let sessionDirectory: AbsolutePath
 
@@ -61,6 +62,7 @@ public class TrackableCommand {
         serverAuthenticationController: ServerAuthenticationControlling = ServerAuthenticationController(),
         fileSystem: FileSysteming = FileSystem(),
         gitHubActionsJobSummaryService: GitHubActionsJobSummaryServicing = GitHubActionsJobSummaryService(),
+        runReportFileService: RunReportFileServicing = RunReportFileService(),
         bestEffortForegroundUploadTimeout: Duration = .seconds(15),
         sessionDirectory: AbsolutePath
     ) {
@@ -73,6 +75,7 @@ public class TrackableCommand {
         self.serverAuthenticationController = serverAuthenticationController
         self.fileSystem = fileSystem
         self.gitHubActionsJobSummaryService = gitHubActionsJobSummaryService
+        self.runReportFileService = runReportFileService
         self.bestEffortForegroundUploadTimeout = bestEffortForegroundUploadTimeout
         self.sessionDirectory = sessionDirectory
     }
@@ -217,6 +220,24 @@ public class TrackableCommand {
                     buildRunReports: buildRunReports,
                     runURL: serverCommandEvent.url
                 )
+
+                // Unlike the job summary, this is written even when there's nothing to tabulate:
+                // the URLs are the payload consumers are after.
+                if let runReportPath = (command as? RunReportingCommand)?.runReportPath {
+                    await runReportFileService.writeRunReport(
+                        RunReportFile(
+                            tuistVersion: commandEvent.tuistVersion,
+                            runId: runId,
+                            status: status,
+                            runURL: serverCommandEvent.url,
+                            testRunURL: serverCommandEvent.testRunURL,
+                            buildRunURL: buildRunURL,
+                            testRunReports: testRunReports,
+                            buildRunReports: buildRunReports
+                        ),
+                        to: runReportPath
+                    )
+                }
             } else {
                 let tempDirectory = try await fileSystem.makeTemporaryDirectory(prefix: "analytics")
                 let commandEventPath = tempDirectory.appending(component: "command-event.json")

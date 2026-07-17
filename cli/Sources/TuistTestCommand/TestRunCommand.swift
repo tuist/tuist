@@ -50,7 +50,9 @@
         "test-without-building",
     ]
 
-    public struct TestRunCommand: AsyncParsableCommand, LogConfigurableCommand, TrackableParsableCommand {
+    public struct TestRunCommand: AsyncParsableCommand, LogConfigurableCommand, TrackableParsableCommand,
+        RunReportingCommand
+    {
         public init() {}
 
         public static var configuration: CommandConfiguration {
@@ -156,6 +158,13 @@
             envKey: .testResultBundlePath
         )
         var resultBundlePath: String?
+
+        @Option(
+            help: "Path where a JSON report of the run, including the dashboard URLs, will be saved.",
+            completion: .file(),
+            envKey: .runReportPath
+        )
+        public var runReportPath: String?
 
         @Option(
             help:
