@@ -4,6 +4,7 @@ category: "product"
 tags: ["product", "swift", "spm", "cli", "bazel", "buck2", "performance"]
 excerpt: "Our users kept telling us that resolving Swift packages was slow, and that the directories where they get resolved ate gigabytes of disk. That pain has only grown as people run several agents across worktrees at once. So we built SwifterPM. It leaves resolution to the Swift Package Manager and speeds up everything around it: fetching the pinned sources, putting them on disk, and reading their manifests. Starting today it's the default for Tuist generated projects, with an environment variable to opt out, and it ships as a rule for Bazel and Buck2."
 author: pepicrft
+live: true
 og_image_path: /marketing/images/blog/2026/07/16/swifterpm/og.jpg
 ---
 
@@ -57,12 +58,20 @@ So instead of trying to avoid compiling the manifest, SwifterPM pays that cost d
 
 Numbers, since they're the point. These come from the [SwifterPM benchmark script](https://github.com/tuist/tuist/blob/main/swifterpm/mise/tasks/benchmark/resolution.sh), three runs each, on macOS 26 with Apple Swift 6.3.2. Both tools run against the same `Package.resolved` with forced resolved versions, so we're comparing the cost of getting those exact pins onto disk and nothing else. SwiftPM is pointed at its own isolated cache so its cold run isn't accidentally warmed by caches already on the machine, and the manifest cache is off on both sides. Cold resolution wipes the package-local scratch directories and each tool's shared cache before each run. Worktree-warm resolution wipes the package-local scratch but keeps the primed shared cache, which is exactly what happens when you switch to another clean worktree, the scenario that hurts most with agents.
 
-| Codebase | Scenario | SwiftPM | SwifterPM | Speedup |
-|:---|:---|---:|---:|---:|
-| Pocket Casts iOS (`Modules/Package.swift`) | Cold | 245.89 s | 140.16 s | 1.75x |
-| Pocket Casts iOS (`Modules/Package.swift`) | Worktree-warm | 126.28 s | 0.70 s | **180.40x** |
-| Firefox iOS (root `Package.swift`) | Cold | 51.07 s | 14.71 s | 3.47x |
-| Firefox iOS (root `Package.swift`) | Worktree-warm | 15.54 s | 0.48 s | **32.27x** |
+<Noora.Table.table id="swifterpm-benchmarks" rows={[
+%{id: "pocketcasts-cold", codebase: "Pocket Casts iOS", manifest_note: "", manifest: "Modules/Package.swift", scenario: "Cold", swiftpm: "245.89 s", swifterpm: "140.16 s", speedup: "1.75x", highlight: false},
+%{id: "pocketcasts-warm", codebase: "Pocket Casts iOS", manifest_note: "", manifest: "Modules/Package.swift", scenario: "Worktree-warm", swiftpm: "126.28 s", swifterpm: "0.70 s", speedup: "180.40x", highlight: true},
+%{id: "firefox-cold", codebase: "Firefox iOS", manifest_note: "root ", manifest: "Package.swift", scenario: "Cold", swiftpm: "51.07 s", swifterpm: "14.71 s", speedup: "3.47x", highlight: false},
+%{id: "firefox-warm", codebase: "Firefox iOS", manifest_note: "root ", manifest: "Package.swift", scenario: "Worktree-warm", swiftpm: "15.54 s", swifterpm: "0.48 s", speedup: "32.27x", highlight: true}
+]}>
+<:col :let={row} label="Codebase">{Phoenix.HTML.raw(row.codebase <> " (" <> row.manifest_note <> "<code>" <> row.manifest <> "</code>)")}</:col>
+<:col :let={row} label="Scenario">{row.scenario}</:col>
+<:col :let={row} label="SwiftPM">{row.swiftpm}</:col>
+<:col :let={row} label="SwifterPM">{row.swifterpm}</:col>
+<:col :let={row} label="Speedup">
+<strong :if={row.highlight}>{row.speedup}</strong><span :if={!row.highlight}>{row.speedup}</span>
+</:col>
+</Noora.Table.table>
 
 The cold runs are already a clear win, between 1.75x and 3.47x faster, even though that's the moment SwifterPM is doing its most expensive up-front work, compiling and persisting every manifest. But the cold run isn't the number to fixate on, because the one that matters is worktree-warm: that's the cost a developer running several agents actually pays, again and again, all day, and there resolving Pocket Casts' modules drops from over two minutes to under a second, and Firefox from fifteen seconds to under half a second. Notice that those two warm times are close to each other even though Pocket Casts is about ten times the graph Firefox is when resolved cold, and that's because once the global store is primed, warm restoration is mostly laying down symlinks, so it stays sub-second more or less regardless of how big the graph is. Disk follows the same shape: the global store is populated once instead of being copied into every worktree.
 
@@ -72,7 +81,7 @@ If you integrate Swift packages through Tuist's XcodeProj-based integration, dec
 
 If you use Bazel, SwifterPM ships a Bzlmod extension with the same resolver shape as `rules_swift_package_manager`:
 
-```python
+```starlark
 bazel_dep(name = "swifterpm", version = "0.9.0")
 
 swift_deps = use_extension("@swifterpm//:extensions.bzl", "swift_deps")
@@ -85,7 +94,7 @@ use_repo(swift_deps, "swift_package")
 
 And if you build Apple targets with Buck2, SwifterPM ships a small macro that creates a restore target you run before your build:
 
-```python
+```starlark
 load("//build_defs:swifterpm.bzl", "swifterpm_restore")
 
 swifterpm_restore(
