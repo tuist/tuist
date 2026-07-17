@@ -18,7 +18,7 @@ public protocol RunReportFileServicing {
     ///
     /// Relative paths resolve against the working directory. It never throws: a run report that
     /// failed to write must not fail the command it's reporting on.
-    func writeRunReport(_ report: RunReportFile, to path: String) async
+    func writeRunReport(_ report: RunReport, to path: String) async
 }
 
 public struct RunReportFileService: RunReportFileServicing {
@@ -39,7 +39,7 @@ public struct RunReportFileService: RunReportFileServicing {
         }
     }
 
-    public func writeRunReport(_ report: RunReportFile, to path: String) async {
+    public func writeRunReport(_ report: RunReport, to path: String) async {
         do {
             let outputPath = try await Environment.current.pathRelativeToWorkingDirectory(path)
 

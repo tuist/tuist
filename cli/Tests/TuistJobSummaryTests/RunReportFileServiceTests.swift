@@ -18,8 +18,8 @@ struct RunReportFileServiceTests {
         buildRunURL: URL? = URL(string: "https://tuist.dev/acme/app/builds/789"),
         testRunReports: [RunReportTestRun] = [],
         buildRunReports: [RunReportBuildRun] = []
-    ) -> RunReportFile {
-        RunReportFile(
+    ) -> RunReport {
+        RunReport(
             tuistVersion: "4.100.0",
             runId: "run-id",
             status: status,
@@ -31,9 +31,9 @@ struct RunReportFileServiceTests {
         )
     }
 
-    private func readReport(at path: AbsolutePath) async throws -> RunReportFile {
+    private func readReport(at path: AbsolutePath) async throws -> RunReport {
         let content = try await fileSystem.readTextFile(at: path)
-        return try JSONDecoder().decode(RunReportFile.self, from: Data(content.utf8))
+        return try JSONDecoder().decode(RunReport.self, from: Data(content.utf8))
     }
 
     @Test(.withMockedEnvironment())
@@ -57,7 +57,7 @@ struct RunReportFileServiceTests {
         )
 
         let report = try await readReport(at: path)
-        #expect(report.schemaVersion == RunReportFile.currentSchemaVersion)
+        #expect(report.schemaVersion == RunReport.currentSchemaVersion)
         #expect(report.tuistVersion == "4.100.0")
         #expect(report.runId == "run-id")
         #expect(report.status == .success)

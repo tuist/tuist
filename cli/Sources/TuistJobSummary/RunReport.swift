@@ -9,7 +9,7 @@ import TuistCore
 /// `CommandEvent` / `RunReportTestRun` / `RunReportBuildRun` means those stay free to change
 /// without breaking consumers. Any backwards-incompatible change *here* needs a
 /// `currentSchemaVersion` bump.
-public struct RunReportFile: Codable, Equatable {
+public struct RunReport: Codable, Equatable {
     /// Bump on any backwards-incompatible change to the shape below.
     public static let currentSchemaVersion = 1
 

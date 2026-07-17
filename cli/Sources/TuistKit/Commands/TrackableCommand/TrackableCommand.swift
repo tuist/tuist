@@ -235,7 +235,7 @@ public class TrackableCommand {
                 // the URLs are the payload consumers are after.
                 if let runReportPath = (command as? RunReportingCommand)?.runReportPath {
                     await runReportFileService.writeRunReport(
-                        RunReportFile(
+                        RunReport(
                             tuistVersion: commandEvent.tuistVersion,
                             runId: runId,
                             status: status,
