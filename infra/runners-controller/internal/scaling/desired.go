@@ -27,21 +27,25 @@ type PolicyKnobs struct {
 // DesiredReplicas computes the autoscaler's target replica count
 // from server signals and CRD knobs:
 //
-//	floor    = max(MinWarmPoolFloor, P95ConcurrentLastHour)
-//	desired  = max(Claimed + Queued, floor) + MinWarmPoolFloor
+//	desired  = max(Claimed + Queued, P95ConcurrentLastHour) + MinWarmPoolFloor
 //	clamped  = min(MaxReplicas, max(0, desired))
 //
 // Intuition:
 //   - `Claimed + Queued` is what's in flight or wanting a Pod right
 //     now. The fleet must be at least this big.
-//   - `floor` lifts the size to the typical peak observed in the
-//     last hour even when current load is below it — that's the
-//     "lead the demand" behavior that keeps the next peak from
-//     paying cold-start.
+//   - `P95ConcurrentLastHour` lifts the size to the typical peak
+//     observed in the last hour even when current load is below it —
+//     that's the "lead the demand" behavior that keeps the next peak
+//     from paying cold-start.
 //   - `+ MinWarmPoolFloor` adds operator-configured slack on top
 //     of whichever (current load OR predicted peak) won, so a
 //     fresh arrival lands on a warm Pod instead of waiting for a
-//     newly-claimed Pod to start polling.
+//     newly-claimed Pod to start polling. Because it is additive,
+//     `desired >= MinWarmPoolFloor` always holds — the warm
+//     guarantee needs no separate lower-bound clamp, and applying
+//     one would double-count it (an idle pool would size to
+//     2 * MinWarmPoolFloor and hold twice the hosts its operator
+//     asked for; on the 9-slot macOS fleet a floor of 3 reserved 6).
 //   - `MaxReplicas == 0` returns 0, which the caller treats as
 //     "autoscaling disabled" — the static spec.Replicas is left
 //     alone. This matches the CRD default; a pool that didn't
@@ -51,10 +55,7 @@ func DesiredReplicas(s Signals, k PolicyKnobs) int32 {
 		return 0
 	}
 
-	floor := k.MinWarmPoolFloor
-	if s.P95ConcurrentLastHour > floor {
-		floor = s.P95ConcurrentLastHour
-	}
+	floor := s.P95ConcurrentLastHour
 
 	load := s.Claimed + s.Queued
 
