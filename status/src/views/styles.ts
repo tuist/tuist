@@ -137,7 +137,6 @@ main {
       & > [data-part="body"] > [data-part="status"] {
         font-weight: var(--noora-font-weight-medium);
         color: var(--noora-surface-label-primary);
-        text-transform: capitalize;
       }
     }
   }
