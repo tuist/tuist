@@ -6,6 +6,7 @@ defmodule Tuist.MCP.ServerTest do
   alias Tuist.MCP.Components.Tools.AddOrganizationMember
   alias Tuist.MCP.Components.Tools.CreateOrganization
   alias Tuist.MCP.Components.Tools.CreateProject
+  alias Tuist.MCP.Components.Tools.GetGradleIntegrationGuide
   alias Tuist.MCP.Server
 
   describe "server/0" do
@@ -14,6 +15,8 @@ defmodule Tuist.MCP.ServerTest do
 
       tool_names = server.tools |> Map.keys() |> Enum.sort()
 
+      assert "get_gradle_integration_guide" in tool_names
+      assert "list_accounts" in tool_names
       assert "create_organization" in tool_names
       assert "create_project" in tool_names
       assert "add_organization_member" in tool_names
@@ -42,6 +45,12 @@ defmodule Tuist.MCP.ServerTest do
       assert "list_xcode_module_cache_targets" in tool_names
       assert "list_test_case_run_attachments" in tool_names
       assert "list_projects" in tool_names
+      assert server.version == "1.14.0"
+      assert server.instructions =~ "agent_auth.skill"
+      assert server.instructions =~ "identity-assertion exchange"
+      assert server.instructions =~ "enter the code on the Tuist page"
+      assert server.instructions =~ "explicitly ask the user to confirm the email address"
+      assert server.instructions =~ "call get_gradle_integration_guide before editing"
     end
 
     test "offers search_tuist only on the Tuist-hosted installation" do
@@ -109,6 +118,7 @@ defmodule Tuist.MCP.ServerTest do
 
       assert CreateOrganization.annotations()[:readOnlyHint] == false
       assert CreateProject.annotations()[:readOnlyHint] == false
+      assert GetGradleIntegrationGuide.annotations()[:readOnlyHint] == true
       assert AddOrganizationMember.annotations()[:readOnlyHint] == false
       assert AddOrganizationMember.annotations()[:destructiveHint] == true
     end
@@ -150,7 +160,9 @@ defmodule Tuist.MCP.ServerTest do
       assert instructions =~ "source revision"
 
       stub(Environment, :codebase_search_enabled?, fn -> false end)
-      assert Server.server().instructions == nil
+      instructions = Server.server().instructions
+      refute instructions =~ "Answer Tuist questions with the Tuist tools"
+      assert instructions =~ "agent_auth.skill"
     end
   end
 end
