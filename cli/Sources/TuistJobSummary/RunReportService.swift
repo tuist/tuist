@@ -6,7 +6,7 @@ import TuistEnvironment
 import TuistLogging
 
 @Mockable
-public protocol RunReportFileServicing {
+public protocol RunReportServicing {
     /// Removes any file at `path`, so that a run which never gets as far as writing its report
     /// leaves nothing behind rather than a report from an earlier run.
     ///
@@ -21,7 +21,7 @@ public protocol RunReportFileServicing {
     func writeRunReport(_ report: RunReport, to path: String) async
 }
 
-public struct RunReportFileService: RunReportFileServicing {
+public struct RunReportService: RunReportServicing {
     private let fileSystem: FileSysteming
 
     public init(fileSystem: FileSysteming = FileSystem()) {

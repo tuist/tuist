@@ -48,7 +48,7 @@ public class TrackableCommand {
     private let serverAuthenticationController: ServerAuthenticationControlling
     private let fileSystem: FileSysteming
     private let gitHubActionsJobSummaryService: GitHubActionsJobSummaryServicing
-    private let runReportFileService: RunReportFileServicing
+    private let runReportService: RunReportServicing
     private let bestEffortForegroundUploadTimeout: Duration
     private let sessionDirectory: AbsolutePath
 
@@ -62,7 +62,7 @@ public class TrackableCommand {
         serverAuthenticationController: ServerAuthenticationControlling = ServerAuthenticationController(),
         fileSystem: FileSysteming = FileSystem(),
         gitHubActionsJobSummaryService: GitHubActionsJobSummaryServicing = GitHubActionsJobSummaryService(),
-        runReportFileService: RunReportFileServicing = RunReportFileService(),
+        runReportService: RunReportServicing = RunReportService(),
         bestEffortForegroundUploadTimeout: Duration = .seconds(15),
         sessionDirectory: AbsolutePath
     ) {
@@ -75,7 +75,7 @@ public class TrackableCommand {
         self.serverAuthenticationController = serverAuthenticationController
         self.fileSystem = fileSystem
         self.gitHubActionsJobSummaryService = gitHubActionsJobSummaryService
-        self.runReportFileService = runReportFileService
+        self.runReportService = runReportService
         self.bestEffortForegroundUploadTimeout = bestEffortForegroundUploadTimeout
         self.sessionDirectory = sessionDirectory
     }
@@ -97,7 +97,7 @@ public class TrackableCommand {
         // place, and a stale URL is worse than a missing one — it points at a different run and
         // gives no sign that it's the wrong one.
         if let runReportPath = (command as? RunReportingCommand)?.runReportPath {
-            await runReportFileService.clearRunReport(at: runReportPath)
+            await runReportService.clearRunReport(at: runReportPath)
         }
 
         let usesOptionalAuthentication =
@@ -234,7 +234,7 @@ public class TrackableCommand {
                 // Unlike the job summary, this is written even when there's nothing to tabulate:
                 // the URLs are the payload consumers are after.
                 if let runReportPath = (command as? RunReportingCommand)?.runReportPath {
-                    await runReportFileService.writeRunReport(
+                    await runReportService.writeRunReport(
                         RunReport(
                             tuistVersion: commandEvent.tuistVersion,
                             runId: runId,

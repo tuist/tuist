@@ -24,7 +24,7 @@ final class TrackableCommandTests: TuistTestCase {
     private var serverAuthenticationController: MockServerAuthenticationControlling!
     private var uploadAnalyticsService: MockUploadAnalyticsServicing!
     private var gitHubActionsJobSummaryService: MockGitHubActionsJobSummaryServicing!
-    private var runReportFileService: MockRunReportFileServicing!
+    private var runReportService: MockRunReportServicing!
 
     override func setUp() {
         super.setUp()
@@ -33,11 +33,11 @@ final class TrackableCommandTests: TuistTestCase {
         serverAuthenticationController = MockServerAuthenticationControlling()
         uploadAnalyticsService = MockUploadAnalyticsServicing()
         gitHubActionsJobSummaryService = MockGitHubActionsJobSummaryServicing()
-        runReportFileService = MockRunReportFileServicing()
-        given(runReportFileService)
+        runReportService = MockRunReportServicing()
+        given(runReportService)
             .clearRunReport(at: .any)
             .willReturn()
-        given(runReportFileService)
+        given(runReportService)
             .writeRunReport(.any, to: .any)
             .willReturn()
         given(backgroundProcessRunner)
@@ -67,7 +67,7 @@ final class TrackableCommandTests: TuistTestCase {
         serverAuthenticationController = nil
         uploadAnalyticsService = nil
         gitHubActionsJobSummaryService = nil
-        runReportFileService = nil
+        runReportService = nil
         super.tearDown()
     }
 
@@ -98,7 +98,7 @@ final class TrackableCommandTests: TuistTestCase {
             uploadAnalyticsService: uploadAnalyticsService ?? self.uploadAnalyticsService,
             serverAuthenticationController: serverAuthenticationController,
             gitHubActionsJobSummaryService: gitHubActionsJobSummaryService,
-            runReportFileService: runReportFileService,
+            runReportService: runReportService,
             bestEffortForegroundUploadTimeout: bestEffortForegroundUploadTimeout,
             sessionDirectory: temporaryPath
         )
@@ -396,7 +396,7 @@ final class TrackableCommandTests: TuistTestCase {
         )
 
         // Then
-        verify(runReportFileService)
+        verify(runReportService)
             .writeRunReport(.any, to: .value("run-report.json"))
             .called(1)
     }
@@ -413,10 +413,10 @@ final class TrackableCommandTests: TuistTestCase {
         )
 
         // Then
-        verify(runReportFileService)
+        verify(runReportService)
             .clearRunReport(at: .any)
             .called(0)
-        verify(runReportFileService)
+        verify(runReportService)
             .writeRunReport(.any, to: .any)
             .called(0)
     }
@@ -444,10 +444,10 @@ final class TrackableCommandTests: TuistTestCase {
         )
 
         // Then
-        verify(runReportFileService)
+        verify(runReportService)
             .clearRunReport(at: .value("run-report.json"))
             .called(1)
-        verify(runReportFileService)
+        verify(runReportService)
             .writeRunReport(.any, to: .any)
             .called(0)
     }
@@ -469,10 +469,10 @@ final class TrackableCommandTests: TuistTestCase {
         )
 
         // Then
-        verify(runReportFileService)
+        verify(runReportService)
             .clearRunReport(at: .value("run-report.json"))
             .called(1)
-        verify(runReportFileService)
+        verify(runReportService)
             .writeRunReport(.any, to: .any)
             .called(1)
     }

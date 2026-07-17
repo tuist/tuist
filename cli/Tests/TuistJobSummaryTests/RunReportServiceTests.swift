@@ -8,9 +8,9 @@ import TuistEnvironmentTesting
 
 @testable import TuistJobSummary
 
-struct RunReportFileServiceTests {
+struct RunReportServiceTests {
     private let fileSystem = FileSystem()
-    private let subject = RunReportFileService()
+    private let subject = RunReportService()
 
     private func makeReport(
         status: CommandEvent.Status = .success,
