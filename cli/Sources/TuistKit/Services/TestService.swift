@@ -461,12 +461,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
             schemes = [scheme]
         } else {
             let workspaceSchemes = buildGraphInspector.workspaceSchemes(graphTraverser: graphTraverser)
-            let testableSchemes =
-                buildGraphInspector.testableSchemes(graphTraverser: graphTraverser)
-                    + workspaceSchemes
             schemes = defaultSchemes(
-                testableSchemes: testableSchemes,
                 workspaceSchemes: workspaceSchemes,
+                candidateTestSchemes: testableSchemes,
                 graphTraverser: graphTraverser,
                 testPlanConfiguration: testPlanConfiguration,
                 action: action
@@ -1175,6 +1172,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             uploadCacheStorage = cacheStorage
         }
 
+        let passthroughSkippedTargetNames = passthroughSkippedTestTargetNames(passthroughXcodeBuildArguments)
         let testSchemeRuns = schemes.compactMap { testScheme -> (scheme: Scheme, testTargets: [TestIdentifier])? in
             let testSchemeTargetNames = Set(
                 testActionTargetReferences(
@@ -1184,12 +1182,13 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 )
                 .map(\.name)
             )
-            if testSchemeTargetNames.isEmpty {
+            let runnableTestTargetNames = testSchemeTargetNames.subtracting(passthroughSkippedTargetNames)
+            if runnableTestTargetNames.isEmpty {
                 return nil
             }
 
             let testSchemeTestTargets = testTargets.filter {
-                testSchemeTargetNames.contains($0.target)
+                runnableTestTargetNames.contains($0.target)
             }
 
             if !testTargets.isEmpty, testSchemeTestTargets.isEmpty {
@@ -1258,10 +1257,20 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 }
 
                 if action != .build {
+                    let runTestTargetNames = testSchemeRun.testTargets.isEmpty
+                        ? Set(
+                            testActionTargetReferences(
+                                scheme: testScheme,
+                                testPlanConfiguration: testPlanConfiguration,
+                                action: action
+                            ).map(\.name)
+                        ).subtracting(passthroughSkippedTargetNames)
+                        : Set(testSchemeRun.testTargets.map(\.target))
                     try await storeSuccessfulTestHashes(
                         for: testActionTargets(
                             for: [testScheme], testPlanConfiguration: testPlanConfiguration, graph: graph, action: action
-                        ),
+                        )
+                        .filter { runTestTargetNames.contains($0.target.name) },
                         graph: graph,
                         mapperEnvironment: mapperEnvironment,
                         cacheStorage: uploadCacheStorage
@@ -1409,13 +1418,13 @@ public struct TestService { // swiftlint:disable:this type_body_length
     }
 
     private func defaultSchemes(
-        testableSchemes: [Scheme],
         workspaceSchemes: [Scheme],
+        candidateTestSchemes: [Scheme],
         graphTraverser: GraphTraversing,
         testPlanConfiguration: TestPlanConfiguration?,
         action: XcodeBuildTestAction
     ) -> [Scheme] {
-        guard action != .build,
+        guard action == .test,
               containsMixedHostedAndHostlessUnitTests(
                   schemes: workspaceSchemes,
                   graphTraverser: graphTraverser,
@@ -1427,7 +1436,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         }
 
         let workspaceSchemeNames = Set(workspaceSchemes.map(\.name))
-        let workspaceTestTargets = Set(
+        let workspaceTargets = Set(
             workspaceSchemes.flatMap {
                 testActionTargetReferences(
                     scheme: $0,
@@ -1436,28 +1445,69 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 )
             }
         )
-        let projectSchemes = testableSchemes.filter {
-            guard !workspaceSchemeNames.contains($0.name) else {
-                return false
-            }
-
-            let schemeTestTargets = Set(
-                testActionTargetReferences(
-                    scheme: $0,
+        let schemesByTarget = Dictionary(
+            candidateTestSchemes.compactMap { scheme -> (TargetReference, Scheme)? in
+                guard !workspaceSchemeNames.contains(scheme.name) else { return nil }
+                let targets = testActionTargetReferences(
+                    scheme: scheme,
                     testPlanConfiguration: testPlanConfiguration,
                     action: action
                 )
-            )
-            return !schemeTestTargets.isDisjoint(with: workspaceTestTargets)
-        }
-        guard !projectSchemes.isEmpty else {
+                guard targets.count == 1,
+                      let target = targets.first,
+                      workspaceTargets.contains(target),
+                      !isHostlessUnitTest(target, graphTraverser: graphTraverser)
+                      || isCompatibleHostlessTestScheme(scheme, graphTraverser: graphTraverser)
+                else {
+                    return nil
+                }
+                return (target, scheme)
+            },
+            uniquingKeysWith: { first, _ in first }
+        )
+
+        guard workspaceTargets.allSatisfy({ schemesByTarget[$0] != nil }) else {
             return workspaceSchemes
         }
 
-        Logger.current.debug(
-            "Workspace schemes include hosted tests and host-less unit tests; running generated project schemes separately."
-        )
-        return projectSchemes
+        return workspaceTargets
+            .sorted {
+                ($0.name, $0.projectPath.pathString) < ($1.name, $1.projectPath.pathString)
+            }
+            .compactMap { schemesByTarget[$0] }
+    }
+
+    private func isCompatibleHostlessTestScheme(
+        _ scheme: Scheme,
+        graphTraverser: GraphTraversing
+    ) -> Bool {
+        let targetReferences = scheme.targetDependencies()
+        let schemeTargets = targetReferences.compactMap {
+            graphTraverser.target(path: $0.projectPath, name: $0.name)
+        }
+        guard schemeTargets.count == targetReferences.count else { return false }
+
+        let dependencies = graphTraverser.allTargetDependencies(traversingFromTargets: schemeTargets)
+        return (Set(schemeTargets).union(dependencies)).allSatisfy {
+            !$0.target.product.canHostTests()
+        }
+    }
+
+    private func isHostlessUnitTest(
+        _ targetReference: TargetReference,
+        graphTraverser: GraphTraversing
+    ) -> Bool {
+        guard let graphTarget = graphTraverser.target(
+            path: targetReference.projectPath,
+            name: targetReference.name
+        ), graphTarget.target.product == .unitTests
+        else {
+            return false
+        }
+
+        let dependencies = graphTraverser
+            .directTargetDependencies(path: graphTarget.path, name: graphTarget.target.name)
+        return !dependencies.isEmpty && !dependencies.contains(where: { $0.target.product.canHostTests() })
     }
 
     private func containsMixedHostedAndHostlessUnitTests(
