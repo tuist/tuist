@@ -1,0 +1,104 @@
+# TEMPORARY — DO NOT MERGE.
+#
+# Validation harness for the per-account runner cache volume (spec #76).
+#
+# Why this exists: cli.yml's `Cache` job is gated `if: github.ref ==
+# 'refs/heads/main'`, so no pull request ever runs `tuist cache`. That is the
+# only job that moves downloaded xcframeworks into `tuist/Binaries/<hash>` —
+# precisely the write that failed in production when the cache volume was
+# enabled:
+#
+#     Failed to download VendoredCSystem … "VendoredCSystem.xcframework"
+#     couldn't be moved to "64f3307f…"
+#
+# Validating the fix on a PR without this job would exercise nothing and report
+# a false green. This mirrors cli-cache step for step, minus the main-only gate,
+# so the warm cache path can be proven on a throwaway branch instead of on the
+# team's CI.
+#
+# Delete this file once the volume is validated.
+name: TMP Cache Volume Validation
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  MISE_VERSION: "2026.5.15"
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  MISE_GITHUB_TOKEN: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
+  TUIST_GITHUB_TOKEN: ${{ secrets.TUIST_CLI_GITHUB_TOKEN }}
+  TUIST_EE: ${{ github.event.pull_request.head.repo.fork != true && '1' || '' }}
+  TUIST_ENABLE_CACHING: ${{ github.event.pull_request.head.repo.fork != true }}
+  MISE_GITHUB_ATTESTATIONS: 0
+
+jobs:
+  cache-volume-validation:
+    name: Cache Volume Validation
+    runs-on: tuist-macos
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
+      # Record what the guest sees BEFORE the build. On a warm branch the host
+      # has clonefiled the account's master in, so this is where an unwritable
+      # subtree shows up — as ownership/mode, not as a CLI error.
+      - name: Inspect cache share
+        run: |
+          SHARE="/Volumes/My Shared Files/cache"
+          echo "whoami: $(whoami) ($(id -u):$(id -g))"
+          if [ ! -d "${SHARE}" ]; then
+            echo "NO CACHE SHARE — volume feature off for this VM (cold path)."
+            exit 0
+          fi
+          echo "--- share root:"; ls -ld "${SHARE}" "${SHARE}/tuist" 2>&1 || true
+          echo "--- subtrees (the CLI writes into these):"
+          ls -ld "${SHARE}/tuist"/* 2>&1 | head -12 || true
+          echo "--- can this user write into Binaries/ ?"
+          if [ -d "${SHARE}/tuist/Binaries" ]; then
+            if touch "${SHARE}/tuist/Binaries/.probe.$$" 2>&1; then
+              rm -f "${SHARE}/tuist/Binaries/.probe.$$"
+              echo "WRITABLE — the fix is doing its job"
+            else
+              echo "NOT WRITABLE — the bug is still present"
+            fi
+          else
+            echo "no Binaries/ yet (cold master) — this run populates it"
+          fi
+      - name: Initialize TuistCacheEE submodule
+        if: github.event.pull_request.head.repo.fork != true
+        run: bash mise/tasks/cli/ee.sh
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install_args: "tuist"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      - name: Authenticate with Tuist
+        if: github.event.pull_request.head.repo.fork != true
+        run: tuist auth login
+      - name: Setup Tuist
+        if: github.event.pull_request.head.repo.fork != true
+        run: tuist setup
+      - name: Install Tuist dependencies
+        run: tuist install --force-resolved-versions
+      # THE TEST. Run 1 populates tuist/Binaries and promotes it to the host's
+      # master; run 2 lands on the same mini via volume affinity, materializes
+      # that master warm, and has to move artifacts into the cloned Binaries/ —
+      # the write that failed in production.
+      - name: Cache
+        run: tuist cache
+      - name: Report cache state
+        if: always()
+        run: |
+          SHARE="/Volumes/My Shared Files/cache"
+          [ -d "${SHARE}/tuist/Binaries" ] || { echo "no Binaries/"; exit 0; }
+          echo "binaries cached: $(ls "${SHARE}/tuist/Binaries" 2>/dev/null | wc -l | tr -d ' ')"
+          du -sh "${SHARE}/tuist" 2>/dev/null || true
