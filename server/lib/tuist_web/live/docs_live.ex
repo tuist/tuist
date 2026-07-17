@@ -94,11 +94,14 @@ defmodule TuistWeb.DocsLive do
       |> assign(:install_path, docs_path("/#{assigns.locale}/guides/install-tuist"))
       |> assign(
         :generated_xcode_path,
-        docs_path("/#{assigns.locale}/tutorials/xcode/create-a-generated-project")
+        docs_path("/#{assigns.locale}/guides/get-started/generated-xcode-project")
       )
-      |> assign(:xcode_path, docs_path("/#{assigns.locale}/guides/features/cache/xcode-cache"))
-      |> assign(:gradle_path, docs_path("/#{assigns.locale}/guides/install-gradle-plugin"))
-      |> assign(:runners_path, docs_path("/#{assigns.locale}/guides/features/runners/getting-started"))
+      |> assign(
+        :xcode_path,
+        docs_path("/#{assigns.locale}/guides/get-started/existing-xcode-project")
+      )
+      |> assign(:gradle_path, docs_path("/#{assigns.locale}/guides/get-started/gradle-project"))
+      |> assign(:runners_path, docs_path("/#{assigns.locale}/guides/get-started/tuist-runners"))
       |> assign(:headings, @overview_headings)
 
     ~H"""
@@ -154,7 +157,7 @@ defmodule TuistWeb.DocsLive do
             <.link id="docs-xcode-path" patch={@xcode_path} data-part="feature-card">
               <div data-part="image">
                 <span data-part="icon"><.brand_apple /></span>
-                <span data-part="title">{dgettext("docs", "Xcode project")}</span>
+                <span data-part="title">{dgettext("docs", "Existing Xcode project")}</span>
               </div>
               <div data-part="body">
                 <p>
@@ -192,7 +195,7 @@ defmodule TuistWeb.DocsLive do
             <.link id="docs-runners-path" patch={@runners_path} data-part="feature-card">
               <div data-part="image">
                 <span data-part="icon"><.server /></span>
-                <span data-part="title">{dgettext("docs", "CI runners")}</span>
+                <span data-part="title">{dgettext("docs", "Tuist runners")}</span>
               </div>
               <div data-part="body">
                 <p>
@@ -569,12 +572,10 @@ defmodule TuistWeb.DocsLive do
     previews_path = docs_path("/#{locale}/guides/features/previews")
     install_path = docs_path("/#{locale}/guides/install-tuist")
 
-    generated_xcode_path =
-      docs_path("/#{locale}/tutorials/xcode/create-a-generated-project")
-
-    xcode_path = docs_path("/#{locale}/guides/features/cache/xcode-cache")
-    gradle_path = docs_path("/#{locale}/guides/install-gradle-plugin")
-    runners_path = docs_path("/#{locale}/guides/features/runners/getting-started")
+    generated_xcode_path = docs_path("/#{locale}/guides/get-started/generated-xcode-project")
+    xcode_path = docs_path("/#{locale}/guides/get-started/existing-xcode-project")
+    gradle_path = docs_path("/#{locale}/guides/get-started/gradle-project")
+    runners_path = docs_path("/#{locale}/guides/get-started/tuist-runners")
 
     video_lines =
       if videos == [] do
@@ -610,7 +611,7 @@ defmodule TuistWeb.DocsLive do
             "docs",
             "Generate and maintain your Xcode project with module caching and selective testing."
           ),
-        "- #{markdown_link(dgettext("docs", "Xcode project"), xcode_path)}: " <>
+        "- #{markdown_link(dgettext("docs", "Existing Xcode project"), xcode_path)}: " <>
           dgettext(
             "docs",
             "Connect compilation caching and insights to an existing Xcode project."
@@ -620,7 +621,7 @@ defmodule TuistWeb.DocsLive do
             "docs",
             "Connect remote caching, build insights, and test insights to your existing project."
           ),
-        "- #{markdown_link(dgettext("docs", "CI runners"), runners_path)}: " <>
+        "- #{markdown_link(dgettext("docs", "Tuist runners"), runners_path)}: " <>
           dgettext(
             "docs",
             "Run continuous integration workflows with GitHub Actions on managed macOS and Linux infrastructure next to your cache."

@@ -14,6 +14,20 @@ defmodule Tuist.Docs.SidebarTest do
     assert [_ | _] = tree
   end
 
+  test "puts the starting journeys first in the guides sidebar" do
+    [%Sidebar.Group{label: "Get started", items: [chooser]} | _] = Sidebar.guides_tree()
+
+    assert chooser.label == "Choose your path"
+    assert chooser.slug == "/en/guides/get-started"
+
+    assert Enum.map(chooser.items, &{&1.label, &1.slug}) == [
+             {"Existing Xcode project", "/en/guides/get-started/existing-xcode-project"},
+             {"Generated Xcode project", "/en/guides/get-started/generated-xcode-project"},
+             {"Gradle project", "/en/guides/get-started/gradle-project"},
+             {"Tuist runners", "/en/guides/get-started/tuist-runners"}
+           ]
+  end
+
   test "all sidebar slugs correspond to actual docs pages" do
     stub(CLI, :sidebar_items, fn -> [] end)
 
