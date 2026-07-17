@@ -8,7 +8,7 @@ Concurrent package installation is becoming the default in a world of coding age
 
 Other package managers have already iterated on this problem. Tools like pnpm and aube show that a global cache plus cheap project-local links can make installs both faster and much more disk efficient. Tuist users reported SwiftPM resolution and checkout restoration as a bottleneck, so we felt compelled to solve it for them.
 
-Tuist generated projects gave us a clean contract to replace: package resolution is decoupled from project integration, so `tuist install` can use a faster resolver/restorer before Tuist generates or updates the Xcode project. `tuist install` uses `swifterpm` by default; set `TUIST_DISABLE_SWIFTERPM=1` to fall back to SwiftPM.
+Tuist generated projects gave us a clean contract to replace: package resolution is decoupled from project integration, so `tuist install` can use a faster resolver/restorer before Tuist generates or updates the Xcode project. `tuist install` uses `swifterpm` by default; set `TUIST_USE_SWIFTERPM=0` to fall back to SwiftPM.
 
 > [!NOTE]
 > [`aube`](https://github.com/endevco/aube) is useful prior art for package-manager acceleration in concurrent worktrees. `swifterpm` applies the same broad caching motivation to SwiftPM and Tuist workflows.

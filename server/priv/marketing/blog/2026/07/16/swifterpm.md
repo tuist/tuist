@@ -49,7 +49,7 @@ Writes are concurrency-safe by construction. Restoration runs in parallel, and c
 
 ## Paying the manifest cost once
 
-There's one more piece, on the reconciliation side. To turn a resolved graph into something a build system can use, you have to read each package's `Package.swift` manifest. Apple is [leaning on statically analyzing the manifest](https://forums.swift.org/t/improving-manifest-loading-performance-for-declarative-package-manifests/85994) and falling back to compiling it when analysis isn't enough. The trouble is that if you look at the real ecosystem, an enormous number of packages aren't meaningfully static. Take the ones everyone depends on, like [SwiftNIO](https://github.com/apple/swift-nio), whose manifest reads environment variables, branches on the platform, and loops over its targets to apply settings. Static analysis can't help you there.
+There's one more piece, on the reconciliation side. To turn a resolved graph into something a build system can use, you have to read each package's `Package.swift` manifest. Apple is [leaning on statically analyzing the manifest](https://forums.swift.org/t/improving-manifest-loading-performance-for-declarative-package-manifests/85994) and falling back to compiling it when analysis isn't enough. The trouble is that if you look at the real ecosystem, an enormous number of packages aren't meaningfully static. Take one that turns up deep in a lot of dependency graphs, like [SwiftNIO](https://github.com/apple/swift-nio), whose manifest reads environment variables, branches on the platform, and loops over its targets to apply settings. Static analysis can't help you there.
 
 So instead of trying to avoid compiling the manifest, SwifterPM pays that cost deliberately, while it has the package sources in hand, and turns each manifest into a JSON representation it persists locally under `.build/swifterpm/package-info`. Later, when Tuist reconciles the nodes of the graph into a generated project, the format is already there and is very fast to decode. You pay once, up front, and the generation step downstream gets cheaper. The benchmarks below deliberately leave this cache off so they isolate the resolve-and-restore path, which means it's an additional win on top of the numbers you're about to see, not part of them.
 
@@ -68,7 +68,7 @@ The cold runs are already a clear win, between 1.75x and 3.47x faster, even thou
 
 ## How to use it
 
-If you use Tuist generated projects, there's nothing to turn on. `tuist install` uses SwifterPM before generation by default. We validated it against real graphs before flipping that default, but there may still be scenarios we don't handle yet, and if you hit one you can fall back to SwiftPM by setting `TUIST_DISABLE_SWIFTERPM=1` in your environment while we fix it.
+If you integrate Swift packages through Tuist's XcodeProj-based integration, declaring them in `Tuist/Package.swift` and running `tuist install` rather than through Xcode's own package integration, there's nothing to turn on. `tuist install` uses SwifterPM before generation by default on a recent enough Tuist: it's on canary today, with a stable release right behind it. We validated it against real graphs before flipping that default, but there may still be scenarios we don't handle yet, and if you hit one you can fall back to SwiftPM by setting `TUIST_USE_SWIFTERPM=0` in your environment while we fix it.
 
 If you use Bazel, SwifterPM ships a Bzlmod extension with the same resolver shape as `rules_swift_package_manager`:
 
