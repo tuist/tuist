@@ -32,10 +32,13 @@ enum SetupCacheCommandServiceError: Equatable, LocalizedError {
     }
 }
 
-/// A row of the CAS proxy's sources registry, whose columns the proxy parses in
-/// this order (see `load_sources` in cas-plugin).
+/// What setup knows about a project that the proxy cannot work out for itself
+/// (see `load_sources` in cas-plugin).
 private struct RegisteredSource {
-    let root: String
+    /// The project's configured default branch, which is a server-side decision.
+    /// The proxy would otherwise have to guess it from the local clone's
+    /// `origin/HEAD`, a property of how this machine cloned rather than of the
+    /// project.
     let trunk: String?
     /// Recorded only on CI. See `ciBranch`.
     let branch: String?
@@ -76,31 +79,30 @@ struct SetupCacheCommandService {
         self.gitController = gitController
     }
 
-    /// The project's default branch, which is what a trunk-scoped cache snapshot
-    /// is anchored to. Best-effort: a setup that cannot reach the server still
-    /// installs a working cache, and the proxy falls back to deriving the trunk
-    /// from the checkout's `origin/HEAD`.
+    /// The project's default branch, which is what a trunk-scoped cache snapshot is
+    /// anchored to. Best-effort: a setup that cannot reach the server still installs
+    /// a working cache, and an unscoped snapshot is what this branch improves on
+    /// rather than a regression.
     private func trunkBranch(fullHandle: String, serverURL: URL) async -> String? {
         do {
             return try await getProjectService.getProject(fullHandle: fullHandle, serverURL: serverURL)
                 .defaultBranch
         } catch {
             Logger.current.debug(
-                "Could not resolve \(fullHandle)'s default branch for the cache proxy: \(error). The proxy will derive the trunk from the checkout instead."
+                "Could not resolve \(fullHandle)'s default branch for the cache proxy: \(error). Its snapshot will not be trunk-scoped."
             )
             return nil
         }
     }
 
-    /// The branch to record for a CI checkout, whose HEAD is detached and so tells
-    /// the proxy's `git rev-parse` nothing. Every provider exposes it in the
-    /// environment instead, which `GitController` already knows how to read, but
-    /// only this command runs inside the job and can see it: the proxy is a launchd
-    /// agent and does not inherit the job's environment.
+    /// The branch to record for a CI checkout. Only this command runs inside the
+    /// job and can see it: the proxy is a launchd agent and does not inherit the
+    /// job's environment, and a CI checkout's HEAD is detached, so nothing it
+    /// could read from the repository would answer either.
     ///
-    /// `nil` off CI on purpose. A developer's HEAD is attached, so the proxy
-    /// derives the branch live and stays correct across a `git checkout`, where a
-    /// value recorded once at setup would rot into mis-tagging every later publish.
+    /// `nil` off CI on purpose, which leaves a developer's publishes untagged and
+    /// therefore outside the trunk view. CI is the only publisher that view is
+    /// built from, so it is the only one whose branch has to be right.
     private func ciBranch(sourceRoot: AbsolutePath) async -> String? {
         guard Environment.current.isCI else { return nil }
         do {
@@ -113,26 +115,23 @@ struct SetupCacheCommandService {
         }
     }
 
-    /// Records `fullHandle -> sourceRoot, trunk, branch` in the proxy's sources
-    /// registry (`<state>/cas-proxy.sock.registry.sources`, honoring the same
-    /// `TUIST_CAS_PROXY_REGISTRY` override the proxy reads). Three things the proxy
-    /// cannot know on its own:
+    /// Records what the proxy cannot work out for itself in its sources registry
+    /// (`<state>/cas-proxy.sock.registry.sources`, honoring the same
+    /// `TUIST_CAS_PROXY_REGISTRY` override the proxy reads): the project's trunk,
+    /// the branch when this is CI, and the upload policy.
     ///
-    /// - The source root, from which it derives the branch of every publish live
-    ///   off this repo's git HEAD. Nothing branch-specific is baked into a build
-    ///   setting, which would enter the compiler's cache key and split the cache
-    ///   per branch.
-    /// - The trunk, which is the *project's* configured default branch and hence
-    ///   a server-side decision. The proxy would otherwise have to guess it from
-    ///   the local clone's `origin/HEAD`, which is a property of how the machine
-    ///   cloned rather than of the project.
-    /// - The branch, but only on CI. See `ciBranch`: the proxy prefers its live
-    ///   git reading and only falls back to this when HEAD is detached.
+    /// A row is `instance` followed by `key=value` fields, tab separated. The
+    /// fields are named rather than positional because every value here is
+    /// optional, and a positional row has to hold an absent one's place: a branch
+    /// recorded without a trunk leaves an empty column, and anything that drops
+    /// empties reads the branch as the trunk. Naming them also means a field
+    /// added later cannot shift the ones already there, and that a reader can
+    /// ignore what it does not know. Git forbids tabs in a ref, so no value here
+    /// can contain the separator.
     ///
     /// Upserts, so setting up a second project does not clobber the first.
-    private func registerSourceRoot(
+    private func registerSource(
         fullHandle: String,
-        sourceRoot: AbsolutePath,
         trunk: String?,
         branch: String?,
         upload: Bool
@@ -141,8 +140,8 @@ struct SetupCacheCommandService {
         // agree by default and diverge under `XDG_STATE_HOME`, which the socket
         // deliberately ignores (see `casProxySocketPath`) because the plugin must
         // resolve it from HOME alone. Writing this file where the proxy is not
-        // reading loses the source root and trunk silently: unscoped snapshots and
-        // untagged publishes, with nothing to show for it.
+        // reading loses the trunk silently: unscoped snapshots and untagged
+        // publishes, with nothing to show for it.
         let sourcesPath: AbsolutePath
         if let registry = Environment.current.variables["TUIST_CAS_PROXY_REGISTRY"] {
             sourcesPath = try AbsolutePath(validating: registry + ".sources")
@@ -152,64 +151,38 @@ struct SetupCacheCommandService {
             )
         }
 
-        // instance -> (source root, trunk, branch). Both trailing columns are
-        // optional: a registry written before either shipped, or by a setup that
-        // could not reach the server, still parses and leaves the proxy on its
-        // git-derived fallback.
+        // Read every other project's row back: this rewrites the whole file, so
+        // anything dropped here is a project silently losing its policy.
         var entries: [String: RegisteredSource] = [:]
         if try await fileSystem.exists(sourcesPath) {
             let contents = try await fileSystem.readTextFile(at: sourcesPath)
             for line in contents.split(separator: "\n") {
-                // `omittingEmptySubsequences: false` is load-bearing: the columns
-                // are positional, and a branch known without a trunk writes the
-                // trunk's place empty. Dropping empty fields would shift the
-                // branch into the trunk's column and silently rewrite it that way
-                // for every OTHER project, since this rewrites the whole file.
-                let parts = line
-                    .split(separator: "\t", maxSplits: 3, omittingEmptySubsequences: false)
-                    .map(String.init)
-                if parts.count >= 2, !parts[0].isEmpty, !parts[1].isEmpty {
-                    let column = { (index: Int) -> String? in
-                        guard parts.count > index, !parts[index].isEmpty else { return nil }
-                        return parts[index]
-                    }
-                    entries[parts[0]] = RegisteredSource(
-                        root: parts[1],
-                        trunk: column(2),
-                        branch: column(3),
-                        // Absent means a registry written before this column, and
-                        // uploading is what that machine already does.
-                        upload: column(4) != "0"
-                    )
+                var fields = line.split(separator: "\t").map(String.init)
+                guard !fields.isEmpty, !fields[0].isEmpty else { continue }
+                let instance = fields.removeFirst()
+                var values: [String: String] = [:]
+                for field in fields {
+                    guard let separator = field.firstIndex(of: "=") else { continue }
+                    // A ref may contain `=`, so only the first one separates.
+                    values[String(field[..<separator])] = String(field[field.index(after: separator)...])
                 }
+                entries[instance] = RegisteredSource(
+                    trunk: values["trunk"],
+                    branch: values["branch"],
+                    upload: values["upload"] != "0"
+                )
             }
         }
-        entries[fullHandle] = RegisteredSource(
-            root: sourceRoot.pathString,
-            trunk: trunk,
-            branch: branch,
-            upload: upload
-        )
+        entries[fullHandle] = RegisteredSource(trunk: trunk, branch: branch, upload: upload)
 
         let body = entries.sorted { $0.key < $1.key }
-            .map { key, value in
-                // The branch column is positional, so a branch without a trunk
-                // still has to leave the trunk's place empty.
-                let trunk = value.trunk.flatMap { $0.isEmpty ? nil : $0 }
-                let branch = value.branch.flatMap { $0.isEmpty ? nil : $0 }
-                // Only written when it says something. Uploading is the default,
-                // so a row that omits it means the same thing, and rows written
-                // before this column survive a rewrite byte-identical.
-                if !value.upload {
-                    return "\(key)\t\(value.root)\t\(trunk ?? "")\t\(branch ?? "")\t0"
-                }
-                if let branch {
-                    return "\(key)\t\(value.root)\t\(trunk ?? "")\t\(branch)"
-                }
-                if let trunk {
-                    return "\(key)\t\(value.root)\t\(trunk)"
-                }
-                return "\(key)\t\(value.root)"
+            .map { instance, source in
+                var fields = [instance]
+                if let trunk = source.trunk, !trunk.isEmpty { fields.append("trunk=\(trunk)") }
+                if let branch = source.branch, !branch.isEmpty { fields.append("branch=\(branch)") }
+                // Uploading is the default, so this only appears when it says no.
+                if !source.upload { fields.append("upload=0") }
+                return fields.joined(separator: "\t")
             }
             .joined(separator: "\n") + "\n"
         if try await !fileSystem.exists(sourcesPath.parentDirectory, isDirectory: true) {
@@ -259,15 +232,14 @@ struct SetupCacheCommandService {
         // they rely on today, until they are migrated to kura.
         let kuraEnabled = ClientFeatureFlags.contains("kura")
         if kuraEnabled {
-            // Register the source root BEFORE starting the proxy. The proxy
+            // Register BEFORE starting the proxy. The proxy
             // prefetches a snapshot for every instance it already knows as soon as
             // it boots, and it keys that snapshot by instance alone: if it starts
             // first, an upgraded machine prefetches an unscoped view and keeps
             // serving it until the next full refresh, however promptly the mapping
             // lands afterwards.
-            try await registerSourceRoot(
+            try await registerSource(
                 fullHandle: fullHandle,
-                sourceRoot: path,
                 trunk: await trunkBranch(fullHandle: fullHandle, serverURL: serverURL),
                 branch: await ciBranch(sourceRoot: path),
                 upload: config.xcodeCache.upload

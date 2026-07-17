@@ -935,10 +935,8 @@ struct SourceBranches {
 /// What `tuist setup cache` recorded for an instance.
 ///
 /// Note what is NOT here: the checkout. Nothing about a publish is read from the
-/// working copy any more, which is what makes a moved, renamed, or duplicated one
-/// unable to mis-attribute a build. Setup still writes the source root into the
-/// registry's second column and this deliberately ignores it, so a proxy from
-/// before this change keeps parsing the columns after it.
+/// working copy, which is what makes a moved, renamed, or duplicated one unable
+/// to mis-attribute a build.
 struct RegisteredSource {
     /// The branch `tuist setup cache` saw in the CI job's environment, recorded
     /// ONLY on CI. A launchd agent does not inherit the job's environment, so the
@@ -3128,9 +3126,8 @@ fn load_registry(path: &Path) -> HashMap<String, String> {
 
 /// The sources registry sits next to the cas_path registry, written by
 /// `tuist setup cache` (the only place that has the project's configuration).
-/// `<registry>.sources`, TSV
-/// `instance \t source-root \t trunk \t ci-branch \t upload`. The source root
-/// is still written and no longer read; see `RegisteredSource`.
+/// `<registry>.sources`, one row per instance: `instance [\t key=value]...`.
+/// See `load_sources` for the fields.
 fn sources_path_for(registry: &Path) -> PathBuf {
     let mut path = registry.to_path_buf().into_os_string();
     path.push(".sources");
@@ -3146,36 +3143,35 @@ fn sources_path_for(registry: &Path) -> PathBuf {
 fn load_sources(path: &Path) -> Option<HashMap<String, RegisteredSource>> {
     let body = std::fs::read_to_string(path).ok()?;
     let mut map = HashMap::new();
-    {
-        for line in body.lines() {
-            // `instance \t source-root [\t trunk [\t ci-branch]]`. Both trailing
-            // columns are optional: a registry written by an older setup, or by
-            // one that could not reach the server, still parses and leaves the
-            // trunk to be derived from the checkout. The trunk's place is held
-            // empty when a branch was recorded without one, so the columns stay
-            // positional.
-            let mut columns = line.split('\t');
-            // The second column is the source root. Setup still writes it and
-            // this deliberately steps over it: nothing here reads the checkout
-            // any more, but a proxy from before that keeps parsing the columns
-            // after it, so the format does not have to move.
-            let (Some(instance), Some(_root)) = (columns.next(), columns.next()) else {
-                continue;
-            };
-            if instance.is_empty() {
-                continue;
+    for line in body.lines() {
+        // `instance [\t key=value]...`, written by `registerSource` in the CLI.
+        // Named rather than positional because every field is optional: a
+        // positional row has to hold an absent field's place, and reading one
+        // column out of step silently answers with another field's value.
+        // Unknown fields are ignored, so setup may record more than this proxy
+        // understands.
+        let mut fields = line.split('\t');
+        let Some(instance) = fields.next().filter(|instance| !instance.is_empty()) else {
+            continue;
+        };
+        let mut source = RegisteredSource {
+            trunk: None,
+            ci_branch: None,
+            // Nothing recorded is nothing to withhold.
+            upload: true,
+        };
+        for field in fields {
+            // A ref may contain `=`, so only the first one separates.
+            match field.split_once('=') {
+                Some(("trunk", value)) if !value.is_empty() => source.trunk = Some(value.to_owned()),
+                Some(("branch", value)) if !value.is_empty() => {
+                    source.ci_branch = Some(value.to_owned())
+                }
+                Some(("upload", value)) => source.upload = value != "0",
+                _ => {}
             }
-            map.insert(
-                instance.to_string(),
-                RegisteredSource {
-                    trunk: columns.next().filter(|trunk| !trunk.is_empty()).map(str::to_owned),
-                    ci_branch: columns.next().filter(|branch| !branch.is_empty()).map(str::to_owned),
-                    // Absent is a registry written before the column, and
-                    // uploading is what that machine already does.
-                    upload: columns.next() != Some("0"),
-                },
-            );
         }
+        map.insert(instance.to_string(), source);
     }
     Some(map)
 }
@@ -3322,19 +3318,12 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("tuist-sources-{}", std::process::id()));
         std::fs::create_dir_all(&dir).expect("temp dir");
         let path = dir.join("registry.sources");
-        // Row 1 is what a setup that reached the server writes; row 2 is the
-        // older two-column form (and what a setup that could not reach the
-        // server still writes). Both must parse, and an absent trunk column must
-        // stay absent rather than swallowing the column after it.
-        //
-        // The second column is the source root, which nothing reads any more.
-        // Setup still writes it, and stepping over it rather than dropping it is
-        // what lets a proxy from before that keep parsing the columns after it.
-        std::fs::write(
-            &path,
-            "tuist/mastodon\t/src/mastodon\tmain\ntuist/legacy\t/src/legacy\n",
-        )
-        .expect("write registry");
+        // Row 1 is what a setup that reached the server writes; row 2 is a setup
+        // that could not, so it knows the project but not its trunk. Both must
+        // parse, and the bare row must leave the proxy unscoped rather than
+        // dropping the project entirely, which would read as "no policy" and
+        // hand an opted-out project an upload.
+        std::fs::write(&path, "tuist/mastodon\ttrunk=main\ntuist/legacy\n").expect("write registry");
 
         let sources = load_sources(&path).expect("a readable registry parses");
         assert_eq!(sources.len(), 2);
@@ -3379,7 +3368,7 @@ mod tests {
         let record_branch = |branch: &str| {
             std::fs::write(
                 &sources,
-                format!("tuist/mastodon\t/src/mastodon\tmain\t{branch}\n"),
+                format!("tuist/mastodon\ttrunk=main\tbranch={branch}\n"),
             )
             .expect("write sources");
         };
@@ -3455,7 +3444,7 @@ mod tests {
         let record_branch = |branch: &str| {
             std::fs::write(
                 &sources,
-                format!("tuist/mastodon\t/src/mastodon\tmain\t{branch}\n"),
+                format!("tuist/mastodon\ttrunk=main\tbranch={branch}\n"),
             )
             .expect("write sources");
         };
@@ -3554,20 +3543,24 @@ mod tests {
         assert_eq!(decode_tags(b"garbage"), None, "a torn write re-resolves");
     }
 
-    // The CI branch column, which `tuist setup cache` writes only from inside a CI
-    // job (the proxy is a launchd agent and never sees the provider's branch
-    // variable). A branch recorded without a trunk keeps the trunk's place, so the
-    // columns stay positional.
+    /// The CI branch, which `tuist setup cache` records only from inside a CI job
+    /// (the proxy is a launchd agent and never sees the provider's branch
+    /// variable). Every field here is optional, which is why they are named: this
+    /// is the shape a positional row got wrong, because it has to hold an absent
+    /// field's place and any reader out of step answers with its neighbour.
     #[test]
-    fn sources_registry_reads_the_ci_branch_column() {
+    fn sources_registry_reads_each_field_by_name_whatever_else_the_row_carries() {
         let dir = std::env::temp_dir().join(format!("tuist-sources-ci-{}", std::process::id()));
         std::fs::create_dir_all(&dir).expect("temp dir");
         let path = dir.join("registry.sources");
         std::fs::write(
             &path,
-            "tuist/ci\t/src/ci\tmain\tfeature/x\n\
-             tuist/no-trunk\t/src/no-trunk\t\tfeature/y\n\
-             tuist/dev\t/src/dev\tmain\n",
+            "tuist/ci\ttrunk=main\tbranch=feature/x\n\
+             tuist/no-trunk\tbranch=feature/y\n\
+             tuist/reordered\tupload=0\tbranch=feature/z\ttrunk=main\n\
+             tuist/newer-setup\ttrunk=main\tsomething-we-do-not-know=1\n\
+             tuist/equals\tbranch=feature/a=b\n\
+             tuist/dev\ttrunk=main\n",
         )
         .expect("write registry");
 
@@ -3576,19 +3569,33 @@ mod tests {
         assert_eq!(ci.trunk.as_deref(), Some("main"));
         assert_eq!(ci.ci_branch.as_deref(), Some("feature/x"));
 
+        // A branch without a trunk: the case that made the positional row hold an
+        // empty column, and the one a reader dropping empties read as the trunk.
         let no_trunk = sources.get("tuist/no-trunk").expect("no-trunk entry");
-        assert_eq!(no_trunk.trunk, None, "the empty trunk column is not a trunk");
-        assert_eq!(
-            no_trunk.ci_branch.as_deref(),
-            Some("feature/y"),
-            "the branch is still found in its own column"
-        );
+        assert_eq!(no_trunk.trunk, None);
+        assert_eq!(no_trunk.ci_branch.as_deref(), Some("feature/y"));
+
+        let reordered = sources.get("tuist/reordered").expect("reordered entry");
+        assert_eq!(reordered.trunk.as_deref(), Some("main"));
+        assert_eq!(reordered.ci_branch.as_deref(), Some("feature/z"));
+        assert!(!reordered.upload, "a named field means the same in any order");
+
+        // A setup newer than this proxy: unknown fields are skipped rather than
+        // shifting the ones it does know.
+        let newer = sources.get("tuist/newer-setup").expect("newer entry");
+        assert_eq!(newer.trunk.as_deref(), Some("main"));
+        assert!(newer.upload);
+
+        // Git allows `=` in a ref, so only the first one separates.
+        let equals = sources.get("tuist/equals").expect("equals entry");
+        assert_eq!(equals.ci_branch.as_deref(), Some("feature/a=b"));
 
         let dev = sources.get("tuist/dev").expect("dev entry");
         assert_eq!(
             dev.ci_branch, None,
-            "a developer's row records no branch: the proxy reads git live"
+            "off CI nothing records a branch, so a developer's publishes stay untagged"
         );
+        assert!(dev.upload, "nothing recorded is nothing to withhold");
 
         std::fs::remove_dir_all(&dir).ok();
     }
@@ -4214,7 +4221,7 @@ mod tests {
             std::fs::write(
                 &sources,
                 format!(
-                    "tuist/one\t/src/one\tmain\t{branch}\ntuist/two\t/src/two\tmain\t{branch}\n"
+                    "tuist/one\ttrunk=main\tbranch={branch}\ntuist/two\ttrunk=main\tbranch={branch}\n"
                 ),
             )
             .expect("write sources");
@@ -4274,7 +4281,7 @@ mod tests {
         let registry = dir.join("registry");
         std::fs::write(
             sources_path_for(&registry),
-            "tuist/one\t/src/one\tmain\tmain\n",
+            "tuist/one\ttrunk=main\tbranch=main\n",
         )
         .expect("write sources");
 
@@ -4329,7 +4336,7 @@ mod tests {
         let sources = sources_path_for(&registry);
         std::fs::write(
             &sources,
-            "tuist/reader\t/src/reader\tmain\t\t0\ntuist/writer\t/src/writer\tmain\n",
+            "tuist/reader\ttrunk=main\tupload=0\ntuist/writer\ttrunk=main\n",
         )
         .expect("write sources");
 

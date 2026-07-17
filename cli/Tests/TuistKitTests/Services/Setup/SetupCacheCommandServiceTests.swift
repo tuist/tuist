@@ -492,10 +492,10 @@ struct SetupCacheCommandServiceTests {
             .called(1)
     }
 
-    /// The registry the proxy reads to derive the branch and trunk of every publish.
-    /// Its columns are positional and parsed by `load_sources` in cas-plugin, so the
-    /// two sides have to agree exactly; these pin our half of that contract.
-    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func setupCache_recordsTheSourceRootAndTrunk() async throws {
+    /// The registry the proxy reads for the trunk, branch and upload policy of every
+    /// publish. Its `key=value` fields are parsed by `load_sources` in cas-plugin, so
+    /// the two sides have to agree; these pin our half of that contract.
+    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func setupCache_recordsTheTrunk() async throws {
         // Given
         let environment = try #require(Environment.mocked)
         environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
@@ -507,23 +507,20 @@ struct SetupCacheCommandServiceTests {
         // When
         try await subject.run(path: nil)
 
-        // Then: off CI the branch column is omitted on purpose. HEAD is attached, so
-        // the proxy reads the branch live and a value recorded here would rot.
-        let root = try await Environment.current.pathRelativeToWorkingDirectory(nil)
+        // Then: off CI no branch is recorded, which leaves this project's publishes
+        // untagged and so outside the trunk view. CI is the only publisher it is
+        // built from.
         let sources = try await FileSystem().readTextFile(at: registry.parentDirectory
             .appending(component: "cas-proxy.registry.sources"))
-        #expect(sources == "tuist/tuist\t\(root.pathString)\tmain\n")
+        #expect(sources == "tuist/tuist\ttrunk=main\n")
     }
 
     /// The registry is machine-wide, and setting one project up rewrites the whole
-    /// file, so every other project's row has to survive being read and written
-    /// back untouched. The columns are positional and a branch known without a
-    /// trunk leaves the trunk's place empty, which is exactly the shape a default
-    /// `split` drops: the branch would shift into the trunk's column and be
-    /// written back that way, and the proxy would then scope that project's
-    /// snapshot to its branch.
+    /// file, so every other project's row has to survive being read and written back
+    /// untouched. A row carrying a branch but no trunk is the case that a positional
+    /// format got wrong, and the one this format has to keep getting right.
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
-    func setupCache_keepsAnotherProjectsColumnsWhenItsTrunkIsEmpty() async throws {
+    func setupCache_keepsAnotherProjectsFieldsWhenItsTrunkIsUnknown() async throws {
         // Given
         let environment = try #require(Environment.mocked)
         environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
@@ -534,10 +531,7 @@ struct SetupCacheCommandServiceTests {
         let sources = registry.parentDirectory.appending(component: "cas-proxy.registry.sources")
         let fileSystem = FileSystem()
         // Another project, on CI, whose trunk was never resolved.
-        try await fileSystem.writeText(
-            "other/project\t/src/other\t\tfeature/theirs\n",
-            at: sources
-        )
+        try await fileSystem.writeText("other/project\tbranch=feature/theirs\n", at: sources)
 
         // When: this project's setup rewrites the file.
         try await subject.run(path: nil)
@@ -545,7 +539,7 @@ struct SetupCacheCommandServiceTests {
         // Then
         let contents = try await fileSystem.readTextFile(at: sources)
         #expect(
-            contents.contains("other/project\t/src/other\t\tfeature/theirs\n"),
+            contents.contains("other/project\tbranch=feature/theirs\n"),
             "another project's row round-trips byte for byte: \(contents)"
         )
     }
@@ -563,18 +557,17 @@ struct SetupCacheCommandServiceTests {
         // When
         try await subject.run(path: nil)
 
-        // Then: all four columns, in the order the proxy parses them.
-        let root = try await Environment.current.pathRelativeToWorkingDirectory(nil)
+        // Then
         let sources = try await FileSystem().readTextFile(at: registry.parentDirectory
             .appending(component: "cas-proxy.registry.sources"))
-        #expect(sources == "tuist/tuist\t\(root.pathString)\tmain\tfeature/tags\n")
+        #expect(sources == "tuist/tuist\ttrunk=main\tbranch=feature/tags\n")
     }
 
-    /// A branch with no trunk still has to leave the trunk's place empty: the proxy
-    /// reads the columns positionally, so a collapsed row would hand it the branch
-    /// as the trunk and scope every snapshot to a branch that is not the trunk.
+    /// A setup that cannot reach the server knows the branch but not the trunk. The
+    /// branch has to stay the branch: read back as a trunk it would scope every
+    /// snapshot to a branch that is not trunk.
     @Test(.inTemporaryDirectory, .withMockedEnvironment())
-    func setupCache_keepsTheTrunkColumnWhenOnlyTheBranchIsKnown() async throws {
+    func setupCache_recordsTheBranchWhenTheTrunkIsUnknown() async throws {
         // Given
         let environment = try #require(Environment.mocked)
         environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
@@ -594,14 +587,14 @@ struct SetupCacheCommandServiceTests {
         try await subject.run(path: nil)
 
         // Then
-        let root = try await Environment.current.pathRelativeToWorkingDirectory(nil)
         let sources = try await FileSystem().readTextFile(at: registry.parentDirectory
             .appending(component: "cas-proxy.registry.sources"))
-        #expect(sources == "tuist/tuist\t\(root.pathString)\t\tfeature/tags\n")
+        #expect(sources == "tuist/tuist\tbranch=feature/tags\n")
     }
 
-    /// Setting up a second project must not clobber the first, and rows written by an
-    /// older setup (two columns, no trunk) have to survive the rewrite intact.
+    /// Setting up a second project must not clobber the first, and a row that carries
+    /// nothing but its instance (a setup that could not reach the server) has to
+    /// survive the rewrite intact.
     @Test(.inTemporaryDirectory, .withMockedEnvironment()) func setupCache_upsertsIntoAnExistingRegistry() async throws {
         // Given
         let environment = try #require(Environment.mocked)
@@ -612,15 +605,14 @@ struct SetupCacheCommandServiceTests {
         environment.variables["TUIST_CAS_PROXY_REGISTRY"] = registry.pathString
         let sourcesPath = registry.parentDirectory.appending(component: "cas-proxy.registry.sources")
         let fileSystem = FileSystem()
-        try await fileSystem.writeText("tuist/legacy\t/src/legacy\n", at: sourcesPath)
+        try await fileSystem.writeText("tuist/legacy\n", at: sourcesPath)
 
         // When
         try await subject.run(path: nil)
 
         // Then
-        let root = try await Environment.current.pathRelativeToWorkingDirectory(nil)
         let sources = try await fileSystem.readTextFile(at: sourcesPath)
-        #expect(sources == "tuist/legacy\t/src/legacy\ntuist/tuist\t\(root.pathString)\tmain\n")
+        #expect(sources == "tuist/legacy\ntuist/tuist\ttrunk=main\n")
     }
 }
 
