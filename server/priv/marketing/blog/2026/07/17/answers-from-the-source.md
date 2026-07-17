@@ -44,6 +44,8 @@ It's easier to see than to describe, so connect your agent to `https://tuist.dev
 
 Every one of those links points at a pinned commit rather than `main`, so they still say the same thing when you click them next month, and that last detail about UI tests isn't written down in the docs anywhere, the agent only knowing it because it read the hasher and saw the filter with the comment sitting right next to it. That's the whole point of doing it this way, that the answer isn't a summary of what we wrote down but what the code actually does today.
 
+There's a side effect to answering this way that we've grown fond of, which is that you don't just get the verdict, you get walked through the machinery that produces it, the hasher and the filter and the record of what passed, so you come away understanding how selective testing works and not only what it did. Most tools treat that machinery as the secret sauce and keep it behind a wall, and here the very thing that answers your question is the thing that shows you how Tuist is built, so every support question doubles as a small lesson in what actually makes it possible for anyone curious enough to follow the links.
+
 The support questions look different but they land in the same place, where someone hits a bug, tracks down the fix in a pull request, and wants to know whether they can already pull it, which used to mean us digging through releases and now just means asking the agent:
 
 > **When and where was [#11872](https://github.com/tuist/tuist/pull/11872) released?**
