@@ -48,6 +48,23 @@ typesense_do() {
     "$@"
 }
 
+# Point the "${ALIAS}" alias at the freshly built collection, retrying with
+# backoff so a transient TypeSense failure during the cutover does not leave the
+# alias unset. Returns non-zero only if every attempt fails.
+swap_alias() {
+  local attempts=5 i=1
+  while [ "$i" -le "$attempts" ]; do
+    if typesense_try PUT "/aliases/${ALIAS}" \
+      -d '{"collection_name": "'"${NEW_COLLECTION}"'"}' | jq -e '.collection_name' > /dev/null 2>&1; then
+      return 0
+    fi
+    echo "Alias update attempt ${i}/${attempts} failed; retrying in $((i * 2))s..." >&2
+    sleep $((i * 2))
+    i=$((i + 1))
+  done
+  return 1
+}
+
 echo "Fetching issues and PRs from ${GITHUB_REPO}..."
 
 url="https://api.github.com/repos/${GITHUB_REPO}/issues?state=all&per_page=100&sort=updated&direction=desc"
@@ -69,9 +86,22 @@ while [ -n "$url" ]; do
     "$url") || http_code="000"
 
   if [ "$http_code" = "403" ] || [ "$http_code" = "429" ]; then
-    reset=$(grep -i "x-ratelimit-reset" "$header_file" | tr -d '\r' | awk '{print $2}')
+    reset=$(grep -i "^x-ratelimit-reset:" "$header_file" | tr -d '\r' | awk '{print $2}')
+    retry_after=$(grep -i "^retry-after:" "$header_file" | tr -d '\r' | awk '{print $2}')
     now=$(date +%s)
-    wait=$(( ${reset:-0} - now ))
+    if [ -n "$reset" ]; then
+      # Primary rate limit: wait until the reset timestamp.
+      wait=$(( reset - now ))
+    elif [ -n "$retry_after" ]; then
+      # Secondary rate limit: GitHub asks us to back off for N seconds via
+      # Retry-After instead of exposing a reset timestamp.
+      wait="$retry_after"
+    else
+      # Neither header present: back off conservatively rather than hammering.
+      wait=60
+    fi
+    # Guard against a non-numeric or already-past value.
+    case "$wait" in ''|*[!0-9-]*) wait=60 ;; esac
     [ "$wait" -lt 1 ] && wait=1
     echo "Rate limited (${http_code}), waiting ${wait}s..." >&2
     rm -f "$response_file" "$header_file"
@@ -177,18 +207,27 @@ if [ "$total_success" -lt "$min_required" ]; then
   exit 1
 fi
 
-# One-time migration: if "github-issues" is still a real collection (from before
-# this script used an alias), delete it so the name can be reused as an alias.
-if ! typesense_try GET "/aliases/${ALIAS}" | jq -e '.collection_name' > /dev/null 2>&1; then
-  if typesense_try GET "/collections/${ALIAS}" | jq -e '.name' > /dev/null 2>&1; then
-    echo "Migrating legacy collection '${ALIAS}' to an alias..."
-    typesense_try DELETE "/collections/${ALIAS}" > /dev/null
-  fi
+# Cut over to the freshly built collection. In steady state "${ALIAS}" is an
+# alias and the swap is a single atomic upsert, so searches never see a missing
+# or half-built collection.
+#
+# On the one-time migration from the pre-alias layout, "${ALIAS}" is still a real
+# collection, and TypeSense will not let an alias share that name, so it has to
+# be deleted first. That is done as late as possible, immediately before the
+# retried swap, and the verified "${NEW_COLLECTION}" is the recoverable copy: it
+# stays on disk, the swap is retried to absorb a transient failure, and if the
+# swap still fails we exit non-zero without cleanup so the next run re-points the
+# alias to it rather than rebuilding from scratch.
+if ! typesense_try GET "/aliases/${ALIAS}" | jq -e '.collection_name' > /dev/null 2>&1 \
+  && typesense_try GET "/collections/${ALIAS}" | jq -e '.name' > /dev/null 2>&1; then
+  echo "Migrating legacy collection '${ALIAS}' to an alias..."
+  typesense_do DELETE "/collections/${ALIAS}" > /dev/null
 fi
 
-# Point the alias at the freshly built collection. TypeSense alias upserts are
-# atomic, so searches never see a missing or half-built collection.
-typesense_do PUT "/aliases/${ALIAS}" -d '{"collection_name": "'"${NEW_COLLECTION}"'"}' > /dev/null
+if ! swap_alias; then
+  echo "Failed to point alias '${ALIAS}' at '${NEW_COLLECTION}' after retries; keeping the verified collection for the next run to recover and exiting non-zero." >&2
+  exit 1
+fi
 echo "Alias '${ALIAS}' now points to '${NEW_COLLECTION}'"
 
 # Remove older github-issues-* builds, keeping the one the alias now points at.
