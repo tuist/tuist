@@ -7,6 +7,7 @@ defmodule Tuist.Authorization.Checks do
   alias Tuist.Accounts.AccountToken
   alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Accounts.User
+  alias Tuist.Projects
   alias Tuist.Projects.Project
 
   def user_role(%User{} = authenticated_user, %Project{} = project, role) when role == :user do
@@ -154,6 +155,15 @@ defmodule Tuist.Authorization.Checks do
     false
   end
 
+  def project_cache_scope_permits_account(%AuthenticatedAccount{scopes: scopes} = subject, %Account{id: account_id}) do
+    scopes = expand_scopes(scopes)
+
+    ("project:cache:read" in scopes or "project:cache:write" in scopes) and
+      Enum.any?(Projects.list_accessible_projects(subject, preload: []), &(&1.account_id == account_id))
+  end
+
+  def project_cache_scope_permits_account(_, _), do: false
+
   defp cache_write_policy_permits_members?(resource) do
     case resource_account(resource) do
       %Account{cache_write_policy: :tokens_only} -> false
@@ -282,7 +292,7 @@ defmodule Tuist.Authorization.Checks do
   defp object_account_id(%{account: %Account{id: id}}), do: id
 
   defp object_account_id(%{project_id: project_id}) when not is_nil(project_id) do
-    case Tuist.Projects.get_project_by_id(project_id) do
+    case Projects.get_project_by_id(project_id) do
       %Project{account_id: account_id} -> account_id
       _ -> nil
     end
@@ -297,7 +307,7 @@ defmodule Tuist.Authorization.Checks do
   def project_command_event_access(%User{} = user, command_event) when is_struct(command_event) do
     case Map.get(command_event, :project_id) do
       project_id when not is_nil(project_id) ->
-        project = Tuist.Projects.get_project_by_id(project_id)
+        project = Projects.get_project_by_id(project_id)
         user_role(user, project, :user)
 
       _ ->
@@ -313,7 +323,7 @@ defmodule Tuist.Authorization.Checks do
       _ ->
         case Map.get(command_event, :project_id) do
           project_id when not is_nil(project_id) ->
-            project = Tuist.Projects.get_project_by_id(project_id)
+            project = Projects.get_project_by_id(project_id)
             public_project(nil, project)
 
           _ ->
@@ -336,7 +346,7 @@ defmodule Tuist.Authorization.Checks do
         _ ->
           case Map.get(command_event, :project_id) do
             project_id when not is_nil(project_id) ->
-              Tuist.Projects.get_project_by_id(project_id)
+              Projects.get_project_by_id(project_id)
 
             _ ->
               nil

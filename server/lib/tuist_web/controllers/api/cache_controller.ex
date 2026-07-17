@@ -5,6 +5,7 @@ defmodule TuistWeb.API.CacheController do
   alias OpenApiSpex.Schema
   alias Tuist.Accounts
   alias Tuist.API.Pipeline
+  alias Tuist.Authorization
   alias Tuist.Cache
   alias Tuist.CacheActionItems
   alias Tuist.Storage
@@ -84,9 +85,10 @@ defmodule TuistWeb.API.CacheController do
   defp authorized_account_handle(nil, _conn), do: nil
 
   defp authorized_account_handle(account_handle, conn) do
+    account = Accounts.get_account_by_handle(account_handle)
     subject = Authentication.authenticated_subject(conn)
 
-    if Cache.cache_endpoints_accessible?(subject, account_handle) do
+    if not is_nil(account) and Authorization.authorize(:account_cache_endpoint_read, subject, account) == :ok do
       account_handle
     end
   end
