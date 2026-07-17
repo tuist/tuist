@@ -16,6 +16,8 @@ defmodule Tuist.Billing do
   alias Tuist.CommandEvents
   alias Tuist.Repo
 
+  require Logger
+
   # Unfortunately, this data can't be obtained and cached
   # from the Stripe's API, so we have to make sure it's in sync
   # with the values on Stripe.
@@ -349,11 +351,19 @@ defmodule Tuist.Billing do
     end
   end
 
+  @doc """
+  Returns the end of the subscription's current period, or `nil` when Stripe can't be reached.
+  """
   def get_subscription_current_period_end(subscription_id) do
-    {:ok, %{current_period_end: current_period_end}} =
-      Stripe.Subscription.retrieve(subscription_id)
+    case Stripe.Subscription.retrieve(subscription_id) do
+      {:ok, %{current_period_end: current_period_end}} ->
+        DateTime.from_unix!(current_period_end)
 
-    DateTime.from_unix!(current_period_end)
+      {:error, error} ->
+        Logger.warning("Couldn't retrieve the subscription #{subscription_id} from Stripe: #{inspect(error)}")
+
+        nil
+    end
   end
 
   def get_payment_method_id_from_subscription_id(subscription_id) do
@@ -371,9 +381,22 @@ defmodule Tuist.Billing do
     end
   end
 
+  @doc """
+  Returns the payment method, or `nil` when Stripe can't be reached.
+  """
   def get_payment_method_by_id(payment_method_id) do
-    {:ok, payment_method} = Stripe.PaymentMethod.retrieve(payment_method_id)
+    case Stripe.PaymentMethod.retrieve(payment_method_id) do
+      {:ok, payment_method} ->
+        build_payment_method(payment_method)
 
+      {:error, error} ->
+        Logger.warning("Couldn't retrieve the payment method #{payment_method_id} from Stripe: #{inspect(error)}")
+
+        nil
+    end
+  end
+
+  defp build_payment_method(payment_method) do
     card =
       if is_nil(payment_method.card),
         do: nil,

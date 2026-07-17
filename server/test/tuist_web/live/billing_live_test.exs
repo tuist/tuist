@@ -167,6 +167,54 @@ defmodule TuistWeb.BillingLiveTest do
     end
   end
 
+  describe "when Stripe is unreachable" do
+    test "renders the billing page falling back to the generic charge period", %{
+      conn: conn,
+      account: account
+    } do
+      # Given
+      stub(Billing, :get_current_active_subscription, fn _ ->
+        %{
+          plan: :pro,
+          status: "active",
+          default_payment_method: "payment_method_id",
+          trial_end: nil,
+          subscription_id: "subscription_id"
+        }
+      end)
+
+      stub(Billing, :get_subscription_current_period_end, fn _ -> nil end)
+
+      # When
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/billing")
+
+      # Then
+      assert has_element?(lv, "[data-part='next-charge-date']", "charged /per month")
+    end
+
+    test "renders the billing page when the payment method can't be fetched", %{
+      conn: conn,
+      account: account
+    } do
+      # Given
+      stub(Billing, :get_current_active_subscription, fn _ ->
+        %{
+          plan: :pro,
+          status: "active",
+          default_payment_method: "payment_method_id",
+          trial_end: nil,
+          subscription_id: "subscription_id"
+        }
+      end)
+
+      stub(Billing, :get_payment_method_id_from_subscription_id, fn _ -> "payment_method_id" end)
+      stub(Billing, :get_payment_method_by_id, fn _ -> nil end)
+
+      # When/Then
+      assert {:ok, _lv, _html} = live(conn, ~p"/#{account.name}/billing")
+    end
+  end
+
   describe "when payment method card is nil" do
     @tag account_without_customer: true
     test "does not crash when payment method has nil card", %{conn: conn, account: account} do
