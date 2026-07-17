@@ -34,6 +34,13 @@ defmodule Tuist.Docs.SidebarTest do
              {"Install the Gradle plugin", "/en/guides/install-gradle-plugin"}
 
     refute Enum.any?(rest, &(&1.label == "Guides"))
+    refute Enum.any?(rest, &(&1.label == "Tutorials"))
+
+    generated_xcode = Enum.find(chooser.items, &(&1.label == "Generated Xcode project"))
+
+    assert Enum.map(generated_xcode.items, &{&1.label, &1.slug}) == [
+             {"Create a generated project", "/en/tutorials/xcode/create-a-generated-project"}
+           ]
   end
 
   test "all sidebar slugs correspond to actual docs pages" do
