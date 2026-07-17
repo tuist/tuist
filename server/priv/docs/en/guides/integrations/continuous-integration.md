@@ -327,7 +327,6 @@ When Tuist uploads a run, the dashboard URLs for it are printed to the logs. To 
 
 ```json
 {
-  "tuistVersion": "4.100.0",
   "runId": "0193f8c1-...",
   "status": "success",
   "runURL": "https://tuist.dev/acme/app/runs/0193f8c1-...",
@@ -351,7 +350,6 @@ When Tuist uploads a run, the dashboard URLs for it are printed to the logs. To 
 
 | Field | Type | Description |
 | - | - | - |
-| `tuistVersion` | string | The version of Tuist that produced the report. |
 | `runId` | string | The run's unique identifier. |
 | `status` | string | `"success"` or `"failure"`. |
 | `runURL` | string | The dashboard URL for the run. Always present. |

@@ -236,7 +236,6 @@ public class TrackableCommand {
                 if let runReportPath = (command as? RunReportingCommand)?.runReportPath {
                     await runReportService.writeRunReport(
                         RunReport(
-                            tuistVersion: commandEvent.tuistVersion,
                             runId: runId,
                             status: status,
                             runURL: serverCommandEvent.url,

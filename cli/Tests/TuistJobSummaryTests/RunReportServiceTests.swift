@@ -20,7 +20,6 @@ struct RunReportServiceTests {
         buildRunReports: [RunReportBuildRun] = []
     ) -> RunReport {
         RunReport(
-            tuistVersion: "4.100.0",
             runId: "run-id",
             status: status,
             runURL: URL(string: "https://tuist.dev/acme/app/runs/123")!,
@@ -57,7 +56,6 @@ struct RunReportServiceTests {
         )
 
         let report = try await readReport(at: path)
-        #expect(report.tuistVersion == "4.100.0")
         #expect(report.runId == "run-id")
         #expect(report.status == .success)
         #expect(report.testRuns.first?.scheme == "App")

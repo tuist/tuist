@@ -11,9 +11,6 @@ import TuistCore
 /// `server/priv/docs/en/guides/integrations/continuous-integration.md`; keep the two in sync, and
 /// only ever extend it in backwards-compatible ways.
 public struct RunReport: Codable, Equatable {
-    /// The Tuist that produced the report.
-    public let tuistVersion: String
-
     public let runId: String
     public let status: Status
 
@@ -51,7 +48,6 @@ public struct RunReport: Codable, Equatable {
     }
 
     public init(
-        tuistVersion: String,
         runId: String,
         status: CommandEvent.Status,
         runURL: URL,
@@ -60,7 +56,6 @@ public struct RunReport: Codable, Equatable {
         testRunReports: [RunReportTestRun],
         buildRunReports: [RunReportBuildRun]
     ) {
-        self.tuistVersion = tuistVersion
         self.runId = runId
         self.status = switch status {
         case .success: .success
