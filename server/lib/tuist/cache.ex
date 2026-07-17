@@ -37,6 +37,18 @@ defmodule Tuist.Cache do
     }
   end
 
+  @doc "Returns whether the subject can discover cache endpoints for the account."
+  def cache_endpoints_accessible?(resource, account_handle) do
+    grants = cache_grants(resource)
+    account_handle = String.downcase(account_handle)
+
+    account_handles = grants["account"]["read"] ++ grants["account"]["write"]
+    project_handles = grants["project"]["read"] ++ grants["project"]["write"]
+
+    account_handle in account_handles or
+      Enum.any?(project_handles, &String.starts_with?(&1, "#{account_handle}/"))
+  end
+
   def embedded_cache_claims(resource, opts \\ [])
 
   def embedded_cache_claims(%User{} = user, opts), do: project_only_embedded_cache_claims(user, opts)
