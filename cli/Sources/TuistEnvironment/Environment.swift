@@ -102,6 +102,7 @@ public protocol Environmenting: Sendable {
 }
 
 private let truthyValues = ["1", "true", "TRUE", "yes", "YES"]
+private let falsyValues = ["0", "false", "FALSE", "no", "NO"]
 
 extension Environmenting {
     public var tuistVariables: [String: String] {
@@ -111,6 +112,11 @@ extension Environmenting {
     public func isVariableTruthy(_ name: String) -> Bool {
         guard let value = variables[name] else { return false }
         return truthyValues.contains(value)
+    }
+
+    public func isVariableFalsy(_ name: String) -> Bool {
+        guard let value = variables[name] else { return false }
+        return falsyValues.contains(value)
     }
 
     public var isCI: Bool {

@@ -63,7 +63,7 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
             fileSystem: fileSystem,
             commandRunner: { self.mockCommandRunner },
             swifterPM: swifterPM,
-            environmentVariables: { ["TUIST_DISABLE_SWIFTERPM": "1"] }
+            environmentVariables: { ["TUIST_USE_SWIFTERPM": "0"] }
         )
         mockCommandRunner.succeedCommand([
             "swift",
@@ -141,7 +141,7 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
             fileSystem: fileSystem,
             commandRunner: { self.mockCommandRunner },
             swifterPM: swifterPM,
-            environmentVariables: { ["TUIST_DISABLE_SWIFTERPM": "1"] }
+            environmentVariables: { ["TUIST_USE_SWIFTERPM": "0"] }
         )
         mockCommandRunner.succeedCommand([
             "swift",
@@ -321,7 +321,7 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
             fileSystem: fileSystem,
             commandRunner: { self.mockCommandRunner },
             swifterPM: swifterPM,
-            environmentVariables: { ["TUIST_DISABLE_SWIFTERPM": "1"] }
+            environmentVariables: { ["TUIST_USE_SWIFTERPM": "0"] }
         )
         mockCommandRunner.succeedCommand([
             "swift",
