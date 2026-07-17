@@ -473,6 +473,7 @@ func main() {
 
 	if err := (&macos.ScalewayAppleSiliconMachineReconciler{
 		Client:               mgr.GetClient(),
+		APIReader:            mgr.GetAPIReader(),
 		Scheme:               mgr.GetScheme(),
 		ScalewayClient:       scwClient,
 		CredentialsManager:   credsManager,

@@ -21,6 +21,7 @@ import (
 
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/controllers/shared"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-tuist/api/v1alpha1"
@@ -276,6 +277,12 @@ func newReconciler(t *testing.T, objs ...runtime.Object) *ScalewayAppleSiliconMa
 		WithScheme(scheme).
 		WithRuntimeObjects(objs...).
 		WithStatusSubresource(&infrav1.ScalewayAppleSiliconMachine{}).
+		// Mirror the API server's native spec.nodeName Pod field selector so
+		// reconcileDelete's stranded-Pod sweep resolves against the fake client
+		// (which leaves APIReader unset and falls back to this Client).
+		WithIndex(&corev1.Pod{}, "spec.nodeName", func(o client.Object) []string {
+			return []string{o.(*corev1.Pod).Spec.NodeName}
+		}).
 		Build()
 	return &ScalewayAppleSiliconMachineReconciler{
 		Client:   c,
@@ -795,6 +802,123 @@ func TestReconcileDelete_LegacyCRUsesDefaultPrefix(t *testing.T) {
 	}
 	if machine.Status.ServerID != "" {
 		t.Fatalf("Status.ServerID should be cleared after release, got %q", machine.Status.ServerID)
+	}
+}
+
+// strandedPod builds a Pod bound to nodeName carrying the given finalizers.
+// Used by the Stage 4.5 sweep tests.
+func strandedPod(namespace, name, nodeName string, finalizers ...string) *corev1.Pod {
+	return &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace:  namespace,
+			Name:       name,
+			Finalizers: finalizers,
+		},
+		Spec: corev1.PodSpec{NodeName: nodeName},
+	}
+}
+
+// TestReconcileDelete_StripsStrandedPodFinalizers covers Stage 4.5: after the
+// Node is gone the sweep must strip tart-kubelet's vm-cleanup finalizer from
+// Pods on that node — and only those. Pods on other nodes and Pods without the
+// finalizer must be left untouched.
+func TestReconcileDelete_StripsStrandedPodFinalizers(t *testing.T) {
+	const node = "macos-fleet-7"
+	onNode := strandedPod("tuist-runners", "runner-on-node", node, PodVMCleanupFinalizer)
+	onNodeNoFinalizer := strandedPod("tuist-runners", "runner-no-finalizer", node)
+	onNodeOtherFinalizer := strandedPod("tuist-runners", "runner-other-finalizer", node, "example.com/keep-me")
+	otherNode := strandedPod("tuist-runners", "runner-other-node", "macos-fleet-99", PodVMCleanupFinalizer)
+
+	machine := &infrav1.ScalewayAppleSiliconMachine{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:       node,
+			Namespace:  "ns",
+			Finalizers: []string{MachineFinalizer},
+		},
+		// Empty ServerID: Stage 1 is skipped, so the delete flows straight
+		// through to the pod sweep without needing a Scaleway stub.
+		Spec: infrav1.ScalewayAppleSiliconMachineSpec{Zone: "fr-par-1"},
+	}
+
+	r := newReconciler(t, onNode, onNodeNoFinalizer, onNodeOtherFinalizer, otherNode)
+	if _, err := r.reconcileDelete(context.Background(), machine); err != nil {
+		t.Fatalf("reconcileDelete: %v", err)
+	}
+
+	assertFinalizer := func(pod *corev1.Pod, want bool) {
+		t.Helper()
+		var got corev1.Pod
+		if err := r.Get(context.Background(), client.ObjectKeyFromObject(pod), &got); err != nil {
+			t.Fatalf("get pod %s: %v", pod.Name, err)
+		}
+		has := false
+		for _, f := range got.Finalizers {
+			if f == PodVMCleanupFinalizer {
+				has = true
+			}
+		}
+		if has != want {
+			t.Fatalf("pod %s: vm-cleanup finalizer present=%v, want %v (finalizers=%v)", pod.Name, has, want, got.Finalizers)
+		}
+	}
+
+	assertFinalizer(onNode, false)
+	assertFinalizer(otherNode, true)
+
+	// The unrelated finalizer on a same-node pod must survive untouched.
+	var kept corev1.Pod
+	if err := r.Get(context.Background(), client.ObjectKeyFromObject(onNodeOtherFinalizer), &kept); err != nil {
+		t.Fatalf("get pod %s: %v", onNodeOtherFinalizer.Name, err)
+	}
+	if len(kept.Finalizers) != 1 || kept.Finalizers[0] != "example.com/keep-me" {
+		t.Fatalf("unrelated finalizer must be preserved, got %v", kept.Finalizers)
+	}
+
+	// The no-finalizer pod is a no-op; getting it must still succeed.
+	var untouched corev1.Pod
+	if err := r.Get(context.Background(), client.ObjectKeyFromObject(onNodeNoFinalizer), &untouched); err != nil {
+		t.Fatalf("get pod %s: %v", onNodeNoFinalizer.Name, err)
+	}
+}
+
+// TestReconcileDelete_UnwedgesTerminatingPod reproduces the production bug: a
+// Pod already force-deleted (DeletionTimestamp set) but held open by the
+// vm-cleanup finalizer wedges in Terminating forever. Stage 4.5 stripping the
+// finalizer must let the API object finalize and disappear.
+func TestReconcileDelete_UnwedgesTerminatingPod(t *testing.T) {
+	const node = "macos-fleet-8"
+	pod := strandedPod("tuist-runners", "runner-wedged", node, PodVMCleanupFinalizer)
+
+	r := newReconciler(t, pod)
+
+	// Delete blocks on the finalizer, leaving the Pod in Terminating —
+	// exactly the state PodGC leaves behind when the node vanishes.
+	if err := r.Delete(context.Background(), pod); err != nil {
+		t.Fatalf("delete pod: %v", err)
+	}
+	var terminating corev1.Pod
+	if err := r.Get(context.Background(), client.ObjectKeyFromObject(pod), &terminating); err != nil {
+		t.Fatalf("pod should still exist while finalizer holds it: %v", err)
+	}
+	if terminating.DeletionTimestamp.IsZero() {
+		t.Fatalf("expected pod to be Terminating (DeletionTimestamp set)")
+	}
+
+	machine := &infrav1.ScalewayAppleSiliconMachine{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:       node,
+			Namespace:  "ns",
+			Finalizers: []string{MachineFinalizer},
+		},
+		Spec: infrav1.ScalewayAppleSiliconMachineSpec{Zone: "fr-par-1"},
+	}
+	if _, err := r.reconcileDelete(context.Background(), machine); err != nil {
+		t.Fatalf("reconcileDelete: %v", err)
+	}
+
+	var got corev1.Pod
+	if err := r.Get(context.Background(), client.ObjectKeyFromObject(pod), &got); !apierrors.IsNotFound(err) {
+		t.Fatalf("expected wedged pod to finalize and disappear, got err=%v pod=%+v", err, got)
 	}
 }
 

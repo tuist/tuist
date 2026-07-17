@@ -347,6 +347,15 @@ eligible for the next adoption once Scaleway flips it back to
 operator-owned territory — you keep paying for capacity you already
 pre-ordered until you decide to release it via the Scaleway console.
 
+`reconcileDelete` also deletes the departing host's Node object and
+strips `tart-kubelet.tuist.dev/vm-cleanup` from every Pod bound to it.
+That finalizer is only ever removed by the tart-kubelet on the Pod's
+host after it tears the backing VM down; once the host is released and
+reinstalled there is no tart-kubelet left to do so and no VM to orphan,
+so without this strip PodGC-force-deleted Pods would wedge in
+`Terminating` forever (the manual fix was
+`kubectl patch pod … -p '{"metadata":{"finalizers":null}}'`).
+
 ### Replace a wedged host
 ```bash
 kubectl delete machine <machine-name>
