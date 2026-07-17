@@ -868,44 +868,48 @@ impl DemandCoalescer {
     }
 }
 
-/// A git context read from an instance's source root, memoized on a TTL.
-struct GitContext {
+/// What setup recorded for an instance, memoized on a TTL so a publish does not
+/// re-read the registry file.
+struct SourceContext {
     read_at: Instant,
-    /// The current checked-out branch (`git rev-parse --abbrev-ref HEAD`), or
-    /// `None` on a detached HEAD (CI) — the env override covers that case.
-    branch: Option<String>,
-    /// The repo's default branch (`origin/HEAD`), used as the trunk to scope the
-    /// snapshot to, or `None` when the remote head is unknown.
     trunk: Option<String>,
+    ci_branch: Option<String>,
 }
 
-/// How long a derived git context is reused before the proxy re-reads HEAD, so
-/// a branch switch is picked up within seconds without forking git per publish.
+/// How long a recorded context is reused before the proxy re-reads the registry,
+/// so a project set up after startup is picked up within seconds.
 const GIT_CONTEXT_TTL: Duration = Duration::from_secs(15);
 
-/// The (branch, trunk) pair `git_context` resolves, cloned out from under the
+/// The (branch, trunk) pair `source_context` resolves, cloned out from under the
 /// cache lock.
-struct GitBranches {
+struct SourceBranches {
     branch: Option<String>,
     trunk: Option<String>,
 }
 
 /// What `tuist setup cache` recorded for an instance.
+///
+/// Note what is NOT here: the checkout. Nothing about a publish is read from the
+/// working copy any more, which is what makes a moved, renamed, or duplicated one
+/// unable to mis-attribute a build. Setup still writes the source root into the
+/// registry's second column and this deliberately ignores it, so a proxy from
+/// before this change keeps parsing the columns after it.
 struct RegisteredSource {
-    /// The project's checkout, which the branch of each publish is read from.
-    root: PathBuf,
-    /// The branch `tuist setup cache` saw, recorded ONLY on CI, whose checkout is
-    /// detached and so tells `git rev-parse` nothing. A launchd agent does not
-    /// inherit the job's environment, so the provider's branch variable is
-    /// unreachable from here and the command inside the job has to hand it over.
-    /// Never recorded off CI, where reading git live is both possible and correct
-    /// across a `git checkout`.
+    /// The branch `tuist setup cache` saw in the CI job's environment, recorded
+    /// ONLY on CI. A launchd agent does not inherit the job's environment, so the
+    /// provider's branch variable is unreachable from here and the command inside
+    /// the job has to hand it over.
+    ///
+    /// `None` off CI, and that is the design rather than a gap: the snapshot is
+    /// what trunk looks like as CI built it, so CI is the only publisher whose
+    /// branch has to be right. A local publish goes out untagged, stays out of
+    /// every trunk view, and is still stored and served per key.
     ci_branch: Option<String>,
-    /// The project's default branch, as the server knows it. Authoritative over
-    /// the checkout's `origin/HEAD`: which branch is trunk is a property of the
-    /// project, not of how this machine happened to clone it (a fork, a mirror,
-    /// or a clone whose remote head was never set all get it wrong locally).
-    /// `None` when setup could not reach the server.
+    /// The project's default branch, as the server knows it. Which branch is
+    /// trunk is a property of the project, not of how this machine happened to
+    /// clone it (a fork, a mirror, or a clone whose remote head was never set all
+    /// get it wrong locally). `None` when setup could not reach the server, which
+    /// means no scoping: what a client too old to ask for it already gets.
     trunk: Option<String>,
 }
 
@@ -935,7 +939,7 @@ pub struct Proxy {
     active_instances: Mutex<HashSet<String>>,
     // instance -> the last git context read from its source root, refreshed on
     // a short TTL so per-publish tagging is a cache hit, not a git fork.
-    git_cache: Mutex<HashMap<String, GitContext>>,
+    source_cache: Mutex<HashMap<String, SourceContext>>,
     paths: Mutex<HashMap<String, &'static PathState>>,
     publisher: Prefetcher,
     // Resolves/publishes that arrived with no declared instance and no primed
@@ -1017,7 +1021,7 @@ impl Proxy {
                     .map(|path| load_sources(&sources_path_for(path)))
                     .unwrap_or_default(),
             ),
-            git_cache: Mutex::new(HashMap::new()),
+            source_cache: Mutex::new(HashMap::new()),
             registry_path,
             paths: Mutex::new(HashMap::new()),
             publisher: Prefetcher::new(),
@@ -1904,14 +1908,15 @@ impl Proxy {
     /// where they are used (the upload, which runs after the queue wait, the
     /// existence probe and the closure's blob transfers, tens of seconds over
     /// a WAN link, and mostly AFTER the build that produced them has exited).
-    /// Resolving there reads whatever is checked out by then, so a `git checkout`
-    /// straight after a build permanently re-tags that build's still-draining
-    /// outputs with the new branch: a trunk build's outputs land tagged
-    /// `feature` and drop out of the trunk view they belong in.
     ///
-    /// Binding at accept costs nothing: `git_context` is memoized on
-    /// GIT_CONTEXT_TTL, so this forks git at most once per TTL per instance,
-    /// never per publish.
+    /// Resolving there would read whatever the registry says by then, and the
+    /// registry moves: a shared CI runner rewrites it on every job's setup. So
+    /// job A's still-draining outputs would be tagged with job B's branch, and a
+    /// trunk build's outputs would land tagged `feature` and drop out of the
+    /// trunk view they belong in.
+    ///
+    /// Binding at accept costs nothing: the context is memoized, so this reads
+    /// the registry at most once per TTL per instance, never per publish.
     fn enqueue_publish(&self, cas_path: &str, instance: &str, record_path: &str) {
         let (branch, trunk) = self.record_tags(instance, record_path);
         let mut item = Vec::with_capacity(
@@ -2606,81 +2611,77 @@ impl Proxy {
     /// from the instance's registered source root, then the branch
     /// `tuist setup cache` recorded for a CI checkout.
     ///
-    /// Live git outranks the recorded branch because it survives a `git checkout`
-    /// under this long-lived proxy, and it is only absent when HEAD is detached.
-    /// The recorded branch is therefore reached exactly on CI, which is where git
-    /// cannot answer and where an untagged publish would otherwise land in every
-    /// project's trunk baseline: CI is the fleet's main publisher, so leaving it
-    /// untagged would pollute the very view this scoping exists to keep clean.
+    /// The branch to attribute a publish to: the env override, then what setup
+    /// recorded from the CI job's environment.
+    ///
+    /// Nothing derives this from the checkout. The snapshot is what trunk looks
+    /// like as CI built it, so CI is the only publisher whose branch has to be
+    /// right, and CI is exactly where a checkout cannot answer anyway, its HEAD
+    /// being detached. Deleting the live derivation deleted a class of bug with
+    /// it: a registered root could be moved, renamed, or shared by two worktrees
+    /// of one project, and each of those quietly attributed a build to the wrong
+    /// branch. None of it is reachable from a value the CI job told us about
+    /// itself.
     fn resolve_branch(&self, instance: &str) -> Option<String> {
         if let Ok(branch) = std::env::var("TUIST_CAS_BRANCH") {
             if !branch.is_empty() {
                 return Some(branch);
             }
         }
-        self.git_context(instance)
-            .branch
-            .or_else(|| self.registered_source(instance).and_then(|source| source.ci_branch))
+        self.source_context(instance).branch
     }
 
-    /// The trunk to scope this instance's snapshot to: the env override first,
-    /// then the source root's default branch (`origin/HEAD`).
+    /// The trunk to scope this instance's snapshot to: the env override, then the
+    /// project's configured default branch. A server decision, never the
+    /// checkout's `origin/HEAD`.
     fn resolve_trunk(&self, instance: &str) -> Option<String> {
         if let Ok(trunk) = std::env::var("TUIST_CAS_TRUNK_BRANCH") {
             if !trunk.is_empty() {
                 return Some(trunk);
             }
         }
-        self.git_context(instance).trunk
+        self.source_context(instance).trunk
     }
 
-    /// The instance's git context, memoized on GIT_CONTEXT_TTL. A refresh also
-    /// re-reads the sources registry, so a project set up after this proxy
-    /// started (a second project on the machine) is picked up without a restart.
-    fn git_context(&self, instance: &str) -> GitBranches {
+    /// What setup recorded for the instance, memoized on GIT_CONTEXT_TTL so a
+    /// publish does not re-read the registry. A refresh re-reads it, so a project
+    /// set up after this proxy started is picked up without a restart.
+    fn source_context(&self, instance: &str) -> SourceBranches {
         {
-            let cache = self.git_cache.lock().unwrap();
+            let cache = self.source_cache.lock().unwrap();
             if let Some(context) = cache.get(instance) {
                 if context.read_at.elapsed() < GIT_CONTEXT_TTL {
-                    return GitBranches {
-                        branch: context.branch.clone(),
+                    return SourceBranches {
+                        branch: context.ci_branch.clone(),
                         trunk: context.trunk.clone(),
                     };
                 }
             }
         }
         let source = self.registered_source(instance);
-        let (branch, trunk) = match source {
-            // The server's default branch wins over the checkout's `origin/HEAD`;
-            // the latter is only a fallback for a setup that could not reach the
-            // server, or a registry written before setup recorded the trunk.
-            Some(source) => (
-                git_current_branch(&source.root),
-                source.trunk.or_else(|| git_trunk_branch(&source.root)),
-            ),
-            None => (None, None),
-        };
+        let trunk = source.as_ref().and_then(|source| source.trunk.clone());
+        let branch = source.as_ref().and_then(|source| source.ci_branch.clone());
         {
-            let cache = self.git_cache.lock().unwrap();
+            let cache = self.source_cache.lock().unwrap();
             let changed = cache
                 .get(instance)
-                .map(|context| context.branch != branch || context.trunk != trunk)
+                .map(|context| context.ci_branch != branch || context.trunk != trunk)
                 .unwrap_or(true);
             if changed {
                 crate::log_line(&format!(
-                    "git context for {instance}: branch={branch:?} trunk={trunk:?}"
+                    "source context for {instance}: branch={branch:?} trunk={trunk:?}"
                 ));
             }
         }
-        self.git_cache.lock().unwrap().insert(
+        self.source_cache.lock().unwrap().insert(
             instance.to_string(),
-            GitContext {
+            SourceContext {
                 read_at: Instant::now(),
-                branch: branch.clone(),
                 trunk: trunk.clone(),
+                ci_branch: branch.clone(),
             },
         );
-        GitBranches { branch, trunk }
+        SourceBranches { branch, trunk }
     }
 
     /// What setup registered for the instance, reloading the sources registry so
@@ -2688,7 +2689,6 @@ impl Proxy {
     /// miss in `git_context`.
     fn registered_source(&self, instance: &str) -> Option<RegisteredSource> {
         let clone = |source: &RegisteredSource| RegisteredSource {
-            root: source.root.clone(),
             trunk: source.trunk.clone(),
             ci_branch: source.ci_branch.clone(),
         };
@@ -3032,16 +3032,19 @@ fn load_sources(path: &Path) -> HashMap<String, RegisteredSource> {
             // empty when a branch was recorded without one, so the columns stay
             // positional.
             let mut columns = line.split('\t');
-            let (Some(instance), Some(root)) = (columns.next(), columns.next()) else {
+            // The second column is the source root. Setup still writes it and
+            // this deliberately steps over it: nothing here reads the checkout
+            // any more, but a proxy from before that keeps parsing the columns
+            // after it, so the format does not have to move.
+            let (Some(instance), Some(_root)) = (columns.next(), columns.next()) else {
                 continue;
             };
-            if instance.is_empty() || root.is_empty() {
+            if instance.is_empty() {
                 continue;
             }
             map.insert(
                 instance.to_string(),
                 RegisteredSource {
-                    root: PathBuf::from(root),
                     trunk: columns.next().filter(|trunk| !trunk.is_empty()).map(str::to_owned),
                     ci_branch: columns.next().filter(|branch| !branch.is_empty()).map(str::to_owned),
                 },
@@ -3049,47 +3052,6 @@ fn load_sources(path: &Path) -> HashMap<String, RegisteredSource> {
         }
     }
     map
-}
-
-/// The currently checked-out branch of a repo, or `None` on a detached HEAD
-/// (git prints "HEAD") or when the path is not a repo.
-fn git_current_branch(root: &Path) -> Option<String> {
-    let output = std::process::Command::new("git")
-        .arg("-C")
-        .arg(root)
-        .args(["rev-parse", "--abbrev-ref", "HEAD"])
-        .output()
-        .ok()?;
-    if !output.status.success() {
-        return None;
-    }
-    let branch = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    if branch.is_empty() || branch == "HEAD" {
-        None
-    } else {
-        Some(branch)
-    }
-}
-
-/// A repo's default branch, read from `origin/HEAD` (e.g. "main"). `None` when
-/// the remote head is unset (a bare local repo) — the caller then leaves the
-/// snapshot unscoped or takes the env/server-provided trunk.
-fn git_trunk_branch(root: &Path) -> Option<String> {
-    let output = std::process::Command::new("git")
-        .arg("-C")
-        .arg(root)
-        .args(["symbolic-ref", "--short", "refs/remotes/origin/HEAD"])
-        .output()
-        .ok()?;
-    if !output.status.success() {
-        return None;
-    }
-    let head = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    // `--short` yields "origin/main"; the trunk is the branch name.
-    head.rsplit('/')
-        .next()
-        .filter(|name| !name.is_empty())
-        .map(str::to_owned)
 }
 
 unsafe fn open_cas(up: &'static Upstream, path: &str) -> Result<llcas_cas_t, String> {
@@ -3214,8 +3176,12 @@ mod tests {
         let path = dir.join("registry.sources");
         // Row 1 is what a setup that reached the server writes; row 2 is the
         // older two-column form (and what a setup that could not reach the
-        // server still writes). Both must parse, and the old one must leave the
-        // trunk to be derived from the checkout rather than swallowing a column.
+        // server still writes). Both must parse, and an absent trunk column must
+        // stay absent rather than swallowing the column after it.
+        //
+        // The second column is the source root, which nothing reads any more.
+        // Setup still writes it, and stepping over it rather than dropping it is
+        // what lets a proxy from before that keep parsing the columns after it.
         std::fs::write(
             &path,
             "tuist/mastodon\t/src/mastodon\tmain\ntuist/legacy\t/src/legacy\n",
@@ -3225,10 +3191,12 @@ mod tests {
         let sources = load_sources(&path);
         assert_eq!(sources.len(), 2);
         let scoped = sources.get("tuist/mastodon").expect("scoped entry");
-        assert_eq!(scoped.root, PathBuf::from("/src/mastodon"));
-        assert_eq!(scoped.trunk.as_deref(), Some("main"));
+        assert_eq!(
+            scoped.trunk.as_deref(),
+            Some("main"),
+            "the trunk is read from the third column, not the second"
+        );
         let legacy = sources.get("tuist/legacy").expect("legacy entry");
-        assert_eq!(legacy.root, PathBuf::from("/src/legacy"));
         assert_eq!(legacy.trunk, None, "an absent trunk column is not a path");
         assert_eq!(
             scoped.ci_branch, None,
@@ -3238,40 +3206,29 @@ mod tests {
         std::fs::remove_dir_all(&dir).ok();
     }
 
-    // Publishing is asynchronous and durable: a record is queued here and uploaded
-    // by a pool thread later, after the queue wait and the closure's WAN transfers
-    // typically after the build that produced it has exited. Resolving the tags
-    // at the upload would therefore read whatever HEAD says by then, so a
-    // `git checkout` right after a trunk build would re-tag that build's
-    // still-draining outputs `feature` and drop them out of the trunk view.
+    /// Publishing is asynchronous and durable: a record is queued, then uploaded
+    /// after the queue wait, the existence probe and the closure's transfers,
+    /// which is typically after the build that produced it has exited. Resolving
+    /// the tags at the upload would read whatever the registry says by then.
+    ///
+    /// A shared CI runner is where that bites: job A's still-draining outputs
+    /// would be tagged with job B's branch, because B's setup rewrote the row A
+    /// was accepted under.
     #[test]
     fn a_queued_publish_keeps_the_branch_it_was_accepted_on() {
         let dir = std::env::temp_dir().join(format!("tuist-publish-tag-{}", std::process::id()));
         std::fs::remove_dir_all(&dir).ok();
-        let root = dir.join("checkout");
-        std::fs::create_dir_all(&root).expect("temp dir");
-        let git = |args: &[&str]| {
-            let status = std::process::Command::new("git")
-                .arg("-C")
-                .arg(&root)
-                .args(args)
-                .output()
-                .expect("git");
-            assert!(status.status.success(), "git {args:?}");
-        };
-        git(&["init", "-b", "main"]);
-        git(&["config", "user.email", "bench@tuist.dev"]);
-        git(&["config", "user.name", "bench"]);
-        std::fs::write(root.join("file"), "contents").expect("write");
-        git(&["add", "."]);
-        git(&["commit", "-m", "initial"]);
-
+        std::fs::create_dir_all(&dir).expect("temp dir");
         let registry = dir.join("registry");
-        std::fs::write(
-            sources_path_for(&registry),
-            format!("tuist/mastodon\t{}\tmain\n", root.display()),
-        )
-        .expect("write sources");
+        let sources = sources_path_for(&registry);
+        let record_branch = |branch: &str| {
+            std::fs::write(
+                &sources,
+                format!("tuist/mastodon\t/src/mastodon\tmain\t{branch}\n"),
+            )
+            .expect("write sources");
+        };
+        record_branch("release/4.2");
 
         let proxy = Proxy::new(
             "http://127.0.0.1:1".into(),
@@ -3288,12 +3245,13 @@ mod tests {
             .publisher
             .configure(1, move |item| sink.lock().unwrap().push(item));
 
-        proxy.enqueue_publish("/cas", "tuist/mastodon", "/spool/on-main");
-        git(&["checkout", "-b", "feature"]);
-        // The proxy would otherwise reuse the memoized context for GIT_CONTEXT_TTL;
-        // expiring it is what a real checkout gets for free by waiting.
-        proxy.git_cache.lock().unwrap().clear();
-        proxy.enqueue_publish("/cas", "tuist/mastodon", "/spool/on-feature");
+        proxy.enqueue_publish("/cas", "tuist/mastodon", "/spool/from-the-release-job");
+        // The next job on this runner runs setup, which rewrites the row.
+        record_branch("main");
+        // The proxy would otherwise reuse the memoized context for the TTL;
+        // expiring it is what the next job gets for free by taking longer.
+        proxy.source_cache.lock().unwrap().clear();
+        proxy.enqueue_publish("/cas", "tuist/mastodon", "/spool/from-the-main-job");
 
         proxy
             .publisher
@@ -3312,53 +3270,41 @@ mod tests {
             )
         };
         let (branch, trunk, record) = tags(&items[0]);
-        assert_eq!(record, "/spool/on-main");
+        assert_eq!(record, "/spool/from-the-release-job");
         assert_eq!(
-            branch, "main",
-            "the record accepted on main stays tagged main after the checkout moved"
+            branch, "release/4.2",
+            "the record keeps the branch it was accepted under, after the next \
+             job on this runner rewrote the registry"
         );
         assert_eq!(trunk, "main");
         let (branch, trunk, record) = tags(&items[1]);
-        assert_eq!(record, "/spool/on-feature");
-        assert_eq!(branch, "feature", "a later record takes the new branch");
-        assert_eq!(trunk, "main", "the trunk is the project's, not the checkout's");
+        assert_eq!(record, "/spool/from-the-main-job");
+        assert_eq!(branch, "main", "a later record takes the new branch");
+        assert_eq!(trunk, "main", "the trunk is the project's either way");
 
         drop(items);
         std::fs::remove_dir_all(&dir).ok();
     }
 
-    /// Binding at accept only protects a record for as long as the queue holds it.
-    /// A proxy restart mid-drain, or a build that spooled before the path was
-    /// primed, leaves the record on disk for a later sweep to re-enqueue, and by
-    /// then the checkout has usually moved on.
+    /// A sweeper claims a record the producing build left behind, and it resolves
+    /// tags at sweep time, long after that build is gone. The sidecar is what
+    /// carries the answer forward: without it a record swept on the next job
+    /// would be tagged with that job's branch.
     #[test]
     fn a_reswept_record_keeps_the_branch_that_produced_it() {
         let dir = std::env::temp_dir().join(format!("tuist-sidecar-{}", std::process::id()));
         std::fs::remove_dir_all(&dir).ok();
-        let root = dir.join("checkout");
-        std::fs::create_dir_all(&root).expect("temp dir");
-        let git = |args: &[&str]| {
-            let status = std::process::Command::new("git")
-                .arg("-C")
-                .arg(&root)
-                .args(args)
-                .output()
-                .expect("git");
-            assert!(status.status.success(), "git {args:?}");
-        };
-        git(&["init", "-b", "main"]);
-        git(&["config", "user.email", "bench@tuist.dev"]);
-        git(&["config", "user.name", "bench"]);
-        std::fs::write(root.join("file"), "contents").expect("write");
-        git(&["add", "."]);
-        git(&["commit", "-m", "initial"]);
-
+        std::fs::create_dir_all(&dir).expect("temp dir");
         let registry = dir.join("registry");
-        std::fs::write(
-            sources_path_for(&registry),
-            format!("tuist/mastodon\t{}\tmain\n", root.display()),
-        )
-        .expect("write sources");
+        let sources = sources_path_for(&registry);
+        let record_branch = |branch: &str| {
+            std::fs::write(
+                &sources,
+                format!("tuist/mastodon\t/src/mastodon\tmain\t{branch}\n"),
+            )
+            .expect("write sources");
+        };
+        record_branch("main");
 
         let cas_path = dir.join("cas");
         let spool = cas_path.join("tuist-spool");
@@ -3380,26 +3326,18 @@ mod tests {
             .publisher
             .configure(1, move |item| sink.lock().unwrap().push(item));
 
-        // The build hands us the record while main is checked out.
-        proxy.enqueue_publish(
-            &cas_path.to_string_lossy(),
-            "tuist/mastodon",
-            &record_path,
-        );
+        // The build hands us the record while the main job owns the registry.
+        proxy.enqueue_publish(&cas_path.to_string_lossy(), "tuist/mastodon", &record_path);
         assert!(
             spool.join("1234-0.tags").exists(),
             "accepting a record writes its tags beside it"
         );
 
-        // The proxy dies before draining, someone checks out a feature branch,
-        // and a later sweep finds the record still sitting in the spool.
-        git(&["checkout", "-b", "feature"]);
-        proxy.git_cache.lock().unwrap().clear();
-        proxy.enqueue_publish(
-            &cas_path.to_string_lossy(),
-            "tuist/mastodon",
-            &record_path,
-        );
+        // The proxy dies before draining. The next job on this runner runs setup,
+        // rewriting the registry, and a later sweep finds the record still there.
+        record_branch("feature/theirs");
+        proxy.source_cache.lock().unwrap().clear();
+        proxy.enqueue_publish(&cas_path.to_string_lossy(), "tuist/mastodon", &record_path);
 
         proxy
             .publisher
@@ -3416,7 +3354,8 @@ mod tests {
         assert_eq!(
             branch_of(&items[1]),
             "main",
-            "the re-enqueued record keeps the branch it was produced on, not the one checked out now"
+            "the re-enqueued record keeps the branch that produced it, not the one \
+             whose job happens to own the registry when it is swept"
         );
 
         drop(items);
