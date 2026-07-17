@@ -631,15 +631,14 @@ runnersFleet:
   # dynamically apportioned by queue depth across the pools. Older
   # Xcodes sit cold (floor 0) so an unused runner doesn't tie up a host.
   #
-  # Floors do not follow the catalog default: `tuist-macos` resolves
-  # through each account's protected `macos` profile, whose
-  # `xcode_version` is pinned at account creation (26.5 for existing
-  # accounts — see the `20260602145000_backfill_protected_macos_profile`
-  # migration), so 26.6 warms new accounts only. Size floors from
-  # measured demand (`tuist_runners_autoscaler_target_replicas`), not
-  # from which version is tagged default. Revisit once we open the
-  # runners to general signups where the pool mix is unpredictable in
-  # advance.
+  # The default (26.6) carries the warm floor, since `tuist-macos`
+  # resolves there. That resolution goes through each account's
+  # protected `macos` profile, which stores `xcode_version` at account
+  # creation — so bumping the catalog default only redirects new
+  # accounts. Move existing accounts' profile in the same change, or
+  # their traffic stays on the old pool while the floor warms an idle
+  # one. Revisit once we open the runners to general signups where the
+  # pool mix is unpredictable in advance.
   xcodeOverrides:
     "26.6":
       autoscaling:
