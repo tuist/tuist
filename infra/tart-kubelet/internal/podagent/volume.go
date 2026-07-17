@@ -368,6 +368,19 @@ func (m *VolumeManager) Materialize(att VolumeAttachment, account string) (warm 
 	return true, nil
 }
 
+// MaterializeEmpty gives a branch an empty image without consulting any
+// account's master. Used for untrusted (fork) jobs, which must neither read the
+// account's warm master nor promote into it, but still need something to attach
+// — cache-ready always means "an image is waiting for you".
+func (m *VolumeManager) MaterializeEmpty(att VolumeAttachment) error {
+	if !m.Enabled() || !att.Attached {
+		return nil
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.createBranchImageLocked(m.BranchImage(att))
+}
+
 // createBranchImageLocked puts an empty, guest-writable cache image at dest,
 // replacing whatever is there.
 func (m *VolumeManager) createBranchImageLocked(dest string) error {

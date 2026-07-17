@@ -121,14 +121,21 @@ func (r *Reconciler) maybeMaterializeVolume(pod *corev1.Pod) {
 		return // not dispatched yet — nothing to materialize
 	}
 
-	// Fork-exclusion: an untrusted job never touches the shared cache. Skip
-	// materialize (the guest runs cold on its isolated, empty branch) and leave
-	// SourceAccount empty so Finalize's SourceAccount==account guard discards the
-	// branch — the job can neither read the account's warm master nor promote
-	// into it. Mark materialized so this doesn't re-enter, and still signal
-	// cache-ready so the guest stops waiting and runs.
+	// Fork-exclusion: an untrusted job never touches the shared cache. It gets an
+	// EMPTY image rather than the account's master, and SourceAccount stays empty
+	// so Finalize's SourceAccount==account guard discards the branch — the job can
+	// neither read the account's warm master nor promote into it. It still needs
+	// an image of its own: cache-ready tells the guest to attach, and signalling
+	// without one would drop every fork job onto the local cold cache.
 	if pod.Labels[runnerCacheUntrustedLabel] == "true" {
+		if err := r.Volumes.MaterializeEmpty(entry.Volume); err != nil {
+			log.Log.WithName("volume").Error(err, "create empty cache image for untrusted job", "vm", entry.VMName)
+		}
 		entry.Volume.Materialized = true
+		// Mark it on disk too, not just in memory: without the marker a kubelet
+		// restart re-enters here and recreates the image while the guest still has
+		// it mounted.
+		r.Volumes.MarkMaterialized(entry.Volume)
 		writeCacheReady(entry.VolumeStatusDir)
 		return
 	}

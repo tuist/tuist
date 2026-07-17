@@ -569,6 +569,35 @@ func TestMaterializeReportsFallbackFailure(t *testing.T) {
 	}
 }
 
+// An untrusted (fork) job gets an image of its own — cache-ready tells the guest
+// to attach, so signalling without one would drop every fork job onto the local
+// cold cache — but it must be EMPTY, never a clone of the account's master.
+func TestMaterializeEmptyIsolatesForkJobs(t *testing.T) {
+	m, _ := newTestManager(t, 100)
+	seedMaster(t, m, "42")
+
+	att := mustAllocate(t, m, "vm-fork")
+	if err := m.MaterializeEmpty(att); err != nil {
+		t.Fatalf("MaterializeEmpty: %v", err)
+	}
+	if !branchImageExists(m, att) {
+		t.Fatal("an untrusted job still needs an image to attach")
+	}
+	if branchHasWarmCache(m, att) {
+		t.Fatalf("an untrusted job must not receive the account's cache; branch image = %q", branchImageContent(t, m, att))
+	}
+
+	// It promotes nothing: the dispatch path leaves SourceAccount empty, so even
+	// a successful, dirty fork job discards.
+	writeBranchCache(t, m, att, "attacker")
+	if out, _ := m.Finalize(att, "42", true, true); out != VolumeOutcomeDiscarded {
+		t.Fatalf("untrusted branch Finalize = %s; want discarded", out)
+	}
+	if got, _ := os.ReadFile(m.masterImage("42", ReservedTuistCacheVolume)); string(got) != masterImageContent("42") {
+		t.Fatal("account 42's master must survive a fork job untouched")
+	}
+}
+
 // Recovery must preserve the untrusted decision: a fork job's branch (which the
 // dispatch path left with an empty SourceAccount) must NOT get a SourceAccount
 // reconstructed from the account label on restart — otherwise the attacker-
