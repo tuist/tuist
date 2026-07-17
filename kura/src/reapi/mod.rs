@@ -1244,9 +1244,9 @@ impl ActionCache for ReapiService {
                 .iter()
                 .find_map(|hint| hint.strip_prefix(SNAPSHOT_AFTER_HINT)?.parse::<u64>().ok())
                 .unwrap_or(0);
-            // A trunk-branch filter scopes the snapshot to the trunk baseline
-            // (entries tagged with this branch plus untagged/legacy entries).
-            // Absent or empty means the unfiltered, whole-namespace snapshot.
+            // A trunk-branch filter scopes the snapshot to the trunk baseline:
+            // entries tagged with this branch, and only those. Absent or empty
+            // means the unfiltered snapshot of every branch in the namespace.
             let trunk = ref_metadata(&request, "x-tuist-trunk-branch", "x-tuist-trunk-branch-bin");
             let trunk = trunk.as_deref();
             let snapshot = self
