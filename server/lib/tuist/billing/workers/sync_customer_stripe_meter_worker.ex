@@ -3,7 +3,16 @@ defmodule Tuist.Billing.Workers.SyncCustomerStripeMeterWorker do
   Reports one snapshotted customer meter value for the billing period
   chosen by the parent worker.
   """
-  use Oban.Worker
+  # Cap retries so the last attempt lands well inside Stripe's
+  # deduplication window. Stripe only guarantees meter-event identifier
+  # uniqueness for at least 24h and may prune request idempotency keys
+  # after 24h, so a request that succeeded remotely but lost its response
+  # must not be retried past that window or it would double-report usage.
+  # With Oban's default `attempt^4 + 15` backoff, 12 attempts exhaust in
+  # ~11h (vs. >13 days at the default of 20), staying within 24h even with
+  # jitter. Failures beyond that are dropped rather than risking a
+  # duplicate; sustained failures should be caught by job-error alerting.
+  use Oban.Worker, max_attempts: 12
 
   alias Tuist.Billing
 
