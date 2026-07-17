@@ -256,7 +256,7 @@
               "text": "Gradle project"
             },
             "tuist-runners": {
-              "text": "Tuist runners"
+              "text": "CI runners"
             }
           }
         },

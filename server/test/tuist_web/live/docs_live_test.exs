@@ -43,7 +43,7 @@ defmodule TuistWeb.DocsLiveTest do
       assert has_element?(
                lv,
                ~s(a#docs-runners-path[href="/en/docs/guides/get-started/tuist-runners"]),
-               "Tuist runners"
+               "CI runners"
              )
     end
 
