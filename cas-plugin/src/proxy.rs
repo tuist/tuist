@@ -199,6 +199,12 @@ fn ingest_trunk_enabled() -> bool {
 // well under an hour without contending with the build's own traffic; the
 // queue cap bounds memory if the server never accepts them.
 const VIEW_REFRESH_PER_TICK: usize = 100;
+/// How many refreshes a proxy remembers having done, to suppress duplicates.
+/// Deliberately its own bound: the queue's cap protects memory against a server
+/// that never accepts, while this one is a history whose entries are never
+/// retired, so reusing that number turned "the queue is full" into "this machine
+/// is finished refreshing". Full means forget, never refuse.
+const VIEW_REFRESH_HISTORY_MAX: usize = 200_000;
 const VIEW_REFRESH_MAX_QUEUE: usize = 50_000;
 
 /// How long a cached miss is served before it is re-resolved. Positive results
@@ -1036,7 +1042,7 @@ impl Proxy {
             instance_sources: Mutex::new(
                 registry_path
                     .as_deref()
-                    .map(|path| load_sources(&sources_path_for(path)))
+                    .and_then(|path| load_sources(&sources_path_for(path)))
                     .unwrap_or_default(),
             ),
             source_cache: Mutex::new(HashMap::new()),
@@ -1944,6 +1950,14 @@ impl Proxy {
         // records arrive here, and so do the sweeper's, so refusing here is what
         // makes `upload: false` mean it.
         if !self.upload_enabled(instance) {
+            // The record is already durable. The Clang lane wrote it before
+            // asking, because its plugin instance never saw the policy, so
+            // refusing the request without dropping the record leaves it for
+            // every later sweep to find: the spool grows without bound, and the
+            // first time the policy reads as enabled (the project turns uploads
+            // on, or a registry read fails open) it hands the sweeper a backlog
+            // of everything produced while the project was read-only.
+            remove_record(record_path);
             return;
         }
         let (branch, trunk) = self.record_tags(instance, record_path);
@@ -2321,7 +2335,19 @@ impl Proxy {
         );
         {
             let mut refreshed = self.view_refreshed.lock().unwrap();
-            if refreshed.len() >= VIEW_REFRESH_MAX_QUEUE || !refreshed.insert(dedup.clone()) {
+            // Forget everything rather than refuse everything. A successful claim
+            // is never removed, so this set is a lifetime history, and bounding
+            // it the way the QUEUE is bounded meant that once a machine had
+            // refreshed enough keys it would never refresh another one, however
+            // empty the queue. Identity now includes the instance and the tags,
+            // so a few large projects or a run of branches reach that sooner.
+            //
+            // Dropping the history costs at most a re-publish of something
+            // already published, which the server damps.
+            if refreshed.len() >= VIEW_REFRESH_HISTORY_MAX {
+                refreshed.clear();
+            }
+            if !refreshed.insert(dedup.clone()) {
                 return;
             }
         }
@@ -2746,10 +2772,16 @@ impl Proxy {
             upload: source.upload,
         };
         if let Some(path) = self.registry_path.as_deref() {
-            let sources = load_sources(&sources_path_for(path));
-            let source = sources.get(instance).map(clone);
-            *self.instance_sources.lock().unwrap() = sources;
-            source
+            match load_sources(&sources_path_for(path)) {
+                Some(sources) => {
+                    let source = sources.get(instance).map(clone);
+                    *self.instance_sources.lock().unwrap() = sources;
+                    source
+                }
+                // Unreadable: keep what we last saw rather than forgetting every
+                // project's policy because one read lost a race with setup.
+                None => self.instance_sources.lock().unwrap().get(instance).map(clone),
+            }
         } else {
             self.instance_sources.lock().unwrap().get(instance).map(clone)
         }
@@ -3066,9 +3098,16 @@ fn sources_path_for(registry: &Path) -> PathBuf {
     PathBuf::from(path)
 }
 
-fn load_sources(path: &Path) -> HashMap<String, RegisteredSource> {
+/// `None` when the registry could not be read at all, which is NOT the same as
+/// an empty one: setup rewrites this file, and a read landing mid-rewrite would
+/// otherwise turn every project on the machine into an unknown one. Unknown
+/// means "no policy recorded", and the answer there has to be permissive, so a
+/// transient read error would quietly hand an opted-out project an upload
+/// window.
+fn load_sources(path: &Path) -> Option<HashMap<String, RegisteredSource>> {
+    let body = std::fs::read_to_string(path).ok()?;
     let mut map = HashMap::new();
-    if let Ok(body) = std::fs::read_to_string(path) {
+    {
         for line in body.lines() {
             // `instance \t source-root [\t trunk [\t ci-branch]]`. Both trailing
             // columns are optional: a registry written by an older setup, or by
@@ -3099,7 +3138,7 @@ fn load_sources(path: &Path) -> HashMap<String, RegisteredSource> {
             );
         }
     }
-    map
+    Some(map)
 }
 
 unsafe fn open_cas(up: &'static Upstream, path: &str) -> Result<llcas_cas_t, String> {
@@ -3236,8 +3275,15 @@ mod tests {
         )
         .expect("write registry");
 
-        let sources = load_sources(&path);
+        let sources = load_sources(&path).expect("a readable registry parses");
         assert_eq!(sources.len(), 2);
+        // Unreadable is not the same as empty, and the difference decides whether
+        // an opted-out project keeps its policy: setup rewrites this file, and a
+        // read landing mid-rewrite must not be mistaken for "no projects here".
+        assert!(
+            load_sources(&dir.join("does-not-exist")).is_none(),
+            "a registry that cannot be read reports so, rather than reporting none"
+        );
         let scoped = sources.get("tuist/mastodon").expect("scoped entry");
         assert_eq!(
             scoped.trunk.as_deref(),
@@ -3453,7 +3499,7 @@ mod tests {
         )
         .expect("write registry");
 
-        let sources = load_sources(&path);
+        let sources = load_sources(&path).expect("a readable registry parses");
         let ci = sources.get("tuist/ci").expect("ci entry");
         assert_eq!(ci.trunk.as_deref(), Some("main"));
         assert_eq!(ci.ci_branch.as_deref(), Some("feature/x"));

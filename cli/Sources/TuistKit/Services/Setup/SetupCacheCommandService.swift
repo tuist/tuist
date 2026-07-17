@@ -16,6 +16,7 @@ import TuistSupport
 enum SetupCacheCommandServiceError: Equatable, LocalizedError {
     case missingFullHandle
     case notAuthenticated
+    case registryNotReplaced(String, Int32)
 
     var errorDescription: String? {
         switch self {
@@ -25,6 +26,8 @@ enum SetupCacheCommandServiceError: Equatable, LocalizedError {
         case .notAuthenticated:
             return
                 "You must be authenticated to set up the cache. Run `tuist auth login` (or set the `TUIST_TOKEN` environment variable) and run `tuist setup cache` again."
+        case let .registryNotReplaced(path, code):
+            return "Could not update the cache proxy's registry at \(path) (errno \(code))."
         }
     }
 }
@@ -212,10 +215,24 @@ struct SetupCacheCommandService {
         if try await !fileSystem.exists(sourcesPath.parentDirectory, isDirectory: true) {
             try await fileSystem.makeDirectory(at: sourcesPath.parentDirectory)
         }
-        if try await fileSystem.exists(sourcesPath) {
-            try await fileSystem.remove(sourcesPath)
+        // Swapped in, never rewritten in place, and `rename` rather than a remove
+        // followed by a write or a move: it is the only one of the three that
+        // leaves no instant where the file is missing or half-written.
+        //
+        // The proxy re-reads this on a timer while we write it, and it carries
+        // the upload policy. A reader that finds no file sees no projects, and an
+        // unknown project has to be allowed to upload, so any gap here hands an
+        // opted-out project a window in which its Clang outputs are published.
+        // `rename` gives every reader either the whole old file or the whole new
+        // one, and both are answers we can live with.
+        let staged = sourcesPath.parentDirectory
+            .appending(component: "\(sourcesPath.basename).\(UUID().uuidString)")
+        try await fileSystem.writeText(body, at: staged)
+        guard rename(staged.pathString, sourcesPath.pathString) == 0 else {
+            let code = errno
+            try? await fileSystem.remove(staged)
+            throw SetupCacheCommandServiceError.registryNotReplaced(sourcesPath.pathString, code)
         }
-        try await fileSystem.writeText(body, at: sourcesPath)
     }
 
     func run(
