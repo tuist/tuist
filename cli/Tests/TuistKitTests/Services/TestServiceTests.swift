@@ -4617,6 +4617,153 @@ final class TestServiceTests: TuistUnitTestCase {
             .called(1)
     }
 
+    func test_run_testWithoutBuilding_uploadsHashesToLocalCacheStorage_whenNoUpload() async throws {
+        // Given
+        let path = try temporaryPath()
+        let testProductsPath = path.appending(component: "MyApp.xctestproducts")
+        try await fileSystem.makeDirectory(at: testProductsPath)
+
+        let selectiveTestingGraph = SelectiveTestingGraph(
+            testTargetHashes: ["MyTests": "abc123"]
+        )
+        let graphPath = testProductsPath.appending(component: SelectiveTestingGraph.fileName)
+        try JSONEncoder().encode(selectiveTestingGraph).write(to: graphPath.url)
+
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject(), fullHandle: "tuist/tuist"))
+
+        given(xcodebuildController)
+            .run(arguments: .any)
+            .willReturn(())
+
+        xcResultService.reset()
+        given(xcResultService)
+            .parse(path: .any, rootDirectory: .any)
+            .willReturn(
+                TestSummary(
+                    testPlanName: nil,
+                    status: .passed,
+                    duration: 0,
+                    testModules: [
+                        TestModule(
+                            name: "MyTests",
+                            status: .passed,
+                            duration: 0,
+                            testSuites: [],
+                            testCases: [
+                                TestCase(
+                                    name: "testExample",
+                                    testSuite: nil,
+                                    module: "MyTests",
+                                    duration: nil,
+                                    status: .passed,
+                                    failures: []
+                                ),
+                            ]
+                        ),
+                    ]
+                )
+            )
+        given(xcResultService)
+            .parseTestStatuses(path: .any)
+            .willReturn(TestResultStatuses(testCases: []))
+
+        let localCacheStorage = MockCacheStoring()
+        given(cacheStorageFactory)
+            .cacheLocalStorage()
+            .willReturn(localCacheStorage)
+        given(localCacheStorage)
+            .store(.any, cacheCategory: .any)
+            .willReturn([])
+
+        // When
+        try await AlertController.$current.withValue(AlertController()) {
+            try await testRun(
+                noUpload: true,
+                path: path,
+                action: .testWithoutBuilding,
+                passthroughXcodeBuildArguments: ["-testProductsPath", testProductsPath.pathString]
+            )
+        }
+
+        // Then — selective test hashes are stored locally, never on the resolved (remote) cache.
+        verify(localCacheStorage)
+            .store(.any, cacheCategory: .value(.selectiveTests))
+            .called(1)
+        verify(cacheStorage)
+            .store(.any, cacheCategory: .any)
+            .called(0)
+    }
+
+    func test_run_testWithoutBuilding_uploadsHashesToRemoteCacheStorage_whenUploadEnabled() async throws {
+        // Given
+        let path = try temporaryPath()
+        let testProductsPath = path.appending(component: "MyApp.xctestproducts")
+        try await fileSystem.makeDirectory(at: testProductsPath)
+
+        let selectiveTestingGraph = SelectiveTestingGraph(
+            testTargetHashes: ["MyTests": "abc123"]
+        )
+        let graphPath = testProductsPath.appending(component: SelectiveTestingGraph.fileName)
+        try JSONEncoder().encode(selectiveTestingGraph).write(to: graphPath.url)
+
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject(), fullHandle: "tuist/tuist"))
+
+        given(xcodebuildController)
+            .run(arguments: .any)
+            .willReturn(())
+
+        xcResultService.reset()
+        given(xcResultService)
+            .parse(path: .any, rootDirectory: .any)
+            .willReturn(
+                TestSummary(
+                    testPlanName: nil,
+                    status: .passed,
+                    duration: 0,
+                    testModules: [
+                        TestModule(
+                            name: "MyTests",
+                            status: .passed,
+                            duration: 0,
+                            testSuites: [],
+                            testCases: [
+                                TestCase(
+                                    name: "testExample",
+                                    testSuite: nil,
+                                    module: "MyTests",
+                                    duration: nil,
+                                    status: .passed,
+                                    failures: []
+                                ),
+                            ]
+                        ),
+                    ]
+                )
+            )
+        given(xcResultService)
+            .parseTestStatuses(path: .any)
+            .willReturn(TestResultStatuses(testCases: []))
+
+        // When
+        try await AlertController.$current.withValue(AlertController()) {
+            try await testRun(
+                noUpload: false,
+                path: path,
+                action: .testWithoutBuilding,
+                passthroughXcodeBuildArguments: ["-testProductsPath", testProductsPath.pathString]
+            )
+        }
+
+        // Then — with uploads enabled, hashes reach the resolved (remote) cache storage.
+        verify(cacheStorage)
+            .store(.any, cacheCategory: .value(.selectiveTests))
+            .called(1)
+    }
+
     func test_run_testWithoutBuilding_restoresRunMetadata_fromBundle() async throws {
         // Given
         let path = try temporaryPath()
@@ -5360,6 +5507,103 @@ final class TestServiceTests: TuistUnitTestCase {
                 args.containsConsecutive("-only-testing", "AppTests")
             })
             .called(1)
+    }
+
+    func test_run_shard_uploadsHashesToLocalCacheStorage_whenNoUpload() async throws {
+        // Given — a sharded test-without-building run stored its selective test hashes on the
+        // resolved (remote) cache regardless of `--no-upload`. Pin that `--no-upload` now routes
+        // them to local storage on the shard path too.
+        let path = try temporaryPath()
+        let extractedTestProductsPath = path.appending(component: "Extracted.xctestproducts")
+        try await fileSystem.makeDirectory(at: extractedTestProductsPath)
+
+        configLoader.reset()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject(), fullHandle: "tuist/tuist"))
+
+        given(shardService)
+            .shard(
+                shardIndex: .any,
+                fullHandle: .any,
+                serverURL: .any,
+                reference: .any,
+                testProductsPath: .any,
+                testProductsArchivePath: .any
+            )
+            .willReturn(
+                Shard(
+                    reference: "ref",
+                    shardPlanId: "plan-123",
+                    testProductsPath: extractedTestProductsPath,
+                    testIdentifiers: ["AppTests"],
+                    skipTestIdentifiers: [],
+                    modules: ["AppTests"],
+                    selectiveTestingGraph: SelectiveTestingGraph(testTargetHashes: ["AppTests": "abc123"])
+                )
+            )
+
+        given(xcodebuildController)
+            .run(arguments: .any)
+            .willReturn()
+
+        xcResultService.reset()
+        given(xcResultService)
+            .parse(path: .any, rootDirectory: .any)
+            .willReturn(
+                TestSummary(
+                    testPlanName: nil,
+                    status: .passed,
+                    duration: 0,
+                    testModules: [
+                        TestModule(
+                            name: "AppTests",
+                            status: .passed,
+                            duration: 0,
+                            testSuites: [],
+                            testCases: [
+                                TestCase(
+                                    name: "testExample",
+                                    testSuite: nil,
+                                    module: "AppTests",
+                                    duration: nil,
+                                    status: .passed,
+                                    failures: []
+                                ),
+                            ]
+                        ),
+                    ]
+                )
+            )
+        given(xcResultService)
+            .parseTestStatuses(path: .any)
+            .willReturn(TestResultStatuses(testCases: []))
+
+        let localCacheStorage = MockCacheStoring()
+        given(cacheStorageFactory)
+            .cacheLocalStorage()
+            .willReturn(localCacheStorage)
+        given(localCacheStorage)
+            .store(.any, cacheCategory: .any)
+            .willReturn([])
+
+        // When
+        try await AlertController.$current.withValue(AlertController()) {
+            try await testRun(
+                noUpload: true,
+                path: path,
+                action: .testWithoutBuilding,
+                shardIndex: 0
+            )
+        }
+
+        // Then — selective test hashes are stored locally, never on the resolved (remote) cache.
+        verify(localCacheStorage)
+            .store(.any, cacheCategory: .value(.selectiveTests))
+            .called(1)
+        verify(cacheStorage)
+            .store(.any, cacheCategory: .any)
+            .called(0)
     }
 
     func test_run_testWithoutBuilding_passesShardArchivePathToShardService() async throws {

@@ -289,6 +289,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 schemeName: schemeName,
                 path: path,
                 config: config,
+                noUpload: noUpload,
                 deviceName: deviceName,
                 platform: platform,
                 osVersion: osVersion,
@@ -317,6 +318,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
                 schemeName: schemeName,
                 testProductsPath: testProductsPath,
                 config: config,
+                noUpload: noUpload,
                 deviceName: deviceName,
                 platform: platform,
                 osVersion: osVersion,
@@ -646,6 +648,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         schemeName: String?,
         path: AbsolutePath,
         config: Tuist,
+        noUpload: Bool,
         deviceName: String?,
         platform: String?,
         osVersion: String?,
@@ -678,7 +681,12 @@ public struct TestService { // swiftlint:disable:this type_body_length
             testProductsArchivePath: shardArchivePath
         )
 
-        let cacheStorage = try await cacheStorageFactory.cacheStorage(config: config)
+        let cacheStorage: CacheStoring
+        if noUpload {
+            cacheStorage = try await cacheStorageFactory.cacheLocalStorage()
+        } else {
+            cacheStorage = try await cacheStorageFactory.cacheStorage(config: config)
+        }
 
         let runResultBundlePath =
             try cacheDirectoriesProvider
@@ -772,6 +780,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         schemeName: String?,
         testProductsPath: AbsolutePath,
         config: Tuist,
+        noUpload: Bool,
         deviceName: String?,
         platform: String?,
         osVersion: String?,
@@ -798,7 +807,12 @@ public struct TestService { // swiftlint:disable:this type_body_length
 
         await RunMetadataStorage.current.restoreMetadata(from: testProductsPath)
 
-        let cacheStorage = try await cacheStorageFactory.cacheStorage(config: config)
+        let cacheStorage: CacheStoring
+        if noUpload {
+            cacheStorage = try await cacheStorageFactory.cacheLocalStorage()
+        } else {
+            cacheStorage = try await cacheStorageFactory.cacheStorage(config: config)
+        }
 
         let runResultBundlePath =
             try cacheDirectoriesProvider
