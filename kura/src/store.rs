@@ -2836,12 +2836,18 @@ impl Store {
         // one.
         let read_budget = max_entries.saturating_mul(ACTION_CACHE_TRUNK_SCAN_FACTOR);
         let mut read = 0usize;
+        // Not a budget, an observation: rejecting a row is free now, so the walk
+        // is bounded by the namespace rather than by `read_budget`. Reporting it
+        // is what makes a namespace whose walk dwarfs its view visible instead of
+        // something to infer.
+        let mut scanned = 0usize;
         for item in iter {
             let (index_key, artifact_id) =
                 item.map_err(|error| format!("failed to iterate action-cache index: {error}"))?;
             if !index_key.starts_with(&prefix) {
                 break;
             }
+            scanned += 1;
             if manifests.len() >= max_entries {
                 break;
             }
@@ -2863,6 +2869,7 @@ impl Store {
                 tracing::warn!(
                     namespace_id,
                     read,
+                    scanned,
                     kept = manifests.len(),
                     "action-cache trunk scan hit its read budget; view truncated"
                 );

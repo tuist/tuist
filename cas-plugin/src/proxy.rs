@@ -1697,6 +1697,15 @@ impl Proxy {
         // survive that one. The resolve path restats for the same reason; this
         // is the door it does not cover.
         self.check_generation(state);
+        // And a demand fetch IS the build working. The resolves all land during
+        // planning, so a long compile phase afterwards is nothing but these: with
+        // only resolves and publishes stamping this, the machine reads as idle
+        // ~90s into the phase that is most bandwidth-bound, and the idle gate
+        // starts the refresh whose whole purpose was to stay out of the build's
+        // way, competing for the link the fetch below is waiting on.
+        state
+            .last_used
+            .store(self.epoch.elapsed().as_millis() as u64, Ordering::Relaxed);
         if state.load_present(digest) {
             return Ok(true);
         }
@@ -4060,6 +4069,27 @@ mod tests {
         assert!(
             compiler_view.load_present(&digest),
             "an object stored after the wipe must be visible to a handle opened              independently: otherwise the proxy is writing into a deleted store"
+        );
+    }
+
+    /// The idle gate reads `last_used`, and a build that has finished planning
+    /// does nothing but demand fetches. If they do not count as activity, the
+    /// machine looks idle exactly while it is most bandwidth-bound.
+    #[test]
+    fn a_demand_fetch_counts_as_the_machine_being_busy() {
+        let dir = TempCasDir::new("busy-fetch");
+        let state = path_state_for(&dir.path());
+        let proxy = test_proxy();
+        // A sentinel rather than 0: the proxy's epoch is fresh here, so a real
+        // stamp is ~0ms and would be indistinguishable from never having run.
+        state.last_used.store(u64::MAX, Ordering::Relaxed);
+
+        let _ = proxy.fetch_object(state, &dir.path(), "", &[0xAB; 32]);
+
+        assert!(
+            state.last_used.load(Ordering::Relaxed) < u64::MAX,
+            "a demand fetch must keep the machine marked busy, or the idle gate \
+             starts competing with the build it is meant to avoid"
         );
     }
 

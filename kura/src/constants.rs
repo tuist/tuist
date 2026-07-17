@@ -52,12 +52,20 @@ pub const REAPI_ACTION_CACHE_EXPIRY_MAX_DELETES: usize = 100_000;
 // an identical re-publish only applies when the stored version has aged past
 // it — one refresh per entry per window fleet-wide.
 pub const REAPI_ACTION_CACHE_REFRESH_DAMPING_MS: u64 = 24 * 60 * 60 * 1000;
-// How many index rows a trunk-scoped snapshot build may examine per entry it is
-// allowed to keep. A trunk filter skips feature rows after paying their
-// point-read, so without a ceiling the walk is bounded by the namespace's size
-// rather than by the view's, on every periodic rebuild. Generous on purpose: it
-// is a backstop against a pathologically feature-heavy namespace, not a tuning
-// knob, and a namespace that trips it logs and wants a branch-keyed index.
+// How many manifest READS a trunk-scoped snapshot build may pay per entry it is
+// allowed to keep. Not rows examined: a row carrying its branch answers the trunk
+// filter from the key, so rejecting feature churn costs a sequential step over a
+// compact CF and is deliberately not counted here. What this bounds is the random
+// read into the manifests CF, which is the work, and which only rows written
+// before the branch was recorded (plus stale rows) still need.
+//
+// So the walk itself is bounded by the namespace's prefix rather than by this,
+// and that is the intended trade: bounding the walk would truncate the trunk view
+// under exactly the feature churn this scoping exists to see through, which is
+// the bug the branch-keyed rows fixed. The reads are what had to be bounded, and
+// they are. Generous on purpose: a backstop against a namespace with a large
+// pre-branch backlog, not a tuning knob, and one that trips it logs how far it
+// walked to get there.
 pub const ACTION_CACHE_TRUNK_SCAN_FACTOR: usize = 8;
 // Not a cap on total bootstrap runtime — it is the maximum time a bootstrap may
 // go *without forward progress* (a fetched page or applied artifact) before it
