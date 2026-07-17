@@ -24,6 +24,7 @@ final class TrackableCommandTests: TuistTestCase {
     private var serverAuthenticationController: MockServerAuthenticationControlling!
     private var uploadAnalyticsService: MockUploadAnalyticsServicing!
     private var gitHubActionsJobSummaryService: MockGitHubActionsJobSummaryServicing!
+    private var runReportFileService: MockRunReportFileServicing!
 
     override func setUp() {
         super.setUp()
@@ -32,6 +33,13 @@ final class TrackableCommandTests: TuistTestCase {
         serverAuthenticationController = MockServerAuthenticationControlling()
         uploadAnalyticsService = MockUploadAnalyticsServicing()
         gitHubActionsJobSummaryService = MockGitHubActionsJobSummaryServicing()
+        runReportFileService = MockRunReportFileServicing()
+        given(runReportFileService)
+            .clearRunReport(at: .any)
+            .willReturn()
+        given(runReportFileService)
+            .writeRunReport(.any, to: .any)
+            .willReturn()
         given(backgroundProcessRunner)
             .runInBackground(.any, environment: .any)
             .willReturn()
@@ -59,6 +67,7 @@ final class TrackableCommandTests: TuistTestCase {
         serverAuthenticationController = nil
         uploadAnalyticsService = nil
         gitHubActionsJobSummaryService = nil
+        runReportFileService = nil
         super.tearDown()
     }
 
@@ -69,14 +78,16 @@ final class TrackableCommandTests: TuistTestCase {
         analyticsRequired: Bool = false,
         commandArguments: [String] = ["cache", "warm"],
         uploadAnalyticsService: UploadAnalyticsServicing? = nil,
-        bestEffortForegroundUploadTimeout: Duration = .seconds(15)
+        bestEffortForegroundUploadTimeout: Duration = .seconds(15),
+        runReportPath: String? = nil
     ) throws {
         let temporaryPath = try temporaryPath()
         subject = TrackableCommand(
             command: command ?? TestCommand(
                 flag: flag,
                 shouldFail: shouldFail,
-                analyticsRequired: analyticsRequired
+                analyticsRequired: analyticsRequired,
+                runReportPath: runReportPath
             ),
             commandArguments: commandArguments,
             clock: WallClock(),
@@ -87,6 +98,7 @@ final class TrackableCommandTests: TuistTestCase {
             uploadAnalyticsService: uploadAnalyticsService ?? self.uploadAnalyticsService,
             serverAuthenticationController: serverAuthenticationController,
             gitHubActionsJobSummaryService: gitHubActionsJobSummaryService,
+            runReportFileService: runReportFileService,
             bestEffortForegroundUploadTimeout: bestEffortForegroundUploadTimeout,
             sessionDirectory: temporaryPath
         )
@@ -372,6 +384,99 @@ final class TrackableCommandTests: TuistTestCase {
             .called(1)
     }
 
+    func test_whenRunReportPathIsPassed_writesRunReport() async throws {
+        // Given
+        try makeSubject(analyticsRequired: true, runReportPath: "run-report.json")
+
+        // When
+        try await subject.run(
+            fullHandle: "tuist/tuist",
+            serverURL: .test(),
+            shouldTrackAnalytics: true
+        )
+
+        // Then
+        verify(runReportFileService)
+            .writeRunReport(.any, to: .value("run-report.json"))
+            .called(1)
+    }
+
+    func test_whenNoRunReportPathIsPassed_doesNotTouchAnyRunReport() async throws {
+        // Given
+        try makeSubject(analyticsRequired: true)
+
+        // When
+        try await subject.run(
+            fullHandle: "tuist/tuist",
+            serverURL: .test(),
+            shouldTrackAnalytics: true
+        )
+
+        // Then
+        verify(runReportFileService)
+            .clearRunReport(at: .any)
+            .called(0)
+        verify(runReportFileService)
+            .writeRunReport(.any, to: .any)
+            .called(0)
+    }
+
+    /// The report is only written once the run URL is known, so an upload that fails leaves
+    /// whatever was at the path before. Clearing it up front is what stops a downstream step from
+    /// publishing a previous run's URL as if it were this one's.
+    func test_whenUploadFails_clearsTheRunReportAndDoesNotWriteAStaleOne() async throws {
+        // Given
+        let uploadAnalyticsService = MockUploadAnalyticsServicing()
+        given(uploadAnalyticsService)
+            .upload(commandEvent: .any, fullHandle: .any, serverURL: .any, sessionDirectory: .any)
+            .willThrow(TestCommand.TestError.commandFailed)
+        try makeSubject(
+            analyticsRequired: true,
+            uploadAnalyticsService: uploadAnalyticsService,
+            runReportPath: "run-report.json"
+        )
+
+        // When
+        try await subject.run(
+            fullHandle: "tuist/tuist",
+            serverURL: .test(),
+            shouldTrackAnalytics: true
+        )
+
+        // Then
+        verify(runReportFileService)
+            .clearRunReport(at: .value("run-report.json"))
+            .called(1)
+        verify(runReportFileService)
+            .writeRunReport(.any, to: .any)
+            .called(0)
+    }
+
+    /// A failing command still produces a run worth linking to, so the report is written — but the
+    /// path is cleared first, so a crash between the two can't leave a previous run's report.
+    func test_whenCommandFails_clearsTheRunReportBeforeRunning() async throws {
+        // Given
+        try makeSubject(shouldFail: true, analyticsRequired: true, runReportPath: "run-report.json")
+
+        // When
+        await XCTAssertThrowsSpecific(
+            try await subject.run(
+                fullHandle: "tuist/tuist",
+                serverURL: .test(),
+                shouldTrackAnalytics: true
+            ),
+            TestCommand.TestError.commandFailed
+        )
+
+        // Then
+        verify(runReportFileService)
+            .clearRunReport(at: .value("run-report.json"))
+            .called(1)
+        verify(runReportFileService)
+            .writeRunReport(.any, to: .any)
+            .called(1)
+    }
+
     func test_whenBestEffortForegroundUploadTimesOut_doesNotWriteGitHubActionsJobSummary() async throws {
         // Given
         try await withMockedEnvironment {
@@ -447,7 +552,7 @@ private enum ConfigObservingCommandState {
     static var analyticsRequired = false
 }
 
-private struct TestCommand: TrackableParsableCommand, ParsableCommand {
+private struct TestCommand: TrackableParsableCommand, ParsableCommand, RunReportingCommand {
     enum TestError: FatalError, Equatable {
         case commandFailed
 
@@ -470,6 +575,7 @@ private struct TestCommand: TrackableParsableCommand, ParsableCommand {
     var flag: Bool = false
     var shouldFail: Bool = false
     var analyticsRequired: Bool = false
+    var runReportPath: String?
 
     func run() throws {
         if shouldFail {

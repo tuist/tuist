@@ -144,6 +144,24 @@ struct RunReportFileServiceTests {
     }
 
     @Test(.withMockedEnvironment())
+    func clears_a_report_left_behind_by_an_earlier_run() async throws {
+        let cwd = try await Environment.current.currentWorkingDirectory()
+        let path = cwd.appending(component: "run-report.json")
+        try await fileSystem.writeText("stale", at: path, encoding: .utf8)
+
+        await subject.clearRunReport(at: path.pathString)
+
+        #expect(try await fileSystem.exists(path) == false)
+    }
+
+    @Test(.withMockedEnvironment())
+    func clearing_a_report_that_is_not_there_is_a_no_op() async throws {
+        let cwd = try await Environment.current.currentWorkingDirectory()
+
+        await subject.clearRunReport(at: cwd.appending(component: "absent.json").pathString)
+    }
+
+    @Test(.withMockedEnvironment())
     func maps_a_failed_run_to_the_failure_status() async throws {
         let cwd = try await Environment.current.currentWorkingDirectory()
         let path = cwd.appending(component: "run-report.json")

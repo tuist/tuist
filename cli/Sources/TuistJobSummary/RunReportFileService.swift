@@ -7,6 +7,12 @@ import TuistLogging
 
 @Mockable
 public protocol RunReportFileServicing {
+    /// Removes any file at `path`, so that a run which never gets as far as writing its report
+    /// leaves nothing behind rather than a report from an earlier run.
+    ///
+    /// Relative paths resolve against the working directory. It never throws.
+    func clearRunReport(at path: String) async
+
     /// Writes `report` as JSON to `path`, creating intermediate directories and overwriting any
     /// existing file so that retried CI jobs don't fail on a leftover report.
     ///
@@ -20,6 +26,17 @@ public struct RunReportFileService: RunReportFileServicing {
 
     public init(fileSystem: FileSysteming = FileSystem()) {
         self.fileSystem = fileSystem
+    }
+
+    public func clearRunReport(at path: String) async {
+        do {
+            let outputPath = try await Environment.current.pathRelativeToWorkingDirectory(path)
+            guard try await fileSystem.exists(outputPath) else { return }
+            try await fileSystem.remove(outputPath)
+            Logger.current.debug("Cleared the stale Tuist Run Report at \(outputPath.pathString).")
+        } catch {
+            Logger.current.warning("Failed to clear the run report at \(path): \(String(describing: error))")
+        }
     }
 
     public func writeRunReport(_ report: RunReportFile, to path: String) async {

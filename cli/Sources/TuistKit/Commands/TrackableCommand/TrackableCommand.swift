@@ -90,6 +90,16 @@ public class TrackableCommand {
         let ranAt = clock.now
         let path = try await CommandArguments.path(in: commandArguments)
         let runMetadataStorage = RunMetadataStorage()
+
+        // Up front, so that the path holds this run's report or nothing at all. Writing it only
+        // happens once the run URL is known, and everything between here and there can fail: the
+        // command, the upload, the process. Any of those leaves a report from a previous run in
+        // place, and a stale URL is worse than a missing one — it points at a different run and
+        // gives no sign that it's the wrong one.
+        if let runReportPath = (command as? RunReportingCommand)?.runReportPath {
+            await runReportFileService.clearRunReport(at: runReportPath)
+        }
+
         let usesOptionalAuthentication =
             optionalAuthentication
                 && (((command as? TrackableParsableCommand)?.analyticsRequired == true) || Environment.current.isCI)
