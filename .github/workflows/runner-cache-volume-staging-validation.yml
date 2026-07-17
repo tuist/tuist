@@ -30,6 +30,17 @@ name: Runner Cache Volume Staging Validation
 
 on:
   workflow_dispatch:
+  # workflow_dispatch only resolves on the default branch, so until this lands
+  # on main the only way to exercise it against the live staging fleet is a
+  # push trigger scoped to the development branch (same pattern as
+  # runners-staging-smoke.yml). `paths` keeps it to edits of this file, so
+  # unrelated pushes don't burn a macOS slot on a full `tuist cache`. Drop this
+  # trigger once the workflow is on main.
+  push:
+    branches:
+      - claude/sweet-chaum-8f5c27
+    paths:
+      - .github/workflows/runner-cache-volume-staging-validation.yml
 
 permissions:
   contents: read
