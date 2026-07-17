@@ -10,7 +10,8 @@ import TuistCore
 /// without breaking consumers. Any backwards-incompatible change *here* needs a
 /// `currentSchemaVersion` bump.
 public struct RunReport: Codable, Equatable {
-    /// Bump on any backwards-incompatible change to the shape below.
+    /// Bump on any backwards-incompatible change to the shape below, and update the format's
+    /// documentation in `server/priv/docs/en/guides/integrations/continuous-integration.md`.
     public static let currentSchemaVersion = 1
 
     /// The version of this format. Consumers should check it before parsing anything else.
