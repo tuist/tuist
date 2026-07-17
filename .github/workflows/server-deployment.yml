@@ -51,6 +51,9 @@ on:
       image_tag:
         description: Pre-built image tag to deploy instead of building
         required: false
+      codebase_search_image_tag:
+        description: Pre-built codebase search image tag to deploy
+        required: false
       registry_image_tag:
         description: Pre-built Swift registry image tag to deploy instead of building
         required: false
@@ -84,6 +87,13 @@ on:
           Pre-built image tag to deploy. When set, the build job is
           skipped and the deploy job uses this tag directly. When unset,
           the workflow builds + pushes an image tagged sha-<commit_sha>.
+        required: false
+        type: string
+      codebase_search_image_tag:
+        description: >-
+          Pre-built codebase search image tag to deploy. When unset during
+          a pinned server image deployment, the workflow preserves the
+          currently deployed codebase search image.
         required: false
         type: string
       registry_image_tag:
@@ -202,6 +212,7 @@ jobs:
     timeout-minutes: 60
     outputs:
       image_tag: ${{ steps.tag.outputs.image_tag }}
+      codebase_search_image_tag: ${{ steps.tag.outputs.image_tag }}
       registry_image_tag: ${{ steps.tag.outputs.image_tag }}
     steps:
       - uses: actions/checkout@v4
@@ -639,6 +650,7 @@ jobs:
       KUBECONFIG: ${{ github.workspace }}/.kube/config
       NAMESPACE: ${{ inputs.environment == 'production' && 'tuist' || format('tuist-{0}', inputs.environment) }}
       IMAGE_TAG: ${{ inputs.image_tag != '' && inputs.image_tag || needs.build.outputs.image_tag }}
+      CODEBASE_SEARCH_IMAGE_TAG: ${{ inputs.codebase_search_image_tag != '' && inputs.codebase_search_image_tag || needs.build.outputs.codebase_search_image_tag }}
       REGISTRY_IMAGE_TAG: ${{ inputs.registry_image_tag != '' && inputs.registry_image_tag || inputs.image_tag != '' && inputs.image_tag || needs.build.outputs.registry_image_tag }}
       KURA_RUNTIME_IMAGE_TAG: ${{ inputs.kura_runtime_image_tag }}
       LINUX_RUNNER_IMAGE_TAG_INPUT: ${{ inputs.linux_runner_image_tag }}
@@ -698,6 +710,30 @@ jobs:
           API="$(kubectl config view --minify --raw -o jsonpath='{.clusters[0].cluster.server}')"
           echo "Reaching apiserver at $API"
           kubectl --request-timeout=10s get --raw /version >/dev/null
+      - name: Resolve codebase search image tag
+        run: |
+          set -euo pipefail
+
+          if [ -n "$CODEBASE_SEARCH_IMAGE_TAG" ]; then
+            echo "Codebase search: using requested image tag ${CODEBASE_SEARCH_IMAGE_TAG}"
+            exit 0
+          fi
+
+          current_image="$(
+            kubectl -n "$NAMESPACE" get deployments \
+              -l app.kubernetes.io/instance="$HELM_RELEASE_NAME",app.kubernetes.io/component=codebase-search \
+              -o jsonpath='{.items[0].spec.template.spec.containers[?(@.name=="codebase-search")].image}' \
+              2>/dev/null || true
+          )"
+          image_prefix="${REGISTRY}/${CODEBASE_SEARCH_IMAGE_NAME}:"
+          if [[ "$current_image" != "$image_prefix"* ]]; then
+            echo "No current codebase search image was found. Provide codebase_search_image_tag when deploying a pre-built server image."
+            exit 1
+          fi
+
+          codebase_search_image_tag="${current_image#"$image_prefix"}"
+          echo "CODEBASE_SEARCH_IMAGE_TAG=$codebase_search_image_tag" >> "$GITHUB_ENV"
+          echo "Codebase search: preserving deployed image tag ${codebase_search_image_tag}"
       - name: kubectl apply CRDs
         # Helm 3 installs `crds/*.yaml` on `helm install` and skips
         # them on `helm upgrade` (intentional — Helm refuses to manage
@@ -908,7 +944,7 @@ jobs:
           helm template "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
             "${helm_values_args[@]}" \
             --set server.image.tag="$IMAGE_TAG" \
-            --set codebaseSearch.image.tag="$IMAGE_TAG" \
+            --set codebaseSearch.image.tag="$CODEBASE_SEARCH_IMAGE_TAG" \
             --set registry.image.tag="$registry_probe_tag" \
             --set kuraController.image.tag="$IMAGE_TAG" \
             "${image_sets[@]}" \
@@ -933,7 +969,7 @@ jobs:
             --namespace "$NAMESPACE" --create-namespace \
             "${helm_values_args[@]}" \
             --set server.image.tag="$IMAGE_TAG" \
-            --set codebaseSearch.image.tag="$IMAGE_TAG" \
+            --set codebaseSearch.image.tag="$CODEBASE_SEARCH_IMAGE_TAG" \
             --set registry.image.tag="$registry_image_tag" \
             --set kuraController.image.tag="$IMAGE_TAG" \
             "${image_sets[@]}" \
