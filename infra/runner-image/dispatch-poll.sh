@@ -150,13 +150,31 @@ fi
 # Per-account cache volume, materialized after dispatch. tart-kubelet attaches
 # an EMPTY per-VM branch directory as a writable virtio-fs share at boot; after
 # dispatch binds this VM to an account, the host clonefiles that account's cache
-# master into the branch and writes a cache-ready marker. The guest points the
-# Tuist cache root at the share and waits for cache-ready before running so it
-# never touches the cache mid-materialization. Absent share => feature off /
-# admission declined => cold path, unchanged.
+# master image into the branch and writes a cache-ready marker. The guest then
+# attaches that image and points the Tuist cache root at the MOUNTPOINT. Absent
+# share => feature off / admission declined => cold path, unchanged.
+#
+# The cache is a disk image rather than files on the share because virtio-fs
+# cannot carry a macOS cache: it fails to set extended attributes on symlinks,
+# and macOS frameworks are versioned bundles (Resources -> Versions/Current/
+# Resources) whose xattrs the CLI's artifact signatures live in. Inside an image
+# the filesystem is real APFS, so symlinks, xattrs, ownership and inode
+# semantics are native, and exactly one regular file crosses virtio-fs.
 CACHE_SHARE="/Volumes/My Shared Files/cache"
+CACHE_IMAGE="${CACHE_SHARE}/cache.sparseimage"
+CACHE_MOUNTPOINT="/Users/runner/.tuist-cache-volume"
+# Set once the boot-time share probe succeeds; gates the post-dispatch attach.
+CACHE_SHARE_PRESENT=""
+# The mountpoint while the image is attached; cleared on detach, so it doubles
+# as "the cache is readable right now".
 CACHE_MOUNT=""
+# Set from attach until the image is either abandoned (cold fallback) or found
+# unsafe to promote; gates the HEAD publish, which outlives the mount.
+CACHE_IMAGE_ACTIVE=""
 CACHE_INVENTORY_BEFORE=""
+# The post-job inventory, captured while the image is still mounted so the HEAD
+# publish (which runs after detach, when nothing can be read) can still use it.
+CACHE_INVENTORY_AFTER=""
 STATUS_SHARE="/Volumes/My Shared Files/status"
 # Presigned PUT URL for this account's master archive (from the dispatch
 # response); the HEAD report endpoint is the dispatch URL's sibling.
@@ -179,15 +197,9 @@ cache_inventory() {
   } | sort | shasum | awk '{print $1}'
 }
 
-# mount_cache_volume points TUIST_XDG_CACHE_HOME at the virtio-fs branch share
-# the host attached at boot, so the whole Tuist cache directory (Binaries,
-# Manifests, ProjectDescriptionHelpers, Plugins, ...) resolves against it. The
-# share is EMPTY at this point — the host fills it after dispatch, gated by
-# wait_for_cache_ready. Absent share => feature off / admission declined => cold
-# path. Never blocks.
 # use_local_cold_cache points the CLI at a private, local cache dir and
-# abandons the share (no promote, no HEAD publish, no inventory diff). Used
-# whenever the share is unusable, so a broken cache can only ever cost the job
+# abandons the volume (no promote, no HEAD publish, no inventory diff). Used
+# whenever the volume is unusable, so a broken cache can only ever cost the job
 # its warm start — never fail it. Exporting TUIST_XDG_CACHE_HOME at a root the
 # CLI can't write is worse than not setting it at all: the CLI aborts on its
 # first cache write and the whole job dies.
@@ -198,66 +210,119 @@ use_local_cold_cache() {
   export TUIST_XDG_CACHE_HOME="${local_cache}"
   unset TUIST_CACHE_MAX_BYTES
   CACHE_MOUNT=""
+  CACHE_IMAGE_ACTIVE=""
   CACHE_INVENTORY_BEFORE=""
-  echo "$(date -u +%FT%TZ) dispatch-poll: cache share unusable (${reason}); running on a local cold cache"
+  echo "$(date -u +%FT%TZ) dispatch-poll: cache volume unusable (${reason}); running on a local cold cache"
 }
 
-# cache_root_usable checks the one thing the guest can actually know: that it
-# can create its cache root on the share at all (share present, not read-only).
+# attach_cache_image mounts the host-materialized cache image and points the CLI
+# at the MOUNTPOINT — the share itself only ever holds the image file.
 #
-# It deliberately does NOT try to verify that the materialized tree is writable.
-# That was tried and is a trap: the host clones the account's master in, so the
-# root can be writable while a subtree isn't, and no probe here can be complete
-# — the CLI writes across 9+ subtrees and a probe only covers what someone
-# remembered to list. A partial probe passes while the share is broken and hands
-# the CLI a cache that kills the job, which is exactly what happened in
-# production. Writability is settled on the host, where it is knowable: 0777 is
-# uid-independent, so a tree the host successfully relaxes IS writable by the
-# guest, and a tree it cannot relax is never handed over at all.
-cache_root_usable() {
-  local share="$1"
-  local root="${share}/tuist"
+# `-owners off` maps everything inside the image to the attaching user, so the
+# host/guest uid split (this guest is `runner` uid 502; the host's console user
+# is 501) never reaches the cache. That leaves the image FILE's own mode as the
+# only permission the host has to settle, which is why no tree-walking chmod is
+# needed on either side. `-noverify` skips a checksum pass over a multi-GB image
+# we just cloned locally; `-nobrowse` keeps it out of the Finder namespace.
+#
+# Called only after cache-ready: the image does not exist until the host
+# materializes the dispatched account's master into the branch.
+attach_cache_image() {
   local err
-  if ! err=$(mkdir -p "${root}" 2>&1); then
-    cache_diag "mkdir ${root}: ${err}" "${share}"
+  if [ ! -f "${CACHE_IMAGE}" ]; then
+    cache_diag "no cache image at ${CACHE_IMAGE}"
     return 1
   fi
-  return 0
-}
-
-# cache_diag records WHY the share was rejected. The original failure was
-# diagnosed only from a CLI error that misreported a failed mkdir as "parent
-# directory doesn't exists", which sent the investigation to the wrong layer —
-# so capture the real errno plus the ownership/mode here. If the fallback ever
-# fires, this is the evidence and no one has to guess.
-cache_diag() {
-  local why="$1" share="$2"
-  echo "$(date -u +%FT%TZ) dispatch-poll: cache-root check failed: ${why}"
-  echo "$(date -u +%FT%TZ) dispatch-poll: whoami=$(id -un 2>/dev/null) uid=$(id -u 2>/dev/null)"
-  ls -ld "${share}" "${share}/tuist" 2>&1 | while read -r l; do
-    echo "$(date -u +%FT%TZ) dispatch-poll: cache-root stat: ${l}"
-  done
-}
-
-mount_cache_volume() {
-  [ -d "${CACHE_SHARE}" ] || return 0
-  if ! cache_root_usable "${CACHE_SHARE}"; then
-    use_local_cold_cache "cannot create or write ${CACHE_SHARE}/tuist"
-    return 0
+  mkdir -p "${CACHE_MOUNTPOINT}" 2>/dev/null || true
+  if ! err=$(hdiutil attach "${CACHE_IMAGE}" -owners off -nobrowse -noverify -quiet \
+    -mountpoint "${CACHE_MOUNTPOINT}" 2>&1); then
+    cache_diag "hdiutil attach ${CACHE_IMAGE}: ${err}"
+    return 1
   fi
-  CACHE_MOUNT="${CACHE_SHARE}"
+  CACHE_MOUNT="${CACHE_MOUNTPOINT}"
+  CACHE_IMAGE_ACTIVE=1
   export TUIST_XDG_CACHE_HOME="${CACHE_MOUNT}"
   # Byte budget for the CLI's per-generate LRU self-prune: the host stages the
   # per-branch cap (≈80% of a master's provisioned size) into the status share
   # so a full working set degrades to a hot tier (LRU keeps the most-used
   # artifacts local, the tail misses to the remote) instead of churning at
-  # ENOSPC on the shared quota volume.
+  # ENOSPC when the image hits its cap.
   local budget
   budget=$(cat "${STATUS_SHARE}/cache-max-bytes" 2>/dev/null)
   if [ -n "${budget}" ] && [ "${budget}" -gt 0 ] 2>/dev/null; then
     export TUIST_CACHE_MAX_BYTES="${budget}"
   fi
-  echo "$(date -u +%FT%TZ) dispatch-poll: cache share at ${CACHE_MOUNT}; TUIST_XDG_CACHE_HOME set (budget=${TUIST_CACHE_MAX_BYTES:-none})"
+  echo "$(date -u +%FT%TZ) dispatch-poll: cache image mounted at ${CACHE_MOUNT}; TUIST_XDG_CACHE_HOME set (budget=${TUIST_CACHE_MAX_BYTES:-none})"
+  return 0
+}
+
+# CACHE_DETACH_ATTEMPTS bounds the polite detach before forcing. A straggler
+# process (a lingering build daemon, a Spotlight scan) can hold a file open for
+# a moment after the runner exits.
+CACHE_DETACH_ATTEMPTS=5
+
+# detach_cache_image unmounts the image so the host can promote it. This is
+# load-bearing and must run BEFORE the host reads the file: promotion clones the
+# image, and the host cannot distinguish a torn snapshot from a good one, so a
+# mount torn down by the VM halting would poison the account's master and every
+# job that later clones it.
+detach_cache_image() {
+  [ -n "${CACHE_MOUNT}" ] || return 0
+  local waited=0
+  while [ "${waited}" -lt "${CACHE_DETACH_ATTEMPTS}" ]; do
+    if hdiutil detach "${CACHE_MOUNT}" -quiet 2>/dev/null; then
+      CACHE_MOUNT=""
+      echo "$(date -u +%FT%TZ) dispatch-poll: cache image detached"
+      return 0
+    fi
+    sleep 1
+    waited=$((waited + 1))
+  done
+  if hdiutil detach "${CACHE_MOUNT}" -force -quiet 2>/dev/null; then
+    CACHE_MOUNT=""
+    echo "$(date -u +%FT%TZ) dispatch-poll: cache image force-detached after ${waited}s"
+    return 0
+  fi
+  CACHE_MOUNT=""
+  return 1
+}
+
+# mark_cache_not_promotable withdraws this job's cache image from both promotion
+# and publication. An image we could not detach may be mid-write, and there is
+# no way to tell from here — so the account keeps its existing master (this job
+# costs it one job's warmth) rather than risk a torn master reaching this host
+# and, via the HEAD, every other host too.
+mark_cache_not_promotable() {
+  local why="$1"
+  CACHE_IMAGE_ACTIVE=""
+  printf '0' >"${STATUS_SHARE}/cache-dirty" 2>/dev/null || true
+  echo "$(date -u +%FT%TZ) dispatch-poll: WARNING cache image not promotable (${why}); host will discard this branch"
+}
+
+# cache_diag records WHY the cache volume was rejected: the real errno plus the
+# ownership/mode of the share and the image. If the fallback ever fires, this is
+# the evidence and no one has to guess which layer failed.
+cache_diag() {
+  local why="$1"
+  echo "$(date -u +%FT%TZ) dispatch-poll: cache-volume check failed: ${why}"
+  echo "$(date -u +%FT%TZ) dispatch-poll: whoami=$(id -un 2>/dev/null) uid=$(id -u 2>/dev/null)"
+  ls -ld "${CACHE_SHARE}" "${CACHE_IMAGE}" 2>&1 | while read -r l; do
+    echo "$(date -u +%FT%TZ) dispatch-poll: cache-volume stat: ${l}"
+  done
+}
+
+# probe_cache_share records whether the host attached a cache-volume share at
+# boot. Nothing is mounted yet: the image only exists once the host materializes
+# the dispatched account's master into the branch, so the attach happens in
+# wait_for_cache_ready. Absent share => feature off / admission declined => cold
+# path. Never blocks.
+probe_cache_share() {
+  if [ ! -d "${CACHE_SHARE}" ]; then
+    echo "$(date -u +%FT%TZ) dispatch-poll: no cache share; running on the status-quo cold path"
+    return 0
+  fi
+  CACHE_SHARE_PRESENT=1
+  echo "$(date -u +%FT%TZ) dispatch-poll: cache share present at ${CACHE_SHARE}; image attaches after dispatch"
 }
 
 # CACHE_READY_TIMEOUT bounds the wait for the host's cache-ready signal — the
@@ -274,31 +339,25 @@ mount_cache_volume() {
 CACHE_READY_TIMEOUT=60
 
 # wait_for_cache_ready blocks (bounded) until the host signals it has
-# materialized the dispatched account's cache master into the branch share (or
-# determined there is none — a cold first job). Called after dispatch, before
-# the runner starts, so the guest never reads or writes the cache while the host
-# is still clonefiling into it. Also snapshots the pre-job inventory once the
-# cache is in place so report_cache_dirty can tell a real change from a pure-hit
-# run.
+# materialized the dispatched account's cache master into the branch (or
+# determined there is none — a cold first job, for which the host still leaves an
+# EMPTY image, since the guest can only attach what is there). Only then does it
+# attach: before the signal there is no image, and mid-materialization the host
+# is still swapping the file. Also snapshots the pre-job inventory so
+# report_cache_dirty can tell a real change from a pure-hit run.
 #
-# On timeout the host may STILL be materializing and could swap the branch dir
-# out from under a running job, so the guest must not keep using the share:
-# it detaches to a local, private cold cache dir (a late host swap of the now-
-# abandoned branch is then harmless) and clears CACHE_MOUNT so the promote/HEAD
-# reports no-op for this cold job. Never blocks the job.
+# On timeout the host may STILL be materializing and could swap the image out
+# from under a running job, so the guest abandons the volume for a local, private
+# cold cache dir (a late host swap of the now-abandoned branch is then harmless).
+# Never blocks the job.
 wait_for_cache_ready() {
-  [ -n "${CACHE_MOUNT}" ] || return 0
+  [ -n "${CACHE_SHARE_PRESENT}" ] || return 0
   local waited=0
   while [ "${waited}" -lt "${CACHE_READY_TIMEOUT}" ]; do
     if [ -f "${STATUS_SHARE}/cache-ready" ]; then
       echo "$(date -u +%FT%TZ) dispatch-poll: cache-ready after ${waited}s"
-      # Re-prove the cache root NOW, not just at boot. Between then and here the
-      # host swapped in the account's master tree (or failed partway), so the
-      # root we validated at boot may be gone or owned/moded such that this user
-      # can't write it. Falling back to a cold cache costs warmth; running on an
-      # unwritable root kills the job.
-      if ! cache_root_usable "${CACHE_MOUNT}"; then
-        use_local_cold_cache "cache root not writable after host materialize"
+      if ! attach_cache_image; then
+        use_local_cold_cache "cannot attach ${CACHE_IMAGE}"
         return 0
       fi
       CACHE_INVENTORY_BEFORE=$(cache_inventory)
@@ -307,8 +366,6 @@ wait_for_cache_ready() {
     sleep 1
     waited=$((waited + 1))
   done
-  # On timeout the host may STILL be materializing and could swap the branch dir
-  # out from under a running job, so abandon the share entirely.
   use_local_cold_cache "cache-ready not signalled within ${CACHE_READY_TIMEOUT}s"
 }
 
@@ -328,16 +385,21 @@ wait_for_cache_ready() {
 # still promotes, which is acceptable — those artifacts are content-addressed
 # and signature-validated, so they warm rather than corrupt.) Mirrors the rc
 # gate in report_volume_head so local promote and HEAD publish agree.
+# It also reports the post-job inventory digest, which the host records beside a
+# promoted master: the host cannot compute it itself without attaching the image,
+# and this guest has it mounted right now. Both reads must happen HERE, while the
+# image is still mounted — after the detach nothing inside it is readable.
 report_cache_dirty() {
   [ -n "${CACHE_MOUNT}" ] || return 0
   [ -d "${STATUS_SHARE}" ] || return 0
-  local rc="${1:-1}" after dirty=0
-  after=$(cache_inventory)
-  if [ "${rc}" = "0" ] && [ "${after}" != "${CACHE_INVENTORY_BEFORE}" ]; then
+  local rc="${1:-1}" dirty=0
+  CACHE_INVENTORY_AFTER=$(cache_inventory)
+  if [ "${rc}" = "0" ] && [ "${CACHE_INVENTORY_AFTER}" != "${CACHE_INVENTORY_BEFORE}" ]; then
     dirty=1
   fi
+  printf '%s' "${CACHE_INVENTORY_AFTER}" > "${STATUS_SHARE}/cache-digest" 2>/dev/null || true
   printf '%s' "${dirty}" > "${STATUS_SHARE}/cache-dirty" 2>/dev/null || true
-  echo "$(date -u +%FT%TZ) dispatch-poll: cache dirty=${dirty} (rc=${rc}) reported to host"
+  echo "$(date -u +%FT%TZ) dispatch-poll: cache dirty=${dirty} (rc=${rc}) digest=${CACHE_INVENTORY_AFTER} reported to host"
 }
 
 # stage_volume_head writes the account's cache-volume HEAD (from the dispatch
@@ -356,49 +418,52 @@ stage_volume_head() {
     "${gen:-0}" "${digest}" "${download}" >"${STATUS_SHARE}/volume-head.json" 2>/dev/null || true
 }
 
-# report_volume_head publishes this job's warm set as the account's new HEAD:
-# only on a successful, cache-changing job it archives the cache (ditto zip
-# preserves the artifact-signature xattrs, so the master is portable to the
-# account's other hosts as-is), uploads it to the presigned master URL, and
-# bumps the account's HEAD to the new inventory digest. Best-effort; never
-# blocks teardown.
+# VOLUME_HEAD_UPLOAD_TIMEOUT bounds the master upload. The image is sparse, so
+# this transfers the cache actually written rather than the provisioned cap, but
+# that is still GBs on a full working set — hence a far larger ceiling than the
+# old zip's. It runs at teardown and holds the VM (and its warm-pool slot) open
+# for its duration, so it stays bounded rather than generous-and-unbounded.
+VOLUME_HEAD_UPLOAD_TIMEOUT=600
+
+# report_volume_head publishes this job's warm set as the account's new HEAD on a
+# successful, cache-changing job: it uploads the cache image to the presigned
+# master URL and bumps the account's HEAD to the new inventory digest.
+#
+# The image is uploaded AS-IS, with no archiving step: it already carries the
+# symlinks, xattrs and modes the cache needs, which is the whole reason the cache
+# is an image. It must run AFTER detach_cache_image — a still-mounted image can
+# be mid-write, and what gets uploaded here becomes every other host's master.
+# Best-effort; never blocks teardown.
 report_volume_head() {
   local rc="${1:-1}"
   [ "${rc}" = "0" ] || return 0
-  [ -n "${CACHE_MOUNT}" ] && [ -n "${VOLUME_HEAD_UPLOAD}" ] || return 0
-  local after
-  after=$(cache_inventory)
-  [ "${after}" != "${CACHE_INVENTORY_BEFORE}" ] || return 0
-  local archive="/tmp/master-archive.zip"
-  rm -f "${archive}"
-  ditto -c -k --sequesterRsrc --keepParent "${CACHE_MOUNT}/tuist" "${archive}" 2>/dev/null || return 0
+  [ -n "${CACHE_IMAGE_ACTIVE}" ] && [ -n "${VOLUME_HEAD_UPLOAD}" ] || return 0
+  [ -n "${CACHE_INVENTORY_AFTER}" ] || return 0
+  [ "${CACHE_INVENTORY_AFTER}" != "${CACHE_INVENTORY_BEFORE}" ] || return 0
   # This runs at teardown, after run.sh, before the EXIT trap halts the VM, so
   # both requests MUST be bounded — an object-storage stall here would otherwise
-  # hang the script, keep the VM up, and stop the warm pool refilling. The PUT
-  # gets a generous ceiling (the archive can be a couple GB) but not unbounded;
-  # the tiny POST gets a short one. On any timeout, HEAD just isn't advanced
-  # (best-effort) and teardown proceeds.
+  # hang the script, keep the VM up, and stop the warm pool refilling. On any
+  # timeout, HEAD just isn't advanced (best-effort) and teardown proceeds.
   #
   # No -L on the PUT: the presigned upload URL is written directly (no redirect),
   # so refuse to follow redirects — otherwise a compromised/misconfigured storage
-  # endpoint could 307 the upload to an internal address and receive the archive
+  # endpoint could 307 the upload to an internal address and receive the image
   # body (SSRF), the write-side twin of the download guard.
-  if ! curl -fsS --connect-timeout 10 --max-time 120 \
-    -X PUT --upload-file "${archive}" "${VOLUME_HEAD_UPLOAD}" >/dev/null 2>&1; then
-    echo "$(date -u +%FT%TZ) dispatch-poll: master upload failed/timed out; HEAD not advanced"
-    rm -f "${archive}"
+  if ! curl -fsS --connect-timeout 10 --max-time "${VOLUME_HEAD_UPLOAD_TIMEOUT}" \
+    -X PUT --upload-file "${CACHE_IMAGE}" "${VOLUME_HEAD_UPLOAD}" >/dev/null 2>&1; then
+    echo "$(date -u +%FT%TZ) dispatch-poll: master image upload failed/timed out; HEAD not advanced"
     return 0
   fi
   curl -fsS --connect-timeout 10 --max-time 15 -X POST \
     -H "Authorization: Bearer ${SA_TOKEN}" -H "Content-Type: application/json" \
-    --data "{\"tree_digest\":\"${after}\"}" "${VOLUME_HEAD_REPORT_URL}" >/dev/null 2>&1 || true
-  echo "$(date -u +%FT%TZ) dispatch-poll: published volume HEAD (digest=${after})"
-  rm -f "${archive}"
+    --data "{\"tree_digest\":\"${CACHE_INVENTORY_AFTER}\"}" "${VOLUME_HEAD_REPORT_URL}" >/dev/null 2>&1 || true
+  echo "$(date -u +%FT%TZ) dispatch-poll: published volume HEAD (digest=${CACHE_INVENTORY_AFTER})"
 }
 
-# Mount before polling: the volume is attached at boot, independent of which
-# account dispatch later assigns, so it is ready well before the first job.
-mount_cache_volume
+# Probe before polling: the share is attached at boot, independent of which
+# account dispatch later assigns. The image inside it only appears once the host
+# materializes, so the attach itself waits for cache-ready.
+probe_cache_share
 
 # 2 s polling interval is the practical floor for "feels live" to
 # a customer staring at their CI dashboard without burning the
@@ -576,13 +641,17 @@ HOOK
       wait "${runner_pid}"
       rc=$?
       [ -n "${watchdog_pid:-}" ] && kill "${watchdog_pid}" 2>/dev/null || true
-      # Report whether the job succeeded AND changed the cache so the reconciler
-      # can promote the branch to the account's new master (or discard it).
-      # Before the metrics tail + VM halt, while the mounted volume is still
-      # readable. rc gates promotion — a failed run never advances the master.
+      # Cache teardown. The order here is load-bearing:
+      #   1. read the inventory and report dirty + digest, which only works
+      #      while the image is still MOUNTED;
+      #   2. detach, so the image is a settled filesystem rather than a torn
+      #      snapshot — the host clones this file to promote it and cannot tell
+      #      the two apart, so letting the VM halt tear the mount down would
+      #      poison the account's master and every job that later clones it;
+      #   3. only then upload the detached image as the account's new HEAD.
+      # rc gates both — a failed run never advances the master.
       report_cache_dirty "${rc}"
-      # On a successful, cache-changing job, publish this warm set as the
-      # account's new volume HEAD so other hosts converge toward it.
+      detach_cache_image || mark_cache_not_promotable "detach failed"
       report_volume_head "${rc}"
       # Final metrics sample before the EXIT trap halts the VM. The
       # looping sampler is killed mid-sleep by the shutdown, so the last
