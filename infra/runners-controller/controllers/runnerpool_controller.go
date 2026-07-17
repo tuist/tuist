@@ -88,6 +88,16 @@ type RunnerPoolReconciler struct {
 	// DNS and never need these. Empty disables the env injection.
 	ClusterDNSIP  string
 	ClusterDomain string
+
+	// Now is overridable in tests; defaults to time.Now.
+	Now func() time.Time
+}
+
+func (r *RunnerPoolReconciler) now() time.Time {
+	if r.Now != nil {
+		return r.Now()
+	}
+	return time.Now()
 }
 
 // +kubebuilder:rbac:groups=tuist.dev,resources=runnerpools,verbs=get;list;watch;update;patch
@@ -160,6 +170,7 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	}
 	defer func() {
 		metrics.RecordPodPhases(pool.Name, phaseReplicas.pending, phaseReplicas.running, phaseReplicas.unknown)
+		metrics.RecordOldestPendingPodAge(pool.Name, phaseReplicas.oldestPendingAge(r.now()))
 	}()
 
 	alive := 0
@@ -475,17 +486,42 @@ type podPhaseReplicaCounts struct {
 	pending int
 	running int
 	unknown int
+
+	// Creation timestamps of the Pods counted in `pending`, keyed by Pod
+	// name so `remove` can drop the right one. A running max can't be
+	// maintained through the reconcile's add/remove churn — reaping the
+	// oldest Pod has to reveal the next-oldest, not leave a stale peak.
+	// Pods this tick creates are deliberately absent: they're
+	// milliseconds old, so they can never be the oldest, and tracking
+	// them would mean threading a clock through createRunner.
+	pendingSince map[string]time.Time
 }
 
 func (c *podPhaseReplicaCounts) add(pod *corev1.Pod) {
 	switch pod.Status.Phase {
 	case corev1.PodPending:
 		c.pending++
+		if c.pendingSince == nil {
+			c.pendingSince = map[string]time.Time{}
+		}
+		c.pendingSince[pod.Name] = pod.CreationTimestamp.Time
 	case corev1.PodRunning:
 		c.running++
 	default:
 		c.unknown++
 	}
+}
+
+// oldestPendingAge is how long the least-recently-created Pending Pod
+// has been waiting as of `now`, or 0 when the pool has none.
+func (c *podPhaseReplicaCounts) oldestPendingAge(now time.Time) time.Duration {
+	var oldest time.Duration
+	for _, since := range c.pendingSince {
+		if age := now.Sub(since); age > oldest {
+			oldest = age
+		}
+	}
+	return oldest
 }
 
 func (c *podPhaseReplicaCounts) remove(pod *corev1.Pod) {
@@ -494,6 +530,7 @@ func (c *podPhaseReplicaCounts) remove(pod *corev1.Pod) {
 		if c.pending > 0 {
 			c.pending--
 		}
+		delete(c.pendingSince, pod.Name)
 	case corev1.PodRunning:
 		if c.running > 0 {
 			c.running--

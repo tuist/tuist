@@ -708,3 +708,44 @@ func podNames(pods []corev1.Pod) []string {
 	}
 	return out
 }
+
+func TestOldestPendingAgeTracksTheOldest(t *testing.T) {
+	now := time.Date(2026, 7, 17, 3, 0, 0, 0, time.UTC)
+
+	newest := newRunnerPod("p-newest", "img", corev1.PodPending, "p")
+	newest.CreationTimestamp = metav1.NewTime(now.Add(-30 * time.Second))
+	oldest := newRunnerPod("p-oldest", "img", corev1.PodPending, "p")
+	oldest.CreationTimestamp = metav1.NewTime(now.Add(-4 * time.Hour))
+	running := newRunnerPod("p-running", "img", corev1.PodRunning, "p")
+	running.CreationTimestamp = metav1.NewTime(now.Add(-8 * time.Hour))
+
+	counts := podPhaseReplicaCounts{}
+	counts.add(newest)
+	counts.add(oldest)
+	// A Pod that booted long ago is not waiting on anything, so its age
+	// must not leak into the gauge.
+	counts.add(running)
+
+	if got := counts.oldestPendingAge(now); got != 4*time.Hour {
+		t.Fatalf("oldest pending age = %v, want 4h", got)
+	}
+
+	// Reaping the oldest has to reveal the next-oldest. A running max
+	// would keep reporting 4h here.
+	counts.remove(oldest)
+	if got := counts.oldestPendingAge(now); got != 30*time.Second {
+		t.Fatalf("oldest pending age after reaping the oldest = %v, want 30s", got)
+	}
+
+	counts.remove(newest)
+	if got := counts.oldestPendingAge(now); got != 0 {
+		t.Fatalf("oldest pending age with nothing pending = %v, want 0", got)
+	}
+}
+
+func TestOldestPendingAgeEmpty(t *testing.T) {
+	counts := podPhaseReplicaCounts{}
+	if got := counts.oldestPendingAge(time.Now()); got != 0 {
+		t.Fatalf("oldest pending age on an empty pool = %v, want 0", got)
+	}
+}

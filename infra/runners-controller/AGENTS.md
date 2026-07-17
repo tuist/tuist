@@ -86,6 +86,17 @@ independent workqueues:
   runner dashboard's macOS ready vs cold-booting split without relying
   on pod-scoped kube-state-metrics series.
 
+  Alongside it, `tuist_runners_pool_oldest_pending_pod_age_seconds{pool}`
+  is how long the pool's oldest un-`Running` Pod has been waiting (0 when
+  none). A Pod is `Pending` from creation until tart-kubelet has its VM
+  up, so this is the boot path's queue age. The phase count above can't
+  stand in: a pool steadily replacing single-shot runners and a pool with
+  one Pod wedged for hours both read `Pending=1`. Neither can
+  tart-kubelet's `tart_kubelet_pod_provision_delay_seconds`, which is
+  observed when a VM finally starts and so omits Pods that never boot
+  entirely — the failure this gauge exists to catch, and one that leaves
+  the Node `Ready` and `kube_pod_status_unschedulable` at 0 throughout.
+
   Pod-level autoscaling only — bare-metal Host count is operator-
   managed via the CAPI cluster topology, since Hetzner Robot hosts
   are monthly-billed and can't be auto-ordered. To grow capacity,
