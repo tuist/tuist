@@ -307,21 +307,35 @@ impl Remote {
         authed_request(message, self.authorization().as_ref())
     }
 
-    /// An authed request carrying one extra ASCII metadata header (e.g. the
-    /// branch a publish is attributed to). A malformed value is dropped rather
-    /// than failing the call — the header is advisory and kura defaults without
-    /// it.
+    /// An authed request carrying a git ref (the branch a publish is attributed
+    /// to, or the trunk to scope a view by) as metadata.
+    ///
+    /// Sent twice, and both are load-bearing. Git allows any UTF-8 in a ref name,
+    /// but an ASCII metadata value takes visible ASCII only, so `feature/café`
+    /// fails to convert and used to be dropped in silence: the publish went out
+    /// untagged, or the view came back unscoped, and nothing said why. The `-bin`
+    /// header carries the bytes whatever they are.
+    ///
+    /// The ASCII header stays because a node that predates the binary one reads
+    /// only that, and dropping it would untag every ASCII ref on the way through
+    /// a rolling deploy. So: ASCII when it fits, bytes always, and a reader takes
+    /// the binary one first.
     fn authed_with<T>(
         &self,
         message: T,
         header: &'static str,
+        binary_header: &'static str,
         value: Option<&str>,
     ) -> tonic::Request<T> {
         let mut request = self.authed(message);
         if let Some(value) = value.filter(|value| !value.is_empty()) {
-            if let Ok(value) = tonic::metadata::MetadataValue::try_from(value) {
-                request.metadata_mut().insert(header, value);
+            if let Ok(ascii) = tonic::metadata::MetadataValue::try_from(value) {
+                request.metadata_mut().insert(header, ascii);
             }
+            request.metadata_mut().insert_bin(
+                binary_header,
+                tonic::metadata::MetadataValue::from_bytes(value.as_bytes()),
+            );
         }
         request
     }
@@ -487,6 +501,7 @@ impl Remote {
             runtime().block_on(client.get_action_result(self.authed_with(
                 request.clone(),
                 "x-tuist-trunk-branch",
+                "x-tuist-trunk-branch-bin",
                 trunk,
             )))
         });
@@ -670,11 +685,20 @@ impl Remote {
             retry_call(|| {
                 // The trunk rides the write too: kura keeps trunk-baseline
                 // keys sticky against feature-branch republishes.
-                let mut request = self.authed_with(request.clone(), "x-tuist-branch", branch);
+                let mut request = self.authed_with(
+                    request.clone(),
+                    "x-tuist-branch",
+                    "x-tuist-branch-bin",
+                    branch,
+                );
                 if let Some(trunk) = trunk.filter(|trunk| !trunk.is_empty()) {
                     if let Ok(value) = tonic::metadata::MetadataValue::try_from(trunk) {
                         request.metadata_mut().insert("x-tuist-trunk-branch", value);
                     }
+                    request.metadata_mut().insert_bin(
+                        "x-tuist-trunk-branch-bin",
+                        tonic::metadata::MetadataValue::from_bytes(trunk.as_bytes()),
+                    );
                 }
                 runtime().block_on(client.update_action_result(request))
             })

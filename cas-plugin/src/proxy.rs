@@ -751,7 +751,18 @@ struct ViewRefresh {
     manifest: Vec<ManifestEntry>,
     branch: Option<String>,
     trunk: Option<String>,
+    /// Carried so a refresh that never happens can release its claim.
+    dedup: RefreshKey,
 }
+
+/// What makes a refresh distinct: the instance it belongs to, the action, and the
+/// tags it would write.
+///
+/// All four matter. The key alone collides across projects, and it collides
+/// across branches, which is worse: a feature build refreshing a key would
+/// suppress the later trunk hit for it, for the proxy's lifetime, and that hit is
+/// the only thing that reclaims the entry into the trunk view.
+type RefreshKey = (String, Vec<u8>, Option<String>, Option<String>);
 
 /// Result of a coalesced demand fetch, taken by exactly one waiter.
 enum DemandResult {
@@ -992,7 +1003,7 @@ pub struct Proxy {
     // identical re-publishes of entries fresher than a day, so a fleet of
     // cold machines cannot stampede version bumps.
     view_refresh: Mutex<VecDeque<ViewRefresh>>,
-    view_refreshed: Mutex<HashSet<Vec<u8>>>,
+    view_refreshed: Mutex<HashSet<RefreshKey>>,
 
     // instance -> demand-fetch coalescer, created on first demand miss. Groups
     // concurrent OP_FETCH_OBJECT blob reads into shared BatchReadBlobs calls.
@@ -2300,9 +2311,17 @@ impl Proxy {
         if !self.upload_enabled(instance) {
             return;
         }
+        let branch = self.resolve_branch(instance);
+        let trunk = self.resolve_trunk(instance);
+        let dedup: RefreshKey = (
+            instance.to_string(),
+            key.to_vec(),
+            branch.clone(),
+            trunk.clone(),
+        );
         {
             let mut refreshed = self.view_refreshed.lock().unwrap();
-            if refreshed.len() >= VIEW_REFRESH_MAX_QUEUE || !refreshed.insert(key.to_vec()) {
+            if refreshed.len() >= VIEW_REFRESH_MAX_QUEUE || !refreshed.insert(dedup.clone()) {
                 return;
             }
         }
@@ -2320,9 +2339,15 @@ impl Proxy {
                 remote: remote.clone(),
                 key: key.to_vec(),
                 manifest: stripped,
-                branch: self.resolve_branch(instance),
-                trunk: self.resolve_trunk(instance),
+                branch,
+                trunk,
+                dedup,
             });
+        } else {
+            // Claimed but not queued: hold the claim and this refresh never
+            // happens and can never be asked for again.
+            drop(queue);
+            self.view_refreshed.lock().unwrap().remove(&dedup);
         }
     }
 
@@ -2353,6 +2378,13 @@ impl Proxy {
                 )
                 .is_err()
             {
+                // Release the claim so a later hit can ask again. This item is
+                // the one being dropped (the rest of the batch stays queued and
+                // retries next tick, so their claims stand), and without letting
+                // go of it, "the next cold build that pays the per-key round trip
+                // re-queues the key" describes something that cannot happen: the
+                // claim outlives the work and suppresses every later attempt.
+                self.view_refreshed.lock().unwrap().remove(&refresh.dedup);
                 break;
             }
             sent += 1;
@@ -4046,6 +4078,122 @@ mod tests {
             "a demand fetch must keep the machine marked busy, or the idle gate \
              starts competing with the build it is meant to avoid"
         );
+    }
+
+    /// The reclaim path only works if a trunk hit can still be asked for after a
+    /// feature hit for the same action. On a shared runner that ordering is
+    /// routine, and a dedup keyed on the action alone would suppress the trunk
+    /// hit for the proxy's lifetime, quietly disabling the mechanism the whole
+    /// scoping leans on.
+    #[test]
+    fn a_refresh_is_distinct_per_instance_and_per_tag() {
+        let dir = std::env::temp_dir().join(format!("tuist-refresh-{}", std::process::id()));
+        std::fs::remove_dir_all(&dir).ok();
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        let registry = dir.join("registry");
+        let sources = sources_path_for(&registry);
+        let record = |branch: &str| {
+            std::fs::write(
+                &sources,
+                format!(
+                    "tuist/one\t/src/one\tmain\t{branch}\ntuist/two\t/src/two\tmain\t{branch}\n"
+                ),
+            )
+            .expect("write sources");
+        };
+        record("feature");
+
+        let proxy = Proxy::new(
+            "http://127.0.0.1:1".into(),
+            crate::token::TokenProvider::from_env(),
+            String::new(),
+            Some(registry),
+            None,
+        );
+        let manifest = vec![ManifestEntry {
+            llcas_digest: vec![0xAA],
+            blob: reapi::Digest {
+                hash: "bb".repeat(32),
+                size_bytes: 7,
+            },
+            contents: None,
+        }];
+        let queued = || proxy.view_refresh.lock().unwrap().len();
+        let one = proxy.remote_for("tuist/one");
+
+        proxy.queue_view_refresh(&one, "tuist/one", b"shared-key", &manifest);
+        assert_eq!(queued(), 1);
+        // Same everything: the second one is the same work.
+        proxy.queue_view_refresh(&one, "tuist/one", b"shared-key", &manifest);
+        assert_eq!(queued(), 1, "an identical refresh is not queued twice");
+
+        // Same action, another project. Keys collide across instances.
+        let two = proxy.remote_for("tuist/two");
+        proxy.queue_view_refresh(&two, "tuist/two", b"shared-key", &manifest);
+        assert_eq!(queued(), 2, "another project's identical key is its own refresh");
+
+        // The trunk job now takes a hit on the key the feature job refreshed.
+        record("main");
+        proxy.source_cache.lock().unwrap().clear();
+        proxy.queue_view_refresh(&one, "tuist/one", b"shared-key", &manifest);
+        assert_eq!(
+            queued(),
+            3,
+            "a trunk hit reclaims a key a feature hit refreshed first: suppressing \
+             it would disable the reclaim path entirely"
+        );
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// The remote here cannot be reached, so the drain fails, which is the point:
+    /// a refresh that did not happen must be askable again.
+    #[test]
+    fn a_failed_refresh_can_be_asked_for_again() {
+        let dir = std::env::temp_dir().join(format!("tuist-refresh-fail-{}", std::process::id()));
+        std::fs::remove_dir_all(&dir).ok();
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        let registry = dir.join("registry");
+        std::fs::write(
+            sources_path_for(&registry),
+            "tuist/one\t/src/one\tmain\tmain\n",
+        )
+        .expect("write sources");
+
+        let proxy = Proxy::new(
+            "http://127.0.0.1:1".into(),
+            crate::token::TokenProvider::from_env(),
+            String::new(),
+            Some(registry),
+            None,
+        );
+        let manifest = vec![ManifestEntry {
+            llcas_digest: vec![0xAA],
+            blob: reapi::Digest {
+                hash: "bb".repeat(32),
+                size_bytes: 7,
+            },
+            contents: None,
+        }];
+        let one = proxy.remote_for("tuist/one");
+
+        proxy.queue_view_refresh(&one, "tuist/one", b"key", &manifest);
+        assert_eq!(proxy.view_refresh.lock().unwrap().len(), 1);
+        proxy.refresh_view_keys();
+        assert_eq!(
+            proxy.view_refresh.lock().unwrap().len(),
+            0,
+            "the failed item is dropped from the queue"
+        );
+
+        proxy.queue_view_refresh(&one, "tuist/one", b"key", &manifest);
+        assert_eq!(
+            proxy.view_refresh.lock().unwrap().len(),
+            1,
+            "and it can be queued again, which is what the retry comment promises"
+        );
+
+        std::fs::remove_dir_all(&dir).ok();
     }
 
     /// `upload: false` has to hold for the whole build, and only the proxy can

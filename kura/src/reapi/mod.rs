@@ -255,6 +255,30 @@ where
     }
 }
 
+/// A git ref carried as request metadata, preferring the binary header.
+///
+/// Git allows any UTF-8 in a ref name, and an ASCII metadata value takes visible
+/// ASCII only, so a client cannot send `feature/café` that way at all. It sends
+/// the bytes in the `-bin` header and, when the ref happens to be ASCII, the
+/// plain one as well, which is what a node too old to read this understands.
+/// Preferring the binary one costs nothing and is the only one that can be
+/// trusted to carry what the client actually meant.
+fn ref_metadata<T>(request: &Request<T>, header: &str, binary_header: &str) -> Option<String> {
+    request
+        .metadata()
+        .get_bin(binary_header)
+        .and_then(|value| value.to_bytes().ok())
+        .and_then(|bytes| String::from_utf8(bytes.to_vec()).ok())
+        .or_else(|| {
+            request
+                .metadata()
+                .get(header)
+                .and_then(|value| value.to_str().ok())
+                .map(str::to_owned)
+        })
+        .filter(|value| !value.is_empty())
+}
+
 impl ReapiService {
     async fn authorize_request<T>(
         &self,
@@ -1223,11 +1247,8 @@ impl ActionCache for ReapiService {
             // A trunk-branch filter scopes the snapshot to the trunk baseline
             // (entries tagged with this branch plus untagged/legacy entries).
             // Absent or empty means the unfiltered, whole-namespace snapshot.
-            let trunk = request
-                .metadata()
-                .get("x-tuist-trunk-branch")
-                .and_then(|value| value.to_str().ok())
-                .filter(|value| !value.is_empty());
+            let trunk = ref_metadata(&request, "x-tuist-trunk-branch", "x-tuist-trunk-branch-bin");
+            let trunk = trunk.as_deref();
             let snapshot = self
                 .serve_actioncache_snapshot(namespace_id, after, trunk)
                 .await?;
@@ -1459,20 +1480,10 @@ impl ActionCache for ReapiService {
         let principal = self.authorize_request(&request, extension.clone()).await?;
         // The publishing client tags the entry with its git branch so a
         // trunk-scoped snapshot can later exclude feature-branch results.
-        let branch = request
-            .metadata()
-            .get("x-tuist-branch")
-            .and_then(|value| value.to_str().ok())
-            .filter(|value| !value.is_empty())
-            .map(str::to_owned);
+        let branch = ref_metadata(&request, "x-tuist-branch", "x-tuist-branch-bin");
         // The trunk rides the write too so the store can keep trunk-baseline
         // keys sticky against feature republishes (see the damped persist).
-        let trunk = request
-            .metadata()
-            .get("x-tuist-trunk-branch")
-            .and_then(|value| value.to_str().ok())
-            .filter(|value| !value.is_empty())
-            .map(str::to_owned);
+        let trunk = ref_metadata(&request, "x-tuist-trunk-branch", "x-tuist-trunk-branch-bin");
         let bytes = action_result.encode_to_vec();
         let targets = replication_targets(&self.state).await;
         let (manifest, applied) = self
@@ -3005,6 +3016,44 @@ mod tests {
         assert!(
             reconciled_at().is_some_and(|at| at > stamped),
             "an index built before a publish is rebuilt rather than served empty"
+        );
+    }
+
+    /// Git allows any UTF-8 in a ref name, and an ASCII metadata value takes
+    /// visible ASCII only, so a client cannot send one that way. It could not
+    /// even report the failure usefully: the publish just went out untagged and
+    /// the entry sat outside a trunk view nobody could see it was excluded from.
+    #[test]
+    fn a_ref_carrying_unicode_survives_the_metadata() {
+        let mut request = Request::new(());
+        request.metadata_mut().insert_bin(
+            "x-tuist-branch-bin",
+            tonic::metadata::MetadataValue::from_bytes("feature/café-au-lait".as_bytes()),
+        );
+        assert_eq!(
+            ref_metadata(&request, "x-tuist-branch", "x-tuist-branch-bin").as_deref(),
+            Some("feature/café-au-lait")
+        );
+    }
+
+    /// The header a node too old to send the binary one uses. Dropping it would
+    /// untag every ASCII ref through a rolling deploy.
+    #[test]
+    fn an_ascii_only_client_is_still_understood() {
+        let mut request = Request::new(());
+        request.metadata_mut().insert(
+            "x-tuist-branch",
+            tonic::metadata::MetadataValue::from_static("main"),
+        );
+        assert_eq!(
+            ref_metadata(&request, "x-tuist-branch", "x-tuist-branch-bin").as_deref(),
+            Some("main")
+        );
+        // And an absent ref stays absent rather than becoming an empty tag.
+        let empty: Request<()> = Request::new(());
+        assert_eq!(
+            ref_metadata(&empty, "x-tuist-branch", "x-tuist-branch-bin"),
+            None
         );
     }
 
