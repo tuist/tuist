@@ -701,6 +701,181 @@ func TestReconcile_DrainsPoolOnDeleteWithoutKillingRunningPod(t *testing.T) {
 	}
 }
 
+// newNode returns a registered cluster Node. Tests that exercise the
+// orphan sweep need at least one, because an empty Node view is
+// deliberately treated as unusable rather than as "every Pod is
+// orphaned" (see liveNodeNames).
+func newNode(name string) *corev1.Node {
+	return &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: name}}
+}
+
+// wedgedOrphanPod builds a runner Pod in the exact shape that survived
+// in production: terminal, bound to a Node that no longer exists, and
+// already carrying both tart-kubelet's node-local finalizer and the
+// deletionTimestamp left by a reap that could never complete.
+func wedgedOrphanPod(name, image, poolName, nodeName string) *corev1.Pod {
+	pod := newRunnerPod(name, image, corev1.PodFailed, poolName)
+	pod.Spec.NodeName = nodeName
+	pod.Finalizers = []string{tartKubeletVMCleanupFinalizer}
+	deleted := metav1.NewTime(time.Now().Add(-22 * time.Hour))
+	pod.DeletionTimestamp = &deleted
+	return pod
+}
+
+// TestReconcile_ReleasesRunnerOrphanedOnDeletedNode is the regression for
+// runner Pods outliving the Mac minis they ran on. tart-kubelet's
+// `vm-cleanup` finalizer is removed only by the podagent on the Pod's own
+// host, so once the CAPI provider released the mini and deleted its Node
+// object, the Pod became immortal: the reap's Delete set a
+// deletionTimestamp, the finalizer blocked collection, and every later
+// reconcile skipped the Pod because it was neither alive nor
+// DeletionTimestamp-free. Upstream PodGC can't help either — it only
+// issues a Delete, which the same finalizer blocks. Four such Pods
+// accumulated in production, two of them on deleted Nodes, and Pods
+// orphaned this way have wedged `helm --wait` before.
+func TestReconcile_ReleasesRunnerOrphanedOnDeletedNode(t *testing.T) {
+	scheme := mustScheme(t)
+	const image = "ghcr.io/tuist/tuist-runner@sha256:new"
+	pool := newPool("p", image, 1)
+	orphan := wedgedOrphanPod("p-runner-orphan", image, "p", "mini-released")
+	orphanSA := &corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{Name: "p-runner-orphan", Namespace: "tuist-runners"},
+	}
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(pool, newNode("mini-live"), orphan, orphanSA).
+		WithStatusSubresource(&tuistv1.RunnerPool{}).
+		Build()
+
+	r := &RunnerPoolReconciler{Client: c, Scheme: scheme, DispatchURL: "http://dispatch"}
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{
+		NamespacedName: nn(pool.Namespace, pool.Name),
+	}); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	pods := &corev1.PodList{}
+	if err := c.List(context.Background(), pods); err != nil {
+		t.Fatalf("list pods: %v", err)
+	}
+	for _, p := range pods.Items {
+		if p.Name == "p-runner-orphan" {
+			t.Fatalf("expected orphaned pod to be released, still present with finalizers %v", p.Finalizers)
+		}
+	}
+
+	// The orphan never counted as alive, so the pool refills the gap it
+	// left rather than sitting a replica short behind a dead host.
+	if len(pods.Items) != 1 {
+		t.Fatalf("expected 1 replacement pod, got %d: %+v", len(pods.Items), podNames(pods.Items))
+	}
+
+	sa := &corev1.ServiceAccount{}
+	if err := c.Get(context.Background(), nn("tuist-runners", "p-runner-orphan"), sa); err == nil {
+		t.Fatalf("expected orphaned pod's sibling SA to be deleted, still present")
+	}
+}
+
+// TestReconcile_SkipsOrphanSweepWhenNodeViewUnusable guards the sweep's
+// blast radius. An unsynced Node informer reads as zero Nodes rather than
+// as an error, and every Pod would then look orphaned — so an unusable
+// view must delete nothing at all. The Pod here is in the wedged shape,
+// which no other branch touches, so the sweep is the only thing that could
+// remove it.
+func TestReconcile_SkipsOrphanSweepWhenNodeViewUnusable(t *testing.T) {
+	scheme := mustScheme(t)
+	const image = "ghcr.io/tuist/tuist-runner@sha256:new"
+	pool := newPool("p", image, 1)
+	orphan := wedgedOrphanPod("p-runner-orphan", image, "p", "mini-released")
+
+	// No Node objects at all: the view is unusable.
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(pool, orphan).
+		WithStatusSubresource(&tuistv1.RunnerPool{}).
+		Build()
+
+	r := &RunnerPoolReconciler{Client: c, Scheme: scheme, DispatchURL: "http://dispatch"}
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{
+		NamespacedName: nn(pool.Namespace, pool.Name),
+	}); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	got := &corev1.Pod{}
+	if err := c.Get(context.Background(), nn("tuist-runners", "p-runner-orphan"), got); err != nil {
+		t.Fatalf("expected pod to survive an unusable node view, got: %v", err)
+	}
+	if !controllerutil.ContainsFinalizer(got, tartKubeletVMCleanupFinalizer) {
+		t.Fatalf("expected vm-cleanup finalizer to be left intact when the node view is unusable")
+	}
+}
+
+// TestReconcile_OrphanSweepPreservesForeignFinalizers pins the sweep to
+// tart-kubelet's own finalizer. Stripping it is only safe because the host
+// that would honour it is gone; a finalizer belonging to anything else has
+// an owner that may well still be alive, so the sweep must leave it (and
+// therefore the Pod) alone.
+func TestReconcile_OrphanSweepPreservesForeignFinalizers(t *testing.T) {
+	scheme := mustScheme(t)
+	const foreign = "example.com/some-other-controller"
+	const image = "ghcr.io/tuist/tuist-runner@sha256:new"
+	pool := newPool("p", image, 1)
+	orphan := newRunnerPod("p-runner-orphan", image, corev1.PodRunning, "p")
+	orphan.Spec.NodeName = "mini-released"
+	orphan.Finalizers = []string{tartKubeletVMCleanupFinalizer, foreign}
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(pool, newNode("mini-live"), orphan).
+		WithStatusSubresource(&tuistv1.RunnerPool{}).
+		Build()
+
+	r := &RunnerPoolReconciler{Client: c, Scheme: scheme, DispatchURL: "http://dispatch"}
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{
+		NamespacedName: nn(pool.Namespace, pool.Name),
+	}); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	got := &corev1.Pod{}
+	if err := c.Get(context.Background(), nn("tuist-runners", "p-runner-orphan"), got); err != nil {
+		t.Fatalf("expected pod held open by a foreign finalizer to still exist, got: %v", err)
+	}
+	if controllerutil.ContainsFinalizer(got, tartKubeletVMCleanupFinalizer) {
+		t.Fatalf("expected vm-cleanup finalizer to be stripped, finalizers = %v", got.Finalizers)
+	}
+	if !controllerutil.ContainsFinalizer(got, foreign) {
+		t.Fatalf("expected foreign finalizer %q to be preserved, finalizers = %v", foreign, got.Finalizers)
+	}
+}
+
+func TestIsOrphaned(t *testing.T) {
+	live := map[string]struct{}{"mini-live": {}}
+
+	cases := []struct {
+		name     string
+		nodeName string
+		want     bool
+	}{
+		{"bound to a live node", "mini-live", false},
+		{"bound to a deleted node", "mini-released", true},
+		// A Pod the scheduler hasn't placed yet is the normal Pending
+		// state for a warm poller, not an orphan.
+		{"not yet scheduled", "", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			pod := newRunnerPod("p-runner-x", "img", corev1.PodPending, "p")
+			pod.Spec.NodeName = tc.nodeName
+			if got := isOrphaned(pod, live); got != tc.want {
+				t.Fatalf("isOrphaned(nodeName=%q) = %v, want %v", tc.nodeName, got, tc.want)
+			}
+		})
+	}
+}
+
 func podNames(pods []corev1.Pod) []string {
 	out := make([]string, len(pods))
 	for i, p := range pods {

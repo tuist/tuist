@@ -43,6 +43,23 @@ const drainEligibleLabel = "tuist.dev/drain-eligible"
 // spec.rollout.maxConcurrentPercent.
 const defaultRollMaxConcurrentPercent = 5
 
+// tartKubeletVMCleanupFinalizer is tart-kubelet's Pod finalizer, which
+// gates the Pod object's removal on the host tearing its Tart VM down.
+// Source of truth is `podagent.PodFinalizer` in infra/tart-kubelet;
+// redeclared here because the two live in separate Go modules.
+//
+// It is node-local: the only code that removes it is the podagent's
+// DeletionTimestamp branch, and each podagent filters the Pod informer
+// down to its OWN `spec.nodeName`. So when a Node disappears — the CAPI
+// provider deletes the Node object after releasing the Mac mini, and
+// MachineHealthCheck remediation churns them routinely — every Pod still
+// bound to it keeps this finalizer with no agent left alive to remove it.
+// The apiserver then holds the Pod object open forever, and the terminal
+// reap below can't help: the Pod is neither alive nor
+// DeletionTimestamp-free, so it matches no branch. See
+// releaseOrphanedRunner.
+const tartKubeletVMCleanupFinalizer = "tart-kubelet.tuist.dev/vm-cleanup"
+
 // RunnerPoolReconciler maintains a fleet of runner Pods + per-Pod
 // ServiceAccounts. Pods are owned directly by the RunnerPool (no
 // RunnerAssignment intermediate). When a Pod hits a terminal
@@ -151,10 +168,16 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{}, fmt.Errorf("list pods: %w", err)
 	}
 
+	// Live Node view for the orphan sweep below. Gathered once per
+	// reconcile and shared with the phase-count loop so a Pod stranded on
+	// a deleted Node isn't reported as warm capacity it can no longer
+	// provide.
+	liveNodes, nodesUsable := r.liveNodeNames(ctx)
+
 	phaseReplicas := podPhaseReplicaCounts{}
 	for i := range pods.Items {
 		p := &pods.Items[i]
-		if isAlive(p) {
+		if isAlive(p) && !(nodesUsable && isOrphaned(p, liveNodes)) {
 			phaseReplicas.add(p)
 		}
 	}
@@ -164,6 +187,7 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 	alive := 0
 	reaped := 0
+	orphaned := 0
 	staleAlive := 0
 	markedStale := 0
 	newNotReady := 0
@@ -177,6 +201,28 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	var stalePendingCandidates []*corev1.Pod
 	for i := range pods.Items {
 		p := &pods.Items[i]
+
+		// Pod stranded on a Node that no longer exists. Its VM died with
+		// the host, so it is neither doing work nor capacity we can fill
+		// a job with, whatever phase it last published. Nothing else will
+		// ever clean it up: tart-kubelet's finalizer is node-local, and
+		// upstream PodGC's orphan collection only issues a Delete, which
+		// a finalizer blocks. Release it before the branches below, which
+		// all assume a Pod whose host is still around to act on it.
+		if nodesUsable && isOrphaned(p, liveNodes) {
+			if err := r.releaseOrphanedRunner(ctx, p); err != nil {
+				logger.Error(err, "release orphaned runner; will retry next tick",
+					"pod", p.Name, "node", p.Spec.NodeName)
+				continue
+			}
+			logger.Info("released orphaned runner",
+				"pod", p.Name,
+				"node", p.Spec.NodeName,
+				"phase", string(p.Status.Phase),
+			)
+			orphaned++
+			continue
+		}
 
 		switch {
 		case isAlive(p):
@@ -300,6 +346,7 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		"target", pool.Spec.Replicas,
 		"observed", alive,
 		"reaped", reaped,
+		"orphaned", orphaned,
 		"gap", gap,
 		"overflow", overflow,
 		"idleAlive", len(idleAlive),
@@ -460,6 +507,74 @@ func (r *RunnerPoolReconciler) reapRunner(ctx context.Context, pod *corev1.Pod) 
 		return fmt.Errorf("delete sa %s: %w", pod.Name, err)
 	}
 	return nil
+}
+
+// liveNodeNames returns the names of every Node currently registered in
+// the cluster.
+//
+// ok is false when the view is unusable, and callers must then skip the
+// orphan sweep entirely rather than treat what they have as authoritative.
+// Both failure modes collapse to "every Pod looks orphaned", and acting on
+// that would delete the whole fleet mid-job: a List error is the obvious
+// one, and an empty list is the subtle one (a Node informer that hasn't
+// synced yet reads as zero Nodes, not as an error). A cluster with no Nodes
+// at all has no runner Pods to sweep, so refusing to act on an empty view
+// costs nothing.
+func (r *RunnerPoolReconciler) liveNodeNames(ctx context.Context) (map[string]struct{}, bool) {
+	nodes := &corev1.NodeList{}
+	if err := r.List(ctx, nodes); err != nil {
+		return nil, false
+	}
+	if len(nodes.Items) == 0 {
+		return nil, false
+	}
+	names := make(map[string]struct{}, len(nodes.Items))
+	for i := range nodes.Items {
+		names[nodes.Items[i].Name] = struct{}{}
+	}
+	return names, true
+}
+
+// isOrphaned reports whether pod is bound to a Node that no longer
+// exists. An unscheduled Pod (no nodeName yet) is not orphaned — it is
+// waiting for a host, which is the normal Pending state for a warm
+// poller that hasn't been placed.
+func isOrphaned(pod *corev1.Pod, liveNodes map[string]struct{}) bool {
+	if pod.Spec.NodeName == "" {
+		return false
+	}
+	_, live := liveNodes[pod.Spec.NodeName]
+	return !live
+}
+
+// releaseOrphanedRunner force-completes the removal of a Pod whose Node
+// is gone, by stripping tart-kubelet's node-local finalizer before the
+// usual reap. Removing the finalizer is safe precisely because the host
+// is gone: the finalizer exists to keep the Pod object visible until the
+// VM is torn down, and a released Mac mini takes its VMs with it, so
+// there is nothing left to wait for. We strip only tart-kubelet's own
+// finalizer and leave any other intact, so this can't bulldoze a
+// finalizer whose owner is still alive to honour it.
+//
+// Ordering matters: the finalizer patch has to land before the Delete,
+// or the Pod just re-enters the same wedged state (deletionTimestamp
+// set, finalizer held, no agent to remove it) that stranded it here. The
+// Delete is what the apiserver needs to actually collect the object; on
+// a Pod already carrying a deletionTimestamp, dropping the finalizer
+// completes the deletion on its own and reapRunner's Delete no-ops on
+// NotFound while still collecting the sibling ServiceAccount.
+func (r *RunnerPoolReconciler) releaseOrphanedRunner(ctx context.Context, pod *corev1.Pod) error {
+	if controllerutil.ContainsFinalizer(pod, tartKubeletVMCleanupFinalizer) {
+		// Optimistic lock: a blind merge patch rewrites the whole
+		// finalizer array, which would silently drop a finalizer added
+		// concurrently. Conflict just means re-read and retry next tick.
+		patch := client.MergeFromWithOptions(pod.DeepCopy(), client.MergeFromWithOptimisticLock{})
+		controllerutil.RemoveFinalizer(pod, tartKubeletVMCleanupFinalizer)
+		if err := r.Patch(ctx, pod, patch); err != nil && !apierrors.IsNotFound(err) {
+			return fmt.Errorf("strip vm-cleanup finalizer from %s: %w", pod.Name, err)
+		}
+	}
+	return r.reapRunner(ctx, pod)
 }
 
 // reapAlivePod is the scale-down path. Same shape as

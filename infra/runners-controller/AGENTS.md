@@ -17,10 +17,31 @@ independent workqueues:
   finalizer holds the CR Terminating, reaps only idle Pods, and waits
   for mid-job Pods to finish their single-shot job before releasing.
   When it reaps a terminal Pod it logs the `runner` container's
-  `exitCode`/`reason` first — the durable, image-independent post-mortem
-  fingerprint for a runner that "lost communication" (0 = clean,
-  137+OOMKilled = host OOM, 137+Error = guest OOM / in-VM kill, signal
-  15 = SIGTERM, other = crash), captured before the Pod is gone.
+  `exitCode`/`reason` first — the durable post-mortem fingerprint for a
+  runner that "lost communication" (0 = clean, 137+OOMKilled = host OOM,
+  137+Error = guest OOM / in-VM kill, signal 15 = SIGTERM, other =
+  crash), captured before the Pod is gone. Note this fires for Linux
+  Pods only: tart-kubelet never publishes a terminated container state
+  (it only ever synthesizes *running* statuses), so `runnerTerminated`
+  returns nil for the whole macOS fleet and those Pods reap silently.
+
+  **Orphan sweep.** A Pod bound to a Node that no longer exists is
+  released: tart-kubelet's `vm-cleanup` finalizer is stripped, then the
+  Pod + SA are reaped. That finalizer is node-local — only the podagent
+  on the Pod's *own* host removes it — so once the CAPI provider
+  releases a Mac mini and deletes its Node object, nothing is left alive
+  to clean up Pods still bound to it. Without the sweep such a Pod is
+  immortal: the reap's Delete sets a deletionTimestamp, the finalizer
+  blocks collection, and every later reconcile skips the Pod because it
+  is neither alive nor DeletionTimestamp-free. Upstream PodGC can't
+  break the tie either, since it only issues a Delete. This is a real
+  production failure (Pods surviving 22h+ on released minis), and
+  orphaned Pods on deleted Nodes have wedged `helm --wait` before. The
+  sweep no-ops unless the Node view is usable — an unsynced Node
+  informer reads as zero Nodes, not as an error, and acting on that
+  would delete the fleet mid-job — and it only ever strips
+  tart-kubelet's own finalizer, never a foreign one whose owner may
+  still be alive.
 
 - **`AutoscalerReconciler`** — on a 5-second cadence, calls the
   server's `/api/internal/runners/desired_replicas` endpoint and
