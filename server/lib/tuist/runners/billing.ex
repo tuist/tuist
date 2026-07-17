@@ -55,6 +55,7 @@ defmodule Tuist.Runners.Billing do
   """
 
   import Ecto.Query
+  import Tuist.Runners.Catalog, only: [valid_machine_resources: 3]
 
   alias Tuist.Repo
   alias Tuist.Runners.Analytics
@@ -62,10 +63,6 @@ defmodule Tuist.Runners.Billing do
   alias Tuist.Runners.RunnerSession
 
   require Logger
-
-  defguardp valid_machine_resources(platform, vcpus, memory_gb)
-            when platform in [:linux, :macos] and is_integer(vcpus) and vcpus > 0 and is_integer(memory_gb) and
-                   memory_gb > 0
 
   @default_window_days 30
 
@@ -225,30 +222,6 @@ defmodule Tuist.Runners.Billing do
       %{platform: platform, vcpus: vcpus, memory_gb: memory_gb, total_ms: total_ms}
     end)
     |> Enum.sort_by(&{&1.platform, &1.vcpus, &1.memory_gb})
-  end
-
-  @doc """
-  Returns every machine specification that needs a Stripe meter and
-  metered price in the current runner catalog.
-
-  Linux shapes and operator-defined pools are both included. macOS
-  Xcode versions are deliberately collapsed onto their machine shape:
-  changing the image does not create a different billable machine.
-  Each result carries the exact meter event name emitted by Tuist.
-  """
-  def billable_machines do
-    linux_machines =
-      Enum.map(Catalog.linux_fleet_resources(), &Map.take(&1, [:platform, :vcpus, :memory_gb]))
-
-    macos_machines =
-      Enum.map(Catalog.shapes(:macos), fn shape ->
-        %{platform: :macos, vcpus: shape.vcpus, memory_gb: shape.memory_gb}
-      end)
-
-    (linux_machines ++ macos_machines)
-    |> Enum.uniq_by(&{&1.platform, &1.vcpus, &1.memory_gb})
-    |> Enum.sort_by(&{&1.platform, &1.vcpus, &1.memory_gb})
-    |> Enum.map(&Map.put(&1, :meter_event_name, meter_event_name(&1)))
   end
 
   @doc """

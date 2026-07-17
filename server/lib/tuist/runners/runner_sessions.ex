@@ -41,15 +41,12 @@ defmodule Tuist.Runners.RunnerSessions do
   session bills longer than it ran."
   """
   import Ecto.Query
+  import Tuist.Runners.Catalog, only: [valid_machine_resources: 3]
 
   alias Tuist.Repo
   alias Tuist.Runners.RunnerSession
 
   require Logger
-
-  defguardp valid_machine_resources(platform, vcpus, memory_gb)
-            when platform in [:linux, :macos] and is_integer(vcpus) and vcpus > 0 and is_integer(memory_gb) and
-                   memory_gb > 0
 
   @doc """
   Open a billing session once dispatch has committed and the runner

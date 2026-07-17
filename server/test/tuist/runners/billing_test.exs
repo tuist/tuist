@@ -219,24 +219,6 @@ defmodule Tuist.Runners.BillingTest do
     end
   end
 
-  describe "billable_machines/0" do
-    test "returns one Stripe meter definition per configured machine shape" do
-      machines = Billing.billable_machines()
-
-      assert Enum.map(machines, & &1.meter_event_name) == [
-               "runner_linux_1_vcpu_2_gb_milliseconds",
-               "runner_linux_2_vcpu_4_gb_milliseconds",
-               "runner_linux_2_vcpu_8_gb_milliseconds",
-               "runner_linux_4_vcpu_8_gb_milliseconds",
-               "runner_linux_4_vcpu_16_gb_milliseconds",
-               "runner_linux_8_vcpu_16_gb_milliseconds",
-               "runner_linux_8_vcpu_32_gb_milliseconds",
-               "runner_linux_16_vcpu_32_gb_milliseconds",
-               "runner_macos_6_vcpu_14_gb_milliseconds"
-             ]
-    end
-  end
-
   describe "compute_minutes/2" do
     test "returns the widget shape with total_ms, trend, dates, values" do
       account = account_fixture()

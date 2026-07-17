@@ -34,6 +34,16 @@ defmodule Tuist.Runners.Catalog do
   @platforms [:linux, :macos]
 
   @doc """
+  True when `platform` is a known runner platform and `vcpus`/`memory_gb`
+  are positive integers. Shared by the billing and session-tracking paths
+  so a machine spec accepted when a session opens is exactly the spec that
+  billing later meters.
+  """
+  defguard valid_machine_resources(platform, vcpus, memory_gb)
+           when platform in @platforms and is_integer(vcpus) and vcpus > 0 and
+                  is_integer(memory_gb) and memory_gb > 0
+
+  @doc """
   All shapes for `platform`, deduped and sorted by
   `(vcpus, memory_gb)`. Returns `[]` when the corresponding config
   key is unset (both keys ship with a default in `config/config.exs`).
