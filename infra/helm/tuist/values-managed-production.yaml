@@ -627,17 +627,29 @@ runnersFleet:
   # fleet under skewed demand and the allocator caps the joint sum
   # so the pools don't double-book.
   #
-  # Floors sum to 3 of the 9-slot budget; the remaining 6 slots are
-  # dynamically apportioned by queue depth across the pools.
-  # The default (26.6) keeps the warm baseline since most traffic
-  # lands there; older Xcodes sit cold (floor 0) so an unused runner
-  # doesn't tie up a host. Revisit once we open the runners to
-  # general signups where the pool mix is unpredictable in advance.
+  # Floors sum to 1 of the 9-slot budget; the remaining 8 slots are
+  # dynamically apportioned by queue depth across the pools. Keep the
+  # sum small: 9 hosts across 5 pools means every reserved slot is one
+  # the allocator cannot hand to a pool with real queued work.
+  #
+  # Note that a floor does NOT follow the catalog default. `tuist-macos`
+  # resolves through each account's protected `macos` profile, whose
+  # `xcode_version` is pinned at account-creation time, so moving
+  # `default: true` in the catalog does not move where existing accounts'
+  # jobs land — they stay on the Xcode they were created with (26.5
+  # today; see the `20260602145000_backfill_protected_macos_profile`
+  # migration). 26.6 therefore carries a warm slot for *new* accounts
+  # only, not for the bulk of traffic. Size floors from measured demand
+  # per pool (`tuist_runners_autoscaler_target_replicas`), never from
+  # which version is tagged default. Older Xcodes sit cold (floor 0) so
+  # an unused runner doesn't tie up a host. Revisit once we open the
+  # runners to general signups where the pool mix is unpredictable in
+  # advance.
   xcodeOverrides:
     "26.6":
       autoscaling:
         enabled: true
-        minWarmPoolFloor: 3
+        minWarmPoolFloor: 1
         maxReplicas: 9
     "26.5":
       autoscaling:

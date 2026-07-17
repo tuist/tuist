@@ -143,6 +143,19 @@ type RunnerPoolSpec struct {
 // its own struct so an absent block (the v1 default) keeps
 // `RunnerPoolSpec` byte-identical to its pre-autoscaling shape on
 // the wire — no `autoscaling: null` noise on every macOS pool.
+// A note on `omitempty` in this struct: a field may only carry it when
+// its CRD default equals its Go zero value. `omitempty` drops the zero
+// value from the serialized spec, which is indistinguishable from "unset"
+// — so the apiserver's structural-schema defaulting fills the CRD default
+// back in, and a deliberately-configured zero silently becomes the
+// default. That is not theoretical: the controller Updates the whole
+// typed object when it adds the drain finalizer (see
+// runnerpool_controller.go), so any zero-valued field with a non-zero
+// default is rewritten on a pool's first reconcile and stays wrong for
+// the pool's lifetime. `enabled` (default false) and `maxReplicas`
+// (default 0) default to their zero values, so they are safe; the two
+// fields that declare `minimum: 0` with a non-zero default must not be
+// omitted.
 type RunnerPoolAutoscaling struct {
 	// Enabled flips the autoscaling reconciler on for this pool.
 	// When false, the controller leaves `spec.replicas` alone.
@@ -158,8 +171,11 @@ type RunnerPoolAutoscaling struct {
 	// contention to admit another shape's real queued work. macOS pools
 	// and uncontended Linux pools honor it as a floor; real load
 	// (claimed + queued) is always funded above it.
+	//
+	// No `omitempty`: 0 ("this pool holds no warm capacity") is a valid
+	// and useful setting, and the CRD default is 1.
 	// +optional
-	MinWarmPoolFloor int32 `json:"minWarmPoolFloor,omitempty"`
+	MinWarmPoolFloor int32 `json:"minWarmPoolFloor"`
 
 	// MaxReplicas is the hard ceiling on the autoscaler-driven
 	// `spec.replicas` value. 0 disables autoscaling-driven scale
@@ -170,8 +186,11 @@ type RunnerPoolAutoscaling struct {
 	// ScaleDownCooldownSeconds is the minimum time the controller
 	// waits between successive scale-down actions for this pool.
 	// Anti-thrash guard.
+	//
+	// No `omitempty`: 0 ("scale down as soon as demand drops") is a
+	// valid setting, and the CRD default is 300.
 	// +optional
-	ScaleDownCooldownSeconds int32 `json:"scaleDownCooldownSeconds,omitempty"`
+	ScaleDownCooldownSeconds int32 `json:"scaleDownCooldownSeconds"`
 }
 
 // RunnerPoolRollout carries the image-roll throttle knob. Its own
