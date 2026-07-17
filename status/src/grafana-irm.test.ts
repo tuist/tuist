@@ -223,6 +223,125 @@ describe("fetchStatusFromGrafana", () => {
     expect(snapshot.recentIncidents.map((i) => i.id)).toEqual(["fresh"]);
   });
 
+  it("loads every key update for an incident and uses its summary as a fallback", async () => {
+    const keyUpdateBodies: Array<Record<string, unknown>> = [];
+    let keyUpdatePage = 0;
+    globalThis.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input.toString();
+      const body = typeof init?.body === "string" ? JSON.parse(init.body) : {};
+      if (url.endsWith("FieldsService.GetFields")) {
+        return new Response(JSON.stringify({ fields: [] }));
+      }
+      if (url.endsWith("IncidentsService.QueryIncidents")) {
+        const isActive = JSON.stringify(body).includes("status:active");
+        return new Response(
+          JSON.stringify({
+            incidents: isActive
+              ? [
+                  {
+                    incidentID: "with-updates",
+                    title: "Cache unavailable",
+                    status: "active",
+                    summary: "This is replaced by the key updates.",
+                    createdTime: "2026-05-05T10:00:00.000Z",
+                  },
+                  {
+                    incidentID: "with-summary",
+                    title: "Cache slow",
+                    status: "active",
+                    summary: "We are investigating elevated latency.",
+                    createdTime: "2026-05-05T11:00:00.000Z",
+                  },
+                ]
+              : [],
+          }),
+        );
+      }
+      if (url.endsWith("KeyUpdatesService.QueryKeyUpdates")) {
+        const incidentID = body.query.incidentID;
+        if (incidentID === "with-summary") {
+          return new Response(JSON.stringify({ keyUpdates: [] }));
+        }
+        keyUpdateBodies.push(body);
+        keyUpdatePage++;
+        if (keyUpdatePage === 1) {
+          return new Response(
+            JSON.stringify({
+              keyUpdates: [
+                {
+                  id: "update-2",
+                  title: "Monitoring",
+                  content: "Authentication has recovered and we are monitoring cache traffic.",
+                  createdTime: "2026-05-05T11:30:00.000Z",
+                },
+              ],
+              cursor: { hasMore: true, nextValue: "next-update" },
+            }),
+          );
+        }
+        return new Response(
+          JSON.stringify({
+            keyUpdates: [
+              {
+                id: "update-1",
+                title: "Investigating",
+                content: "We are investigating cache authentication failures.",
+                createdTime: "2026-05-05T10:00:00.000Z",
+              },
+            ],
+            cursor: { hasMore: false, nextValue: "" },
+          }),
+        );
+      }
+      throw new Error(`unmocked URL: ${url}`);
+    }) as typeof fetch;
+
+    const snapshot = await fetchStatusFromGrafana(ENV);
+
+    expect(snapshot.activeIncidents[0]?.updates).toEqual([
+      {
+        at: "2026-05-05T11:30:00.000Z",
+        status: "monitoring",
+        title: "Monitoring",
+        body: "Authentication has recovered and we are monitoring cache traffic.",
+      },
+      {
+        at: "2026-05-05T10:00:00.000Z",
+        status: "investigating",
+        title: "Investigating",
+        body: "We are investigating cache authentication failures.",
+      },
+    ]);
+    expect(snapshot.activeIncidents[1]?.updates).toEqual([
+      {
+        at: "2026-05-05T11:00:00.000Z",
+        status: "investigating",
+        body: "We are investigating elevated latency.",
+      },
+    ]);
+    expect(keyUpdateBodies).toEqual([
+      {
+        query: {
+          incidentID: "with-updates",
+          limit: 100,
+          orderDirection: "DESC",
+          orderField: "createdTime",
+          contentType: "text/plain",
+        },
+      },
+      {
+        query: {
+          incidentID: "with-updates",
+          limit: 100,
+          orderDirection: "DESC",
+          orderField: "createdTime",
+          contentType: "text/plain",
+        },
+        cursor: "next-update",
+      },
+    ]);
+  });
+
   it("matches affectedComponents from real Grafana labels of shape {key, label}", async () => {
     globalThis.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = typeof input === "string" ? input : input.toString();
