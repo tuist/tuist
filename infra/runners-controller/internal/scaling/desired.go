@@ -40,12 +40,10 @@ type PolicyKnobs struct {
 //   - `+ MinWarmPoolFloor` adds operator-configured slack on top
 //     of whichever (current load OR predicted peak) won, so a
 //     fresh arrival lands on a warm Pod instead of waiting for a
-//     newly-claimed Pod to start polling. Because it is additive,
-//     `desired >= MinWarmPoolFloor` always holds — the warm
-//     guarantee needs no separate lower-bound clamp, and applying
-//     one would double-count it (an idle pool would size to
-//     2 * MinWarmPoolFloor and hold twice the hosts its operator
-//     asked for; on the 9-slot macOS fleet a floor of 3 reserved 6).
+//     newly-claimed Pod to start polling. It is additive only:
+//     `desired >= MinWarmPoolFloor` already holds, so clamping the
+//     floor as a lower bound as well would double-count it and size
+//     an idle pool to twice its configured floor.
 //   - `MaxReplicas == 0` returns 0, which the caller treats as
 //     "autoscaling disabled" — the static spec.Replicas is left
 //     alone. This matches the CRD default; a pool that didn't

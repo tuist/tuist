@@ -143,19 +143,14 @@ type RunnerPoolSpec struct {
 // its own struct so an absent block (the v1 default) keeps
 // `RunnerPoolSpec` byte-identical to its pre-autoscaling shape on
 // the wire — no `autoscaling: null` noise on every macOS pool.
-// A note on `omitempty` in this struct: a field may only carry it when
-// its CRD default equals its Go zero value. `omitempty` drops the zero
-// value from the serialized spec, which is indistinguishable from "unset"
-// — so the apiserver's structural-schema defaulting fills the CRD default
-// back in, and a deliberately-configured zero silently becomes the
-// default. That is not theoretical: the controller Updates the whole
-// typed object when it adds the drain finalizer (see
-// runnerpool_controller.go), so any zero-valued field with a non-zero
-// default is rewritten on a pool's first reconcile and stays wrong for
-// the pool's lifetime. `enabled` (default false) and `maxReplicas`
-// (default 0) default to their zero values, so they are safe; the two
-// fields that declare `minimum: 0` with a non-zero default must not be
-// omitted.
+// A field here may carry `omitempty` only when its CRD default equals
+// its Go zero value. `omitempty` drops the zero value from the
+// serialized spec, which the apiserver cannot tell from "unset" and so
+// replaces with the CRD default — and the controller serializes the
+// whole spec whenever it adds the drain finalizer (runnerpool_controller.go).
+// `enabled` (default false) and `maxReplicas` (default 0) are safe;
+// the fields below that declare `minimum: 0` with a non-zero default
+// are not.
 type RunnerPoolAutoscaling struct {
 	// Enabled flips the autoscaling reconciler on for this pool.
 	// When false, the controller leaves `spec.replicas` alone.

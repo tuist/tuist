@@ -25,13 +25,9 @@ func TestDesiredReplicas(t *testing.T) {
 			name:    "idle with no history uses MinWarmPoolFloor",
 			signals: Signals{Claimed: 0, Queued: 0, P95ConcurrentLastHour: 0},
 			knobs:   PolicyKnobs{MinWarmPoolFloor: 3, MaxReplicas: 30},
-			want:    3, // target=max(0,0)=0, desired=0+3=3 — the floor, not twice it
+			want:    3, // target=max(0,0)=0, desired=0+3=3
 		},
 		{
-			// Regression: MinWarmPoolFloor is additive slack only. Counting it
-			// as a lower bound *and* adding it sized an idle pool to 2 * floor,
-			// so a zero-traffic pool reserved twice the hosts it was configured
-			// for and starved the pools serving real work.
 			name:    "MinWarmPoolFloor is not double-counted when it exceeds p95",
 			signals: Signals{Claimed: 0, Queued: 0, P95ConcurrentLastHour: 1},
 			knobs:   PolicyKnobs{MinWarmPoolFloor: 3, MaxReplicas: 30},

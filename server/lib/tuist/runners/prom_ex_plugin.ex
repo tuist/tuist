@@ -231,13 +231,10 @@ defmodule Tuist.Runners.PromExPlugin do
             measurement: :count,
             tags: [:fleet]
           ),
-          # Rides the same event as `queue_length` because both come out
-          # of one ClickHouse scan — depth and age answer different
-          # questions and neither substitutes for the other. Depth alone
-          # can't tell "jobs arriving and being served promptly, queue
-          # never empty" from "one job wedged for hours": both sit at 1.
-          # Age is the only signal that separates them, and it's the one
-          # a stuck job trips.
+          # Rides the `queue_length` event: both values come out of one
+          # ClickHouse scan. Depth alone can't distinguish a queue that
+          # is never empty because arrivals are served promptly from one
+          # job wedged for hours — both sit at 1.
           last_value(
             @metric_prefix ++ [:queue, :oldest, :age, :seconds],
             event_name: Telemetry.event_name_queue_length(),
@@ -355,9 +352,8 @@ defmodule Tuist.Runners.PromExPlugin do
   end
 
   # Clamped at 0 so clock skew between the pod that wrote `enqueued_at`
-  # and the pod polling can't report a negative age — which would read
-  # as a healthy queue and suppress the alert this gauge exists to
-  # raise. `nil` means the fleet has nothing queued.
+  # and the pod polling can't report a negative age, which would read as
+  # a healthy queue. `nil` means the fleet has nothing queued.
   defp age_seconds(_now, nil), do: 0
 
   defp age_seconds(now, %DateTime{} = enqueued_at) do

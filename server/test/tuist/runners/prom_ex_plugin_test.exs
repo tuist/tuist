@@ -91,11 +91,7 @@ defmodule Tuist.Runners.PromExPluginTest do
 
       account = account_fixture()
 
-      # Two queued jobs on one fleet: the gauge must track the *oldest*,
-      # since that's the one whose wait a queue-age alert has to catch.
-      # A fleet steadily serving new arrivals keeps depth at 1 forever
-      # without anything being wrong; only the head's age separates that
-      # from a wedged job.
+      # Two queued jobs on one fleet: the gauge tracks the oldest.
       for {id, enqueued_at} <- [
             {999_010, ~U[2026-07-16 22:39:43.000000Z]},
             {999_011, ~U[2026-07-17 02:00:00.000000Z]}
