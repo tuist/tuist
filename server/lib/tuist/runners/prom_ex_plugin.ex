@@ -62,6 +62,16 @@ defmodule Tuist.Runners.PromExPlugin do
   # after a RunnerPool is deleted.
   @pool_replicas_seen_key :tuist_runners_pool_replicas_seen_fleets
 
+  # Same idea for the queue poll. `universe_fleets/1` keeps a fleet
+  # emitting zeros while it is either an active RunnerPool or still has
+  # queued rows, but a fleet that loses both at once (pool deleted while
+  # a row is queued, then that row leaves `queued`) is in neither set,
+  # so nothing is emitted and `last_value` holds the fleet's last
+  # non-zero `queue_length` / `queue_oldest_age_seconds` forever — a
+  # growing age that keeps the queue-age alert firing after the queue
+  # has cleared. Emit one final zero for such fleets.
+  @queue_seen_key :tuist_runners_queue_seen_fleets
+
   # Buckets cover the realistic wall-clock range for each duration.
   # `queue_time` and `queue_to_running` are sub-minute on the happy
   # path; `run_time` / `total_time` span seconds to the GH-side
@@ -294,10 +304,9 @@ defmodule Tuist.Runners.PromExPlugin do
     if PoolMetrics.running?(ClickHouseRepo) do
       now = DateTime.utc_now()
       stats = fetch_queue_stats(now)
+      current_fleets = stats |> universe_fleets() |> MapSet.new()
 
-      stats
-      |> universe_fleets()
-      |> Enum.each(fn fleet ->
+      Enum.each(current_fleets, fn fleet ->
         %{count: count, oldest_age_seconds: age} =
           Map.get(stats, fleet, %{count: 0, oldest_age_seconds: 0})
 
@@ -307,6 +316,19 @@ defmodule Tuist.Runners.PromExPlugin do
           %{fleet: fleet}
         )
       end)
+
+      @queue_seen_key
+      |> Process.get(MapSet.new())
+      |> MapSet.difference(current_fleets)
+      |> Enum.each(fn fleet ->
+        :telemetry.execute(
+          Telemetry.event_name_queue_length(),
+          %{count: 0, oldest_age_seconds: 0},
+          %{fleet: fleet}
+        )
+      end)
+
+      Process.put(@queue_seen_key, current_fleets)
     end
   end
 

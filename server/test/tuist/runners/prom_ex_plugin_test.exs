@@ -137,6 +137,48 @@ defmodule Tuist.Runners.PromExPluginTest do
                       %{fleet: "fleet-empty-age"}},
                      500
     end
+
+    test "emits a final zero when a queued fleet's pool is gone and its queue clears",
+         %{handler_id: handler_id} do
+      attach_collector(handler_id, Telemetry.event_name_queue_length())
+
+      # The fleet has a queued row but no active RunnerPool — the "pool
+      # deleted while a job was still queued" case. It's visible this
+      # tick only because it has a queued row.
+      stub_pool_list([])
+
+      account = account_fixture()
+
+      :ok =
+        Jobs.enqueue(%{
+          workflow_job_id: 999_020,
+          account_id: account.id,
+          fleet_name: "fleet-gone",
+          repository: "acme/cli",
+          workflow_run_id: 9020,
+          run_attempt: 1,
+          job_name: "build",
+          head_branch: "main",
+          head_sha: "deadbeef"
+        })
+
+      PromExPlugin.execute_queue_length_telemetry_event()
+
+      assert_receive {:telemetry_event, [:tuist, :runners, :queue, :length], %{count: 1}, %{fleet: "fleet-gone"}},
+                     500
+
+      # The queued row leaves `queued` and the pool is still gone, so the
+      # fleet is now in neither the queue stats nor the active pool list.
+      # Without the seen-set drain, this tick would emit nothing and
+      # last_value would hold the stale non-zero age forever.
+      {:ok, _} = Jobs.complete(999_020, "success")
+
+      PromExPlugin.execute_queue_length_telemetry_event()
+
+      assert_receive {:telemetry_event, [:tuist, :runners, :queue, :length], %{count: 0, oldest_age_seconds: 0},
+                      %{fleet: "fleet-gone"}},
+                     500
+    end
   end
 
   describe "execute_claims_telemetry_event/0" do
