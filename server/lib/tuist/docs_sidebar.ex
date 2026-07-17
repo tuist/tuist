@@ -147,12 +147,7 @@ defmodule Tuist.Docs.Sidebar do
                 slug: "/en/guides/get-started/tuist-runners"
               }
             ]
-          }
-        ]
-      },
-      %Group{
-        label: "Guides",
-        items: [
+          },
           %Item{label: "Install Tuist", slug: "/en/guides/install-tuist"},
           %Item{label: "Install the Gradle plugin", slug: "/en/guides/install-gradle-plugin"}
         ]
