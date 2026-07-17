@@ -17,7 +17,7 @@ independent workqueues:
   finalizer holds the CR Terminating, reaps only idle Pods, and waits
   for mid-job Pods to finish their single-shot job before releasing.
   When it reaps a terminal Pod it logs the `runner` container's
-  `exitCode`/`reason` first — the durable, image-independent post-mortem
+  `exitCode`/`reason` first: the durable, image-independent post-mortem
   fingerprint for a runner that "lost communication", captured before
   the Pod is gone. Read it per substrate, because the exit being
   fingerprinted is a different process on each:
@@ -27,16 +27,17 @@ independent workqueues:
     other = crash.
   - macOS: the `tart run` process's exit, synthesized by tart-kubelet
     (which has no per-container CRI to source a real one from). 0 =
-    clean, 137/signal 9 = the VM process was SIGKILLed on the host —
-    jetsam under memory pressure or an operator's `kill -9`, which are
-    indistinguishable here, so it is never reported as OOMKilled —
+    clean, 137/signal 9 = the VM process was SIGKILLed on the host
+    (jetsam under memory pressure, or an operator's `kill -9`; the two
+    are indistinguishable here, so it is never reported as OOMKilled),
     other non-zero = `tart run` itself died.
 
   One macOS gap remains by design: a VM adopted after a tart-kubelet
   restart has no `RunHandle`, and the exit status of a process the
   current agent never parented is not recoverable on Unix. Those Pods
   reap with no terminated status rather than a guessed one, so
-  `runnerTerminated` still returns nil for them — absent, not clean.
+  `runnerTerminated` still returns nil for them, meaning absent rather
+  than clean.
 
 - **`AutoscalerReconciler`** — on a 5-second cadence, calls the
   server's `/api/internal/runners/desired_replicas` endpoint and

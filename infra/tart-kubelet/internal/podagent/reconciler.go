@@ -1305,13 +1305,13 @@ func runningContainerStatuses(pod *corev1.Pod, vmName string, startedAt metav1.T
 }
 
 // terminatedContainerStatuses synthesizes the per-container statuses for
-// a Pod whose Tart VM has exited — the counterpart to
+// a Pod whose Tart VM has exited: the counterpart to
 // runningContainerStatuses above.
 //
 // Without these a macOS Pod carried a Phase and nothing else: no
 // exitCode, no reason, no finishedAt. That left the fleet with no
 // post-mortem at all, because the two consumers downstream both key on
-// a terminated containerStatus and silently no-op without one — the
+// a terminated containerStatus and silently no-op without one. The
 // runners-controller's reap-time exit-code fingerprint (the only record
 // that outlives the Pod) never logged, and the billing reconciler fell
 // back to guessing "stopped at" from wall-clock. A Linux Pod gets all of

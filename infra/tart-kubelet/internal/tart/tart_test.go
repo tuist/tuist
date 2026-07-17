@@ -273,7 +273,7 @@ func TestRunHandleExitedTracksProcess(t *testing.T) {
 
 // TestRunHandleExitStatusReportsExitCodeAndSignal covers the exit
 // information the reconciler turns into the Pod's terminated
-// containerStatus — the only post-mortem that survives the reap, so a
+// containerStatus, the only post-mortem that survives the reap, so a
 // mis-read here is a death we can no longer classify. The signalled case
 // is the one worth a real process: Go reports ExitCode() == -1 for it, so
 // only the WaitStatus path yields the 137/SIGKILL pair operators expect.

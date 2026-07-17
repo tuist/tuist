@@ -179,10 +179,10 @@ type RunHandle struct {
 
 // ExitStatus describes how a `tart run` process ended, in the shape a
 // container runtime reports a terminated container. The reconciler
-// publishes it as the Pod's terminated containerStatus — once the Pod
-// is reaped that status is the only surviving post-mortem record, so
-// the fields have to carry enough to classify the death without the
-// host's tart log (which is node-local and GC'd with the VM).
+// publishes it as the Pod's terminated containerStatus. Once the Pod is
+// reaped that status is the only surviving post-mortem record, so the
+// fields have to carry enough to classify the death without the host's
+// tart log (which is node-local and GC'd with the VM).
 //
 // FinishedAt is stamped when cmd.Wait returns, NOT when a later
 // reconcile notices. The reconcile loop polls on a 30s cadence, so a
@@ -190,8 +190,8 @@ type RunHandle struct {
 // by up to that whole interval.
 type ExitStatus struct {
 	// Code is the process's own exit status, or 128+N when a signal
-	// killed it — the convention a container runtime reports (137 for
-	// SIGKILL). -1 when the process could not be reaped at all.
+	// killed it, which is the convention a container runtime reports
+	// (137 for SIGKILL). -1 when the process could not be reaped at all.
 	Code int32
 
 	// Signal is the signal that killed the process, 0 if it exited on
@@ -237,15 +237,16 @@ func (h *RunHandle) ExitStatus() (ExitStatus, bool) {
 
 // exitStatusFrom maps a reaped process to the exit code / signal a
 // container runtime would report for it. A signalled process has no exit
-// status of its own, so the convention is 128+N — that's what makes a
+// status of its own, so the convention is 128+N. That's what makes a
 // host SIGKILL read as the familiar 137 rather than as Go's -1, and the
 // runners-controller's post-mortem fingerprint reads exactly that pair.
 func exitStatusFrom(ps *os.ProcessState, finishedAt time.Time) ExitStatus {
 	status := ExitStatus{FinishedAt: finishedAt}
 	if ps == nil {
-		// Wait returned without reaping the process — no status exists.
-		// Report it as abnormal rather than letting a zero value claim a
-		// clean exit, which would misclassify the death downstream.
+		// Wait returned without reaping the process, so no status
+		// exists. Report it as abnormal rather than letting a zero value
+		// claim a clean exit, which would misclassify the death
+		// downstream.
 		status.Code = -1
 		return status
 	}
