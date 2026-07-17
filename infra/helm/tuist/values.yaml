@@ -2198,6 +2198,15 @@ postgresql:
       # against every table without per-object GRANTs to maintain.
       opsRo:
         name: tuist_ops_ro
+      # Read-only role for the Grafana "Tuist Product Usage" dashboard, reaching
+      # CNPG over the PDC tunnel. Deliberately NOT in pg_read_all_data like
+      # opsRo: its password lives in Grafana Cloud, so it is the one database
+      # credential held by a third party. Column-level GRANTs in
+      # infra/cnpg/tuist-grafana-ro-grants.sql restrict it to exactly the
+      # columns the dashboard reads — table-level SELECT would still expose
+      # users.encrypted_password, projects.token, and accounts.s3_secret_access_key.
+      grafanaRo:
+        name: tuist_grafana_ro
       # Least-privilege Swift Package Registry sync role. Narrower
       # than `processor` (no accounts/projects reads — registry sync
       # has no account-scoped data, all package state lives in S3).
@@ -2246,6 +2255,9 @@ postgresql:
         field: password
       opsRoPassword:
         item: OPS_DATABASE_PASSWORD
+        field: password
+      grafanaRoPassword:
+        item: GRAFANA_DATABASE_PASSWORD
         field: password
       swiftRegistrySyncPassword:
         item: SWIFT_REGISTRY_SYNC_DATABASE_PASSWORD

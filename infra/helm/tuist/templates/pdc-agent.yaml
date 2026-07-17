@@ -94,11 +94,16 @@ spec:
             {{- with .Values.pdcAgent.permitRemoteOpen }}
             # Without this the tunnel can open a connection to ANY host:port this
             # pod can reach, not just Postgres (the agent applies no restriction
-            # by default). Passed as two -ssh-flag values so they reach ssh as
-            # the `-o PermitRemoteOpen=...` pair it expects; multiple targets are
-            # space-separated inside the single option value.
-            - "-ssh-flag=-o"
-            - "-ssh-flag=PermitRemoteOpen={{ join " " . }}"
+            # by default).
+            #
+            # This MUST be a single argument containing the space: the agent's
+            # extractOptionFromFlag does SplitN(flag, " ", 2) and then indexes
+            # [1], so splitting it into `-ssh-flag=-o` + `-ssh-flag=Permit...`
+            # panics the process on boot with "index out of range [1] with
+            # length 1" (verified against 0.0.61 in staging). Multiple targets
+            # are space-separated inside the one option value, which survives the
+            # SplitN because it only splits on the first space.
+            - "-ssh-flag=-o PermitRemoteOpen={{ join " " . }}"
             {{- end }}
           env:
             - name: CLUSTER
