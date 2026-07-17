@@ -253,6 +253,8 @@ defmodule TuistWeb.AgentAuthControllerTest do
       claim_view_conn = get(conn, "/agent/auth/claim/view", %{"token" => claim_view_token})
       claim_view_body = html_response(claim_view_conn, 200)
       otp = extract_otp(claim_view_body)
+      assert claim_view_body =~ ~s(id="agent-auth")
+      refute claim_view_body =~ "<style>"
 
       complete_conn = post(build_conn(), "/agent/auth/claim/complete", %{"claim_token" => claim_token, "otp" => otp})
 
@@ -368,7 +370,7 @@ defmodule TuistWeb.AgentAuthControllerTest do
   end
 
   defp extract_otp(html_body) do
-    [_, otp] = Regex.run(~r/<div class="otp">(\d{6})<\/div>/, html_body)
+    [_, otp] = Regex.run(~r/<div class="otp"[^>]*>\s*(\d{6})\s*<\/div>/, html_body)
     otp
   end
 

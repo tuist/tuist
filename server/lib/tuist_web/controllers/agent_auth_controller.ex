@@ -225,45 +225,43 @@ defmodule TuistWeb.AgentAuthController do
     case Accounts.protocol_agent_claim_view(claim_attempt_token, conn.assigns.current_user) do
       {:ok, result} ->
         conn
-        |> put_resp_content_type("text/html")
-        |> send_resp(
-          :ok,
-          protocol_claim_html(
-            claim_attempt_token,
-            conn.assigns.current_user.email,
-            result.provider_name
-          )
+        |> put_status(:ok)
+        |> render_agent_auth(
+          :claim,
+          claim_attempt_token: claim_attempt_token,
+          email: conn.assigns.current_user.email,
+          provider_name: result.provider_name,
+          head_title: "Authorize agent · Tuist"
         )
 
       {:error, :wrong_account} ->
-        conn
-        |> put_resp_content_type("text/html")
-        |> send_resp(:forbidden, claim_error_html("Wrong account", "Sign in with the email address the agent named."))
+        render_claim_status(
+          conn,
+          :forbidden,
+          "Wrong account",
+          "Sign in with the email address the agent named.",
+          "error"
+        )
 
       {:error, :otp_expired} ->
-        conn
-        |> put_resp_content_type("text/html")
-        |> send_resp(:gone, claim_error_html("Code expired", "Ask the agent to start a new claim attempt."))
+        render_claim_status(conn, :gone, "Code expired", "Ask the agent to start a new claim attempt.", "warning")
 
       {:error, :previously_claimed} ->
-        conn
-        |> put_resp_content_type("text/html")
-        |> send_resp(
+        render_claim_status(
+          conn,
           :ok,
-          claim_error_html("Already authorized", "Return to the agent. It is already connected to Tuist.")
+          "Already authorized",
+          "Return to the agent. It is already connected to Tuist.",
+          "information"
         )
 
       {:error, _reason} ->
-        conn
-        |> put_resp_content_type("text/html")
-        |> send_resp(:not_found, claim_error_html("Invalid link", "Ask the agent to start a new claim attempt."))
+        render_claim_status(conn, :not_found, "Invalid link", "Ask the agent to start a new claim attempt.", "error")
     end
   end
 
   def protocol_claim_page(conn, _params) do
-    conn
-    |> put_resp_content_type("text/html")
-    |> send_resp(:bad_request, claim_error_html("Missing token", "This claim link is incomplete."))
+    render_claim_status(conn, :bad_request, "Missing token", "This claim link is incomplete.", "error")
   end
 
   def confirm_protocol_claim(conn, %{"claim_attempt_token" => claim_attempt_token, "user_code" => user_code}) do
@@ -275,48 +273,48 @@ defmodule TuistWeb.AgentAuthController do
            claim_completed_ip: RemoteIp.get(conn)
          }) do
       {:ok, _result} ->
-        conn
-        |> put_resp_content_type("text/html")
-        |> send_resp(
+        render_claim_status(
+          conn,
           :ok,
-          claim_error_html("Agent authorized", "Return to the agent. It can now finish connecting to Tuist.")
+          "Agent authorized",
+          "Return to the agent. It can now finish connecting to Tuist.",
+          "success"
         )
 
       {:error, :wrong_account} ->
-        conn
-        |> put_resp_content_type("text/html")
-        |> send_resp(:forbidden, claim_error_html("Wrong account", "Sign in with the email address the agent named."))
+        render_claim_status(
+          conn,
+          :forbidden,
+          "Wrong account",
+          "Sign in with the email address the agent named.",
+          "error"
+        )
 
       {:error, :sso_required} ->
-        conn
-        |> put_resp_content_type("text/html")
-        |> send_resp(
+        render_claim_status(
+          conn,
           :forbidden,
-          claim_error_html(
-            "Single sign-on required",
-            "Sign out and authenticate with your organization's identity provider."
-          )
+          "Single sign-on required",
+          "Sign out and authenticate with your organization's identity provider.",
+          "error"
         )
 
       {:error, reason} when reason in [:user_code_invalid, :rate_limited] ->
-        conn
-        |> put_resp_content_type("text/html")
-        |> send_resp(
+        render_claim_status(
+          conn,
           :unauthorized,
-          claim_error_html("Invalid code", "Check the six-digit code shown by the agent and try again.")
+          "Invalid code",
+          "Check the six-digit code shown by the agent and try again.",
+          "error"
         )
 
       {:error, _reason} ->
-        conn
-        |> put_resp_content_type("text/html")
-        |> send_resp(:gone, claim_error_html("Claim expired", "Ask the agent to start a new claim attempt."))
+        render_claim_status(conn, :gone, "Claim expired", "Ask the agent to start a new claim attempt.", "warning")
     end
   end
 
   def confirm_protocol_claim(conn, _params) do
-    conn
-    |> put_resp_content_type("text/html")
-    |> send_resp(:bad_request, claim_error_html("Invalid request", "A six-digit user code is required."))
+    render_claim_status(conn, :bad_request, "Invalid request", "A six-digit user code is required.", "error")
   end
 
   def protocol_event(conn, _params) do
@@ -598,35 +596,36 @@ defmodule TuistWeb.AgentAuthController do
     case Accounts.get_agent_registration_claim_view(token) do
       {:ok, %{otp: otp, otp_expires_at: otp_expires_at}} ->
         conn
-        |> put_resp_content_type("text/html")
-        |> send_resp(:ok, claim_view_html(otp, otp_expires_at))
+        |> put_status(:ok)
+        |> render_agent_auth(
+          :code,
+          otp: otp,
+          expires_at: Calendar.strftime(otp_expires_at, "%Y-%m-%d %H:%M UTC"),
+          head_title: "Tuist sign-in code"
+        )
 
       {:error, :otp_expired} ->
-        conn
-        |> put_resp_content_type("text/html")
-        |> send_resp(:gone, claim_error_html("Code expired", "Ask the agent to start the claim again."))
+        render_claim_status(conn, :gone, "Code expired", "Ask the agent to start the claim again.", "warning")
 
       {:error, :claim_expired} ->
-        conn
-        |> put_resp_content_type("text/html")
-        |> send_resp(:gone, claim_error_html("Registration expired", "Ask the agent to register again."))
+        render_claim_status(conn, :gone, "Registration expired", "Ask the agent to register again.", "warning")
 
       {:error, :previously_claimed} ->
-        conn
-        |> put_resp_content_type("text/html")
-        |> send_resp(:conflict, claim_error_html("Already claimed", "This registration has already been completed."))
+        render_claim_status(
+          conn,
+          :conflict,
+          "Already claimed",
+          "This registration has already been completed.",
+          "information"
+        )
 
       {:error, :invalid_claim_token} ->
-        conn
-        |> put_resp_content_type("text/html")
-        |> send_resp(:not_found, claim_error_html("Invalid link", "This claim link is no longer valid."))
+        render_claim_status(conn, :not_found, "Invalid link", "This claim link is no longer valid.", "error")
     end
   end
 
   def claim_view(conn, _params) do
-    conn
-    |> put_resp_content_type("text/html")
-    |> send_resp(:bad_request, claim_error_html("Missing token", "This claim link is incomplete."))
+    render_claim_status(conn, :bad_request, "Missing token", "This claim link is incomplete.", "error")
   end
 
   defp protocol_claim_url, do: "#{canonical_origin()}/agent/identity/claim"
@@ -687,63 +686,6 @@ defmodule TuistWeb.AgentAuthController do
   defp protocol_event_error(_reason),
     do: {"invalid_request", "The Security Event Token is malformed or has already been used."}
 
-  defp protocol_claim_html(claim_attempt_token, email, provider_name) do
-    email = html_escape(email)
-    provider_name = if is_binary(provider_name), do: html_escape(provider_name)
-    claim_attempt_token = html_escape(claim_attempt_token)
-    csrf_token = Phoenix.Controller.get_csrf_token()
-
-    provider_advisory =
-      if provider_name do
-        "<p><strong>#{provider_name}</strong> is asking to link this Tuist account to its agent.</p>"
-      else
-        ""
-      end
-
-    """
-    <!doctype html>
-    <html lang="en">
-      <head>
-        <meta charset="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <title>Authorize agent · Tuist</title>
-        <style>
-          body { margin: 0; background: #f5f3ee; color: #171717; font-family: "Helvetica Neue", Arial, sans-serif; }
-          main { max-width: 540px; margin: 72px auto; padding: 40px 32px; background: #fff; border: 1px solid #e5e0d6; border-radius: 20px; box-shadow: 0 18px 60px rgba(23, 23, 23, .08); }
-          h1 { margin: 0 0 12px; font-size: 32px; line-height: 1.1; }
-          p { color: #4b5563; line-height: 1.6; }
-          label { display: block; margin: 24px 0 8px; font-weight: 600; }
-          input[type="text"] { box-sizing: border-box; width: 100%; padding: 16px; border: 1px solid #c9c3b8; border-radius: 12px; font: 700 28px/1 monospace; letter-spacing: .25em; text-align: center; }
-          button { width: 100%; margin-top: 16px; padding: 14px 18px; border: 0; border-radius: 12px; background: #171717; color: #fff; font-size: 16px; font-weight: 600; cursor: pointer; }
-          .meta { font-size: 14px; color: #6b7280; }
-        </style>
-      </head>
-      <body>
-        <main>
-          <h1>Authorize this agent?</h1>
-          <p>You are signed in as <strong>#{email}</strong>.</p>
-          #{provider_advisory}
-          <p>Enter the six-digit code shown by the agent. The code should travel from the agent to you, never the other way around.</p>
-          <form method="post" action="/agent/identity/claim/complete">
-            <input type="hidden" name="_csrf_token" value="#{csrf_token}" />
-            <input type="hidden" name="claim_attempt_token" value="#{claim_attempt_token}" />
-            <label for="user_code">Six-digit code</label>
-            <input id="user_code" name="user_code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" minlength="6" maxlength="6" required autofocus />
-            <button type="submit">Authorize agent</button>
-          </form>
-          <p class="meta">If you did not ask an agent to connect to Tuist, close this page.</p>
-        </main>
-      </body>
-    </html>
-    """
-  end
-
-  defp html_escape(value) do
-    value
-    |> Phoenix.HTML.html_escape()
-    |> Phoenix.HTML.safe_to_string()
-  end
-
   defp external_registration_id(registration), do: "reg_#{registration.id}"
 
   # All outbound origins (audience binding for ID-JAG/logout tokens, emailed
@@ -803,115 +745,21 @@ defmodule TuistWeb.AgentAuthController do
     )
   end
 
-  defp claim_view_html(otp, otp_expires_at) do
-    expires_at = Calendar.strftime(otp_expires_at, "%Y-%m-%d %H:%M UTC")
-
-    """
-    <!doctype html>
-    <html lang="en">
-      <head>
-        <meta charset="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <title>Tuist Sign-in Code</title>
-        <style>
-          body {
-            margin: 0;
-            background: #f5f3ee;
-            color: #171717;
-            font-family: "Helvetica Neue", Arial, sans-serif;
-          }
-          main {
-            max-width: 540px;
-            margin: 72px auto;
-            padding: 40px 32px;
-            background: #ffffff;
-            border: 1px solid #e5e0d6;
-            border-radius: 20px;
-            box-shadow: 0 18px 60px rgba(23, 23, 23, 0.08);
-          }
-          h1 {
-            margin: 0 0 12px;
-            font-size: 32px;
-            line-height: 1.1;
-          }
-          p {
-            margin: 0 0 16px;
-            color: #4b5563;
-            line-height: 1.6;
-          }
-          .otp {
-            margin: 28px 0;
-            padding: 24px;
-            border-radius: 16px;
-            background: #171717;
-            color: #f9fafb;
-            font-size: 48px;
-            font-weight: 700;
-            letter-spacing: 0.3em;
-            text-align: center;
-          }
-          .meta {
-            font-size: 14px;
-            color: #6b7280;
-          }
-        </style>
-      </head>
-      <body>
-        <main>
-          <h1>Your Tuist sign-in code</h1>
-          <p>Read this six-digit code back to the agent that requested access.</p>
-          <div class="otp">#{otp}</div>
-          <p class="meta">This code expires at #{expires_at}.</p>
-          <p class="meta">If you did not ask an agent to connect to Tuist, close this page.</p>
-        </main>
-      </body>
-    </html>
-    """
+  defp render_claim_status(conn, status, title, message, appearance) do
+    conn
+    |> put_status(status)
+    |> render_agent_auth(
+      :status,
+      title: title,
+      message: message,
+      appearance: appearance,
+      head_title: "#{title} · Tuist"
+    )
   end
 
-  defp claim_error_html(title, message) do
-    """
-    <!doctype html>
-    <html lang="en">
-      <head>
-        <meta charset="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <title>#{title}</title>
-        <style>
-          body {
-            margin: 0;
-            background: #f5f3ee;
-            color: #171717;
-            font-family: "Helvetica Neue", Arial, sans-serif;
-          }
-          main {
-            max-width: 540px;
-            margin: 72px auto;
-            padding: 40px 32px;
-            background: #ffffff;
-            border: 1px solid #e5e0d6;
-            border-radius: 20px;
-            box-shadow: 0 18px 60px rgba(23, 23, 23, 0.08);
-          }
-          h1 {
-            margin: 0 0 12px;
-            font-size: 32px;
-            line-height: 1.1;
-          }
-          p {
-            margin: 0;
-            color: #4b5563;
-            line-height: 1.6;
-          }
-        </style>
-      </head>
-      <body>
-        <main>
-          <h1>#{title}</h1>
-          <p>#{message}</p>
-        </main>
-      </body>
-    </html>
-    """
+  defp render_agent_auth(conn, template, assigns) do
+    conn
+    |> put_view(TuistWeb.AgentAuthHTML)
+    |> render(template, assigns)
   end
 end

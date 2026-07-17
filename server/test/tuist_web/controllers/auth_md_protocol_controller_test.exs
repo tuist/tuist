@@ -68,20 +68,26 @@ defmodule TuistWeb.AuthMdProtocolControllerTest do
     claim_page = html_response(claim_page_conn, 200)
     assert claim_page =~ "Authorize this agent?"
     assert claim_page =~ email
+    assert claim_page =~ ~s(id="agent-auth")
+    assert claim_page =~ ~s(class="noora-button")
+    refute claim_page =~ "<style>"
     refute claim_page =~ claim["claim_attempt"]["user_code"]
 
     csrf_token = extract_hidden_value(claim_page, "_csrf_token")
     claim_attempt_token = extract_hidden_value(claim_page, "claim_attempt_token")
 
-    claim_page_conn
-    |> recycle()
-    |> post("/agent/identity/claim/complete", %{
-      "_csrf_token" => csrf_token,
-      "claim_attempt_token" => claim_attempt_token,
-      "user_code" => claim["claim_attempt"]["user_code"]
-    })
-    |> html_response(200)
-    |> then(&assert(&1 =~ "Agent authorized"))
+    authorized_page =
+      claim_page_conn
+      |> recycle()
+      |> post("/agent/identity/claim/complete", %{
+        "_csrf_token" => csrf_token,
+        "claim_attempt_token" => claim_attempt_token,
+        "user_code" => claim["claim_attempt"]["user_code"]
+      })
+      |> html_response(200)
+
+    assert authorized_page =~ "Agent authorized"
+    assert authorized_page =~ ~s(data-appearance="success")
 
     already_claimed_page =
       build_conn()
@@ -90,6 +96,7 @@ defmodule TuistWeb.AuthMdProtocolControllerTest do
       |> html_response(200)
 
     assert already_claimed_page =~ "Already authorized"
+    assert already_claimed_page =~ ~s(data-appearance="information")
 
     registration_record = Repo.get!(AgentRegistration, internal_registration_id)
 
