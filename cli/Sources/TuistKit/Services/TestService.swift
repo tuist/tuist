@@ -681,9 +681,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             testProductsArchivePath: shardArchivePath
         )
 
-        let cacheStorage = noUpload
-            ? try await cacheStorageFactory.cacheLocalStorage()
-            : try await cacheStorageFactory.cacheStorage(config: config)
+        let hashUploadStorage = try await selectiveTestHashUploadStorage(noUpload: noUpload, config: config)
 
         let runResultBundlePath =
             try cacheDirectoriesProvider
@@ -749,7 +747,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             try await storeSuccessfulTestHashesFromGraph(
                 selectiveTestingGraph: selectiveTestingGraph,
                 passingTargetNames: await passingTargetNames(resultBundlePath: resultBundlePath),
-                cacheStorage: cacheStorage
+                cacheStorage: hashUploadStorage
             )
         }
 
@@ -804,9 +802,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
 
         await RunMetadataStorage.current.restoreMetadata(from: testProductsPath)
 
-        let cacheStorage = noUpload
-            ? try await cacheStorageFactory.cacheLocalStorage()
-            : try await cacheStorageFactory.cacheStorage(config: config)
+        let hashUploadStorage = try await selectiveTestHashUploadStorage(noUpload: noUpload, config: config)
 
         let runResultBundlePath =
             try cacheDirectoriesProvider
@@ -887,7 +883,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         try await storeSuccessfulTestHashesFromGraph(
             selectiveTestingGraph: selectiveTestingGraph,
             passingTargetNames: await passingTargetNames(resultBundlePath: resultBundlePath),
-            cacheStorage: cacheStorage
+            cacheStorage: hashUploadStorage
         )
 
         try await copyResultBundlePathIfNeeded(
@@ -1105,6 +1101,16 @@ public struct TestService { // swiftlint:disable:this type_body_length
             // Without plans Xcode emits `<scheme>_<destination>.xctestrun`.
             return basename == planOrSchemeName || basename.hasPrefix("\(planOrSchemeName)_")
         }
+    }
+
+    /// Resolves the cache storage that receives successful selective-test hashes. When `noUpload`
+    /// is set, hashes are kept local-only instead of persisted to the remote cache (the `--no-upload`
+    /// flag). This is an upload target only — do not use it for cache reads, or `--no-upload` would
+    /// silently route the read to local storage too.
+    private func selectiveTestHashUploadStorage(noUpload: Bool, config: Tuist) async throws -> CacheStoring {
+        noUpload
+            ? try await cacheStorageFactory.cacheLocalStorage()
+            : try await cacheStorageFactory.cacheStorage(config: config)
     }
 
     private func storeSuccessfulTestHashesFromGraph(
