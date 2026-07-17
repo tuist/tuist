@@ -36,12 +36,31 @@ independent workqueues:
   is neither alive nor DeletionTimestamp-free. Upstream PodGC can't
   break the tie either, since it only issues a Delete. This is a real
   production failure (Pods surviving 22h+ on released minis), and
-  orphaned Pods on deleted Nodes have wedged `helm --wait` before. The
-  sweep no-ops unless the Node view is usable — an unsynced Node
-  informer reads as zero Nodes, not as an error, and acting on that
-  would delete the fleet mid-job — and it only ever strips
-  tart-kubelet's own finalizer, never a foreign one whose owner may
-  still be alive.
+  orphaned Pods on deleted Nodes have wedged `helm --wait` before.
+
+  The sweep runs on **both** the steady-state path and `reconcileDelete`.
+  The drain needs it just as much: an orphan that still carries its
+  claim-time owner label reads as `running` forever, holding the CR in
+  Terminating and wedging the `helm --wait` behind a pool rename, and
+  deleting the CR is the one path where nothing reconciles again later to
+  catch up.
+
+  Three guards bound the blast radius, all load-bearing — **every live
+  macOS runner Pod carries the `vm-cleanup` finalizer and no
+  deletionTimestamp**, so Node existence is the only thing separating a
+  busy runner from a wedged orphan, and a wrong answer deletes a job:
+  - A cached Node miss is a suspicion, not a verdict. Pod and Node
+    informers are independent watch streams with no atomic cross-type
+    view, so a live Node can be transiently absent from the Node cache
+    while a Pod already bound to it is visible. Every suspect is
+    re-checked against the apiserver through the uncached `APIReader`,
+    and only a definite NotFound counts as gone.
+  - No `APIReader` means no sweep. Unwired plumbing should cost cleanup,
+    never jobs.
+  - It no-ops unless the cached Node view is usable (an unsynced informer
+    reads as zero Nodes, not as an error), and only ever strips
+    tart-kubelet's own finalizer, never a foreign one whose owner may
+    still be alive.
 
 - **`AutoscalerReconciler`** — on a 5-second cadence, calls the
   server's `/api/internal/runners/desired_replicas` endpoint and

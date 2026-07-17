@@ -748,7 +748,7 @@ func TestReconcile_ReleasesRunnerOrphanedOnDeletedNode(t *testing.T) {
 		WithStatusSubresource(&tuistv1.RunnerPool{}).
 		Build()
 
-	r := &RunnerPoolReconciler{Client: c, Scheme: scheme, DispatchURL: "http://dispatch"}
+	r := &RunnerPoolReconciler{Client: c, APIReader: c, Scheme: scheme, DispatchURL: "http://dispatch"}
 	if _, err := r.Reconcile(context.Background(), ctrl.Request{
 		NamespacedName: nn(pool.Namespace, pool.Name),
 	}); err != nil {
@@ -796,7 +796,7 @@ func TestReconcile_SkipsOrphanSweepWhenNodeViewUnusable(t *testing.T) {
 		WithStatusSubresource(&tuistv1.RunnerPool{}).
 		Build()
 
-	r := &RunnerPoolReconciler{Client: c, Scheme: scheme, DispatchURL: "http://dispatch"}
+	r := &RunnerPoolReconciler{Client: c, APIReader: c, Scheme: scheme, DispatchURL: "http://dispatch"}
 	if _, err := r.Reconcile(context.Background(), ctrl.Request{
 		NamespacedName: nn(pool.Namespace, pool.Name),
 	}); err != nil {
@@ -832,7 +832,7 @@ func TestReconcile_OrphanSweepPreservesForeignFinalizers(t *testing.T) {
 		WithStatusSubresource(&tuistv1.RunnerPool{}).
 		Build()
 
-	r := &RunnerPoolReconciler{Client: c, Scheme: scheme, DispatchURL: "http://dispatch"}
+	r := &RunnerPoolReconciler{Client: c, APIReader: c, Scheme: scheme, DispatchURL: "http://dispatch"}
 	if _, err := r.Reconcile(context.Background(), ctrl.Request{
 		NamespacedName: nn(pool.Namespace, pool.Name),
 	}); err != nil {
@@ -848,6 +848,166 @@ func TestReconcile_OrphanSweepPreservesForeignFinalizers(t *testing.T) {
 	}
 	if !controllerutil.ContainsFinalizer(got, foreign) {
 		t.Fatalf("expected foreign finalizer %q to be preserved, finalizers = %v", foreign, got.Finalizers)
+	}
+}
+
+// TestReconcileDelete_ReleasesOrphansWedgingTerminatingPool is the
+// regression for the drain path skipping the orphan sweep. Reconcile
+// returns through reconcileDelete before ever reaching the steady-state
+// sweep, and neither of the drain's own branches can handle an orphan: the
+// busy-looking one below counts as `running` forever, holding the CR in
+// Terminating so the `helm --wait` behind a pool rename never returns, and
+// the terminal one is left to a GC that its held finalizer blocks. This is
+// the motivating scenario for the whole fix, so it has to work on the exact
+// path a helm pool-topology change takes.
+func TestReconcileDelete_ReleasesOrphansWedgingTerminatingPool(t *testing.T) {
+	scheme := mustScheme(t)
+	const image = "ghcr.io/tuist/tuist-runner@sha256:current"
+	pool := newPool("p", image, 1)
+
+	// Mid-job runner: the server stamped the owner label at claim time, so
+	// the drain waits for it rather than killing it. Its host is still alive
+	// at this point.
+	busy := newRunnerPod("p-runner-busy", image, corev1.PodRunning, "p")
+	busy.Labels["tuist.dev/runner-pool-owner"] = "acme"
+	busy.Spec.NodeName = "mini-doomed"
+	busy.Finalizers = []string{tartKubeletVMCleanupFinalizer}
+	busySA := &corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{Name: "p-runner-busy", Namespace: "tuist-runners"},
+	}
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(pool, newNode("mini-live"), newNode("mini-doomed"), busy, busySA).
+		WithStatusSubresource(&tuistv1.RunnerPool{}).
+		Build()
+
+	r := &RunnerPoolReconciler{Client: c, APIReader: c, Scheme: scheme, DispatchURL: "http://dispatch"}
+	ctx := context.Background()
+
+	if _, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: nn(pool.Namespace, pool.Name)}); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	got := &tuistv1.RunnerPool{}
+	if err := c.Get(ctx, nn(pool.Namespace, pool.Name), got); err != nil {
+		t.Fatalf("get pool: %v", err)
+	}
+
+	// helm-style delete: the drain finalizer holds the CR Terminating while
+	// the mid-job runner finishes.
+	if err := c.Delete(ctx, got); err != nil {
+		t.Fatalf("delete pool: %v", err)
+	}
+
+	// The mini is released mid-drain, taking the VM with it. Everything the
+	// orphan sweep reacts to happens strictly AFTER the pool went
+	// Terminating, so only reconcileDelete can clean this up — the
+	// steady-state sweep is never reached again for this pool.
+	if err := c.Delete(ctx, newNode("mini-doomed")); err != nil {
+		t.Fatalf("delete node: %v", err)
+	}
+
+	if _, err := r.Reconcile(ctx, ctrl.Request{NamespacedName: nn(pool.Namespace, pool.Name)}); err != nil {
+		t.Fatalf("drain reconcile: %v", err)
+	}
+
+	p := &corev1.Pod{}
+	if err := c.Get(ctx, nn("tuist-runners", "p-runner-busy"), p); err == nil {
+		t.Fatalf("expected orphan to be released during drain, still present with finalizers %v", p.Finalizers)
+	}
+	if err := c.Get(ctx, nn("tuist-runners", "p-runner-busy"), &corev1.ServiceAccount{}); err == nil {
+		t.Fatalf("expected released orphan's sibling SA to be deleted, still present")
+	}
+
+	// Nothing live is left, so the drain must complete rather than block on
+	// a runner that no longer has a host to run on. A held finalizer here is
+	// what wedges `helm --wait`.
+	if err := c.Get(ctx, nn(pool.Namespace, pool.Name), got); err == nil &&
+		controllerutil.ContainsFinalizer(got, runnerPoolFinalizer) {
+		t.Fatalf("expected drain finalizer to be released once only orphans remained")
+	}
+}
+
+// TestReconcile_KeepsRunnerWhenNodeMissingOnlyFromCache guards the sweep's
+// blast radius against informer skew. Pod and Node informers are separate
+// watch streams with no atomic cross-type view, so a Node that exists can be
+// briefly absent from the Node cache while a Pod already bound to it is
+// visible — routine on a fleet where minis join and are released constantly.
+// Believing the cache there deletes a healthy runner mid-job: the Pod below
+// is busy and carries the vm-cleanup finalizer, which is exactly what every
+// live macOS runner looks like, so nothing but the Node read distinguishes it
+// from a wedged orphan. The authoritative Get is the only thing standing
+// between a stale cache and a killed job.
+func TestReconcile_KeepsRunnerWhenNodeMissingOnlyFromCache(t *testing.T) {
+	scheme := mustScheme(t)
+	const image = "ghcr.io/tuist/tuist-runner@sha256:current"
+	pool := newPool("p", image, 1)
+
+	busy := newRunnerPod("p-runner-busy", image, corev1.PodRunning, "p")
+	busy.Labels["tuist.dev/runner-pool-owner"] = "acme"
+	busy.Spec.NodeName = "mini-joining"
+	busy.Finalizers = []string{tartKubeletVMCleanupFinalizer}
+	busySA := &corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{Name: "p-runner-busy", Namespace: "tuist-runners"},
+	}
+
+	// Cached view: synced enough to be usable (it has a Node), but the Pod's
+	// own Node hasn't been delivered yet.
+	cached := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(pool, newNode("mini-live"), busy, busySA).
+		WithStatusSubresource(&tuistv1.RunnerPool{}).
+		Build()
+	// The apiserver knows better: mini-joining is real.
+	authoritative := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(newNode("mini-live"), newNode("mini-joining")).
+		Build()
+
+	r := &RunnerPoolReconciler{Client: cached, APIReader: authoritative, Scheme: scheme, DispatchURL: "http://dispatch"}
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{
+		NamespacedName: nn(pool.Namespace, pool.Name),
+	}); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	got := &corev1.Pod{}
+	if err := cached.Get(context.Background(), nn("tuist-runners", "p-runner-busy"), got); err != nil {
+		t.Fatalf("expected mid-job pod on a cache-missing but live node to survive, got: %v", err)
+	}
+	if !controllerutil.ContainsFinalizer(got, tartKubeletVMCleanupFinalizer) {
+		t.Fatalf("expected vm-cleanup finalizer to be left intact on a live node's pod")
+	}
+	if err := cached.Get(context.Background(), nn("tuist-runners", "p-runner-busy"), &corev1.ServiceAccount{}); err != nil {
+		t.Fatalf("expected mid-job pod's sibling SA to survive, got: %v", err)
+	}
+}
+
+// TestReconcile_SkipsOrphanSweepWithoutAPIReader pins the fail-closed
+// default. Without an authoritative reader the sweep cannot tell a released
+// mini from an unsynced cache, and it must then do nothing: unwired plumbing
+// should cost cleanup, never jobs.
+func TestReconcile_SkipsOrphanSweepWithoutAPIReader(t *testing.T) {
+	scheme := mustScheme(t)
+	const image = "ghcr.io/tuist/tuist-runner@sha256:new"
+	pool := newPool("p", image, 1)
+	orphan := wedgedOrphanPod("p-runner-orphan", image, "p", "mini-released")
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(pool, newNode("mini-live"), orphan).
+		WithStatusSubresource(&tuistv1.RunnerPool{}).
+		Build()
+
+	r := &RunnerPoolReconciler{Client: c, Scheme: scheme, DispatchURL: "http://dispatch"}
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{
+		NamespacedName: nn(pool.Namespace, pool.Name),
+	}); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	if err := c.Get(context.Background(), nn("tuist-runners", "p-runner-orphan"), &corev1.Pod{}); err != nil {
+		t.Fatalf("expected pod to survive a reconciler with no APIReader, got: %v", err)
 	}
 }
 

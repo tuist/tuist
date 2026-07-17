@@ -69,6 +69,25 @@ type RunnerPoolReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
 
+	// APIReader is an uncached, direct-to-apiserver reader used to
+	// confirm a Node is really gone before the orphan sweep deletes
+	// anything bound to it. Set from `mgr.GetAPIReader()`.
+	//
+	// The cached client cannot answer this question safely. Pod and Node
+	// informers are independent watch streams with no atomic cross-type
+	// view, so a Node that exists can be transiently absent from the Node
+	// cache while a Pod already bound to it is visible in the Pod cache —
+	// exactly the shape of a fleet where minis join and are released
+	// continuously. Believing the cache there means deleting a healthy
+	// runner mid-job: every live macOS runner Pod carries tart-kubelet's
+	// finalizer and no deletionTimestamp, so Node existence is the ONLY
+	// thing separating "busy runner" from "wedged orphan" — there is no
+	// second signal to fall back on.
+	//
+	// nil disables the sweep entirely (see confirmedOrphans). Failing
+	// closed on unwired plumbing loses cleanup; failing open loses jobs.
+	APIReader client.Reader
+
 	// DispatchURL is the customer-server's runner dispatch endpoint
 	// threaded into every Pod via env. Set from the manager's
 	// --dispatch-url flag. Used as-is for macOS pools (Tart VMs
@@ -168,16 +187,15 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{}, fmt.Errorf("list pods: %w", err)
 	}
 
-	// Live Node view for the orphan sweep below. Gathered once per
-	// reconcile and shared with the phase-count loop so a Pod stranded on
-	// a deleted Node isn't reported as warm capacity it can no longer
-	// provide.
-	liveNodes, nodesUsable := r.liveNodeNames(ctx)
+	// Orphan verdict for the sweep below. Resolved once per reconcile and
+	// shared with the phase-count loop so a Pod stranded on a deleted Node
+	// isn't reported as warm capacity it can no longer provide.
+	orphans := r.confirmedOrphans(ctx, pods.Items)
 
 	phaseReplicas := podPhaseReplicaCounts{}
 	for i := range pods.Items {
 		p := &pods.Items[i]
-		if isAlive(p) && !(nodesUsable && isOrphaned(p, liveNodes)) {
+		if isAlive(p) && !orphans[p.Name] {
 			phaseReplicas.add(p)
 		}
 	}
@@ -209,7 +227,7 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		// upstream PodGC's orphan collection only issues a Delete, which
 		// a finalizer blocks. Release it before the branches below, which
 		// all assume a Pod whose host is still around to act on it.
-		if nodesUsable && isOrphaned(p, liveNodes) {
+		if orphans[p.Name] {
 			if err := r.releaseOrphanedRunner(ctx, p); err != nil {
 				logger.Error(err, "release orphaned runner; will retry next tick",
 					"pod", p.Name, "node", p.Spec.NodeName)
@@ -398,7 +416,9 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 // are left to finish their single-shot lifecycle. The CR stays
 // Terminating until no live Pod remains, so GC never cascade-deletes
 // a mid-job runner. Terminal Pods and the per-Pod SAs are collected
-// by GC alongside the CR once the finalizer clears.
+// by GC alongside the CR once the finalizer clears — except for
+// orphans, which the sweep has to release explicitly because a held
+// finalizer blocks the GC this path otherwise leans on.
 func (r *RunnerPoolReconciler) reconcileDelete(ctx context.Context, pool *tuistv1.RunnerPool) (ctrl.Result, error) {
 	logger := log.FromContext(ctx).WithValues("pool", client.ObjectKeyFromObject(pool))
 
@@ -415,11 +435,32 @@ func (r *RunnerPoolReconciler) reconcileDelete(ctx context.Context, pool *tuistv
 		return ctrl.Result{}, fmt.Errorf("list pods: %w", err)
 	}
 
+	// The drain needs the same orphan sweep as the steady-state path, and
+	// needs it first. A Pod whose host is gone is neither draining nor
+	// collectable, and both of the branches below get it wrong: a busy-
+	// looking orphan counts as `running` forever, holding the CR in
+	// Terminating and wedging the `helm --wait` that a pool rename or
+	// removal triggers; a terminal one is left to a GC that a held
+	// finalizer blocks, stranding exactly the Pod this controller exists
+	// to release. Deleting the CR is also the one path where nothing ever
+	// reconciles again to catch up later.
+	orphans := r.confirmedOrphans(ctx, pods.Items)
+
 	running := 0
 	drainedIdle := 0
+	orphaned := 0
 	for i := range pods.Items {
 		p := &pods.Items[i]
 		switch {
+		case orphans[p.Name]:
+			if err := r.releaseOrphanedRunner(ctx, p); err != nil {
+				logger.Error(err, "release orphaned runner while draining; will retry",
+					"pod", p.Name, "node", p.Spec.NodeName)
+				return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+			}
+			logger.Info("released orphaned runner while draining",
+				"pod", p.Name, "node", p.Spec.NodeName, "phase", string(p.Status.Phase))
+			orphaned++
 		case !isAlive(p):
 			// Terminal or already deleting — GC takes it with the CR.
 		case isIdle(p):
@@ -438,7 +479,7 @@ func (r *RunnerPoolReconciler) reconcileDelete(ctx context.Context, pool *tuistv
 		// re-check; single-shot Pods turn over to terminal on exit.
 		// Bounded in practice by the GitHub Actions job timeout.
 		logger.Info("draining pool; waiting on in-flight runners",
-			"running", running, "drainedIdle", drainedIdle)
+			"running", running, "drainedIdle", drainedIdle, "orphaned", orphaned)
 		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 	}
 
@@ -446,7 +487,8 @@ func (r *RunnerPoolReconciler) reconcileDelete(ctx context.Context, pool *tuistv
 	if err := r.Update(ctx, pool); err != nil {
 		return ctrl.Result{}, fmt.Errorf("remove drain finalizer: %w", err)
 	}
-	logger.Info("pool drained; finalizer released", "drainedIdle", drainedIdle)
+	logger.Info("pool drained; finalizer released",
+		"drainedIdle", drainedIdle, "orphaned", orphaned)
 	return ctrl.Result{}, nil
 }
 
@@ -535,16 +577,72 @@ func (r *RunnerPoolReconciler) liveNodeNames(ctx context.Context) (map[string]st
 	return names, true
 }
 
-// isOrphaned reports whether pod is bound to a Node that no longer
-// exists. An unscheduled Pod (no nodeName yet) is not orphaned — it is
-// waiting for a host, which is the normal Pending state for a warm
-// poller that hasn't been placed.
+// isOrphaned reports whether pod is bound to a Node absent from the
+// cached Node view. An unscheduled Pod (no nodeName yet) is not orphaned
+// — it is waiting for a host, which is the normal Pending state for a
+// warm poller that hasn't been placed.
+//
+// This is only the cheap first pass. A cached miss is a suspicion, not a
+// verdict: see confirmedOrphans, which re-checks every hit against the
+// apiserver before anything is deleted.
 func isOrphaned(pod *corev1.Pod, liveNodes map[string]struct{}) bool {
 	if pod.Spec.NodeName == "" {
 		return false
 	}
 	_, live := liveNodes[pod.Spec.NodeName]
 	return !live
+}
+
+// confirmedOrphans returns, by Pod name, the Pods bound to a Node that
+// really is gone. Computed once per reconcile and shared by every loop
+// that needs the verdict, so the apiserver sees at most one Get per
+// suspect Node however many Pods were stranded on it.
+//
+// Two-pass on purpose. The cached NodeList is the cheap filter that keeps
+// the steady state (no orphans) free; every Pod it flags is then confirmed
+// against the apiserver, whose Get is authoritative and linearizable where
+// the informer's absence is merely "nothing delivered yet". Only a definite
+// NotFound counts as gone: a transient error, an RBAC regression, or a
+// timeout all leave the Pod alone, because the cost of waiting a tick is a
+// Pod cleaned up late, and the cost of guessing wrong is a job killed.
+//
+// Returns empty (sweep disabled) when the Node view is unusable or the
+// APIReader is unwired.
+func (r *RunnerPoolReconciler) confirmedOrphans(ctx context.Context, pods []corev1.Pod) map[string]bool {
+	orphans := map[string]bool{}
+	if r.APIReader == nil {
+		return orphans
+	}
+	liveNodes, ok := r.liveNodeNames(ctx)
+	if !ok {
+		return orphans
+	}
+
+	gone := map[string]bool{}
+	for i := range pods {
+		p := &pods[i]
+		if !isOrphaned(p, liveNodes) {
+			continue
+		}
+		node := p.Spec.NodeName
+		verdict, checked := gone[node]
+		if !checked {
+			verdict = r.nodeConfirmedGone(ctx, node)
+			gone[node] = verdict
+		}
+		if verdict {
+			orphans[p.Name] = true
+		}
+	}
+	return orphans
+}
+
+// nodeConfirmedGone asks the apiserver directly whether a Node exists.
+// Only an explicit NotFound is treated as gone; every other outcome
+// (including errors) reports "still there" so callers leave the Pod be.
+func (r *RunnerPoolReconciler) nodeConfirmedGone(ctx context.Context, name string) bool {
+	err := r.APIReader.Get(ctx, client.ObjectKey{Name: name}, &corev1.Node{})
+	return apierrors.IsNotFound(err)
 }
 
 // releaseOrphanedRunner force-completes the removal of a Pod whose Node
