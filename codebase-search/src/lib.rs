@@ -231,7 +231,7 @@ impl Codebase {
             .build();
         let mut matches = Vec::new();
         let mut stats = SearchStats::default();
-        let mut returned_text_bytes = 0usize;
+        let mut output = SearchOutputState::default();
         let mut truncation_reason = None;
 
         let mut walker = WalkBuilder::new(start_path);
@@ -302,20 +302,21 @@ impl Codebase {
                         return Ok(false);
                     }
 
-                    let line = bounded_line(line, self.limits.max_line_bytes);
+                    let (line, was_truncated) = bounded_line(line, self.limits.max_line_bytes);
+                    output.line_truncated |= was_truncated;
                     let url = format!("{source_url}#L{line_number}");
                     let match_bytes = line
                         .len()
                         .saturating_add(path.len())
                         .saturating_add(url.len());
-                    if returned_text_bytes.saturating_add(match_bytes)
+                    if output.returned_text_bytes.saturating_add(match_bytes)
                         > self.limits.max_returned_text_bytes
                     {
                         truncation_reason = Some("output_limit".to_string());
                         return Ok(false);
                     }
 
-                    returned_text_bytes += match_bytes;
+                    output.returned_text_bytes += match_bytes;
                     matches.push(SearchMatch {
                         path: path.clone(),
                         line_number,
@@ -339,7 +340,7 @@ impl Codebase {
             self.add_context(
                 &mut matches,
                 context_lines,
-                &mut returned_text_bytes,
+                &mut output,
                 &mut stats,
                 &mut truncation_reason,
                 deadline,
@@ -351,6 +352,9 @@ impl Codebase {
         }
         if truncation_reason.is_none() && stats.walk_errors > 0 {
             truncation_reason = Some("walk_errors".to_string());
+        }
+        if truncation_reason.is_none() && output.line_truncated {
+            truncation_reason = Some("line_byte_limit".to_string());
         }
 
         matches.sort_by(|left, right| {
@@ -507,6 +511,7 @@ impl Codebase {
         let mut returned_text_bytes = 0usize;
         let mut has_more = false;
         let mut output_limited = false;
+        let mut line_truncated = false;
 
         loop {
             if Instant::now().duration_since(started) >= self.limits.operation_timeout {
@@ -528,7 +533,8 @@ impl Codebase {
                 break;
             }
 
-            let text = bounded_bytes_line(&buffer, self.limits.max_line_bytes);
+            let (text, was_truncated) = bounded_bytes_line(&buffer, self.limits.max_line_bytes);
+            line_truncated |= was_truncated;
             if returned_text_bytes.saturating_add(text.len()) > self.limits.max_returned_text_bytes
             {
                 has_more = true;
@@ -560,11 +566,13 @@ impl Codebase {
             end_line,
             lines,
             file_size_bytes: metadata.len(),
-            truncated: has_more,
+            truncated: has_more || line_truncated,
             truncation_reason: if output_limited {
                 Some("output_limit".to_string())
             } else if has_more {
                 Some("line_limit".to_string())
+            } else if line_truncated {
+                Some("line_byte_limit".to_string())
             } else {
                 None
             },
@@ -578,7 +586,7 @@ impl Codebase {
         &self,
         matches: &mut [SearchMatch],
         context_lines: usize,
-        returned_text_bytes: &mut usize,
+        output: &mut SearchOutputState,
         stats: &mut SearchStats,
         truncation_reason: &mut Option<String>,
         deadline: Instant,
@@ -624,12 +632,12 @@ impl Codebase {
                 if !append_context(
                     &mut matches[index].context_before,
                     before,
-                    returned_text_bytes,
+                    output,
                     &self.limits,
                 ) || !append_context(
                     &mut matches[index].context_after,
                     after,
-                    returned_text_bytes,
+                    output,
                     &self.limits,
                 ) {
                     stats.contexts_skipped += 1;
@@ -1013,32 +1021,39 @@ fn build_glob(pattern: &str) -> Result<GlobMatcher, CodebaseError> {
 fn append_context(
     destination: &mut Vec<String>,
     source: &[&[u8]],
-    returned_text_bytes: &mut usize,
+    output: &mut SearchOutputState,
     limits: &Limits,
 ) -> bool {
     for bytes in source {
-        let line = bounded_bytes_line(bytes, limits.max_line_bytes);
-        if returned_text_bytes.saturating_add(line.len()) > limits.max_returned_text_bytes {
+        let (line, was_truncated) = bounded_bytes_line(bytes, limits.max_line_bytes);
+        output.line_truncated |= was_truncated;
+        if output.returned_text_bytes.saturating_add(line.len()) > limits.max_returned_text_bytes {
             return false;
         }
-        *returned_text_bytes += line.len();
+        output.returned_text_bytes += line.len();
         destination.push(line);
     }
     true
 }
 
-fn bounded_line(line: &str, max_bytes: usize) -> String {
+#[derive(Default)]
+struct SearchOutputState {
+    returned_text_bytes: usize,
+    line_truncated: bool,
+}
+
+fn bounded_line(line: &str, max_bytes: usize) -> (String, bool) {
     bounded_string(line.trim_end_matches(['\r', '\n']), max_bytes)
 }
 
-fn bounded_bytes_line(bytes: &[u8], max_bytes: usize) -> String {
+fn bounded_bytes_line(bytes: &[u8], max_bytes: usize) -> (String, bool) {
     let text = String::from_utf8_lossy(bytes);
     bounded_line(&text, max_bytes)
 }
 
-fn bounded_string(value: &str, max_bytes: usize) -> String {
+fn bounded_string(value: &str, max_bytes: usize) -> (String, bool) {
     if value.len() <= max_bytes {
-        return value.to_string();
+        return (value.to_string(), false);
     }
     let mut boundary = max_bytes.saturating_sub('…'.len_utf8());
     while boundary > 0 && !value.is_char_boundary(boundary) {
@@ -1046,7 +1061,7 @@ fn bounded_string(value: &str, max_bytes: usize) -> String {
     }
     let mut truncated = value[..boundary].to_string();
     truncated.push('…');
-    truncated
+    (truncated, true)
 }
 
 fn path_to_string(path: &Path) -> String {
@@ -1170,6 +1185,86 @@ mod tests {
         assert_eq!(response.matches[0].path, "a.rs");
         assert!(response.truncated);
         assert_eq!(response.truncation_reason.as_deref(), Some("match_limit"));
+    }
+
+    #[test]
+    fn reports_long_search_match_lines_as_truncated() {
+        let directory = tempfile::tempdir().unwrap();
+        fs::write(
+            directory.path().join("long.rs"),
+            "needle abcdefghijklmnop\n",
+        )
+        .unwrap();
+        let limits = Limits {
+            max_line_bytes: 8,
+            ..Limits::default()
+        };
+        let codebase = Codebase::new(
+            directory.path().to_path_buf(),
+            REVISION.to_string(),
+            "https://github.com/tuist/tuist".to_string(),
+            limits,
+        )
+        .unwrap();
+
+        let response = codebase
+            .search(SearchRequest {
+                pattern: "needle".to_string(),
+                path: String::new(),
+                file_glob: None,
+                use_regular_expression: false,
+                case_sensitive: true,
+                context_lines: Some(0),
+                max_results: Some(10),
+            })
+            .unwrap();
+
+        assert_eq!(response.matches[0].line, "needl…");
+        assert!(response.truncated);
+        assert_eq!(
+            response.truncation_reason.as_deref(),
+            Some("line_byte_limit")
+        );
+    }
+
+    #[test]
+    fn reports_long_search_context_lines_as_truncated() {
+        let directory = tempfile::tempdir().unwrap();
+        fs::write(
+            directory.path().join("long.rs"),
+            "abcdefghijklmnop\nneedle\n",
+        )
+        .unwrap();
+        let limits = Limits {
+            max_line_bytes: 8,
+            ..Limits::default()
+        };
+        let codebase = Codebase::new(
+            directory.path().to_path_buf(),
+            REVISION.to_string(),
+            "https://github.com/tuist/tuist".to_string(),
+            limits,
+        )
+        .unwrap();
+
+        let response = codebase
+            .search(SearchRequest {
+                pattern: "needle".to_string(),
+                path: String::new(),
+                file_glob: None,
+                use_regular_expression: false,
+                case_sensitive: true,
+                context_lines: Some(1),
+                max_results: Some(10),
+            })
+            .unwrap();
+
+        assert_eq!(response.matches[0].context_before, ["abcde…"]);
+        assert!(response.truncated);
+        assert_eq!(
+            response.truncation_reason.as_deref(),
+            Some("line_byte_limit")
+        );
     }
 
     #[test]
@@ -1311,6 +1406,39 @@ mod tests {
         assert!(response.truncated);
         assert_eq!(response.next_start_line, Some(5));
         assert_eq!(response.truncation_reason.as_deref(), Some("line_limit"));
+    }
+
+    #[test]
+    fn reports_single_long_read_lines_as_truncated() {
+        let directory = tempfile::tempdir().unwrap();
+        fs::write(directory.path().join("long.rs"), "abcdefghijklmnop").unwrap();
+        let limits = Limits {
+            max_line_bytes: 8,
+            ..Limits::default()
+        };
+        let codebase = Codebase::new(
+            directory.path().to_path_buf(),
+            REVISION.to_string(),
+            "https://github.com/tuist/tuist".to_string(),
+            limits,
+        )
+        .unwrap();
+
+        let response = codebase
+            .read_file(ReadFileRequest {
+                path: "long.rs".to_string(),
+                start_line: None,
+                max_lines: None,
+            })
+            .unwrap();
+
+        assert_eq!(response.lines[0].text, "abcde…");
+        assert!(response.truncated);
+        assert_eq!(response.next_start_line, None);
+        assert_eq!(
+            response.truncation_reason.as_deref(),
+            Some("line_byte_limit")
+        );
     }
 
     #[test]
