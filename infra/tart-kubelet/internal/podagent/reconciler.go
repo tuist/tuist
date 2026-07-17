@@ -270,6 +270,10 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	// Store entry); only the published Phase differs.
 	if entry := r.Store.Get(pod.Namespace, pod.Name); entry != nil && entry.Run != nil {
 		if exitErr, exited := entry.Run.Exited(); exited {
+			// ok is guaranteed here: ExitStatus and Exited gate on the
+			// same closed channel.
+			exit, _ := entry.Run.ExitStatus()
+
 			// Promote or discard the cache-volume branch before tearing the
 			// VM down. A clean `tart run` exit (exitErr == nil) is the guest
 			// halting after its job flow completed; combined with the guest's
@@ -279,7 +283,10 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 			r.finalizeVolume(entry, pod.Labels[runnerAccountLabel], exitErr == nil)
 			_ = r.deleteByKey(ctx, pod.Namespace, pod.Name)
 
-			status := &corev1.PodStatus{Reason: "TartRunExited"}
+			status := &corev1.PodStatus{
+				Reason:            "TartRunExited",
+				ContainerStatuses: terminatedContainerStatuses(pod, entry.VMName, entry.StartTS, exit),
+			}
 			if exitErr == nil {
 				logger.Info("tart run exited cleanly; marking pod succeeded",
 					"vm", entry.VMName, "log", entry.Run.LogPath)
@@ -1291,6 +1298,59 @@ func runningContainerStatuses(pod *corev1.Pod, vmName string, startedAt metav1.T
 			RestartCount: 0,
 			State: corev1.ContainerState{
 				Running: &corev1.ContainerStateRunning{StartedAt: startedAt},
+			},
+		})
+	}
+	return statuses
+}
+
+// terminatedContainerStatuses synthesizes the per-container statuses for
+// a Pod whose Tart VM has exited — the counterpart to
+// runningContainerStatuses above.
+//
+// Without these a macOS Pod carried a Phase and nothing else: no
+// exitCode, no reason, no finishedAt. That left the fleet with no
+// post-mortem at all, because the two consumers downstream both key on
+// a terminated containerStatus and silently no-op without one — the
+// runners-controller's reap-time exit-code fingerprint (the only record
+// that outlives the Pod) never logged, and the billing reconciler fell
+// back to guessing "stopped at" from wall-clock. A Linux Pod gets all of
+// this from its kubelet for free; tart-kubelet has no per-container CRI
+// to source it from, so it reports the VM's own exit in the same shape.
+//
+// Pod ↔ VM is 1:1 (multi-container Pods are rejected at admission), so
+// this is effectively a single status; the loop just keeps it symmetric
+// with the running path.
+func terminatedContainerStatuses(pod *corev1.Pod, vmName string, startedAt metav1.Time, exit tart.ExitStatus) []corev1.ContainerStatus {
+	// Reason mirrors the runtime's own vocabulary so `kubectl describe`
+	// and the fingerprint read like any other Pod. We deliberately never
+	// synthesize OOMKilled: a host-OOM jetsam kill and a plain `kill -9`
+	// both surface as an indistinguishable SIGKILL on the `tart run`
+	// process, and guessing between them would put a wrong cause into
+	// the one record that survives the reap.
+	reason := "Completed"
+	if exit.Code != 0 {
+		reason = "Error"
+	}
+	containerID := "tart://" + vmName
+	started := false
+	statuses := make([]corev1.ContainerStatus, 0, len(pod.Spec.Containers))
+	for _, c := range pod.Spec.Containers {
+		statuses = append(statuses, corev1.ContainerStatus{
+			Name:        c.Name,
+			Image:       c.Image,
+			ContainerID: containerID,
+			Ready:       false,
+			Started:     &started,
+			State: corev1.ContainerState{
+				Terminated: &corev1.ContainerStateTerminated{
+					ExitCode:    exit.Code,
+					Signal:      exit.Signal,
+					Reason:      reason,
+					StartedAt:   startedAt,
+					FinishedAt:  metav1.NewTime(exit.FinishedAt),
+					ContainerID: containerID,
+				},
 			},
 		})
 	}

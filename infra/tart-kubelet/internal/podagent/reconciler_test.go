@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/tart"
 
@@ -145,6 +146,154 @@ func TestRunningContainerStatusesReportsReady(t *testing.T) {
 	}
 	if cs.ContainerID != "tart://vm-abc" {
 		t.Fatalf("expected ContainerID to carry the VM name, got %q", cs.ContainerID)
+	}
+}
+
+// TestReconcileExitedVMPublishesTerminatedContainerStatus is the
+// end-to-end guard for the gap this synthesis closes: tart-kubelet used
+// to publish a terminal Phase and nothing else, so `runnerTerminated` in
+// the runners-controller returned nil for every macOS Pod and the
+// reap-time post-mortem never logged for the whole fleet. Drives a real
+// `tart run` process to a non-zero exit through Reconcile and asserts the
+// fingerprint reaches the API server.
+func TestReconcileExitedVMPublishesTerminatedContainerStatus(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	// `sleep 6` outlives Run's 5s sanity window so Run returns a handle;
+	// the exit then lands on the launcher goroutine, which is the path
+	// Reconcile reads. Every other subcommand (stop/delete during
+	// teardown) succeeds silently.
+	bin := filepath.Join(dir, "fake-tart")
+	body := "#!/bin/sh\nif [ \"$1\" = \"run\" ]; then\n  sleep 6\n  exit 3\nfi\nexit 0\n"
+	if err := os.WriteFile(bin, []byte(body), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	tartClient := &tart.Client{Binary: bin, UserDataDir: filepath.Join(dir, "userdata"), LogDir: filepath.Join(dir, "logs")}
+
+	handle, err := tartClient.Run(ctx, "vm-abc", nil)
+	if err != nil {
+		t.Fatalf("unexpected immediate-exit: %v", err)
+	}
+	select {
+	case <-handle.Done():
+	case <-time.After(15 * time.Second):
+		t.Fatal("fake tart run never exited")
+	}
+
+	name := types.NamespacedName{Namespace: "tuist-runners", Name: "runner-crashed"}
+	startedAt := metav1.NewTime(time.Now().Add(-time.Hour))
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: name.Namespace,
+			Name:      name.Name,
+			// Pre-set so Reconcile skips the add-finalizer requeue and
+			// reaches the exited-VM branch on this pass.
+			Finalizers: []string{PodFinalizer},
+		},
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{{Name: "runner", Image: "ghcr.io/tuist/tuist-runner:test"}},
+		},
+		Status: corev1.PodStatus{Phase: corev1.PodRunning},
+	}
+	kubeClient := newPodTestClient(t, pod)
+
+	store := NewStore()
+	store.Put(name.Namespace, name.Name, &Entry{VMName: "vm-abc", StartTS: startedAt, Run: handle})
+	reconciler := &Reconciler{CachedClient: kubeClient, Store: store, Tart: tartClient}
+
+	if _, err := reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: name}); err != nil {
+		t.Fatalf("Reconcile: %v", err)
+	}
+
+	got := getPod(t, ctx, kubeClient, name)
+	if got.Status.Phase != corev1.PodFailed {
+		t.Fatalf("a crashed VM must read Failed, got %q", got.Status.Phase)
+	}
+	if len(got.Status.ContainerStatuses) != 1 {
+		t.Fatalf("expected the runner's containerStatus to be published, got %d", len(got.Status.ContainerStatuses))
+	}
+	term := got.Status.ContainerStatuses[0].State.Terminated
+	if term == nil {
+		t.Fatalf("expected Terminated state, got %+v", got.Status.ContainerStatuses[0].State)
+	}
+	if term.ExitCode != 3 || term.Reason != "Error" {
+		t.Fatalf("expected the real exit fingerprint (3/Error), got %d/%q", term.ExitCode, term.Reason)
+	}
+	if term.FinishedAt.IsZero() {
+		t.Fatal("FinishedAt must be set; the billing path falls back to wall-clock without it")
+	}
+}
+
+// TestTerminatedContainerStatusesCarryTheExitFingerprint guards the
+// post-mortem record for VM-backed Pods. The runners-controller logs the
+// runner container's exitCode/reason at reap time and the billing
+// reconciler anchors on finishedAt; both read a terminated
+// containerStatus and silently no-op without one, which is exactly why
+// the macOS fleet had no post-mortem at all before this synthesis.
+func TestTerminatedContainerStatusesCarryTheExitFingerprint(t *testing.T) {
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "tuist-runners", Name: "runner-abc"},
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{{Name: "runner", Image: "ghcr.io/tuist/tuist-runner:test"}},
+		},
+	}
+	startedAt := metav1.NewTime(time.Now().Add(-time.Hour))
+	finishedAt := time.Now()
+
+	cases := []struct {
+		name       string
+		exit       tart.ExitStatus
+		wantReason string
+	}{
+		{
+			name:       "clean exit reads Completed",
+			exit:       tart.ExitStatus{Code: 0, FinishedAt: finishedAt},
+			wantReason: "Completed",
+		},
+		{
+			// The shape a host SIGKILL takes: the reason stays the
+			// generic Error rather than a guessed OOMKilled, because a
+			// jetsam kill and a manual kill -9 are indistinguishable here.
+			name:       "SIGKILL reads Error with the signal preserved",
+			exit:       tart.ExitStatus{Code: 137, Signal: 9, FinishedAt: finishedAt},
+			wantReason: "Error",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			statuses := terminatedContainerStatuses(pod, "vm-abc", startedAt, tc.exit)
+
+			if len(statuses) != 1 {
+				t.Fatalf("expected 1 container status (Pod ↔ VM is 1:1), got %d", len(statuses))
+			}
+			cs := statuses[0]
+			if cs.Name != "runner" {
+				t.Fatalf("status must be named for the container the fingerprint reads, got %q", cs.Name)
+			}
+			if cs.State.Terminated == nil {
+				t.Fatalf("expected Terminated state, got %+v", cs.State)
+			}
+			term := cs.State.Terminated
+			if term.ExitCode != tc.exit.Code {
+				t.Fatalf("exit code: got %d, want %d", term.ExitCode, tc.exit.Code)
+			}
+			if term.Signal != tc.exit.Signal {
+				t.Fatalf("signal: got %d, want %d", term.Signal, tc.exit.Signal)
+			}
+			if term.Reason != tc.wantReason {
+				t.Fatalf("reason: got %q, want %q", term.Reason, tc.wantReason)
+			}
+			if !term.FinishedAt.Time.Equal(tc.exit.FinishedAt) {
+				t.Fatalf("FinishedAt must mirror the VM's exit, got %v", term.FinishedAt)
+			}
+			if !term.StartedAt.Equal(&startedAt) {
+				t.Fatalf("StartedAt must mirror the VM start time, got %v", term.StartedAt)
+			}
+			if cs.Ready {
+				t.Fatalf("a terminated container must not read Ready")
+			}
+		})
 	}
 }
 

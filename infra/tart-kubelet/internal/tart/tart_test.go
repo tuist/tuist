@@ -271,6 +271,91 @@ func TestRunHandleExitedTracksProcess(t *testing.T) {
 	}
 }
 
+// TestRunHandleExitStatusReportsExitCodeAndSignal covers the exit
+// information the reconciler turns into the Pod's terminated
+// containerStatus — the only post-mortem that survives the reap, so a
+// mis-read here is a death we can no longer classify. The signalled case
+// is the one worth a real process: Go reports ExitCode() == -1 for it, so
+// only the WaitStatus path yields the 137/SIGKILL pair operators expect.
+func TestRunHandleExitStatusReportsExitCodeAndSignal(t *testing.T) {
+	// `sleep 6` outlives Run's 5s sanity window in every case, so Run
+	// returns a handle and the exit lands on the launcher goroutine.
+	cases := []struct {
+		name       string
+		script     string
+		wantCode   int32
+		wantSignal int32
+	}{
+		{
+			name:     "clean exit",
+			script:   "#!/bin/sh\nsleep 6\n",
+			wantCode: 0,
+		},
+		{
+			name:     "non-zero exit",
+			script:   "#!/bin/sh\nsleep 6\nexit 3\n",
+			wantCode: 3,
+		},
+		{
+			// A host SIGKILL (jetsam under memory pressure, or an
+			// operator's kill -9) must read as 137/9, the fingerprint
+			// AGENTS.md documents.
+			name:       "killed by SIGKILL",
+			script:     "#!/bin/sh\nsleep 6\nkill -9 $$\n",
+			wantCode:   137,
+			wantSignal: 9,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			dir := t.TempDir()
+			binPath := filepath.Join(dir, "fake-tart")
+			if err := os.WriteFile(binPath, []byte(tc.script), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			c := &Client{
+				Binary:      binPath,
+				UserDataDir: filepath.Join(dir, "userdata"),
+				LogDir:      filepath.Join(dir, "logs"),
+			}
+
+			before := time.Now()
+			handle, err := c.Run(context.Background(), "test-vm", nil)
+			if err != nil {
+				t.Fatalf("unexpected immediate-exit: %v", err)
+			}
+			if _, ok := handle.ExitStatus(); ok {
+				t.Fatal("ExitStatus reported a running process as exited")
+			}
+
+			select {
+			case <-handle.Done():
+			case <-time.After(15 * time.Second):
+				t.Fatal("handle.Done() never closed")
+			}
+
+			status, ok := handle.ExitStatus()
+			if !ok {
+				t.Fatal("ExitStatus not reported after process death")
+			}
+			if status.Code != tc.wantCode {
+				t.Fatalf("exit code: got %d, want %d", status.Code, tc.wantCode)
+			}
+			if status.Signal != tc.wantSignal {
+				t.Fatalf("signal: got %d, want %d", status.Signal, tc.wantSignal)
+			}
+			// FinishedAt must be the moment the process died, not the
+			// moment a later caller asked: the billing path anchors the
+			// runner's "stopped at" on it.
+			if status.FinishedAt.Before(before) || status.FinishedAt.After(time.Now()) {
+				t.Fatalf("FinishedAt %v outside the process's lifetime", status.FinishedAt)
+			}
+		})
+	}
+}
+
 // TestRunInvokesEnsureGUISessionBeforeStartingTart locks in that the
 // preflight runs before `tart run`. Without it the kubelet ships
 // VMs straight into `Failed to create new HostKey` on hosts whose

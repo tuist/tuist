@@ -164,9 +164,14 @@ func isEnding(pod *corev1.Pod) bool {
 //     toward "later container's finish" so a multi-container Pod
 //     (sidecars) doesn't under-attribute the runner's work.
 //  2. The Pod's `deletionTimestamp` — when the controller initiated
-//     deletion. Slightly under-bills compared to the actual
-//     terminated finishedAt the kubelet would later write, which
-//     is the safe direction.
+//     deletion. On Linux this slightly under-bills, since the
+//     container exits (and the kubelet writes finishedAt) after the
+//     delete lands — the safe direction. The bias inverts for a
+//     VM-backed macOS Pod, where the VM exits first and the reap
+//     follows, so the fallback over-bills there by the reap lag. Both
+//     are moot while tart-kubelet publishes a terminated status of
+//     its own; this stays the backstop for a VM it adopted after a
+//     restart, whose exit status it cannot know.
 //  3. Current wall-clock as last resort. Hit only when a Pod is
 //     somehow in a terminal phase with no terminated containers
 //     and no deletion timestamp — defensive only.

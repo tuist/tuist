@@ -170,10 +170,36 @@ type RunHandle struct {
 
 	done         chan struct{}
 	exitErr      error
+	exitStatus   ExitStatus
 	vncReady     chan struct{}
 	vncReadyOnce sync.Once
 	vncMu        sync.RWMutex
 	vncInfo      *VNCInfo
+}
+
+// ExitStatus describes how a `tart run` process ended, in the shape a
+// container runtime reports a terminated container. The reconciler
+// publishes it as the Pod's terminated containerStatus — once the Pod
+// is reaped that status is the only surviving post-mortem record, so
+// the fields have to carry enough to classify the death without the
+// host's tart log (which is node-local and GC'd with the VM).
+//
+// FinishedAt is stamped when cmd.Wait returns, NOT when a later
+// reconcile notices. The reconcile loop polls on a 30s cadence, so a
+// stamp taken at observation time would drift the billing "stopped at"
+// by up to that whole interval.
+type ExitStatus struct {
+	// Code is the process's own exit status, or 128+N when a signal
+	// killed it — the convention a container runtime reports (137 for
+	// SIGKILL). -1 when the process could not be reaped at all.
+	Code int32
+
+	// Signal is the signal that killed the process, 0 if it exited on
+	// its own.
+	Signal int32
+
+	// FinishedAt is when the process died.
+	FinishedAt time.Time
 }
 
 // Done returns a channel that is closed once the process exits.
@@ -194,6 +220,42 @@ func (h *RunHandle) Exited() (err error, ok bool) {
 	default:
 		return nil, false
 	}
+}
+
+// ExitStatus reports how the process ended, or ok=false while it is
+// still running. Same happens-before as Exited: the launcher goroutine
+// writes exitStatus before close(done), and readers only touch it after
+// the receive on done returns.
+func (h *RunHandle) ExitStatus() (ExitStatus, bool) {
+	select {
+	case <-h.done:
+		return h.exitStatus, true
+	default:
+		return ExitStatus{}, false
+	}
+}
+
+// exitStatusFrom maps a reaped process to the exit code / signal a
+// container runtime would report for it. A signalled process has no exit
+// status of its own, so the convention is 128+N — that's what makes a
+// host SIGKILL read as the familiar 137 rather than as Go's -1, and the
+// runners-controller's post-mortem fingerprint reads exactly that pair.
+func exitStatusFrom(ps *os.ProcessState, finishedAt time.Time) ExitStatus {
+	status := ExitStatus{FinishedAt: finishedAt}
+	if ps == nil {
+		// Wait returned without reaping the process — no status exists.
+		// Report it as abnormal rather than letting a zero value claim a
+		// clean exit, which would misclassify the death downstream.
+		status.Code = -1
+		return status
+	}
+	if ws, ok := ps.Sys().(syscall.WaitStatus); ok && ws.Signaled() {
+		status.Signal = int32(ws.Signal())
+		status.Code = 128 + status.Signal
+		return status
+	}
+	status.Code = int32(ps.ExitCode())
+	return status
 }
 
 // VNCInfo is Tart's generated host-local VNC endpoint. The password is
@@ -405,6 +467,9 @@ func (c *Client) RunWithOptions(ctx context.Context, name string, opts RunOption
 	// extra mutex needed.
 	go func() {
 		handle.exitErr = cmd.Wait()
+		// Stamp the exit here, before draining the output pipes: this is
+		// the closest reading we have of when the VM actually died.
+		handle.exitStatus = exitStatusFrom(cmd.ProcessState, time.Now())
 		outputWG.Wait()
 		_ = logFile.Close()
 		handle.closeVNCInfo()
