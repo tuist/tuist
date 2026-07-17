@@ -342,6 +342,73 @@ describe("fetchStatusFromGrafana", () => {
     ]);
   });
 
+  it("limits concurrent key-update queries across active and recent incidents", async () => {
+    const active = Array.from({ length: 4 }, (_, index) => ({
+      incidentID: `active-${index}`,
+      title: `Active ${index}`,
+      status: "active",
+      createdTime: "2026-05-05T10:00:00.000Z",
+    }));
+    const recent = Array.from({ length: 3 }, (_, index) => ({
+      incidentID: `recent-${index}`,
+      title: `Recent ${index}`,
+      status: "resolved",
+      closedTime: "2026-05-04T10:00:00.000Z",
+    }));
+    const blockedRequests: Array<() => void> = [];
+    let releaseImmediately = false;
+    let startedRequests = 0;
+    let inFlightRequests = 0;
+    let maximumInFlightRequests = 0;
+
+    globalThis.fetch = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input.toString();
+      const body = typeof init?.body === "string" ? JSON.parse(init.body) : {};
+      if (url.endsWith("FieldsService.GetFields")) {
+        return Promise.resolve(new Response(JSON.stringify({ fields: [] })));
+      }
+      if (url.endsWith("IncidentsService.QueryIncidents")) {
+        const incidents = JSON.stringify(body).includes("status:active") ? active : recent;
+        return Promise.resolve(new Response(JSON.stringify({ incidents })));
+      }
+      if (url.endsWith("KeyUpdatesService.QueryKeyUpdates")) {
+        startedRequests++;
+        inFlightRequests++;
+        maximumInFlightRequests = Math.max(maximumInFlightRequests, inFlightRequests);
+        const response = () => new Response(JSON.stringify({ keyUpdates: [] }));
+        if (releaseImmediately) {
+          inFlightRequests--;
+          return Promise.resolve(response());
+        }
+        return new Promise<Response>((resolve) => {
+          blockedRequests.push(() => {
+            inFlightRequests--;
+            resolve(response());
+          });
+        });
+      }
+      return Promise.reject(new Error(`unmocked URL: ${url}`));
+    }) as typeof fetch;
+
+    const snapshotPromise = fetchStatusFromGrafana(ENV);
+    for (let attempt = 0; attempt < 20 && blockedRequests.length < 5; attempt++) {
+      await Promise.resolve();
+    }
+
+    expect(startedRequests).toBe(5);
+    expect(inFlightRequests).toBe(5);
+    expect(maximumInFlightRequests).toBe(5);
+
+    releaseImmediately = true;
+    blockedRequests.splice(0).forEach((release) => release());
+    const snapshot = await snapshotPromise;
+
+    expect(startedRequests).toBe(7);
+    expect(maximumInFlightRequests).toBe(5);
+    expect(snapshot.activeIncidents).toHaveLength(4);
+    expect(snapshot.recentIncidents).toHaveLength(3);
+  });
+
   it("matches affectedComponents from real Grafana labels of shape {key, label}", async () => {
     globalThis.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = typeof input === "string" ? input : input.toString();

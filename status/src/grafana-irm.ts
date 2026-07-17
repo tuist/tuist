@@ -230,6 +230,8 @@ interface ClientOpts {
   token: string;
 }
 
+const KEY_UPDATE_CONCURRENCY = 5;
+
 async function rpc<T>(opts: ClientOpts, method: string, body: object): Promise<T> {
   const url = `${opts.baseUrl.replace(/\/$/, "")}/api/v1/${method}`;
   const response = await fetch(url, {
@@ -311,12 +313,20 @@ async function hydrateIncidents(
   componentLabelKey: string,
   knownIds: Set<string>,
 ): Promise<Incident[]> {
-  return Promise.all(
-    rawIncidents.map(async (raw) => {
+  const incidents = new Array<Incident>(rawIncidents.length);
+  let nextIndex = 0;
+
+  async function hydrateNext(): Promise<void> {
+    while (nextIndex < rawIncidents.length) {
+      const index = nextIndex++;
+      const raw = rawIncidents[index]!;
       const keyUpdates = await queryKeyUpdates(opts, raw.incidentID);
-      return toIncident(raw, componentLabelKey, knownIds, incidentUpdates(raw, keyUpdates));
-    }),
-  );
+      incidents[index] = toIncident(raw, componentLabelKey, knownIds, incidentUpdates(raw, keyUpdates));
+    }
+  }
+
+  await Promise.all(Array.from({ length: Math.min(KEY_UPDATE_CONCURRENCY, rawIncidents.length) }, () => hydrateNext()));
+  return incidents;
 }
 
 function withinLastDays(iso: string | null | undefined, days: number): boolean {
@@ -413,10 +423,9 @@ export async function fetchStatusFromGrafana(env: {
   ]);
   const knownIds = new Set(defs.map((d) => d.id));
   const recent = recentAll.filter((i) => withinLastDays(i.closedTime ?? i.incidentEnd ?? i.modifiedTime, 14));
-  const [activeIncidents, recentIncidents] = await Promise.all([
-    hydrateIncidents(opts, active, env.GRAFANA_COMPONENT_LABEL_KEY, knownIds),
-    hydrateIncidents(opts, recent, env.GRAFANA_COMPONENT_LABEL_KEY, knownIds),
-  ]);
+  const incidents = await hydrateIncidents(opts, [...active, ...recent], env.GRAFANA_COMPONENT_LABEL_KEY, knownIds);
+  const activeIncidents = incidents.slice(0, active.length);
+  const recentIncidents = incidents.slice(active.length);
   const components = rollUpComponents(defs, activeIncidents);
   return {
     overall: rollUpOverall(components),
