@@ -8,6 +8,11 @@ defmodule TuistWeb.RunnersLiveTest do
   alias Tuist.Runners.Jobs
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
+  # render_async/2 is LiveViewTest's first-party hook for waiting on async assigns.
+  # The runners widgets cross analytics-backed async work that can be slower on CI,
+  # so keep an explicit timeout until we have a deterministic non-time-based drain.
+  @render_async_timeout 1_000
+
   setup %{conn: conn} do
     user = AccountsFixtures.user_fixture()
 
@@ -49,7 +54,7 @@ defmodule TuistWeb.RunnersLiveTest do
     {:ok, _} = Jobs.complete(70_001, "success")
 
     {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners")
-    html = render_async(lv)
+    html = render_async(lv, @render_async_timeout)
 
     assert html =~ "Total jobs"
     assert html =~ "Avg. job duration"
@@ -72,7 +77,7 @@ defmodule TuistWeb.RunnersLiveTest do
 
   test "shows empty state when the account has no jobs", %{conn: conn, account: account} do
     {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners")
-    html = render_async(lv)
+    html = render_async(lv, @render_async_timeout)
 
     assert html =~ "Workflows"
     assert html =~ "Concurrency"
@@ -84,7 +89,7 @@ defmodule TuistWeb.RunnersLiveTest do
     {:ok, lv, _html} =
       live(conn, ~p"/#{account.name}/runners?concurrency-platform=linux")
 
-    html = render_async(lv)
+    html = render_async(lv, @render_async_timeout)
 
     assert html =~ "32 vCPU limit"
     assert html =~ "64 GB limit"
