@@ -18,8 +18,8 @@ use std::time::{Duration, Instant, UNIX_EPOCH};
 
 use crate::prefetch::Prefetcher;
 use crate::proxy_proto::{
-    read_request, write_response, Request, OP_DECLARE_UPLOAD, OP_FETCH_OBJECT, OP_INVALIDATE,
-    OP_PUBLISH, OP_RESOLVE,
+    read_request, write_response, Request, OP_FETCH_OBJECT, OP_INVALIDATE, OP_PUBLISH,
+    OP_RESOLVE,
     STATUS_ERROR, STATUS_HIT, STATUS_MISS,
 };
 use crate::reapi::{self, ManifestEntry, Remote, RemoteConfig};
@@ -874,6 +874,7 @@ struct SourceContext {
     read_at: Instant,
     trunk: Option<String>,
     ci_branch: Option<String>,
+    upload: bool,
 }
 
 /// How long a recorded context is reused before the proxy re-reads the registry,
@@ -885,6 +886,7 @@ const GIT_CONTEXT_TTL: Duration = Duration::from_secs(15);
 struct SourceBranches {
     branch: Option<String>,
     trunk: Option<String>,
+    upload: bool,
 }
 
 /// What `tuist setup cache` recorded for an instance.
@@ -911,6 +913,14 @@ struct RegisteredSource {
     /// get it wrong locally). `None` when setup could not reach the server, which
     /// means no scoping: what a client too old to ask for it already gets.
     trunk: Option<String>,
+    /// The project's `xcodeCache.upload`.
+    ///
+    /// The plugin checks this too, from a compiler option, but that option only
+    /// reaches Swift: swift-build's `CASOptions` carries a plugin PATH and no
+    /// plugin options, so the CAS it creates for its Clang caching has no idea
+    /// what the project asked for and defaults to uploading. The proxy is the
+    /// only place that sees both lanes, so it is where the policy is enforced.
+    upload: bool,
 }
 
 pub struct Proxy {
@@ -982,9 +992,6 @@ pub struct Proxy {
     // identical re-publishes of entries fresher than a day, so a fleet of
     // cold machines cannot stampede version bumps.
     view_refresh: Mutex<VecDeque<ViewRefresh>>,
-    /// Per cas_path upload policy, declared by the plugin at CAS create. Absent
-    /// means a client too old to say, which is the behaviour it already has.
-    path_upload: Mutex<HashMap<String, bool>>,
     view_refreshed: Mutex<HashSet<Vec<u8>>>,
 
     // instance -> demand-fetch coalescer, created on first demand miss. Groups
@@ -1033,7 +1040,6 @@ impl Proxy {
             busy_logged_at: Mutex::new(None),
             unprimed: AtomicU64::new(0),
             view_refresh: Mutex::new(VecDeque::new()),
-            path_upload: Mutex::new(HashMap::new()),
             view_refreshed: Mutex::new(HashSet::new()),
             demand_coalescers: Mutex::new(HashMap::new()),
             active_instances: Mutex::new(HashSet::new()),
@@ -1154,15 +1160,17 @@ impl Proxy {
         });
     }
 
-    /// This path's upload policy. Unknown means a plugin too old to declare it,
-    /// and the answer there has to be the behaviour that client already gets.
-    fn upload_enabled(&self, cas_path: &str) -> bool {
-        self.path_upload
-            .lock()
-            .unwrap()
-            .get(cas_path)
-            .copied()
-            .unwrap_or(true)
+    /// Whether this instance's project allows uploading.
+    ///
+    /// Read here rather than trusted from the client, because the client cannot
+    /// speak for the whole build. The plugin's own check sees a compiler option,
+    /// which reaches Swift; swift-build's Clang caching runs against a CAS
+    /// created with a plugin path and no options, so that lane defaults to
+    /// uploading and would publish straight through an explicit opt-out. Every
+    /// publication passes through here, from either lane and from the sweeper,
+    /// so this is the one place the project's answer can be made to hold.
+    fn upload_enabled(&self, instance: &str) -> bool {
+        self.source_context(instance).upload
     }
 
     /// Whether a build for this instance has touched this proxy since it
@@ -1388,7 +1396,7 @@ impl Proxy {
         // machine. Without a snapshot, per-key is just the normal path and
         // says nothing about view membership.
         if snapshot_ready {
-            self.queue_view_refresh(remote, &state.cas_path, instance, key, &manifest);
+            self.queue_view_refresh(remote, instance, key, &manifest);
         }
         let action_ms = phase.elapsed().as_millis() as u64;
         state.ms_action.fetch_add(action_ms, Ordering::Relaxed);
@@ -1918,6 +1926,15 @@ impl Proxy {
     /// Binding at accept costs nothing: the context is memoized, so this reads
     /// the registry at most once per TTL per instance, never per publish.
     fn enqueue_publish(&self, cas_path: &str, instance: &str, record_path: &str) {
+        // The project's answer, enforced where both lanes meet. The plugin
+        // declines to publish when its own option says so, but that option only
+        // reaches Swift: the build system's Clang caching creates its CAS with a
+        // plugin path and no options, so it asks to publish regardless. Its
+        // records arrive here, and so do the sweeper's, so refusing here is what
+        // makes `upload: false` mean it.
+        if !self.upload_enabled(instance) {
+            return;
+        }
         let (branch, trunk) = self.record_tags(instance, record_path);
         let mut item = Vec::with_capacity(
             8 + instance.len() + cas_path.len() + branch.len() + trunk.len() + record_path.len(),
@@ -2271,7 +2288,6 @@ impl Proxy {
     fn queue_view_refresh(
         &self,
         remote: &Arc<Remote>,
-        cas_path: &str,
         instance: &str,
         key: &[u8],
         manifest: &[ManifestEntry],
@@ -2281,7 +2297,7 @@ impl Proxy {
         // not get to write to the server because the proxy found reading
         // interesting, so the read-only case declines and pays the per-key round
         // trip it was always paying.
-        if !self.upload_enabled(cas_path) {
+        if !self.upload_enabled(instance) {
             return;
         }
         {
@@ -2654,6 +2670,7 @@ impl Proxy {
                     return SourceBranches {
                         branch: context.ci_branch.clone(),
                         trunk: context.trunk.clone(),
+                        upload: context.upload,
                     };
                 }
             }
@@ -2661,6 +2678,8 @@ impl Proxy {
         let source = self.registered_source(instance);
         let trunk = source.as_ref().and_then(|source| source.trunk.clone());
         let branch = source.as_ref().and_then(|source| source.ci_branch.clone());
+        // Unknown instance: nothing recorded, so nothing to withhold.
+        let upload = source.as_ref().map(|source| source.upload).unwrap_or(true);
         {
             let cache = self.source_cache.lock().unwrap();
             let changed = cache
@@ -2679,9 +2698,10 @@ impl Proxy {
                 read_at: Instant::now(),
                 trunk: trunk.clone(),
                 ci_branch: branch.clone(),
+                upload,
             },
         );
-        SourceBranches { branch, trunk }
+        SourceBranches { branch, trunk, upload }
     }
 
     /// What setup registered for the instance, reloading the sources registry so
@@ -2691,6 +2711,7 @@ impl Proxy {
         let clone = |source: &RegisteredSource| RegisteredSource {
             trunk: source.trunk.clone(),
             ci_branch: source.ci_branch.clone(),
+            upload: source.upload,
         };
         if let Some(path) = self.registry_path.as_deref() {
             let sources = load_sources(&sources_path_for(path));
@@ -2908,14 +2929,6 @@ impl Proxy {
                 }
                 write_response(&mut stream, STATUS_HIT, &[])
             }
-            OP_DECLARE_UPLOAD => {
-                let upload = request.payload.first().copied().unwrap_or(1) != 0;
-                self.path_upload
-                    .lock()
-                    .unwrap()
-                    .insert(request.cas_path.clone(), upload);
-                write_response(&mut stream, STATUS_HIT, &[])
-            }
             OP_INVALIDATE => {
                 // A prune emptied this path's on-disk CAS in place; drop our marks
                 // so a resolve re-fetches. Only if we already track the path — an
@@ -3047,6 +3060,9 @@ fn load_sources(path: &Path) -> HashMap<String, RegisteredSource> {
                 RegisteredSource {
                     trunk: columns.next().filter(|trunk| !trunk.is_empty()).map(str::to_owned),
                     ci_branch: columns.next().filter(|branch| !branch.is_empty()).map(str::to_owned),
+                    // Absent is a registry written before the column, and
+                    // uploading is what that machine already does.
+                    upload: columns.next() != Some("0"),
                 },
             );
         }
@@ -4032,14 +4048,48 @@ mod tests {
         );
     }
 
-    /// A view refresh is the proxy writing on its own initiative: nothing the
-    /// compiler asked for produces it, so it never passes the plugin's upload
-    /// check. A machine configured not to upload must not write to the server
-    /// because the proxy found reading interesting.
+    /// `upload: false` has to hold for the whole build, and only the proxy can
+    /// make it. The plugin checks a compiler option, which reaches Swift;
+    /// swift-build's Clang caching creates its CAS with a plugin path and NO
+    /// options, so that lane never sees the project's answer and asks to publish
+    /// regardless. Its records arrive at `enqueue_publish`, and so do the
+    /// sweeper's, which is why the refusal lives there and not in the client.
     #[test]
-    fn a_read_only_build_queues_no_view_refresh() {
-        let proxy = test_proxy();
-        let remote = proxy.remote_for("tuist/mastodon");
+    fn a_read_only_project_publishes_nothing_and_refreshes_nothing() {
+        let dir = std::env::temp_dir().join(format!("tuist-upload-{}", std::process::id()));
+        std::fs::remove_dir_all(&dir).ok();
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        let registry = dir.join("registry");
+        let sources = sources_path_for(&registry);
+        std::fs::write(
+            &sources,
+            "tuist/reader\t/src/reader\tmain\t\t0\ntuist/writer\t/src/writer\tmain\n",
+        )
+        .expect("write sources");
+
+        let proxy = Proxy::new(
+            "http://127.0.0.1:1".into(),
+            crate::token::TokenProvider::from_env(),
+            String::new(),
+            Some(registry),
+            None,
+        );
+        let captured: Arc<Mutex<Vec<Vec<u8>>>> = Arc::new(Mutex::new(Vec::new()));
+        let sink = Arc::clone(&captured);
+        proxy
+            .publisher
+            .configure(1, move |item| sink.lock().unwrap().push(item));
+
+        // What the Clang lane does: it never saw the option, so it asks.
+        proxy.enqueue_publish("/cas", "tuist/reader", "/spool/from-the-clang-lane");
+        proxy
+            .publisher
+            .drain_stop_timeout(std::time::Duration::from_secs(10));
+        assert!(
+            captured.lock().unwrap().is_empty(),
+            "a project that opted out publishes nothing, however the record got here"
+        );
+
         let manifest = vec![ManifestEntry {
             llcas_digest: vec![0xAA],
             blob: reapi::Digest {
@@ -4048,34 +4098,20 @@ mod tests {
             },
             contents: None,
         }];
+        let remote = proxy.remote_for("tuist/reader");
+        proxy.queue_view_refresh(&remote, "tuist/reader", b"key-1", &manifest);
+        assert_eq!(
+            proxy.view_refresh.lock().unwrap().len(),
+            0,
+            "and it does not write on the proxy's own initiative either"
+        );
 
-        // Undeclared is a plugin too old to say, and it keeps what it has today.
-        proxy.queue_view_refresh(&remote, "/cas", "tuist/mastodon", b"key-1", &manifest);
+        // A project that did not opt out is untouched.
+        let remote = proxy.remote_for("tuist/writer");
+        proxy.queue_view_refresh(&remote, "tuist/writer", b"key-2", &manifest);
         assert_eq!(proxy.view_refresh.lock().unwrap().len(), 1);
 
-        proxy
-            .path_upload
-            .lock()
-            .unwrap()
-            .insert("/cas".to_string(), false);
-        proxy.queue_view_refresh(&remote, "/cas", "tuist/mastodon", b"key-2", &manifest);
-        assert_eq!(
-            proxy.view_refresh.lock().unwrap().len(),
-            1,
-            "a read-only path adds nothing to the refresh queue"
-        );
-
-        proxy
-            .path_upload
-            .lock()
-            .unwrap()
-            .insert("/cas".to_string(), true);
-        proxy.queue_view_refresh(&remote, "/cas", "tuist/mastodon", b"key-3", &manifest);
-        assert_eq!(
-            proxy.view_refresh.lock().unwrap().len(),
-            2,
-            "an uploading path still refreshes"
-        );
+        std::fs::remove_dir_all(&dir).ok();
     }
 
     // A demand fetch is a door into the same store, and it does not have to come

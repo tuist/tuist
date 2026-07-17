@@ -36,6 +36,11 @@ private struct RegisteredSource {
     let trunk: String?
     /// Recorded only on CI. See `ciBranch`.
     let branch: String?
+    /// The project's `xcodeCache.upload`. The proxy is the only place that can
+    /// enforce this: the plugin reads it as a compiler option, which reaches
+    /// Swift, while the build system's Clang caching runs in its own process
+    /// with no plugin options at all. Recorded here so one answer covers both.
+    let upload: Bool
 }
 
 struct SetupCacheCommandService {
@@ -126,7 +131,8 @@ struct SetupCacheCommandService {
         fullHandle: String,
         sourceRoot: AbsolutePath,
         trunk: String?,
-        branch: String?
+        branch: String?,
+        upload: Bool
     ) async throws {
         // Derived from the proxy's OWN socket, not from `stateDirectory`. The two
         // agree by default and diverge under `XDG_STATE_HOME`, which the socket
@@ -167,12 +173,20 @@ struct SetupCacheCommandService {
                     entries[parts[0]] = RegisteredSource(
                         root: parts[1],
                         trunk: column(2),
-                        branch: column(3)
+                        branch: column(3),
+                        // Absent means a registry written before this column, and
+                        // uploading is what that machine already does.
+                        upload: column(4) != "0"
                     )
                 }
             }
         }
-        entries[fullHandle] = RegisteredSource(root: sourceRoot.pathString, trunk: trunk, branch: branch)
+        entries[fullHandle] = RegisteredSource(
+            root: sourceRoot.pathString,
+            trunk: trunk,
+            branch: branch,
+            upload: upload
+        )
 
         let body = entries.sorted { $0.key < $1.key }
             .map { key, value in
@@ -180,6 +194,12 @@ struct SetupCacheCommandService {
                 // still has to leave the trunk's place empty.
                 let trunk = value.trunk.flatMap { $0.isEmpty ? nil : $0 }
                 let branch = value.branch.flatMap { $0.isEmpty ? nil : $0 }
+                // Only written when it says something. Uploading is the default,
+                // so a row that omits it means the same thing, and rows written
+                // before this column survive a rewrite byte-identical.
+                if !value.upload {
+                    return "\(key)\t\(value.root)\t\(trunk ?? "")\t\(branch ?? "")\t0"
+                }
                 if let branch {
                     return "\(key)\t\(value.root)\t\(trunk ?? "")\t\(branch)"
                 }
@@ -232,7 +252,8 @@ struct SetupCacheCommandService {
                 fullHandle: fullHandle,
                 sourceRoot: path,
                 trunk: await trunkBranch(fullHandle: fullHandle, serverURL: serverURL),
-                branch: await ciBranch(sourceRoot: path)
+                branch: await ciBranch(sourceRoot: path),
+                upload: config.xcodeCache.upload
             )
             try await installProxy(fullHandle: fullHandle, serverURL: serverURL)
         } else {

@@ -590,21 +590,6 @@ pub unsafe extern "C" fn llcas_cas_create(
         stats_upload_walk_loads: AtomicU64::new(0),
         stats_manifest_entries: AtomicU64::new(0),
     }));
-    // Tell the proxy this build's upload policy. Only we can: it arrives as a
-    // compiler option and the proxy never sees build settings. It writes on its
-    // own behalf (a per-key hit queues a re-publish), and that write does not
-    // pass through the check below, so without this a read-only machine still
-    // wrote to the server. Best-effort and once per CAS: an older proxy answers
-    // "bad op", which leaves it doing what it does today.
-    if let (Some(proxy), Some(dir)) = (&(*state_ptr).proxy, &(*state_ptr).cas_dir) {
-        if let Some(dir) = dir.to_str() {
-            if let Err(message) =
-                proxy.declare_upload(dir, &(*state_ptr).proxy_instance, (*state_ptr).upload)
-            {
-                log_line(&format!("proxy declare_upload failed: {message}"));
-            }
-        }
-    }
     if has_remote {
         let cas_addr = state_ptr as usize;
         (*state_ptr).uploader.configure(Prefetcher::worker_count(), move |item| {
