@@ -105,7 +105,8 @@
                     configuration: .value("Debug"),
                     defaultConfiguration: .value(config.project.generatedProject?.generationOptions.defaultConfiguration),
                     excludedTargets: .value([]),
-                    destination: .value(nil)
+                    destination: .value(nil),
+                    indexingEnabled: .any
                 )
                 .willReturn([graphTarget: .test(hash: "fixtures-hash")])
             given(cacheStorage)

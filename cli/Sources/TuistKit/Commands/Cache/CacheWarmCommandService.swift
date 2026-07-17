@@ -324,10 +324,20 @@ import XcodeGraph
                     temporaryDirectory: temporaryDirectory
                 ))
 
+                var indexStorePaths: [CacheStorableTarget: AbsolutePath] = [:]
+                if ClientFeatureFlags.indexingEnabled() {
+                    indexStorePaths = try await sliceIndexStores(
+                        for: artifactsToStore,
+                        derivedDataPath: derivedDataPath,
+                        temporaryDirectory: temporaryDirectory
+                    )
+                }
+
                 Logger.current.info("Storing binaries to speed up workflows", metadata: .section)
 
                 let successfullyStoredTargets = try await store(
                     artifactsToStore,
+                    indexStorePaths: indexStorePaths,
                     cacheStorage: cacheStorage,
                     temporaryDirectory: temporaryDirectory
                 )
@@ -657,6 +667,22 @@ import XcodeGraph
         }
 
         // swiftlint:disable:next function_body_length
+        // Xcode writes no index data unless `COMPILER_INDEX_STORE_ENABLE` and
+        // `INDEX_ENABLE_DATA_STORE` are both explicitly on. When indexing is disabled we keep the
+        // long-standing default of skipping index generation, which is a measurable build-time win.
+        // `INDEX_DATA_STORE_DIR` is deliberately not set: xcodebuild ignores it and always writes to
+        // `<derivedData>/Index.noindex/DataStore`, which is the path we later slice from.
+        private static var indexStoreArguments: [XcodeBuildArgument] {
+            if ClientFeatureFlags.indexingEnabled() {
+                return [
+                    .xcarg("COMPILER_INDEX_STORE_ENABLE", "YES"),
+                    .xcarg("INDEX_ENABLE_DATA_STORE", "YES"),
+                ]
+            } else {
+                return [.xcarg("COMPILER_INDEX_STORE_ENABLE", "NO")]
+            }
+        }
+
         private func buildBinarySchemes(
             _ scheme: Scheme,
             configuration: String,
@@ -696,7 +722,6 @@ import XcodeGraph
                         .xcarg("CODE_SIGN_ENTITLEMENTS", ""),
                         .xcarg("CODE_SIGNING_ALLOWED", "NO"),
                         .xcarg("CODE_SIGNING_REQUIRED", "NO"),
-                        .xcarg("COMPILER_INDEX_STORE_ENABLE", "NO"),
                         .configuration(configuration),
                         .xcarg("SYMROOT", derivedDataPath.appending(components: ["Build", "Products"]).pathString),
                         // To prevent the rejection when publishing on the App Store
@@ -704,7 +729,7 @@ import XcodeGraph
                     ] + (isReleaseConfiguration ? [
                         .xcarg("GCC_INSTRUMENT_PROGRAM_FLOW_ARCS", "NO"),
                         .xcarg("CLANG_ENABLE_CODE_COVERAGE", "NO"),
-                    ] : []),
+                    ] : []) + Self.indexStoreArguments,
                     passthroughXcodeBuildArguments: [
                         "-resultBundlePath",
                         derivedDataPath.appending(component: UUID().uuidString).pathString,
@@ -742,7 +767,6 @@ import XcodeGraph
                 .xcarg("CODE_SIGN_ENTITLEMENTS", ""),
                 .xcarg("CODE_SIGNING_ALLOWED", "NO"),
                 .xcarg("CODE_SIGNING_REQUIRED", "NO"),
-                .xcarg("COMPILER_INDEX_STORE_ENABLE", "NO"),
                 .configuration(configuration),
                 .xcarg("SYMROOT", derivedDataPath.appending(components: ["Build", "Products"]).pathString),
                 // To prevent the rejection when publishing on the App Store
@@ -750,7 +774,7 @@ import XcodeGraph
             ] + (isReleaseConfiguration ? [
                 .xcarg("GCC_INSTRUMENT_PROGRAM_FLOW_ARCS", "NO"),
                 .xcarg("CLANG_ENABLE_CODE_COVERAGE", "NO"),
-            ] : [])
+            ] : []) + Self.indexStoreArguments
             if platform == .macOS {
                 deviceArguments.append(contentsOf: [
                     .xcarg("ONLY_ACTIVE_ARCH", "NO"),
@@ -824,13 +848,12 @@ import XcodeGraph
                     .xcarg("CODE_SIGN_ENTITLEMENTS", ""),
                     .xcarg("CODE_SIGNING_ALLOWED", "NO"),
                     .xcarg("CODE_SIGNING_REQUIRED", "NO"),
-                    .xcarg("COMPILER_INDEX_STORE_ENABLE", "NO"),
                     .configuration(configuration),
                     .xcarg("SYMROOT", derivedDataPath.appending(components: ["Build", "Products"]).pathString),
                 ] + (isReleaseConfiguration ? [
                     .xcarg("GCC_INSTRUMENT_PROGRAM_FLOW_ARCS", "NO"),
                     .xcarg("CLANG_ENABLE_CODE_COVERAGE", "NO"),
-                ] : []),
+                ] : []) + Self.indexStoreArguments,
                 passthroughXcodeBuildArguments: [
                     "-resultBundlePath",
                     derivedDataPath.appending(component: UUID().uuidString).pathString,
@@ -869,8 +892,47 @@ import XcodeGraph
             binaryArtifactDirectories[platform] = platformDirectories
         }
 
+        /// Splits the shared index store produced by the warm build into a per-target slice, returning
+        /// the slice path for each target. The build writes every target's index units into one
+        /// `Index.noindex/DataStore` under the derived data directory, so we slice from there.
+        private func sliceIndexStores(
+            for artifacts: [CacheGraphTargetBuiltArtifact],
+            derivedDataPath: AbsolutePath,
+            temporaryDirectory: AbsolutePath
+        ) async throws -> [CacheStorableTarget: AbsolutePath] {
+            let sharedStore = derivedDataPath.appending(components: "Index.noindex", "DataStore")
+            guard try await fileSystem.exists(sharedStore) else { return [:] }
+
+            guard let absoluteUnitPath = IndexImportLocator.absoluteUnitPath() else {
+                Logger.current.warning("Skipping index store slicing: the index reader tool is unavailable")
+                return [:]
+            }
+
+            let slicer = IndexStoreSlicer(
+                unitReader: AbsoluteUnitIndexStoreUnitReader(absoluteUnitPath: absoluteUnitPath),
+                fileSystem: fileSystem
+            )
+
+            let sliced = try await artifacts
+                .filter { $0.type == .xcframework }
+                .concurrentCompactMap { artifact -> (CacheStorableTarget, AbsolutePath)? in
+                    let destination = temporaryDirectory.appending(
+                        components: "IndexStores", artifact.graphTarget.target.name, CacheIndexStore.directoryName
+                    )
+                    try await slicer.slice(
+                        store: sharedStore,
+                        targetName: artifact.graphTarget.target.name,
+                        into: destination
+                    )
+                    guard try await fileSystem.exists(destination) else { return nil }
+                    return (CacheStorableTarget(target: artifact.graphTarget, hash: artifact.hash), destination)
+                }
+            return Dictionary(uniqueKeysWithValues: sliced)
+        }
+
         private func store(
             _ artifacts: [CacheGraphTargetBuiltArtifact],
+            indexStorePaths: [CacheStorableTarget: AbsolutePath] = [:],
             cacheStorage: CacheStoring,
             temporaryDirectory: AbsolutePath
         ) async throws -> [CacheStorableTarget] {
@@ -878,7 +940,10 @@ import XcodeGraph
             let storableTargets = Dictionary(
                 uniqueKeysWithValues: try await artifacts
                     .reduce(into: [CacheStorableTarget: [AbsolutePath]]()) { acc, next in
-                        acc[CacheStorableTarget(target: next.graphTarget, hash: next.hash)] = [next.path]
+                        let storableTarget = CacheStorableTarget(target: next.graphTarget, hash: next.hash)
+                        // The index store slice, when present, travels with the artifact through the
+                        // existing upload/download path as an additional stored path.
+                        acc[storableTarget] = [next.path] + (indexStorePaths[storableTarget].map { [$0] } ?? [])
                     }.concurrentMap { storableTarget, paths in
                         let metadataFilePath = temporaryDirectory.appending(
                             components: "Metadatas",
@@ -923,7 +988,8 @@ import XcodeGraph
                 configuration: configuration,
                 defaultConfiguration: config.project.generatedProject?.generationOptions.defaultConfiguration,
                 excludedTargets: excludedTargets,
-                destination: nil
+                destination: nil,
+                indexingEnabled: ClientFeatureFlags.indexingEnabled()
             )
             let selectedHashesByCacheableTarget: [GraphTarget: TargetContentHash]
             switch CacheWarmTargetGraphSelector.selection(

@@ -9,6 +9,7 @@ import TuistExtension
 import TuistHasher
 import TuistLoader
 import TuistLogging
+import TuistServer
 import TuistSupport
 import XcodeGraph
 #if canImport(TuistCacheEE)
@@ -114,7 +115,8 @@ public struct HashCacheCommandService: HashCacheServicing {
             configuration: configuration,
             defaultConfiguration: defaultConfiguration,
             excludedTargets: [],
-            destination: nil
+            destination: nil,
+            indexingEnabled: ClientFeatureFlags.indexingEnabled()
         )
 
         let sortedHashes = hashes.sorted { $0.key.target.name < $1.key.target.name }

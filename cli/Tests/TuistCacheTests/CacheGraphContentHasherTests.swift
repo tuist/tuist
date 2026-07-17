@@ -372,6 +372,84 @@ struct CacheGraphContentHasherTests {
 
     @Test(
         .withMockedSwiftVersionProvider
+    ) func contentHashes_when_indexing_is_enabled_adds_index_store_marker() async throws {
+        // Given
+        given(graphContentHasher)
+            .contentHashes(
+                for: .any,
+                include: .any,
+                destination: .any,
+                additionalStrings: .any
+            )
+            .willReturn([:])
+        given(defaultConfigurationFetcher)
+            .fetch(configuration: .any, defaultConfiguration: .any, graph: .any)
+            .willReturn("Debug")
+        let swiftVersionProviderMock = try #require(SwiftVersionProvider.mocked)
+        given(swiftVersionProviderMock).swiftlangVersion().willReturn("5.10.0")
+
+        // When
+        _ = try await subject.contentHashes(
+            for: Graph.test(),
+            configuration: "Debug",
+            defaultConfiguration: nil,
+            excludedTargets: [],
+            destination: nil,
+            indexingEnabled: true
+        )
+
+        // Then
+        verify(graphContentHasher)
+            .contentHashes(
+                for: .any,
+                include: .any,
+                destination: .any,
+                additionalStrings: .matching { $0.contains("index-store") }
+            )
+            .called(1)
+    }
+
+    @Test(
+        .withMockedSwiftVersionProvider
+    ) func contentHashes_when_indexing_is_disabled_does_not_add_index_store_marker() async throws {
+        // Given
+        given(graphContentHasher)
+            .contentHashes(
+                for: .any,
+                include: .any,
+                destination: .any,
+                additionalStrings: .any
+            )
+            .willReturn([:])
+        given(defaultConfigurationFetcher)
+            .fetch(configuration: .any, defaultConfiguration: .any, graph: .any)
+            .willReturn("Debug")
+        let swiftVersionProviderMock = try #require(SwiftVersionProvider.mocked)
+        given(swiftVersionProviderMock).swiftlangVersion().willReturn("5.10.0")
+
+        // When
+        _ = try await subject.contentHashes(
+            for: Graph.test(),
+            configuration: "Debug",
+            defaultConfiguration: nil,
+            excludedTargets: [],
+            destination: nil,
+            indexingEnabled: false
+        )
+
+        // Then
+        verify(graphContentHasher)
+            .contentHashes(
+                for: .any,
+                include: .any,
+                destination: .any,
+                additionalStrings: .matching { !$0.contains("index-store") }
+            )
+            .called(1)
+    }
+
+    @Test(
+        .withMockedSwiftVersionProvider
     ) func contentHashes_when_targets_are_libraries_hashes_are_computed() async throws {
         // Given
         let staticLibrary = Target.test(name: "StaticLibrary", product: .staticLibrary)

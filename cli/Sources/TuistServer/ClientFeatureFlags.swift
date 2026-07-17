@@ -23,6 +23,17 @@ public enum ClientFeatureFlags {
         featureFlags(environment: environment).contains { $0.caseInsensitiveCompare(featureName) == .orderedSame }
     }
 
+    /// Emits Xcode index data during cache warming and ships it with each cached module's
+    /// artifact, so Open Quickly and find-references work for modules consumed as binaries.
+    ///
+    /// This value is folded into the binary cache hash, so it must be read identically by
+    /// `tuist cache`, `tuist generate`, and `tuist xcodebuild`. Set it in a committed
+    /// environment file (for example `mise.toml`) so warm and generate never disagree; a
+    /// mismatch produces a full cache miss rather than a partial one.
+    public static func indexingEnabled(environment: Environmenting = Environment.current) -> Bool {
+        contains("indexing", environment: environment)
+    }
+
     /// The raw `TUIST_FEATURE_FLAG_*` variables, for forwarding the client
     /// feature flags to a process that does not inherit the environment.
     public static func environmentVariables(environment: Environmenting = Environment.current) -> [String: String] {
