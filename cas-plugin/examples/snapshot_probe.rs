@@ -8,7 +8,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use tuist_cas_plugin::reapi::{blob_digest, ManifestEntry, Remote, RemoteConfig};
+use tuist_cas_plugin::reapi::{blob_digest, reapi_instance, ManifestEntry, Remote, RemoteConfig};
 use tuist_cas_plugin::token::TokenProvider;
 
 fn decode_snapshot_header(bytes: &[u8]) -> Option<(u64, u32, Vec<[u8; 32]>)> {
@@ -56,7 +56,17 @@ fn now_ms() -> u64 {
 }
 
 fn main() {
-    let config = RemoteConfig::from_env().expect("TUIST_CAS_REMOTE_GRPC_URL required");
+    // This probe is the only thing that talks to kura without a proxy in front
+    // of it, so it builds its own config: the plugin reaches the remote solely
+    // through the proxy, and the proxy is handed its endpoint explicitly.
+    let config = RemoteConfig {
+        grpc_url: std::env::var("TUIST_CAS_REMOTE_GRPC_URL")
+            .expect("TUIST_CAS_REMOTE_GRPC_URL required"),
+        instance: reapi_instance(
+            &std::env::var("TUIST_CAS_PROJECT").unwrap_or_else(|_| "tuist".into()),
+        )
+        .to_string(),
+    };
     let tokens = TokenProvider::from_env();
     let remote = Remote::new(config, tokens.clone());
 

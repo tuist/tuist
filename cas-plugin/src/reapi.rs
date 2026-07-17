@@ -75,17 +75,6 @@ pub fn reapi_instance(full_handle: &str) -> &str {
         .unwrap_or(full_handle)
 }
 
-impl RemoteConfig {
-    pub fn from_env() -> Option<Self> {
-        let grpc_url = std::env::var("TUIST_CAS_REMOTE_GRPC_URL").ok()?;
-        let project = std::env::var("TUIST_CAS_PROJECT").unwrap_or_else(|_| "tuist".into());
-        Some(Self {
-            grpc_url,
-            instance: reapi_instance(&project).to_string(),
-        })
-    }
-}
-
 pub struct Node {
     pub refs: Vec<Vec<u8>>,
     pub data: Vec<u8>,

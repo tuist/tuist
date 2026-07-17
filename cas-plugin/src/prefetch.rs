@@ -122,10 +122,6 @@ impl Prefetcher {
         }
     }
 
-    pub fn is_shutdown(&self) -> bool {
-        self.shutdown.load(Ordering::Acquire) || self.draining.load(Ordering::Acquire)
-    }
-
     pub fn enqueue(&self, digest: Vec<u8>) {
         if digest.is_empty() || self.shutdown.load(Ordering::Acquire) {
             return;
