@@ -87,7 +87,7 @@ defmodule TuistWeb.AuthMdProtocolControllerTest do
       |> html_response(200)
 
     assert authorized_page =~ "Agent authorized"
-    assert authorized_page =~ ~s(data-appearance="success")
+    refute authorized_page =~ ~s(data-part="status-icon")
 
     already_claimed_page =
       build_conn()
@@ -96,7 +96,7 @@ defmodule TuistWeb.AuthMdProtocolControllerTest do
       |> html_response(200)
 
     assert already_claimed_page =~ "Already authorized"
-    assert already_claimed_page =~ ~s(data-appearance="information")
+    refute already_claimed_page =~ ~s(data-part="status-icon")
 
     registration_record = Repo.get!(AgentRegistration, internal_registration_id)
 

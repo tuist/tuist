@@ -8,7 +8,6 @@ defmodule TuistWeb.AgentAuthHTML do
 
   attr :title, :string, required: true
   attr :subtitle, :string, required: true
-  attr :appearance, :string, default: nil
   slot :inner_block
 
   def auth_frame(assigns) do
@@ -26,16 +25,6 @@ defmodule TuistWeb.AgentAuthHTML do
             <div data-part="dots">
               <.dots_light />
               <.dots_dark />
-            </div>
-            <div :if={@appearance} data-part="status-icon" data-appearance={@appearance}>
-              <%= case @appearance do %>
-                <% "success" -> %>
-                  <.circle_check />
-                <% "warning" -> %>
-                  <.alert_triangle />
-                <% _ -> %>
-                  <.alert_circle />
-              <% end %>
             </div>
             <div data-part="header">
               <h1 data-part="title">{@title}</h1>

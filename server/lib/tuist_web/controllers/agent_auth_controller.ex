@@ -239,29 +239,27 @@ defmodule TuistWeb.AgentAuthController do
           conn,
           :forbidden,
           "Wrong account",
-          "Sign in with the email address the agent named.",
-          "error"
+          "Sign in with the email address the agent named."
         )
 
       {:error, :otp_expired} ->
-        render_claim_status(conn, :gone, "Code expired", "Ask the agent to start a new claim attempt.", "warning")
+        render_claim_status(conn, :gone, "Code expired", "Ask the agent to start a new claim attempt.")
 
       {:error, :previously_claimed} ->
         render_claim_status(
           conn,
           :ok,
           "Already authorized",
-          "Return to the agent. It is already connected to Tuist.",
-          "information"
+          "Return to the agent. It is already connected to Tuist."
         )
 
       {:error, _reason} ->
-        render_claim_status(conn, :not_found, "Invalid link", "Ask the agent to start a new claim attempt.", "error")
+        render_claim_status(conn, :not_found, "Invalid link", "Ask the agent to start a new claim attempt.")
     end
   end
 
   def protocol_claim_page(conn, _params) do
-    render_claim_status(conn, :bad_request, "Missing token", "This claim link is incomplete.", "error")
+    render_claim_status(conn, :bad_request, "Missing token", "This claim link is incomplete.")
   end
 
   def confirm_protocol_claim(conn, %{"claim_attempt_token" => claim_attempt_token, "user_code" => user_code}) do
@@ -277,8 +275,7 @@ defmodule TuistWeb.AgentAuthController do
           conn,
           :ok,
           "Agent authorized",
-          "Return to the agent. It can now finish connecting to Tuist.",
-          "success"
+          "Return to the agent. It can now finish connecting to Tuist."
         )
 
       {:error, :wrong_account} ->
@@ -286,8 +283,7 @@ defmodule TuistWeb.AgentAuthController do
           conn,
           :forbidden,
           "Wrong account",
-          "Sign in with the email address the agent named.",
-          "error"
+          "Sign in with the email address the agent named."
         )
 
       {:error, :sso_required} ->
@@ -295,8 +291,7 @@ defmodule TuistWeb.AgentAuthController do
           conn,
           :forbidden,
           "Single sign-on required",
-          "Sign out and authenticate with your organization's identity provider.",
-          "error"
+          "Sign out and authenticate with your organization's identity provider."
         )
 
       {:error, reason} when reason in [:user_code_invalid, :rate_limited] ->
@@ -304,17 +299,16 @@ defmodule TuistWeb.AgentAuthController do
           conn,
           :unauthorized,
           "Invalid code",
-          "Check the six-digit code shown by the agent and try again.",
-          "error"
+          "Check the six-digit code shown by the agent and try again."
         )
 
       {:error, _reason} ->
-        render_claim_status(conn, :gone, "Claim expired", "Ask the agent to start a new claim attempt.", "warning")
+        render_claim_status(conn, :gone, "Claim expired", "Ask the agent to start a new claim attempt.")
     end
   end
 
   def confirm_protocol_claim(conn, _params) do
-    render_claim_status(conn, :bad_request, "Invalid request", "A six-digit user code is required.", "error")
+    render_claim_status(conn, :bad_request, "Invalid request", "A six-digit user code is required.")
   end
 
   def protocol_event(conn, _params) do
@@ -605,27 +599,26 @@ defmodule TuistWeb.AgentAuthController do
         )
 
       {:error, :otp_expired} ->
-        render_claim_status(conn, :gone, "Code expired", "Ask the agent to start the claim again.", "warning")
+        render_claim_status(conn, :gone, "Code expired", "Ask the agent to start the claim again.")
 
       {:error, :claim_expired} ->
-        render_claim_status(conn, :gone, "Registration expired", "Ask the agent to register again.", "warning")
+        render_claim_status(conn, :gone, "Registration expired", "Ask the agent to register again.")
 
       {:error, :previously_claimed} ->
         render_claim_status(
           conn,
           :conflict,
           "Already claimed",
-          "This registration has already been completed.",
-          "information"
+          "This registration has already been completed."
         )
 
       {:error, :invalid_claim_token} ->
-        render_claim_status(conn, :not_found, "Invalid link", "This claim link is no longer valid.", "error")
+        render_claim_status(conn, :not_found, "Invalid link", "This claim link is no longer valid.")
     end
   end
 
   def claim_view(conn, _params) do
-    render_claim_status(conn, :bad_request, "Missing token", "This claim link is incomplete.", "error")
+    render_claim_status(conn, :bad_request, "Missing token", "This claim link is incomplete.")
   end
 
   defp protocol_claim_url, do: "#{canonical_origin()}/agent/identity/claim"
@@ -745,14 +738,13 @@ defmodule TuistWeb.AgentAuthController do
     )
   end
 
-  defp render_claim_status(conn, status, title, message, appearance) do
+  defp render_claim_status(conn, status, title, message) do
     conn
     |> put_status(status)
     |> render_agent_auth(
       :status,
       title: title,
       message: message,
-      appearance: appearance,
       head_title: "#{title} · Tuist"
     )
   end
