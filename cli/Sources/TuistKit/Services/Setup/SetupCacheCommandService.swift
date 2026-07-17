@@ -405,10 +405,14 @@ struct SetupCacheCommandService {
         // start together, so ingestion would race the build it is meant to help
         // and compete for the bandwidth that build's own demand fetches need. Our
         // runners have less use for it still: their CAS arrives warm on an
-        // attached volume, which is the mechanism there. The key cache (one round
-        // trip, orders of magnitude lighter) still applies on CI.
+        // attached volume, which is the mechanism there.
+        //
+        // `keys` and not `0`: the key cache is one round trip and orders of
+        // magnitude lighter than the bytes, and it is what gives a cold CI
+        // machine its breadth. Turning it off too would make every resolve a
+        // per-key round trip.
         if Environment.current.isCI {
-            environmentVariables["TUIST_CAS_INGEST_TRUNK"] = "0"
+            environmentVariables["TUIST_CAS_PREFETCH"] = "keys"
         }
 
         // One proxy per machine. Boot out any legacy per-project cache daemon so

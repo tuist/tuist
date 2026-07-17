@@ -139,20 +139,6 @@ fn prematerialize_max_nodes() -> usize {
         .unwrap_or(PREMATERIALIZE_MAX_NODES)
 }
 
-/// Whether to fully ingest a trunk-scoped snapshot into the local CAS ahead of
-/// the build, rather than warming only the newest `PREMATERIALIZE_MAX_NODES`.
-///
-/// On by default where it is affordable and where it pays: the scoping bounds
-/// the warm to the project's trunk closure instead of a whole shared namespace,
-/// the warm runs off any build's critical path, it is idempotent (objects
-/// already on disk are skipped, so steady state only fetches the delta a new
-/// trunk snapshot introduced), and Xcode's own size-LRU bounds the store it
-/// lands in. Measured on a mastodon-sized project: ~12s of off-path fetching
-/// turns a from-scratch trunk build from ~57s into ~33s at 50ms RTT, cutting
-/// demand stalls ~14x.
-///
-/// `TUIST_CAS_INGEST_TRUNK=0` opts out, for a metered or slow link where
-/// pulling the trunk closure up front is not worth it.
 /// Suffix of the file that carries a spool record's publish tags. Both this
 /// proxy's `sweep` and the plugin's own `sweep_spool` walk the spool directory
 /// and must skip it.
@@ -190,8 +176,48 @@ fn remove_record(record_path: &str) {
     let _ = std::fs::remove_file(tags_path(record_path));
 }
 
-fn ingest_trunk_enabled() -> bool {
-    std::env::var("TUIST_CAS_INGEST_TRUNK").as_deref() != Ok("0")
+/// How much of a trunk snapshot to pull before a build asks for it. The two
+/// layers cost different orders of magnitude and are worth disabling
+/// separately, so one setting names all three states rather than leaving the
+/// middle one to be spelled with a node budget.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PrefetchMode {
+    /// Nothing proactive: no snapshot, no warm. Every resolve is a per-key
+    /// round trip and every object arrives on demand.
+    Off,
+    /// The snapshot only: one round trip for the trunk's keys, no bytes pulled
+    /// ahead of the build that needs them. What CI wants: keys are orders of
+    /// magnitude lighter than bytes, and a machine whose proxy and build start
+    /// together has no window to warm in, so the byte layer would race the build
+    /// it is meant to help.
+    Keys,
+    /// The snapshot and its whole byte closure, materialized ahead of the build.
+    ///
+    /// The default, because it is affordable and it pays: the trunk scoping
+    /// bounds the warm to the project's closure instead of a whole shared
+    /// namespace, it runs off any build's critical path, it is idempotent
+    /// (objects already on disk are skipped, so steady state only fetches the
+    /// delta a new snapshot introduced), and Xcode's size-LRU bounds the store
+    /// it lands in. Measured on a mastodon-sized project: ~12s of off-path
+    /// fetching turns a from-scratch trunk build from ~57s into ~33s at 50ms
+    /// RTT, cutting demand stalls ~14x.
+    Full,
+}
+
+/// Pure so the policy is testable without writing to the process environment.
+/// An unrecognized value reads as `Full`, matching how the other flags treat
+/// anything that is not an explicit opt-out: a typo must not silently turn
+/// caching down.
+fn prefetch_mode_from(value: Option<&str>) -> PrefetchMode {
+    match value.map(str::trim).map(str::to_ascii_lowercase).as_deref() {
+        Some("0" | "off" | "false" | "no" | "none") => PrefetchMode::Off,
+        Some("keys") => PrefetchMode::Keys,
+        _ => PrefetchMode::Full,
+    }
+}
+
+fn prefetch_mode() -> PrefetchMode {
+    prefetch_mode_from(std::env::var("TUIST_CAS_PREFETCH").ok().as_deref())
 }
 // View refresh: per-key hits taken while a snapshot was Ready get their
 // manifests re-published in the background (see Proxy.view_refresh). The
@@ -1164,7 +1190,7 @@ impl Proxy {
         let instance = instance.to_string();
         // Off-thread: this runs from a resolve, and `resolve_trunk` can fork git.
         std::thread::spawn(move || {
-            if !ingest_trunk_enabled() || proxy.resolve_trunk(&instance).is_none() {
+            if prefetch_mode() != PrefetchMode::Full || proxy.resolve_trunk(&instance).is_none() {
                 return;
             }
             let Some(snapshot) = proxy.snapshot_ready(&instance) else {
@@ -2447,6 +2473,14 @@ impl Proxy {
     /// background — never on a resolve path. One fetch per proxy lifetime:
     /// entries published later resolve through the ordinary per-key path.
     fn ensure_snapshot(&self, instance: &str, remote: &Arc<Remote>) {
+        // The one place a snapshot enters the map, so this is the whole of what
+        // `PrefetchMode::Off` has to stop. Nothing downstream can run without a
+        // snapshot: the refresh only plans deltas for instances already here,
+        // the warm walks a snapshot's keys, and a fetch instruction gives up
+        // immediately when no fetch is in flight rather than waiting one out.
+        if prefetch_mode() == PrefetchMode::Off {
+            return;
+        }
         {
             let mut snapshots = self.snapshots.lock().unwrap();
             if snapshots.contains_key(instance) {
@@ -2783,6 +2817,13 @@ impl Proxy {
     /// wipe, demand-driven jobs and per-object self-heals carry
     /// re-materialization.
     fn prematerialize_snapshot(&self, instance: &str, snapshot: &Snapshot) {
+        // `Keys` buys the snapshot's breadth and declines to pull its bytes. The
+        // budget below cannot express that: its zero means "no cap", and its
+        // smallest honest value still warms a node, so the only way to fetch
+        // nothing is not to start.
+        if prefetch_mode() == PrefetchMode::Keys {
+            return;
+        }
         let cas_paths: Vec<String> = self
             .path_instance
             .lock()
@@ -2811,11 +2852,12 @@ impl Proxy {
             // namespace measured). The budget covers a large build's closure;
             // everything past it stays resolvable and self-heals on demand.
             // With a trunk-scoped snapshot the closure IS the budget's target,
-            // so full ingestion (the layer above key caching) warms all of it —
+            // so full ingestion (the layer above key caching) warms all of it:
             // the scoping already bounds it to the trunk, not the whole polluted
-            // namespace. Unscoped, or opted out, keep the node budget.
+            // namespace. Unscoped, or not yet a real build, keep the node budget.
+            // The mode is necessarily Full here, the other two having stopped
+            // above.
             let configured = if self.resolve_trunk(instance).is_some()
-                && ingest_trunk_enabled()
                 && self.instance_active(instance)
             {
                 0
@@ -3252,6 +3294,28 @@ unsafe fn encode_node_blob(
 mod tests {
     use super::*;
     use std::cell::Cell;
+
+    /// The two layers cost different orders of magnitude, so the middle state is
+    /// the one CI runs on and the one this parse exists to keep reachable. A
+    /// value that fell through to `Full` here would turn CI's one round trip
+    /// into a full closure pull, which is the failure this pins.
+    #[test]
+    fn prefetch_keys_is_its_own_mode_and_not_a_way_of_spelling_off() {
+        assert_eq!(prefetch_mode_from(Some("keys")), PrefetchMode::Keys);
+        assert_eq!(prefetch_mode_from(Some("KEYS")), PrefetchMode::Keys);
+        assert_eq!(prefetch_mode_from(Some(" keys ")), PrefetchMode::Keys);
+
+        for off in ["0", "off", "false", "no", "none", "OFF"] {
+            assert_eq!(prefetch_mode_from(Some(off)), PrefetchMode::Off, "{off}");
+        }
+
+        // Unset is the default, and so is anything unrecognized: a typo must not
+        // quietly turn caching down, which is the direction that costs a build.
+        assert_eq!(prefetch_mode_from(None), PrefetchMode::Full);
+        assert_eq!(prefetch_mode_from(Some("full")), PrefetchMode::Full);
+        assert_eq!(prefetch_mode_from(Some("kyes")), PrefetchMode::Full);
+        assert_eq!(prefetch_mode_from(Some("")), PrefetchMode::Full);
+    }
 
     #[test]
     fn sources_registry_keeps_reading_entries_written_without_a_trunk() {

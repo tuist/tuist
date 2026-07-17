@@ -42,7 +42,7 @@ The proxy is what makes the machine's caching coherent: it holds one REAPI conne
 - `TUIST_CAS_ACCOUNT`, `TUIST_CAS_PROJECT` - the `account/project` this build's cache belongs to, used to declare the instance to the proxy. Lower precedence than the `tuist-instance` plugin option (see below); when neither is present the proxy falls back to its `cas_path -> instance` registry.
 - `TUIST_CAS_REMOTE_GRPC_URL`, `TUIST_CAS_TOKEN` - REAPI endpoint + bearer. Read by the proxy (one endpoint/token, many instances); the plugin ignores them.
 - `TUIST_CAS_UPLOAD` (default true) - upload policy from `xcodeCache(upload:)`. When false the plugin still serves remote read hits but publishes nothing (no value graphs to proxy or remote). Lower precedence than the `tuist-upload` plugin option (see below).
-- `TUIST_CAS_PREFETCH` (default 24) - size of the plugin's prefetch/upload worker pool.
+- `TUIST_CAS_PREFETCH` (default `full`) - how much of the trunk snapshot the proxy pulls before a build asks for it. `full` fetches the snapshot and materializes its whole byte closure ahead of the build. `keys` fetches only the snapshot (one round trip, orders of magnitude lighter than the bytes) and pulls no bytes ahead of time; `tuist setup cache` selects it on CI, where the proxy and the build start together so there is no window to warm in. `0` (also `off`/`false`/`no`/`none`) disables both layers: no snapshot, no warm, every resolve a per-key round trip and every object on demand. Anything unrecognized reads as `full`, so a typo cannot quietly turn caching down.
 - `TUIST_CAS_LOG` - append per-process stats (hits, misses, prefetched, cache get/put latency) on dispose.
 
 ## Configuration (plugin options)
