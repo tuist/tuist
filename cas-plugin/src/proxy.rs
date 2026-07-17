@@ -3404,35 +3404,46 @@ mod tests {
         std::fs::write(&record, b"record").expect("record");
         let record_path = record.to_string_lossy().into_owned();
 
-        let proxy = Proxy::new(
-            "http://127.0.0.1:1".into(),
-            crate::token::TokenProvider::from_env(),
-            String::new(),
-            Some(registry),
-            None,
-        );
         let captured: Arc<Mutex<Vec<Vec<u8>>>> = Arc::new(Mutex::new(Vec::new()));
-        let sink = Arc::clone(&captured);
-        proxy
-            .publisher
-            .configure(1, move |item| sink.lock().unwrap().push(item));
+        // One per proxy: a publisher is owned by the process that ran it, and
+        // draining one stops it for good.
+        let start_proxy = || {
+            let proxy = Proxy::new(
+                "http://127.0.0.1:1".into(),
+                crate::token::TokenProvider::from_env(),
+                String::new(),
+                Some(registry.clone()),
+                None,
+            );
+            let sink = Arc::clone(&captured);
+            proxy
+                .publisher
+                .configure(1, move |item| sink.lock().unwrap().push(item));
+            proxy
+        };
 
         // The build hands us the record while the main job owns the registry.
-        proxy.enqueue_publish(&cas_path.to_string_lossy(), "tuist/mastodon", &record_path);
+        let producing = start_proxy();
+        producing.enqueue_publish(&cas_path.to_string_lossy(), "tuist/mastodon", &record_path);
         assert!(
             spool.join("1234-0.tags").exists(),
             "accepting a record writes its tags beside it"
         );
-
-        // The proxy dies before draining. The next job on this runner runs setup,
-        // rewriting the registry, and a later sweep finds the record still there.
-        record_branch("feature/theirs");
-        proxy.source_cache.lock().unwrap().clear();
-        proxy.enqueue_publish(&cas_path.to_string_lossy(), "tuist/mastodon", &record_path);
-
-        proxy
+        producing
             .publisher
             .drain_stop_timeout(std::time::Duration::from_secs(10));
+
+        // The next job on this runner runs setup, rewriting the registry, and a
+        // later sweep finds the record still there. That sweep runs in a proxy
+        // that never saw the build: a fresh process, so nothing but the sidecar
+        // survives to tell it which branch produced this record.
+        record_branch("feature/theirs");
+        let sweeping = start_proxy();
+        sweeping.enqueue_publish(&cas_path.to_string_lossy(), "tuist/mastodon", &record_path);
+        sweeping
+            .publisher
+            .drain_stop_timeout(std::time::Duration::from_secs(10));
+
         let items = captured.lock().unwrap();
         assert_eq!(items.len(), 2);
         let branch_of = |item: &[u8]| {
