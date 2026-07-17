@@ -1,7 +1,14 @@
 #!/bin/bash
 # Indexes all GitHub issues and pull requests from tuist/tuist into TypeSense.
 # Paginates through the GitHub API, handles rate limiting, and bulk-imports
-# documents into the "github-issues" TypeSense collection in batches of 250.
+# documents into a freshly built collection, then atomically points the
+# "github-issues" alias at it.
+#
+# The live index is never emptied by a bad run. A run that fetches nothing,
+# hits an unexpected GitHub status, or imports too few documents aborts before
+# the swap and leaves the previous collection serving traffic. Only a verified
+# build replaces it.
+#
 # Requires TYPESENSE_API_KEY and TYPESENSE_HOST environment variables.
 set -euo pipefail
 
@@ -9,18 +16,36 @@ GITHUB_REPO="tuist/tuist"
 TYPESENSE_API_KEY="${TYPESENSE_API_KEY:?TYPESENSE_API_KEY is required}"
 TYPESENSE_HOST="${TYPESENSE_HOST:?TYPESENSE_HOST is required}"
 GITHUB_TOKEN="${GITHUB_TOKEN:-}"
-COLLECTION="github-issues"
+ALIAS="github-issues"
+NEW_COLLECTION="github-issues-$(date +%s)"
+# Fraction of prepared documents that must import for the swap to happen. A
+# largely-failed import is treated as a failure rather than a silent success.
+MIN_IMPORT_RATIO="${MIN_IMPORT_RATIO:-0.9}"
 
 DOCUMENTS_FILE=$(mktemp)
-trap 'rm -f "$DOCUMENTS_FILE"' EXIT
+SPLIT_DIR=$(mktemp -d)
+cleanup() { rm -f "$DOCUMENTS_FILE"; rm -rf "$SPLIT_DIR"; }
+trap cleanup EXIT
 
-typesense_request() {
+# Best-effort TypeSense request: never aborts the script (used for lookups and
+# cleanup where a failure should not take down a good build).
+typesense_try() {
   local method="$1" path="$2"
   shift 2
-  curl -sf -X "$method" "${TYPESENSE_HOST}${path}" \
+  curl -sS -X "$method" "${TYPESENSE_HOST}${path}" \
     -H "X-TYPESENSE-API-KEY: ${TYPESENSE_API_KEY}" \
     -H "Content-Type: application/json" \
     "$@" || true
+}
+
+# Required TypeSense request: aborts the script on any HTTP or transport error.
+typesense_do() {
+  local method="$1" path="$2"
+  shift 2
+  curl -sSf -X "$method" "${TYPESENSE_HOST}${path}" \
+    -H "X-TYPESENSE-API-KEY: ${TYPESENSE_API_KEY}" \
+    -H "Content-Type: application/json" \
+    "$@"
 }
 
 echo "Fetching issues and PRs from ${GITHUB_REPO}..."
@@ -32,7 +57,10 @@ while [ -n "$url" ]; do
   response_file=$(mktemp)
   header_file=$(mktemp)
 
-  http_code=$(curl -sf -w "%{http_code}" \
+  # No -f here on purpose: we need the status code and body on non-2xx
+  # responses. Using -f turned a 403 into "000" and skipped the rate-limit
+  # handling below, so the loop fell through to jq on an empty file.
+  http_code=$(curl -sS -w "%{http_code}" \
     -H "Accept: application/vnd.github+json" \
     -H "User-Agent: TuistSearchIndexer/1.0" \
     ${GITHUB_TOKEN:+-H "Authorization: Bearer ${GITHUB_TOKEN}"} \
@@ -40,15 +68,21 @@ while [ -n "$url" ]; do
     -o "$response_file" \
     "$url") || http_code="000"
 
-  if [ "$http_code" = "403" ]; then
+  if [ "$http_code" = "403" ] || [ "$http_code" = "429" ]; then
     reset=$(grep -i "x-ratelimit-reset" "$header_file" | tr -d '\r' | awk '{print $2}')
     now=$(date +%s)
-    wait=$((reset - now))
+    wait=$(( ${reset:-0} - now ))
     [ "$wait" -lt 1 ] && wait=1
-    echo "Rate limited, waiting ${wait}s..." >&2
-    sleep "$wait"
+    echo "Rate limited (${http_code}), waiting ${wait}s..." >&2
     rm -f "$response_file" "$header_file"
+    sleep "$wait"
     continue
+  fi
+
+  if [ "$http_code" != "200" ]; then
+    rm -f "$response_file" "$header_file"
+    echo "GitHub API returned ${http_code}; aborting without touching the '${ALIAS}' index." >&2
+    exit 1
   fi
 
   count=$(jq 'length' "$response_file")
@@ -84,10 +118,17 @@ echo "  Fetched ${total} issues     "
 doc_count=$(wc -l < "$DOCUMENTS_FILE" | tr -d ' ')
 echo "Prepared ${doc_count} documents"
 
-typesense_request DELETE "/collections/${COLLECTION}"
+# Refuse to rebuild from an empty fetch. Keeping the current index is always
+# better than replacing it with nothing.
+if [ "$doc_count" -eq 0 ]; then
+  echo "No documents fetched; leaving the existing '${ALIAS}' index in place and exiting non-zero." >&2
+  exit 1
+fi
 
-typesense_request POST "/collections" -d '{
-  "name": "'"${COLLECTION}"'",
+# Build into a brand new collection. The live alias is untouched until the
+# import is verified below, so a failed build cannot take search down.
+typesense_do POST "/collections" -d '{
+  "name": "'"${NEW_COLLECTION}"'",
   "fields": [
     {"name": "title", "type": "string"},
     {"name": "content", "type": "string"},
@@ -102,22 +143,58 @@ typesense_request POST "/collections" -d '{
     {"name": "hierarchy.lvl0", "type": "string", "facet": true},
     {"name": "hierarchy.lvl1", "type": "string"}
   ]
-}'
-echo "Created collection '${COLLECTION}'"
+}' > /dev/null
+echo "Created collection '${NEW_COLLECTION}'"
 
 total_success=0
-split_dir=$(mktemp -d)
-split -l 250 "$DOCUMENTS_FILE" "${split_dir}/batch_"
+split -l 250 "$DOCUMENTS_FILE" "${SPLIT_DIR}/batch_"
 
-for batch_file in "${split_dir}"/batch_*; do
+for batch_file in "${SPLIT_DIR}"/batch_*; do
   [ -f "$batch_file" ] || continue
-  result=$(curl -sf -X POST "${TYPESENSE_HOST}/collections/${COLLECTION}/documents/import?action=create" \
+  result=$(curl -sSf -X POST "${TYPESENSE_HOST}/collections/${NEW_COLLECTION}/documents/import?action=create" \
     -H "X-TYPESENSE-API-KEY: ${TYPESENSE_API_KEY}" \
     -H "Content-Type: text/plain" \
     --data-binary @"$batch_file")
   successes=$(echo "$result" | jq -r 'select(.success == true)' | wc -l | tr -d ' ')
+  failures=$(echo "$result" | jq -r 'select(.success == false)' | wc -l | tr -d ' ')
   total_success=$((total_success + successes))
+  if [ "$failures" -gt 0 ]; then
+    echo "  ${failures} documents failed to import in this batch; first error:" >&2
+    echo "$result" | jq -r 'select(.success == false) | .error' 2>/dev/null | head -1 >&2
+  fi
 done
 
-rm -rf "$split_dir"
-echo "Indexed ${total_success}/${doc_count} documents into '${COLLECTION}'"
+echo "Indexed ${total_success}/${doc_count} documents into '${NEW_COLLECTION}'"
+
+# Verify the build before swapping. An empty or largely-failed import used to be
+# a silent success that wiped the live index; now it discards the new collection
+# and keeps the previous one.
+min_required=$(awk -v n="$doc_count" -v r="$MIN_IMPORT_RATIO" 'BEGIN { printf "%d", (n * r) }')
+[ "$min_required" -lt 1 ] && min_required=1
+if [ "$total_success" -lt "$min_required" ]; then
+  echo "Only ${total_success}/${doc_count} documents imported (need >= ${min_required}); discarding '${NEW_COLLECTION}' and leaving '${ALIAS}' untouched." >&2
+  typesense_try DELETE "/collections/${NEW_COLLECTION}" > /dev/null
+  exit 1
+fi
+
+# One-time migration: if "github-issues" is still a real collection (from before
+# this script used an alias), delete it so the name can be reused as an alias.
+if ! typesense_try GET "/aliases/${ALIAS}" | jq -e '.collection_name' > /dev/null 2>&1; then
+  if typesense_try GET "/collections/${ALIAS}" | jq -e '.name' > /dev/null 2>&1; then
+    echo "Migrating legacy collection '${ALIAS}' to an alias..."
+    typesense_try DELETE "/collections/${ALIAS}" > /dev/null
+  fi
+fi
+
+# Point the alias at the freshly built collection. TypeSense alias upserts are
+# atomic, so searches never see a missing or half-built collection.
+typesense_do PUT "/aliases/${ALIAS}" -d '{"collection_name": "'"${NEW_COLLECTION}"'"}' > /dev/null
+echo "Alias '${ALIAS}' now points to '${NEW_COLLECTION}'"
+
+# Remove older github-issues-* builds, keeping the one the alias now points at.
+old_collections=$(typesense_try GET "/collections" | jq -r '.[].name | select(startswith("github-issues-"))' 2>/dev/null || echo "")
+for collection in $old_collections; do
+  if [ "$collection" != "$NEW_COLLECTION" ]; then
+    typesense_try DELETE "/collections/${collection}" > /dev/null && echo "Removed old collection '${collection}'"
+  fi
+done
