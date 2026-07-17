@@ -15,7 +15,8 @@ defmodule Tuist.Docs.SidebarTest do
   end
 
   test "puts the starting journeys first in the guides sidebar" do
-    [%Sidebar.Group{label: "Get started", items: [chooser]} | _] = Sidebar.guides_tree()
+    [%Sidebar.Group{label: "Get started", items: [chooser, install_tuist, install_gradle]} | rest] =
+      Sidebar.guides_tree()
 
     assert chooser.label == "Choose your path"
     assert chooser.slug == "/en/guides/get-started"
@@ -26,6 +27,13 @@ defmodule Tuist.Docs.SidebarTest do
              {"Gradle project", "/en/guides/get-started/gradle-project"},
              {"Tuist runners", "/en/guides/get-started/tuist-runners"}
            ]
+
+    assert {install_tuist.label, install_tuist.slug} == {"Install Tuist", "/en/guides/install-tuist"}
+
+    assert {install_gradle.label, install_gradle.slug} ==
+             {"Install the Gradle plugin", "/en/guides/install-gradle-plugin"}
+
+    refute Enum.any?(rest, &(&1.label == "Guides"))
   end
 
   test "all sidebar slugs correspond to actual docs pages" do
