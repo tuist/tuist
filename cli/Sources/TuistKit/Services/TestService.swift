@@ -286,6 +286,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         if let shardIndex, action == .testWithoutBuilding {
             try await runShard(
                 shardIndex: shardIndex,
+                noUpload: noUpload,
                 schemeName: schemeName,
                 path: path,
                 config: config,
@@ -316,6 +317,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
             try await runTestWithoutBuildingFromBundle(
                 schemeName: schemeName,
                 testProductsPath: testProductsPath,
+                noUpload: noUpload,
                 config: config,
                 deviceName: deviceName,
                 platform: platform,
@@ -643,6 +645,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
     // swiftlint:disable:next function_body_length function_parameter_count
     private func runShard(
         shardIndex: Int,
+        noUpload: Bool,
         schemeName: String?,
         path: AbsolutePath,
         config: Tuist,
@@ -678,7 +681,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
             testProductsArchivePath: shardArchivePath
         )
 
-        let cacheStorage = try await cacheStorageFactory.cacheStorage(config: config)
+        let cacheStorage = noUpload
+            ? try await cacheStorageFactory.cacheLocalStorage()
+            : try await cacheStorageFactory.cacheStorage(config: config)
 
         let runResultBundlePath =
             try cacheDirectoriesProvider
@@ -771,6 +776,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
     private func runTestWithoutBuildingFromBundle(
         schemeName: String?,
         testProductsPath: AbsolutePath,
+        noUpload: Bool,
         config: Tuist,
         deviceName: String?,
         platform: String?,
@@ -798,7 +804,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
 
         await RunMetadataStorage.current.restoreMetadata(from: testProductsPath)
 
-        let cacheStorage = try await cacheStorageFactory.cacheStorage(config: config)
+        let cacheStorage = noUpload
+            ? try await cacheStorageFactory.cacheLocalStorage()
+            : try await cacheStorageFactory.cacheStorage(config: config)
 
         let runResultBundlePath =
             try cacheDirectoriesProvider
