@@ -786,6 +786,11 @@ impl Metrics {
             ready_state.clone(),
         );
         registry.register(
+            "kura_drain_state",
+            "Current drain state for this node: 1=draining, 0=not draining",
+            drain_state.clone(),
+        );
+        registry.register(
             "kura_membership_generation",
             "Membership view generation; increments on every peer topology change",
             membership_generation.clone(),
@@ -799,11 +804,6 @@ impl Metrics {
             "kura_bootstrap_completions_discarded_total",
             "Completed bootstrap passes that did not count toward the readiness gate",
             bootstrap_completions_discarded.clone(),
-        );
-        registry.register(
-            "kura_drain_state",
-            "Current drain state for this node: 1=draining, 0=not draining",
-            drain_state.clone(),
         );
         registry.register(
             "kura_initial_discovery_completed",
@@ -2094,8 +2094,8 @@ mod tests {
         assert!(rendered.contains("kura_ready_state"));
         assert!(rendered.contains("kura_membership_generation"));
         assert!(rendered.contains("kura_membership_peer_changes_total"));
-        assert!(rendered.contains("change=\"lost\""));
-        assert!(rendered.contains("change=\"discovered\""));
+        assert!(rendered.contains("change=\"lost\"} 1"));
+        assert!(rendered.contains("change=\"discovered\"} 2"));
         assert!(rendered.contains("kura_bootstrap_completions_discarded_total"));
         assert!(rendered.contains("kura_drain_state"));
         assert!(rendered.contains("kura_initial_discovery_completed"));

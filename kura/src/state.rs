@@ -377,11 +377,13 @@ impl AppState {
             membership_update
         };
         // A lost peer silently drops its bootstrapped mark and re-enters the
-        // bootstrap gate when it returns, so topology changes must be loud:
-        // a flapping peer set is the difference between a 30-minute bootstrap
-        // and one that never converges.
+        // bootstrap gate when it returns; a flapping peer set is the difference
+        // between a 30-minute bootstrap and one that never converges. Lost
+        // peers are routine on rolling deploys and scale-downs, so this logs at
+        // info and the kura_membership_peer_changes_total{change="lost"} counter
+        // carries the alerting signal.
         if !membership_update.lost_peers.is_empty() {
-            warn!(
+            info!(
                 "membership changed: lost peers {:?} (discovered {:?}); their bootstrapped state is forgotten until they are re-bootstrapped",
                 membership_update.lost_peers, membership_update.discovered_peers
             );
@@ -749,13 +751,14 @@ mod tests {
         // must not mark the peer bootstrapped.
         let stale_epoch = readiness.bootstrap_epoch;
         readiness.reset_bootstrap_progress(now);
-        readiness.note_bootstrap_succeeded(&peer, stale_epoch);
+        assert!(!readiness.note_bootstrap_succeeded(&peer, stale_epoch));
 
         assert_eq!(readiness.peers_needing_bootstrap(), vec![peer.clone()]);
 
         // A fresh pass under the current epoch counts.
         assert!(readiness.note_bootstrap_started(&peer));
-        readiness.note_bootstrap_succeeded(&peer, readiness.bootstrap_epoch);
+        let fresh_epoch = readiness.bootstrap_epoch;
+        assert!(readiness.note_bootstrap_succeeded(&peer, fresh_epoch));
         assert!(readiness.peers_needing_bootstrap().is_empty());
     }
 
@@ -907,6 +910,78 @@ mod tests {
                 .reasons
                 .iter()
                 .any(|reason| reason.contains("discovery settling"))
+        );
+    }
+
+    fn rendered_metric_value(rendered: &str, selector: &str) -> Option<u64> {
+        rendered
+            .lines()
+            .filter(|line| !line.starts_with('#'))
+            .find(|line| line.contains(selector))
+            .and_then(|line| line.split_whitespace().last())
+            .and_then(|value| value.parse().ok())
+    }
+
+    #[tokio::test]
+    async fn app_state_records_membership_peer_change_metrics() {
+        let context = test_context(|_| {}).await;
+        let peer_a = "http://peer-a.kura.internal:7443".to_string();
+        let peer_b = "http://peer-b.kura.internal:7443".to_string();
+        context
+            .state
+            .apply_membership_view(
+                BTreeSet::from(["remote-a".to_string()]),
+                BTreeMap::from([(peer_a.clone(), "remote-a".to_string())]),
+                true,
+            )
+            .await;
+        context
+            .state
+            .apply_membership_view(
+                BTreeSet::from(["remote-b".to_string()]),
+                BTreeMap::from([(peer_b.clone(), "remote-b".to_string())]),
+                true,
+            )
+            .await;
+
+        let rendered = context.state.metrics.render();
+        assert_eq!(
+            rendered_metric_value(&rendered, "change=\"discovered\"}"),
+            Some(2)
+        );
+        assert_eq!(
+            rendered_metric_value(&rendered, "change=\"lost\"}"),
+            Some(1)
+        );
+    }
+
+    #[tokio::test]
+    async fn app_state_records_discarded_bootstrap_completion_metric() {
+        let context = test_context(|_| {}).await;
+        let peer = "http://peer.kura.internal:7443".to_string();
+        context
+            .state
+            .apply_membership_view(
+                BTreeSet::from(["remote".to_string()]),
+                BTreeMap::from([(peer.clone(), "remote".to_string())]),
+                true,
+            )
+            .await;
+
+        let stale_epoch = context.state.current_bootstrap_epoch().await;
+        context.state.note_bootstrap_started(&peer).await;
+        // A recovery re-enrollment resets progress while the pass is in flight,
+        // so the completion arrives under a stale epoch and is discarded.
+        context.state.reset_bootstrap_progress().await;
+        context
+            .state
+            .note_bootstrap_succeeded(&peer, stale_epoch)
+            .await;
+
+        let rendered = context.state.metrics.render();
+        assert_eq!(
+            rendered_metric_value(&rendered, "kura_bootstrap_completions_discarded"),
+            Some(1)
         );
     }
 }
