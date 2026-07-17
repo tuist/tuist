@@ -1619,9 +1619,12 @@ fn upload_process(cas_addr: usize, item: Vec<u8>) {
             if !uploads.is_empty() {
                 remote.batch_update(uploads)?;
             }
-            // Direct-to-kura (no proxy): the branch/trunk this build is
-            // attributed to come from the environment the CLI set — there is no
-            // proxy here to derive them from the project's source root.
+            // Direct-to-kura, which is bench-only (see the mode selection in
+            // `llcas_cas_create`: a real build, including a ⌘B one, always goes
+            // through the proxy). No proxy means no sources registry, so the
+            // tags come from the environment. That is the same override the
+            // proxy honours ahead of the registry, so a bench attributes a
+            // publish the way a CI job does.
             let branch = std::env::var("TUIST_CAS_BRANCH")
                 .ok()
                 .filter(|value| !value.is_empty());

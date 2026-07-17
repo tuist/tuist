@@ -955,17 +955,17 @@ pub struct Proxy {
     // a proxy restart. See proxy_proto for why the fallback exists.
     path_instance: Mutex<HashMap<String, String>>,
     registry_path: Option<PathBuf>,
-    // instance -> the project's source root, registered by `tuist setup cache`
-    // (the per-project step that installs this proxy). The branch and trunk a
-    // publish is tagged with are derived live from this repo's git HEAD, so a
-    // branch switch needs no re-setup and nothing branch-specific ever enters a
-    // build setting (which could pollute the compile cache key).
+    // instance -> what `tuist setup cache` recorded for it: the project's trunk,
+    // the CI job's branch, and the upload policy. Not the checkout: nothing about
+    // a publish is read from a working copy, which is what stops a moved,
+    // renamed or duplicated one mis-attributing a build. Nothing branch-specific
+    // enters a build setting either, which could pollute the compile cache key.
     instance_sources: Mutex<HashMap<String, RegisteredSource>>,
     // Instances a build has touched since this proxy started; bounds trunk
     // ingestion to projects actually in use (see `instance_active`).
     active_instances: Mutex<HashSet<String>>,
-    // instance -> the last git context read from its source root, refreshed on
-    // a short TTL so per-publish tagging is a cache hit, not a git fork.
+    // instance -> the last context read from the registry, refreshed on a short
+    // TTL so per-publish tagging is a cache hit rather than a file read.
     source_cache: Mutex<HashMap<String, SourceContext>>,
     paths: Mutex<HashMap<String, &'static PathState>>,
     publisher: Prefetcher,
@@ -2673,18 +2673,6 @@ impl Proxy {
         }
     }
 
-    /// Queues materialization of every graph the snapshot describes: bulk
-    /// content warming with no keylog and no demand ordering — resolves
-    /// answer from the snapshot regardless and loads self-heal per object,
-    /// so this only keeps the link busy so most loads find bytes already
-    /// local. Once per snapshot fetch (i.e. per proxy lifetime per
-    /// instance); after a mid-day wipe, demand-driven jobs and per-object
-    /// self-heals carry re-materialization.
-    /// The git branch a publish for this instance is attributed to: the env
-    /// override first (a manual build or a bench), then the branch derived live
-    /// from the instance's registered source root, then the branch
-    /// `tuist setup cache` recorded for a CI checkout.
-    ///
     /// The branch to attribute a publish to: the env override, then what setup
     /// recorded from the CI job's environment.
     ///
@@ -2787,6 +2775,13 @@ impl Proxy {
         }
     }
 
+    /// Queues materialization of every graph the snapshot describes: bulk
+    /// content warming with no keylog and no demand ordering. Resolves answer
+    /// from the snapshot regardless and loads self-heal per object, so this only
+    /// keeps the link busy so most loads find bytes already local. Once per
+    /// snapshot fetch (i.e. per proxy lifetime per instance); after a mid-day
+    /// wipe, demand-driven jobs and per-object self-heals carry
+    /// re-materialization.
     fn prematerialize_snapshot(&self, instance: &str, snapshot: &Snapshot) {
         let cas_paths: Vec<String> = self
             .path_instance
@@ -3089,9 +3084,11 @@ fn load_registry(path: &Path) -> HashMap<String, String> {
     map
 }
 
-/// The instance -> source-root registry sits next to the cas_path registry,
-/// written by `tuist setup cache` (which knows both the full handle and the
-/// project path). `<registry>.sources`, TSV `instance\tsource-root`.
+/// The sources registry sits next to the cas_path registry, written by
+/// `tuist setup cache` (the only place that has the project's configuration).
+/// `<registry>.sources`, TSV
+/// `instance \t source-root \t trunk \t ci-branch \t upload`. The source root
+/// is still written and no longer read; see `RegisteredSource`.
 fn sources_path_for(registry: &Path) -> PathBuf {
     let mut path = registry.to_path_buf().into_os_string();
     path.push(".sources");
