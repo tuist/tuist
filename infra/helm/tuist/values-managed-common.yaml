@@ -36,6 +36,13 @@ kuraController:
         introspectionClientId: KURA_CONTROL_PLANE_CLIENT_ID
         introspectionClientSecret: KURA_CONTROL_PLANE_CLIENT_SECRET
 
+codebaseSearch:
+  enabled: true
+  image:
+    tag: ""  # Set by the deployment workflow to the same commit as the server image.
+  networkPolicy:
+    enabled: true
+
 server:
   serviceAccount:
     create: true

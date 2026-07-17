@@ -150,6 +150,31 @@ kuraRuntime:
     # `--set-file kuraRuntime.instance.extensionScript=<path>`.
     extensionScript: ""
 
+codebaseSearch:
+  enabled: false
+  replicaCount: 1
+  image:
+    repository: ghcr.io/tuist/codebase-search
+    tag: ""
+    pullPolicy: IfNotPresent
+  service:
+    port: 80
+  containerPort: 4000
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "64Mi"
+    limits:
+      cpu: "1"
+      memory: "512Mi"
+  networkPolicy:
+    enabled: false
+  podAnnotations: {}
+  podLabels: {}
+  affinity: {}
+  nodeSelector: {}
+  tolerations: []
+
 server:
   enabled: true
   replicaCount: 1

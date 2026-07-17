@@ -52,8 +52,29 @@ defmodule Tuist.MCP.ServerTest do
       refute "search_tuist" in Map.keys(Server.server().tools)
     end
 
+    test "offers codebase tools only when the hosted codebase service is configured" do
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      stub(Environment, :codebase_search_enabled?, fn -> true end)
+
+      tool_names = Map.keys(Server.server().tools)
+      assert "search_tuist_code" in tool_names
+      assert "list_tuist_files" in tool_names
+      assert "read_tuist_file" in tool_names
+
+      stub(Environment, :codebase_search_enabled?, fn -> false end)
+      tool_names = Map.keys(Server.server().tools)
+      refute "search_tuist_code" in tool_names
+      refute "list_tuist_files" in tool_names
+      refute "read_tuist_file" in tool_names
+
+      stub(Environment, :tuist_hosted?, fn -> false end)
+      stub(Environment, :codebase_search_enabled?, fn -> true end)
+      refute "search_tuist_code" in Map.keys(Server.server().tools)
+    end
+
     test "every tool exposes descriptions, schemas, a human-readable title, and explicit review hints" do
       stub(Environment, :tuist_hosted?, fn -> true end)
+      stub(Environment, :codebase_search_enabled?, fn -> true end)
       server = Server.server()
 
       for {name, module} <- server.tools do
@@ -106,6 +127,30 @@ defmodule Tuist.MCP.ServerTest do
       assert "compare_cache_runs" in prompt_names
       assert "integrate_gradle_project" in prompt_names
       assert "integrate_xcode_project" in prompt_names
+    end
+
+    test "offers the question-answering prompt with the codebase tools" do
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      stub(Environment, :codebase_search_enabled?, fn -> true end)
+      assert "ask_tuist" in Map.keys(Server.server().prompts)
+
+      stub(Environment, :codebase_search_enabled?, fn -> false end)
+      refute "ask_tuist" in Map.keys(Server.server().prompts)
+    end
+
+    test "instructs clients to answer questions with source-backed tools when they are available" do
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      stub(Environment, :codebase_search_enabled?, fn -> true end)
+
+      instructions = Server.server().instructions
+
+      assert instructions =~ "Answer Tuist questions with the Tuist tools"
+      assert instructions =~ "search_tuist_code"
+      assert instructions =~ "treat truncated results as partial"
+      assert instructions =~ "source revision"
+
+      stub(Environment, :codebase_search_enabled?, fn -> false end)
+      assert Server.server().instructions == nil
     end
   end
 end
