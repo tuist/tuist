@@ -1,0 +1,222 @@
+name: Runner Cache Volume Staging Validation
+
+# Manual end-to-end validation of the per-account cache volume (spec #76) on
+# the STAGING macOS fleet, which runs `runnerCacheVolume.gib: 40`.
+#
+# Host-side checks (volume provisioned, config converged) are NOT evidence —
+# trusting them is what let a broken cache volume reach production on
+# 2026-07-16. This workflow only asserts things a real job on a real runner
+# can observe:
+#
+#   1. The VM actually has a cache share. It attaches at VM BOOT, so a VM
+#      booted before the feature was on has none and its green run proves
+#      nothing — that is a hard failure here, never a skip.
+#   2. The share carries exactly one file: the sparse disk image.
+#   3. The guest attached it and TUIST_XDG_CACHE_HOME points at the MOUNTPOINT.
+#   4. The copy that actually broke production succeeds: a versioned macOS
+#      framework bundle (symlinks) carrying xattrs ON the symlink, copied with
+#      `cp -R` into the cache. On the old virtio-fs share this failed with
+#      NSCocoaErrorDomain 512 / ELOOP ("Too many levels of symbolic links")
+#      because virtio-fs cannot set xattrs on a symlink. Inside an APFS image
+#      it is native.
+#   5. `tuist cache` — the real CLI path (CacheLocalStorage.store ->
+#      FileManager.copyItem) that produced the original failure.
+#
+# The `warm` job then proves the promote/clone half: it runs after `seed` on
+# the same fleet and must observe the master `seed` promoted, cloned back in.
+#
+# Triggered manually only — it burns a macOS runner slot and a full
+# `tuist cache` build.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  MISE_VERSION: "2026.5.15"
+
+jobs:
+  seed:
+    name: Seed (cold) + reproduce the original failure
+    runs-on: tuist-staging-macos
+    timeout-minutes: 60
+    steps:
+      - name: Prove this VM actually has a cache volume
+        run: |
+          set -euo pipefail
+          share="/Volumes/My Shared Files/cache"
+          if [ ! -d "${share}" ]; then
+            echo "::error::No cache share at '${share}'. The share attaches at VM BOOT, so this VM booted without a cache volume and this run proves NOTHING about the feature. Fail loudly rather than pass a meaningless green."
+            exit 1
+          fi
+          echo "cache share present:"
+          ls -la "${share}"
+
+      - name: Prove the share carries only the disk image
+        run: |
+          set -euo pipefail
+          share="/Volumes/My Shared Files/cache"
+          image="${share}/cache.sparseimage"
+          if [ ! -f "${image}" ]; then
+            echo "::error::No cache image at '${image}'. The host must leave an image on EVERY path (an empty one when cold); the guest cannot attach what is not there."
+            exit 1
+          fi
+          # Exactly one regular file crosses virtio-fs. Anything else means the
+          # host is still writing cache content onto the share itself.
+          entries=$(ls -A "${share}" | grep -v '^\.host-materialized$' || true)
+          echo "share entries: ${entries}"
+          if [ "${entries}" != "cache.sparseimage" ]; then
+            echo "::error::Expected only cache.sparseimage on the share; found: ${entries}"
+            exit 1
+          fi
+          echo "image size on the share (sparse):"
+          du -h "${image}"
+
+      - name: Prove the guest attached the image
+        run: |
+          set -euo pipefail
+          mnt="/Users/runner/.tuist-cache-volume"
+          if ! mount | grep -q " on ${mnt} "; then
+            echo "::error::Cache image is not mounted at ${mnt}. mount output:"
+            mount | grep -i tuist || true
+            exit 1
+          fi
+          mount | grep " on ${mnt} "
+          echo "TUIST_XDG_CACHE_HOME=${TUIST_XDG_CACHE_HOME:-<unset>}"
+          if [ "${TUIST_XDG_CACHE_HOME:-}" != "${mnt}" ]; then
+            echo "::error::TUIST_XDG_CACHE_HOME must be the MOUNTPOINT (${mnt}), not the share. Got: '${TUIST_XDG_CACHE_HOME:-<unset>}'"
+            exit 1
+          fi
+          # Real APFS inside, not virtio-fs.
+          echo "filesystem type at the mountpoint:"
+          df -T apfs "${mnt}" || df "${mnt}"
+
+      - name: Reproduce the exact failure that broke production
+        run: |
+          set -euo pipefail
+          dest="${TUIST_XDG_CACHE_HOME:?}/tuist/Binaries/volume-probe-${GITHUB_RUN_ID}"
+          mkdir -p "${dest}"
+
+          # A versioned macOS framework bundle, as the CLI caches them:
+          #   Resources -> Versions/Current/Resources
+          #   Current   -> A
+          fw="${RUNNER_TEMP}/Bar.framework"
+          rm -rf "${fw}"
+          mkdir -p "${fw}/Versions/A/Resources"
+          echo "payload" > "${fw}/Versions/A/Resources/data.txt"
+          ln -s A "${fw}/Versions/Current"
+          ln -s Versions/Current/Resources "${fw}/Resources"
+
+          # The xattr ON THE SYMLINK is the load-bearing part: the CLI signs
+          # cached artifacts with xattrs, and virtio-fs cannot set them on a
+          # symlink. `-s` makes xattr act on the link itself, not its target.
+          xattr -w -s dev.tuist.probe.signature "sig-${GITHUB_RUN_ID}" "${fw}/Resources"
+          echo "source symlink xattrs:"
+          xattr -l -s "${fw}/Resources"
+
+          # THE copy. On the virtio-fs share this failed with:
+          #   cp: Bar.framework/Resources: could not copy extended attributes
+          #   -> NSCocoaErrorDomain 512 / NSPOSIXErrorDomain 62 ELOOP
+          cp -R "${fw}" "${dest}/"
+
+          echo "--- verifying the copy landed intact inside the image ---"
+          test -L "${dest}/Bar.framework/Resources" || { echo "::error::Resources is not a symlink after copy"; exit 1; }
+          test -L "${dest}/Bar.framework/Versions/Current" || { echo "::error::Versions/Current is not a symlink after copy"; exit 1; }
+          got_target=$(readlink "${dest}/Bar.framework/Resources")
+          [ "${got_target}" = "Versions/Current/Resources" ] || { echo "::error::symlink target mangled: ${got_target}"; exit 1; }
+          # The xattr must survive the copy — this is what ELOOP'd before.
+          if ! xattr -p -s dev.tuist.probe.signature "${dest}/Bar.framework/Resources" | grep -q "sig-${GITHUB_RUN_ID}"; then
+            echo "::error::signature xattr did not survive the copy onto the cache volume"
+            exit 1
+          fi
+          # Resolution through the link must work.
+          grep -q payload "${dest}/Bar.framework/Resources/data.txt" || { echo "::error::cannot read through the versioned symlink"; exit 1; }
+          echo "OK: framework bundle with xattrs on symlinks copied into the cache volume"
+
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.TUIST_CLI_GITHUB_TOKEN || github.token }}
+
+      - name: Initialize TuistCacheEE submodule
+        run: bash mise/tasks/cli/ee.sh
+
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install_args: "tuist"
+          github_token: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN || github.token }}
+
+      - name: Authenticate with Tuist
+        run: tuist auth login
+
+      - name: Setup Tuist
+        run: tuist setup
+
+      - name: Install Tuist dependencies
+        run: tuist install --force-resolved-versions
+
+      - name: Cache (the real CLI path onto the volume)
+        run: tuist cache
+
+      - name: Show what landed on the volume
+        run: |
+          set -euo pipefail
+          root="${TUIST_XDG_CACHE_HOME:?}/tuist"
+          echo "Binaries: $(ls -1 "${root}/Binaries" 2>/dev/null | wc -l | tr -d ' ')"
+          echo "df:"; df -h "${TUIST_XDG_CACHE_HOME}"
+          # The whole point: macOS slices carry symlinks. Zero symlinks means
+          # we never exercised the failure (a flat iOS-only set), so say so.
+          links=$(find "${root}/Binaries" -type l 2>/dev/null | wc -l | tr -d ' ')
+          echo "symlinks under Binaries/: ${links}"
+          if [ "${links}" = "0" ]; then
+            echo "::warning::No symlinks under Binaries/ — the cached set is flat, so `tuist cache` alone did not exercise the framework path. The explicit repro step above did."
+          fi
+
+  warm:
+    name: Warm (must clone the promoted master)
+    needs: seed
+    runs-on: tuist-staging-macos
+    timeout-minutes: 20
+    steps:
+      - name: Prove this VM has a cache volume
+        run: |
+          set -euo pipefail
+          share="/Volumes/My Shared Files/cache"
+          if [ ! -d "${share}" ]; then
+            echo "::error::No cache share; this run proves nothing."
+            exit 1
+          fi
+          mnt="/Users/runner/.tuist-cache-volume"
+          mount | grep -q " on ${mnt} " || { echo "::error::cache image not attached at ${mnt}"; exit 1; }
+          echo "attached:"; mount | grep " on ${mnt} "
+
+      - name: Prove the master promoted by `seed` was cloned back in
+        run: |
+          set -euo pipefail
+          root="${TUIST_XDG_CACHE_HOME:?}/tuist"
+          echo "Binaries on this warm VM:"
+          ls -1 "${root}/Binaries" 2>/dev/null | head -20 || true
+          count=$(ls -1 "${root}/Binaries" 2>/dev/null | wc -l | tr -d ' ')
+          echo "entry count: ${count}"
+          if [ "${count}" = "0" ]; then
+            echo "::error::The volume is EMPTY on a warm VM. `seed` promoted a master and this job should have clonefiled it in. Either the promote or the materialize half is broken."
+            exit 1
+          fi
+          # The probe framework `seed` wrote must be here, symlinks + xattrs intact,
+          # having survived: image -> promote (clone) -> materialize (clone) -> attach.
+          probe=$(find "${root}/Binaries" -maxdepth 1 -name 'volume-probe-*' | head -1)
+          if [ -z "${probe}" ]; then
+            echo "::error::seed's probe artifact is not on the warm volume; the master did not carry it"
+            exit 1
+          fi
+          echo "found promoted probe: ${probe}"
+          test -L "${probe}/Bar.framework/Resources" || { echo "::error::symlink lost across promote+materialize"; exit 1; }
+          xattr -l -s "${probe}/Bar.framework/Resources"
+          xattr -p -s dev.tuist.probe.signature "${probe}/Bar.framework/Resources" \
+            || { echo "::error::xattr lost across promote+materialize"; exit 1; }
+          grep -q payload "${probe}/Bar.framework/Resources/data.txt" \
+            || { echo "::error::cannot read through the symlink on the warm volume"; exit 1; }
+          echo "OK: the promoted master cloned back in with symlinks and xattrs intact"
