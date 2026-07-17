@@ -829,6 +829,15 @@ jobs:
           # resolved runner-image@ semver for the default 26.5 pool. Used
           # to pin staging at an in-flight `:macos-26-5-<git-sha>` build
           # before the runner image is tagged.
+          #
+          # 26.5 must track the `xcode_version` on the accounts' `macos`
+          # runner profile (a DB row), NOT the chart catalog's
+          # `default: true` entry. `runs-on: tuist[-staging]-macos` resolves
+          # profile -> xcode_version -> pool (Tuist.Runners.Catalog.pool_name/1);
+          # the catalog default only applies to a profile with no
+          # xcode_version. They currently disagree (profiles 26.5, catalog
+          # 26.6), so deriving this from the catalog pins a pool no job runs
+          # on and silently validates the OLD image.
           macos_runner_image_tag="${MACOS_RUNNER_IMAGE_TAG_INPUT:-}"
           if [ -n "$macos_runner_image_tag" ]; then
             image_sets+=(--set-string "runnersFleet.xcodeOverrides.26\\.5.imageTag=$macos_runner_image_tag")
