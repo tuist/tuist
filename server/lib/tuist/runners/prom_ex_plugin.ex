@@ -230,6 +230,20 @@ defmodule Tuist.Runners.PromExPlugin do
             description: "Queued workflow jobs per fleet (ClickHouse runner_jobs).",
             measurement: :count,
             tags: [:fleet]
+          ),
+          # Rides the same event as `queue_length` because both come out
+          # of one ClickHouse scan — depth and age answer different
+          # questions and neither substitutes for the other. Depth alone
+          # can't tell "jobs arriving and being served promptly, queue
+          # never empty" from "one job wedged for hours": both sit at 1.
+          # Age is the only signal that separates them, and it's the one
+          # a stuck job trips.
+          last_value(
+            @metric_prefix ++ [:queue, :oldest, :age, :seconds],
+            event_name: Telemetry.event_name_queue_length(),
+            description: "Age of the oldest still-queued workflow job per fleet, in seconds (0 when the queue is empty).",
+            measurement: :oldest_age_seconds,
+            tags: [:fleet]
           )
         ]
       ),
@@ -281,14 +295,18 @@ defmodule Tuist.Runners.PromExPlugin do
   @doc false
   def execute_queue_length_telemetry_event do
     if PoolMetrics.running?(ClickHouseRepo) do
-      counts = fetch_queue_counts()
+      now = DateTime.utc_now()
+      stats = fetch_queue_stats(now)
 
-      counts
+      stats
       |> universe_fleets()
       |> Enum.each(fn fleet ->
+        %{count: count, oldest_age_seconds: age} =
+          Map.get(stats, fleet, %{count: 0, oldest_age_seconds: 0})
+
         :telemetry.execute(
           Telemetry.event_name_queue_length(),
-          %{count: Map.get(counts, fleet, 0)},
+          %{count: count, oldest_age_seconds: age},
           %{fleet: fleet}
         )
       end)
@@ -310,8 +328,8 @@ defmodule Tuist.Runners.PromExPlugin do
   # of our problems.
   @queue_lookback_days 7
 
-  defp fetch_queue_counts do
-    cutoff = DateTime.add(DateTime.utc_now(), -@queue_lookback_days, :day)
+  defp fetch_queue_stats(now) do
+    cutoff = DateTime.add(now, -@queue_lookback_days, :day)
 
     latest =
       from(j in Job,
@@ -320,17 +338,34 @@ defmodule Tuist.Runners.PromExPlugin do
         select: %{
           workflow_job_id: j.workflow_job_id,
           fleet_name: fragment("argMax(?, ?)", j.fleet_name, j.updated_at),
-          status: fragment("argMax(?, ?)", j.status, j.updated_at)
+          status: fragment("argMax(?, ?)", j.status, j.updated_at),
+          enqueued_at: min(j.enqueued_at)
         }
       )
 
     from(s in subquery(latest),
       where: s.status == "queued",
       group_by: s.fleet_name,
-      select: {s.fleet_name, count(s.workflow_job_id)}
+      select: {s.fleet_name, count(s.workflow_job_id), min(s.enqueued_at)}
     )
     |> ClickHouseRepo.all()
-    |> Map.new(fn {fleet, count} -> {fleet || "", count} end)
+    |> Map.new(fn {fleet, count, oldest_enqueued_at} ->
+      {fleet || "", %{count: count, oldest_age_seconds: age_seconds(now, oldest_enqueued_at)}}
+    end)
+  end
+
+  # Clamped at 0 so clock skew between the pod that wrote `enqueued_at`
+  # and the pod polling can't report a negative age — which would read
+  # as a healthy queue and suppress the alert this gauge exists to
+  # raise. `nil` means the fleet has nothing queued.
+  defp age_seconds(_now, nil), do: 0
+
+  defp age_seconds(now, %DateTime{} = enqueued_at) do
+    now |> DateTime.diff(enqueued_at, :second) |> max(0)
+  end
+
+  defp age_seconds(now, %NaiveDateTime{} = enqueued_at) do
+    age_seconds(now, DateTime.from_naive!(enqueued_at, "Etc/UTC"))
   end
 
   @doc false

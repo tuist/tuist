@@ -84,6 +84,57 @@ defmodule Tuist.Runners.PromExPluginTest do
       assert_receive {:telemetry_event, [:tuist, :runners, :queue, :length], %{count: 0}, %{fleet: "fleet-empty"}},
                      500
     end
+
+    test "reports the age of the oldest queued job", %{handler_id: handler_id} do
+      attach_collector(handler_id, Telemetry.event_name_queue_length())
+      stub_pool_list(["fleet-age"])
+
+      account = account_fixture()
+
+      # Two queued jobs on one fleet: the gauge must track the *oldest*,
+      # since that's the one whose wait a queue-age alert has to catch.
+      # A fleet steadily serving new arrivals keeps depth at 1 forever
+      # without anything being wrong; only the head's age separates that
+      # from a wedged job.
+      for {id, enqueued_at} <- [
+            {999_010, ~U[2026-07-16 22:39:43.000000Z]},
+            {999_011, ~U[2026-07-17 02:00:00.000000Z]}
+          ] do
+        :ok =
+          Jobs.enqueue(%{
+            workflow_job_id: id,
+            account_id: account.id,
+            fleet_name: "fleet-age",
+            repository: "acme/cli",
+            workflow_run_id: 9010,
+            run_attempt: 1,
+            job_name: "build",
+            head_branch: "main",
+            head_sha: "deadbeef",
+            enqueued_at: enqueued_at
+          })
+      end
+
+      PromExPlugin.execute_queue_length_telemetry_event()
+
+      assert_receive {:telemetry_event, [:tuist, :runners, :queue, :length],
+                      %{count: 2, oldest_age_seconds: oldest_age_seconds}, %{fleet: "fleet-age"}},
+                     500
+
+      expected = DateTime.diff(DateTime.utc_now(), ~U[2026-07-16 22:39:43.000000Z], :second)
+      assert_in_delta oldest_age_seconds, expected, 60
+    end
+
+    test "reports zero age for a fleet with an empty queue", %{handler_id: handler_id} do
+      attach_collector(handler_id, Telemetry.event_name_queue_length())
+      stub_pool_list(["fleet-empty-age"])
+
+      PromExPlugin.execute_queue_length_telemetry_event()
+
+      assert_receive {:telemetry_event, [:tuist, :runners, :queue, :length], %{oldest_age_seconds: 0},
+                      %{fleet: "fleet-empty-age"}},
+                     500
+    end
   end
 
   describe "execute_claims_telemetry_event/0" do
