@@ -34,6 +34,14 @@ enum SetupCacheCommandServiceError: Equatable, LocalizedError {
 
 /// What setup knows about a project that the proxy cannot work out for itself
 /// (see `load_sources` in cas-plugin).
+///
+/// A row is the instance followed by `key=value` fields, tab separated. The
+/// fields are named rather than positional because every value here is optional,
+/// and a positional row has to hold an absent one's place: a branch recorded
+/// without a trunk leaves an empty column, and anything that drops empties reads
+/// the branch as the trunk. Naming them also means a field added later cannot
+/// shift the ones already there, and that a reader can ignore what it does not
+/// know. Git forbids tabs in a ref, so no value can contain the separator.
 private struct RegisteredSource {
     /// The project's configured default branch, which is a server-side decision.
     /// The proxy would otherwise have to guess it from the local clone's
@@ -47,6 +55,36 @@ private struct RegisteredSource {
     /// Swift, while the build system's Clang caching runs in its own process
     /// with no plugin options at all. Recorded here so one answer covers both.
     let upload: Bool
+
+    static func from(row: Substring) -> (instance: String, source: RegisteredSource)? {
+        let fields = row.split(separator: "\t")
+        guard let instance = fields.first, !instance.isEmpty else { return nil }
+        var values: [String: String] = [:]
+        for field in fields.dropFirst() {
+            // A ref may contain `=`, so only the first one separates.
+            let pair = field.split(separator: "=", maxSplits: 1)
+            guard pair.count == 2 else { continue }
+            values[String(pair[0])] = String(pair[1])
+        }
+        return (
+            String(instance),
+            RegisteredSource(
+                trunk: values["trunk"],
+                branch: values["branch"],
+                // Nothing recorded is nothing to withhold.
+                upload: values["upload"] != "0"
+            )
+        )
+    }
+
+    func row(instance: String) -> String {
+        var fields = [instance]
+        if let trunk, !trunk.isEmpty { fields.append("trunk=\(trunk)") }
+        if let branch, !branch.isEmpty { fields.append("branch=\(branch)") }
+        // Uploading is the default, so this only appears when it says no.
+        if !upload { fields.append("upload=0") }
+        return fields.joined(separator: "\t")
+    }
 }
 
 struct SetupCacheCommandService {
@@ -115,19 +153,9 @@ struct SetupCacheCommandService {
         }
     }
 
-    /// Records what the proxy cannot work out for itself in its sources registry
-    /// (`<state>/cas-proxy.sock.registry.sources`, honoring the same
-    /// `TUIST_CAS_PROXY_REGISTRY` override the proxy reads): the project's trunk,
-    /// the branch when this is CI, and the upload policy.
-    ///
-    /// A row is `instance` followed by `key=value` fields, tab separated. The
-    /// fields are named rather than positional because every value here is
-    /// optional, and a positional row has to hold an absent one's place: a branch
-    /// recorded without a trunk leaves an empty column, and anything that drops
-    /// empties reads the branch as the trunk. Naming them also means a field
-    /// added later cannot shift the ones already there, and that a reader can
-    /// ignore what it does not know. Git forbids tabs in a ref, so no value here
-    /// can contain the separator.
+    /// Records a `RegisteredSource` for this project in the proxy's sources
+    /// registry (`<state>/cas-proxy.sock.registry.sources`, honoring the same
+    /// `TUIST_CAS_PROXY_REGISTRY` override the proxy reads).
     ///
     /// Upserts, so setting up a second project does not clobber the first.
     private func registerSource(
@@ -155,35 +183,15 @@ struct SetupCacheCommandService {
         // anything dropped here is a project silently losing its policy.
         var entries: [String: RegisteredSource] = [:]
         if try await fileSystem.exists(sourcesPath) {
-            let contents = try await fileSystem.readTextFile(at: sourcesPath)
-            for line in contents.split(separator: "\n") {
-                var fields = line.split(separator: "\t").map(String.init)
-                guard !fields.isEmpty, !fields[0].isEmpty else { continue }
-                let instance = fields.removeFirst()
-                var values: [String: String] = [:]
-                for field in fields {
-                    guard let separator = field.firstIndex(of: "=") else { continue }
-                    // A ref may contain `=`, so only the first one separates.
-                    values[String(field[..<separator])] = String(field[field.index(after: separator)...])
-                }
-                entries[instance] = RegisteredSource(
-                    trunk: values["trunk"],
-                    branch: values["branch"],
-                    upload: values["upload"] != "0"
-                )
+            for row in try await fileSystem.readTextFile(at: sourcesPath).split(separator: "\n") {
+                guard let (instance, source) = RegisteredSource.from(row: row) else { continue }
+                entries[instance] = source
             }
         }
         entries[fullHandle] = RegisteredSource(trunk: trunk, branch: branch, upload: upload)
 
         let body = entries.sorted { $0.key < $1.key }
-            .map { instance, source in
-                var fields = [instance]
-                if let trunk = source.trunk, !trunk.isEmpty { fields.append("trunk=\(trunk)") }
-                if let branch = source.branch, !branch.isEmpty { fields.append("branch=\(branch)") }
-                // Uploading is the default, so this only appears when it says no.
-                if !source.upload { fields.append("upload=0") }
-                return fields.joined(separator: "\t")
-            }
+            .map { $0.value.row(instance: $0.key) }
             .joined(separator: "\n") + "\n"
         if try await !fileSystem.exists(sourcesPath.parentDirectory, isDirectory: true) {
             try await fileSystem.makeDirectory(at: sourcesPath.parentDirectory)
