@@ -70,6 +70,12 @@ func ReattachVolumeForPod(volumes *VolumeManager, pod *corev1.Pod, vm string) (V
 // discarded.
 const dirtyMarkerFile = "cache-dirty"
 
+// digestMarkerFile carries the inventory digest the guest computed inside the
+// mounted cache image at job end. The host records it beside a promoted master:
+// it cannot compute the digest itself without attaching the image, and the guest
+// had it mounted anyway.
+const digestMarkerFile = "cache-digest"
+
 // cacheReadyFile is the marker the host writes into the writable status share
 // once it has materialized the dispatched account's cache into the VM's branch
 // (or determined there is no master to materialize — a cold first job).
@@ -238,23 +244,24 @@ func (r *Reconciler) convergeMaster(vmName, statusDir, volumeName, account strin
 	}
 	defer os.RemoveAll(staging)
 
-	if err := downloadAndExtract(head.DownloadURL, staging); err != nil {
-		logger.Error(err, "converge: download master", "vm", vmName, "account", account)
+	image := filepath.Join(staging, convergeImageName)
+	if err := downloadMasterImage(head.DownloadURL, image); err != nil {
+		logger.Error(err, "converge: download master image", "vm", vmName, "account", account)
 		return
 	}
-	// The HEAD digest and the (mutable) archive object can diverge — a failed
-	// digest report after a successful upload, or interleaved jobs for the same
-	// account overwriting the object. Verify the downloaded archive's inventory
-	// actually matches the HEAD digest before installing it, so the host never
-	// adopts a master under a digest it doesn't have. On mismatch, stay on the
-	// local master (status quo). Immutable, content-addressed archive keys are
-	// the fuller fix and a tracked follow-up.
-	if got, err := r.Volumes.TreeDigest(staging); err != nil || got != head.Digest {
-		logger.Info("converge: archive digest does not match HEAD; keeping local master",
+	// The HEAD digest and the (mutable) object can diverge — a failed digest
+	// report after a successful upload, or interleaved jobs for the same account
+	// overwriting the object. Verify the downloaded image's inventory actually
+	// matches the HEAD digest before installing it, so the host never adopts a
+	// master under a digest it doesn't have. On mismatch, stay on the local
+	// master (status quo). Immutable, content-addressed keys are the fuller fix
+	// and a tracked follow-up.
+	if got, err := r.Volumes.ImageDigest(image); err != nil || got != head.Digest {
+		logger.Info("converge: image digest does not match HEAD; keeping local master",
 			"vm", vmName, "account", account, "want", head.Digest, "got", got)
 		return
 	}
-	if err := r.Volumes.ReplaceMaster(account, volumeName, staging); err != nil {
+	if err := r.Volumes.ReplaceMaster(account, volumeName, image, head.Digest); err != nil {
 		logger.Error(err, "converge: replace master", "vm", vmName, "account", account)
 		return
 	}
@@ -282,25 +289,33 @@ func awaitVolumeHead(statusDir string) *volumeHead {
 	return readVolumeHead(statusDir)
 }
 
-// downloadAndExtract fetches the master archive from a presigned URL and expands
-// it (xattr-preserving, via ditto) into dst, which then contains the cache home
-// subtree. macOS host tooling; bounded so a slow fetch never blocks materialize.
-func downloadAndExtract(url, dst string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+// convergeImageName is the downloaded HEAD image inside the convergence staging
+// dir. It deliberately does NOT use the master image's name: staging lives under
+// Root, and a file named like a master could be picked up by the master scan.
+const convergeImageName = "head.sparseimage"
+
+// convergeDownloadTimeout bounds the HEAD image fetch. The object is the cache
+// image itself — gigabytes, not a manifest — so the ceiling is generous. It runs
+// in the background off the job-start path, so a slow fetch delays only the NEXT
+// job's warmth; the bound just keeps a stalled transfer from leaking a goroutine
+// and staging disk forever.
+const convergeDownloadTimeout = 30 * time.Minute
+
+// downloadMasterImage fetches the account's master image from a presigned URL to
+// dst. The object IS the image — a settled APFS filesystem carrying the
+// symlinks, xattrs and modes the cache needs — so there is nothing to unpack.
+func downloadMasterImage(url, dst string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), convergeDownloadTimeout)
 	defer cancel()
 
-	archive := filepath.Join(dst, ".master.zip")
 	// No -L: a presigned object-storage URL is fetched directly (200, no
 	// redirect), so refuse to follow redirects — that removes redirect-based
 	// SSRF where a hostile/misconfigured endpoint bounces this host to an
 	// internal address. The server also validates the URL host is public before
 	// handing it over (see volume_head_payload).
-	if out, err := exec.CommandContext(ctx, "curl", "-fsS", "-o", archive, url).CombinedOutput(); err != nil {
-		return fmt.Errorf("curl master: %w (%s)", err, strings.TrimSpace(string(out)))
-	}
-	defer os.Remove(archive)
-	if out, err := exec.CommandContext(ctx, "ditto", "-x", "-k", archive, dst).CombinedOutput(); err != nil {
-		return fmt.Errorf("ditto extract master: %w (%s)", err, strings.TrimSpace(string(out)))
+	if out, err := exec.CommandContext(ctx, "curl", "-fsS", "-o", dst, url).CombinedOutput(); err != nil {
+		_ = os.Remove(dst)
+		return fmt.Errorf("curl master image: %w (%s)", err, strings.TrimSpace(string(out)))
 	}
 	return nil
 }
@@ -318,6 +333,7 @@ func (r *Reconciler) finalizeVolume(entry *Entry, actualAccount string, cleanExi
 	}
 	present, dirty := readDirtyMarker(entry.VolumeStatusDir)
 	succeeded := cleanExit && present
+	entry.Volume.ReportedDigest = readReportedDigest(entry.VolumeStatusDir)
 
 	outcome, err := r.Volumes.Finalize(entry.Volume, actualAccount, succeeded, dirty)
 	if err != nil {
@@ -343,4 +359,19 @@ func readDirtyMarker(statusDir string) (present, dirty bool) {
 		return false, false
 	}
 	return true, strings.TrimSpace(string(b)) == "1"
+}
+
+// readReportedDigest reads the guest-computed inventory digest of the cache
+// image. Empty when the guest never wrote it; the master is then recorded with
+// no digest, so the next convergence treats this host as behind and refreshes
+// rather than trusting an unknown inventory.
+func readReportedDigest(statusDir string) string {
+	if statusDir == "" {
+		return ""
+	}
+	b, err := os.ReadFile(filepath.Join(statusDir, digestMarkerFile))
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(b))
 }
