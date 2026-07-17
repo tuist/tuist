@@ -937,6 +937,7 @@ struct SourceBranches {
 /// Note what is NOT here: the checkout. Nothing about a publish is read from the
 /// working copy, which is what makes a moved, renamed, or duplicated one unable
 /// to mis-attribute a build.
+#[derive(serde::Deserialize)]
 struct RegisteredSource {
     /// The branch `tuist setup cache` saw in the CI job's environment, recorded
     /// ONLY on CI. A launchd agent does not inherit the job's environment, so the
@@ -947,12 +948,14 @@ struct RegisteredSource {
     /// what trunk looks like as CI built it, so CI is the only publisher whose
     /// branch has to be right. A local publish goes out untagged, stays out of
     /// every trunk view, and is still stored and served per key.
+    #[serde(default, rename = "branch")]
     ci_branch: Option<String>,
     /// The project's default branch, as the server knows it. Which branch is
     /// trunk is a property of the project, not of how this machine happened to
     /// clone it (a fork, a mirror, or a clone whose remote head was never set all
     /// get it wrong locally). `None` when setup could not reach the server, which
     /// means no scoping: what a client too old to ask for it already gets.
+    #[serde(default)]
     trunk: Option<String>,
     /// The project's `xcodeCache.upload`.
     ///
@@ -961,7 +964,14 @@ struct RegisteredSource {
     /// plugin options, so the CAS it creates for its Clang caching has no idea
     /// what the project asked for and defaults to uploading. The proxy is the
     /// only place that sees both lanes, so it is where the policy is enforced.
+    ///
+    /// Absent is permissive: nothing recorded is nothing to withhold.
+    #[serde(default = "uploads_by_default")]
     upload: bool,
+}
+
+fn uploads_by_default() -> bool {
+    true
 }
 
 pub struct Proxy {
@@ -3126,8 +3136,9 @@ fn load_registry(path: &Path) -> HashMap<String, String> {
 
 /// The sources registry sits next to the cas_path registry, written by
 /// `tuist setup cache` (the only place that has the project's configuration).
-/// `<registry>.sources`, one row per instance: `instance [\t key=value]...`.
-/// See `load_sources` for the fields.
+/// `<registry>.sources`: a JSON object of instance -> `RegisteredSource`. JSON
+/// because the writer is Swift and the reader is here, and a format each side
+/// hand-rolls is one each side can drift on.
 fn sources_path_for(registry: &Path) -> PathBuf {
     let mut path = registry.to_path_buf().into_os_string();
     path.push(".sources");
@@ -3142,38 +3153,16 @@ fn sources_path_for(registry: &Path) -> PathBuf {
 /// window.
 fn load_sources(path: &Path) -> Option<HashMap<String, RegisteredSource>> {
     let body = std::fs::read_to_string(path).ok()?;
-    let mut map = HashMap::new();
-    for line in body.lines() {
-        // `instance [\t key=value]...`, written by `registerSource` in the CLI.
-        // Named rather than positional because every field is optional: a
-        // positional row has to hold an absent field's place, and reading one
-        // column out of step silently answers with another field's value.
-        // Unknown fields are ignored, so setup may record more than this proxy
-        // understands.
-        let mut fields = line.split('\t');
-        let Some(instance) = fields.next().filter(|instance| !instance.is_empty()) else {
-            continue;
-        };
-        let mut source = RegisteredSource {
-            trunk: None,
-            ci_branch: None,
-            // Nothing recorded is nothing to withhold.
-            upload: true,
-        };
-        for field in fields {
-            // A ref may contain `=`, so only the first one separates.
-            match field.split_once('=') {
-                Some(("trunk", value)) if !value.is_empty() => source.trunk = Some(value.to_owned()),
-                Some(("branch", value)) if !value.is_empty() => {
-                    source.ci_branch = Some(value.to_owned())
-                }
-                Some(("upload", value)) => source.upload = value != "0",
-                _ => {}
-            }
-        }
-        map.insert(instance.to_string(), source);
-    }
-    Some(map)
+    // A file torn or truncated under us reads as unreadable rather than as a
+    // subset of the projects, which is the answer that matters: a project this
+    // read forgot would come back as unknown, and unknown has to be allowed to
+    // upload.
+    serde_json::from_str(&body)
+        .map_err(|error| {
+            crate::log_line(&format!("sources registry at {}: {error}", path.display()));
+            error
+        })
+        .ok()
 }
 
 unsafe fn open_cas(up: &'static Upstream, path: &str) -> Result<llcas_cas_t, String> {
@@ -3323,7 +3312,11 @@ mod tests {
         // parse, and the bare row must leave the proxy unscoped rather than
         // dropping the project entirely, which would read as "no policy" and
         // hand an opted-out project an upload.
-        std::fs::write(&path, "tuist/mastodon\ttrunk=main\ntuist/legacy\n").expect("write registry");
+        std::fs::write(
+            &path,
+            r#"{"tuist/mastodon":{"trunk":"main"},"tuist/legacy":{}}"#,
+        )
+        .expect("write registry");
 
         let sources = load_sources(&path).expect("a readable registry parses");
         assert_eq!(sources.len(), 2);
@@ -3368,7 +3361,7 @@ mod tests {
         let record_branch = |branch: &str| {
             std::fs::write(
                 &sources,
-                format!("tuist/mastodon\ttrunk=main\tbranch={branch}\n"),
+                format!(r#"{{"tuist/mastodon":{{"trunk":"main","branch":"{branch}"}}}}"#),
             )
             .expect("write sources");
         };
@@ -3444,7 +3437,7 @@ mod tests {
         let record_branch = |branch: &str| {
             std::fs::write(
                 &sources,
-                format!("tuist/mastodon\ttrunk=main\tbranch={branch}\n"),
+                format!(r#"{{"tuist/mastodon":{{"trunk":"main","branch":"{branch}"}}}}"#),
             )
             .expect("write sources");
         };
@@ -3545,22 +3538,24 @@ mod tests {
 
     /// The CI branch, which `tuist setup cache` records only from inside a CI job
     /// (the proxy is a launchd agent and never sees the provider's branch
-    /// variable). Every field here is optional, which is why they are named: this
-    /// is the shape a positional row got wrong, because it has to hold an absent
-    /// field's place and any reader out of step answers with its neighbour.
+    /// variable). Every field here is optional, so what this pins is that an
+    /// absent one reads as its default rather than as its neighbour's value:
+    /// setup writes only what it knows, and it usually does not know all three.
     #[test]
-    fn sources_registry_reads_each_field_by_name_whatever_else_the_row_carries() {
+    fn sources_registry_defaults_every_field_setup_did_not_record() {
         let dir = std::env::temp_dir().join(format!("tuist-sources-ci-{}", std::process::id()));
         std::fs::create_dir_all(&dir).expect("temp dir");
         let path = dir.join("registry.sources");
         std::fs::write(
             &path,
-            "tuist/ci\ttrunk=main\tbranch=feature/x\n\
-             tuist/no-trunk\tbranch=feature/y\n\
-             tuist/reordered\tupload=0\tbranch=feature/z\ttrunk=main\n\
-             tuist/newer-setup\ttrunk=main\tsomething-we-do-not-know=1\n\
-             tuist/equals\tbranch=feature/a=b\n\
-             tuist/dev\ttrunk=main\n",
+            r#"{
+                "tuist/ci":        {"trunk": "main", "branch": "feature/x"},
+                "tuist/no-trunk":  {"branch": "feature/y"},
+                "tuist/read-only": {"trunk": "main", "upload": false},
+                "tuist/newer":     {"trunk": "main", "something-we-do-not-know": 1},
+                "tuist/dev":       {"trunk": "main"},
+                "tuist/bare":      {}
+            }"#,
         )
         .expect("write registry");
 
@@ -3568,34 +3563,39 @@ mod tests {
         let ci = sources.get("tuist/ci").expect("ci entry");
         assert_eq!(ci.trunk.as_deref(), Some("main"));
         assert_eq!(ci.ci_branch.as_deref(), Some("feature/x"));
+        assert!(ci.upload, "an absent upload is permissive");
 
-        // A branch without a trunk: the case that made the positional row hold an
-        // empty column, and the one a reader dropping empties read as the trunk.
+        // A branch without a trunk. Setup records these separately (the trunk is
+        // the server's answer, the branch the job's), so either can be missing.
         let no_trunk = sources.get("tuist/no-trunk").expect("no-trunk entry");
         assert_eq!(no_trunk.trunk, None);
         assert_eq!(no_trunk.ci_branch.as_deref(), Some("feature/y"));
 
-        let reordered = sources.get("tuist/reordered").expect("reordered entry");
-        assert_eq!(reordered.trunk.as_deref(), Some("main"));
-        assert_eq!(reordered.ci_branch.as_deref(), Some("feature/z"));
-        assert!(!reordered.upload, "a named field means the same in any order");
+        assert!(!sources.get("tuist/read-only").expect("read-only entry").upload);
 
-        // A setup newer than this proxy: unknown fields are skipped rather than
-        // shifting the ones it does know.
-        let newer = sources.get("tuist/newer-setup").expect("newer entry");
+        // A setup newer than this proxy: unknown fields are ignored rather than
+        // failing the whole file, which would take every project's policy with it.
+        let newer = sources.get("tuist/newer").expect("newer entry");
         assert_eq!(newer.trunk.as_deref(), Some("main"));
-        assert!(newer.upload);
-
-        // Git allows `=` in a ref, so only the first one separates.
-        let equals = sources.get("tuist/equals").expect("equals entry");
-        assert_eq!(equals.ci_branch.as_deref(), Some("feature/a=b"));
 
         let dev = sources.get("tuist/dev").expect("dev entry");
         assert_eq!(
             dev.ci_branch, None,
             "off CI nothing records a branch, so a developer's publishes stay untagged"
         );
-        assert!(dev.upload, "nothing recorded is nothing to withhold");
+
+        let bare = sources.get("tuist/bare").expect("bare entry");
+        assert_eq!(bare.trunk, None);
+        assert_eq!(bare.ci_branch, None);
+        assert!(bare.upload, "nothing recorded is nothing to withhold");
+
+        // Unreadable is not the same as empty: a project this read forgot would
+        // come back as unknown, and unknown has to be allowed to upload.
+        std::fs::write(&path, "{not json").expect("write garbage");
+        assert!(
+            load_sources(&path).is_none(),
+            "a registry that cannot be decoded reports so, rather than reporting none"
+        );
 
         std::fs::remove_dir_all(&dir).ok();
     }
@@ -4221,7 +4221,7 @@ mod tests {
             std::fs::write(
                 &sources,
                 format!(
-                    "tuist/one\ttrunk=main\tbranch={branch}\ntuist/two\ttrunk=main\tbranch={branch}\n"
+                    r#"{{"tuist/one":{{"trunk":"main","branch":"{branch}"}},"tuist/two":{{"trunk":"main","branch":"{branch}"}}}}"#
                 ),
             )
             .expect("write sources");
@@ -4281,7 +4281,7 @@ mod tests {
         let registry = dir.join("registry");
         std::fs::write(
             sources_path_for(&registry),
-            "tuist/one\ttrunk=main\tbranch=main\n",
+            r#"{"tuist/one":{"trunk":"main","branch":"main"}}"#,
         )
         .expect("write sources");
 
@@ -4336,7 +4336,7 @@ mod tests {
         let sources = sources_path_for(&registry);
         std::fs::write(
             &sources,
-            "tuist/reader\ttrunk=main\tupload=0\ntuist/writer\ttrunk=main\n",
+            r#"{"tuist/reader":{"trunk":"main","upload":false},"tuist/writer":{"trunk":"main"}}"#,
         )
         .expect("write sources");
 

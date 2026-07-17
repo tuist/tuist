@@ -35,14 +35,11 @@ enum SetupCacheCommandServiceError: Equatable, LocalizedError {
 /// What setup knows about a project that the proxy cannot work out for itself
 /// (see `load_sources` in cas-plugin).
 ///
-/// A row is the instance followed by `key=value` fields, tab separated. The
-/// fields are named rather than positional because every value here is optional,
-/// and a positional row has to hold an absent one's place: a branch recorded
-/// without a trunk leaves an empty column, and anything that drops empties reads
-/// the branch as the trunk. Naming them also means a field added later cannot
-/// shift the ones already there, and that a reader can ignore what it does not
-/// know. Git forbids tabs in a ref, so no value can contain the separator.
-private struct RegisteredSource {
+/// The registry is a JSON object of instance -> this. JSON because we write it
+/// and the proxy reads it from another language: a format each side hand-rolls
+/// is one each side can drift on, and every value here is optional, which is the
+/// shape a hand-rolled one gets wrong first.
+private struct RegisteredSource: Codable {
     /// The project's configured default branch, which is a server-side decision.
     /// The proxy would otherwise have to guess it from the local clone's
     /// `origin/HEAD`, a property of how this machine cloned rather than of the
@@ -56,34 +53,23 @@ private struct RegisteredSource {
     /// with no plugin options at all. Recorded here so one answer covers both.
     let upload: Bool
 
-    static func from(row: Substring) -> (instance: String, source: RegisteredSource)? {
-        let fields = row.split(separator: "\t")
-        guard let instance = fields.first, !instance.isEmpty else { return nil }
-        var values: [String: String] = [:]
-        for field in fields.dropFirst() {
-            // A ref may contain `=`, so only the first one separates.
-            let pair = field.split(separator: "=", maxSplits: 1)
-            guard pair.count == 2 else { continue }
-            values[String(pair[0])] = String(pair[1])
-        }
-        return (
-            String(instance),
-            RegisteredSource(
-                trunk: values["trunk"],
-                branch: values["branch"],
-                // Nothing recorded is nothing to withhold.
-                upload: values["upload"] != "0"
-            )
-        )
+    init(trunk: String?, branch: String?, upload: Bool) {
+        self.trunk = trunk
+        self.branch = branch
+        self.upload = upload
     }
 
-    func row(instance: String) -> String {
-        var fields = [instance]
-        if let trunk, !trunk.isEmpty { fields.append("trunk=\(trunk)") }
-        if let branch, !branch.isEmpty { fields.append("branch=\(branch)") }
-        // Uploading is the default, so this only appears when it says no.
-        if !upload { fields.append("upload=0") }
-        return fields.joined(separator: "\t")
+    /// Hand-written rather than synthesized, so that an absent field means here
+    /// what it means to the proxy. The synthesized one requires every
+    /// non-optional, which would make this side reject a registry the proxy
+    /// reads happily: the drift that using one format on both sides exists to
+    /// prevent.
+    init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        trunk = try container.decodeIfPresent(String.self, forKey: .trunk)
+        branch = try container.decodeIfPresent(String.self, forKey: .branch)
+        // Nothing recorded is nothing to withhold (`uploads_by_default` there).
+        upload = try container.decodeIfPresent(Bool.self, forKey: .upload) ?? true
     }
 }
 
@@ -179,20 +165,22 @@ struct SetupCacheCommandService {
             )
         }
 
-        // Read every other project's row back: this rewrites the whole file, so
-        // anything dropped here is a project silently losing its policy.
+        // Read every other project back: this rewrites the whole file, so anything
+        // lost here is a project silently losing its policy. A registry we cannot
+        // decode therefore fails the command rather than being written over with
+        // just this project, which would erase every other one's.
         var entries: [String: RegisteredSource] = [:]
         if try await fileSystem.exists(sourcesPath) {
-            for row in try await fileSystem.readTextFile(at: sourcesPath).split(separator: "\n") {
-                guard let (instance, source) = RegisteredSource.from(row: row) else { continue }
-                entries[instance] = source
-            }
+            let contents = try await fileSystem.readTextFile(at: sourcesPath)
+            entries = try JSONDecoder().decode([String: RegisteredSource].self, from: Data(contents.utf8))
         }
         entries[fullHandle] = RegisteredSource(trunk: trunk, branch: branch, upload: upload)
 
-        let body = entries.sorted { $0.key < $1.key }
-            .map { $0.value.row(instance: $0.key) }
-            .joined(separator: "\n") + "\n"
+        let encoder = JSONEncoder()
+        // Sorted so a rewrite that changes nothing produces the same bytes, and
+        // unescaped because every key here is an `account/project`.
+        encoder.outputFormatting = [.sortedKeys, .prettyPrinted, .withoutEscapingSlashes]
+        let body = String(decoding: try encoder.encode(entries), as: UTF8.self)
         if try await !fileSystem.exists(sourcesPath.parentDirectory, isDirectory: true) {
             try await fileSystem.makeDirectory(at: sourcesPath.parentDirectory)
         }

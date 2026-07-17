@@ -493,8 +493,8 @@ struct SetupCacheCommandServiceTests {
     }
 
     /// The registry the proxy reads for the trunk, branch and upload policy of every
-    /// publish. Its `key=value` fields are parsed by `load_sources` in cas-plugin, so
-    /// the two sides have to agree; these pin our half of that contract.
+    /// publish. It is decoded by `load_sources` in cas-plugin, so the two sides have
+    /// to agree; these pin our half of that contract by asserting the bytes.
     @Test(.inTemporaryDirectory, .withMockedEnvironment()) func setupCache_recordsTheTrunk() async throws {
         // Given
         let environment = try #require(Environment.mocked)
@@ -512,7 +512,14 @@ struct SetupCacheCommandServiceTests {
         // built from.
         let sources = try await FileSystem().readTextFile(at: registry.parentDirectory
             .appending(component: "cas-proxy.registry.sources"))
-        #expect(sources == "tuist/tuist\ttrunk=main\n")
+        #expect(sources == """
+        {
+          "tuist/tuist" : {
+            "trunk" : "main",
+            "upload" : true
+          }
+        }
+        """)
     }
 
     /// The registry is machine-wide, and setting one project up rewrites the whole
@@ -531,7 +538,10 @@ struct SetupCacheCommandServiceTests {
         let sources = registry.parentDirectory.appending(component: "cas-proxy.registry.sources")
         let fileSystem = FileSystem()
         // Another project, on CI, whose trunk was never resolved.
-        try await fileSystem.writeText("other/project\tbranch=feature/theirs\n", at: sources)
+        try await fileSystem.writeText(
+            #"{"other/project":{"branch":"feature/theirs","upload":true}}"#,
+            at: sources
+        )
 
         // When: this project's setup rewrites the file.
         try await subject.run(path: nil)
@@ -539,8 +549,13 @@ struct SetupCacheCommandServiceTests {
         // Then
         let contents = try await fileSystem.readTextFile(at: sources)
         #expect(
-            contents.contains("other/project\tbranch=feature/theirs\n"),
-            "another project's row round-trips byte for byte: \(contents)"
+            contents.contains("""
+              "other/project" : {
+                "branch" : "feature/theirs",
+                "upload" : true
+              }
+            """),
+            "another project round-trips: \(contents)"
         )
     }
 
@@ -560,7 +575,15 @@ struct SetupCacheCommandServiceTests {
         // Then
         let sources = try await FileSystem().readTextFile(at: registry.parentDirectory
             .appending(component: "cas-proxy.registry.sources"))
-        #expect(sources == "tuist/tuist\ttrunk=main\tbranch=feature/tags\n")
+        #expect(sources == """
+        {
+          "tuist/tuist" : {
+            "branch" : "feature/tags",
+            "trunk" : "main",
+            "upload" : true
+          }
+        }
+        """)
     }
 
     /// A setup that cannot reach the server knows the branch but not the trunk. The
@@ -589,7 +612,14 @@ struct SetupCacheCommandServiceTests {
         // Then
         let sources = try await FileSystem().readTextFile(at: registry.parentDirectory
             .appending(component: "cas-proxy.registry.sources"))
-        #expect(sources == "tuist/tuist\tbranch=feature/tags\n")
+        #expect(sources == """
+        {
+          "tuist/tuist" : {
+            "branch" : "feature/tags",
+            "upload" : true
+          }
+        }
+        """)
     }
 
     /// Setting up a second project must not clobber the first, and a row that carries
@@ -605,14 +635,24 @@ struct SetupCacheCommandServiceTests {
         environment.variables["TUIST_CAS_PROXY_REGISTRY"] = registry.pathString
         let sourcesPath = registry.parentDirectory.appending(component: "cas-proxy.registry.sources")
         let fileSystem = FileSystem()
-        try await fileSystem.writeText("tuist/legacy\n", at: sourcesPath)
+        try await fileSystem.writeText(#"{"tuist/legacy":{}}"#, at: sourcesPath)
 
         // When
         try await subject.run(path: nil)
 
         // Then
         let sources = try await fileSystem.readTextFile(at: sourcesPath)
-        #expect(sources == "tuist/legacy\ntuist/tuist\ttrunk=main\n")
+        #expect(sources == """
+        {
+          "tuist/legacy" : {
+            "upload" : true
+          },
+          "tuist/tuist" : {
+            "trunk" : "main",
+            "upload" : true
+          }
+        }
+        """)
     }
 }
 
