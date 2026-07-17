@@ -110,6 +110,44 @@ defmodule Tuist.BillingTest do
     end
   end
 
+  describe "get_subscription_current_period_end/1" do
+    test "returns the current period end as a date time" do
+      # Given
+      subscription_id = "subscription_id"
+
+      stub(Stripe.Subscription, :retrieve, fn ^subscription_id ->
+        {:ok, %Stripe.Subscription{current_period_end: 1_705_329_000}}
+      end)
+
+      # When
+      got = Billing.get_subscription_current_period_end(subscription_id)
+
+      # Then
+      assert got == ~U[2024-01-15 14:30:00Z]
+    end
+
+    test "returns nil when the subscription can't be retrieved from Stripe" do
+      # Given
+      subscription_id = "subscription_id"
+
+      stub(Stripe.Subscription, :retrieve, fn ^subscription_id ->
+        {:error,
+         %Stripe.Error{
+           source: :network,
+           code: :network_error,
+           extra: %{hackney_reason: :protocol_error},
+           message: "An error occurred while making the network request."
+         }}
+      end)
+
+      # When
+      got = Billing.get_subscription_current_period_end(subscription_id)
+
+      # Then
+      assert got == nil
+    end
+  end
+
   describe "get_estimated_next_payment_money/1" do
     test "when current_month_remote_cache_hits_count is under the threshold" do
       # Given
@@ -553,6 +591,27 @@ defmodule Tuist.BillingTest do
                  exp_year: 2022
                }
              }
+    end
+
+    test "returns nil when the payment method can't be retrieved from Stripe" do
+      # Given
+      payment_method_id = "payment_method_id"
+
+      stub(Stripe.PaymentMethod, :retrieve, fn ^payment_method_id ->
+        {:error,
+         %Stripe.Error{
+           source: :network,
+           code: :network_error,
+           extra: %{hackney_reason: :protocol_error},
+           message: "An error occurred while making the network request."
+         }}
+      end)
+
+      # When
+      payment_method = Billing.get_payment_method_by_id(payment_method_id)
+
+      # Then
+      assert payment_method == nil
     end
   end
 
