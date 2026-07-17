@@ -17,22 +17,22 @@ defmodule TuistWeb.Plugs.LegacyRedirectsPlugTest do
     end
 
     test "redirects docs locale paths to locale-first docs paths" do
-      conn = %{build_conn() | request_path: "/docs/ja/guides/features/cache"}
+      conn = %{build_conn() | request_path: "/docs/en/guides/features/cache"}
 
       conn = LegacyRedirectsPlug.call(conn, [])
 
       assert conn.status == 301
-      assert redirected_to(conn, 301) == "/ja/docs/guides/features/cache"
+      assert redirected_to(conn, 301) == "/en/docs/guides/features/cache"
       assert conn.halted
     end
 
     test "preserves query strings when redirecting docs locale paths" do
-      conn = %{build_conn() | request_path: "/docs/ja/guides/features/cache", query_string: "tab=setup"}
+      conn = %{build_conn() | request_path: "/docs/en/guides/features/cache", query_string: "tab=setup"}
 
       conn = LegacyRedirectsPlug.call(conn, [])
 
       assert conn.status == 301
-      assert redirected_to(conn, 301) == "/ja/docs/guides/features/cache?tab=setup"
+      assert redirected_to(conn, 301) == "/en/docs/guides/features/cache?tab=setup"
       assert conn.halted
     end
 

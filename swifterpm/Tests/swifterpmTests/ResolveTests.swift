@@ -70,27 +70,30 @@ struct ResolveTests {
     }
 
     @Test
-    func resolveOrLoadReportsAClearErrorWhenReadOnlyAndPackageResolvedIsMissing() async throws {
-        // Pre-PR the readOnly branch fell into `ResolvedFile.read`, which
-        // surfaced a low-level `no such file` from the filesystem layer with no
-        // hint that --force-resolved-versions was the cause. Verify the
-        // domain-specific error replaces it.
+    func resolveOrLoadReturnsEmptyPinsWhenReadOnlyAndPackageResolvedIsMissing() async throws {
+        // A missing Package.resolved under --force-resolved-versions is the
+        // normal shape of an all-local package graph: there are no versioned pins
+        // to force, and SwiftPM's own `swift package resolve
+        // --force-resolved-versions` succeeds as a no-op there and writes no
+        // lockfile. resolveOrLoad matches that with an empty pin set rather than
+        // erroring. A graph that genuinely needs a lockfile (unpinned remote
+        // dependencies) still fails, because `assertResolvedFileUpToDate`
+        // delegates the check back to SwiftPM once the checkouts are materialized.
         try await withTemporaryDirectory { root in
             let cache = try await Cache(root: root.appendingPathComponent("cache"))
-            await #expect(throws: ToolError.self) {
-                try await PackageResolver.resolveOrLoad(
-                    packageDir: root,
-                    cache: cache,
-                    registryConfig: RegistryConfig(),
-                    disableSandbox: true,
-                    scmToRegistryTransformation: .disabled,
-                    preferResolvedFile: true,
-                    readOnly: true,
-                    skipUpdate: false,
-                    writeResolvedFile: false,
-                    progress: nil
-                )
-            }
+            let resolved = try await PackageResolver.resolveOrLoad(
+                packageDir: root,
+                cache: cache,
+                registryConfig: RegistryConfig(),
+                disableSandbox: true,
+                scmToRegistryTransformation: .disabled,
+                preferResolvedFile: true,
+                readOnly: true,
+                skipUpdate: false,
+                writeResolvedFile: false,
+                progress: nil
+            )
+            #expect(resolved.pins.isEmpty)
         }
     }
 

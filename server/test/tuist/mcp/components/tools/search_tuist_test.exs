@@ -5,6 +5,15 @@ defmodule Tuist.MCP.Components.Tools.SearchTuistTest do
   alias Tuist.MCP.Components.Tools.SearchTuist
   alias Tuist.MCP.Search
 
+  test "description guides agents to start with public Tuist material" do
+    description = SearchTuist.description()
+
+    assert description =~ "Call this first whenever the user asks a Tuist question"
+    assert description =~ "before inspecting local files or using general web search"
+    assert description =~ "links to cite"
+    assert description =~ "source tools"
+  end
+
   test "search_tuist forwards searches to the Typesense-backed search" do
     arguments = %{"query" => "how does selective testing work?", "source" => "docs", "max_results" => 4}
 

@@ -199,6 +199,23 @@ server:
   nodeSelector:
     node.cluster.x-k8s.io/pool: general
 
+# Grafana Cloud PDC agent. The signing token lives in this env's vault as
+# PDC_AGENT/password; cluster + hostedGrafanaId come from
+# values-managed-common.yaml. Each environment gets its own PDC network (and so
+# its own token): Grafana treats every agent on a network as interchangeable, so
+# sharing one across clusters would let a query resolve an in-cluster hostname in
+# the wrong cluster.
+pdcAgent:
+  enabled: true
+  # Grafana load-balances across agents and fails over when one drops, so a
+  # single replica would make a node drain take every PDC-routed panel down.
+  # Three is Grafana's production recommendation.
+  replicas: 3
+  # Pin the tunnel to the CNPG read-only service. Without this the agent
+  # permits any destination reachable from its pod, not just Postgres.
+  permitRemoteOpen:
+    - tuist-tuist-pg-ro.tuist.svc.cluster.local:5432
+
 kuraController:
   sharedSecrets:
     externalSecret:

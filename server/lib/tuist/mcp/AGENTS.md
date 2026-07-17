@@ -1,6 +1,6 @@
-# Tuist MCP
+# Tuist Model Context Protocol
 
-This directory contains the Tuist MCP implementation:
+This directory contains the Tuist [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) implementation:
 
 - JSON-RPC request handling
 - MCP tools and prompts
@@ -14,7 +14,7 @@ This directory contains the Tuist MCP implementation:
 
 ## Documentation Sync
 
-- When MCP server behavior/capabilities change, update `docs/docs/en/guides/features/agentic-coding/mcp.md` in the same PR.
+- When MCP server behavior/capabilities change, update `server/priv/docs/en/guides/features/agentic-coding/mcp.md` in the same PR.
 
 ## Versioning
 
@@ -24,3 +24,4 @@ This directory contains the Tuist MCP implementation:
 ## Related Context
 
 - Parent boundary: `server/lib/tuist/AGENTS.md`
+- Bounded source-code service: `codebase-search/AGENTS.md`

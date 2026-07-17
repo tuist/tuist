@@ -13,6 +13,30 @@ defmodule Tuist.Release do
   @processor_read_tables ~w(accounts projects automation_alerts webhook_endpoints)
   @swift_registry_sync_write_tables ~w(oban_jobs oban_peers)
 
+  # Exact column allowlist for the Grafana "Tuist Product Usage" dashboard role.
+  # Column-level rather than table-level because every table below sits next to a
+  # secret in the same row: table-level SELECT would hand the dashboard's
+  # credential — the one we store in Grafana Cloud — `users.encrypted_password`,
+  # `users.token`, `projects.token`, `accounts.s3_secret_access_key`, and
+  # `organizations.oauth2_encrypted_client_secret`. `users` is the clearest case:
+  # the dashboard needs only the signup timestamp.
+  #
+  # Adding a column to a panel is a deliberate change here, not something a
+  # dashboard edit widens silently. Keep in sync with
+  # infra/cnpg/tuist-grafana-ro-grants.sql (a test asserts this).
+  @grafana_read_columns [
+    {"accounts",
+     ~w(id name billing_email organization_id current_month_remote_cache_hits_count current_month_remote_cache_hits_count_updated_at)},
+    {"bundles", ~w(project_id inserted_at git_ref)},
+    {"organizations", ~w(id created_at)},
+    {"previews", ~w(project_id inserted_at)},
+    {"projects", ~w(id name account_id created_at build_system)},
+    {"roles", ~w(id resource_id resource_type)},
+    {"subscriptions", ~w(account_id status)},
+    {"users", ~w(created_at)},
+    {"users_roles", ~w(user_id role_id)}
+  ]
+
   def migrate do
     load_app()
 
@@ -29,6 +53,7 @@ defmodule Tuist.Release do
           grant_runtime_role(repo)
           grant_processor_role(repo)
           grant_swift_registry_sync_role(repo)
+          grant_grafana_role(repo)
         end)
     end
   end
@@ -280,6 +305,66 @@ defmodule Tuist.Release do
 
         :ok
       end)
+  end
+
+  # Column-level SELECTs for the Grafana dashboard role. Gated on
+  # TUIST_DATABASE_GRAFANA_ROLE, which the chart sets only for managed CNPG
+  # migration Jobs, so self-hosted and non-CNPG deployments leave the role
+  # untouched. Applied on every migrate so the allowlist tracks the schema
+  # declaratively rather than drifting behind a manual psql runbook — the
+  # `.sql` file is only a bootstrap/restore fallback.
+  defp grant_grafana_role(repo) when repo == Tuist.Repo do
+    case Environment.database_grafana_role() do
+      role when is_binary(role) and role != "" ->
+        do_grant_grafana_role(repo, role)
+
+      _ ->
+        :ok
+    end
+  end
+
+  defp grant_grafana_role(_repo), do: :ok
+
+  defp do_grant_grafana_role(repo, role) do
+    Environment.validate_postgres_identifier!(role, "TUIST_DATABASE_GRAFANA_ROLE")
+
+    role = Environment.quote_postgres_identifier(role)
+    database = repo.config() |> Keyword.fetch!(:database) |> Environment.quote_postgres_identifier()
+    quoted_schema = Environment.quote_postgres_identifier(Environment.database_schema())
+
+    {:ok, :ok} =
+      repo.transaction(fn ->
+        Enum.each(
+          grafana_role_grant_statements(role, database, quoted_schema),
+          &SQL.query!(repo, &1, [])
+        )
+
+        :ok
+      end)
+  end
+
+  @doc false
+  def grafana_role_grant_statements(role, database, quoted_schema) do
+    column_grants =
+      Enum.map(@grafana_read_columns, fn {table, columns} ->
+        "GRANT SELECT (#{Enum.join(columns, ", ")}) ON #{quoted_schema}.#{table} TO #{role}"
+      end)
+
+    [
+      # Revoking table privileges also drops the column privileges on that table,
+      # so this resets the role to zero before re-granting. That makes the
+      # allowlist authoritative: dropping a column here actually removes access
+      # on the next migrate instead of leaving a stale grant behind.
+      "REVOKE ALL ON ALL TABLES IN SCHEMA #{quoted_schema} FROM #{role}",
+      "GRANT CONNECT ON DATABASE #{database} TO #{role}",
+      "GRANT USAGE ON SCHEMA #{quoted_schema} TO #{role}"
+    ] ++
+      column_grants ++
+      [
+        # Unlike pg_read_all_data, a table added by a future migration must not
+        # silently become readable by a credential a third party holds.
+        "ALTER DEFAULT PRIVILEGES IN SCHEMA #{quoted_schema} REVOKE ALL ON TABLES FROM #{role}"
+      ]
   end
 
   @doc false

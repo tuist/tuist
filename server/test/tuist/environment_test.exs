@@ -3,6 +3,21 @@ defmodule Tuist.EnvironmentTest do
 
   alias Tuist.Environment
 
+  describe "codebase search" do
+    test "normalizes a configured service address" do
+      environment = %{"TUIST_CODEBASE_SEARCH_URL" => " http://codebase-search/ "}
+
+      assert Environment.codebase_search_url(environment) == "http://codebase-search"
+      assert Environment.codebase_search_enabled?(environment)
+    end
+
+    test "is disabled for missing and blank service URLs" do
+      assert Environment.codebase_search_url(%{}) == nil
+      refute Environment.codebase_search_enabled?(%{})
+      refute Environment.codebase_search_enabled?(%{"TUIST_CODEBASE_SEARCH_URL" => "  "})
+    end
+  end
+
   describe "get/3" do
     test "retrieves value from secrets using string keys" do
       # Given
