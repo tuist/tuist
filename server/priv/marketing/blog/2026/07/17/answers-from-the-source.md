@@ -52,6 +52,14 @@ The support questions look different but they land in the same place, where some
 
 That's a question that used to land in our inbox, answered before it ever reached us, by searching across our releases and pull requests the same way we would have.
 
+And some questions are really just am I the only one hitting this, which is where the community threads earn their place, because someone runs into selective testing quietly re-running the whole suite on CI even though it behaves locally, and instead of waiting on us they can ask whether it has come up before:
+
+> **Has anyone reported selective testing re-running every test on CI when it works locally?**
+>
+> Yes, this has been raised. There's a community thread, [Tuist selective testing is not working in GitHub action](https://community.tuist.dev/t/tuist-selective-testing-is-not-working-in-github-action/959), where someone describes the same thing, selective tests behaving locally but running the full suite in CI, which is where the discussion of why that happens is already playing out.
+
+So rather than us fielding it a second time, the agent drops them straight into the thread where it is already being worked through, and if it turns out there is no answer there yet, that is a signal for us worth paying attention to.
+
 ## Keeping it honest
 
 We're not walking away from support with any of this, we're changing where it happens, so instead of a question landing in our inbox it gets answered off the same sources we'd have opened anyway, through the agent the person already lives in. It scales the part of support that used to need another human on the team, and it does it far more cheaply than putting that human between the product and the people using it.
