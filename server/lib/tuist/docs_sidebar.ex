@@ -136,7 +136,13 @@ defmodule Tuist.Docs.Sidebar do
               },
               %Item{
                 label: "Generated Xcode project",
-                slug: "/en/guides/get-started/generated-xcode-project"
+                slug: "/en/guides/get-started/generated-xcode-project",
+                items: [
+                  %Item{
+                    label: "Create a generated project",
+                    slug: "/en/tutorials/xcode/create-a-generated-project"
+                  }
+                ]
               },
               %Item{
                 label: "Gradle project",
@@ -150,20 +156,6 @@ defmodule Tuist.Docs.Sidebar do
           },
           %Item{label: "Install Tuist", slug: "/en/guides/install-tuist"},
           %Item{label: "Install the Gradle plugin", slug: "/en/guides/install-gradle-plugin"}
-        ]
-      },
-      %Group{
-        label: "Tutorials",
-        items: [
-          %Item{
-            label: "Xcode",
-            items: [
-              %Item{
-                label: "Create a generated project",
-                slug: "/en/tutorials/xcode/create-a-generated-project"
-              }
-            ]
-          }
         ]
       },
       %Group{
