@@ -61,7 +61,7 @@ on:
         description: Pre-built Linux runner image tag to pin (e.g. `sha-7ed4b250bfb5`); wins over the resolved `linux-runner-image@*` semver
         required: false
       macos_runner_image_tag:
-        description: Pre-built macOS 26.5 runner image tag to pin (e.g. `macos-26-5-9d343ebe`); wins over the resolved `runner-image@*` semver for that pool
+        description: Pre-built macOS runner image tag to pin on the default Xcode pool (e.g. `macos-26-6-9d343ebe`); wins over the resolved `runner-image@*` semver for that pool
         required: false
       capi_image_tag:
         description: Pre-built CAPI provider image tag to pin (e.g. `05057033`); wins over the resolved `capi-scaleway@*` semver. Use when a chart change adds operator flags before the provider image is released.
@@ -111,9 +111,9 @@ on:
         type: string
       macos_runner_image_tag:
         description: >-
-          Pre-built macOS 26.5 runner image tag to pin (e.g.
-          `macos-26-5-9d343ebe`). When unset, the deploy job resolves the
-          latest `runner-image@*` semver tag. Useful for validating an
+          Pre-built macOS runner image tag to pin on the default Xcode pool
+          (e.g. `macos-26-6-9d343ebe`). When unset, the deploy job resolves
+          the latest `runner-image@*` semver tag. Useful for validating an
           in-flight runner-image change on staging before tagging a release.
         required: false
         type: string
@@ -670,7 +670,7 @@ jobs:
           } >> "$GITHUB_ENV"
       - uses: jdx/mise-action@v3.2.0
         with:
-          install_args: "--locked helm kubectl"
+          install_args: "--locked helm kubectl yq"
           cache: "false"
       - uses: 1password/install-cli-action@v4
         with:
@@ -826,13 +826,24 @@ jobs:
           add_set "xcresultProcessor.image.tag" "${XCRESULT_PROCESSOR_TAG:-}"
           add_set "runnersFleet.runnerImageSemver" "${RUNNER_IMAGE_SEMVER:-}"
           # The explicit macos_runner_image_tag input wins over the
-          # resolved runner-image@ semver for the default 26.5 pool. Used
-          # to pin staging at an in-flight `:macos-26-5-<git-sha>` build
-          # before the runner image is tagged.
+          # resolved runner-image@ semver for the DEFAULT pool. Used to pin
+          # staging at an in-flight `:macos-<xcode>-<git-sha>` build before
+          # the runner image is tagged.
+          #
+          # The pool is derived from the catalog rather than hardcoded: this
+          # has to be the pool the default `runs-on: tuist[-staging]-macos`
+          # label resolves to, or the pin lands on a pool no job uses and the
+          # deploy silently tests the OLD image.
           macos_runner_image_tag="${MACOS_RUNNER_IMAGE_TAG_INPUT:-}"
           if [ -n "$macos_runner_image_tag" ]; then
-            image_sets+=(--set-string "runnersFleet.xcodeOverrides.26\\.5.imageTag=$macos_runner_image_tag")
-            echo "Overriding resolved macOS 26.5 runner image tag with input ${macos_runner_image_tag}"
+            default_xcode=$(yq -r '.runnersFleet.xcodeVersions[] | select(.default == true) | .xcodeVersion' \
+              infra/helm/tuist/values-managed-common.yaml)
+            if [ -z "$default_xcode" ] || [ "$default_xcode" = "null" ]; then
+              echo "::error::could not resolve the default Xcode version from values-managed-common.yaml"
+              exit 1
+            fi
+            image_sets+=(--set-string "runnersFleet.xcodeOverrides.${default_xcode//./\\.}.imageTag=$macos_runner_image_tag")
+            echo "Overriding resolved macOS ${default_xcode} (default pool) runner image tag with input ${macos_runner_image_tag}"
           fi
           # The explicit linux_runner_image_tag input wins over the
           # resolved linux-runner-image@ semver — same pattern as
