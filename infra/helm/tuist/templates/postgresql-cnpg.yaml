@@ -148,11 +148,11 @@ spec:
   # Managed roles. CNPG creates the role on bootstrap and rotates the
   # password whenever the referenced Secret changes — there is no
   # `CREATE ROLE` SQL to run by hand. Web and processor per-table grants
-  # are both applied by Tuist.Release.migrate after each migration (as the
-  # schema owner, gated on TUIST_DATABASE_{RUNTIME,PROCESSOR}_ROLE). The
-  # infra/cnpg SQL runbook is now only a bootstrap/restore fallback for the
-  # window before the first migrate, plus the Ops role's CONNECT + REVOKE
-  # defense-in-depth.
+  # are applied by Tuist.Release after each deployment as the schema owner.
+  # The Grafana role is granted by a post-upgrade hook because a pre-upgrade
+  # migration runs before CloudNativePG receives newly declared roles. The
+  # infra/cnpg SQL runbook is now only a bootstrap/restore fallback, plus the
+  # Ops role's CONNECT + REVOKE defense-in-depth.
   managed:
     roles:
       - name: {{ .Values.postgresql.cnpg.roles.web.name | quote }}
@@ -190,8 +190,8 @@ spec:
       # credential is stored in Grafana Cloud, so it must not inherit
       # pg_read_all_data (which would hand a third party every current and
       # future table, including users.encrypted_password and projects.token).
-      # CNPG creates the bare role; the column-level SELECTs it needs come from
-      # infra/cnpg/tuist-grafana-ro-grants.sql.
+      # CNPG creates the bare role; a post-upgrade Job applies the column-level
+      # SELECTs after this declaration has been reconciled.
       - name: {{ .Values.postgresql.cnpg.roles.grafanaRo.name | quote }}
         ensure: present
         login: true

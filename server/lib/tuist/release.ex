@@ -53,9 +53,14 @@ defmodule Tuist.Release do
           grant_runtime_role(repo)
           grant_processor_role(repo)
           grant_swift_registry_sync_role(repo)
-          grant_grafana_role(repo)
         end)
     end
+  end
+
+  def grant_grafana_role do
+    load_app()
+
+    {:ok, _, _} = Ecto.Migrator.with_repo(Tuist.Repo, &grant_grafana_role/1)
   end
 
   # A migration that brings the VM down instead of raising (an exit signal from a
@@ -307,25 +312,8 @@ defmodule Tuist.Release do
       end)
   end
 
-  # Column-level SELECTs for the Grafana dashboard role. Gated on
-  # TUIST_DATABASE_GRAFANA_ROLE, which the chart sets only for managed CNPG
-  # migration Jobs, so self-hosted and non-CNPG deployments leave the role
-  # untouched. Applied on every migrate so the allowlist tracks the schema
-  # declaratively rather than drifting behind a manual psql runbook — the
-  # `.sql` file is only a bootstrap/restore fallback.
-  defp grant_grafana_role(repo) when repo == Tuist.Repo do
-    case Environment.database_grafana_role() do
-      role when is_binary(role) and role != "" ->
-        do_grant_grafana_role(repo, role)
-
-      _ ->
-        :ok
-    end
-  end
-
-  defp grant_grafana_role(_repo), do: :ok
-
-  defp do_grant_grafana_role(repo, role) do
+  defp grant_grafana_role(repo) do
+    role = Environment.database_grafana_role() || raise "TUIST_DATABASE_GRAFANA_ROLE must be set"
     Environment.validate_postgres_identifier!(role, "TUIST_DATABASE_GRAFANA_ROLE")
 
     role = Environment.quote_postgres_identifier(role)
