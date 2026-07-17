@@ -57,7 +57,6 @@ struct RunReportServiceTests {
         )
 
         let report = try await readReport(at: path)
-        #expect(report.schemaVersion == RunReport.currentSchemaVersion)
         #expect(report.tuistVersion == "4.100.0")
         #expect(report.runId == "run-id")
         #expect(report.status == .success)

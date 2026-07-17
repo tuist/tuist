@@ -7,18 +7,11 @@ import TuistCore
 /// Unlike the models it's built from, this type is a published contract: CI pipelines parse it to
 /// get the dashboard URLs instead of scraping them out of the logs. Keeping it separate from
 /// `CommandEvent` / `RunReportTestRun` / `RunReportBuildRun` means those stay free to change
-/// without breaking consumers. Any backwards-incompatible change *here* needs a
-/// `currentSchemaVersion` bump.
+/// without breaking consumers. Its format is documented in the "Run report" section of
+/// `server/priv/docs/en/guides/integrations/continuous-integration.md`; keep the two in sync, and
+/// only ever extend it in backwards-compatible ways.
 public struct RunReport: Codable, Equatable {
-    /// Bump on any backwards-incompatible change to the shape below, and update the format's
-    /// documentation in `server/priv/docs/en/guides/integrations/continuous-integration.md`.
-    public static let currentSchemaVersion = 1
-
-    /// The version of this format. Consumers should check it before parsing anything else.
-    public let schemaVersion: Int
-
-    /// The Tuist that produced the report. Informational only — `schemaVersion` is what tells a
-    /// consumer whether it can parse this, so that CLI releases don't read as format breaks.
+    /// The Tuist that produced the report.
     public let tuistVersion: String
 
     public let runId: String
@@ -67,7 +60,6 @@ public struct RunReport: Codable, Equatable {
         testRunReports: [RunReportTestRun],
         buildRunReports: [RunReportBuildRun]
     ) {
-        schemaVersion = Self.currentSchemaVersion
         self.tuistVersion = tuistVersion
         self.runId = runId
         self.status = switch status {

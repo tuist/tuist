@@ -327,7 +327,6 @@ When Tuist uploads a run, the dashboard URLs for it are printed to the logs. To 
 
 ```json
 {
-  "schemaVersion": 1,
   "tuistVersion": "4.100.0",
   "runId": "0193f8c1-...",
   "status": "success",
@@ -352,8 +351,7 @@ When Tuist uploads a run, the dashboard URLs for it are printed to the logs. To 
 
 | Field | Type | Description |
 | - | - | - |
-| `schemaVersion` | number | The version of this format. Check it before parsing anything else; it only changes when the shape below changes. |
-| `tuistVersion` | string | The version of Tuist that produced the report. Informational — use `schemaVersion`, not this, to decide whether you can parse the file. |
+| `tuistVersion` | string | The version of Tuist that produced the report. |
 | `runId` | string | The run's unique identifier. |
 | `status` | string | `"success"` or `"failure"`. |
 | `runURL` | string | The dashboard URL for the run. Always present. |
