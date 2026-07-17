@@ -51,4 +51,27 @@ defmodule Tuist.Billing.Workers.SyncCustomerStripeMetersWorkerTest do
              job.args["period_start"] == period_start and job.args["period_end"] == period_end
            end)
   end
+
+  test "handles pre-deploy jobs that carry only the customer id" do
+    customer_id = UUIDv7.generate()
+    %{account: account} = AccountsFixtures.user_fixture(customer_id: customer_id)
+
+    stub(FunWithFlags, :enabled?, fn :qa_billing_enabled, [for: ^account] -> false end)
+
+    expect(Billing, :customer_meter_values, fn ^account, %DateTime{}, %DateTime{}, [include_qa: false] ->
+      [%{event_name: "remote_cache_hit", value: 5}]
+    end)
+
+    assert :ok =
+             SyncCustomerStripeMetersWorker.perform(%Oban.Job{
+               id: 456,
+               args: %{"customer_id" => customer_id}
+             })
+
+    [job] = all_enqueued(worker: SyncCustomerStripeMeterWorker)
+    assert job.args["event_name"] == "remote_cache_hit"
+    assert is_integer(job.args["period_start"])
+    assert is_integer(job.args["period_end"])
+    assert job.args["period_end"] > job.args["period_start"]
+  end
 end

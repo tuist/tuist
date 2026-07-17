@@ -550,6 +550,10 @@ defmodule Tuist.BillingTest do
       period_end = ~U[2026-07-17 00:00:00.000000Z]
       event_name = "runner_linux_4_vcpu_16_gb_milliseconds"
 
+      stub(Environment, :stripe_prices, fn ->
+        %{"runners" => %{event_name => "runner.linux.4.16"}}
+      end)
+
       expect(Tuist.CommandEvents, :remote_cache_hits_count_for_customer, fn ^customer_id, ^period_start, ^period_end ->
         10
       end)
@@ -565,6 +569,32 @@ defmodule Tuist.BillingTest do
       assert Billing.customer_meter_values(account, period_start, period_end) == [
                %{event_name: "remote_cache_hit", value: 10},
                %{event_name: event_name, value: 750_125}
+             ]
+    end
+
+    test "drops runner meters whose Stripe price is not yet configured" do
+      customer_id = "customer-#{UUIDv7.generate()}"
+      %{account: account} = AccountsFixtures.user_fixture(customer_id: customer_id)
+      account_id = account.id
+      period_start = ~U[2026-07-16 00:00:00.000000Z]
+      period_end = ~U[2026-07-17 00:00:00.000000Z]
+
+      # The base setup stub ships `"runners" => %{}`, so no runner price
+      # is configured for this machine type.
+      expect(Tuist.CommandEvents, :remote_cache_hits_count_for_customer, fn ^customer_id, ^period_start, ^period_end ->
+        10
+      end)
+
+      expect(RunnerBilling, :compute_milliseconds_by_machine, fn ^account_id, ^period_start, ^period_end ->
+        [%{platform: :linux, vcpus: 4, memory_gb: 16, total_ms: 750_125}]
+      end)
+
+      stub(RunnerBilling, :meter_event_name, fn %{platform: :linux, vcpus: 4, memory_gb: 16} ->
+        "runner_linux_4_vcpu_16_gb_milliseconds"
+      end)
+
+      assert Billing.customer_meter_values(account, period_start, period_end) == [
+               %{event_name: "remote_cache_hit", value: 10}
              ]
     end
 
@@ -593,15 +623,32 @@ defmodule Tuist.BillingTest do
       stub(RunnerBilling, :compute_milliseconds_by_machine, fn ^account_id, ^period_start, ^period_end -> [] end)
 
       assert Billing.customer_meter_values(account, period_start, period_end, include_qa: true) == [
-               %{event_name: "remote_cache_hit", value: 0},
                %{event_name: "llm_input_token", value: 100},
                %{event_name: "llm_output_token", value: 50}
              ]
     end
+
+    test "drops zero-value meters so an idle customer snapshots nothing" do
+      customer_id = "customer-#{UUIDv7.generate()}"
+      %{account: account} = AccountsFixtures.user_fixture(customer_id: customer_id)
+      account_id = account.id
+      period_start = ~U[2026-07-16 00:00:00.000000Z]
+      period_end = ~U[2026-07-17 00:00:00.000000Z]
+
+      stub(Tuist.CommandEvents, :remote_cache_hits_count_for_customer, fn ^customer_id, ^period_start, ^period_end ->
+        0
+      end)
+
+      stub(RunnerBilling, :compute_milliseconds_by_machine, fn ^account_id, ^period_start, ^period_end ->
+        [%{platform: :linux, vcpus: 4, memory_gb: 16, total_ms: 0}]
+      end)
+
+      assert Billing.customer_meter_values(account, period_start, period_end, include_qa: true) == []
+    end
   end
 
   describe "report_meter_event/5" do
-    test "reports a snapshotted value with a period-specific identifier" do
+    test "reports a snapshotted value with a period-specific identifier and no explicit timestamp" do
       customer_id = "customer-#{UUIDv7.generate()}"
       event_name = "runner_linux_4_vcpu_16_gb_milliseconds"
       period_start = ~U[2026-07-16 00:00:00.000000Z]
@@ -614,17 +661,17 @@ defmodule Tuist.BillingTest do
                                                  method: :post,
                                                  endpoint: "/v1/billing/meter_events",
                                                  headers: %{"Idempotency-Key" => ^identifier},
-                                                 params: %{
-                                                   event_name: ^event_name,
-                                                   identifier: ^identifier,
-                                                   timestamp: timestamp,
-                                                   payload: %{
-                                                     value: 750_125,
-                                                     stripe_customer_id: ^customer_id
-                                                   }
-                                                 }
+                                                 params:
+                                                   %{
+                                                     event_name: ^event_name,
+                                                     identifier: ^identifier,
+                                                     payload: %{
+                                                       value: 750_125,
+                                                       stripe_customer_id: ^customer_id
+                                                     }
+                                                   } = params
                                                } ->
-        assert timestamp == DateTime.to_unix(period_start)
+        refute Map.has_key?(params, :timestamp)
         {:ok, %{id: "meter-event"}}
       end)
 

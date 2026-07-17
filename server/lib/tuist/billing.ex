@@ -131,21 +131,48 @@ defmodule Tuist.Billing do
         []
       end
 
+    # Only report runner meters whose Stripe price is configured. During
+    # the staged rollout `stripe.prices.runners` is empty, so no runner
+    # meters exist in Stripe yet; reporting to an unprovisioned meter just
+    # errors the job and adds Sentry noise, and usage without an attached
+    # price wouldn't bill anyway. Each machine type turns on the moment its
+    # price lands in config.
+    runner_prices = Map.get(Tuist.Environment.stripe_prices() || %{}, "runners", %{})
+
     runner_values =
       account_id
       |> RunnerBilling.compute_milliseconds_by_machine(period_start, period_end)
-      |> Enum.reject(&(&1.total_ms == 0))
       |> Enum.map(fn usage ->
         %{event_name: RunnerBilling.meter_event_name(usage), value: usage.total_ms}
       end)
+      |> Enum.filter(&runner_meter_priced?(runner_prices, &1.event_name))
 
-    remote_cache_values ++ language_model_values ++ runner_values
+    # Drop zero-value meters uniformly so an idle customer fans out no
+    # Stripe reporting jobs at all, rather than one no-op POST per meter.
+    Enum.reject(remote_cache_values ++ language_model_values ++ runner_values, &(&1.value == 0))
+  end
+
+  defp runner_meter_priced?(runner_prices, event_name) do
+    case Map.get(runner_prices, event_name) do
+      price when is_binary(price) and price != "" -> true
+      _ -> false
+    end
   end
 
   @doc """
-  Reports one previously-snapshotted value to Stripe. Both the event
-  identifier and request idempotency key include the parent period,
-  so a retried child job cannot report the value into another day.
+  Reports one previously-snapshotted value to Stripe. The event
+  identifier and request idempotency key both include the parent
+  period, so a retried child job reports the same value under the same
+  identifier and Stripe deduplicates it rather than double-counting.
+
+  We deliberately omit an explicit `timestamp`, letting Stripe stamp
+  the event at ingestion time. Pinning the timestamp to `period_start`
+  attributes usage to the day it happened, but a subscription's billing
+  period can close (and its invoice finalize) between that day and this
+  daily report — usage stamped into an already-finalized period is
+  never billed. Ingestion time always lands in the open period, so the
+  last day of a period bills on the following invoice instead of being
+  lost. The daily cadence keeps the shift to at most one cycle.
   """
   def report_meter_event(customer_id, event_name, value, %DateTime{} = period_start, %DateTime{} = period_end)
       when is_binary(customer_id) and is_binary(event_name) and is_integer(value) and value >= 0 do
@@ -158,7 +185,6 @@ defmodule Tuist.Billing do
     |> Stripe.Request.put_params(%{
       event_name: event_name,
       identifier: identifier,
-      timestamp: DateTime.to_unix(period_start),
       payload: %{
         value: value,
         stripe_customer_id: customer_id
