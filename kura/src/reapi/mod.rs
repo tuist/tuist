@@ -570,6 +570,7 @@ impl ReapiService {
         // with no filter the key is just the namespace, preserving today's
         // behavior exactly.
         let cache_key = snapshot_cache_key(namespace_id, trunk);
+        let generation = self.state.store.action_cache_generation(namespace_id);
         // Serve the cached index immediately, kicking the reconcile in the
         // background once the view is older than the freshness window: a
         // reconcile costs a namespace scan (tens of seconds on a large
@@ -583,19 +584,24 @@ impl ReapiService {
                 .indexes
                 .lock()
                 .expect("snapshot cache lock poisoned");
-            // An index that built EMPTY does not get to answer, however fresh it
-            // is. The freshness window trades staleness for round trips, and that
-            // trade only makes sense when there is something to serve: a
-            // populated index that is 60s out of date costs its client a few
-            // keys, an empty one costs it every key it came for. And it does not
-            // come back to find out we were only a minute behind, because it
-            // fetches once per session. So a namespace that published its first
-            // entries just after an empty build would starve every client that
-            // arrived inside the window. Falling through builds and serves the
-            // real thing, which is what an absent index already does, and the
-            // build is shared so concurrent serves pay for one.
+            // An index that built EMPTY only answers while the namespace has not
+            // moved under it. The freshness window trades staleness for round
+            // trips, and that trade only makes sense when there is something to
+            // serve: a populated index 60s out of date costs its client a few
+            // keys, an empty one costs it every key it came for, and it does not
+            // come back to find out, because it fetches once per session.
+            //
+            // The generation is what makes that affordable. Rebuilding every
+            // empty index instead would be a namespace scan per build for every
+            // namespace whose trunk view is legitimately empty, which is all of
+            // them until the fleet re-tags. Equal generation means nothing has
+            // been published since the build, so empty is the answer, not a
+            // stale one.
+            let unchanged = indexes
+                .get(&cache_key)
+                .is_some_and(|index| index.built_at_generation == generation);
             if let Some(index) = indexes.get_mut(&cache_key)
-                && !index.entries.is_empty()
+                && (!index.entries.is_empty() || unchanged)
             {
                 let stale = index.reconciled_at.elapsed() >= SNAPSHOT_RECONCILE_INTERVAL;
                 index.last_used = Instant::now();
@@ -860,6 +866,10 @@ impl ReapiService {
         // `served_full` instead. Cloning the whole index to keep it in place
         // would copy an unbounded node table (the entry cap does not bound it);
         // the cached full encoding is bounded at the wire ceiling.
+        // Sampled BEFORE the scan: a publish landing mid-reconcile must leave the
+        // index looking out of date, not be stamped as included by a generation
+        // read after it.
+        let generation = state.store.action_cache_generation(&namespace);
         let index = cache
             .indexes
             .lock()
@@ -870,6 +880,7 @@ impl ReapiService {
             match reconcile_snapshot_index(&state, &namespace, trunk.as_deref(), index).await {
                 Ok(mut index) => {
                     index.reconciled_at = Instant::now();
+                    index.built_at_generation = generation;
                     (index, Ok(()))
                 }
                 Err((index, error)) => {
@@ -2349,6 +2360,11 @@ struct NamespaceSnapshotIndex {
     /// When the last successful reconcile finished. Serving reads this to
     /// decide whether the cached view is fresh enough to return as-is.
     reconciled_at: Instant,
+    /// The namespace's action-cache generation when this index was built. An
+    /// empty index is only worth serving while this still matches: equal means
+    /// nothing has been published since, so empty is the truth rather than a
+    /// stale answer.
+    built_at_generation: u64,
 }
 
 impl NamespaceSnapshotIndex {
@@ -2359,6 +2375,7 @@ impl NamespaceSnapshotIndex {
             entries: BTreeMap::new(),
             last_used: Instant::now(),
             reconciled_at: Instant::now(),
+            built_at_generation: 0,
         }
     }
 
@@ -2931,46 +2948,63 @@ mod tests {
         assert!(!should_refresh_snapshot_index(fresh, idle));
     }
 
-    /// A namespace that publishes its first entries just after an empty index was
-    /// built would otherwise serve nothing for the rest of the freshness window,
-    /// and a client fetches once per session, so "the rest of the window" is the
-    /// rest of its build. An empty index has to go back to the store instead of
-    /// answering, however recently it was reconciled.
+    /// An empty index is ambiguous: "nothing to show" and "built before anything
+    /// was published" look identical. The generation is what tells them apart,
+    /// and both answers matter. Serving a stale-empty view costs a client every
+    /// key it came for and it does not ask twice; rebuilding a correctly-empty
+    /// one costs a namespace scan per build, on every namespace whose trunk view
+    /// is empty, which is all of them until the fleet re-tags.
     #[tokio::test]
-    async fn a_fresh_but_empty_index_is_rebuilt_rather_than_served() {
+    async fn an_empty_index_answers_only_while_its_namespace_has_not_moved() {
         let context = test_context(|_| {}).await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
             state: context.state.clone(),
         };
-        // Reconciled just now, and empty: the shape a namespace has when its
-        // first client prefetched before anything was published.
-        let stamped = Instant::now();
-        let mut index = NamespaceSnapshotIndex::new();
-        index.reconciled_at = stamped;
-        service
-            .snapshot_cache
-            .indexes
-            .lock()
-            .unwrap()
-            .insert(snapshot_cache_key("ios", None), index);
+        let insert = |generation: u64| {
+            let mut index = NamespaceSnapshotIndex::new();
+            index.reconciled_at = Instant::now();
+            index.built_at_generation = generation;
+            service
+                .snapshot_cache
+                .indexes
+                .lock()
+                .unwrap()
+                .insert(snapshot_cache_key("ios", None), index);
+            Instant::now()
+        };
+        let reconciled_at = || {
+            service
+                .snapshot_cache
+                .indexes
+                .lock()
+                .unwrap()
+                .get(&snapshot_cache_key("ios", None))
+                .map(|index| index.reconciled_at)
+        };
 
+        // Nothing published, so the store's generation is 0 and the index agrees:
+        // empty is the truth and answering costs nothing.
+        let stamped = insert(context.state.store.action_cache_generation("ios"));
         service
             .serve_actioncache_snapshot("ios", 0, None)
             .await
             .expect("serve should succeed");
-
-        let reconciled_at = service
-            .snapshot_cache
-            .indexes
-            .lock()
-            .unwrap()
-            .get(&snapshot_cache_key("ios", None))
-            .map(|index| index.reconciled_at);
         assert!(
-            reconciled_at.is_some_and(|at| at > stamped),
-            "the serve went back to the store instead of answering from an empty \
-             index that happened to be fresh"
+            reconciled_at().is_some_and(|at| at < stamped),
+            "a correctly-empty index answers without rescanning the namespace"
+        );
+
+        // A generation the store has moved past: the index was built before
+        // something was published, so it has to go back and look.
+        let stamped = insert(context.state.store.action_cache_generation("ios") + 1);
+        service
+            .serve_actioncache_snapshot("ios", 0, None)
+            .await
+            .expect("serve should succeed");
+        assert!(
+            reconciled_at().is_some_and(|at| at > stamped),
+            "an index built before a publish is rebuilt rather than served empty"
         );
     }
 

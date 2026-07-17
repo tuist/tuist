@@ -81,6 +81,14 @@ pub struct Store {
     rocksdb_block_cache: Cache,
     rocksdb_write_buffer_manager: WriteBufferManager,
     segment_write_lock: Mutex<()>,
+    /// Bumped whenever a namespace's action cache changes, so a snapshot index
+    /// that came back EMPTY can tell "nothing to show" from "out of date". An
+    /// empty index is otherwise indistinguishable from a stale one and has to be
+    /// rebuilt on every serve to find out, which is a namespace scan per build
+    /// for every namespace whose trunk view is legitimately empty. In memory and
+    /// per node: it only ever gates a local cache, a fresh process rebuilds once,
+    /// and the apply path bumps it too so a peer's write is not missed.
+    action_cache_generations: StdMutex<HashMap<String, u64>>,
     // Counts segment fsyncs so tests can assert durability is batched across
     // concurrent writers rather than one fsync per write under the global lock.
     segment_fsync_count: Arc<AtomicU64>,
@@ -469,6 +477,7 @@ impl Store {
             rocksdb_block_cache,
             rocksdb_write_buffer_manager,
             segment_write_lock: Mutex::new(()),
+            action_cache_generations: StdMutex::new(HashMap::new()),
             segment_fsync_count: Arc::new(AtomicU64::new(0)),
             pending_seq: AtomicU64::new(0),
             durable_seq: AtomicU64::new(0),
@@ -786,6 +795,7 @@ impl Store {
                 ),
                 artifact_id.as_bytes(),
             );
+            self.bump_action_cache_generation(&manifest.namespace_id);
         }
         if let Some(previous_manifest) = &existing
             && let Some(previous_segment_id) = &previous_manifest.segment_id
@@ -1390,6 +1400,7 @@ impl Store {
                 ),
                 artifact_id.as_bytes(),
             );
+            self.bump_action_cache_generation(&manifest.namespace_id);
         }
         self.append_artifact_replication_messages(
             &mut batch,
@@ -2884,6 +2895,27 @@ impl Store {
             self.write_batch_sync(batch, "action-cache index stale rows")?;
         }
         Ok(manifests)
+    }
+
+    /// The namespace's action-cache generation. A snapshot index records this at
+    /// build time; if it has not moved, the index still describes the namespace,
+    /// including when the index is empty.
+    pub fn action_cache_generation(&self, namespace_id: &str) -> u64 {
+        self.action_cache_generations
+            .lock()
+            .expect("action-cache generations lock poisoned")
+            .get(namespace_id)
+            .copied()
+            .unwrap_or(0)
+    }
+
+    fn bump_action_cache_generation(&self, namespace_id: &str) {
+        *self
+            .action_cache_generations
+            .lock()
+            .expect("action-cache generations lock poisoned")
+            .entry(namespace_id.to_owned())
+            .or_insert(0) += 1;
     }
 
     /// Deliberately NOT versioned to force a rebuild when the branch joined the
