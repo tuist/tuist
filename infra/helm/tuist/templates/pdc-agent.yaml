@@ -57,10 +57,11 @@ metadata:
     {{- include "tuist.labels" . | nindent 4 }}
     app.kubernetes.io/component: pdc-agent
 spec:
-  # The agent multiplexes every PDC-routed datasource query over one outbound
-  # tunnel; a second replica buys no throughput and just doubles the
-  # connections Grafana Cloud sees. Upstream ships 1 replica for the same reason.
-  replicas: 1
+  # Grafana load-balances queries across every agent on the network and fails
+  # over when one disconnects, so replicas are availability, not throughput:
+  # at 1, a node drain or a crash takes every PDC-routed panel down with it.
+  # Grafana recommends >= 3 in production.
+  replicas: {{ .Values.pdcAgent.replicas }}
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -90,6 +91,15 @@ spec:
             - "$(TOKEN)"
             - "-gcloud-hosted-grafana-id"
             - "$(HOSTED_GRAFANA_ID)"
+            {{- with .Values.pdcAgent.permitRemoteOpen }}
+            # Without this the tunnel can open a connection to ANY host:port this
+            # pod can reach, not just Postgres (the agent applies no restriction
+            # by default). Passed as two -ssh-flag values so they reach ssh as
+            # the `-o PermitRemoteOpen=...` pair it expects; multiple targets are
+            # space-separated inside the single option value.
+            - "-ssh-flag=-o"
+            - "-ssh-flag=PermitRemoteOpen={{ join " " . }}"
+            {{- end }}
           env:
             - name: CLUSTER
               value: {{ .Values.pdcAgent.cluster | quote }}

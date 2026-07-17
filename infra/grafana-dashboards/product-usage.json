@@ -53,7 +53,7 @@
                       "spec": {
                         "format": "table",
                         "range": true,
-                        "rawSql": "SELECT \n  a.name AS account_name,\n  a.billing_email,\n  a.current_month_remote_cache_hits_count,\n  ROUND((a.current_month_remote_cache_hits_count / 200.0) * 100, 1) AS percent_of_limit,\n  CASE \n    WHEN a.current_month_remote_cache_hits_count >= 200 THEN 'EXCEEDED - Needs billing'\n    WHEN a.current_month_remote_cache_hits_count >= 180 THEN 'CRITICAL - 90%+ of limit'\n    WHEN a.current_month_remote_cache_hits_count >= 150 THEN 'HIGH - 75%+ of limit'\n    WHEN a.current_month_remote_cache_hits_count >= 100 THEN 'MEDIUM - 50%+ of limit'\n    ELSE 'LOW - Under 50% limit'\n  END AS billing_priority,\n  a.current_month_remote_cache_hits_count_updated_at AS last_updated\nFROM public.accounts a\nLEFT JOIN public.subscriptions s ON a.id = s.account_id AND s.status = 'active'\nWHERE s.account_id IS NULL\n  AND a.current_month_remote_cache_hits_count > 0\nORDER BY a.current_month_remote_cache_hits_count DESC"
+                        "rawSql": "SELECT \n  a.name AS account_name,\n  a.billing_email,\n  a.current_month_remote_cache_hits_count,\n  ROUND((a.current_month_remote_cache_hits_count / 200.0) * 100, 1) AS percent_of_limit,\n  CASE \n    WHEN a.current_month_remote_cache_hits_count >= 200 THEN 'EXCEEDED - Needs billing'\n    WHEN a.current_month_remote_cache_hits_count >= 180 THEN 'CRITICAL - 90%+ of limit'\n    WHEN a.current_month_remote_cache_hits_count >= 150 THEN 'HIGH - 75%+ of limit'\n    WHEN a.current_month_remote_cache_hits_count >= 100 THEN 'MEDIUM - 50%+ of limit'\n    ELSE 'LOW - Under 50% limit'\n  END AS billing_priority,\n  a.current_month_remote_cache_hits_count_updated_at AS last_updated\nFROM public.accounts a\nLEFT JOIN public.subscriptions s ON a.id = s.account_id AND s.status IN ('active', 'trialing')\nWHERE s.account_id IS NULL\n  AND a.current_month_remote_cache_hits_count > 0\nORDER BY a.current_month_remote_cache_hits_count DESC"
                       }
                     },
                     "refId": "A",
@@ -1227,7 +1227,7 @@
                         "format": 1,
                         "queryType": "table",
                         "range": true,
-                        "rawSql": "SELECT\n    tr.account_id,\n    count() AS test_suite_run_count\nFROM default.test_suite_runs AS tsr\nINNER JOIN default.test_runs AS tr ON tsr.test_run_id = tr.id\nWHERE $__timeFilter(tsr.inserted_at)\nGROUP BY tr.account_id\nORDER BY test_suite_run_count DESC"
+                        "rawSql": "SELECT\n    tr.account_id,\n    count() AS test_suite_run_count\nFROM default.test_suite_runs AS tsr FINAL\nINNER JOIN default.test_runs AS tr FINAL ON tsr.test_run_id = tr.id\nWHERE $__timeFilter(tsr.inserted_at)\nGROUP BY tr.account_id\nORDER BY test_suite_run_count DESC"
                       }
                     },
                     "refId": "A",
@@ -1735,7 +1735,7 @@
                       "spec": {
                         "format": "table",
                         "range": true,
-                        "rawSql": "WITH org_with_subscriptions AS (\n  -- Find organizations that have accounts with active subscriptions\n  SELECT DISTINCT a.organization_id\n  FROM public.accounts a\n  INNER JOIN public.subscriptions s ON a.id = s.account_id \n  WHERE s.status = 'active'\n    AND a.organization_id IS NOT NULL\n    AND a.organization_id > 0\n)\nSELECT \n  STRING_AGG(DISTINCT a.name::text, ', ') AS account_names,\n  COUNT(DISTINCT ur.user_id) AS member_count,\n  STRING_AGG(DISTINCT a.billing_email, ', ') FILTER (WHERE a.billing_email IS NOT NULL AND a.billing_email != '') AS billing_emails,\n  o.created_at AS organization_created\nFROM public.organizations o\nLEFT JOIN public.accounts a ON o.id = a.organization_id\nLEFT JOIN public.roles r ON o.id = r.resource_id AND r.resource_type = 'Organization'\nLEFT JOIN public.users_roles ur ON r.id = ur.role_id\nLEFT JOIN org_with_subscriptions ows ON o.id = ows.organization_id\nWHERE ows.organization_id IS NULL -- No active subscriptions\nGROUP BY o.id, o.created_at\nHAVING COUNT(DISTINCT ur.user_id) > 0 -- Only orgs with actual members\nORDER BY member_count DESC\nLIMIT 50"
+                        "rawSql": "WITH org_with_subscriptions AS (\n  -- Find organizations that have accounts with active subscriptions\n  SELECT DISTINCT a.organization_id\n  FROM public.accounts a\n  INNER JOIN public.subscriptions s ON a.id = s.account_id \n  WHERE s.status IN ('active', 'trialing')\n    AND a.organization_id IS NOT NULL\n    AND a.organization_id > 0\n)\nSELECT \n  STRING_AGG(DISTINCT a.name::text, ', ') AS account_names,\n  COUNT(DISTINCT ur.user_id) AS member_count,\n  STRING_AGG(DISTINCT a.billing_email, ', ') FILTER (WHERE a.billing_email IS NOT NULL AND a.billing_email != '') AS billing_emails,\n  o.created_at AS organization_created\nFROM public.organizations o\nLEFT JOIN public.accounts a ON o.id = a.organization_id\nLEFT JOIN public.roles r ON o.id = r.resource_id AND r.resource_type = 'Organization'\nLEFT JOIN public.users_roles ur ON r.id = ur.role_id\nLEFT JOIN org_with_subscriptions ows ON o.id = ows.organization_id\nWHERE ows.organization_id IS NULL -- No active subscriptions\nGROUP BY o.id, o.created_at\nHAVING COUNT(DISTINCT ur.user_id) > 0 -- Only orgs with actual members\nORDER BY member_count DESC\nLIMIT 50"
                       }
                     },
                     "refId": "A",
@@ -3373,7 +3373,7 @@
                         "format": 1,
                         "queryType": "table",
                         "range": true,
-                        "rawSql": "SELECT toStartOfInterval(inserted_at, INTERVAL 1 $bucket) AS time,\n  count() AS \"Total\",\n  countIf(is_ci) AS \"CI\"\nFROM build_runs\nWHERE $__timeFilter(inserted_at)\nGROUP BY time\nORDER BY time"
+                        "rawSql": "SELECT toStartOfInterval(inserted_at, INTERVAL 1 $bucket) AS time,\n  count() AS \"Total\",\n  countIf(is_ci) AS \"CI\"\nFROM build_runs FINAL\nWHERE $__timeFilter(inserted_at)\nGROUP BY time\nORDER BY time"
                       }
                     },
                     "refId": "A",
@@ -3485,7 +3485,7 @@
                         "format": 1,
                         "queryType": "table",
                         "range": true,
-                        "rawSql": "SELECT toStartOfInterval(inserted_at, INTERVAL 1 $bucket) AS time,\n  uniqExact(account_id) AS \"Accounts\",\n  uniqExact(project_id) AS \"Projects\"\nFROM build_runs\nWHERE $__timeFilter(inserted_at)\nGROUP BY time\nORDER BY time"
+                        "rawSql": "SELECT toStartOfInterval(inserted_at, INTERVAL 1 $bucket) AS time,\n  uniqExact(account_id) AS \"Accounts\",\n  uniqExact(project_id) AS \"Projects\"\nFROM build_runs FINAL\nWHERE $__timeFilter(inserted_at)\nGROUP BY time\nORDER BY time"
                       }
                     },
                     "refId": "A",
@@ -3597,7 +3597,7 @@
                         "format": 1,
                         "queryType": "table",
                         "range": true,
-                        "rawSql": "SELECT account_id,\n  count() AS build_runs,\n  uniqExact(project_id) AS projects,\n  countIf(is_ci) AS ci_build_runs\nFROM build_runs\nWHERE $__timeFilter(inserted_at)\nGROUP BY account_id\nORDER BY build_runs DESC"
+                        "rawSql": "SELECT account_id,\n  count() AS build_runs,\n  uniqExact(project_id) AS projects,\n  countIf(is_ci) AS ci_build_runs\nFROM build_runs FINAL\nWHERE $__timeFilter(inserted_at)\nGROUP BY account_id\nORDER BY build_runs DESC"
                       }
                     },
                     "refId": "A",
@@ -4156,7 +4156,7 @@
                         "format": 1,
                         "queryType": "table",
                         "range": true,
-                        "rawSql": "SELECT toStartOfInterval(ran_at, INTERVAL 1 $bucket) AS time,\n  count() AS \"Total\",\n  countIf(is_ci) AS \"CI\"\nFROM test_runs\nWHERE $__timeFilter(ran_at)\nGROUP BY time\nORDER BY time"
+                        "rawSql": "SELECT toStartOfInterval(ran_at, INTERVAL 1 $bucket) AS time,\n  count() AS \"Total\",\n  countIf(is_ci) AS \"CI\"\nFROM test_runs FINAL\nWHERE $__timeFilter(ran_at)\nGROUP BY time\nORDER BY time"
                       }
                     },
                     "refId": "A",
@@ -4268,7 +4268,7 @@
                         "format": 1,
                         "queryType": "table",
                         "range": true,
-                        "rawSql": "SELECT toStartOfInterval(ran_at, INTERVAL 1 $bucket) AS time,\n  uniqExact(account_id) AS \"Accounts\",\n  uniqExact(project_id) AS \"Projects\"\nFROM test_runs\nWHERE $__timeFilter(ran_at)\nGROUP BY time\nORDER BY time"
+                        "rawSql": "SELECT toStartOfInterval(ran_at, INTERVAL 1 $bucket) AS time,\n  uniqExact(account_id) AS \"Accounts\",\n  uniqExact(project_id) AS \"Projects\"\nFROM test_runs FINAL\nWHERE $__timeFilter(ran_at)\nGROUP BY time\nORDER BY time"
                       }
                     },
                     "refId": "A",
@@ -4380,7 +4380,7 @@
                         "format": 1,
                         "queryType": "table",
                         "range": true,
-                        "rawSql": "SELECT toStartOfInterval(enqueued_at, INTERVAL 1 $bucket) AS time,\n  count() AS \"Total\",\n  countIf(conclusion = 'success') AS \"Success\",\n  countIf(conclusion = 'failure') AS \"Failure\",\n  countIf(conclusion = 'cancelled') AS \"Cancelled\"\nFROM runner_jobs\nWHERE $__timeFilter(enqueued_at)\nGROUP BY time\nORDER BY time"
+                        "rawSql": "SELECT toStartOfInterval(enqueued_at, INTERVAL 1 $bucket) AS time,\n  count() AS \"Total\",\n  countIf(conclusion = 'success') AS \"Success\",\n  countIf(conclusion = 'failure') AS \"Failure\",\n  countIf(conclusion = 'cancelled') AS \"Cancelled\"\nFROM runner_jobs FINAL\nWHERE $__timeFilter(enqueued_at)\nGROUP BY time\nORDER BY time"
                       }
                     },
                     "refId": "A",
@@ -4492,7 +4492,7 @@
                         "format": 1,
                         "queryType": "table",
                         "range": true,
-                        "rawSql": "SELECT toStartOfInterval(enqueued_at, INTERVAL 1 $bucket) AS time,\n  uniqExact(account_id) AS \"Accounts\",\n  uniqExact(repository) AS \"Repositories\"\nFROM runner_jobs\nWHERE $__timeFilter(enqueued_at)\nGROUP BY time\nORDER BY time"
+                        "rawSql": "SELECT toStartOfInterval(enqueued_at, INTERVAL 1 $bucket) AS time,\n  uniqExact(account_id) AS \"Accounts\",\n  uniqExact(repository) AS \"Repositories\"\nFROM runner_jobs FINAL\nWHERE $__timeFilter(enqueued_at)\nGROUP BY time\nORDER BY time"
                       }
                     },
                     "refId": "A",
@@ -4604,7 +4604,7 @@
                         "format": 1,
                         "queryType": "table",
                         "range": true,
-                        "rawSql": "SELECT toStartOfInterval(enqueued_at, INTERVAL 1 $bucket) AS time,\n  round(sum(if(started_at IS NOT NULL AND completed_at IS NOT NULL AND completed_at > started_at, dateDiff('second', started_at, completed_at), 0)) / 60.0, 1) AS \"Compute minutes\"\nFROM runner_jobs\nWHERE $__timeFilter(enqueued_at)\nGROUP BY time\nORDER BY time"
+                        "rawSql": "SELECT toStartOfInterval(enqueued_at, INTERVAL 1 $bucket) AS time,\n  round(sum(if(started_at IS NOT NULL AND completed_at IS NOT NULL AND completed_at > started_at, dateDiff('second', started_at, completed_at), 0)) / 60.0, 1) AS \"Compute minutes\"\nFROM runner_jobs FINAL\nWHERE $__timeFilter(enqueued_at)\nGROUP BY time\nORDER BY time"
                       }
                     },
                     "refId": "A",
@@ -4716,7 +4716,7 @@
                         "format": 1,
                         "queryType": "table",
                         "range": true,
-                        "rawSql": "SELECT fleet_name AS fleet,\n  count() AS jobs,\n  uniqExact(repository) AS repositories,\n  countIf(conclusion = 'success') AS success,\n  countIf(conclusion = 'failure') AS failure,\n  round(sum(if(started_at IS NOT NULL AND completed_at IS NOT NULL AND completed_at > started_at, dateDiff('second', started_at, completed_at), 0)) / 60.0, 1) AS compute_minutes\nFROM runner_jobs\nWHERE $__timeFilter(enqueued_at)\nGROUP BY fleet_name\nORDER BY jobs DESC"
+                        "rawSql": "SELECT fleet_name AS fleet,\n  count() AS jobs,\n  uniqExact(repository) AS repositories,\n  countIf(conclusion = 'success') AS success,\n  countIf(conclusion = 'failure') AS failure,\n  round(sum(if(started_at IS NOT NULL AND completed_at IS NOT NULL AND completed_at > started_at, dateDiff('second', started_at, completed_at), 0)) / 60.0, 1) AS compute_minutes\nFROM runner_jobs FINAL\nWHERE $__timeFilter(enqueued_at)\nGROUP BY fleet_name\nORDER BY jobs DESC"
                       }
                     },
                     "refId": "A",
@@ -4898,7 +4898,7 @@
                         "format": 1,
                         "queryType": "table",
                         "range": true,
-                        "rawSql": "SELECT account_id,\n  count() AS jobs,\n  countIf(conclusion = 'success') AS success,\n  countIf(conclusion = 'failure') AS failure,\n  uniqExact(repository) AS repositories,\n  round(sum(if(started_at IS NOT NULL AND completed_at IS NOT NULL AND completed_at > started_at, dateDiff('second', started_at, completed_at), 0)) / 60.0, 1) AS compute_minutes\nFROM runner_jobs\nWHERE $__timeFilter(enqueued_at)\nGROUP BY account_id\nORDER BY jobs DESC"
+                        "rawSql": "SELECT account_id,\n  count() AS jobs,\n  countIf(conclusion = 'success') AS success,\n  countIf(conclusion = 'failure') AS failure,\n  uniqExact(repository) AS repositories,\n  round(sum(if(started_at IS NOT NULL AND completed_at IS NOT NULL AND completed_at > started_at, dateDiff('second', started_at, completed_at), 0)) / 60.0, 1) AS compute_minutes\nFROM runner_jobs FINAL\nWHERE $__timeFilter(enqueued_at)\nGROUP BY account_id\nORDER BY jobs DESC"
                       }
                     },
                     "refId": "A",

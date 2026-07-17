@@ -15,6 +15,13 @@
 # built-in Postgres datasource as the read-only `tuist_ops_ro` role.
 pdcAgent:
   enabled: true
+  # Staging serves one dashboard; a brief tunnel gap here is acceptable, so
+  # it stays at one replica rather than paying for three.
+  replicas: 1
+  # Pin the tunnel to the CNPG read-only service. Without this the agent
+  # permits any destination reachable from its pod, not just Postgres.
+  permitRemoteOpen:
+    - tuist-tuist-pg-ro.tuist-staging.svc.cluster.local:5432
 
 kuraController:
   telemetry:

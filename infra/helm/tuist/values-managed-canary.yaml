@@ -169,6 +169,12 @@ registryCache:
 # the wrong cluster.
 pdcAgent:
   enabled: true
+  # Canary mirrors staging's sizing; production is the env that needs HA.
+  replicas: 1
+  # Pin the tunnel to the CNPG read-only service. Without this the agent
+  # permits any destination reachable from its pod, not just Postgres.
+  permitRemoteOpen:
+    - tuist-tuist-pg-ro.tuist-canary.svc.cluster.local:5432
 
 kuraController:
   sharedSecrets:

@@ -55,6 +55,16 @@ pdcAgent:
     tag: ""
   cluster: ""
   hostedGrafanaId: ""
+  # Grafana load-balances across agents on a network and fails over when one
+  # drops, so this is an availability knob: at 1 a node drain takes every
+  # PDC-routed panel with it. Grafana recommends >= 3 in production; envs that
+  # only serve a dashboard can stay lower.
+  replicas: 1
+  # host:port targets the tunnel is allowed to open, via ssh's PermitRemoteOpen.
+  # Empty means NO restriction: the agent permits any destination reachable from
+  # its pod. Set this per env to the CNPG read-only service so a compromised
+  # tunnel cannot reach the rest of the cluster.
+  permitRemoteOpen: []
   externalSecrets:
     refreshInterval: 1h
     storeRef:
