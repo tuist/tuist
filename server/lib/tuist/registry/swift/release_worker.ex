@@ -766,9 +766,12 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
 
   # Sibling ReleaseWorker jobs from the same sync batch contend for this
   # per-package S3 lock, which is only held for a metadata read + write
-  # (sub-second). Retrying briefly in-job clears that contention so the job
-  # finishes instead of failing and paging Sentry; callers snooze when the
-  # budget is exhausted (e.g. a crashed holder's lock lingering until its TTL).
+  # (sub-second). The release write happens after the source archive and
+  # manifests are already uploaded, so a short in-job retry finishes the job
+  # rather than snoozing and redoing that GitHub + S3 work. Callers snooze when
+  # the retry budget is exhausted (e.g. a crashed holder's lock lingering until
+  # its TTL). The skipped-release write has nothing expensive to redo, so it
+  # deliberately does not use this and snoozes immediately instead.
   defp acquire_metadata_lock(lock_key) do
     acquire_metadata_lock(lock_key, @metadata_lock_max_attempts)
   end
@@ -813,7 +816,10 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
   defp update_metadata_with_skipped_release(scope, name, full_handle, version, reason) do
     lock_key = {:package, scope, name}
 
-    case acquire_metadata_lock(lock_key) do
+    # No in-job retry: the skip write only fetched the repo contents, so there is
+    # nothing expensive to redo. Snooze immediately on contention rather than
+    # holding an Oban concurrency slot asleep on a backoff.
+    case Lock.try_acquire(lock_key, @metadata_lock_ttl_seconds) do
       {:ok, :acquired} ->
         try do
           with {:ok, metadata} <- get_or_create_metadata(scope, name, full_handle) do
