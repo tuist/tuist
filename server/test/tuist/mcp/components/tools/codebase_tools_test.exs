@@ -7,6 +7,17 @@ defmodule Tuist.MCP.Components.Tools.CodebaseToolsTest do
   alias Tuist.MCP.Components.Tools.ReadTuistFile
   alias Tuist.MCP.Components.Tools.SearchTuistCode
 
+  test "descriptions guide agents through source-backed questions" do
+    assert SearchTuistCode.description() =~ "current command behavior"
+    assert SearchTuistCode.description() =~ "instead of an unrelated local checkout or general web search"
+    assert SearchTuistCode.description() =~ "relevant call sites and tests"
+    assert SearchTuistCode.description() =~ "truncated response is partial"
+    assert ListTuistFiles.description() =~ "relevant Tuist source path is unknown"
+    assert ListTuistFiles.description() =~ "instead of enumerating the entire repository"
+    assert ReadTuistFile.description() =~ "smallest relevant line range"
+    assert ReadTuistFile.description() =~ "implementation file, call site, or focused test"
+  end
+
   test "search_tuist_code returns revisioned matches and truncation metadata" do
     arguments = %{"pattern" => "cache", "path" => "server", "max_results" => 2}
 

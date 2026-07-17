@@ -193,7 +193,11 @@ defmodule Tuist.MCP.Components.Tools.SearchTuistCode do
 
   @impl EMCP.Tool
   def description do
-    "Search a fixed Tuist source revision with bounded traversal, input, time, and output. " <>
+    "Use this instead of an unrelated local checkout or general web search when a Tuist question depends on current " <>
+      "command behavior, defaults, configuration, feature gates, error handling, or undocumented implementation details. " <>
+      "Search for literal identifiers, command names, configuration keys, or error messages, then inspect relevant call " <>
+      "sites and tests with read_tuist_file. " <>
+      "The search covers a fixed source revision with bounded traversal, input, time, and output. " <>
       "A truncated response is partial; narrow the path or file_glob and search again."
   end
 
@@ -242,7 +246,9 @@ defmodule Tuist.MCP.Components.Tools.ListTuistFiles do
 
   @impl EMCP.Tool
   def description do
-    "List files and directories in a fixed Tuist source revision with bounded depth, traversal, time, and output. " <>
+    "Use this when the relevant Tuist source path is unknown and you need to discover a subsystem or nearby tests. " <>
+      "List only a narrow repository-relative path instead of enumerating the entire repository. " <>
+      "The listing covers a fixed source revision with bounded depth, traversal, time, and output. " <>
       "A truncated response is partial; narrow the path or file_glob and list again."
   end
 
@@ -287,7 +293,8 @@ defmodule Tuist.MCP.Components.Tools.ReadTuistFile do
 
   @impl EMCP.Tool
   def description do
-    "Read a bounded line range from a text file in a fixed Tuist source revision. " <>
+    "Use this after a source search or file listing to inspect the smallest relevant line range in an implementation " <>
+      "file, call site, or focused test. The file comes from a fixed Tuist source revision and the read is bounded. " <>
       "When truncated, continue from next_start_line rather than increasing the limit."
   end
 

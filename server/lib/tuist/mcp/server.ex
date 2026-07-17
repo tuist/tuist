@@ -71,10 +71,15 @@ defmodule Tuist.MCP.Server do
     Prompts.AskTuist
   ]
 
+  @source_answer_instructions """
+  Answer Tuist questions with the Tuist tools before using local files or general web search. Start with `search_tuist` for public explanations and terminology. When current behavior depends on implementation, use `search_tuist_code`, `list_tuist_files`, and `read_tuist_file`; inspect focused tests and call sites, treat truncated results as partial, and cite returned links and the source revision. Keep the answer focused on the user's question rather than describing the codebase.
+  """
+
   def server do
     EMCP.Server.new(
       name: "tuist",
-      version: "1.12.0",
+      version: "1.13.0",
+      instructions: instructions(),
       tools: tools(),
       prompts: prompts()
     )
@@ -87,6 +92,8 @@ defmodule Tuist.MCP.Server do
   end
 
   defp prompts, do: if(codebase_search_enabled?(), do: @codebase_prompts ++ @prompts, else: @prompts)
+
+  defp instructions, do: if(codebase_search_enabled?(), do: @source_answer_instructions)
 
   defp codebase_search_enabled? do
     Environment.tuist_hosted?() and Environment.codebase_search_enabled?()

@@ -137,5 +137,20 @@ defmodule Tuist.MCP.ServerTest do
       stub(Environment, :codebase_search_enabled?, fn -> false end)
       refute "ask_tuist" in Map.keys(Server.server().prompts)
     end
+
+    test "instructs clients to answer questions with source-backed tools when they are available" do
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      stub(Environment, :codebase_search_enabled?, fn -> true end)
+
+      instructions = Server.server().instructions
+
+      assert instructions =~ "Answer Tuist questions with the Tuist tools"
+      assert instructions =~ "search_tuist_code"
+      assert instructions =~ "treat truncated results as partial"
+      assert instructions =~ "source revision"
+
+      stub(Environment, :codebase_search_enabled?, fn -> false end)
+      assert Server.server().instructions == nil
+    end
   end
 end
