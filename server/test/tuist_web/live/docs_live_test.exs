@@ -24,26 +24,26 @@ defmodule TuistWeb.DocsLiveTest do
 
       assert has_element?(
                lv,
-               ~s(a#docs-generated-xcode-path[href="/en/docs/tutorials/xcode/create-a-generated-project"]),
+               ~s(a#docs-generated-xcode-path[href="/en/docs/guides/get-started/generated-xcode-project"]),
                "Generated Xcode project"
              )
 
       assert has_element?(
                lv,
-               ~s(a#docs-xcode-path[href="/en/docs/guides/features/cache/xcode-cache"]),
-               "Xcode project"
+               ~s(a#docs-xcode-path[href="/en/docs/guides/get-started/existing-xcode-project"]),
+               "Existing Xcode project"
              )
 
       assert has_element?(
                lv,
-               ~s(a#docs-gradle-path[href="/en/docs/guides/install-gradle-plugin"]),
+               ~s(a#docs-gradle-path[href="/en/docs/guides/get-started/gradle-project"]),
                "Gradle project"
              )
 
       assert has_element?(
                lv,
-               ~s(a#docs-runners-path[href="/en/docs/guides/features/runners/getting-started"]),
-               "CI runners"
+               ~s(a#docs-runners-path[href="/en/docs/guides/get-started/tuist-runners"]),
+               "Tuist runners"
              )
     end
 

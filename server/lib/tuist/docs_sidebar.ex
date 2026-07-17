@@ -124,6 +124,33 @@ defmodule Tuist.Docs.Sidebar do
   def guides_tree do
     [
       %Group{
+        label: "Get started",
+        items: [
+          %Item{
+            label: "Choose your path",
+            slug: "/en/guides/get-started",
+            items: [
+              %Item{
+                label: "Existing Xcode project",
+                slug: "/en/guides/get-started/existing-xcode-project"
+              },
+              %Item{
+                label: "Generated Xcode project",
+                slug: "/en/guides/get-started/generated-xcode-project"
+              },
+              %Item{
+                label: "Gradle project",
+                slug: "/en/guides/get-started/gradle-project"
+              },
+              %Item{
+                label: "Tuist runners",
+                slug: "/en/guides/get-started/tuist-runners"
+              }
+            ]
+          }
+        ]
+      },
+      %Group{
         label: "Guides",
         items: [
           %Item{label: "Install Tuist", slug: "/en/guides/install-tuist"},
