@@ -15,7 +15,7 @@
 # Postgres directly. This agent dials out to Grafana Cloud and terminates a
 # tunnel, which lets a Grafana *Postgres* datasource query CNPG as the
 # CNPG-managed `tuist_ops_ro` role (login + pg_read_all_data). That keeps the
-# Business Intelligence dashboard on Grafana's built-in Postgres datasource —
+# Product Usage dashboard on Grafana's built-in Postgres datasource —
 # no plugin, no bespoke query endpoint, and the panels' existing
 # $__timeFilter / $__timeGroup SQL works unchanged.
 #

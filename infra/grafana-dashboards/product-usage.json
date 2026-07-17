@@ -5707,7 +5707,7 @@
     "liveNow": false,
     "preload": false,
     "tags": [
-      "business"
+      "product-usage"
     ],
     "timeSettings": {
       "timezone": "browser",
@@ -5729,7 +5729,7 @@
       "hideTimepicker": false,
       "fiscalYearStartMonth": 0
     },
-    "title": "Tuist Business Intelligence",
+    "title": "Tuist Product Usage",
     "variables": [
       {
         "kind": "CustomVariable",
