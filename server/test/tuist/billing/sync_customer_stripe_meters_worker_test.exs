@@ -1,85 +1,54 @@
-defmodule Tuist.Billing.Workers.SyncCustomerStripeMetersWorkerWorkerTest do
+defmodule Tuist.Billing.Workers.SyncCustomerStripeMetersWorkerTest do
   use TuistTestSupport.Cases.DataCase, async: true
   use Mimic
 
+  alias Tuist.Billing
   alias Tuist.Billing.Workers.SyncCustomerStripeMetersWorker
+  alias Tuist.Billing.Workers.SyncCustomerStripeMeterWorker
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
-  test "updates all billing meters for the given customer when qa billing is enabled (per account)" do
-    # Given
+  test "enqueues one child job per snapshotted meter with the parent period" do
     customer_id = UUIDv7.generate()
     %{account: account} = AccountsFixtures.user_fixture(customer_id: customer_id)
+    period_start_datetime = ~U[2026-07-16 00:00:00.000000Z]
+    period_end_datetime = ~U[2026-07-17 00:00:00.000000Z]
+    period_start = DateTime.to_unix(period_start_datetime, :microsecond)
+    period_end = DateTime.to_unix(period_end_datetime, :microsecond)
 
-    date = Timex.format!(Tuist.Time.utc_now(), "{YYYY}.{0M}.{D}")
-    idempotency_key = "#{customer_id}-#{date}"
+    stub(FunWithFlags, :enabled?, fn :qa_billing_enabled, [for: ^account] -> true end)
 
-    stub(FunWithFlags, :enabled?, fn
-      :qa_billing_enabled, [for: ^account] -> true
-      :runner_billing_enabled, [for: ^account] -> false
+    expect(Billing, :customer_meter_values, fn ^account,
+                                               ^period_start_datetime,
+                                               ^period_end_datetime,
+                                               [include_qa: true] ->
+      [
+        %{event_name: "remote_cache_hit", value: 10},
+        %{event_name: "llm_input_token", value: 20},
+        %{event_name: "runner_linux_2_vcpu_8_gb_milliseconds", value: 30}
+      ]
     end)
 
-    expect(Tuist.Billing, :update_remote_cache_hit_meter, fn ^customer_id, ^idempotency_key ->
-      {:ok, :updated}
-    end)
+    assert :ok =
+             SyncCustomerStripeMetersWorker.perform(%Oban.Job{
+               id: 123,
+               args: %{
+                 "customer_id" => customer_id,
+                 "period_start" => period_start,
+                 "period_end" => period_end
+               }
+             })
 
-    expect(Tuist.Billing, :update_llm_token_meters, fn ^customer_id, ^idempotency_key ->
-      {:ok, :updated}
-    end)
+    jobs = all_enqueued(worker: SyncCustomerStripeMeterWorker)
+    assert length(jobs) == 3
 
-    # When/Then
-    SyncCustomerStripeMetersWorker.perform(%Oban.Job{
-      id: 123,
-      args: %{"customer_id" => customer_id}
-    })
-  end
+    assert jobs |> Enum.map(& &1.args["event_name"]) |> Enum.sort() == [
+             "llm_input_token",
+             "remote_cache_hit",
+             "runner_linux_2_vcpu_8_gb_milliseconds"
+           ]
 
-  test "does not update llm meters when qa billing is disabled for the account" do
-    # Given
-    customer_id = UUIDv7.generate()
-    %{account: account} = AccountsFixtures.user_fixture(customer_id: customer_id)
-
-    date = Timex.format!(Tuist.Time.utc_now(), "{YYYY}.{0M}.{D}")
-    idempotency_key = "#{customer_id}-#{date}"
-
-    stub(FunWithFlags, :enabled?, fn
-      :qa_billing_enabled, [for: ^account] -> false
-      :runner_billing_enabled, [for: ^account] -> false
-    end)
-
-    expect(Tuist.Billing, :update_remote_cache_hit_meter, fn ^customer_id, ^idempotency_key ->
-      {:ok, :updated}
-    end)
-
-    # When/Then (no expectation set on update_llm_token_meters, so it must not be called)
-    SyncCustomerStripeMetersWorker.perform(%Oban.Job{
-      id: 456,
-      args: %{"customer_id" => customer_id}
-    })
-  end
-
-  test "updates runner meters when runner billing is enabled for the account" do
-    customer_id = UUIDv7.generate()
-    %{account: account} = AccountsFixtures.user_fixture(customer_id: customer_id)
-
-    date = Timex.format!(Tuist.Time.utc_now(), "{YYYY}.{0M}.{D}")
-    idempotency_key = "#{customer_id}-#{date}"
-
-    stub(FunWithFlags, :enabled?, fn
-      :qa_billing_enabled, [for: ^account] -> false
-      :runner_billing_enabled, [for: ^account] -> true
-    end)
-
-    expect(Tuist.Billing, :update_remote_cache_hit_meter, fn ^customer_id, ^idempotency_key ->
-      {:ok, :updated}
-    end)
-
-    expect(Tuist.Billing, :update_runner_meters, fn ^customer_id, ^idempotency_key ->
-      {:ok, :updated}
-    end)
-
-    SyncCustomerStripeMetersWorker.perform(%Oban.Job{
-      id: 789,
-      args: %{"customer_id" => customer_id}
-    })
+    assert Enum.all?(jobs, fn job ->
+             job.args["period_start"] == period_start and job.args["period_end"] == period_end
+           end)
   end
 end

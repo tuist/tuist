@@ -29,6 +29,8 @@ defmodule Tuist.Billing.Workers.SyncStripeMetersWorkerWorkerTest do
 
     date = ~U[2024-04-30 10:20:30Z]
     stub(DateTime, :utc_now, fn -> date end)
+    period_start = DateTime.to_unix(~U[2024-04-29 00:00:00.000000Z], :microsecond)
+    period_end = DateTime.to_unix(~U[2024-04-30 00:00:00.000000Z], :microsecond)
 
     # Create events for yesterday (2024-04-29) for all accounts
     CommandEventsFixtures.command_event_fixture(
@@ -53,12 +55,20 @@ defmodule Tuist.Billing.Workers.SyncStripeMetersWorkerWorkerTest do
     # Then
     assert_enqueued(
       worker: SyncCustomerStripeMetersWorker,
-      args: %{customer_id: first_account_customer_id}
+      args: %{
+        customer_id: first_account_customer_id,
+        period_start: period_start,
+        period_end: period_end
+      }
     )
 
     assert_enqueued(
       worker: SyncCustomerStripeMetersWorker,
-      args: %{customer_id: second_account_customer_id}
+      args: %{
+        customer_id: second_account_customer_id,
+        period_start: period_start,
+        period_end: period_end
+      }
     )
 
     all_jobs = all_enqueued(worker: SyncCustomerStripeMetersWorker)
@@ -76,6 +86,8 @@ defmodule Tuist.Billing.Workers.SyncStripeMetersWorkerWorkerTest do
 
     date = ~U[2024-04-30 10:20:30Z]
     stub(DateTime, :utc_now, fn -> date end)
+    period_start = DateTime.to_unix(~U[2024-04-29 00:00:00.000000Z], :microsecond)
+    period_end = DateTime.to_unix(~U[2024-04-30 00:00:00.000000Z], :microsecond)
 
     {:ok, _} =
       Tuist.Billing.create_token_usage(%{
@@ -94,7 +106,11 @@ defmodule Tuist.Billing.Workers.SyncStripeMetersWorkerWorkerTest do
     # Then
     assert_enqueued(
       worker: SyncCustomerStripeMetersWorker,
-      args: %{customer_id: customer_with_tokens}
+      args: %{
+        customer_id: customer_with_tokens,
+        period_start: period_start,
+        period_end: period_end
+      }
     )
 
     all_jobs = all_enqueued(worker: SyncCustomerStripeMetersWorker)
@@ -110,6 +126,8 @@ defmodule Tuist.Billing.Workers.SyncStripeMetersWorkerWorkerTest do
 
     date = ~U[2024-04-30 10:20:30Z]
     stub(DateTime, :utc_now, fn -> date end)
+    period_start = DateTime.to_unix(~U[2024-04-29 00:00:00.000000Z], :microsecond)
+    period_end = DateTime.to_unix(~U[2024-04-30 00:00:00.000000Z], :microsecond)
 
     CommandEventsFixtures.command_event_fixture(
       project_id: project.id,
@@ -134,7 +152,10 @@ defmodule Tuist.Billing.Workers.SyncStripeMetersWorkerWorkerTest do
     SyncStripeMetersWorker.perform(%Oban.Job{args: %{}})
 
     # Then
-    assert_enqueued(worker: SyncCustomerStripeMetersWorker, args: %{customer_id: customer_id})
+    assert_enqueued(
+      worker: SyncCustomerStripeMetersWorker,
+      args: %{customer_id: customer_id, period_start: period_start, period_end: period_end}
+    )
 
     all_jobs = all_enqueued(worker: SyncCustomerStripeMetersWorker)
     assert length(all_jobs) == 1

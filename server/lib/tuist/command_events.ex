@@ -391,11 +391,7 @@ defmodule Tuist.CommandEvents do
     end
   end
 
-  def get_yesterdays_remote_cache_hits_count_for_customer(customer_id) do
-    now = DateTime.utc_now()
-    start_of_yesterday = now |> Timex.shift(days: -1) |> Timex.beginning_of_day()
-    end_of_yesterday = now |> Timex.shift(days: -1) |> Timex.end_of_day()
-
+  def remote_cache_hits_count_for_customer(customer_id, %DateTime{} = period_start, %DateTime{} = period_end) do
     from(p in Project,
       join: a in Account,
       on: p.account_id == a.id,
@@ -411,7 +407,7 @@ defmodule Tuist.CommandEvents do
         ClickHouseRepo.one(
           from(e in Event,
             where:
-              e.ran_at >= ^start_of_yesterday and e.ran_at <= ^end_of_yesterday and
+              e.ran_at >= ^period_start and e.ran_at < ^period_end and
                 e.project_id in ^project_ids,
             select:
               sum(

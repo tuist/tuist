@@ -314,8 +314,7 @@ server:
   # identifiers), so they live here rather than 1Password; the chart JSON-encodes
   # them into TUIST_STRIPE_PRICES (Environment.stripe_prices/1). Empty by default
   # — managed values set the real map. The Stripe API keys themselves stay in the
-  # secret store (server.config / 1Password STRIPE item). See
-  # server/runner-billing.md for the complete runner mapping.
+  # secret store (server.config / 1Password STRIPE item).
   stripe:
     prices: {}
   # Mailing identity (Mailgun sending domain + from/reply-to addresses). Not

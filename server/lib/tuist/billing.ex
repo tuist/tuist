@@ -100,76 +100,72 @@ defmodule Tuist.Billing do
     session
   end
 
-  def update_remote_cache_hit_meter(customer_id, idempotency_key) do
-    count = CommandEvents.get_yesterdays_remote_cache_hits_count_for_customer(customer_id)
-    path = Stripe.OpenApi.Path.replace_path_params("/v1/billing/meter_events", [], [])
-
-    identifier =
-      "#{customer_id}-#{Timex.format!(Tuist.Time.utc_now(), "{YYYY}.{0M}.{D}")}"
-
-    {:ok, _} =
-      []
-      |> Stripe.Request.new_request(%{"Idempotency-Key" => "#{idempotency_key}-remote-cache-hit"})
-      |> Stripe.Request.put_endpoint(path)
-      |> Stripe.Request.put_params(%{
+  @doc """
+  Snapshots every meter value for one customer and one immutable
+  half-open billing period `[period_start, period_end)`. The caller
+  can enqueue each returned value as an independent Stripe reporting
+  job without recalculating usage when that job retries.
+  """
+  def customer_meter_values(
+        %Account{customer_id: customer_id, id: account_id},
+        %DateTime{} = period_start,
+        %DateTime{} = period_end,
+        opts \\ []
+      ) do
+    remote_cache_values = [
+      %{
         event_name: "remote_cache_hit",
-        identifier: identifier,
-        payload: %{
-          value: count,
-          stripe_customer_id: customer_id
-        }
-      })
-      |> Stripe.Request.put_method(:post)
-      |> Stripe.Request.make_request()
+        value: CommandEvents.remote_cache_hits_count_for_customer(customer_id, period_start, period_end) || 0
+      }
+    ]
+
+    language_model_values =
+      if Keyword.get(opts, :include_qa, false) do
+        {input_tokens, output_tokens} = customer_llm_token_usage(customer_id, period_start, period_end)
+
+        [
+          %{event_name: "llm_input_token", value: input_tokens},
+          %{event_name: "llm_output_token", value: output_tokens}
+        ]
+      else
+        []
+      end
+
+    runner_values =
+      account_id
+      |> RunnerBilling.compute_milliseconds_by_machine(period_start, period_end)
+      |> Enum.reject(&(&1.total_ms == 0))
+      |> Enum.map(fn usage ->
+        %{event_name: RunnerBilling.meter_event_name(usage), value: usage.total_ms}
+      end)
+
+    remote_cache_values ++ language_model_values ++ runner_values
   end
 
   @doc """
-  Reports yesterday's gross runner usage to one Stripe meter per
-  machine specification.
-
-  Meter values are milliseconds. Configure each Stripe price to
-  transform 60,000 units into one billed minute, then set the
-  machine-specific amount on that price. Prepaid usage remains a
-  Stripe billing credit applied to these prices; it never changes
-  the usage reported here.
+  Reports one previously-snapshotted value to Stripe. Both the event
+  identifier and request idempotency key include the parent period,
+  so a retried child job cannot report the value into another day.
   """
-  def update_runner_meters(customer_id, idempotency_key) do
-    {:ok, account} = Accounts.get_account_from_customer_id(customer_id)
-    {start_of_yesterday, end_of_yesterday} = yesterday_window()
-    usage_date = DateTime.to_date(start_of_yesterday)
+  def report_meter_event(customer_id, event_name, value, %DateTime{} = period_start, %DateTime{} = period_end)
+      when is_binary(customer_id) and is_binary(event_name) and is_integer(value) and value >= 0 do
+    identifier =
+      "#{customer_id}-#{event_name}-#{DateTime.to_unix(period_start)}-#{DateTime.to_unix(period_end)}"
 
-    account.id
-    |> RunnerBilling.compute_milliseconds_by_machine(start_of_yesterday, end_of_yesterday)
-    |> Enum.reject(&(&1.total_ms == 0))
-    |> Enum.reduce_while({:ok, []}, fn usage, {:ok, reported} ->
-      event_name = RunnerBilling.meter_event_name(usage)
-      identifier = "#{customer_id}-#{event_name}-#{Date.to_iso8601(usage_date)}"
-
-      result =
-        []
-        |> Stripe.Request.new_request(%{"Idempotency-Key" => "#{idempotency_key}-#{event_name}"})
-        |> Stripe.Request.put_endpoint(Stripe.OpenApi.Path.replace_path_params("/v1/billing/meter_events", [], []))
-        |> Stripe.Request.put_params(%{
-          event_name: event_name,
-          identifier: identifier,
-          timestamp: DateTime.to_unix(start_of_yesterday),
-          payload: %{
-            value: usage.total_ms,
-            stripe_customer_id: customer_id
-          }
-        })
-        |> Stripe.Request.put_method(:post)
-        |> Stripe.Request.make_request()
-
-      case result do
-        {:ok, event} -> {:cont, {:ok, [event | reported]}}
-        {:error, _reason} = error -> {:halt, error}
-      end
-    end)
-    |> case do
-      {:ok, reported} -> {:ok, Enum.reverse(reported)}
-      {:error, _reason} = error -> error
-    end
+    []
+    |> Stripe.Request.new_request(%{"Idempotency-Key" => identifier})
+    |> Stripe.Request.put_endpoint(Stripe.OpenApi.Path.replace_path_params("/v1/billing/meter_events", [], []))
+    |> Stripe.Request.put_params(%{
+      event_name: event_name,
+      identifier: identifier,
+      timestamp: DateTime.to_unix(period_start),
+      payload: %{
+        value: value,
+        stripe_customer_id: customer_id
+      }
+    })
+    |> Stripe.Request.put_method(:post)
+    |> Stripe.Request.make_request()
   end
 
   def update_plan(%{plan: plan, account: %Account{} = account, success_url: success_url}) do
@@ -638,75 +634,19 @@ defmodule Tuist.Billing do
   end
 
   @doc """
-  Gets LLM token usage for a specific customer for the current billing period (yesterday).
-  Returns {input_tokens, output_tokens}.
+  Gets language-model token usage for a customer within the supplied
+  half-open billing period. Returns `{input_tokens, output_tokens}`.
   """
-  def get_yesterdays_customer_llm_token_usage(customer_id) do
-    {start_of_yesterday, end_of_yesterday} = yesterday_window()
-
+  def customer_llm_token_usage(customer_id, %DateTime{} = period_start, %DateTime{} = period_end) do
     Repo.one(
       from(tu in TokenUsage,
         join: a in assoc(tu, :account),
         where:
-          a.customer_id == ^customer_id and tu.timestamp >= ^start_of_yesterday and
-            tu.timestamp <= ^end_of_yesterday,
-        select: {sum(tu.input_tokens), sum(tu.output_tokens)}
+          a.customer_id == ^customer_id and tu.timestamp >= ^period_start and
+            tu.timestamp < ^period_end,
+        select: {coalesce(sum(tu.input_tokens), 0), coalesce(sum(tu.output_tokens), 0)}
       )
     )
-  end
-
-  @doc """
-  Updates both LLM input and output token usage meters in Stripe for a specific customer.
-  Fetches the current period token usage and updates both meters.
-  """
-  def update_llm_token_meters(customer_id, idempotency_key) do
-    {input_tokens, output_tokens} = get_yesterdays_customer_llm_token_usage(customer_id)
-    path = Stripe.OpenApi.Path.replace_path_params("/v1/billing/meter_events", [], [])
-
-    input_identifier =
-      "#{customer_id}-input-#{Timex.format!(Tuist.Time.utc_now(), "{YYYY}.{0M}.{D}")}"
-
-    {:ok, _} =
-      []
-      |> Stripe.Request.new_request(%{"Idempotency-Key" => "#{idempotency_key}-input"})
-      |> Stripe.Request.put_endpoint(path)
-      |> Stripe.Request.put_params(%{
-        event_name: "llm_input_token",
-        identifier: input_identifier,
-        payload: %{
-          value: input_tokens,
-          stripe_customer_id: customer_id
-        }
-      })
-      |> Stripe.Request.put_method(:post)
-      |> Stripe.Request.make_request()
-
-    output_identifier =
-      "#{customer_id}-output-#{Timex.format!(Tuist.Time.utc_now(), "{YYYY}.{0M}.{D}")}"
-
-    {:ok, _} =
-      []
-      |> Stripe.Request.new_request(%{"Idempotency-Key" => "#{idempotency_key}-output"})
-      |> Stripe.Request.put_endpoint(path)
-      |> Stripe.Request.put_params(%{
-        event_name: "llm_output_token",
-        identifier: output_identifier,
-        payload: %{
-          value: output_tokens,
-          stripe_customer_id: customer_id
-        }
-      })
-      |> Stripe.Request.put_method(:post)
-      |> Stripe.Request.make_request()
-  end
-
-  defp yesterday_window do
-    now = DateTime.utc_now()
-
-    {
-      now |> Timex.shift(days: -1) |> Timex.beginning_of_day(),
-      now |> Timex.shift(days: -1) |> Timex.end_of_day()
-    }
   end
 
   # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity

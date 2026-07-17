@@ -541,49 +541,20 @@ defmodule Tuist.BillingTest do
     assert %{plan: :pro} = Billing.get_current_active_subscription(account)
   end
 
-  describe "update_remote_cache_hit_meter/2" do
-    test "sends the right API request to Stripe" do
-      # Given
-      user = AccountsFixtures.user_fixture(preload: [:account])
-      customer_id = "customer_id"
-
-      account =
-        user.account |> Account.billing_changeset(%{customer_id: customer_id}) |> Repo.update!()
-
-      stub(Stripe.Request, :make_request, fn %{
-                                               method: :post,
-                                               endpoint: "/v1/billing/meter_events",
-                                               params: %{
-                                                 payload: %{
-                                                   value: 10,
-                                                   stripe_customer_id: ^customer_id
-                                                 },
-                                                 event_name: "remote_cache_hit"
-                                               }
-                                             } ->
-        {:ok, %{}}
-      end)
-
-      stub(Tuist.CommandEvents, :get_yesterdays_remote_cache_hits_count_for_customer, fn ^customer_id -> 10 end)
-
-      # When
-      Billing.update_remote_cache_hit_meter(account.customer_id, "job-1")
-    end
-  end
-
-  describe "update_runner_meters/2" do
-    test "reports exact milliseconds to the machine-specific meter" do
+  describe "customer_meter_values/4" do
+    test "snapshots remote cache and runner values for the supplied period" do
       customer_id = "customer-#{UUIDv7.generate()}"
       %{account: account} = AccountsFixtures.user_fixture(customer_id: customer_id)
       account_id = account.id
-      now = ~U[2026-07-17 10:20:30.000000Z]
-      start_of_yesterday = ~U[2026-07-16 00:00:00.000000Z]
-      end_of_yesterday = ~U[2026-07-16 23:59:59.999999Z]
+      period_start = ~U[2026-07-16 00:00:00.000000Z]
+      period_end = ~U[2026-07-17 00:00:00.000000Z]
       event_name = "runner_linux_4_vcpu_16_gb_milliseconds"
 
-      stub(DateTime, :utc_now, fn -> now end)
+      expect(Tuist.CommandEvents, :remote_cache_hits_count_for_customer, fn ^customer_id, ^period_start, ^period_end ->
+        10
+      end)
 
-      expect(RunnerBilling, :compute_milliseconds_by_machine, fn ^account_id, ^start_of_yesterday, ^end_of_yesterday ->
+      expect(RunnerBilling, :compute_milliseconds_by_machine, fn ^account_id, ^period_start, ^period_end ->
         [%{platform: :linux, vcpus: 4, memory_gb: 16, total_ms: 750_125}]
       end)
 
@@ -591,12 +562,61 @@ defmodule Tuist.BillingTest do
         event_name
       end)
 
+      assert Billing.customer_meter_values(account, period_start, period_end) == [
+               %{event_name: "remote_cache_hit", value: 10},
+               %{event_name: event_name, value: 750_125}
+             ]
+    end
+
+    test "includes language-model values when quality-assurance billing is enabled" do
+      customer_id = "customer-#{UUIDv7.generate()}"
+      %{account: account} = AccountsFixtures.user_fixture(customer_id: customer_id)
+      account_id = account.id
+      period_start = ~U[2026-07-16 00:00:00.000000Z]
+      period_end = ~U[2026-07-17 00:00:00.000000Z]
+
+      {:ok, _} =
+        Billing.create_token_usage(%{
+          input_tokens: 100,
+          output_tokens: 50,
+          model: "gpt-4",
+          feature: "qa",
+          feature_resource_id: UUIDv7.generate(),
+          account_id: account_id,
+          timestamp: ~U[2026-07-16 12:00:00Z]
+        })
+
+      stub(Tuist.CommandEvents, :remote_cache_hits_count_for_customer, fn ^customer_id, ^period_start, ^period_end ->
+        0
+      end)
+
+      stub(RunnerBilling, :compute_milliseconds_by_machine, fn ^account_id, ^period_start, ^period_end -> [] end)
+
+      assert Billing.customer_meter_values(account, period_start, period_end, include_qa: true) == [
+               %{event_name: "remote_cache_hit", value: 0},
+               %{event_name: "llm_input_token", value: 100},
+               %{event_name: "llm_output_token", value: 50}
+             ]
+    end
+  end
+
+  describe "report_meter_event/5" do
+    test "reports a snapshotted value with a period-specific identifier" do
+      customer_id = "customer-#{UUIDv7.generate()}"
+      event_name = "runner_linux_4_vcpu_16_gb_milliseconds"
+      period_start = ~U[2026-07-16 00:00:00.000000Z]
+      period_end = ~U[2026-07-17 00:00:00.000000Z]
+
+      identifier =
+        "#{customer_id}-#{event_name}-#{DateTime.to_unix(period_start)}-#{DateTime.to_unix(period_end)}"
+
       expect(Stripe.Request, :make_request, fn %{
                                                  method: :post,
                                                  endpoint: "/v1/billing/meter_events",
+                                                 headers: %{"Idempotency-Key" => ^identifier},
                                                  params: %{
                                                    event_name: ^event_name,
-                                                   identifier: identifier,
+                                                   identifier: ^identifier,
                                                    timestamp: timestamp,
                                                    payload: %{
                                                      value: 750_125,
@@ -604,23 +624,12 @@ defmodule Tuist.BillingTest do
                                                    }
                                                  }
                                                } ->
-        assert identifier == "#{customer_id}-#{event_name}-2026-07-16"
-        assert timestamp == DateTime.to_unix(start_of_yesterday)
+        assert timestamp == DateTime.to_unix(period_start)
         {:ok, %{id: "meter-event"}}
       end)
 
-      assert {:ok, [%{id: "meter-event"}]} = Billing.update_runner_meters(customer_id, "job-1")
-    end
-
-    test "does not send events when the account had no runner usage" do
-      customer_id = "customer-#{UUIDv7.generate()}"
-      %{account: account} = AccountsFixtures.user_fixture(customer_id: customer_id)
-      account_id = account.id
-
-      stub(RunnerBilling, :compute_milliseconds_by_machine, fn ^account_id, _, _ -> [] end)
-      reject(&Stripe.Request.make_request/1)
-
-      assert {:ok, []} = Billing.update_runner_meters(customer_id, "job-2")
+      assert {:ok, %{id: "meter-event"}} =
+               Billing.report_meter_event(customer_id, event_name, 750_125, period_start, period_end)
     end
   end
 
@@ -687,11 +696,11 @@ defmodule Tuist.BillingTest do
     end
   end
 
-  describe "get_yesterdays_customer_llm_token_usage/1" do
-    test "sums only yesterday's token usage for the given customer" do
+  describe "customer_llm_token_usage/3" do
+    test "sums only token usage in the supplied period for the given customer" do
       # Given
-      today = ~U[2025-01-02 12:00:00Z]
-      stub(DateTime, :utc_now, fn -> today end)
+      period_start = ~U[2025-01-01 00:00:00Z]
+      period_end = ~U[2025-01-02 00:00:00Z]
 
       org = AccountsFixtures.organization_fixture()
       account = Tuist.Repo.get_by!(Account, organization_id: org.id)
@@ -715,7 +724,7 @@ defmodule Tuist.BillingTest do
           timestamp: ~U[2025-01-01 08:00:00Z]
         })
 
-      # Today usage (outside yesterday) for target account (excluded)
+      # Usage exactly at the next period boundary is excluded.
       {:ok, _} =
         Billing.create_token_usage(%{
           input_tokens: 200,
@@ -724,7 +733,7 @@ defmodule Tuist.BillingTest do
           feature: "qa",
           feature_resource_id: UUIDv7.generate(),
           account_id: account.id,
-          timestamp: ~U[2025-01-02 09:00:00Z]
+          timestamp: period_end
         })
 
       # Yesterday usage for another account (excluded by customer_id)
@@ -740,7 +749,7 @@ defmodule Tuist.BillingTest do
         })
 
       # When
-      {input, output} = Billing.get_yesterdays_customer_llm_token_usage(account.customer_id)
+      {input, output} = Billing.customer_llm_token_usage(account.customer_id, period_start, period_end)
 
       # Then
       assert {input, output} == {100, 50}
