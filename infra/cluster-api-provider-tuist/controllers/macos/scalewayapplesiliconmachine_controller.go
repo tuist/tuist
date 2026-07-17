@@ -67,6 +67,15 @@ const (
 	// advertises for dashboard VNC sessions through the per-Mac Tailscale
 	// egress Service.
 	DashboardVNCRelayPort = 5900
+
+	// podFinalizerCleanupRetryBudget bounds how long reconcileDelete keeps
+	// retrying the Stage 4.5 stranded-Pod finalizer strip before it gives up
+	// and lets the machine delete proceed anyway. It exists so a transient API
+	// error — or a `pods … patch` RBAC grant that lands after the operator
+	// image rolls — gets several shots, without ever wedging the machine's
+	// deletion (and the owning MachineDeployment's rollout) forever. See
+	// stripStrandedPodFinalizers for why proceeding is safe.
+	podFinalizerCleanupRetryBudget = 5 * time.Minute
 )
 
 // ScalewayAppleSiliconMachineReconciler reconciles ScalewayAppleSiliconMachine objects.
@@ -1013,15 +1022,34 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileDelete(
 	// Terminating (see podagent.PodFinalizer). Stage 1 already released and
 	// reinstalled the host, so there is no VM left for the finalizer to
 	// protect. Do it after the Node delete so we only ever strip Pods whose
-	// host we've confirmed gone. Blocking (requeue on error) like the other
-	// stages: a stranded Pod is precisely the failure this stage exists to
-	// prevent, so we don't drop the machine finalizer until the sweep runs
-	// clean.
+	// host we've confirmed gone.
+	//
+	// Best-effort, deliberately NOT fail-closed: while we're still within
+	// podFinalizerCleanupRetryBudget of the deletion, requeue on error so a
+	// transient API failure or a lagging `pods … patch` RBAC grant (the
+	// operator image can roll before the ClusterRole update lands) gets
+	// another shot. Once that budget is spent, event + log and PROCEED to drop
+	// the machine finalizer instead of retrying forever. Blocking here
+	// indefinitely would let a single un-patchable Pod wedge the machine's
+	// deletion — and with it the owning MachineDeployment's scale-down /
+	// rollout — which is a strictly worse failure than the bug this stage
+	// fixes. Proceeding leaks nothing (Stage 1 already released the host); the
+	// worst case degrades back to the original symptom, a Pod left in
+	// Terminating, now loudly evented for an operator / the periodic reclaim.
 	if err := r.stripStrandedPodFinalizers(ctx, machine.Name); err != nil {
-		logger.Error(err, "strip stranded pod finalizers; will retry")
-		r.Recorder.Eventf(machine, corev1.EventTypeWarning, "PodFinalizerCleanupFailed",
-			"strip vm-cleanup finalizer from stranded pods on node %s: %v (will retry)", machine.Name, err)
-		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+		withinBudget := !machine.DeletionTimestamp.IsZero() &&
+			time.Since(machine.DeletionTimestamp.Time) < podFinalizerCleanupRetryBudget
+		if withinBudget {
+			logger.Error(err, "strip stranded pod finalizers; will retry")
+			r.Recorder.Eventf(machine, corev1.EventTypeWarning, "PodFinalizerCleanupFailed",
+				"strip vm-cleanup finalizer from stranded pods on node %s: %v (will retry)", machine.Name, err)
+			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+		}
+		logger.Error(err, "strip stranded pod finalizers exhausted retry budget; proceeding with machine deletion",
+			"budget", podFinalizerCleanupRetryBudget)
+		r.Recorder.Eventf(machine, corev1.EventTypeWarning, "PodFinalizerCleanupGaveUp",
+			"strip vm-cleanup finalizer from stranded pods on node %s still failing after %s; proceeding with machine deletion, pods may remain Terminating: %v",
+			machine.Name, podFinalizerCleanupRetryBudget, err)
 	}
 
 	// Stage 5: drop the per-machine Tailscale egress Service if the
@@ -1054,8 +1082,15 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileDelete(
 // The list goes through the uncached APIReader with a spec.nodeName field
 // selector, which the API server serves natively — a single scoped read that
 // returns only the doomed Pods, no cluster-wide Pods informer required. Each
-// match is patched (not Updated) to drop only the finalizer, so a concurrent
-// PodGC status write can't lose a resourceVersion race against us.
+// match is patched (not Updated) to drop the finalizer. The JSON merge patch
+// MergeFrom emits replaces the whole metadata.finalizers array, so this is
+// safe only because there is no concurrent finalizer writer — tart-kubelet,
+// the sole other actor that touches this Pod's finalizers, is gone with the
+// host. PodGC still races us, but only on the Pod's status/deletion, which the
+// merge patch doesn't carry, so it can't clobber or be clobbered here.
+//
+// Every match is attempted even if one fails; the per-Pod errors are joined so
+// a single un-patchable Pod can't hide progress on (or failures of) the rest.
 func (r *ScalewayAppleSiliconMachineReconciler) stripStrandedPodFinalizers(
 	ctx context.Context,
 	nodeName string,
@@ -1067,6 +1102,7 @@ func (r *ScalewayAppleSiliconMachineReconciler) stripStrandedPodFinalizers(
 		return fmt.Errorf("list pods on node %q: %w", nodeName, err)
 	}
 
+	var errs []error
 	for i := range pods.Items {
 		pod := &pods.Items[i]
 		if !controllerutil.ContainsFinalizer(pod, PodVMCleanupFinalizer) {
@@ -1078,12 +1114,13 @@ func (r *ScalewayAppleSiliconMachineReconciler) stripStrandedPodFinalizers(
 			if apierrors.IsNotFound(err) {
 				continue
 			}
-			return fmt.Errorf("strip vm-cleanup finalizer from pod %s/%s: %w", pod.Namespace, pod.Name, err)
+			errs = append(errs, fmt.Errorf("strip vm-cleanup finalizer from pod %s/%s: %w", pod.Namespace, pod.Name, err))
+			continue
 		}
 		logger.Info("stripped stranded vm-cleanup finalizer",
 			"pod", pod.Namespace+"/"+pod.Name, "node", nodeName)
 	}
-	return nil
+	return errors.Join(errs...)
 }
 
 // reader returns the uncached APIReader when wired, else the cached client.

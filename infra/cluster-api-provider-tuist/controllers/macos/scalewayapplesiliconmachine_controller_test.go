@@ -3,6 +3,7 @@ package macos
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -23,6 +24,8 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	infrav1 "github.com/tuist/tuist/infra/cluster-api-provider-tuist/api/v1alpha1"
 	"github.com/tuist/tuist/infra/cluster-api-provider-tuist/internal/credentials"
@@ -258,7 +261,7 @@ func TestNodeMissingAfterBootstrap_NodeGone(t *testing.T) {
 	}
 }
 
-func newReconciler(t *testing.T, objs ...runtime.Object) *ScalewayAppleSiliconMachineReconciler {
+func newTestScheme(t *testing.T) *runtime.Scheme {
 	t.Helper()
 	scheme := runtime.NewScheme()
 	if err := corev1.AddToScheme(scheme); err != nil {
@@ -273,29 +276,40 @@ func newReconciler(t *testing.T, objs ...runtime.Object) *ScalewayAppleSiliconMa
 	if err := rbacv1.AddToScheme(scheme); err != nil {
 		t.Fatalf("rbacv1 scheme: %v", err)
 	}
-	c := fake.NewClientBuilder().
-		WithScheme(scheme).
-		WithRuntimeObjects(objs...).
-		WithStatusSubresource(&infrav1.ScalewayAppleSiliconMachine{}).
-		// Mirror the API server's native spec.nodeName Pod field selector so
-		// reconcileDelete's stranded-Pod sweep resolves against the fake client
-		// (which leaves APIReader unset and falls back to this Client).
-		WithIndex(&corev1.Pod{}, "spec.nodeName", func(o client.Object) []string {
-			return []string{o.(*corev1.Pod).Spec.NodeName}
-		}).
-		Build()
+	return scheme
+}
+
+// podNodeNameIndexValue mirrors the API server's native spec.nodeName Pod
+// field selector so reconcileDelete's stranded-Pod sweep resolves against the
+// fake client (which leaves APIReader unset and falls back to this Client).
+func podNodeNameIndexValue(o client.Object) []string {
+	return []string{o.(*corev1.Pod).Spec.NodeName}
+}
+
+// reconcilerForClient wires a reconciler around a prebuilt fake client with a
+// real CredentialsManager backed by it. The per-machine Delete methods tolerate
+// IsNotFound, so reconcileDelete flows through Stages 2-3 without any pre-staged
+// Secret / ServiceAccount / ClusterRoleBinding fixtures.
+func reconcilerForClient(c client.Client, recorder record.EventRecorder) *ScalewayAppleSiliconMachineReconciler {
 	return &ScalewayAppleSiliconMachineReconciler{
 		Client:   c,
-		Recorder: fakeRecorder(),
-		// Real CredentialsManager backed by the same fake client. The
-		// per-machine Delete methods tolerate IsNotFound, so reconcileDelete
-		// can flow through Stages 2-3 without any pre-staged Secret /
-		// ServiceAccount / ClusterRoleBinding fixtures.
+		Recorder: recorder,
 		CredentialsManager: &credentials.Manager{
 			Client:    c,
 			Namespace: "ns",
 		},
 	}
+}
+
+func newReconciler(t *testing.T, objs ...runtime.Object) *ScalewayAppleSiliconMachineReconciler {
+	t.Helper()
+	c := fake.NewClientBuilder().
+		WithScheme(newTestScheme(t)).
+		WithRuntimeObjects(objs...).
+		WithStatusSubresource(&infrav1.ScalewayAppleSiliconMachine{}).
+		WithIndex(&corev1.Pod{}, "spec.nodeName", podNodeNameIndexValue).
+		Build()
+	return reconcilerForClient(c, fakeRecorder())
 }
 
 func backdateBootstrappedCondition(machine *infrav1.ScalewayAppleSiliconMachine, by time.Duration) {
@@ -920,6 +934,119 @@ func TestReconcileDelete_UnwedgesTerminatingPod(t *testing.T) {
 	if err := r.Get(context.Background(), client.ObjectKeyFromObject(pod), &got); !apierrors.IsNotFound(err) {
 		t.Fatalf("expected wedged pod to finalize and disappear, got err=%v pod=%+v", err, got)
 	}
+}
+
+// TestPodVMCleanupFinalizerValue pins this module's copy of the finalizer to
+// the literal tart-kubelet stamps. capt can't import tart-kubelet's internal
+// podagent package, so the string is hand-duplicated; this test (plus its
+// tart-kubelet-side counterpart, TestPodFinalizerValue) fails loudly if either
+// side drifts.
+func TestPodVMCleanupFinalizerValue(t *testing.T) {
+	const want = "tart-kubelet.tuist.dev/vm-cleanup"
+	if PodVMCleanupFinalizer != want {
+		t.Fatalf("PodVMCleanupFinalizer = %q, want %q — must match podagent.PodFinalizer in tart-kubelet", PodVMCleanupFinalizer, want)
+	}
+}
+
+// podPatchDenyingReconciler builds a reconciler whose fake client rejects every
+// Pod patch with the given error, so the Stage 4.5 sweep always fails. Used by
+// the best-effort error-path tests. The recorder is returned so the caller can
+// assert on emitted Events.
+func podPatchDenyingReconciler(t *testing.T, patchErr error, objs ...runtime.Object) (*ScalewayAppleSiliconMachineReconciler, *record.FakeRecorder) {
+	t.Helper()
+	c := fake.NewClientBuilder().
+		WithScheme(newTestScheme(t)).
+		WithRuntimeObjects(objs...).
+		WithStatusSubresource(&infrav1.ScalewayAppleSiliconMachine{}).
+		WithIndex(&corev1.Pod{}, "spec.nodeName", podNodeNameIndexValue).
+		WithInterceptorFuncs(interceptor.Funcs{
+			Patch: func(ctx context.Context, cl client.WithWatch, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
+				if _, ok := obj.(*corev1.Pod); ok {
+					return patchErr
+				}
+				return cl.Patch(ctx, obj, patch, opts...)
+			},
+		}).
+		Build()
+	rec := record.NewFakeRecorder(32)
+	return reconcilerForClient(c, rec), rec
+}
+
+func deletingMachine(name string, deletedAt time.Time) *infrav1.ScalewayAppleSiliconMachine {
+	ts := metav1.NewTime(deletedAt)
+	return &infrav1.ScalewayAppleSiliconMachine{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:              name,
+			Namespace:         "ns",
+			Finalizers:        []string{MachineFinalizer},
+			DeletionTimestamp: &ts,
+		},
+		Spec: infrav1.ScalewayAppleSiliconMachineSpec{Zone: "fr-par-1"},
+	}
+}
+
+func assertEventReason(t *testing.T, rec *record.FakeRecorder, reason string) {
+	t.Helper()
+	for {
+		select {
+		case e := <-rec.Events:
+			if strings.Contains(e, reason) {
+				return
+			}
+		default:
+			t.Fatalf("expected an event with reason %q, none found", reason)
+		}
+	}
+}
+
+// TestReconcileDelete_PodFinalizerStripFailureWithinBudgetRequeues covers the
+// best-effort sweep's retry window: while the machine has been deleting for
+// less than podFinalizerCleanupRetryBudget, a failing strip requeues and keeps
+// the machine finalizer so the next reconcile tries again (e.g. transient error
+// or a lagging pods/patch RBAC grant).
+func TestReconcileDelete_PodFinalizerStripFailureWithinBudgetRequeues(t *testing.T) {
+	const node = "macos-fleet-recent"
+	pod := strandedPod("tuist-runners", "runner-x", node, PodVMCleanupFinalizer)
+	denied := apierrors.NewForbidden(corev1.Resource("pods"), pod.Name, errors.New("pods patch not yet granted"))
+	r, rec := podPatchDenyingReconciler(t, denied, pod)
+
+	machine := deletingMachine(node, time.Now())
+	res, err := r.reconcileDelete(context.Background(), machine)
+	if err != nil {
+		t.Fatalf("reconcileDelete: %v", err)
+	}
+	if res.RequeueAfter != 30*time.Second {
+		t.Fatalf("expected 30s requeue within budget, got %+v", res)
+	}
+	if !controllerutil.ContainsFinalizer(machine, MachineFinalizer) {
+		t.Fatalf("machine finalizer must be retained while retrying")
+	}
+	assertEventReason(t, rec, "PodFinalizerCleanupFailed")
+}
+
+// TestReconcileDelete_PodFinalizerStripFailureBeyondBudgetProceeds covers the
+// give-up path: once the strip has been failing past the retry budget, the
+// machine delete must PROCEED (drop the machine finalizer, no requeue) rather
+// than wedge the owning MachineDeployment forever. Stage 1 already released the
+// host, so proceeding leaks nothing; the failure is surfaced as an Event.
+func TestReconcileDelete_PodFinalizerStripFailureBeyondBudgetProceeds(t *testing.T) {
+	const node = "macos-fleet-stale"
+	pod := strandedPod("tuist-runners", "runner-x", node, PodVMCleanupFinalizer)
+	denied := apierrors.NewForbidden(corev1.Resource("pods"), pod.Name, errors.New("pods patch never granted"))
+	r, rec := podPatchDenyingReconciler(t, denied, pod)
+
+	machine := deletingMachine(node, time.Now().Add(-2*podFinalizerCleanupRetryBudget))
+	res, err := r.reconcileDelete(context.Background(), machine)
+	if err != nil {
+		t.Fatalf("reconcileDelete: %v", err)
+	}
+	if res.RequeueAfter != 0 || res.Requeue {
+		t.Fatalf("expected machine delete to proceed (no requeue) after budget, got %+v", res)
+	}
+	if controllerutil.ContainsFinalizer(machine, MachineFinalizer) {
+		t.Fatalf("machine finalizer must be removed so deletion proceeds past an un-strippable pod")
+	}
+	assertEventReason(t, rec, "PodFinalizerCleanupGaveUp")
 }
 
 func startsWith(s, prefix string) bool {
