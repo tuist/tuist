@@ -14,11 +14,19 @@ defmodule Tuist.OAuth.Clients do
   alias Boruta.Oauth.Clients
   alias Tuist.Environment
 
+  @authorization_code_ttl 300
+
   @impl Clients
   def get_client(client_id) do
     case static_client(client_id) do
-      %Client{} = client -> client
-      nil -> EctoClients.get_client(client_id)
+      %Client{} = client ->
+        client
+
+      nil ->
+        case EctoClients.get_client(client_id) do
+          %Client{} = client -> ensure_authorization_code_ttl(client)
+          nil -> nil
+        end
     end
   end
 
@@ -43,7 +51,9 @@ defmodule Tuist.OAuth.Clients do
 
   @impl Boruta.Openid.Clients
   def create_client(registration_params) do
-    EctoClients.create_client(registration_params)
+    registration_params
+    |> Map.put(:authorization_code_ttl, @authorization_code_ttl)
+    |> EctoClients.create_client()
   end
 
   @impl Clients
@@ -100,7 +110,7 @@ defmodule Tuist.OAuth.Clients do
       secret: Environment.oauth_client_secret(),
       name: Environment.oauth_client_name(),
       access_token_ttl: 86_400,
-      authorization_code_ttl: 60,
+      authorization_code_ttl: @authorization_code_ttl,
       refresh_token_ttl: 2_592_000,
       id_token_ttl: 86_400,
       id_token_signature_alg: "RS256",
@@ -158,4 +168,10 @@ defmodule Tuist.OAuth.Clients do
   end
 
   defp to_client_jwk(_), do: nil
+
+  defp ensure_authorization_code_ttl(%Client{authorization_code_ttl: ttl} = client) when ttl < @authorization_code_ttl do
+    %{client | authorization_code_ttl: @authorization_code_ttl}
+  end
+
+  defp ensure_authorization_code_ttl(%Client{} = client), do: client
 end

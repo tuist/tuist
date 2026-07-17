@@ -13,6 +13,7 @@ node_modules_path = Path.expand("../node_modules", __DIR__)
 
 config :boruta, Boruta.Oauth,
   repo: Tuist.Repo,
+  max_ttl: [authorization_code: 300],
   contexts: [
     resource_owners: Tuist.OAuth.ResourceOwners,
     clients: Tuist.OAuth.Clients,

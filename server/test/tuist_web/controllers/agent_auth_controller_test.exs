@@ -25,6 +25,7 @@ defmodule TuistWeb.AgentAuthControllerTest do
     stub(Tuist.Environment, :app_url, fn -> "http://www.example.com" end)
     stub(AgentAuth, :hit, fn _conn -> {:allow, 1} end)
     stub(AgentAuth, :hit, fn _conn, _subject -> {:allow, 1} end)
+    stub(AgentAuth, :hit_registration, fn _conn, _registration_type -> {:allow, 1} end)
     :ok
   end
 
@@ -36,11 +37,13 @@ defmodule TuistWeb.AgentAuthControllerTest do
 
       assert get_resp_header(conn, "content-type") == ["text/markdown; charset=utf-8"]
       assert body =~ "# auth.md"
-      assert body =~ "## Discover"
-      assert body =~ "## Pick a method"
-      assert body =~ "## Claim ceremony"
+      assert body =~ "ask the user to confirm the exact address explicitly"
+      assert body =~ "Discover"
+      assert body =~ "Pick a registration method"
+      assert body =~ "Claim ceremony"
       assert body =~ "WWW-Authenticate: Bearer resource_metadata="
-      assert body =~ "http://www.example.com/agent/auth"
+      assert body =~ "http://www.example.com/agent/identity"
+      assert body =~ "grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer"
       assert body =~ "https://tuist.dev/pricing"
       assert body =~ "mailto:contact@tuist.dev"
     end
