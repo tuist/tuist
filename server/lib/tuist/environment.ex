@@ -973,7 +973,8 @@ defmodule Tuist.Environment do
   end
 
   def mailing_from_address(secrets \\ secrets()) do
-    get([:mailing, :from_address], secrets) || get([:smtp_settings, :user_name], secrets)
+    get([:mailing, :from_address], secrets) || get([:smtp_settings, :user_name], secrets) ||
+      if(dev?(), do: "noreply@tuist.dev")
   end
 
   def mailing_reply_to_address(secrets \\ secrets()) do
