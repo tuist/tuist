@@ -31,10 +31,10 @@ use crate::{
     },
     config::Config,
     constants::{
-        CAS_CAPACITY_DEFAULT_DISK_PERCENT, CAS_CAPACITY_MAX_DISK_PERCENT, DESIRED_CURRENT_SEGMENTS,
-        DESIRED_NEW_SEGMENTS, DESIRED_OLD_SEGMENTS, MAX_DESIRED_SEGMENTS, MAX_MODULE_TOTAL_BYTES,
-        ACTION_CACHE_TRUNK_SCAN_FACTOR, MAX_SEGMENT_BYTES, REAPI_ACTION_CACHE_REFRESH_DAMPING_MS,
-        ROCKSDB_BYTES_PER_SYNC,
+        ACTION_CACHE_TRUNK_SCAN_FACTOR, CAS_CAPACITY_DEFAULT_DISK_PERCENT,
+        CAS_CAPACITY_MAX_DISK_PERCENT, DESIRED_CURRENT_SEGMENTS, DESIRED_NEW_SEGMENTS,
+        DESIRED_OLD_SEGMENTS, MAX_DESIRED_SEGMENTS, MAX_MODULE_TOTAL_BYTES, MAX_SEGMENT_BYTES,
+        REAPI_ACTION_CACHE_REFRESH_DAMPING_MS, ROCKSDB_BYTES_PER_SYNC,
         ROCKSDB_CF_ACTION_CACHE_INDEX, ROCKSDB_CF_KEY_VALUE, ROCKSDB_CF_MANIFESTS,
         ROCKSDB_CF_MULTIPART_UPLOADS, ROCKSDB_CF_NAMESPACE_ARTIFACTS,
         ROCKSDB_CF_NAMESPACE_TOMBSTONES, ROCKSDB_CF_OUTBOX, ROCKSDB_CF_SEGMENT_ARTIFACTS,
@@ -55,11 +55,10 @@ use crate::{
     },
     usage::UsageRollup,
     utils::{
-        action_cache_index_key, action_cache_index_key_branch, action_cache_index_prefix,
-        action_cache_manifest_hash, IndexRowBranch,
-        artifact_storage_id, ensure_tmp_dir_capacity, module_key, namespace_artifact_index_key,
-        now_ms, segment_artifact_index_key, segment_artifact_index_prefix, segment_path,
-        temp_file_path,
+        IndexRowBranch, action_cache_index_key, action_cache_index_key_branch,
+        action_cache_index_prefix, action_cache_manifest_hash, artifact_storage_id,
+        ensure_tmp_dir_capacity, module_key, namespace_artifact_index_key, now_ms,
+        segment_artifact_index_key, segment_artifact_index_prefix, segment_path, temp_file_path,
     },
 };
 
@@ -2853,7 +2852,8 @@ impl Store {
             }
             // The row's own tag settles the filter for every entry indexed since
             // the branch was recorded, which is the whole point of carrying it.
-            if let IndexRowBranch::Known(branch) = action_cache_index_key_branch(&index_key, prefix.len())
+            if let IndexRowBranch::Known(branch) =
+                action_cache_index_key_branch(&index_key, prefix.len())
                 && !branch_in_trunk(branch, trunk)
             {
                 continue;
@@ -4162,8 +4162,7 @@ fn sticky_branch<'a>(
 ) -> Option<&'a str> {
     match (existing, trunk) {
         (Some(existing), Some(trunk))
-            if branch != Some(trunk)
-                && existing.branch.as_deref() == Some(trunk) =>
+            if branch != Some(trunk) && existing.branch.as_deref() == Some(trunk) =>
         {
             existing.branch.as_deref()
         }
@@ -4585,7 +4584,10 @@ mod tests {
         let prefix = action_cache_index_prefix("ios");
         for branch in [None, Some("main"), Some("feature/some-long-name")] {
             let key = action_cache_index_key("ios", 1_234, "abc123", branch);
-            assert!(key.starts_with(&prefix), "namespace prefix scan still matches");
+            assert!(
+                key.starts_with(&prefix),
+                "namespace prefix scan still matches"
+            );
             let version = key
                 .get(prefix.len()..prefix.len() + 8)
                 .expect("version sits at a fixed offset");
@@ -4648,7 +4650,12 @@ mod tests {
         // Enough feature rows ahead of it to exceed `max_entries * FACTOR`, which
         // is what used to end the walk before it ever arrived.
         for index in 0..(ACTION_CACHE_TRUNK_SCAN_FACTOR * 2) {
-            publish(&store, &format!("action_cache/f{index:02}"), Some("feature")).await;
+            publish(
+                &store,
+                &format!("action_cache/f{index:02}"),
+                Some("feature"),
+            )
+            .await;
         }
 
         // The first call backfills and sets the marker; only after it does the
