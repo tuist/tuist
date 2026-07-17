@@ -143,14 +143,28 @@ type RunnerPoolSpec struct {
 // its own struct so an absent block (the v1 default) keeps
 // `RunnerPoolSpec` byte-identical to its pre-autoscaling shape on
 // the wire — no `autoscaling: null` noise on every macOS pool.
-// A field here may carry `omitempty` only when its CRD default equals
-// its Go zero value. `omitempty` drops the zero value from the
-// serialized spec, which the apiserver cannot tell from "unset" and so
+// CRD defaults for the two optional fields whose zero value is
+// meaningful. Kept in sync with the `default:` markers in
+// crds/tuist.dev_runnerpools.yaml; the accessors below apply them when a
+// field is unset so the apiserver default and the in-process default
+// never disagree.
+const (
+	defaultMinWarmPoolFloor         int32 = 1
+	defaultScaleDownCooldownSeconds int32 = 300
+)
+
+// A field here may keep the plain `int32` + `omitempty` only when its
+// CRD default equals its Go zero value; `enabled` (default false) and
+// `maxReplicas` (default 0) qualify. The two fields whose default is
+// non-zero use `*int32` instead: `omitempty` on a plain `int32` drops a
+// deliberate 0, which the apiserver cannot tell from "unset" and so
 // replaces with the CRD default — and the controller serializes the
-// whole spec whenever it adds the drain finalizer (runnerpool_controller.go).
-// `enabled` (default false) and `maxReplicas` (default 0) are safe;
-// the fields below that declare `minimum: 0` with a non-zero default
-// are not.
+// whole spec whenever it adds the drain finalizer
+// (runnerpool_controller.go). A pointer keeps the distinction: nil
+// serializes to nothing (so the apiserver default applies, and a typed
+// client that never set the field gets it), while a non-nil 0 serializes
+// as 0 (so a deliberate zero survives the round-trip). Read them through
+// the OrDefault accessors, never the raw pointer.
 type RunnerPoolAutoscaling struct {
 	// Enabled flips the autoscaling reconciler on for this pool.
 	// When false, the controller leaves `spec.replicas` alone.
@@ -167,10 +181,11 @@ type RunnerPoolAutoscaling struct {
 	// and uncontended Linux pools honor it as a floor; real load
 	// (claimed + queued) is always funded above it.
 	//
-	// No `omitempty`: 0 ("this pool holds no warm capacity") is a valid
-	// and useful setting, and the CRD default is 1.
+	// Pointer so a deliberate 0 ("this pool holds no warm capacity")
+	// survives serialization; nil means unset and defaults to 1. Read
+	// via MinWarmPoolFloorOrDefault.
 	// +optional
-	MinWarmPoolFloor int32 `json:"minWarmPoolFloor"`
+	MinWarmPoolFloor *int32 `json:"minWarmPoolFloor,omitempty"`
 
 	// MaxReplicas is the hard ceiling on the autoscaler-driven
 	// `spec.replicas` value. 0 disables autoscaling-driven scale
@@ -182,10 +197,32 @@ type RunnerPoolAutoscaling struct {
 	// waits between successive scale-down actions for this pool.
 	// Anti-thrash guard.
 	//
-	// No `omitempty`: 0 ("scale down as soon as demand drops") is a
-	// valid setting, and the CRD default is 300.
+	// Pointer so a deliberate 0 ("scale down as soon as demand drops")
+	// survives serialization; nil means unset and defaults to 300. Read
+	// via ScaleDownCooldownSecondsOrDefault.
 	// +optional
-	ScaleDownCooldownSeconds int32 `json:"scaleDownCooldownSeconds"`
+	ScaleDownCooldownSeconds *int32 `json:"scaleDownCooldownSeconds,omitempty"`
+}
+
+// MinWarmPoolFloorOrDefault returns the configured floor, or the CRD
+// default when the field is unset (nil). The apiserver normally fills
+// the default in on admission, so nil is the belt-and-suspenders path —
+// but reading through this accessor means a nil never reaches the
+// allocator as a 0 and silently zeroes a pool's warm floor.
+func (a *RunnerPoolAutoscaling) MinWarmPoolFloorOrDefault() int32 {
+	if a == nil || a.MinWarmPoolFloor == nil {
+		return defaultMinWarmPoolFloor
+	}
+	return *a.MinWarmPoolFloor
+}
+
+// ScaleDownCooldownSecondsOrDefault returns the configured cooldown, or
+// the CRD default when unset (nil).
+func (a *RunnerPoolAutoscaling) ScaleDownCooldownSecondsOrDefault() int32 {
+	if a == nil || a.ScaleDownCooldownSeconds == nil {
+		return defaultScaleDownCooldownSeconds
+	}
+	return *a.ScaleDownCooldownSeconds
 }
 
 // RunnerPoolRollout carries the image-roll throttle knob. Its own

@@ -89,6 +89,16 @@ func (in *RunnerPoolSpec) DeepCopyInto(out *RunnerPoolSpec) {
 
 func (in *RunnerPoolAutoscaling) DeepCopyInto(out *RunnerPoolAutoscaling) {
 	*out = *in
+	if in.MinWarmPoolFloor != nil {
+		in, out := &in.MinWarmPoolFloor, &out.MinWarmPoolFloor
+		*out = new(int32)
+		**out = **in
+	}
+	if in.ScaleDownCooldownSeconds != nil {
+		in, out := &in.ScaleDownCooldownSeconds, &out.ScaleDownCooldownSeconds
+		*out = new(int32)
+		**out = **in
+	}
 }
 
 func (in *RunnerPoolRollout) DeepCopyInto(out *RunnerPoolRollout) {
