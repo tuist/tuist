@@ -220,10 +220,19 @@ use_local_cold_cache() {
 #
 # `-owners off` maps everything inside the image to the attaching user, so the
 # host/guest uid split (this guest is `runner` uid 502; the host's console user
-# is 501) never reaches the cache. That leaves the image FILE's own mode as the
-# only permission the host has to settle, which is why no tree-walking chmod is
-# needed on either side. `-noverify` skips a checksum pass over a multi-GB image
-# we just cloned locally; `-nobrowse` keeps it out of the Finder namespace.
+# is 501) never reaches the cache: the guest is the OWNER of every file. That
+# retires the host-side tree-walking chmod (from #11884) entirely.
+#
+# Ownership is not the whole story, though: `-owners off` does NOT touch mode
+# bits, so a cached artifact carried in at mode 0444 stays unwritable even by its
+# owner, and the CLI re-signs artifacts in place (an xattr write needs W_OK). A
+# warm master can hold such a file from a prior run, so relax owner-write across
+# the mounted tree — `u+rwX` gives dirs traversal/create and files owner-write,
+# and because the guest owns everything here it is uid-independent. Native APFS
+# metadata, so it is cheap and reliably succeeds (unlike a cross-uid chmod over
+# virtio-fs); best-effort, since a stray file the CLI never touches is harmless.
+# `-noverify` skips a checksum pass over a multi-GB image we just cloned locally;
+# `-nobrowse` keeps it out of the Finder namespace.
 #
 # Called only after cache-ready: the image does not exist until the host
 # materializes the dispatched account's master into the branch.
@@ -241,6 +250,12 @@ attach_cache_image() {
   fi
   CACHE_MOUNT="${CACHE_MOUNTPOINT}"
   CACHE_IMAGE_ACTIVE=1
+  # Make every inherited artifact owner-writable so the CLI can re-sign in place.
+  # Empty (cold) images have no tuist/ yet, so guard on its presence.
+  if [ -d "${CACHE_MOUNT}/tuist" ]; then
+    chmod -R u+rwX "${CACHE_MOUNT}/tuist" 2>/dev/null || \
+      echo "$(date -u +%FT%TZ) dispatch-poll: WARNING could not fully relax cache tree modes"
+  fi
   export TUIST_XDG_CACHE_HOME="${CACHE_MOUNT}"
   # Byte budget for the CLI's per-generate LRU self-prune: the host stages the
   # per-branch cap (≈80% of a master's provisioned size) into the status share
@@ -292,6 +307,10 @@ detach_cache_image() {
 # no way to tell from here — so the account keeps its existing master (this job
 # costs it one job's warmth) rather than risk a torn master reaching this host
 # and, via the HEAD, every other host too.
+#
+# cache-dirty was never written (it is withheld until a clean detach), so its
+# absence alone already makes the host discard; writing an explicit "0" is
+# belt-and-suspenders. Clearing CACHE_IMAGE_ACTIVE also no-ops report_volume_head.
 mark_cache_not_promotable() {
   local why="$1"
   CACHE_IMAGE_ACTIVE=""
@@ -369,13 +388,38 @@ wait_for_cache_ready() {
   use_local_cold_cache "cache-ready not signalled within ${CACHE_READY_TIMEOUT}s"
 }
 
+# capture_cache_state snapshots the post-job inventory while the image is still
+# MOUNTED — after the detach nothing inside it is readable. It records the
+# inventory digest (which the host records beside a promoted master; the host
+# cannot compute it itself without attaching) and remembers the inventory in
+# CACHE_INVENTORY_AFTER for report_cache_dirty.
+#
+# It writes NO promotion authorization: cache-digest is only ever read by the
+# host WHEN it promotes, so staging it before the detach is harmless. The marker
+# that actually authorizes promotion (cache-dirty) is deliberately withheld until
+# report_cache_dirty runs post-detach.
+capture_cache_state() {
+  [ -n "${CACHE_MOUNT}" ] || return 0
+  [ -d "${STATUS_SHARE}" ] || return 0
+  CACHE_INVENTORY_AFTER=$(cache_inventory)
+  printf '%s' "${CACHE_INVENTORY_AFTER}" > "${STATUS_SHARE}/cache-digest" 2>/dev/null || true
+}
+
 # report_cache_dirty writes the guest's dirty marker into the writable status
 # share so the reconciler can decide promote-vs-discard. "1" iff the job
 # succeeded (runner rc == 0) AND the cache inventory changed; "0" for a
 # read-only / pure-hit job OR a job whose runner exited non-zero (infra failure,
-# cancellation, runner crash). The marker's presence is itself the "job
-# completed" signal — its absence (VM crash before this point) makes the
-# reconciler discard the branch.
+# cancellation, runner crash).
+#
+# It MUST run AFTER a successful detach. The marker is what authorizes the host
+# to promote, and the host promotes by cloning the image file without being able
+# to tell a mid-write image from a settled one. Writing "1" while the image were
+# still mounted would let a clean VM halt in that window promote a torn image. So
+# a mounted, un-detached, or failed-to-detach image is left with NO cache-dirty
+# marker at all, and absence makes the reconciler discard the branch — the safe
+# default for every teardown that does not reach a clean detach (early exit,
+# detach failure). It reads the inventory captured pre-detach by
+# capture_cache_state, since the image is gone by now.
 #
 # Gating on rc carries the job result to the host so a failed run never promotes
 # its branch to the account's master — the host's own `tart run` clean-exit
@@ -385,19 +429,13 @@ wait_for_cache_ready() {
 # still promotes, which is acceptable — those artifacts are content-addressed
 # and signature-validated, so they warm rather than corrupt.) Mirrors the rc
 # gate in report_volume_head so local promote and HEAD publish agree.
-# It also reports the post-job inventory digest, which the host records beside a
-# promoted master: the host cannot compute it itself without attaching the image,
-# and this guest has it mounted right now. Both reads must happen HERE, while the
-# image is still mounted — after the detach nothing inside it is readable.
 report_cache_dirty() {
-  [ -n "${CACHE_MOUNT}" ] || return 0
   [ -d "${STATUS_SHARE}" ] || return 0
   local rc="${1:-1}" dirty=0
-  CACHE_INVENTORY_AFTER=$(cache_inventory)
-  if [ "${rc}" = "0" ] && [ "${CACHE_INVENTORY_AFTER}" != "${CACHE_INVENTORY_BEFORE}" ]; then
+  if [ "${rc}" = "0" ] && [ -n "${CACHE_INVENTORY_AFTER}" ] && \
+    [ "${CACHE_INVENTORY_AFTER}" != "${CACHE_INVENTORY_BEFORE}" ]; then
     dirty=1
   fi
-  printf '%s' "${CACHE_INVENTORY_AFTER}" > "${STATUS_SHARE}/cache-digest" 2>/dev/null || true
   printf '%s' "${dirty}" > "${STATUS_SHARE}/cache-dirty" 2>/dev/null || true
   echo "$(date -u +%FT%TZ) dispatch-poll: cache dirty=${dirty} (rc=${rc}) digest=${CACHE_INVENTORY_AFTER} reported to host"
 }
@@ -642,17 +680,23 @@ HOOK
       rc=$?
       [ -n "${watchdog_pid:-}" ] && kill "${watchdog_pid}" 2>/dev/null || true
       # Cache teardown. The order here is load-bearing:
-      #   1. read the inventory and report dirty + digest, which only works
-      #      while the image is still MOUNTED;
+      #   1. capture the inventory + digest, which only works while the image is
+      #      still MOUNTED, but withhold the promotion-authorizing dirty marker;
       #   2. detach, so the image is a settled filesystem rather than a torn
       #      snapshot — the host clones this file to promote it and cannot tell
       #      the two apart, so letting the VM halt tear the mount down would
       #      poison the account's master and every job that later clones it;
-      #   3. only then upload the detached image as the account's new HEAD.
-      # rc gates both — a failed run never advances the master.
-      report_cache_dirty "${rc}"
-      detach_cache_image || mark_cache_not_promotable "detach failed"
-      report_volume_head "${rc}"
+      #   3. ONLY after a clean detach, authorize promotion (dirty marker) and
+      #      upload the settled image as the account's new HEAD. A detach failure
+      #      or an early exit leaves no dirty marker, so the host discards.
+      # rc gates promotion — a failed run never advances the master.
+      capture_cache_state
+      if detach_cache_image; then
+        report_cache_dirty "${rc}"
+        report_volume_head "${rc}"
+      else
+        mark_cache_not_promotable "detach failed"
+      fi
       # Final metrics sample before the EXIT trap halts the VM. The
       # looping sampler is killed mid-sleep by the shutdown, so the last
       # interval — including "Complete job" — otherwise has no data point
