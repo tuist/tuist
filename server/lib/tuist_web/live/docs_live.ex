@@ -195,7 +195,7 @@ defmodule TuistWeb.DocsLive do
             <.link id="docs-runners-path" patch={@runners_path} data-part="feature-card">
               <div data-part="image">
                 <span data-part="icon"><.server /></span>
-                <span data-part="title">{dgettext("docs", "Tuist runners")}</span>
+                <span data-part="title">{dgettext("docs", "CI runners")}</span>
               </div>
               <div data-part="body">
                 <p>
@@ -621,7 +621,7 @@ defmodule TuistWeb.DocsLive do
             "docs",
             "Connect remote caching, build insights, and test insights to your existing project."
           ),
-        "- #{markdown_link(dgettext("docs", "Tuist runners"), runners_path)}: " <>
+        "- #{markdown_link(dgettext("docs", "CI runners"), runners_path)}: " <>
           dgettext(
             "docs",
             "Run continuous integration workflows with GitHub Actions on managed macOS and Linux infrastructure next to your cache."

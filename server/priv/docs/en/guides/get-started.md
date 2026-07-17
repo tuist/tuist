@@ -27,10 +27,10 @@ Connect an existing Gradle project to remote caching, build insights, and test i
 
 <.localized_link href="/guides/get-started/gradle-project">Start with a Gradle project →</.localized_link>
 
-## Tuist runners {#tuist-runners}
+## CI runners {#tuist-runners}
 
-Move GitHub Actions jobs to managed macOS or Linux runners and select machine capacity and Xcode versions through runner profiles.
+Move GitHub Actions jobs to Tuist <.localized_link href="/guides/integrations/continuous-integration">continuous integration</.localized_link> (CI) runners on managed macOS or Linux infrastructure, then select machine capacity and Xcode versions through runner profiles.
 
-<.localized_link href="/guides/get-started/tuist-runners">Start with Tuist runners →</.localized_link>
+<.localized_link href="/guides/get-started/tuist-runners">Start with CI runners →</.localized_link>
 
 If more than one path applies, begin with the build toolchain used by most of your team. You can adopt runners independently and connect additional projects to the same Tuist account later.

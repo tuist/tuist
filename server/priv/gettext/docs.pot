@@ -477,5 +477,5 @@ msgstr ""
 #: lib/tuist_web/live/docs_live.ex:198
 #: lib/tuist_web/live/docs_live.ex:624
 #, elixir-autogen, elixir-format
-msgid "Tuist runners"
+msgid "CI runners"
 msgstr ""

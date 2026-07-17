@@ -1,18 +1,18 @@
 ---
 {
-  "title": "Tuist runners",
+  "title": "CI runners",
   "titleTemplate": ":title · Get started · Guides · Tuist",
   "description": "Run a first GitHub Actions workflow on managed Tuist macOS or Linux runners."
 }
 ---
-# Tuist runners {#tuist-runners}
+# CI runners {#tuist-runners}
 
-Tuist runners execute GitHub Actions jobs on managed macOS and Linux infrastructure. Adopt them independently of project generation, then connect caching and insights when you want build work and data shared across developer machines and runners.
+Tuist <.localized_link href="/guides/integrations/continuous-integration">continuous integration</.localized_link> (CI) runners execute GitHub Actions jobs on managed macOS and Linux infrastructure. Adopt them independently of project generation, then connect caching and insights when you want build work and data shared across developer machines and runners.
 
 > [!IMPORTANT]
 > **Invite-only**
 >
-> Tuist runners are currently invite-only. [Contact Tuist](mailto:contact@tuist.dev) or ask in the [community Slack](https://slack.tuist.dev) to request access for your account.
+> Tuist CI runners are currently invite-only. [Contact Tuist](mailto:contact@tuist.dev) or ask in the [community Slack](https://slack.tuist.dev) to request access for your account.
 
 ## Adoption steps {#adoption-steps}
 
