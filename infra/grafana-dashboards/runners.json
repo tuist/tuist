@@ -694,6 +694,67 @@
         "type": "timeseries"
       },
       {
+        "datasource": "$datasource",
+        "description": "Age of the oldest still-queued job per fleet, polled from ClickHouse `runner_jobs` every 30s (0 when nothing is queued). Read it against \"Queue time\" above: that histogram is recorded on claim, so a job that is never claimed never appears in it, and its top bucket is 300s \u2014 a 4h wait and a 6m wait plot identically. This gauge is what moves while a job is stuck. A fleet climbing here while its Pods sit idle points at allocation or boot rather than capacity. Backs the `Runner queue age` alert, which fires past 30m.",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "lineInterpolation": "linear",
+              "lineWidth": 2,
+              "pointSize": 5,
+              "showPoints": "never",
+              "spanNulls": false,
+              "stacking": {
+                "group": "A",
+                "mode": "none"
+              }
+            },
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "color": "green", "value": null },
+                { "color": "red", "value": 1800 }
+              ]
+            },
+            "unit": "s"
+          }
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 40
+        },
+        "id": 313,
+        "options": {
+          "legend": {
+            "calcs": ["max"],
+            "displayMode": "list",
+            "placement": "bottom"
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "max by (fleet) (tuist_runners_queue_oldest_age_seconds{fleet=~\".*$platform.*\", env=\"$env\"})",
+            "legendFormat": "{{fleet}}",
+            "refId": "A"
+          }
+        ],
+        "title": "Oldest queued job age by fleet",
+        "type": "timeseries"
+      },
+      {
         "collapsed": false,
         "gridPos": {
           "h": 1,
