@@ -217,6 +217,17 @@ defmodule Tuist.Environment do
     end
   end
 
+  @doc """
+  Role backing the Grafana Product Usage dashboard. Set only for managed CNPG
+  migration Jobs; unset leaves the role's grants untouched.
+  """
+  def database_grafana_role do
+    case System.get_env("TUIST_DATABASE_GRAFANA_ROLE") do
+      role when is_binary(role) and role != "" -> role
+      _ -> nil
+    end
+  end
+
   def database_config_from_url(url) do
     parsed_url = URI.parse(url)
 

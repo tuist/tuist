@@ -8,6 +8,21 @@
 #     -f infra/helm/tuist/values-managed-staging.yaml \
 #     --set server.image.tag=$GIT_SHA
 
+# Grafana Cloud PDC agent — on in staging first. The signing token lives in this
+# env's vault as PDC_AGENT/password; cluster + hostedGrafanaId come from
+# values-managed-common.yaml. Gives Grafana Cloud a tunnel to the in-cluster CNPG
+# Postgres so the Product Usage dashboard can query it via Grafana's
+# built-in Postgres datasource as the read-only `tuist_ops_ro` role.
+pdcAgent:
+  enabled: true
+  # Staging serves one dashboard; a brief tunnel gap here is acceptable, so
+  # it stays at one replica rather than paying for three.
+  replicas: 1
+  # Pin the tunnel to the CNPG read-only service. Without this the agent
+  # permits any destination reachable from its pod, not just Postgres.
+  permitRemoteOpen:
+    - tuist-tuist-pg-ro.tuist-staging.svc.cluster.local:5432
+
 kuraController:
   telemetry:
     deploymentEnvironment: staging

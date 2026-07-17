@@ -161,6 +161,21 @@ registryCache:
     bucket: tuist-can-storage
     rootDirectory: docker-mirror
 
+# Grafana Cloud PDC agent. The signing token lives in this env's vault as
+# PDC_AGENT/password; cluster + hostedGrafanaId come from
+# values-managed-common.yaml. Each environment gets its own PDC network (and so
+# its own token): Grafana treats every agent on a network as interchangeable, so
+# sharing one across clusters would let a query resolve an in-cluster hostname in
+# the wrong cluster.
+pdcAgent:
+  enabled: true
+  # Canary mirrors staging's sizing; production is the env that needs HA.
+  replicas: 1
+  # Pin the tunnel to the CNPG read-only service. Without this the agent
+  # permits any destination reachable from its pod, not just Postgres.
+  permitRemoteOpen:
+    - tuist-tuist-pg-ro.tuist-canary.svc.cluster.local:5432
+
 kuraController:
   sharedSecrets:
     externalSecret:
