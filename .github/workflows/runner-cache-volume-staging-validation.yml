@@ -147,6 +147,17 @@ jobs:
           grep -q payload "${dest}/Bar.framework/Resources/data.txt" || { echo "::error::cannot read through the versioned symlink"; exit 1; }
           echo "OK: framework bundle with xattrs on symlinks copied into the cache volume"
 
+          # A read-only (0444) artifact. The CLI caches some artifacts read-only
+          # and re-signs them in place on a later warm hit — an in-place xattr
+          # write needs W_OK, which `-owners off` does NOT grant (it maps
+          # ownership, not mode). The `warm` job must be able to re-sign this
+          # after it survives promote -> materialize -> attach; that only works
+          # because attach relaxes owner-write. Seed just plants it 0444.
+          ro="${dest}/readonly-artifact.bin"
+          echo "readonly-payload" > "${ro}"
+          chmod 0444 "${ro}"
+          echo "planted read-only artifact at mode $(stat -f '%Lp' "${ro}")"
+
       - name: Show what is on the volume
         run: |
           set -euo pipefail
@@ -188,18 +199,40 @@ jobs:
             echo "::error::The volume is EMPTY on a warm VM. `seed` promoted a master and this job should have clonefiled it in. Either the promote or the materialize half is broken."
             exit 1
           fi
-          # The probe framework `seed` wrote must be here, symlinks + xattrs intact,
-          # having survived: image -> promote (clone) -> materialize (clone) -> attach.
-          probe=$(find "${root}/Binaries" -maxdepth 1 -name 'volume-probe-*' | head -1)
-          if [ -z "${probe}" ]; then
-            echo "::error::seed's probe artifact is not on the warm volume; the master did not carry it"
+          # THIS run's probe specifically — not any volume-probe-*. The account
+          # master accumulates a probe per validation run, so matching any of them
+          # (or checking only that *some* xattr exists) would let a broken
+          # seed->promote in THIS run pass on a stale probe from an earlier run.
+          # seed and warm share the same github.run_id, so the exact path and the
+          # exact signature value pin the assertion to this run.
+          probe="${root}/Binaries/volume-probe-${GITHUB_RUN_ID}"
+          if [ ! -d "${probe}" ]; then
+            echo "::error::this run's probe (${probe}) is not on the warm volume; the master seed promoted did not carry it"
             exit 1
           fi
-          echo "found promoted probe: ${probe}"
+          echo "found this run's promoted probe: ${probe}"
           test -L "${probe}/Bar.framework/Resources" || { echo "::error::symlink lost across promote+materialize"; exit 1; }
-          xattr -l -s "${probe}/Bar.framework/Resources"
-          xattr -p -s dev.tuist.probe.signature "${probe}/Bar.framework/Resources" \
-            || { echo "::error::xattr lost across promote+materialize"; exit 1; }
+          echo "xattrs on the promoted symlink:"; xattr -l -s "${probe}/Bar.framework/Resources"
+          got=$(xattr -p -s dev.tuist.probe.signature "${probe}/Bar.framework/Resources" 2>/dev/null || true)
+          if [ "${got}" != "sig-${GITHUB_RUN_ID}" ]; then
+            echo "::error::signature xattr wrong across promote+materialize: got '${got}', want 'sig-${GITHUB_RUN_ID}'"
+            exit 1
+          fi
           grep -q payload "${probe}/Bar.framework/Resources/data.txt" \
             || { echo "::error::cannot read through the symlink on the warm volume"; exit 1; }
+
+          # The 0444 artifact seed promoted must be RE-SIGNABLE in place here: an
+          # in-place xattr write is what the CLI does to re-sign, and it needs
+          # W_OK. `-owners off` alone does not grant it (0444 stays unwritable
+          # even by the owner), so this passes only because the guest relaxes
+          # owner-write at attach. Without that relax this is the warm-cache
+          # regression the reviewer flagged.
+          ro="${probe}/readonly-artifact.bin"
+          test -f "${ro}" || { echo "::error::promoted read-only artifact missing on the warm volume"; exit 1; }
+          echo "read-only artifact mode after promote+materialize+attach: $(stat -f '%Lp' "${ro}")"
+          if ! xattr -w -s dev.tuist.probe.resign "resigned-${GITHUB_RUN_ID}" "${ro}"; then
+            echo "::error::could not re-sign the promoted 0444 artifact in place; -owners off does not grant write and the attach-time owner-write relax is missing or failed"
+            exit 1
+          fi
+          echo "OK: re-signed a promoted read-only artifact in place"
           echo "OK: the promoted master cloned back in with symlinks and xattrs intact"
