@@ -217,6 +217,17 @@ defmodule Tuist.Environment do
     end
   end
 
+  @doc """
+  Role backing the Grafana Product Usage dashboard. Set only for managed CNPG
+  migration Jobs; unset leaves the role's grants untouched.
+  """
+  def database_grafana_role do
+    case System.get_env("TUIST_DATABASE_GRAFANA_ROLE") do
+      role when is_binary(role) and role != "" -> role
+      _ -> nil
+    end
+  end
+
   def database_config_from_url(url) do
     parsed_url = URI.parse(url)
 
@@ -1332,6 +1343,23 @@ defmodule Tuist.Environment do
 
   def typesense_host do
     get([:typesense, :host], secrets(), default_value: "https://search.tuist.dev")
+  end
+
+  def codebase_search_url(environment \\ System.get_env()) when is_map(environment) do
+    case Map.get(environment, "TUIST_CODEBASE_SEARCH_URL") do
+      value when is_binary(value) ->
+        case value |> String.trim() |> String.trim_trailing("/") do
+          "" -> nil
+          url -> url
+        end
+
+      _ ->
+        nil
+    end
+  end
+
+  def codebase_search_enabled?(environment \\ System.get_env()) when is_map(environment) do
+    codebase_search_url(environment) != nil
   end
 
   @doc """

@@ -73,31 +73,23 @@ defmodule TuistWeb.API.CacheController do
   )
 
   def endpoints(conn, params) do
-    case params[:account_handle] do
-      nil ->
-        endpoints =
-          nil
-          |> Accounts.get_cache_endpoints_for_handle(technology(conn))
-          |> Enum.reject(&is_nil/1)
+    endpoints =
+      params[:account_handle]
+      |> authorized_account_handle(conn)
+      |> Accounts.get_cache_endpoints_for_handle(technology(conn))
+      |> Enum.reject(&is_nil/1)
 
-        json(conn, %{endpoints: endpoints})
+    json(conn, %{endpoints: endpoints})
+  end
 
-      account_handle ->
-        account = Accounts.get_account_by_handle(account_handle)
-        subject = Authentication.authenticated_subject(conn)
+  defp authorized_account_handle(nil, _conn), do: nil
 
-        if is_nil(account) or Authorization.authorize(:account_cache_read, subject, account) == :ok do
-          endpoints =
-            account_handle
-            |> Accounts.get_cache_endpoints_for_handle(technology(conn))
-            |> Enum.reject(&is_nil/1)
+  defp authorized_account_handle(account_handle, conn) do
+    account = Accounts.get_account_by_handle(account_handle)
+    subject = Authentication.authenticated_subject(conn)
 
-          json(conn, %{endpoints: endpoints})
-        else
-          conn
-          |> put_status(:forbidden)
-          |> json(%{message: "The authenticated subject is not authorized to perform this action"})
-        end
+    if not is_nil(account) and Authorization.authorize(:account_cache_read, subject, account) == :ok do
+      account_handle
     end
   end
 

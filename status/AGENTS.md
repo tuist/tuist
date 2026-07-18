@@ -141,6 +141,8 @@ It calls `IncidentsService.QueryIncidents` twice on every page load:
 
 The response shape is `{ error, incidents: [...], cursor: { hasMore, nextValue } }`. The client follows the cursor up to 5 pages defensively.
 
+After filtering resolved incidents to the last 14 days, the client calls `KeyUpdatesService.QueryKeyUpdates` for every active and recent incident. These key updates supply the timestamped status-update timeline shown on the page and republished in the feeds. The incident summary remains a fallback for incidents without key updates. Key-update queries follow the same cursor limit as incident queries and are hydrated with at most five concurrent requests.
+
 ## Severity Mapping
 
 Grafana Incident severity → component status (`severityToComponentStatus` in `grafana-irm.ts`):

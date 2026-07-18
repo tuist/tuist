@@ -85,6 +85,13 @@ const SEVERITY_TO_BADGE_COLOR: Record<IncidentSeverity, NooraBadgeColor> = {
   maintenance: "information",
 };
 
+const INCIDENT_STATUS_LABEL: Record<Incident["status"], string> = {
+  investigating: "Investigating",
+  identified: "Identified",
+  monitoring: "Monitoring",
+  resolved: "Resolved",
+};
+
 function formatDate(iso: string): string {
   const date = new Date(iso);
   return date.toLocaleString("en-US", {
@@ -157,13 +164,14 @@ function incidentToComponentStatus(i: Incident): ComponentStatus {
 }
 
 function incidentBlock(incident: Incident): Renderable {
-  const updates = incident.updates.map(
-    (u) =>
-      html`<li>
-        <time data-part="time" datetime="${u.at}">${formatDate(u.at)}</time>
-        <div data-part="body"><span data-part="status">${u.status}.</span> ${u.body}</div>
-      </li>`,
-  );
+  const updates = incident.updates.map((u) => {
+    const title = u.title?.trim() || INCIDENT_STATUS_LABEL[u.status];
+    const punctuation = /[.!?]$/.test(title) ? "" : ".";
+    return html`<li>
+      <time data-part="time" datetime="${u.at}">${formatDate(u.at)}</time>
+      <div data-part="body"><span data-part="status">${title}${punctuation}</span> ${u.body}</div>
+    </li>`;
+  });
   return html`<article class="status-incident" id="${incident.id}">
     <header data-part="header">
       <h3 data-part="title">${incident.title}</h3>

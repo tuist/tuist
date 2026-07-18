@@ -36,19 +36,32 @@ runtime — no service, sudo entry, or auto-login targets it.
   `dispatch-poll.sh` also drives the **per-account cache-volume** flow,
   materialized after dispatch. tart-kubelet attaches
   an *empty* per-VM branch directory as a writable virtio-fs share at
-  `/Volumes/My Shared Files/cache`; on boot the guest points
-  `TUIST_XDG_CACHE_HOME` at it and reads the host-staged per-branch byte
-  budget (`cache-max-bytes` in the `status` share) into
-  `TUIST_CACHE_MAX_BYTES` for the CLI's LRU self-prune. The share is empty
-  until dispatch: once the server stamps the pod's account label, the host
-  clonefiles that account's cache master into the branch and writes a
-  `cache-ready` marker. After receiving the JIT and before `./run.sh`, the
-  guest calls `wait_for_cache_ready` — a bounded (~30s) wait on that marker so
-  it never touches the cache mid-materialization — then snapshots the pre-job
-  inventory. Timeout / absent share ⇒ cold path, unchanged. After the job it
-  writes a `cache-dirty` marker (entry-inventory changed vs. pre-job) into the
-  `status` share so the reconciler can promote the branch to the account's new
-  master or discard it. The server also delivers a `cache_signing_grant` in
+  `/Volumes/My Shared Files/cache`. The cache itself is a **sparse APFS disk
+  image** (`cache.sparseimage`) inside that share, not files on it: virtio-fs
+  cannot set xattrs on symlinks, and macOS frameworks are versioned bundles
+  whose symlinks carry the CLI's signature xattrs, so caching any macOS slice
+  onto the share fails (ELOOP). Inside an image the filesystem is real APFS and
+  only one regular file crosses virtio-fs.
+  The share is empty until dispatch: once the server stamps the pod's account
+  label, the host clonefiles that account's master image into the branch and
+  writes a `cache-ready` marker. After receiving the JIT and before `./run.sh`,
+  the guest calls `wait_for_cache_ready` — a bounded (~60s) wait on that marker
+  — then `attach_cache_image` (`hdiutil attach … -owners off`, which maps the
+  contents to the guest user and so retires any host/guest uid reconciliation),
+  points `TUIST_XDG_CACHE_HOME` at the **mountpoint**
+  (`/Users/runner/.tuist-cache-volume`), reads the host-staged per-branch byte
+  budget (`cache-max-bytes` in the `status` share) into `TUIST_CACHE_MAX_BYTES`
+  for the CLI's LRU self-prune, and snapshots the pre-job inventory. Timeout /
+  absent share / failed attach ⇒ cold path, unchanged. A cold first job still
+  gets an *empty* image — the guest can only attach what is there, and no image
+  would kill the job rather than cost it warmth.
+  Teardown order is load-bearing: read the inventory and write `cache-dirty` +
+  `cache-digest` while still MOUNTED, then **detach**, then upload the detached
+  image as the account's HEAD. The host clones the image to promote it and
+  cannot tell a torn snapshot from a good one, so a mount torn down by the VM
+  halting would poison the account's master. If the detach fails even with
+  `-force`, the guest withdraws the image from both promotion and publication.
+  The server also delivers a `cache_signing_grant` in
   the dispatch 200, exported as `TUIST_CACHE_SIGNING_GRANT` so the EE CLI signs
   artifacts with the account scope instead of the machine MAC — which is what
   lets a clonefiled master validate across the account's VMs. The Xcode

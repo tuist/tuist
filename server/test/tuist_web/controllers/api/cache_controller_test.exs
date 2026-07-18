@@ -138,7 +138,7 @@ defmodule TuistWeb.API.CacheControllerTest do
                ])
     end
 
-    test "does not return another account's custom endpoints", %{conn: conn} do
+    test "returns default endpoints instead of another account's custom endpoints", %{conn: conn} do
       stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
 
       attacker = AccountsFixtures.user_fixture()
@@ -152,14 +152,19 @@ defmodule TuistWeb.API.CacheControllerTest do
           url: "https://victim-private-cache.example.com"
         })
 
+      default_endpoints = [
+        "https://cache-eu-central-test.tuist.dev",
+        "https://cache-us-east-test.tuist.dev"
+      ]
+
+      stub(Tuist.Environment, :cache_endpoints, fn -> default_endpoints end)
+
       conn =
         conn
         |> Authentication.put_current_user(attacker)
         |> get(~p"/api/cache/endpoints?account_handle=#{victim_account.name}")
 
-      assert json_response(conn, :forbidden) == %{
-               "message" => "The authenticated subject is not authorized to perform this action"
-             }
+      assert json_response(conn, :ok) == %{"endpoints" => default_endpoints}
     end
 
     test "returns ready account Kura endpoints when the client requests Kura and the account is opted in", %{

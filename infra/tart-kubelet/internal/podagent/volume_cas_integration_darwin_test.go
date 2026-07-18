@@ -12,7 +12,7 @@ import (
 )
 
 // Integration test that drives the REAL VolumeManager against the REAL darwin
-// backend (hdiutil createSparseImage, cp -c clonefile) on a Mac host — the gap
+// backend (hdiutil createImage, cp -c clonefile) on a Mac host — the gap
 // the fake-backend unit tests can't cover. Gated on CAS_STAGING_VALIDATE=1 so it
 // never runs in normal `go test` / CI (it creates real disk images and needs a
 // Mac). Build the binary with `go test -c` and run it on a staging host.
@@ -43,7 +43,7 @@ func TestCASImageIntegrationRealBackend(t *testing.T) {
 	}
 	t.Logf("cold Materialize (hdiutil create fresh image) took %s", time.Since(t0))
 	if warm {
-		t.Fatal("cold first job should report tree warm=false")
+		t.Fatal("cold first job should report warm=false")
 	}
 	branchImg := filepath.Join(att1.BranchPath, casImageName)
 	assertRealSparseImage(t, branchImg, "fresh branch image")
@@ -57,8 +57,8 @@ func TestCASImageIntegrationRealBackend(t *testing.T) {
 	}
 	detachImage(t, mnt)
 
-	// Binary tree content so the promote path runs.
-	writeBranchCache(t, att1, "tree-v1")
+	// Binary cache content so the promote path runs.
+	writeBranchCache(t, m, att1, "binary-v1")
 	m.FinalizeCAS(att1, acct, true) // runner succeeded => promote the CAS image
 	outcome, err := m.Finalize(att1, acct, true, true)
 	if err != nil || outcome != VolumeOutcomePromoted {
@@ -67,7 +67,7 @@ func TestCASImageIntegrationRealBackend(t *testing.T) {
 	masterImg := m.masterCASImage(acct, ReservedTuistCacheVolume)
 	assertRealSparseImage(t, masterImg, "promoted master image")
 	if !masterExists(m, acct) {
-		t.Fatal("binary tree not promoted")
+		t.Fatal("binary master not promoted")
 	}
 
 	// --- Lifecycle B: warm second job clones the master image (real cp -c CoW).
@@ -81,7 +81,7 @@ func TestCASImageIntegrationRealBackend(t *testing.T) {
 	cloneDur := time.Since(t1)
 	t.Logf("warm Materialize (cp -c clone master image) took %s", cloneDur)
 	if !warm {
-		t.Fatal("second job should report tree warm=true")
+		t.Fatal("second job should report warm=true")
 	}
 	branch2Img := filepath.Join(att2.BranchPath, casImageName)
 	assertRealSparseImage(t, branch2Img, "cloned branch image")
@@ -93,23 +93,21 @@ func TestCASImageIntegrationRealBackend(t *testing.T) {
 	t.Log("cloned branch image carries the master's CAS content (warm)")
 	detachImage(t, mnt2)
 
-	// --- Subtree-swap: a binary-tree promote must PRESERVE the sibling image.
-	writeBranchCache(t, att2, "tree-v2")
+	// --- Sibling independence: a binary-master promote must PRESERVE the CAS image.
+	writeBranchCache(t, m, att2, "binary-v2")
 	m.FinalizeCAS(att2, acct, true)
 	if o, err := m.Finalize(att2, acct, true, true); err != nil || o != VolumeOutcomePromoted {
 		t.Fatalf("Finalize2: outcome=%s err=%v", o, err)
 	}
 	assertRealSparseImage(t, masterImg, "master image after binary promote")
 
-	// --- Converge (ReplaceMaster) must PRESERVE the sibling image too.
-	src := filepath.Join(t.TempDir(), "converged")
-	if err := os.MkdirAll(filepath.Join(src, cacheHomeSubdir, "Binaries"), 0o777); err != nil {
-		t.Fatalf("build converged tree: %v", err)
+	// --- Converge (ReplaceMaster) swaps the binary master image but must PRESERVE
+	// the sibling CAS image. The converged source is itself a real sparse image.
+	src := filepath.Join(t.TempDir(), "head.sparseimage")
+	if err := m.backend.createImage(src, 1); err != nil {
+		t.Fatalf("build converged src image: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(src, cacheHomeSubdir, "Binaries", "new"), []byte("x"), 0o644); err != nil {
-		t.Fatalf("write converged: %v", err)
-	}
-	if err := m.ReplaceMaster(acct, ReservedTuistCacheVolume, src); err != nil {
+	if err := m.ReplaceMaster(acct, ReservedTuistCacheVolume, src, "digest-converged"); err != nil {
 		t.Fatalf("ReplaceMaster: %v", err)
 	}
 	assertRealSparseImage(t, masterImg, "master image after HEAD convergence")

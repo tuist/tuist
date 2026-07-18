@@ -96,11 +96,22 @@ var guestDiskUsagePercent = prometheus.NewGaugeVec(
 //
 // Pool label from the Pod's `tuist.dev/runner-pool` label, same as the
 // boot histogram, for per-pool breakdowns.
+//
+// Buckets run to an hour: a cold pull of a tens-of-GB image behind the
+// single-concurrency reconcile puts real observations well past ten
+// minutes, and prod p99 sits on the top bucket through every busy hour.
+// Anything censored at the ceiling reads as "10 minutes" no matter how
+// much worse it is, which defeats the rising-p90 signal above.
+//
+// This only measures Pods that eventually run — it is observed on the
+// path to Run, so a Pod that never provisions contributes nothing here
+// and no quantile will show it. Detection of that case belongs on a
+// gauge over live Pods, not on this histogram.
 var podProvisionDelaySeconds = prometheus.NewHistogramVec(
 	prometheus.HistogramOpts{
 		Name:    "tart_kubelet_pod_provision_delay_seconds",
 		Help:    "Wall-clock from Pod creation to tart run start (scheduling + image pull + clone).",
-		Buckets: []float64{1, 5, 10, 20, 30, 60, 120, 180, 300, 600},
+		Buckets: []float64{1, 5, 10, 20, 30, 60, 120, 180, 300, 600, 1200, 1800, 3600},
 	},
 	[]string{"pool"},
 )
@@ -114,11 +125,13 @@ var podProvisionDelaySeconds = prometheus.NewHistogramVec(
 // materialized) makes the cold-pull tail explicit, so a high
 // podProvisionDelaySeconds can be attributed to queue wait vs. a genuine
 // re-pull at a glance rather than guessed at.
+// Buckets match podProvisionDelaySeconds so the two are comparable at a
+// glance; a cold pull is exactly the case that exceeds ten minutes.
 var vmProvisionWorkSeconds = prometheus.NewHistogramVec(
 	prometheus.HistogramOpts{
 		Name:    "tart_kubelet_vm_provision_work_seconds",
 		Help:    "Wall-clock for on-host provisioning work (ensureGolden + runner clone), per pool and path (warm=clonefile, cold=pull).",
-		Buckets: []float64{1, 5, 10, 20, 30, 60, 120, 180, 300, 600},
+		Buckets: []float64{1, 5, 10, 20, 30, 60, 120, 180, 300, 600, 1200, 1800, 3600},
 	},
 	[]string{"pool", "path"},
 )

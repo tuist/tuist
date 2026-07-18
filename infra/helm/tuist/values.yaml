@@ -34,6 +34,55 @@ pvReaper:
     limits:
       memory: "64Mi"
 
+# Grafana Cloud Private Data source Connect (PDC) agent. Off by default: it only
+# makes sense on the managed envs whose Grafana Cloud stack has a PDC network,
+# and self-hosters have no Grafana Cloud stack at all.
+#
+# Enabling it lets a Grafana *Postgres* datasource reach the in-cluster CNPG
+# database as the `tuist_ops_ro` role, which is what keeps the Business
+# Intelligence dashboard on Grafana's built-in Postgres datasource instead of a
+# plugin + bespoke query endpoint.
+#
+# cluster / hostedGrafanaId / the signing token are all minted together when the
+# PDC network is created in Grafana Cloud (Connections > Private data source
+# connections > Configuration Details). The first two are stack identifiers and
+# live here; the token is a secret and comes from 1Password via ESO.
+pdcAgent:
+  enabled: false
+  image:
+    repository: grafana/pdc-agent
+    # Required when enabled — see the guard in templates/pdc-agent.yaml.
+    tag: ""
+  cluster: ""
+  hostedGrafanaId: ""
+  # Grafana load-balances across agents on a network and fails over when one
+  # drops, so this is an availability knob: at 1 a node drain takes every
+  # PDC-routed panel with it. Grafana recommends >= 3 in production; envs that
+  # only serve a dashboard can stay lower.
+  replicas: 1
+  # host:port targets the tunnel is allowed to open, via ssh's PermitRemoteOpen.
+  # Empty means NO restriction: the agent permits any destination reachable from
+  # its pod. Set this per env to the CNPG read-only service so a compromised
+  # tunnel cannot reach the rest of the cluster.
+  permitRemoteOpen: []
+  externalSecrets:
+    refreshInterval: 1h
+    storeRef:
+      name: onepassword
+      kind: ClusterSecretStore
+    # 1P item holding the PDC signing token (scope: pdc-signing:write), in the
+    # per-env vault the ClusterSecretStore is bound to.
+    item: PDC_AGENT
+    tokenField: password
+  # Mirrors upstream's manifest: the agent is a single tunnel process, not a
+  # throughput-scaled workload.
+  resources:
+    requests:
+      cpu: "1"
+      memory: 1Gi
+    limits:
+      memory: 1Gi
+
 kuraController:
   enabled: false
   namespace: kura
@@ -149,6 +198,31 @@ kuraRuntime:
     # Lua extension, normally supplied with
     # `--set-file kuraRuntime.instance.extensionScript=<path>`.
     extensionScript: ""
+
+codebaseSearch:
+  enabled: false
+  replicaCount: 1
+  image:
+    repository: ghcr.io/tuist/codebase-search
+    tag: ""
+    pullPolicy: IfNotPresent
+  service:
+    port: 80
+  containerPort: 4000
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "64Mi"
+    limits:
+      cpu: "1"
+      memory: "512Mi"
+  networkPolicy:
+    enabled: false
+  podAnnotations: {}
+  podLabels: {}
+  affinity: {}
+  nodeSelector: {}
+  tolerations: []
 
 server:
   enabled: true
@@ -2149,6 +2223,15 @@ postgresql:
       # against every table without per-object GRANTs to maintain.
       opsRo:
         name: tuist_ops_ro
+      # Read-only role for the Grafana "Tuist Product Usage" dashboard, reaching
+      # CNPG over the PDC tunnel. Deliberately NOT in pg_read_all_data like
+      # opsRo: its password lives in Grafana Cloud, so it is the one database
+      # credential held by a third party. Column-level GRANTs in
+      # infra/cnpg/tuist-grafana-ro-grants.sql restrict it to exactly the
+      # columns the dashboard reads — table-level SELECT would still expose
+      # users.encrypted_password, projects.token, and accounts.s3_secret_access_key.
+      grafanaRo:
+        name: tuist_grafana_ro
       # Least-privilege Swift Package Registry sync role. Narrower
       # than `processor` (no accounts/projects reads — registry sync
       # has no account-scoped data, all package state lives in S3).
@@ -2197,6 +2280,9 @@ postgresql:
         field: password
       opsRoPassword:
         item: OPS_DATABASE_PASSWORD
+        field: password
+      grafanaRoPassword:
+        item: GRAFANA_DATABASE_PASSWORD
         field: password
       swiftRegistrySyncPassword:
         item: SWIFT_REGISTRY_SYNC_DATABASE_PASSWORD
