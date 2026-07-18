@@ -117,9 +117,13 @@ defmodule Tuist.Registry.Swift.ReleaseWorkerTest do
              })
   end
 
-  test "returns an error so Oban retries when release metadata is locked" do
-    expect(Lock, :try_acquire, fn {:release, "apple", "swift-argument-parser", "1.0.0"}, _ ->
-      {:ok, :acquired}
+  test "snoozes instead of erroring when the package lock stays contended past the retry budget" do
+    stub(Lock, :try_acquire, fn
+      {:release, "apple", "swift-argument-parser", "1.0.0"}, _ ->
+        {:ok, :acquired}
+
+      {:package, "apple", "swift-argument-parser"}, _ ->
+        {:error, :already_locked}
     end)
 
     expect(Metadata, :get_package, fn "apple", "swift-argument-parser", [fresh: true] ->
@@ -153,11 +157,9 @@ defmodule Tuist.Registry.Swift.ReleaseWorkerTest do
       {:ok, %{status_code: 200, body: ""}}
     end)
 
-    expect(Lock, :try_acquire, fn {:package, "apple", "swift-argument-parser"}, _ ->
-      {:error, :already_locked}
-    end)
+    stub(Metadata, :put_package, fn _, _, _ -> flunk("unexpected metadata write while the lock is contended") end)
 
-    assert {:error, {:release_metadata_locked, "apple", "swift-argument-parser", "1.0.0"}} =
+    assert {:snooze, 30} =
              ReleaseWorker.perform(%Oban.Job{
                args: %{
                  "scope" => "apple",
@@ -166,6 +168,135 @@ defmodule Tuist.Registry.Swift.ReleaseWorkerTest do
                  "tag" => "v1.0.0"
                }
              })
+  end
+
+  test "records a skipped release when the tag has no root manifest" do
+    stub(Lock, :try_acquire, fn
+      {:release, "apple", "swift-argument-parser", "1.0.0"}, _ -> {:ok, :acquired}
+      {:package, "apple", "swift-argument-parser"}, _ -> {:ok, :acquired}
+    end)
+
+    stub(Metadata, :get_package, fn "apple", "swift-argument-parser", [fresh: true] ->
+      {:error, :not_found}
+    end)
+
+    expect(TuistCommon.GitHub, :list_repository_contents, fn "apple/swift-argument-parser", "token", "v1.0.0", _ ->
+      {:ok, [%{"path" => "README.md", "type" => "file"}]}
+    end)
+
+    stub(TuistCommon.GitHub, :download_zipball, fn _, _, _, _, _ -> flunk("unexpected zipball download") end)
+    stub(TuistCommon.GitHub, :get_file_content, fn _, _, _, _, _ -> flunk("unexpected file request") end)
+
+    expect(Metadata, :put_package, fn "apple", "swift-argument-parser", metadata ->
+      assert metadata["skipped_releases"]["1.0.0"] == %{"reason" => "missing_manifests"}
+      :ok
+    end)
+
+    assert :ok =
+             ReleaseWorker.perform(%Oban.Job{
+               args: %{
+                 "scope" => "apple",
+                 "name" => "swift-argument-parser",
+                 "repository_full_handle" => "apple/swift-argument-parser",
+                 "tag" => "v1.0.0"
+               }
+             })
+  end
+
+  test "snoozes immediately without retrying when the skip-write lock is contended" do
+    expect(Lock, :try_acquire, fn {:release, "apple", "swift-argument-parser", "1.0.0"}, _ ->
+      {:ok, :acquired}
+    end)
+
+    stub(Metadata, :get_package, fn "apple", "swift-argument-parser", [fresh: true] ->
+      {:error, :not_found}
+    end)
+
+    expect(TuistCommon.GitHub, :list_repository_contents, fn "apple/swift-argument-parser", "token", "v1.0.0", _ ->
+      {:ok, [%{"path" => "README.md", "type" => "file"}]}
+    end)
+
+    stub(TuistCommon.GitHub, :download_zipball, fn _, _, _, _, _ -> flunk("unexpected zipball download") end)
+    stub(TuistCommon.GitHub, :get_file_content, fn _, _, _, _, _ -> flunk("unexpected file request") end)
+
+    # A single package-lock acquisition attempt (no in-job retry): a second call
+    # would raise, since only this one is expected.
+    expect(Lock, :try_acquire, fn {:package, "apple", "swift-argument-parser"}, _ ->
+      {:error, :already_locked}
+    end)
+
+    stub(Metadata, :put_package, fn _, _, _ -> flunk("unexpected metadata write while the lock is contended") end)
+
+    assert {:snooze, 30} =
+             ReleaseWorker.perform(%Oban.Job{
+               args: %{
+                 "scope" => "apple",
+                 "name" => "swift-argument-parser",
+                 "repository_full_handle" => "apple/swift-argument-parser",
+                 "tag" => "v1.0.0"
+               }
+             })
+  end
+
+  test "retries the contended package lock in-job and records the release without erroring" do
+    {:ok, package_lock_attempts} = Agent.start_link(fn -> 0 end)
+
+    stub(Lock, :try_acquire, fn
+      {:release, "apple", "swift-argument-parser", "1.0.0"}, _ ->
+        {:ok, :acquired}
+
+      {:package, "apple", "swift-argument-parser"}, _ ->
+        attempt = Agent.get_and_update(package_lock_attempts, &{&1, &1 + 1})
+        if attempt < 2, do: {:error, :already_locked}, else: {:ok, :acquired}
+    end)
+
+    stub(Metadata, :get_package, fn "apple", "swift-argument-parser", [fresh: true] ->
+      {:error, :not_found}
+    end)
+
+    expect(TuistCommon.GitHub, :list_repository_contents, fn "apple/swift-argument-parser", "token", "v1.0.0", _ ->
+      {:ok, [%{"path" => "Package.swift", "type" => "file"}]}
+    end)
+
+    expect(TuistCommon.GitHub, :get_file_content, 2, fn
+      "apple/swift-argument-parser", "token", "Package.swift", "v1.0.0", _ ->
+        {:ok, @default_manifest_content}
+
+      "apple/swift-argument-parser", "token", ".gitmodules", "v1.0.0", _ ->
+        {:error, :not_found}
+    end)
+
+    expect(TuistCommon.GitHub, :download_zipball, fn "apple/swift-argument-parser", "token", "v1.0.0", archive_path, _ ->
+      write_basic_zipball(archive_path)
+      :ok
+    end)
+
+    expect(Upload, :stream_file, fn path -> [File.read!(path)] end)
+
+    expect(ExAws.S3, :upload, fn _stream, "test-bucket", key, _opts ->
+      %S3{http_method: :put, bucket: "test-bucket", path: key}
+    end)
+
+    expect(ExAws, :request, 2, fn _operation ->
+      {:ok, %{status_code: 200, body: ""}}
+    end)
+
+    expect(Metadata, :put_package, fn "apple", "swift-argument-parser", metadata ->
+      assert is_binary(metadata["releases"]["1.0.0"]["checksum"])
+      :ok
+    end)
+
+    assert :ok =
+             ReleaseWorker.perform(%Oban.Job{
+               args: %{
+                 "scope" => "apple",
+                 "name" => "swift-argument-parser",
+                 "repository_full_handle" => "apple/swift-argument-parser",
+                 "tag" => "v1.0.0"
+               }
+             })
+
+    assert Agent.get(package_lock_attempts, & &1) == 3
   end
 
   test "deduplicates manifest metadata by Swift tools version" do
