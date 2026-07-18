@@ -40,7 +40,7 @@ use tower::Layer;
 
 use crate::{
     artifact::{manifest::ArtifactManifest, producer::ArtifactProducer},
-    constants::MAX_MODULE_TOTAL_BYTES,
+    constants::{MAX_INLINE_REPLICATION_BODY_BYTES, MAX_MODULE_TOTAL_BYTES},
     extension::{AccessDecision, ExtensionContext, Principal},
     io::is_fd_pool_exhausted_error,
     replication::replication_targets,
@@ -1294,6 +1294,26 @@ impl ActionCache for ReapiService {
         };
         let principal = self.authorize_request(&request, extension.clone()).await?;
         let bytes = action_result.encode_to_vec();
+        // Reject an action result we could never replicate. Entries are stored
+        // inline and pushed to peers inline, and the inline replication path
+        // buffers the whole body in RAM, so it is bounded by
+        // MAX_INLINE_REPLICATION_BODY_BYTES. Accepting a larger entry would
+        // strand it on this node (peers 413 the oversized inline push) and
+        // churn a poison outbox message forever. failed_precondition is
+        // non-retriable, so Bazel records the miss and moves on instead of
+        // retrying the doomed write.
+        if bytes.len() as u64 > MAX_INLINE_REPLICATION_BODY_BYTES {
+            self.state.metrics.record_artifact_write(
+                ArtifactProducer::Reapi,
+                "too_large",
+                bytes.len() as u64,
+            );
+            return Err(Status::failed_precondition(format!(
+                "action result is {} bytes, exceeds the {} byte limit",
+                bytes.len(),
+                MAX_INLINE_REPLICATION_BODY_BYTES
+            )));
+        }
         let targets = replication_targets(&self.state).await;
         let (manifest, applied) = self
             .state
@@ -4681,6 +4701,57 @@ end
         // stdout blob it carried out.
         assert_eq!(download.bytes, encoded_bytes + stdout_bytes.len() as u64);
         assert_eq!(download.request_count, 1);
+    }
+
+    // An action result larger than the inline replication ceiling can never be
+    // pushed to peers (the inline replicate path 413s it), so we reject the
+    // write with a non-retriable status instead of storing an entry that would
+    // strand on this node and churn a poison outbox message forever.
+    #[tokio::test]
+    async fn update_action_result_rejects_oversized_action_result() {
+        let context = test_context(|_| {}).await;
+        let service = ReapiService {
+            snapshot_cache: Default::default(),
+            state: context.state.clone(),
+        };
+
+        let action_result = reapi::ActionResult {
+            stdout_raw: vec![0u8; MAX_INLINE_REPLICATION_BODY_BYTES as usize + 1],
+            ..Default::default()
+        };
+        assert!(
+            action_result.encode_to_vec().len() as u64 > MAX_INLINE_REPLICATION_BODY_BYTES,
+            "test fixture must exceed the inline replication ceiling"
+        );
+        let action_digest = reapi::Digest {
+            hash: hex::encode(Sha256::digest(b"oversized-action")),
+            size_bytes: "oversized-action".len() as i64,
+        };
+
+        let update = Request::new(reapi::UpdateActionResultRequest {
+            instance_name: "ios".into(),
+            action_digest: Some(action_digest.clone()),
+            action_result: Some(action_result),
+            digest_function: reapi::digest_function::Value::Sha256 as i32,
+            ..Default::default()
+        });
+        let status = service
+            .update_action_result(update)
+            .await
+            .expect_err("oversized action result should be rejected");
+        assert_eq!(status.code(), tonic::Code::FailedPrecondition);
+
+        // Nothing was stored, so no poison outbox message can exist.
+        let key = action_cache_key(&digest_key(&action_digest).expect("digest key should build"));
+        assert!(
+            context
+                .state
+                .store
+                .manifest_for_key(ArtifactProducer::Reapi, "ios", &key)
+                .expect("manifest lookup should succeed")
+                .is_none(),
+            "rejected action result must not be persisted"
+        );
     }
 
     // Drives the real ByteStream gRPC handlers (the large-artifact read/write
