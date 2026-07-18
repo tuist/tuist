@@ -7,6 +7,34 @@ import Foundation
 /// `UnitOrRecordName`. We only need the output path (for target attribution) and the record names
 /// (to copy alongside the unit).
 public enum AbsoluteUnitOutputParser {
+    /// Parses the output of `absolute-unit` invoked with several units at once. Each unit is printed as
+    /// a `---` separated block whose `# <path>` header identifies it, so we split on those headers and
+    /// parse each block, returning the units keyed by the header path.
+    public static func parseAll(_ output: String) -> [String: IndexStoreUnit] {
+        var units: [String: IndexStoreUnit] = [:]
+        var currentPath: String?
+        var currentLines: [Substring] = []
+
+        func flush() {
+            guard let currentPath else { return }
+            units[currentPath] = parse(currentLines.joined(separator: "\n"))
+        }
+
+        for line in output.split(separator: "\n", omittingEmptySubsequences: false) {
+            if line.hasPrefix("# ") {
+                flush()
+                currentPath = String(line.dropFirst(2)).trimmingCharacters(in: .whitespaces)
+                currentLines = []
+            } else if line == "---" {
+                continue
+            } else {
+                currentLines.append(line)
+            }
+        }
+        flush()
+        return units
+    }
+
     public static func parse(_ output: String) -> IndexStoreUnit {
         var outputFile = ""
         var recordNames: [String] = []

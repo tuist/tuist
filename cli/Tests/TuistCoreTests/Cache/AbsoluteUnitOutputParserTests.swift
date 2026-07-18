@@ -36,6 +36,29 @@ struct AbsoluteUnitOutputParserTests {
         #expect(unit.recordNames == ["Greeter.swift-3HUMJXAQF23WH"])
     }
 
+    @Test func parseAll_splits_multiple_units_by_header() {
+        let output = """
+        ---
+        # /store/v5/units/Greeter-1.o-AAA
+        OutputFile: /var/tmp/Greeter-1.o
+        Dependencies:
+            - DependencyKind: Record
+              UnitOrRecordName: Greeter.swift-WH
+        ---
+        # /store/v5/units/EventTracker-1.o-BBB
+        OutputFile: /var/tmp/EventTracker-1.o
+        Dependencies:
+            - DependencyKind: Record
+              UnitOrRecordName: EventTracker.swift-C2
+        """
+
+        let units = AbsoluteUnitOutputParser.parseAll(output)
+
+        #expect(units.count == 2)
+        #expect(units["/store/v5/units/Greeter-1.o-AAA"]?.recordNames == ["Greeter.swift-WH"])
+        #expect(units["/store/v5/units/EventTracker-1.o-BBB"]?.outputFile == "/var/tmp/EventTracker-1.o")
+    }
+
     @Test func ignores_units_with_no_record_dependencies() {
         let output = """
         OutputFile: /var/folders/tmp/Empty.o

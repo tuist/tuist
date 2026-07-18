@@ -336,10 +336,6 @@ public struct GraphMapperFactory: GraphMapperFactorying {
             let narrowerIndex = mappers.firstIndex(where: { $0 is ExternalProjectsPlatformNarrowerGraphMapper }) ?? 0
             mappers.insert(GenerateCacheableSchemesGraphMapper(targets: targets), at: narrowerIndex + 1)
 
-            if ClientFeatureFlags.indexingEnabled() {
-                mappers.insert(CacheIndexStoreGraphMapper(), at: narrowerIndex + 2)
-            }
-
             let focusTargetsGraphMapper = TargetsToCacheBinariesGraphMapper(
                 config: config,
                 decider: CacheProfileTargetReplacementDecider(
