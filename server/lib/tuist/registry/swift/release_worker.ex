@@ -23,6 +23,9 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
 
   @lock_ttl_seconds 1_800
   @metadata_lock_ttl_seconds 300
+  @metadata_lock_max_attempts 5
+  @metadata_lock_backoff_ms 200
+  @metadata_lock_snooze_seconds 30
   @skippable_submodule_failure_markers [
     "no url found for submodule path",
     "transport 'file' not allowed",
@@ -98,6 +101,10 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
         case maybe_skip_release(scope, name, full_handle, version, reason) do
           :ok ->
             :ok
+
+          {:snooze, seconds} ->
+            Logger.info("Deferring release #{scope}/#{name}@#{tag}: package metadata lock is contended")
+            {:snooze, seconds}
 
           :not_skipped ->
             Logger.warning("Failed to sync release #{scope}/#{name}@#{tag}: #{inspect(reason)}")
@@ -729,7 +736,7 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
   defp update_metadata_with_release(scope, name, full_handle, version, checksum, manifests) do
     lock_key = {:package, scope, name}
 
-    case Lock.try_acquire(lock_key, @metadata_lock_ttl_seconds) do
+    case acquire_metadata_lock(lock_key) do
       {:ok, :acquired} ->
         try do
           with {:ok, metadata} <- get_or_create_metadata(scope, name, full_handle) do
@@ -751,10 +758,41 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
         end
 
       {:error, :already_locked} ->
-        Logger.info("Metadata update deferred for #{scope}/#{name}@#{version}: lock held by another node")
+        Logger.info("Metadata update deferred for #{scope}/#{name}@#{version}: package lock contended, snoozing")
 
-        {:error, {:release_metadata_locked, scope, name, version}}
+        {:snooze, @metadata_lock_snooze_seconds}
     end
+  end
+
+  # Sibling ReleaseWorker jobs from the same sync batch contend for this
+  # per-package S3 lock, which is only held for a metadata read + write
+  # (sub-second). The release write happens after the source archive and
+  # manifests are already uploaded, so a short in-job retry finishes the job
+  # rather than snoozing and redoing that GitHub + S3 work. Callers snooze when
+  # the retry budget is exhausted (e.g. a crashed holder's lock lingering until
+  # its TTL). The skipped-release write has nothing expensive to redo, so it
+  # deliberately does not use this and snoozes immediately instead.
+  defp acquire_metadata_lock(lock_key) do
+    acquire_metadata_lock(lock_key, @metadata_lock_max_attempts)
+  end
+
+  defp acquire_metadata_lock(lock_key, attempts_remaining) do
+    case Lock.try_acquire(lock_key, @metadata_lock_ttl_seconds) do
+      {:ok, :acquired} ->
+        {:ok, :acquired}
+
+      {:error, :already_locked} when attempts_remaining > 1 ->
+        Process.sleep(metadata_lock_backoff_ms(attempts_remaining))
+        acquire_metadata_lock(lock_key, attempts_remaining - 1)
+
+      {:error, :already_locked} ->
+        {:error, :already_locked}
+    end
+  end
+
+  defp metadata_lock_backoff_ms(attempts_remaining) do
+    step = @metadata_lock_max_attempts - attempts_remaining + 1
+    @metadata_lock_backoff_ms * step + :rand.uniform(@metadata_lock_backoff_ms)
   end
 
   defp maybe_skip_release(scope, name, full_handle, version, {:missing_manifests, failed_full_handle, tag}) do
@@ -778,6 +816,9 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
   defp update_metadata_with_skipped_release(scope, name, full_handle, version, reason) do
     lock_key = {:package, scope, name}
 
+    # No in-job retry: the skip write only fetched the repo contents, so there is
+    # nothing expensive to redo. Snooze immediately on contention rather than
+    # holding an Oban concurrency slot asleep on a backoff.
     case Lock.try_acquire(lock_key, @metadata_lock_ttl_seconds) do
       {:ok, :acquired} ->
         try do
@@ -799,11 +840,11 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
         end
 
       {:error, :already_locked} ->
-        Logger.warning(
-          "Skipped release metadata update deferred for #{scope}/#{name}@#{version}: lock held by another node"
+        Logger.info(
+          "Skipped release metadata update deferred for #{scope}/#{name}@#{version}: package lock contended, snoozing"
         )
 
-        {:error, {:skipped_release_metadata_locked, scope, name, version}}
+        {:snooze, @metadata_lock_snooze_seconds}
     end
   end
 

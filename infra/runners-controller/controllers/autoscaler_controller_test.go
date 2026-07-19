@@ -17,6 +17,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -114,9 +115,9 @@ func TestAutoscaler_DisabledPoolIsNoOp(t *testing.T) {
 func TestAutoscaler_ScalesUp(t *testing.T) {
 	pool := newAutoscalerPool("linux", 1, &tuistv1.RunnerPoolAutoscaling{
 		Enabled:                  true,
-		MinWarmPoolFloor:         1,
+		MinWarmPoolFloor:         ptr.To[int32](1),
 		MaxReplicas:              30,
-		ScaleDownCooldownSeconds: 300,
+		ScaleDownCooldownSeconds: ptr.To[int32](300),
 	})
 	r, server := setupReconciler(t, pool, scaling.Signals{
 		Fleet:                 "linux",
@@ -145,9 +146,9 @@ func TestAutoscaler_ScalesUp(t *testing.T) {
 func TestAutoscaler_ScalesDownAfterCooldown(t *testing.T) {
 	pool := newAutoscalerPool("linux", 10, &tuistv1.RunnerPoolAutoscaling{
 		Enabled:                  true,
-		MinWarmPoolFloor:         1,
+		MinWarmPoolFloor:         ptr.To[int32](1),
 		MaxReplicas:              30,
-		ScaleDownCooldownSeconds: 60,
+		ScaleDownCooldownSeconds: ptr.To[int32](60),
 	})
 	r, server := setupReconciler(t, pool, scaling.Signals{
 		Fleet:                 "linux",
@@ -179,9 +180,9 @@ func TestAutoscaler_DefersScaleDownDuringCooldown(t *testing.T) {
 	tenSecondsAgo := metav1.NewTime(time.Date(2026, 5, 14, 11, 59, 50, 0, time.UTC))
 	pool := newAutoscalerPool("linux", 10, &tuistv1.RunnerPoolAutoscaling{
 		Enabled:                  true,
-		MinWarmPoolFloor:         1,
+		MinWarmPoolFloor:         ptr.To[int32](1),
 		MaxReplicas:              30,
-		ScaleDownCooldownSeconds: 300,
+		ScaleDownCooldownSeconds: ptr.To[int32](300),
 	})
 	pool.Status.LastScaleDownAt = &tenSecondsAgo
 
@@ -210,9 +211,9 @@ func TestAutoscaler_DefersScaleDownDuringCooldown(t *testing.T) {
 func TestAutoscaler_NoOpAtTarget(t *testing.T) {
 	pool := newAutoscalerPool("linux", 6, &tuistv1.RunnerPoolAutoscaling{
 		Enabled:                  true,
-		MinWarmPoolFloor:         1,
+		MinWarmPoolFloor:         ptr.To[int32](1),
 		MaxReplicas:              30,
-		ScaleDownCooldownSeconds: 300,
+		ScaleDownCooldownSeconds: ptr.To[int32](300),
 	})
 	r, server := setupReconciler(t, pool, scaling.Signals{
 		Fleet:                 "linux",
@@ -237,9 +238,9 @@ func TestAutoscaler_NoOpAtTarget(t *testing.T) {
 func TestAutoscaler_ServerErrorLeavesReplicasUnchanged(t *testing.T) {
 	pool := newAutoscalerPool("linux", 5, &tuistv1.RunnerPoolAutoscaling{
 		Enabled:                  true,
-		MinWarmPoolFloor:         1,
+		MinWarmPoolFloor:         ptr.To[int32](1),
 		MaxReplicas:              30,
-		ScaleDownCooldownSeconds: 300,
+		ScaleDownCooldownSeconds: ptr.To[int32](300),
 	})
 
 	scheme := runtime.NewScheme()
@@ -293,9 +294,9 @@ func linuxFleetPool(name string, replicas int32, podMemMB int32, floor, maxRepl 
 			PodMemoryMB:   podMemMB,
 			Autoscaling: &tuistv1.RunnerPoolAutoscaling{
 				Enabled:                  true,
-				MinWarmPoolFloor:         floor,
+				MinWarmPoolFloor:         ptr.To(floor),
 				MaxReplicas:              maxRepl,
-				ScaleDownCooldownSeconds: 0,
+				ScaleDownCooldownSeconds: ptr.To[int32](0),
 			},
 		},
 	}
@@ -392,9 +393,9 @@ func macosFleetPool(name, fleetSelector string, replicas, floor, maxRepl int32) 
 			DispatchLabel: name + "-label",
 			Autoscaling: &tuistv1.RunnerPoolAutoscaling{
 				Enabled:                  true,
-				MinWarmPoolFloor:         floor,
+				MinWarmPoolFloor:         ptr.To(floor),
 				MaxReplicas:              maxRepl,
-				ScaleDownCooldownSeconds: 0,
+				ScaleDownCooldownSeconds: ptr.To[int32](0),
 			},
 		},
 	}

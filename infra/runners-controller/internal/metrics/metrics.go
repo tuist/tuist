@@ -12,6 +12,8 @@
 package metrics
 
 import (
+	"time"
+
 	"github.com/prometheus/client_golang/prometheus"
 	ctrlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics"
 )
@@ -96,10 +98,30 @@ var (
 		Name: "tuist_runners_pool_phase_replicas",
 		Help: "Alive runner Pods per pool and Kubernetes phase.",
 	}, []string{poolLabel, phaseLabel})
+
+	// oldestPendingPodAge is how long the pool's least-recently-created
+	// un-Running Pod has been waiting. **darwin pools only** — see the
+	// caller in runnerpool_controller.go. On a Tart pool, Pending means
+	// the VM isn't up, so this is the boot path's equivalent of queue
+	// age: tens of seconds normally, unbounded when a host stalls mid
+	// image-pull. On a Linux pool, Pending is the healthy steady state
+	// (the dispatch poller is an init container), so the same reading
+	// would peg every idle pool at its warm-pool age.
+	//
+	// The count in phaseReplicas cannot substitute. A pool that keeps
+	// one Pod Pending because it is steadily replacing single-shot
+	// runners reads the same as a pool with one Pod wedged for hours —
+	// only the age separates them. tart-kubelet's provision histogram
+	// cannot either: it is observed when a VM finally starts, so a Pod
+	// that never boots is absent from it entirely.
+	oldestPendingPodAge = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "tuist_runners_pool_oldest_pending_pod_age_seconds",
+		Help: "Age of a darwin pool's oldest alive Pod that has not reached Running (0 when none).",
+	}, []string{poolLabel})
 )
 
 func init() {
-	ctrlmetrics.Registry.MustRegister(target, allocated, warmDeficitReplicas, minWarmFloor, rollingPods, stalePods, rollCap, phaseReplicas)
+	ctrlmetrics.Registry.MustRegister(target, allocated, warmDeficitReplicas, minWarmFloor, rollingPods, stalePods, rollCap, phaseReplicas, oldestPendingPodAge)
 }
 
 // RecordAllocation publishes one pool's allocation outcome for this
@@ -133,6 +155,18 @@ func RecordPodPhases(pool string, pending, running, unknown int) {
 	phaseReplicas.WithLabelValues(pool, "Unknown").Set(float64(unknown))
 }
 
+// RecordOldestPendingPodAge publishes how long the pool's oldest
+// un-Running Pod has been waiting. Callers pass 0 when the pool has
+// none, rather than skipping the call, so the gauge drains instead of
+// holding its last non-zero sample forever.
+func RecordOldestPendingPodAge(pool string, age time.Duration) {
+	seconds := age.Seconds()
+	if seconds < 0 {
+		seconds = 0
+	}
+	oldestPendingPodAge.WithLabelValues(pool).Set(seconds)
+}
+
 // ClearAutoscaler drops the autoscaler-owned series for a pool. Safe
 // to call for an unknown pool.
 func ClearAutoscaler(pool string) {
@@ -148,6 +182,7 @@ func ClearRunnerPool(pool string) {
 	rollingPods.DeleteLabelValues(pool)
 	stalePods.DeleteLabelValues(pool)
 	rollCap.DeleteLabelValues(pool)
+	oldestPendingPodAge.DeleteLabelValues(pool)
 	for _, phase := range podPhaseLabels {
 		phaseReplicas.DeleteLabelValues(pool, phase)
 	}
