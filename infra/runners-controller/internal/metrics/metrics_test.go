@@ -2,6 +2,7 @@ package metrics
 
 import (
 	"testing"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus/testutil"
 )
@@ -92,5 +93,49 @@ func TestClearDropsRunnerPoolPhaseReplicas(t *testing.T) {
 
 	if got := testutil.CollectAndCount(phaseReplicas); got != 0 {
 		t.Fatalf("phase replica metric count after Clear = %d, want 0", got)
+	}
+}
+
+func TestRecordOldestPendingPodAge(t *testing.T) {
+	const pool = "p"
+
+	oldestPendingPodAge.Reset()
+
+	RecordOldestPendingPodAge(pool, 90*time.Second)
+	if got := testutil.ToFloat64(oldestPendingPodAge.WithLabelValues(pool)); got != 90 {
+		t.Fatalf("oldest pending pod age = %v, want 90", got)
+	}
+
+	// Drains rather than holding its last non-zero sample: a pool whose
+	// Pods have all booted must not keep reporting the old peak.
+	RecordOldestPendingPodAge(pool, 0)
+	if got := testutil.ToFloat64(oldestPendingPodAge.WithLabelValues(pool)); got != 0 {
+		t.Fatalf("oldest pending pod age after drain = %v, want 0", got)
+	}
+}
+
+// A clock skewed backwards must not publish a negative age, which would
+// plot below every threshold and read as a healthy pool.
+func TestRecordOldestPendingPodAgeClampsNegative(t *testing.T) {
+	const pool = "p"
+
+	oldestPendingPodAge.Reset()
+
+	RecordOldestPendingPodAge(pool, -5*time.Second)
+	if got := testutil.ToFloat64(oldestPendingPodAge.WithLabelValues(pool)); got != 0 {
+		t.Fatalf("negative age = %v, want clamped to 0", got)
+	}
+}
+
+func TestClearDropsOldestPendingPodAge(t *testing.T) {
+	const pool = "p"
+
+	oldestPendingPodAge.Reset()
+
+	RecordOldestPendingPodAge(pool, 30*time.Second)
+	Clear(pool)
+
+	if got := testutil.CollectAndCount(oldestPendingPodAge); got != 0 {
+		t.Fatalf("oldest pending pod age count after Clear = %d, want 0", got)
 	}
 }

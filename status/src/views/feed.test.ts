@@ -61,6 +61,15 @@ describe("rssFeed", () => {
     expect(titles).toEqual(["[Monitoring] Cache slow", "[Investigating] Cache slow", "[Resolved] Dashboard down"]);
   });
 
+  it("uses an update's Grafana title when present", () => {
+    const customTitleSnapshot = snapshot();
+    customTitleSnapshot.activeIncidents[0]!.updates[0]!.title = "Mitigation applied";
+
+    const xml = rssFeed({ ...opts, snapshot: customTitleSnapshot });
+
+    expect(xml).toContain("[Mitigation applied] Cache slow");
+  });
+
   it("links every item to the incident anchor on the page", () => {
     const xml = rssFeed(opts);
     expect(xml).toContain("<link>https://status.example.com/#inc-1</link>");

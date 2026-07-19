@@ -57,6 +57,7 @@ export function fakeStatus(): StatusSnapshot {
         {
           at: minutesAgo(8),
           status: "monitoring",
+          title: "Mitigation applied, monitoring impact",
           body: "Latency is back to baseline. We're keeping an eye on it for the next 30 minutes before resolving.",
         },
         {

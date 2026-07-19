@@ -328,19 +328,39 @@ defmodule Tuist.Release do
   defp do_grant_grafana_role(repo, role) do
     Environment.validate_postgres_identifier!(role, "TUIST_DATABASE_GRAFANA_ROLE")
 
-    role = Environment.quote_postgres_identifier(role)
-    database = repo.config() |> Keyword.fetch!(:database) |> Environment.quote_postgres_identifier()
-    quoted_schema = Environment.quote_postgres_identifier(Environment.database_schema())
+    # CloudNativePG creates this role from the Cluster CR, which Helm applies
+    # only after this pre-upgrade migration Job. On the deploy that first
+    # introduces the role it therefore does not exist yet: skip the grants
+    # rather than aborting the migration (which, under --rollback-on-failure,
+    # would roll the release back before CNPG ever creates the role). The next
+    # migrate, once the role exists, applies them.
+    if role_exists?(repo, role) do
+      quoted_role = Environment.quote_postgres_identifier(role)
+      database = repo.config() |> Keyword.fetch!(:database) |> Environment.quote_postgres_identifier()
+      quoted_schema = Environment.quote_postgres_identifier(Environment.database_schema())
 
-    {:ok, :ok} =
-      repo.transaction(fn ->
-        Enum.each(
-          grafana_role_grant_statements(role, database, quoted_schema),
-          &SQL.query!(repo, &1, [])
-        )
+      {:ok, :ok} =
+        repo.transaction(fn ->
+          Enum.each(
+            grafana_role_grant_statements(quoted_role, database, quoted_schema),
+            &SQL.query!(repo, &1, [])
+          )
 
-        :ok
-      end)
+          :ok
+        end)
+    else
+      Logger.info(
+        "Skipping Grafana role grants: role #{inspect(role)} does not exist yet " <>
+          "(CloudNativePG creates it after this migration hook)."
+      )
+
+      :ok
+    end
+  end
+
+  defp role_exists?(repo, role) do
+    %{rows: rows} = SQL.query!(repo, "SELECT 1 FROM pg_roles WHERE rolname = $1", [role])
+    rows != []
   end
 
   @doc false
