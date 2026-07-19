@@ -735,4 +735,46 @@ defmodule Tuist.RunnersTest do
       assert {:error, :account_unresolved} = Runners.account_id_for_sa("tuist-runners", "pod-1")
     end
   end
+
+  describe "volume_master_upload_url/2" do
+    test "mints a content-addressed presigned PUT URL keyed by the inventory digest" do
+      account = account_fixture()
+      digest = String.duplicate("a", 40)
+      expected_key = "runner-volume-masters/#{account.id}/tuist-cache/#{digest}.image"
+
+      expect(Tuist.Storage, :generate_upload_url, fn ^expected_key, actor, opts ->
+        assert actor.id == account.id
+        assert Keyword.has_key?(opts, :expires_in)
+        "https://bucket.fly.storage.tigris.dev/#{expected_key}?X-Amz-Signature=abc"
+      end)
+
+      assert {:ok, url} = Runners.volume_master_upload_url(account.id, digest)
+      assert url =~ expected_key
+    end
+
+    test "rejects a non-hex digest before any storage call (no traversal, no clobber)" do
+      reject(&Tuist.Storage.generate_upload_url/3)
+
+      assert :error = Runners.volume_master_upload_url(1, "../../etc/passwd")
+      assert :error = Runners.volume_master_upload_url(1, "")
+      assert :error = Runners.volume_master_upload_url(1, String.duplicate("a", 39))
+      assert :error = Runners.volume_master_upload_url(1, String.upcase(String.duplicate("a", 40)))
+    end
+
+    test "rejects a presigned URL that targets a non-public host (SSRF guard)" do
+      account = account_fixture()
+      digest = String.duplicate("b", 40)
+
+      stub(Tuist.Storage, :generate_upload_url, fn _key, _actor, _opts ->
+        "http://169.254.169.254/runner-volume-masters/put"
+      end)
+
+      assert :error = Runners.volume_master_upload_url(account.id, digest)
+    end
+
+    test "errors when the account does not exist" do
+      digest = String.duplicate("c", 40)
+      assert :error = Runners.volume_master_upload_url(-1, digest)
+    end
+  end
 end

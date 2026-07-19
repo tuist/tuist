@@ -140,33 +140,74 @@ defmodule Tuist.Runners do
   @volume_master_url_ttl_seconds 6 * 60 * 60
 
   # The account's cache-volume HEAD for the dispatch response: the current
-  # generation + inventory digest, plus presigned GET/PUT URLs for the master
-  # archive so the runner can converge a stale local master and publish a fresh
-  # one. Best-effort — any failure returns nil and the runner stays on its
+  # generation + inventory digest, plus a presigned GET URL for the master object
+  # so a behind runner can converge its stale local master. The PUT URL is minted
+  # separately at promote time (volume_master_upload_url/2), keyed by the runner's
+  # new digest. Best-effort — any failure returns nil and the runner stays on its
   # local master (the status quo).
   defp volume_head_payload(account) do
-    key = volume_master_object_key(account.id)
     head = VolumeHeads.get_head(account.id)
-    download_url = Storage.generate_download_url(key, account, expires_in: @volume_master_url_ttl_seconds)
-    upload_url = Storage.generate_upload_url(key, account, expires_in: @volume_master_url_ttl_seconds)
 
-    # SSRF guard: a runner host follows the download URL (and the guest the
-    # upload URL), so refuse to hand out one whose host resolves to a private,
-    # loopback, or link-local address. A misconfigured or hostile storage
-    # endpoint would otherwise turn this into an SSRF primitive from every host.
-    # A rejected URL just means no HEAD (the job stays on its local master, the
-    # status quo) — never a fetch against an internal address.
-    if Tuist.URL.public_host_url?(download_url) and Tuist.URL.public_host_url?(upload_url) do
+    # Download URL for the CURRENT HEAD's content-addressed object, so a behind
+    # host converges by fetching exactly the bytes that produced the HEAD digest.
+    # No HEAD yet => nil => the host stays cold (status quo) and its first
+    # successful job establishes the HEAD. The upload URL is NOT handed out here
+    # anymore: the guest mints it at promote time keyed by its own new digest
+    # (volume_master_upload_url/2), which is what makes the object keys immutable
+    # and stops concurrent promotes clobbering the object the HEAD points at.
+    download_url =
+      if head && head.tree_digest do
+        key = volume_master_object_key(account.id, head.tree_digest)
+        Storage.generate_download_url(key, account, expires_in: @volume_master_url_ttl_seconds)
+      end
+
+    # SSRF guard: a runner host follows the download URL, so refuse to hand out
+    # one whose host resolves to a private, loopback, or link-local address. A
+    # nil URL (no HEAD) is fine — it just means no convergence, the status quo.
+    if is_nil(download_url) or Tuist.URL.public_host_url?(download_url) do
       %{
         generation: (head && head.generation) || 0,
         digest: head && head.tree_digest,
-        download_url: download_url,
-        upload_url: upload_url
+        download_url: download_url
       }
     end
   rescue
     _ -> nil
   end
+
+  @doc """
+  Mints a presigned PUT URL for `account_id`'s cache-volume master object keyed
+  by `tree_digest` — the content-addressed, immutable key the runner uploads its
+  promoted image to before bumping the HEAD. Called at promote time (not
+  dispatch) because only then does the runner know the new inventory digest.
+
+  `tree_digest` MUST be a 40-char SHA-1 hex string (the guest's inventory
+  digest): that matches the guest's format and keeps the value a safe,
+  traversal-free object-key component under the account's own prefix. Returns
+  `:error` for an invalid account or digest, or a URL that would target a
+  non-public host (SSRF guard, the write-side twin of the download guard).
+  """
+  def volume_master_upload_url(account_id, tree_digest) when is_integer(account_id) and is_binary(tree_digest) do
+    if valid_inventory_digest?(tree_digest) do
+      with {:ok, account} <- Accounts.get_account_by_id(account_id),
+           key = volume_master_object_key(account_id, tree_digest),
+           url when is_binary(url) <-
+             Storage.generate_upload_url(key, account, expires_in: @volume_master_url_ttl_seconds),
+           true <- Tuist.URL.public_host_url?(url) do
+        {:ok, url}
+      else
+        _ -> :error
+      end
+    else
+      :error
+    end
+  rescue
+    _ -> :error
+  end
+
+  def volume_master_upload_url(_account_id, _tree_digest), do: :error
+
+  defp valid_inventory_digest?(digest), do: Regex.match?(~r/^[a-f0-9]{40}$/, digest)
 
   @doc """
   Records a runner's promote of `account_id`'s cache volume: bumps the account's
@@ -221,8 +262,15 @@ defmodule Tuist.Runners do
     "runner-volume-masters/#{account_id}/"
   end
 
-  defp volume_master_object_key(account_id) do
-    volume_master_object_prefix(account_id) <> "#{VolumeHeads.reserved_tuist_cache()}.zip"
+  # Content-addressed, immutable per-inventory-digest key. Every distinct warm
+  # set is a distinct object, so a concurrent promote of a different digest
+  # writes a different key instead of clobbering the one the current HEAD points
+  # at (the bug that stranded the master on the promoting host). Dispatch derives
+  # the download key from the HEAD's stored digest; the guest mints the matching
+  # upload key at promote time. `digest` is validated hex (valid_inventory_digest?/1),
+  # so it is a safe, `/`-free key component under the account's prefix.
+  defp volume_master_object_key(account_id, digest) do
+    volume_master_object_prefix(account_id) <> "#{VolumeHeads.reserved_tuist_cache()}/#{digest}.image"
   end
 
   @doc """

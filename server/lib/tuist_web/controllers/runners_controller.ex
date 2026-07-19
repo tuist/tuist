@@ -125,6 +125,35 @@ defmodule TuistWeb.RunnersController do
     end
   end
 
+  # A runner requests the presigned PUT URL for the master object keyed by the
+  # inventory digest it is about to promote, then PUTs its image there and calls
+  # report_volume_head to bump the HEAD. Content-addressed: each distinct digest
+  # is a distinct object, so concurrent promotes never clobber the object the
+  # current HEAD points at. Same SA-token + server-stamped account-label binding
+  # as report_volume_head, so a runner can only mint an upload URL under the
+  # account it actually ran.
+  def volume_head_upload_url(conn, params) do
+    digest = Map.get(params, "tree_digest", "")
+
+    with {:ok, token} <- bearer_token(conn),
+         {:ok, %{namespace: ns, name: sa_name}} <- K8sClient.create_token_review(token),
+         {:ok, account_id} <- Runners.account_id_for_sa(ns, sa_name) do
+      case Runners.volume_master_upload_url(account_id, digest) do
+        {:ok, upload_url} ->
+          json(conn, %{upload_url: upload_url})
+
+        :error ->
+          conn |> put_status(:unprocessable_entity) |> json(%{error: "invalid digest"})
+      end
+    else
+      {:error, :missing_bearer} ->
+        conn |> put_status(:unauthorized) |> json(%{error: "missing bearer token"})
+
+      _ ->
+        conn |> put_status(:unauthorized) |> json(%{error: "unauthorized"})
+    end
+  end
+
   @doc """
   Returns the raw scaling signals the runners-controller's
   autoscaler reconciler uses to compute the desired replica count
