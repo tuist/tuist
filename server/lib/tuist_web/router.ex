@@ -26,6 +26,10 @@ defmodule TuistWeb.Router do
     plug OpenApiSpex.Plug.PutApiSpec, module: TuistWeb.API.Spec
   end
 
+  pipeline :open_graph_image do
+    plug :put_request_kind, "open_graph_image"
+  end
+
   pipeline :content_security_policy do
     plug :put_content_security_policy, &__MODULE__.csp_opts/1
   end
@@ -234,6 +238,15 @@ defmodule TuistWeb.Router do
 
   scope "/", TuistWeb do
     get "/robots.txt", RobotsTxtController, :show, metadata: %{robots_txt: false}
+  end
+
+  scope "/", TuistWeb do
+    pipe_through [:open_api, :open_graph_image]
+
+    get "/marketing/images/og/generated/*path", OpenGraphImageController, :marketing,
+      metadata: %{type: :marketing, robots_txt: false}
+
+    get "/docs/images/og/generated/*path", OpenGraphImageController, :docs, metadata: %{type: :docs, robots_txt: false}
   end
 
   # Marketing

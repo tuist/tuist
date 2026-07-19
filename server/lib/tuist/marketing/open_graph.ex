@@ -16,13 +16,25 @@ defmodule Tuist.Marketing.OpenGraph do
   """
   def generate_og_image(title, path, locale \\ nil) do
     final_path = apply_locale_to_path(path, locale)
-    {title_line_1, title_line_2, title_line_3} = og_image_title_lines(title)
+    image = generate_image(title)
 
     parent_directory = Path.dirname(final_path)
 
     if not File.exists?(parent_directory) do
       File.mkdir_p!(parent_directory)
     end
+
+    Image.write!(image, final_path, write_options(final_path))
+  end
+
+  def generate_og_image_binary(title) do
+    title
+    |> generate_image()
+    |> Image.write!(:memory, quality: 95, strip_metadata: false, suffix: ".jpg")
+  end
+
+  defp generate_image(title) do
+    {title_line_1, title_line_2, title_line_3} = og_image_title_lines(title)
 
     # Load the background template image
     template_path = Path.join([Application.app_dir(:tuist, "priv"), "static", "images", "og_template.png"])
@@ -70,8 +82,7 @@ defmodule Tuist.Marketing.OpenGraph do
         composed
       end
 
-    # Save as JPEG with high quality and proper color space
-    Image.write!(image, final_path, write_options(final_path))
+    image
   end
 
   defp apply_locale_to_path(path, nil), do: path

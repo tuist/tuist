@@ -314,6 +314,8 @@ defmodule Tuist.Application do
         {Cachex, [:tuist, []]},
         Cache,
         {Phoenix.PubSub, name: Tuist.PubSub},
+        {Task.Supervisor, name: Tuist.OpenGraphImageRenderer.TaskSupervisor},
+        Tuist.OpenGraphImageRenderer,
         {TuistWeb.RateLimit.InMemory, [clean_period: to_timeout(hour: 1)]},
         {Tuist.API.Pipeline, []},
         TuistWeb.Telemetry

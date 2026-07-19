@@ -548,7 +548,11 @@ defmodule TuistWeb.Marketing.MarketingController do
           )
         else
           Tuist.Environment.app_url(
-            path: "/marketing/images/og/generated#{post.slug}.jpg",
+            path:
+              OpenGraph.marketing_og_image_path(
+                "/marketing/images/og/generated#{post.slug}.jpg",
+                localize: false
+              ),
             marketing: true
           )
         end

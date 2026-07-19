@@ -7,6 +7,7 @@ defmodule TuistWeb.Marketing.MarketingChangelogEntryLive do
 
   alias Tuist.Marketing.Changelog
   alias TuistWeb.Errors.NotFoundError
+  alias TuistWeb.Helpers.OpenGraph
 
   def mount(_params, _session, socket) do
     {:ok, socket}
@@ -26,7 +27,13 @@ defmodule TuistWeb.Marketing.MarketingChangelogEntryLive do
      |> assign(:head_description, entry.description)
      |> assign(
        :head_image,
-       Tuist.Environment.app_url(path: "/marketing/images/og/generated/changelog/#{entry.id}.jpg")
+       Tuist.Environment.app_url(
+         path:
+           OpenGraph.marketing_og_image_path(
+             "/marketing/images/og/generated/changelog/#{entry.id}.jpg",
+             localize: false
+           )
+       )
      )
      |> assign(:head_twitter_card, "summary_large_image")
      |> assign(:head_include_blog_rss_and_atom, false)

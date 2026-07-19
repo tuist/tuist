@@ -1,7 +1,9 @@
 defmodule TuistWeb.Helpers.OpenGraph do
   @moduledoc """
-  Helper functions for generating OpenGraph meta tag assigns for LiveView pages.
+  Helper functions for generating Open Graph meta tag assigns for LiveView pages.
   """
+
+  alias Tuist.Marketing.OpenGraphImage
 
   @doc """
   Returns OpenGraph assigns for dashboard pages.
@@ -28,29 +30,33 @@ defmodule TuistWeb.Helpers.OpenGraph do
   end
 
   @doc """
-  Builds a locale-specific OG image path for marketing pages. For English,
-  returns the path as-is. For other supported locales, inserts the locale
-  before the filename. Falls back to English for unknown locales.
+  Builds a locale-specific, content-addressed Open Graph image path for
+  marketing pages. For other supported locales, it inserts the locale before
+  the filename. It falls back to English for unknown locales.
 
   ## Examples
 
       marketing_og_image_path("/marketing/images/og/generated/about.jpg")
-      # English:  "/marketing/images/og/generated/about.jpg"
-      # Korean:   "/marketing/images/og/generated/ko/about.jpg"
-      # Spanish:  "/marketing/images/og/generated/es/about.jpg"
+      # English:  "/marketing/images/og/generated/about-<content-key>.jpg"
+      # Korean:   "/marketing/images/og/generated/ko/about-<content-key>.jpg"
+      # Spanish:  "/marketing/images/og/generated/es/about-<content-key>.jpg"
 
   """
   @og_image_locales TuistWeb.Marketing.Localization.all_locales()
 
-  def marketing_og_image_path(path) do
+  def marketing_og_image_path(path, opts \\ []) do
     locale = Gettext.get_locale(TuistWeb.Gettext)
+    localize? = Keyword.get(opts, :localize, true)
 
-    if locale == "en" or locale not in @og_image_locales do
-      path
-    else
-      dirname = Path.dirname(path)
-      basename = Path.basename(path)
-      Path.join([dirname, locale, basename])
-    end
+    localized_path =
+      if not localize? or locale == "en" or locale not in @og_image_locales do
+        path
+      else
+        dirname = Path.dirname(path)
+        basename = Path.basename(path)
+        Path.join([dirname, locale, basename])
+      end
+
+    OpenGraphImage.versioned_path(localized_path)
   end
 end

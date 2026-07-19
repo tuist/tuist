@@ -6,6 +6,7 @@ defmodule TuistWeb.DocsLive do
   import TuistWeb.Docs.MarkdownComponents, warn: false
 
   alias Tuist.Docs
+  alias Tuist.Docs.OgImage
   alias Tuist.Docs.Paths
   alias TuistWeb.Errors.NotFoundError
 
@@ -71,8 +72,7 @@ defmodule TuistWeb.DocsLive do
             template -> String.replace(template, ":title", page.title)
           end
 
-        og_image_filename = Tuist.Docs.OgImage.slug_to_filename(path)
-        og_image_path = "/docs/images/og/generated/#{og_image_filename}"
+        og_image_path = OgImage.image_path(path, page)
 
         {:noreply,
          socket
