@@ -1,0 +1,62 @@
+name: Cache Volume Inspect
+
+# Diagnostic ONLY — throwaway, delete after use. Read-only inspection of the
+# per-account runner cache volume the host materialized for this job. A fleet
+# job already has the account's master cloned into its branch image and mounted
+# at $TUIST_XDG_CACHE_HOME, so this reads the master's ACTUAL contents from
+# inside the job — no host shell needed (the minis expose no sshd).
+#
+# Purpose: answer "does a warm-materialized master actually contain the
+# account's cached target hashes at the path the CLI looks up?" The matrix fans
+# out so several jobs land on different hosts in one push, giving a fleet-wide
+# view of how populated each host's master is.
+
+on:
+  push:
+    branches:
+      - inspect-prod-cache-volume
+    paths:
+      - .github/workflows/cache-volume-inspect.yml
+
+permissions: {}
+
+jobs:
+  inspect:
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9]
+    runs-on: tuist-macos
+    timeout-minutes: 8
+    steps:
+      - name: Inspect the materialized master on this host
+        run: |
+          set -uo pipefail
+          echo "=== shard ${{ matrix.shard }} on runner: $(hostname) ==="
+          share="/Volumes/My Shared Files/cache"
+          if [ -d "${share}" ]; then
+            echo "SHARE present. image on share:"
+            ls -la "${share}" 2>/dev/null || true
+            du -h "${share}/cache.sparseimage" 2>/dev/null || echo "  (no cache.sparseimage)"
+          else
+            echo "NO SHARE on this VM (volume not attached at boot) — cold VM"
+          fi
+
+          echo "TUIST_XDG_CACHE_HOME=${TUIST_XDG_CACHE_HOME:-<unset>}"
+          echo "mount:"
+          mount | grep -i "tuist-cache-volume" || echo "  (volume NOT mounted)"
+
+          bin="${TUIST_XDG_CACHE_HOME:-/nonexistent}/tuist/Binaries"
+          if [ -d "${bin}" ]; then
+            n=$(find "${bin}" -maxdepth 1 -mindepth 1 2>/dev/null | wc -l | tr -d ' ')
+            echo "MASTER Binaries entries materialized on this host: ${n}"
+            echo "total size of Binaries:"
+            du -sh "${bin}" 2>/dev/null || true
+            echo "sample entries (target hashes):"
+            ls "${bin}" 2>/dev/null | head -20 || true
+          else
+            echo "NO Binaries dir at ${bin} — this host's volume is COLD/EMPTY (materialize had no master, or fell to local cold cache)"
+            echo "what IS at TUIST_XDG_CACHE_HOME:"
+            ls -la "${TUIST_XDG_CACHE_HOME:-/nonexistent}" 2>/dev/null || echo "  (path absent)"
+            ls -la "${TUIST_XDG_CACHE_HOME:-/nonexistent}/tuist" 2>/dev/null || true
+          fi
