@@ -60,9 +60,9 @@ struct ProjectEditorMapper: ProjectEditorMapping {
         projectDescriptionSearchPath: AbsolutePath
     ) async throws -> Graph {
         Logger.current.notice("Building the editable project graph")
-        // Tuist evaluates manifests and compiles helpers with `xcrun swift`/`swiftc`, whose default language mode
-        // is Swift 5.
-        let swiftVersion = Version(5, 0, 0).description
+        // The Swift compiler version and its default language mode can differ. Match edit targets to the language mode
+        // used by the unversioned `swift` and `swiftc` invocations that evaluate manifests and compile helpers.
+        let swiftVersion = try await SwiftVersionProvider.current.swiftDefaultLanguageModeVersion()
 
         let pluginsProject = try await mapPluginsProject(
             pluginManifests: editablePluginManifests,
