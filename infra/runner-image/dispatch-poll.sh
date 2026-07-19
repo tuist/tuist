@@ -190,11 +190,14 @@ VOLUME_HEAD_REPORT_URL="${TUIST_RUNNER_DISPATCH_URL%/dispatch}/volume-head"
 cache_inventory() {
   [ -n "${CACHE_MOUNT}" ] || { echo "none"; return 0; }
   local root="${CACHE_MOUNT}/tuist"
+  # LC_ALL=C: byte-order sort, so this agrees with the host's inventoryDigest
+  # (Go sort.Strings is byte-wise). A locale collation here would order mixed-case
+  # or punctuated hash names differently and make every convergence digest-mismatch.
   {
     for d in Binaries Manifests ProjectDescriptionHelpers Plugins; do
       /bin/ls -1 "${root}/${d}" 2>/dev/null | sed "s|^|${d}/|"
     done
-  } | sort | shasum | awk '{print $1}'
+  } | LC_ALL=C sort | shasum | awk '{print $1}'
 }
 
 # use_local_cold_cache points the CLI at a private, local cache dir and
