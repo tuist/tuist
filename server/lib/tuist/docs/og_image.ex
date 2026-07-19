@@ -8,6 +8,7 @@ defmodule Tuist.Docs.OgImage do
   alias Phoenix.HTML.Safe
   alias Tuist.Docs
   alias Tuist.Docs.Sidebar
+  alias Tuist.Environment
   alias Tuist.OpenGraphImageRenderer
   alias Tuist.OpenGraphImages
 
@@ -265,11 +266,33 @@ defmodule Tuist.Docs.OgImage do
 
   defp category(slug) do
     en_slug = String.replace(slug, ~r{^/[^/]+/}, "/en/")
+    Map.get(category_map(), en_slug, "Docs")
+  end
 
+  # The slug -> category map is derived by walking the entire sidebar tree, which
+  # is static in a running release. Build it once and memoize so every docs page
+  # render does not rebuild the tree and the map just to label its OG card.
+  # Recompute in dev, where the docs content (and thus the tree) hot-reloads.
+  defp category_map do
+    if Environment.dev?() do
+      build_category_map()
+    else
+      case :persistent_term.get({__MODULE__, :category_map}, nil) do
+        nil ->
+          map = build_category_map()
+          :persistent_term.put({__MODULE__, :category_map}, map)
+          map
+
+        map ->
+          map
+      end
+    end
+  end
+
+  defp build_category_map do
     Sidebar.tree()
     |> Enum.flat_map(fn group -> collect_slugs_with_category(group.label || "Docs", group.items) end)
     |> Map.new()
-    |> Map.get(en_slug, "Docs")
   end
 
   defp collect_slugs_with_category(category, items) do

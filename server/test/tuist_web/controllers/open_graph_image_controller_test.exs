@@ -61,6 +61,24 @@ defmodule TuistWeb.OpenGraphImageControllerTest do
     assert response(conn, :ok) == "generated-image"
   end
 
+  test "serves the rendered image transiently when caching it fails", %{conn: conn} do
+    source_path = "/marketing/images/og/generated/about.jpg"
+    {:ok, spec} = MarketingImage.resolve(source_path)
+    versioned_path = OpenGraphImages.versioned_path(source_path, spec.key)
+    object_key = "open-graph-images/#{spec.key}.jpg"
+
+    expect(Storage, :object_exists?, 2, fn ^object_key, :open_graph_images -> false end)
+    expect(OpenGraphImageRenderer, :render, fn _html, "About Tuist" -> {:ok, "rendered-image"} end)
+    expect(Storage, :put_object, fn ^object_key, "rendered-image", :open_graph_images -> raise "storage down" end)
+    reject(&Storage.stream_object/2)
+
+    conn = get(conn, versioned_path)
+
+    assert response(conn, :ok) == "rendered-image"
+    assert get_resp_header(conn, "cache-control") == ["public, max-age=60"]
+    assert get_resp_header(conn, "etag") == []
+  end
+
   test "serves a fallback image transiently without persisting it", %{conn: conn} do
     source_path = "/marketing/images/og/generated/about.jpg"
     {:ok, spec} = MarketingImage.resolve(source_path)

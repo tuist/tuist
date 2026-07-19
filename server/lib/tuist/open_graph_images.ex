@@ -5,6 +5,8 @@ defmodule Tuist.OpenGraphImages do
 
   alias Tuist.Storage
 
+  require Logger
+
   @actor :open_graph_images
   @storage_prefix "open-graph-images"
   @version_pattern ~r/-(?<key>[0-9a-f]{64})\.jpg$/
@@ -78,8 +80,7 @@ defmodule Tuist.OpenGraphImages do
       {:ok, %{key: ^key, render: render}} ->
         case render.() do
           {:ok, image} when is_binary(image) ->
-            Storage.put_object(object_key, image, @actor)
-            :ok
+            store(object_key, image)
 
           # A degraded fallback image is served for this request but not
           # persisted, so a later request can re-render the real image once the
@@ -100,6 +101,19 @@ defmodule Tuist.OpenGraphImages do
       {:error, _reason} = error ->
         error
     end
+  end
+
+  # Cache the rendered image and serve it from storage. If the store fails
+  # (e.g. a transient object-storage outage) we still hold the rendered bytes,
+  # so serve them transiently rather than 503; a later request retries the
+  # store once storage recovers.
+  defp store(object_key, image) do
+    Storage.put_object(object_key, image, @actor)
+    :ok
+  rescue
+    error ->
+      Logger.warning("Failed to cache Open Graph image #{object_key}, serving it transiently: #{inspect(error)}")
+      {:transient, image}
   end
 
   defp object_key(key), do: Path.join(@storage_prefix, "#{key}.jpg")
