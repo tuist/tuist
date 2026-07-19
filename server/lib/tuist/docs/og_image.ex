@@ -188,9 +188,14 @@ defmodule Tuist.Docs.OgImage do
     Path.join(locale, page_path)
   end
 
-  def image_path(slug, page) do
-    path = "/docs/images/og/generated/#{slug_to_filename(slug)}"
-    spec = spec(slug, page)
+  def image_path(page) do
+    # Derive both the URL and the content key from the page's canonical slug so
+    # generation matches what resolve/1 reconstructs at serve time. Keying off
+    # the raw requested path instead diverges whenever Docs.get_page/1
+    # normalizes the URL (trailing slash, "/index" suffix), producing a key the
+    # controller cannot reproduce and a 404 for the social card.
+    path = "/docs/images/og/generated/#{slug_to_filename(page.slug)}"
+    spec = spec(page.slug, page)
     OpenGraphImages.versioned_path(path, spec.key)
   end
 

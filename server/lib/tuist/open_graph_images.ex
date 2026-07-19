@@ -48,15 +48,23 @@ defmodule Tuist.OpenGraphImages do
   end
 
   def ensure_available(key, resolve) when is_binary(key) and is_function(resolve, 0) do
-    :global.trans({__MODULE__, key}, fn ->
-      object_key = object_key(key)
+    object_key = object_key(key)
 
-      if Storage.object_exists?(object_key, @actor) do
-        :ok
-      else
-        generate_and_store(key, object_key, resolve)
-      end
-    end)
+    # Fast path: an already-generated image (the overwhelming majority of
+    # requests) is served without taking the cluster-wide lock. Only a cache
+    # miss acquires it, and re-checks existence inside the lock so concurrent
+    # first-requests for the same key render exactly once.
+    if Storage.object_exists?(object_key, @actor) do
+      :ok
+    else
+      :global.trans({__MODULE__, key}, fn ->
+        if Storage.object_exists?(object_key, @actor) do
+          :ok
+        else
+          generate_and_store(key, object_key, resolve)
+        end
+      end)
+    end
   end
 
   def stream(key) do

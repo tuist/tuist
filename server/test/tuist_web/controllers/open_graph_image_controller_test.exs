@@ -2,10 +2,16 @@ defmodule TuistWeb.OpenGraphImageControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: true
   use Mimic
 
+  alias Tuist.Environment
   alias Tuist.Marketing.OpenGraphImage, as: MarketingImage
   alias Tuist.OpenGraphImageRenderer
   alias Tuist.OpenGraphImages
   alias Tuist.Storage
+
+  setup do
+    stub(Environment, :tuist_hosted?, fn -> true end)
+    :ok
+  end
 
   test "redirects an unversioned image path to its content-addressed path", %{conn: conn} do
     source_path = "/marketing/images/og/generated/about.jpg"
@@ -41,7 +47,7 @@ defmodule TuistWeb.OpenGraphImageControllerTest do
     versioned_path = OpenGraphImages.versioned_path(source_path, spec.key)
     object_key = "open-graph-images/#{spec.key}.jpg"
 
-    expect(Storage, :object_exists?, fn ^object_key, :open_graph_images -> false end)
+    expect(Storage, :object_exists?, 2, fn ^object_key, :open_graph_images -> false end)
     expect(OpenGraphImageRenderer, :render, fn _html, "About Tuist" -> {:ok, "generated-image"} end)
 
     expect(Storage, :put_object, fn ^object_key, "generated-image", :open_graph_images ->
@@ -61,7 +67,7 @@ defmodule TuistWeb.OpenGraphImageControllerTest do
     versioned_path = OpenGraphImages.versioned_path(source_path, spec.key)
     object_key = "open-graph-images/#{spec.key}.jpg"
 
-    expect(Storage, :object_exists?, fn ^object_key, :open_graph_images -> false end)
+    expect(Storage, :object_exists?, 2, fn ^object_key, :open_graph_images -> false end)
     expect(OpenGraphImageRenderer, :render, fn _html, "About Tuist" -> {:fallback, "fallback-image"} end)
     reject(&Storage.put_object/3)
     reject(&Storage.stream_object/2)
@@ -80,7 +86,7 @@ defmodule TuistWeb.OpenGraphImageControllerTest do
     versioned_path = OpenGraphImages.versioned_path(source_path, spec.key)
     object_key = "open-graph-images/#{spec.key}.jpg"
 
-    expect(Storage, :object_exists?, fn ^object_key, :open_graph_images -> false end)
+    expect(Storage, :object_exists?, 2, fn ^object_key, :open_graph_images -> false end)
 
     expect(OpenGraphImageRenderer, :render, fn _html, "About Tuist" ->
       exit({:timeout, {GenServer, :call, [OpenGraphImageRenderer, :ensure_pool, 60_000]}})
@@ -97,7 +103,7 @@ defmodule TuistWeb.OpenGraphImageControllerTest do
     versioned_path = OpenGraphImages.versioned_path(source_path, stale_key)
     object_key = "open-graph-images/#{stale_key}.jpg"
 
-    expect(Storage, :object_exists?, fn ^object_key, :open_graph_images -> false end)
+    expect(Storage, :object_exists?, 2, fn ^object_key, :open_graph_images -> false end)
     reject(&OpenGraphImageRenderer.render/2)
 
     conn = get(conn, versioned_path)
@@ -119,5 +125,20 @@ defmodule TuistWeb.OpenGraphImageControllerTest do
     conn = conn |> put_req_header("if-none-match", ~s("#{spec.key}")) |> get(versioned_path)
 
     assert response(conn, :not_modified) == ""
+  end
+
+  test "does not render on-premise, forwarding the request away instead", %{conn: conn} do
+    stub(Environment, :tuist_hosted?, fn -> false end)
+    source_path = "/marketing/images/og/generated/about.jpg"
+    {:ok, spec} = MarketingImage.resolve(source_path)
+    versioned_path = OpenGraphImages.versioned_path(source_path, spec.key)
+
+    reject(&Storage.object_exists?/2)
+    reject(&OpenGraphImageRenderer.render/2)
+
+    conn = get(conn, versioned_path)
+
+    assert conn.status in [301, 302]
+    assert conn.halted
   end
 end

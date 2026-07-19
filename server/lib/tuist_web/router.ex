@@ -28,6 +28,10 @@ defmodule TuistWeb.Router do
 
   pipeline :open_graph_image do
     plug :put_request_kind, "open_graph_image"
+    # Open Graph images belong to the marketing/docs site, which is not served
+    # on-premise. Forward these requests away there instead of spinning up a
+    # headless browser render the deployment does not need.
+    plug TuistWeb.OnPremisePlug, :forward_marketing_to_dashboard
   end
 
   pipeline :content_security_policy do

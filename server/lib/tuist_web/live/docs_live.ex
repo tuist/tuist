@@ -72,7 +72,7 @@ defmodule TuistWeb.DocsLive do
             template -> String.replace(template, ":title", page.title)
           end
 
-        og_image_path = OgImage.image_path(path, page)
+        og_image_path = OgImage.image_path(page)
 
         {:noreply,
          socket

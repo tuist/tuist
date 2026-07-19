@@ -314,12 +314,12 @@ defmodule Tuist.Application do
         {Cachex, [:tuist, []]},
         Cache,
         {Phoenix.PubSub, name: Tuist.PubSub},
-        {Task.Supervisor, name: Tuist.OpenGraphImageRenderer.TaskSupervisor},
-        Tuist.OpenGraphImageRenderer,
         {TuistWeb.RateLimit.InMemory, [clean_period: to_timeout(hour: 1)]},
         {Tuist.API.Pipeline, []},
         TuistWeb.Telemetry
-      ] ++ RuntimeChildren.guardian_db_sweeper(Environment.mode()) ++ dev_content_children() ++ [TuistWeb.Endpoint]
+      ] ++
+        open_graph_image_children() ++
+        RuntimeChildren.guardian_db_sweeper(Environment.mode()) ++ dev_content_children() ++ [TuistWeb.Endpoint]
 
     children
     |> Kernel.++(
@@ -372,6 +372,21 @@ defmodule Tuist.Application do
         do: [],
         else: [Tuist.Marketing.Stats]
     )
+  end
+
+  # Runtime Open Graph image rendering (headless-browser pool + its task
+  # supervisor) backs the marketing/docs site, which only the hosted service
+  # serves. On-premise instances do not need it, so it is started only when
+  # hosted or in local dev (where the marketing site is developed).
+  defp open_graph_image_children do
+    if Environment.tuist_hosted?() or Environment.dev?() do
+      [
+        {Task.Supervisor, name: Tuist.OpenGraphImageRenderer.TaskSupervisor},
+        Tuist.OpenGraphImageRenderer
+      ]
+    else
+      []
+    end
   end
 
   defp dev_content_children do
