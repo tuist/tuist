@@ -172,7 +172,7 @@ defmodule TuistWeb.RunnersLiveTest do
       |> Floki.text()
 
     json
-    |> Jason.decode!()
+    |> JSON.decode!()
     |> Map.fetch!("series")
     |> List.first()
     |> Map.fetch!("data")
