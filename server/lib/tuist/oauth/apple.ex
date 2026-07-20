@@ -50,17 +50,27 @@ defmodule Tuist.OAuth.Apple do
   @doc """
   Verifies the Apple identity token and creates or finds the matching user.
 
-  The identity token is validated end to end before any claim is trusted: its
-  signature is verified against Apple's published public keys, and the `iss`,
-  `aud`, and `exp` claims are asserted. Skipping these checks would let a forged
-  or replayed token impersonate any account (the class of flaw behind
-  CVE-2026-55954), which `JOSE.JWT.peek_payload/1` alone does not guard against.
+  The authenticated identity comes from the identity token Apple returns when we
+  exchange the single-use authorization code, not from the client-supplied
+  identity token. Apple only issues that code to the client that completed this
+  specific Sign in with Apple session, so the exchanged token is bound to it.
+  This prevents an attacker from replaying a stolen (but genuine, unexpired)
+  victim identity token alongside their own authorization code: the exchanged
+  token would carry the attacker's `sub`, and the mismatch is rejected.
+
+  Both tokens are validated end to end before any claim is trusted: the signature
+  is verified against Apple's published public keys, and the `iss`, `aud`, and
+  `exp` claims are asserted. Skipping these checks would let a forged token
+  impersonate any account (the class of flaw behind CVE-2026-55954), which
+  `JOSE.JWT.peek_payload/1` alone does not guard against.
   """
   def verify_apple_identity_token_and_create_user(identity_token, authorization_code) do
-    with :ok <- validate_apple_authorization_code(authorization_code),
-         {:ok, claims} <- verify_identity_token(identity_token) do
-      sub = claims["sub"]
-      email = claims["email"]
+    with {:ok, exchanged_identity_token} <- exchange_apple_authorization_code(authorization_code),
+         {:ok, exchanged_claims} <- verify_identity_token(exchanged_identity_token),
+         {:ok, submitted_claims} <- verify_identity_token(identity_token),
+         :ok <- assert_same_subject(exchanged_claims, submitted_claims) do
+      sub = exchanged_claims["sub"]
+      email = exchanged_claims["email"] || submitted_claims["email"]
 
       auth = %Ueberauth.Auth{
         provider: :apple,
@@ -170,7 +180,19 @@ defmodule Tuist.OAuth.Apple do
   defp audience_matches?(audience, expected) when is_list(audience), do: expected in audience
   defp audience_matches?(_audience, _expected), do: false
 
-  defp validate_apple_authorization_code(authorization_code) do
+  defp assert_same_subject(exchanged_claims, submitted_claims) do
+    if exchanged_claims["sub"] == submitted_claims["sub"] do
+      :ok
+    else
+      Logger.warning("[Apple] Identity token subject does not match the authorization code subject")
+      {:error, :token_subject_mismatch}
+    end
+  end
+
+  # Exchanges the single-use authorization code with Apple and returns the
+  # identity token Apple issues for it, which binds the authenticated identity to
+  # that specific Sign in with Apple session.
+  defp exchange_apple_authorization_code(authorization_code) do
     body = %{
       client_id: Tuist.Environment.apple_app_client_id(),
       client_secret: client_secret(client_id: Tuist.Environment.apple_app_client_id()),
@@ -182,8 +204,12 @@ defmodule Tuist.OAuth.Apple do
            form: body,
            headers: [{"content-type", "application/x-www-form-urlencoded"}]
          ) do
+      {:ok, %{status: 200, body: %{"id_token" => exchanged_identity_token}}}
+      when is_binary(exchanged_identity_token) ->
+        {:ok, exchanged_identity_token}
+
       {:ok, %{status: 200}} ->
-        :ok
+        {:error, "Apple authorization code response did not include an identity token."}
 
       {:ok, %{status: status, body: _body}} ->
         {:error, "Apple authorization code validation failed with #{status} error code."}
