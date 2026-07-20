@@ -64,6 +64,7 @@ defmodule Tuist.Runners do
   alias Tuist.Runners.Telemetry
   alias Tuist.Runners.VolumeAffinities
   alias Tuist.Runners.VolumeHeads
+  alias Tuist.Runners.Workers.PruneVolumeMasterWorker
   alias Tuist.Storage
   alias Tuist.VCS
 
@@ -224,10 +225,48 @@ defmodule Tuist.Runners do
   """
   def report_volume_head(account_id, node_name, tree_digest) do
     if is_binary(tree_digest) and valid_inventory_digest?(tree_digest) do
+      superseded = VolumeHeads.get_head(account_id)
       VolumeHeads.bump_head(account_id, node_name, tree_digest)
+      schedule_superseded_master_prune(account_id, superseded, tree_digest)
       :ok
     else
       :error
+    end
+  end
+
+  # Content-addressed keys mean every distinct promoted inventory is a distinct,
+  # immutable object, so a superseded master is no longer overwritten — it lingers
+  # until deleted. Schedule its deletion for the presigned-URL TTL from now: that
+  # grace keeps the object alive as long as any dispatch that already handed out
+  # its download URL could still be converging to it, then reclaims the storage.
+  # Skipped when there was no prior HEAD or the digest is unchanged (idempotent
+  # re-report of the same set).
+  defp schedule_superseded_master_prune(account_id, %{tree_digest: old}, new) when is_binary(old) and old != new do
+    %{account_id: account_id, tree_digest: old}
+    |> PruneVolumeMasterWorker.new(schedule_in: @volume_master_url_ttl_seconds)
+    |> Oban.insert()
+
+    :ok
+  end
+
+  defp schedule_superseded_master_prune(_account_id, _superseded, _new), do: :ok
+
+  @doc """
+  Deletes the account's superseded cache-volume master object for `tree_digest`,
+  UNLESS that digest is (again) the account's current HEAD — content-addressed
+  keys mean a re-promoted, content-identical set reuses the same object, so
+  deleting it would drop the live master. Best-effort; called from
+  `PruneVolumeMasterWorker` on a delay after the digest was superseded.
+  """
+  def prune_superseded_volume_master(account_id, tree_digest) do
+    case VolumeHeads.get_head(account_id) do
+      %{tree_digest: ^tree_digest} ->
+        :ok
+
+      _ ->
+        with {:ok, account} <- Accounts.get_account_by_id(account_id) do
+          Storage.delete_object(volume_master_object_key(account_id, tree_digest), account)
+        end
     end
   end
 

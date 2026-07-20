@@ -14,6 +14,7 @@ defmodule Tuist.RunnersTest do
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.VolumeAffinities
   alias Tuist.Runners.VolumeHeads
+  alias Tuist.Runners.Workers.PruneVolumeMasterWorker
   alias Tuist.VCS
 
   setup :verify_on_exit!
@@ -754,6 +755,51 @@ defmodule Tuist.RunnersTest do
       end
 
       assert VolumeHeads.get_head(account.id) == nil
+    end
+
+    test "schedules a delayed prune of the superseded master only once a digest changes" do
+      account = account_fixture()
+      old = String.duplicate("a", 40)
+      new = String.duplicate("b", 40)
+
+      # First promote: nothing is superseded, so nothing to prune.
+      assert :ok = Runners.report_volume_head(account.id, "node-1", old)
+      refute_enqueued(worker: PruneVolumeMasterWorker)
+
+      # A new digest supersedes the old object → schedule its delayed deletion.
+      assert :ok = Runners.report_volume_head(account.id, "node-1", new)
+
+      assert_enqueued(
+        worker: PruneVolumeMasterWorker,
+        args: %{account_id: account.id, tree_digest: old}
+      )
+    end
+  end
+
+  describe "prune_superseded_volume_master/2" do
+    test "deletes the superseded master object" do
+      account = account_fixture()
+      digest = String.duplicate("a", 40)
+      # HEAD sits at a different digest, so `digest` is genuinely superseded.
+      Runners.report_volume_head(account.id, "node-1", String.duplicate("b", 40))
+      key = "runner-volume-masters/#{account.id}/tuist-cache/#{digest}.image"
+
+      expect(Tuist.Storage, :delete_object, fn ^key, actor ->
+        assert actor.id == account.id
+        :ok
+      end)
+
+      assert :ok = Runners.prune_superseded_volume_master(account.id, digest)
+    end
+
+    test "skips deletion when the digest is (again) the current HEAD (re-promoted)" do
+      account = account_fixture()
+      digest = String.duplicate("a", 40)
+      Runners.report_volume_head(account.id, "node-1", digest)
+
+      reject(&Tuist.Storage.delete_object/2)
+
+      assert :ok = Runners.prune_superseded_volume_master(account.id, digest)
     end
   end
 
