@@ -2585,6 +2585,15 @@ impl Store {
                 namespace_artifact_index_key(&manifest.namespace_id, &manifest.artifact_id)
                     .as_bytes(),
             );
+            // Inline artifacts keep their bytes in the key-value column family
+            // keyed by artifact_id; without this the manifest is gone but the
+            // bytes leak (as the namespace-delete path already handles).
+            if manifest.inline {
+                batch.delete_cf(
+                    self.cf(ROCKSDB_CF_KEY_VALUE),
+                    manifest.artifact_id.as_bytes(),
+                );
+            }
             if manifest.producer == ArtifactProducer::Reapi
                 && let Some(action_hash) = action_cache_manifest_hash(&manifest.key)
             {
