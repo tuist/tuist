@@ -1,23 +1,32 @@
 name: Metal Toolchain Diagnostics
 
-# TEMPORARY diagnostic workflow. Root-causes the intermittent
-#   xcodebuild: error: Failed fetching catalog for assetType
-#   (com.apple.MobileAsset.MetalToolchain) ... (exit code 70)
-# on the self-hosted tuist-macos runners.
+# TEMPORARY diagnostic workflow. Phase 2: is the MobileAsset catalog
+# signature-verify failure driven by CONCURRENCY?
 #
-# Runs a parallel matrix so several VMs hit Apple's asset catalog at the same
-# time — this reproduces the shared-egress-IP burst — and captures, per VM:
-#   - macOS / Xcode version + how fresh the Tart clone is (boot time / uptime)
-#   - clock skew (a skewed clock breaks TLS cert-time validation to Apple)
-#   - the egress IP Apple sees (shared-IP throttle hypothesis)
-#   - DNS + TLS + HTTP status to Apple's asset hosts (gdmf/mesu/xp)
-#   - a rapid burst probe to surface 403/429 throttling
-#   - the real `xcodebuild -downloadComponent MetalToolchain -verbose` plus the
-#     mobileassetd / nsurlsessiond logs emitted during the attempt
+# Established already (runs 29636635011 / 29750363729): mobileassetd fails to
+# verify Apple's signed MetalToolchain catalog (SecKeyVerifySignature /
+# CSSMERR_CSP_VERIFY_FAILED) on a fraction of clones; every clone shares one
+# baked device identity (same IOPlatformUUID/serial); a plain in-boot retry
+# recovers it. Network/clock/throttle/DNS all ruled out.
 #
-# A red matrix leg == that VM hit the exit-70 catalog failure, so the Actions UI
-# shows at a glance which VMs failed while others succeeded. Delete this file
-# once the root cause is confirmed.
+# This phase decides the REAL fix by discriminating two mechanisms:
+#   (A) shared per-clone identity collides when many clones hit Apple's
+#       personalization at once  -> fix = regenerate identity per clone
+#   (B) per-clone securityd/mobileassetd boot race (device-independent)
+#       -> fix = warm the security/asset daemons at boot; identity regen is
+#          useless here
+#
+# Method: run the SAME single download (no retry) two ways and compare the
+# first-attempt failure rate:
+#   solo  = matrix serialized with max-parallel 1 -> each clone downloads ALONE
+#   burst = matrix uncapped -> clones download concurrently
+# burst `needs: solo`, so no burst leg runs while the solo reps are measuring.
+#
+#   solo ~0% AND burst high  => (A): identity collision under concurrency.
+#   solo ~= burst (both high) => (B): per-clone boot-state race.
+#
+# start_epoch/end_epoch per leg let us confirm burst legs actually overlapped
+# and solo legs did not. Delete this file once the mechanism is settled.
 
 on:
   pull_request:
@@ -26,176 +35,45 @@ on:
   workflow_dispatch:
 
 jobs:
-  diagnose:
-    name: Diagnose Metal fetch (VM ${{ matrix.vm }})
+  solo:
+    name: "solo rep ${{ matrix.rep }} (serialized, no concurrency)"
     runs-on: tuist-macos
     timeout-minutes: 30
     strategy:
       fail-fast: false
+      max-parallel: 1
       matrix:
-        vm: [1, 2, 3, 4, 5, 6]
+        rep: [1, 2, 3, 4, 5, 6]
     steps:
-      - name: Host, OS, Xcode, clone freshness
+      - name: Single Metal Toolchain download (no retry)
         run: |
-          echo "===== macOS ====="
-          sw_vers
-          echo "===== Xcode ====="
-          xcodebuild -version
-          xcode-select -p
-          echo "===== clone freshness (uptime + boot time) ====="
-          uptime
-          sysctl -n kern.boottime || true
-
-      - name: Device identity fingerprint (are clones sharing one identity?)
-        run: |
-          # If every matrix leg prints the SAME UUIDs/serial, the whole fleet
-          # clones from one baked identity -> Apple sees N VMs as one device,
-          # which is the "shared MobileAsset/security device state" hypothesis.
-          # Grep these across legs afterwards; identical == shared identity.
-          echo "FINGERPRINT_VM=${{ matrix.vm }}"
-          ioreg -rd1 -c IOPlatformExpertDevice 2>/dev/null \
-            | grep -iE 'IOPlatformUUID|IOPlatformSerialNumber|board-id' \
-            | sed -E 's/^ *//' | sed 's/^/FINGERPRINT ioreg: /' || true
-          system_profiler SPHardwareDataType 2>/dev/null \
-            | grep -iE 'Hardware UUID|Serial Number|Provisioning UDID|Model Number' \
-            | sed -E 's/^ *//' | sed 's/^/FINGERPRINT sysprofile: /' || true
-          echo "FINGERPRINT sysctl hw.model: $(sysctl -n hw.model 2>/dev/null || echo n/a)"
-          echo "FINGERPRINT sysctl hw.uuid: $(sysctl -n hw.uuid 2>/dev/null || echo n/a)"
-
-      - name: Clock skew (skewed clock breaks TLS to Apple)
-        run: |
-          echo "System UTC now: $(date -u)"
-          echo "===== network-time settings ====="
-          sudo -n systemsetup -getusingnetworktime 2>/dev/null || echo "(no passwordless sudo / systemsetup unavailable)"
-          sudo -n systemsetup -getnetworktimeserver 2>/dev/null || true
-          echo "===== measured offset vs time.apple.com (read-only, does NOT set the clock) ====="
-          sntp time.apple.com 2>&1 || echo "sntp query failed rc=$?"
-
-      - name: Egress IP (shared-IP throttle hypothesis)
-        run: |
-          echo "Public IP as Apple sees this VM:"
-          curl -s --max-time 15 https://api.ipify.org 2>&1 || echo "(ipify failed)"
-          echo
-
-      - name: DNS + TLS + HTTP to Apple asset hosts
-        run: |
-          for host in gdmf.apple.com mesu.apple.com xp.apple.com; do
-            echo "===== $host ====="
-            echo "-- DNS --"
-            dscacheutil -q host -a name "$host" 2>&1 | grep -E 'ip_address' || echo "(no A/AAAA resolved)"
-            echo "-- TLS + HTTP (a cert/TLS error here points at clock skew) --"
-            curl -sS -o /dev/null \
-              -w 'http=%{http_code} dns=%{time_namelookup}s connect=%{time_connect}s tls=%{time_appconnect}s total=%{time_total}s\n' \
-              --max-time 30 "https://$host/" 2>&1 || echo "curl failed rc=$?"
-            echo
-          done
-
-      - name: Burst probe to gdmf.apple.com (surfaces 403/429 throttling)
-        run: |
-          echo "20 rapid requests from this VM; watch for 403/429 as the fleet-wide burst builds:"
-          for i in $(seq 1 20); do
-            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 https://gdmf.apple.com/v2/pmv 2>/dev/null || echo "ERR")
-            printf '%s ' "$code"
-          done
-          echo
-
-      - name: Current Metal toolchain state
-        run: xcodebuild -showComponent metalToolchain 2>&1 || echo "(showComponent rc=$?)"
-
-      - name: Start asset-daemon log capture
-        run: |
-          log stream --style compact \
-            --predicate 'process == "mobileassetd" OR process == "nsurlsessiond" OR process == "trustd" OR subsystem == "com.apple.mobileassetd"' \
-            > /tmp/asset-stream.log 2>&1 &
-          echo $! > /tmp/logpid
-          sleep 2
-
-      - name: Attempt Metal Toolchain download (verbose) — ground truth
-        id: dl
-        run: |
-          set +e
+          uuid=$(ioreg -rd1 -c IOPlatformExpertDevice 2>/dev/null | awk -F'"' '/IOPlatformUUID/{print $4}')
           start=$(date +%s)
-          xcodebuild -downloadComponent MetalToolchain -verbose 2>&1 | tee /tmp/download.log
-          rc=${PIPESTATUS[0]}
+          xcodebuild -downloadComponent MetalToolchain > /tmp/dl.log 2>&1
+          rc=$?
           end=$(date +%s)
-          echo "----- download finished: exit_code=$rc duration=$((end - start))s -----"
-          echo "$rc" > /tmp/rc
-          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
+          echo "RESULT group=solo id=${{ matrix.rep }} rc=$rc dur=$((end - start))s start_epoch=$start end_epoch=$end uuid=$uuid"
+          tail -3 /tmp/dl.log | sed 's/^/  /'
+          [ "$rc" = "0" ]
 
-      - name: In-VM remediation ladder (only if first attempt hit exit 70)
-        if: always()
+  burst:
+    name: "burst leg ${{ matrix.leg }} (max concurrency)"
+    runs-on: tuist-macos
+    timeout-minutes: 30
+    needs: solo
+    if: always()
+    strategy:
+      fail-fast: false
+      matrix:
+        leg: [1, 2, 3, 4, 5, 6, 7, 8]
+    steps:
+      - name: Single Metal Toolchain download (no retry)
         run: |
-          # Decision gate for the strategic fix. If a clone that failed the
-          # first attempt RECOVERS within this same boot via a cheap in-VM
-          # action, then per-clone host-level identity regeneration is NOT
-          # required — a boot-time daemon warmup / retry suffices. If nothing
-          # in-VM recovers it and the fingerprints prove a shared identity,
-          # that is the case for regenerating identity per clone at the host.
-          rc=$(cat /tmp/rc 2>/dev/null || echo unknown)
-          if [ "$rc" = "0" ]; then
-            echo "REMEDIATION_RESULT=first-attempt-succeeded (nothing to remediate)"
-            exit 0
-          fi
-          echo "First attempt failed (rc=$rc). Probing in-boot recovery."
-
-          passwordless_sudo=no
-          if sudo -n true 2>/dev/null; then passwordless_sudo=yes; fi
-          echo "passwordless_sudo=$passwordless_sudo"
-
-          attempt() {
-            local label="$1" start end rc
-            start=$(date +%s)
-            xcodebuild -downloadComponent MetalToolchain >/tmp/rem.log 2>&1
-            rc=$?
-            end=$(date +%s)
-            echo "  $label: rc=$rc dur=$((end - start))s"
-            tail -2 /tmp/rem.log | sed 's/^/    /'
-            return $rc
-          }
-
-          # Ladder A — plain retries, no root. Directly tells us whether the
-          # already-shipped 3-attempt cli.yml retry actually self-heals a boot.
-          for i in 1 2 3; do
-            if attempt "plain-retry-$i"; then
-              echo "REMEDIATION_RESULT=recovered-by-plain-retry-$i"
-              exit 0
-            fi
-            sleep 5
-          done
-
-          # Ladder B — restart the asset/trust daemons (launchd respawns them),
-          # then retry. Tests the local securityd/mobileassetd init-race theory.
-          if [ "$passwordless_sudo" = "yes" ]; then
-            sudo killall -9 mobileassetd 2>/dev/null || true
-            sudo killall -9 trustd 2>/dev/null || true
-            sleep 3
-            if attempt "after-daemon-restart"; then
-              echo "REMEDIATION_RESULT=recovered-by-daemon-restart"
-              exit 0
-            fi
-          else
-            echo "  (skipped daemon-restart ladder: no passwordless sudo)"
-          fi
-
-          echo "REMEDIATION_RESULT=not-recovered-in-boot (points at host-level shared state)"
-
-      - name: Dump captured asset-daemon logs
-        if: always()
-        run: |
-          kill "$(cat /tmp/logpid 2>/dev/null)" 2>/dev/null || true
-          sleep 1
-          echo "===== live-streamed mobileassetd / nsurlsessiond (during the download attempt) ====="
-          tail -300 /tmp/asset-stream.log 2>/dev/null || echo "(no stream captured — see log show below)"
-          echo
-          echo "===== persisted asset log (last 10 min) ====="
-          log show --last 10m --style compact \
-            --predicate 'process == "mobileassetd" OR process == "nsurlsessiond" OR process == "trustd" OR subsystem == "com.apple.mobileassetd"' \
-            2>/dev/null | tail -300 || echo "(log show unavailable)"
-
-      - name: Verdict (red leg == exit-70 catalog failure)
-        if: always()
-        run: |
-          rc=$(cat /tmp/rc 2>/dev/null || echo "unknown")
-          echo "VM ${{ matrix.vm }}: xcodebuild -downloadComponent exit_code=$rc"
-          echo "(exit 70 == 'Failed fetching catalog' — the failure we are chasing)"
+          uuid=$(ioreg -rd1 -c IOPlatformExpertDevice 2>/dev/null | awk -F'"' '/IOPlatformUUID/{print $4}')
+          start=$(date +%s)
+          xcodebuild -downloadComponent MetalToolchain > /tmp/dl.log 2>&1
+          rc=$?
+          end=$(date +%s)
+          echo "RESULT group=burst id=${{ matrix.leg }} rc=$rc dur=$((end - start))s start_epoch=$start end_epoch=$end uuid=$uuid"
+          tail -3 /tmp/dl.log | sed 's/^/  /'
           [ "$rc" = "0" ]
