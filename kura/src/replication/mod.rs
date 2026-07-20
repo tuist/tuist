@@ -2441,6 +2441,8 @@ mod tests {
                 artifact_id: manifest.artifact_id.clone(),
                 version_ms: manifest.version_ms,
                 inline: manifest.inline,
+                branch: None,
+                trunk: None,
             },
         };
 
