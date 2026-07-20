@@ -1963,6 +1963,11 @@ func installSSHReachability(ctx context.Context, client *ssh.Client) error {
 // actually recovers a wedged host.)
 func renderSSHReachabilityScript() string {
 	return `set -euo pipefail
+# On the first-boot bootstrap this runs before installTart, which is the first
+# step that creates /usr/local/bin, so on a freshly imaged host the directory
+# does not exist yet and the tee below would fail. Create it first (idempotent),
+# like every other script that writes into /usr/local/bin.
+sudo mkdir -p /usr/local/bin
 sudo tee /usr/local/bin/tuist-ssh-reachability >/dev/null <<'SSHREACH'
 #!/bin/sh
 set -u

@@ -106,6 +106,11 @@ type volumeBackend interface {
 	// (statfs). Ground truth for admission and watermarks: per-file sizes
 	// cannot be summed because CoW clones share blocks.
 	freeBytes(root string) (uint64, error)
+	// isMounted reports whether root is an actually-mounted volume rather than
+	// a stale/absent mountpoint on the boot filesystem. freeBytes cannot tell
+	// the two apart — df against a bare mountpoint dir happily reports the boot
+	// volume's free space — so this is a distinct mount-point check.
+	isMounted(root string) (bool, error)
 	// createImage creates an empty sparse APFS disk image of at most sizeGiB
 	// at path. Sparse: the file costs megabytes until written.
 	createImage(path string, sizeGiB int) error
@@ -195,6 +200,13 @@ type VolumeManager struct {
 	// observability sampler runs. Defaults to 5m.
 	ReconcileInterval time.Duration
 
+	// mountCheckInterval / mountCheckAttempts bound the startup wait for the
+	// runner-cache root to become a mounted volume (auto-mount can lag a host
+	// reboot). Zero values default to 10s and 12 attempts (~2m). Injectable so
+	// tests don't wait real seconds.
+	mountCheckInterval time.Duration
+	mountCheckAttempts int
+
 	// now is injectable for tests; defaults to time.Now.
 	now func() time.Time
 }
@@ -279,6 +291,21 @@ func (m *VolumeManager) AllocateBranch(volume, vm string) (VolumeAttachment, err
 		volume = ReservedTuistCacheVolume
 	}
 
+	// Never allocate against an unmounted root. If a stale mountpoint dir lingers
+	// on the boot filesystem, freeBytes (df) reports the BOOT volume's free space,
+	// so admission would pass and the branch dir + its clonefiled cache image would
+	// land on the boot disk — defeating the quota fence and risking host ENOSPC. An
+	// absent path would otherwise error per allocation rather than cold-fall-back
+	// cleanly. The one-shot startup wait cannot catch a volume that vanishes later,
+	// so gate every allocation here. Either way, decline to the cold path.
+	if mounted, err := m.backend.isMounted(m.Root); err != nil || !mounted {
+		RecordVolumeRootMounted(false)
+		log.Log.WithName("cache-volumes").Error(err,
+			"runner-cache root is not a mounted volume; VM boots on the cold path (allocation skipped so cache images are not written to the boot disk)",
+			"vm", vm, "root", m.Root)
+		return VolumeAttachment{}, nil
+	}
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -289,8 +316,16 @@ func (m *VolumeManager) AllocateBranch(volume, vm string) (VolumeAttachment, err
 	// volume. If it doesn't fit, evict LRU masters; if it still doesn't,
 	// decline (cold path).
 	want := m.capBytes() * uint64(m.liveBranches+1)
-	if err := m.ensureFreeLocked(want); err != nil {
+	free, err := m.ensureFreeLocked(want)
+	if err != nil {
 		if errors.Is(err, errNoRoom) {
+			// Decline to the cold path. This used to be silent — no log, no
+			// event, no metric — so a host wedged under disk pressure looked
+			// identical to one where the feature was simply idle. Surface it.
+			RecordVolumeAdmissionDeclined()
+			log.Log.WithName("cache-volumes").Info(
+				"admission declined a cache volume: runner-cache root has no room even after evicting every master; VM falls back to the cold path",
+				"vm", vm, "want_bytes", want, "free_bytes", free, "live_branches", m.liveBranches, "cap_gib", m.CapGiB)
 			return VolumeAttachment{}, nil
 		}
 		return VolumeAttachment{}, err
@@ -659,7 +694,13 @@ func (m *VolumeManager) Start(ctx context.Context) error {
 	if !m.Enabled() {
 		return nil
 	}
+	RecordVolumeEnabled()
 	logger := log.FromContext(ctx).WithName("cache-volumes")
+
+	// The mount wait (AwaitMountedRoot) runs before state recovery in main, so by
+	// here the retained-branch set already reflects the mounted volume and the
+	// sweep can safely reap the rest. On a still-unmounted root SweepBranches is a
+	// no-op (its ReadDir hits ENOENT), so it can never delete a live branch.
 	if err := m.SweepBranches(); err != nil {
 		logger.Error(err, "sweep stale branches on startup")
 	}
@@ -668,6 +709,17 @@ func (m *VolumeManager) Start(ctx context.Context) error {
 		interval = 5 * time.Minute
 	}
 	tick := func() {
+		mounted, err := m.backend.isMounted(m.Root)
+		if err != nil {
+			logger.Error(err, "check runner-cache root mount state", "root", m.Root)
+		}
+		RecordVolumeRootMounted(mounted)
+		if !mounted {
+			// Nothing to evict or measure against an unmounted root; keep the
+			// mounted gauge fresh so a volume that (re)appears — or vanishes —
+			// shows up on the next tick.
+			return
+		}
 		if evicted, err := m.EvictToWatermark(); err != nil {
 			logger.Error(err, "watermark eviction")
 		} else if evicted > 0 {
@@ -686,6 +738,58 @@ func (m *VolumeManager) Start(ctx context.Context) error {
 			return nil
 		case <-t.C:
 			tick()
+		}
+	}
+}
+
+// AwaitMountedRoot blocks until the runner-cache root is a mounted volume or a
+// bounded number of attempts elapse, publishing the enabled + root-mounted
+// gauges. It returns as soon as the mount is present (the healthy path returns
+// on the first attempt with a single stat), so it costs nothing on a host whose
+// volume auto-mounted normally. When the volume never appears it logs loudly and
+// returns rather than blocking forever — the ticker then keeps the gauge fresh
+// and per-job allocation keeps declining to the cold path until the host is
+// repaired.
+//
+// This MUST run before state recovery populates the retained-branch set: if the
+// wait ran after recovery, a volume that mounted DURING the wait would leave the
+// retained set empty (recovery saw no branches on the then-unmounted root) and
+// the startup sweep would then delete branches still mounted by surviving VMs.
+// No-op when the feature is off.
+func (m *VolumeManager) AwaitMountedRoot(ctx context.Context) {
+	if !m.Enabled() {
+		return
+	}
+	RecordVolumeEnabled()
+	logger := log.Log.WithName("cache-volumes")
+	interval := m.mountCheckInterval
+	if interval <= 0 {
+		interval = 10 * time.Second
+	}
+	attempts := m.mountCheckAttempts
+	if attempts <= 0 {
+		attempts = 12
+	}
+	for attempt := 1; ; attempt++ {
+		mounted, err := m.backend.isMounted(m.Root)
+		RecordVolumeRootMounted(mounted)
+		if mounted && err == nil {
+			if attempt > 1 {
+				logger.Info("runner-cache root is now mounted", "root", m.Root, "attempt", attempt)
+			}
+			return
+		}
+		if attempt >= attempts {
+			logger.Error(err, "runner-cache root is still not a mounted volume after all attempts; every job on this host will run on the cold path until the volume is mounted or the host is re-provisioned",
+				"root", m.Root, "attempts", attempts)
+			return
+		}
+		logger.Error(err, "runner-cache root is set but not a mounted volume; retrying (feature enabled, jobs run cold meanwhile)",
+			"root", m.Root, "attempt", attempt, "max_attempts", attempts, "retry_in", interval.String())
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(interval):
 		}
 	}
 }
@@ -759,36 +863,38 @@ var errNoRoom = errors.New("runner-cache root has no room for a cache volume")
 
 // ensureFreeLocked makes sure at least want bytes are free, evicting LRU
 // masters as needed. Returns errNoRoom when even a fully-evicted root cannot
-// fit the request (caller declines to the cold path).
-func (m *VolumeManager) ensureFreeLocked(want uint64) error {
+// fit the request (caller declines to the cold path). The returned free-bytes
+// value is the space available after any eviction, so the caller can log why a
+// decline happened without a second statfs.
+func (m *VolumeManager) ensureFreeLocked(want uint64) (uint64, error) {
 	free, err := m.backend.freeBytes(m.Root)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	if free >= want {
-		return nil
+		return free, nil
 	}
 	masters, err := m.mastersByLRULocked()
 	if err != nil {
-		return err
+		return free, err
 	}
 	for _, mm := range masters {
 		if free >= want {
-			return nil
+			return free, nil
 		}
 		if err := os.RemoveAll(mm.path); err != nil {
 			continue
 		}
 		f, ferr := m.backend.freeBytes(m.Root)
 		if ferr != nil {
-			return ferr
+			return free, ferr
 		}
 		free = f
 	}
 	if free < want {
-		return errNoRoom
+		return free, errNoRoom
 	}
-	return nil
+	return free, nil
 }
 
 type masterEntry struct {
