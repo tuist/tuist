@@ -180,7 +180,6 @@ defmodule TuistWeb.API.CacheControllerTest do
         })
 
       stub(Tuist.Environment, :cache_endpoints, fn -> [] end)
-      stub(FeatureFlags, :kura_cache_enabled?, fn %{id: account_id} -> account_id == account.id end)
 
       conn =
         conn
