@@ -70,7 +70,7 @@ defmodule TuistWeb.RunnersLiveTest do
     assert html =~ "Docker build"
   end
 
-  test "charts only succeeded/failed runs, packed into a fixed-width trail", %{conn: conn, account: account} do
+  test "charts only succeeded and failed runs", %{conn: conn, account: account} do
     complete_run(account, 70_002, 700_020, "success")
     complete_run(account, 70_003, 700_021, "cancelled")
 
@@ -78,12 +78,11 @@ defmodule TuistWeb.RunnersLiveTest do
     html = render_async(lv)
 
     # The cancelled run carries no real duration, so it must not draw a
-    # bar. Only the succeeded run remains, packed into the fixed 30-slot
-    # trail: one real bar plus 29 padded slots.
+    # bar. Only the succeeded run remains on each chart.
     for chart_id <- ["runners-recent-workflows-chart", "runners-recent-jobs-chart"] do
       data = chart_series_data(html, chart_id)
-      assert length(data) == 30
-      assert Enum.count(data, &(&1["value"] != nil)) == 1
+      assert length(data) == 1
+      assert Enum.all?(data, &(&1["value"] != nil))
     end
   end
 
