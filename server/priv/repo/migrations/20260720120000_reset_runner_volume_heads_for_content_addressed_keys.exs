@@ -15,6 +15,7 @@ defmodule Tuist.Repo.Migrations.ResetRunnerVolumeHeadsForContentAddressedKeys do
   # promote); on-disk local masters are untouched. The one leftover `.zip` object
   # per account is swept by the existing account-deletion prefix cleanup.
   def up do
+    # excellent_migrations:safety-assured-for-next-line raw_sql_executed
     execute("DELETE FROM runner_volume_heads")
   end
 
