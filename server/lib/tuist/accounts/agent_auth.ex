@@ -40,6 +40,7 @@ defmodule Tuist.Accounts.AgentAuth do
   @id_jag_max_auth_age_seconds 60 * 60
   @clock_skew_seconds 120
   @max_otp_attempts 5
+  @assertion_revoked_event "https://schemas.workos.com/events/agent/auth/identity/assertion/revoked"
 
   def scopes, do: @scopes
   def protocol_poll_interval_seconds, do: @protocol_poll_interval_seconds
@@ -392,13 +393,31 @@ defmodule Tuist.Accounts.AgentAuth do
   def revoke_protocol_access_token(_token), do: :ok
 
   def receive_protocol_event(token, audience) do
-    with {:ok, claims} <- verify_jwt(token, audience, :security_event),
+    with {:ok, claims} <- verify_jwt(token, audience, :security_event, defer_jti: true),
          {:ok, event_types} <- validate_security_events(claims) do
-      if "https://schemas.workos.com/events/agent/auth/identity/assertion/revoked" in event_types do
-        revoke_provider_delegation(claims, audience)
-      end
+      process_security_event(claims, event_types, audience)
+    end
+  end
 
-      :ok
+  # The replay marker and the revocation writes have to land together. If the
+  # marker committed on its own and the revocation then failed, the provider's
+  # retry would be rejected as replay_detected while the credentials stayed
+  # active, silently dropping the revocation.
+  defp process_security_event(claims, event_types, audience) do
+    fn ->
+      with :ok <- record_jti(claims) do
+        if @assertion_revoked_event in event_types do
+          revoke_provider_delegation(claims, audience)
+        end
+
+        :ok
+      end
+    end
+    |> Repo.transaction()
+    |> case do
+      {:ok, :ok} -> :ok
+      {:ok, {:error, reason}} -> {:error, reason}
+      {:error, reason} -> {:error, reason}
     end
   end
 
@@ -916,9 +935,15 @@ defmodule Tuist.Accounts.AgentAuth do
          {:ok, provider} <- trusted_provider(issuer),
          {:ok, claims} <- verify_jwt_with_provider_keys(token, provider, header),
          :ok <- validate_claims(claims, audience, provider, token_type, opts),
-         :ok <- record_jti(claims) do
+         :ok <- maybe_record_jti(claims, opts) do
       {:ok, claims}
     end
+  end
+
+  # Callers that need the replay marker committed together with their own writes
+  # defer it and call record_jti/1 themselves inside their transaction.
+  defp maybe_record_jti(claims, opts) do
+    if Keyword.get(opts, :defer_jti, false), do: :ok, else: record_jti(claims)
   end
 
   defp peek_jwt_header(token) do
