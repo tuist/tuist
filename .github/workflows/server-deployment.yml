@@ -51,6 +51,9 @@ on:
       image_tag:
         description: Pre-built image tag to deploy instead of building
         required: false
+      kura_controller_image_tag:
+        description: Pre-built Kura controller image tag; omit to preserve the live controller during a server-only re-promotion
+        required: false
       codebase_search_image_tag:
         description: Pre-built codebase search image tag to deploy
         required: false
@@ -87,6 +90,14 @@ on:
           Pre-built image tag to deploy. When set, the build job is
           skipped and the deploy job uses this tag directly. When unset,
           the workflow builds + pushes an image tagged sha-<commit_sha>.
+        required: false
+        type: string
+      kura_controller_image_tag:
+        description: >-
+          Pre-built Kura controller image tag. When a pre-built server image
+          is supplied without this input, the deploy preserves the currently
+          running controller so a server rollback cannot cross a controller
+          protocol boundary.
         required: false
         type: string
       codebase_search_image_tag:
@@ -643,15 +654,15 @@ jobs:
     concurrency:
       group: server-deploy-${{ inputs.environment }}-deploy
       cancel-in-progress: false
-    # This ceiling MUST stay above the helm step's own timeout (70m =
-    # helm `--timeout 60m` + ~10m `--atomic` rollback) plus the ~5-10m
-    # of setup before it. Otherwise GitHub SIGKILLs helm mid-`--wait`,
+    # This ceiling MUST stay above the controller protocol phase, the main
+    # helm step (70m = helm `--timeout 60m` + ~10m `--atomic` rollback),
+    # and the ~5-10m of setup before them. Otherwise GitHub SIGKILLs helm mid-`--wait`,
     # before its rollback can run, and the release is left wedged in
     # pending-upgrade (the bug that drove the long pending-upgrade ->
     # rollback churn: the ceiling had drifted to 50m, under helm's 60m,
-    # when helm was bumped from 30m). 80m keeps helm < step < job so a
-    # stuck deploy fails via helm's own clean path, not this ceiling.
-    timeout-minutes: 80
+    # when helm was bumped from 30m). 110m keeps the controller rollout and
+    # helm below the job ceiling so a stuck deploy fails via a clean rollback.
+    timeout-minutes: 110
     env:
       KUBECONFIG: ${{ github.workspace }}/.kube/config
       NAMESPACE: ${{ inputs.environment == 'production' && 'tuist' || format('tuist-{0}', inputs.environment) }}
@@ -659,10 +670,12 @@ jobs:
       CODEBASE_SEARCH_IMAGE_TAG: ${{ inputs.codebase_search_image_tag != '' && inputs.codebase_search_image_tag || needs.build.outputs.codebase_search_image_tag }}
       REGISTRY_IMAGE_TAG: ${{ inputs.registry_image_tag != '' && inputs.registry_image_tag || inputs.image_tag != '' && inputs.image_tag || needs.build.outputs.registry_image_tag }}
       KURA_RUNTIME_IMAGE_TAG: ${{ inputs.kura_runtime_image_tag }}
+      KURA_CONTROLLER_IMAGE_TAG_INPUT: ${{ inputs.kura_controller_image_tag }}
       LINUX_RUNNER_IMAGE_TAG_INPUT: ${{ inputs.linux_runner_image_tag }}
       MACOS_RUNNER_IMAGE_TAG_INPUT: ${{ inputs.macos_runner_image_tag }}
       CAPI_IMAGE_TAG_INPUT: ${{ inputs.capi_image_tag }}
       RUNNERS_CONTROLLER_IMAGE_TAG_INPUT: ${{ inputs.runners_controller_image_tag }}
+      KURA_CONTROLLER_NAMESPACE: kura
     steps:
       - uses: actions/checkout@v4
         with:
@@ -718,6 +731,35 @@ jobs:
           API="$(kubectl config view --minify --raw -o jsonpath='{.clusters[0].cluster.server}')"
           echo "Reaching apiserver at $API"
           kubectl --request-timeout=10s get --raw /version >/dev/null
+      - name: Resolve Kura controller image tag
+        run: |
+          set -euo pipefail
+
+          if [ -n "$KURA_CONTROLLER_IMAGE_TAG_INPUT" ]; then
+            controller_tag="$KURA_CONTROLLER_IMAGE_TAG_INPUT"
+            controller_source="explicit"
+          elif [ -z "${{ inputs.image_tag }}" ]; then
+            controller_tag="$IMAGE_TAG"
+            controller_source="built"
+          else
+            current_image="$(
+              kubectl -n "$KURA_CONTROLLER_NAMESPACE" get deployments \
+                -l app.kubernetes.io/component=kura-controller \
+                -o jsonpath='{.items[0].spec.template.spec.containers[?(@.name=="manager")].image}' \
+                2>/dev/null || true
+            )"
+            image_prefix="${REGISTRY}/${KURA_CONTROLLER_IMAGE_NAME}:"
+            if [[ "$current_image" != "$image_prefix"* ]]; then
+              echo "No current Kura controller image was found. Provide kura_controller_image_tag for this pre-built server deployment."
+              exit 1
+            fi
+            controller_tag="${current_image#"$image_prefix"}"
+            controller_source="preserved"
+          fi
+
+          echo "KURA_CONTROLLER_IMAGE_TAG=$controller_tag" >> "$GITHUB_ENV"
+          echo "KURA_CONTROLLER_IMAGE_SOURCE=$controller_source" >> "$GITHUB_ENV"
+          echo "Kura controller: ${controller_source} image tag ${controller_tag}"
       - name: Resolve codebase search image tag
         run: |
           set -euo pipefail
@@ -742,6 +784,75 @@ jobs:
           codebase_search_image_tag="${current_image#"$image_prefix"}"
           echo "CODEBASE_SEARCH_IMAGE_TAG=$codebase_search_image_tag" >> "$GITHUB_ENV"
           echo "Codebase search: preserving deployed image tag ${codebase_search_image_tag}"
+      - name: Guard Kura controller protocol rollback
+        run: |
+          set -euo pipefail
+
+          protocol_marker='kura.tuist.dev/peer-publication-protocol: "v1"'
+          if grep -Fq "$protocol_marker" "$HELM_CHART_PATH/templates/kura-controller.yaml"; then
+            expected_tag="sha-${DEPLOY_SHA:0:12}"
+            if [ "$KURA_CONTROLLER_IMAGE_SOURCE" != "preserved" ] && [ "$KURA_CONTROLLER_IMAGE_TAG" != "$expected_tag" ]; then
+              echo "Refusing Kura controller tag ${KURA_CONTROLLER_IMAGE_TAG}; protocol v1 requires the checked-out commit tag ${expected_tag}."
+              exit 1
+            fi
+
+            live_protocol="$(
+              kubectl -n "$KURA_CONTROLLER_NAMESPACE" get deployments \
+                -l app.kubernetes.io/component=kura-controller \
+                -o jsonpath='{.items[0].metadata.annotations.kura\.tuist\.dev/peer-publication-protocol}' \
+                2>/dev/null || true
+            )"
+            if [ "$live_protocol" != "v1" ]; then
+              if [ "$KURA_CONTROLLER_IMAGE_SOURCE" = "preserved" ]; then
+                echo "The live controller predates protocol v1. Provide kura_controller_image_tag=${expected_tag} for this upgrade."
+                exit 1
+              fi
+
+              if ! grep -Fq '@warm_handoffs_enabled Application.compile_env(:tuist, :kura_warm_handoffs_enabled, false)' server/lib/tuist/kura.ex; then
+                echo "The first protocol v1 rollout requires production warm handoffs to remain compile-disabled."
+                echo "Move the controller to its own Helm release before enabling warm handoffs."
+                exit 1
+              fi
+
+              crd_name="$(
+                kubectl get crd kurainstances.kura.tuist.dev \
+                  --ignore-not-found -o name
+              )"
+              if [ -n "$crd_name" ]; then
+                duplicate_peer_hosts="$(
+                  kubectl get kurainstances.kura.tuist.dev -A -o json |
+                    jq -r '
+                      [.items[] | .spec.meshPublicPeerHost // empty]
+                      | sort
+                      | group_by(.)[]
+                      | select(length > 1)
+                      | .[0]
+                    '
+                )"
+              else
+                duplicate_peer_hosts=""
+                echo "No existing Kura custom-resource definition; treating this as a fresh install."
+              fi
+              if [ -n "$duplicate_peer_hosts" ]; then
+                echo "Refusing the first protocol v1 rollout while multiple instances claim these peer hosts:"
+                echo "$duplicate_peer_hosts"
+                exit 1
+              fi
+            fi
+            exit 0
+          fi
+
+          live_protocol="$(
+            kubectl -n "$KURA_CONTROLLER_NAMESPACE" get deployments \
+              -l app.kubernetes.io/component=kura-controller \
+              -o jsonpath='{.items[0].metadata.annotations.kura\.tuist\.dev/peer-publication-protocol}' \
+              2>/dev/null || true
+          )"
+          if [ "$live_protocol" = "v1" ]; then
+            echo "Refusing to roll the Kura controller back across peer-publication protocol v1."
+            echo "Roll the server forward with a compatible fix while preserving the v1 controller."
+            exit 1
+          fi
       - name: kubectl apply CRDs
         # Helm 3 installs `crds/*.yaml` on `helm install` and skips
         # them on `helm upgrade` (intentional — Helm refuses to manage
@@ -819,7 +930,122 @@ jobs:
           # so dependent pods (Pending or otherwise) go with the Job.
           echo "$stale_jobs" | xargs -r kubectl -n "$NAMESPACE" delete job \
             --ignore-not-found --cascade=foreground --timeout=2m
+      - name: Roll out the Kura peer-publication protocol first
+        # This intentionally changes only the controller and its new read
+        # permission. The main Helm upgrade that follows records the complete
+        # desired state without running migrations or applying unrelated chart
+        # changes early.
+        timeout-minutes: 15
+        run: |
+          set -euo pipefail
+
+          controller_selector="app.kubernetes.io/component=kura-controller"
+          controller_names="$(
+            kubectl -n "$KURA_CONTROLLER_NAMESPACE" get deployments \
+              -l "$controller_selector" -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' 2>/dev/null || true
+          )"
+
+          controller_count="$(echo "$controller_names" | sed '/^$/d' | wc -l | tr -d ' ')"
+          if [ "$controller_count" = "0" ]; then
+            echo "No existing Kura controller deployment was found; the main Helm install will create it."
+            exit 0
+          fi
+          if [ "$controller_count" != "1" ]; then
+            echo "Expected exactly one Kura controller Deployment, found:"
+            echo "$controller_names"
+            exit 1
+          fi
+          controller_name="$(echo "$controller_names" | sed '/^$/d')"
+
+          protocol_marker='kura.tuist.dev/peer-publication-protocol: "v1"'
+          if ! grep -Fq "$protocol_marker" "$HELM_CHART_PATH/templates/kura-controller.yaml"; then
+            echo "The target chart predates peer-publication protocol v1; no protocol pre-phase is needed."
+            exit 0
+          fi
+
+          protocol="$(
+            kubectl -n "$KURA_CONTROLLER_NAMESPACE" get deployments \
+              -l "$controller_selector" \
+              -o jsonpath='{.items[0].metadata.annotations.kura\.tuist\.dev/peer-publication-protocol}'
+          )"
+
+          if [ "$protocol" = "v1" ]; then
+            echo "Kura peer-publication protocol v1 is already active."
+            exit 0
+          fi
+
+          role_names="$(
+            kubectl -n "$KURA_CONTROLLER_NAMESPACE" get roles \
+              -l "$controller_selector" -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}'
+          )"
+          if [ "$(echo "$role_names" | sed '/^$/d' | wc -l | tr -d ' ')" != "1" ]; then
+            echo "Expected exactly one Kura controller Role, found:"
+            echo "${role_names:-none}"
+            exit 1
+          fi
+          role_name="$(echo "$role_names" | sed '/^$/d')"
+
+          has_endpoint_slice_access="$(
+            kubectl -n "$KURA_CONTROLLER_NAMESPACE" get role "$role_name" -o json |
+              jq -r '
+                any(
+                  .rules[];
+                  (.apiGroups | index("discovery.k8s.io")) != null and
+                  (.resources | index("endpointslices")) != null and
+                  (["get", "list", "watch"] - .verbs | length) == 0
+                )
+              '
+          )"
+          if [ "$has_endpoint_slice_access" != "true" ]; then
+            kubectl -n "$KURA_CONTROLLER_NAMESPACE" patch role "$role_name" --type=json \
+              -p='[{"op":"add","path":"/rules/-","value":{"apiGroups":["discovery.k8s.io"],"resources":["endpointslices"],"verbs":["get","list","watch"]}}]'
+          fi
+
+          service_account="$(
+            kubectl -n "$KURA_CONTROLLER_NAMESPACE" get deployment "$controller_name" \
+              -o jsonpath='{.spec.template.spec.serviceAccountName}'
+          )"
+          if [ "$(
+            kubectl auth can-i list endpointslices.discovery.k8s.io \
+              --as="system:serviceaccount:${KURA_CONTROLLER_NAMESPACE}:${service_account}" \
+              -n "$KURA_CONTROLLER_NAMESPACE"
+          )" != "yes" ]; then
+            echo "The Kura controller service account cannot list EndpointSlices after updating its Role."
+            exit 1
+          fi
+
+          previous_image="$(
+            kubectl -n "$KURA_CONTROLLER_NAMESPACE" get deployment "$controller_name" \
+              -o jsonpath='{.spec.template.spec.containers[?(@.name=="manager")].image}'
+          )"
+          target_image="${REGISTRY}/${KURA_CONTROLLER_IMAGE_NAME}:${KURA_CONTROLLER_IMAGE_TAG}"
+
+          kubectl -n "$KURA_CONTROLLER_NAMESPACE" set image \
+            "deployment/$controller_name" "manager=$target_image"
+
+          if ! kubectl -n "$KURA_CONTROLLER_NAMESPACE" rollout status \
+            "deployment/$controller_name" --timeout=5m; then
+            echo "The protocol v1 controller did not become ready; restoring $previous_image."
+            kubectl -n "$KURA_CONTROLLER_NAMESPACE" set image \
+              "deployment/$controller_name" "manager=$previous_image"
+            kubectl -n "$KURA_CONTROLLER_NAMESPACE" rollout status \
+              "deployment/$controller_name" --timeout=5m || true
+            exit 1
+          fi
+
+          kubectl -n "$KURA_CONTROLLER_NAMESPACE" annotate deployment "$controller_name" \
+            kura.tuist.dev/peer-publication-protocol=v1 --overwrite
+
+          protocol="$(
+            kubectl -n "$KURA_CONTROLLER_NAMESPACE" get deployment "$controller_name" \
+              -o jsonpath='{.metadata.annotations.kura\.tuist\.dev/peer-publication-protocol}'
+          )"
+          if [ "$protocol" != "v1" ]; then
+            echo "The Kura controller rolled out without peer-publication protocol v1."
+            exit 1
+          fi
       - name: helm upgrade --install
+        id: helm_upgrade
         # App secrets never pass through --set: the chart runs in
         # `server.managedSecrets: true` mode, which reads DATABASE_URL /
         # TUIST_CLICKHOUSE_URL / TUIST_S3_* from priv/secrets/<env>.yml.enc
@@ -954,7 +1180,7 @@ jobs:
             --set server.image.tag="$IMAGE_TAG" \
             --set codebaseSearch.image.tag="$CODEBASE_SEARCH_IMAGE_TAG" \
             --set registry.image.tag="$registry_probe_tag" \
-            --set kuraController.image.tag="$IMAGE_TAG" \
+            --set kuraController.image.tag="$KURA_CONTROLLER_IMAGE_TAG" \
             "${image_sets[@]}" \
             > "$registry_render"
 
@@ -979,9 +1205,52 @@ jobs:
             --set server.image.tag="$IMAGE_TAG" \
             --set codebaseSearch.image.tag="$CODEBASE_SEARCH_IMAGE_TAG" \
             --set registry.image.tag="$registry_image_tag" \
-            --set kuraController.image.tag="$IMAGE_TAG" \
+            --set kuraController.image.tag="$KURA_CONTROLLER_IMAGE_TAG" \
             "${image_sets[@]}" \
             --atomic --timeout 60m --wait
+      - name: Repair the Kura protocol marker after a failed Helm rollback
+        if: ${{ failure() && steps.helm_upgrade.outcome == 'failure' }}
+        run: |
+          set -euo pipefail
+
+          controller_names="$(
+            kubectl -n "$KURA_CONTROLLER_NAMESPACE" get deployments \
+              -l app.kubernetes.io/component=kura-controller \
+              -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' 2>/dev/null || true
+          )"
+          controller_count="$(echo "$controller_names" | sed '/^$/d' | wc -l | tr -d ' ')"
+          if [ "$controller_count" = "0" ]; then
+            exit 0
+          fi
+          if [ "$controller_count" != "1" ]; then
+            echo "Expected exactly one Kura controller Deployment while repairing the protocol marker, found:"
+            echo "$controller_names"
+            exit 1
+          fi
+          controller_name="$(echo "$controller_names" | sed '/^$/d')"
+
+          protocol_marker='kura.tuist.dev/peer-publication-protocol: "v1"'
+          deployed_revision="$(
+            helm history "$HELM_RELEASE_NAME" -n "$NAMESPACE" --max 20 |
+              awk '$0 ~ /[[:space:]]deployed[[:space:]]/ { revision = $1 } END { print revision }'
+          )"
+          if [ -z "$deployed_revision" ]; then
+            kubectl -n "$KURA_CONTROLLER_NAMESPACE" annotate deployment "$controller_name" \
+              kura.tuist.dev/peer-publication-protocol- || true
+            exit 0
+          fi
+
+          deployed_manifest="$(
+            helm get manifest "$HELM_RELEASE_NAME" -n "$NAMESPACE" \
+              --revision "$deployed_revision"
+          )"
+          if grep -Fq "$protocol_marker" <<< "$deployed_manifest"; then
+            kubectl -n "$KURA_CONTROLLER_NAMESPACE" annotate deployment "$controller_name" \
+              kura.tuist.dev/peer-publication-protocol=v1 --overwrite
+          else
+            kubectl -n "$KURA_CONTROLLER_NAMESPACE" annotate deployment "$controller_name" \
+              kura.tuist.dev/peer-publication-protocol- || true
+          fi
       - name: Diagnostics on failure
         # `--atomic` rolls back the release on timeout, so `helm history` and
         # most cluster state reflect the rolled-back revision rather than the

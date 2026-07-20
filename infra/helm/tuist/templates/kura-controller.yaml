@@ -75,6 +75,9 @@ rules:
   - apiGroups: [""]
     resources: [pods]
     verbs: [get, list, watch]
+  - apiGroups: ["discovery.k8s.io"]
+    resources: [endpointslices]
+    verbs: [get, list, watch]
   # delete: self-heal a wedged instance by recreating its StatefulSet and
   # dropping data PVCs that can never bind (storage-class drift on the immutable
   # volumeClaimTemplate, or a node-local volume orphaned by a reprovisioned
@@ -246,6 +249,8 @@ kind: Deployment
 metadata:
   name: {{ $name }}
   namespace: {{ $namespace }}
+  annotations:
+    kura.tuist.dev/peer-publication-protocol: "v1"
   labels:
     {{- include "tuist.labels" . | nindent 4 }}
     app.kubernetes.io/component: kura-controller
