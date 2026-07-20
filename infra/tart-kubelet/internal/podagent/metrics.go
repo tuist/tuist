@@ -197,6 +197,31 @@ var cacheVolumeRootFreeBytes = prometheus.NewGauge(
 	},
 )
 
+// cacheVolumeRootMounted is 1 when --runner-cache-root points at an actually-
+// mounted volume and 0 when the feature is enabled but the path is not a mount
+// (unprovisioned, or the host rebooted and the volume did not auto-remount).
+// A 0 here is the direct, unambiguous signal that every job on this host is
+// silently falling back to the cold path — root_free_bytes alone can't tell an
+// unmounted volume from a disabled feature, this can.
+var cacheVolumeRootMounted = prometheus.NewGauge(
+	prometheus.GaugeOpts{
+		Name: "tart_kubelet_cache_volume_root_mounted",
+		Help: "1 when the runner-cache root is a mounted volume, 0 when --runner-cache-root is set but the path is not mounted (all jobs run cold until it mounts).",
+	},
+)
+
+// cacheVolumeAdmissionDeclinedTotal counts branches that AllocateBranch declined
+// because the runner-cache root had no room even after evicting every master —
+// a silent cold-path fallback until now. A nonzero, growing value means the
+// quota volume is genuinely full (masters + live-branch reservations), distinct
+// from the volume being unmounted (root_mounted=0) or the feature off.
+var cacheVolumeAdmissionDeclinedTotal = prometheus.NewCounter(
+	prometheus.CounterOpts{
+		Name: "tart_kubelet_cache_volume_admission_declined_total",
+		Help: "Cache-volume allocations declined for lack of room even after LRU eviction; the VM ran cold.",
+	},
+)
+
 func init() {
 	metrics.Registry.MustRegister(
 		vmBootDurationSeconds,
@@ -210,6 +235,8 @@ func init() {
 		cacheVolumeConvergedTotal,
 		cacheVolumeResidentCount,
 		cacheVolumeRootFreeBytes,
+		cacheVolumeRootMounted,
+		cacheVolumeAdmissionDeclinedTotal,
 	)
 }
 
@@ -243,6 +270,22 @@ func RecordVolumeConverged() {
 func RecordVolumeResident(count int, freeBytes uint64) {
 	cacheVolumeResidentCount.Set(float64(count))
 	cacheVolumeRootFreeBytes.Set(float64(freeBytes))
+}
+
+// RecordVolumeRootMounted publishes whether the runner-cache root is a mounted
+// volume, sampled at startup and on every reconcile tick.
+func RecordVolumeRootMounted(mounted bool) {
+	if mounted {
+		cacheVolumeRootMounted.Set(1)
+		return
+	}
+	cacheVolumeRootMounted.Set(0)
+}
+
+// RecordVolumeAdmissionDeclined increments the count of cache-volume
+// allocations declined for lack of room even after eviction.
+func RecordVolumeAdmissionDeclined() {
+	cacheVolumeAdmissionDeclinedTotal.Inc()
 }
 
 // RecordGoldenMaterialized increments the per-pool count of golden base

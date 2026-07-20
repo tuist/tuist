@@ -1,6 +1,7 @@
 package podagent
 
 import (
+	"context"
 	"crypto/sha1"
 	"encoding/hex"
 	"errors"
@@ -9,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-logr/logr"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -32,6 +35,12 @@ type fakeBackend struct {
 	cloneErr error
 	// createErr, when set, fails image creation.
 	createErr error
+	// notMounted, when set, makes isMounted report the runner-cache root as an
+	// unmounted volume — the "feature enabled, volume missing" case. Default
+	// (false) reports the root mounted, so ordinary tests need not opt in.
+	notMounted bool
+	// mountErr, when set, is returned from isMounted to model a stat failure.
+	mountErr error
 	// imageDigests maps an image's opaque content to the digest a real attach
 	// would report, standing in for the filesystem inside it.
 	imageDigests map[string]string
@@ -72,6 +81,13 @@ func (f *fakeBackend) imageInventoryDigest(path string) (string, error) {
 		return d, nil
 	}
 	return "", errors.New("fake: no digest registered for image content " + string(b))
+}
+
+func (f *fakeBackend) isMounted(string) (bool, error) {
+	if f.mountErr != nil {
+		return false, f.mountErr
+	}
+	return !f.notMounted, nil
 }
 
 func (f *fakeBackend) freeBytes(root string) (uint64, error) {
@@ -336,6 +352,91 @@ func TestAdmissionDeclinesToColdPath(t *testing.T) {
 	}
 	if att.Attached {
 		t.Fatal("admission should decline (cold path) when the root cannot fit a cap")
+	}
+}
+
+// A decline for lack of room used to be entirely silent. It must now bump the
+// admission-declined counter so a host wedged under disk pressure is visible in
+// Prometheus rather than looking identical to an idle one.
+func TestAdmissionDeclineIncrementsMetric(t *testing.T) {
+	before := testutil.ToFloat64(cacheVolumeAdmissionDeclinedTotal)
+
+	root := t.TempDir()
+	be := &fakeBackend{totalBytes: gib / 2, perMaster: gib, root: root}
+	m := NewVolumeManager(root, 1, be)
+
+	att, err := m.AllocateBranch(ReservedTuistCacheVolume, "vm1")
+	if err != nil {
+		t.Fatalf("AllocateBranch err: %v", err)
+	}
+	if att.Attached {
+		t.Fatal("admission should decline to the cold path")
+	}
+	if got := testutil.ToFloat64(cacheVolumeAdmissionDeclinedTotal); got != before+1 {
+		t.Fatalf("admission-declined counter = %v, want %v", got, before+1)
+	}
+}
+
+// awaitMountedRoot returns immediately on a healthy host (root already mounted)
+// and publishes the root-mounted gauge as 1.
+func TestAwaitMountedRootReturnsWhenMounted(t *testing.T) {
+	m, _ := newTestManager(t, 100)   // fake reports mounted by default
+	m.mountCheckInterval = time.Hour // a retry would hang the test; a mounted root must not retry
+	m.mountCheckAttempts = 3
+
+	done := make(chan struct{})
+	go func() {
+		m.awaitMountedRoot(context.Background(), logr.Discard())
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("awaitMountedRoot should return at once when the root is mounted")
+	}
+	if got := testutil.ToFloat64(cacheVolumeRootMounted); got != 1 {
+		t.Fatalf("root-mounted gauge = %v, want 1", got)
+	}
+}
+
+// awaitMountedRoot retries a bounded number of times when the root never
+// mounts, then gives up (rather than blocking forever) with the gauge at 0.
+func TestAwaitMountedRootGivesUpWhenUnmounted(t *testing.T) {
+	m, be := newTestManager(t, 100)
+	be.notMounted = true
+	m.mountCheckInterval = time.Millisecond
+	m.mountCheckAttempts = 3
+
+	start := time.Now()
+	m.awaitMountedRoot(context.Background(), logr.Discard())
+	if elapsed := time.Since(start); elapsed > time.Second {
+		t.Fatalf("awaitMountedRoot took %s; should give up after %d bounded attempts", elapsed, m.mountCheckAttempts)
+	}
+	if got := testutil.ToFloat64(cacheVolumeRootMounted); got != 0 {
+		t.Fatalf("root-mounted gauge = %v, want 0", got)
+	}
+}
+
+// A cancelled context short-circuits the retry wait so kubelet shutdown is not
+// blocked on a missing volume.
+func TestAwaitMountedRootStopsOnContextCancel(t *testing.T) {
+	m, be := newTestManager(t, 100)
+	be.notMounted = true
+	m.mountCheckInterval = time.Hour
+	m.mountCheckAttempts = 100
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	done := make(chan struct{})
+	go func() {
+		m.awaitMountedRoot(ctx, logr.Discard())
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("awaitMountedRoot should return promptly once the context is cancelled")
 	}
 }
 
