@@ -78,10 +78,24 @@ defmodule Tuist.OpenGraphImages do
     end
   end
 
-  def stream(key) do
-    key
-    |> object_key()
-    |> Storage.stream_object(@actor)
+  # The image is read fully into memory before the caller commits a response.
+  # These are single ~1080p JPEGs, and serving them chunked would mean a
+  # mid-download storage failure lands after a 200 with a year-long immutable
+  # cache header, freezing a truncated image on CDNs and social platforms under
+  # a URL that by construction never changes.
+  def fetch(key) do
+    image =
+      key
+      |> object_key()
+      |> Storage.stream_object(@actor)
+      |> Enum.to_list()
+      |> IO.iodata_to_binary()
+
+    {:ok, image}
+  rescue
+    error -> {:error, error}
+  catch
+    :exit, reason -> {:error, reason}
   end
 
   defp generate_and_store(key, object_key, resolve) do

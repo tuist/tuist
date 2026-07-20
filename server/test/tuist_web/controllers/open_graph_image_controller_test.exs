@@ -130,6 +130,21 @@ defmodule TuistWeb.OpenGraphImageControllerTest do
     assert get_resp_header(conn, "cache-control") == ["public, max-age=60"]
   end
 
+  test "returns service unavailable when reading the cached image fails", %{conn: conn} do
+    source_path = "/marketing/images/og/generated/about.jpg"
+    {:ok, spec} = MarketingImage.resolve(source_path)
+    versioned_path = OpenGraphImages.versioned_path(source_path, spec.key)
+    object_key = "open-graph-images/#{spec.key}.jpg"
+
+    expect(Storage, :object_exists?, fn ^object_key, :open_graph_images -> true end)
+    expect(Storage, :stream_object, fn ^object_key, :open_graph_images -> raise "storage down" end)
+
+    conn = get(conn, versioned_path)
+
+    assert response(conn, :service_unavailable) == ""
+    refute get_resp_header(conn, "cache-control") == ["public, max-age=31536000, immutable"]
+  end
+
   test "honors the entity tag without downloading the cached image", %{conn: conn} do
     source_path = "/marketing/images/og/generated/about.jpg"
     {:ok, spec} = MarketingImage.resolve(source_path)

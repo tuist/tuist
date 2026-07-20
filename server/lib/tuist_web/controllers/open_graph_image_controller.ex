@@ -44,39 +44,42 @@ defmodule TuistWeb.OpenGraphImageController do
       end
 
     case result do
-      :ok -> stream_image(conn, key)
+      :ok -> send_image(conn, key)
       {:transient, image} -> serve_transient(conn, image)
       {:error, reason} when reason in [:not_found, :stale_version] -> not_found(conn)
       {:error, reason} -> unavailable(conn, reason)
     end
   end
 
-  defp stream_image(conn, key) do
+  defp send_image(conn, key) do
     etag = ~s("#{key}")
 
-    conn =
-      conn
-      |> put_resp_content_type("image/jpeg", nil)
-      |> put_resp_header("cache-control", "public, max-age=31536000, immutable")
-      |> put_resp_header("etag", etag)
-      |> put_resp_header("x-content-type-options", "nosniff")
-
     if etag in get_req_header(conn, "if-none-match") do
-      send_resp(conn, :not_modified, "")
-    else
       conn
-      |> send_chunked(:ok)
-      |> stream_chunks(OpenGraphImages.stream(key))
+      |> put_immutable_image_headers(etag)
+      |> send_resp(:not_modified, "")
+    else
+      # The image is fetched before any header is committed so a storage
+      # failure degrades to a 503 the caller will retry, rather than a
+      # truncated body under an immutable, year-long cache header.
+      case OpenGraphImages.fetch(key) do
+        {:ok, image} ->
+          conn
+          |> put_immutable_image_headers(etag)
+          |> send_resp(:ok, image)
+
+        {:error, reason} ->
+          unavailable(conn, reason)
+      end
     end
   end
 
-  defp stream_chunks(conn, stream) do
-    Enum.reduce_while(stream, conn, fn image_chunk, conn ->
-      case chunk(conn, image_chunk) do
-        {:ok, conn} -> {:cont, conn}
-        {:error, _reason} -> {:halt, conn}
-      end
-    end)
+  defp put_immutable_image_headers(conn, etag) do
+    conn
+    |> put_resp_content_type("image/jpeg", nil)
+    |> put_resp_header("cache-control", "public, max-age=31536000, immutable")
+    |> put_resp_header("etag", etag)
+    |> put_resp_header("x-content-type-options", "nosniff")
   end
 
   defp serve_transient(conn, image) do
