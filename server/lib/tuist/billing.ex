@@ -160,19 +160,74 @@ defmodule Tuist.Billing do
   end
 
   @doc """
+  Half-open reporting windows covering `[period_start, period_end)`,
+  split at the account's subscription renewal boundary when one falls
+  inside the window.
+
+  A meter event carries a single timestamp, so a UTC-day aggregate that
+  straddles a renewal would have to be attributed entirely to one side
+  of the boundary or the other. Splitting first means every event we
+  send lies wholly within one service period, and the value reported is
+  exactly the usage that period earned. Renewals are the only boundary
+  that can fall inside a one-day window, and there can be at most one.
+
+  Falls back to the whole window when the account has no active
+  subscription or Stripe can't be reached: over-reporting into the
+  current period is better than dropping the day entirely, and a
+  customer with no subscription has nothing to invoice against anyway.
+  """
+  def usage_windows(%Account{} = account, %DateTime{} = period_start, %DateTime{} = period_end) do
+    case renewal_boundary(account) do
+      %DateTime{} = boundary ->
+        if DateTime.after?(boundary, period_start) and DateTime.before?(boundary, period_end) do
+          [{period_start, boundary}, {boundary, period_end}]
+        else
+          [{period_start, period_end}]
+        end
+
+      nil ->
+        [{period_start, period_end}]
+    end
+  end
+
+  defp renewal_boundary(%Account{} = account) do
+    case get_current_active_subscription(account) do
+      %Subscription{subscription_id: subscription_id} when is_binary(subscription_id) ->
+        case Stripe.Subscription.retrieve(subscription_id) do
+          {:ok, %{current_period_start: current_period_start}} when is_integer(current_period_start) ->
+            DateTime.from_unix!(current_period_start)
+
+          _ ->
+            nil
+        end
+
+      _ ->
+        nil
+    end
+  end
+
+  @doc """
   Reports one previously-snapshotted value to Stripe. The event
   identifier and request idempotency key both include the parent
   period, so a retried child job reports the same value under the same
   identifier and Stripe deduplicates it rather than double-counting.
 
-  We deliberately omit an explicit `timestamp`, letting Stripe stamp
-  the event at ingestion time. Pinning the timestamp to `period_start`
-  attributes usage to the day it happened, but a subscription's billing
-  period can close (and its invoice finalize) between that day and this
-  daily report — usage stamped into an already-finalized period is
-  never billed. Ingestion time always lands in the open period, so the
-  last day of a period bills on the following invoice instead of being
-  lost. The daily cadence keeps the shift to at most one cycle.
+  The event is stamped just inside the end of its own usage window, so
+  Stripe attributes it to the service period the usage actually
+  happened in. Letting Stripe default the timestamp to ingestion time
+  would move a day of usage into whichever period happened to be open
+  when the job ran, which breaks down at a renewal, at a mid-cycle
+  price change, and worst of all at `cancel_at_period_end`, where there
+  is no following invoice for the shifted usage to land on.
+
+  This makes the reporting delay matter: an event stamped inside a
+  period that has already finalized is never billed. `usage_windows/3`
+  keeps each event inside one period, and Stripe's invoice
+  finalization grace period (Billing settings, up to 72 hours) has to
+  cover the gap between period close and this daily job.
+
+  Returns `{:ok, :already_reported}` when Stripe rejects the event as a
+  duplicate, so the caller treats it as delivered instead of retrying.
   """
   def report_meter_event(customer_id, event_name, value, %DateTime{} = period_start, %DateTime{} = period_end)
       when is_binary(customer_id) and is_binary(event_name) and is_integer(value) and value >= 0 do
@@ -185,6 +240,7 @@ defmodule Tuist.Billing do
     |> Stripe.Request.put_params(%{
       event_name: event_name,
       identifier: identifier,
+      timestamp: DateTime.to_unix(usage_timestamp(period_start, period_end)),
       payload: %{
         value: value,
         stripe_customer_id: customer_id
@@ -192,6 +248,33 @@ defmodule Tuist.Billing do
     })
     |> Stripe.Request.put_method(:post)
     |> Stripe.Request.make_request()
+    |> resolve_duplicate()
+  end
+
+  # A rejected duplicate means Stripe already has this exact event, which
+  # is the outcome we wanted. Retrying it would only burn attempts and,
+  # once the dedup window lapses, risk landing a second copy. Stripe
+  # doesn't document a stable error code for this, so match on the
+  # identifier-conflict shape and let anything else stay an error.
+  defp resolve_duplicate({:error, %Stripe.Error{code: code, message: message} = error})
+       when code in [:invalid_request_error, :conflict, :bad_request] do
+    if is_binary(message) and String.contains?(message, "identifier") and
+         String.contains?(String.downcase(message), ["already", "duplicate"]) do
+      {:ok, :already_reported}
+    else
+      {:error, error}
+    end
+  end
+
+  defp resolve_duplicate(result), do: result
+
+  # The window is half-open, so `period_end` itself belongs to the next
+  # service period. Stamp one second earlier to stay inside this one,
+  # clamping up to `period_start` for windows shorter than a second.
+  defp usage_timestamp(period_start, period_end) do
+    timestamp = DateTime.add(period_end, -1, :second)
+
+    if DateTime.before?(timestamp, period_start), do: period_start, else: timestamp
   end
 
   def update_plan(%{plan: plan, account: %Account{} = account, success_url: success_url}) do

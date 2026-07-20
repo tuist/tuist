@@ -52,6 +52,46 @@ defmodule Tuist.Billing.Workers.SyncCustomerStripeMetersWorkerTest do
            end)
   end
 
+  test "snapshots each side of a renewal separately when the day straddles one" do
+    customer_id = UUIDv7.generate()
+    %{account: account} = AccountsFixtures.user_fixture(customer_id: customer_id)
+    period_start_datetime = ~U[2026-07-16 00:00:00.000000Z]
+    period_end_datetime = ~U[2026-07-17 00:00:00.000000Z]
+    boundary = ~U[2026-07-16 09:30:00Z]
+
+    stub(FunWithFlags, :enabled?, fn :qa_billing_enabled, [for: ^account] -> false end)
+
+    stub(Billing, :usage_windows, fn ^account, ^period_start_datetime, ^period_end_datetime ->
+      [{period_start_datetime, boundary}, {boundary, period_end_datetime}]
+    end)
+
+    stub(Billing, :customer_meter_values, fn ^account, window_start, window_end, [include_qa: false] ->
+      # Distinguish the two windows so the enqueued values prove each was
+      # snapshotted against its own bounds rather than the whole day.
+      value = if window_start == period_start_datetime and window_end == boundary, do: 10, else: 20
+      [%{event_name: "remote_cache_hit", value: value}]
+    end)
+
+    assert :ok =
+             SyncCustomerStripeMetersWorker.perform(%Oban.Job{
+               id: 789,
+               args: %{
+                 "customer_id" => customer_id,
+                 "period_start" => DateTime.to_unix(period_start_datetime, :microsecond),
+                 "period_end" => DateTime.to_unix(period_end_datetime, :microsecond)
+               }
+             })
+
+    jobs = all_enqueued(worker: SyncCustomerStripeMeterWorker)
+
+    assert jobs
+           |> Enum.map(&{&1.args["value"], &1.args["period_start"], &1.args["period_end"]})
+           |> Enum.sort() == [
+             {10, DateTime.to_unix(period_start_datetime, :microsecond), DateTime.to_unix(boundary, :microsecond)},
+             {20, DateTime.to_unix(boundary, :microsecond), DateTime.to_unix(period_end_datetime, :microsecond)}
+           ]
+  end
+
   test "handles pre-deploy jobs that carry only the customer id" do
     customer_id = UUIDv7.generate()
     %{account: account} = AccountsFixtures.user_fixture(customer_id: customer_id)

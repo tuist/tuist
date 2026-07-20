@@ -646,35 +646,148 @@ defmodule Tuist.BillingTest do
   end
 
   describe "report_meter_event/5" do
-    test "reports a snapshotted value with a period-specific identifier and no explicit timestamp" do
+    test "stamps the event inside its own usage window under a period-specific identifier" do
       customer_id = "customer-#{UUIDv7.generate()}"
-      event_name = "runner_linux_4_vcpu_16_gb_milliseconds"
+      event_name = "runner_linux_compute_unit_milliseconds"
       period_start = ~U[2026-07-16 00:00:00.000000Z]
       period_end = ~U[2026-07-17 00:00:00.000000Z]
 
       identifier =
         "#{customer_id}-#{event_name}-#{DateTime.to_unix(period_start)}-#{DateTime.to_unix(period_end)}"
 
+      # One second before the half-open end, so the event lands in the
+      # period the usage happened in rather than the one after it.
+      timestamp = DateTime.to_unix(~U[2026-07-16 23:59:59.000000Z])
+
       expect(Stripe.Request, :make_request, fn %{
                                                  method: :post,
                                                  endpoint: "/v1/billing/meter_events",
                                                  headers: %{"Idempotency-Key" => ^identifier},
-                                                 params:
-                                                   %{
-                                                     event_name: ^event_name,
-                                                     identifier: ^identifier,
-                                                     payload: %{
-                                                       value: 750_125,
-                                                       stripe_customer_id: ^customer_id
-                                                     }
-                                                   } = params
+                                                 params: %{
+                                                   event_name: ^event_name,
+                                                   identifier: ^identifier,
+                                                   timestamp: ^timestamp,
+                                                   payload: %{
+                                                     value: 750_125,
+                                                     stripe_customer_id: ^customer_id
+                                                   }
+                                                 }
                                                } ->
-        refute Map.has_key?(params, :timestamp)
         {:ok, %{id: "meter-event"}}
       end)
 
       assert {:ok, %{id: "meter-event"}} =
                Billing.report_meter_event(customer_id, event_name, 750_125, period_start, period_end)
+    end
+
+    test "treats a duplicate rejection as already delivered" do
+      customer_id = "customer-#{UUIDv7.generate()}"
+
+      stub(Stripe.Request, :make_request, fn _ ->
+        {:error,
+         %Stripe.Error{
+           source: :stripe,
+           code: :invalid_request_error,
+           message: "An event with identifier `abc` already exists."
+         }}
+      end)
+
+      assert {:ok, :already_reported} =
+               Billing.report_meter_event(
+                 customer_id,
+                 "runner_linux_compute_unit_milliseconds",
+                 750_125,
+                 ~U[2026-07-16 00:00:00.000000Z],
+                 ~U[2026-07-17 00:00:00.000000Z]
+               )
+    end
+
+    test "keeps unrelated Stripe errors as errors" do
+      customer_id = "customer-#{UUIDv7.generate()}"
+
+      stub(Stripe.Request, :make_request, fn _ ->
+        {:error,
+         %Stripe.Error{
+           source: :stripe,
+           code: :invalid_request_error,
+           message: "No such meter: `runner_linux_compute_unit_milliseconds`."
+         }}
+      end)
+
+      assert {:error, %Stripe.Error{}} =
+               Billing.report_meter_event(
+                 customer_id,
+                 "runner_linux_compute_unit_milliseconds",
+                 750_125,
+                 ~U[2026-07-16 00:00:00.000000Z],
+                 ~U[2026-07-17 00:00:00.000000Z]
+               )
+    end
+  end
+
+  describe "usage_windows/3" do
+    setup do
+      customer_id = "customer-#{UUIDv7.generate()}"
+      %{account: account} = AccountsFixtures.user_fixture(customer_id: customer_id)
+
+      %{account: account}
+    end
+
+    test "returns the whole window when the account has no active subscription", %{account: account} do
+      period_start = ~U[2026-07-16 00:00:00.000000Z]
+      period_end = ~U[2026-07-17 00:00:00.000000Z]
+
+      assert Billing.usage_windows(account, period_start, period_end) == [{period_start, period_end}]
+    end
+
+    test "splits the window at a renewal that falls inside it", %{account: account} do
+      period_start = ~U[2026-07-16 00:00:00.000000Z]
+      period_end = ~U[2026-07-17 00:00:00.000000Z]
+      boundary = ~U[2026-07-16 09:30:00Z]
+
+      subscription = subscription_with_renewal(account, boundary)
+
+      assert Billing.usage_windows(account, period_start, period_end) == [
+               {period_start, boundary},
+               {boundary, period_end}
+             ]
+
+      assert subscription.status == "active"
+    end
+
+    test "keeps the window whole when the renewal falls outside it", %{account: account} do
+      period_start = ~U[2026-07-16 00:00:00.000000Z]
+      period_end = ~U[2026-07-17 00:00:00.000000Z]
+
+      subscription_with_renewal(account, ~U[2026-07-10 09:30:00Z])
+
+      assert Billing.usage_windows(account, period_start, period_end) == [{period_start, period_end}]
+    end
+
+    test "keeps the window whole when Stripe can't be reached", %{account: account} do
+      period_start = ~U[2026-07-16 00:00:00.000000Z]
+      period_end = ~U[2026-07-17 00:00:00.000000Z]
+
+      BillingFixtures.subscription_fixture(account_id: account.id)
+
+      stub(Stripe.Subscription, :retrieve, fn _ ->
+        {:error, %Stripe.Error{source: :network, code: :network_code, message: "boom"}}
+      end)
+
+      assert Billing.usage_windows(account, period_start, period_end) == [{period_start, period_end}]
+    end
+
+    defp subscription_with_renewal(account, %DateTime{} = boundary) do
+      subscription_id = "sub-#{UUIDv7.generate()}"
+
+      subscription =
+        BillingFixtures.subscription_fixture(account_id: account.id, subscription_id: subscription_id)
+
+      stub(Stripe.Subscription, :retrieve, fn ^subscription_id ->
+        {:ok, %{current_period_start: DateTime.to_unix(boundary)}}
+      end)
+
+      subscription
     end
   end
 

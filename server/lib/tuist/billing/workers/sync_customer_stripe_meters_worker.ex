@@ -44,18 +44,26 @@ defmodule Tuist.Billing.Workers.SyncCustomerStripeMetersWorker do
 
     {:ok, account} = Accounts.get_account_from_customer_id(customer_id)
 
+    include_qa = FunWithFlags.enabled?(:qa_billing_enabled, for: account)
+
+    # Snapshot each service period the day covers separately. A day that
+    # straddles a subscription renewal produces two sets of jobs, each
+    # reporting only the usage its own period earned, so no event ever
+    # crosses an invoice boundary.
     account
-    |> Billing.customer_meter_values(period_start, period_end,
-      include_qa: FunWithFlags.enabled?(:qa_billing_enabled, for: account)
-    )
-    |> Enum.map(fn meter ->
-      SyncCustomerStripeMeterWorker.new(%{
-        customer_id: customer_id,
-        event_name: meter.event_name,
-        value: meter.value,
-        period_start: DateTime.to_unix(period_start, :microsecond),
-        period_end: DateTime.to_unix(period_end, :microsecond)
-      })
+    |> Billing.usage_windows(period_start, period_end)
+    |> Enum.flat_map(fn {window_start, window_end} ->
+      account
+      |> Billing.customer_meter_values(window_start, window_end, include_qa: include_qa)
+      |> Enum.map(fn meter ->
+        SyncCustomerStripeMeterWorker.new(%{
+          customer_id: customer_id,
+          event_name: meter.event_name,
+          value: meter.value,
+          period_start: DateTime.to_unix(window_start, :microsecond),
+          period_end: DateTime.to_unix(window_end, :microsecond)
+        })
+      end)
     end)
     |> Oban.insert_all()
 
