@@ -70,36 +70,20 @@ defmodule TuistWeb.RunnersLiveTest do
     assert html =~ "Docker build"
   end
 
-  test "pads the recent workflow and job charts to a fixed width", %{conn: conn, account: account} do
-    :ok =
-      Jobs.enqueue(%{
-        workflow_job_id: 70_002,
-        account_id: account.id,
-        fleet_name: "fleet-x",
-        repository: "tuist/tuist",
-        workflow_run_id: 700_020,
-        workflow_name: "Server",
-        run_attempt: 1,
-        job_name: "Docker build",
-        head_branch: "main",
-        head_sha: "abcdef1"
-      })
-
-    {:ok, candidate} = Jobs.pick_queued("fleet-x", [])
-    :ok = Jobs.record_claimed(candidate, "pod-1", DateTime.utc_now())
-    :ok = Jobs.record_running(70_002, "runner-x")
-    {:ok, _} = Jobs.complete(70_002, "success")
+  test "charts only succeeded/failed runs, packed into a fixed-width trail", %{conn: conn, account: account} do
+    complete_run(account, 70_002, 700_020, "success")
+    complete_run(account, 70_003, 700_021, "cancelled")
 
     {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners")
     html = render_async(lv)
 
-    # A single run must still fill the fixed 30-slot trail: one real bar plus
-    # 29 padded slots, so the bars pack together instead of stretching across
-    # the full card width.
+    # The cancelled run carries no real duration, so it must not draw a
+    # bar. Only the succeeded run remains, packed into the fixed 30-slot
+    # trail: one real bar plus 29 padded slots.
     for chart_id <- ["runners-recent-workflows-chart", "runners-recent-jobs-chart"] do
       data = chart_series_data(html, chart_id)
       assert length(data) == 30
-      assert Enum.count(data, &(&1["value"] == nil)) == 29
+      assert Enum.count(data, &(&1["value"] != nil)) == 1
     end
   end
 
@@ -158,6 +142,27 @@ defmodule TuistWeb.RunnersLiveTest do
     assert TuistWeb.RunnersLive.concurrency_chart_options("last-30-days").xAxis.axisLabel.interval == 47
 
     assert TuistWeb.RunnersLive.concurrency_chart_options("last-7-days").tooltip.dateFormat == "hour"
+  end
+
+  defp complete_run(account, workflow_job_id, workflow_run_id, conclusion) do
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: workflow_job_id,
+        account_id: account.id,
+        fleet_name: "fleet-x",
+        repository: "tuist/tuist",
+        workflow_run_id: workflow_run_id,
+        workflow_name: "Server",
+        run_attempt: 1,
+        job_name: "Docker build",
+        head_branch: "main",
+        head_sha: "abcdef#{workflow_job_id}"
+      })
+
+    {:ok, candidate} = Jobs.pick_queued("fleet-x", [])
+    :ok = Jobs.record_claimed(candidate, "pod-#{workflow_job_id}", DateTime.utc_now())
+    :ok = Jobs.record_running(workflow_job_id, "runner-#{workflow_job_id}")
+    {:ok, _} = Jobs.complete(workflow_job_id, conclusion)
   end
 
   defp chart_series_data(html, chart_id) do
