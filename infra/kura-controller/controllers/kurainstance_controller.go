@@ -76,23 +76,25 @@ const (
 	// before the public Services can route cache reads to it.
 	minPrimaryPodAge = 10 * time.Minute
 
-	sharedSecretsName                          = "kura-shared-secrets"
-	otlpTracesEndpointEnvVar                   = "KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"
-	environmentEnvVar                          = "KURA_OTEL_DEPLOYMENT_ENVIRONMENT"
-	sharedSecretsRVAnnotation                  = "kura.tuist.dev/shared-secrets-resource-version"
-	externalDNSHostnameAnnotation              = "external-dns.alpha.kubernetes.io/hostname"
-	legacyPeerHostAnnotation                   = "kura.tuist.dev/legacy-peer-host"
-	legacyPeerMigrationAnnotation              = "kura.tuist.dev/legacy-peer-migration-phase"
-	legacyPeerOldAddressesAnnotation           = "kura.tuist.dev/legacy-peer-old-addresses"
-	legacyPeerTargetAddressesAnnotation        = "kura.tuist.dev/legacy-peer-target-addresses"
-	legacyPeerRetireAfterAnnotation            = "kura.tuist.dev/legacy-peer-retire-after"
-	legacyPeerCutoverRequestedAnnotation       = "kura.tuist.dev/legacy-peer-cutover-requested-at"
-	legacyPeerPhaseRepairing                   = "repairing-fallback"
-	legacyPeerPhaseCutoverRequested            = "cutover-requested"
-	legacyPeerPhaseDraining                    = "draining"
-	peerDNSRecordTTLSeconds              int64 = 300
-	legacyPeerRetirementDelay                  = 2 * time.Duration(peerDNSRecordTTLSeconds) * time.Second
-	hetznerNodeSelectorAnnotation              = "load-balancer.hetzner.cloud/node-selector"
+	sharedSecretsName                           = "kura-shared-secrets"
+	otlpTracesEndpointEnvVar                    = "KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"
+	environmentEnvVar                           = "KURA_OTEL_DEPLOYMENT_ENVIRONMENT"
+	sharedSecretsRVAnnotation                   = "kura.tuist.dev/shared-secrets-resource-version"
+	externalDNSHostnameAnnotation               = "external-dns.alpha.kubernetes.io/hostname"
+	legacyPeerHostAnnotation                    = "kura.tuist.dev/legacy-peer-host"
+	legacyPeerMigrationAnnotation               = "kura.tuist.dev/legacy-peer-migration-phase"
+	legacyPeerOldAddressesAnnotation            = "kura.tuist.dev/legacy-peer-old-addresses"
+	legacyPeerTargetAddressesAnnotation         = "kura.tuist.dev/legacy-peer-target-addresses"
+	legacyPeerRetireAfterAnnotation             = "kura.tuist.dev/legacy-peer-retire-after"
+	legacyPeerCutoverRequestedAnnotation        = "kura.tuist.dev/legacy-peer-cutover-requested-at"
+	legacyPeerFallbackRepublishAnnotation       = "kura.tuist.dev/legacy-peer-fallback-republish-requested-at"
+	legacyPeerFallbackObservedAnnotation        = "kura.tuist.dev/legacy-peer-fallback-observed-at"
+	legacyPeerPhaseRepairing                    = "repairing-fallback"
+	legacyPeerPhaseCutoverRequested             = "cutover-requested"
+	legacyPeerPhaseDraining                     = "draining"
+	peerDNSRecordTTLSeconds               int64 = 300
+	legacyPeerRetirementDelay                   = 2 * time.Duration(peerDNSRecordTTLSeconds) * time.Second
+	hetznerNodeSelectorAnnotation               = "load-balancer.hetzner.cloud/node-selector"
 
 	peerTLSVolumeName = "peer-tls"
 	peerTLSMountPath  = "/etc/kura/peer-tls"
@@ -701,7 +703,7 @@ func (r *KuraInstanceReconciler) retireLegacyAccountPublicPeerService(
 		}
 		oldAddresses, targetAddresses, valid := legacyPeerMigrationAddresses(annotations, state.targetAddresses)
 		if !valid {
-			return nil
+			return r.restartLegacyPeerCutover(ctx, service, instance, annotations, state.targetAddresses, now)
 		}
 		pathsReady, err := r.peerPublicPathsReady(ctx, instance, append(oldAddresses, targetAddresses...))
 		if err != nil {
@@ -709,6 +711,27 @@ func (r *KuraInstanceReconciler) retireLegacyAccountPublicPeerService(
 		}
 		if !pathsReady {
 			return nil
+		}
+		if annotations[legacyPeerFallbackRepublishAnnotation] != "" {
+			if !r.peerPublicDNSFallbackObserved(ctx, instance.Spec.MeshPublicPeerHost, oldAddresses) {
+				if _, observed := annotations[legacyPeerFallbackObservedAnnotation]; observed {
+					delete(annotations, legacyPeerFallbackObservedAnnotation)
+					service.SetAnnotations(annotations)
+					return r.Update(ctx, service)
+				}
+				return nil
+			}
+			observedAt, err := time.Parse(time.RFC3339, annotations[legacyPeerFallbackObservedAnnotation])
+			if err != nil {
+				annotations[legacyPeerFallbackObservedAnnotation] = now.Format(time.RFC3339)
+				service.SetAnnotations(annotations)
+				return r.Update(ctx, service)
+			}
+			if now.Before(observedAt.Add(time.Duration(peerDNSRecordTTLSeconds) * time.Second)) {
+				return nil
+			}
+			delete(annotations, legacyPeerFallbackRepublishAnnotation)
+			delete(annotations, legacyPeerFallbackObservedAnnotation)
 		}
 
 		delete(annotations, externalDNSHostnameAnnotation)
@@ -719,23 +742,23 @@ func (r *KuraInstanceReconciler) retireLegacyAccountPublicPeerService(
 
 	case legacyPeerPhaseCutoverRequested:
 		if targetChanged {
-			annotations[legacyPeerTargetAddressesAnnotation] = encodePeerAddresses(state.targetAddresses)
-			delete(annotations, legacyPeerRetireAfterAnnotation)
-			service.SetAnnotations(annotations)
-			return r.Update(ctx, service)
+			return r.restartLegacyPeerCutover(ctx, service, instance, annotations, state.targetAddresses, now)
 		}
 		if !ready {
-			return nil
+			return r.restartLegacyPeerCutover(ctx, service, instance, annotations, state.targetAddresses, now)
 		}
 		oldAddresses, targetAddresses, valid := legacyPeerMigrationAddresses(annotations, state.targetAddresses)
 		if !valid {
-			return nil
+			return r.restartLegacyPeerCutover(ctx, service, instance, annotations, state.targetAddresses, now)
 		}
 		pathReady, err := r.peerPublicPathsReady(ctx, instance, targetAddresses)
 		if err != nil {
 			return err
 		}
-		if !pathReady || !r.peerPublicDNSCutoverObserved(ctx, instance.Spec.MeshPublicPeerHost, oldAddresses, targetAddresses) {
+		if !pathReady {
+			return r.restartLegacyPeerCutover(ctx, service, instance, annotations, state.targetAddresses, now)
+		}
+		if !r.peerPublicDNSCutoverObserved(ctx, instance.Spec.MeshPublicPeerHost, oldAddresses, targetAddresses) {
 			return nil
 		}
 
@@ -746,35 +769,23 @@ func (r *KuraInstanceReconciler) retireLegacyAccountPublicPeerService(
 
 	case legacyPeerPhaseDraining:
 		if !ready || targetChanged {
-			delete(annotations, legacyPeerRetireAfterAnnotation)
-			annotations[legacyPeerMigrationAnnotation] = legacyPeerPhaseCutoverRequested
-			if len(state.targetAddresses) > 0 {
-				annotations[legacyPeerTargetAddressesAnnotation] = encodePeerAddresses(state.targetAddresses)
-			}
-			service.SetAnnotations(annotations)
-			return r.Update(ctx, service)
+			return r.restartLegacyPeerCutover(ctx, service, instance, annotations, state.targetAddresses, now)
 		}
 		oldAddresses, targetAddresses, valid := legacyPeerMigrationAddresses(annotations, state.targetAddresses)
 		if !valid {
-			return nil
+			return r.restartLegacyPeerCutover(ctx, service, instance, annotations, state.targetAddresses, now)
 		}
 		pathReady, err := r.peerPublicPathsReady(ctx, instance, targetAddresses)
 		if err != nil {
 			return err
 		}
 		if !pathReady || !r.peerPublicDNSCutoverObserved(ctx, instance.Spec.MeshPublicPeerHost, oldAddresses, targetAddresses) {
-			delete(annotations, legacyPeerRetireAfterAnnotation)
-			annotations[legacyPeerMigrationAnnotation] = legacyPeerPhaseCutoverRequested
-			service.SetAnnotations(annotations)
-			return r.Update(ctx, service)
+			return r.restartLegacyPeerCutover(ctx, service, instance, annotations, state.targetAddresses, now)
 		}
 
 		retireAfter, err := time.Parse(time.RFC3339, annotations[legacyPeerRetireAfterAnnotation])
 		if err != nil {
-			delete(annotations, legacyPeerRetireAfterAnnotation)
-			annotations[legacyPeerMigrationAnnotation] = legacyPeerPhaseCutoverRequested
-			service.SetAnnotations(annotations)
-			return r.Update(ctx, service)
+			return r.restartLegacyPeerCutover(ctx, service, instance, annotations, state.targetAddresses, now)
 		}
 		if now.Before(retireAfter) {
 			return nil
@@ -784,6 +795,33 @@ func (r *KuraInstanceReconciler) retireLegacyAccountPublicPeerService(
 	default:
 		return nil
 	}
+}
+
+func (r *KuraInstanceReconciler) restartLegacyPeerCutover(
+	ctx context.Context,
+	service *corev1.Service,
+	instance *kurav1alpha1.KuraInstance,
+	annotations map[string]string,
+	targetAddresses []string,
+	now time.Time,
+) error {
+	annotations[externalDNSHostnameAnnotation] = instance.Spec.MeshPublicPeerHost
+	annotations[legacyPeerMigrationAnnotation] = legacyPeerPhaseRepairing
+	annotations[legacyPeerFallbackRepublishAnnotation] = now.Format(time.RFC3339)
+	delete(annotations, legacyPeerRetireAfterAnnotation)
+	delete(annotations, legacyPeerCutoverRequestedAnnotation)
+	delete(annotations, legacyPeerFallbackObservedAnnotation)
+	if _, valid := decodePeerAddresses(annotations[legacyPeerOldAddressesAnnotation]); !valid {
+		if oldAddresses := legacyPeerServiceAddresses(service); len(oldAddresses) > 0 {
+			annotations[legacyPeerOldAddressesAnnotation] = encodePeerAddresses(oldAddresses)
+		}
+	}
+	if len(targetAddresses) > 0 {
+		annotations[legacyPeerTargetAddressesAnnotation] = encodePeerAddresses(targetAddresses)
+	}
+	service.SetAnnotations(annotations)
+	repairLegacyPeerFallback(service, instance)
+	return r.Update(ctx, service)
 }
 
 type peerAddressCutoverState struct {
@@ -1055,6 +1093,33 @@ func (r *KuraInstanceReconciler) peerPublicDNSCutoverObserved(
 	}
 	for _, target := range targets {
 		if _, found := stringSet(resolved)[target]; !found {
+			return false
+		}
+	}
+	return true
+}
+
+func (r *KuraInstanceReconciler) peerPublicDNSFallbackObserved(
+	ctx context.Context,
+	host string,
+	oldAddresses []string,
+) bool {
+	resolver := r.PeerDNSResolver
+	if resolver == nil {
+		resolver = netPeerDNSResolver{}
+	}
+	resolved, err := resolver.LookupHost(ctx, host)
+	if err != nil {
+		log.FromContext(ctx).Info("Kura peer public DNS fallback is not observable yet", "host", host, "error", err.Error())
+		return false
+	}
+	resolvedSet := stringSet(normalizePeerAddresses(resolved))
+	oldAddresses = normalizePeerAddresses(oldAddresses)
+	if len(resolvedSet) == 0 || len(oldAddresses) == 0 {
+		return false
+	}
+	for _, address := range oldAddresses {
+		if _, found := resolvedSet[address]; !found {
 			return false
 		}
 	}
