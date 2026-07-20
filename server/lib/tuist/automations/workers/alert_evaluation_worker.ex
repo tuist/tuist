@@ -64,7 +64,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
       %{test_case_ids: test_case_ids, cursor: cursor} = Automations.recent_test_case_run_changes_for_alert(alert)
 
       test_case_ids
-      |> Enum.chunk_every(Automations.scoped_evaluation_chunk_size())
+      |> Automations.scoped_evaluation_ranges()
       |> Enum.each(&evaluate_and_execute(alert, &1))
 
       {:ok, _alert} = Automations.update_alert_scoped_evaluation_cursor(alert, cursor)
@@ -86,12 +86,10 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
         Automations.recent_test_case_run_changes_for_alerts(established_alerts)
 
       test_case_ids
-      |> Enum.chunk_every(Automations.scoped_evaluation_chunk_size())
+      |> Automations.scoped_evaluation_ranges()
       |> Enum.each(&evaluate_alert_group(established_alerts, &1))
 
-      Enum.each(established_alerts, fn alert ->
-        {:ok, _alert} = Automations.update_alert_scoped_evaluation_cursor(alert, cursor)
-      end)
+      {:ok, _updated_count} = Automations.advance_alert_scoped_evaluation_cursors(established_alerts, cursor)
     end
 
     :ok

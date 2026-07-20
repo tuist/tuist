@@ -120,6 +120,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
       AutomationsFixtures.automation_alert_fixture(trigger_actions: [%{"type" => "change_state", "state" => "muted"}])
 
     [first_id, second_id] = Enum.map(1..2, fn _ -> Ecto.UUID.generate() end)
+    test_pid = self()
 
     expect(ClickHouseRepo, :all, fn _query ->
       [
@@ -130,14 +131,14 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
 
     reject(&FlakyTestsMonitor.evaluate/1)
 
-    expect(FlakyTestsMonitor, :evaluate, fn ^automation, test_case_ids ->
-      assert MapSet.new(test_case_ids) == MapSet.new([first_id, second_id])
+    expect(FlakyTestsMonitor, :evaluate, 2, fn ^automation, [test_case_id] = test_case_ids ->
+      send(test_pid, {:evaluated_test_case_id, test_case_id})
       %{triggered: [], all: test_case_ids}
     end)
 
-    expect(Automations, :list_active_alert_events, fn id, test_case_ids ->
+    expect(Automations, :list_active_alert_events, 2, fn id, [test_case_id] ->
       assert id == automation.id
-      assert MapSet.new(test_case_ids) == MapSet.new([first_id, second_id])
+      send(test_pid, {:checked_active_test_case_id, test_case_id})
       []
     end)
 
@@ -145,6 +146,11 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     reject(&Automations.create_alert_event/1)
 
     assert :ok = run_recent_test_case_runs(automation.id)
+
+    assert_receive {:evaluated_test_case_id, ^first_id}
+    assert_receive {:evaluated_test_case_id, ^second_id}
+    assert_receive {:checked_active_test_case_id, ^first_id}
+    assert_receive {:checked_active_test_case_id, ^second_id}
 
     assert {:ok, updated} = Automations.get_alert(automation.id)
     assert updated.last_scoped_evaluation_inserted_at == ~U[2026-06-09 10:00:02Z]
@@ -177,6 +183,12 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
         }
       )
 
+    {:ok, first_alert} =
+      Automations.update_alert_scoped_evaluation_cursor(first_alert, ~U[2026-06-09 10:00:10Z])
+
+    {:ok, second_alert} =
+      Automations.update_alert_scoped_evaluation_cursor(second_alert, ~U[2026-06-09 10:00:00Z])
+
     test_case_id = Ecto.UUID.generate()
 
     expect(ClickHouseRepo, :all, fn _query ->
@@ -199,7 +211,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
 
     assert {:ok, updated_first_alert} = Automations.get_alert(first_alert.id)
     assert {:ok, updated_second_alert} = Automations.get_alert(second_alert.id)
-    assert updated_first_alert.last_scoped_evaluation_inserted_at == ~U[2026-06-09 10:00:02Z]
+    assert updated_first_alert.last_scoped_evaluation_inserted_at == ~U[2026-06-09 10:00:10Z]
     assert updated_second_alert.last_scoped_evaluation_inserted_at == ~U[2026-06-09 10:00:02Z]
   end
 
@@ -214,12 +226,12 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
       end)
     end)
 
-    expect(FlakyTestsMonitor, :evaluate, 2, fn ^automation, chunk ->
+    expect(FlakyTestsMonitor, :evaluate, 5, fn ^automation, chunk ->
       send(test_pid, {:monitor_chunk_size, length(chunk)})
       %{triggered: [], all: chunk}
     end)
 
-    expect(Automations, :list_active_alert_events, 2, fn id, chunk ->
+    expect(Automations, :list_active_alert_events, 5, fn id, chunk ->
       assert id == automation.id
       send(test_pid, {:active_events_chunk_size, length(chunk)})
       []
@@ -230,9 +242,15 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
 
     assert :ok = run_recent_test_case_runs(automation.id)
 
-    assert_receive {:monitor_chunk_size, 4000}
+    assert_receive {:monitor_chunk_size, 1000}
+    assert_receive {:monitor_chunk_size, 1000}
+    assert_receive {:monitor_chunk_size, 1000}
+    assert_receive {:monitor_chunk_size, 1000}
     assert_receive {:monitor_chunk_size, 1}
-    assert_receive {:active_events_chunk_size, 4000}
+    assert_receive {:active_events_chunk_size, 1000}
+    assert_receive {:active_events_chunk_size, 1000}
+    assert_receive {:active_events_chunk_size, 1000}
+    assert_receive {:active_events_chunk_size, 1000}
     assert_receive {:active_events_chunk_size, 1}
 
     assert {:ok, updated} = Automations.get_alert(automation.id)

@@ -320,6 +320,26 @@ defmodule Tuist.AutomationsTest do
     end
   end
 
+  describe "scoped_evaluation_ranges/1" do
+    test "keeps ordered identifiers in several bounded ranges" do
+      identifiers = Enum.to_list(1..8001)
+
+      ranges = Automations.scoped_evaluation_ranges(identifiers)
+
+      assert Enum.map(ranges, &length/1) == [2000, 2000, 2000, 2000, 1]
+      assert List.flatten(ranges) == identifiers
+    end
+
+    test "splits smaller sets into at least four ranges" do
+      identifiers = Enum.to_list(1..4000)
+
+      assert [1000, 1000, 1000, 1000] ==
+               identifiers
+               |> Automations.scoped_evaluation_ranges()
+               |> Enum.map(&length/1)
+    end
+  end
+
   describe "dispatch_test_case_event/2" do
     defp test_updated_alert(project, opts \\ []) do
       AutomationsFixtures.automation_alert_fixture(
