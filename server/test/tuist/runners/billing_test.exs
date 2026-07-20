@@ -213,9 +213,84 @@ defmodule Tuist.Runners.BillingTest do
   end
 
   describe "meter_event_name/1" do
-    test "includes the platform and full machine specification" do
-      assert Billing.meter_event_name(%{platform: :macos, vcpus: 6, memory_gb: 14}) ==
-               "runner_macos_6_vcpu_14_gb_milliseconds"
+    test "is one compute-unit meter per platform" do
+      assert Billing.meter_event_name(%{platform: :macos}) == "runner_macos_compute_unit_milliseconds"
+      assert Billing.meter_event_name(%{platform: :linux}) == "runner_linux_compute_unit_milliseconds"
+    end
+  end
+
+  describe "compute_units_by_platform/4" do
+    test "weights each shape by its multiplier and collapses to one entry per platform" do
+      account = account_fixture()
+      period_start = ~U[2026-05-01 00:00:00.000000Z]
+      period_end = ~U[2026-05-02 00:00:00.000000Z]
+
+      # Baseline shape: one compute-unit millisecond per elapsed millisecond.
+      session_fixture(account,
+        fleet_name: "linux-baseline",
+        platform: :linux,
+        vcpus: 2,
+        memory_gb: 8,
+        billing_multiplier: Catalog.billing_multiplier(:linux, 2, 8),
+        started_at: ~U[2026-05-01 10:00:00.000000Z],
+        ended_at: ~U[2026-05-01 10:05:00.000000Z]
+      )
+
+      # Twice the baseline shape, so the same wall-clock time is worth twice
+      # as many units and both land on the single Linux meter.
+      session_fixture(account,
+        fleet_name: "linux-double",
+        platform: :linux,
+        vcpus: 4,
+        memory_gb: 16,
+        billing_multiplier: Catalog.billing_multiplier(:linux, 4, 16),
+        started_at: ~U[2026-05-01 11:00:00.000000Z],
+        ended_at: ~U[2026-05-01 11:05:00.000000Z]
+      )
+
+      assert [%{platform: :linux, total_units: units}] =
+               Billing.compute_units_by_platform(account.id, period_start, period_end)
+
+      assert units == 300_000 + 2 * 300_000
+    end
+
+    test "bills a session at the multiplier it was admitted under, not the current catalog" do
+      account = account_fixture()
+      period_start = ~U[2026-05-01 00:00:00.000000Z]
+      period_end = ~U[2026-05-02 00:00:00.000000Z]
+
+      # Half the weighting the catalog would give this shape today, standing
+      # in for a session opened under an older rate card.
+      session_fixture(account,
+        fleet_name: "linux-legacy-rate-card",
+        platform: :linux,
+        vcpus: 4,
+        memory_gb: 16,
+        billing_multiplier: div(Catalog.billing_multiplier(:linux, 4, 16), 2),
+        started_at: ~U[2026-05-01 10:00:00.000000Z],
+        ended_at: ~U[2026-05-01 10:05:00.000000Z]
+      )
+
+      assert [%{platform: :linux, total_units: 300_000}] =
+               Billing.compute_units_by_platform(account.id, period_start, period_end)
+    end
+
+    test "falls back to the catalog multiplier for sessions that never stored one" do
+      account = account_fixture()
+      period_start = ~U[2026-05-01 00:00:00.000000Z]
+      period_end = ~U[2026-05-02 00:00:00.000000Z]
+
+      session_fixture(account,
+        fleet_name: "linux-pre-multiplier",
+        platform: :linux,
+        vcpus: 4,
+        memory_gb: 16,
+        started_at: ~U[2026-05-01 10:00:00.000000Z],
+        ended_at: ~U[2026-05-01 10:05:00.000000Z]
+      )
+
+      assert [%{platform: :linux, total_units: 600_000}] =
+               Billing.compute_units_by_platform(account.id, period_start, period_end)
     end
   end
 

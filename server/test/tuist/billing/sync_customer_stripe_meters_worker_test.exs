@@ -24,7 +24,7 @@ defmodule Tuist.Billing.Workers.SyncCustomerStripeMetersWorkerTest do
       [
         %{event_name: "remote_cache_hit", value: 10},
         %{event_name: "llm_input_token", value: 20},
-        %{event_name: "runner_linux_2_vcpu_8_gb_milliseconds", value: 30}
+        %{event_name: "runner_linux_compute_unit_milliseconds", value: 30}
       ]
     end)
 
@@ -44,7 +44,7 @@ defmodule Tuist.Billing.Workers.SyncCustomerStripeMetersWorkerTest do
     assert jobs |> Enum.map(& &1.args["event_name"]) |> Enum.sort() == [
              "llm_input_token",
              "remote_cache_hit",
-             "runner_linux_2_vcpu_8_gb_milliseconds"
+             "runner_linux_compute_unit_milliseconds"
            ]
 
     assert Enum.all?(jobs, fn job ->

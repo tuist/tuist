@@ -379,8 +379,8 @@ defmodule Tuist.BillingTest do
             "flat_monthly" => ["pro.flat.monthly"]
           },
           "runners" => %{
-            "runner_macos_6_vcpu_14_gb_milliseconds" => "runner.macos.6.14",
-            "runner_linux_2_vcpu_8_gb_milliseconds" => "runner.linux.2.8"
+            "runner_macos_compute_unit_milliseconds" => "runner.macos",
+            "runner_linux_compute_unit_milliseconds" => "runner.linux"
           }
         }
       end)
@@ -389,8 +389,8 @@ defmodule Tuist.BillingTest do
                                     success_url: "success_url",
                                     line_items: [
                                       %{price: "pro.usage"},
-                                      %{price: "runner.linux.2.8"},
-                                      %{price: "runner.macos.6.14"},
+                                      %{price: "runner.linux"},
+                                      %{price: "runner.macos"},
                                       %{price: "pro.flat.monthly", quantity: 1}
                                     ],
                                     mode: "subscription",
@@ -517,7 +517,7 @@ defmodule Tuist.BillingTest do
           "flat_monthly" => ["pro.flat.monthly"]
         },
         "runners" => %{
-          "runner_linux_2_vcpu_8_gb_milliseconds" => "runner.linux.2.8"
+          "runner_linux_compute_unit_milliseconds" => "runner.linux"
         }
       }
     end)
@@ -532,7 +532,7 @@ defmodule Tuist.BillingTest do
         data: [
           %{price: %{id: "pro.usage"}},
           %{price: %{id: "pro.flat.monthly"}},
-          %{price: %{id: "runner.linux.2.8"}}
+          %{price: %{id: "runner.linux"}}
         ]
       }
     })
@@ -548,23 +548,21 @@ defmodule Tuist.BillingTest do
       account_id = account.id
       period_start = ~U[2026-07-16 00:00:00.000000Z]
       period_end = ~U[2026-07-17 00:00:00.000000Z]
-      event_name = "runner_linux_4_vcpu_16_gb_milliseconds"
+      event_name = "runner_linux_compute_unit_milliseconds"
 
       stub(Environment, :stripe_prices, fn ->
-        %{"runners" => %{event_name => "runner.linux.4.16"}}
+        %{"runners" => %{event_name => "runner.linux"}}
       end)
 
       expect(Tuist.CommandEvents, :remote_cache_hits_count_for_customer, fn ^customer_id, ^period_start, ^period_end ->
         10
       end)
 
-      expect(RunnerBilling, :compute_milliseconds_by_machine, fn ^account_id, ^period_start, ^period_end ->
-        [%{platform: :linux, vcpus: 4, memory_gb: 16, total_ms: 750_125}]
+      expect(RunnerBilling, :compute_units_by_platform, fn ^account_id, ^period_start, ^period_end ->
+        [%{platform: :linux, total_units: 750_125}]
       end)
 
-      expect(RunnerBilling, :meter_event_name, fn %{platform: :linux, vcpus: 4, memory_gb: 16} ->
-        event_name
-      end)
+      expect(RunnerBilling, :meter_event_name, fn %{platform: :linux} -> event_name end)
 
       assert Billing.customer_meter_values(account, period_start, period_end) == [
                %{event_name: "remote_cache_hit", value: 10},
@@ -580,17 +578,17 @@ defmodule Tuist.BillingTest do
       period_end = ~U[2026-07-17 00:00:00.000000Z]
 
       # The base setup stub ships `"runners" => %{}`, so no runner price
-      # is configured for this machine type.
+      # is configured for this platform.
       expect(Tuist.CommandEvents, :remote_cache_hits_count_for_customer, fn ^customer_id, ^period_start, ^period_end ->
         10
       end)
 
-      expect(RunnerBilling, :compute_milliseconds_by_machine, fn ^account_id, ^period_start, ^period_end ->
-        [%{platform: :linux, vcpus: 4, memory_gb: 16, total_ms: 750_125}]
+      expect(RunnerBilling, :compute_units_by_platform, fn ^account_id, ^period_start, ^period_end ->
+        [%{platform: :linux, total_units: 750_125}]
       end)
 
-      stub(RunnerBilling, :meter_event_name, fn %{platform: :linux, vcpus: 4, memory_gb: 16} ->
-        "runner_linux_4_vcpu_16_gb_milliseconds"
+      stub(RunnerBilling, :meter_event_name, fn %{platform: :linux} ->
+        "runner_linux_compute_unit_milliseconds"
       end)
 
       assert Billing.customer_meter_values(account, period_start, period_end) == [
@@ -620,7 +618,7 @@ defmodule Tuist.BillingTest do
         0
       end)
 
-      stub(RunnerBilling, :compute_milliseconds_by_machine, fn ^account_id, ^period_start, ^period_end -> [] end)
+      stub(RunnerBilling, :compute_units_by_platform, fn ^account_id, ^period_start, ^period_end -> [] end)
 
       assert Billing.customer_meter_values(account, period_start, period_end, include_qa: true) == [
                %{event_name: "llm_input_token", value: 100},
@@ -639,8 +637,8 @@ defmodule Tuist.BillingTest do
         0
       end)
 
-      stub(RunnerBilling, :compute_milliseconds_by_machine, fn ^account_id, ^period_start, ^period_end ->
-        [%{platform: :linux, vcpus: 4, memory_gb: 16, total_ms: 0}]
+      stub(RunnerBilling, :compute_units_by_platform, fn ^account_id, ^period_start, ^period_end ->
+        [%{platform: :linux, total_units: 0}]
       end)
 
       assert Billing.customer_meter_values(account, period_start, period_end, include_qa: true) == []

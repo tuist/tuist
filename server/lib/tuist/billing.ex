@@ -135,15 +135,15 @@ defmodule Tuist.Billing do
     # the staged rollout `stripe.prices.runners` is empty, so no runner
     # meters exist in Stripe yet; reporting to an unprovisioned meter just
     # errors the job and adds Sentry noise, and usage without an attached
-    # price wouldn't bill anyway. Each machine type turns on the moment its
+    # price wouldn't bill anyway. Each platform turns on the moment its
     # price lands in config.
     runner_prices = Map.get(Tuist.Environment.stripe_prices() || %{}, "runners", %{})
 
     runner_values =
       account_id
-      |> RunnerBilling.compute_milliseconds_by_machine(period_start, period_end)
+      |> RunnerBilling.compute_units_by_platform(period_start, period_end)
       |> Enum.map(fn usage ->
-        %{event_name: RunnerBilling.meter_event_name(usage), value: usage.total_ms}
+        %{event_name: RunnerBilling.meter_event_name(usage), value: usage.total_units}
       end)
       |> Enum.filter(&runner_meter_priced?(runner_prices, &1.event_name))
 

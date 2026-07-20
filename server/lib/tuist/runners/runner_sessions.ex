@@ -44,6 +44,7 @@ defmodule Tuist.Runners.RunnerSessions do
   import Tuist.Runners.Catalog, only: [valid_machine_resources: 3]
 
   alias Tuist.Repo
+  alias Tuist.Runners.Catalog
   alias Tuist.Runners.RunnerSession
 
   require Logger
@@ -77,6 +78,10 @@ defmodule Tuist.Runners.RunnerSessions do
       platform: platform,
       vcpus: vcpus,
       memory_gb: memory_gb,
+      # Freeze the rate card the session was admitted under. Deriving this
+      # at invoice time instead would let a catalog edit reprice sessions
+      # that already ran.
+      billing_multiplier: Catalog.billing_multiplier(platform, vcpus, memory_gb),
       pod_name: pod_name,
       runner_name: Map.get(attrs, :runner_name, ""),
       repository: Map.get(attrs, :repository, ""),
