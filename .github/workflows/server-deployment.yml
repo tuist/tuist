@@ -46,7 +46,7 @@ on:
           - canary
           - production
       commit_sha:
-        description: Commit SHA to deploy (defaults to the event's SHA)
+        description: Chart commit to deploy (defaults to the event's SHA). Keep this current and set image_tag to roll back only the server image.
         required: false
       image_tag:
         description: Pre-built image tag to deploy instead of building
@@ -82,7 +82,10 @@ on:
         required: true
         type: string
       commit_sha:
-        description: Commit SHA to deploy (defaults to github.sha)
+        description: >-
+          Chart commit to deploy (defaults to github.sha). After the Kura
+          peer-publication protocol is active, keep this on a compatible
+          commit and set image_tag to roll back only the server image.
         required: false
         type: string
       image_tag:
@@ -109,9 +112,9 @@ on:
         type: string
       registry_image_tag:
         description: >-
-          Pre-built Swift registry image tag to deploy. When unset, the
-          workflow uses image_tag if provided, otherwise it builds and
-          pushes a registry image tagged sha-<commit_sha>.
+          Pre-built Swift registry image tag to deploy. A normal build uses
+          its built registry tag. A pre-built server deployment preserves the
+          live registry image when this is unset.
         required: false
         type: string
       kura_runtime_image_tag:
@@ -668,7 +671,7 @@ jobs:
       NAMESPACE: ${{ inputs.environment == 'production' && 'tuist' || format('tuist-{0}', inputs.environment) }}
       IMAGE_TAG: ${{ inputs.image_tag != '' && inputs.image_tag || needs.build.outputs.image_tag }}
       CODEBASE_SEARCH_IMAGE_TAG: ${{ inputs.codebase_search_image_tag != '' && inputs.codebase_search_image_tag || needs.build.outputs.codebase_search_image_tag }}
-      REGISTRY_IMAGE_TAG: ${{ inputs.registry_image_tag != '' && inputs.registry_image_tag || inputs.image_tag != '' && inputs.image_tag || needs.build.outputs.registry_image_tag }}
+      REGISTRY_IMAGE_TAG: ${{ inputs.registry_image_tag != '' && inputs.registry_image_tag || needs.build.outputs.registry_image_tag }}
       KURA_RUNTIME_IMAGE_TAG: ${{ inputs.kura_runtime_image_tag }}
       KURA_CONTROLLER_IMAGE_TAG_INPUT: ${{ inputs.kura_controller_image_tag }}
       LINUX_RUNNER_IMAGE_TAG_INPUT: ${{ inputs.linux_runner_image_tag }}
@@ -850,7 +853,7 @@ jobs:
           )"
           if [ "$live_protocol" = "v1" ]; then
             echo "Refusing to roll the Kura controller back across peer-publication protocol v1."
-            echo "Roll the server forward with a compatible fix while preserving the v1 controller."
+            echo "For a server rollback, deploy the current chart commit and set image_tag to the older server image so the v1 controller is preserved."
             exit 1
           fi
       - name: kubectl apply CRDs
@@ -1193,11 +1196,26 @@ jobs:
           echo "REGISTRY_ENABLED=$registry_enabled" >> "$GITHUB_ENV"
           echo "Swift registry component enabled: $registry_enabled"
 
-          if [ "$registry_enabled" = "true" ] && [ -z "$REGISTRY_IMAGE_TAG" ]; then
-            echo "No Swift registry image tag available to deploy."
-            exit 1
+          registry_image_tag="$REGISTRY_IMAGE_TAG"
+          if [ "$registry_enabled" = "true" ] && [ -z "$registry_image_tag" ]; then
+            current_registry_image="$(
+              kubectl -n "$NAMESPACE" get deployments \
+                -l app.kubernetes.io/instance="$HELM_RELEASE_NAME",app.kubernetes.io/component=registry \
+                -o jsonpath='{.items[0].spec.template.spec.containers[?(@.name=="registry")].image}' \
+                2>/dev/null || true
+            )"
+            image_prefix="${REGISTRY}/${REGISTRY_IMAGE_NAME}:"
+            if [[ "$current_registry_image" != "$image_prefix"* ]]; then
+              echo "No current Swift registry image was found. Provide registry_image_tag when deploying a pre-built server image."
+              exit 1
+            fi
+            registry_image_tag="${current_registry_image#"$image_prefix"}"
+            echo "Swift registry: preserving deployed image tag ${registry_image_tag}"
+          elif [ "$registry_enabled" = "true" ]; then
+            echo "Swift registry: using requested image tag ${registry_image_tag}"
+          else
+            registry_image_tag="registry-disabled"
           fi
-          registry_image_tag="${REGISTRY_IMAGE_TAG:-registry-disabled}"
 
           helm upgrade --install "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
             --namespace "$NAMESPACE" --create-namespace \
@@ -1208,7 +1226,7 @@ jobs:
             --set kuraController.image.tag="$KURA_CONTROLLER_IMAGE_TAG" \
             "${image_sets[@]}" \
             --atomic --timeout 60m --wait
-      - name: Repair the Kura protocol marker after a failed Helm rollback
+      - name: Restore the Kura protocol after a failed Helm rollback
         if: ${{ failure() && steps.helm_upgrade.outcome == 'failure' }}
         run: |
           set -euo pipefail
@@ -1230,27 +1248,57 @@ jobs:
           controller_name="$(echo "$controller_names" | sed '/^$/d')"
 
           protocol_marker='kura.tuist.dev/peer-publication-protocol: "v1"'
-          deployed_revision="$(
-            helm history "$HELM_RELEASE_NAME" -n "$NAMESPACE" --max 20 |
-              awk '$0 ~ /[[:space:]]deployed[[:space:]]/ { revision = $1 } END { print revision }'
-          )"
-          if [ -z "$deployed_revision" ]; then
-            kubectl -n "$KURA_CONTROLLER_NAMESPACE" annotate deployment "$controller_name" \
-              kura.tuist.dev/peer-publication-protocol- || true
+          if ! grep -Fq "$protocol_marker" "$HELM_CHART_PATH/templates/kura-controller.yaml"; then
             exit 0
           fi
 
-          deployed_manifest="$(
-            helm get manifest "$HELM_RELEASE_NAME" -n "$NAMESPACE" \
-              --revision "$deployed_revision"
+          role_names="$(
+            kubectl -n "$KURA_CONTROLLER_NAMESPACE" get roles \
+              -l app.kubernetes.io/component=kura-controller \
+              -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}'
           )"
-          if grep -Fq "$protocol_marker" <<< "$deployed_manifest"; then
-            kubectl -n "$KURA_CONTROLLER_NAMESPACE" annotate deployment "$controller_name" \
-              kura.tuist.dev/peer-publication-protocol=v1 --overwrite
-          else
-            kubectl -n "$KURA_CONTROLLER_NAMESPACE" annotate deployment "$controller_name" \
-              kura.tuist.dev/peer-publication-protocol- || true
+          if [ "$(echo "$role_names" | sed '/^$/d' | wc -l | tr -d ' ')" != "1" ]; then
+            echo "Expected exactly one Kura controller Role while restoring protocol v1, found:"
+            echo "${role_names:-none}"
+            exit 1
           fi
+          role_name="$(echo "$role_names" | sed '/^$/d')"
+          has_endpoint_slice_access="$(
+            kubectl -n "$KURA_CONTROLLER_NAMESPACE" get role "$role_name" -o json |
+              jq -r '
+                any(
+                  .rules[];
+                  (.apiGroups | index("discovery.k8s.io")) != null and
+                  (.resources | index("endpointslices")) != null and
+                  (["get", "list", "watch"] - .verbs | length) == 0
+                )
+              '
+          )"
+          if [ "$has_endpoint_slice_access" != "true" ]; then
+            kubectl -n "$KURA_CONTROLLER_NAMESPACE" patch role "$role_name" --type=json \
+              -p='[{"op":"add","path":"/rules/-","value":{"apiGroups":["discovery.k8s.io"],"resources":["endpointslices"],"verbs":["get","list","watch"]}}]'
+          fi
+
+          service_account="$(
+            kubectl -n "$KURA_CONTROLLER_NAMESPACE" get deployment "$controller_name" \
+              -o jsonpath='{.spec.template.spec.serviceAccountName}'
+          )"
+          if [ "$(
+            kubectl auth can-i list endpointslices.discovery.k8s.io \
+              --as="system:serviceaccount:${KURA_CONTROLLER_NAMESPACE}:${service_account}" \
+              -n "$KURA_CONTROLLER_NAMESPACE"
+          )" != "yes" ]; then
+            echo "The Kura controller service account cannot list EndpointSlices after restoring its Role."
+            exit 1
+          fi
+
+          target_image="${REGISTRY}/${KURA_CONTROLLER_IMAGE_NAME}:${KURA_CONTROLLER_IMAGE_TAG}"
+          kubectl -n "$KURA_CONTROLLER_NAMESPACE" set image \
+            "deployment/$controller_name" "manager=$target_image"
+          kubectl -n "$KURA_CONTROLLER_NAMESPACE" rollout status \
+            "deployment/$controller_name" --timeout=5m
+          kubectl -n "$KURA_CONTROLLER_NAMESPACE" annotate deployment "$controller_name" \
+            kura.tuist.dev/peer-publication-protocol=v1 --overwrite
       - name: Diagnostics on failure
         # `--atomic` rolls back the release on timeout, so `helm history` and
         # most cluster state reflect the rolled-back revision rather than the
