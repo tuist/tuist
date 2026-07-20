@@ -32,7 +32,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
       project_id
       |> Automations.list_alerts()
       |> Enum.filter(fn alert ->
-        alert.enabled and Alert.recovery_ledger?(alert) and
+        alert.enabled and Alert.scoped_evaluation?(alert) and
           Alert.cadence_seconds(alert.cadence) == cadence_seconds
       end)
 

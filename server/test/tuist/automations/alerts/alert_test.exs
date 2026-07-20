@@ -473,6 +473,30 @@ defmodule Tuist.Automations.Alerts.AlertTest do
     end
   end
 
+  describe "scoped_evaluation?/1" do
+    test "returns true only for established rolling metric alerts" do
+      established_at = DateTime.utc_now()
+
+      assert Alert.scoped_evaluation?(%{
+               monitor_type: "flakiness_rate",
+               trigger_config: %{"window_type" => "rolling"},
+               baseline_established_at: established_at
+             })
+
+      refute Alert.scoped_evaluation?(%{
+               monitor_type: "flakiness_rate",
+               trigger_config: %{"window_type" => "last_days"},
+               baseline_established_at: established_at
+             })
+
+      refute Alert.scoped_evaluation?(%{
+               monitor_type: "flakiness_rate",
+               trigger_config: %{"window_type" => "rolling"},
+               baseline_established_at: nil
+             })
+    end
+  end
+
   describe "trigger_actions validation" do
     test "accepts a change_state action with valid state" do
       project = ProjectsFixtures.project_fixture()

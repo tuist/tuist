@@ -44,17 +44,8 @@ defmodule Tuist.Automations.Workers.AutomationScheduler do
   defp scheduled_alert?(alert) do
     cond do
       Alert.event_driven?(alert) -> false
-      rolling_with_baseline?(alert) -> false
+      Alert.scoped_evaluation?(alert) -> false
       true -> true
     end
   end
-
-  defp rolling_with_baseline?(%{
-         monitor_type: monitor_type,
-         trigger_config: %{"window_type" => "rolling"},
-         baseline_established_at: %DateTime{}
-       })
-       when monitor_type in ["flakiness_rate", "flaky_run_count", "reliability_rate"], do: true
-
-  defp rolling_with_baseline?(_alert), do: false
 end

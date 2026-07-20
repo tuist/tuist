@@ -152,7 +152,11 @@ defmodule Tuist.AutomationsTest do
       other_project = ProjectsFixtures.project_fixture()
 
       _flakiness_alert =
-        AutomationsFixtures.automation_alert_fixture(project: project, monitor_type: "flakiness_rate")
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          monitor_type: "flakiness_rate",
+          trigger_config: %{"threshold" => 10, "window_type" => "rolling", "rolling_window_size" => 75}
+        )
 
       _count_alert =
         AutomationsFixtures.automation_alert_fixture(
@@ -198,9 +202,37 @@ defmodule Tuist.AutomationsTest do
       assert project_id == project.id
     end
 
+    test "leaves calendar-window alerts and rolling baselines to the scheduler" do
+      project = ProjectsFixtures.project_fixture()
+
+      _calendar_window_alert =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          monitor_type: "flakiness_rate"
+        )
+
+      _rolling_baseline_alert =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          baseline_established_at: nil,
+          monitor_type: "flaky_run_count",
+          trigger_config: %{"threshold" => 1, "window_type" => "rolling", "rolling_window_size" => 75}
+        )
+
+      assert :ok = Automations.enqueue_flaky_alert_evaluations(project.id, [Ecto.UUID.generate()])
+
+      assert [] = all_enqueued(worker: AlertEvaluationWorker)
+    end
+
     test "merges repeated enqueue calls into one scoped evaluation job per project and cadence" do
       project = ProjectsFixtures.project_fixture()
-      _alert = AutomationsFixtures.automation_alert_fixture(project: project, monitor_type: "flakiness_rate")
+
+      _alert =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          monitor_type: "flakiness_rate",
+          trigger_config: %{"threshold" => 10, "window_type" => "rolling", "rolling_window_size" => 75}
+        )
 
       [first_id, second_id, third_id] = Enum.map(1..3, fn _ -> Ecto.UUID.generate() end)
 
@@ -228,14 +260,21 @@ defmodule Tuist.AutomationsTest do
         AutomationsFixtures.automation_alert_fixture(
           project: project,
           monitor_type: "flakiness_rate",
-          cadence: "5m"
+          cadence: "5m",
+          trigger_config: %{"threshold" => 10, "window_type" => "rolling", "rolling_window_size" => 75}
         )
 
       _one_minute_alert =
         AutomationsFixtures.automation_alert_fixture(
           project: project,
           monitor_type: "reliability_rate",
-          cadence: "1m"
+          cadence: "1m",
+          trigger_config: %{
+            "threshold" => 90,
+            "comparison" => "lt",
+            "window_type" => "rolling",
+            "rolling_window_size" => 75
+          }
         )
 
       assert :ok = Automations.enqueue_flaky_alert_evaluations(project.id, [Ecto.UUID.generate()])

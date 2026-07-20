@@ -162,6 +162,7 @@ defmodule Tuist.Automations do
         )
 
       alerts
+      |> Enum.filter(&Alert.scoped_evaluation?/1)
       |> Enum.group_by(&Alert.cadence_seconds(&1.cadence))
       |> Enum.each(fn {_cadence_seconds, [alert | _alerts]} ->
         enqueue_scoped_alert_evaluation(alert)
