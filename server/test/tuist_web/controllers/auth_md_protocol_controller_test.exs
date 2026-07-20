@@ -359,6 +359,56 @@ defmodule TuistWeb.AuthMdProtocolControllerTest do
     assert json_response(invalid_key_conn, 400)["err"] == "invalid_key"
   end
 
+  # Repeated id_jag exchanges reuse the existing delegation rather than inserting
+  # a new claimed registration, which is what keeps revoke_provider_delegation/2's
+  # per-registration loop off an unbounded set. If this ever starts accumulating,
+  # that loop becomes a request-path N+1 and should be bulked.
+  test "reuses the existing delegation across repeated identity exchanges" do
+    email = AccountsFixtures.unique_user_email()
+    {provider, first_assertion, jwk} = id_jag(email, "provider-registration-1")
+    stub(Tuist.Environment, :agent_auth_trusted_providers, fn -> [provider] end)
+    {_provider, second_assertion, _jwk} = id_jag(email, "provider-registration-2", jwk: jwk)
+
+    tokens =
+      Enum.map([first_assertion, second_assertion], fn assertion ->
+        identity =
+          build_conn()
+          |> post("/agent/identity", %{
+            "type" => "identity_assertion",
+            "assertion_type" => "urn:ietf:params:oauth:token-type:id-jag",
+            "assertion" => assertion
+          })
+          |> json_response(200)
+
+        exchange_assertion(identity["identity_assertion"])["access_token"]
+      end)
+
+    registration_ids =
+      Repo.all(
+        from(r in AgentRegistration,
+          where: r.registration_type == :agent_provider and r.subject == "provider-user-1",
+          select: r.id
+        )
+      )
+
+    assert length(registration_ids) == 1
+    assert Enum.all?(tokens, &Authentication.authenticated_subject/1)
+
+    event_conn =
+      build_conn()
+      |> put_req_header("content-type", "application/secevent+jwt")
+      |> post("/agent/event/notify", security_event(jwk, "event-multi"))
+
+    assert response(event_conn, 202) == ""
+
+    for token <- tokens do
+      assert Authentication.authenticated_subject(token) == nil
+    end
+
+    assert Repo.all(from(r in AgentRegistration, where: r.id in ^registration_ids, select: r.status)) ==
+             [:revoked]
+  end
+
   test "publishes the service public signing key" do
     jwks = build_conn() |> get("/.well-known/jwks.json") |> json_response(200)
 
