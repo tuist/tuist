@@ -79,6 +79,11 @@ config :tuist, TuistWeb.Endpoint,
   secret_key_base: "pbaHQK0N946e06chs5G1/RUJnkI//2QshGgUvJQkADTV3AiQHV/dXlLdjnaQxtxx",
   server: false
 
+# Production builds keep warm handoffs disabled until the public customer
+# endpoint is owned by a stable account-region binding. Tests enable the
+# transition machinery so its invariants remain covered while that work lands.
+config :tuist, :kura_warm_handoffs_enabled, true
+
 config :tuist,
   api_pipeline_producer_module: Broadway.DummyProducer,
   api_pipeline_producer_options: []
