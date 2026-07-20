@@ -111,12 +111,6 @@ type KuraInstanceSpec struct {
 	// connection is end-to-end mTLS — nothing terminates TLS. The reverse leg
 	// (managed dialing the self-hosted nodes) is `MeshExternalPeers`.
 	MeshPublicPeerHost string `json:"meshPublicPeerHost,omitempty"`
-	// MeshPublicPeerPublished controls whether MeshPublicPeerHost is advertised
-	// on the public peer data plane. A false value keeps the per-instance peer
-	// Service and certificate prepared without publishing DNS or adding a route
-	// to the regional demultiplexer. Nil preserves the legacy published behavior
-	// during a one-version controller/server rollout overlap.
-	MeshPublicPeerPublished *bool `json:"meshPublicPeerPublished,omitempty"`
 
 	// MeshExternalPeers are peer URLs of the account's self-hosted Kura
 	// nodes, injected into every managed pod's `KURA_PEERS` so the managed

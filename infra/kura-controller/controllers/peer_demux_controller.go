@@ -156,8 +156,7 @@ func peerDemuxDesiredState(
 
 	for i := range instances {
 		instance := &instances[i]
-		if instance.Spec.Region != region || !instance.Spec.MeshPeerHostNetwork || instance.Spec.MeshPublicPeerHost == "" ||
-			!meshPublicPeerPublished(instance) {
+		if instance.Spec.Region != region || !instance.Spec.MeshPeerHostNetwork || instance.Spec.MeshPublicPeerHost == "" {
 			continue
 		}
 		if validationErrors := validation.IsDNS1123Subdomain(instance.Spec.MeshPublicPeerHost); len(validationErrors) > 0 {
@@ -189,11 +188,6 @@ func peerDemuxDesiredState(
 	routes := make([]peerDemuxRoute, 0, len(candidatesByHost))
 	for host, candidates := range candidatesByHost {
 		sort.Slice(candidates, func(i, j int) bool {
-			leftExplicit := candidates[i].instance.Spec.MeshPublicPeerPublished != nil && *candidates[i].instance.Spec.MeshPublicPeerPublished
-			rightExplicit := candidates[j].instance.Spec.MeshPublicPeerPublished != nil && *candidates[j].instance.Spec.MeshPublicPeerPublished
-			if leftExplicit != rightExplicit {
-				return leftExplicit
-			}
 			return peerDemuxInstanceLess(candidates[i].instance, candidates[j].instance)
 		})
 		routes = append(routes, candidates[0].route)

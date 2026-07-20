@@ -173,6 +173,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
       region = eu_region(%{mesh: true})
       account = %Account{id: 1, name: "tuist"}
+      external_peers = ["https://kura.acme.example:7443"]
 
       stub(Tuist.Billing, :get_current_active_subscription, fn _ -> %{plan: :enterprise} end)
 
@@ -183,11 +184,13 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
           account,
           region,
           %Server{},
-          "return true"
+          "return true",
+          external_peers
         )
 
       entitled_env = Map.new(entitled["spec"]["extraEnv"], &{&1["name"], &1["value"]})
       assert entitled_env["KURA_MESH_PEERS_SYNC"] == "true"
+      assert entitled["spec"]["meshExternalPeers"] == external_peers
 
       stub(Tuist.Billing, :get_current_active_subscription, fn _ -> %{plan: :air} end)
 
@@ -198,11 +201,13 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
           account,
           region,
           %Server{},
-          "return true"
+          "return true",
+          external_peers
         )
 
       non_entitled_env = Map.new(non_entitled["spec"]["extraEnv"], &{&1["name"], &1["value"]})
       refute Map.has_key?(non_entitled_env, "KURA_MESH_PEERS_SYNC")
+      refute Map.has_key?(non_entitled["spec"], "meshExternalPeers")
     end
 
     test "withholds peer-view sync outside a mesh region" do
@@ -231,6 +236,8 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
     test "emits the public peer host and external peers for a meshed region" do
       stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+      stub(Tuist.Billing, :get_current_active_subscription, fn _ -> %{plan: :enterprise} end)
 
       stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
         "00000000-0000-0000-0000-000000000001"
@@ -240,7 +247,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
         KubernetesController.manifest(
           "kura-tuist-eu-central-1",
           "0.5.2",
-          %{name: "tuist"},
+          %Account{id: 1, name: "tuist"},
           eu_region(%{mesh: true}),
           %Server{},
           "return true",
@@ -248,7 +255,6 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
         )
 
       assert bridged["spec"]["meshPublicPeerHost"] == "peer.tuist-eu-central-1.kura.tuist.dev"
-      assert bridged["spec"]["meshPublicPeerPublished"] == true
       assert bridged["spec"]["meshExternalPeers"] == ["https://kura.acme.example:7443"]
 
       assert bridged["spec"]["meshPublicPeerLoadBalancerAnnotations"] == %{
@@ -267,7 +273,6 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
         )
 
       refute Map.has_key?(unbridged["spec"], "meshPublicPeerHost")
-      refute Map.has_key?(unbridged["spec"], "meshPublicPeerPublished")
       refute Map.has_key?(unbridged["spec"], "meshExternalPeers")
     end
 
@@ -338,7 +343,6 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       refute Map.has_key?(moving_in["spec"], "publicHost")
       refute Map.has_key?(moving_in["spec"], "grpcPublicHost")
       assert moving_in["spec"]["meshPublicPeerHost"] == "peer.tuist-eu-central-1.kura.tuist.dev"
-      assert moving_in["spec"]["meshPublicPeerPublished"] == false
       # And it is pinned to the destination box.
       assert moving_in["spec"]["nodeSelector"]["kubernetes.io/hostname"] == "box-2"
 
@@ -354,7 +358,6 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       # The steady-state (:none) server owns the customer host.
       assert is_binary(steady_state["spec"]["publicHost"])
-      assert steady_state["spec"]["meshPublicPeerPublished"] == true
       refute Map.get(steady_state["spec"]["nodeSelector"] || %{}, "kubernetes.io/hostname")
 
       moving_out =
@@ -368,7 +371,6 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
         )
 
       assert moving_out["spec"]["meshPublicPeerHost"] == "peer.tuist-eu-central-1.kura.tuist.dev"
-      assert moving_out["spec"]["meshPublicPeerPublished"] == false
     end
 
     test "omits external peers for a meshed region with no self-hosted nodes" do
@@ -873,6 +875,20 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
         )
 
       assert manifest["metadata"]["annotations"]["tuist.dev/kura-manifest-revision"] == non_entitled
+    end
+
+    test "does not load self-hosted peers without the entitlement" do
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+      stub(Tuist.Billing, :get_current_active_subscription, fn _ -> %{plan: :air} end)
+      reject(&Mesh.self_hosted_peer_urls/1)
+
+      revision =
+        KubernetesController.manifest_revision(
+          %Account{id: 1, name: "tuist"},
+          eu_region(%{mesh: true})
+        )
+
+      assert revision == KubernetesController.manifest_revision() <> "+nosync"
     end
   end
 

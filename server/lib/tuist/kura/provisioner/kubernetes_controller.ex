@@ -229,6 +229,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   @doc false
   def manifest(name, image_tag, account, %Regions{} = region, %Server{} = server, hook_script, external_peers \\ []) do
     account_handle = dns_handle(account.name)
+    external_peers = entitled_self_hosted_peers(account, region, external_peers)
     revision = manifest_revision_string(account, region, external_peers)
     annotations = %{@manifest_revision_annotation => revision}
 
@@ -253,11 +254,8 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
           "region" => region.id,
           "image" => "ghcr.io/tuist/kura:#{image_tag}",
           # Only the steady-state (`:none`) server publishes the account's
-          # customer and peer endpoints. A moving target keeps the peer hostname
-          # as certificate identity while its publication flag is false, so it
-          # can warm over the account mesh without adding a second public route.
-          # A moving-out source likewise retains the identity while the promoted
-          # target takes publication ownership.
+          # customer endpoints. Warm handoffs remain disabled in production
+          # until the peer endpoint has a stable account-region owner.
           "publicHost" => if(owns_public_endpoints?(server), do: public_host(account_handle, region)),
           "grpcPublicHost" => if(owns_public_endpoints?(server), do: grpc_public_host(account_handle, region)),
           "ingressClassName" => ingress_class_name(region),
@@ -284,7 +282,6 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
         }
         |> Enum.reject(fn {_key, value} -> value in [nil, "", false] end)
         |> Map.new()
-        |> put_mesh_public_peer_publication(region, server)
     }
   end
 
@@ -329,7 +326,15 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   end
 
   defp self_hosted_peers(account, %Regions{} = region) do
-    (mesh_enabled?(region) && Mesh.self_hosted_peer_urls(account)) || []
+    if mesh_peers_sync_enabled?(account, region) do
+      Mesh.self_hosted_peer_urls(account)
+    else
+      []
+    end
+  end
+
+  defp entitled_self_hosted_peers(account, %Regions{} = region, peer_urls) do
+    if mesh_peers_sync_enabled?(account, region), do: peer_urls, else: []
   end
 
   defp manifest_revision_string(account, %Regions{} = region, peer_urls) do
@@ -367,19 +372,6 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
   defp mesh_public_peer_host(handle, region) do
     if mesh_enabled?(region), do: Regions.peer_public_host(handle, region)
-  end
-
-  # Keep the public peer hostname on every move phase because it is also part of
-  # the instance certificate identity. Publication is a separate boolean so a
-  # warming or draining instance does not claim the regional public route. The
-  # controller treats a missing field as the legacy publish-by-host behavior,
-  # which keeps the controller-first rollout backward compatible.
-  defp put_mesh_public_peer_publication(spec, region, server) do
-    if mesh_enabled?(region) do
-      Map.put(spec, "meshPublicPeerPublished", owns_public_endpoints?(server))
-    else
-      spec
-    end
   end
 
   defp mesh_external_peers(region, external_peers) do
