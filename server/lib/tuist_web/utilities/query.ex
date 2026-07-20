@@ -187,7 +187,7 @@ defmodule TuistWeb.Utilities.Query do
 
   defp cursor_matches_order?(cursor, order_by) do
     case Flop.Cursor.decode(cursor) do
-      {:ok, decoded} -> Enum.all?(order_by, &Map.has_key?(decoded, &1))
+      {:ok, decoded} -> Enum.sort(Map.keys(decoded)) == Enum.sort(order_by)
       :error -> false
     end
   end

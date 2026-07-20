@@ -196,6 +196,16 @@ defmodule TuistWeb.Utilities.QueryTest do
       assert Query.clear_incompatible_cursors(params, [:inserted_at]) == %{"search" => "App"}
     end
 
+    test "clears a cursor that carries extra fields beyond the sort order" do
+      # Flop validates the cursor's key set against the exact order_by fields,
+      # so a superset cursor (e.g. from a page sorted by [:inserted_at, :id])
+      # would still raise on a page sorted only by [:inserted_at].
+      cursor = Flop.Cursor.encode(%{inserted_at: ~N[2025-04-14 12:30:17], id: 42})
+      params = %{"after" => cursor, "search" => "App"}
+
+      assert Query.clear_incompatible_cursors(params, [:inserted_at]) == %{"search" => "App"}
+    end
+
     test "clears a cursor that cannot be decoded" do
       params = %{"after" => "not-a-valid-cursor", "search" => "App"}
 
