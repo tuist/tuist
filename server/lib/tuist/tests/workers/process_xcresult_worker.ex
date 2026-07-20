@@ -12,70 +12,130 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
   The xcresult parse path leans on `xcresulttool` from Xcode, which has no
   Linux equivalent — that's why the processor fleet lives outside the
   Hetzner-backed k8s cluster on Scaleway Mac minis.
+
+  The first five attempts download and process the result bundle. Later
+  attempts only persist `failed_processing`; when ClickHouse is unavailable,
+  that finalization phase snoozes the same Oban job and retries without
+  downloading or parsing the bundle again.
   """
 
   use Oban.Worker,
     queue: :process_xcresult,
-    max_attempts: 5,
-    unique: [keys: [:test_run_id, :shard_index]]
+    max_attempts: 20,
+    unique: [
+      keys: [:test_run_id, :shard_index],
+      states: [:scheduled, :available, :executing, :retryable],
+      period: :infinity
+    ]
 
+  alias Tuist.Environment
+  alias Tuist.Processor.XCResultProcessor
   alias Tuist.Projects
   alias Tuist.Storage
   alias Tuist.Tests
   alias Tuist.Tests.Workers.BroadcastTestCreatedWorker
+  alias Tuist.Tests.XcresultProcessing
 
   require Logger
+
+  @processing_attempts 5
+  @finalization_snooze_seconds 300
+  @processing_backoff_seconds {30, 120, 300, 600, 1}
 
   # Failures whose root cause is the uploaded archive itself, not anything
   # transient. Retrying is pointless and surfacing them as Oban errors lights
   # up Sentry every five attempts for what is fundamentally a CLI-side
   # mistake (xcodebuild never populated the bundle, or the upload was a
   # bare `quarantined_tests.json` skeleton). We mark the run as
-  # `failed_processing` once and discard the job.
+  # `failed_processing` once and cancel the job.
   @unprocessable_input_reasons [:bundle_invalid, :xcresult_not_found]
 
   @impl Oban.Worker
-  def perform(%Oban.Job{
-        args: %{"test_run_id" => test_run_id, "storage_key" => storage_key} = args,
-        attempt: attempt,
-        max_attempts: max_attempts
-      }) do
+  def perform(%Oban.Job{args: args, attempt: attempt}) when attempt > @processing_attempts do
+    finalize_failed_processing(args)
+  end
+
+  def perform(%Oban.Job{args: %{"test_run_id" => test_run_id, "storage_key" => storage_key} = args, attempt: attempt}) do
     case process_xcresult(test_run_id, storage_key, args) do
       {:ok, parsed_data} ->
-        replace_test_run(parsed_data, args)
-
-        # The run just finished on this (isolated, non-clustered) processor
-        # node, so the in-process PubSub broadcast from create_test can't
-        # reach the web tier. Enqueue an explicit notify job that a web pod
-        # will pick up and broadcast from inside the cluster.
-        enqueue_test_run_broadcast(args)
-
-        case Map.get(args, "vcs_comment_params", %{}) do
-          params when params != %{} -> Tuist.VCS.enqueue_vcs_pull_request_comment(params)
-          _ -> :ok
+        case replace_test_run(parsed_data, args) do
+          :ok -> complete_processing(args)
+          {:error, reason} -> handle_processing_error(args, attempt, reason)
         end
-
-        :ok
 
       {:error, reason} when reason in @unprocessable_input_reasons ->
         Logger.info(
-          "Discarding xcresult for test run #{test_run_id}: uploaded archive is unprocessable (#{inspect(reason)})"
+          "Cancelling xcresult for test run #{test_run_id}: uploaded archive is unprocessable (#{inspect(reason)})"
         )
 
-        mark_failed_processing(args)
-        {:discard, reason}
-
-      {:error, reason} ->
-        if attempt >= max_attempts do
-          Logger.error(
-            "Failed to process xcresult for test run #{test_run_id} after #{max_attempts} attempts: #{inspect(reason)}"
-          )
-
-          mark_failed_processing(args)
+        case safely_mark_test_run_failed(args) do
+          :ok -> {:cancel, reason}
+          {:error, mark_reason} -> {:error, mark_reason}
         end
 
-        {:error, reason}
+      {:error, reason} ->
+        handle_processing_error(args, attempt, reason)
     end
+  end
+
+  @impl Oban.Worker
+  def backoff(%Oban.Job{attempt: attempt}) when attempt > 0 and attempt <= tuple_size(@processing_backoff_seconds) do
+    elem(@processing_backoff_seconds, attempt - 1)
+  end
+
+  def backoff(job), do: Oban.Worker.backoff(job)
+
+  defp complete_processing(args) do
+    # The run just finished on this (isolated, non-clustered) processor
+    # node, so the in-process PubSub broadcast from create_test can't
+    # reach the web tier. Enqueue an explicit notify job that a web pod
+    # will pick up and broadcast from inside the cluster.
+    enqueue_test_run_broadcast(args)
+
+    case Map.get(args, "vcs_comment_params", %{}) do
+      params when params != %{} -> Tuist.VCS.enqueue_vcs_pull_request_comment(params)
+      _ -> :ok
+    end
+
+    :ok
+  end
+
+  defp handle_processing_error(args, @processing_attempts, reason) do
+    Logger.error(
+      "Failed to process xcresult for test run #{args["test_run_id"]} after #{@processing_attempts} attempts: #{inspect(reason)}"
+    )
+
+    {:error, reason}
+  end
+
+  defp handle_processing_error(_args, _attempt, reason), do: {:error, reason}
+
+  defp finalize_failed_processing(args) do
+    with :ok <- safely_mark_test_run_failed(args),
+         {:ok, _job} <- safely_enqueue_test_run_broadcast(args) do
+      {:cancel, :processing_failed}
+    else
+      {:error, reason} ->
+        Logger.error("Failed to finalize Xcode result processing for test run #{args["test_run_id"]}: #{inspect(reason)}")
+
+        {:snooze, @finalization_snooze_seconds}
+    end
+  end
+
+  defp safely_enqueue_test_run_broadcast(args) do
+    enqueue_test_run_broadcast(args)
+  rescue
+    error -> {:error, error}
+  catch
+    kind, reason -> {:error, {kind, reason}}
+  end
+
+  defp safely_mark_test_run_failed(args) do
+    XcresultProcessing.mark_test_run_failed(args)
+  rescue
+    error -> {:error, error}
+  catch
+    kind, reason -> {:error, {kind, reason}}
   end
 
   defp enqueue_test_run_broadcast(args) do
@@ -93,7 +153,7 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
       # For sharded runs, multiple workers share the same merged
       # test_run_id and can run concurrently. Suffix the temp path with
       # the shard index so they never clobber each other's download
-      # mid-parse. Oban's unique constraint already keeps a given
+      # mid-parse. Oban's unique job configuration already keeps a given
       # (test_run_id, shard_index) pair from running in parallel.
       filename =
         case Map.get(args, "shard_index") do
@@ -110,10 +170,10 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
               test_run_id: test_run_id,
               account_handle: args["account_handle"],
               project_handle: args["project_handle"],
-              s3_bucket: Tuist.Environment.s3_bucket_name()
+              s3_bucket: Environment.s3_bucket_name()
             ]
 
-            Tuist.Processor.XCResultProcessor.process_local(temp_path, opts)
+            XCResultProcessor.process_local(temp_path, opts)
 
           {:error, _} = error ->
             error
@@ -135,7 +195,7 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
     test_modules = parsed_data["test_modules"] || []
 
     attrs =
-      Map.merge(base_attrs(args), %{
+      Map.merge(XcresultProcessing.base_test_attrs(args), %{
         scheme: parsed_data["test_plan_name"] || Map.get(args, "scheme"),
         status: run_status(parsed_data, test_modules),
         duration: parsed_data["duration"] || 0,
@@ -185,42 +245,4 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
   defp normalize_platform("visionOS"), do: "visionos"
   defp normalize_platform("visionOS Simulator"), do: "visionos_simulator"
   defp normalize_platform(_), do: "unknown"
-
-  defp mark_failed_processing(args) do
-    attrs =
-      Map.merge(base_attrs(args), %{
-        status: "failed_processing",
-        duration: 0,
-        test_modules: []
-      })
-
-    case Tests.create_test(attrs) do
-      {:ok, _} -> :ok
-      error -> error
-    end
-  end
-
-  defp base_attrs(args) do
-    %{
-      id: args["test_run_id"],
-      project_id: args["project_id"],
-      account_id: args["account_id"],
-      is_ci: Map.get(args, "is_ci", false),
-      git_branch: Map.get(args, "git_branch"),
-      git_commit_sha: Map.get(args, "git_commit_sha"),
-      git_ref: Map.get(args, "git_ref"),
-      macos_version: Map.get(args, "macos_version"),
-      xcode_version: Map.get(args, "xcode_version"),
-      model_identifier: Map.get(args, "model_identifier"),
-      scheme: Map.get(args, "scheme"),
-      ci_run_id: Map.get(args, "ci_run_id"),
-      ci_project_handle: Map.get(args, "ci_project_handle"),
-      ci_host: Map.get(args, "ci_host"),
-      ci_provider: Map.get(args, "ci_provider"),
-      build_run_id: Map.get(args, "build_run_id"),
-      shard_plan_id: Map.get(args, "shard_plan_id"),
-      shard_index: Map.get(args, "shard_index"),
-      ran_at: NaiveDateTime.utc_now()
-    }
-  end
 end

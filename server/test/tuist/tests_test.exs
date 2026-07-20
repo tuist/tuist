@@ -2132,6 +2132,174 @@ defmodule Tuist.TestsTest do
       assert updated_test.status == "failure"
     end
 
+    test "processing failure in the final shard propagates to final status" do
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
+
+      {:ok, _first_test} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account.id,
+          duration: 500,
+          status: "success",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          shard_plan_id: plan.id,
+          shard_index: 0
+        })
+
+      {:ok, updated_test} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account.id,
+          duration: 0,
+          status: "failed_processing",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          shard_plan_id: plan.id,
+          shard_index: 1
+        })
+
+      assert updated_test.status == "failed_processing"
+    end
+
+    test "processing failure in an earlier shard propagates to final status" do
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
+
+      {:ok, _first_test} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account.id,
+          duration: 0,
+          status: "failed_processing",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          shard_plan_id: plan.id,
+          shard_index: 0
+        })
+
+      {:ok, updated_test} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account.id,
+          duration: 500,
+          status: "success",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          shard_plan_id: plan.id,
+          shard_index: 1
+        })
+
+      assert updated_test.status == "failed_processing"
+    end
+
+    test "a successful retry replaces an earlier processing failure for the same shard" do
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
+
+      shard_0_id = UUIDv7.generate()
+
+      {:ok, _failed_test} =
+        Tests.create_test(%{
+          id: shard_0_id,
+          project_id: project.id,
+          account_id: account.id,
+          duration: 0,
+          status: "failed_processing",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          shard_plan_id: plan.id,
+          shard_index: 0
+        })
+
+      {:ok, retried_test} =
+        Tests.create_test(%{
+          id: shard_0_id,
+          project_id: project.id,
+          account_id: account.id,
+          duration: 500,
+          status: "success",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          shard_plan_id: plan.id,
+          shard_index: 0
+        })
+
+      assert retried_test.status == "in_progress"
+
+      {:ok, completed_test} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account.id,
+          duration: 600,
+          status: "success",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          shard_plan_id: plan.id,
+          shard_index: 1
+        })
+
+      assert completed_test.status == "success"
+    end
+
+    test "a retried shard remains incomplete while its latest status is processing" do
+      project = ProjectsFixtures.project_fixture()
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
+
+      shard_0_id = UUIDv7.generate()
+
+      {:ok, _failed_test} =
+        Tests.create_test(%{
+          id: shard_0_id,
+          project_id: project.id,
+          account_id: account.id,
+          duration: 0,
+          status: "failed_processing",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          shard_plan_id: plan.id,
+          shard_index: 0
+        })
+
+      {:ok, _processing_test} =
+        Tests.create_test(%{
+          id: shard_0_id,
+          project_id: project.id,
+          account_id: account.id,
+          duration: 0,
+          status: "processing",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          shard_plan_id: plan.id,
+          shard_index: 0
+        })
+
+      {:ok, merged_test} =
+        Tests.create_test(%{
+          id: UUIDv7.generate(),
+          project_id: project.id,
+          account_id: account.id,
+          duration: 600,
+          status: "success",
+          ran_at: NaiveDateTime.utc_now(),
+          is_ci: true,
+          shard_plan_id: plan.id,
+          shard_index: 1
+        })
+
+      assert merged_test.status == "in_progress"
+    end
+
     test "three shards all success" do
       project = ProjectsFixtures.project_fixture()
       account = AccountsFixtures.user_fixture(preload: [:account]).account

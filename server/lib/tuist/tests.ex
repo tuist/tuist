@@ -549,19 +549,27 @@ defmodule Tuist.Tests do
               create_test_modules(existing_test, test_modules, shard_index, shard_plan)
             end
 
-          # Each shard can have multiple ShardRun rows (the controller
-          # inserts one with status=processing when the CLI is still
-          # uploading, the worker inserts another after parsing). Count
-          # distinct shard indexes that have already produced a non-
-          # processing row, and only count the current shard if its own
-          # status is non-processing too.
-          reported_count =
-            count_completed_shards(existing_test.id, shard_index) +
-              if shard_status == "processing", do: 0, else: 1
+          insert_shard_run(
+            shard_plan_id,
+            project_id,
+            existing_test.id,
+            shard_index,
+            shard_status,
+            shard_duration,
+            attrs
+          )
+
+          # A shard can move through processing, failed_processing, and a
+          # successful client retry. Collapse that append-only history before
+          # deciding whether the merged run is complete. Insert the current
+          # row first so concurrent workers cannot both miss each other's
+          # terminal status and leave the merged run in_progress forever.
+          latest_statuses = latest_shard_statuses(existing_test.id)
+          reported_count = Enum.count(latest_statuses, &(&1 != "processing"))
 
           merged_status =
             if reported_count >= expected_shard_count do
-              compute_final_shard_status(existing_test, shard_status)
+              compute_final_shard_status(latest_statuses)
             else
               "in_progress"
             end
@@ -598,15 +606,17 @@ defmodule Tuist.Tests do
       end
 
     with {:ok, test} <- result do
-      insert_shard_run(
-        shard_plan_id,
-        project_id,
-        test.id,
-        shard_index,
-        shard_status,
-        shard_duration,
-        attrs
-      )
+      if is_nil(existing) do
+        insert_shard_run(
+          shard_plan_id,
+          project_id,
+          test.id,
+          shard_index,
+          shard_status,
+          shard_duration,
+          attrs
+        )
+      end
 
       {:ok, test}
     end
@@ -650,34 +660,20 @@ defmodule Tuist.Tests do
   defp blank?(""), do: true
   defp blank?(_), do: false
 
-  defp count_completed_shards(test_run_id, current_shard_index) do
-    # A shard counts as completed once any ShardRun row for it carries a
-    # non-processing status. The current shard is excluded because the
-    # caller decides whether to add it based on the incoming attrs.
-    ClickHouseRepo.one(
+  defp latest_shard_statuses(test_run_id) do
+    ClickHouseRepo.all(
       from(sr in ShardRun,
         where: sr.test_run_id == ^test_run_id,
-        where: sr.status != "processing",
-        where: sr.shard_index != ^(current_shard_index || -1),
-        select: fragment("uniqExact(?)", sr.shard_index)
+        group_by: sr.shard_index,
+        select: fragment("argMax(?, ?)", sr.status, sr.inserted_at)
       )
-    ) || 0
+    )
   end
 
-  defp compute_final_shard_status(existing_test, current_shard_status) do
-    has_failed_shard =
-      ClickHouseRepo.one(
-        from(sr in ShardRun,
-          where: sr.test_run_id == ^existing_test.id,
-          where: sr.status == "failure",
-          select: count(),
-          limit: 1
-        )
-      ) || 0
-
+  defp compute_final_shard_status(latest_statuses) do
     cond do
-      current_shard_status == "failure" -> "failure"
-      has_failed_shard > 0 -> "failure"
+      "failed_processing" in latest_statuses -> "failed_processing"
+      "failure" in latest_statuses -> "failure"
       true -> "success"
     end
   end

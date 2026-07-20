@@ -39,6 +39,7 @@ import TuistHTTP
         case notFound(String)
         case unauthorized(String)
         case badRequest(String)
+        case serviceUnavailable(String)
 
         var errorDescription: String? {
             switch self {
@@ -46,7 +47,7 @@ import TuistHTTP
                 return
                     "The test run could not be uploaded due to an unknown server response of \(statusCode)."
             case let .forbidden(message), let .notFound(message), let .unauthorized(message),
-                 let .badRequest(message):
+                 let .badRequest(message), let .serviceUnavailable(message):
                 return message
             }
         }
@@ -279,6 +280,11 @@ import TuistHTTP
                 switch badRequestResponse.body {
                 case let .json(error):
                     throw CreateTestServiceError.badRequest(error.message)
+                }
+            case let .serviceUnavailable(serviceUnavailableResponse):
+                switch serviceUnavailableResponse.body {
+                case let .json(error):
+                    throw CreateTestServiceError.serviceUnavailable(error.message)
                 }
             }
         }
