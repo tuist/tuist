@@ -9,9 +9,9 @@ defmodule Tuist.Marketing.OpenGraph do
   @max_length 35
 
   def generate_og_image_binary(title) do
-    title
-    |> generate_image()
-    |> Image.write!(:memory, quality: 95, strip_metadata: false, suffix: ".jpg")
+    with {:ok, image} <- generate_image(title) do
+      Image.write(image, :memory, quality: 95, strip_metadata: false, suffix: ".jpg")
+    end
   end
 
   defp generate_image(title) do
@@ -19,7 +19,6 @@ defmodule Tuist.Marketing.OpenGraph do
 
     # Load the background template image
     template_path = Path.join([Application.app_dir(:tuist, "priv"), "static", "images", "og_template.png"])
-    {:ok, background} = Image.open(template_path)
 
     # Text configuration
     # Color oklch(21.7% 0.002 247.941) - converted to RGB [25, 26, 27]
@@ -30,40 +29,33 @@ defmodule Tuist.Marketing.OpenGraph do
       text_fill_color: [25, 26, 27]
     ]
 
-    # Create and composite text overlays
+    # Composite the text overlays onto the template.
     # Line height: 100% (100px spacing = font size)
-    image = background
     font_size = text_options[:font_size]
     base_y = 450
 
-    image =
-      if title_line_1 == "" do
-        image
-      else
-        {:ok, text1} = Image.Text.text(title_line_1, text_options)
-        {:ok, composed} = Image.compose(image, text1, x: 85, y: base_y)
-        composed
-      end
+    lines = [
+      {title_line_1, base_y},
+      {title_line_2, base_y + font_size},
+      {title_line_3, base_y + font_size * 2}
+    ]
 
-    image =
-      if title_line_2 == "" do
-        image
-      else
-        {:ok, text2} = Image.Text.text(title_line_2, text_options)
-        {:ok, composed} = Image.compose(image, text2, x: 85, y: base_y + font_size)
-        composed
-      end
+    with {:ok, background} <- Image.open(template_path) do
+      Enum.reduce_while(lines, {:ok, background}, fn {line, y}, {:ok, image} ->
+        case compose_line(image, line, y, text_options) do
+          {:ok, composed} -> {:cont, {:ok, composed}}
+          {:error, reason} -> {:halt, {:error, reason}}
+        end
+      end)
+    end
+  end
 
-    image =
-      if title_line_3 == "" do
-        image
-      else
-        {:ok, text3} = Image.Text.text(title_line_3, text_options)
-        {:ok, composed} = Image.compose(image, text3, x: 85, y: base_y + font_size * 2)
-        composed
-      end
+  defp compose_line(image, "", _y, _text_options), do: {:ok, image}
 
-    image
+  defp compose_line(image, line, y, text_options) do
+    with {:ok, text} <- Image.Text.text(line, text_options) do
+      Image.compose(image, text, x: 85, y: y)
+    end
   end
 
   # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity

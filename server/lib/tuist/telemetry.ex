@@ -36,6 +36,10 @@ defmodule Tuist.Telemetry do
     [:tuist, :storage, :get_object_range]
   end
 
+  def event_name_storage_get_object do
+    [:tuist, :storage, :get_object]
+  end
+
   def event_name_storage_check_object_existence do
     [:tuist, :storage, :check_object_existence]
   end

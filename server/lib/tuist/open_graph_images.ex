@@ -84,18 +84,9 @@ defmodule Tuist.OpenGraphImages do
   # cache header, freezing a truncated image on CDNs and social platforms under
   # a URL that by construction never changes.
   def fetch(key) do
-    image =
-      key
-      |> object_key()
-      |> Storage.stream_object(@actor)
-      |> Enum.to_list()
-      |> IO.iodata_to_binary()
-
-    {:ok, image}
-  rescue
-    error -> {:error, error}
-  catch
-    :exit, reason -> {:error, reason}
+    key
+    |> object_key()
+    |> Storage.get_object(@actor)
   end
 
   defp generate_and_store(key, object_key, resolve) do
@@ -131,12 +122,15 @@ defmodule Tuist.OpenGraphImages do
   # so serve them transiently rather than 503; a later request retries the
   # store once storage recovers.
   defp store(object_key, image) do
-    Storage.put_object(object_key, image, @actor)
-    :ok
-  rescue
-    error ->
-      Logger.warning("Failed to cache Open Graph image #{object_key}, serving it transiently: #{inspect(error)}")
-      {:transient, image}
+    case Storage.put_object(object_key, image, @actor) do
+      :ok ->
+        :ok
+
+      {:error, reason} ->
+        Logger.warning("Failed to cache Open Graph image #{object_key}, serving it transiently: #{inspect(reason)}")
+
+        {:transient, image}
+    end
   end
 
   defp object_key(key), do: Path.join(@storage_prefix, "#{key}.jpg")

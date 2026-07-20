@@ -972,10 +972,10 @@ defmodule Tuist.StorageTest do
         operation
       end)
 
-      expect(ExAws, :request!, fn ^operation, _opts ->
+      expect(ExAws, :request, fn ^operation, _opts ->
         # Verify no region headers are added
         assert operation.headers == %{}
-        :ok
+        {:ok, %{status_code: 200}}
       end)
 
       # When
@@ -999,10 +999,10 @@ defmodule Tuist.StorageTest do
         operation
       end)
 
-      expect(ExAws, :request!, fn updated_operation, _opts ->
+      expect(ExAws, :request, fn updated_operation, _opts ->
         # Verify region header is added
         assert updated_operation.headers == %{"X-Tigris-Regions" => "usa"}
-        :ok
+        {:ok, %{status_code: 200}}
       end)
 
       # When
@@ -1026,10 +1026,10 @@ defmodule Tuist.StorageTest do
         operation
       end)
 
-      expect(ExAws, :request!, fn ^operation, _opts ->
+      expect(ExAws, :request, fn ^operation, _opts ->
         # Verify no region headers are added
         assert operation.headers == %{}
-        :ok
+        {:ok, %{status_code: 200}}
       end)
 
       # When
@@ -1266,9 +1266,9 @@ defmodule Tuist.StorageTest do
         operation
       end)
 
-      expect(ExAws, :request!, fn updated_operation, _opts ->
+      expect(ExAws, :request, fn updated_operation, _opts ->
         assert updated_operation.headers == %{}
-        :ok
+        {:ok, %{status_code: 200}}
       end)
 
       # When

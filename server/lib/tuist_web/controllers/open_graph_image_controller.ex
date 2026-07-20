@@ -30,20 +30,7 @@ defmodule TuistWeb.OpenGraphImageController do
   end
 
   defp serve_versioned(conn, source_path, key, resolve) do
-    result =
-      try do
-        OpenGraphImages.ensure_available(key, fn -> resolve.(source_path) end)
-      rescue
-        error -> {:error, error}
-      catch
-        # A GenServer.call timeout while the browser pool starts (and any
-        # other exit bubbling up from generation) arrives as an exit, which
-        # `rescue` does not catch; handle it so the request degrades to 503
-        # instead of crashing with a 500.
-        :exit, reason -> {:error, reason}
-      end
-
-    case result do
+    case OpenGraphImages.ensure_available(key, fn -> resolve.(source_path) end) do
       :ok -> send_image(conn, key)
       {:transient, image} -> serve_transient(conn, image)
       {:error, reason} when reason in [:not_found, :stale_version] -> not_found(conn)

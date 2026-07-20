@@ -193,20 +193,55 @@ defmodule Tuist.Storage do
   end
 
   def put_object(object_key, content, actor) do
-    case storage_provider(actor) do
-      :azure_blob ->
-        AzureBlob.put_object(object_key, content)
+    result =
+      case storage_provider(actor) do
+        :azure_blob ->
+          AzureBlob.put_object(object_key, content)
 
-      :s3 ->
-        {config, bucket_name} = s3_config_and_bucket(actor)
-        headers = region_headers(actor)
+        :s3 ->
+          {config, bucket_name} = s3_config_and_bucket(actor)
+          headers = region_headers(actor)
 
-        operation =
-          bucket_name
-          |> ExAws.S3.put_object(object_key, content)
-          |> Map.update(:headers, Map.new(headers), &Map.merge(&1, Map.new(headers)))
+          operation =
+            bucket_name
+            |> ExAws.S3.put_object(object_key, content)
+            |> Map.update(:headers, Map.new(headers), &Map.merge(&1, Map.new(headers)))
 
-        ExAws.request!(operation, Map.merge(config, fast_api_req_opts()))
+          ExAws.request(operation, Map.merge(config, fast_api_req_opts()))
+      end
+
+    case result do
+      {:ok, _response} -> :ok
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  def get_object(object_key, actor) do
+    {time, result} =
+      Performance.measure_time_in_milliseconds(fn ->
+        case storage_provider(actor) do
+          :azure_blob ->
+            AzureBlob.get_object(object_key)
+
+          :s3 ->
+            {config, bucket_name} = s3_config_and_bucket(actor)
+
+            bucket_name
+            |> ExAws.S3.get_object(object_key)
+            |> ExAws.request(Map.merge(config, fast_api_req_opts()))
+        end
+      end)
+
+    :telemetry.execute(
+      Tuist.Telemetry.event_name_storage_get_object(),
+      %{duration: time},
+      %{object_key: object_key}
+    )
+
+    case result do
+      {:ok, %{body: content}} -> {:ok, content}
+      {:error, {:http_error, 404, _response}} -> {:error, :not_found}
+      {:error, reason} -> {:error, reason}
     end
   end
 

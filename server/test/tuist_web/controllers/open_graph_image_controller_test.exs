@@ -23,14 +23,14 @@ defmodule TuistWeb.OpenGraphImageControllerTest do
     assert get_resp_header(conn, "cache-control") == ["public, max-age=60"]
   end
 
-  test "streams a cached image without rendering it again", %{conn: conn} do
+  test "serves a cached image without rendering it again", %{conn: conn} do
     source_path = "/marketing/images/og/generated/about.jpg"
     {:ok, spec} = MarketingImage.resolve(source_path)
     versioned_path = OpenGraphImages.versioned_path(source_path, spec.key)
     object_key = "open-graph-images/#{spec.key}.jpg"
 
     expect(Storage, :object_exists?, fn ^object_key, :open_graph_images -> true end)
-    expect(Storage, :stream_object, fn ^object_key, :open_graph_images -> ["cached-image"] end)
+    expect(Storage, :get_object, fn ^object_key, :open_graph_images -> {:ok, "cached-image"} end)
     reject(&OpenGraphImageRenderer.render/2)
 
     conn = get(conn, versioned_path)
@@ -54,7 +54,7 @@ defmodule TuistWeb.OpenGraphImageControllerTest do
       :ok
     end)
 
-    expect(Storage, :stream_object, fn ^object_key, :open_graph_images -> ["generated-image"] end)
+    expect(Storage, :get_object, fn ^object_key, :open_graph_images -> {:ok, "generated-image"} end)
 
     conn = get(conn, versioned_path)
 
@@ -69,8 +69,12 @@ defmodule TuistWeb.OpenGraphImageControllerTest do
 
     expect(Storage, :object_exists?, 2, fn ^object_key, :open_graph_images -> false end)
     expect(OpenGraphImageRenderer, :render, fn _html, "About Tuist" -> {:ok, "rendered-image"} end)
-    expect(Storage, :put_object, fn ^object_key, "rendered-image", :open_graph_images -> raise "storage down" end)
-    reject(&Storage.stream_object/2)
+
+    expect(Storage, :put_object, fn ^object_key, "rendered-image", :open_graph_images ->
+      {:error, :storage_down}
+    end)
+
+    reject(&Storage.get_object/2)
 
     conn = get(conn, versioned_path)
 
@@ -88,7 +92,7 @@ defmodule TuistWeb.OpenGraphImageControllerTest do
     expect(Storage, :object_exists?, 2, fn ^object_key, :open_graph_images -> false end)
     expect(OpenGraphImageRenderer, :render, fn _html, "About Tuist" -> {:fallback, "fallback-image"} end)
     reject(&Storage.put_object/3)
-    reject(&Storage.stream_object/2)
+    reject(&Storage.get_object/2)
 
     conn = get(conn, versioned_path)
 
@@ -98,7 +102,7 @@ defmodule TuistWeb.OpenGraphImageControllerTest do
     assert get_resp_header(conn, "etag") == []
   end
 
-  test "returns service unavailable when generation exits", %{conn: conn} do
+  test "returns service unavailable when rendering fails", %{conn: conn} do
     source_path = "/marketing/images/og/generated/about.jpg"
     {:ok, spec} = MarketingImage.resolve(source_path)
     versioned_path = OpenGraphImages.versioned_path(source_path, spec.key)
@@ -107,7 +111,7 @@ defmodule TuistWeb.OpenGraphImageControllerTest do
     expect(Storage, :object_exists?, 2, fn ^object_key, :open_graph_images -> false end)
 
     expect(OpenGraphImageRenderer, :render, fn _html, "About Tuist" ->
-      exit({:timeout, {GenServer, :call, [OpenGraphImageRenderer, :ensure_pool, 60_000]}})
+      {:error, :timeout}
     end)
 
     conn = get(conn, versioned_path)
@@ -137,7 +141,7 @@ defmodule TuistWeb.OpenGraphImageControllerTest do
     object_key = "open-graph-images/#{spec.key}.jpg"
 
     expect(Storage, :object_exists?, fn ^object_key, :open_graph_images -> true end)
-    expect(Storage, :stream_object, fn ^object_key, :open_graph_images -> raise "storage down" end)
+    expect(Storage, :get_object, fn ^object_key, :open_graph_images -> {:error, :storage_down} end)
 
     conn = get(conn, versioned_path)
 
@@ -152,7 +156,7 @@ defmodule TuistWeb.OpenGraphImageControllerTest do
     object_key = "open-graph-images/#{spec.key}.jpg"
 
     expect(Storage, :object_exists?, fn ^object_key, :open_graph_images -> true end)
-    reject(&Storage.stream_object/2)
+    reject(&Storage.get_object/2)
     reject(&OpenGraphImageRenderer.render/2)
 
     conn = conn |> put_req_header("if-none-match", ~s("#{spec.key}")) |> get(versioned_path)
