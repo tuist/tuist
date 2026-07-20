@@ -213,9 +213,22 @@ defmodule Tuist.Runners do
   Records a runner's promote of `account_id`'s cache volume: bumps the account's
   HEAD to `tree_digest` published from `node_name`. Called by the runner after a
   successful, cache-changing job whose branch it uploaded to the master archive.
+
+  `tree_digest` MUST be a 40-char SHA-1 hex string. dispatch interpolates the
+  stored HEAD digest straight into the master object key
+  (volume_master_object_key/2), so an unvalidated digest from an authenticated
+  runner could persist `/` or `..` and poison a future dispatch's download key or
+  escape the account prefix. Validate here too — not just when minting the upload
+  URL — since this is the write that the download key is later derived from.
+  Returns `:ok` on a valid digest, `:error` otherwise.
   """
   def report_volume_head(account_id, node_name, tree_digest) do
-    VolumeHeads.bump_head(account_id, node_name, tree_digest)
+    if is_binary(tree_digest) and valid_inventory_digest?(tree_digest) do
+      VolumeHeads.bump_head(account_id, node_name, tree_digest)
+      :ok
+    else
+      :error
+    end
   end
 
   @doc """

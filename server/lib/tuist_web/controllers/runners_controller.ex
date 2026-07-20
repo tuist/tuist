@@ -114,8 +114,10 @@ defmodule TuistWeb.RunnersController do
     with {:ok, token} <- bearer_token(conn),
          {:ok, %{namespace: ns, name: sa_name}} <- K8sClient.create_token_review(token),
          {:ok, account_id} <- Runners.account_id_for_sa(ns, sa_name) do
-      Runners.report_volume_head(account_id, node, digest)
-      send_resp(conn, :no_content, "")
+      case Runners.report_volume_head(account_id, node, digest) do
+        :ok -> send_resp(conn, :no_content, "")
+        :error -> conn |> put_status(:unprocessable_entity) |> json(%{error: "invalid digest"})
+      end
     else
       {:error, :missing_bearer} ->
         conn |> put_status(:unauthorized) |> json(%{error: "missing bearer token"})

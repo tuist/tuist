@@ -13,6 +13,7 @@ defmodule Tuist.RunnersTest do
   alias Tuist.Runners.Dispatch
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.VolumeAffinities
+  alias Tuist.Runners.VolumeHeads
   alias Tuist.VCS
 
   setup :verify_on_exit!
@@ -733,6 +734,26 @@ defmodule Tuist.RunnersTest do
       end)
 
       assert {:error, :account_unresolved} = Runners.account_id_for_sa("tuist-runners", "pod-1")
+    end
+  end
+
+  describe "report_volume_head/3" do
+    test "bumps the HEAD for a valid hex digest" do
+      account = account_fixture()
+      digest = String.duplicate("a", 40)
+
+      assert :ok = Runners.report_volume_head(account.id, "node-1", digest)
+      assert %{tree_digest: ^digest} = VolumeHeads.get_head(account.id)
+    end
+
+    test "rejects a digest with path characters (or non-hex) without bumping the HEAD" do
+      account = account_fixture()
+
+      for bad <- ["../../etc/passwd", "tuist-cache/../x", "a/b", "", nil, String.duplicate("A", 40)] do
+        assert :error = Runners.report_volume_head(account.id, "node-1", bad)
+      end
+
+      assert VolumeHeads.get_head(account.id) == nil
     end
   end
 
