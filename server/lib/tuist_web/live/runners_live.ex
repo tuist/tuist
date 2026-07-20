@@ -223,6 +223,7 @@ defmodule TuistWeb.RunnersLive do
         url: workflow_run_detail_url(account_name, run)
       }
     end)
+    |> pad_chart_data()
   end
 
   defp run_duration_seconds(%{duration_ms: ms}) when is_integer(ms) and ms > 0, do: div(ms, 1000)
@@ -262,6 +263,17 @@ defmodule TuistWeb.RunnersLive do
         url: TuistWeb.RunnerJobLive.path(account_name, job)
       }
     end)
+    |> pad_chart_data()
+  end
+
+  # A handful of recent runs on a category axis stretch evenly across the
+  # full card width, which reads as time-spaced gaps rather than a run
+  # trail. Pad the list up to `@chart_limit` slots so the real bars always
+  # render at a fixed density packed on the right (newest last), matching
+  # the Recent Builds chart. Empty leading slots carry a nil value (no bar)
+  # and a blank label so they neither draw nor trigger tooltips.
+  defp pad_chart_data(chart_data) do
+    List.duplicate(%{value: nil, date: ""}, max(@chart_limit - length(chart_data), 0)) ++ chart_data
   end
 
   defp duration_seconds(%{status: "completed", started_at: started, completed_at: completed}) do

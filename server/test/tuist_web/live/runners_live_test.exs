@@ -70,6 +70,39 @@ defmodule TuistWeb.RunnersLiveTest do
     assert html =~ "Docker build"
   end
 
+  test "pads the recent workflow and job charts to a fixed width", %{conn: conn, account: account} do
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: 70_002,
+        account_id: account.id,
+        fleet_name: "fleet-x",
+        repository: "tuist/tuist",
+        workflow_run_id: 700_020,
+        workflow_name: "Server",
+        run_attempt: 1,
+        job_name: "Docker build",
+        head_branch: "main",
+        head_sha: "abcdef1"
+      })
+
+    {:ok, candidate} = Jobs.pick_queued("fleet-x", [])
+    :ok = Jobs.record_claimed(candidate, "pod-1", DateTime.utc_now())
+    :ok = Jobs.record_running(70_002, "runner-x")
+    {:ok, _} = Jobs.complete(70_002, "success")
+
+    {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners")
+    html = render_async(lv)
+
+    # A single run must still fill the fixed 30-slot trail: one real bar plus
+    # 29 padded slots, so the bars pack together instead of stretching across
+    # the full card width.
+    for chart_id <- ["runners-recent-workflows-chart", "runners-recent-jobs-chart"] do
+      data = chart_series_data(html, chart_id)
+      assert length(data) == 30
+      assert Enum.count(data, &(&1["value"] == nil)) == 29
+    end
+  end
+
   test "shows empty state when the account has no jobs", %{conn: conn, account: account} do
     {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners")
     html = render_async(lv)
@@ -125,6 +158,20 @@ defmodule TuistWeb.RunnersLiveTest do
     assert TuistWeb.RunnersLive.concurrency_chart_options("last-30-days").xAxis.axisLabel.interval == 47
 
     assert TuistWeb.RunnersLive.concurrency_chart_options("last-7-days").tooltip.dateFormat == "hour"
+  end
+
+  defp chart_series_data(html, chart_id) do
+    json =
+      html
+      |> Floki.parse_document!()
+      |> Floki.find("##{chart_id} [data-part='data']")
+      |> Floki.text()
+
+    json
+    |> Jason.decode!()
+    |> Map.fetch!("series")
+    |> List.first()
+    |> Map.fetch!("data")
   end
 
   defp concurrency_after_analytics?(html) do
