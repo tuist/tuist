@@ -26,7 +26,6 @@ defmodule Tuist.Accounts do
   alias Tuist.CommandEvents
   alias Tuist.Ecto.Utils
   alias Tuist.Environment
-  alias Tuist.FeatureFlags
   alias Tuist.Repo
   alias Tuist.Runners.Concurrency, as: RunnerConcurrency
   alias Tuist.Runners.Profiles, as: RunnerProfiles
@@ -2088,10 +2087,10 @@ defmodule Tuist.Accounts do
   Returns cache endpoint URLs for the given account handle and cache technology.
 
   The `technology` argument is driven by the `kura` client feature flag header.
-  When `:kura`, ready account Kura endpoints are returned only if the account
-  has the `:kura_cache` flag enabled. In every other case (technology is
-  `:default`, no opt-in, or no ready Kura endpoint), the custom and default
-  endpoint fallback behavior is preserved.
+  When `:kura`, the account's provisioned Kura endpoints are returned if it has
+  any, so routing to Kura is opt-in from the CLI alone. In every other case
+  (technology is `:default`, or the account has no Kura endpoint), the custom
+  and default endpoint fallback behavior is preserved.
 
   Custom endpoints are only returned when:
   - The account exists
@@ -2156,14 +2155,12 @@ defmodule Tuist.Accounts do
   defp custom_cache_endpoints(_), do: []
 
   defp kura_cache_endpoints(%Account{} = account) do
-    if FeatureFlags.kura_cache_enabled?(account) do
-      # Tuist-managed Kura endpoints, mirrored from `kura_servers`. Self-hosted
-      # nodes are not static rows: each one self-registers its advertised URL via
-      # heartbeats, surfaced through `registered_kura_endpoint_urls/1`.
-      Repo.all(from(e in AccountCacheEndpoint, where: e.account_id == ^account.id and e.technology == :kura))
-    else
-      []
-    end
+    # Tuist-managed Kura endpoints, mirrored from `kura_servers`. Self-hosted
+    # nodes are not static rows: each one self-registers its advertised URL via
+    # heartbeats, surfaced through `registered_kura_endpoint_urls/1`. Whether
+    # these are handed to the CLI is decided upstream by the `kura` client
+    # feature flag, so provisioning is the only server-side gate.
+    Repo.all(from(e in AccountCacheEndpoint, where: e.account_id == ^account.id and e.technology == :kura))
   end
 
   @doc """
@@ -2181,12 +2178,11 @@ defmodule Tuist.Accounts do
 
   # Client-facing URLs from registration heartbeats: customer-owned nodes that
   # report a live, ready advertised endpoint. Lease-gated, so a node that stops
-  # heartbeating drops out. Gated on `:kura_cache` like the static endpoints.
+  # heartbeating drops out.
   defp registered_kura_endpoint_urls(%Account{} = account) do
     # Self-hosting is Enterprise-only, so do not surface a downgraded account's
     # registered node addresses to the CLI even while their leases are still live.
-    if FeatureFlags.kura_cache_enabled?(account) and
-         Billing.Entitlements.allows?(account, :self_hosted_cache) do
+    if Billing.Entitlements.allows?(account, :self_hosted_cache) do
       Tuist.Kura.Registrations.active_advertised_urls(account)
     else
       []
