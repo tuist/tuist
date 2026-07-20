@@ -54,6 +54,48 @@ spec:
   # async. With 2 standbys (canary/production) one being down still
   # satisfies the quorum; a 1-standby cluster (staging) can stall.
   #
+  # Known failure mode (2026-07-20 09:53Z incident): if the primary is
+  # briefly isolated from BOTH standbys at once — a ~7s eth0 NIC/datapath
+  # blip on the primary's node dropped its links to both replicas AND the
+  # API server — `required` blocks every COMMIT for the duration, which
+  # surfaces fleet-wide as a burst of `DBConnection ... :queue_timeout`
+  # (all writes funnel through this one primary).
+  #
+  # We deliberately keep `required` (not `preferred`). `preferred` would
+  # de-escalate to async when all standbys are gone (avoiding the stall)
+  # but widens the data-loss surface, and — because in this incident the
+  # primary also lost the operator/API-server path and the blip self-healed
+  # in ~7s — it would not reliably have prevented THIS event anyway (the
+  # de-escalation can't be applied to an unreachable primary in time). The
+  # real lever here is the trigger (host NIC stability), so we invest in
+  # detection instead of trading durability. Revisit `preferred` only as a
+  # deliberate durability-vs-availability decision, not as an incident fix.
+  #
+  # Detection (alerts created in the Grafana Cloud UI — this repo ships no
+  # PrometheusRule CRDs; the metrics and CNPG pod logs already reach Grafana
+  # Cloud, and the NIC-flap metrics are added in infra/helm/k8s-monitoring):
+  #
+  #   1. Sync replication degraded — the primary is streaming to fewer
+  #      standbys than the quorum needs. Under `required` this is when
+  #      writes START blocking, so it must page immediately.
+  #      PromQL:  max by (k8s_cluster_name) (
+  #                 cnpg_pg_replication_streaming_replicas{namespace=~"tuist.*"}
+  #               ) < 1
+  #      - For: 30s   - Severity: critical   (0 standbys streaming)
+  #      Optionally add a `< 2` warning (one standby lost, quorum still met).
+  #
+  #   2. Replication link break / primary self-isolation — the 2026-07-20
+  #      fingerprint, straight from the shipped CNPG logs.
+  #      LogQL:   sum(count_over_time({namespace=~"tuist.*", container="postgres"}
+  #                 |~ "terminating walsender process due to replication timeout|terminating walreceiver due to timeout|Instance connectivity error - liveness probe failing" [5m])) > 0
+  #      - For: 0m (event-driven)   - Severity: warning
+  #
+  #   3. Host NIC flap (the root trigger) — needs the node NIC metrics added
+  #      to infra/helm/k8s-monitoring (node_network_up / _carrier_changes).
+  #      PromQL:  increase(node_network_carrier_changes_total{device=~"e(n|th).*"}[5m]) > 1
+  #      - For: 0m   - Severity: warning   Correlate with the node's Cilium
+  #      bandwidth-manager `Setting qdisc ... device=eth0` burst to confirm.
+  #
   # `parameters` sets server-level Postgres settings (notably
   # max_connections, which must clear the aggregate connection budget).
   # `sharedPreloadLibraries` is a separate list on the CR rather than
