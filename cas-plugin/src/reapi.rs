@@ -75,17 +75,6 @@ pub fn reapi_instance(full_handle: &str) -> &str {
         .unwrap_or(full_handle)
 }
 
-impl RemoteConfig {
-    pub fn from_env() -> Option<Self> {
-        let grpc_url = std::env::var("TUIST_CAS_REMOTE_GRPC_URL").ok()?;
-        let project = std::env::var("TUIST_CAS_PROJECT").unwrap_or_else(|_| "tuist".into());
-        Some(Self {
-            grpc_url,
-            instance: reapi_instance(&project).to_string(),
-        })
-    }
-}
-
 pub struct Node {
     pub refs: Vec<Vec<u8>>,
     pub data: Vec<u8>,
@@ -307,6 +296,39 @@ impl Remote {
         authed_request(message, self.authorization().as_ref())
     }
 
+    /// An authed request carrying a git ref (the branch a publish is attributed
+    /// to, or the trunk to scope a view by) as metadata.
+    ///
+    /// Sent twice, and both are load-bearing. Git allows any UTF-8 in a ref name,
+    /// but an ASCII metadata value takes visible ASCII only, so `feature/café`
+    /// fails to convert and used to be dropped in silence: the publish went out
+    /// untagged, or the view came back unscoped, and nothing said why. The `-bin`
+    /// header carries the bytes whatever they are.
+    ///
+    /// The ASCII header stays because a node that predates the binary one reads
+    /// only that, and dropping it would untag every ASCII ref on the way through
+    /// a rolling deploy. So: ASCII when it fits, bytes always, and a reader takes
+    /// the binary one first.
+    fn authed_with<T>(
+        &self,
+        message: T,
+        header: &'static str,
+        binary_header: &'static str,
+        value: Option<&str>,
+    ) -> tonic::Request<T> {
+        let mut request = self.authed(message);
+        if let Some(value) = value.filter(|value| !value.is_empty()) {
+            if let Ok(ascii) = tonic::metadata::MetadataValue::try_from(value) {
+                request.metadata_mut().insert(header, ascii);
+            }
+            request.metadata_mut().insert_bin(
+                binary_header,
+                tonic::metadata::MetadataValue::from_bytes(value.as_bytes()),
+            );
+        }
+        request
+    }
+
     fn channel(&self) -> Result<Channel, String> {
         self.channel
             .get_or_init(|| {
@@ -448,7 +470,11 @@ impl Remote {
     /// server has no snapshot support (an ordinary not-found), and the caller
     /// stays on the per-key path.
     /// `after` asks for a delta: only entries written after that watermark.
-    pub fn get_snapshot(&self, after: Option<u64>) -> Result<Option<Vec<u8>>, String> {
+    pub fn get_snapshot(
+        &self,
+        after: Option<u64>,
+        trunk: Option<&str>,
+    ) -> Result<Option<Vec<u8>>, String> {
         let mut client = self.ac_client()?;
         let mut inline_output_files = vec!["*".to_string()];
         if let Some(after) = after {
@@ -461,7 +487,12 @@ impl Remote {
             ..Default::default()
         };
         let response = retry_call(|| {
-            runtime().block_on(client.get_action_result(self.authed(request.clone())))
+            runtime().block_on(client.get_action_result(self.authed_with(
+                request.clone(),
+                "x-tuist-trunk-branch",
+                "x-tuist-trunk-branch-bin",
+                trunk,
+            )))
         });
         match response {
             Ok(response) => Ok(response
@@ -613,7 +644,13 @@ impl Remote {
 
     /// Publishes the entry. Called only after every blob in the manifest is
     /// known to be on the server.
-    pub fn update_action(&self, key: &[u8], manifest: &[ManifestEntry]) -> Result<(), String> {
+    pub fn update_action(
+        &self,
+        key: &[u8],
+        manifest: &[ManifestEntry],
+        branch: Option<&str>,
+        trunk: Option<&str>,
+    ) -> Result<(), String> {
         let started = Instant::now();
         let result = (|| {
             let mut client = self.ac_client()?;
@@ -635,7 +672,24 @@ impl Remote {
                 ..Default::default()
             };
             retry_call(|| {
-                runtime().block_on(client.update_action_result(self.authed(request.clone())))
+                // The trunk rides the write too: kura keeps trunk-baseline
+                // keys sticky against feature-branch republishes.
+                let mut request = self.authed_with(
+                    request.clone(),
+                    "x-tuist-branch",
+                    "x-tuist-branch-bin",
+                    branch,
+                );
+                if let Some(trunk) = trunk.filter(|trunk| !trunk.is_empty()) {
+                    if let Ok(value) = tonic::metadata::MetadataValue::try_from(trunk) {
+                        request.metadata_mut().insert("x-tuist-trunk-branch", value);
+                    }
+                    request.metadata_mut().insert_bin(
+                        "x-tuist-trunk-branch-bin",
+                        tonic::metadata::MetadataValue::from_bytes(trunk.as_bytes()),
+                    );
+                }
+                runtime().block_on(client.update_action_result(request))
             })
             .map_err(|status| format!("update_action: {status}"))?;
             Ok(())

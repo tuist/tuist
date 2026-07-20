@@ -90,6 +90,50 @@ defmodule TuistWeb.AuthenticationPlugTest do
       assert TuistWeb.Authentication.authenticated?(got) == true
     end
 
+    test "loads the confirmed user for a claimed auth.md credential on the MCP endpoint" do
+      opts = AuthenticationPlug.init(:load_authenticated_subject)
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      token_id = UUIDv7.generate()
+      token = "claimed-agent-token"
+
+      authenticated_account = %AuthenticatedAccount{
+        account: user.account,
+        scopes: ["mcp"],
+        token_id: token_id
+      }
+
+      expect(Tuist.Authentication, :authenticated_subject, fn ^token -> authenticated_account end)
+      expect(Accounts, :claimed_agent_registration_user, fn ^token_id -> user end)
+
+      conn = :post |> conn("/mcp") |> put_req_header("authorization", "Bearer " <> token)
+
+      got = AuthenticationPlug.call(conn, opts)
+
+      assert got.assigns.current_subject == authenticated_account
+      assert TuistWeb.Authentication.current_user(got).id == user.id
+    end
+
+    test "does not promote a claimed agent user outside the MCP endpoint" do
+      opts = AuthenticationPlug.init(:load_authenticated_subject)
+      user = AccountsFixtures.user_fixture(preload: [:account])
+      token = "claimed-agent-token"
+
+      authenticated_account = %AuthenticatedAccount{
+        account: user.account,
+        scopes: ["mcp"],
+        token_id: UUIDv7.generate()
+      }
+
+      expect(Tuist.Authentication, :authenticated_subject, fn ^token -> authenticated_account end)
+
+      conn = :get |> conn("/api/projects") |> put_req_header("authorization", "Bearer " <> token)
+
+      got = AuthenticationPlug.call(conn, opts)
+
+      assert got.assigns.current_subject == authenticated_account
+      assert TuistWeb.Authentication.current_user(got) == nil
+    end
+
     test "loads the authenticated user" do
       # Given
       opts = AuthenticationPlug.init(:load_authenticated_subject)
@@ -229,6 +273,9 @@ defmodule TuistWeb.AuthenticationPlugTest do
              ]
 
       assert json_response(conn, :unauthorized) == %{
+               "auth_md" => "https://mcp.tuist.dev:8443/auth.md",
+               "authentication_instructions" =>
+                 "Fetch auth_md and follow Tuist's discovery, registration, identity-assertion exchange, and claim-polling flow before falling back to browser Open Authorization.",
                "error" => "invalid_token",
                "error_description" => "Missing or invalid access token."
              }

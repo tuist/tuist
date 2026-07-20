@@ -1218,19 +1218,20 @@ defmodule Tuist.Tests.Analytics do
   end
 
   @doc """
-  Calculates the test reliability (success rate) for a specific test case by its UUID.
+  Calculates the test reliability (success rate) for a specific test case by its identifier.
   First attempts to calculate based on the project's default branch. If no runs exist on the
   default branch, falls back to calculating reliability across all branches.
   Returns the percentage of successful runs (0-100) or nil if no runs exist at all.
   """
-  def test_case_reliability_by_id(test_case_id, default_branch) do
+  def test_case_reliability_by_id(project_id, test_case_id, default_branch) do
     default_branch_query =
       from(tcr in TestCaseRun,
+        where: tcr.project_id == ^project_id,
         where: tcr.test_case_id == ^test_case_id,
         where: tcr.git_branch == ^default_branch,
         select: %{
           success_count: fragment("countIf(? = 'success')", tcr.status),
-          total_count: count(tcr.id)
+          total_count: count()
         }
       )
 
@@ -1243,10 +1244,11 @@ defmodule Tuist.Tests.Analytics do
       _ ->
         all_branches_query =
           from(tcr in TestCaseRun,
+            where: tcr.project_id == ^project_id,
             where: tcr.test_case_id == ^test_case_id,
             select: %{
               success_count: fragment("countIf(? = 'success')", tcr.status),
-              total_count: count(tcr.id)
+              total_count: count()
             }
           )
 
@@ -1263,14 +1265,15 @@ defmodule Tuist.Tests.Analytics do
   end
 
   @doc """
-  Gets analytics for a specific test case by its UUID including total runs, failed runs, and average duration.
+  Gets analytics for a specific test case by its identifier including total runs, failed runs, and average duration.
   """
-  def test_case_analytics_by_id(test_case_id, _opts \\ []) do
+  def test_case_analytics_by_id(project_id, test_case_id) do
     query =
       from(tcr in TestCaseRun,
+        where: tcr.project_id == ^project_id,
         where: tcr.test_case_id == ^test_case_id,
         select: %{
-          total_count: count(tcr.id),
+          total_count: count(),
           failed_count: fragment("countIf(? = 'failure')", tcr.status),
           avg_duration: avg(tcr.duration)
         }

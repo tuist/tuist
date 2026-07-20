@@ -71,6 +71,31 @@ pub(super) const SNAPSHOT_CACHE_MAX_NAMESPACES: usize = 32;
 /// transient memory — roughly cap x ~1KB.
 pub(super) const SNAPSHOT_INDEX_MAX_ENTRIES: usize = 100_000;
 
+pub(super) fn snapshot_index_max_entries() -> usize {
+    std::env::var("KURA_SNAPSHOT_INDEX_MAX_ENTRIES")
+        .ok()
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(SNAPSHOT_INDEX_MAX_ENTRIES)
+}
+
+pub(super) fn snapshot_cache_key(namespace_id: &str, trunk: Option<&str>) -> String {
+    match trunk {
+        Some(trunk) => format!("{namespace_id}\u{0}{trunk}"),
+        None => namespace_id.to_owned(),
+    }
+}
+
+pub(super) fn snapshot_cache_key_parts(cache_key: &str) -> (&str, Option<&str>) {
+    match cache_key.split_once('\u{0}') {
+        Some((namespace_id, trunk)) => (namespace_id, Some(trunk)),
+        None => (cache_key, None),
+    }
+}
+
+pub(super) fn should_refresh_snapshot_index(reconciled_ago: Duration, idle_for: Duration) -> bool {
+    reconciled_ago >= SNAPSHOT_RECONCILE_INTERVAL && idle_for < SNAPSHOT_REFRESH_IDLE_AFTER
+}
+
 /// The transient memory a bounded index build is budgeted for, held as a
 /// response-materialization-pool permit for the build's duration (adapted
 /// down on nodes whose pool is smaller). Matches SNAPSHOT_INDEX_MAX_ENTRIES
@@ -107,11 +132,15 @@ impl SnapshotBuildBudgets {
 /// pinned at capacity for this entire window.
 pub(super) const SNAPSHOT_BUILD_PERMIT_WAIT: Duration = Duration::from_secs(600);
 
-/// How old a cached snapshot index may grow before a serve kicks a
-/// background reconcile. Requests never wait on it — they get the cached
+/// How old a cached snapshot index may grow before it is reconciled. Requests
+/// never wait on it — they get the cached
 /// view — so this bounds staleness, not latency; it composes with the
 /// client's ~2-minute delta cadence.
 pub(super) const SNAPSHOT_RECONCILE_INTERVAL: Duration = Duration::from_secs(60);
+
+pub(super) const SNAPSHOT_REFRESH_TICK: Duration = Duration::from_secs(15);
+
+pub(super) const SNAPSHOT_REFRESH_IDLE_AFTER: Duration = Duration::from_secs(30 * 60);
 
 /// How long a COLD serve (no cached index) waits for the build before
 /// answering UNAVAILABLE. Long enough that an already-indexed namespace's
@@ -164,6 +193,9 @@ pub(super) struct NamespaceSnapshotIndex {
     /// When the last successful reconcile finished. Serving reads this to
     /// decide whether the cached view is fresh enough to return as-is.
     pub(super) reconciled_at: Instant,
+    /// The namespace's action-cache generation when this index was built. An
+    /// empty index is only served while this still matches the store.
+    pub(super) built_at_generation: u64,
 }
 
 impl NamespaceSnapshotIndex {
@@ -175,6 +207,7 @@ impl NamespaceSnapshotIndex {
             estimated_bytes: 0,
             last_used: Instant::now(),
             reconciled_at: Instant::now(),
+            built_at_generation: 0,
         };
         index.recompute_estimated_bytes();
         index
@@ -642,6 +675,12 @@ impl SnapshotCache {
 pub(super) type SharedIndexBuild =
     futures_util::future::Shared<BoxFuture<'static, Result<(), String>>>;
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum IndexBuildTrigger {
+    Serve,
+    Refresh,
+}
+
 /// Reconciles a namespace's snapshot index against the manifest keyspace:
 /// one namespace-index scan, action-result reads only for new-or-changed
 /// entries, the manifest-existence presence gate with its cascade delete,
@@ -650,6 +689,7 @@ pub(super) type SharedIndexBuild =
 pub(super) async fn reconcile_snapshot_index(
     state: &SharedState,
     namespace_id: &str,
+    trunk: Option<&str>,
     mut index: NamespaceSnapshotIndex,
     budgets: SnapshotBuildBudgets,
 ) -> Result<NamespaceSnapshotIndex, (NamespaceSnapshotIndex, String)> {
@@ -659,11 +699,13 @@ pub(super) async fn reconcile_snapshot_index(
     }
     let store = state.store.clone();
     let scan_namespace_id = namespace_id.to_owned();
+    let scan_trunk = trunk.map(str::to_owned);
     let manifests = match tokio::task::spawn_blocking(move || {
         store.action_cache_manifests_bounded(
             &scan_namespace_id,
-            SNAPSHOT_INDEX_MAX_ENTRIES,
+            snapshot_index_max_entries(),
             budgets.metadata_bytes,
+            scan_trunk.as_deref(),
         )
     })
     .await

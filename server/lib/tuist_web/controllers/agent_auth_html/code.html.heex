@@ -1,0 +1,16 @@
+<.auth_frame
+  title="Your Tuist sign-in code"
+  subtitle="Read this six-digit code back to the agent that requested access."
+>
+  <div class="otp" aria-label={"Sign-in code #{@otp}"}>{@otp}</div>
+  <.alert
+    type="secondary"
+    status="information"
+    size="small"
+    title={"This code expires at #{@expires_at}."}
+  />
+  <div data-part="security-note">
+    <span data-part="icon"><.lock /></span>
+    <span>If you did not ask an agent to connect to Tuist, close this page.</span>
+  </div>
+</.auth_frame>

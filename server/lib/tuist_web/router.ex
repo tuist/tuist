@@ -424,10 +424,18 @@ defmodule TuistWeb.Router do
   end
 
   scope "/", TuistWeb do
+    pipe_through [:open_api, :browser_app, :require_authenticated_user]
+
+    get "/agent/identity/claim", AgentAuthController, :protocol_claim_page
+    post "/agent/identity/claim/complete", AgentAuthController, :confirm_protocol_claim
+  end
+
+  scope "/", TuistWeb do
     pipe_through [:open_api]
 
     get "/auth.md", AgentAuthController, :auth_md
     post "/agent/auth/revoke", AgentAuthController, :revoke
+    post "/agent/event/notify", AgentAuthController, :protocol_event
   end
 
   scope "/", TuistWeb do
@@ -436,6 +444,8 @@ defmodule TuistWeb.Router do
     post "/agent/auth", AgentAuthController, :register
     post "/agent/auth/claim", AgentAuthController, :claim
     post "/agent/auth/claim/complete", AgentAuthController, :complete_claim
+    post "/agent/identity", AgentAuthController, :identity
+    post "/agent/identity/claim", AgentAuthController, :protocol_claim
   end
 
   scope "/integrations", TuistWeb do
@@ -460,6 +470,7 @@ defmodule TuistWeb.Router do
     get "/oauth-authorization-server", WellKnownController, :oauth_authorization_server
     get "/oauth-protected-resource", WellKnownController, :oauth_protected_resource
     get "/oauth-protected-resource/*resource_path", WellKnownController, :oauth_protected_resource
+    get "/jwks.json", WellKnownController, :jwks
     get "/mcp/server-card.json", WellKnownController, :mcp_server_card
     get "/registry.json", WellKnownController, :registry_discovery, metadata: %{robots_txt: false}
     get "/apple-app-site-association", WellKnownController, :apple_app_site_association
@@ -790,6 +801,7 @@ defmodule TuistWeb.Router do
 
     post "/introspect", IntrospectController, :introspect
     post "/token", TokenController, :token
+    post "/revoke", TokenController, :revoke
     post "/register", RegistrationController, :register
   end
 
