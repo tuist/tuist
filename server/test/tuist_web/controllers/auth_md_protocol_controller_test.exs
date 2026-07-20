@@ -245,6 +245,27 @@ defmodule TuistWeb.AuthMdProtocolControllerTest do
     assert stale_response["max_age"] == 3600
   end
 
+  test "returns a structured error when the identity registration fails unexpectedly", %{conn: conn} do
+    email = AccountsFixtures.unique_user_email()
+    {provider, assertion, _jwk} = id_jag(email, "provider-insert-failure")
+    stub(Tuist.Environment, :agent_auth_trusted_providers, fn -> [provider] end)
+
+    stub(Tuist.Accounts, :create_protocol_agent_registration, fn _attrs ->
+      {:error, Ecto.Changeset.change(%AgentRegistration{})}
+    end)
+
+    response =
+      conn
+      |> post("/agent/identity", %{
+        "type" => "identity_assertion",
+        "assertion_type" => "urn:ietf:params:oauth:token-type:id-jag",
+        "assertion" => assertion
+      })
+      |> json_response(500)
+
+    assert response["error"] == "server_error"
+  end
+
   test "accepts a signed security event and revokes the whole provider delegation", %{conn: conn} do
     email = AccountsFixtures.unique_user_email()
     {provider, assertion, jwk} = id_jag(email, "provider-registration")

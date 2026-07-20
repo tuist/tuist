@@ -155,6 +155,14 @@ defmodule TuistWeb.AgentAuthController do
           if(reason == :invalid_key, do: "invalid_signature", else: Atom.to_string(reason)),
           "The provider identity assertion is invalid."
         )
+
+      {:error, _reason} ->
+        render_identity_error(
+          conn,
+          :internal_server_error,
+          "server_error",
+          "The identity registration could not be completed."
+        )
     end
   end
 
