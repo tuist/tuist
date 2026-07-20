@@ -1370,6 +1370,7 @@ impl Store {
             namespace_artifact_index_key(&metadata.namespace_id, &artifact_id).as_bytes(),
             [],
         );
+        let mut wrote_action_cache_index = false;
         if manifest.producer == ArtifactProducer::Reapi
             && let Some(action_hash) = action_cache_manifest_hash(&manifest.key)
         {
@@ -1399,7 +1400,7 @@ impl Store {
                 ),
                 artifact_id.as_bytes(),
             );
-            self.bump_action_cache_generation(&manifest.namespace_id);
+            wrote_action_cache_index = true;
         }
         self.append_artifact_replication_messages(
             &mut batch,
@@ -1409,6 +1410,14 @@ impl Store {
         )?;
 
         self.write_batch_sync(batch, "keyvalue batch")?;
+        // Only after the batch commits: the generation is what a snapshot serve
+        // reads to decide its cached view is current, and the new index row is
+        // not visible to that scan until the write lands. Bumping before the
+        // commit lets a concurrent serve stamp the pre-commit (row-less) view
+        // with the new generation and then answer later requests from it.
+        if wrote_action_cache_index {
+            self.bump_action_cache_generation(&manifest.namespace_id);
+        }
         self.maybe_cache_manifest(manifest.clone());
         self.note_artifact_exists(&artifact_id);
 
@@ -4176,10 +4185,10 @@ fn sticky_branch<'a>(
     }
 }
 
-/// Whether a manifest belongs in a trunk-scoped snapshot: entries tagged with
-/// the trunk branch and untagged/legacy entries (no branch) form the trunk
-/// baseline; entries tagged with a different branch are excluded. `None` keeps
-/// every entry.
+/// Whether a manifest belongs in a trunk-scoped snapshot: only entries tagged
+/// with the trunk branch form the scoped baseline. An untagged entry is NOT in
+/// it, and neither is one tagged with a different branch. `None` (no trunk
+/// asked for) keeps every entry.
 fn manifest_in_trunk(manifest: &ArtifactManifest, trunk: Option<&str>) -> bool {
     branch_in_trunk(manifest.branch.as_deref(), trunk)
 }

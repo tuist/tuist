@@ -17,6 +17,7 @@ enum SetupCacheCommandServiceError: Equatable, LocalizedError {
     case missingFullHandle
     case notAuthenticated
     case registryNotReplaced(String, Int32)
+    case registryNotLocked(String, Int32)
 
     var errorDescription: String? {
         switch self {
@@ -28,6 +29,8 @@ enum SetupCacheCommandServiceError: Equatable, LocalizedError {
                 "You must be authenticated to set up the cache. Run `tuist auth login` (or set the `TUIST_TOKEN` environment variable) and run `tuist setup cache` again."
         case let .registryNotReplaced(path, code):
             return "Could not update the cache proxy's registry at \(path) (errno \(code))."
+        case let .registryNotLocked(path, code):
+            return "Could not lock the cache proxy's registry at \(path) (errno \(code))."
         }
     }
 }
@@ -165,43 +168,77 @@ struct SetupCacheCommandService {
             )
         }
 
-        // Read every other project back: this rewrites the whole file, so anything
-        // lost here is a project silently losing its policy. A registry we cannot
-        // decode therefore fails the command rather than being written over with
-        // just this project, which would erase every other one's.
-        var entries: [String: RegisteredSource] = [:]
-        if try await fileSystem.exists(sourcesPath) {
-            let contents = try await fileSystem.readTextFile(at: sourcesPath)
-            entries = try JSONDecoder().decode([String: RegisteredSource].self, from: Data(contents.utf8))
-        }
-        entries[fullHandle] = RegisteredSource(trunk: trunk, branch: branch, upload: upload)
-
-        let encoder = JSONEncoder()
-        // Sorted so a rewrite that changes nothing produces the same bytes, and
-        // unescaped because every key here is an `account/project`.
-        encoder.outputFormatting = [.sortedKeys, .prettyPrinted, .withoutEscapingSlashes]
-        let body = String(decoding: try encoder.encode(entries), as: UTF8.self)
         if try await !fileSystem.exists(sourcesPath.parentDirectory, isDirectory: true) {
             try await fileSystem.makeDirectory(at: sourcesPath.parentDirectory)
         }
-        // Swapped in, never rewritten in place, and `rename` rather than a remove
-        // followed by a write or a move: it is the only one of the three that
-        // leaves no instant where the file is missing or half-written.
-        //
-        // The proxy re-reads this on a timer while we write it, and it carries
-        // the upload policy. A reader that finds no file sees no projects, and an
-        // unknown project has to be allowed to upload, so any gap here hands an
-        // opted-out project a window in which its Clang outputs are published.
-        // `rename` gives every reader either the whole old file or the whole new
-        // one, and both are answers we can live with.
-        let staged = sourcesPath.parentDirectory
-            .appending(component: "\(sourcesPath.basename).\(UUID().uuidString)")
-        try await fileSystem.writeText(body, at: staged)
-        guard rename(staged.pathString, sourcesPath.pathString) == 0 else {
-            let code = errno
-            try? await fileSystem.remove(staged)
-            throw SetupCacheCommandServiceError.registryNotReplaced(sourcesPath.pathString, code)
+
+        // The whole read-modify-write is serialized across processes. Atomic
+        // rename gives a READER the old file or the new one, never a torn one,
+        // but it does nothing for two setups racing: both read the registry
+        // before either renames, and the later rename drops the project the
+        // earlier one added, silently losing its trunk and upload policy. An
+        // exclusive lock on a sidecar file makes the second setup wait for the
+        // first, so it reads the already-updated registry and upserts onto it.
+        let lockPath = sourcesPath.parentDirectory
+            .appending(component: "\(sourcesPath.basename).lock")
+        try await withRegistryLock(at: lockPath) {
+            // Read every other project back: this rewrites the whole file, so
+            // anything lost here is a project silently losing its policy. A
+            // registry we cannot decode therefore fails the command rather than
+            // being written over with just this project, which would erase every
+            // other one's.
+            var entries: [String: RegisteredSource] = [:]
+            if try await fileSystem.exists(sourcesPath) {
+                let contents = try await fileSystem.readTextFile(at: sourcesPath)
+                entries = try JSONDecoder().decode([String: RegisteredSource].self, from: Data(contents.utf8))
+            }
+            entries[fullHandle] = RegisteredSource(trunk: trunk, branch: branch, upload: upload)
+
+            let encoder = JSONEncoder()
+            // Sorted so a rewrite that changes nothing produces the same bytes,
+            // and unescaped because every key here is an `account/project`.
+            encoder.outputFormatting = [.sortedKeys, .prettyPrinted, .withoutEscapingSlashes]
+            let body = String(decoding: try encoder.encode(entries), as: UTF8.self)
+
+            // Swapped in, never rewritten in place, and `rename` rather than a
+            // remove followed by a write or a move: it is the only one of the
+            // three that leaves no instant where the file is missing or
+            // half-written.
+            //
+            // The proxy re-reads this on a timer while we write it, and it
+            // carries the upload policy. A reader that finds no file sees no
+            // projects, and an unknown project has to be allowed to upload, so
+            // any gap here hands an opted-out project a window in which its Clang
+            // outputs are published. `rename` gives every reader either the whole
+            // old file or the whole new one, and both are answers we can live
+            // with.
+            let staged = sourcesPath.parentDirectory
+                .appending(component: "\(sourcesPath.basename).\(UUID().uuidString)")
+            try await fileSystem.writeText(body, at: staged)
+            guard rename(staged.pathString, sourcesPath.pathString) == 0 else {
+                let code = errno
+                try? await fileSystem.remove(staged)
+                throw SetupCacheCommandServiceError.registryNotReplaced(sourcesPath.pathString, code)
+            }
         }
+    }
+
+    /// Runs `body` while holding an exclusive advisory lock on `lockPath`, so two
+    /// `tuist setup cache` processes cannot interleave a read-modify-write of the
+    /// registry. The lock file is created on demand and never removed: deleting
+    /// it would reopen the race it closes. `flock` is released when the descriptor
+    /// closes, including on a crash, so a killed setup cannot wedge the next one.
+    private func withRegistryLock(at lockPath: AbsolutePath, _ body: () async throws -> Void) async throws {
+        let descriptor = open(lockPath.pathString, O_CREAT | O_RDWR, 0o644)
+        guard descriptor >= 0 else {
+            throw SetupCacheCommandServiceError.registryNotLocked(lockPath.pathString, errno)
+        }
+        defer { close(descriptor) }
+        guard flock(descriptor, LOCK_EX) == 0 else {
+            throw SetupCacheCommandServiceError.registryNotLocked(lockPath.pathString, errno)
+        }
+        defer { flock(descriptor, LOCK_UN) }
+        try await body()
     }
 
     func run(

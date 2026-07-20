@@ -176,6 +176,17 @@ fn remove_record(record_path: &str) {
     let _ = std::fs::remove_file(tags_path(record_path));
 }
 
+/// Whether a re-put can be dropped without a `publish` round trip. True only
+/// when its value matches one we already resolved AND it is not a trunk publish:
+/// a trunk publish is the reclaim path and must reach `publish` even on a value
+/// match, because the entry it matches may still carry a feature-branch tag that
+/// only republishing under the trunk tag can claim into the trunk view. A trunk
+/// publish is one that names a branch equal to the trunk it targets.
+fn is_redundant_reput(branch: Option<&str>, trunk: Option<&str>, value_matches: bool) -> bool {
+    let reclaims_into_trunk = branch.is_some() && branch == trunk;
+    value_matches && !reclaims_into_trunk
+}
+
 /// How much of a trunk snapshot to pull before a build asks for it. The two
 /// layers cost different orders of magnitude and are worth disabling
 /// separately, so one setting names all three states rather than leaving the
@@ -2052,11 +2063,21 @@ impl Proxy {
         // that with a get_action round trip per record; the resolved map
         // already knows, so drop those records here for free. A Hit with a
         // DIFFERENT value (a genuine local recompute) still publishes.
-        if let Some(Resolution::Hit(value)) = state.resolved.lock().unwrap().get(&record.key) {
-            if value == &record.value_digest {
-                remove_record(&record_path);
-                return;
-            }
+        //
+        // But `resolved` remembers the value, not the tag it carries remotely,
+        // and a trunk build's re-put is the reclaim path: the entry it matches
+        // may still be tagged with a feature branch, and only republishing it
+        // under the trunk tag pulls it into the trunk view (`sticky_branch`
+        // then lets trunk claim it). So a trunk re-put must reach `publish` even
+        // when the value matches; only a feature, local, or untagged re-put,
+        // which reclaims nothing into trunk, is free to drop here.
+        let value_matches = {
+            let resolved = state.resolved.lock().unwrap();
+            matches!(resolved.get(&record.key), Some(Resolution::Hit(value)) if value == &record.value_digest)
+        };
+        if is_redundant_reput(branch.as_deref(), trunk.as_deref(), value_matches) {
+            remove_record(&record_path);
+            return;
         }
         match self.publish(&remote, state, &record, branch.as_deref(), trunk.as_deref()) {
             Ok(()) => {
@@ -3279,6 +3300,28 @@ unsafe fn encode_node_blob(
 mod tests {
     use super::*;
     use std::cell::Cell;
+
+    /// The churn-skip must not swallow the reclaim: a trunk build re-putting a
+    /// value it already resolved may be republishing an entry that is still
+    /// tagged with a feature branch, and only that publish pulls it into the
+    /// trunk view.
+    #[test]
+    fn a_trunk_reput_is_never_dropped_as_churn() {
+        // Feature, local (no branch), and fully untagged re-puts reclaim nothing
+        // into trunk, so a value match is genuine churn.
+        assert!(is_redundant_reput(Some("feature/x"), Some("main"), true));
+        assert!(is_redundant_reput(None, Some("main"), true));
+        assert!(is_redundant_reput(None, None, true));
+
+        // A trunk publish (branch == trunk) is the reclaim path: even on a value
+        // match it must reach `publish`, so it is never redundant.
+        assert!(!is_redundant_reput(Some("main"), Some("main"), true));
+
+        // A value mismatch is a genuine recompute and always publishes, trunk or
+        // not.
+        assert!(!is_redundant_reput(Some("feature/x"), Some("main"), false));
+        assert!(!is_redundant_reput(Some("main"), Some("main"), false));
+    }
 
     /// The two layers cost different orders of magnitude, so the middle state is
     /// the one CI runs on and the one this parse exists to keep reachable. A
