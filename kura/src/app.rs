@@ -101,15 +101,19 @@ async fn run_with_config(
     enrollment: Option<crate::enrollment::EnrollmentOutcome>,
 ) -> Result<(), String> {
     config
-        .ensure_directories()
+        .ensure_data_dir_for_lock()
         .await
-        .map_err(|error| format!("failed to create directories: {error}"))?;
+        .map_err(|error| format!("failed to create data directory: {error}"))?;
 
     let metrics = Metrics::new(config.region.clone(), config.tenant_id.clone());
     metrics.record_node_geo(&node_location);
     let data_dir_lock = DataDirLock::acquire(&config.data_dir).inspect_err(|_| {
         metrics.record_writer_lock_acquire_failure();
     })?;
+    config
+        .ensure_directories(&data_dir_lock)
+        .await
+        .map_err(|error| format!("failed to create directories: {error}"))?;
     let extension = ExtensionEngine::from_env(metrics.clone())
         .await
         .map_err(|error| format!("failed to initialize extension engine: {error}"))?;
@@ -174,7 +178,7 @@ async fn run_with_config(
     let state = Arc::new(AppState {
         config,
         _data_dir_lock: data_dir_lock,
-        store,
+        store: Arc::new(store),
         io,
         memory,
         snapshot_cache,
@@ -766,21 +770,39 @@ fn spawn_action_cache_expiry_task(state: Arc<AppState>) {
 }
 
 fn spawn_multipart_janitor_task(state: Arc<AppState>) {
+    const SCAN_BATCH: usize = 256;
+
     let interval = Duration::from_millis(state.config.multipart_janitor_interval_ms);
     let ttl_ms = state.config.multipart_upload_ttl_ms;
     tokio::spawn(
         async move {
+            let mut cursor = None;
             loop {
                 tokio::time::sleep(interval).await;
                 let now = crate::utils::now_ms();
                 let cutoff_ms = now.saturating_sub(ttl_ms);
-                let stale = match state.store.multipart_uploads_older_than(cutoff_ms) {
-                    Ok(stale) => stale,
-                    Err(error) => {
+                let scan_state = state.clone();
+                let scan_cursor = cursor.clone();
+                let page = tokio::task::spawn_blocking(move || {
+                    scan_state.store.multipart_uploads_older_than_bounded(
+                        cutoff_ms,
+                        scan_cursor.as_deref(),
+                        SCAN_BATCH,
+                    )
+                })
+                .await;
+                let (stale, next_cursor) = match page {
+                    Ok(Ok(page)) => page,
+                    Ok(Err(error)) => {
                         warn!("multipart janitor scan failed: {error}");
                         continue;
                     }
+                    Err(error) => {
+                        warn!("multipart janitor scan task failed: {error}");
+                        continue;
+                    }
                 };
+                cursor = next_cursor;
                 if stale.is_empty() {
                     continue;
                 }

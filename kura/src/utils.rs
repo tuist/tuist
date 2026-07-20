@@ -408,25 +408,41 @@ pub(crate) async fn drop_staging_cache_range(
 }
 
 pub fn directory_size_bytes(path: &Path) -> u64 {
+    try_path_size_bytes(path).unwrap_or(0)
+}
+
+pub fn try_path_size_bytes(path: &Path) -> std::io::Result<u64> {
+    let root_metadata = match std::fs::symlink_metadata(path) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(0),
+        Err(error) => return Err(error),
+    };
+    if !root_metadata.is_dir() {
+        return Ok(root_metadata.len());
+    }
+
     let mut total = 0_u64;
     let mut stack = vec![path.to_path_buf()];
     while let Some(dir) = stack.pop() {
-        let entries = match std::fs::read_dir(&dir) {
-            Ok(entries) => entries,
-            Err(_) => continue,
-        };
-        for entry in entries.flatten() {
-            let Ok(file_type) = entry.file_type() else {
-                continue;
-            };
+        let entries = std::fs::read_dir(&dir)?;
+        for entry in entries {
+            let entry = entry?;
+            let file_type = entry.file_type()?;
             if file_type.is_dir() {
                 stack.push(entry.path());
-            } else if let Ok(metadata) = entry.metadata() {
-                total = total.saturating_add(metadata.len());
+            } else {
+                total = total
+                    .checked_add(std::fs::symlink_metadata(entry.path())?.len())
+                    .ok_or_else(|| {
+                        std::io::Error::other(format!(
+                            "size overflow while accounting {}",
+                            path.display()
+                        ))
+                    })?;
             }
         }
     }
-    total
+    Ok(total)
 }
 
 pub fn temp_file_path(directory: &Path, prefix: &str) -> PathBuf {
@@ -581,6 +597,25 @@ mod tests {
         assert_eq!(
             module_key("builds", "hash-1", "Module.framework"),
             "builds/hash-1/Module.framework"
+        );
+    }
+
+    #[test]
+    fn fallible_path_accounting_sums_nested_files_and_accepts_a_missing_root() {
+        let directory = tempdir().expect("failed to create temp dir");
+        let nested = directory.path().join("nested");
+        std::fs::create_dir(&nested).expect("failed to create nested dir");
+        std::fs::write(directory.path().join("first"), b"1234").expect("failed to write file");
+        std::fs::write(nested.join("second"), b"123456").expect("failed to write nested file");
+
+        assert_eq!(
+            try_path_size_bytes(directory.path()).expect("accounting should succeed"),
+            10
+        );
+        assert_eq!(
+            try_path_size_bytes(&directory.path().join("missing"))
+                .expect("a missing root has no retained bytes"),
+            0
         );
     }
 

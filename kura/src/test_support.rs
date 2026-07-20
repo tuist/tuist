@@ -86,6 +86,8 @@ where
         replication_public_latency_target_ms: 100,
         multipart_upload_ttl_ms: 24 * 60 * 60 * 1000,
         multipart_janitor_interval_ms: 10 * 60 * 1000,
+        multipart_max_active_uploads: 128,
+        multipart_max_stored_bytes: 8 * 1024 * 1024 * 1024,
         bootstrap_timeout_ms: 30 * 60 * 1000,
         bootstrap_max_concurrent_peers: 8,
         analytics: None,
@@ -100,7 +102,14 @@ where
     };
     override_config(&mut config);
     config
-        .ensure_directories()
+        .ensure_data_dir_for_lock()
+        .await
+        .expect("failed to create test data directory");
+
+    let data_dir_lock =
+        DataDirLock::acquire(&config.data_dir).expect("failed to acquire test writer lock");
+    config
+        .ensure_directories(&data_dir_lock)
         .await
         .expect("failed to create test directories");
 
@@ -121,8 +130,6 @@ where
     let snapshot_cache = Arc::new(crate::reapi::SnapshotCache::new(
         config.snapshot_cache_max_bytes,
     ));
-    let data_dir_lock =
-        DataDirLock::acquire(&config.data_dir).expect("failed to acquire test writer lock");
     let store =
         Store::open(&config, io.clone(), memory.clone()).expect("failed to open test store");
     let tmp_staging_budget = store.tmp_staging_budget();
@@ -151,7 +158,7 @@ where
     let state = Arc::new(AppState {
         config,
         _data_dir_lock: data_dir_lock,
-        store,
+        store: Arc::new(store),
         io,
         memory,
         snapshot_cache,

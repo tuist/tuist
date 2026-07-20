@@ -2,12 +2,16 @@ use std::path::PathBuf;
 
 use tokio::fs;
 
-use crate::constants::{
-    DEFAULT_BOOTSTRAP_MAX_CONCURRENT_PEERS, DEFAULT_BOOTSTRAP_TIMEOUT_MS,
-    DEFAULT_MULTIPART_JANITOR_INTERVAL_MS, DEFAULT_MULTIPART_UPLOAD_TTL_MS,
-    DEFAULT_OUTBOX_MAX_DEPTH, DEFAULT_TMP_DIR_MAX_BYTES, DEFAULT_USAGE_BATCH_SIZE,
-    DEFAULT_USAGE_DELIVERY_INTERVAL_MS, DEFAULT_USAGE_FLUSH_INTERVAL_MS, DEFAULT_USAGE_MAX_BUCKETS,
-    DEFAULT_USAGE_OUTBOX_MAX_DEPTH, DEFAULT_USAGE_WINDOW_SECS,
+use crate::{
+    constants::{
+        DEFAULT_BOOTSTRAP_MAX_CONCURRENT_PEERS, DEFAULT_BOOTSTRAP_TIMEOUT_MS,
+        DEFAULT_MULTIPART_JANITOR_INTERVAL_MS, DEFAULT_MULTIPART_MAX_ACTIVE_UPLOADS,
+        DEFAULT_MULTIPART_UPLOAD_TTL_MS, DEFAULT_OUTBOX_MAX_DEPTH, DEFAULT_TMP_DIR_MAX_BYTES,
+        DEFAULT_USAGE_BATCH_SIZE, DEFAULT_USAGE_DELIVERY_INTERVAL_MS,
+        DEFAULT_USAGE_FLUSH_INTERVAL_MS, DEFAULT_USAGE_MAX_BUCKETS, DEFAULT_USAGE_OUTBOX_MAX_DEPTH,
+        DEFAULT_USAGE_WINDOW_SECS,
+    },
+    runtime::DataDirLock,
 };
 
 const KURA_PORT: &str = "KURA_PORT";
@@ -80,6 +84,8 @@ const KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND: &str =
 const KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS: &str = "KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS";
 const KURA_MULTIPART_UPLOAD_TTL_MS: &str = "KURA_MULTIPART_UPLOAD_TTL_MS";
 const KURA_MULTIPART_JANITOR_INTERVAL_MS: &str = "KURA_MULTIPART_JANITOR_INTERVAL_MS";
+const KURA_MULTIPART_MAX_ACTIVE_UPLOADS: &str = "KURA_MULTIPART_MAX_ACTIVE_UPLOADS";
+const KURA_MULTIPART_MAX_STORED_BYTES: &str = "KURA_MULTIPART_MAX_STORED_BYTES";
 const KURA_BOOTSTRAP_TIMEOUT_MS: &str = "KURA_BOOTSTRAP_TIMEOUT_MS";
 const KURA_BOOTSTRAP_MAX_CONCURRENT_PEERS: &str = "KURA_BOOTSTRAP_MAX_CONCURRENT_PEERS";
 const KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: &str = "KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT";
@@ -147,6 +153,8 @@ pub struct Config {
     pub replication_public_latency_target_ms: u64,
     pub multipart_upload_ttl_ms: u64,
     pub multipart_janitor_interval_ms: u64,
+    pub multipart_max_active_uploads: usize,
+    pub multipart_max_stored_bytes: u64,
     pub bootstrap_timeout_ms: u64,
     pub bootstrap_max_concurrent_peers: usize,
     pub analytics: Option<AnalyticsConfig>,
@@ -878,6 +886,38 @@ impl Config {
                 "{KURA_MULTIPART_JANITOR_INTERVAL_MS} must be greater than 0"
             ));
         }
+        let multipart_max_active_uploads = optional_parsed_value(
+            &mut lookup,
+            KURA_MULTIPART_MAX_ACTIVE_UPLOADS,
+            &mut invalid,
+            |value| {
+                value.parse::<usize>().map_err(|_| {
+                    format!("{KURA_MULTIPART_MAX_ACTIVE_UPLOADS} must be a valid usize")
+                })
+            },
+        )
+        .unwrap_or(DEFAULT_MULTIPART_MAX_ACTIVE_UPLOADS);
+        if multipart_max_active_uploads == 0 {
+            invalid.push(format!(
+                "{KURA_MULTIPART_MAX_ACTIVE_UPLOADS} must be greater than 0"
+            ));
+        }
+        let multipart_max_stored_bytes = optional_parsed_value(
+            &mut lookup,
+            KURA_MULTIPART_MAX_STORED_BYTES,
+            &mut invalid,
+            |value| {
+                value
+                    .parse::<u64>()
+                    .map_err(|_| format!("{KURA_MULTIPART_MAX_STORED_BYTES} must be a valid u64"))
+            },
+        )
+        .unwrap_or(tmp_dir_max_bytes);
+        if multipart_max_stored_bytes == 0 {
+            invalid.push(format!(
+                "{KURA_MULTIPART_MAX_STORED_BYTES} must be greater than 0"
+            ));
+        }
         let bootstrap_timeout_ms = optional_parsed_value(
             &mut lookup,
             KURA_BOOTSTRAP_TIMEOUT_MS,
@@ -1330,6 +1370,8 @@ impl Config {
             replication_public_latency_target_ms,
             multipart_upload_ttl_ms,
             multipart_janitor_interval_ms,
+            multipart_max_active_uploads,
+            multipart_max_stored_bytes,
             bootstrap_timeout_ms,
             bootstrap_max_concurrent_peers,
             analytics,
@@ -1347,7 +1389,14 @@ impl Config {
         })
     }
 
-    pub async fn ensure_directories(&self) -> Result<(), std::io::Error> {
+    pub async fn ensure_data_dir_for_lock(&self) -> Result<(), std::io::Error> {
+        fs::create_dir_all(&self.data_dir).await
+    }
+
+    pub async fn ensure_directories(
+        &self,
+        _data_dir_lock: &DataDirLock,
+    ) -> Result<(), std::io::Error> {
         // Reclaim transient staging from a previous run before opening the store.
         // Everything under tmp_dir (in-flight uploads, multipart parts, bootstrap
         // staging) is dead once the process restarts, and a failed transfer can
@@ -1613,6 +1662,11 @@ mod tests {
             512 * BYTES_PER_MIB
         );
         assert_eq!(config.tmp_dir_max_bytes, DEFAULT_TMP_DIR_MAX_BYTES);
+        assert_eq!(
+            config.multipart_max_active_uploads,
+            DEFAULT_MULTIPART_MAX_ACTIVE_UPLOADS
+        );
+        assert_eq!(config.multipart_max_stored_bytes, DEFAULT_TMP_DIR_MAX_BYTES);
         assert_eq!(config.replication_public_latency_target_ms, 100);
         assert_eq!(
             config.accelerated_file_serving,
@@ -1686,6 +1740,8 @@ mod tests {
                 "10485760",
             ),
             (KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS, "75"),
+            (KURA_MULTIPART_MAX_ACTIVE_UPLOADS, "64"),
+            (KURA_MULTIPART_MAX_STORED_BYTES, "536870912"),
             (
                 KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT,
                 "https://otel.example.com/v1/traces",
@@ -1741,6 +1797,8 @@ mod tests {
             10_485_760
         );
         assert_eq!(config.replication_public_latency_target_ms, 75);
+        assert_eq!(config.multipart_max_active_uploads, 64);
+        assert_eq!(config.multipart_max_stored_bytes, 536_870_912);
         assert_eq!(config.analytics, None);
         assert_eq!(
             config.otlp_traces_endpoint.as_deref(),
@@ -2434,7 +2492,13 @@ mod tests {
         fs::write(&kept, b"keep").await.unwrap();
 
         config
-            .ensure_directories()
+            .ensure_data_dir_for_lock()
+            .await
+            .expect("failed to create data directory");
+        let data_dir_lock =
+            DataDirLock::acquire(&config.data_dir).expect("failed to acquire test writer lock");
+        config
+            .ensure_directories(&data_dir_lock)
             .await
             .expect("failed to create Kura directories");
 
@@ -2451,5 +2515,16 @@ mod tests {
             "stale staging must be reclaimed on startup"
         );
         assert!(kept.exists(), "persistent data must be preserved");
+
+        let active = config.tmp_dir.join("uploads").join("active");
+        fs::write(&active, b"in-flight").await.unwrap();
+        assert!(
+            DataDirLock::acquire(&config.data_dir).is_err(),
+            "a second runtime must fail before staging cleanup"
+        );
+        assert!(
+            active.exists(),
+            "the rejected runtime must not remove the active owner's staging"
+        );
     }
 }

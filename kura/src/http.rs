@@ -37,7 +37,10 @@ use crate::{
     replication::replication_targets,
     runtime::{HttpTrafficClass, InflightGuard},
     state::SharedState,
-    store::{ManifestDigest, StagedArtifactPath, is_disk_full_error, is_outbox_full_error},
+    store::{
+        ManifestDigest, StagedArtifactPath, is_disk_full_error, is_multipart_capacity_error,
+        is_outbox_full_error,
+    },
     telemetry::{attach_parent_context, record_trace_context},
     utils::{
         BodyReadError, RequestBodyStaging, action_cache_key, blob_key, module_key,
@@ -1519,6 +1522,9 @@ async fn start_module_upload(
             &query.name,
         ) {
             Ok(upload_id) => Json(serde_json::json!({ "upload_id": upload_id })).into_response(),
+            Err(error) if is_multipart_capacity_error(&error) => {
+                overloaded_response("server is limiting active multipart uploads")
+            }
             Err(error) => error_response(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 format!("Failed to start upload: {error}"),
@@ -1595,6 +1601,10 @@ async fn upload_module_part(
                 "Total upload size exceeds 2GB limit",
             )
         }
+        Err(MultipartError::CapacityExceeded) => {
+            state.metrics.record_multipart_part("capacity_exceeded");
+            overloaded_response("server is limiting incomplete multipart storage")
+        }
         Err(MultipartError::Other(error)) => {
             state.metrics.record_multipart_part("error");
             error_response(
@@ -1661,6 +1671,9 @@ async fn complete_module_upload(
             StatusCode::UNPROCESSABLE_ENTITY,
             "Total upload size exceeds 2GB limit",
         ),
+        Err(MultipartError::CapacityExceeded) => {
+            overloaded_response("server is limiting incomplete multipart storage")
+        }
         Err(MultipartError::MemoryPressure) => {
             overloaded_response("server is applying upload memory backpressure")
         }

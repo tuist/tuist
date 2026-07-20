@@ -66,7 +66,9 @@ pub struct ForegroundMemoryReservation {
     _transient: TransientMemoryReservation,
     file_cache_policy: FileCachePolicy,
     stream_message_high_water_bytes: u64,
+    decode_structural_high_water_bytes: u64,
     stream_staging_bytes: u64,
+    decode_copy_multiplier: u64,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -84,15 +86,24 @@ impl ForegroundMemoryReservation {
         self.file_cache_policy
     }
 
-    pub fn try_grow_stream_decode(&mut self, encoded_message_bytes: u64) -> Result<(), ()> {
+    pub fn try_grow_decode(
+        &mut self,
+        encoded_message_bytes: u64,
+        decoded_structural_bytes: u64,
+    ) -> Result<(), ()> {
         let high_water_bytes = self
             .stream_message_high_water_bytes
             .max(encoded_message_bytes);
+        let structural_high_water_bytes = self
+            .decode_structural_high_water_bytes
+            .max(decoded_structural_bytes);
         let requested_bytes = high_water_bytes
-            .saturating_mul(2)
+            .saturating_mul(self.decode_copy_multiplier)
+            .saturating_add(structural_high_water_bytes)
             .saturating_add(self.stream_staging_bytes);
         self._transient.try_resize_foreground(requested_bytes)?;
         self.stream_message_high_water_bytes = high_water_bytes;
+        self.decode_structural_high_water_bytes = structural_high_water_bytes;
         if let FileCachePolicy::Foreground { .. } = self.file_cache_policy {
             self.file_cache_policy = FileCachePolicy::Foreground {
                 reservation_bytes: requested_bytes,
@@ -110,7 +121,8 @@ impl ForegroundMemoryReservation {
             .saturating_mul(2);
         let requested_bytes = self
             .stream_message_high_water_bytes
-            .saturating_mul(2)
+            .saturating_mul(self.decode_copy_multiplier)
+            .saturating_add(self.decode_structural_high_water_bytes)
             .saturating_add(staging_bytes);
         self._transient.try_resize_foreground(requested_bytes)?;
         self.stream_staging_bytes = staging_bytes;
@@ -127,17 +139,20 @@ impl ForegroundMemoryReservation {
 
 impl Drop for ForegroundMemoryReservation {
     fn drop(&mut self) {
-        // Convert the completed upload's real kernel charge into the controller
-        // baseline before the transient reservation is released and wakes the
-        // next waiter. Otherwise several sub-200 ms uploads can reuse the same
-        // stale headroom while their retained segment pages are already charged
-        // to the container.
-        let controller = &self._transient.controller;
-        if (self.file_cache_policy == FileCachePolicy::Bounded
-            || controller.inner.foreground_waiters.load(Ordering::Acquire) > 0)
-            && let Some(current_bytes) = container_memory_current_bytes()
+        #[cfg(not(test))]
         {
-            controller.observe(current_bytes);
+            // Convert the completed upload's real kernel charge into the controller
+            // baseline before the transient reservation is released and wakes the
+            // next waiter. Otherwise several sub-200 ms uploads can reuse the same
+            // stale headroom while their retained segment pages are already charged
+            // to the container.
+            let controller = &self._transient.controller;
+            if (self.file_cache_policy == FileCachePolicy::Bounded
+                || controller.inner.foreground_waiters.load(Ordering::Acquire) > 0)
+                && let Some(current_bytes) = container_memory_current_bytes()
+            {
+                controller.observe(current_bytes);
+            }
         }
     }
 }
@@ -511,11 +526,13 @@ impl MemoryController {
     /// the declared stream and disk working sets after decoding the resource
     /// name. Both operations are non-blocking so a rejected HTTP/2 stream is
     /// reset instead of waiting while it consumes shared connection flow-control.
-    pub fn try_reserve_foreground_stream_decode(
+    pub fn try_reserve_foreground_grpc_decode(
         &self,
         encoded_message_bytes: u64,
+        decode_copy_multiplier: u64,
     ) -> Result<ForegroundMemoryReservation, ()> {
-        let requested_bytes = encoded_message_bytes.saturating_mul(2);
+        let decode_copy_multiplier = decode_copy_multiplier.max(1);
+        let requested_bytes = encoded_message_bytes.saturating_mul(decode_copy_multiplier);
         let reservation =
             self.try_reserve_transient(requested_bytes, AdmissionClass::Foreground)?;
         Ok(ForegroundMemoryReservation {
@@ -524,7 +541,9 @@ impl MemoryController {
                 reservation_bytes: requested_bytes,
             },
             stream_message_high_water_bytes: encoded_message_bytes,
+            decode_structural_high_water_bytes: 0,
             stream_staging_bytes: 0,
+            decode_copy_multiplier,
         })
     }
 
@@ -575,7 +594,9 @@ impl MemoryController {
             _transient: reservation,
             file_cache_policy,
             stream_message_high_water_bytes: 0,
+            decode_structural_high_water_bytes: 0,
             stream_staging_bytes: 0,
+            decode_copy_multiplier: 2,
         })
     }
 
@@ -1044,7 +1065,7 @@ mod tests {
         controller.observe(32 * mebibyte);
 
         let mut reservation = controller
-            .try_reserve_foreground_stream_decode(mebibyte)
+            .try_reserve_foreground_grpc_decode(mebibyte, 2)
             .expect("the exact first wire and decoded buffers should fit");
 
         assert_eq!(controller.transient_reserved_bytes(), 2 * mebibyte);
@@ -1059,13 +1080,13 @@ mod tests {
             .expect("the staging working set should fit");
         assert_eq!(controller.transient_reserved_bytes(), 34 * mebibyte);
         reservation
-            .try_grow_stream_decode(64 * mebibyte)
+            .try_grow_decode(64 * mebibyte, 0)
             .expect("a later maximum-sized message should fit before decoding");
         assert_eq!(controller.transient_reserved_bytes(), 160 * mebibyte);
         assert_eq!(reservation.file_cache_policy(), FileCachePolicy::Bounded);
         assert!(
             controller
-                .try_reserve_foreground_stream_decode(64 * mebibyte)
+                .try_reserve_foreground_grpc_decode(64 * mebibyte, 2)
                 .is_err(),
             "a second decoder must be rejected before it can allocate"
         );

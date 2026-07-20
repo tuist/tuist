@@ -34,7 +34,7 @@ const READINESS_SETTLE_WINDOW: Duration = Duration::from_secs(5);
 pub struct AppState {
     pub config: Config,
     pub _data_dir_lock: DataDirLock,
-    pub store: Store,
+    pub store: Arc<Store>,
     pub io: IoController,
     pub memory: MemoryController,
     pub snapshot_cache: Arc<SnapshotCache>,

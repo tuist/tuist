@@ -265,6 +265,33 @@ impl IoController {
         self.open_append_file(path).await
     }
 
+    pub async fn sync_dir(&self, path: &Path) -> Result<(), String> {
+        let path = self.validate_path(path)?;
+        let lease = self.acquire("sync_dir").await?;
+        let started_at = Instant::now();
+        let result = tokio::task::spawn_blocking({
+            let path = path.clone();
+            move || {
+                let directory = std::fs::File::open(&path).map_err(|error| {
+                    format!("failed to open directory {}: {error}", path.display())
+                })?;
+                directory.sync_all().map_err(|error| {
+                    format!("failed to sync directory {}: {error}", path.display())
+                })
+            }
+        })
+        .await
+        .map_err(|error| format!("failed to join directory sync task: {error}"))?;
+        drop(lease);
+        self.inner.metrics.record_file_operation(
+            "sync_dir",
+            if result.is_ok() { "ok" } else { "error" },
+            started_at.elapsed(),
+            0,
+        );
+        result
+    }
+
     pub async fn create_dir_all(&self, path: &Path) -> Result<(), String> {
         let path = self.validate_path(path)?;
         self.run("create_dir_all", 0, async {
@@ -372,15 +399,11 @@ impl IoController {
         }
     }
 
-    pub async fn remove_dir_all_if_exists(&self, path: &Path) {
+    pub async fn remove_dir_all_if_exists(&self, path: &Path) -> Result<(), String> {
         match self.path_exists(path).await {
-            Ok(true) => {
-                if let Err(error) = self.remove_dir_all(path).await {
-                    tracing::warn!("{error}");
-                }
-            }
-            Ok(false) => {}
-            Err(error) => tracing::warn!("{error}"),
+            Ok(true) => self.remove_dir_all(path).await,
+            Ok(false) => Ok(()),
+            Err(error) => Err(error),
         }
     }
 

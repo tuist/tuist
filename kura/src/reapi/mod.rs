@@ -63,6 +63,13 @@ const ACTION_CACHE_UPDATE_PATH: &str =
     "/build.bazel.remote.execution.v2.ActionCache/UpdateActionResult";
 const CAS_BATCH_UPDATE_PATH: &str =
     "/build.bazel.remote.execution.v2.ContentAddressableStorage/BatchUpdateBlobs";
+const BYTESTREAM_WRITE_DECODE_COPIES: u64 = 2;
+const CAS_BATCH_UPDATE_DECODE_COPIES: u64 = 3;
+const ACTION_CACHE_UPDATE_DECODE_COPIES: u64 = 4;
+const REAPI_BATCH_REQUEST_STRUCTURAL_BYTES: u64 = 512;
+const REAPI_ACTION_OUTPUT_STRUCTURAL_BYTES: u64 = 1_024;
+const REAPI_NODE_PROPERTY_STRUCTURAL_BYTES: u64 = 512;
+const REAPI_AUXILIARY_METADATA_STRUCTURAL_BYTES: u64 = 512;
 // This duplicates Tonic's five-byte gRPC envelope so memory is admitted before
 // Tonic retains and decodes each message. Keep it aligned with Tonic's decoder:
 // https://github.com/hyperium/tonic/blob/v0.14.5/tonic/src/codec/decode.rs
@@ -75,13 +82,525 @@ const REAPI_WRITE_STALL_TIMEOUT: Duration = Duration::from_secs(60);
 type BoxError = Box<dyn Error + Send + Sync + 'static>;
 type GrpcAccountingBody = UnsyncBoxBody<Bytes, BoxError>;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum GrpcWriteShapePolicy {
+    ByteStream,
+    BatchUpdate,
+    ActionUpdate,
+}
+
+impl GrpcWriteShapePolicy {
+    fn decode_copy_multiplier(self) -> u64 {
+        match self {
+            Self::ByteStream => BYTESTREAM_WRITE_DECODE_COPIES,
+            Self::BatchUpdate => CAS_BATCH_UPDATE_DECODE_COPIES,
+            Self::ActionUpdate => ACTION_CACHE_UPDATE_DECODE_COPIES,
+        }
+    }
+
+    fn is_unary(self) -> bool {
+        self != Self::ByteStream
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct DecodeShape {
+    structural_bytes: u64,
+    retained_bytes: u64,
+}
+
+impl DecodeShape {
+    fn add_structural(&mut self, bytes: u64) -> Result<(), Status> {
+        self.structural_bytes = self.structural_bytes.checked_add(bytes).ok_or_else(|| {
+            Status::resource_exhausted("remote-execution request structure exceeds server limits")
+        })?;
+        Ok(())
+    }
+
+    fn add_retained(&mut self, bytes: usize) -> Result<(), Status> {
+        self.retained_bytes = self
+            .retained_bytes
+            .checked_add(bytes as u64)
+            .ok_or_else(|| {
+                Status::resource_exhausted(
+                    "remote-execution request retained data exceeds server limits",
+                )
+            })?;
+        Ok(())
+    }
+
+    fn add_output(&mut self) -> Result<(), Status> {
+        self.add_structural(REAPI_ACTION_OUTPUT_STRUCTURAL_BYTES)
+    }
+
+    fn add_node_property(&mut self) -> Result<(), Status> {
+        self.add_structural(REAPI_NODE_PROPERTY_STRUCTURAL_BYTES)
+    }
+
+    fn add_auxiliary_metadata(&mut self) -> Result<(), Status> {
+        self.add_structural(REAPI_AUXILIARY_METADATA_STRUCTURAL_BYTES)
+    }
+
+    fn estimated_decoded_bytes(self) -> u64 {
+        self.structural_bytes
+            .saturating_add(self.retained_bytes)
+            .max(1)
+    }
+}
+
+enum ProtoField<'a> {
+    Varint { number: u32 },
+    Fixed { number: u32 },
+    Bytes { number: u32, value: &'a [u8] },
+}
+
+struct ProtoCursor<'a> {
+    bytes: &'a [u8],
+    offset: usize,
+}
+
+const PROTOBUF_RECURSION_LIMIT: usize = 100;
+
+impl<'a> ProtoCursor<'a> {
+    fn new(bytes: &'a [u8]) -> Self {
+        Self { bytes, offset: 0 }
+    }
+
+    fn next(&mut self) -> Result<Option<ProtoField<'a>>, Status> {
+        if self.offset == self.bytes.len() {
+            return Ok(None);
+        }
+        let key = self.read_varint()?;
+        let number = u32::try_from(key >> 3)
+            .ok()
+            .filter(|number| *number != 0 && *number <= 0x1fff_ffff)
+            .ok_or_else(|| Status::invalid_argument("invalid Protocol Buffers field number"))?;
+        match key & 7 {
+            0 => {
+                self.read_varint()?;
+                Ok(Some(ProtoField::Varint { number }))
+            }
+            1 => {
+                self.skip(8)?;
+                Ok(Some(ProtoField::Fixed { number }))
+            }
+            2 => {
+                let length = usize::try_from(self.read_varint()?).map_err(|_| {
+                    Status::invalid_argument("Protocol Buffers field length does not fit in memory")
+                })?;
+                let end = self.offset.checked_add(length).ok_or_else(|| {
+                    Status::invalid_argument("Protocol Buffers field length overflow")
+                })?;
+                let value = self.bytes.get(self.offset..end).ok_or_else(|| {
+                    Status::invalid_argument("truncated Protocol Buffers length-delimited field")
+                })?;
+                self.offset = end;
+                Ok(Some(ProtoField::Bytes { number, value }))
+            }
+            3 => {
+                self.skip_group(number)?;
+                Ok(Some(ProtoField::Fixed { number }))
+            }
+            4 => Err(Status::invalid_argument(
+                "unexpected Protocol Buffers end-group field",
+            )),
+            5 => {
+                self.skip(4)?;
+                Ok(Some(ProtoField::Fixed { number }))
+            }
+            _ => Err(Status::invalid_argument(
+                "unsupported Protocol Buffers wire type",
+            )),
+        }
+    }
+
+    fn skip_group(&mut self, number: u32) -> Result<(), Status> {
+        let mut groups = vec![number];
+        loop {
+            let key = self.read_varint()?;
+            let number = u32::try_from(key >> 3)
+                .ok()
+                .filter(|number| *number != 0 && *number <= 0x1fff_ffff)
+                .ok_or_else(|| Status::invalid_argument("invalid Protocol Buffers field number"))?;
+            match key & 7 {
+                0 => {
+                    self.read_varint()?;
+                }
+                1 => self.skip(8)?,
+                2 => {
+                    let length = usize::try_from(self.read_varint()?).map_err(|_| {
+                        Status::invalid_argument(
+                            "Protocol Buffers field length does not fit in memory",
+                        )
+                    })?;
+                    self.skip(length)?;
+                }
+                3 => {
+                    if groups.len() == PROTOBUF_RECURSION_LIMIT {
+                        return Err(Status::invalid_argument(
+                            "Protocol Buffers recursion limit reached",
+                        ));
+                    }
+                    groups.push(number);
+                }
+                4 => {
+                    if groups.pop() != Some(number) {
+                        return Err(Status::invalid_argument(
+                            "unexpected Protocol Buffers end-group field",
+                        ));
+                    }
+                    if groups.is_empty() {
+                        return Ok(());
+                    }
+                }
+                5 => self.skip(4)?,
+                _ => {
+                    return Err(Status::invalid_argument(
+                        "unsupported Protocol Buffers wire type",
+                    ));
+                }
+            }
+        }
+    }
+
+    fn read_varint(&mut self) -> Result<u64, Status> {
+        let mut value = 0_u64;
+        for shift in (0..70).step_by(7) {
+            let byte = *self
+                .bytes
+                .get(self.offset)
+                .ok_or_else(|| Status::invalid_argument("truncated Protocol Buffers varint"))?;
+            self.offset += 1;
+            if shift == 63 && byte > 1 {
+                return Err(Status::invalid_argument("Protocol Buffers varint overflow"));
+            }
+            value |= u64::from(byte & 0x7f) << shift;
+            if byte & 0x80 == 0 {
+                return Ok(value);
+            }
+        }
+        Err(Status::invalid_argument("Protocol Buffers varint overflow"))
+    }
+
+    fn skip(&mut self, bytes: usize) -> Result<(), Status> {
+        self.offset = self
+            .offset
+            .checked_add(bytes)
+            .filter(|offset| *offset <= self.bytes.len())
+            .ok_or_else(|| Status::invalid_argument("truncated Protocol Buffers fixed field"))?;
+        Ok(())
+    }
+}
+
+fn check_string(value: &[u8], name: &str) -> Result<(), Status> {
+    std::str::from_utf8(value)
+        .map(|_| ())
+        .map_err(|_| Status::invalid_argument(format!("{name} is not valid UTF-8")))
+}
+
+fn inspect_digest_wire(bytes: &[u8], shape: &mut DecodeShape) -> Result<(), Status> {
+    let mut cursor = ProtoCursor::new(bytes);
+    while let Some(field) = cursor.next()? {
+        match field {
+            ProtoField::Bytes { number: 1, value } => {
+                check_string(value, "digest hash")?;
+                shape.add_retained(value.len())?;
+            }
+            ProtoField::Varint { number: 2 } => {}
+            ProtoField::Bytes { number: 2, .. }
+            | ProtoField::Varint { number: 1 }
+            | ProtoField::Fixed { number: 1 | 2 } => {
+                return Err(Status::invalid_argument(
+                    "digest field has the wrong Protocol Buffers wire type",
+                ));
+            }
+            _ => {}
+        }
+    }
+    Ok(())
+}
+
+fn inspect_batch_update_wire(bytes: &[u8]) -> Result<DecodeShape, Status> {
+    let mut cursor = ProtoCursor::new(bytes);
+    let mut shape = DecodeShape::default();
+    while let Some(field) = cursor.next()? {
+        match field {
+            ProtoField::Bytes { number: 1, value } => {
+                check_string(value, "instance name")?;
+            }
+            ProtoField::Bytes { number: 2, value } => {
+                shape.add_structural(REAPI_BATCH_REQUEST_STRUCTURAL_BYTES)?;
+                let mut request = ProtoCursor::new(value);
+                while let Some(field) = request.next()? {
+                    match field {
+                        ProtoField::Bytes { number: 1, value } => {
+                            inspect_digest_wire(value, &mut shape)?;
+                        }
+                        ProtoField::Bytes { number: 2, .. } => {}
+                        ProtoField::Varint { number: 3 } => {}
+                        ProtoField::Bytes { number: 3, .. }
+                        | ProtoField::Varint { number: 1 | 2 }
+                        | ProtoField::Fixed { number: 1..=3 } => {
+                            return Err(Status::invalid_argument(
+                                "batch update request field has the wrong Protocol Buffers wire type",
+                            ));
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            ProtoField::Varint { number: 5 } => {}
+            ProtoField::Bytes { number: 5, .. }
+            | ProtoField::Varint { number: 1 | 2 }
+            | ProtoField::Fixed { number: 1 | 2 | 5 } => {
+                return Err(Status::invalid_argument(
+                    "batch update field has the wrong Protocol Buffers wire type",
+                ));
+            }
+            _ => {}
+        }
+    }
+    Ok(shape)
+}
+
+fn inspect_node_properties_wire(bytes: &[u8], shape: &mut DecodeShape) -> Result<(), Status> {
+    let mut cursor = ProtoCursor::new(bytes);
+    while let Some(field) = cursor.next()? {
+        if let ProtoField::Bytes { number: 1, value } = field {
+            shape.add_node_property()?;
+            let mut property = ProtoCursor::new(value);
+            while let Some(field) = property.next()? {
+                match field {
+                    ProtoField::Bytes {
+                        number: 1 | 2,
+                        value,
+                    } => {
+                        check_string(value, "node property")?;
+                        shape.add_retained(value.len())?;
+                    }
+                    ProtoField::Varint { number: 1 | 2 } | ProtoField::Fixed { number: 1 | 2 } => {
+                        return Err(Status::invalid_argument(
+                            "node property has the wrong Protocol Buffers wire type",
+                        ));
+                    }
+                    _ => {}
+                }
+            }
+        } else if matches!(
+            field,
+            ProtoField::Varint { number: 1 } | ProtoField::Fixed { number: 1 }
+        ) {
+            return Err(Status::invalid_argument(
+                "node properties field has the wrong Protocol Buffers wire type",
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn inspect_output_file_wire(bytes: &[u8], shape: &mut DecodeShape) -> Result<(), Status> {
+    let mut cursor = ProtoCursor::new(bytes);
+    while let Some(field) = cursor.next()? {
+        match field {
+            ProtoField::Bytes { number: 1, value } => {
+                check_string(value, "output path")?;
+                shape.add_retained(value.len())?;
+            }
+            ProtoField::Bytes { number: 2, value } => inspect_digest_wire(value, shape)?,
+            ProtoField::Varint { number: 4 } => {}
+            ProtoField::Bytes { number: 5, value } => shape.add_retained(value.len())?,
+            ProtoField::Bytes { number: 7, value } => inspect_node_properties_wire(value, shape)?,
+            ProtoField::Bytes { number: 4, .. }
+            | ProtoField::Varint {
+                number: 1 | 2 | 5 | 7,
+            }
+            | ProtoField::Fixed {
+                number: 1 | 2 | 4 | 5 | 7,
+            } => {
+                return Err(Status::invalid_argument(
+                    "output file field has the wrong Protocol Buffers wire type",
+                ));
+            }
+            _ => {}
+        }
+    }
+    Ok(())
+}
+
+fn inspect_output_directory_wire(bytes: &[u8], shape: &mut DecodeShape) -> Result<(), Status> {
+    let mut cursor = ProtoCursor::new(bytes);
+    while let Some(field) = cursor.next()? {
+        match field {
+            ProtoField::Bytes { number: 1, value } => {
+                check_string(value, "output path")?;
+                shape.add_retained(value.len())?;
+            }
+            ProtoField::Bytes {
+                number: 3 | 5,
+                value,
+            } => inspect_digest_wire(value, shape)?,
+            ProtoField::Varint { number: 1 | 3 | 5 } | ProtoField::Fixed { number: 1 | 3 | 5 } => {
+                return Err(Status::invalid_argument(
+                    "output directory field has the wrong Protocol Buffers wire type",
+                ));
+            }
+            _ => {}
+        }
+    }
+    Ok(())
+}
+
+fn inspect_output_symlink_wire(bytes: &[u8], shape: &mut DecodeShape) -> Result<(), Status> {
+    let mut cursor = ProtoCursor::new(bytes);
+    while let Some(field) = cursor.next()? {
+        match field {
+            ProtoField::Bytes {
+                number: 1 | 2,
+                value,
+            } => {
+                check_string(value, "output path or symlink target")?;
+                shape.add_retained(value.len())?;
+            }
+            ProtoField::Bytes { number: 4, value } => inspect_node_properties_wire(value, shape)?,
+            ProtoField::Varint { number: 1 | 2 | 4 } | ProtoField::Fixed { number: 1 | 2 | 4 } => {
+                return Err(Status::invalid_argument(
+                    "output symlink field has the wrong Protocol Buffers wire type",
+                ));
+            }
+            _ => {}
+        }
+    }
+    Ok(())
+}
+
+fn inspect_execution_metadata_wire(bytes: &[u8], shape: &mut DecodeShape) -> Result<(), Status> {
+    let mut cursor = ProtoCursor::new(bytes);
+    while let Some(field) = cursor.next()? {
+        match field {
+            ProtoField::Bytes { number: 1, value } => {
+                check_string(value, "worker name")?;
+                shape.add_retained(value.len())?;
+            }
+            ProtoField::Bytes { number: 11, value } => {
+                shape.add_auxiliary_metadata()?;
+                let mut any = ProtoCursor::new(value);
+                while let Some(field) = any.next()? {
+                    match field {
+                        ProtoField::Bytes { number: 1, value } => {
+                            check_string(value, "metadata type URL")?;
+                            shape.add_retained(value.len())?;
+                        }
+                        ProtoField::Bytes { number: 2, value } => {
+                            shape.add_retained(value.len())?
+                        }
+                        ProtoField::Varint { number: 1 | 2 }
+                        | ProtoField::Fixed { number: 1 | 2 } => {
+                            return Err(Status::invalid_argument(
+                                "auxiliary metadata field has the wrong Protocol Buffers wire type",
+                            ));
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            ProtoField::Varint { number: 1 | 11 } | ProtoField::Fixed { number: 1 | 11 } => {
+                return Err(Status::invalid_argument(
+                    "execution metadata field has the wrong Protocol Buffers wire type",
+                ));
+            }
+            _ => {}
+        }
+    }
+    Ok(())
+}
+
+fn inspect_action_result_wire(bytes: &[u8]) -> Result<DecodeShape, Status> {
+    let mut cursor = ProtoCursor::new(bytes);
+    let mut shape = DecodeShape::default();
+    while let Some(field) = cursor.next()? {
+        match field {
+            ProtoField::Bytes { number: 2, value } => {
+                shape.add_output()?;
+                inspect_output_file_wire(value, &mut shape)?;
+            }
+            ProtoField::Bytes { number: 3, value } => {
+                shape.add_output()?;
+                inspect_output_directory_wire(value, &mut shape)?;
+            }
+            ProtoField::Bytes {
+                number: 10..=12,
+                value,
+            } => {
+                shape.add_output()?;
+                inspect_output_symlink_wire(value, &mut shape)?;
+            }
+            ProtoField::Varint { number: 4 } => {}
+            ProtoField::Bytes {
+                number: 5 | 7,
+                value,
+            } => shape.add_retained(value.len())?,
+            ProtoField::Bytes {
+                number: 6 | 8,
+                value,
+            } => inspect_digest_wire(value, &mut shape)?,
+            ProtoField::Bytes { number: 9, value } => {
+                inspect_execution_metadata_wire(value, &mut shape)?
+            }
+            ProtoField::Bytes { number: 4, .. }
+            | ProtoField::Varint {
+                number: 2..=3 | 5..=12,
+            }
+            | ProtoField::Fixed { number: 2..=12 } => {
+                return Err(Status::invalid_argument(
+                    "action result field has the wrong Protocol Buffers wire type",
+                ));
+            }
+            _ => {}
+        }
+    }
+    Ok(shape)
+}
+
+fn inspect_action_update_wire(bytes: &[u8]) -> Result<DecodeShape, Status> {
+    let mut cursor = ProtoCursor::new(bytes);
+    let mut shape = DecodeShape::default();
+    while let Some(field) = cursor.next()? {
+        match field {
+            ProtoField::Bytes { number: 1, value } => {
+                check_string(value, "instance name")?;
+            }
+            ProtoField::Bytes { number: 2, value } => inspect_digest_wire(value, &mut shape)?,
+            ProtoField::Bytes { number: 3, value } => {
+                let action_shape = inspect_action_result_wire(value)?;
+                shape.add_structural(action_shape.structural_bytes)?;
+                shape.retained_bytes = shape
+                    .retained_bytes
+                    .checked_add(action_shape.retained_bytes)
+                    .ok_or_else(|| {
+                        Status::resource_exhausted(
+                            "remote-execution request retained data exceeds server limits",
+                        )
+                    })?;
+            }
+            ProtoField::Bytes { number: 4, .. } | ProtoField::Varint { number: 5 } => {}
+            ProtoField::Varint { number: 1..=4 } | ProtoField::Fixed { number: 1..=5 } => {
+                return Err(Status::invalid_argument(
+                    "action update field has the wrong Protocol Buffers wire type",
+                ));
+            }
+            _ => {}
+        }
+    }
+    Ok(shape)
+}
+
 #[derive(Clone)]
-struct ByteStreamWriteAdmission {
+struct GrpcWriteAdmission {
     reservation: std::sync::Arc<std::sync::Mutex<ForegroundMemoryReservation>>,
     metrics: crate::metrics::Metrics,
 }
 
-impl ByteStreamWriteAdmission {
+impl GrpcWriteAdmission {
     fn new(reservation: ForegroundMemoryReservation, metrics: crate::metrics::Metrics) -> Self {
         Self {
             reservation: std::sync::Arc::new(std::sync::Mutex::new(reservation)),
@@ -89,18 +608,22 @@ impl ByteStreamWriteAdmission {
         }
     }
 
-    fn try_grow_decode(&self, encoded_message_bytes: u64) -> Result<(), Status> {
+    fn try_grow_decode(
+        &self,
+        encoded_message_bytes: u64,
+        decoded_structural_bytes: u64,
+    ) -> Result<(), Status> {
         let mut reservation = self
             .reservation
             .lock()
-            .map_err(|_| Status::internal("ByteStream memory admission lock was poisoned"))?;
+            .map_err(|_| Status::internal("gRPC write memory admission lock was poisoned"))?;
         reservation
-            .try_grow_stream_decode(encoded_message_bytes)
+            .try_grow_decode(encoded_message_bytes, decoded_structural_bytes)
             .map_err(|_| {
                 self.metrics
-                    .record_memory_action("bytestream_decode_admission_rejected");
+                    .record_memory_action("grpc_write_decode_admission_rejected");
                 Status::resource_exhausted(
-                    "server is limiting concurrent ByteStream decoding; retry the write",
+                    "server is limiting concurrent remote-execution write decoding; retry the write",
                 )
             })
     }
@@ -109,7 +632,7 @@ impl ByteStreamWriteAdmission {
         let mut reservation = self
             .reservation
             .lock()
-            .map_err(|_| Status::internal("ByteStream memory admission lock was poisoned"))?;
+            .map_err(|_| Status::internal("gRPC write memory admission lock was poisoned"))?;
         reservation
             .try_configure_for_streaming_staging(declared_or_max_bytes)
             .map_err(|_| {
@@ -122,25 +645,79 @@ impl ByteStreamWriteAdmission {
     }
 }
 
-struct ByteStreamAdmissionBody {
+struct GrpcWriteAdmissionBody {
     inner: axum::body::Body,
-    admission: ByteStreamWriteAdmission,
+    admission: GrpcWriteAdmission,
+    policy: GrpcWriteShapePolicy,
     header: [u8; GRPC_MESSAGE_HEADER_BYTES],
     header_bytes: usize,
     payload_bytes_remaining: usize,
+    validation_message_bytes: usize,
+    validation_payload: Option<Vec<u8>>,
+    messages_seen: usize,
     failed: bool,
 }
 
-impl ByteStreamAdmissionBody {
-    fn new(inner: axum::body::Body, admission: ByteStreamWriteAdmission) -> Self {
+impl GrpcWriteAdmissionBody {
+    fn new(
+        inner: axum::body::Body,
+        admission: GrpcWriteAdmission,
+        policy: GrpcWriteShapePolicy,
+    ) -> Self {
         Self {
             inner,
             admission,
+            policy,
             header: [0; GRPC_MESSAGE_HEADER_BYTES],
             header_bytes: 0,
             payload_bytes_remaining: 0,
+            validation_message_bytes: 0,
+            validation_payload: None,
+            messages_seen: 0,
             failed: false,
         }
+    }
+
+    fn start_message(&mut self, encoded_message_bytes: usize) -> Result<(), Status> {
+        if self.policy.is_unary() && self.messages_seen > 0 {
+            return Err(Status::invalid_argument(
+                "unary remote-execution write contains more than one message",
+            ));
+        }
+        self.admission
+            .try_grow_decode(encoded_message_bytes as u64, 0)?;
+        self.messages_seen += 1;
+        self.validation_message_bytes = encoded_message_bytes;
+        self.payload_bytes_remaining = encoded_message_bytes;
+        if self.policy.is_unary() {
+            let mut payload = Vec::new();
+            payload
+                .try_reserve_exact(encoded_message_bytes)
+                .map_err(|_| {
+                    Status::resource_exhausted(
+                        "server could not reserve memory to validate the remote-execution write",
+                    )
+                })?;
+            self.validation_payload = Some(payload);
+        }
+        if encoded_message_bytes == 0 {
+            self.finish_message()?;
+        }
+        Ok(())
+    }
+
+    fn finish_message(&mut self) -> Result<(), Status> {
+        let Some(payload) = self.validation_payload.take() else {
+            return Ok(());
+        };
+        let shape = match self.policy {
+            GrpcWriteShapePolicy::ByteStream => DecodeShape::default(),
+            GrpcWriteShapePolicy::BatchUpdate => inspect_batch_update_wire(&payload)?,
+            GrpcWriteShapePolicy::ActionUpdate => inspect_action_update_wire(&payload)?,
+        };
+        self.admission
+            .try_grow_decode(self.validation_message_bytes as u64, shape.structural_bytes)?;
+        Ok(())
     }
 
     fn inspect_data(&mut self, data: &Bytes) -> Result<(), Status> {
@@ -148,8 +725,14 @@ impl ByteStreamAdmissionBody {
         while offset < data.len() {
             if self.payload_bytes_remaining > 0 {
                 let consumed = self.payload_bytes_remaining.min(data.len() - offset);
+                if let Some(payload) = &mut self.validation_payload {
+                    payload.extend_from_slice(&data[offset..offset + consumed]);
+                }
                 self.payload_bytes_remaining -= consumed;
                 offset += consumed;
+                if self.payload_bytes_remaining == 0 {
+                    self.finish_message()?;
+                }
                 continue;
             }
 
@@ -164,7 +747,7 @@ impl ByteStreamAdmissionBody {
 
             if self.header[0] != 0 {
                 return Err(Status::unimplemented(
-                    "compressed ByteStream writes are not supported",
+                    "compressed remote-execution writes are not supported",
                 ));
             }
             let encoded_message_bytes = u32::from_be_bytes([
@@ -178,16 +761,14 @@ impl ByteStreamAdmissionBody {
                     "decoded message length {encoded_message_bytes} exceeds the {REAPI_MAX_DECODING_MESSAGE_SIZE}-byte limit"
                 )));
             }
-            self.admission
-                .try_grow_decode(encoded_message_bytes as u64)?;
             self.header_bytes = 0;
-            self.payload_bytes_remaining = encoded_message_bytes;
+            self.start_message(encoded_message_bytes)?;
         }
         Ok(())
     }
 }
 
-impl HttpBody for ByteStreamAdmissionBody {
+impl HttpBody for GrpcWriteAdmissionBody {
     type Data = Bytes;
     type Error = Status;
 
@@ -210,7 +791,7 @@ impl HttpBody for ByteStreamAdmissionBody {
                 Poll::Ready(Some(Ok(frame)))
             }
             Poll::Ready(Some(Err(error))) => Poll::Ready(Some(Err(Status::internal(format!(
-                "failed to read ByteStream request body: {error}"
+                "failed to read remote-execution request body: {error}"
             ))))),
             Poll::Ready(None) => Poll::Ready(None),
             Poll::Pending => Poll::Pending,
@@ -450,7 +1031,7 @@ pub fn routes(state: SharedState) -> axum::Router {
         ))
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
-            admit_bytestream_write_decode,
+            admit_grpc_write_decode,
         ))
         .layer(GrpcRequestAccountingLayer { state })
 }
@@ -489,28 +1070,41 @@ fn is_reapi_write_path(path: &str) -> bool {
     )
 }
 
-async fn admit_bytestream_write_decode(
+async fn admit_grpc_write_decode(
     axum::extract::State(state): axum::extract::State<SharedState>,
     mut request: axum::extract::Request,
     next: axum::middleware::Next,
 ) -> axum::response::Response {
-    if request.uri().path() != BYTESTREAM_WRITE_PATH {
+    let Some(policy) = grpc_write_shape_policy(request.uri().path()) else {
         return next.run(request).await;
-    }
+    };
 
-    let reservation = match state.memory.try_reserve_foreground_stream_decode(0) {
+    let reservation = match state
+        .memory
+        .try_reserve_foreground_grpc_decode(0, policy.decode_copy_multiplier())
+    {
         Ok(reservation) => reservation,
         Err(()) => {
             return grpc_status_response(Status::resource_exhausted(
-                "server is limiting concurrent ByteStream decoding; retry the write",
+                "server is limiting concurrent remote-execution write decoding; retry the write",
             ));
         }
     };
-    let admission = ByteStreamWriteAdmission::new(reservation, state.metrics.clone());
+    let admission = GrpcWriteAdmission::new(reservation, state.metrics.clone());
     request.extensions_mut().insert(admission.clone());
     let body = std::mem::take(request.body_mut());
-    *request.body_mut() = axum::body::Body::new(ByteStreamAdmissionBody::new(body, admission));
+    *request.body_mut() =
+        axum::body::Body::new(GrpcWriteAdmissionBody::new(body, admission, policy));
     next.run(request).await
+}
+
+fn grpc_write_shape_policy(path: &str) -> Option<GrpcWriteShapePolicy> {
+    match path {
+        BYTESTREAM_WRITE_PATH => Some(GrpcWriteShapePolicy::ByteStream),
+        CAS_BATCH_UPDATE_PATH => Some(GrpcWriteShapePolicy::BatchUpdate),
+        ACTION_CACHE_UPDATE_PATH => Some(GrpcWriteShapePolicy::ActionUpdate),
+        _ => None,
+    }
 }
 
 fn grpc_status_response(status: Status) -> axum::response::Response {
@@ -703,7 +1297,7 @@ impl ReapiService {
         let metadata = request.metadata().clone();
         let memory_admission = request
             .extensions()
-            .get::<ByteStreamWriteAdmission>()
+            .get::<GrpcWriteAdmission>()
             .cloned()
             .ok_or_else(|| Status::internal("ByteStream decode admission was not propagated"))?;
         let mut temp_file = self
@@ -1198,6 +1792,7 @@ impl ReapiService {
         let budget = SNAPSHOT_BUILD_BUDGET_BYTES
             .min(state.memory.reapi_materialization_pool_bytes() / 2)
             .max(1);
+        let build_budgets = SnapshotBuildBudgets::new(budget, index_max_bytes);
         let permit = tokio::time::timeout(
             SNAPSHOT_BUILD_PERMIT_WAIT,
             state
@@ -1226,12 +1821,12 @@ impl ReapiService {
             .remove(&namespace)
             .unwrap_or_else(NamespaceSnapshotIndex::new);
         cache.trim_to(
-            cache.max_bytes.saturating_sub(index_max_bytes),
+            cache.max_bytes.saturating_sub(build_budgets.index_bytes),
             "build_headroom",
             &state.metrics,
         );
         let (mut index, result) =
-            match reconcile_snapshot_index(&state, &namespace, index, index_max_bytes).await {
+            match reconcile_snapshot_index(&state, &namespace, index, build_budgets).await {
                 Ok(mut index) => {
                     index.reconciled_at = Instant::now();
                     (index, Ok(()))
@@ -1291,18 +1886,34 @@ async fn reconcile_snapshot_index(
     state: &SharedState,
     namespace_id: &str,
     mut index: NamespaceSnapshotIndex,
-    index_max_bytes: usize,
+    budgets: SnapshotBuildBudgets,
 ) -> Result<NamespaceSnapshotIndex, (NamespaceSnapshotIndex, String)> {
     let started = Instant::now();
-    let manifests = match state
-        .store
-        .action_cache_manifests(namespace_id, SNAPSHOT_INDEX_MAX_ENTRIES)
+    if index.estimated_bytes() > budgets.index_bytes {
+        index = NamespaceSnapshotIndex::new();
+    }
+    let store = state.store.clone();
+    let scan_namespace_id = namespace_id.to_owned();
+    let manifests = match tokio::task::spawn_blocking(move || {
+        store.action_cache_manifests_bounded(
+            &scan_namespace_id,
+            SNAPSHOT_INDEX_MAX_ENTRIES,
+            budgets.metadata_bytes,
+        )
+    })
+    .await
     {
-        Ok(manifests) => manifests,
-        Err(error) => {
+        Ok(Ok(manifests)) => manifests,
+        Ok(Err(error)) => {
             return Err((
                 index,
                 format!("failed to enumerate the action cache: {error}"),
+            ));
+        }
+        Err(error) => {
+            return Err((
+                index,
+                format!("action-cache enumeration task failed: {error}"),
             ));
         }
     };
@@ -1353,26 +1964,81 @@ async fn reconcile_snapshot_index(
     let mut loads_failed = 0_usize;
     let mut invalid = 0_usize;
     let mut budget_rejected = 0_usize;
+    let encoded_load_budget =
+        std::sync::Arc::new(tokio::sync::Semaphore::new(budgets.encoded_bytes.max(1)));
+    let decoded_load_budget =
+        std::sync::Arc::new(tokio::sync::Semaphore::new(budgets.decoded_bytes.max(1)));
     let mut loading =
         futures_util::stream::iter(to_load.into_iter().map(|(hash, version, manifest)| {
             let state = state.clone();
+            let encoded_load_budget = encoded_load_budget.clone();
             async move {
+                let encoded_bytes = manifest.size.max(1);
+                let Ok(encoded_permits) = u32::try_from(encoded_bytes) else {
+                    return (hash, version, manifest, None, true);
+                };
+                if encoded_bytes > budgets.encoded_bytes as u64 {
+                    return (hash, version, manifest, None, true);
+                }
+                let encoded_permit = encoded_load_budget
+                    .acquire_many_owned(encoded_permits)
+                    .await
+                    .expect("snapshot encoded load budget is never closed");
                 let bytes = read_manifest_bytes(&state, &manifest).await.ok();
-                let action_result =
-                    bytes.and_then(|bytes| reapi::ActionResult::decode(bytes.as_slice()).ok());
-                (hash, version, manifest, action_result)
+                let Some(bytes) = bytes else {
+                    return (hash, version, manifest, None, false);
+                };
+                let Ok(shape) = inspect_action_result_wire(&bytes) else {
+                    return (hash, version, manifest, None, false);
+                };
+                let decoded_bytes = shape.estimated_decoded_bytes();
+                let Ok(decoded_permits) = u32::try_from(decoded_bytes) else {
+                    return (hash, version, manifest, None, true);
+                };
+                if decoded_bytes > budgets.decoded_bytes as u64 {
+                    return (hash, version, manifest, None, true);
+                }
+                (
+                    hash,
+                    version,
+                    manifest,
+                    Some((bytes, decoded_permits, encoded_permit)),
+                    false,
+                )
             }
         }))
         .buffered(32);
-    while let Some((hash, version_ms, manifest, action_result)) = loading.next().await {
+    while let Some((hash, version_ms, manifest, loaded, load_rejected)) = loading.next().await {
         current.insert(hash, (version_ms, manifest));
         index.remove_entry(&hash);
+        if load_rejected {
+            budget_rejected += 1;
+            continue;
+        }
+        let (action_result, load_permit) =
+            if let Some((bytes, decoded_permits, encoded_permit)) = loaded {
+                // Decode in stream order after the concurrent reads complete.
+                // If later loads acquired decoded permits inside their futures,
+                // an earlier slow read could wait behind ready results that
+                // `buffered` cannot yield yet, deadlocking the bounded pool.
+                let decoded_permit = decoded_load_budget
+                    .clone()
+                    .acquire_many_owned(decoded_permits)
+                    .await
+                    .expect("snapshot decoded load budget is never closed");
+                (
+                    reapi::ActionResult::decode(bytes.as_slice()).ok(),
+                    Some((encoded_permit, decoded_permit)),
+                )
+            } else {
+                (None, None)
+            };
         let Some(action_result) = action_result else {
             loads_failed += 1;
             continue;
         };
         let entry_bytes = estimated_snapshot_entry_bytes(action_result.output_files.len());
-        if index.estimated_bytes().saturating_add(entry_bytes) > index_max_bytes {
+        if index.estimated_bytes().saturating_add(entry_bytes) > budgets.index_bytes {
             budget_rejected += 1;
             continue;
         }
@@ -1392,7 +2058,7 @@ async fn reconcile_snapshot_index(
                 valid = false;
                 break;
             };
-            let node_budget = index_max_bytes.saturating_sub(entry_bytes);
+            let node_budget = budgets.index_bytes.saturating_sub(entry_bytes);
             let Some(node) =
                 index.try_intern_node(llcas, blob_hash, digest.size_bytes as u64, node_budget)
             else {
@@ -1407,6 +2073,7 @@ async fn reconcile_snapshot_index(
         } else {
             invalid += 1;
         }
+        drop(load_permit);
         if !state.memory.allow_background_admission() {
             drop(loading);
             index.compact_nodes();
@@ -1498,7 +2165,7 @@ async fn reconcile_snapshot_index(
         invalid,
         budget_rejected,
         estimated_bytes = index.estimated_bytes(),
-        index_max_bytes,
+        index_max_bytes = budgets.index_bytes,
         scan_ms,
         load_ms,
         gate_ms = started.elapsed().as_millis() as u64 - scan_ms - load_ms,
@@ -1841,6 +2508,11 @@ impl ActionCache for ReapiService {
         &self,
         request: Request<reapi::UpdateActionResultRequest>,
     ) -> Result<Response<reapi::ActionResult>, Status> {
+        let _memory_admission = request
+            .extensions()
+            .get::<GrpcWriteAdmission>()
+            .cloned()
+            .ok_or_else(|| Status::internal("write decode admission was not propagated"))?;
         require_sha256(request.get_ref().digest_function)?;
         let namespace_id = namespace_from_instance(&request.get_ref().instance_name);
         let digest = request
@@ -1946,6 +2618,11 @@ impl ContentAddressableStorage for ReapiService {
         &self,
         request: Request<reapi::BatchUpdateBlobsRequest>,
     ) -> Result<Response<reapi::BatchUpdateBlobsResponse>, Status> {
+        let _memory_admission = request
+            .extensions()
+            .get::<GrpcWriteAdmission>()
+            .cloned()
+            .ok_or_else(|| Status::internal("write decode admission was not propagated"))?;
         require_sha256(request.get_ref().digest_function)?;
         let namespace_id = namespace_from_instance(&request.get_ref().instance_name);
         let extension = GrpcExtensionSpec {
@@ -2657,6 +3334,30 @@ const SNAPSHOT_INDEX_MAX_ENTRIES: usize = 100_000;
 /// at ~1KB per entry of scan-buffer + current-map peak, with headroom.
 const SNAPSHOT_BUILD_BUDGET_BYTES: usize = 192 << 20;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct SnapshotBuildBudgets {
+    metadata_bytes: usize,
+    index_bytes: usize,
+    encoded_bytes: usize,
+    decoded_bytes: usize,
+}
+
+impl SnapshotBuildBudgets {
+    fn new(total_bytes: usize, index_max_bytes: usize) -> Self {
+        let metadata_bytes = total_bytes / 4;
+        let index_bytes = (total_bytes / 2).min(index_max_bytes);
+        let load_bytes = total_bytes / 4;
+        let encoded_bytes = load_bytes / 2;
+        let decoded_bytes = load_bytes.saturating_sub(encoded_bytes);
+        Self {
+            metadata_bytes,
+            index_bytes,
+            encoded_bytes,
+            decoded_bytes,
+        }
+    }
+}
+
 /// How long a snapshot build waits for its memory-pool permit before
 /// declining. Generous: the build is background work, and the pool drains as
 /// in-flight responses complete — declining is only right when the node is
@@ -3316,7 +4017,14 @@ mod tests {
 
     fn bytestream_admission(
         hard_limit_bytes: u64,
-    ) -> (crate::memory::MemoryController, ByteStreamWriteAdmission) {
+    ) -> (crate::memory::MemoryController, GrpcWriteAdmission) {
+        grpc_write_admission(hard_limit_bytes, BYTESTREAM_WRITE_DECODE_COPIES)
+    }
+
+    fn grpc_write_admission(
+        hard_limit_bytes: u64,
+        decode_copy_multiplier: u64,
+    ) -> (crate::memory::MemoryController, GrpcWriteAdmission) {
         let metrics = crate::metrics::Metrics::new("local".into(), "tenant".into());
         let memory = crate::memory::MemoryController::with_runtime_limit(
             metrics.clone(),
@@ -3326,10 +4034,24 @@ mod tests {
         );
         memory.observe(0);
         let reservation = memory
-            .try_reserve_foreground_stream_decode(0)
+            .try_reserve_foreground_grpc_decode(0, decode_copy_multiplier)
             .expect("zero-byte initial reservation should fit");
-        let admission = ByteStreamWriteAdmission::new(reservation, metrics);
+        let admission = GrpcWriteAdmission::new(reservation, metrics);
         (memory, admission)
+    }
+
+    fn add_direct_write_admission<T>(
+        state: &SharedState,
+        request: &mut Request<T>,
+        decode_copy_multiplier: u64,
+    ) {
+        let reservation = state
+            .memory
+            .try_reserve_foreground_grpc_decode(0, decode_copy_multiplier)
+            .expect("test write admission should fit");
+        request
+            .extensions_mut()
+            .insert(GrpcWriteAdmission::new(reservation, state.metrics.clone()));
     }
 
     #[tokio::test]
@@ -3339,9 +4061,10 @@ mod tests {
         let frames = header
             .into_iter()
             .map(|byte| Ok::<_, Infallible>(Bytes::from(vec![byte])));
-        let mut body = ByteStreamAdmissionBody::new(
+        let mut body = GrpcWriteAdmissionBody::new(
             axum::body::Body::from_stream(futures_util::stream::iter(frames)),
             admission,
+            GrpcWriteShapePolicy::ByteStream,
         );
 
         for _ in 0..GRPC_MESSAGE_HEADER_BYTES - 1 {
@@ -3365,7 +4088,11 @@ mod tests {
         let (memory, admission) = bytestream_admission(8 * 1024 * 1024);
         let mut framed = grpc_message(512, 0x11);
         framed.extend_from_slice(&grpc_message(2048, 0x22));
-        let mut body = ByteStreamAdmissionBody::new(axum::body::Body::from(framed), admission);
+        let mut body = GrpcWriteAdmissionBody::new(
+            axum::body::Body::from(framed),
+            admission,
+            GrpcWriteShapePolicy::ByteStream,
+        );
 
         body.frame()
             .await
@@ -3379,7 +4106,11 @@ mod tests {
     async fn bytestream_admission_rejects_growth_before_forwarding() {
         let (memory, admission) = bytestream_admission(1024 * 1024);
         let header = grpc_message(1024 * 1024, 0)[..GRPC_MESSAGE_HEADER_BYTES].to_vec();
-        let mut body = ByteStreamAdmissionBody::new(axum::body::Body::from(header), admission);
+        let mut body = GrpcWriteAdmissionBody::new(
+            axum::body::Body::from(header),
+            admission,
+            GrpcWriteShapePolicy::ByteStream,
+        );
 
         let error = body
             .frame()
@@ -3396,7 +4127,11 @@ mod tests {
         let (memory, admission) = bytestream_admission(8 * 1024 * 1024);
         let mut framed = grpc_message(1024, 0);
         framed[0] = 1;
-        let mut body = ByteStreamAdmissionBody::new(axum::body::Body::from(framed), admission);
+        let mut body = GrpcWriteAdmissionBody::new(
+            axum::body::Body::from(framed),
+            admission,
+            GrpcWriteShapePolicy::ByteStream,
+        );
 
         let error = body
             .frame()
@@ -3405,6 +4140,149 @@ mod tests {
             .expect_err("compressed messages must be rejected before decoding");
 
         assert_eq!(error.code(), tonic::Code::Unimplemented);
+        assert_eq!(memory.transient_reserved_bytes(), 0);
+    }
+
+    #[test]
+    fn every_remote_execution_write_path_has_decode_admission() {
+        assert_eq!(
+            grpc_write_shape_policy(BYTESTREAM_WRITE_PATH),
+            Some(GrpcWriteShapePolicy::ByteStream)
+        );
+        assert_eq!(
+            grpc_write_shape_policy(CAS_BATCH_UPDATE_PATH),
+            Some(GrpcWriteShapePolicy::BatchUpdate)
+        );
+        assert_eq!(
+            grpc_write_shape_policy(ACTION_CACHE_UPDATE_PATH),
+            Some(GrpcWriteShapePolicy::ActionUpdate)
+        );
+        assert_eq!(grpc_write_shape_policy("/read"), None);
+    }
+
+    #[test]
+    fn batch_update_wire_shape_charges_request_cardinality() {
+        let request_count = 4_096;
+        let encoded = reapi::BatchUpdateBlobsRequest {
+            requests: vec![reapi::batch_update_blobs_request::Request::default(); request_count],
+            ..Default::default()
+        }
+        .encode_to_vec();
+        let shape =
+            inspect_batch_update_wire(&encoded).expect("valid structure should be admitted");
+        assert_eq!(
+            shape.structural_bytes,
+            request_count as u64 * REAPI_BATCH_REQUEST_STRUCTURAL_BYTES
+        );
+    }
+
+    #[test]
+    fn action_result_wire_shape_charges_output_cardinality() {
+        let output_count = 16_384;
+        let encoded = reapi::ActionResult {
+            output_files: vec![reapi::OutputFile::default(); output_count],
+            ..Default::default()
+        }
+        .encode_to_vec();
+        let shape =
+            inspect_action_result_wire(&encoded).expect("valid structure should be admitted");
+        assert_eq!(
+            shape.structural_bytes,
+            output_count as u64 * REAPI_ACTION_OUTPUT_STRUCTURAL_BYTES
+        );
+    }
+
+    #[test]
+    fn protobuf_scanner_matches_decoder_for_balanced_unknown_groups() {
+        use prost::encoding::{WireType, encode_key, encode_varint};
+
+        let request = reapi::BatchUpdateBlobsRequest {
+            instance_name: "ios".into(),
+            requests: vec![reapi::batch_update_blobs_request::Request::default()],
+            ..Default::default()
+        };
+        let mut encoded = request.encode_to_vec();
+        encode_key(99, WireType::StartGroup, &mut encoded);
+        encode_key(1, WireType::Varint, &mut encoded);
+        encode_varint(42, &mut encoded);
+        encode_key(100, WireType::StartGroup, &mut encoded);
+        encode_key(2, WireType::LengthDelimited, &mut encoded);
+        encode_varint(3, &mut encoded);
+        encoded.extend_from_slice(b"abc");
+        encode_key(100, WireType::EndGroup, &mut encoded);
+        encode_key(99, WireType::EndGroup, &mut encoded);
+
+        assert_eq!(
+            reapi::BatchUpdateBlobsRequest::decode(encoded.as_slice())
+                .expect("Prost should accept balanced unknown groups"),
+            request
+        );
+        inspect_batch_update_wire(&encoded)
+            .expect("the admission scanner should accept what Prost accepts");
+    }
+
+    #[tokio::test]
+    async fn unary_admission_validates_a_fragmented_payload_before_forwarding_the_last_frame() {
+        let request = reapi::BatchUpdateBlobsRequest {
+            requests: vec![reapi::batch_update_blobs_request::Request::default(); 2],
+            ..Default::default()
+        }
+        .encode_to_vec();
+        let mut framed = grpc_message(0, 0);
+        framed.truncate(GRPC_MESSAGE_HEADER_BYTES);
+        framed[1..].copy_from_slice(&(request.len() as u32).to_be_bytes());
+        framed.extend_from_slice(&request);
+        let frames = framed
+            .chunks(3)
+            .map(|chunk| Ok::<_, Infallible>(Bytes::copy_from_slice(chunk)))
+            .collect::<Vec<_>>();
+        let (memory, admission) =
+            grpc_write_admission(8 * 1024 * 1024, CAS_BATCH_UPDATE_DECODE_COPIES);
+        let mut body = GrpcWriteAdmissionBody::new(
+            axum::body::Body::from_stream(futures_util::stream::iter(frames)),
+            admission,
+            GrpcWriteShapePolicy::BatchUpdate,
+        );
+
+        while let Some(frame) = body.frame().await {
+            frame.expect("fragment should pass validation");
+        }
+        assert_eq!(
+            memory.transient_reserved_bytes(),
+            request.len() as u64 * CAS_BATCH_UPDATE_DECODE_COPIES
+                + 2 * REAPI_BATCH_REQUEST_STRUCTURAL_BYTES
+        );
+        drop(body);
+        assert_eq!(memory.transient_reserved_bytes(), 0);
+    }
+
+    #[tokio::test]
+    async fn unary_admission_rejects_dense_structure_and_releases_its_reservation() {
+        let request_count = 20_000;
+        let request = reapi::BatchUpdateBlobsRequest {
+            requests: vec![reapi::batch_update_blobs_request::Request::default(); request_count],
+            ..Default::default()
+        }
+        .encode_to_vec();
+        let mut framed = grpc_message(0, 0);
+        framed.truncate(GRPC_MESSAGE_HEADER_BYTES);
+        framed[1..].copy_from_slice(&(request.len() as u32).to_be_bytes());
+        framed.extend_from_slice(&request);
+        let (memory, admission) =
+            grpc_write_admission(8 * 1024 * 1024, CAS_BATCH_UPDATE_DECODE_COPIES);
+        let mut body = GrpcWriteAdmissionBody::new(
+            axum::body::Body::from(framed),
+            admission,
+            GrpcWriteShapePolicy::BatchUpdate,
+        );
+
+        let error = body
+            .frame()
+            .await
+            .expect("request frame")
+            .expect_err("dense structure must be rejected before decoding");
+        assert_eq!(error.code(), tonic::Code::ResourceExhausted);
+        drop(body);
         assert_eq!(memory.transient_reserved_bytes(), 0);
     }
 
@@ -3862,6 +4740,89 @@ mod tests {
             exists(&young_dead_key),
             "a young dead entry is kept — its blobs may still be mid-replication"
         );
+    }
+
+    #[tokio::test]
+    async fn snapshot_reconcile_rejects_a_decode_larger_than_its_working_budget() {
+        let context = test_context(|_| {}).await;
+        let blob_hash = [0x31u8; 32];
+        let blob_key_name = blob_key(&format!("{}/7", hex::encode(blob_hash)));
+        context
+            .state
+            .store
+            .persist_inline_artifact_from_bytes(
+                ArtifactProducer::Reapi,
+                "ios",
+                &blob_key_name,
+                "application/octet-stream",
+                b"payload",
+            )
+            .await
+            .expect("blob should persist");
+        let action_hash = [0x42u8; 32];
+        let action_key = format!("action_cache/{}/10", hex::encode(action_hash));
+        let action_result = reapi::ActionResult {
+            output_files: vec![reapi::OutputFile {
+                path: hex::encode([0xAAu8]),
+                digest: Some(reapi::Digest {
+                    hash: hex::encode(blob_hash),
+                    size_bytes: 7,
+                }),
+                ..Default::default()
+            }],
+            ..Default::default()
+        }
+        .encode_to_vec();
+        context
+            .state
+            .store
+            .persist_inline_artifact_from_bytes(
+                ArtifactProducer::Reapi,
+                "ios",
+                &action_key,
+                "application/x-protobuf",
+                &action_result,
+            )
+            .await
+            .expect("action result should persist");
+
+        let rejected = match reconcile_snapshot_index(
+            &context.state,
+            "ios",
+            NamespaceSnapshotIndex::new(),
+            SnapshotBuildBudgets {
+                metadata_bytes: 1024 * 1024,
+                index_bytes: 1024 * 1024,
+                encoded_bytes: 1,
+                decoded_bytes: 1,
+            },
+        )
+        .await
+        {
+            Ok(index) => index,
+            Err((_, error)) => panic!("budget rejection should not fail the reconcile: {error}"),
+        };
+        assert!(rejected.entries.is_empty());
+
+        let admitted = match reconcile_snapshot_index(
+            &context.state,
+            "ios",
+            NamespaceSnapshotIndex::new(),
+            SnapshotBuildBudgets {
+                metadata_bytes: 1024 * 1024,
+                index_bytes: 1024 * 1024,
+                encoded_bytes: 1024 * 1024,
+                decoded_bytes: 1024 * 1024,
+            },
+        )
+        .await
+        {
+            Ok(index) => index,
+            Err((_, error)) => {
+                panic!("the same entry should load with enough working memory: {error}")
+            }
+        };
+        assert!(admitted.entries.contains_key(&action_hash));
     }
 
     #[tokio::test]
@@ -5641,6 +6602,7 @@ end
             update
                 .metadata_mut()
                 .insert("x-tuist-account-handle", "acme".parse().unwrap());
+            add_direct_write_admission(&context.state, &mut update, CAS_BATCH_UPDATE_DECODE_COPIES);
             update
         };
 
@@ -5770,6 +6732,11 @@ end
         update
             .metadata_mut()
             .insert("x-tuist-account-handle", "acme".parse().unwrap());
+        add_direct_write_admission(
+            &context.state,
+            &mut update,
+            ACTION_CACHE_UPDATE_DECODE_COPIES,
+        );
         service
             .update_action_result(update)
             .await
