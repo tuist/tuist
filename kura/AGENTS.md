@@ -35,6 +35,11 @@ This node covers the `kura/` workspace, a Rust service for low-latency cache mes
 - rules_rs resolves the Bazel crate graph directly from `Cargo.toml`/`Cargo.lock` on each build, so
   changing Rust deps just updates `Cargo.lock` as usual and Bazel picks it up on the next build
 - Run the end-to-end suite with `docker compose build && mise exec -- shellspec`
+- Modules use the `foo.rs` + `foo/` layout (not `foo/mod.rs`); a directory module lives in `foo.rs`
+  beside its `foo/` directory
+- Unit tests live in a sibling `tests.rs` (declared as `#[cfg(test)] mod tests;` at the bottom of the
+  module file) rather than as an inline `mod tests { ... }` block, so implementation and tests are
+  separately reviewable. `mise run lint-tests` enforces this and runs in the CI format job
 
 ## Maintenance Notes
 - Keep `README.md` aligned with any protocol, configuration, or deployment changes
