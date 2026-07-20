@@ -33,6 +33,16 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     AlertEvaluationWorker.perform(%Oban.Job{args: %{"alert_id" => alert_id, "evaluate_recent_test_case_runs" => true}})
   end
 
+  defp run_recent_test_case_runs_for_project(project_id, cadence_seconds \\ 300) do
+    AlertEvaluationWorker.perform(%Oban.Job{
+      args: %{
+        "project_id" => project_id,
+        "cadence_seconds" => cadence_seconds,
+        "evaluate_recent_test_case_runs" => true
+      }
+    })
+  end
+
   test "no-op when automation is missing" do
     reject(&FlakyTestsMonitor.evaluate/1)
     assert :ok = run(UUIDv7.generate())
@@ -140,9 +150,62 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     assert updated.last_scoped_evaluation_inserted_at == ~U[2026-06-09 10:00:02Z]
   end
 
+  test "project-scoped job shares rolling measurements across compatible alerts" do
+    project = ProjectsFixtures.project_fixture()
+
+    first_alert =
+      AutomationsFixtures.automation_alert_fixture(
+        project: project,
+        monitor_type: "flakiness_rate",
+        trigger_config: %{
+          "threshold" => 5,
+          "comparison" => "gte",
+          "window_type" => "rolling",
+          "rolling_window_size" => 75
+        }
+      )
+
+    second_alert =
+      AutomationsFixtures.automation_alert_fixture(
+        project: project,
+        monitor_type: "flakiness_rate",
+        trigger_config: %{
+          "threshold" => 20,
+          "comparison" => "gte",
+          "window_type" => "rolling",
+          "rolling_window_size" => 75
+        }
+      )
+
+    test_case_id = Ecto.UUID.generate()
+
+    expect(ClickHouseRepo, :all, fn _query ->
+      [%{test_case_id: test_case_id, last_inserted_at: ~N[2026-06-09 10:00:02]}]
+    end)
+
+    reject(&FlakyTestsMonitor.evaluate/1)
+    reject(&FlakyTestsMonitor.evaluate/2)
+
+    expect(FlakyTestsMonitor, :evaluate_rolling_alerts, fn alerts, [^test_case_id] ->
+      assert MapSet.new(alerts, & &1.id) == MapSet.new([first_alert.id, second_alert.id])
+      %{first_alert.id => [], second_alert.id => []}
+    end)
+
+    expect(Automations, :list_active_alert_events, 2, fn _alert_id, [^test_case_id] -> [] end)
+    reject(&ActionExecutor.execute_actions/3)
+    reject(&Automations.create_alert_event/1)
+
+    assert :ok = run_recent_test_case_runs_for_project(project.id)
+
+    assert {:ok, updated_first_alert} = Automations.get_alert(first_alert.id)
+    assert {:ok, updated_second_alert} = Automations.get_alert(second_alert.id)
+    assert updated_first_alert.last_scoped_evaluation_inserted_at == ~U[2026-06-09 10:00:02Z]
+    assert updated_second_alert.last_scoped_evaluation_inserted_at == ~U[2026-06-09 10:00:02Z]
+  end
+
   test "ingestion-driven job chunks large affected sets" do
     automation = AutomationsFixtures.automation_alert_fixture()
-    test_case_ids = Enum.map(1..1001, fn _ -> Ecto.UUID.generate() end)
+    test_case_ids = Enum.map(1..4001, fn _ -> Ecto.UUID.generate() end)
     test_pid = self()
 
     expect(ClickHouseRepo, :all, fn _query ->
@@ -167,9 +230,9 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
 
     assert :ok = run_recent_test_case_runs(automation.id)
 
-    assert_receive {:monitor_chunk_size, 1000}
+    assert_receive {:monitor_chunk_size, 4000}
     assert_receive {:monitor_chunk_size, 1}
-    assert_receive {:active_events_chunk_size, 1000}
+    assert_receive {:active_events_chunk_size, 4000}
     assert_receive {:active_events_chunk_size, 1}
 
     assert {:ok, updated} = Automations.get_alert(automation.id)

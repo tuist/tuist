@@ -147,21 +147,21 @@ defmodule Tuist.AutomationsTest do
   end
 
   describe "enqueue_flaky_alert_evaluations/2" do
-    test "enqueues debounced scoped evaluations for enabled scoped monitors only" do
+    test "enqueues one debounced scoped evaluation per project and cadence" do
       project = ProjectsFixtures.project_fixture()
       other_project = ProjectsFixtures.project_fixture()
 
-      flakiness_alert =
+      _flakiness_alert =
         AutomationsFixtures.automation_alert_fixture(project: project, monitor_type: "flakiness_rate")
 
-      count_alert =
+      _count_alert =
         AutomationsFixtures.automation_alert_fixture(
           project: project,
           monitor_type: "flaky_run_count",
           trigger_config: %{"threshold" => 1, "window_type" => "last_days", "window" => "30d"}
         )
 
-      reliability_alert =
+      _reliability_alert =
         AutomationsFixtures.automation_alert_fixture(
           project: project,
           monitor_type: "reliability_rate",
@@ -185,33 +185,84 @@ defmodule Tuist.AutomationsTest do
 
       assert :ok = Automations.enqueue_flaky_alert_evaluations(project.id, test_case_ids ++ [hd(test_case_ids), nil])
 
-      jobs = all_enqueued(worker: AlertEvaluationWorker)
+      assert [
+               %{
+                 args: %{
+                   "project_id" => project_id,
+                   "cadence_seconds" => 300,
+                   "evaluate_recent_test_case_runs" => true
+                 }
+               }
+             ] = all_enqueued(worker: AlertEvaluationWorker)
 
-      assert length(jobs) == 3
-
-      args_by_alert_id = Map.new(jobs, fn job -> {job.args["alert_id"], job.args} end)
-
-      assert args_by_alert_id[flakiness_alert.id]["evaluate_recent_test_case_runs"]
-      refute Map.has_key?(args_by_alert_id[flakiness_alert.id], "test_case_ids")
-      assert args_by_alert_id[count_alert.id]["evaluate_recent_test_case_runs"]
-      refute Map.has_key?(args_by_alert_id[count_alert.id], "test_case_ids")
-      assert args_by_alert_id[reliability_alert.id]["evaluate_recent_test_case_runs"]
-      refute Map.has_key?(args_by_alert_id[reliability_alert.id], "test_case_ids")
+      assert project_id == project.id
     end
 
-    test "merges repeated enqueue calls into one scoped evaluation job per alert" do
+    test "merges repeated enqueue calls into one scoped evaluation job per project and cadence" do
       project = ProjectsFixtures.project_fixture()
-      alert = AutomationsFixtures.automation_alert_fixture(project: project, monitor_type: "flakiness_rate")
+      _alert = AutomationsFixtures.automation_alert_fixture(project: project, monitor_type: "flakiness_rate")
 
       [first_id, second_id, third_id] = Enum.map(1..3, fn _ -> Ecto.UUID.generate() end)
 
       assert :ok = Automations.enqueue_flaky_alert_evaluations(project.id, [first_id, second_id])
       assert :ok = Automations.enqueue_flaky_alert_evaluations(project.id, [second_id, third_id])
 
-      assert [%{args: %{"alert_id" => alert_id, "evaluate_recent_test_case_runs" => true}}] =
+      assert [
+               %{
+                 args: %{
+                   "project_id" => project_id,
+                   "cadence_seconds" => 300,
+                   "evaluate_recent_test_case_runs" => true
+                 }
+               }
+             ] =
                all_enqueued(worker: AlertEvaluationWorker)
 
-      assert alert_id == alert.id
+      assert project_id == project.id
+    end
+
+    test "keeps different alert cadences in separate evaluation jobs" do
+      project = ProjectsFixtures.project_fixture()
+
+      _five_minute_alert =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          monitor_type: "flakiness_rate",
+          cadence: "5m"
+        )
+
+      _one_minute_alert =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          monitor_type: "reliability_rate",
+          cadence: "1m"
+        )
+
+      assert :ok = Automations.enqueue_flaky_alert_evaluations(project.id, [Ecto.UUID.generate()])
+
+      assert [60, 300] ==
+               [worker: AlertEvaluationWorker]
+               |> all_enqueued()
+               |> Enum.map(& &1.args["cadence_seconds"])
+               |> Enum.sort()
+    end
+
+    test "schedules scoped evaluations at the alert cadence" do
+      project = ProjectsFixtures.project_fixture()
+
+      alert =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          monitor_type: "flakiness_rate",
+          cadence: "30s"
+        )
+
+      enqueued_at = DateTime.utc_now(:second)
+
+      assert :ok = Automations.enqueue_scoped_alert_evaluation(alert)
+
+      assert [%{scheduled_at: scheduled_at}] = all_enqueued(worker: AlertEvaluationWorker)
+      assert DateTime.diff(scheduled_at, enqueued_at, :second) in 30..31
     end
   end
 

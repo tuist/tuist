@@ -436,6 +436,13 @@ defmodule Tuist.Automations.Alerts.AlertTest do
   end
 
   describe "cadence validation" do
+    test "converts cadence values to seconds" do
+      assert Alert.cadence_seconds("30s") == 30
+      assert Alert.cadence_seconds("5m") == 300
+      assert Alert.cadence_seconds("1h") == 3600
+      assert Alert.cadence_seconds("invalid") == 300
+    end
+
     test "accepts cadences at or under one hour" do
       project = ProjectsFixtures.project_fixture()
 

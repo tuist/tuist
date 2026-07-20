@@ -21,7 +21,10 @@ defmodule Tuist.Automations do
   @max_dispatch_depth 10
   @dispatch_depth_key :tuist_automation_dispatch_depth
   @flaky_monitor_types ~w(flakiness_rate flaky_run_count reliability_rate)
-  @scoped_evaluation_chunk_size 1000
+  # A random lookup of 1000 test cases already touches nearly every primary-key
+  # granule for a large project. Larger batches amortize that scan while the
+  # serialized identifier array remains below ClickHouse's query-size limit.
+  @scoped_evaluation_chunk_size 4000
 
   def list_alerts(project_id) do
     Alert
@@ -156,21 +159,34 @@ defmodule Tuist.Automations do
           )
         )
 
-      Enum.each(alerts, &enqueue_scoped_alert_evaluation/1)
+      alerts
+      |> Enum.group_by(&Alert.cadence_seconds(&1.cadence))
+      |> Enum.each(fn {_cadence_seconds, [alert | _alerts]} ->
+        enqueue_scoped_alert_evaluation(alert)
+      end)
 
       :ok
     end
   end
 
   def enqueue_scoped_alert_evaluation(%Alert{} = alert, opts \\ []) do
-    schedule_in = Keyword.get(opts, :schedule_in, alert_evaluation_schedule_in())
+    schedule_in =
+      Keyword.get(
+        opts,
+        :schedule_in,
+        max(alert_evaluation_schedule_in(), Alert.cadence_seconds(alert.cadence))
+      )
 
     {:ok, _job} =
-      %{alert_id: alert.id, evaluate_recent_test_case_runs: true}
+      %{
+        project_id: alert.project_id,
+        cadence_seconds: Alert.cadence_seconds(alert.cadence),
+        evaluate_recent_test_case_runs: true
+      }
       |> AlertEvaluationWorker.new(
         schedule_in: schedule_in,
         unique: [
-          keys: [:alert_id, :evaluate_recent_test_case_runs],
+          keys: [:project_id, :cadence_seconds, :evaluate_recent_test_case_runs],
           period: :infinity,
           states: [:available, :scheduled]
         ]
@@ -181,12 +197,23 @@ defmodule Tuist.Automations do
   end
 
   def recent_test_case_run_changes_for_alert(%Alert{} = alert) do
-    since = scoped_evaluation_query_since(alert)
+    recent_test_case_run_changes(alert.project_id, scoped_evaluation_query_since(alert))
+  end
 
+  def recent_test_case_run_changes_for_alerts([%Alert{} = alert | _alerts] = alerts) do
+    since =
+      alerts
+      |> Enum.map(&scoped_evaluation_query_since/1)
+      |> Enum.min(DateTime)
+
+    recent_test_case_run_changes(alert.project_id, since)
+  end
+
+  defp recent_test_case_run_changes(project_id, since) do
     rows =
       ClickHouseRepo.all(
         from(r in {"test_case_runs_by_inserted_at", TestCaseRun},
-          where: r.project_id == ^alert.project_id,
+          where: r.project_id == ^project_id,
           where: not is_nil(r.test_case_id),
           where: r.inserted_at >= ^DateTime.to_naive(since),
           group_by: r.test_case_id,

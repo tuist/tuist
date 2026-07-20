@@ -84,7 +84,15 @@ defmodule Tuist.Automations.Alerts.Alert do
   # Oban job within `cadence`, and completed jobs are pruned at 2h, so the
   # cadence must stay well under that window. Lifting this cap means
   # decoupling that dedup from Oban retention first.
+  @default_cadence_seconds 300
   @max_cadence_seconds 3600
+
+  def cadence_seconds(cadence) do
+    case parse_cadence_seconds(cadence) do
+      {:ok, seconds} -> seconds
+      :error -> @default_cadence_seconds
+    end
+  end
 
   def changeset(alert \\ %__MODULE__{}, attrs) do
     alert

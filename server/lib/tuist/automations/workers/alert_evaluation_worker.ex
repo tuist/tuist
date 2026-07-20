@@ -21,6 +21,24 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
   @recovery_candidate_batch_size 500
 
   @impl Oban.Worker
+  def perform(%Oban.Job{
+        args: %{
+          "project_id" => project_id,
+          "cadence_seconds" => cadence_seconds,
+          "evaluate_recent_test_case_runs" => true
+        }
+      }) do
+    alerts =
+      project_id
+      |> Automations.list_alerts()
+      |> Enum.filter(fn alert ->
+        alert.enabled and Alert.recovery_ledger?(alert) and
+          Alert.cadence_seconds(alert.cadence) == cadence_seconds
+      end)
+
+    evaluate_recent_test_case_runs_and_execute(alerts)
+  end
+
   def perform(%Oban.Job{args: %{"alert_id" => alert_id} = args}) do
     case Automations.get_alert(alert_id) do
       {:ok, alert} ->
@@ -39,7 +57,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
     end
   end
 
-  defp evaluate_recent_test_case_runs_and_execute(alert) do
+  defp evaluate_recent_test_case_runs_and_execute(%Alert{} = alert) do
     if alert.baseline_established_at == nil do
       evaluate_and_execute(alert, nil)
     else
@@ -55,21 +73,67 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
     :ok
   end
 
+  defp evaluate_recent_test_case_runs_and_execute([]), do: :ok
+
+  defp evaluate_recent_test_case_runs_and_execute(alerts) when is_list(alerts) do
+    {established_alerts, pending_baseline_alerts} =
+      Enum.split_with(alerts, &(&1.baseline_established_at != nil))
+
+    Enum.each(pending_baseline_alerts, &evaluate_and_execute(&1, nil))
+
+    if established_alerts != [] do
+      %{test_case_ids: test_case_ids, cursor: cursor} =
+        Automations.recent_test_case_run_changes_for_alerts(established_alerts)
+
+      test_case_ids
+      |> Enum.chunk_every(Automations.scoped_evaluation_chunk_size())
+      |> Enum.each(&evaluate_alert_group(established_alerts, &1))
+
+      Enum.each(established_alerts, fn alert ->
+        {:ok, _alert} = Automations.update_alert_scoped_evaluation_cursor(alert, cursor)
+      end)
+    end
+
+    :ok
+  end
+
   defp evaluate_recent_test_case_runs?(%{"evaluate_recent_test_case_runs" => true}), do: true
   defp evaluate_recent_test_case_runs?(_args), do: false
 
   defp evaluate_and_execute(alert, test_case_ids) do
-    if alert.baseline_established_at == nil do
-      %{triggered: triggered_ids} = evaluate_monitor(alert, nil)
-      triggered_ids = reject_unvalidated_test_cases(alert, triggered_ids)
-      establish_baseline(alert, triggered_ids)
-    else
-      %{triggered: triggered_ids} = evaluate_monitor(alert, test_case_ids)
-      triggered_ids = reject_unvalidated_test_cases(alert, triggered_ids)
-      run_transitions(alert, triggered_ids, test_case_ids)
-    end
+    %{triggered: triggered_ids} = evaluate_monitor(alert, test_case_ids)
+    execute_evaluation(alert, triggered_ids, test_case_ids)
 
     :ok
+  end
+
+  defp evaluate_alert_group(alerts, test_case_ids) do
+    alerts
+    |> Enum.group_by(&FlakyTestsMonitor.rolling_group_key/1)
+    |> Enum.each(fn
+      {nil, alerts} ->
+        Enum.each(alerts, &evaluate_and_execute(&1, test_case_ids))
+
+      {_rolling_group_key, [alert]} ->
+        evaluate_and_execute(alert, test_case_ids)
+
+      {_rolling_group_key, alerts} ->
+        triggered_by_alert_id = FlakyTestsMonitor.evaluate_rolling_alerts(alerts, test_case_ids)
+
+        Enum.each(alerts, fn alert ->
+          execute_evaluation(alert, Map.fetch!(triggered_by_alert_id, alert.id), test_case_ids)
+        end)
+    end)
+  end
+
+  defp execute_evaluation(alert, triggered_ids, test_case_ids) do
+    triggered_ids = reject_unvalidated_test_cases(alert, triggered_ids)
+
+    if alert.baseline_established_at == nil do
+      establish_baseline(alert, triggered_ids)
+    else
+      run_transitions(alert, triggered_ids, test_case_ids)
+    end
   end
 
   # A test case that has never had a successful, non-flaky run on the project's
