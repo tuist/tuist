@@ -483,9 +483,18 @@ func inventoryDigest(cacheRoot string) (string, error) {
 			continue // a missing subtree contributes no entries, like `ls` on a missing dir
 		}
 		for _, e := range entries {
+			// Skip dotfiles to match the guest's `ls -1` (no -a): os.ReadDir
+			// returns hidden entries (.DS_Store, in-flight .tmp*) that `ls -1`
+			// omits, so including them here would make the host digest disagree
+			// with the guest-reported one and abort every convergence.
+			if strings.HasPrefix(e.Name(), ".") {
+				continue
+			}
 			lines = append(lines, sub+"/"+e.Name())
 		}
 	}
+	// Byte order, matching the guest's `LC_ALL=C sort`. Go's sort.Strings is
+	// already byte-wise; the guest is the side that has to pin the locale.
 	sort.Strings(lines)
 	h := sha1.New()
 	for _, l := range lines {

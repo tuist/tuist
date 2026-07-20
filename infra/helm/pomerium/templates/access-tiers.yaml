@@ -198,3 +198,44 @@ subjects:
   - kind: Group
     name: tuist-{{ .Values.tuistEnv }}-write
     apiGroup: rbac.authorization.k8s.io
+---
+# Live-debug extension to the `edit` tier — the capabilities an operator reaches
+# for when a pod or node is misbehaving and reads alone can't narrow the cause.
+# The upstream `edit` role already covers `pods/exec` (a shell in the container),
+# but two gaps bite during the incidents this elevation exists for:
+#
+#   * `pods/ephemeralcontainers` → `kubectl debug`. The Kura pods (and most of
+#     our images) are distroless, so `exec` lands in a container with no shell
+#     and no `curl` — useless for "curl the instance's own metrics/health
+#     endpoint from inside." An ephemeral debug container shares the target
+#     pod's network namespace, so it can `curl localhost:<port>` against the
+#     process even when the pod is not Ready and even though the per-tenant
+#     NetworkPolicy blocks the apiserver from pod-proxying it directly.
+#
+#   * `nodes/proxy` (get) → the kubelet's read endpoints (`/stats/summary`,
+#     `/metrics`) on the node hosting the pod. This is the "is it disk, or the
+#     algorithm?" question answered without SSH: kubelet stats report the node's
+#     filesystem + resource pressure. Host-level, so unaffected by pod
+#     NetworkPolicies. Scoped to `get` only — POST/`create` through the kubelet
+#     proxy would be a second exec path, and it's not needed to read stats.
+#
+# Aggregates into `edit`, which only the JIT-elevated `tuist-<env>-write` group
+# binds to, so both are gated behind an active `/elevate` (TTL-bounded, audited)
+# and never available to the always-on view tier. Both are genuine privilege
+# boundaries — `kubectl debug` mutates a running pod, and `nodes/proxy` reaches
+# arbitrary kubelet read endpoints — so elevation, not the base tier, is the
+# right home for them.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: tuist-edit-live-debug
+  labels:
+    {{- include "pomerium.labels" . | nindent 4 }}
+    rbac.authorization.k8s.io/aggregate-to-edit: "true"
+rules:
+  - apiGroups: [""]
+    resources: ["pods/ephemeralcontainers"]
+    verbs: ["get", "list", "watch", "update", "patch"]
+  - apiGroups: [""]
+    resources: ["nodes/proxy"]
+    verbs: ["get"]
