@@ -43,8 +43,11 @@ use crate::{
         SEGMENT_FREE_SPACE_MARGIN,
     },
     failpoints::{FailpointName, FailpointSet},
+    file_cache::{
+        FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES, FileCachePolicy, reserve_foreground_staging,
+    },
     io::{IoController, PersistentFile},
-    memory::{FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES, FileCachePolicy, MemoryController},
+    memory::MemoryController,
     mmap::map_file_region,
     multipart::{error::MultipartError, part::MultipartPart, upload::MultipartUpload},
     replication::{operation::ReplicationOperation, outbox_message::OutboxMessage},
@@ -2847,9 +2850,7 @@ impl Store {
             return Err(MultipartError::PartsMismatch);
         }
         let upload_size: u64 = upload.parts.values().map(|part| part.size).sum();
-        let memory_reservation = self
-            .memory
-            .reserve_foreground_staging(upload_size)
+        let memory_reservation = reserve_foreground_staging(&self.memory, upload_size)
             .await
             .map_err(|_| MultipartError::MemoryPressure)?;
         let file_cache_policy = memory_reservation.file_cache_policy();

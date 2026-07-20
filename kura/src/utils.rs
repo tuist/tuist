@@ -16,11 +16,12 @@ use uuid::Uuid;
 use crate::{
     artifact::producer::ArtifactProducer,
     bandwidth::BandwidthLimiter,
-    io::{IoController, TrackedFile},
-    memory::{
-        FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES, FileCachePolicy, ForegroundMemoryReservation,
-        MemoryController,
+    file_cache::{
+        FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES, FileCachePolicy, ForegroundFileCacheReservation,
+        reserve_foreground_staging,
     },
+    io::{IoController, TrackedFile},
+    memory::MemoryController,
 };
 
 /// Byte-accounted reservation over the shared tmp-dir budget.
@@ -153,7 +154,7 @@ pub struct TempBodyFile {
     pub size: u64,
     pub file_cache_policy: FileCachePolicy,
     _cleanup: TempFileCleanup,
-    _memory_reservation: ForegroundMemoryReservation,
+    _memory_reservation: ForegroundFileCacheReservation,
 }
 
 impl TempBodyFile {
@@ -294,9 +295,7 @@ pub async fn read_request_to_temp(
         Some(declared_bytes) => declared_bytes,
         None => max_bytes,
     };
-    let memory_reservation = staging
-        .memory
-        .reserve_foreground_staging(declared_or_max_bytes)
+    let memory_reservation = reserve_foreground_staging(staging.memory, declared_or_max_bytes)
         .await
         .map_err(|_| BodyReadError::MemoryPressure)?;
     let disk_reservation = staging
