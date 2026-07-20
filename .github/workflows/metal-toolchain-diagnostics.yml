@@ -46,6 +46,22 @@ jobs:
           uptime
           sysctl -n kern.boottime || true
 
+      - name: Device identity fingerprint (are clones sharing one identity?)
+        run: |
+          # If every matrix leg prints the SAME UUIDs/serial, the whole fleet
+          # clones from one baked identity -> Apple sees N VMs as one device,
+          # which is the "shared MobileAsset/security device state" hypothesis.
+          # Grep these across legs afterwards; identical == shared identity.
+          echo "FINGERPRINT_VM=${{ matrix.vm }}"
+          ioreg -rd1 -c IOPlatformExpertDevice 2>/dev/null \
+            | grep -iE 'IOPlatformUUID|IOPlatformSerialNumber|board-id' \
+            | sed -E 's/^ *//' | sed 's/^/FINGERPRINT ioreg: /' || true
+          system_profiler SPHardwareDataType 2>/dev/null \
+            | grep -iE 'Hardware UUID|Serial Number|Provisioning UDID|Model Number' \
+            | sed -E 's/^ *//' | sed 's/^/FINGERPRINT sysprofile: /' || true
+          echo "FINGERPRINT sysctl hw.model: $(sysctl -n hw.model 2>/dev/null || echo n/a)"
+          echo "FINGERPRINT sysctl hw.uuid: $(sysctl -n hw.uuid 2>/dev/null || echo n/a)"
+
       - name: Clock skew (skewed clock breaks TLS to Apple)
         run: |
           echo "System UTC now: $(date -u)"
@@ -89,7 +105,7 @@ jobs:
       - name: Start asset-daemon log capture
         run: |
           log stream --style compact \
-            --predicate 'process == "mobileassetd" OR process == "nsurlsessiond" OR subsystem == "com.apple.mobileassetd"' \
+            --predicate 'process == "mobileassetd" OR process == "nsurlsessiond" OR process == "trustd" OR subsystem == "com.apple.mobileassetd"' \
             > /tmp/asset-stream.log 2>&1 &
           echo $! > /tmp/logpid
           sleep 2
@@ -106,6 +122,63 @@ jobs:
           echo "$rc" > /tmp/rc
           echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
 
+      - name: In-VM remediation ladder (only if first attempt hit exit 70)
+        if: always()
+        run: |
+          # Decision gate for the strategic fix. If a clone that failed the
+          # first attempt RECOVERS within this same boot via a cheap in-VM
+          # action, then per-clone host-level identity regeneration is NOT
+          # required — a boot-time daemon warmup / retry suffices. If nothing
+          # in-VM recovers it and the fingerprints prove a shared identity,
+          # that is the case for regenerating identity per clone at the host.
+          rc=$(cat /tmp/rc 2>/dev/null || echo unknown)
+          if [ "$rc" = "0" ]; then
+            echo "REMEDIATION_RESULT=first-attempt-succeeded (nothing to remediate)"
+            exit 0
+          fi
+          echo "First attempt failed (rc=$rc). Probing in-boot recovery."
+
+          passwordless_sudo=no
+          if sudo -n true 2>/dev/null; then passwordless_sudo=yes; fi
+          echo "passwordless_sudo=$passwordless_sudo"
+
+          attempt() {
+            local label="$1" start end rc
+            start=$(date +%s)
+            xcodebuild -downloadComponent MetalToolchain >/tmp/rem.log 2>&1
+            rc=$?
+            end=$(date +%s)
+            echo "  $label: rc=$rc dur=$((end - start))s"
+            tail -2 /tmp/rem.log | sed 's/^/    /'
+            return $rc
+          }
+
+          # Ladder A — plain retries, no root. Directly tells us whether the
+          # already-shipped 3-attempt cli.yml retry actually self-heals a boot.
+          for i in 1 2 3; do
+            if attempt "plain-retry-$i"; then
+              echo "REMEDIATION_RESULT=recovered-by-plain-retry-$i"
+              exit 0
+            fi
+            sleep 5
+          done
+
+          # Ladder B — restart the asset/trust daemons (launchd respawns them),
+          # then retry. Tests the local securityd/mobileassetd init-race theory.
+          if [ "$passwordless_sudo" = "yes" ]; then
+            sudo killall -9 mobileassetd 2>/dev/null || true
+            sudo killall -9 trustd 2>/dev/null || true
+            sleep 3
+            if attempt "after-daemon-restart"; then
+              echo "REMEDIATION_RESULT=recovered-by-daemon-restart"
+              exit 0
+            fi
+          else
+            echo "  (skipped daemon-restart ladder: no passwordless sudo)"
+          fi
+
+          echo "REMEDIATION_RESULT=not-recovered-in-boot (points at host-level shared state)"
+
       - name: Dump captured asset-daemon logs
         if: always()
         run: |
@@ -116,7 +189,7 @@ jobs:
           echo
           echo "===== persisted asset log (last 10 min) ====="
           log show --last 10m --style compact \
-            --predicate 'process == "mobileassetd" OR process == "nsurlsessiond" OR subsystem == "com.apple.mobileassetd"' \
+            --predicate 'process == "mobileassetd" OR process == "nsurlsessiond" OR process == "trustd" OR subsystem == "com.apple.mobileassetd"' \
             2>/dev/null | tail -300 || echo "(log show unavailable)"
 
       - name: Verdict (red leg == exit-70 catalog failure)
