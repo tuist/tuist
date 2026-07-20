@@ -155,6 +155,23 @@ func (c *Client) Set(ctx context.Context, name string, cpu, memoryMB int) error 
 	return err
 }
 
+// RegenerateIdentity gives a freshly-cloned macOS VM its own device identity.
+// `tart clone` copies the source VM's ECID (VZMacMachineIdentifier) verbatim,
+// so every clone off one golden base presents the SAME serial + IOPlatformUUID
+// to Apple. Concurrent clones then collide at Apple's MobileAsset
+// personalization: the signed asset catalog fails to verify on a fraction of
+// them (mobileassetd CSSMERR_CSP_VERIFY_FAILED), which surfaces as the
+// intermittent `xcodebuild -downloadComponent MetalToolchain` exit-70 failure.
+// `tart set --random-serial` mints a fresh VZMacMachineIdentifier (arm64 only);
+// the serial and IOPlatformUUID derive from it, so each clone becomes a distinct
+// device. Must run while the VM is stopped — i.e. right after clone, before run.
+func (c *Client) RegenerateIdentity(ctx context.Context, name string) error {
+	ctx, cancel := context.WithTimeout(ctx, setTimeout)
+	defer cancel()
+	_, err := c.run(ctx, c.Binary, "set", name, "--random-serial")
+	return err
+}
+
 // RunHandle exposes the lifecycle of a backgrounded `tart run`
 // process. The reconciler stashes one in its Store entry alongside
 // the VM name so subsequent reconciles can detect a process that
