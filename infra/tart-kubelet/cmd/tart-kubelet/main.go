@@ -296,6 +296,13 @@ func main() {
 	volumes.CASGiB = cacheVolumeCASGiB
 	if volumes.Enabled() {
 		setupLog.Info("per-account cache volumes enabled", "root", runnerCacheRoot, "cap-gib", cacheVolumeCapGiB, "cas-gib", cacheVolumeCASGiB)
+		// Wait for the runner-cache volume to actually mount BEFORE recoverState
+		// runs. recoverState reattaches the branches of VMs that survived a kubelet
+		// restart and populates the retained set the startup sweep trusts; if the
+		// volume were still unmounted during recovery but appeared afterward, the
+		// sweep would delete branches those surviving VMs still have mounted. On a
+		// normally-mounted host this returns immediately.
+		volumes.AwaitMountedRoot(context.Background())
 		if err := mgr.Add(volumes); err != nil {
 			setupLog.Error(err, "add cache-volume manager")
 			os.Exit(1)
