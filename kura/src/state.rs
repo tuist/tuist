@@ -59,6 +59,8 @@ pub struct AppState {
     pub notify: Notify,
     pub readiness: Mutex<ReadinessState>,
     pub bootstrap_semaphore: Arc<Semaphore>,
+    /// Process-wide byte budget shared by every transient disk writer.
+    pub tmp_staging_budget: Arc<TmpBudget>,
     pub bootstrap_staging_budget: Arc<TmpBudget>,
     // Per-artifact gate that single-flights the bootstrap body download across
     // peers: only the first peer-task to claim a key fetches it, and the rest

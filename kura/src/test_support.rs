@@ -125,6 +125,7 @@ where
         DataDirLock::acquire(&config.data_dir).expect("failed to acquire test writer lock");
     let store =
         Store::open(&config, io.clone(), memory.clone()).expect("failed to open test store");
+    let tmp_staging_budget = store.tmp_staging_budget();
     let analytics =
         Analytics::from_config(config.analytics.as_ref(), &config.node_url, metrics.clone())
             .expect("failed to build test analytics");
@@ -168,6 +169,7 @@ where
         notify: Notify::new(),
         readiness: tokio::sync::Mutex::new(ReadinessState::new(Instant::now())),
         bootstrap_semaphore,
+        tmp_staging_budget,
         bootstrap_staging_budget,
         bootstrap_fetch_locks: (0..crate::constants::BOOTSTRAP_FETCH_LOCK_STRIPES)
             .map(|_| tokio::sync::Mutex::new(()))

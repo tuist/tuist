@@ -134,6 +134,7 @@ async fn run_with_config(
         config.snapshot_cache_max_bytes,
     ));
     let store = Store::open(&config, io.clone(), memory.clone())?;
+    let tmp_staging_budget = store.tmp_staging_budget();
     match store.sweep_orphaned_segments().await {
         Ok(0) => {}
         Ok(swept) => tracing::info!(swept, "removed orphaned segment files"),
@@ -191,6 +192,7 @@ async fn run_with_config(
         notify,
         readiness: tokio::sync::Mutex::new(ReadinessState::new(Instant::now())),
         bootstrap_semaphore,
+        tmp_staging_budget,
         bootstrap_staging_budget,
         bootstrap_fetch_locks: (0..crate::constants::BOOTSTRAP_FETCH_LOCK_STRIPES)
             .map(|_| tokio::sync::Mutex::new(()))

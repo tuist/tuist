@@ -4,7 +4,7 @@ use std::{
     pin::Pin,
     sync::{
         Arc, Mutex as StdMutex,
-        atomic::{AtomicU64, Ordering},
+        atomic::{AtomicU64, AtomicUsize, Ordering},
     },
     task::{Context, Poll},
     time::{Duration, Instant},
@@ -54,10 +54,10 @@ use crate::{
     },
     usage::UsageRollup,
     utils::{
-        TempFileCleanup, action_cache_index_key, action_cache_index_prefix,
-        action_cache_manifest_hash, artifact_storage_id, drop_staging_cache_range,
-        ensure_tmp_dir_capacity, module_key, namespace_artifact_index_key, now_ms,
-        segment_artifact_index_key, segment_artifact_index_prefix, segment_path, temp_file_path,
+        TempFileCleanup, TmpBudget, action_cache_index_key, action_cache_index_prefix,
+        action_cache_manifest_hash, artifact_storage_id, drop_staging_cache_range, module_key,
+        namespace_artifact_index_key, now_ms, segment_artifact_index_key,
+        segment_artifact_index_prefix, segment_path, temp_file_path,
     },
 };
 
@@ -66,6 +66,11 @@ const ARTIFACT_WRITE_LOCK_STRIPES: usize = 64;
 pub const EXISTENCE_CACHE_CAPACITY: usize = 65_536;
 const EXISTENCE_CACHE_TTL: Duration = Duration::from_secs(30);
 const SEGMENT_COPY_BUFFER_BYTES: usize = 256 * 1024;
+const OUTBOX_FULL_ERROR: &str = "replication outbox capacity exhausted";
+
+pub fn is_outbox_full_error(error: &str) -> bool {
+    error.starts_with(OUTBOX_FULL_ERROR)
+}
 
 pub struct Store {
     db: DB,
@@ -73,12 +78,14 @@ pub struct Store {
     memory: MemoryController,
     tenant_id: String,
     tmp_dir: PathBuf,
-    tmp_dir_max_bytes: u64,
+    tmp_staging_budget: Arc<TmpBudget>,
     data_dir: PathBuf,
     segment_ring_limits: SegmentRingLimits,
     rocksdb_block_cache_capacity_bytes: usize,
     rocksdb_block_cache: Cache,
     rocksdb_write_buffer_manager: WriteBufferManager,
+    outbox_depth: AtomicUsize,
+    outbox_max_depth: usize,
     segment_write_lock: Mutex<()>,
     // Counts segment fsyncs so tests can assert durability is batched across
     // concurrent writers rather than one fsync per write under the global lock.
@@ -219,6 +226,26 @@ struct PersistArtifactSpec<'a> {
     content_type: &'a str,
     version_ms: u64,
     replication_targets: &'a [String],
+}
+
+struct OutboxReservation<'a> {
+    depth: &'a AtomicUsize,
+    slots: usize,
+    committed: bool,
+}
+
+impl OutboxReservation<'_> {
+    fn commit(mut self) {
+        self.committed = true;
+    }
+}
+
+impl Drop for OutboxReservation<'_> {
+    fn drop(&mut self) {
+        if !self.committed && self.slots > 0 {
+            release_atomic_slots(self.depth, self.slots);
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -471,12 +498,14 @@ impl Store {
             memory,
             tenant_id: config.tenant_id.clone(),
             tmp_dir: config.tmp_dir.clone(),
-            tmp_dir_max_bytes: config.tmp_dir_max_bytes,
+            tmp_staging_budget: TmpBudget::new(config.tmp_dir_max_bytes),
             data_dir: config.data_dir.clone(),
             segment_ring_limits,
             rocksdb_block_cache_capacity_bytes: config.rocksdb_block_cache_bytes,
             rocksdb_block_cache,
             rocksdb_write_buffer_manager,
+            outbox_depth: AtomicUsize::new(0),
+            outbox_max_depth: config.outbox_max_depth,
             segment_write_lock: Mutex::new(()),
             segment_fsync_count: Arc::new(AtomicU64::new(0)),
             pending_seq: AtomicU64::new(0),
@@ -501,7 +530,53 @@ impl Store {
         // constructed (with a placeholder snapshot) before it can be seeded.
         let segment_state = store.load_segment_state_from_db()?;
         store.replace_segment_state_snapshot(segment_state);
+        let outbox_depth = store.count_cf_entries_exact(ROCKSDB_CF_OUTBOX)?;
+        store.outbox_depth.store(outbox_depth, Ordering::Release);
         Ok(store)
+    }
+
+    pub fn tmp_staging_budget(&self) -> Arc<TmpBudget> {
+        self.tmp_staging_budget.clone()
+    }
+
+    pub fn outbox_depth(&self) -> usize {
+        self.outbox_depth.load(Ordering::Acquire)
+    }
+
+    fn reserve_outbox_slots(&self, slots: usize) -> Result<OutboxReservation<'_>, String> {
+        if slots == 0 {
+            return Ok(OutboxReservation {
+                depth: &self.outbox_depth,
+                slots,
+                committed: false,
+            });
+        }
+
+        let mut current = self.outbox_depth.load(Ordering::Acquire);
+        loop {
+            let requested = current.saturating_add(slots);
+            if requested > self.outbox_max_depth {
+                return Err(format!(
+                    "{OUTBOX_FULL_ERROR}: {current} messages queued, {slots} slots requested, {} allowed",
+                    self.outbox_max_depth
+                ));
+            }
+            match self.outbox_depth.compare_exchange_weak(
+                current,
+                requested,
+                Ordering::AcqRel,
+                Ordering::Acquire,
+            ) {
+                Ok(_) => {
+                    return Ok(OutboxReservation {
+                        depth: &self.outbox_depth,
+                        slots,
+                        committed: false,
+                    });
+                }
+                Err(observed) => current = observed,
+            }
+        }
     }
 
     fn multipart_lock_for(&self, upload_id: &str) -> &Mutex<()> {
@@ -727,6 +802,7 @@ impl Store {
             self.io.remove_file_if_exists(source_path).await;
             return Ok((PersistArtifactOutcome::IgnoredTombstone, already_present));
         }
+        let outbox_reservation = self.reserve_outbox_slots(spec.replication_targets.len())?;
 
         let persisted_version_ms = persisted_version_ms(spec.version_ms);
         let (location, evicted_segments) = self
@@ -805,6 +881,7 @@ impl Store {
         self.append_artifact_replication_messages(&mut batch, &manifest, spec.replication_targets)?;
 
         self.write_batch_sync(batch, "manifest batch")?;
+        outbox_reservation.commit();
         self.hit_failpoint(FailpointName::AfterMetadataCommitBeforeReturn)
             .await?;
         self.maybe_cache_manifest(manifest.clone());
@@ -1306,6 +1383,7 @@ impl Store {
         if self.namespace_tombstone_blocks(spec.namespace_id, spec.version_ms)? {
             return Ok(PersistArtifactOutcome::IgnoredTombstone);
         }
+        let outbox_reservation = self.reserve_outbox_slots(spec.replication_targets.len())?;
 
         let persisted_version_ms = persisted_version_ms(spec.version_ms);
 
@@ -1363,6 +1441,7 @@ impl Store {
         self.append_artifact_replication_messages(&mut batch, &manifest, spec.replication_targets)?;
 
         self.write_batch_sync(batch, "keyvalue batch")?;
+        outbox_reservation.commit();
         self.maybe_cache_manifest(manifest.clone());
         self.note_artifact_exists(&artifact_id);
 
@@ -2199,15 +2278,14 @@ impl Store {
         spec: PersistArtifactSpec<'_>,
         bytes: &[u8],
     ) -> Result<(PersistArtifactOutcome, bool), String> {
+        let disk_reservation = self.tmp_staging_budget.try_reserve(bytes.len() as u64)?;
         let temp_path = temp_file_path(&self.tmp_dir.join("uploads"), "replication");
-        let mut cleanup = TempFileCleanup::new(temp_path.clone());
+        let mut cleanup = TempFileCleanup::new(temp_path.clone(), disk_reservation);
         self.io.write(&temp_path, bytes).await?;
         let result = self
             .persist_artifact_from_path_with_version(spec, &temp_path, FileCachePolicy::Adaptive)
             .await;
-        if result.is_ok() {
-            cleanup.disarm();
-        }
+        cleanup.remove_and_disarm(&self.io).await;
         result
     }
 
@@ -2259,6 +2337,11 @@ impl Store {
         {
             return Ok(NamespaceDeleteOutcome::IgnoredOlder);
         }
+        let outbox_reservation = self.reserve_outbox_slots(if delete_everything {
+            0
+        } else {
+            replication_targets.len()
+        })?;
         if !delete_everything {
             batch.put_cf(
                 self.cf(ROCKSDB_CF_NAMESPACE_TOMBSTONES),
@@ -2332,6 +2415,7 @@ impl Store {
         }
 
         self.write_batch_sync(batch, "delete namespace batch")?;
+        outbox_reservation.commit();
         self.remove_manifest_cache_keys(&removed_artifact_ids);
 
         for path in blob_paths {
@@ -2523,12 +2607,13 @@ impl Store {
             .await
             .map_err(|_| MultipartError::MemoryPressure)?;
         let file_cache_policy = memory_reservation.file_cache_policy();
-        ensure_tmp_dir_capacity(&self.tmp_dir, upload_size, self.tmp_dir_max_bytes)
-            .await
+        let disk_reservation = self
+            .tmp_staging_budget
+            .try_reserve(upload_size)
             .map_err(MultipartError::Other)?;
 
         let assembled_path = temp_file_path(&self.tmp_dir.join("uploads"), "module");
-        let mut cleanup = TempFileCleanup::new(assembled_path.clone());
+        let mut cleanup = TempFileCleanup::new(assembled_path.clone(), disk_reservation);
         let mut assembled = self
             .io
             .create_file(&assembled_path)
@@ -2620,7 +2705,7 @@ impl Store {
             .await
             .map_err(MultipartError::Other)?
             .manifest;
-        cleanup.disarm();
+        cleanup.remove_and_disarm(&self.io).await;
         drop(memory_reservation);
 
         self.abort_multipart_upload_locked(upload_id)
@@ -2654,12 +2739,15 @@ impl Store {
 
     #[cfg(test)]
     pub fn enqueue(&self, message: OutboxMessage) -> Result<(), String> {
+        let outbox_reservation = self.reserve_outbox_slots(1)?;
         let key = outbox_message_key(&message);
         let value = serde_json::to_vec(&message)
             .map_err(|error| format!("failed to encode outbox message: {error}"))?;
         let mut batch = WriteBatch::default();
         batch.put_cf(self.cf(ROCKSDB_CF_OUTBOX), key.as_bytes(), value);
-        self.write_batch_sync(batch, "outbox message")
+        self.write_batch_sync(batch, "outbox message")?;
+        outbox_reservation.commit();
+        Ok(())
     }
 
     pub fn next_outbox_message(
@@ -2690,7 +2778,7 @@ impl Store {
     }
 
     pub fn outbox_message_count(&self) -> Result<usize, String> {
-        self.count_cf_entries(ROCKSDB_CF_OUTBOX)
+        Ok(self.outbox_depth())
     }
 
     pub fn append_usage_rollups(&self, rollups: &[UsageRollup]) -> Result<(), String> {
@@ -3191,7 +3279,9 @@ impl Store {
     pub fn delete_outbox_message(&self, key: &[u8]) -> Result<(), String> {
         self.db
             .delete_cf(self.cf(ROCKSDB_CF_OUTBOX), key)
-            .map_err(|error| format!("failed to delete outbox entry: {error}"))
+            .map_err(|error| format!("failed to delete outbox entry: {error}"))?;
+        release_atomic_slots(&self.outbox_depth, 1);
+        Ok(())
     }
 
     #[cfg(test)]
@@ -3475,6 +3565,22 @@ impl Store {
     fn note_artifact_exists(&self, artifact_id: &str) {
         self.existence_cache.insert(artifact_id);
     }
+
+    fn count_cf_entries_exact(&self, name: &str) -> Result<usize, String> {
+        let iter = self.db.iterator_cf(self.cf(name), IteratorMode::Start);
+        let mut count = 0_usize;
+        for item in iter {
+            item.map_err(|error| format!("failed to iterate {name}: {error}"))?;
+            count = count.saturating_add(1);
+        }
+        Ok(count)
+    }
+}
+
+fn release_atomic_slots(depth: &AtomicUsize, slots: usize) {
+    let _ = depth.fetch_update(Ordering::AcqRel, Ordering::Acquire, |current| {
+        Some(current.saturating_sub(slots))
+    });
 }
 
 fn next_total_size(parts: &BTreeMap<u32, MultipartPart>, part_number: u32, size: u64) -> u64 {
@@ -3791,7 +3897,9 @@ impl ExistenceCache {
 fn estimated_manifest_bytes(manifest: &ArtifactManifest) -> usize {
     let optional_blob_path = manifest.blob_path.as_deref().map(str::len).unwrap_or(0);
     let optional_segment_id = manifest.segment_id.as_deref().map(str::len).unwrap_or(0);
-    manifest.artifact_id.len()
+    // The artifact id is owned three times: inside the manifest, as the
+    // HashMap key, and in AccessOrder's BTreeMap value.
+    manifest.artifact_id.len().saturating_mul(3)
         + manifest.namespace_id.len()
         + manifest.key.len()
         + manifest.content_type.len()
@@ -6305,6 +6413,110 @@ mod tests {
                 .expect("failed to read outbox messages")
                 .is_empty()
         );
+    }
+
+    #[tokio::test]
+    async fn outbox_capacity_is_enforced_atomically_across_writers() {
+        let (_temp_dir, _config, store) = temp_store_with(|config| {
+            config.outbox_max_depth = 5;
+        });
+        let store = Arc::new(store);
+        let mut writers = Vec::new();
+        for index in 0..20 {
+            let store = store.clone();
+            writers.push(tokio::spawn(async move {
+                store
+                    .persist_inline_artifact_from_bytes_and_enqueue(
+                        ArtifactProducer::Reapi,
+                        "ios",
+                        &format!("action_cache/{index}"),
+                        "application/x-protobuf",
+                        b"value",
+                        &["http://peer".into()],
+                    )
+                    .await
+            }));
+        }
+
+        let mut accepted = 0;
+        let mut rejected = 0;
+        for writer in writers {
+            match writer.await.expect("writer task") {
+                Ok(_) => accepted += 1,
+                Err(error) if is_outbox_full_error(&error) => rejected += 1,
+                Err(error) => panic!("unexpected write failure: {error}"),
+            }
+        }
+
+        assert_eq!(accepted, 5);
+        assert_eq!(rejected, 15);
+        assert_eq!(store.outbox_depth(), 5);
+        assert_eq!(store.outbox_message_count().expect("outbox count"), 5);
+    }
+
+    #[tokio::test]
+    async fn deleting_an_outbox_message_releases_capacity() {
+        let (_temp_dir, _config, store) = temp_store_with(|config| {
+            config.outbox_max_depth = 1;
+        });
+        let message = OutboxMessage {
+            target: "http://peer".into(),
+            operation: ReplicationOperation::DeleteNamespace {
+                namespace_id: "ios".into(),
+                version_ms: 123,
+            },
+        };
+        store.enqueue(message.clone()).expect("first enqueue");
+        assert!(is_outbox_full_error(
+            &store
+                .enqueue(message.clone())
+                .expect_err("capacity rejection")
+        ));
+
+        let (key, _) = store
+            .next_outbox_message(None)
+            .expect("outbox read")
+            .expect("queued message");
+        store.delete_outbox_message(&key).expect("outbox deletion");
+        store.enqueue(message).expect("capacity should be reusable");
+        assert_eq!(store.outbox_depth(), 1);
+    }
+
+    #[test]
+    fn reopening_the_store_rebuilds_exact_outbox_depth() {
+        let (_temp_dir, config, store) = temp_store_with(|config| {
+            config.outbox_max_depth = 1;
+        });
+        let message = OutboxMessage {
+            target: "http://peer".into(),
+            operation: ReplicationOperation::DeleteNamespace {
+                namespace_id: "ios".into(),
+                version_ms: 123,
+            },
+        };
+        store.enqueue(message.clone()).expect("seed outbox");
+        drop(store);
+
+        let io = IoController::new(
+            Metrics::new(config.region.clone(), config.tenant_id.clone()),
+            config.file_descriptor_pool_size,
+            std::time::Duration::from_millis(config.file_descriptor_acquire_timeout_ms),
+            vec![config.tmp_dir.clone(), config.data_dir.clone()],
+        )
+        .expect("failed to recreate io controller");
+        let memory = MemoryController::new(
+            io.metrics(),
+            config.memory_soft_limit_bytes,
+            config.memory_hard_limit_bytes,
+        );
+        let reopened = Store::open(&config, io, memory).expect("failed to reopen store");
+
+        assert_eq!(reopened.outbox_depth(), 1);
+        assert!(is_outbox_full_error(
+            &reopened
+                .enqueue(message)
+                .expect_err("reopened store must enforce persisted depth")
+        ));
     }
 
     #[test]

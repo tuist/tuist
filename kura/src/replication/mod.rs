@@ -245,20 +245,22 @@ pub async fn replication_targets(state: &SharedState) -> Vec<String> {
 }
 
 async fn maybe_spawn_bootstrap_task(state: SharedState, peer: String) {
+    // Membership retries every two seconds. Avoid allocating one parked task
+    // per known peer: only peers that can acquire both pressure and concurrency
+    // admission become in-flight work.
+    if !state.memory.allow_background_admission() {
+        return;
+    }
+    let Ok(permit) = state.bootstrap_semaphore.clone().try_acquire_owned() else {
+        return;
+    };
     let Some(epoch) = state.note_bootstrap_started(&peer).await else {
         return;
     };
 
-    let semaphore = state.bootstrap_semaphore.clone();
     tokio::spawn(
         async move {
-            let _permit = match semaphore.acquire_owned().await {
-                Ok(permit) => permit,
-                Err(_) => {
-                    state.note_bootstrap_failed(&peer).await;
-                    return;
-                }
-            };
+            let _permit = permit;
             state.memory.wait_for_background_headroom().await;
             let started_at = std::time::Instant::now();
             let no_progress_timeout = Duration::from_millis(state.config.bootstrap_timeout_ms);
@@ -708,12 +710,10 @@ async fn bootstrap_artifact_from_peer(
     // reservation exists to prevent. (The node is out of the Service while
     // bootstrapping, so non-bootstrap tmp occupants are negligible.)
     let _staging_reservation = state.bootstrap_staging_budget.reserve(reserved_bytes).await;
+    let disk_reservation = state.tmp_staging_budget.try_reserve(reserved_bytes)?;
     let temp_path = temp_file_path(&state.config.tmp_dir.join("bootstrap"), "bootstrap");
-    let mut cleanup = TempFileCleanup::new(temp_path.clone());
-    if let Err(error) = stream_response_to_temp(state, response, &temp_path, reserved_bytes).await {
-        cleanup.disarm();
-        return Err(error);
-    }
+    let mut cleanup = TempFileCleanup::new(temp_path.clone(), disk_reservation);
+    stream_response_to_temp(state, response, &temp_path, reserved_bytes).await?;
     state
         .store
         .hit_failpoint(FailpointName::AfterBootstrapArtifactFetchBeforePersist)
@@ -729,9 +729,7 @@ async fn bootstrap_artifact_from_peer(
             manifest.version_ms,
         )
         .await;
-    if result.is_ok() {
-        cleanup.disarm();
-    }
+    cleanup.remove_and_disarm(&state.io).await;
     result
 }
 

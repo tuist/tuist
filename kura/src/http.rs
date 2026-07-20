@@ -37,7 +37,7 @@ use crate::{
     replication::replication_targets,
     runtime::{HttpTrafficClass, InflightGuard},
     state::SharedState,
-    store::{ManifestDigest, StagedArtifactPath, is_disk_full_error},
+    store::{ManifestDigest, StagedArtifactPath, is_disk_full_error, is_outbox_full_error},
     telemetry::{attach_parent_context, record_trace_context},
     utils::{
         BodyReadError, RequestBodyStaging, action_cache_key, blob_key, module_key,
@@ -620,7 +620,7 @@ async fn reject_overloaded_public_writes(
                 .record_memory_action("write_rejected_critical");
             return overloaded_response("server is shedding writes due to memory pressure");
         }
-        if state.runtime.outbox_depth() >= state.config.outbox_max_depth {
+        if state.store.outbox_depth() >= state.config.outbox_max_depth {
             state.metrics.record_memory_action("write_rejected_outbox");
             return overloaded_response("server is shedding writes while replication catches up");
         }
@@ -1546,8 +1546,7 @@ async fn upload_module_part(
         &state.config.tmp_dir.join("parts"),
         MAX_MODULE_PART_BYTES,
         RequestBodyStaging {
-            tmp_dir: &state.config.tmp_dir,
-            tmp_dir_max_bytes: state.config.tmp_dir_max_bytes,
+            tmp_budget: &state.tmp_staging_budget,
             io: &state.io,
             memory: &state.memory,
             bandwidth_limiter: None,
@@ -1586,12 +1585,10 @@ async fn upload_module_part(
             StatusCode::NO_CONTENT.into_response()
         }
         Err(MultipartError::NotFound) => {
-            state.io.remove_file_if_exists(&temp.path).await;
             state.metrics.record_multipart_part("not_found");
             error_response(StatusCode::NOT_FOUND, "Upload not found")
         }
         Err(MultipartError::TotalSizeExceeded) => {
-            state.io.remove_file_if_exists(&temp.path).await;
             state.metrics.record_multipart_part("too_large");
             error_response(
                 StatusCode::UNPROCESSABLE_ENTITY,
@@ -1599,7 +1596,6 @@ async fn upload_module_part(
             )
         }
         Err(MultipartError::Other(error)) => {
-            state.io.remove_file_if_exists(&temp.path).await;
             state.metrics.record_multipart_part("error");
             error_response(
                 StatusCode::INTERNAL_SERVER_ERROR,
@@ -1607,16 +1603,14 @@ async fn upload_module_part(
             )
         }
         Err(MultipartError::PartsMismatch) => {
-            state.io.remove_file_if_exists(&temp.path).await;
             state.metrics.record_multipart_part("parts_mismatch");
             error_response(StatusCode::BAD_REQUEST, "Parts mismatch")
         }
         Err(MultipartError::MemoryPressure) => {
-            state.io.remove_file_if_exists(&temp.path).await;
             overloaded_response("server is applying upload memory backpressure")
         }
     };
-    temp.disarm_cleanup();
+    temp.remove_and_disarm(&state.io).await;
     response
 }
 
@@ -1670,6 +1664,9 @@ async fn complete_module_upload(
         Err(MultipartError::MemoryPressure) => {
             overloaded_response("server is applying upload memory backpressure")
         }
+        Err(MultipartError::Other(error)) if is_outbox_full_error(&error) => {
+            overloaded_response("server is shedding writes while replication catches up")
+        }
         Err(MultipartError::Other(error)) => io_error_response(
             format!("Failed to complete multipart upload: {error}"),
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -1695,6 +1692,9 @@ async fn clean_namespace(
         Ok(_version_ms) => {
             state.notify.notify_one();
             StatusCode::NO_CONTENT.into_response()
+        }
+        Err(error) if is_outbox_full_error(&error) => {
+            overloaded_response("server is shedding writes while replication catches up")
         }
         Err(error) => error_response(
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -1949,8 +1949,7 @@ async fn internal_replicate_artifact(
         &state.config.tmp_dir.join("uploads"),
         MAX_REPLICATION_BODY_BYTES,
         RequestBodyStaging {
-            tmp_dir: &state.config.tmp_dir,
-            tmp_dir_max_bytes: state.config.tmp_dir_max_bytes,
+            tmp_budget: &state.tmp_staging_budget,
             io: &state.io,
             memory: &state.memory,
             bandwidth_limiter: state.replication_bandwidth_limiter.as_deref(),
@@ -2005,8 +2004,7 @@ async fn internal_replicate_artifact(
             query.version_ms,
         )
         .await;
-    state.io.remove_file_if_exists(&temp.path).await;
-    temp.disarm_cleanup();
+    temp.remove_and_disarm(&state.io).await;
     match result {
         Ok(outcome) => {
             state
@@ -2141,8 +2139,7 @@ async fn put_blob_artifact(
         &state.config.tmp_dir.join("uploads"),
         spec.max_bytes,
         RequestBodyStaging {
-            tmp_dir: &state.config.tmp_dir,
-            tmp_dir_max_bytes: state.config.tmp_dir_max_bytes,
+            tmp_budget: &state.tmp_staging_budget,
             io: &state.io,
             memory: &state.memory,
             bandwidth_limiter: None,
@@ -2186,8 +2183,7 @@ async fn put_blob_artifact(
             &targets,
         )
         .await;
-    state.io.remove_file_if_exists(&temp.path).await;
-    temp.disarm_cleanup();
+    temp.remove_and_disarm(&state.io).await;
     match result {
         Ok(persisted) => {
             state.notify.notify_one();

@@ -358,15 +358,17 @@ impl IoController {
         .await
     }
 
-    pub async fn remove_file_if_exists(&self, path: &Path) {
+    pub async fn remove_file_if_exists_result(&self, path: &Path) -> Result<(), String> {
         match self.path_exists(path).await {
-            Ok(true) => {
-                if let Err(error) = self.remove_file(path).await {
-                    tracing::warn!("{error}");
-                }
-            }
-            Ok(false) => {}
-            Err(error) => tracing::warn!("{error}"),
+            Ok(true) => self.remove_file(path).await,
+            Ok(false) => Ok(()),
+            Err(error) => Err(error),
+        }
+    }
+
+    pub async fn remove_file_if_exists(&self, path: &Path) {
+        if let Err(error) = self.remove_file_if_exists_result(path).await {
+            tracing::warn!("{error}");
         }
     }
 

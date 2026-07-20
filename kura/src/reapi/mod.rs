@@ -45,13 +45,13 @@ use crate::{
     io::is_fd_pool_exhausted_error,
     memory::{
         FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES, FileCachePolicy, ForegroundMemoryReservation,
+        MemoryPressure,
     },
     replication::replication_targets,
     state::SharedState,
-    store::StagedArtifactPath,
+    store::{StagedArtifactPath, is_outbox_full_error},
     utils::{
-        TempFileCleanup, action_cache_key, blob_key, drop_staging_cache_range,
-        ensure_tmp_dir_capacity, temp_file_path,
+        TempFileCleanup, action_cache_key, blob_key, drop_staging_cache_range, temp_file_path,
     },
 };
 
@@ -59,6 +59,10 @@ const DEFAULT_INSTANCE_NAME: &str = "default";
 const REAPI_READ_STREAM_CHUNK_BYTES: usize = 512 * 1024;
 const REAPI_MATERIALIZATION_REJECTED_ACTION: &str = "reapi_materialization_rejected";
 const BYTESTREAM_WRITE_PATH: &str = "/google.bytestream.ByteStream/Write";
+const ACTION_CACHE_UPDATE_PATH: &str =
+    "/build.bazel.remote.execution.v2.ActionCache/UpdateActionResult";
+const CAS_BATCH_UPDATE_PATH: &str =
+    "/build.bazel.remote.execution.v2.ContentAddressableStorage/BatchUpdateBlobs";
 // This duplicates Tonic's five-byte gRPC envelope so memory is admitted before
 // Tonic retains and decodes each message. Keep it aligned with Tonic's decoder:
 // https://github.com/hyperium/tonic/blob/v0.14.5/tonic/src/codec/decode.rs
@@ -442,9 +446,47 @@ pub fn routes(state: SharedState) -> axum::Router {
         .into_axum_router()
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
+            reject_overloaded_grpc_writes,
+        ))
+        .layer(axum::middleware::from_fn_with_state(
+            state.clone(),
             admit_bytestream_write_decode,
         ))
         .layer(GrpcRequestAccountingLayer { state })
+}
+
+async fn reject_overloaded_grpc_writes(
+    axum::extract::State(state): axum::extract::State<SharedState>,
+    request: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> axum::response::Response {
+    if !is_reapi_write_path(request.uri().path()) {
+        return next.run(request).await;
+    }
+    if state.memory.pressure() == MemoryPressure::Critical {
+        state
+            .metrics
+            .record_memory_action("grpc_write_rejected_critical");
+        return grpc_status_response(Status::resource_exhausted(
+            "server is shedding writes due to memory pressure; retry the write",
+        ));
+    }
+    if state.store.outbox_depth() >= state.config.outbox_max_depth {
+        state
+            .metrics
+            .record_memory_action("grpc_write_rejected_outbox");
+        return grpc_status_response(Status::resource_exhausted(
+            "server is shedding writes while replication catches up; retry the write",
+        ));
+    }
+    next.run(request).await
+}
+
+fn is_reapi_write_path(path: &str) -> bool {
+    matches!(
+        path,
+        BYTESTREAM_WRITE_PATH | ACTION_CACHE_UPDATE_PATH | CAS_BATCH_UPDATE_PATH
+    )
 }
 
 async fn admit_bytestream_write_decode(
@@ -651,6 +693,7 @@ impl ReapiService {
         &self,
         temp_path: &std::path::Path,
         request: Request<tonic::Streaming<bytestream::WriteRequest>>,
+        cleanup: &mut TempFileCleanup,
     ) -> Result<Response<bytestream::WriteResponse>, Status> {
         // ByteStream Write learns its namespace from the first chunk's
         // resource_name, which is not available until we read the stream. Capture
@@ -724,19 +767,18 @@ impl ReapiService {
                     artifact_hash: None,
                 };
                 principal = self.authorize_metadata(&metadata, write_extension).await?;
-                ensure_tmp_dir_capacity(
-                    &self.state.config.tmp_dir,
-                    parsed_resource.size_bytes,
-                    self.state.config.tmp_dir_max_bytes,
-                )
-                .await
-                .map_err(|error| {
-                    Status::resource_exhausted(format!(
-                        "temporary storage budget exhausted: {error}"
-                    ))
-                })?;
                 file_cache_policy =
                     memory_admission.try_configure_staging(parsed_resource.size_bytes)?;
+                let disk_reservation = self
+                    .state
+                    .tmp_staging_budget
+                    .try_reserve(parsed_resource.size_bytes)
+                    .map_err(|error| {
+                        Status::resource_exhausted(format!(
+                            "temporary storage budget exhausted: {error}"
+                        ))
+                    })?;
+                cleanup.set_reservation(disk_reservation);
                 resource = Some(parsed_resource);
                 resource_name = Some(chunk_resource_name);
             }
@@ -843,7 +885,11 @@ impl ReapiService {
             )
             .await
             .map_err(|error| {
-                if is_fd_pool_exhausted_error(&error) {
+                if is_outbox_full_error(&error) {
+                    Status::resource_exhausted(format!(
+                        "replication backlog is full while persisting CAS blob: {error}"
+                    ))
+                } else if is_fd_pool_exhausted_error(&error) {
                     Status::resource_exhausted(format!(
                         "file descriptor pool exhausted while persisting CAS blob: {error}"
                     ))
@@ -1055,6 +1101,17 @@ impl ReapiService {
             .expect("snapshot builds lock poisoned");
         if let Some(build) = builds.get(namespace_id) {
             return build.clone();
+        }
+        if builds.len() >= SNAPSHOT_CACHE_MAX_NAMESPACES {
+            self.state
+                .metrics
+                .record_memory_action("snapshot_build_admission_rejected");
+            return futures_util::future::ready(Err(format!(
+                "action-cache snapshot build queue is full ({} namespaces)",
+                SNAPSHOT_CACHE_MAX_NAMESPACES
+            )))
+            .boxed()
+            .shared();
         }
         let cache = self.snapshot_cache.clone();
         let state = self.state.clone();
@@ -1820,7 +1877,7 @@ impl ActionCache for ReapiService {
                 &targets,
             )
             .await
-            .map_err(|error| Status::internal(format!("failed to store action result: {error}")))?;
+            .map_err(|error| store_write_status("failed to store action result", error))?;
         self.state.notify.notify_one();
         self.state
             .metrics
@@ -1938,10 +1995,13 @@ impl ContentAddressableStorage for ReapiService {
                         status: Some(rpc_status(0, "")),
                     })
                 }
-                Err(error) => responses.push(reapi::batch_update_blobs_response::Response {
-                    digest: Some(digest),
-                    status: Some(rpc_status(13, error)),
-                }),
+                Err(error) => {
+                    let code = if is_outbox_full_error(&error) { 8 } else { 13 };
+                    responses.push(reapi::batch_update_blobs_response::Response {
+                        digest: Some(digest),
+                        status: Some(rpc_status(code, error)),
+                    })
+                }
             }
         }
 
@@ -2186,14 +2246,14 @@ impl ByteStream for ReapiService {
                 .await
                 .map_err(Status::internal)?;
         }
-        let mut cleanup = TempFileCleanup::new(temp_path.clone());
+        let mut cleanup = TempFileCleanup::new_unreserved(temp_path.clone());
 
         // The owned cleanup guard removes the partial even when transport
         // cancellation drops this future at an await point. On success the
         // persist step already unlinks the temp file, so its drop is a no-op.
-        let result = self.write_to_temp(&temp_path, request).await;
+        let result = self.write_to_temp(&temp_path, request, &mut cleanup).await;
+        cleanup.remove_and_disarm(&self.state.io).await;
         if let Err(status) = &result {
-            self.state.io.remove_file_if_exists(&temp_path).await;
             // The success path records "ok" inside write_to_temp; meter the
             // failure here so stall-timeout, transport, and validation aborts are
             // visible in metrics instead of surfacing only as client retries.
@@ -2202,7 +2262,6 @@ impl ByteStream for ReapiService {
                 .record_artifact_write(ArtifactProducer::Reapi, "error", 0);
             tracing::warn!("reapi bytestream write failed: {status}");
         }
-        cleanup.disarm();
         result
     }
 
@@ -3010,6 +3069,14 @@ fn rpc_status(code: i32, message: impl Into<String>) -> RpcStatus {
     }
 }
 
+fn store_write_status(context: &str, error: String) -> Status {
+    if is_outbox_full_error(&error) {
+        Status::resource_exhausted(format!("{context}: {error}"))
+    } else {
+        Status::internal(format!("{context}: {error}"))
+    }
+}
+
 fn rpc_status_from_grpc_status(status: &Status) -> RpcStatus {
     rpc_status(status.code() as i32, status.message())
 }
@@ -3173,6 +3240,7 @@ fn parse_blob_resource_name(
 mod tests {
     use super::*;
     use std::{convert::Infallible, time::Duration};
+    use tower::ServiceExt;
 
     fn grpc_message(encoded_message_bytes: usize, byte: u8) -> Vec<u8> {
         let mut framed = Vec::with_capacity(GRPC_MESSAGE_HEADER_BYTES + encoded_message_bytes);
@@ -3180,6 +3248,70 @@ mod tests {
         framed.extend_from_slice(&(encoded_message_bytes as u32).to_be_bytes());
         framed.extend(std::iter::repeat_n(byte, encoded_message_bytes));
         framed
+    }
+
+    #[test]
+    fn grpc_write_admission_only_matches_mutating_methods() {
+        assert!(is_reapi_write_path(BYTESTREAM_WRITE_PATH));
+        assert!(is_reapi_write_path(ACTION_CACHE_UPDATE_PATH));
+        assert!(is_reapi_write_path(CAS_BATCH_UPDATE_PATH));
+        assert!(!is_reapi_write_path(
+            "/build.bazel.remote.execution.v2.ContentAddressableStorage/BatchReadBlobs"
+        ));
+        assert!(!is_reapi_write_path(
+            "/build.bazel.remote.execution.v2.Capabilities/GetCapabilities"
+        ));
+    }
+
+    #[tokio::test]
+    async fn grpc_write_admission_rejects_when_outbox_is_full_but_allows_reads() {
+        let context = crate::test_support::test_context(|config| {
+            config.outbox_max_depth = 1;
+        })
+        .await;
+        context
+            .state
+            .store
+            .enqueue(crate::replication::outbox_message::OutboxMessage {
+                target: "http://peer".into(),
+                operation: crate::replication::operation::ReplicationOperation::DeleteNamespace {
+                    namespace_id: "ios".into(),
+                    version_ms: 1,
+                },
+            })
+            .expect("seed full outbox");
+        let app = axum::Router::new()
+            .fallback(|| async { axum::http::StatusCode::NO_CONTENT })
+            .layer(axum::middleware::from_fn_with_state(
+                context.state.clone(),
+                reject_overloaded_grpc_writes,
+            ));
+
+        let rejected = app
+            .clone()
+            .oneshot(
+                axum::http::Request::builder()
+                    .uri(ACTION_CACHE_UPDATE_PATH)
+                    .body(axum::body::Body::empty())
+                    .expect("write request"),
+            )
+            .await
+            .expect("write response");
+        assert_eq!(rejected.status(), axum::http::StatusCode::OK);
+        assert_eq!(rejected.headers().get("grpc-status").unwrap(), "8");
+
+        let allowed = app
+            .oneshot(
+                axum::http::Request::builder()
+                    .uri(
+                        "/build.bazel.remote.execution.v2.ContentAddressableStorage/BatchReadBlobs",
+                    )
+                    .body(axum::body::Body::empty())
+                    .expect("read request"),
+            )
+            .await
+            .expect("read response");
+        assert_eq!(allowed.status(), axum::http::StatusCode::NO_CONTENT);
     }
 
     fn bytestream_admission(

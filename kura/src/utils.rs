@@ -48,6 +48,49 @@ impl TmpBudget {
         })
     }
 
+    /// Reserve `bytes` immediately, rejecting the caller when the shared
+    /// staging budget has no room. Foreground uploads use this instead of
+    /// waiting while they hold a request body and memory admission.
+    pub fn try_reserve(self: &Arc<Self>, bytes: u64) -> Result<TmpReservation, String> {
+        let bytes = bytes.max(1);
+        if bytes > self.capacity {
+            return Err(format!(
+                "tmp dir budget exhausted: {bytes} bytes requested, {} bytes allowed",
+                self.capacity
+            ));
+        }
+
+        let mut current = self.reserved.load(Ordering::Acquire);
+        loop {
+            let requested = current.saturating_add(bytes);
+            if requested > self.capacity {
+                return Err(format!(
+                    "tmp dir budget exhausted: {current} bytes reserved, {bytes} bytes requested, {} bytes allowed",
+                    self.capacity
+                ));
+            }
+            match self.reserved.compare_exchange_weak(
+                current,
+                requested,
+                Ordering::AcqRel,
+                Ordering::Acquire,
+            ) {
+                Ok(_) => {
+                    return Ok(TmpReservation {
+                        budget: self.clone(),
+                        bytes,
+                    });
+                }
+                Err(observed) => current = observed,
+            }
+        }
+    }
+
+    #[cfg(test)]
+    fn reserved_bytes(&self) -> u64 {
+        self.reserved.load(Ordering::Acquire)
+    }
+
     /// Reserve `bytes` against the budget, waiting until the reservation fits.
     ///
     /// A request larger than the whole budget is clamped to the budget so a
@@ -114,8 +157,8 @@ pub struct TempBodyFile {
 }
 
 impl TempBodyFile {
-    pub fn disarm_cleanup(&mut self) {
-        self._cleanup.disarm();
+    pub async fn remove_and_disarm(&mut self, io: &IoController) {
+        self._cleanup.remove_and_disarm(io).await;
     }
 }
 
@@ -133,15 +176,47 @@ impl std::fmt::Debug for TempBodyFile {
 #[derive(Debug)]
 pub(crate) struct TempFileCleanup {
     path: Option<PathBuf>,
+    reservation: Option<TmpReservation>,
 }
 
 impl TempFileCleanup {
-    pub(crate) fn new(path: PathBuf) -> Self {
-        Self { path: Some(path) }
+    pub(crate) fn new(path: PathBuf, reservation: TmpReservation) -> Self {
+        Self {
+            path: Some(path),
+            reservation: Some(reservation),
+        }
+    }
+
+    pub(crate) fn new_unreserved(path: PathBuf) -> Self {
+        Self {
+            path: Some(path),
+            reservation: None,
+        }
+    }
+
+    pub(crate) fn set_reservation(&mut self, reservation: TmpReservation) {
+        debug_assert!(self.reservation.is_none());
+        self.reservation = Some(reservation);
     }
 
     pub(crate) fn disarm(&mut self) {
         self.path.take();
+        self.reservation.take();
+    }
+
+    pub(crate) async fn remove_and_disarm(&mut self, io: &IoController) {
+        let Some(path) = self.path.clone() else {
+            return;
+        };
+        match io.remove_file_if_exists_result(&path).await {
+            Ok(()) => self.disarm(),
+            Err(error) => {
+                tracing::warn!(
+                    path = %path.display(),
+                    "failed to remove temporary file before releasing its disk reservation: {error}"
+                );
+            }
+        }
     }
 }
 
@@ -150,14 +225,29 @@ impl Drop for TempFileCleanup {
         let Some(path) = self.path.take() else {
             return;
         };
-        let remove = move || match std::fs::remove_file(&path) {
-            Ok(()) => {}
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-            Err(error) => {
-                tracing::warn!(
-                    path = %path.display(),
-                    "failed to clean up temporary file on drop: {error}"
-                );
+        // Keep the disk reservation alive until the unlink has actually run.
+        // Releasing it when the task is merely queued would let a cancellation
+        // storm admit replacement files before their predecessors leave disk.
+        let reservation = self.reservation.take();
+        let remove = move || {
+            let removed = match std::fs::remove_file(&path) {
+                Ok(()) => true,
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => true,
+                Err(error) => {
+                    tracing::warn!(
+                        path = %path.display(),
+                        "failed to clean up temporary file on drop; retaining its disk reservation until restart: {error}"
+                    );
+                    false
+                }
+            };
+            if removed {
+                drop(reservation);
+            } else {
+                // Failing closed keeps the configured disk ceiling truthful.
+                // Startup clears the staging directory and rebuilds the
+                // in-memory ledger, so a stuck reservation is recoverable.
+                std::mem::forget(reservation);
             }
         };
         match tokio::runtime::Handle::try_current() {
@@ -180,8 +270,7 @@ pub enum BodyReadError {
 }
 
 pub struct RequestBodyStaging<'a> {
-    pub tmp_dir: &'a Path,
-    pub tmp_dir_max_bytes: u64,
+    pub tmp_budget: &'a Arc<TmpBudget>,
     pub io: &'a IoController,
     pub memory: &'a MemoryController,
     pub bandwidth_limiter: Option<&'a BandwidthLimiter>,
@@ -193,10 +282,6 @@ pub async fn read_request_to_temp(
     max_bytes: u64,
     staging: RequestBodyStaging<'_>,
 ) -> Result<TempBodyFile, BodyReadError> {
-    ensure_tmp_dir_capacity(staging.tmp_dir, max_bytes, staging.tmp_dir_max_bytes)
-        .await
-        .map_err(BodyReadError::TmpDirFull)?;
-
     let declared_or_max_bytes = match request
         .headers()
         .get(axum::http::header::CONTENT_LENGTH)
@@ -214,6 +299,10 @@ pub async fn read_request_to_temp(
         .reserve_foreground_staging(declared_or_max_bytes)
         .await
         .map_err(|_| BodyReadError::MemoryPressure)?;
+    let disk_reservation = staging
+        .tmp_budget
+        .try_reserve(declared_or_max_bytes)
+        .map_err(BodyReadError::TmpDirFull)?;
     let file_cache_policy = memory_reservation.file_cache_policy();
 
     let temp_path = temp_file_path(directory, "upload");
@@ -224,7 +313,7 @@ pub async fn read_request_to_temp(
             .await
             .map_err(BodyReadError::Io)?;
     }
-    let cleanup = TempFileCleanup::new(temp_path.clone());
+    let cleanup = TempFileCleanup::new(temp_path.clone(), disk_reservation);
 
     let mut file = staging
         .io
@@ -316,24 +405,6 @@ pub(crate) async fn drop_staging_cache_range(
         .await?;
     io.metrics().record_memory_action("staging_file_cache_drop");
     Ok(file)
-}
-
-pub async fn ensure_tmp_dir_capacity(
-    tmp_dir: &Path,
-    incoming_bytes: u64,
-    max_bytes: u64,
-) -> Result<(), String> {
-    let tmp_dir = tmp_dir.to_path_buf();
-    let current_bytes = tokio::task::spawn_blocking(move || directory_size_bytes(&tmp_dir))
-        .await
-        .unwrap_or(0);
-    let requested_bytes = current_bytes.saturating_add(incoming_bytes);
-    if requested_bytes > max_bytes {
-        return Err(format!(
-            "tmp dir budget exhausted: {current_bytes} bytes staged, {incoming_bytes} bytes requested, {max_bytes} bytes allowed"
-        ));
-    }
-    Ok(())
 }
 
 pub fn directory_size_bytes(path: &Path) -> u64 {
@@ -573,17 +644,17 @@ mod tests {
         )
         .expect("failed to create io controller");
         let memory = MemoryController::new(metrics, 64 * 1024 * 1024, 128 * 1024 * 1024);
+        let tmp_budget = TmpBudget::new(10);
         let request = Request::builder()
             .body(Body::from("hello"))
             .expect("failed to build request");
 
-        let temp = read_request_to_temp(
+        let mut temp = read_request_to_temp(
             request,
             directory.path(),
             10,
             RequestBodyStaging {
-                tmp_dir: directory.path(),
-                tmp_dir_max_bytes: 10,
+                tmp_budget: &tmp_budget,
                 io: &io,
                 memory: &memory,
                 bandwidth_limiter: None,
@@ -594,9 +665,13 @@ mod tests {
 
         assert_eq!(temp.size, 5);
         assert_eq!(
-            std::fs::read_to_string(temp.path).expect("failed to read temp file"),
+            std::fs::read_to_string(&temp.path).expect("failed to read temp file"),
             "hello"
         );
+        assert_eq!(tmp_budget.reserved_bytes(), 10);
+        temp.remove_and_disarm(&io).await;
+        assert!(!temp.path.exists());
+        assert_eq!(tmp_budget.reserved_bytes(), 0);
     }
 
     #[tokio::test]
@@ -611,6 +686,7 @@ mod tests {
         )
         .expect("failed to create io controller");
         let memory = MemoryController::new(metrics, 64 * 1024 * 1024, 128 * 1024 * 1024);
+        let tmp_budget = TmpBudget::new(10);
         let request = Request::builder()
             .body(Body::from("hello"))
             .expect("failed to build request");
@@ -620,8 +696,7 @@ mod tests {
             directory.path(),
             4,
             RequestBodyStaging {
-                tmp_dir: directory.path(),
-                tmp_dir_max_bytes: 10,
+                tmp_budget: &tmp_budget,
                 io: &io,
                 memory: &memory,
                 bandwidth_limiter: None,
@@ -651,6 +726,7 @@ mod tests {
         )
         .expect("failed to create io controller");
         let memory = MemoryController::new(metrics, 64 * 1024 * 1024, 128 * 1024 * 1024);
+        let tmp_budget = TmpBudget::new(10);
         let body = futures_util::stream::once(async {
             Ok::<_, std::convert::Infallible>(bytes::Bytes::from_static(b"hello"))
         })
@@ -666,8 +742,7 @@ mod tests {
                 directory.path(),
                 10,
                 RequestBodyStaging {
-                    tmp_dir: directory.path(),
-                    tmp_dir_max_bytes: 10,
+                    tmp_budget: &tmp_budget,
                     io: &io,
                     memory: &memory,
                     bandwidth_limiter: None,
@@ -694,12 +769,16 @@ mod tests {
                 .is_none(),
             "cancellation must not leave a staged file"
         );
+        assert_eq!(
+            tmp_budget.reserved_bytes(),
+            0,
+            "disk admission must release after cancellation cleanup"
+        );
     }
 
     #[tokio::test]
     async fn read_request_to_temp_rejects_when_tmp_budget_is_exhausted() {
         let directory = tempdir().expect("failed to create temp dir");
-        std::fs::write(directory.path().join("staged"), b"hello").expect("failed to seed tmp dir");
         let metrics = Metrics::new("eu-west".into(), "acme".into());
         let io = IoController::new(
             metrics.clone(),
@@ -709,6 +788,10 @@ mod tests {
         )
         .expect("failed to create io controller");
         let memory = MemoryController::new(metrics, 64 * 1024 * 1024, 128 * 1024 * 1024);
+        let tmp_budget = TmpBudget::new(9);
+        let _held = tmp_budget
+            .try_reserve(5)
+            .expect("failed to seed tmp reservation");
         let request = Request::builder()
             .body(Body::from("world"))
             .expect("failed to build request");
@@ -718,8 +801,7 @@ mod tests {
             directory.path(),
             5,
             RequestBodyStaging {
-                tmp_dir: directory.path(),
-                tmp_dir_max_bytes: 9,
+                tmp_budget: &tmp_budget,
                 io: &io,
                 memory: &memory,
                 bandwidth_limiter: None,
@@ -729,11 +811,21 @@ mod tests {
         .expect_err("expected body reader to reject exhausted tmp budget");
 
         assert!(matches!(error, BodyReadError::TmpDirFull(_)));
-        assert_eq!(
-            std::fs::read_to_string(directory.path().join("staged"))
-                .expect("failed to read seeded file"),
-            "hello"
-        );
+        assert_eq!(tmp_budget.reserved_bytes(), 5);
+    }
+
+    #[test]
+    fn tmp_budget_rejects_concurrent_reservations_over_capacity() {
+        let budget = TmpBudget::new(100);
+        let first = budget.try_reserve(60).expect("first reservation");
+
+        assert!(budget.try_reserve(41).is_err());
+        let second = budget.try_reserve(40).expect("remaining capacity");
+        assert_eq!(budget.reserved_bytes(), 100);
+
+        drop(first);
+        drop(second);
+        assert_eq!(budget.reserved_bytes(), 0);
     }
 
     #[tokio::test]
