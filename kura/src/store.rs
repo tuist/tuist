@@ -18,7 +18,7 @@ use rocksdb::{
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use tokio::{
-    io::{AsyncRead, AsyncWriteExt, ReadBuf},
+    io::{AsyncRead, AsyncReadExt, AsyncWriteExt, ReadBuf},
     sync::{Mutex, Notify},
 };
 use uuid::Uuid;
@@ -44,7 +44,7 @@ use crate::{
     },
     failpoints::{FailpointName, FailpointSet},
     io::{IoController, PersistentFile},
-    memory::MemoryController,
+    memory::{FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES, FileCachePolicy, MemoryController},
     mmap::map_file_region,
     multipart::{error::MultipartError, part::MultipartPart, upload::MultipartUpload},
     replication::{operation::ReplicationOperation, outbox_message::OutboxMessage},
@@ -54,10 +54,10 @@ use crate::{
     },
     usage::UsageRollup,
     utils::{
-        action_cache_index_key, action_cache_index_prefix, action_cache_manifest_hash,
-        artifact_storage_id, ensure_tmp_dir_capacity, module_key, namespace_artifact_index_key,
-        now_ms, segment_artifact_index_key, segment_artifact_index_prefix, segment_path,
-        temp_file_path,
+        TempFileCleanup, action_cache_index_key, action_cache_index_prefix,
+        action_cache_manifest_hash, artifact_storage_id, drop_staging_cache_range,
+        ensure_tmp_dir_capacity, module_key, namespace_artifact_index_key, now_ms,
+        segment_artifact_index_key, segment_artifact_index_prefix, segment_path, temp_file_path,
     },
 };
 
@@ -65,6 +65,7 @@ const MULTIPART_LOCK_STRIPES: usize = 64;
 const ARTIFACT_WRITE_LOCK_STRIPES: usize = 64;
 pub const EXISTENCE_CACHE_CAPACITY: usize = 65_536;
 const EXISTENCE_CACHE_TTL: Duration = Duration::from_secs(30);
+const SEGMENT_COPY_BUFFER_BYTES: usize = 256 * 1024;
 
 pub struct Store {
     db: DB,
@@ -278,6 +279,21 @@ enum PersistArtifactOutcome {
 pub struct PersistedArtifact {
     pub manifest: ArtifactManifest,
     pub already_present: bool,
+}
+
+#[derive(Clone, Copy)]
+pub struct StagedArtifactPath<'a> {
+    path: &'a Path,
+    file_cache_policy: FileCachePolicy,
+}
+
+impl<'a> StagedArtifactPath<'a> {
+    pub fn new(path: &'a Path, file_cache_policy: FileCachePolicy) -> Self {
+        Self {
+            path,
+            file_cache_policy,
+        }
+    }
 }
 
 impl PersistArtifactOutcome {
@@ -630,7 +646,7 @@ impl Store {
         namespace_id: &str,
         key: &str,
         content_type: &str,
-        source_path: &Path,
+        staged: StagedArtifactPath<'_>,
         replication_targets: &[String],
     ) -> Result<PersistedArtifact, String> {
         let spec = PersistArtifactSpec {
@@ -642,7 +658,7 @@ impl Store {
             replication_targets,
         };
         let (outcome, already_present) = self
-            .persist_artifact_from_path_with_version(spec, source_path)
+            .persist_artifact_from_path_with_version(spec, staged.path, staged.file_cache_policy)
             .await?;
         outcome.into_persisted(already_present, producer, namespace_id, key)
     }
@@ -665,7 +681,7 @@ impl Store {
             replication_targets: &[],
         };
         Ok(self
-            .persist_artifact_from_path_with_version(spec, source_path)
+            .persist_artifact_from_path_with_version(spec, source_path, FileCachePolicy::Adaptive)
             .await?
             .0
             .apply_outcome())
@@ -677,6 +693,7 @@ impl Store {
         &self,
         spec: PersistArtifactSpec<'_>,
         source_path: &Path,
+        file_cache_policy: FileCachePolicy,
     ) -> Result<(PersistArtifactOutcome, bool), String> {
         let artifact_id =
             artifact_storage_id(spec.producer, &self.tenant_id, spec.namespace_id, spec.key);
@@ -712,7 +729,9 @@ impl Store {
         }
 
         let persisted_version_ms = persisted_version_ms(spec.version_ms);
-        let (location, evicted_segments) = self.append_to_segment(source_path, size).await?;
+        let (location, evicted_segments) = self
+            .append_to_segment(source_path, size, file_cache_policy)
+            .await?;
 
         self.hit_failpoint(FailpointName::AfterArtifactBytesDurableBeforeMetadata)
             .await?;
@@ -1211,7 +1230,7 @@ impl Store {
 
         let mut reader = self.open_manifest_reader(&current).await?;
         let (location, evicted_segments) = self
-            .append_reader_to_segment(&mut reader, current.size)
+            .append_reader_to_segment(&mut reader, current.size, None, FileCachePolicy::Adaptive)
             .await?;
         let mut refreshed = current.clone();
         let previous_segment_id = current_segment_id.to_owned();
@@ -1363,9 +1382,12 @@ impl Store {
         &self,
         source_path: &Path,
         size: u64,
+        file_cache_policy: FileCachePolicy,
     ) -> Result<(SegmentLocation, Vec<SegmentReference>), String> {
         let mut source = self.io.open_file(source_path).await?;
-        let result = self.append_reader_to_segment(&mut source, size).await;
+        let result = self
+            .append_reader_to_segment(&mut source, size, Some(source_path), file_cache_policy)
+            .await;
         self.io.remove_file_if_exists(source_path).await;
         result
     }
@@ -1374,6 +1396,8 @@ impl Store {
         &self,
         source: &mut R,
         size: u64,
+        source_cache_path: Option<&Path>,
+        file_cache_policy: FileCachePolicy,
     ) -> Result<(SegmentLocation, Vec<SegmentReference>), String>
     where
         R: AsyncRead + Unpin,
@@ -1399,14 +1423,90 @@ impl Store {
             };
 
             let mut destination = self.io.open_append_file(&segment_path).await?;
-            let copied = tokio::io::copy(source, &mut destination)
-                .await
-                .map_err(|error| {
-                    format!(
-                        "failed to append into segment {}: {error}",
-                        segment_path.display()
+            let mut buffer = vec![0_u8; SEGMENT_COPY_BUFFER_BYTES];
+            let mut copied = 0_u64;
+            let mut advised_through = 0_u64;
+            while copied < size {
+                let remaining = usize::try_from((size - copied).min(buffer.len() as u64))
+                    .expect("copy chunk fits usize");
+                let read = source
+                    .read(&mut buffer[..remaining])
+                    .await
+                    .map_err(|error| {
+                        format!(
+                            "failed to read source while appending into segment {}: {error}",
+                            segment_path.display()
+                        )
+                    })?;
+                if read == 0 {
+                    break;
+                }
+                destination
+                    .write_all(&buffer[..read])
+                    .await
+                    .map_err(|error| {
+                        format!(
+                            "failed to append into segment {}: {error}",
+                            segment_path.display()
+                        )
+                    })?;
+                copied = copied.saturating_add(read as u64);
+
+                if copied.saturating_sub(advised_through)
+                    >= FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES
+                    && file_cache_policy.should_drop(
+                        self.memory.pressure(),
+                        self.memory.transient_reserved_bytes(),
                     )
-                })?;
+                {
+                    destination = match self
+                        .io
+                        .sync_drop_cache_and_reopen_append(
+                            destination,
+                            &segment_path,
+                            offset.saturating_add(advised_through),
+                            copied - advised_through,
+                        )
+                        .await
+                    {
+                        Ok(destination) => destination,
+                        Err(error) => {
+                            self.io
+                                .metrics()
+                                .record_memory_action("segment_file_cache_drop_failed");
+                            return Err(format!(
+                                "failed to bound segment file cache for {}: {error}",
+                                segment_path.display()
+                            ));
+                        }
+                    };
+                    if let Some(source_path) = source_cache_path
+                        && let Err(error) = self
+                            .io
+                            .drop_cached_pages(
+                                source_path,
+                                advised_through,
+                                copied - advised_through,
+                            )
+                            .await
+                    {
+                        self.io
+                            .metrics()
+                            .record_memory_action("source_file_cache_drop_failed");
+                        tracing::warn!("failed to release source file cache: {error}");
+                        if file_cache_policy.drop_failure_is_fatal() {
+                            return Err(format!(
+                                "failed to bound source file cache while appending {}: {error}",
+                                segment_path.display()
+                            ));
+                        }
+                    }
+                    advised_through = copied;
+                    self.io
+                        .metrics()
+                        .record_memory_action("segment_file_cache_drop");
+                }
+            }
             if copied != size {
                 return Err(format!(
                     "appended {copied} bytes into segment {}, expected {size}",
@@ -1419,7 +1519,59 @@ impl Store {
                     segment_path.display()
                 )
             })?;
-            drop(destination);
+            let drop_final_range = copied > advised_through
+                && file_cache_policy.should_drop(
+                    self.memory.pressure(),
+                    self.memory.transient_reserved_bytes(),
+                );
+            if drop_final_range {
+                destination.sync_data().await.map_err(|error| {
+                    format!("failed to sync segment {}: {error}", segment_path.display())
+                })?;
+                drop(destination);
+                if let Err(error) = self
+                    .io
+                    .drop_cached_pages(
+                        &segment_path,
+                        offset.saturating_add(advised_through),
+                        copied - advised_through,
+                    )
+                    .await
+                {
+                    self.io
+                        .metrics()
+                        .record_memory_action("segment_file_cache_drop_failed");
+                    tracing::warn!(
+                        path = %segment_path.display(),
+                        "failed to release segment file cache: {error}"
+                    );
+                    if file_cache_policy.drop_failure_is_fatal() {
+                        return Err(format!(
+                            "failed to bound segment file cache for {}: {error}",
+                            segment_path.display()
+                        ));
+                    }
+                }
+                if let Some(source_path) = source_cache_path
+                    && let Err(error) = self
+                        .io
+                        .drop_cached_pages(source_path, advised_through, copied - advised_through)
+                        .await
+                {
+                    self.io
+                        .metrics()
+                        .record_memory_action("source_file_cache_drop_failed");
+                    tracing::warn!("failed to release source file cache: {error}");
+                    if file_cache_policy.drop_failure_is_fatal() {
+                        return Err(format!(
+                            "failed to bound source file cache while appending {}: {error}",
+                            segment_path.display()
+                        ));
+                    }
+                }
+            } else {
+                drop(destination);
+            }
             if !segment_already_exists {
                 self.io.sync_directory(segment_dir).await?;
             }
@@ -2048,9 +2200,15 @@ impl Store {
         bytes: &[u8],
     ) -> Result<(PersistArtifactOutcome, bool), String> {
         let temp_path = temp_file_path(&self.tmp_dir.join("uploads"), "replication");
+        let mut cleanup = TempFileCleanup::new(temp_path.clone());
         self.io.write(&temp_path, bytes).await?;
-        self.persist_artifact_from_path_with_version(spec, &temp_path)
-            .await
+        let result = self
+            .persist_artifact_from_path_with_version(spec, &temp_path, FileCachePolicy::Adaptive)
+            .await;
+        if result.is_ok() {
+            cleanup.disarm();
+        }
+        result
     }
 
     #[cfg(test)]
@@ -2291,6 +2449,22 @@ impl Store {
             })?;
             self.io.remove_file_if_exists(part_path).await;
         }
+        let stored_part = self
+            .io
+            .open_file(&final_path)
+            .await
+            .map_err(MultipartError::Other)?;
+        stored_part.sync_data().await.map_err(|error| {
+            MultipartError::Other(format!("failed to sync multipart part: {error}"))
+        })?;
+        drop(stored_part);
+        self.io
+            .drop_cached_pages(&final_path, 0, size)
+            .await
+            .map_err(MultipartError::Other)?;
+        self.io
+            .metrics()
+            .record_memory_action("multipart_part_file_cache_drop");
 
         upload.parts.insert(
             part_number,
@@ -2343,16 +2517,26 @@ impl Store {
             return Err(MultipartError::PartsMismatch);
         }
         let upload_size: u64 = upload.parts.values().map(|part| part.size).sum();
+        let memory_reservation = self
+            .memory
+            .reserve_foreground_staging(upload_size)
+            .await
+            .map_err(|_| MultipartError::MemoryPressure)?;
+        let file_cache_policy = memory_reservation.file_cache_policy();
         ensure_tmp_dir_capacity(&self.tmp_dir, upload_size, self.tmp_dir_max_bytes)
             .await
             .map_err(MultipartError::Other)?;
 
         let assembled_path = temp_file_path(&self.tmp_dir.join("uploads"), "module");
+        let mut cleanup = TempFileCleanup::new(assembled_path.clone());
         let mut assembled = self
             .io
             .create_file(&assembled_path)
             .await
             .map_err(MultipartError::Other)?;
+        let mut assembled_bytes = 0_u64;
+        let mut advised_through = 0_u64;
+        let mut copy_buffer = vec![0_u8; SEGMENT_COPY_BUFFER_BYTES];
 
         for part_number in expected_parts {
             let part = upload
@@ -2364,17 +2548,60 @@ impl Store {
                 .open_file(Path::new(&part.path))
                 .await
                 .map_err(MultipartError::Other)?;
-            let copied = tokio::io::copy(&mut part_file, &mut assembled)
-                .await
-                .map_err(|error| {
-                    MultipartError::Other(format!("failed to assemble multipart artifact: {error}"))
-                })?;
+            let mut copied = 0_u64;
+            while copied < part.size {
+                let remaining = usize::try_from((part.size - copied).min(copy_buffer.len() as u64))
+                    .expect("multipart copy chunk fits usize");
+                let read = part_file
+                    .read(&mut copy_buffer[..remaining])
+                    .await
+                    .map_err(|error| {
+                        MultipartError::Other(format!(
+                            "failed to read multipart part {part_number}: {error}"
+                        ))
+                    })?;
+                if read == 0 {
+                    break;
+                }
+                assembled
+                    .write_all(&copy_buffer[..read])
+                    .await
+                    .map_err(|error| {
+                        MultipartError::Other(format!(
+                            "failed to assemble multipart artifact: {error}"
+                        ))
+                    })?;
+                copied = copied.saturating_add(read as u64);
+                assembled_bytes = assembled_bytes.saturating_add(read as u64);
+                if file_cache_policy.should_drop(
+                    self.memory.pressure(),
+                    self.memory.transient_reserved_bytes(),
+                ) && assembled_bytes.saturating_sub(advised_through)
+                    >= FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES
+                {
+                    assembled = drop_staging_cache_range(
+                        assembled,
+                        &assembled_path,
+                        advised_through,
+                        assembled_bytes - advised_through,
+                        &self.io,
+                    )
+                    .await
+                    .map_err(MultipartError::Other)?;
+                    advised_through = assembled_bytes;
+                }
+            }
             if copied != part.size {
                 return Err(MultipartError::Other(format!(
                     "multipart part {part_number} expected {} bytes but copied {copied}",
                     part.size
                 )));
             }
+            drop(part_file);
+            self.io
+                .drop_cached_pages(Path::new(&part.path), 0, part.size)
+                .await
+                .map_err(MultipartError::Other)?;
         }
         assembled.flush().await.map_err(|error| {
             MultipartError::Other(format!("failed to flush assembled artifact: {error}"))
@@ -2387,12 +2614,14 @@ impl Store {
                 &upload.namespace_id,
                 &key,
                 "application/octet-stream",
-                &assembled_path,
+                StagedArtifactPath::new(&assembled_path, file_cache_policy),
                 replication_targets,
             )
             .await
             .map_err(MultipartError::Other)?
             .manifest;
+        cleanup.disarm();
+        drop(memory_reservation);
 
         self.abort_multipart_upload_locked(upload_id)
             .await
@@ -4048,8 +4277,10 @@ mod tests {
             file_descriptor_acquire_timeout_ms: 5_000,
             drain_completion_timeout_ms: 240_000,
             segment_handle_cache_size: 8,
+            memory_limit_bytes: 512 * 1024 * 1024,
             memory_soft_limit_bytes: 128 * 1024 * 1024,
             memory_hard_limit_bytes: 256 * 1024 * 1024,
+            snapshot_cache_max_bytes: 32 * 1024 * 1024,
             manifest_cache_max_bytes: 8 * 1024 * 1024,
             max_keyvalue_bytes: 512 * 1024,
             rocksdb_max_open_files: 256,
@@ -6243,7 +6474,7 @@ mod tests {
                         "ns",
                         &format!("key-{i}"),
                         "application/octet-stream",
-                        &path,
+                        StagedArtifactPath::new(&path, FileCachePolicy::Adaptive),
                         &[],
                     )
                     .await

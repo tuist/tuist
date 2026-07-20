@@ -42,6 +42,16 @@ rust_binary(
     deps = all_crate_deps(normal = True) + [":kura_lib"],
 )
 
+rust_test(
+    name = "kura_bin_test",
+    srcs = ["src/main.rs"],
+    aliases = aliases(),
+    edition = "2024",
+    rustc_flags = _DENY_WARNINGS,
+    size = "small",
+    deps = all_crate_deps(normal = True, normal_dev = True) + [":kura_lib"],
+)
+
 # Recompiles kura_lib with --test so the crate's #[cfg(test)] unit tests (and the test_support
 # module) run under `bazel test`.
 rust_test(

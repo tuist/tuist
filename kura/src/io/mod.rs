@@ -9,7 +9,7 @@ use std::{
 use deadpool::unmanaged::{Object, Pool};
 use tokio::{
     fs::{self, File, OpenOptions},
-    io::{self, AsyncRead, AsyncSeek, AsyncWrite, ReadBuf},
+    io::{self, AsyncRead, AsyncSeek, AsyncWrite, AsyncWriteExt, ReadBuf},
     time::timeout,
 };
 
@@ -224,6 +224,45 @@ impl IoController {
                 ))
             }
         }
+    }
+
+    pub async fn drop_cached_pages(
+        &self,
+        path: &Path,
+        offset: u64,
+        length: u64,
+    ) -> Result<(), String> {
+        let file = self.open_persistent_read_file(path).await?;
+        file.drop_cached_pages(offset, length).map_err(|error| {
+            format!(
+                "failed to release file cache for {}: {error}",
+                path.display()
+            )
+        })
+    }
+
+    pub async fn sync_drop_cache_and_reopen_append(
+        &self,
+        mut file: TrackedFile,
+        path: &Path,
+        offset: u64,
+        length: u64,
+    ) -> Result<TrackedFile, String> {
+        file.flush()
+            .await
+            .map_err(|error| format!("failed to flush {}: {error}", path.display()))?;
+        file.sync_data()
+            .await
+            .map_err(|error| format!("failed to sync {}: {error}", path.display()))?;
+
+        // Keep cache eviction outside the lifetime of the asynchronous writer.
+        // Advising completed ranges while that writer remained open caused
+        // later buffered writes to disappear under Linux stress. Reopening in
+        // append mode makes the continuation offset explicit and preserves the
+        // append-only segment invariant.
+        drop(file);
+        self.drop_cached_pages(path, offset, length).await?;
+        self.open_append_file(path).await
     }
 
     pub async fn create_dir_all(&self, path: &Path) -> Result<(), String> {
@@ -494,12 +533,57 @@ impl PersistentFile {
     pub fn as_std(&self) -> &std::fs::File {
         &self.file
     }
+
+    pub fn drop_cached_pages(&self, offset: u64, length: u64) -> Result<(), io::Error> {
+        #[cfg(unix)]
+        {
+            use std::os::fd::AsRawFd;
+
+            drop_descriptor_cached_pages(self.file.as_raw_fd(), offset, length)
+        }
+
+        #[cfg(not(unix))]
+        {
+            let _ = (offset, length);
+            Ok(())
+        }
+    }
 }
 
 impl TrackedFile {
     pub async fn sync_data(&self) -> Result<(), io::Error> {
         self.file.sync_data().await
     }
+}
+
+#[cfg(target_os = "linux")]
+pub fn drop_descriptor_cached_pages(
+    descriptor: i32,
+    offset: u64,
+    length: u64,
+) -> Result<(), io::Error> {
+    let result = unsafe {
+        libc::posix_fadvise(
+            descriptor,
+            offset as libc::off_t,
+            length as libc::off_t,
+            libc::POSIX_FADV_DONTNEED,
+        )
+    };
+    if result == 0 {
+        Ok(())
+    } else {
+        Err(io::Error::from_raw_os_error(result))
+    }
+}
+
+#[cfg(not(target_os = "linux"))]
+pub fn drop_descriptor_cached_pages(
+    _descriptor: i32,
+    _offset: u64,
+    _length: u64,
+) -> Result<(), io::Error> {
+    Ok(())
 }
 
 impl IoController {

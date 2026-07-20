@@ -37,9 +37,12 @@ use crate::{
     replication::replication_targets,
     runtime::{HttpTrafficClass, InflightGuard},
     state::SharedState,
-    store::{ManifestDigest, is_disk_full_error},
+    store::{ManifestDigest, StagedArtifactPath, is_disk_full_error},
     telemetry::{attach_parent_context, record_trace_context},
-    utils::{BodyReadError, action_cache_key, blob_key, module_key, read_request_to_temp},
+    utils::{
+        BodyReadError, RequestBodyStaging, action_cache_key, blob_key, module_key,
+        read_request_to_temp,
+    },
 };
 
 const MMAP_RESPONSE_CHUNK_BYTES: usize = 1024 * 1024;
@@ -1538,14 +1541,17 @@ async fn upload_module_part(
         Err(message) => return error_response(StatusCode::BAD_REQUEST, message),
     };
 
-    let temp = match read_request_to_temp(
+    let mut temp = match read_request_to_temp(
         request,
         &state.config.tmp_dir.join("parts"),
         MAX_MODULE_PART_BYTES,
-        &state.config.tmp_dir,
-        state.config.tmp_dir_max_bytes,
-        &state.io,
-        None,
+        RequestBodyStaging {
+            tmp_dir: &state.config.tmp_dir,
+            tmp_dir_max_bytes: state.config.tmp_dir_max_bytes,
+            io: &state.io,
+            memory: &state.memory,
+            bandwidth_limiter: None,
+        },
     )
     .await
     {
@@ -1559,6 +1565,9 @@ async fn upload_module_part(
                 format!("Temporary storage budget exhausted: {error}"),
             );
         }
+        Err(BodyReadError::MemoryPressure) => {
+            return overloaded_response("server is applying upload memory backpressure");
+        }
         Err(BodyReadError::Io(error)) => {
             return io_error_response(
                 format!("Failed to persist multipart upload part: {error}"),
@@ -1567,7 +1576,7 @@ async fn upload_module_part(
         }
     };
 
-    match state
+    let response = match state
         .store
         .add_multipart_part(&query.upload_id, query.part_number, &temp.path, temp.size)
         .await
@@ -1602,7 +1611,13 @@ async fn upload_module_part(
             state.metrics.record_multipart_part("parts_mismatch");
             error_response(StatusCode::BAD_REQUEST, "Parts mismatch")
         }
-    }
+        Err(MultipartError::MemoryPressure) => {
+            state.io.remove_file_if_exists(&temp.path).await;
+            overloaded_response("server is applying upload memory backpressure")
+        }
+    };
+    temp.disarm_cleanup();
+    response
 }
 
 async fn complete_module_upload(
@@ -1652,6 +1667,9 @@ async fn complete_module_upload(
             StatusCode::UNPROCESSABLE_ENTITY,
             "Total upload size exceeds 2GB limit",
         ),
+        Err(MultipartError::MemoryPressure) => {
+            overloaded_response("server is applying upload memory backpressure")
+        }
         Err(MultipartError::Other(error)) => io_error_response(
             format!("Failed to complete multipart upload: {error}"),
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -1926,14 +1944,17 @@ async fn internal_replicate_artifact(
         };
     }
 
-    let temp = match read_request_to_temp(
+    let mut temp = match read_request_to_temp(
         request,
         &state.config.tmp_dir.join("uploads"),
         MAX_REPLICATION_BODY_BYTES,
-        &state.config.tmp_dir,
-        state.config.tmp_dir_max_bytes,
-        &state.io,
-        state.replication_bandwidth_limiter.clone(),
+        RequestBodyStaging {
+            tmp_dir: &state.config.tmp_dir,
+            tmp_dir_max_bytes: state.config.tmp_dir_max_bytes,
+            io: &state.io,
+            memory: &state.memory,
+            bandwidth_limiter: state.replication_bandwidth_limiter.as_deref(),
+        },
     )
     .await
     {
@@ -1955,6 +1976,12 @@ async fn internal_replicate_artifact(
                 StatusCode::SERVICE_UNAVAILABLE,
                 format!("Temporary storage budget exhausted: {error}"),
             );
+        }
+        Err(BodyReadError::MemoryPressure) => {
+            state
+                .metrics
+                .record_replication_apply("replication", "artifact", "error");
+            return overloaded_response("server is applying upload memory backpressure");
         }
         Err(BodyReadError::Io(error)) => {
             state
@@ -1979,6 +2006,7 @@ async fn internal_replicate_artifact(
         )
         .await;
     state.io.remove_file_if_exists(&temp.path).await;
+    temp.disarm_cleanup();
     match result {
         Ok(outcome) => {
             state
@@ -2108,14 +2136,17 @@ async fn put_blob_artifact(
         }
     }
 
-    let temp = match read_request_to_temp(
+    let mut temp = match read_request_to_temp(
         request,
         &state.config.tmp_dir.join("uploads"),
         spec.max_bytes,
-        &state.config.tmp_dir,
-        state.config.tmp_dir_max_bytes,
-        &state.io,
-        None,
+        RequestBodyStaging {
+            tmp_dir: &state.config.tmp_dir,
+            tmp_dir_max_bytes: state.config.tmp_dir_max_bytes,
+            io: &state.io,
+            memory: &state.memory,
+            bandwidth_limiter: None,
+        },
     )
     .await
     {
@@ -2131,6 +2162,9 @@ async fn put_blob_artifact(
                 StatusCode::SERVICE_UNAVAILABLE,
                 format!("Temporary storage budget exhausted: {error}"),
             );
+        }
+        Err(BodyReadError::MemoryPressure) => {
+            return overloaded_response("server is applying upload memory backpressure");
         }
         Err(BodyReadError::Io(error)) => {
             return io_error_response(
@@ -2148,11 +2182,12 @@ async fn put_blob_artifact(
             spec.namespace_id,
             spec.key,
             "application/octet-stream",
-            &temp.path,
+            StagedArtifactPath::new(&temp.path, temp.file_cache_policy),
             &targets,
         )
         .await;
     state.io.remove_file_if_exists(&temp.path).await;
+    temp.disarm_cleanup();
     match result {
         Ok(persisted) => {
             state.notify.notify_one();
@@ -2513,7 +2548,10 @@ fn io_error_response(error: String, fallback_status: StatusCode) -> Response {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::{Arc, Mutex};
+    use std::{
+        convert::Infallible,
+        sync::{Arc, Mutex},
+    };
 
     use axum::{Router, body::Body, extract::Request, response::IntoResponse, routing::post};
     use http_body_util::BodyExt;
@@ -3304,6 +3342,50 @@ mod tests {
         assert!(metrics.contains("producer=\"xcode\""));
         assert!(metrics.contains("result=\"ok\""));
         assert!(metrics.contains(&format!("{}", payload.len() * 2)));
+    }
+
+    #[tokio::test]
+    async fn bounded_staging_preserves_every_streamed_request_byte() {
+        let context = test_context(|_| {}).await;
+        let app = router(context.state.clone());
+        let payload = Bytes::from(vec![0xA5; 17 * 1024 * 1024]);
+        let chunks = payload
+            .chunks(256 * 1024)
+            .map(|chunk| Ok::<_, Infallible>(Bytes::copy_from_slice(chunk)))
+            .collect::<Vec<_>>();
+
+        let put_response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/cache/cas/bounded-stream?tenant_id=acme&namespace_id=ios")
+                    .header("content-type", "application/octet-stream")
+                    .header(axum::http::header::CONTENT_LENGTH, payload.len())
+                    .body(Body::from_stream(tokio_stream::iter(chunks)))
+                    .expect("failed to build put request"),
+            )
+            .await
+            .expect("put request failed");
+        assert_eq!(put_response.status(), StatusCode::NO_CONTENT);
+
+        let get_response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/cache/cas/bounded-stream?tenant_id=acme&namespace_id=ios")
+                    .body(Body::empty())
+                    .expect("failed to build get request"),
+            )
+            .await
+            .expect("get request failed");
+        assert_eq!(get_response.status(), StatusCode::OK);
+        let stored = get_response
+            .into_body()
+            .collect()
+            .await
+            .expect("failed to collect stored artifact")
+            .to_bytes();
+        assert_eq!(stored, payload);
     }
 
     #[tokio::test]

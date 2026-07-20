@@ -33,7 +33,7 @@ use crate::{
         NamespaceTombstonePage,
     },
     telemetry::{inject_current_trace_context, record_trace_context},
-    utils::{replication_target_label, temp_file_path, url_encode},
+    utils::{TempFileCleanup, replication_target_label, temp_file_path, url_encode},
 };
 
 use self::{operation::ReplicationOperation, outbox_message::OutboxMessage};
@@ -43,6 +43,9 @@ const BOOTSTRAP_PAGE_LIMIT: usize = 256;
 // Artifact bodies fetched from a peer concurrently within a bootstrap page. Caps
 // open peer connections; staged bytes stay bounded by bootstrap_staging_budget.
 const BOOTSTRAP_ARTIFACT_FETCH_CONCURRENCY: usize = 16;
+const BOOTSTRAP_MEMORY_WINDOW_BYTES: u64 = 16 * 1024 * 1024;
+const BOOTSTRAP_CACHE_DROP_INTERVAL_BYTES: u64 = 8 * 1024 * 1024;
+const OUTBOX_DRAIN_PAUSED_ACTION: &str = "outbox_drain_paused";
 
 #[derive(Debug, Deserialize)]
 struct PeerStatusPayload {
@@ -256,6 +259,7 @@ async fn maybe_spawn_bootstrap_task(state: SharedState, peer: String) {
                     return;
                 }
             };
+            state.memory.wait_for_background_headroom().await;
             let started_at = std::time::Instant::now();
             let no_progress_timeout = Duration::from_millis(state.config.bootstrap_timeout_ms);
             let result =
@@ -630,6 +634,18 @@ async fn bootstrap_artifact_from_peer(
         return Ok(recheck);
     }
 
+    // Limit the number of body streams that can advance concurrently from live
+    // container headroom, not only a static request count. The reservation is a
+    // window rather than the full object size because a valid artifact may be as
+    // large as the container; completed file-backed pages are released below as
+    // pressure rises.
+    let memory_window = manifest.size.clamp(1, BOOTSTRAP_MEMORY_WINDOW_BYTES);
+    let _memory_reservation = state
+        .memory
+        .reserve_background_transient(memory_window)
+        .await
+        .map_err(|()| "bootstrap memory admission closed".to_owned())?;
+
     let url = format!(
         "{peer}/_internal/bootstrap/artifacts/{}",
         url_encode(&manifest.artifact_id)
@@ -693,12 +709,16 @@ async fn bootstrap_artifact_from_peer(
     // bootstrapping, so non-bootstrap tmp occupants are negligible.)
     let _staging_reservation = state.bootstrap_staging_budget.reserve(reserved_bytes).await;
     let temp_path = temp_file_path(&state.config.tmp_dir.join("bootstrap"), "bootstrap");
-    stream_response_to_temp(state, response, &temp_path, reserved_bytes).await?;
+    let mut cleanup = TempFileCleanup::new(temp_path.clone());
+    if let Err(error) = stream_response_to_temp(state, response, &temp_path, reserved_bytes).await {
+        cleanup.disarm();
+        return Err(error);
+    }
     state
         .store
         .hit_failpoint(FailpointName::AfterBootstrapArtifactFetchBeforePersist)
         .await?;
-    state
+    let result = state
         .store
         .apply_replicated_artifact_from_path(
             manifest.producer,
@@ -708,7 +728,11 @@ async fn bootstrap_artifact_from_peer(
             &temp_path,
             manifest.version_ms,
         )
-        .await
+        .await;
+    if result.is_ok() {
+        cleanup.disarm();
+    }
+    result
 }
 
 async fn stream_response_to_temp(
@@ -724,11 +748,11 @@ async fn stream_response_to_temp(
     // The staged file must not exceed the caller's `bootstrap_staging_budget`
     // reservation: an inconsistent peer serving a body larger than its manifest
     // advertised is rejected here instead of overrunning the budget.
-    let mut destination = state.io.create_file(path).await?;
-    let dest = &mut destination;
-    let outcome = async move {
+    let mut destination = Some(state.io.create_file(path).await?);
+    let outcome = async {
         let mut stream = response.bytes_stream();
         let mut total: u64 = 0;
+        let mut advised_through: u64 = 0;
         while let Some(chunk) = stream.next().await {
             let chunk =
                 chunk.map_err(|error| format!("failed to stream bootstrap body: {error:?}"))?;
@@ -741,23 +765,55 @@ async fn stream_response_to_temp(
             if let Some(limiter) = state.replication_bandwidth_limiter.as_ref() {
                 limiter.acquire(chunk.len()).await;
             }
-            dest.write_all(&chunk)
+            destination
+                .as_mut()
+                .expect("bootstrap destination remains open while streaming")
+                .write_all(&chunk)
                 .await
                 .map_err(|error| format!("failed to persist bootstrap body: {error}"))?;
+            if total.saturating_sub(advised_through) >= BOOTSTRAP_CACHE_DROP_INTERVAL_BYTES
+                && !state.memory.allow_background_admission()
+            {
+                let file = destination
+                    .take()
+                    .expect("bootstrap destination remains open while streaming");
+                destination = match state
+                    .io
+                    .sync_drop_cache_and_reopen_append(
+                        file,
+                        path,
+                        advised_through,
+                        total - advised_through,
+                    )
+                    .await
+                {
+                    Ok(file) => Some(file),
+                    Err(error) => {
+                        state
+                            .metrics
+                            .record_memory_action("bootstrap_file_cache_drop_failed");
+                        warn!("failed to release bootstrap file cache: {error}");
+                        return Err(error);
+                    }
+                };
+                advised_through = total;
+                state.memory.wait_for_background_headroom().await;
+            }
         }
-        dest.flush()
+        destination
+            .as_mut()
+            .expect("bootstrap destination remains open while streaming")
+            .flush()
             .await
             .map_err(|error| format!("failed to flush bootstrap body: {error}"))?;
         Ok::<(), String>(())
     }
     .await;
 
-    // Drop the handle, then remove the partially-staged file on any failure. A
-    // peer serving incomplete data or a dropped connection (the bootstrap deadlock
-    // case) would otherwise leave one temp file per attempt; a retrying bootstrap
-    // accumulates them until the data disk fills and RocksDB can no longer open,
-    // wedging the pod out-of-space.
-    drop(destination);
+    // Drop the handle before asynchronous best-effort cleanup. The caller's
+    // owned guard is the cancellation-safe fallback when the watchdog drops
+    // this future at an await point.
+    drop(destination.take());
     if outcome.is_err() {
         state.io.remove_file_if_exists(path).await;
     }
@@ -1013,6 +1069,12 @@ pub async fn process_outbox(state: &SharedState) -> Result<(), String> {
 
     let mut after = None::<Vec<u8>>;
     while let Some((message_key, message)) = state.store.next_outbox_message(after.as_deref())? {
+        if state.memory.pause_outbox() {
+            state
+                .metrics
+                .record_memory_action(OUTBOX_DRAIN_PAUSED_ACTION);
+            return Ok(());
+        }
         after = Some(message_key.clone());
 
         // Messages for a peer that left the mesh can never be delivered and
@@ -1635,6 +1697,42 @@ mod tests {
                 version_ms: 1,
             },
         }
+    }
+
+    #[tokio::test]
+    async fn process_outbox_preserves_backlog_when_memory_becomes_critical() {
+        let local = test_context(|_| {}).await;
+        local
+            .state
+            .store
+            .enqueue(stale_target_message("https://peer.test:7443"))
+            .expect("enqueue should succeed");
+        local
+            .state
+            .memory
+            .observe(local.state.config.memory_hard_limit_bytes);
+
+        process_outbox(&local.state)
+            .await
+            .expect("critical pressure should pause without failing");
+
+        assert_eq!(
+            local
+                .state
+                .store
+                .outbox_messages()
+                .expect("outbox should load")
+                .len(),
+            1,
+            "paused replication must leave its durable message queued"
+        );
+        assert!(
+            local
+                .state
+                .metrics
+                .render()
+                .contains("kura_memory_actions_total_total{action=\"outbox_drain_paused\"} 1")
+        );
     }
 
     async fn complete_initial_discovery(state: &SharedState) {

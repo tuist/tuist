@@ -42,6 +42,7 @@ const KURA_DRAIN_COMPLETION_TIMEOUT_MS: &str = "KURA_DRAIN_COMPLETION_TIMEOUT_MS
 const KURA_SEGMENT_HANDLE_CACHE_SIZE: &str = "KURA_SEGMENT_HANDLE_CACHE_SIZE";
 const KURA_MEMORY_SOFT_LIMIT_BYTES: &str = "KURA_MEMORY_SOFT_LIMIT_BYTES";
 const KURA_MEMORY_HARD_LIMIT_BYTES: &str = "KURA_MEMORY_HARD_LIMIT_BYTES";
+const KURA_SNAPSHOT_CACHE_MAX_BYTES: &str = "KURA_SNAPSHOT_CACHE_MAX_BYTES";
 const KURA_MANIFEST_CACHE_MAX_BYTES: &str = "KURA_MANIFEST_CACHE_MAX_BYTES";
 const KURA_MAX_KEYVALUE_BYTES: &str = "KURA_MAX_KEYVALUE_BYTES";
 const KURA_METADATA_STORE_MAX_OPEN_FILES: &str = "KURA_METADATA_STORE_MAX_OPEN_FILES";
@@ -129,8 +130,10 @@ pub struct Config {
     pub file_descriptor_acquire_timeout_ms: u64,
     pub drain_completion_timeout_ms: u64,
     pub segment_handle_cache_size: usize,
+    pub memory_limit_bytes: u64,
     pub memory_soft_limit_bytes: u64,
     pub memory_hard_limit_bytes: u64,
+    pub snapshot_cache_max_bytes: usize,
     pub manifest_cache_max_bytes: usize,
     pub max_keyvalue_bytes: usize,
     pub rocksdb_max_open_files: i32,
@@ -260,7 +263,7 @@ impl HostResources {
                 .max(256),
             memory_limit_bytes: detect_memory_limit_bytes()
                 .unwrap_or(FALLBACK_HOST_MEMORY_LIMIT_BYTES)
-                .max(256 * BYTES_PER_MIB),
+                .max(1),
             cpu_count: detect_cpu_count().max(1),
         }
     }
@@ -279,12 +282,11 @@ impl DerivedRuntimeDefaults {
         let metadata_store_max_open_files =
             clamp_usize(usable_fds / 2, 128, 1024).min(i32::MAX as usize) as i32;
 
-        let memory_limit_bytes = host_resources.memory_limit_bytes.max(256 * BYTES_PER_MIB);
-        let memory_soft_limit_bytes =
-            round_down_to_mib(memory_limit_bytes * 70 / 100).max(128 * BYTES_PER_MIB);
-        let memory_hard_limit_bytes = round_down_to_mib(
-            (memory_limit_bytes * 85 / 100).max(memory_soft_limit_bytes + 64 * BYTES_PER_MIB),
-        );
+        let memory_limit_bytes = host_resources.memory_limit_bytes.max(1);
+        let memory_soft_limit_bytes = round_down_to_mib(memory_limit_bytes * 70 / 100).max(1);
+        let memory_hard_limit_bytes = round_down_to_mib(memory_limit_bytes * 85 / 100)
+            .max(memory_soft_limit_bytes.saturating_add(1))
+            .min(memory_limit_bytes.saturating_sub(1).max(1));
         let manifest_cache_max_bytes = clamp_bytes_to_usize(
             round_down_to_mib(memory_soft_limit_bytes / 16),
             8 * BYTES_PER_MIB,
@@ -632,6 +634,43 @@ impl Config {
         if memory_hard_limit_bytes <= memory_soft_limit_bytes {
             invalid.push(format!(
                 "{KURA_MEMORY_HARD_LIMIT_BYTES} must be greater than {KURA_MEMORY_SOFT_LIMIT_BYTES}"
+            ));
+        }
+        let memory_limit_bytes = host_resources.memory_limit_bytes.max(1);
+        if memory_soft_limit_bytes >= memory_limit_bytes {
+            invalid.push(format!(
+                "{KURA_MEMORY_SOFT_LIMIT_BYTES} must be less than the detected runtime memory limit of {memory_limit_bytes} bytes"
+            ));
+        }
+        if memory_hard_limit_bytes >= memory_limit_bytes {
+            invalid.push(format!(
+                "{KURA_MEMORY_HARD_LIMIT_BYTES} must be less than the detected runtime memory limit of {memory_limit_bytes} bytes"
+            ));
+        }
+        let snapshot_cache_max_bytes = optional_parsed_value(
+            &mut lookup,
+            KURA_SNAPSHOT_CACHE_MAX_BYTES,
+            &mut invalid,
+            |value| {
+                value
+                    .parse::<usize>()
+                    .map_err(|_| format!("{KURA_SNAPSHOT_CACHE_MAX_BYTES} must be a valid usize"))
+            },
+        )
+        .unwrap_or_else(|| {
+            clamp_bytes_to_usize(
+                round_down_to_mib(memory_soft_limit_bytes / 4),
+                1,
+                256 * BYTES_PER_MIB,
+            )
+        });
+        if snapshot_cache_max_bytes == 0 {
+            invalid.push(format!(
+                "{KURA_SNAPSHOT_CACHE_MAX_BYTES} must be greater than 0"
+            ));
+        } else if snapshot_cache_max_bytes as u64 >= memory_soft_limit_bytes {
+            invalid.push(format!(
+                "{KURA_SNAPSHOT_CACHE_MAX_BYTES} must be less than {KURA_MEMORY_SOFT_LIMIT_BYTES} so the cache leaves runtime headroom"
             ));
         }
         let manifest_cache_default = clamp_usize(
@@ -1274,8 +1313,10 @@ impl Config {
             file_descriptor_acquire_timeout_ms,
             drain_completion_timeout_ms,
             segment_handle_cache_size,
+            memory_limit_bytes,
             memory_soft_limit_bytes,
             memory_hard_limit_bytes,
+            snapshot_cache_max_bytes,
             manifest_cache_max_bytes,
             max_keyvalue_bytes,
             rocksdb_max_open_files,
@@ -1540,8 +1581,13 @@ mod tests {
         assert_eq!(config.file_descriptor_acquire_timeout_ms, 5_000);
         assert_eq!(config.drain_completion_timeout_ms, 240_000);
         assert_eq!(config.segment_handle_cache_size, 224);
+        assert_eq!(config.memory_limit_bytes, 1024 * BYTES_PER_MIB);
         assert_eq!(config.memory_soft_limit_bytes, 716 * BYTES_PER_MIB);
         assert_eq!(config.memory_hard_limit_bytes, 870 * BYTES_PER_MIB);
+        assert_eq!(
+            config.snapshot_cache_max_bytes,
+            (179 * BYTES_PER_MIB) as usize
+        );
         assert_eq!(
             config.manifest_cache_max_bytes,
             (44 * BYTES_PER_MIB) as usize
@@ -1594,6 +1640,19 @@ mod tests {
     }
 
     #[test]
+    fn memory_watermarks_stay_below_small_runtime_limits() {
+        let defaults = DerivedRuntimeDefaults::from_host_resources(HostResources {
+            file_descriptor_limit: 4096,
+            memory_limit_bytes: 128 * BYTES_PER_MIB,
+            cpu_count: 2,
+        });
+
+        assert_eq!(defaults.memory_soft_limit_bytes, 89 * BYTES_PER_MIB);
+        assert_eq!(defaults.memory_hard_limit_bytes, 108 * BYTES_PER_MIB);
+        assert!(defaults.memory_hard_limit_bytes < 128 * BYTES_PER_MIB);
+    }
+
+    #[test]
     fn from_lookup_parses_overrides() {
         let config = config_from(&[
             (KURA_PORT, "4500"),
@@ -1612,6 +1671,7 @@ mod tests {
             (KURA_SEGMENT_HANDLE_CACHE_SIZE, "16"),
             (KURA_MEMORY_SOFT_LIMIT_BYTES, "268435456"),
             (KURA_MEMORY_HARD_LIMIT_BYTES, "536870912"),
+            (KURA_SNAPSHOT_CACHE_MAX_BYTES, "33554432"),
             (KURA_TMP_DIR_MAX_BYTES, "1073741824"),
             (KURA_MANIFEST_CACHE_MAX_BYTES, "16777216"),
             (KURA_MAX_KEYVALUE_BYTES, "1048576"),
@@ -1657,6 +1717,7 @@ mod tests {
         assert_eq!(config.segment_handle_cache_size, 16);
         assert_eq!(config.memory_soft_limit_bytes, 268_435_456);
         assert_eq!(config.memory_hard_limit_bytes, 536_870_912);
+        assert_eq!(config.snapshot_cache_max_bytes, 33_554_432);
         assert_eq!(config.tmp_dir_max_bytes, 1_073_741_824);
         assert_eq!(config.manifest_cache_max_bytes, 16_777_216);
         assert_eq!(config.max_keyvalue_bytes, 1_048_576);
@@ -1784,6 +1845,7 @@ mod tests {
             (KURA_SEGMENT_HANDLE_CACHE_SIZE, "invalid"),
             (KURA_MEMORY_SOFT_LIMIT_BYTES, "invalid"),
             (KURA_MEMORY_HARD_LIMIT_BYTES, "invalid"),
+            (KURA_SNAPSHOT_CACHE_MAX_BYTES, "invalid"),
             (KURA_TMP_DIR_MAX_BYTES, "invalid"),
             (KURA_MANIFEST_CACHE_MAX_BYTES, "invalid"),
             (KURA_MAX_KEYVALUE_BYTES, "invalid"),
@@ -1816,6 +1878,7 @@ mod tests {
         assert!(error.contains(KURA_SEGMENT_HANDLE_CACHE_SIZE));
         assert!(error.contains(KURA_MEMORY_SOFT_LIMIT_BYTES));
         assert!(error.contains(KURA_MEMORY_HARD_LIMIT_BYTES));
+        assert!(error.contains(KURA_SNAPSHOT_CACHE_MAX_BYTES));
         assert!(error.contains(KURA_TMP_DIR_MAX_BYTES));
         assert!(error.contains(KURA_MANIFEST_CACHE_MAX_BYTES));
         assert!(error.contains(KURA_MAX_KEYVALUE_BYTES));

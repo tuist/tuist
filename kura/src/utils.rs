@@ -13,7 +13,15 @@ use sha2::{Digest, Sha256};
 use tokio::{io::AsyncWriteExt, sync::Notify};
 use uuid::Uuid;
 
-use crate::{artifact::producer::ArtifactProducer, bandwidth::BandwidthLimiter, io::IoController};
+use crate::{
+    artifact::producer::ArtifactProducer,
+    bandwidth::BandwidthLimiter,
+    io::{IoController, TrackedFile},
+    memory::{
+        FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES, FileCachePolicy, ForegroundMemoryReservation,
+        MemoryController,
+    },
+};
 
 /// Byte-accounted reservation over the shared tmp-dir budget.
 ///
@@ -97,50 +105,142 @@ impl Drop for TmpReservation {
     }
 }
 
-#[derive(Debug)]
 pub struct TempBodyFile {
     pub path: PathBuf,
     pub size: u64,
+    pub file_cache_policy: FileCachePolicy,
+    _cleanup: TempFileCleanup,
+    _memory_reservation: ForegroundMemoryReservation,
+}
+
+impl TempBodyFile {
+    pub fn disarm_cleanup(&mut self) {
+        self._cleanup.disarm();
+    }
+}
+
+impl std::fmt::Debug for TempBodyFile {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("TempBodyFile")
+            .field("path", &self.path)
+            .field("size", &self.size)
+            .field("file_cache_policy", &self.file_cache_policy)
+            .finish_non_exhaustive()
+    }
+}
+
+#[derive(Debug)]
+pub(crate) struct TempFileCleanup {
+    path: Option<PathBuf>,
+}
+
+impl TempFileCleanup {
+    pub(crate) fn new(path: PathBuf) -> Self {
+        Self { path: Some(path) }
+    }
+
+    pub(crate) fn disarm(&mut self) {
+        self.path.take();
+    }
+}
+
+impl Drop for TempFileCleanup {
+    fn drop(&mut self) {
+        let Some(path) = self.path.take() else {
+            return;
+        };
+        let remove = move || match std::fs::remove_file(&path) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => {
+                tracing::warn!(
+                    path = %path.display(),
+                    "failed to clean up temporary file on drop: {error}"
+                );
+            }
+        };
+        match tokio::runtime::Handle::try_current() {
+            Ok(runtime) => {
+                runtime.spawn_blocking(remove);
+            }
+            Err(_) => {
+                remove();
+            }
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum BodyReadError {
     TooLarge,
     TmpDirFull(String),
+    MemoryPressure,
     Io(String),
+}
+
+pub struct RequestBodyStaging<'a> {
+    pub tmp_dir: &'a Path,
+    pub tmp_dir_max_bytes: u64,
+    pub io: &'a IoController,
+    pub memory: &'a MemoryController,
+    pub bandwidth_limiter: Option<&'a BandwidthLimiter>,
 }
 
 pub async fn read_request_to_temp(
     request: Request,
     directory: &Path,
     max_bytes: u64,
-    tmp_dir: &Path,
-    tmp_dir_max_bytes: u64,
-    io: &IoController,
-    bandwidth_limiter: Option<Arc<BandwidthLimiter>>,
+    staging: RequestBodyStaging<'_>,
 ) -> Result<TempBodyFile, BodyReadError> {
-    ensure_tmp_dir_capacity(tmp_dir, max_bytes, tmp_dir_max_bytes)
+    ensure_tmp_dir_capacity(staging.tmp_dir, max_bytes, staging.tmp_dir_max_bytes)
         .await
         .map_err(BodyReadError::TmpDirFull)?;
 
+    let declared_or_max_bytes = match request
+        .headers()
+        .get(axum::http::header::CONTENT_LENGTH)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.parse::<u64>().ok())
+    {
+        Some(declared_bytes) if declared_bytes > max_bytes => {
+            return Err(BodyReadError::TooLarge);
+        }
+        Some(declared_bytes) => declared_bytes,
+        None => max_bytes,
+    };
+    let memory_reservation = staging
+        .memory
+        .reserve_foreground_staging(declared_or_max_bytes)
+        .await
+        .map_err(|_| BodyReadError::MemoryPressure)?;
+    let file_cache_policy = memory_reservation.file_cache_policy();
+
     let temp_path = temp_file_path(directory, "upload");
     if let Some(parent) = temp_path.parent() {
-        io.create_dir_all(parent).await.map_err(BodyReadError::Io)?;
+        staging
+            .io
+            .create_dir_all(parent)
+            .await
+            .map_err(BodyReadError::Io)?;
     }
+    let cleanup = TempFileCleanup::new(temp_path.clone());
 
-    let mut file = io
+    let mut file = staging
+        .io
         .create_file(&temp_path)
         .await
         .map_err(BodyReadError::Io)?;
     let mut stream = request.into_body().into_data_stream();
     let mut size = 0_u64;
+    let mut advised_through = 0_u64;
 
     while let Some(item) = stream.next().await {
         let chunk = match item {
             Ok(chunk) => chunk,
             Err(error) => {
                 drop(file);
-                io.remove_file_if_exists(&temp_path).await;
+                staging.io.remove_file_if_exists(&temp_path).await;
                 return Err(BodyReadError::Io(format!(
                     "failed to read request body: {error}"
                 )));
@@ -149,25 +249,47 @@ pub async fn read_request_to_temp(
         size += chunk.len() as u64;
         if size > max_bytes {
             drop(file);
-            io.remove_file_if_exists(&temp_path).await;
+            staging.io.remove_file_if_exists(&temp_path).await;
             return Err(BodyReadError::TooLarge);
         }
-        if let Some(limiter) = bandwidth_limiter.as_ref() {
+        if let Some(limiter) = staging.bandwidth_limiter {
             limiter.acquire(chunk.len()).await;
         }
 
         if let Err(error) = file.write_all(&chunk).await {
             drop(file);
-            io.remove_file_if_exists(&temp_path).await;
+            staging.io.remove_file_if_exists(&temp_path).await;
             return Err(BodyReadError::Io(format!(
                 "failed to write temp file: {error}"
             )));
+        }
+        if file_cache_policy.should_drop(
+            staging.memory.pressure(),
+            staging.memory.transient_reserved_bytes(),
+        ) && size.saturating_sub(advised_through) >= FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES
+        {
+            file = match drop_staging_cache_range(
+                file,
+                &temp_path,
+                advised_through,
+                size - advised_through,
+                staging.io,
+            )
+            .await
+            {
+                Ok(file) => file,
+                Err(error) => {
+                    staging.io.remove_file_if_exists(&temp_path).await;
+                    return Err(BodyReadError::Io(error));
+                }
+            };
+            advised_through = size;
         }
     }
 
     if let Err(error) = file.flush().await {
         drop(file);
-        io.remove_file_if_exists(&temp_path).await;
+        staging.io.remove_file_if_exists(&temp_path).await;
         return Err(BodyReadError::Io(format!(
             "failed to flush temp file: {error}"
         )));
@@ -176,7 +298,24 @@ pub async fn read_request_to_temp(
     Ok(TempBodyFile {
         path: temp_path,
         size,
+        file_cache_policy,
+        _cleanup: cleanup,
+        _memory_reservation: memory_reservation,
     })
+}
+
+pub(crate) async fn drop_staging_cache_range(
+    file: TrackedFile,
+    path: &Path,
+    offset: u64,
+    length: u64,
+    io: &IoController,
+) -> Result<TrackedFile, String> {
+    let file = io
+        .sync_drop_cache_and_reopen_append(file, path, offset, length)
+        .await?;
+    io.metrics().record_memory_action("staging_file_cache_drop");
+    Ok(file)
 }
 
 pub async fn ensure_tmp_dir_capacity(
@@ -425,13 +564,15 @@ mod tests {
     #[tokio::test]
     async fn read_request_to_temp_persists_request_body() {
         let directory = tempdir().expect("failed to create temp dir");
+        let metrics = Metrics::new("eu-west".into(), "acme".into());
         let io = IoController::new(
-            Metrics::new("eu-west".into(), "acme".into()),
+            metrics.clone(),
             8,
             Duration::from_secs(1),
             vec![directory.path().to_path_buf()],
         )
         .expect("failed to create io controller");
+        let memory = MemoryController::new(metrics, 64 * 1024 * 1024, 128 * 1024 * 1024);
         let request = Request::builder()
             .body(Body::from("hello"))
             .expect("failed to build request");
@@ -440,10 +581,13 @@ mod tests {
             request,
             directory.path(),
             10,
-            directory.path(),
-            10,
-            &io,
-            None,
+            RequestBodyStaging {
+                tmp_dir: directory.path(),
+                tmp_dir_max_bytes: 10,
+                io: &io,
+                memory: &memory,
+                bandwidth_limiter: None,
+            },
         )
         .await
         .expect("failed to read request to temp");
@@ -458,13 +602,15 @@ mod tests {
     #[tokio::test]
     async fn read_request_to_temp_rejects_large_payloads() {
         let directory = tempdir().expect("failed to create temp dir");
+        let metrics = Metrics::new("eu-west".into(), "acme".into());
         let io = IoController::new(
-            Metrics::new("eu-west".into(), "acme".into()),
+            metrics.clone(),
             8,
             Duration::from_secs(1),
             vec![directory.path().to_path_buf()],
         )
         .expect("failed to create io controller");
+        let memory = MemoryController::new(metrics, 64 * 1024 * 1024, 128 * 1024 * 1024);
         let request = Request::builder()
             .body(Body::from("hello"))
             .expect("failed to build request");
@@ -473,10 +619,13 @@ mod tests {
             request,
             directory.path(),
             4,
-            directory.path(),
-            10,
-            &io,
-            None,
+            RequestBodyStaging {
+                tmp_dir: directory.path(),
+                tmp_dir_max_bytes: 10,
+                io: &io,
+                memory: &memory,
+                bandwidth_limiter: None,
+            },
         )
         .await
         .expect_err("expected body reader to reject oversized request");
@@ -491,24 +640,93 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn read_request_to_temp_rejects_when_tmp_budget_is_exhausted() {
+    async fn read_request_to_temp_cleans_up_when_cancelled() {
         let directory = tempdir().expect("failed to create temp dir");
-        std::fs::write(directory.path().join("staged"), b"hello").expect("failed to seed tmp dir");
+        let metrics = Metrics::new("eu-west".into(), "acme".into());
         let io = IoController::new(
-            Metrics::new("eu-west".into(), "acme".into()),
+            metrics.clone(),
             8,
             Duration::from_secs(1),
             vec![directory.path().to_path_buf()],
         )
         .expect("failed to create io controller");
+        let memory = MemoryController::new(metrics, 64 * 1024 * 1024, 128 * 1024 * 1024);
+        let body = futures_util::stream::once(async {
+            Ok::<_, std::convert::Infallible>(bytes::Bytes::from_static(b"hello"))
+        })
+        .chain(futures_util::stream::pending());
+        let request = Request::builder()
+            .body(Body::from_stream(body))
+            .expect("failed to build request");
+
+        let result = tokio::time::timeout(
+            Duration::from_millis(50),
+            read_request_to_temp(
+                request,
+                directory.path(),
+                10,
+                RequestBodyStaging {
+                    tmp_dir: directory.path(),
+                    tmp_dir_max_bytes: 10,
+                    io: &io,
+                    memory: &memory,
+                    bandwidth_limiter: None,
+                },
+            ),
+        )
+        .await;
+
+        assert!(result.is_err(), "the pending body should be cancelled");
+        for _ in 0..100 {
+            if std::fs::read_dir(directory.path())
+                .expect("failed to list temp dir")
+                .next()
+                .is_none()
+            {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(1)).await;
+        }
+        assert!(
+            std::fs::read_dir(directory.path())
+                .expect("failed to list temp dir")
+                .next()
+                .is_none(),
+            "cancellation must not leave a staged file"
+        );
+    }
+
+    #[tokio::test]
+    async fn read_request_to_temp_rejects_when_tmp_budget_is_exhausted() {
+        let directory = tempdir().expect("failed to create temp dir");
+        std::fs::write(directory.path().join("staged"), b"hello").expect("failed to seed tmp dir");
+        let metrics = Metrics::new("eu-west".into(), "acme".into());
+        let io = IoController::new(
+            metrics.clone(),
+            8,
+            Duration::from_secs(1),
+            vec![directory.path().to_path_buf()],
+        )
+        .expect("failed to create io controller");
+        let memory = MemoryController::new(metrics, 64 * 1024 * 1024, 128 * 1024 * 1024);
         let request = Request::builder()
             .body(Body::from("world"))
             .expect("failed to build request");
 
-        let error =
-            read_request_to_temp(request, directory.path(), 5, directory.path(), 9, &io, None)
-                .await
-                .expect_err("expected body reader to reject exhausted tmp budget");
+        let error = read_request_to_temp(
+            request,
+            directory.path(),
+            5,
+            RequestBodyStaging {
+                tmp_dir: directory.path(),
+                tmp_dir_max_bytes: 9,
+                io: &io,
+                memory: &memory,
+                bandwidth_limiter: None,
+            },
+        )
+        .await
+        .expect_err("expected body reader to reject exhausted tmp budget");
 
         assert!(matches!(error, BodyReadError::TmpDirFull(_)));
         assert_eq!(

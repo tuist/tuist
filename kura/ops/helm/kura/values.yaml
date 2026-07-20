@@ -125,9 +125,13 @@ config:
     maxConcurrent: 32
     chunkBytes: 1048576
   memory:
-    softLimitBytes: 536870912
-    hardLimitBytes: 805306368
-    manifestCacheMaxBytes: 67108864
+    # Leave watermarks and cache capacities unset so Kura derives them from
+    # the container's effective memory limit. Explicit values must remain below
+    # that limit and are intended only for deliberate tuning experiments.
+    softLimitBytes: null
+    hardLimitBytes: null
+    snapshotCacheMaxBytes: null
+    manifestCacheMaxBytes: null
     maxKeyvalueBytes: 1048576
   shutdown:
     drainCompletionTimeoutMs: 240000

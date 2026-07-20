@@ -124,16 +124,30 @@ async fn run_with_config(
         Duration::from_millis(config.file_descriptor_acquire_timeout_ms),
         vec![config.tmp_dir.clone(), config.data_dir.clone()],
     )?;
-    let memory = MemoryController::new(
+    let memory = MemoryController::with_runtime_limit(
         metrics.clone(),
+        config.memory_limit_bytes,
         config.memory_soft_limit_bytes,
         config.memory_hard_limit_bytes,
     );
+    let snapshot_cache = Arc::new(crate::reapi::SnapshotCache::new(
+        config.snapshot_cache_max_bytes,
+    ));
     let store = Store::open(&config, io.clone(), memory.clone())?;
     match store.sweep_orphaned_segments().await {
         Ok(0) => {}
         Ok(swept) => tracing::info!(swept, "removed orphaned segment files"),
         Err(error) => tracing::warn!("failed to sweep orphaned segments: {error}"),
+    }
+    // Establish a post-store-open baseline before any listener can admit an
+    // upload. The recurring sensor refreshes it every 200 ms, but treating an
+    // unknown baseline as zero would let a startup burst reserve the whole hard
+    // limit on top of RocksDB and allocator memory already charged to the
+    // container.
+    if let Some(accounted_bytes) = crate::memory::container_memory_current_bytes()
+        .or_else(|| process_memory_snapshot().map(|snapshot| snapshot.resident_bytes))
+    {
+        memory.observe(accounted_bytes);
     }
     let peer_client_factory = crate::peer_tls::PeerClientFactory::from_config(&config).await?;
     let client = peer_client_factory.build()?;
@@ -151,13 +165,18 @@ async fn run_with_config(
     let notify = Notify::new();
 
     let bootstrap_semaphore = Arc::new(Semaphore::new(config.bootstrap_max_concurrent_peers));
-    let bootstrap_staging_budget = crate::utils::TmpBudget::new(config.tmp_dir_max_bytes);
+    let bootstrap_staging_budget = crate::utils::TmpBudget::new(
+        config
+            .tmp_dir_max_bytes
+            .min(memory.bootstrap_staging_budget_bytes()),
+    );
     let state = Arc::new(AppState {
         config,
         _data_dir_lock: data_dir_lock,
         store,
         io,
         memory,
+        snapshot_cache,
         metrics,
         runtime,
         extension,
@@ -192,6 +211,7 @@ async fn run_with_config(
     }
 
     spawn_snapshot_task(state.clone());
+    spawn_memory_pressure_tasks(state.clone());
     spawn_runtime_metrics_task(state.clone());
     spawn_drain_signal_task(state.clone());
     spawn_multipart_janitor_task(state.clone());
@@ -512,13 +532,12 @@ fn spawn_snapshot_task(state: Arc<AppState>) {
                 let worker_state = state.clone();
                 match tokio::task::spawn_blocking(move || {
                     let snapshot = worker_state.store.snapshot();
-                    let memory = process_memory_snapshot();
                     let jemalloc = jemalloc_stats_snapshot();
-                    (snapshot, memory, jemalloc)
+                    (snapshot, jemalloc)
                 })
                 .await
                 {
-                    Ok((Ok(snapshot), memory, jemalloc)) => {
+                    Ok((Ok(snapshot), jemalloc)) => {
                         state
                             .metrics
                             .update_outbox_messages(snapshot.outbox_messages);
@@ -544,68 +563,6 @@ fn spawn_snapshot_task(state: Arc<AppState>) {
                             snapshot.rocksdb_write_buffer_usage_bytes,
                             snapshot.rocksdb_write_buffer_capacity_bytes,
                         );
-                        if let Some(memory) = memory {
-                            state
-                                .metrics
-                                .update_process_memory(memory.resident_bytes, memory.virtual_bytes);
-                            if let (Some(anon_bytes), Some(file_bytes)) =
-                                (memory.resident_anon_bytes, memory.resident_file_bytes)
-                            {
-                                state
-                                    .metrics
-                                    .update_process_resident_breakdown(anon_bytes, file_bytes);
-                            }
-                            let pressure = state.memory.observe(memory.resident_bytes);
-                            let target_bytes = state
-                                .memory
-                                .manifest_cache_target_bytes(state.config.manifest_cache_max_bytes);
-                            let evicted =
-                                state.store.trim_manifest_cache_to(target_bytes, "pressure");
-                            if evicted > 0 {
-                                state.metrics.record_memory_action("manifest_cache_trim");
-                            }
-                            let existence_evicted = state.store.trim_existence_cache_to(
-                                state.memory.bounded_cache_target_entries(
-                                    crate::store::EXISTENCE_CACHE_CAPACITY,
-                                ),
-                            );
-                            if existence_evicted > 0 {
-                                state.metrics.record_memory_action("existence_cache_trim");
-                            }
-                            let segment_handle_evicted = state
-                                .store
-                                .trim_segment_handle_cache_to(
-                                    state.memory.bounded_cache_target_entries(
-                                        state.config.segment_handle_cache_size,
-                                    ),
-                                    "pressure",
-                                )
-                                .await;
-                            if segment_handle_evicted > 0 {
-                                state
-                                    .metrics
-                                    .record_memory_action("segment_handle_cache_trim");
-                            }
-                            if pressure == MemoryPressure::Critical
-                                && let Some(extension) = &state.extension
-                            {
-                                let evicted = extension.clear_caches().await;
-                                if evicted > 0 {
-                                    state.metrics.record_memory_action("extension_cache_trim");
-                                }
-                            }
-                            state.metrics.update_background_work_paused(
-                                "outbox",
-                                state.memory.pause_outbox(),
-                            );
-                            state.metrics.update_background_work_paused(
-                                "segment_refresh",
-                                !state.memory.allow_segment_refresh(),
-                            );
-                            state
-                                .metrics
-                                .update_memory_pressure_state(pressure.as_i64());
-                        }
                         if let Some(jemalloc) = jemalloc {
                             state.metrics.update_jemalloc_stats(
                                 jemalloc.allocated_bytes,
@@ -614,7 +571,7 @@ fn spawn_snapshot_task(state: Arc<AppState>) {
                             );
                         }
                     }
-                    Ok((Err(error), _, _)) => {
+                    Ok((Err(error), _)) => {
                         tracing::warn!("failed to collect store snapshot metrics: {error}");
                     }
                     Err(error) => {
@@ -623,6 +580,129 @@ fn spawn_snapshot_task(state: Arc<AppState>) {
                 }
 
                 tokio::time::sleep(Duration::from_secs(5)).await;
+            }
+        }
+        .in_current_span(),
+    );
+}
+
+fn spawn_memory_pressure_tasks(state: Arc<AppState>) {
+    let sensor_state = state.clone();
+    tokio::spawn(
+        async move {
+            loop {
+                let accounted_bytes = crate::memory::container_memory_current_bytes()
+                    .or_else(|| process_memory_snapshot().map(|snapshot| snapshot.resident_bytes));
+                if let Some(accounted_bytes) = accounted_bytes {
+                    let previous = sensor_state.memory.pressure();
+                    let pressure = sensor_state.memory.observe(accounted_bytes);
+                    if pressure != previous {
+                        tracing::warn!(
+                            from = previous.as_str(),
+                            to = pressure.as_str(),
+                            accounted_bytes,
+                            runtime_limit_bytes = sensor_state.memory.runtime_limit_bytes(),
+                            transient_reserved_bytes =
+                                sensor_state.memory.transient_reserved_bytes(),
+                            "Kura memory pressure changed"
+                        );
+                    }
+                }
+                tokio::time::sleep(Duration::from_millis(200)).await;
+            }
+        }
+        .in_current_span(),
+    );
+
+    tokio::spawn(
+        async move {
+            loop {
+                let process = process_memory_snapshot();
+                if let Some(process) = process {
+                    state
+                        .metrics
+                        .update_process_memory(process.resident_bytes, process.virtual_bytes);
+                    if let (Some(anon_bytes), Some(file_bytes)) =
+                        (process.resident_anon_bytes, process.resident_file_bytes)
+                    {
+                        state
+                            .metrics
+                            .update_process_resident_breakdown(anon_bytes, file_bytes);
+                    }
+                }
+
+                let container = crate::memory::container_memory_snapshot();
+                if let Some(container) = container {
+                    state
+                        .metrics
+                        .update_container_memory(container, state.memory.runtime_limit_bytes());
+                }
+                state
+                    .metrics
+                    .update_transient_memory_reserved(state.memory.transient_reserved_bytes());
+
+                let pressure = state.memory.pressure();
+                let snapshot_target = state
+                    .memory
+                    .snapshot_cache_target_bytes(state.config.snapshot_cache_max_bytes);
+                state
+                    .snapshot_cache
+                    .trim_to(snapshot_target, pressure.as_str(), &state.metrics);
+                state.snapshot_cache.update_metrics(&state.metrics);
+                let target_bytes = state
+                    .memory
+                    .manifest_cache_target_bytes(state.config.manifest_cache_max_bytes);
+                let evicted = state.store.trim_manifest_cache_to(target_bytes, "pressure");
+                if evicted > 0 {
+                    state.metrics.record_memory_action("manifest_cache_trim");
+                }
+                let existence_evicted = state.store.trim_existence_cache_to(
+                    state
+                        .memory
+                        .bounded_cache_target_entries(crate::store::EXISTENCE_CACHE_CAPACITY),
+                );
+                if existence_evicted > 0 {
+                    state.metrics.record_memory_action("existence_cache_trim");
+                }
+                let segment_handle_evicted = state
+                    .store
+                    .trim_segment_handle_cache_to(
+                        state
+                            .memory
+                            .bounded_cache_target_entries(state.config.segment_handle_cache_size),
+                        "pressure",
+                    )
+                    .await;
+                if segment_handle_evicted > 0 {
+                    state
+                        .metrics
+                        .record_memory_action("segment_handle_cache_trim");
+                }
+                if pressure == MemoryPressure::Critical
+                    && let Some(extension) = &state.extension
+                {
+                    let evicted = extension.clear_caches().await;
+                    if evicted > 0 {
+                        state.metrics.record_memory_action("extension_cache_trim");
+                    }
+                }
+                state
+                    .metrics
+                    .update_background_work_paused("outbox", state.memory.pause_outbox());
+                state.metrics.update_background_work_paused(
+                    "bootstrap",
+                    !state.memory.allow_background_admission(),
+                );
+                state.metrics.update_background_work_paused(
+                    "snapshot_build",
+                    !state.memory.allow_background_admission(),
+                );
+                state.metrics.update_background_work_paused(
+                    "segment_refresh",
+                    !state.memory.allow_segment_refresh(),
+                );
+
+                tokio::time::sleep(Duration::from_secs(1)).await;
             }
         }
         .in_current_span(),
@@ -897,6 +977,7 @@ fn spawn_drain_signal_task(state: Arc<AppState>) {
 #[cfg(not(unix))]
 fn spawn_drain_signal_task(_state: Arc<AppState>) {}
 
+#[derive(Clone, Copy, Debug)]
 struct ProcessMemorySnapshot {
     resident_bytes: u64,
     virtual_bytes: u64,

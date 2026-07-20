@@ -43,14 +43,26 @@ use crate::{
     constants::MAX_MODULE_TOTAL_BYTES,
     extension::{AccessDecision, ExtensionContext, Principal},
     io::is_fd_pool_exhausted_error,
+    memory::{
+        FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES, FileCachePolicy, ForegroundMemoryReservation,
+    },
     replication::replication_targets,
     state::SharedState,
-    utils::{action_cache_key, blob_key, ensure_tmp_dir_capacity, temp_file_path},
+    store::StagedArtifactPath,
+    utils::{
+        TempFileCleanup, action_cache_key, blob_key, drop_staging_cache_range,
+        ensure_tmp_dir_capacity, temp_file_path,
+    },
 };
 
 const DEFAULT_INSTANCE_NAME: &str = "default";
 const REAPI_READ_STREAM_CHUNK_BYTES: usize = 512 * 1024;
 const REAPI_MATERIALIZATION_REJECTED_ACTION: &str = "reapi_materialization_rejected";
+const BYTESTREAM_WRITE_PATH: &str = "/google.bytestream.ByteStream/Write";
+// This duplicates Tonic's five-byte gRPC envelope so memory is admitted before
+// Tonic retains and decodes each message. Keep it aligned with Tonic's decoder:
+// https://github.com/hyperium/tonic/blob/v0.14.5/tonic/src/codec/decode.rs
+const GRPC_MESSAGE_HEADER_BYTES: usize = 5;
 
 // Abort a ByteStream upload only when no chunk arrives within this window. The
 // timer resets on every chunk received, so an actively transferring upload is
@@ -58,6 +70,157 @@ const REAPI_MATERIALIZATION_REJECTED_ACTION: &str = "reapi_materialization_rejec
 const REAPI_WRITE_STALL_TIMEOUT: Duration = Duration::from_secs(60);
 type BoxError = Box<dyn Error + Send + Sync + 'static>;
 type GrpcAccountingBody = UnsyncBoxBody<Bytes, BoxError>;
+
+#[derive(Clone)]
+struct ByteStreamWriteAdmission {
+    reservation: std::sync::Arc<std::sync::Mutex<ForegroundMemoryReservation>>,
+    metrics: crate::metrics::Metrics,
+}
+
+impl ByteStreamWriteAdmission {
+    fn new(reservation: ForegroundMemoryReservation, metrics: crate::metrics::Metrics) -> Self {
+        Self {
+            reservation: std::sync::Arc::new(std::sync::Mutex::new(reservation)),
+            metrics,
+        }
+    }
+
+    fn try_grow_decode(&self, encoded_message_bytes: u64) -> Result<(), Status> {
+        let mut reservation = self
+            .reservation
+            .lock()
+            .map_err(|_| Status::internal("ByteStream memory admission lock was poisoned"))?;
+        reservation
+            .try_grow_stream_decode(encoded_message_bytes)
+            .map_err(|_| {
+                self.metrics
+                    .record_memory_action("bytestream_decode_admission_rejected");
+                Status::resource_exhausted(
+                    "server is limiting concurrent ByteStream decoding; retry the write",
+                )
+            })
+    }
+
+    fn try_configure_staging(&self, declared_or_max_bytes: u64) -> Result<FileCachePolicy, Status> {
+        let mut reservation = self
+            .reservation
+            .lock()
+            .map_err(|_| Status::internal("ByteStream memory admission lock was poisoned"))?;
+        reservation
+            .try_configure_for_streaming_staging(declared_or_max_bytes)
+            .map_err(|_| {
+                self.metrics
+                    .record_memory_action("bytestream_staging_admission_rejected");
+                Status::resource_exhausted(
+                    "server is limiting concurrent ByteStream staging; retry the write",
+                )
+            })
+    }
+}
+
+struct ByteStreamAdmissionBody {
+    inner: axum::body::Body,
+    admission: ByteStreamWriteAdmission,
+    header: [u8; GRPC_MESSAGE_HEADER_BYTES],
+    header_bytes: usize,
+    payload_bytes_remaining: usize,
+    failed: bool,
+}
+
+impl ByteStreamAdmissionBody {
+    fn new(inner: axum::body::Body, admission: ByteStreamWriteAdmission) -> Self {
+        Self {
+            inner,
+            admission,
+            header: [0; GRPC_MESSAGE_HEADER_BYTES],
+            header_bytes: 0,
+            payload_bytes_remaining: 0,
+            failed: false,
+        }
+    }
+
+    fn inspect_data(&mut self, data: &Bytes) -> Result<(), Status> {
+        let mut offset = 0;
+        while offset < data.len() {
+            if self.payload_bytes_remaining > 0 {
+                let consumed = self.payload_bytes_remaining.min(data.len() - offset);
+                self.payload_bytes_remaining -= consumed;
+                offset += consumed;
+                continue;
+            }
+
+            let copied = (GRPC_MESSAGE_HEADER_BYTES - self.header_bytes).min(data.len() - offset);
+            self.header[self.header_bytes..self.header_bytes + copied]
+                .copy_from_slice(&data[offset..offset + copied]);
+            self.header_bytes += copied;
+            offset += copied;
+            if self.header_bytes < GRPC_MESSAGE_HEADER_BYTES {
+                continue;
+            }
+
+            if self.header[0] != 0 {
+                return Err(Status::unimplemented(
+                    "compressed ByteStream writes are not supported",
+                ));
+            }
+            let encoded_message_bytes = u32::from_be_bytes([
+                self.header[1],
+                self.header[2],
+                self.header[3],
+                self.header[4],
+            ]) as usize;
+            if encoded_message_bytes > REAPI_MAX_DECODING_MESSAGE_SIZE {
+                return Err(Status::out_of_range(format!(
+                    "decoded message length {encoded_message_bytes} exceeds the {REAPI_MAX_DECODING_MESSAGE_SIZE}-byte limit"
+                )));
+            }
+            self.admission
+                .try_grow_decode(encoded_message_bytes as u64)?;
+            self.header_bytes = 0;
+            self.payload_bytes_remaining = encoded_message_bytes;
+        }
+        Ok(())
+    }
+}
+
+impl HttpBody for ByteStreamAdmissionBody {
+    type Data = Bytes;
+    type Error = Status;
+
+    fn poll_frame(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<Option<Result<http_body::Frame<Self::Data>, Self::Error>>> {
+        let this = self.get_mut();
+        if this.failed {
+            return Poll::Ready(None);
+        }
+        match Pin::new(&mut this.inner).poll_frame(cx) {
+            Poll::Ready(Some(Ok(frame))) => {
+                if let Some(data) = frame.data_ref()
+                    && let Err(status) = this.inspect_data(data)
+                {
+                    this.failed = true;
+                    return Poll::Ready(Some(Err(status)));
+                }
+                Poll::Ready(Some(Ok(frame)))
+            }
+            Poll::Ready(Some(Err(error))) => Poll::Ready(Some(Err(Status::internal(format!(
+                "failed to read ByteStream request body: {error}"
+            ))))),
+            Poll::Ready(None) => Poll::Ready(None),
+            Poll::Pending => Poll::Pending,
+        }
+    }
+
+    fn is_end_stream(&self) -> bool {
+        self.inner.is_end_stream()
+    }
+
+    fn size_hint(&self) -> http_body::SizeHint {
+        self.inner.size_hint()
+    }
+}
 
 #[derive(Clone)]
 pub struct ReapiService {
@@ -75,8 +238,7 @@ pub struct ReapiService {
 /// from scratch and timed out the same way — the snapshot never became
 /// servable. A detached build completes and caches regardless of who is
 /// still waiting.
-#[derive(Default)]
-struct SnapshotCache {
+pub(crate) struct SnapshotCache {
     indexes: std::sync::Mutex<BTreeMap<String, NamespaceSnapshotIndex>>,
     builds: std::sync::Mutex<std::collections::HashMap<String, SharedIndexBuild>>,
     /// The last FULL (`after == 0`) encoded snapshot per namespace. A reconcile
@@ -87,6 +249,141 @@ struct SnapshotCache {
     /// pruned with the index LRU — unlike cloning the whole index, whose
     /// node table the entry cap does not bound.
     served_full: std::sync::Mutex<BTreeMap<String, std::sync::Arc<Vec<u8>>>>,
+    build_lock: tokio::sync::Mutex<()>,
+    max_bytes: usize,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) struct SnapshotCacheStats {
+    pub(crate) bytes: usize,
+    pub(crate) namespaces: usize,
+    pub(crate) entries: usize,
+    pub(crate) nodes: usize,
+    pub(crate) served_full_bytes: usize,
+}
+
+impl Default for SnapshotCache {
+    fn default() -> Self {
+        Self::new(256 << 20)
+    }
+}
+
+impl SnapshotCache {
+    pub(crate) fn new(max_bytes: usize) -> Self {
+        Self {
+            indexes: Default::default(),
+            builds: Default::default(),
+            served_full: Default::default(),
+            build_lock: Default::default(),
+            max_bytes: max_bytes.max(1),
+        }
+    }
+
+    fn index_max_bytes(&self) -> usize {
+        self.max_bytes
+            .saturating_sub((self.max_bytes / 4).min(SNAPSHOT_WIRE_MAX_BYTES))
+            .max(1)
+    }
+
+    pub(crate) fn stats(&self) -> SnapshotCacheStats {
+        let indexes = self.indexes.lock().expect("snapshot cache lock poisoned");
+        let served_full = self
+            .served_full
+            .lock()
+            .expect("snapshot served_full lock poisoned");
+        Self::stats_locked(&indexes, &served_full)
+    }
+
+    fn stats_locked(
+        indexes: &BTreeMap<String, NamespaceSnapshotIndex>,
+        served_full: &BTreeMap<String, std::sync::Arc<Vec<u8>>>,
+    ) -> SnapshotCacheStats {
+        let entries = indexes.values().map(|index| index.entries.len()).sum();
+        let nodes = indexes.values().map(|index| index.nodes.len()).sum();
+        let index_bytes = indexes
+            .iter()
+            .map(|(namespace, index)| {
+                index
+                    .estimated_bytes()
+                    .saturating_add(estimated_map_item_bytes(namespace.len()))
+            })
+            .sum::<usize>();
+        let served_full_bytes = served_full
+            .iter()
+            .map(|(namespace, bytes)| {
+                bytes
+                    .capacity()
+                    .saturating_add(estimated_map_item_bytes(namespace.len()))
+            })
+            .sum();
+        SnapshotCacheStats {
+            bytes: index_bytes.saturating_add(served_full_bytes),
+            namespaces: indexes.len(),
+            entries,
+            nodes,
+            served_full_bytes,
+        }
+    }
+
+    pub(crate) fn update_metrics(&self, metrics: &crate::metrics::Metrics) {
+        let stats = self.stats();
+        metrics.update_snapshot_cache(
+            stats.bytes,
+            self.max_bytes,
+            stats.namespaces,
+            stats.entries,
+            stats.nodes,
+            stats.served_full_bytes,
+        );
+    }
+
+    pub(crate) fn trim_to(
+        &self,
+        target_bytes: usize,
+        reason: &str,
+        metrics: &crate::metrics::Metrics,
+    ) -> usize {
+        let target_bytes = target_bytes.min(self.max_bytes);
+        let mut indexes = self.indexes.lock().expect("snapshot cache lock poisoned");
+        let mut served_full = self
+            .served_full
+            .lock()
+            .expect("snapshot served_full lock poisoned");
+        let mut evicted = 0;
+        loop {
+            let stats = Self::stats_locked(&indexes, &served_full);
+            if stats.bytes <= target_bytes {
+                metrics.update_snapshot_cache(
+                    stats.bytes,
+                    self.max_bytes,
+                    stats.namespaces,
+                    stats.entries,
+                    stats.nodes,
+                    stats.served_full_bytes,
+                );
+                break;
+            }
+            let oldest = indexes
+                .iter()
+                .min_by_key(|(_, index)| index.last_used)
+                .map(|(namespace, _)| namespace.clone())
+                .or_else(|| served_full.keys().next().cloned());
+            let Some(oldest) = oldest else { break };
+            indexes.remove(&oldest);
+            served_full.remove(&oldest);
+            evicted += 1;
+        }
+        if evicted > 0 {
+            metrics.record_memory_action("snapshot_cache_trim");
+            tracing::warn!(
+                evicted,
+                reason,
+                target_bytes,
+                "trimmed action-cache snapshot cache"
+            );
+        }
+        evicted
+    }
 }
 
 type SharedIndexBuild = futures_util::future::Shared<BoxFuture<'static, Result<(), String>>>;
@@ -113,8 +410,8 @@ type ReapiServers = (
 // The four REAPI gRPC services with their shared decoding limits.
 fn reapi_servers(state: SharedState) -> ReapiServers {
     let service = ReapiService {
+        snapshot_cache: state.snapshot_cache.clone(),
         state,
-        snapshot_cache: Default::default(),
     };
     (
         CapabilitiesServer::new(service.clone())
@@ -143,7 +440,39 @@ pub fn routes(state: SharedState) -> axum::Router {
         .add_service(cas)
         .add_service(byte_stream)
         .into_axum_router()
+        .layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            admit_bytestream_write_decode,
+        ))
         .layer(GrpcRequestAccountingLayer { state })
+}
+
+async fn admit_bytestream_write_decode(
+    axum::extract::State(state): axum::extract::State<SharedState>,
+    mut request: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> axum::response::Response {
+    if request.uri().path() != BYTESTREAM_WRITE_PATH {
+        return next.run(request).await;
+    }
+
+    let reservation = match state.memory.try_reserve_foreground_stream_decode(0) {
+        Ok(reservation) => reservation,
+        Err(()) => {
+            return grpc_status_response(Status::resource_exhausted(
+                "server is limiting concurrent ByteStream decoding; retry the write",
+            ));
+        }
+    };
+    let admission = ByteStreamWriteAdmission::new(reservation, state.metrics.clone());
+    request.extensions_mut().insert(admission.clone());
+    let body = std::mem::take(request.body_mut());
+    *request.body_mut() = axum::body::Body::new(ByteStreamAdmissionBody::new(body, admission));
+    next.run(request).await
+}
+
+fn grpc_status_response(status: Status) -> axum::response::Response {
+    status.into_http::<axum::body::Body>()
 }
 
 #[derive(Clone)]
@@ -329,6 +658,11 @@ impl ReapiService {
         // project-scoped tokens authorize against the real project (not the
         // account) — matching the namespace the blob is ultimately stored under.
         let metadata = request.metadata().clone();
+        let memory_admission = request
+            .extensions()
+            .get::<ByteStreamWriteAdmission>()
+            .cloned()
+            .ok_or_else(|| Status::internal("ByteStream decode admission was not propagated"))?;
         let mut temp_file = self
             .state
             .io
@@ -339,7 +673,9 @@ impl ReapiService {
         let mut resource_name = None::<String>;
         let mut resource = None::<BlobResource>;
         let mut principal = None::<Principal>;
+        let mut file_cache_policy = FileCachePolicy::Adaptive;
         let mut written = 0_u64;
+        let mut advised_through = 0_u64;
         let mut hasher = Sha256::new();
         let mut finished = false;
 
@@ -399,20 +735,53 @@ impl ReapiService {
                         "temporary storage budget exhausted: {error}"
                     ))
                 })?;
+                file_cache_policy =
+                    memory_admission.try_configure_staging(parsed_resource.size_bytes)?;
                 resource = Some(parsed_resource);
                 resource_name = Some(chunk_resource_name);
             }
             if chunk.write_offset < 0 || chunk.write_offset as u64 != written {
                 return Err(Status::invalid_argument("unexpected write_offset"));
             }
+            let expected_size = resource
+                .as_ref()
+                .expect("resource is initialized with the first chunk")
+                .size_bytes;
+            if written.saturating_add(chunk.data.len() as u64) > expected_size {
+                return Err(Status::invalid_argument(
+                    "write data exceeds the declared blob size",
+                ));
+            }
             if !chunk.data.is_empty() {
-                tokio::io::AsyncWriteExt::write_all(&mut temp_file, &chunk.data)
-                    .await
-                    .map_err(|error| {
-                        Status::internal(format!("failed to write temp blob: {error}"))
-                    })?;
-                hasher.update(&chunk.data);
-                written = written.saturating_add(chunk.data.len() as u64);
+                for data in chunk
+                    .data
+                    .chunks(FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES as usize)
+                {
+                    tokio::io::AsyncWriteExt::write_all(&mut temp_file, data)
+                        .await
+                        .map_err(|error| {
+                            Status::internal(format!("failed to write temp blob: {error}"))
+                        })?;
+                    hasher.update(data);
+                    written = written.saturating_add(data.len() as u64);
+                    if file_cache_policy.should_drop(
+                        self.state.memory.pressure(),
+                        self.state.memory.transient_reserved_bytes(),
+                    ) && written.saturating_sub(advised_through)
+                        >= FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES
+                    {
+                        temp_file = drop_staging_cache_range(
+                            temp_file,
+                            temp_path,
+                            advised_through,
+                            written - advised_through,
+                            &self.state.io,
+                        )
+                        .await
+                        .map_err(Status::internal)?;
+                        advised_through = written;
+                    }
+                }
                 // Only real byte progress extends the deadline, so a client
                 // cannot keep a stalled upload alive with empty frames.
                 stall_deadline = tokio::time::Instant::now() + REAPI_WRITE_STALL_TIMEOUT;
@@ -469,7 +838,7 @@ impl ReapiService {
                 &resource.namespace_id,
                 &resource.key,
                 "application/octet-stream",
-                temp_path,
+                StagedArtifactPath::new(temp_path, file_cache_policy),
                 &targets,
             )
             .await
@@ -510,6 +879,7 @@ impl ReapiService {
         if !persisted.already_present {
             self.record_reapi_upload(&metadata, &resource.namespace_id, persisted.manifest.size);
         }
+        drop(memory_admission);
         Ok(response)
     }
 
@@ -540,7 +910,7 @@ impl ReapiService {
             if let Some(index) = indexes.get_mut(namespace_id) {
                 let stale = index.reconciled_at.elapsed() >= SNAPSHOT_RECONCILE_INTERVAL;
                 index.last_used = Instant::now();
-                let bytes = index.encode(after);
+                let bytes = self.encode_snapshot(index, after)?;
                 drop(indexes);
                 self.cache_full_view(namespace_id, after, &bytes);
                 if stale {
@@ -564,6 +934,15 @@ impl ReapiService {
                 .get(namespace_id)
                 .cloned();
             if let Some(cached) = cached {
+                let _permit = self
+                    .state
+                    .memory
+                    .try_acquire_reapi_materialization(cached.len())
+                    .map_err(|_| {
+                        Status::resource_exhausted(
+                            "action-cache snapshot serve declined under memory pressure",
+                        )
+                    })?;
                 let _build = self.ensure_index_build(namespace_id);
                 return Ok((*cached).clone());
             }
@@ -595,10 +974,12 @@ impl ReapiService {
             .lock()
             .expect("snapshot cache lock poisoned");
         let Some(index) = indexes.get_mut(namespace_id) else {
-            return Err(Status::internal("snapshot index missing after build"));
+            return Err(Status::unavailable(
+                "action-cache snapshot index was not retained; use per-key lookup and retry",
+            ));
         };
         index.last_used = Instant::now();
-        let bytes = index.encode(after);
+        let bytes = self.encode_snapshot(index, after)?;
         drop(indexes);
         self.cache_full_view(namespace_id, after, &bytes);
         Ok(bytes)
@@ -613,11 +994,50 @@ impl ReapiService {
         if after != 0 {
             return;
         }
+        let target_bytes = self
+            .state
+            .memory
+            .snapshot_cache_target_bytes(self.snapshot_cache.max_bytes);
+        if bytes.len() > target_bytes {
+            self.state
+                .metrics
+                .record_memory_action("snapshot_full_view_budget_rejected");
+            return;
+        }
         self.snapshot_cache
             .served_full
             .lock()
             .expect("snapshot served_full lock poisoned")
             .insert(namespace_id.to_owned(), std::sync::Arc::new(bytes.to_vec()));
+        self.snapshot_cache
+            .trim_to(target_bytes, "capacity", &self.state.metrics);
+    }
+
+    fn encode_snapshot(
+        &self,
+        index: &NamespaceSnapshotIndex,
+        after: u64,
+    ) -> Result<Vec<u8>, Status> {
+        let content_budget = self
+            .state
+            .memory
+            .reapi_response_budget_bytes()
+            .min(self.state.memory.reapi_materialization_pool_bytes() / 2);
+        if content_budget == 0 {
+            return Err(Status::resource_exhausted(
+                "action-cache snapshot encode declined under memory pressure",
+            ));
+        }
+        let _permit = self
+            .state
+            .memory
+            .try_acquire_reapi_materialization(content_budget)
+            .map_err(|_| {
+                Status::resource_exhausted(
+                    "action-cache snapshot encode is waiting for memory headroom",
+                )
+            })?;
+        Ok(index.encode_with_budget(after, content_budget))
     }
 
     /// The namespace's in-flight index build, starting one when none is
@@ -691,6 +1111,22 @@ impl ReapiService {
             namespace_id = namespace.as_str(),
             "action-cache snapshot index build started"
         );
+        if !state.memory.allow_background_admission() {
+            tracing::warn!(
+                namespace_id = namespace.as_str(),
+                pressure = state.memory.pressure().as_str(),
+                "action-cache snapshot build skipped under memory pressure"
+            );
+            state
+                .metrics
+                .record_memory_action("snapshot_build_pressure_skipped");
+            return Err("declined under memory pressure".to_owned());
+        }
+        let _build_guard = cache.build_lock.lock().await;
+        if !state.memory.allow_background_admission() {
+            return Err("declined under memory pressure".to_owned());
+        }
+        let index_max_bytes = cache.index_max_bytes();
         // A build's transient memory rides the response-materialization
         // pool: holding a byte-sized permit for its duration means a node
         // under memory pressure defers the build instead of being
@@ -707,7 +1143,9 @@ impl ReapiService {
             .max(1);
         let permit = tokio::time::timeout(
             SNAPSHOT_BUILD_PERMIT_WAIT,
-            state.memory.acquire_reapi_materialization(budget),
+            state
+                .memory
+                .acquire_background_reapi_materialization(budget),
         )
         .await;
         let Ok(Ok(_permit)) = permit else {
@@ -730,25 +1168,39 @@ impl ReapiService {
             .expect("snapshot cache lock poisoned")
             .remove(&namespace)
             .unwrap_or_else(NamespaceSnapshotIndex::new);
-        let (mut index, result) = match reconcile_snapshot_index(&state, &namespace, index).await {
-            Ok(mut index) => {
-                index.reconciled_at = Instant::now();
-                (index, Ok(()))
-            }
-            Err((index, error)) => {
-                // The reconcile hands the index back so accumulated progress
-                // survives a transient store error; reinsert it. Background
-                // kicks drop the shared future without awaiting it, so this is
-                // the only place a repeated reconcile failure becomes visible.
-                tracing::warn!(
-                    namespace_id = namespace.as_str(),
-                    error = error.as_str(),
-                    "action-cache snapshot reconcile failed"
-                );
-                (index, Err(error))
-            }
-        };
+        cache.trim_to(
+            cache.max_bytes.saturating_sub(index_max_bytes),
+            "build_headroom",
+            &state.metrics,
+        );
+        let (mut index, result) =
+            match reconcile_snapshot_index(&state, &namespace, index, index_max_bytes).await {
+                Ok(mut index) => {
+                    index.reconciled_at = Instant::now();
+                    (index, Ok(()))
+                }
+                Err((index, error)) => {
+                    // The reconcile hands the index back so accumulated progress
+                    // survives a transient store error; reinsert it. Background
+                    // kicks drop the shared future without awaiting it, so this is
+                    // the only place a repeated reconcile failure becomes visible.
+                    tracing::warn!(
+                        namespace_id = namespace.as_str(),
+                        error = error.as_str(),
+                        "action-cache snapshot reconcile failed"
+                    );
+                    (index, Err(error))
+                }
+            };
         index.last_used = Instant::now();
+        if !state.memory.allow_background_admission() {
+            cache.trim_to(
+                state.memory.snapshot_cache_target_bytes(cache.max_bytes),
+                state.memory.pressure().as_str(),
+                &state.metrics,
+            );
+            return Err("snapshot build completed under memory pressure and was discarded".into());
+        }
         {
             let mut indexes = cache.indexes.lock().expect("snapshot cache lock poisoned");
             indexes.insert(namespace.clone(), index);
@@ -768,6 +1220,7 @@ impl ReapiService {
                     .remove(&oldest);
             }
         }
+        cache.trim_to(cache.max_bytes, "capacity", &state.metrics);
         result
     }
 }
@@ -781,6 +1234,7 @@ async fn reconcile_snapshot_index(
     state: &SharedState,
     namespace_id: &str,
     mut index: NamespaceSnapshotIndex,
+    index_max_bytes: usize,
 ) -> Result<NamespaceSnapshotIndex, (NamespaceSnapshotIndex, String)> {
     let started = Instant::now();
     let manifests = match state
@@ -817,7 +1271,8 @@ async fn reconcile_snapshot_index(
         current.insert(hash, (version, manifest));
     }
     index.entries.retain(|hash, _| current.contains_key(hash));
-    let changed: Vec<[u8; 32]> = current
+    index.recompute_estimated_bytes();
+    let mut changed: Vec<([u8; 32], u64)> = current
         .iter()
         .filter(|(hash, (version, _))| {
             index
@@ -825,13 +1280,14 @@ async fn reconcile_snapshot_index(
                 .get(*hash)
                 .is_none_or(|entry| entry.version_ms != *version)
         })
-        .map(|(hash, _)| *hash)
+        .map(|(hash, (version, _))| (*hash, *version))
         .collect();
+    changed.sort_unstable_by(|(_, left), (_, right)| right.cmp(left));
     // Manifests move out for the load and move back with the result, so the
     // stream owns everything it captures (the whole reconcile runs inside a
     // 'static spawned task) without duplicating a single manifest.
     let mut to_load = Vec::with_capacity(changed.len());
-    for hash in changed {
+    for (hash, _) in changed {
         if let Some((version, manifest)) = current.remove(&hash) {
             to_load.push((hash, version, manifest));
         }
@@ -839,6 +1295,7 @@ async fn reconcile_snapshot_index(
     let changed_count = to_load.len();
     let mut loads_failed = 0_usize;
     let mut invalid = 0_usize;
+    let mut budget_rejected = 0_usize;
     let mut loading =
         futures_util::stream::iter(to_load.into_iter().map(|(hash, version, manifest)| {
             let state = state.clone();
@@ -852,10 +1309,16 @@ async fn reconcile_snapshot_index(
         .buffered(32);
     while let Some((hash, version_ms, manifest, action_result)) = loading.next().await {
         current.insert(hash, (version_ms, manifest));
+        index.remove_entry(&hash);
         let Some(action_result) = action_result else {
             loads_failed += 1;
             continue;
         };
+        let entry_bytes = estimated_snapshot_entry_bytes(action_result.output_files.len());
+        if index.estimated_bytes().saturating_add(entry_bytes) > index_max_bytes {
+            budget_rejected += 1;
+            continue;
+        }
         let mut nodes = Vec::with_capacity(action_result.output_files.len());
         let mut valid = !action_result.output_files.is_empty();
         for file in &action_result.output_files {
@@ -872,14 +1335,28 @@ async fn reconcile_snapshot_index(
                 valid = false;
                 break;
             };
-            nodes.push(index.intern_node(llcas, blob_hash, digest.size_bytes as u64));
+            let node_budget = index_max_bytes.saturating_sub(entry_bytes);
+            let Some(node) =
+                index.try_intern_node(llcas, blob_hash, digest.size_bytes as u64, node_budget)
+            else {
+                valid = false;
+                budget_rejected += 1;
+                break;
+            };
+            nodes.push(node);
         }
         if valid {
-            index
-                .entries
-                .insert(hash, SnapshotIndexEntry { version_ms, nodes });
+            index.insert_entry(hash, SnapshotIndexEntry { version_ms, nodes });
         } else {
             invalid += 1;
+        }
+        if !state.memory.allow_background_admission() {
+            drop(loading);
+            index.compact_nodes();
+            return Err((
+                index,
+                "memory pressure interrupted snapshot reconcile".into(),
+            ));
         }
     }
     drop(loading);
@@ -926,7 +1403,7 @@ async fn reconcile_snapshot_index(
         .map(|(_, manifest)| manifest.clone())
         .collect();
     for hash in dead {
-        index.entries.remove(&hash);
+        index.remove_entry(&hash);
     }
     if !cascade.is_empty() {
         match state.store.delete_artifact_metadata(&cascade) {
@@ -962,6 +1439,9 @@ async fn reconcile_snapshot_index(
         changed = changed_count,
         loads_failed,
         invalid,
+        budget_rejected,
+        estimated_bytes = index.estimated_bytes(),
+        index_max_bytes,
         scan_ms,
         load_ms,
         gate_ms = started.elapsed().as_millis() as u64 - scan_ms - load_ms,
@@ -1068,6 +1548,15 @@ impl ActionCache for ReapiService {
                 .unwrap_or(0);
             let snapshot = self.serve_actioncache_snapshot(namespace_id, after).await?;
             let served = snapshot.len() as u64;
+            let response_memory = self
+                .state
+                .memory
+                .try_acquire_reapi_materialization(snapshot.len())
+                .map_err(|_| {
+                    Status::resource_exhausted(
+                        "action-cache snapshot response is waiting for memory headroom",
+                    )
+                })?;
             let action_result = reapi::ActionResult {
                 output_files: vec![reapi::OutputFile {
                     path: SNAPSHOT_OUTPUT_PATH.to_owned(),
@@ -1081,6 +1570,11 @@ impl ActionCache for ReapiService {
                 ..Default::default()
             };
             let mut response = Response::new(action_result);
+            if let Some(permit) = response_memory {
+                response
+                    .extensions_mut()
+                    .insert(ResponseMemoryGuard::new(vec![permit]));
+            }
             self.apply_response_headers(&mut response, extension, principal.as_ref())
                 .await?;
             self.state
@@ -1089,13 +1583,18 @@ impl ActionCache for ReapiService {
             self.record_reapi_download(request.metadata(), namespace_id, served);
             return Ok(response);
         }
-        let mut materialization_budget = MaterializationBudget::new(&self.state);
+        let mut materialization_budget =
+            std::sync::Mutex::new(MaterializationBudget::new(&self.state));
         let (size_bytes, mut action_result) = fetch_keyvalue_proto::<reapi::ActionResult>(
             &self.state,
             namespace_id,
             &key,
             "action result",
-            Some(&mut materialization_budget),
+            Some(
+                materialization_budget
+                    .get_mut()
+                    .expect("action-cache materialization budget lock poisoned"),
+            ),
         )
         .await?;
         // Presence gate, the per-key counterpart of the snapshot reconcile's:
@@ -1157,7 +1656,11 @@ impl ActionCache for ReapiService {
                 &self.state,
                 namespace_id,
                 digest,
-                Some(&mut materialization_budget),
+                Some(
+                    materialization_budget
+                        .get_mut()
+                        .expect("action-cache materialization budget lock poisoned"),
+                ),
             )
             .await?
         {
@@ -1171,7 +1674,11 @@ impl ActionCache for ReapiService {
                 &self.state,
                 namespace_id,
                 digest,
-                Some(&mut materialization_budget),
+                Some(
+                    materialization_budget
+                        .get_mut()
+                        .expect("action-cache materialization budget lock poisoned"),
+                ),
             )
             .await?
         {
@@ -1222,10 +1729,9 @@ impl ActionCache for ReapiService {
                         .map(|digest| (index, digest, explicit))
                 })
                 .collect();
-            let budget = std::sync::Mutex::new(materialization_budget);
             let reads: Vec<(usize, bool, Result<Option<Vec<u8>>, Status>)> =
                 futures_util::stream::iter(targets.into_iter().map(|(index, digest, explicit)| {
-                    let budget = &budget;
+                    let budget = &materialization_budget;
                     async move {
                         (
                             index,
@@ -1256,6 +1762,13 @@ impl ActionCache for ReapiService {
         }
 
         let mut response = Response::new(action_result);
+        let response_memory = materialization_budget
+            .into_inner()
+            .expect("action-cache materialization budget lock poisoned")
+            .into_response_guard();
+        if let Some(response_memory) = response_memory {
+            response.extensions_mut().insert(response_memory);
+        }
         self.apply_response_headers(&mut response, extension, principal.as_ref())
             .await?;
         self.state
@@ -1514,6 +2027,13 @@ impl ContentAddressableStorage for ReapiService {
         });
 
         let mut response = Response::new(reapi::BatchReadBlobsResponse { responses });
+        let response_memory = budget
+            .into_inner()
+            .expect("batch-read materialization budget lock poisoned")
+            .into_response_guard();
+        if let Some(response_memory) = response_memory {
+            response.extensions_mut().insert(response_memory);
+        }
         self.apply_response_headers(&mut response, extension, principal.as_ref())
             .await?;
         if served_any {
@@ -1666,13 +2186,11 @@ impl ByteStream for ReapiService {
                 .await
                 .map_err(Status::internal)?;
         }
+        let mut cleanup = TempFileCleanup::new(temp_path.clone());
 
-        // Funnel everything that touches the temp file through write_to_temp so a
-        // single place reclaims the partial file on ANY error. A cancelled or
-        // RST'd upload (transport error, mid-stream stall, write/flush failure)
-        // would otherwise leak a partial that counts against the tmp dir budget
-        // forever — there is no janitor for reapi uploads. On success the persist
-        // step already unlinks the temp file, so this cleanup is a no-op there.
+        // The owned cleanup guard removes the partial even when transport
+        // cancellation drops this future at an await point. On success the
+        // persist step already unlinks the temp file, so its drop is a no-op.
         let result = self.write_to_temp(&temp_path, request).await;
         if let Err(status) = &result {
             self.state.io.remove_file_if_exists(&temp_path).await;
@@ -1684,6 +2202,7 @@ impl ByteStream for ReapiService {
                 .record_artifact_write(ArtifactProducer::Reapi, "error", 0);
             tracing::warn!("reapi bytestream write failed: {status}");
         }
+        cleanup.disarm();
         result
     }
 
@@ -1932,7 +2451,20 @@ async fn read_serving_bytes(
 struct MaterializationBudget<'a> {
     state: &'a SharedState,
     remaining_bytes: usize,
-    held_permits: Vec<tokio::sync::OwnedSemaphorePermit>,
+    held_permits: Vec<crate::memory::MemoryPermit>,
+}
+
+#[derive(Clone)]
+struct ResponseMemoryGuard {
+    _permits: std::sync::Arc<Vec<crate::memory::MemoryPermit>>,
+}
+
+impl ResponseMemoryGuard {
+    fn new(permits: Vec<crate::memory::MemoryPermit>) -> Self {
+        Self {
+            _permits: std::sync::Arc::new(permits),
+        }
+    }
 }
 
 impl<'a> MaterializationBudget<'a> {
@@ -1983,6 +2515,10 @@ impl<'a> MaterializationBudget<'a> {
             .metrics
             .record_memory_action(REAPI_MATERIALIZATION_REJECTED_ACTION);
         Status::resource_exhausted(message)
+    }
+
+    fn into_response_guard(self) -> Option<ResponseMemoryGuard> {
+        (!self.held_permits.is_empty()).then(|| ResponseMemoryGuard::new(self.held_permits))
     }
 }
 
@@ -2120,6 +2656,7 @@ struct NamespaceSnapshotIndex {
     nodes: Vec<SnapshotNode>,
     node_index: BTreeMap<Vec<u8>, u32>,
     entries: BTreeMap<[u8; 32], SnapshotIndexEntry>,
+    estimated_bytes: usize,
     last_used: Instant,
     /// When the last successful reconcile finished. Serving reads this to
     /// decide whether the cached view is fresh enough to return as-is.
@@ -2128,20 +2665,39 @@ struct NamespaceSnapshotIndex {
 
 impl NamespaceSnapshotIndex {
     fn new() -> Self {
-        Self {
+        let mut index = Self {
             nodes: Vec::new(),
             node_index: BTreeMap::new(),
             entries: BTreeMap::new(),
+            estimated_bytes: 0,
             last_used: Instant::now(),
             reconciled_at: Instant::now(),
-        }
+        };
+        index.recompute_estimated_bytes();
+        index
     }
 
+    #[cfg(test)]
     fn intern_node(&mut self, llcas: Vec<u8>, blob_hash: [u8; 32], blob_size: u64) -> u32 {
+        self.try_intern_node(llcas, blob_hash, blob_size, usize::MAX)
+            .expect("unbounded snapshot node admission should succeed")
+    }
+
+    fn try_intern_node(
+        &mut self,
+        llcas: Vec<u8>,
+        blob_hash: [u8; 32],
+        blob_size: u64,
+        max_bytes: usize,
+    ) -> Option<u32> {
         if let Some(&index) = self.node_index.get(&llcas) {
-            return index;
+            return Some(index);
         }
         let blob_key = blob_key(&format!("{}/{}", hex::encode(blob_hash), blob_size));
+        let added_bytes = estimated_snapshot_node_bytes(llcas.len(), blob_key.len());
+        if self.estimated_bytes.saturating_add(added_bytes) > max_bytes {
+            return None;
+        }
         let index = self.nodes.len() as u32;
         self.nodes.push(SnapshotNode {
             llcas: llcas.clone(),
@@ -2150,7 +2706,46 @@ impl NamespaceSnapshotIndex {
             blob_key,
         });
         self.node_index.insert(llcas, index);
-        index
+        self.estimated_bytes = self.estimated_bytes.saturating_add(added_bytes);
+        Some(index)
+    }
+
+    fn remove_entry(&mut self, hash: &[u8; 32]) {
+        if let Some(entry) = self.entries.remove(hash) {
+            self.estimated_bytes = self
+                .estimated_bytes
+                .saturating_sub(estimated_snapshot_entry_bytes(entry.nodes.len()));
+        }
+    }
+
+    fn insert_entry(&mut self, hash: [u8; 32], entry: SnapshotIndexEntry) {
+        self.remove_entry(&hash);
+        self.estimated_bytes = self
+            .estimated_bytes
+            .saturating_add(estimated_snapshot_entry_bytes(entry.nodes.len()));
+        self.entries.insert(hash, entry);
+    }
+
+    fn estimated_bytes(&self) -> usize {
+        self.estimated_bytes
+    }
+
+    fn recompute_estimated_bytes(&mut self) {
+        self.estimated_bytes = std::mem::size_of::<Self>()
+            .saturating_add(
+                self.nodes
+                    .iter()
+                    .map(|node| {
+                        estimated_snapshot_node_bytes(node.llcas.len(), node.blob_key.len())
+                    })
+                    .sum::<usize>(),
+            )
+            .saturating_add(
+                self.entries
+                    .values()
+                    .map(|entry| estimated_snapshot_entry_bytes(entry.nodes.len()))
+                    .sum::<usize>(),
+            );
     }
 
     /// Rebuilds the node table around the nodes that live entries still
@@ -2195,6 +2790,7 @@ impl NamespaceSnapshotIndex {
                 *node = remap[*node as usize].expect("live entry references a swept node");
             }
         }
+        self.recompute_estimated_bytes();
     }
 
     /// Encodes a view for the wire, always zstd-compressed into the `TSNZ`
@@ -2208,8 +2804,14 @@ impl NamespaceSnapshotIndex {
     /// kura-mesh-roll and must read what those pods emit — this server never
     /// emits it. The client falls back to the per-key path on any body it can't
     /// decode, so there is nothing to negotiate.
+    #[cfg(test)]
     fn encode(&self, after: u64) -> Vec<u8> {
-        let mut budget = SNAPSHOT_CONTENT_BUDGET_BYTES;
+        self.encode_with_budget(after, SNAPSHOT_CONTENT_BUDGET_BYTES)
+    }
+
+    fn encode_with_budget(&self, after: u64, max_content_bytes: usize) -> Vec<u8> {
+        let mut budget = SNAPSHOT_CONTENT_BUDGET_BYTES.min(max_content_bytes.max(1));
+        let minimum_budget = SNAPSHOT_MIN_BUDGET_BYTES.min(budget);
         let mut wire = Vec::new();
         for attempt in 0..SNAPSHOT_COMPRESS_MAX_ATTEMPTS {
             let body = self.encode_body(after, budget);
@@ -2225,7 +2827,7 @@ impl NamespaceSnapshotIndex {
             // converges on a safe view.
             let ratio = (body.len() as f64 / wire.len().max(1) as f64).max(1.0);
             let scaled = (SNAPSHOT_WIRE_MAX_BYTES as f64 * ratio * 0.9) as usize;
-            budget = scaled.min(budget * 9 / 10).max(SNAPSHOT_MIN_BUDGET_BYTES);
+            budget = scaled.min(budget * 9 / 10).max(minimum_budget);
             if attempt + 1 == SNAPSHOT_COMPRESS_MAX_ATTEMPTS {
                 tracing::warn!(
                     wire_bytes = wire.len(),
@@ -2333,6 +2935,29 @@ impl NamespaceSnapshotIndex {
         }
         out
     }
+}
+
+fn estimated_map_item_bytes(payload_bytes: usize) -> usize {
+    payload_bytes
+        .saturating_add(4 * std::mem::size_of::<usize>())
+        .saturating_mul(3)
+        / 2
+}
+
+fn estimated_snapshot_node_bytes(llcas_bytes: usize, blob_key_bytes: usize) -> usize {
+    estimated_map_item_bytes(
+        std::mem::size_of::<SnapshotNode>()
+            .saturating_add(std::mem::size_of::<(Vec<u8>, u32)>())
+            .saturating_add(llcas_bytes.saturating_mul(2))
+            .saturating_add(blob_key_bytes),
+    )
+}
+
+fn estimated_snapshot_entry_bytes(node_count: usize) -> usize {
+    estimated_map_item_bytes(
+        std::mem::size_of::<([u8; 32], SnapshotIndexEntry)>()
+            .saturating_add(node_count.saturating_mul(std::mem::size_of::<u32>())),
+    )
 }
 
 /// Wraps a `TSNP` body in the `TSNZ` envelope: magic, version, the u64
@@ -2549,6 +3174,108 @@ mod tests {
     use super::*;
     use std::{convert::Infallible, time::Duration};
 
+    fn grpc_message(encoded_message_bytes: usize, byte: u8) -> Vec<u8> {
+        let mut framed = Vec::with_capacity(GRPC_MESSAGE_HEADER_BYTES + encoded_message_bytes);
+        framed.push(0);
+        framed.extend_from_slice(&(encoded_message_bytes as u32).to_be_bytes());
+        framed.extend(std::iter::repeat_n(byte, encoded_message_bytes));
+        framed
+    }
+
+    fn bytestream_admission(
+        hard_limit_bytes: u64,
+    ) -> (crate::memory::MemoryController, ByteStreamWriteAdmission) {
+        let metrics = crate::metrics::Metrics::new("local".into(), "tenant".into());
+        let memory = crate::memory::MemoryController::with_runtime_limit(
+            metrics.clone(),
+            hard_limit_bytes.saturating_mul(2),
+            hard_limit_bytes / 2,
+            hard_limit_bytes,
+        );
+        memory.observe(0);
+        let reservation = memory
+            .try_reserve_foreground_stream_decode(0)
+            .expect("zero-byte initial reservation should fit");
+        let admission = ByteStreamWriteAdmission::new(reservation, metrics);
+        (memory, admission)
+    }
+
+    #[tokio::test]
+    async fn bytestream_admission_scans_fragmented_headers_before_forwarding() {
+        let (memory, admission) = bytestream_admission(8 * 1024 * 1024);
+        let header = grpc_message(1024, 0)[..GRPC_MESSAGE_HEADER_BYTES].to_vec();
+        let frames = header
+            .into_iter()
+            .map(|byte| Ok::<_, Infallible>(Bytes::from(vec![byte])));
+        let mut body = ByteStreamAdmissionBody::new(
+            axum::body::Body::from_stream(futures_util::stream::iter(frames)),
+            admission,
+        );
+
+        for _ in 0..GRPC_MESSAGE_HEADER_BYTES - 1 {
+            body.frame()
+                .await
+                .expect("fragmented header frame")
+                .expect("fragment should pass");
+            assert_eq!(memory.transient_reserved_bytes(), 0);
+        }
+        body.frame()
+            .await
+            .expect("final header frame")
+            .expect("completed header should pass");
+        assert_eq!(memory.transient_reserved_bytes(), 2 * 1024);
+        drop(body);
+        assert_eq!(memory.transient_reserved_bytes(), 0);
+    }
+
+    #[tokio::test]
+    async fn bytestream_admission_uses_the_largest_message_in_a_shared_frame() {
+        let (memory, admission) = bytestream_admission(8 * 1024 * 1024);
+        let mut framed = grpc_message(512, 0x11);
+        framed.extend_from_slice(&grpc_message(2048, 0x22));
+        let mut body = ByteStreamAdmissionBody::new(axum::body::Body::from(framed), admission);
+
+        body.frame()
+            .await
+            .expect("combined data frame")
+            .expect("both messages should fit");
+
+        assert_eq!(memory.transient_reserved_bytes(), 2 * 2048);
+    }
+
+    #[tokio::test]
+    async fn bytestream_admission_rejects_growth_before_forwarding() {
+        let (memory, admission) = bytestream_admission(1024 * 1024);
+        let header = grpc_message(1024 * 1024, 0)[..GRPC_MESSAGE_HEADER_BYTES].to_vec();
+        let mut body = ByteStreamAdmissionBody::new(axum::body::Body::from(header), admission);
+
+        let error = body
+            .frame()
+            .await
+            .expect("header frame")
+            .expect_err("two retained copies exceed the hard limit");
+
+        assert_eq!(error.code(), tonic::Code::ResourceExhausted);
+        assert_eq!(memory.transient_reserved_bytes(), 0);
+    }
+
+    #[tokio::test]
+    async fn bytestream_admission_rejects_compressed_messages_before_forwarding() {
+        let (memory, admission) = bytestream_admission(8 * 1024 * 1024);
+        let mut framed = grpc_message(1024, 0);
+        framed[0] = 1;
+        let mut body = ByteStreamAdmissionBody::new(axum::body::Body::from(framed), admission);
+
+        let error = body
+            .frame()
+            .await
+            .expect("compressed frame")
+            .expect_err("compressed messages must be rejected before decoding");
+
+        assert_eq!(error.code(), tonic::Code::Unimplemented);
+        assert_eq!(memory.transient_reserved_bytes(), 0);
+    }
+
     #[test]
     fn actioncache_snapshot_index_encodes_full_and_delta_views() {
         let mut index = NamespaceSnapshotIndex::new();
@@ -2669,6 +3396,65 @@ mod tests {
         // The rebuilt table keeps serving: the full view carries the live key.
         let full = index.encode_body(0, SNAPSHOT_MIN_BUDGET_BYTES);
         assert_eq!(u64::from_le_bytes(full[5..13].try_into().unwrap()), 100);
+    }
+
+    #[test]
+    fn actioncache_snapshot_index_rejects_nodes_before_its_byte_budget() {
+        let mut index = NamespaceSnapshotIndex::new();
+        let budget = 8 * 1024;
+        let mut admitted = 0_u64;
+
+        loop {
+            let llcas = vec![admitted as u8; 128];
+            if index
+                .try_intern_node(llcas, [7; 32], admitted, budget)
+                .is_none()
+            {
+                break;
+            }
+            admitted += 1;
+        }
+
+        assert!(admitted > 0);
+        assert!(index.estimated_bytes() <= budget);
+        assert!(
+            index
+                .try_intern_node(vec![0xFF; 128], [8; 32], 1, budget)
+                .is_none(),
+            "a rejected node must stay rejected without increasing the budget"
+        );
+        assert!(index.estimated_bytes() <= budget);
+    }
+
+    #[test]
+    fn actioncache_snapshot_cache_trims_retained_bytes_to_pressure_target() {
+        let metrics = crate::metrics::Metrics::new("eu-west".into(), "tenant".into());
+        let cache = SnapshotCache::new(16 * 1024);
+        for namespace in ["old", "new"] {
+            let mut index = NamespaceSnapshotIndex::new();
+            let node = index.intern_node(vec![namespace.len() as u8; 512], [7; 32], 1);
+            index.insert_entry(
+                [namespace.len() as u8; 32],
+                SnapshotIndexEntry {
+                    version_ms: namespace.len() as u64,
+                    nodes: vec![node],
+                },
+            );
+            cache
+                .indexes
+                .lock()
+                .unwrap()
+                .insert(namespace.to_owned(), index);
+            cache
+                .served_full
+                .lock()
+                .unwrap()
+                .insert(namespace.to_owned(), std::sync::Arc::new(vec![0; 2 * 1024]));
+        }
+
+        cache.trim_to(3 * 1024, "test", &metrics);
+
+        assert!(cache.stats().bytes <= 3 * 1024);
     }
 
     /// Marks a cached index stale so the next serve kicks a reconcile
@@ -3293,7 +4079,7 @@ mod tests {
         let _hog = context
             .state
             .memory
-            .try_acquire_reapi_materialization(pool)
+            .try_acquire_reapi_materialization(pool.saturating_sub(first.len()))
             .expect("pool should be acquirable when idle");
 
         // A full serve now finds no index but returns the cached full view
@@ -3494,6 +4280,233 @@ mod tests {
             }
             assert_eq!(roundtrip, blob, "persisted blob must match the upload");
         }
+
+        let _ = shutdown_tx.send(());
+        let _ = server.await;
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn bytestream_accepts_messages_larger_than_the_file_cache_window() {
+        use bazel_remote_apis::google::bytestream::byte_stream_client::ByteStreamClient;
+
+        let context = test_context(|_| {}).await;
+        let listener = TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind test listener");
+        let addr = listener.local_addr().expect("listener addr");
+        let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
+        let server_state = context.state.clone();
+        let server = tokio::spawn(async move {
+            serve_routes(listener, server_state, async move {
+                let _ = shutdown_rx.await;
+            })
+            .await
+        });
+
+        let endpoint = format!("http://{addr}");
+        let channel = tonic::transport::Endpoint::from_shared(endpoint)
+            .expect("valid endpoint")
+            .connect()
+            .await
+            .expect("gRPC server should accept connections");
+        let blob = vec![0xA5; 20 * 1024 * 1024];
+        let hash = hex::encode(Sha256::digest(&blob));
+        let resource = format!("uploads/large-message/blobs/{hash}/{}", blob.len());
+
+        let committed = ByteStreamClient::new(channel)
+            .write(tokio_stream::iter([bytestream::WriteRequest {
+                resource_name: resource,
+                write_offset: 0,
+                finish_write: true,
+                data: blob,
+            }]))
+            .await
+            .expect("the existing decode limit should remain accepted")
+            .into_inner()
+            .committed_size;
+        assert_eq!(committed, 20 * 1024 * 1024);
+
+        let _ = shutdown_tx.send(());
+        let _ = server.await;
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn shared_bytestream_connection_rejects_pressure_without_deadlock() {
+        use bazel_remote_apis::google::bytestream::byte_stream_client::ByteStreamClient;
+
+        let context = test_context(|config| {
+            config.memory_limit_bytes = 512 * 1024 * 1024;
+            config.memory_soft_limit_bytes = 128 * 1024 * 1024;
+            config.memory_hard_limit_bytes = 256 * 1024 * 1024;
+        })
+        .await;
+        context.state.memory.observe(256 * 1024 * 1024);
+        let listener = TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind test listener");
+        let addr = listener.local_addr().expect("listener addr");
+        let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
+        let server_state = context.state.clone();
+        let server = tokio::spawn(async move {
+            serve_routes(listener, server_state, async move {
+                let _ = shutdown_rx.await;
+            })
+            .await
+        });
+
+        let endpoint = format!("http://{addr}");
+        let channel = tonic::transport::Endpoint::from_shared(endpoint)
+            .expect("valid endpoint")
+            .connect()
+            .await
+            .expect("gRPC server should accept connections");
+        let mut rejected_writers = Vec::new();
+        for index in 0..24_u8 {
+            let mut client = ByteStreamClient::new(channel.clone());
+            rejected_writers.push(tokio::spawn(async move {
+                let blob = vec![index; 1024 * 1024];
+                let hash = hex::encode(Sha256::digest(&blob));
+                let resource = format!("uploads/pressure-{index}/blobs/{hash}/{}", blob.len());
+                client
+                    .write(tokio_stream::iter([bytestream::WriteRequest {
+                        resource_name: resource,
+                        write_offset: 0,
+                        finish_write: true,
+                        data: blob,
+                    }]))
+                    .await
+            }));
+        }
+
+        tokio::time::timeout(Duration::from_secs(5), async {
+            for writer in rejected_writers {
+                let error = writer
+                    .await
+                    .expect("writer task should not panic")
+                    .expect_err("hard pressure should reject before decoding");
+                assert_eq!(error.code(), tonic::Code::ResourceExhausted);
+            }
+        })
+        .await
+        .expect("all streams on the shared connection should reject promptly");
+
+        context.state.memory.observe(0);
+        let blob = vec![0xA5; 1024 * 1024];
+        let hash = hex::encode(Sha256::digest(&blob));
+        let resource = format!("uploads/recovered/blobs/{hash}/{}", blob.len());
+        let committed = ByteStreamClient::new(channel)
+            .write(tokio_stream::iter([bytestream::WriteRequest {
+                resource_name: resource,
+                write_offset: 0,
+                finish_write: true,
+                data: blob,
+            }]))
+            .await
+            .expect("the shared connection should remain usable after rejection")
+            .into_inner()
+            .committed_size;
+        assert_eq!(committed, 1024 * 1024);
+
+        let _ = shutdown_tx.send(());
+        let _ = server.await;
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn bytestream_reports_mid_stream_admission_rejection() {
+        use bazel_remote_apis::google::bytestream::byte_stream_client::ByteStreamClient;
+        use tokio_stream::wrappers::ReceiverStream;
+
+        const MEBIBYTE: u64 = 1024 * 1024;
+        let context = test_context(|config| {
+            config.memory_limit_bytes = 512 * MEBIBYTE;
+            config.memory_soft_limit_bytes = 128 * MEBIBYTE;
+            config.memory_hard_limit_bytes = 256 * MEBIBYTE;
+        })
+        .await;
+        let listener = TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind test listener");
+        let addr = listener.local_addr().expect("listener addr");
+        let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
+        let server_state = context.state.clone();
+        let server = tokio::spawn(async move {
+            serve_routes(listener, server_state, async move {
+                let _ = shutdown_rx.await;
+            })
+            .await
+        });
+
+        let endpoint = format!("http://{addr}");
+        let channel = tonic::transport::Endpoint::from_shared(endpoint)
+            .expect("valid endpoint")
+            .connect()
+            .await
+            .expect("gRPC server should accept connections");
+        let (request_tx, request_rx) = tokio::sync::mpsc::channel(2);
+        let writer = tokio::spawn({
+            let channel = channel.clone();
+            async move {
+                ByteStreamClient::new(channel)
+                    .write(ReceiverStream::new(request_rx))
+                    .await
+            }
+        });
+
+        request_tx
+            .send(bytestream::WriteRequest {
+                resource_name: format!(
+                    "uploads/mid-stream/blobs/{}/{}",
+                    "00".repeat(32),
+                    2 * MEBIBYTE
+                ),
+                write_offset: 0,
+                finish_write: false,
+                data: vec![0xA5],
+            })
+            .await
+            .expect("first message should enter the stream");
+        tokio::time::timeout(Duration::from_secs(5), async {
+            while context.state.memory.transient_reserved_bytes() < 4 * MEBIBYTE {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("the first message should be decoded and reserve staging memory");
+
+        context.state.memory.observe(256 * MEBIBYTE);
+        request_tx
+            .send(bytestream::WriteRequest {
+                resource_name: String::new(),
+                write_offset: 1,
+                finish_write: false,
+                data: vec![0x5A; MEBIBYTE as usize],
+            })
+            .await
+            .expect("second message should enter the client transport");
+        drop(request_tx);
+
+        let error = tokio::time::timeout(Duration::from_secs(5), writer)
+            .await
+            .expect("mid-stream rejection should not hang")
+            .expect("writer task should not panic")
+            .expect_err("the second message should exceed admitted memory");
+        assert_eq!(error.code(), tonic::Code::ResourceExhausted);
+
+        context.state.memory.observe(0);
+        let blob = vec![0xC3; 1024];
+        let hash = hex::encode(Sha256::digest(&blob));
+        let committed = ByteStreamClient::new(channel)
+            .write(tokio_stream::iter([bytestream::WriteRequest {
+                resource_name: format!("uploads/recovered/blobs/{hash}/{}", blob.len()),
+                write_offset: 0,
+                finish_write: true,
+                data: blob,
+            }]))
+            .await
+            .expect("the connection should remain usable after mid-stream rejection")
+            .into_inner()
+            .committed_size;
+        assert_eq!(committed, 1024);
 
         let _ = shutdown_tx.send(());
         let _ = server.await;
