@@ -197,16 +197,29 @@ var cacheVolumeRootFreeBytes = prometheus.NewGauge(
 	},
 )
 
+// cacheVolumeEnabled is 1 when the feature is active on this host
+// (--runner-cache-root set). It exists so root_mounted is never read in
+// isolation: every gauge here is registered unconditionally and so reports its
+// zero default on a host where the feature is off and Start never runs. Without
+// this, a disabled host (enabled 0, mounted 0) is indistinguishable from an
+// enabled-but-unmounted one (enabled 1, mounted 0) — the very ambiguity
+// root_mounted is meant to remove. Read root_mounted only where enabled == 1.
+var cacheVolumeEnabled = prometheus.NewGauge(
+	prometheus.GaugeOpts{
+		Name: "tart_kubelet_cache_volume_enabled",
+		Help: "1 when per-account cache volumes are enabled on this host (--runner-cache-root set); 0 when the feature is off. Gate root_mounted on this.",
+	},
+)
+
 // cacheVolumeRootMounted is 1 when --runner-cache-root points at an actually-
 // mounted volume and 0 when the feature is enabled but the path is not a mount
 // (unprovisioned, or the host rebooted and the volume did not auto-remount).
-// A 0 here is the direct, unambiguous signal that every job on this host is
-// silently falling back to the cold path — root_free_bytes alone can't tell an
-// unmounted volume from a disabled feature, this can.
+// A 0 here WHILE enabled == 1 is the direct, unambiguous signal that every job
+// on this host is silently falling back to the cold path.
 var cacheVolumeRootMounted = prometheus.NewGauge(
 	prometheus.GaugeOpts{
 		Name: "tart_kubelet_cache_volume_root_mounted",
-		Help: "1 when the runner-cache root is a mounted volume, 0 when --runner-cache-root is set but the path is not mounted (all jobs run cold until it mounts).",
+		Help: "1 when the runner-cache root is a mounted volume, 0 when --runner-cache-root is set but the path is not mounted (all jobs run cold until it mounts). Only meaningful when cache_volume_enabled is 1.",
 	},
 )
 
@@ -235,6 +248,7 @@ func init() {
 		cacheVolumeConvergedTotal,
 		cacheVolumeResidentCount,
 		cacheVolumeRootFreeBytes,
+		cacheVolumeEnabled,
 		cacheVolumeRootMounted,
 		cacheVolumeAdmissionDeclinedTotal,
 	)
@@ -270,6 +284,13 @@ func RecordVolumeConverged() {
 func RecordVolumeResident(count int, freeBytes uint64) {
 	cacheVolumeResidentCount.Set(float64(count))
 	cacheVolumeRootFreeBytes.Set(float64(freeBytes))
+}
+
+// RecordVolumeEnabled marks the cache-volume feature active on this host. Set
+// once when an enabled manager starts; a disabled host never calls it, so the
+// gauge stays at its 0 default there.
+func RecordVolumeEnabled() {
+	cacheVolumeEnabled.Set(1)
 }
 
 // RecordVolumeRootMounted publishes whether the runner-cache root is a mounted

@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-logr/logr"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -377,8 +376,45 @@ func TestAdmissionDeclineIncrementsMetric(t *testing.T) {
 	}
 }
 
-// awaitMountedRoot returns immediately on a healthy host (root already mounted)
-// and publishes the root-mounted gauge as 1.
+// AllocateBranch must decline to the cold path when the root is not a mounted
+// volume, rather than writing the branch (and later a clonefiled cache image)
+// onto the boot filesystem. Guards the P1 boot-disk-write hazard.
+func TestAllocateBranchDeclinesWhenRootUnmounted(t *testing.T) {
+	m, be := newTestManager(t, 100)
+	be.notMounted = true
+
+	att, err := m.AllocateBranch(ReservedTuistCacheVolume, "vm1")
+	if err != nil {
+		t.Fatalf("AllocateBranch err: %v", err)
+	}
+	if att.Attached {
+		t.Fatal("allocation must decline to the cold path when the root is not mounted")
+	}
+	if _, statErr := os.Stat(m.branchDir("vm1")); statErr == nil {
+		t.Fatal("no branch dir should be created on an unmounted root")
+	}
+	if got := testutil.ToFloat64(cacheVolumeRootMounted); got != 0 {
+		t.Fatalf("root-mounted gauge = %v, want 0", got)
+	}
+}
+
+// A backend error from isMounted is treated as not-mounted: decline, don't
+// error out or allocate.
+func TestAllocateBranchDeclinesWhenMountCheckErrors(t *testing.T) {
+	m, be := newTestManager(t, 100)
+	be.mountErr = errors.New("stat: boom")
+
+	att, err := m.AllocateBranch(ReservedTuistCacheVolume, "vm1")
+	if err != nil {
+		t.Fatalf("AllocateBranch err: %v", err)
+	}
+	if att.Attached {
+		t.Fatal("allocation must decline when the mount check errors")
+	}
+}
+
+// AwaitMountedRoot returns immediately on a healthy host (root already mounted)
+// and publishes the enabled + root-mounted gauges as 1.
 func TestAwaitMountedRootReturnsWhenMounted(t *testing.T) {
 	m, _ := newTestManager(t, 100)   // fake reports mounted by default
 	m.mountCheckInterval = time.Hour // a retry would hang the test; a mounted root must not retry
@@ -386,20 +422,30 @@ func TestAwaitMountedRootReturnsWhenMounted(t *testing.T) {
 
 	done := make(chan struct{})
 	go func() {
-		m.awaitMountedRoot(context.Background(), logr.Discard())
+		m.AwaitMountedRoot(context.Background())
 		close(done)
 	}()
 	select {
 	case <-done:
 	case <-time.After(2 * time.Second):
-		t.Fatal("awaitMountedRoot should return at once when the root is mounted")
+		t.Fatal("AwaitMountedRoot should return at once when the root is mounted")
 	}
 	if got := testutil.ToFloat64(cacheVolumeRootMounted); got != 1 {
 		t.Fatalf("root-mounted gauge = %v, want 1", got)
 	}
+	if got := testutil.ToFloat64(cacheVolumeEnabled); got != 1 {
+		t.Fatalf("enabled gauge = %v, want 1", got)
+	}
 }
 
-// awaitMountedRoot retries a bounded number of times when the root never
+// A disabled manager's AwaitMountedRoot is a no-op and never marks the feature
+// enabled.
+func TestAwaitMountedRootDisabledIsNoop(t *testing.T) {
+	m := NewVolumeManager("", 1, &fakeBackend{})
+	m.AwaitMountedRoot(context.Background()) // must not block or panic
+}
+
+// AwaitMountedRoot retries a bounded number of times when the root never
 // mounts, then gives up (rather than blocking forever) with the gauge at 0.
 func TestAwaitMountedRootGivesUpWhenUnmounted(t *testing.T) {
 	m, be := newTestManager(t, 100)
@@ -408,9 +454,9 @@ func TestAwaitMountedRootGivesUpWhenUnmounted(t *testing.T) {
 	m.mountCheckAttempts = 3
 
 	start := time.Now()
-	m.awaitMountedRoot(context.Background(), logr.Discard())
+	m.AwaitMountedRoot(context.Background())
 	if elapsed := time.Since(start); elapsed > time.Second {
-		t.Fatalf("awaitMountedRoot took %s; should give up after %d bounded attempts", elapsed, m.mountCheckAttempts)
+		t.Fatalf("AwaitMountedRoot took %s; should give up after %d bounded attempts", elapsed, m.mountCheckAttempts)
 	}
 	if got := testutil.ToFloat64(cacheVolumeRootMounted); got != 0 {
 		t.Fatalf("root-mounted gauge = %v, want 0", got)
@@ -430,13 +476,13 @@ func TestAwaitMountedRootStopsOnContextCancel(t *testing.T) {
 
 	done := make(chan struct{})
 	go func() {
-		m.awaitMountedRoot(ctx, logr.Discard())
+		m.AwaitMountedRoot(ctx)
 		close(done)
 	}()
 	select {
 	case <-done:
 	case <-time.After(2 * time.Second):
-		t.Fatal("awaitMountedRoot should return promptly once the context is cancelled")
+		t.Fatal("AwaitMountedRoot should return promptly once the context is cancelled")
 	}
 }
 

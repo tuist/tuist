@@ -13,7 +13,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/go-logr/logr"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
@@ -290,6 +289,21 @@ func (m *VolumeManager) AllocateBranch(volume, vm string) (VolumeAttachment, err
 	}
 	if volume == "" {
 		volume = ReservedTuistCacheVolume
+	}
+
+	// Never allocate against an unmounted root. If a stale mountpoint dir lingers
+	// on the boot filesystem, freeBytes (df) reports the BOOT volume's free space,
+	// so admission would pass and the branch dir + its clonefiled cache image would
+	// land on the boot disk — defeating the quota fence and risking host ENOSPC. An
+	// absent path would otherwise error per allocation rather than cold-fall-back
+	// cleanly. The one-shot startup wait cannot catch a volume that vanishes later,
+	// so gate every allocation here. Either way, decline to the cold path.
+	if mounted, err := m.backend.isMounted(m.Root); err != nil || !mounted {
+		RecordVolumeRootMounted(false)
+		log.Log.WithName("cache-volumes").Error(err,
+			"runner-cache root is not a mounted volume; VM boots on the cold path (allocation skipped so cache images are not written to the boot disk)",
+			"vm", vm, "root", m.Root)
+		return VolumeAttachment{}, nil
 	}
 
 	m.mu.Lock()
@@ -671,17 +685,13 @@ func (m *VolumeManager) Start(ctx context.Context) error {
 	if !m.Enabled() {
 		return nil
 	}
+	RecordVolumeEnabled()
 	logger := log.FromContext(ctx).WithName("cache-volumes")
 
-	// Wait for the runner-cache root to actually be a mounted volume before
-	// touching it. --runner-cache-root can be set (feature enabled) while the
-	// volume itself is unmounted — a host rebooted and the volume did not auto-
-	// remount, or it was never provisioned. Without this the sweep, the evictor
-	// and every AllocateBranch operate against a bare mountpoint on the boot
-	// filesystem (or an ENOENT), failing silently forever. Detect it loudly,
-	// publish the signal, and give auto-mount a bounded window to settle.
-	m.awaitMountedRoot(ctx, logger)
-
+	// The mount wait (AwaitMountedRoot) runs before state recovery in main, so by
+	// here the retained-branch set already reflects the mounted volume and the
+	// sweep can safely reap the rest. On a still-unmounted root SweepBranches is a
+	// no-op (its ReadDir hits ENOENT), so it can never delete a live branch.
 	if err := m.SweepBranches(); err != nil {
 		logger.Error(err, "sweep stale branches on startup")
 	}
@@ -723,15 +733,26 @@ func (m *VolumeManager) Start(ctx context.Context) error {
 	}
 }
 
-// awaitMountedRoot blocks until the runner-cache root is a mounted volume or a
-// bounded number of attempts elapse, publishing the root-mounted gauge each
-// pass. It returns as soon as the mount is present (the healthy path returns on
-// the first attempt with a single stat), so it costs nothing on a host whose
-// volume auto-mounted normally. When the volume never appears it logs loudly
-// and returns rather than blocking forever — the reconcile ticker then keeps
-// the gauge fresh and per-job allocation keeps declining to the cold path until
-// the host is repaired.
-func (m *VolumeManager) awaitMountedRoot(ctx context.Context, logger logr.Logger) {
+// AwaitMountedRoot blocks until the runner-cache root is a mounted volume or a
+// bounded number of attempts elapse, publishing the enabled + root-mounted
+// gauges. It returns as soon as the mount is present (the healthy path returns
+// on the first attempt with a single stat), so it costs nothing on a host whose
+// volume auto-mounted normally. When the volume never appears it logs loudly and
+// returns rather than blocking forever — the ticker then keeps the gauge fresh
+// and per-job allocation keeps declining to the cold path until the host is
+// repaired.
+//
+// This MUST run before state recovery populates the retained-branch set: if the
+// wait ran after recovery, a volume that mounted DURING the wait would leave the
+// retained set empty (recovery saw no branches on the then-unmounted root) and
+// the startup sweep would then delete branches still mounted by surviving VMs.
+// No-op when the feature is off.
+func (m *VolumeManager) AwaitMountedRoot(ctx context.Context) {
+	if !m.Enabled() {
+		return
+	}
+	RecordVolumeEnabled()
+	logger := log.Log.WithName("cache-volumes")
 	interval := m.mountCheckInterval
 	if interval <= 0 {
 		interval = 10 * time.Second
