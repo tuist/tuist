@@ -3,6 +3,7 @@ defmodule Tuist.OpenGraphImages do
   Content-addressed runtime generation and object-storage caching for Open Graph images.
   """
 
+  alias Tuist.Environment
   alias Tuist.Storage
 
   require Logger
@@ -24,17 +25,25 @@ defmodule Tuist.OpenGraphImages do
     |> Base.encode16(case: :lower)
   end
 
+  # Asset digests are stable in a running release, so hashing them once and
+  # memoizing keeps every page render from re-digesting fonts, logos and module
+  # bytecode. Recompute in dev, where templates and assets hot-reload and a
+  # frozen key would keep serving the previously stored image.
   def cached_key(name, parts) when is_atom(name) and is_list(parts) do
-    persistent_key = {__MODULE__, name}
+    if Environment.dev?() do
+      key(parts)
+    else
+      persistent_key = {__MODULE__, name}
 
-    case :persistent_term.get(persistent_key, nil) do
-      nil ->
-        key = key(parts)
-        :persistent_term.put(persistent_key, key)
-        key
+      case :persistent_term.get(persistent_key, nil) do
+        nil ->
+          key = key(parts)
+          :persistent_term.put(persistent_key, key)
+          key
 
-      key ->
-        key
+        key ->
+          key
+      end
     end
   end
 
