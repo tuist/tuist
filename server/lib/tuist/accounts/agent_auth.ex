@@ -649,7 +649,17 @@ defmodule Tuist.Accounts.AgentAuth do
     end
   end
 
-  def credential_revoked?(%{"jti" => jti}) when is_binary(jti) do
+  def credential_revoked?(%{"jti" => jti} = claims) when is_binary(jti) do
+    if Map.has_key?(claims, "agent_registration_id") do
+      protocol_credential_revoked?(jti)
+    else
+      legacy_credential_revoked?(jti)
+    end
+  end
+
+  def credential_revoked?(_claims), do: false
+
+  defp protocol_credential_revoked?(jti) do
     case Repo.get_by(AgentAuthCredential, jti: jti) do
       %AgentAuthCredential{revoked_at: revoked_at, agent_registration_id: registration_id} ->
         not is_nil(revoked_at) or
@@ -660,15 +670,17 @@ defmodule Tuist.Accounts.AgentAuth do
           )
 
       nil ->
-        Repo.exists?(
-          from(r in AgentRegistration,
-            where: r.status == :revoked and r.credential_jti == ^jti
-          )
-        )
+        legacy_credential_revoked?(jti)
     end
   end
 
-  def credential_revoked?(_claims), do: false
+  defp legacy_credential_revoked?(jti) do
+    Repo.exists?(
+      from(r in AgentRegistration,
+        where: r.status == :revoked and r.credential_jti == ^jti
+      )
+    )
+  end
 
   def resend_claim(%{claim_token: claim_token, claim_view_url: claim_view_url} = attrs)
       when is_function(claim_view_url, 1) do
