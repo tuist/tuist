@@ -41,7 +41,7 @@ defmodule TuistWeb.ShardsLive do
   end
 
   def handle_params(_params, uri, socket) do
-    params = Query.query_params(uri)
+    params = uri |> Query.query_params() |> Query.clear_incompatible_cursors([:ran_at])
     uri = URI.new!("?" <> URI.encode_query(params))
 
     {

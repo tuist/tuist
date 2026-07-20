@@ -6,6 +6,7 @@ defmodule TuistWeb.ProjectsLiveTest do
 
   alias Tuist.Projects
   alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   setup %{conn: conn} do
     user = AccountsFixtures.user_fixture()
@@ -54,5 +55,17 @@ defmodule TuistWeb.ProjectsLiveTest do
     html = view |> element("#create-project-form-modal-footer-portal") |> render()
 
     assert html =~ ~s(form="create-project-form")
+  end
+
+  test "ignores a stale pagination cursor on initial load", %{conn: conn, account: account} do
+    for index <- 1..7 do
+      ProjectsFixtures.project_fixture(account_id: account.id, name: "project-#{index}")
+    end
+
+    stale_cursor = Flop.Cursor.encode(%{inserted_at_naive: ~N[2025-04-14 12:30:17]})
+
+    conn = get(conn, ~p"/#{account.name}/projects?before=#{stale_cursor}")
+
+    assert html_response(conn, 200) =~ ~s(data-part="project")
   end
 end
