@@ -249,4 +249,47 @@ defmodule TuistWeb.RunnersControllerTest do
       refute Map.has_key?(off_cluster, "cache_endpoint_url")
     end
   end
+
+  describe "POST /api/internal/runners/volume-head/upload-url" do
+    test "returns a presigned upload URL for the reported digest", %{conn: conn} do
+      digest = String.duplicate("a", 40)
+
+      stub(K8sClient, :create_token_review, fn "valid-token" ->
+        {:ok, %{namespace: "tuist-runners", name: "pod-1"}}
+      end)
+
+      stub(Runners, :account_id_for_sa, fn "tuist-runners", "pod-1" -> {:ok, 77} end)
+      stub(Runners, :volume_master_upload_url, fn 77, ^digest -> {:ok, "https://bucket.example.com/put"} end)
+
+      body =
+        conn
+        |> put_req_header("authorization", "Bearer valid-token")
+        |> post("/api/internal/runners/volume-head/upload-url", %{"tree_digest" => digest})
+        |> json_response(200)
+
+      assert body["upload_url"] == "https://bucket.example.com/put"
+    end
+
+    test "422 when the digest is rejected", %{conn: conn} do
+      stub(K8sClient, :create_token_review, fn "valid-token" ->
+        {:ok, %{namespace: "tuist-runners", name: "pod-1"}}
+      end)
+
+      stub(Runners, :account_id_for_sa, fn _ns, _sa -> {:ok, 77} end)
+      stub(Runners, :volume_master_upload_url, fn 77, "bad" -> :error end)
+
+      body =
+        conn
+        |> put_req_header("authorization", "Bearer valid-token")
+        |> post("/api/internal/runners/volume-head/upload-url", %{"tree_digest" => "bad"})
+        |> json_response(422)
+
+      assert body["error"] == "invalid digest"
+    end
+
+    test "401 without a bearer token", %{conn: conn} do
+      conn = post(conn, "/api/internal/runners/volume-head/upload-url", %{"tree_digest" => "x"})
+      assert json_response(conn, 401)
+    end
+  end
 end

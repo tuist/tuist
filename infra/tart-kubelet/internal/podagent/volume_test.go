@@ -1017,6 +1017,20 @@ func TestInventoryDigestMatchesGuestScript(t *testing.T) {
 	if want := hex.EncodeToString(h.Sum(nil)); got != want {
 		t.Fatalf("digest = %q; want %q", got, want)
 	}
+
+	// A dotfile (.DS_Store, an in-flight .tmp) must be ignored: the guest's
+	// `ls -1` never lists it, so counting it here would make the host digest
+	// disagree with the guest-reported one and abort convergence forever.
+	if err := os.WriteFile(filepath.Join(binaries, ".DS_Store"), []byte("noise"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	withDotfile, err := inventoryDigest(filepath.Join(root, cacheHomeSubdir))
+	if err != nil {
+		t.Fatalf("inventoryDigest: %v", err)
+	}
+	if withDotfile != got {
+		t.Fatalf("dotfile changed the digest: %q != %q (must be skipped to match the guest)", withDotfile, got)
+	}
 }
 
 func TestReplaceMasterFastForwards(t *testing.T) {

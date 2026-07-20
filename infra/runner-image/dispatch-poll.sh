@@ -187,10 +187,14 @@ CAS_ATTACHED=""
 # The xcconfig that points every xcodebuild in the job at the attached image.
 # Lives on the VM's own disk, not the share: xcodebuild only reads it.
 CAS_XCCONFIG="/Users/runner/.tuist-cas.xcconfig"
-# Presigned PUT URL for this account's master archive (from the dispatch
-# response); the HEAD report endpoint is the dispatch URL's sibling.
-VOLUME_HEAD_UPLOAD=""
+# Control-plane endpoints (dispatch URL's siblings/child). Neither receives the
+# image bytes: the mint endpoint returns a presigned object-storage PUT URL, and
+# the image is uploaded DIRECTLY to that URL (see report_volume_head). The
+# presigned URL is no longer handed out at dispatch — the guest mints it at
+# promote time keyed by its own new inventory digest, which keeps master object
+# keys immutable.
 VOLUME_HEAD_REPORT_URL="${TUIST_RUNNER_DISPATCH_URL%/dispatch}/volume-head"
+VOLUME_HEAD_UPLOAD_URL_MINT_ENDPOINT="${VOLUME_HEAD_REPORT_URL}/upload-url"
 
 # cache_inventory hashes the SORTED ENTRY NAMES (not mtimes) under the cache
 # subtrees whose churn means the job actually changed the cache: binaries
@@ -201,11 +205,14 @@ VOLUME_HEAD_REPORT_URL="${TUIST_RUNNER_DISPATCH_URL%/dispatch}/volume-head"
 cache_inventory() {
   [ -n "${CACHE_MOUNT}" ] || { echo "none"; return 0; }
   local root="${CACHE_MOUNT}/tuist"
+  # LC_ALL=C: byte-order sort, so this agrees with the host's inventoryDigest
+  # (Go sort.Strings is byte-wise). A locale collation here would order mixed-case
+  # or punctuated hash names differently and make every convergence digest-mismatch.
   {
     for d in Binaries Manifests ProjectDescriptionHelpers Plugins; do
       /bin/ls -1 "${root}/${d}" 2>/dev/null | sed "s|^|${d}/|"
     done
-  } | sort | shasum | awk '{print $1}'
+  } | LC_ALL=C sort | shasum | awk '{print $1}'
 }
 
 # use_local_cold_cache points the CLI at a private, local cache dir and
@@ -601,7 +608,6 @@ stage_volume_head() {
   gen=$(sed -n 's/.*"generation"[[:space:]]*:[[:space:]]*\([0-9]*\).*/\1/p' /tmp/dispatch.json)
   digest=$(sed -n 's/.*"digest"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' /tmp/dispatch.json)
   download=$(sed -n 's/.*"download_url"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' /tmp/dispatch.json)
-  VOLUME_HEAD_UPLOAD=$(sed -n 's/.*"upload_url"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' /tmp/dispatch.json)
   [ -n "${download}" ] || return 0
   printf '{"generation":%s,"digest":"%s","download_url":"%s"}' \
     "${gen:-0}" "${digest}" "${download}" >"${STATUS_SHARE}/volume-head.json" 2>/dev/null || true
@@ -615,8 +621,18 @@ stage_volume_head() {
 VOLUME_HEAD_UPLOAD_TIMEOUT=600
 
 # report_volume_head publishes this job's warm set as the account's new HEAD on a
-# successful, cache-changing job: it uploads the cache image to the presigned
-# master URL and bumps the account's HEAD to the new inventory digest.
+# successful, cache-changing job, in three steps:
+#   1. mint a presigned PUT URL keyed by THIS job's inventory digest,
+#   2. PUT the settled image to it,
+#   3. bump the account's HEAD to that digest.
+#
+# The digest-keyed object is content-addressed and immutable: a concurrent
+# promote of a DIFFERENT digest writes a DIFFERENT object, so it never clobbers
+# the object the current HEAD points at — the bug that let a behind host download
+# a master whose inventory no longer matched the HEAD digest and abandon
+# convergence, stranding the warm set on the one host that promoted it. HEAD is
+# bumped only AFTER the PUT succeeds, so a converging host that reads the new HEAD
+# always finds the object.
 #
 # The image is uploaded AS-IS, with no archiving step: it already carries the
 # symlinks, xattrs and modes the cache needs, which is the whole reason the cache
@@ -626,23 +642,41 @@ VOLUME_HEAD_UPLOAD_TIMEOUT=600
 report_volume_head() {
   local rc="${1:-1}"
   [ "${rc}" = "0" ] || return 0
-  [ -n "${CACHE_IMAGE_ACTIVE}" ] && [ -n "${VOLUME_HEAD_UPLOAD}" ] || return 0
+  [ -n "${CACHE_IMAGE_ACTIVE}" ] || return 0
   [ -n "${CACHE_INVENTORY_AFTER}" ] || return 0
   [ "${CACHE_INVENTORY_AFTER}" != "${CACHE_INVENTORY_BEFORE}" ] || return 0
+
+  # Mint the content-addressed upload URL for this digest. The server binds it to
+  # the account this Pod ran (server-stamped label) and rejects a non-hex digest,
+  # so the guest cannot target another account or escape its prefix.
+  local upload_url
+  upload_url=$(curl -fsS --connect-timeout 10 --max-time 30 -X POST \
+    -H "Authorization: Bearer ${SA_TOKEN}" -H "Content-Type: application/json" \
+    --data "{\"tree_digest\":\"${CACHE_INVENTORY_AFTER}\"}" \
+    "${VOLUME_HEAD_UPLOAD_URL_MINT_ENDPOINT}" 2>/dev/null \
+    | sed -n 's/.*"upload_url"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+  if [ -z "${upload_url}" ]; then
+    echo "$(date -u +%FT%TZ) dispatch-poll: no master upload URL; HEAD not advanced"
+    return 0
+  fi
+
   # This runs at teardown, after run.sh, before the EXIT trap halts the VM, so
-  # both requests MUST be bounded — an object-storage stall here would otherwise
+  # every request MUST be bounded — an object-storage stall here would otherwise
   # hang the script, keep the VM up, and stop the warm pool refilling. On any
   # timeout, HEAD just isn't advanced (best-effort) and teardown proceeds.
   #
   # No -L on the PUT: the presigned upload URL is written directly (no redirect),
   # so refuse to follow redirects — otherwise a compromised/misconfigured storage
   # endpoint could 307 the upload to an internal address and receive the image
-  # body (SSRF), the write-side twin of the download guard.
+  # body (SSRF), the write-side twin of the download guard. The server has
+  # already checked the URL host is public before handing it over.
   if ! curl -fsS --connect-timeout 10 --max-time "${VOLUME_HEAD_UPLOAD_TIMEOUT}" \
-    -X PUT --upload-file "${CACHE_IMAGE}" "${VOLUME_HEAD_UPLOAD}" >/dev/null 2>&1; then
+    -X PUT --upload-file "${CACHE_IMAGE}" "${upload_url}" >/dev/null 2>&1; then
     echo "$(date -u +%FT%TZ) dispatch-poll: master image upload failed/timed out; HEAD not advanced"
     return 0
   fi
+  # Only now advance the HEAD: the object at the digest key exists, so a
+  # converging host that reads this HEAD will find it.
   curl -fsS --connect-timeout 10 --max-time 15 -X POST \
     -H "Authorization: Bearer ${SA_TOKEN}" -H "Content-Type: application/json" \
     --data "{\"tree_digest\":\"${CACHE_INVENTORY_AFTER}\"}" "${VOLUME_HEAD_REPORT_URL}" >/dev/null 2>&1 || true
