@@ -206,7 +206,7 @@ defmodule Tuist.Marketing.OpenGraphImage do
 
   defp libvips_spec(kind, attributes, title) do
     OpenGraphImages.spec([kind | attributes] ++ [libvips_asset_hash()], fn ->
-      {:ok, OpenGraph.generate_og_image_binary(title)}
+      OpenGraph.generate_og_image_binary(title)
     end)
   end
 
