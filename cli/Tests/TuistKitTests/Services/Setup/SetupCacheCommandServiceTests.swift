@@ -10,6 +10,7 @@ import TuistConfigLoader
 import TuistConstants
 import TuistCore
 import TuistEnvironment
+import TuistGit
 import TuistLaunchctl
 import TuistLoader
 import TuistLoggerTesting
@@ -26,6 +27,8 @@ struct SetupCacheCommandServiceTests {
     private let serverEnvironmentService = MockServerEnvironmentServicing()
     private let serverAuthenticationController = MockServerAuthenticationControlling()
     private let manifestLoader = MockManifestLoading()
+    private let getProjectService = MockGetProjectServicing()
+    private let gitController = MockGitControlling()
 
     init() {
         subject = SetupCacheCommandService(
@@ -33,9 +36,23 @@ struct SetupCacheCommandServiceTests {
             configLoader: configLoader,
             serverEnvironmentService: serverEnvironmentService,
             serverAuthenticationController: serverAuthenticationController,
-            manifestLoader: manifestLoader
+            manifestLoader: manifestLoader,
+            getProjectService: getProjectService,
+            gitController: gitController
         )
 
+        // Every kura-path setup resolves the project's default branch to record the
+        // trunk. Left to the real service these tests would reach the production
+        // server: `trunkBranch` swallows the error, so the only symptom would be a
+        // network round trip per test and a silently missing trunk column.
+        given(getProjectService)
+            .getProject(fullHandle: .any, serverURL: .any)
+            .willReturn(.test(defaultBranch: "main"))
+
+        // Only read on CI, where the proxy cannot see the job's branch itself.
+        given(gitController)
+            .gitInfo(workingDirectory: .any)
+            .willReturn(GitInfo(ref: nil, branch: "feature/tags", sha: nil, remoteURLOrigin: nil))
         given(configLoader)
             .loadConfig(path: .any)
             .willReturn(.test(fullHandle: "tuist/tuist"))
@@ -474,4 +491,172 @@ struct SetupCacheCommandServiceTests {
             )
             .called(1)
     }
+
+    /// The registry the proxy reads for the trunk, branch and upload policy of every
+    /// publish. It is decoded by `load_sources` in cas-plugin, so the two sides have
+    /// to agree; these pin our half of that contract by asserting the bytes.
+    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func setupCache_recordsTheTrunk() async throws {
+        // Given
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let registry = temporaryDirectory.appending(component: "cas-proxy.registry")
+        environment.variables["TUIST_CAS_PROXY_REGISTRY"] = registry.pathString
+
+        // When
+        try await subject.run(path: nil)
+
+        // Then: off CI no branch is recorded, which leaves this project's publishes
+        // untagged and so outside the trunk view. CI is the only publisher it is
+        // built from.
+        let sources = try await FileSystem().readTextFile(at: registry.parentDirectory
+            .appending(component: "cas-proxy.registry.sources"))
+        #expect(sources == """
+        {
+          "tuist/tuist" : {
+            "trunk" : "main",
+            "upload" : true
+          }
+        }
+        """)
+    }
+
+    /// The registry is machine-wide, and setting one project up rewrites the whole
+    /// file, so every other project's row has to survive being read and written back
+    /// untouched. A row carrying a branch but no trunk is the case that a positional
+    /// format got wrong, and the one this format has to keep getting right.
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func setupCache_keepsAnotherProjectsFieldsWhenItsTrunkIsUnknown() async throws {
+        // Given
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let registry = temporaryDirectory.appending(component: "cas-proxy.registry")
+        environment.variables["TUIST_CAS_PROXY_REGISTRY"] = registry.pathString
+        let sources = registry.parentDirectory.appending(component: "cas-proxy.registry.sources")
+        let fileSystem = FileSystem()
+        // Another project, on CI, whose trunk was never resolved.
+        try await fileSystem.writeText(
+            #"{"other/project":{"branch":"feature/theirs","upload":true}}"#,
+            at: sources
+        )
+
+        // When: this project's setup rewrites the file.
+        try await subject.run(path: nil)
+
+        // Then
+        let contents = try await fileSystem.readTextFile(at: sources)
+        #expect(
+            contents.contains("""
+              "other/project" : {
+                "branch" : "feature/theirs",
+                "upload" : true
+              }
+            """),
+            "another project round-trips: \(contents)"
+        )
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func setupCache_recordsTheBranchOnCI() async throws {
+        // Given
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
+        environment.variables["CI"] = "1"
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let registry = temporaryDirectory.appending(component: "cas-proxy.registry")
+        environment.variables["TUIST_CAS_PROXY_REGISTRY"] = registry.pathString
+
+        // When
+        try await subject.run(path: nil)
+
+        // Then
+        let sources = try await FileSystem().readTextFile(at: registry.parentDirectory
+            .appending(component: "cas-proxy.registry.sources"))
+        #expect(sources == """
+        {
+          "tuist/tuist" : {
+            "branch" : "feature/tags",
+            "trunk" : "main",
+            "upload" : true
+          }
+        }
+        """)
+    }
+
+    /// A setup that cannot reach the server knows the branch but not the trunk. The
+    /// branch has to stay the branch: read back as a trunk it would scope every
+    /// snapshot to a branch that is not trunk.
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func setupCache_recordsTheBranchWhenTheTrunkIsUnknown() async throws {
+        // Given
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
+        environment.variables["CI"] = "1"
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let registry = temporaryDirectory.appending(component: "cas-proxy.registry")
+        environment.variables["TUIST_CAS_PROXY_REGISTRY"] = registry.pathString
+
+        // A setup that cannot reach the server records no trunk.
+        getProjectService.reset()
+        given(getProjectService)
+            .getProject(fullHandle: .any, serverURL: .any)
+            .willThrow(TestError("unreachable"))
+
+        // When
+        try await subject.run(path: nil)
+
+        // Then
+        let sources = try await FileSystem().readTextFile(at: registry.parentDirectory
+            .appending(component: "cas-proxy.registry.sources"))
+        #expect(sources == """
+        {
+          "tuist/tuist" : {
+            "branch" : "feature/tags",
+            "upload" : true
+          }
+        }
+        """)
+    }
+
+    /// Setting up a second project must not clobber the first, and a row that carries
+    /// nothing but its instance (a setup that could not reach the server) has to
+    /// survive the rewrite intact.
+    @Test(.inTemporaryDirectory, .withMockedEnvironment()) func setupCache_upsertsIntoAnExistingRegistry() async throws {
+        // Given
+        let environment = try #require(Environment.mocked)
+        environment.currentExecutablePathStub = AbsolutePath("/usr/local/bin/tuist")
+        environment.variables["TUIST_FEATURE_FLAG_KURA"] = "1"
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let registry = temporaryDirectory.appending(component: "cas-proxy.registry")
+        environment.variables["TUIST_CAS_PROXY_REGISTRY"] = registry.pathString
+        let sourcesPath = registry.parentDirectory.appending(component: "cas-proxy.registry.sources")
+        let fileSystem = FileSystem()
+        try await fileSystem.writeText(#"{"tuist/legacy":{}}"#, at: sourcesPath)
+
+        // When
+        try await subject.run(path: nil)
+
+        // Then
+        let sources = try await fileSystem.readTextFile(at: sourcesPath)
+        #expect(sources == """
+        {
+          "tuist/legacy" : {
+            "upload" : true
+          },
+          "tuist/tuist" : {
+            "trunk" : "main",
+            "upload" : true
+          }
+        }
+        """)
+    }
+}
+
+private struct TestError: Error {
+    let message: String
+    init(_ message: String) { self.message = message }
 }

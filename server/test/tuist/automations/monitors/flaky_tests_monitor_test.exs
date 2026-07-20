@@ -477,6 +477,63 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitorTest do
     end
   end
 
+  describe "evaluate_rolling_alerts/2" do
+    test "shares measurements between flakiness rate and flaky run count alerts" do
+      project = ProjectsFixtures.project_fixture()
+      one_flaky_run_id = Ecto.UUID.generate()
+      two_flaky_runs_id = Ecto.UUID.generate()
+      base = NaiveDateTime.utc_now()
+
+      for {test_case_id, flaky_run_count} <- [{one_flaky_run_id, 1}, {two_flaky_runs_id, 2}],
+          run_number <- 1..5 do
+        ran_at = NaiveDateTime.add(base, -run_number, :minute)
+
+        RunsFixtures.test_case_run_fixture(
+          project_id: project.id,
+          test_case_id: test_case_id,
+          is_flaky: run_number <= flaky_run_count,
+          ran_at: ran_at,
+          inserted_at: ran_at
+        )
+      end
+
+      rate_alert =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          monitor_type: "flakiness_rate",
+          trigger_config: %{
+            "threshold" => 20,
+            "comparison" => "gte",
+            "window_type" => "rolling",
+            "rolling_window_size" => 5
+          }
+        )
+
+      count_alert =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          monitor_type: "flaky_run_count",
+          trigger_config: %{
+            "threshold" => 2,
+            "comparison" => "gte",
+            "window_type" => "rolling",
+            "rolling_window_size" => 5
+          }
+        )
+
+      triggered_by_alert_id =
+        FlakyTestsMonitor.evaluate_rolling_alerts(
+          [rate_alert, count_alert],
+          [one_flaky_run_id, two_flaky_runs_id]
+        )
+
+      assert MapSet.new(triggered_by_alert_id[rate_alert.id]) ==
+               MapSet.new([one_flaky_run_id, two_flaky_runs_id])
+
+      assert triggered_by_alert_id[count_alert.id] == [two_flaky_runs_id]
+    end
+  end
+
   describe "evaluate_by_run_count/1 with rolling window" do
     test "fires when flaky run count in last N runs meets the threshold" do
       project = ProjectsFixtures.project_fixture()

@@ -13,8 +13,10 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	ctrlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics"
 
 	tuistv1 "github.com/tuist/tuist/infra/runners-controller/api/v1alpha1"
+	"github.com/tuist/tuist/infra/runners-controller/internal/metrics"
 )
 
 func nn(ns, name string) types.NamespacedName {
@@ -707,4 +709,128 @@ func podNames(pods []corev1.Pod) []string {
 		out[i] = p.Name
 	}
 	return out
+}
+
+func TestOldestPendingAgeTracksTheOldest(t *testing.T) {
+	now := time.Date(2026, 7, 17, 3, 0, 0, 0, time.UTC)
+
+	newest := newRunnerPod("p-newest", "img", corev1.PodPending, "p")
+	newest.CreationTimestamp = metav1.NewTime(now.Add(-30 * time.Second))
+	oldest := newRunnerPod("p-oldest", "img", corev1.PodPending, "p")
+	oldest.CreationTimestamp = metav1.NewTime(now.Add(-4 * time.Hour))
+	running := newRunnerPod("p-running", "img", corev1.PodRunning, "p")
+	running.CreationTimestamp = metav1.NewTime(now.Add(-8 * time.Hour))
+
+	counts := podPhaseReplicaCounts{}
+	counts.add(newest)
+	counts.add(oldest)
+	// A Pod that booted long ago is not waiting on anything, so its age
+	// must not leak into the gauge.
+	counts.add(running)
+
+	if got := counts.oldestPendingAge(now); got != 4*time.Hour {
+		t.Fatalf("oldest pending age = %v, want 4h", got)
+	}
+
+	// Reaping the oldest has to reveal the next-oldest. A running max
+	// would keep reporting 4h here.
+	counts.remove(oldest)
+	if got := counts.oldestPendingAge(now); got != 30*time.Second {
+		t.Fatalf("oldest pending age after reaping the oldest = %v, want 30s", got)
+	}
+
+	counts.remove(newest)
+	if got := counts.oldestPendingAge(now); got != 0 {
+		t.Fatalf("oldest pending age with nothing pending = %v, want 0", got)
+	}
+}
+
+func TestOldestPendingAgeEmpty(t *testing.T) {
+	counts := podPhaseReplicaCounts{}
+	if got := counts.oldestPendingAge(time.Now()); got != 0 {
+		t.Fatalf("oldest pending age on an empty pool = %v, want 0", got)
+	}
+}
+
+// oldestPendingGauge reads the published gauge out of the shared
+// controller-runtime registry: the metric is unexported in its own
+// package, and the registry is the same surface Prometheus scrapes.
+// Returns the value for `pool` and the total number of series.
+func oldestPendingGauge(t *testing.T, pool string) (float64, int) {
+	t.Helper()
+	families, err := ctrlmetrics.Registry.Gather()
+	if err != nil {
+		t.Fatalf("gather: %v", err)
+	}
+	var value float64
+	var series int
+	for _, f := range families {
+		if f.GetName() != "tuist_runners_pool_oldest_pending_pod_age_seconds" {
+			continue
+		}
+		series = len(f.GetMetric())
+		for _, m := range f.GetMetric() {
+			for _, l := range m.GetLabel() {
+				if l.GetName() == "pool" && l.GetValue() == pool {
+					value = m.GetGauge().GetValue()
+				}
+			}
+		}
+	}
+	return value, series
+}
+
+// A Linux warm-standby Pod runs its dispatch poller as an init container,
+// and kubelet holds a Pod in Pending for as long as any init container
+// runs — so an idle Linux runner reports Pending for hours by design.
+// Publishing the un-booted age for Linux would peg every idle pool at its
+// warm-pool age and read as wedged. Tart pools have no such state.
+func TestOldestPendingPodAgeIsDarwinOnly(t *testing.T) {
+	now := time.Date(2026, 7, 17, 3, 0, 0, 0, time.UTC)
+
+	for _, tc := range []struct {
+		os         string
+		pool       string
+		wantAge    float64
+		wantSeries int
+	}{
+		{os: "darwin", pool: "p-darwin", wantAge: 3600, wantSeries: 1},
+		{os: "linux", pool: "p-linux", wantAge: 0, wantSeries: 0},
+	} {
+		t.Run(tc.os, func(t *testing.T) {
+			metrics.ClearRunnerPool(tc.pool)
+			t.Cleanup(func() { metrics.ClearRunnerPool(tc.pool) })
+
+			scheme := mustScheme(t)
+			pool := newPool(tc.pool, "img", 1)
+			pool.Spec.OS = tc.os
+
+			pending := newRunnerPod(tc.pool+"-runner-a", "img", corev1.PodPending, tc.pool)
+			pending.CreationTimestamp = metav1.NewTime(now.Add(-time.Hour))
+
+			c := fake.NewClientBuilder().
+				WithScheme(scheme).
+				WithObjects(pool, pending).
+				WithStatusSubresource(&tuistv1.RunnerPool{}).
+				Build()
+
+			r := &RunnerPoolReconciler{
+				Client:      c,
+				Scheme:      scheme,
+				DispatchURL: "http://dispatch",
+				Now:         func() time.Time { return now },
+			}
+			if _, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: nn(pool.Namespace, pool.Name)}); err != nil {
+				t.Fatalf("reconcile: %v", err)
+			}
+
+			gotAge, gotSeries := oldestPendingGauge(t, tc.pool)
+			if gotAge != tc.wantAge {
+				t.Errorf("%s pool oldest pending age = %v, want %v", tc.os, gotAge, tc.wantAge)
+			}
+			if gotSeries != tc.wantSeries {
+				t.Errorf("%s pool published %d series, want %d", tc.os, gotSeries, tc.wantSeries)
+			}
+		})
+	}
 }

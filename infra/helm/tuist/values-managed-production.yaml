@@ -561,17 +561,16 @@ macosFleet:
   # a single host keeps hot once affinity spreads them across the fleet.
   # Kept well under the 512 GB disk, which is dominated by the ~85 GB
   # golden VM image(s) (two during a digest roll) + per-job DerivedData.
-  # DISABLED (2026-07-16): rolling this to the prod fleet broke every
-  # macOS CI job — the guest mounts the virtio-fs cache share and exports
-  # TUIST_XDG_CACHE_HOME at it, but `mkdir -p $CACHE_MOUNT/tuist` in
-  # dispatch-poll.sh fails silently (`2>/dev/null || true`) while the env
-  # var is exported regardless, so the CLI dies with "Couldn't create the
-  # directory at /Volumes/My Shared Files/cache/tuist/... because its
-  # parent directory doesn't exists". Re-enable only once a real CI job
-  # is verified green on a cache-volume host (host-side provisioning
-  # checks are NOT sufficient — that gap is what let this reach prod).
+  # Enabled after the disk-image redesign (#11908): the cache is now a
+  # sparse APFS disk image on the share, not files on it, because virtio-fs
+  # cannot carry a macOS cache faithfully (no xattrs on the symlinks in
+  # versioned framework bundles → the ELOOP that broke every macOS job on
+  # 2026-07-16). Validated end-to-end on a real staging runner (gib: 40):
+  # the framework-with-xattr copy that failed on the old share succeeds
+  # inside the image, and a promoted master clones back warm with symlinks
+  # and xattrs intact.
   runnerCacheVolume:
-    gib: 0
+    gib: 80
   # Production tailnet — alloy-metrics scrapes PromEx (xcresult VM)
   # + node_exporter (host) over the tailnet. The pre-auth key lives
   # in the production 1Password vault under TAILSCALE/auth-key.
@@ -644,17 +643,23 @@ runnersFleet:
   # fleet under skewed demand and the allocator caps the joint sum
   # so the pools don't double-book.
   #
-  # Floors sum to 3 of the 9-slot budget; the remaining 6 slots are
-  # dynamically apportioned by queue depth across the pools.
-  # The default (26.6) keeps the warm baseline since most traffic
-  # lands there; older Xcodes sit cold (floor 0) so an unused runner
-  # doesn't tie up a host. Revisit once we open the runners to
-  # general signups where the pool mix is unpredictable in advance.
+  # Floors sum to 1 of the 9-slot budget; the remaining 8 slots are
+  # dynamically apportioned by queue depth across the pools. Older
+  # Xcodes sit cold (floor 0) so an unused runner doesn't tie up a host.
+  #
+  # The default (26.6) carries the warm floor, since `tuist-macos`
+  # resolves there. That resolution goes through each account's
+  # protected `macos` profile, which stores `xcode_version` at account
+  # creation — so bumping the catalog default only redirects new
+  # accounts. Move existing accounts' profile in the same change, or
+  # their traffic stays on the old pool while the floor warms an idle
+  # one. Revisit once we open the runners to general signups where the
+  # pool mix is unpredictable in advance.
   xcodeOverrides:
     "26.6":
       autoscaling:
         enabled: true
-        minWarmPoolFloor: 3
+        minWarmPoolFloor: 1
         maxReplicas: 9
     "26.5":
       autoscaling:

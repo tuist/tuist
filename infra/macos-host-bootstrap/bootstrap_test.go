@@ -18,6 +18,10 @@ import (
 func TestRenderSSHReachabilityScript(t *testing.T) {
 	s := renderSSHReachabilityScript()
 	for _, want := range []string{
+		// Must create /usr/local/bin before the tee: on the first-boot path this
+		// runs before installTart (which otherwise makes the dir), so a fresh
+		// host has no /usr/local/bin and the tee would fail the whole bootstrap.
+		"mkdir -p /usr/local/bin",
 		"nc -z -G 3 127.0.0.1 22",
 		"bootout system/com.openssh.sshd",
 		"bootstrap system /System/Library/LaunchDaemons/ssh.plist",

@@ -294,7 +294,6 @@ organization =
 
 organization_account = Repo.preload(organization, :account).account
 {:ok, true} = FunWithFlags.enable(:kura, for_actor: organization_account)
-{:ok, true} = FunWithFlags.enable(:kura_cache, for_actor: organization_account)
 
 seed_account_token = fn account, name, opts ->
   case Accounts.get_account_token_by_name(account, name) do

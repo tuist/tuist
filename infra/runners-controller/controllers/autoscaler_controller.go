@@ -137,7 +137,7 @@ func (r *AutoscalerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	}
 
 	knobs := scaling.PolicyKnobs{
-		MinWarmPoolFloor: pool.Spec.Autoscaling.MinWarmPoolFloor,
+		MinWarmPoolFloor: pool.Spec.Autoscaling.MinWarmPoolFloorOrDefault(),
 		MaxReplicas:      pool.Spec.Autoscaling.MaxReplicas,
 	}
 	desired := r.desiredForPool(ctx, pool, *signals, knobs, logger)
@@ -160,7 +160,7 @@ func (r *AutoscalerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		// desired < current — scale down candidate. Cooldown gate
 		// stops us from oscillating: a single brief idle window
 		// shouldn't drop warm capacity that's about to be reused.
-		cooldown := time.Duration(pool.Spec.Autoscaling.ScaleDownCooldownSeconds) * time.Second
+		cooldown := time.Duration(pool.Spec.Autoscaling.ScaleDownCooldownSecondsOrDefault()) * time.Second
 		if cooldown < 0 {
 			cooldown = 0
 		}
@@ -342,7 +342,7 @@ func (r *AutoscalerReconciler) gatherFleetDemands(
 			}
 			sig = *fetched
 			k = scaling.PolicyKnobs{
-				MinWarmPoolFloor: p.Spec.Autoscaling.MinWarmPoolFloor,
+				MinWarmPoolFloor: p.Spec.Autoscaling.MinWarmPoolFloorOrDefault(),
 				MaxReplicas:      p.Spec.Autoscaling.MaxReplicas,
 			}
 		}

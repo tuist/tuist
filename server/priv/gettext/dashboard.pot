@@ -350,7 +350,7 @@ msgstr ""
 msgid "The page you are looking for doesn't exist or has been moved."
 msgstr ""
 
-#: lib/tuist_web/controllers/preview_controller.ex:133
+#: lib/tuist_web/controllers/preview_controller.ex:149
 #, elixir-autogen, elixir-format
 msgid "The preview ipa doesn't exist or has expired."
 msgstr ""
@@ -507,7 +507,7 @@ msgstr ""
 msgid "Cache"
 msgstr ""
 
-#: lib/tuist_web/controllers/preview_controller.ex:154
+#: lib/tuist_web/controllers/preview_controller.ex:170
 #, elixir-autogen, elixir-format
 msgid "The preview APK doesn't exist or has expired."
 msgstr ""

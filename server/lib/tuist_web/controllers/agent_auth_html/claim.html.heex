@@ -1,0 +1,49 @@
+<.auth_frame
+  title="Authorize this agent?"
+  subtitle="Confirm that the agent can connect to your Tuist account."
+>
+  <.alert
+    type="secondary"
+    status="information"
+    size="small"
+    title={"Signed in as #{@email}"}
+  />
+  <.alert
+    :if={@provider_name}
+    type="secondary"
+    status="information"
+    size="large"
+    title={@provider_name}
+    description="This provider is asking to link your Tuist account to its agent."
+  />
+  <form method="post" action={~p"/agent/identity/claim/complete"} data-part="form">
+    <input type="hidden" name="_csrf_token" value={Phoenix.Controller.get_csrf_token()} />
+    <input type="hidden" name="claim_attempt_token" value={@claim_attempt_token} />
+    <.text_input
+      id="user_code"
+      name="user_code"
+      label="Six-digit code"
+      hint="Enter the code shown by the agent."
+      show_prefix={false}
+      show_suffix={false}
+      required
+      autofocus
+      {%{
+        "inputmode" => "numeric",
+        "autocomplete" => "one-time-code",
+        "pattern" => "[0-9]{6}",
+        "minlength" => "6",
+        "maxlength" => "6"
+      }}
+    />
+    <div data-part="actions">
+      <.button variant="primary" size="large" label="Authorize agent">
+        <:icon_left><.lock /></:icon_left>
+      </.button>
+    </div>
+  </form>
+  <div data-part="security-note">
+    <span data-part="icon"><.lock /></span>
+    <span>The code should travel from the agent to you, never the other way around.</span>
+  </div>
+</.auth_frame>
