@@ -409,6 +409,15 @@ func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
 			_ = r.Tart.Delete(ctx, base)
 			return fmt.Errorf("tart clone from golden: %w", err)
 		}
+		// Give the fresh clone its own ECID. Clones inherit the golden's,
+		// so without this every VM presents one shared identity to Apple and
+		// collides at MobileAsset personalization under concurrency (the
+		// intermittent Metal-toolchain catalog verify failure). Best-effort:
+		// on failure the VM keeps the shared identity (pre-fix behaviour)
+		// rather than failing the job.
+		if err := r.Tart.RegenerateIdentity(ctx, vmName); err != nil && r.Recorder != nil {
+			r.Recorder.Event(pod, corev1.EventTypeWarning, "IdentityRegenSkipped", fmt.Sprintf("regenerate VM identity: %v", err))
+		}
 		// Split the on-host provisioning segment (golden probe +
 		// pull/clone + runner clone) out from podProvisionDelaySeconds,
 		// which also folds in scheduling/queue wait. `path` separates a
