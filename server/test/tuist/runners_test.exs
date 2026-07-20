@@ -13,6 +13,8 @@ defmodule Tuist.RunnersTest do
   alias Tuist.Runners.Dispatch
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.VolumeAffinities
+  alias Tuist.Runners.VolumeHeads
+  alias Tuist.Runners.Workers.PruneVolumeMasterWorker
   alias Tuist.VCS
 
   setup :verify_on_exit!
@@ -733,6 +735,113 @@ defmodule Tuist.RunnersTest do
       end)
 
       assert {:error, :account_unresolved} = Runners.account_id_for_sa("tuist-runners", "pod-1")
+    end
+  end
+
+  describe "report_volume_head/3" do
+    test "bumps the HEAD for a valid hex digest" do
+      account = account_fixture()
+      digest = String.duplicate("a", 40)
+
+      assert :ok = Runners.report_volume_head(account.id, "node-1", digest)
+      assert %{tree_digest: ^digest} = VolumeHeads.get_head(account.id)
+    end
+
+    test "rejects a digest with path characters (or non-hex) without bumping the HEAD" do
+      account = account_fixture()
+
+      for bad <- ["../../etc/passwd", "tuist-cache/../x", "a/b", "", nil, String.duplicate("A", 40)] do
+        assert :error = Runners.report_volume_head(account.id, "node-1", bad)
+      end
+
+      assert VolumeHeads.get_head(account.id) == nil
+    end
+
+    test "schedules a delayed prune of the superseded master only once a digest changes" do
+      account = account_fixture()
+      old = String.duplicate("a", 40)
+      new = String.duplicate("b", 40)
+
+      # First promote: nothing is superseded, so nothing to prune.
+      assert :ok = Runners.report_volume_head(account.id, "node-1", old)
+      refute_enqueued(worker: PruneVolumeMasterWorker)
+
+      # A new digest supersedes the old object → schedule its delayed deletion.
+      assert :ok = Runners.report_volume_head(account.id, "node-1", new)
+
+      assert_enqueued(
+        worker: PruneVolumeMasterWorker,
+        args: %{account_id: account.id, tree_digest: old}
+      )
+    end
+  end
+
+  describe "prune_superseded_volume_master/2" do
+    test "deletes the superseded master object" do
+      account = account_fixture()
+      digest = String.duplicate("a", 40)
+      # HEAD sits at a different digest, so `digest` is genuinely superseded.
+      Runners.report_volume_head(account.id, "node-1", String.duplicate("b", 40))
+      key = "runner-volume-masters/#{account.id}/tuist-cache/#{digest}.image"
+
+      expect(Tuist.Storage, :delete_object, fn ^key, actor ->
+        assert actor.id == account.id
+        :ok
+      end)
+
+      assert :ok = Runners.prune_superseded_volume_master(account.id, digest)
+    end
+
+    test "skips deletion when the digest is (again) the current HEAD (re-promoted)" do
+      account = account_fixture()
+      digest = String.duplicate("a", 40)
+      Runners.report_volume_head(account.id, "node-1", digest)
+
+      reject(&Tuist.Storage.delete_object/2)
+
+      assert :ok = Runners.prune_superseded_volume_master(account.id, digest)
+    end
+  end
+
+  describe "volume_master_upload_url/2" do
+    test "mints a content-addressed presigned PUT URL keyed by the inventory digest" do
+      account = account_fixture()
+      digest = String.duplicate("a", 40)
+      expected_key = "runner-volume-masters/#{account.id}/tuist-cache/#{digest}.image"
+
+      expect(Tuist.Storage, :generate_upload_url, fn ^expected_key, actor, opts ->
+        assert actor.id == account.id
+        assert Keyword.has_key?(opts, :expires_in)
+        "https://bucket.fly.storage.tigris.dev/#{expected_key}?X-Amz-Signature=abc"
+      end)
+
+      assert {:ok, url} = Runners.volume_master_upload_url(account.id, digest)
+      assert url =~ expected_key
+    end
+
+    test "rejects a non-hex digest before any storage call (no traversal, no clobber)" do
+      reject(&Tuist.Storage.generate_upload_url/3)
+
+      assert :error = Runners.volume_master_upload_url(1, "../../etc/passwd")
+      assert :error = Runners.volume_master_upload_url(1, "")
+      assert :error = Runners.volume_master_upload_url(1, String.duplicate("a", 39))
+      assert :error = Runners.volume_master_upload_url(1, String.upcase(String.duplicate("a", 40)))
+    end
+
+    test "rejects a presigned URL that targets a non-public host (SSRF guard)" do
+      account = account_fixture()
+      digest = String.duplicate("b", 40)
+
+      stub(Tuist.Storage, :generate_upload_url, fn _key, _actor, _opts ->
+        "http://169.254.169.254/runner-volume-masters/put"
+      end)
+
+      assert :error = Runners.volume_master_upload_url(account.id, digest)
+    end
+
+    test "errors when the account does not exist" do
+      digest = String.duplicate("c", 40)
+      assert :error = Runners.volume_master_upload_url(-1, digest)
     end
   end
 end

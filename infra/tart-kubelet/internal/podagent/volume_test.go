@@ -13,48 +13,36 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// fakeBackend models APFS clonefile + statfs against real files under a temp
-// root so the manager's os-based master scanning works unchanged. Free space is
-// total minus one provisioned cap per resident master directory; branches are
-// CoW-sparse and don't count, mirroring the real backend.
+// fakeBackend models APFS clonefile + statfs + hdiutil against real files under
+// a temp root so the manager's os-based master scanning works unchanged.
+//
+// A cache image is modelled as what it is to every caller but hdiutil: an opaque
+// regular file. Its CONTENTS are a real APFS filesystem that only a macOS attach
+// can read, so nothing here pretends to look inside — the fake's "digest" is
+// whatever imageDigests says it is, and the real read-through-attach behaviour is
+// covered by the on-host probe instead. Free space is total minus one
+// provisioned cap per resident master image; branches are CoW-sparse and don't
+// count, mirroring the real backend.
 type fakeBackend struct {
 	totalBytes uint64
 	perMaster  uint64
 	root       string
 	// cloneErr, when set, fails every clone — used to prove a failed
-	// materialize still leaves the guest a usable cache root.
+	// materialize still leaves the guest an image to attach.
 	cloneErr error
+	// createErr, when set, fails image creation.
+	createErr error
+	// imageDigests maps an image's opaque content to the digest a real attach
+	// would report, standing in for the filesystem inside it.
+	imageDigests map[string]string
 }
 
-func (f *fakeBackend) cloneTree(src, dst string) error {
+func (f *fakeBackend) clonePath(src, dst string) error {
 	if f.cloneErr != nil {
 		return f.cloneErr
 	}
 	if _, err := os.Stat(dst); err == nil {
 		return os.ErrExist
-	}
-	return copyTree(src, dst)
-}
-
-func copyTree(src, dst string) error {
-	info, err := os.Stat(src)
-	if err != nil {
-		return err
-	}
-	if info.IsDir() {
-		if err := os.MkdirAll(dst, 0o777); err != nil {
-			return err
-		}
-		entries, err := os.ReadDir(src)
-		if err != nil {
-			return err
-		}
-		for _, e := range entries {
-			if err := copyTree(filepath.Join(src, e.Name()), filepath.Join(dst, e.Name())); err != nil {
-				return err
-			}
-		}
-		return nil
 	}
 	b, err := os.ReadFile(src)
 	if err != nil {
@@ -63,13 +51,36 @@ func copyTree(src, dst string) error {
 	return os.WriteFile(dst, b, 0o644)
 }
 
+// createImage writes an opaque placeholder standing in for an empty sparse
+// image, so callers can stat/clone/upload it exactly as they would the real one.
+func (f *fakeBackend) createImage(path string, sizeGiB int) error {
+	if f.createErr != nil {
+		return f.createErr
+	}
+	if sizeGiB <= 0 {
+		return errors.New("cache image size must be positive")
+	}
+	return os.WriteFile(path, []byte("empty-image"), 0o644)
+}
+
+func (f *fakeBackend) imageInventoryDigest(path string) (string, error) {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	if d, ok := f.imageDigests[string(b)]; ok {
+		return d, nil
+	}
+	return "", errors.New("fake: no digest registered for image content " + string(b))
+}
+
 func (f *fakeBackend) freeBytes(root string) (uint64, error) {
 	var masters uint64
 	_ = filepath.Walk(root, func(p string, info os.FileInfo, err error) error {
-		if err != nil || !info.IsDir() || filepath.Base(p) != "master" {
+		if err != nil || info.IsDir() || filepath.Base(p) != masterImageName {
 			return nil
 		}
-		// <root>/<account>/<volume>/master — a real master, not the branches dir.
+		// <root>/<account>/<volume>/master.sparseimage — a real master.
 		if filepath.Base(filepath.Dir(filepath.Dir(filepath.Dir(p)))) == filepath.Base(root) {
 			masters++
 		}
@@ -100,27 +111,48 @@ func mustAllocate(t *testing.T, m *VolumeManager, vm string) VolumeAttachment {
 	return att
 }
 
-// writeBranchCache simulates a job writing cache artifacts into the branch's
-// tuist subtree (what the guest does during a job before promote).
-func writeBranchCache(t *testing.T, att VolumeAttachment, marker string) {
+// emptyImageContent is what the fake backend's createImage writes, so tests can
+// tell an empty (cold) image from one cloned off a master.
+const emptyImageContent = "empty-image"
+
+// masterImageContent is the opaque content standing in for an account's master
+// image — the fake's equivalent of "the APFS filesystem holding 42's cache".
+func masterImageContent(account string) string { return "image-of-" + account }
+
+// writeBranchCache simulates a job filling the branch's cache image (what the
+// guest does inside the mounted image before promote). The host cannot see in,
+// so from its side this is just the image file's content changing.
+func writeBranchCache(t *testing.T, m *VolumeManager, att VolumeAttachment, marker string) {
 	t.Helper()
-	dir := filepath.Join(att.BranchPath, cacheHomeSubdir, "Binaries")
-	if err := os.MkdirAll(dir, 0o777); err != nil {
-		t.Fatalf("write branch cache: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, "artifact"), []byte(marker), 0o644); err != nil {
+	if err := os.WriteFile(m.BranchImage(att), []byte(marker), 0o644); err != nil {
 		t.Fatalf("write branch cache: %v", err)
 	}
 }
 
 func masterExists(m *VolumeManager, account string) bool {
-	_, err := os.Stat(m.masterDir(account, ReservedTuistCacheVolume))
+	_, err := os.Stat(m.masterImage(account, ReservedTuistCacheVolume))
 	return err == nil
 }
 
-func branchTuistExists(att VolumeAttachment) bool {
-	_, err := os.Stat(filepath.Join(att.BranchPath, cacheHomeSubdir))
+func branchImageExists(m *VolumeManager, att VolumeAttachment) bool {
+	_, err := os.Stat(m.BranchImage(att))
 	return err == nil
+}
+
+func branchImageContent(t *testing.T, m *VolumeManager, att VolumeAttachment) string {
+	t.Helper()
+	b, err := os.ReadFile(m.BranchImage(att))
+	if err != nil {
+		t.Fatalf("read branch image: %v", err)
+	}
+	return string(b)
+}
+
+// branchHasWarmCache reports whether the branch carries a master's contents
+// rather than the empty image the cold path creates.
+func branchHasWarmCache(m *VolumeManager, att VolumeAttachment) bool {
+	b, err := os.ReadFile(m.BranchImage(att))
+	return err == nil && string(b) != emptyImageContent
 }
 
 func TestVolumeDisabled(t *testing.T) {
@@ -152,17 +184,28 @@ func TestColdFirstJobSeedsMaster(t *testing.T) {
 	// The reconciler records the dispatched account on the attachment (what
 	// maybeMaterializeVolume does); Finalize checks it before promoting.
 	att.SourceAccount = "42"
-	if branchTuistExists(att) {
-		t.Fatal("cold branch should have no materialized cache")
+	if branchHasWarmCache(m, att) {
+		t.Fatal("cold branch should hold no cached content")
+	}
+	// A cold branch still gets an EMPTY image: the guest can only attach what
+	// is there, and no image at all kills the job rather than costing it warmth.
+	if !branchImageExists(m, att) {
+		t.Fatal("cold materialize must still leave an empty image for the guest to attach")
 	}
 	// The job pulls + writes the cache, then promotes.
-	writeBranchCache(t, att, "from-42")
+	writeBranchCache(t, m, att, "from-42")
+	att.ReportedDigest = "digest-from-42"
 	out, err := m.Finalize(att, "42", true, true)
 	if err != nil || out != VolumeOutcomePromoted {
 		t.Fatalf("Finalize = %s, %v; want promoted", out, err)
 	}
 	if !masterExists(m, "42") {
 		t.Fatal("account 42 master should exist after promote")
+	}
+	// The promoted master records the digest the guest reported from inside the
+	// image, since the host can't compute it without attaching.
+	if got, err := m.MasterDigest("42", ReservedTuistCacheVolume); err != nil || got != "digest-from-42" {
+		t.Fatalf("MasterDigest after promote = %q, %v; want the guest-reported digest", got, err)
 	}
 	if _, err := os.Stat(att.BranchPath); !os.IsNotExist(err) {
 		t.Fatal("branch should be gone after promote")
@@ -180,10 +223,9 @@ func TestWarmMaterializeAndPromote(t *testing.T) {
 		t.Fatalf("warm Materialize = %v, %v; want true, nil", warm, err)
 	}
 	att.SourceAccount = "42"
-	// The account's cached artifact is now visible in the branch.
-	got, err := os.ReadFile(filepath.Join(att.BranchPath, cacheHomeSubdir, "Binaries", "marker"))
-	if err != nil || string(got) != "42" {
-		t.Fatalf("materialized branch marker = %q, %v; want \"42\"", got, err)
+	// The account's cached image is now the branch's image.
+	if got := branchImageContent(t, m, att); got != masterImageContent("42") {
+		t.Fatalf("materialized branch image = %q; want a clone of account 42's master", got)
 	}
 	if out, err := m.Finalize(att, "42", true, true); err != nil || out != VolumeOutcomePromoted {
 		t.Fatalf("warm Finalize = %s, %v; want promoted", out, err)
@@ -206,10 +248,10 @@ func TestMaterializeIsAccountScoped(t *testing.T) {
 		t.Fatalf("Materialize(99) = %v, %v; want cold (false), nil", warm, err)
 	}
 	att.SourceAccount = "99"
-	if branchTuistExists(att) {
-		t.Fatal("account 99's VM must not see account 42's cache")
+	if branchHasWarmCache(m, att) {
+		t.Fatalf("account 99's VM must not see account 42's cache; branch image = %q", branchImageContent(t, m, att))
 	}
-	writeBranchCache(t, att, "from-99")
+	writeBranchCache(t, m, att, "from-99")
 	if out, err := m.Finalize(att, "99", true, true); err != nil || out != VolumeOutcomePromoted {
 		t.Fatalf("Finalize(99) = %s, %v; want promoted", out, err)
 	}
@@ -235,7 +277,7 @@ func TestFinalizeRejectsAccountMismatch(t *testing.T) {
 		t.Fatalf("Materialize(A): %v", err)
 	}
 	att.SourceAccount = "A" // materialized from A...
-	writeBranchCache(t, att, "from-A")
+	writeBranchCache(t, m, att, "from-A")
 
 	// ...but finalized as if the VM ran account B.
 	out, err := m.Finalize(att, "B", true, true)
@@ -263,7 +305,7 @@ func TestReadOnlyAndFailedDiscard(t *testing.T) {
 	// Failed job: dirty but not successful.
 	att = mustAllocate(t, m, "vm-fail")
 	_, _ = m.Materialize(att, "42")
-	writeBranchCache(t, att, "half")
+	writeBranchCache(t, m, att, "half")
 	if out, _ := m.Finalize(att, "42", false, true); out != VolumeOutcomeDiscarded {
 		t.Fatalf("failed job should discard, got %s", out)
 	}
@@ -303,7 +345,7 @@ func TestAdmissionEvictsThenAdmits(t *testing.T) {
 	m, _ := newTestManager(t, 3)
 	for i, acct := range []string{"a", "b", "c"} {
 		seedMaster(t, m, acct)
-		setMtime(t, m.masterDir(acct, ReservedTuistCacheVolume), time.Now().Add(time.Duration(i)*time.Minute))
+		setMtime(t, m.masterImage(acct, ReservedTuistCacheVolume), time.Now().Add(time.Duration(i)*time.Minute))
 	}
 
 	att := mustAllocate(t, m, "vmX")
@@ -343,7 +385,7 @@ func TestFinalizeReleasesReservation(t *testing.T) {
 
 	a1 := mustAllocate(t, m, "vm1")
 	a1.SourceAccount = "42"
-	writeBranchCache(t, a1, "x")
+	writeBranchCache(t, m, a1, "x")
 	if out, _ := m.Finalize(a1, "42", true, true); out != VolumeOutcomePromoted {
 		t.Fatalf("promote = %s", out)
 	}
@@ -364,7 +406,7 @@ func TestEvictToWatermark(t *testing.T) {
 	m, _ := newTestManager(t, 3)
 	for i, acct := range []string{"a", "b", "c"} {
 		seedMaster(t, m, acct)
-		setMtime(t, m.masterDir(acct, ReservedTuistCacheVolume), time.Now().Add(time.Duration(i)*time.Minute))
+		setMtime(t, m.masterImage(acct, ReservedTuistCacheVolume), time.Now().Add(time.Duration(i)*time.Minute))
 	}
 	// free = 3 - 3 = 0 < 1.2 -> evict oldest until free >= 1.2 (need <= 1 master).
 	evicted, err := m.EvictToWatermark()
@@ -389,8 +431,8 @@ func TestSweepBranches(t *testing.T) {
 	m, _ := newTestManager(t, 100)
 	a1 := mustAllocate(t, m, "vm1")
 	a2 := mustAllocate(t, m, "vm2")
-	writeBranchCache(t, a1, "x")
-	writeBranchCache(t, a2, "y")
+	writeBranchCache(t, m, a1, "x")
+	writeBranchCache(t, m, a2, "y")
 
 	if err := m.SweepBranches(); err != nil {
 		t.Fatalf("SweepBranches: %v", err)
@@ -422,8 +464,8 @@ func TestSweepBranchesRetainsReattached(t *testing.T) {
 	m, _ := newTestManager(t, 100)
 	live := mustAllocate(t, m, "vm-live")
 	orphan := mustAllocate(t, m, "vm-orphan")
-	writeBranchCache(t, live, "warm")
-	writeBranchCache(t, orphan, "stale")
+	writeBranchCache(t, m, live, "warm")
+	writeBranchCache(t, m, orphan, "stale")
 	m.MarkMaterialized(live) // host materialized this branch before the restart
 
 	// Simulate recovery of the still-running VM after a kubelet restart.
@@ -446,95 +488,113 @@ func TestSweepBranchesRetainsReattached(t *testing.T) {
 	}
 }
 
-// A warm materialize must hand the guest a cache root it can actually WRITE.
-// The clone carries the MASTER's ownership/mode, not the branch's 0777, so
-// without an explicit relax the guest's unprivileged runner user can't create
-// Plugins/ Binaries/ ... under it — and the CLI aborts the whole job (this is
-// what broke every macOS CI job once masters started existing; a cold job,
-// which creates the root itself, was unaffected, which is why it surfaced late).
-func TestMaterializeLeavesCacheRootGuestWritable(t *testing.T) {
+// The image FILE's mode is the whole of the host's permission handling: the
+// guest attaches it read-write over virtio-fs as a different uid, so the clone
+// (which carries the master's host-owned mode) must be relaxed or the attach
+// fails. Everything inside the image is the guest's own — it attaches with
+// `-owners off` — so there is nothing else to relax.
+func TestMaterializedImageIsGuestWritable(t *testing.T) {
 	m, _ := newTestManager(t, 100)
+	seedMaster(t, m, "42")
+	// A master as the host stages it: host-owned and not group/other-writable.
+	if err := os.Chmod(m.masterImage("42", ReservedTuistCacheVolume), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
 	att := mustAllocate(t, m, "vm-warm")
-
-	// A master as the host stages it: host-owned, restrictive, NOT guest-writable
-	// — including the subtree and the artifact inside it, which is what the CLI
-	// actually has to move into and rewrite.
-	master := filepath.Join(m.masterDir("42", ReservedTuistCacheVolume), cacheHomeSubdir)
-	if err := os.MkdirAll(filepath.Join(master, "Binaries"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(master, "Binaries", "marker"), []byte("cached"), 0o444); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Chmod(filepath.Join(master, "Binaries"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Chmod(master, 0o700); err != nil {
-		t.Fatal(err)
-	}
-
 	warm, err := m.Materialize(att, "42")
 	if err != nil || !warm {
 		t.Fatalf("Materialize = warm %v, err %v; want warm", warm, err)
 	}
 
-	dest := filepath.Join(att.BranchPath, cacheHomeSubdir)
-	fi, err := os.Stat(dest)
+	fi, err := os.Stat(m.BranchImage(att))
 	if err != nil {
-		t.Fatalf("materialized cache root missing: %v", err)
+		t.Fatalf("materialized image missing: %v", err)
 	}
-	if fi.Mode().Perm() != 0o777 {
-		t.Errorf("materialized cache root mode = %#o, want 0777 so the guest can write it", fi.Mode().Perm())
+	if fi.Mode().Perm() != 0o666 {
+		t.Errorf("materialized image mode = %#o, want 0666 so the guest can attach it read-write", fi.Mode().Perm())
 	}
 
-	// The root alone is NOT enough, and asserting only the root is why the
-	// incomplete fix shipped: the CLI moves downloaded xcframeworks into
-	// tuist/Binaries/<hash> and re-signs artifacts in place, so every directory
-	// AND file in the cloned tree must be guest-writable. Production failed with
-	// `"X.xcframework" couldn't be moved to "<hash>"` while the root was fine.
-	sub := filepath.Join(dest, "Binaries")
-	sfi, err := os.Stat(sub)
+	// The cold path creates rather than clones, and must land on the same mode.
+	cold := mustAllocate(t, m, "vm-cold")
+	if _, err := m.Materialize(cold, "no-master-here"); err != nil {
+		t.Fatalf("cold Materialize: %v", err)
+	}
+	cfi, err := os.Stat(m.BranchImage(cold))
 	if err != nil {
-		t.Fatalf("materialized Binaries/ missing: %v", err)
+		t.Fatalf("cold image missing: %v", err)
 	}
-	if sfi.Mode().Perm() != 0o777 {
-		t.Errorf("materialized Binaries/ mode = %#o, want 0777 — the CLI must be able to move artifacts into it", sfi.Mode().Perm())
-	}
-	ffi, err := os.Stat(filepath.Join(sub, "marker"))
-	if err != nil {
-		t.Fatalf("materialized artifact missing: %v", err)
-	}
-	if ffi.Mode().Perm()&0o222 == 0 {
-		t.Errorf("materialized artifact mode = %#o, want writable — the CLI re-signs artifacts in place", ffi.Mode().Perm())
+	if cfi.Mode().Perm() != 0o666 {
+		t.Errorf("cold image mode = %#o, want 0666", cfi.Mode().Perm())
 	}
 }
 
-// A failed swap must never strand the branch WITHOUT a cache root: the guest has
-// already exported TUIST_XDG_CACHE_HOME at it, and a missing root kills the job
-// rather than costing it warmth.
-func TestMaterializeFailureStillLeavesACacheRoot(t *testing.T) {
+// A failed clone must never strand the branch WITHOUT an image: the guest is
+// already pointed at the share and cannot attach what isn't there, so a missing
+// image kills the job rather than costing it warmth. Falling back to an empty
+// image runs the job cold.
+func TestMaterializeFailureStillLeavesAnImage(t *testing.T) {
 	m, be := newTestManager(t, 100)
 	att := mustAllocate(t, m, "vm-fail")
-
-	// The guest creates the cache root at boot and exports TUIST_XDG_CACHE_HOME
-	// at it before the host ever materializes. A failed materialize must not
-	// destroy it — the clone must fail BEFORE the destructive swap, and the swap
-	// path must restore a root if it breaks partway.
-	dest := filepath.Join(att.BranchPath, cacheHomeSubdir)
-	if err := os.MkdirAll(dest, 0o777); err != nil {
-		t.Fatal(err)
-	}
-	master := filepath.Join(m.masterDir("42", ReservedTuistCacheVolume), cacheHomeSubdir)
-	if err := os.MkdirAll(master, 0o755); err != nil {
-		t.Fatal(err)
-	}
+	seedMaster(t, m, "42")
 	be.cloneErr = errors.New("clonefile boom")
 
 	if _, err := m.Materialize(att, "42"); err == nil {
 		t.Fatal("expected Materialize to fail")
 	}
-	if _, err := os.Stat(dest); err != nil {
-		t.Fatalf("failed materialize left the branch with no cache root (the job would die, not run cold): %v", err)
+	if !branchImageExists(m, att) {
+		t.Fatal("failed materialize left the branch with no image (the job would die, not run cold)")
+	}
+	if branchHasWarmCache(m, att) {
+		t.Fatal("failed materialize must leave an EMPTY image, not a half-cloned master")
+	}
+}
+
+// When even the empty-image fallback fails there is nothing more the host can
+// do, and the error must surface rather than be swallowed — the guest will fall
+// back to its own local cold cache.
+func TestMaterializeReportsFallbackFailure(t *testing.T) {
+	m, be := newTestManager(t, 100)
+	att := mustAllocate(t, m, "vm-doomed")
+	seedMaster(t, m, "42")
+	be.cloneErr = errors.New("clonefile boom")
+	be.createErr = errors.New("hdiutil boom")
+
+	_, err := m.Materialize(att, "42")
+	if err == nil {
+		t.Fatal("expected Materialize to fail")
+	}
+	if !errors.Is(err, be.cloneErr) || !errors.Is(err, be.createErr) {
+		t.Fatalf("error should report both the clone and the fallback failure; got %v", err)
+	}
+}
+
+// An untrusted (fork) job gets an image of its own — cache-ready tells the guest
+// to attach, so signalling without one would drop every fork job onto the local
+// cold cache — but it must be EMPTY, never a clone of the account's master.
+func TestMaterializeEmptyIsolatesForkJobs(t *testing.T) {
+	m, _ := newTestManager(t, 100)
+	seedMaster(t, m, "42")
+
+	att := mustAllocate(t, m, "vm-fork")
+	if err := m.MaterializeEmpty(att); err != nil {
+		t.Fatalf("MaterializeEmpty: %v", err)
+	}
+	if !branchImageExists(m, att) {
+		t.Fatal("an untrusted job still needs an image to attach")
+	}
+	if branchHasWarmCache(m, att) {
+		t.Fatalf("an untrusted job must not receive the account's cache; branch image = %q", branchImageContent(t, m, att))
+	}
+
+	// It promotes nothing: the dispatch path leaves SourceAccount empty, so even
+	// a successful, dirty fork job discards.
+	writeBranchCache(t, m, att, "attacker")
+	if out, _ := m.Finalize(att, "42", true, true); out != VolumeOutcomeDiscarded {
+		t.Fatalf("untrusted branch Finalize = %s; want discarded", out)
+	}
+	if got, _ := os.ReadFile(m.masterImage("42", ReservedTuistCacheVolume)); string(got) != masterImageContent("42") {
+		t.Fatal("account 42's master must survive a fork job untouched")
 	}
 }
 
@@ -545,7 +605,7 @@ func TestMaterializeFailureStillLeavesACacheRoot(t *testing.T) {
 func TestReattachVolumeForPodPreservesUntrusted(t *testing.T) {
 	m, _ := newTestManager(t, 100)
 	att := mustAllocate(t, m, "vm-untrusted")
-	writeBranchCache(t, att, "attacker")
+	writeBranchCache(t, m, att, "attacker")
 
 	pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{
 		runnerAccountLabel:        "42",
@@ -576,7 +636,7 @@ func TestReattachVolumeForPodTrustedPromotes(t *testing.T) {
 	m, _ := newTestManager(t, 100)
 	att := mustAllocate(t, m, "vm-trusted")
 	m.MarkMaterialized(att)
-	writeBranchCache(t, att, "warm")
+	writeBranchCache(t, m, att, "warm")
 
 	pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{runnerAccountLabel: "42"}}}
 
@@ -627,13 +687,51 @@ func TestReattachBranchIdleNotMaterialized(t *testing.T) {
 // MasterDigest must match dispatch-poll.sh's cache_inventory (sorted, subtree-
 // prefixed entry names joined by newlines, SHA-1'd) so a host can compare its
 // local master against the HEAD digest the guest reports.
-func TestMasterDigestMatchesInventory(t *testing.T) {
+func TestMasterDigestReadsSidecar(t *testing.T) {
 	m, _ := newTestManager(t, 100)
 
-	// No master: digest of the empty inventory is SHA-1 of the empty string.
+	// No master: empty, NOT the digest of an empty inventory. The host can't see
+	// into an image, so "I don't know" must not be reported as "I am empty" —
+	// that would look like a legitimate state and could match a HEAD.
 	d0, err := m.MasterDigest("42", ReservedTuistCacheVolume)
 	if err != nil {
 		t.Fatalf("MasterDigest: %v", err)
+	}
+	if d0 != "" {
+		t.Fatalf("digest with no master = %q; want empty", d0)
+	}
+
+	seedMasterWithDigest(t, m, "42", "deadbeef")
+	got, err := m.MasterDigest("42", ReservedTuistCacheVolume)
+	if err != nil {
+		t.Fatalf("MasterDigest: %v", err)
+	}
+	if got != "deadbeef" {
+		t.Fatalf("digest = %q; want the recorded sidecar value", got)
+	}
+
+	// A master whose sidecar never landed reads as unknown, so convergence
+	// refreshes it rather than trusting an inventory nobody recorded.
+	if err := os.Remove(m.masterDigestPath("42", ReservedTuistCacheVolume)); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := m.MasterDigest("42", ReservedTuistCacheVolume); err != nil || got != "" {
+		t.Fatalf("digest with no sidecar = %q, %v; want empty", got, err)
+	}
+}
+
+// The host's inventory digest must match dispatch-poll.sh's cache_inventory
+// (sorted, subtree-prefixed entry names joined by newlines, SHA-1'd): the guest
+// computes it inside the mounted image and the host computes it through a
+// read-only attach, and the two are compared against each other.
+func TestInventoryDigestMatchesGuestScript(t *testing.T) {
+	root := t.TempDir()
+
+	// Empty inventory: SHA-1 of the empty string, matching `... | sort | shasum`
+	// over no entries.
+	d0, err := inventoryDigest(filepath.Join(root, cacheHomeSubdir))
+	if err != nil {
+		t.Fatalf("inventoryDigest: %v", err)
 	}
 	if d0 != "da39a3ee5e6b4b0d3255bfef95601890afd80709" {
 		t.Fatalf("empty digest = %q; want sha1(\"\")", d0)
@@ -641,7 +739,7 @@ func TestMasterDigestMatchesInventory(t *testing.T) {
 
 	// Two Binaries entries → SHA-1 over the sorted, prefixed, newline-joined
 	// lines, independent of creation order.
-	binaries := filepath.Join(m.masterDir("42", ReservedTuistCacheVolume), cacheHomeSubdir, "Binaries")
+	binaries := filepath.Join(root, cacheHomeSubdir, "Binaries")
 	if err := os.MkdirAll(filepath.Join(binaries, "hashB"), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -649,9 +747,9 @@ func TestMasterDigestMatchesInventory(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	got, err := m.MasterDigest("42", ReservedTuistCacheVolume)
+	got, err := inventoryDigest(filepath.Join(root, cacheHomeSubdir))
 	if err != nil {
-		t.Fatalf("MasterDigest: %v", err)
+		t.Fatalf("inventoryDigest: %v", err)
 	}
 	h := sha1.New()
 	for _, l := range []string{"Binaries/hashA", "Binaries/hashB"} {
@@ -661,72 +759,85 @@ func TestMasterDigestMatchesInventory(t *testing.T) {
 	if want := hex.EncodeToString(h.Sum(nil)); got != want {
 		t.Fatalf("digest = %q; want %q", got, want)
 	}
-}
 
-// TreeDigest (used by convergence to verify a downloaded archive matches the
-// HEAD digest before install) computes over the staged dir's tuist subtree,
-// identically to MasterDigest — so a matching tree verifies and a divergent one
-// is rejected.
-func TestTreeDigestMatchesMaster(t *testing.T) {
-	m, _ := newTestManager(t, 100)
-	seedMaster(t, m, "42") // master/tuist/Binaries/marker
-
-	// A staged tree with identical inventory (entry name "marker") must digest
-	// equal to the account's master.
-	staging := m.ConvergeStagingDir("vmX")
-	dir := filepath.Join(staging, cacheHomeSubdir, "Binaries")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	// A dotfile (.DS_Store, an in-flight .tmp) must be ignored: the guest's
+	// `ls -1` never lists it, so counting it here would make the host digest
+	// disagree with the guest-reported one and abort convergence forever.
+	if err := os.WriteFile(filepath.Join(binaries, ".DS_Store"), []byte("noise"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "marker"), []byte("whatever"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	master, err := m.MasterDigest("42", ReservedTuistCacheVolume)
+	withDotfile, err := inventoryDigest(filepath.Join(root, cacheHomeSubdir))
 	if err != nil {
-		t.Fatalf("MasterDigest: %v", err)
+		t.Fatalf("inventoryDigest: %v", err)
 	}
-	staged, err := m.TreeDigest(staging)
-	if err != nil {
-		t.Fatalf("TreeDigest: %v", err)
-	}
-	if staged != master {
-		t.Fatalf("TreeDigest = %q; want it to equal MasterDigest %q for identical inventory", staged, master)
-	}
-
-	// A divergent inventory must NOT match — this is the reject-on-mismatch guard.
-	if err := os.MkdirAll(filepath.Join(dir, "extra"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if diverged, _ := m.TreeDigest(staging); diverged == master {
-		t.Fatal("a tree with an extra entry must not digest-match the master")
+	if withDotfile != got {
+		t.Fatalf("dotfile changed the digest: %q != %q (must be skipped to match the guest)", withDotfile, got)
 	}
 }
 
 func TestReplaceMasterFastForwards(t *testing.T) {
 	m, _ := newTestManager(t, 100)
-	seedMaster(t, m, "42") // master/tuist/Binaries/marker
+	seedMasterWithDigest(t, m, "42", "stale-digest")
 
-	// A converged staging tree with different content, on the runner-cache volume.
+	// A converged HEAD image staged on the runner-cache volume.
 	staging := m.ConvergeStagingDir("vmX")
-	dir := filepath.Join(staging, cacheHomeSubdir, "Binaries", "newhash")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(staging, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "artifact"), []byte("fresh"), 0o644); err != nil {
+	image := filepath.Join(staging, convergeImageName)
+	if err := os.WriteFile(image, []byte("fresher-image"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := m.ReplaceMaster("42", ReservedTuistCacheVolume, staging); err != nil {
+	if err := m.ReplaceMaster("42", ReservedTuistCacheVolume, image, "fresh-digest"); err != nil {
 		t.Fatalf("ReplaceMaster: %v", err)
 	}
 
-	master := filepath.Join(m.masterDir("42", ReservedTuistCacheVolume), cacheHomeSubdir)
-	if _, err := os.Stat(filepath.Join(master, "Binaries", "newhash", "artifact")); err != nil {
-		t.Fatal("master should hold the converged artifact after fast-forward")
+	got, err := os.ReadFile(m.masterImage("42", ReservedTuistCacheVolume))
+	if err != nil || string(got) != "fresher-image" {
+		t.Fatalf("master image = %q, %v; want the converged image", got, err)
 	}
-	if _, err := os.Stat(filepath.Join(master, "Binaries", "marker")); !os.IsNotExist(err) {
-		t.Fatal("stale master content should be replaced by the fast-forward")
+	if d, err := m.MasterDigest("42", ReservedTuistCacheVolume); err != nil || d != "fresh-digest" {
+		t.Fatalf("MasterDigest = %q, %v; want the converged digest", d, err)
+	}
+}
+
+// The convergence staging dir lives under Root, beside the account dirs. A
+// downloaded HEAD image there must never be mistaken for a resident master —
+// it would be counted against capacity and could be evicted as one.
+func TestConvergeStagingIsNotAMaster(t *testing.T) {
+	m, _ := newTestManager(t, 100)
+	staging := m.ConvergeStagingDir("vmX")
+	if err := os.MkdirAll(staging, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// Worst case: staging holds a file named exactly like a master image.
+	if err := os.WriteFile(filepath.Join(staging, masterImageName), []byte("downloaded"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	masters, err := m.allMastersLocked()
+	if err != nil {
+		t.Fatalf("allMastersLocked: %v", err)
+	}
+	if len(masters) != 0 {
+		t.Fatalf("convergence scratch must not be scanned as a master; got %+v", masters)
+	}
+}
+
+func TestReadReportedDigest(t *testing.T) {
+	if got := readReportedDigest(""); got != "" {
+		t.Fatalf("empty status dir = %q; want empty", got)
+	}
+	dir := t.TempDir()
+	if got := readReportedDigest(dir); got != "" {
+		t.Fatalf("missing digest file = %q; want empty", got)
+	}
+	if err := os.WriteFile(filepath.Join(dir, digestMarkerFile), []byte("abc123\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := readReportedDigest(dir); got != "abc123" {
+		t.Fatalf("digest = %q; want abc123 (trimmed)", got)
 	}
 }
 
@@ -760,16 +871,24 @@ func setMtime(t *testing.T, path string, at time.Time) {
 	}
 }
 
-// seedMaster writes a resident master tree for an account directly (with a
-// known artifact under tuist/Binaries), bypassing the allocate/promote flow so
-// tests can set up hosts holding several distinct accounts' masters.
+// seedMaster writes a resident master image for an account directly, plus its
+// digest sidecar, bypassing the allocate/promote flow so tests can set up hosts
+// holding several distinct accounts' masters.
 func seedMaster(t *testing.T, m *VolumeManager, account string) {
 	t.Helper()
-	dir := filepath.Join(m.masterDir(account, ReservedTuistCacheVolume), cacheHomeSubdir, "Binaries")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		t.Fatalf("mkdir master dir: %v", err)
+	seedMasterWithDigest(t, m, account, "digest-of-"+account)
+}
+
+func seedMasterWithDigest(t *testing.T, m *VolumeManager, account, digest string) {
+	t.Helper()
+	if err := os.MkdirAll(m.volumeDir(account, ReservedTuistCacheVolume), 0o755); err != nil {
+		t.Fatalf("mkdir volume dir: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "marker"), []byte(account), 0o644); err != nil {
-		t.Fatalf("seed master: %v", err)
+	image := m.masterImage(account, ReservedTuistCacheVolume)
+	if err := os.WriteFile(image, []byte(masterImageContent(account)), 0o644); err != nil {
+		t.Fatalf("seed master image: %v", err)
+	}
+	if err := os.WriteFile(m.masterDigestPath(account, ReservedTuistCacheVolume), []byte(digest), 0o644); err != nil {
+		t.Fatalf("seed master digest: %v", err)
 	}
 }

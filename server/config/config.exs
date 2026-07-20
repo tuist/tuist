@@ -212,6 +212,11 @@ config :phoenix, :json_library, Jason
 # as a reference
 config :prom_ex, :storage_adapter, Tuist.PromEx.StripedPeep
 
+# Stripity Stripe adds a Connection header, which is forbidden by Hypertext Transfer
+# Protocol version 2 and causes Hackney protocol errors after negotiating version 2.
+config :stripity_stripe,
+  hackney_opts: [protocols: [:http1]]
+
 config :tower, reporters: [TowerOpentelemetry]
 
 # Oban
