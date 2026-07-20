@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -91,6 +92,36 @@ func (darwinVolumeBackend) imageInventoryDigest(path string) (digest string, err
 	}()
 
 	return inventoryDigest(filepath.Join(mnt, cacheHomeSubdir))
+}
+
+// isMounted reports whether root is its own mounted volume rather than a bare
+// mountpoint directory on the boot filesystem. A mount point's device id
+// differs from its parent's; an unmounted path either does not exist (the
+// volume never mounted) or, if a stale directory lingers, shares the boot
+// volume's device id. This is the canonical mountpoint(1) check and, unlike
+// `df`, cannot be fooled into reporting the boot volume's free space for an
+// unmounted cache root.
+func (darwinVolumeBackend) isMounted(root string) (bool, error) {
+	rootInfo, err := os.Stat(root)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	parentInfo, err := os.Stat(filepath.Dir(root))
+	if err != nil {
+		return false, err
+	}
+	rootStat, ok := rootInfo.Sys().(*syscall.Stat_t)
+	if !ok {
+		return false, fmt.Errorf("stat %s: unexpected FileInfo backing type", root)
+	}
+	parentStat, ok := parentInfo.Sys().(*syscall.Stat_t)
+	if !ok {
+		return false, fmt.Errorf("stat %s: unexpected FileInfo backing type", filepath.Dir(root))
+	}
+	return rootStat.Dev != parentStat.Dev, nil
 }
 
 // freeBytes reports available bytes on the filesystem holding root via `df`.

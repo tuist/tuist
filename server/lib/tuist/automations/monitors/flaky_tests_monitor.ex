@@ -39,6 +39,12 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
   success column. A project's whole rolling-window scan becomes one row per
   active test case, regardless of run volume — reading raw `test_case_runs`
   for that pattern is unrunnable on busy projects.
+
+  When several alerts use the same rolling window and aggregate column, the
+  ingestion-driven worker calls `evaluate_rolling_alerts/2`. That query returns
+  the numerator and run count once per affected test case, then applies each
+  alert's threshold in Elixir. This avoids repeating the same aggregate-state
+  merge for alerts that only differ by threshold or by rate-versus-count.
   """
   import Ecto.Query
 
@@ -114,6 +120,32 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
       end
 
     %{triggered: triggered_test_case_ids}
+  end
+
+  def rolling_group_key(%{monitor_type: monitor_type, trigger_config: trigger_config})
+      when monitor_type in ["flakiness_rate", "flaky_run_count", "reliability_rate"] do
+    case window_mode(trigger_config) do
+      {:rolling, size} -> {:rolling, recent_runs_column(monitor_type), size}
+      {:last_days, _seconds} -> nil
+    end
+  end
+
+  def rolling_group_key(_alert), do: nil
+
+  def evaluate_rolling_alerts([], _test_case_ids), do: %{}
+
+  def evaluate_rolling_alerts([alert | _alerts] = alerts, test_case_ids) do
+    {:rolling, column, size} = rolling_group_key(alert)
+    measurements = rolling_measurements(alert.project_id, column, size, test_case_ids)
+
+    Map.new(alerts, fn alert ->
+      triggered_test_case_ids =
+        measurements
+        |> Enum.filter(&measurement_triggers_alert?(&1, alert))
+        |> Enum.map(&elem(&1, 0))
+
+      {alert.id, triggered_test_case_ids}
+    end)
   end
 
   # The MV is keyed on `(project_id, date, test_case_id)`, so we round the
@@ -324,6 +356,88 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
       test_case_ids
     )
   end
+
+  defp rolling_measurements(_project_id, _column, _size, []), do: []
+
+  defp rolling_measurements(project_id, column, size, test_case_ids) do
+    source = recent_runs_source(column, size)
+    rolling_measurements_from_recent_runs(source, project_id, size, test_case_ids)
+  end
+
+  defp rolling_measurements_from_recent_runs(
+         {table, ordered_runs_expr, duplicate_position},
+         project_id,
+         size,
+         test_case_ids
+       ) do
+    deduplicated_runs_expr = deduplicated_runs_expr(duplicate_position)
+
+    sql = """
+    SELECT
+      test_case_id,
+      arraySum(entry -> tupleElement(entry, 2), recent_runs) AS matching_run_count,
+      length(recent_runs) AS run_count
+    FROM (
+      SELECT
+        test_case_id,
+        arraySlice(
+          #{deduplicated_runs_expr},
+          1,
+          #{size}
+        ) AS recent_runs
+      FROM (
+        SELECT
+          test_case_id,
+          #{ordered_runs_expr} AS ordered_runs
+        FROM #{table}
+        WHERE project_id = {project_id:Int64}
+          AND test_case_id IN {test_case_ids:Array(UUID)}
+        GROUP BY test_case_id
+      )
+    )
+    WHERE length(recent_runs) > 0
+    """
+
+    %{rows: rows} =
+      ClickHouseRepo.query!(sql, %{
+        project_id: project_id,
+        test_case_ids: test_case_ids
+      })
+
+    Enum.map(rows, fn [binary, matching_run_count, run_count] ->
+      {Ecto.UUID.load!(binary), matching_run_count, run_count}
+    end)
+  end
+
+  defp measurement_triggers_alert?({_test_case_id, matching_run_count, run_count}, alert) do
+    threshold = alert_threshold(alert)
+
+    value =
+      case alert.monitor_type do
+        "flaky_run_count" -> matching_run_count
+        _rate -> matching_run_count * 100.0 / run_count
+      end
+
+    comparison_matches?(value, threshold, alert_comparison(alert))
+  end
+
+  defp alert_threshold(%{monitor_type: "flaky_run_count", trigger_config: trigger_config}),
+    do: trigger_config["threshold"] || 1
+
+  defp alert_threshold(%{monitor_type: "reliability_rate", trigger_config: trigger_config}),
+    do: trigger_config["threshold"] || 90
+
+  defp alert_threshold(%{trigger_config: trigger_config}), do: trigger_config["threshold"] || 10
+
+  defp alert_comparison(%{monitor_type: "reliability_rate", trigger_config: trigger_config}),
+    do: parse_comparison(trigger_config["comparison"], "lt")
+
+  defp alert_comparison(%{trigger_config: trigger_config}), do: parse_comparison(trigger_config["comparison"])
+
+  defp comparison_matches?(value, threshold, "gte"), do: value >= threshold
+  defp comparison_matches?(value, threshold, "gt"), do: value > threshold
+  defp comparison_matches?(value, threshold, "lt"), do: value < threshold
+  defp comparison_matches?(value, threshold, "lte"), do: value <= threshold
 
   # Reliability measures successful runs; flakiness and count measure flaky
   # runs. Both live as parallel `(sort_key, flag)` aggregates on the same

@@ -1,6 +1,7 @@
 package podagent
 
 import (
+	"context"
 	"crypto/sha1"
 	"encoding/hex"
 	"errors"
@@ -9,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -32,6 +34,12 @@ type fakeBackend struct {
 	cloneErr error
 	// createErr, when set, fails image creation.
 	createErr error
+	// notMounted, when set, makes isMounted report the runner-cache root as an
+	// unmounted volume — the "feature enabled, volume missing" case. Default
+	// (false) reports the root mounted, so ordinary tests need not opt in.
+	notMounted bool
+	// mountErr, when set, is returned from isMounted to model a stat failure.
+	mountErr error
 	// imageDigests maps an image's opaque content to the digest a real attach
 	// would report, standing in for the filesystem inside it.
 	imageDigests map[string]string
@@ -72,6 +80,13 @@ func (f *fakeBackend) imageInventoryDigest(path string) (string, error) {
 		return d, nil
 	}
 	return "", errors.New("fake: no digest registered for image content " + string(b))
+}
+
+func (f *fakeBackend) isMounted(string) (bool, error) {
+	if f.mountErr != nil {
+		return false, f.mountErr
+	}
+	return !f.notMounted, nil
 }
 
 func (f *fakeBackend) freeBytes(root string) (uint64, error) {
@@ -336,6 +351,138 @@ func TestAdmissionDeclinesToColdPath(t *testing.T) {
 	}
 	if att.Attached {
 		t.Fatal("admission should decline (cold path) when the root cannot fit a cap")
+	}
+}
+
+// A decline for lack of room used to be entirely silent. It must now bump the
+// admission-declined counter so a host wedged under disk pressure is visible in
+// Prometheus rather than looking identical to an idle one.
+func TestAdmissionDeclineIncrementsMetric(t *testing.T) {
+	before := testutil.ToFloat64(cacheVolumeAdmissionDeclinedTotal)
+
+	root := t.TempDir()
+	be := &fakeBackend{totalBytes: gib / 2, perMaster: gib, root: root}
+	m := NewVolumeManager(root, 1, be)
+
+	att, err := m.AllocateBranch(ReservedTuistCacheVolume, "vm1")
+	if err != nil {
+		t.Fatalf("AllocateBranch err: %v", err)
+	}
+	if att.Attached {
+		t.Fatal("admission should decline to the cold path")
+	}
+	if got := testutil.ToFloat64(cacheVolumeAdmissionDeclinedTotal); got != before+1 {
+		t.Fatalf("admission-declined counter = %v, want %v", got, before+1)
+	}
+}
+
+// AllocateBranch must decline to the cold path when the root is not a mounted
+// volume, rather than writing the branch (and later a clonefiled cache image)
+// onto the boot filesystem. Guards the P1 boot-disk-write hazard.
+func TestAllocateBranchDeclinesWhenRootUnmounted(t *testing.T) {
+	m, be := newTestManager(t, 100)
+	be.notMounted = true
+
+	att, err := m.AllocateBranch(ReservedTuistCacheVolume, "vm1")
+	if err != nil {
+		t.Fatalf("AllocateBranch err: %v", err)
+	}
+	if att.Attached {
+		t.Fatal("allocation must decline to the cold path when the root is not mounted")
+	}
+	if _, statErr := os.Stat(m.branchDir("vm1")); statErr == nil {
+		t.Fatal("no branch dir should be created on an unmounted root")
+	}
+	if got := testutil.ToFloat64(cacheVolumeRootMounted); got != 0 {
+		t.Fatalf("root-mounted gauge = %v, want 0", got)
+	}
+}
+
+// A backend error from isMounted is treated as not-mounted: decline, don't
+// error out or allocate.
+func TestAllocateBranchDeclinesWhenMountCheckErrors(t *testing.T) {
+	m, be := newTestManager(t, 100)
+	be.mountErr = errors.New("stat: boom")
+
+	att, err := m.AllocateBranch(ReservedTuistCacheVolume, "vm1")
+	if err != nil {
+		t.Fatalf("AllocateBranch err: %v", err)
+	}
+	if att.Attached {
+		t.Fatal("allocation must decline when the mount check errors")
+	}
+}
+
+// AwaitMountedRoot returns immediately on a healthy host (root already mounted)
+// and publishes the enabled + root-mounted gauges as 1.
+func TestAwaitMountedRootReturnsWhenMounted(t *testing.T) {
+	m, _ := newTestManager(t, 100)   // fake reports mounted by default
+	m.mountCheckInterval = time.Hour // a retry would hang the test; a mounted root must not retry
+	m.mountCheckAttempts = 3
+
+	done := make(chan struct{})
+	go func() {
+		m.AwaitMountedRoot(context.Background())
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("AwaitMountedRoot should return at once when the root is mounted")
+	}
+	if got := testutil.ToFloat64(cacheVolumeRootMounted); got != 1 {
+		t.Fatalf("root-mounted gauge = %v, want 1", got)
+	}
+	if got := testutil.ToFloat64(cacheVolumeEnabled); got != 1 {
+		t.Fatalf("enabled gauge = %v, want 1", got)
+	}
+}
+
+// A disabled manager's AwaitMountedRoot is a no-op and never marks the feature
+// enabled.
+func TestAwaitMountedRootDisabledIsNoop(t *testing.T) {
+	m := NewVolumeManager("", 1, &fakeBackend{})
+	m.AwaitMountedRoot(context.Background()) // must not block or panic
+}
+
+// AwaitMountedRoot retries a bounded number of times when the root never
+// mounts, then gives up (rather than blocking forever) with the gauge at 0.
+func TestAwaitMountedRootGivesUpWhenUnmounted(t *testing.T) {
+	m, be := newTestManager(t, 100)
+	be.notMounted = true
+	m.mountCheckInterval = time.Millisecond
+	m.mountCheckAttempts = 3
+
+	start := time.Now()
+	m.AwaitMountedRoot(context.Background())
+	if elapsed := time.Since(start); elapsed > time.Second {
+		t.Fatalf("AwaitMountedRoot took %s; should give up after %d bounded attempts", elapsed, m.mountCheckAttempts)
+	}
+	if got := testutil.ToFloat64(cacheVolumeRootMounted); got != 0 {
+		t.Fatalf("root-mounted gauge = %v, want 0", got)
+	}
+}
+
+// A cancelled context short-circuits the retry wait so kubelet shutdown is not
+// blocked on a missing volume.
+func TestAwaitMountedRootStopsOnContextCancel(t *testing.T) {
+	m, be := newTestManager(t, 100)
+	be.notMounted = true
+	m.mountCheckInterval = time.Hour
+	m.mountCheckAttempts = 100
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	done := make(chan struct{})
+	go func() {
+		m.AwaitMountedRoot(ctx)
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("AwaitMountedRoot should return promptly once the context is cancelled")
 	}
 }
 

@@ -5,6 +5,7 @@ This area owns Phoenix controllers for HTML and API endpoints.
 ## Responsibilities
 - Handle request/response flow and rendering for controller actions.
 - Delegate business logic to `server/lib/tuist` contexts.
+- Keep the machine-readable auth.md document, discovery metadata, and agent-auth response envelopes synchronized when the protocol surface changes.
 
 ## Boundaries
 - Domain logic belongs in `server/lib/tuist` contexts.

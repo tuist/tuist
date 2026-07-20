@@ -5,7 +5,7 @@ import TuistEnvironment
 import TuistEnvKey
 import TuistSupport
 
-public struct XcodeBuildTestCommand: AsyncParsableCommand, TrackableParsableCommand {
+public struct XcodeBuildTestCommand: AsyncParsableCommand, TrackableParsableCommand, RunReportingCommand {
     public static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "test",
@@ -54,6 +54,14 @@ public struct XcodeBuildTestCommand: AsyncParsableCommand, TrackableParsableComm
         envKey: .inspectTestMode
     )
     var inspectMode: TestProcessingMode?
+
+    @Option(
+        name: .long,
+        help: "Path where a JSON report of the run, including the dashboard URLs, will be saved.",
+        completion: .file(),
+        envKey: .runReportPath
+    )
+    public var runReportPath: String?
 
     public func run() async throws {
         let shardArchivePath = try await { () async throws -> AbsolutePath? in

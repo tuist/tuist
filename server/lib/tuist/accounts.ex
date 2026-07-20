@@ -37,7 +37,24 @@ defmodule Tuist.Accounts do
   # auth.md agent registration workflow lives in `Tuist.Accounts.AgentAuth`.
   # These delegators keep `Tuist.Accounts` as the single context facade.
   defdelegate agent_registration_scopes(), to: AgentAuth, as: :scopes
+  defdelegate agent_auth_poll_interval_seconds(), to: AgentAuth, as: :protocol_poll_interval_seconds
+  defdelegate agent_auth_id_jag_max_auth_age_seconds(), to: AgentAuth, as: :id_jag_max_auth_age_seconds
+  defdelegate agent_auth_service_jwks(), to: AgentAuth, as: :service_jwks
+  defdelegate claimed_agent_registration_user(account_token_id), to: AgentAuth, as: :claimed_user_for_account_token
+  defdelegate claimed_protocol_agent_user(registration_id), to: AgentAuth, as: :claimed_user_for_registration
   defdelegate create_agent_registration(attrs), to: AgentAuth, as: :create_registration
+  defdelegate create_protocol_agent_registration(attrs), to: AgentAuth, as: :create_protocol_registration
+  defdelegate initiate_protocol_agent_claim(attrs), to: AgentAuth, as: :initiate_protocol_claim
+  defdelegate protocol_agent_claim_view(claim_view_token, user), to: AgentAuth, as: :get_protocol_claim_view
+  defdelegate confirm_protocol_agent_claim(attrs), to: AgentAuth, as: :confirm_protocol_claim
+
+  defdelegate exchange_protocol_agent_assertion(assertion, audience, resource),
+    to: AgentAuth,
+    as: :exchange_protocol_assertion
+
+  defdelegate poll_protocol_agent_claim(claim_token, audience), to: AgentAuth, as: :poll_protocol_claim
+  defdelegate revoke_protocol_agent_access_token(token), to: AgentAuth, as: :revoke_protocol_access_token
+  defdelegate receive_protocol_agent_event(token, audience), to: AgentAuth, as: :receive_protocol_event
 
   defdelegate revoke_agent_registrations(logout_token, audience),
     to: AgentAuth,
