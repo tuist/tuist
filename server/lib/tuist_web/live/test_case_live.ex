@@ -361,10 +361,10 @@ defmodule TuistWeb.TestCaseLive do
        ) do
     socket
     |> assign_async(:reliability, fn ->
-      {:ok, %{reliability: Analytics.test_case_reliability_by_id(test_case_id, project.default_branch)}}
+      {:ok, %{reliability: Analytics.test_case_reliability_by_id(project.id, test_case_id, project.default_branch)}}
     end)
     |> assign_async(:analytics, fn ->
-      {:ok, %{analytics: Analytics.test_case_analytics_by_id(test_case_id)}}
+      {:ok, %{analytics: Analytics.test_case_analytics_by_id(project.id, test_case_id)}}
     end)
     |> assign_async([:flakiness_rate, :flaky_runs_grouped, :flaky_runs_meta], fn ->
       {flaky_runs_grouped, flaky_runs_meta} = Tests.list_flaky_runs_for_test_case(project.id, test_case_id)
