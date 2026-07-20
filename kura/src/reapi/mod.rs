@@ -1100,23 +1100,17 @@ impl ActionCache for ReapiService {
         .await?;
         // Presence gate, the per-key counterpart of the snapshot reconcile's:
         // an entry whose output blobs were evicted is unserveable by
-        // construction — the compiler replaying it hard-fails the build on
-        // the first missing object (a production cold build died on its very
-        // first resolve this way), while a not-found here is an ordinary miss
-        // the client recompiles from and republishes with fresh blobs.
-        // Entries older than the snapshot index's scan cap are exactly the
-        // ones its reconcile-time gate and cascade never examine, so without
-        // this they serve dead forever. Mostly existence-cache hits.
-        let evicted = action_result.output_files.iter().find_map(|file| {
-            let digest = file.digest.as_ref()?;
-            let node_key = blob_key(&digest_key(digest).ok()?);
-            let exists = self
-                .state
-                .store
-                .artifact_manifest_exists(ArtifactProducer::Reapi, namespace_id, &node_key)
-                .unwrap_or(true);
-            (!exists).then(|| digest.hash.clone())
-        });
+        // construction — the client replaying it hard-fails the build on the
+        // first missing object (a production cold build died on its very first
+        // resolve this way), while a not-found here is an ordinary miss the
+        // client recompiles from and republishes with fresh blobs. Entries
+        // older than the snapshot index's scan cap are exactly the ones its
+        // reconcile-time gate and cascade never examine, so without this they
+        // serve dead forever. This checks every blob a replay fetches — output
+        // files, stdout/stderr, and each output directory's tree plus the files
+        // it lists — not just output files, so a Bazel client with tree
+        // artifacts is covered as well. Mostly existence-cache hits.
+        let evicted = first_evicted_output(&self.state, namespace_id, &action_result).await;
         if let Some(missing) = evicted {
             // Delete the dead entry past the replication grace window (a
             // freshly replicated entry's blobs may still be in flight), so
@@ -1870,6 +1864,78 @@ async fn maybe_read_cas_bytes(
         .metrics
         .record_artifact_read(ArtifactProducer::Reapi, "ok", bytes.len() as u64);
     Ok(Some(bytes))
+}
+
+/// The hash of the first blob this action result references that is no longer
+/// present in the CAS, or `None` when every referenced blob is present.
+///
+/// The original per-key gate (PR #11793) checked `output_files` only; this
+/// covers the rest of what a client fetches when it replays a hit: `stdout` and
+/// `stderr`, and each output directory's `Tree` blob together with the file
+/// blobs the tree lists. Any one of them missing hard-fails the replay on the
+/// first missing object exactly as an evicted output file does, so all of them
+/// must gate the serve — a Bazel client emitting tree artifacts would otherwise
+/// keep hitting the same "Lost inputs"/missing-object failure this fix targets.
+/// The checks are manifest lookups (mostly existence-cache hits); only an entry
+/// that actually carries directory outputs pays the extra tree read, and only
+/// once its cheap checks pass. Read or decode failures are treated as "present"
+/// so a transient blip never turns a live entry into a spurious miss — the same
+/// bias as the `unwrap_or(true)` manifest checks.
+async fn first_evicted_output(
+    state: &SharedState,
+    namespace_id: &str,
+    action_result: &reapi::ActionResult,
+) -> Option<String> {
+    let missing = |digest: &reapi::Digest| {
+        digest_key(digest).is_ok_and(|key| {
+            !state
+                .store
+                .artifact_manifest_exists(ArtifactProducer::Reapi, namespace_id, &blob_key(&key))
+                .unwrap_or(true)
+        })
+    };
+
+    let stream_evicted = action_result
+        .output_files
+        .iter()
+        .filter_map(|file| file.digest.as_ref())
+        .chain(action_result.stdout_digest.as_ref())
+        .chain(action_result.stderr_digest.as_ref())
+        .find(|&digest| missing(digest));
+    if let Some(digest) = stream_evicted {
+        return Some(digest.hash.clone());
+    }
+
+    for directory in &action_result.output_directories {
+        let Some(tree_digest) = directory.tree_digest.as_ref() else {
+            continue;
+        };
+        if missing(tree_digest) {
+            return Some(tree_digest.hash.clone());
+        }
+        // The tree blob survives; a client next fetches every file it lists, so
+        // an evicted leaf poisons the replay just as a missing tree would. This
+        // read is the one non-manifest cost, paid only by directory-output
+        // entries and only after their tree passed the cheap check above.
+        let Ok(Some(bytes)) = maybe_read_cas_bytes(state, namespace_id, tree_digest, None).await
+        else {
+            continue;
+        };
+        let Ok(tree) = reapi::Tree::decode(bytes.as_slice()) else {
+            continue;
+        };
+        let leaf_evicted = tree
+            .root
+            .iter()
+            .chain(&tree.children)
+            .flat_map(|directory| &directory.files)
+            .filter_map(|file| file.digest.as_ref())
+            .find(|&digest| missing(digest));
+        if let Some(digest) = leaf_evicted {
+            return Some(digest.hash.clone());
+        }
+    }
+    None
 }
 
 // Persists a CAS blob and returns whether it was newly stored (`true`) or was
@@ -2944,6 +3010,193 @@ mod tests {
             exists(&young_dead_key),
             "a young dead entry is kept — its blobs may still be mid-replication"
         );
+    }
+
+    #[tokio::test]
+    async fn per_key_serve_gates_evicted_streams_and_tree_blobs() {
+        let context = test_context(|_| {}).await;
+        let service = ReapiService {
+            snapshot_cache: Default::default(),
+            state: context.state.clone(),
+        };
+        let store = &context.state.store;
+        let uploads = context.state.config.tmp_dir.join("uploads");
+        std::fs::create_dir_all(&uploads).expect("uploads dir should create");
+
+        async fn write_artifact(
+            store: &crate::store::Store,
+            uploads: &std::path::Path,
+            key: &str,
+            bytes: &[u8],
+            version_ms: u64,
+        ) {
+            let path = uploads.join(key.replace('/', "-"));
+            std::fs::write(&path, bytes).expect("source should write");
+            store
+                .apply_replicated_artifact_from_path(
+                    ArtifactProducer::Reapi,
+                    "ios",
+                    key,
+                    "application/octet-stream",
+                    &path,
+                    version_ms,
+                )
+                .await
+                .expect("artifact should persist");
+        }
+        fn digest(hash: [u8; 32], size_bytes: i64) -> reapi::Digest {
+            reapi::Digest {
+                hash: hex::encode(hash),
+                size_bytes,
+            }
+        }
+        fn tree_bytes(leaf: [u8; 32]) -> Vec<u8> {
+            reapi::Tree {
+                root: Some(reapi::Directory {
+                    files: vec![reapi::FileNode {
+                        name: "out".into(),
+                        digest: Some(digest(leaf, 7)),
+                        ..Default::default()
+                    }],
+                    ..Default::default()
+                }),
+                ..Default::default()
+            }
+            .encode_to_vec()
+        }
+        fn get_request(action_hash: [u8; 32]) -> Request<reapi::GetActionResultRequest> {
+            Request::new(reapi::GetActionResultRequest {
+                instance_name: "ios".into(),
+                action_digest: Some(digest(action_hash, 10)),
+                ..Default::default()
+            })
+        }
+
+        let now = crate::utils::now_ms();
+        let live_blob = [0x11u8; 32];
+        let missing_blob = [0x22u8; 32];
+        write_artifact(
+            store,
+            &uploads,
+            &blob_key(&format!("{}/7", hex::encode(live_blob))),
+            b"payload",
+            now,
+        )
+        .await;
+
+        // A tree whose one file is present, and one whose file is evicted. Both
+        // tree blobs themselves exist; the missing tree hash is never written.
+        let live_tree = tree_bytes(live_blob);
+        let dead_leaf_tree = tree_bytes(missing_blob);
+        let live_tree_hash = [0x33u8; 32];
+        let dead_leaf_tree_hash = [0x34u8; 32];
+        let missing_tree_hash = [0x35u8; 32];
+        write_artifact(
+            store,
+            &uploads,
+            &blob_key(&format!(
+                "{}/{}",
+                hex::encode(live_tree_hash),
+                live_tree.len()
+            )),
+            &live_tree,
+            now,
+        )
+        .await;
+        write_artifact(
+            store,
+            &uploads,
+            &blob_key(&format!(
+                "{}/{}",
+                hex::encode(dead_leaf_tree_hash),
+                dead_leaf_tree.len()
+            )),
+            &dead_leaf_tree,
+            now,
+        )
+        .await;
+
+        let live_file = || reapi::OutputFile {
+            path: hex::encode([0xAB, 0xCD]),
+            digest: Some(digest(live_blob, 7)),
+            ..Default::default()
+        };
+        let with_tree = |tree_hash: [u8; 32], tree_len: usize| reapi::OutputDirectory {
+            path: "outdir".into(),
+            tree_digest: Some(digest(tree_hash, tree_len as i64)),
+            ..Default::default()
+        };
+
+        // The output file is present in every entry, so each rejection is
+        // attributable to the stream/tree blob under test, not the file.
+        let cases = [
+            (
+                [0x41u8; 32],
+                reapi::ActionResult {
+                    output_files: vec![live_file()],
+                    stdout_digest: Some(digest(missing_blob, 7)),
+                    ..Default::default()
+                },
+                "an evicted stdout blob",
+            ),
+            (
+                [0x42u8; 32],
+                reapi::ActionResult {
+                    output_files: vec![live_file()],
+                    output_directories: vec![with_tree(missing_tree_hash, 5)],
+                    ..Default::default()
+                },
+                "an evicted output-directory tree",
+            ),
+            (
+                [0x43u8; 32],
+                reapi::ActionResult {
+                    output_files: vec![live_file()],
+                    output_directories: vec![with_tree(dead_leaf_tree_hash, dead_leaf_tree.len())],
+                    ..Default::default()
+                },
+                "a present tree that lists an evicted file",
+            ),
+        ];
+        for (action, result, label) in &cases {
+            write_artifact(
+                store,
+                &uploads,
+                &format!("action_cache/{}/10", hex::encode(action)),
+                &result.encode_to_vec(),
+                now,
+            )
+            .await;
+            let status = service
+                .get_action_result(get_request(*action))
+                .await
+                .expect_err(label);
+            assert_eq!(
+                status.code(),
+                tonic::Code::NotFound,
+                "{label} must gate the serve"
+            );
+        }
+
+        let all_live_action = [0x44u8; 32];
+        let all_live = reapi::ActionResult {
+            output_files: vec![live_file()],
+            stdout_digest: Some(digest(live_blob, 7)),
+            output_directories: vec![with_tree(live_tree_hash, live_tree.len())],
+            ..Default::default()
+        };
+        write_artifact(
+            store,
+            &uploads,
+            &format!("action_cache/{}/10", hex::encode(all_live_action)),
+            &all_live.encode_to_vec(),
+            now,
+        )
+        .await;
+        service
+            .get_action_result(get_request(all_live_action))
+            .await
+            .expect("an entry whose stream and tree blobs are all present serves");
     }
 
     #[tokio::test]
