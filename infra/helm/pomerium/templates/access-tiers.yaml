@@ -114,8 +114,12 @@ rules:
 # so operators normally leave them alone — but a region cutover or cleanup
 # sometimes needs to recreate them so they re-render (e.g. onto a new node
 # pool). This aggregates into `edit` so an active write elevation can do that
-# without the break-glass kubeconfig. Scoped to `kura.tuist.dev`; CAPI/infra
-# CRs stay read-only for the edit tier (scaling fleets is a heavier action).
+# without the break-glass kubeconfig. Scoped to `kura.tuist.dev`. Broader
+# CAPI/infra writes stay withheld from the edit tier; the one narrow host-
+# recovery exception (`tuist-fleet-unwedge` below) is bound straight to the
+# write-elevation group rather than aggregated here, so machine-delete never
+# rides along on the generic `edit` tier. Scaling or tearing down a fleet
+# remains a break-glass action.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -127,3 +131,70 @@ rules:
   - apiGroups: ["kura.tuist.dev"]
     resources: ["*"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete", "deletecollection"]
+---
+# Host-recovery capability for UN-WEDGING a single fleet host without the
+# break-glass kubeconfig. A tart-kubelet host whose drift roll can't reach it
+# (the runner-mini SSH accept-backlog wedge) exhausts its retry budget, its
+# ScalewayAppleSiliconMachine goes terminal (`TartKubeletUpdateExceededRetries`)
+# and the drift loop stops — the host is then stranded on its old config until
+# an operator either recreates the CAPI Machine (the MachineSet reprovisions a
+# fresh host) or clears the terminal status so the loop resumes. Both were
+# break-glass-only because the base `edit` tier keeps CAPI/infra CRs read-only.
+#
+# Unlike `tuist-edit-kura-write`, this is NOT aggregated into `edit`. It is
+# bound directly to the `tuist-<env>-write` elevation group below. `delete
+# machines` is sensitive enough that it must not ride along on the generic
+# `edit` role, which anyone could later grant to a service account or a team's
+# namespace via a RoleBinding — those grantees would silently inherit host
+# deletion. A direct binding keeps the capability welded to an active,
+# TTL-bounded, audited write elevation and nothing else.
+#
+# Deliberately narrow: this is host recovery, not fleet management.
+#   * `machines` delete only. Every machine in the workload cluster is
+#     MachineSet-owned (the control plane lives in the mgmt cluster), so a
+#     delete can only recreate a worker host, never a control-plane node.
+#     machinesets/machinedeployments are untouched — scaling or tearing down a
+#     fleet stays a break-glass action.
+#   * scalewayapplesiliconmachines (+/status) update/patch — clear the terminal
+#     failure so the drift loop retries. No delete: the CAPI Machine delete
+#     cascades to the infra machine on its own.
+#   * nodes update/patch + pods/eviction create — cordon and drain the host
+#     before deleting it, matching the recreate runbook.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: tuist-fleet-unwedge
+  labels:
+    {{- include "pomerium.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["cluster.x-k8s.io"]
+    resources: ["machines"]
+    verbs: ["get", "list", "watch", "delete"]
+  - apiGroups: ["infrastructure.cluster.x-k8s.io"]
+    resources: ["scalewayapplesiliconmachines", "scalewayapplesiliconmachines/status"]
+    verbs: ["get", "list", "watch", "update", "patch"]
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list", "watch", "update", "patch"]
+  - apiGroups: [""]
+    resources: ["pods/eviction"]
+    verbs: ["create"]
+---
+# Bind the host-recovery role straight to this env's write-elevation group, so
+# the machine-unwedge capability lives ONLY on an active `tuist-<env>-write`
+# elevation — never on the generic `edit` tier. Per-env like the edit binding
+# above, so a prod elevation can't unwedge a staging host or vice versa.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: tuist-{{ .Values.tuistEnv }}-write-fleet-unwedge
+  labels:
+    {{- include "pomerium.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: tuist-fleet-unwedge
+subjects:
+  - kind: Group
+    name: tuist-{{ .Values.tuistEnv }}-write
+    apiGroup: rbac.authorization.k8s.io
