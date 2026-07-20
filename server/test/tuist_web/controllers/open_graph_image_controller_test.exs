@@ -13,14 +13,47 @@ defmodule TuistWeb.OpenGraphImageControllerTest do
     :ok
   end
 
-  test "redirects an unversioned image path to its content-addressed path", %{conn: conn} do
+  test "serves an unversioned image path directly, cached with revalidation", %{conn: conn} do
     source_path = "/marketing/images/og/generated/about.jpg"
     {:ok, spec} = MarketingImage.resolve(source_path)
+    object_key = "open-graph-images/#{spec.key}.jpg"
+
+    expect(Storage, :object_exists?, fn ^object_key, :open_graph_images -> true end)
+    expect(Storage, :get_object, fn ^object_key, :open_graph_images -> {:ok, "cached-image"} end)
+    reject(&OpenGraphImageRenderer.render/2)
 
     conn = get(conn, source_path)
 
-    assert redirected_to(conn) == OpenGraphImages.versioned_path(source_path, spec.key)
-    assert get_resp_header(conn, "cache-control") == ["public, max-age=60"]
+    # Already-shared links predate content-addressed paths, so they must answer
+    # with the image rather than a redirect a social crawler may not follow.
+    assert response(conn, :ok) == "cached-image"
+    assert get_resp_header(conn, "content-type") == ["image/jpeg"]
+    assert get_resp_header(conn, "cache-control") == ["public, max-age=3600, stale-while-revalidate=86400"]
+    assert get_resp_header(conn, "etag") == [~s("#{spec.key}")]
+  end
+
+  test "renders an unversioned image path that is not cached yet", %{conn: conn} do
+    source_path = "/marketing/images/og/generated/about.jpg"
+    {:ok, spec} = MarketingImage.resolve(source_path)
+    object_key = "open-graph-images/#{spec.key}.jpg"
+
+    expect(Storage, :object_exists?, 2, fn ^object_key, :open_graph_images -> false end)
+    expect(OpenGraphImageRenderer, :render, fn _html, "About Tuist" -> {:ok, "generated-image"} end)
+    expect(Storage, :put_object, fn ^object_key, "generated-image", :open_graph_images -> :ok end)
+    expect(Storage, :get_object, fn ^object_key, :open_graph_images -> {:ok, "generated-image"} end)
+
+    conn = get(conn, source_path)
+
+    assert response(conn, :ok) == "generated-image"
+  end
+
+  test "returns not found for an unversioned path that resolves to nothing", %{conn: conn} do
+    reject(&Storage.object_exists?/2)
+    reject(&OpenGraphImageRenderer.render/2)
+
+    conn = get(conn, "/marketing/images/og/generated/does-not-exist.jpg")
+
+    assert response(conn, :not_found) == ""
   end
 
   test "serves a cached image without rendering it again", %{conn: conn} do
