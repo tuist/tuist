@@ -6,6 +6,8 @@ defmodule Tuist.Repo.Migrations.RetireHetznerStagingRunnerCacheServers do
   @destroyed_status 4
 
   def up do
+    # This data migration intentionally targets the exact retired fleet rows.
+    # credo:disable-for-next-line ExcellentMigrations.CredoCheck.MigrationsSafety
     execute("""
     UPDATE kura_servers
     SET status = #{@destroying_status}, updated_at = NOW()
