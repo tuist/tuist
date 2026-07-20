@@ -1,0 +1,17 @@
+load(":lib_dir.bzl", "lib_dir")
+
+# RocksDB 10.4.2 is compiled as a first-class cc_library from the sources vendored in the
+# `librocksdb-sys` crate (defined via crate.annotation in //:MODULE.bazel, exposed on the @crates
+# hub as `rocksdb`). Building it here — instead of inside librocksdb-sys's cargo build script —
+# makes it a hermetic, cross-compilable, remotely cacheable Bazel action (the same move already made
+# for lz4 and lua). The library version is pinned to the crate's own vendored source, so it always
+# matches the FFI bindings librocksdb-sys generates from those headers.
+#
+# librocksdb-sys's build script wants ROCKSDB_LIB_DIR to be a *directory* holding librocksdb.a; this
+# copies the archive out of the cc_library into one. See lib_dir.bzl.
+lib_dir(
+    name = "rocksdb_lib_dir",
+    lib = "@crates//:rocksdb-0.17.3+10.4.2",
+    dir_name = "rocksdb_lib_dir",
+    visibility = ["//visibility:public"],
+)

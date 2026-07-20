@@ -103,12 +103,93 @@ crate.annotation(
 # materialized from the BCR @lz4 cc_library — cc-rs's config.include() wants a directory, which
 # $(execpath //bazel/third_party/lz4:lz4_include) yields. Only LZ4 is enabled; if a rocksdb feature
 # later turns on zlib/bzip2, repeat this for DEP_Z_INCLUDE / DEP_BZIP2_INCLUDE.
+# We compile rocksdb's C++ as a first-class cc_library (//bazel/third_party/rocksdb) from the
+# sources vendored in this crate, rather than letting the build script cold-compile it on every
+# build — an opaque cargo build script caches unreliably, whereas a hermetic cc_library is served
+# from the remote cache (the same move already made for lz4/lua above). The build script still runs
+# bindgen against the crate's vendored 10.4.2 headers, so the FFI matches the archive we link.
+#
+# `additive_build_file_content` defines that cc_library inside this crate's package (so its includes
+# resolve against the vendored `rocksdb/` tree) and `extra_aliased_targets` re-exposes it on the
+# @crates hub as `rocksdb`. Setting ROCKSDB_LIB_DIR/ROCKSDB_STATIC makes build.rs link the prebuilt
+# archive and skip `build_rocksdb()` (which is what read DEP_LZ4_INCLUDE — now inert but kept as a
+# cold-build fallback). On a librocksdb-sys bump, regenerate rocksdb_lib_sources.bzl and the version
+# in //bazel/third_party/rocksdb.
 crate.annotation(
     crate = "librocksdb-sys",
-    build_script_data = ["@@//bazel/third_party/lz4:lz4_include"],
+    build_script_data = [
+        "@@//bazel/third_party/lz4:lz4_include",
+        "@@//bazel/third_party/rocksdb:rocksdb_lib_dir",
+    ],
     build_script_env = {
         "DEP_LZ4_INCLUDE": "$(execpath @@//bazel/third_party/lz4:lz4_include)",
+        "ROCKSDB_LIB_DIR": "$(execpath @@//bazel/third_party/rocksdb:rocksdb_lib_dir)",
+        "ROCKSDB_STATIC": "1",
     },
+    deps = ["@crates//:rocksdb-0.17.3+10.4.2"],
+    extra_aliased_targets = {"rocksdb": "rocksdb"},
+    additive_build_file_content = """
+# This content is injected into librocksdb-sys's generated BUILD, which does not inherit our
+# module's apparent repo names, so refs use canonical names: @@rules_cc+, @@lz4+, @@platforms, and
+# @@// for our own main-repo targets.
+load("@@rules_cc+//cc:defs.bzl", "cc_library")
+load("@@//bazel/third_party/rocksdb:rocksdb_lib_sources.bzl", "ROCKSDB_LIB_SOURCES")
+
+# RocksDB 10.4.2 from this crate's vendored sources. srcs/includes/defines/copts mirror the crate's
+# build.rs so the compiled ABI matches the bindgen'd headers. Only the LZ4 backend is enabled, to
+# match the `lz4` cargo feature; lz4 headers come from the BCR @lz4 module (also linked by lz4-sys).
+cc_library(
+    name = "rocksdb",
+    srcs = ROCKSDB_LIB_SOURCES + ["build_version.cc"] + glob(["rocksdb/**/*.h"]),
+    includes = [
+        "rocksdb/include",
+        "rocksdb",
+        "rocksdb/third-party/gtest-1.8.1/fused-src",
+        ".",
+    ],
+    local_defines = [
+        "NDEBUG",
+        "ROCKSDB_SUPPORT_THREAD_LOCAL",
+        "LZ4",
+    ] + select({
+        "@@platforms//os:linux": [
+            "OS_LINUX",
+            "ROCKSDB_PLATFORM_POSIX",
+            "ROCKSDB_LIB_IO_POSIX",
+            "ROCKSDB_SCHED_GETCPU_PRESENT",
+        ],
+        "@@platforms//os:macos": [
+            "OS_MACOSX",
+            "ROCKSDB_PLATFORM_POSIX",
+            "ROCKSDB_LIB_IO_POSIX",
+        ],
+        "//conditions:default": [],
+    }),
+    copts = [
+        "-std=c++17",
+        "-Wno-unused-parameter",
+        "-Wno-unused-variable",
+        "-Wno-missing-field-initializers",
+        "-Wno-strict-aliasing",
+        "-Wno-invalid-offsetof",
+    ] + select({
+        "@@platforms//cpu:x86_64": ["-msse2"],
+        "//conditions:default": [],
+    }) + select({
+        "@@platforms//os:macos": [
+            "-include",
+            "cstdint",
+        ],
+        "//conditions:default": [],
+    }),
+    deps = [
+        "@@lz4+//:lz4",
+        "@@lz4+//:lz4_hc",
+        "@@lz4+//:lz4_frame",
+    ],
+    visibility = ["//visibility:public"],
+)
+""",
 )
 crate.from_cargo(
     name = "crates",
