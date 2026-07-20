@@ -10,6 +10,7 @@ import Config
 noora_source_path = Path.expand("../../noora", __DIR__)
 deps_path = Path.expand("../deps", __DIR__)
 node_modules_path = Path.expand("../node_modules", __DIR__)
+code_reloader_enabled = System.get_env("TUIST_DEV_DISABLE_CODE_RELOADER") not in ["1", "true"]
 
 # Base watchers for esbuild
 base_watchers = [
@@ -167,13 +168,11 @@ config :tuist, TuistWeb.Endpoint,
   # Change to `ip: {0, 0, 0, 0}` to allow access from other machines.
   http: [ip: {127, 0, 0, 1}, port: 8080],
   check_origin: false,
-  code_reloader: true,
+  code_reloader: code_reloader_enabled,
   debug_errors: true,
   reloadable_apps: [:tuist, :noora],
-  watchers: base_watchers,
-  live_reload: [
-    patterns: base_live_reload_patterns
-  ]
+  watchers: if(code_reloader_enabled, do: base_watchers, else: []),
+  live_reload: if(code_reloader_enabled, do: [patterns: base_live_reload_patterns], else: [])
 
 # Enable dev routes for dashboard and mailbox
 config :tuist, dev_routes: true

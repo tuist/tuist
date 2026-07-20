@@ -22,6 +22,9 @@ defmodule TuistWeb.MCPControllerTest do
                ~s(Bearer realm="tuist-mcp", resource_metadata="http://www.example.com/.well-known/oauth-protected-resource/mcp")
 
       assert response == %{
+               "auth_md" => "http://www.example.com/auth.md",
+               "authentication_instructions" =>
+                 "Fetch auth_md and follow Tuist's discovery, registration, identity-assertion exchange, and claim-polling flow before falling back to browser Open Authorization.",
                "error" => "invalid_token",
                "error_description" => "Missing or invalid access token."
              }
@@ -242,7 +245,7 @@ defmodule TuistWeb.MCPControllerTest do
       assert response["id"] == 2
 
       tools = response["result"]["tools"]
-      assert length(tools) == 35
+      assert length(tools) == 37
       assert "search_tuist" in Enum.map(tools, & &1["name"])
 
       for tool <- tools do

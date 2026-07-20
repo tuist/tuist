@@ -39,7 +39,7 @@ open class TokenProvider(
 
     private fun resolveToken(): Pair<String, Long?> {
         val credentials = credentialStore.read(serverURL)
-            ?: throw NotAuthenticatedException()
+            ?: throw NotAuthenticatedException(serverURL)
 
         val accessToken = credentials.accessToken
         if (!JwtParser.isExpired(accessToken)) {
@@ -48,7 +48,7 @@ open class TokenProvider(
 
         val refreshToken = credentials.refreshToken
         if (refreshToken.isNullOrBlank()) {
-            throw NotAuthenticatedException()
+            throw NotAuthenticatedException(serverURL)
         }
 
         try {
@@ -61,12 +61,12 @@ open class TokenProvider(
         } catch (e: java.net.ConnectException) {
             throw e
         } catch (_: Exception) {
-            throw NotAuthenticatedException()
+            throw NotAuthenticatedException(serverURL)
         }
     }
 
-    class NotAuthenticatedException : RuntimeException(
-        "Not authenticated with Tuist. Run `tuist auth login` or set the TUIST_TOKEN environment variable. " +
-            "See https://docs.tuist.dev/en/guides/develop/build/cache#authentication"
+    class NotAuthenticatedException(serverURL: URI) : RuntimeException(
+        "Not authenticated with Tuist. Run `tuist auth login --url $serverURL` or set the TUIST_TOKEN environment variable. " +
+            "See https://tuist.dev/en/docs/guides/install-gradle-plugin#authenticate"
     )
 }
