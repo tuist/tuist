@@ -124,6 +124,7 @@ The following data is stored in ClickHouse for analytics purposes:
 
 All uploaded files associated with the account are included:
 - **Cache artifacts**: Build caches and compiled binaries, including Xcode, legacy CAS, module, and Gradle artifacts
+  - **Xcode cache branch tags**: each Xcode cache action-cache entry may additionally carry the name of the git branch that produced it, stored on the entry's manifest in the account's Kura RocksDB store and replicated to that account's other Kura nodes. It is recorded so a cache view can be scoped to the project's trunk (entries from feature branches are kept out of the trunk view), and it is supplied by the client with the publication rather than read from the customer's repository. It has no retention of its own: it lives and dies with the entry it tags, under the same cache eviction, and is exported alongside that entry. Branch names routinely carry ticket ids or people's names, so they are treated as customer content rather than operational metadata.
 - **App previews**: iOS app bundles (.app/.ipa files) and icons  
 - **Run artifacts**: uploaded result bundles, invocation records, result-bundle objects, and session archives stored under `{account}/{project}/runs/{run_id}/`
 - **Shard bundles**: Shared `.xctestproducts` bundles stored at `{account_id}/{project_id}/shards/{shard_plan_id}/`

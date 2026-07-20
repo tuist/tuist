@@ -128,7 +128,14 @@ struct XcodeCacheSettingsProjectMapperTests {
         #expect(baseSettings["COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS"] == .string("YES"))
         #expect(baseSettings["COMPILATION_CACHE_ENABLE_PLUGIN"] == .string("YES"))
         #expect(baseSettings["COMPILATION_CACHE_PLUGIN_PATH"] == .string(casPluginPath.pathString))
-        #expect(baseSettings["COMPILATION_CACHE_REMOTE_SERVICE_PATH"] == nil)
+
+        // The proxy's socket is what makes C, Objective-C and precompiled modules
+        // shareable: the build system only runs its caching for those when a remote
+        // service is configured. Without it, only Swift compilations are shared.
+        #expect(
+            baseSettings["COMPILATION_CACHE_REMOTE_SERVICE_PATH"]
+                == .string(Environment.current.casProxySocketPathString())
+        )
 
         // The account/project is delivered to the plugin as a compiler option so
         // it reaches every frontend, including Xcode ⌘B builds.
@@ -256,7 +263,10 @@ struct XcodeCacheSettingsProjectMapperTests {
         #expect(baseSettings["COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS"] == .string("YES"))
         #expect(baseSettings["COMPILATION_CACHE_ENABLE_PLUGIN"] == .string("YES"))
         #expect(baseSettings["COMPILATION_CACHE_PLUGIN_PATH"] == .string(casPluginPath.pathString))
-        #expect(baseSettings["COMPILATION_CACHE_REMOTE_SERVICE_PATH"] == nil)
+        #expect(
+            baseSettings["COMPILATION_CACHE_REMOTE_SERVICE_PATH"]
+                == .string(Environment.current.casProxySocketPathString())
+        )
     }
 
     @Test(.inTemporaryDirectory)

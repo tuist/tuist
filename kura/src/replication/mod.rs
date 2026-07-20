@@ -84,6 +84,8 @@ pub async fn enqueue_replication_for_artifact(state: &SharedState, manifest: &Ar
                 artifact_id: manifest.artifact_id.clone(),
                 version_ms: manifest.version_ms,
                 inline: manifest.inline,
+                branch: manifest.branch.clone(),
+                trunk: None,
             },
         }) {
             warn!("failed to enqueue artifact replication for {peer}: {error}");
@@ -667,6 +669,13 @@ async fn bootstrap_artifact_from_peer(
                 &manifest.content_type,
                 bytes.as_ref(),
                 manifest.version_ms,
+                // The peer's manifest page carries the tag (an old peer's page
+                // simply omits it), so a bootstrapped entry keeps the branch it
+                // was published on instead of landing untagged in this node's
+                // trunk baseline. No trunk: bootstrap copies the peer's view
+                // rather than arbitrating between publishes.
+                manifest.branch.as_deref(),
+                None,
             )
             .await;
     }
@@ -1135,6 +1144,8 @@ async fn replicate_message(state: &SharedState, message: &OutboxMessage) -> Resu
             artifact_id,
             version_ms,
             inline,
+            branch,
+            trunk,
         } => {
             let manifest = match state.store.manifest(artifact_id)? {
                 Some(manifest) => manifest,
@@ -1149,7 +1160,7 @@ async fn replicate_message(state: &SharedState, message: &OutboxMessage) -> Resu
                     format!("failed to open local artifact for replication: {error}")
                 })?;
 
-            let url = format!(
+            let mut url = format!(
                 "{}/_internal/replicate/artifact?producer={}&inline={}&namespace_id={}&key={}&content_type={}&version_ms={}",
                 message.target,
                 producer.as_str(),
@@ -1159,6 +1170,19 @@ async fn replicate_message(state: &SharedState, message: &OutboxMessage) -> Resu
                 url_encode(content_type),
                 version_ms,
             );
+            // Appended only when tagged, so an untagged publish puts the exact
+            // URL today's nodes send. An old peer ignores query params it does
+            // not read, which leaves it applying the entry untagged — its
+            // behavior before this field existed.
+            if let Some(branch) = branch {
+                url.push_str("&branch=");
+                url.push_str(&url_encode(branch));
+            }
+            if let Some(trunk) = trunk {
+                url.push_str("&trunk=");
+                url.push_str(&url_encode(trunk));
+            }
+            let url = url;
             let bandwidth_limiter = state.replication_bandwidth_limiter.clone();
             let body_stream = ReaderStream::new(file).then(move |item| {
                 let bandwidth_limiter = bandwidth_limiter.clone();
@@ -1344,6 +1368,7 @@ mod tests {
             size: 0,
             version_ms: 0,
             created_at_ms: 0,
+            branch: None,
         }
     }
 
@@ -1462,6 +1487,7 @@ mod tests {
             size,
             version_ms,
             created_at_ms: version_ms,
+            branch: None,
         }
     }
 
@@ -1575,6 +1601,8 @@ mod tests {
                         .expect("artifact should exist")
                         .version_ms,
                     inline: false,
+                    branch: None,
+                    trunk: None,
                 },
             })
             .expect("upsert should enqueue");
@@ -1888,6 +1916,8 @@ mod tests {
                     artifact_id: artifact.artifact_id,
                     version_ms: artifact.version_ms,
                     inline: false,
+                    branch: None,
+                    trunk: None,
                 },
             })
             .expect("upsert should enqueue");
@@ -1960,6 +1990,8 @@ mod tests {
                     artifact_id: artifact.artifact_id,
                     version_ms: artifact.version_ms,
                     inline: false,
+                    branch: None,
+                    trunk: None,
                 },
             })
             .expect("upsert should enqueue");
@@ -2053,6 +2085,8 @@ mod tests {
                     artifact_id: manifest.artifact_id.clone(),
                     version_ms: manifest.version_ms,
                     inline: false,
+                    branch: None,
+                    trunk: None,
                 },
             })
             .expect("outbox message should enqueue");
@@ -2570,6 +2604,8 @@ mod tests {
                     "application/octet-stream",
                     b"payload",
                     100,
+                    None,
+                    None,
                 )
                 .await
                 .expect("remote applies artifact");
@@ -2592,6 +2628,8 @@ mod tests {
                         "application/octet-stream",
                         b"payload",
                         100,
+                        None,
+                        None,
                     )
                     .await
                     .expect("local applies artifact");
@@ -2730,6 +2768,8 @@ mod tests {
                     "application/octet-stream",
                     b"payload",
                     100,
+                    None,
+                    None,
                 )
                 .await
                 .expect("remote applies artifact");
@@ -2785,6 +2825,8 @@ mod tests {
                 "application/octet-stream",
                 b"payload",
                 100,
+                None,
+                None,
             )
             .await
             .expect("remote applies artifact");

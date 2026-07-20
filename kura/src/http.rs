@@ -333,6 +333,12 @@ struct ReplicateArtifactQuery {
     key: String,
     content_type: String,
     version_ms: u64,
+    /// The origin's branch tag and the publishing build's trunk. Both optional:
+    /// a peer that predates them (or any untagged publish) omits them and the
+    /// entry applies untagged, which is what this node did for every replicated
+    /// entry before.
+    branch: Option<String>,
+    trunk: Option<String>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -412,6 +418,8 @@ impl ReplicateArtifactQuery {
             key: required_param(params, "key")?,
             content_type: required_param(params, "content_type")?,
             version_ms: optional_u64_param(params, "version_ms")?.unwrap_or_default(),
+            branch: param_value(params, "branch").cloned(),
+            trunk: param_value(params, "trunk").cloned(),
         })
     }
 }
@@ -1295,6 +1303,8 @@ async fn put_keyvalue(
             "application/json",
             &payload_bytes,
             &targets,
+            None,
+            None,
         )
         .await
     {
@@ -1905,6 +1915,8 @@ async fn internal_replicate_artifact(
                 &query.content_type,
                 &bytes,
                 query.version_ms,
+                query.branch.as_deref(),
+                query.trunk.as_deref(),
             )
             .await
         {

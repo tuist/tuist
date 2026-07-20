@@ -14,6 +14,10 @@ path = "src/bin/tuist-cas-proxy.rs"
 [dependencies]
 libloading = "0.8"
 zstd = "0.13"
+# The sources registry is written by `tuist setup cache` (Swift) and read here,
+# so it is JSON rather than a format each side hand-rolls and can drift on.
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.145"
 libc = "0.2"
 bazel-remote-apis = "0.27.0"
 tonic = { version = "0.14.2", features = ["tls-ring", "tls-native-roots"] }
