@@ -1,9 +1,11 @@
 defmodule TuistWeb.Oauth.TokenController do
+  @behaviour Boruta.Oauth.RevokeApplication
   @behaviour Boruta.Oauth.TokenApplication
 
   use TuistWeb, :controller
 
   alias Boruta.Oauth.Error
+  alias Boruta.Oauth.RevokeApplication
   alias Boruta.Oauth.TokenApplication
   alias Boruta.Oauth.TokenResponse
   alias Tuist.Accounts
@@ -50,17 +52,20 @@ defmodule TuistWeb.Oauth.TokenController do
     oauth_module().token(conn, __MODULE__)
   end
 
-  def revoke(%Plug.Conn{} = conn, %{"token_type_hint" => token_type_hint}) when token_type_hint != "access_token" do
-    oauth_error(conn, "unsupported_token_type", "token_type_hint must be access_token when provided.")
-  end
-
+  # Protocol agent credentials are public-client tokens with no client secret to
+  # present, so they are revoked directly. Anything else is an authorization
+  # server token backed by Boruta, which runs its own client checks.
   def revoke(%Plug.Conn{} = conn, %{"token" => token}) when is_binary(token) and token != "" do
-    :ok = Accounts.revoke_protocol_agent_access_token(token)
+    case Accounts.revoke_protocol_agent_access_token(token) do
+      :ok ->
+        conn
+        |> put_resp_header("pragma", "no-cache")
+        |> put_resp_header("cache-control", "no-store")
+        |> send_resp(:ok, "")
 
-    conn
-    |> put_resp_header("pragma", "no-cache")
-    |> put_resp_header("cache-control", "no-store")
-    |> send_resp(:ok, "")
+      :not_found ->
+        oauth_module().revoke(conn, __MODULE__)
+    end
   end
 
   def revoke(%Plug.Conn{} = conn, _params) do
@@ -84,6 +89,23 @@ defmodule TuistWeb.Oauth.TokenController do
     |> put_resp_header("pragma", "no-cache")
     |> put_resp_header("cache-control", "no-store")
     |> json(token_data)
+  end
+
+  @impl RevokeApplication
+  def revoke_success(%Plug.Conn{} = conn) do
+    conn
+    |> put_resp_header("pragma", "no-cache")
+    |> put_resp_header("cache-control", "no-store")
+    |> send_resp(:ok, "")
+  end
+
+  @impl RevokeApplication
+  def revoke_error(conn, %Error{status: status, error: error, error_description: error_description}) do
+    conn
+    |> put_resp_header("pragma", "no-cache")
+    |> put_resp_header("cache-control", "no-store")
+    |> put_status(status)
+    |> json(%{error: error, error_description: error_description})
   end
 
   @impl TokenApplication

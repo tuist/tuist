@@ -141,15 +141,11 @@ defmodule TuistWeb.AuthMdProtocolControllerTest do
     assert Authentication.authenticated_subject(refreshed["access_token"]) == nil
     assert Authentication.authenticated_subject(claimed["access_token"])
 
-    unsupported_hint =
-      build_conn()
-      |> post("/oauth2/revoke", %{
-        "token" => claimed["access_token"],
-        "token_type_hint" => "refresh_token"
-      })
-      |> json_response(400)
+    hinted_revoke =
+      post(build_conn(), "/oauth2/revoke", %{"token" => claimed["access_token"], "token_type_hint" => "refresh_token"})
 
-    assert unsupported_hint["error"] == "unsupported_token_type"
+    assert response(hinted_revoke, 200) == ""
+    assert Authentication.authenticated_subject(claimed["access_token"]) == nil
   end
 
   test "stops honoring the claim token once the outer claim window closes", %{conn: conn} do
@@ -200,7 +196,9 @@ defmodule TuistWeb.AuthMdProtocolControllerTest do
     forged_revoke =
       post(build_conn(), "/oauth2/revoke", %{"token" => forged, "token_type_hint" => "access_token"})
 
-    assert response(forged_revoke, 200) == ""
+    # Not a Tuist-signed protocol credential, so it falls through to the
+    # authorization server flow, which requires client authentication.
+    assert json_response(forged_revoke, 400)["error"] == "invalid_request"
     assert %AuthenticatedAccount{} = Authentication.authenticated_subject(issued["access_token"])
 
     real_revoke =

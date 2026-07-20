@@ -369,28 +369,38 @@ defmodule Tuist.Accounts.AgentAuth do
     end
   end
 
+  @doc """
+  Revokes an auth.md protocol access token.
+
+  Returns `:ok` when the token is a Tuist-signed protocol credential, so the
+  caller knows it was handled here, and `:not_found` otherwise so the caller can
+  fall back to the authorization server's own revocation flow.
+  """
   def revoke_protocol_access_token(token) when is_binary(token) do
     with {:ok, %{"jti" => jti}} <- Tuist.Guardian.decode_and_verify(token),
          %AgentAuthCredential{} = credential <-
-           AgentAuthCredential |> Repo.get_by(jti: jti) |> Repo.preload(:agent_registration),
-         nil <- credential.revoked_at do
-      now = DateTime.truncate(Time.utc_now(), :second)
-      {:ok, credential} = credential |> AgentAuthCredential.revoke_changeset(now) |> Repo.update()
-
-      insert_event!(credential.agent_registration, :token_revoked, %{
-        metadata: %{credential_jti: jti},
-        occurred_at: now
-      })
+           AgentAuthCredential |> Repo.get_by(jti: jti) |> Repo.preload(:agent_registration) do
+      revoke_active_credential(credential)
     else
-      _ -> :ok
+      _ -> :not_found
     end
-
-    :ok
-  rescue
-    _ -> :ok
   end
 
-  def revoke_protocol_access_token(_token), do: :ok
+  def revoke_protocol_access_token(_token), do: :not_found
+
+  defp revoke_active_credential(%AgentAuthCredential{revoked_at: nil} = credential) do
+    now = DateTime.truncate(Time.utc_now(), :second)
+    {:ok, credential} = credential |> AgentAuthCredential.revoke_changeset(now) |> Repo.update()
+
+    insert_event!(credential.agent_registration, :token_revoked, %{
+      metadata: %{credential_jti: credential.jti},
+      occurred_at: now
+    })
+
+    :ok
+  end
+
+  defp revoke_active_credential(%AgentAuthCredential{}), do: :ok
 
   def receive_protocol_event(token, audience) do
     with {:ok, claims} <- verify_jwt(token, audience, :security_event, defer_jti: true),
