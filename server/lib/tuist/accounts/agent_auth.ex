@@ -1619,7 +1619,9 @@ defmodule Tuist.Accounts.AgentAuth do
   defp ensure_claim_pollable(%AgentRegistration{status: status}) when status in [:expired, :revoked],
     do: {:error, :expired_token}
 
-  defp ensure_claim_pollable(%AgentRegistration{status: :claimed}), do: :ok
+  defp ensure_claim_pollable(%AgentRegistration{status: :claimed} = registration) do
+    if claim_token_expired?(registration), do: {:error, :expired_token}, else: :ok
+  end
 
   defp ensure_claim_pollable(%AgentRegistration{} = registration) do
     if claim_token_expired?(registration) do

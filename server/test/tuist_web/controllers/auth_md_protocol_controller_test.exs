@@ -98,14 +98,6 @@ defmodule TuistWeb.AuthMdProtocolControllerTest do
     assert already_claimed_page =~ "Already authorized"
     refute already_claimed_page =~ ~s(data-part="status-icon")
 
-    registration_record = Repo.get!(AgentRegistration, internal_registration_id)
-
-    registration_record
-    |> Ecto.Changeset.change(
-      claim_token_expires_at: DateTime.utc_now() |> DateTime.add(-1, :second) |> DateTime.truncate(:second)
-    )
-    |> Repo.update!()
-
     claimed = poll_claim(registration["claim_token"])
     assert claimed["scope"] == "mcp"
     assert claimed["identity_assertion"]
@@ -158,6 +150,37 @@ defmodule TuistWeb.AuthMdProtocolControllerTest do
       |> json_response(400)
 
     assert unsupported_hint["error"] == "unsupported_token_type"
+  end
+
+  test "stops honoring the claim token once the outer claim window closes", %{conn: conn} do
+    registration = conn |> post("/agent/identity", %{"type" => "anonymous"}) |> json_response(200)
+    internal_registration_id = String.replace_prefix(registration["registration_id"], "reg_", "")
+
+    email = AccountsFixtures.unique_user_email()
+    user = AccountsFixtures.user_fixture(email: email)
+
+    claim =
+      build_conn()
+      |> post("/agent/identity/claim", %{"claim_token" => registration["claim_token"], "email" => email})
+      |> json_response(200)
+
+    complete_browser_claim(user, claim["claim_attempt"], claim["claim_attempt"]["user_code"])
+
+    assert poll_claim(registration["claim_token"])["scope"] == "mcp"
+
+    AgentRegistration
+    |> Repo.get!(internal_registration_id)
+    |> Ecto.Changeset.change(
+      claim_token_expires_at: DateTime.utc_now() |> DateTime.add(-1, :second) |> DateTime.truncate(:second)
+    )
+    |> Repo.update!()
+
+    expired =
+      build_conn()
+      |> post("/oauth2/token", %{"grant_type" => @claim_grant, "claim_token" => registration["claim_token"]})
+      |> json_response(400)
+
+    assert expired["error"] == "expired_token"
   end
 
   test "does not revoke a session when the token is not signed by Tuist", %{conn: conn} do
