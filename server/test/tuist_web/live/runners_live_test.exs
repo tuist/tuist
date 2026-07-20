@@ -70,6 +70,22 @@ defmodule TuistWeb.RunnersLiveTest do
     assert html =~ "Docker build"
   end
 
+  test "charts only succeeded and failed runs", %{conn: conn, account: account} do
+    complete_run(account, 70_002, 700_020, "success")
+    complete_run(account, 70_003, 700_021, "cancelled")
+
+    {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners")
+    html = render_async(lv)
+
+    # The cancelled run carries no real duration, so it must not draw a
+    # bar. Only the succeeded run remains on each chart.
+    for chart_id <- ["runners-recent-workflows-chart", "runners-recent-jobs-chart"] do
+      data = chart_series_data(html, chart_id)
+      assert length(data) == 1
+      assert Enum.all?(data, &(&1["value"] != nil))
+    end
+  end
+
   test "shows empty state when the account has no jobs", %{conn: conn, account: account} do
     {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners")
     html = render_async(lv)
@@ -125,6 +141,41 @@ defmodule TuistWeb.RunnersLiveTest do
     assert TuistWeb.RunnersLive.concurrency_chart_options("last-30-days").xAxis.axisLabel.interval == 47
 
     assert TuistWeb.RunnersLive.concurrency_chart_options("last-7-days").tooltip.dateFormat == "hour"
+  end
+
+  defp complete_run(account, workflow_job_id, workflow_run_id, conclusion) do
+    :ok =
+      Jobs.enqueue(%{
+        workflow_job_id: workflow_job_id,
+        account_id: account.id,
+        fleet_name: "fleet-x",
+        repository: "tuist/tuist",
+        workflow_run_id: workflow_run_id,
+        workflow_name: "Server",
+        run_attempt: 1,
+        job_name: "Docker build",
+        head_branch: "main",
+        head_sha: "abcdef#{workflow_job_id}"
+      })
+
+    {:ok, candidate} = Jobs.pick_queued("fleet-x", [])
+    :ok = Jobs.record_claimed(candidate, "pod-#{workflow_job_id}", DateTime.utc_now())
+    :ok = Jobs.record_running(workflow_job_id, "runner-#{workflow_job_id}")
+    {:ok, _} = Jobs.complete(workflow_job_id, conclusion)
+  end
+
+  defp chart_series_data(html, chart_id) do
+    json =
+      html
+      |> Floki.parse_document!()
+      |> Floki.find("##{chart_id} [data-part='data']")
+      |> Floki.text()
+
+    json
+    |> JSON.decode!()
+    |> Map.fetch!("series")
+    |> List.first()
+    |> Map.fetch!("data")
   end
 
   defp concurrency_after_analytics?(html) do
