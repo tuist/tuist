@@ -1,9 +1,7 @@
 defmodule Tuist.OpenGraphImageRenderer do
   @moduledoc """
-  Lazily starts a headless browser pool and renders Open Graph images at runtime.
+  Renders Open Graph images at runtime through a supervised headless browser pool.
   """
-
-  use GenServer
 
   alias Tuist.Marketing.OpenGraph
 
@@ -13,53 +11,39 @@ defmodule Tuist.OpenGraphImageRenderer do
   @task_supervisor Tuist.OpenGraphImageRenderer.TaskSupervisor
   @render_timeout 60_000
 
-  def start_link(opts \\ []) do
-    GenServer.start_link(__MODULE__, opts, name: __MODULE__)
+  @doc """
+  Child specification for the browser pool backing the renderer.
+
+  `BrowseChrome.BrowserPool` is a NimblePool that warms its browsers eagerly, so
+  a machine without a usable Chrome would otherwise abort the whole supervision
+  tree at boot. Returning `:ignore` keeps the node booting without a pool and
+  lets `render/2` degrade to the fallback renderer, which is the right trade for
+  a feature that only backs social cards.
+  """
+  def child_spec(opts) do
+    %{id: @pool, start: {__MODULE__, :start_pool, [opts]}, type: :worker}
+  end
+
+  def start_pool(opts \\ []) do
+    case BrowseChrome.BrowserPool.start_link(name: @pool, pool_size: pool_size(opts)) do
+      {:ok, pid} ->
+        {:ok, pid}
+
+      {:error, {:already_started, pid}} ->
+        {:ok, pid}
+
+      {:error, reason} ->
+        Logger.warning("Open Graph image browser pool unavailable, falling back to libvips: #{inspect(reason)}")
+
+        :ignore
+    end
   end
 
   def render(html, fallback_title) do
-    case GenServer.call(__MODULE__, :ensure_pool, @render_timeout) do
-      :ok -> render_with_browser(html, fallback_title)
-      {:error, reason} -> render_fallback(fallback_title, reason)
-    end
-  end
-
-  @impl true
-  def init(_opts) do
-    Process.flag(:trap_exit, true)
-    {:ok, %{pool_pid: nil}}
-  end
-
-  @impl true
-  def handle_call(:ensure_pool, _from, %{pool_pid: pool_pid} = state) when is_pid(pool_pid) do
-    if Process.alive?(pool_pid) do
-      {:reply, :ok, state}
-    else
-      start_pool(state)
-    end
-  end
-
-  def handle_call(:ensure_pool, _from, state), do: start_pool(state)
-
-  @impl true
-  def handle_info({:EXIT, pool_pid, _reason}, %{pool_pid: pool_pid} = state) do
-    {:noreply, %{state | pool_pid: nil}}
-  end
-
-  def handle_info(_message, state), do: {:noreply, state}
-
-  defp start_pool(state) do
-    case Browse.start_link(@pool, implementation: BrowseChrome.Browser, pool_size: pool_size()) do
-      {:ok, pool_pid} -> {:reply, :ok, %{state | pool_pid: pool_pid}}
-      {:error, {:already_started, pool_pid}} -> {:reply, :ok, %{state | pool_pid: pool_pid}}
-      {:error, reason} -> {:reply, {:error, reason}, state}
-    end
-  end
-
-  defp render_with_browser(html, fallback_title) do
     # async_nolink (not Task.async) so a crashing render only surfaces as a
     # {:exit, reason} we can fall back on, instead of the link killing the
-    # calling HTTP request process before render_fallback/2 runs.
+    # calling HTTP request process before render_fallback/2 runs. A pool that
+    # failed to start arrives here as an exit too, and degrades the same way.
     task =
       Task.Supervisor.async_nolink(@task_supervisor, fn ->
         Carta.render(@pool, html, width: 1920, height: 1080, quality: 95)
@@ -80,12 +64,20 @@ defmodule Tuist.OpenGraphImageRenderer do
   defp render_fallback(title, reason) do
     Logger.warning("Headless browser Open Graph image rendering failed, using the fallback renderer: #{inspect(reason)}")
 
-    {:fallback, OpenGraph.generate_og_image_binary(title)}
-  rescue
-    error -> {:error, error}
+    case OpenGraph.generate_og_image_binary(title) do
+      {:ok, image} -> {:fallback, image}
+      {:error, reason} -> {:error, reason}
+    end
   end
 
-  defp pool_size do
+  defp pool_size(opts) do
+    case Keyword.fetch(opts, :pool_size) do
+      {:ok, pool_size} -> pool_size
+      :error -> pool_size_from_environment()
+    end
+  end
+
+  defp pool_size_from_environment do
     case Integer.parse(System.get_env("TUIST_OG_IMAGE_POOL_SIZE", "2")) do
       {pool_size, ""} when pool_size > 0 -> min(pool_size, 4)
       _ -> 2
