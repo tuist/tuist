@@ -7,7 +7,7 @@ use crate::constants::{
     DEFAULT_MULTIPART_JANITOR_INTERVAL_MS, DEFAULT_MULTIPART_UPLOAD_TTL_MS,
     DEFAULT_OUTBOX_MAX_DEPTH, DEFAULT_TMP_DIR_MAX_BYTES, DEFAULT_USAGE_BATCH_SIZE,
     DEFAULT_USAGE_DELIVERY_INTERVAL_MS, DEFAULT_USAGE_FLUSH_INTERVAL_MS, DEFAULT_USAGE_MAX_BUCKETS,
-    DEFAULT_USAGE_OUTBOX_MAX_DEPTH, DEFAULT_USAGE_WINDOW_SECS,
+    DEFAULT_USAGE_OUTBOX_MAX_DEPTH, DEFAULT_USAGE_WINDOW_SECS, MAX_INLINE_REPLICATION_BODY_BYTES,
 };
 
 const KURA_PORT: &str = "KURA_PORT";
@@ -672,6 +672,15 @@ impl Config {
         .unwrap_or(derived_defaults.max_keyvalue_bytes);
         if max_keyvalue_bytes == 0 {
             invalid.push(format!("{KURA_MAX_KEYVALUE_BYTES} must be greater than 0"));
+        } else if max_keyvalue_bytes as u64 > MAX_INLINE_REPLICATION_BODY_BYTES {
+            // Key-value entries are stored inline and replicated inline, and the
+            // inline replication receive path is bounded by
+            // MAX_INLINE_REPLICATION_BODY_BYTES. A larger key-value limit would
+            // let an entry be accepted locally but 413'd by every peer — the
+            // poison-outbox loop this ceiling exists to prevent.
+            invalid.push(format!(
+                "{KURA_MAX_KEYVALUE_BYTES} must be at most {MAX_INLINE_REPLICATION_BODY_BYTES} so inline entries stay replicable"
+            ));
         }
         let rocksdb_max_open_files = optional_parsed_value(
             &mut lookup,
@@ -1509,6 +1518,22 @@ mod tests {
             merged.insert((*key).to_owned(), (*value).to_owned());
         }
         Config::from_lookup_with_resources(|key| merged.get(key).cloned(), TEST_HOST_RESOURCES)
+    }
+
+    #[test]
+    fn keyvalue_limit_is_bounded_by_the_inline_replication_ceiling() {
+        let at_limit = MAX_INLINE_REPLICATION_BODY_BYTES.to_string();
+        let config = config_from(&[(KURA_MAX_KEYVALUE_BYTES, at_limit.as_str())])
+            .expect("a key-value limit at the inline ceiling is allowed");
+        assert_eq!(
+            config.max_keyvalue_bytes as u64,
+            MAX_INLINE_REPLICATION_BODY_BYTES
+        );
+
+        let over_limit = (MAX_INLINE_REPLICATION_BODY_BYTES + 1).to_string();
+        let error = config_from(&[(KURA_MAX_KEYVALUE_BYTES, over_limit.as_str())])
+            .expect_err("a key-value limit above the inline ceiling must fail");
+        assert!(error.contains(KURA_MAX_KEYVALUE_BYTES));
     }
 
     #[test]

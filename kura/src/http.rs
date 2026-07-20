@@ -2762,6 +2762,44 @@ mod tests {
         assert_eq!(stored.len(), body_len);
     }
 
+    // Pins the exact inline replication ceiling so a future limit or comparison
+    // tweak can't silently reintroduce an off-by-one strand: a body of exactly
+    // MAX_INLINE_REPLICATION_BODY_BYTES applies, one byte more is rejected.
+    #[tokio::test]
+    async fn inline_artifact_replication_enforces_the_inline_ceiling_boundary() {
+        let context = test_context(|_| {}).await;
+
+        let put = |key: &'static str, len: usize| {
+            internal_router(context.state.clone()).oneshot(
+                Request::builder()
+                    .method("PUT")
+                    .uri(format!(
+                        "/_internal/replicate/artifact?producer=reapi&inline=true\
+                         &namespace_id=tuist&key={key}\
+                         &content_type=application%2Fx-protobuf&version_ms=1000"
+                    ))
+                    .body(Body::from(vec![0u8; len]))
+                    .expect("failed to build request"),
+            )
+        };
+
+        let at_limit = put(
+            "action_cache%2Faaaa%2F1",
+            MAX_INLINE_REPLICATION_BODY_BYTES as usize,
+        )
+        .await
+        .expect("request failed");
+        assert_eq!(at_limit.status(), StatusCode::NO_CONTENT);
+
+        let over_limit = put(
+            "action_cache%2Fbbbb%2F1",
+            MAX_INLINE_REPLICATION_BODY_BYTES as usize + 1,
+        )
+        .await
+        .expect("request failed");
+        assert_eq!(over_limit.status(), StatusCode::PAYLOAD_TOO_LARGE);
+    }
+
     #[tokio::test]
     async fn unknown_paths_use_a_stable_unmatched_route_metric_label() {
         let context = test_context(|_| {}).await;

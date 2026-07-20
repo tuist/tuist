@@ -1303,11 +1303,12 @@ impl ActionCache for ReapiService {
         // non-retriable, so Bazel records the miss and moves on instead of
         // retrying the doomed write.
         if bytes.len() as u64 > MAX_INLINE_REPLICATION_BODY_BYTES {
-            self.state.metrics.record_artifact_write(
-                ArtifactProducer::Reapi,
-                "too_large",
-                bytes.len() as u64,
-            );
+            // Count the rejection but report 0 written bytes, matching the other
+            // failed-write sites, so a rejected write never inflates
+            // artifact_write_bytes throughput.
+            self.state
+                .metrics
+                .record_artifact_write(ArtifactProducer::Reapi, "too_large", 0);
             return Err(Status::failed_precondition(format!(
                 "action result is {} bytes, exceeds the {} byte limit",
                 bytes.len(),
@@ -4709,7 +4710,10 @@ end
     // strand on this node and churn a poison outbox message forever.
     #[tokio::test]
     async fn update_action_result_rejects_oversized_action_result() {
-        let context = test_context(|_| {}).await;
+        let context = test_context(|config| {
+            config.usage = Some(test_usage_config());
+        })
+        .await;
         let service = ReapiService {
             snapshot_cache: Default::default(),
             state: context.state.clone(),
@@ -4728,13 +4732,16 @@ end
             size_bytes: "oversized-action".len() as i64,
         };
 
-        let update = Request::new(reapi::UpdateActionResultRequest {
+        let mut update = Request::new(reapi::UpdateActionResultRequest {
             instance_name: "ios".into(),
             action_digest: Some(action_digest.clone()),
             action_result: Some(action_result),
             digest_function: reapi::digest_function::Value::Sha256 as i32,
             ..Default::default()
         });
+        update
+            .metadata_mut()
+            .insert("x-tuist-account-handle", "acme".parse().unwrap());
         let status = service
             .update_action_result(update)
             .await
@@ -4751,6 +4758,34 @@ end
                 .expect("manifest lookup should succeed")
                 .is_none(),
             "rejected action result must not be persisted"
+        );
+
+        // The rejection is counted, but as a failed write it books no bytes and
+        // bills nothing — the size check returns before the upload rollup.
+        let metrics = context.state.metrics.render();
+        assert!(
+            metrics
+                .lines()
+                .any(|line| line.contains("kura_artifact_writes_total")
+                    && line.contains("too_large")),
+            "rejection should increment the too_large write counter"
+        );
+        assert!(
+            !metrics
+                .lines()
+                .any(|line| line.contains("kura_artifact_write_bytes_total")
+                    && line.contains("too_large")),
+            "a rejected write must not add to write-bytes throughput"
+        );
+        assert!(
+            context
+                .state
+                .usage
+                .as_ref()
+                .expect("usage should be enabled")
+                .current_rollups_for_tests()
+                .is_empty(),
+            "a rejected write must not be billed"
         );
     }
 
