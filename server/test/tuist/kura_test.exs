@@ -790,8 +790,6 @@ defmodule Tuist.KuraTest do
         ["eu-central", "us-east", "us-west", "scw-fr-par-runners"]
       end)
 
-      stub(Tuist.FeatureFlags, :kura_cache_enabled?, fn _account -> true end)
-
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
 
@@ -830,11 +828,7 @@ defmodule Tuist.KuraTest do
                "http://kura-#{handle}-us-east-1.kura.svc.cluster.local:4000"
     end
 
-    test "stages nothing when the CLI would not resolve Kura endpoints", %{account: account} do
-      stub(Tuist.FeatureFlags, :kura_cache_enabled?, fn _account -> false end)
-
-      activate_public_server!(account, "eu-central")
-
+    test "stages nothing when the account has no Kura endpoints provisioned", %{account: account} do
       assert Kura.runner_cache_endpoint_url(account, :linux) == nil
     end
 

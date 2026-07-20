@@ -33,14 +33,16 @@ The crate builds two artifacts from shared modules: the `cdylib` (`libtuist_cas_
 
 ## Configuration (environment)
 
-The plugin runs in one of two modes. **Proxy mode** (`TUIST_CAS_PROXY_SOCKET` set) delegates all remote work to the per-machine proxy over a unix socket; this is the productized path and the one the benchmarks measure. **Direct mode** (no proxy socket, `TUIST_CAS_REMOTE_GRPC_URL` set) opens a REAPI channel per compiler process; kept for benchmarks. Without either, the plugin is a pure passthrough.
+The plugin never talks to kura itself: all remote work goes to the per-machine proxy over a unix socket. It finds the proxy at `TUIST_CAS_PROXY_SOCKET`, falling back to the well-known socket so a build started outside `tuist` (⌘B) still reaches it. Without a proxy the plugin is a pure passthrough to the upstream plugin, local CAS only.
+
+The proxy is what makes the machine's caching coherent: it holds one REAPI connection and token for every build, sees every publication from both the Swift and Clang lanes (so `upload: false` can be enforced in one place), and owns the trunk snapshot and its ingestion. A per-compiler-process channel could do none of that.
 
 - `TUIST_CAS_UPSTREAM_PLUGIN` - path to the wrapped plugin (default: `$DEVELOPER_DIR/usr/lib/libToolchainCASPlugin.dylib`).
-- `TUIST_CAS_PROXY_SOCKET` - unix socket of the per-machine proxy; when set the plugin runs in proxy mode.
+- `TUIST_CAS_PROXY_SOCKET` - unix socket of the per-machine proxy; unset falls back to the well-known socket.
 - `TUIST_CAS_ACCOUNT`, `TUIST_CAS_PROJECT` - the `account/project` this build's cache belongs to, used to declare the instance to the proxy. Lower precedence than the `tuist-instance` plugin option (see below); when neither is present the proxy falls back to its `cas_path -> instance` registry.
-- `TUIST_CAS_REMOTE_GRPC_URL`, `TUIST_CAS_TOKEN` - REAPI endpoint + bearer. In proxy mode these configure the proxy (one endpoint/token, many instances); in direct mode they configure this process.
+- `TUIST_CAS_REMOTE_GRPC_URL`, `TUIST_CAS_TOKEN` - REAPI endpoint + bearer. Read by the proxy (one endpoint/token, many instances); the plugin ignores them.
 - `TUIST_CAS_UPLOAD` (default true) - upload policy from `xcodeCache(upload:)`. When false the plugin still serves remote read hits but publishes nothing (no value graphs to proxy or remote). Lower precedence than the `tuist-upload` plugin option (see below).
-- `TUIST_CAS_PREFETCH` (default 24) - size of the plugin's prefetch/upload worker pool.
+- `TUIST_CAS_PREFETCH` (default `full`) - how much of the trunk snapshot the proxy pulls before a build asks for it. `full` fetches the snapshot and materializes its whole byte closure ahead of the build. `keys` fetches only the snapshot (one round trip, orders of magnitude lighter than the bytes) and pulls no bytes ahead of time; `tuist setup cache` selects it on CI, where the proxy and the build start together so there is no window to warm in. `0` (also `off`/`false`/`no`/`none`) disables both layers: no snapshot, no warm, every resolve a per-key round trip and every object on demand. Anything unrecognized reads as `full`, so a typo cannot quietly turn caching down.
 - `TUIST_CAS_LOG` - append per-process stats (hits, misses, prefetched, cache get/put latency) on dispose.
 
 ## Configuration (plugin options)
@@ -77,11 +79,12 @@ TUIST_CAS_SERVER_URL="https://tuist.dev" ./target/release/tuist-cas-proxy
 xcodebuild ... \
   COMPILATION_CACHE_ENABLE_CACHING=YES COMPILATION_CACHE_ENABLE_PLUGIN=YES \
   COMPILATION_CACHE_PLUGIN_PATH="$PWD/target/release/libtuist_cas_plugin.dylib" \
+  COMPILATION_CACHE_REMOTE_SERVICE_PATH="<proxy socket>" \
   COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS=YES \
   OTHER_SWIFT_FLAGS="-cas-plugin-option tuist-instance=<account>/<project>"
 ```
 
-For **direct mode** (no proxy, bench/debug), put `TUIST_CAS_REMOTE_GRPC_URL` + `TUIST_CAS_TOKEN` in the build environment instead of running a proxy: the plugin opens its own REAPI channel per compiler.
+`COMPILATION_CACHE_REMOTE_SERVICE_PATH` is what `tuist generate` sets, and leaving it out of a hand-run bench measures a different product: it is the only thing gating the build system's Clang lane (`CASOptions.hasRemoteCache`), so without it C and Objective-C cache locally and never remotely. The plugin consumes the matching option rather than forwarding it, so the socket never reaches Xcode's own remote client.
 
 Requires `SWIFT_ENABLE_EXPLICIT_MODULES` and works with Xcode 26.x. `TUIST_CAS_LOG=/tmp/cas.log` appends per-process stats on dispose and `COMPILATION_CACHE_ENABLE_DIAGNOSTIC_REMARKS` prints Xcode's hit/miss remarks in the build log. In a shipped CLI all of this is automatic (`tuist setup cache` + `tuist generate`; the dylib and proxy ship next to `tuist`).
 

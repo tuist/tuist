@@ -88,7 +88,7 @@ defmodule TuistWeb.API.CacheController do
     account = Accounts.get_account_by_handle(account_handle)
     subject = Authentication.authenticated_subject(conn)
 
-    if not is_nil(account) and Authorization.authorize(:account_cache_read, subject, account) == :ok do
+    if not is_nil(account) and Authorization.authorize(:account_cache_endpoint_read, subject, account) == :ok do
       account_handle
     end
   end

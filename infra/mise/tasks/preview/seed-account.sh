@@ -146,8 +146,6 @@ case Accounts.create_account_cache_endpoint(account, %{url: endpoint_url, techno
   {:error, _} -> Logger.info("preview-seed: kura cache endpoint already present")
 end
 
-FunWithFlags.enable(:kura_cache, for_actor: account)
-Logger.info("preview-seed: kura_cache feature flag enabled for " <> account.name)
 System.halt(0)
 EOF
 )

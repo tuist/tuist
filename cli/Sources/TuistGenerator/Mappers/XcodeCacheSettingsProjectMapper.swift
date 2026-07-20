@@ -73,13 +73,35 @@ public struct XcodeCacheSettingsProjectMapper: ProjectMapping {
                     // Hand the plugin its per-project options as compiler flags, which
                     // reach every frontend — including an Xcode ⌘B build that carries
                     // no CLI environment — so the proxy can route (and honor the upload
-                    // policy) without the CLI. Swift only: clang/ObjC never loads the CAS
-                    // plugin (Xcode routes its compilation caching to the builtin CAS),
-                    // so C/ObjC is cached locally but never remote.
+                    // policy) without the CLI. These reach Swift only; the setting below
+                    // is what brings clang in.
                     baseSettings["OTHER_SWIFT_FLAGS"] = Self.appendingCASPluginOptions(
                         fullHandle: fullHandle,
                         upload: tuist.xcodeCache.upload,
                         to: baseSettings["OTHER_SWIFT_FLAGS"]
+                    )
+                    // This is what makes C/ObjC, precompiled modules and PCHs shareable,
+                    // and it is easy to mistake for the legacy daemon's socket setting.
+                    //
+                    // clang does not load a CAS plugin, so left alone it caches only into
+                    // Xcode's builtin CAS, which never leaves the machine. The build system
+                    // covers clang itself instead, but only where it considers a remote
+                    // cache present, and it decides that purely by `remoteServicePath != nil`
+                    // (swift-build's `CASOptions.hasRemoteCache`). That one flag gates both
+                    // halves: uploading a clang or module output after a successful compile,
+                    // and requesting the materialize-key task that fetches one back. Leave
+                    // this unset and neither happens, so every C/ObjC/PCM/PCH compile stays
+                    // local and a machine with a cold cache recompiles all of it. Measured on
+                    // mastodon against an empty CAS: 259/930 tasks cached without this,
+                    // 930/930 with it.
+                    //
+                    // The path points at the machine-wide proxy, not a per-project daemon,
+                    // and the plugin CONSUMES this option rather than forwarding it to the
+                    // wrapped Apple plugin, whose own remote client would otherwise run its
+                    // much slower choreography against this socket. So the flag flips
+                    // without handing Apple's client the connection.
+                    baseSettings["COMPILATION_CACHE_REMOTE_SERVICE_PATH"] = .string(
+                        Environment.current.casProxySocketPathString()
                     )
                 } else {
                     // Kura is enabled but the bundled dylib is absent, so the build

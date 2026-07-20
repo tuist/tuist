@@ -19,6 +19,8 @@ defmodule Tuist.OAuth.ClientsTest do
       assert %Client{id: ^client_id} = Clients.get_client(client_id)
       assert created_client.redirect_uris == ["http://localhost:3000/callback"]
       assert created_client.name == "mcp-test-client"
+      assert created_client.authorization_code_ttl == 300
+      assert Clients.get_client(client_id).authorization_code_ttl == 300
     end
   end
 

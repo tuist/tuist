@@ -139,8 +139,8 @@ defmodule Tuist.MCP.Components.Tools.GetTestCase do
   end
 
   defp reply_with_test_case(test_case) do
-    analytics = Analytics.test_case_analytics_by_id(test_case.id)
-    reliability_rate = Analytics.test_case_reliability_by_id(test_case.id, "main")
+    analytics = Analytics.test_case_analytics_by_id(test_case.project_id, test_case.id)
+    reliability_rate = Analytics.test_case_reliability_by_id(test_case.project_id, test_case.id, "main")
     flakiness_rate = Analytics.get_test_case_flakiness_rate(test_case)
 
     data = %{

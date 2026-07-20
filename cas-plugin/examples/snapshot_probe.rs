@@ -8,7 +8,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use tuist_cas_plugin::reapi::{blob_digest, ManifestEntry, Remote, RemoteConfig};
+use tuist_cas_plugin::reapi::{blob_digest, reapi_instance, ManifestEntry, Remote, RemoteConfig};
 use tuist_cas_plugin::token::TokenProvider;
 
 fn decode_snapshot_header(bytes: &[u8]) -> Option<(u64, u32, Vec<[u8; 32]>)> {
@@ -56,7 +56,17 @@ fn now_ms() -> u64 {
 }
 
 fn main() {
-    let config = RemoteConfig::from_env().expect("TUIST_CAS_REMOTE_GRPC_URL required");
+    // This probe is the only thing that talks to kura without a proxy in front
+    // of it, so it builds its own config: the plugin reaches the remote solely
+    // through the proxy, and the proxy is handed its endpoint explicitly.
+    let config = RemoteConfig {
+        grpc_url: std::env::var("TUIST_CAS_REMOTE_GRPC_URL")
+            .expect("TUIST_CAS_REMOTE_GRPC_URL required"),
+        instance: reapi_instance(
+            &std::env::var("TUIST_CAS_PROJECT").unwrap_or_else(|_| "tuist".into()),
+        )
+        .to_string(),
+    };
     let tokens = TokenProvider::from_env();
     let remote = Remote::new(config, tokens.clone());
 
@@ -92,7 +102,7 @@ fn main() {
     // stored version and turns the watermark comparison into a false negative.
     let published_at = now_ms();
     remote
-        .update_action(&action_key, &manifest)
+        .update_action(&action_key, &manifest, None, None)
         .expect("update_action failed");
     println!("[{published_at}] action result published");
 
@@ -132,7 +142,7 @@ fn main() {
     }];
     let republished_at = now_ms();
     remote
-        .update_action(&action_key, &manifest2)
+        .update_action(&action_key, &manifest2, None, None)
         .expect("re-publish failed");
     println!("[{republished_at}] action result RE-published (same key, new content)");
     if (0..10).any(|round| {
@@ -156,7 +166,7 @@ fn poll(
     published_at: u64,
 ) -> bool {
     tokens.refresh_if_expiring(Duration::from_secs(120));
-    match remote.get_snapshot(None) {
+    match remote.get_snapshot(None, None) {
         Ok(Some(bytes)) => match decode_snapshot_header(&bytes) {
             Some((watermark, nodes, keys)) => {
                 println!(
