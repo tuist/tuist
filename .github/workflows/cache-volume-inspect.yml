@@ -12,6 +12,7 @@ name: Cache Volume Inspect
 # view of how populated each host's master is.
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - inspect-prod-cache-volume
@@ -60,3 +61,4 @@ jobs:
             ls -la "${TUIST_XDG_CACHE_HOME:-/nonexistent}" 2>/dev/null || echo "  (path absent)"
             ls -la "${TUIST_XDG_CACHE_HOME:-/nonexistent}/tuist" 2>/dev/null || true
           fi
+# rev: post-convergence-fix inspection
