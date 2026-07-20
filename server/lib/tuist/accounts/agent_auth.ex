@@ -369,7 +369,7 @@ defmodule Tuist.Accounts.AgentAuth do
   end
 
   def revoke_protocol_access_token(token) when is_binary(token) do
-    with %JOSE.JWT{fields: %{"jti" => jti}} <- JOSE.JWT.peek_payload(token),
+    with {:ok, %{"jti" => jti}} <- Tuist.Guardian.decode_and_verify(token),
          %AgentAuthCredential{} = credential <-
            AgentAuthCredential |> Repo.get_by(jti: jti) |> Repo.preload(:agent_registration),
          nil <- credential.revoked_at do
