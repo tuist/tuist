@@ -134,9 +134,43 @@ main {
         padding-top: 0.0625rem;
       }
 
-      & > [data-part="body"] > [data-part="status"] {
-        font-weight: var(--noora-font-weight-medium);
-        color: var(--noora-surface-label-primary);
+      & > [data-part="body"] {
+        min-width: 0;
+
+        & > [data-part="status"] {
+          font-weight: var(--noora-font-weight-medium);
+          color: var(--noora-surface-label-primary);
+        }
+
+        & > [data-part="markdown"] {
+          display: contents;
+
+          & > p {
+            margin: var(--noora-spacing-3) 0 0;
+          }
+
+          & > p:first-child {
+            display: inline;
+            margin: 0;
+          }
+
+          & > ul,
+          & > ol {
+            margin: var(--noora-spacing-3) 0 0;
+            padding-left: var(--noora-spacing-7);
+          }
+
+          & a {
+            color: inherit;
+            text-decoration: underline;
+            text-underline-offset: 2px;
+            overflow-wrap: anywhere;
+          }
+
+          & code {
+            font-family: var(--noora-font-code);
+          }
+        }
       }
     }
   }

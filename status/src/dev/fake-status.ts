@@ -87,7 +87,7 @@ export function fakeStatus(): StatusSnapshot {
         {
           at: hoursAgo(47),
           status: "resolved",
-          body: "Sign-in is fully restored. Postmortem to follow.",
+          body: "Sign-in is fully restored. Follow the [incident review](https://github.com/tuist/tuist/pulls) for more details.",
         },
         {
           at: hoursAgo(48),

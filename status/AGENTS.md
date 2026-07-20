@@ -13,7 +13,7 @@ status/
 │   │   └── fake-status.ts  # Runtime dev/demo fixture used when USE_FAKE_DATA=true
 │   ├── types.ts
 │   └── views/
-│       ├── page.ts        # HTML rendering with hono/html (uses real Noora class names + data-* parts)
+│       ├── page.ts        # HTML rendering with hono/html; incident update bodies are rendered as safe Markdown
 │       ├── feed.ts        # RSS 2.0 + Atom 1.0 renderers
 │       ├── logo.ts        # Inlined Tuist mark (verbatim copy of noora/lib/noora/icons/brand-tuist.svg)
 │       ├── icons.ts       # Inlined Tabler/Noora status icons used by noora-banner and noora-status-badge
