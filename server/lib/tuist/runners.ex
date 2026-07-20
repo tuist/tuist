@@ -242,11 +242,19 @@ defmodule Tuist.Runners do
   # Skipped when there was no prior HEAD or the digest is unchanged (idempotent
   # re-report of the same set).
   defp schedule_superseded_master_prune(account_id, %{tree_digest: old}, new) when is_binary(old) and old != new do
-    %{account_id: account_id, tree_digest: old}
-    |> PruneVolumeMasterWorker.new(schedule_in: @volume_master_url_ttl_seconds)
-    |> Oban.insert()
+    case %{account_id: account_id, tree_digest: old}
+         |> PruneVolumeMasterWorker.new(schedule_in: @volume_master_url_ttl_seconds)
+         |> Oban.insert() do
+      {:ok, _job} ->
+        :ok
 
-    :ok
+      {:error, reason} ->
+        # Best-effort: a failed schedule just leaves the superseded object for the
+        # account-deletion sweep — never fail the promote report over retention.
+        Logger.warning("runners: failed to schedule superseded master prune for #{account_id}: #{inspect(reason)}")
+
+        :ok
+    end
   end
 
   defp schedule_superseded_master_prune(_account_id, _superseded, _new), do: :ok
