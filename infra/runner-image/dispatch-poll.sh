@@ -176,12 +176,14 @@ CACHE_INVENTORY_BEFORE=""
 # publish (which runs after detach, when nothing can be read) can still use it.
 CACHE_INVENTORY_AFTER=""
 STATUS_SHARE="/Volumes/My Shared Files/status"
-# The HEAD report endpoint is the dispatch URL's sibling; the upload-url endpoint
-# is its child. The presigned PUT URL is no longer handed out at dispatch — the
-# guest mints it at promote time keyed by its own new inventory digest (see
-# report_volume_head), which keeps master object keys immutable.
+# Control-plane endpoints (dispatch URL's siblings/child). Neither receives the
+# image bytes: the mint endpoint returns a presigned object-storage PUT URL, and
+# the image is uploaded DIRECTLY to that URL (see report_volume_head). The
+# presigned URL is no longer handed out at dispatch — the guest mints it at
+# promote time keyed by its own new inventory digest, which keeps master object
+# keys immutable.
 VOLUME_HEAD_REPORT_URL="${TUIST_RUNNER_DISPATCH_URL%/dispatch}/volume-head"
-VOLUME_HEAD_UPLOAD_URL_ENDPOINT="${VOLUME_HEAD_REPORT_URL}/upload-url"
+VOLUME_HEAD_UPLOAD_URL_MINT_ENDPOINT="${VOLUME_HEAD_REPORT_URL}/upload-url"
 
 # cache_inventory hashes the SORTED ENTRY NAMES (not mtimes) under the cache
 # subtrees whose churn means the job actually changed the cache: binaries
@@ -500,7 +502,7 @@ report_volume_head() {
   upload_url=$(curl -fsS --connect-timeout 10 --max-time 30 -X POST \
     -H "Authorization: Bearer ${SA_TOKEN}" -H "Content-Type: application/json" \
     --data "{\"tree_digest\":\"${CACHE_INVENTORY_AFTER}\"}" \
-    "${VOLUME_HEAD_UPLOAD_URL_ENDPOINT}" 2>/dev/null \
+    "${VOLUME_HEAD_UPLOAD_URL_MINT_ENDPOINT}" 2>/dev/null \
     | sed -n 's/.*"upload_url"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
   if [ -z "${upload_url}" ]; then
     echo "$(date -u +%FT%TZ) dispatch-poll: no master upload URL; HEAD not advanced"
