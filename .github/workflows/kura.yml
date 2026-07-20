@@ -47,6 +47,9 @@ jobs:
       - name: Check formatting
         run: mise run --skip-tools format -- --check
 
+      - name: Check test layout
+        run: mise run --skip-tools lint-tests
+
   # Split non-fork / fork (like gradle.yml / android.yml): only trusted runs get `id-token: write`
   # and authenticate; forks get `contents: read` alone and never see the OIDC token.
   bazel-compile:
