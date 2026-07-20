@@ -1,5 +1,6 @@
 import { html, raw } from "hono/html";
 import type { HtmlEscapedString } from "hono/utils/html";
+import { micromark } from "micromark";
 import type { Component, ComponentStatus, Incident, IncidentSeverity, StatusSnapshot } from "../types.js";
 import {
   ICON_ALERT_CIRCLE,
@@ -167,9 +168,13 @@ function incidentBlock(incident: Incident): Renderable {
   const updates = incident.updates.map((u) => {
     const title = u.title?.trim() || INCIDENT_STATUS_LABEL[u.status];
     const punctuation = /[.!?]$/.test(title) ? "" : ".";
+    const body = micromark(u.body, { allowDangerousHtml: false, allowDangerousProtocol: false });
     return html`<li>
       <time data-part="time" datetime="${u.at}">${formatDate(u.at)}</time>
-      <div data-part="body"><span data-part="status">${title}${punctuation}</span> ${u.body}</div>
+      <div data-part="body">
+        <span data-part="status">${title}${punctuation}</span>
+        <div data-part="markdown">${raw(body)}</div>
+      </div>
     </li>`;
   });
   return html`<article class="status-incident" id="${incident.id}">
