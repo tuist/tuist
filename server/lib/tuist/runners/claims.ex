@@ -66,6 +66,7 @@ defmodule Tuist.Runners.Claims do
   alias Tuist.Runners.Claim
   alias Tuist.Runners.Concurrency
   alias Tuist.Runners.ConcurrencyLimit
+  alias Tuist.Runners.JobCompletion
 
   @doc """
   Attempts to claim `workflow_job_id` for `pod_name` on behalf of
@@ -334,6 +335,43 @@ defmodule Tuist.Runners.Claims do
   def complete(workflow_job_id) when is_integer(workflow_job_id) do
     Repo.delete_all(from(c in Claim, where: c.workflow_job_id == ^workflow_job_id))
     :ok
+  end
+
+  @doc """
+  Deletes claims whose workflow_job already has a recorded completion
+  and whose `claimed_at` predates `threshold`. Returns the row count.
+
+  A `runner_job_completions` row is proof the job is over: it is written
+  from the `workflow_job.completed` webhook, which is the same handler
+  that releases the claim. A claim still present alongside one is a slot
+  held for a job that finished, and every other recovery path is blind
+  to it:
+
+    * `list_stale/1` filters `lifecycle_state = 'claimed'`, and these
+      sit in `running`.
+    * `OrphanedRunnersWorker` drives off ClickHouse rows still in
+      `status = 'running'`. The completion already moved the row out of
+      that state, so the scan never returns it.
+
+  That leaves the row consuming the account's concurrency budget
+  permanently. Because the completion is independent proof rather than
+  a timeout, this can safely release `running` claims that the
+  time-based sweep must not touch.
+
+  `threshold` only avoids racing the webhook's own release between the
+  completion insert and the delete; it is not the staleness signal.
+  """
+  def release_completed(%DateTime{} = threshold) do
+    completed = from(completion in JobCompletion, select: completion.workflow_job_id)
+
+    {count, _} =
+      Repo.delete_all(
+        from(c in Claim,
+          where: c.claimed_at < ^threshold and c.workflow_job_id in subquery(completed)
+        )
+      )
+
+    count
   end
 
   @doc """

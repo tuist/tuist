@@ -8,6 +8,7 @@ defmodule Tuist.Runners.ClaimsTest do
   alias Tuist.Runners.Claim
   alias Tuist.Runners.Claims
   alias Tuist.Runners.ConcurrencyLimit
+  alias Tuist.Runners.JobCompletion
 
   @linux_resources %{platform: :linux, vcpus: 1, memory_gb: 1}
 
@@ -492,6 +493,93 @@ defmodule Tuist.Runners.ClaimsTest do
 
     test "returns :error when no live claim exists for the workflow_job_id" do
       assert Claims.by_workflow_job_id(9_999_999) == :error
+    end
+  end
+
+  describe "release_completed/1" do
+    defp completion_fixture(workflow_job_id, account) do
+      Repo.insert_all(JobCompletion, [
+        %{
+          workflow_job_id: workflow_job_id,
+          account_id: account.id,
+          conclusion: "success",
+          completed_at: DateTime.truncate(DateTime.utc_now(), :second),
+          inserted_at: DateTime.truncate(DateTime.utc_now(), :second),
+          updated_at: DateTime.truncate(DateTime.utc_now(), :second)
+        }
+      ])
+    end
+
+    defp backdate_claim(workflow_job_id, seconds) do
+      Repo.update_all(
+        from(c in Claim, where: c.workflow_job_id == ^workflow_job_id),
+        set: [claimed_at: DateTime.add(DateTime.utc_now(), -seconds, :second)]
+      )
+    end
+
+    # The leak this exists for: the completion webhook recorded the job as
+    # finished but the claim survived, so the slot stayed consumed. It sits
+    # in `running`, which the time-based sweep must never touch, and its
+    # ClickHouse row has already left `status = 'running'`, so the orphan
+    # worker's scan cannot see it either.
+    test "releases a running claim whose job has a recorded completion" do
+      account = account_fixture()
+
+      assert {:ok, _} = Claims.attempt(7001, account.id, "fleet-a", "pod-1", @linux_resources)
+      assert :ok = Claims.mark_running(7001, "runner-1")
+      completion_fixture(7001, account)
+      backdate_claim(7001, 600)
+
+      assert Claims.release_completed(DateTime.add(DateTime.utc_now(), -300, :second)) == 1
+      refute Repo.exists?(from(c in Claim, where: c.workflow_job_id == 7001))
+    end
+
+    # The discriminator has to be the completion row, not age. A long build
+    # legitimately holds its slot for hours, and reaping it would push the
+    # account over its cap while a runner is still working.
+    test "leaves a running claim with no recorded completion" do
+      account = account_fixture()
+
+      assert {:ok, _} = Claims.attempt(7002, account.id, "fleet-a", "pod-1", @linux_resources)
+      assert :ok = Claims.mark_running(7002, "runner-1")
+      backdate_claim(7002, 86_400)
+
+      assert Claims.release_completed(DateTime.add(DateTime.utc_now(), -300, :second)) == 0
+      assert Repo.exists?(from(c in Claim, where: c.workflow_job_id == 7002))
+    end
+
+    # The threshold only avoids racing the webhook's own release between
+    # the completion insert and the delete. It is not the staleness signal.
+    test "leaves a freshly claimed row inside the grace window" do
+      account = account_fixture()
+
+      assert {:ok, _} = Claims.attempt(7003, account.id, "fleet-a", "pod-1", @linux_resources)
+      completion_fixture(7003, account)
+
+      assert Claims.release_completed(DateTime.add(DateTime.utc_now(), -300, :second)) == 0
+      assert Repo.exists?(from(c in Claim, where: c.workflow_job_id == 7003))
+    end
+
+    test "releases every stale claim and frees the account's capacity" do
+      account = account_fixture()
+
+      for id <- [7101, 7102, 7103] do
+        assert {:ok, _} = Claims.attempt(id, account.id, "fleet-a", "pod-#{id}", @linux_resources)
+        assert :ok = Claims.mark_running(id, "runner-#{id}")
+        completion_fixture(id, account)
+        backdate_claim(id, 600)
+      end
+
+      assert {:ok, _} = Claims.attempt(7104, account.id, "fleet-a", "pod-live", @linux_resources)
+
+      assert Claims.release_completed(DateTime.add(DateTime.utc_now(), -300, :second)) == 3
+
+      remaining = Repo.all(from(c in Claim, select: c.workflow_job_id))
+      assert remaining == [7104]
+    end
+
+    test "is a no-op when nothing is held past a completion" do
+      assert Claims.release_completed(DateTime.utc_now()) == 0
     end
   end
 end
