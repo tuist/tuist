@@ -4,6 +4,7 @@ import Mockable
 import Path
 import TuistCI
 import TuistEnvironment
+import TuistEnvKey
 import TuistLogging
 import TuistServer
 
@@ -42,7 +43,11 @@ public struct ShardMatrixOutputService: ShardMatrixOutputServicing {
         case .gitlab:
             try await writeGitLabCIOutput(indices: indices, shardPlanId: shardPlan.id)
         case .circleci:
-            try await writeCircleCIOutput(indices: indices, shardPlanId: shardPlan.id)
+            let includeShardPlanId: Bool = EnvKey.testShardCircleCIPlanIdEnabled.envValue() ?? false
+            try await writeCircleCIOutput(
+                indices: indices,
+                shardPlanId: includeShardPlanId ? shardPlan.id : nil
+            )
         case .buildkite:
             try await writeBuildkiteOutput(indices: indices, shardPlanId: shardPlan.id)
         case .codemagic:
@@ -96,18 +101,20 @@ public struct ShardMatrixOutputService: ShardMatrixOutputServicing {
         Logger.current.debug("GitLab CI child pipeline written to \(outputPath.pathString)")
     }
 
-    private func writeCircleCIOutput(indices: [Int], shardPlanId: String) async throws {
+    private func writeCircleCIOutput(indices: [Int], shardPlanId: String?) async throws {
         let currentDirectory = try await Environment.current.currentWorkingDirectory()
         let outputPath = currentDirectory.appending(component: ".tuist-shard-continuation.json")
         if try await fileSystem.exists(outputPath) {
             try await fileSystem.remove(outputPath)
         }
         let indicesString = indices.map { String($0) }.joined(separator: ",")
-        let parameters: [String: Any] = [
+        var parameters: [String: Any] = [
             "shard-indices": indicesString,
             "shard-count": indices.count,
-            "shard-plan-id": shardPlanId,
         ]
+        if let shardPlanId {
+            parameters["shard-plan-id"] = shardPlanId
+        }
         let data = try JSONSerialization.data(
             withJSONObject: parameters,
             options: [.prettyPrinted, .sortedKeys]

@@ -288,6 +288,17 @@ defmodule TuistWeb.API.ShardsControllerTest do
   end
 
   describe "GET /api/projects/:account/:project/tests/shards/:reference/:shard_index" do
+    test "rejects a malformed shard plan id", %{conn: conn, user: user, project: project} do
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> get(
+          ~p"/api/projects/#{project.account.name}/#{project.name}/tests/shards/reused-reference/0?shard_plan_id=not-a-uuid"
+        )
+
+      assert json_response(conn, :bad_request)
+    end
+
     test "uses the exact shard plan id when provided", %{conn: conn, user: user, project: project} do
       plan_id = Ecto.UUID.generate()
 

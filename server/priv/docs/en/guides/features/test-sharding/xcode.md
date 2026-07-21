@@ -71,7 +71,7 @@ tuist xcodebuild test \
 | Flag | Environment variable | Description |
 |------|---------------------|-------------|
 | `--shard-index <N>` | `TUIST_SHARD_INDEX` | Zero-based index of the shard to execute |
-| `--shard-plan-id <IDENTIFIER>` | `TUIST_SHARD_PLAN_ID` | Exact shard plan identifier emitted by the build phase. Generated provider outputs include this value |
+| `--shard-plan-id <IDENTIFIER>` | `TUIST_SHARD_PLAN_ID` | Exact shard plan identifier emitted by the build phase. Generated provider outputs include this value; CircleCI requires the opt-in described below |
 | `--shard-reference <REF>` | `TUIST_SHARD_REFERENCE` | Unique identifier for the shard plan (auto-derived on supported CI providers) |
 | `--shard-archive-path <PATH>` | `TUIST_TEST_SHARD_ARCHIVE_PATH` | Path to a locally managed shard archive; Tuist extracts it instead of downloading test products from remote storage |
 
@@ -183,7 +183,9 @@ test-shards:
 
 ### CircleCI {#circleci}
 
-Tuist generates a `.tuist-shard-continuation.json` with parameters for the [continuation orb](https://circleci.com/developer/orbs/orb/circleci/continuation):
+Tuist generates a `.tuist-shard-continuation.json` with parameters for the [continuation orb](https://circleci.com/developer/orbs/orb/circleci/continuation).
+
+To avoid sending a parameter that existing continued configurations do not declare, Tuist only includes the exact shard plan identifier when `TUIST_CIRCLECI_SHARD_PLAN_ID_ENABLED` is `true`. Set it after declaring the `shard-plan-id` parameter in the continued configuration, as shown below:
 
 ```yaml
 # .circleci/config.yml
@@ -197,6 +199,8 @@ jobs:
   build-shards:
     macos:
       xcode: "16.0"
+    environment:
+      TUIST_CIRCLECI_SHARD_PLAN_ID_ENABLED: "true"
     steps:
       - checkout
       - run:
