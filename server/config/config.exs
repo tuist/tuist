@@ -221,6 +221,7 @@ config :tower, reporters: [TowerOpentelemetry]
 
 # Oban
 config :tuist, Oban,
+  engine: Tuist.Oban.Engine,
   repo: Tuist.Repo,
   notifier: Oban.Notifiers.PG
 
