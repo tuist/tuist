@@ -181,10 +181,28 @@ defmodule Tuist.Runners.Workers.FetchLogsWorkerTest do
       end)
 
       assert {:error, :log_not_ready_yet} =
-               FetchLogsWorker.perform(%Oban.Job{args: args(9_910_002, account.id)})
+               FetchLogsWorker.perform(%Oban.Job{args: args(9_910_002, account.id), attempt: 1, max_attempts: 5})
 
       assert JobLogs.list_for_job(9_910_002) == []
       refute_enqueued(worker: ArchiveLogsWorker, args: %{workflow_job_id: 9_910_002})
+    end
+
+    test "gives up quietly on the last attempt when GitHub never publishes a log (404)" do
+      account = account_fixture()
+      enqueue(account, 9_910_004)
+      stub_gh_installation_token()
+
+      expect(Req, :get, fn _opts ->
+        {:ok, %Req.Response{status: 404, body: ""}}
+      end)
+
+      # A permanent 404 (a job that never ran a step) is not actionable,
+      # so the last attempt completes rather than discarding with an error.
+      assert :ok =
+               FetchLogsWorker.perform(%Oban.Job{args: args(9_910_004, account.id), attempt: 5, max_attempts: 5})
+
+      assert JobLogs.list_for_job(9_910_004) == []
+      refute_enqueued(worker: ArchiveLogsWorker, args: %{workflow_job_id: 9_910_004})
     end
 
     test "skips the archive enqueue when the log came back empty" do
