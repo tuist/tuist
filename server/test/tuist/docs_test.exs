@@ -22,6 +22,7 @@ defmodule Tuist.DocsTest do
 
       assert root_page.slug == "/en"
       assert selective_testing_page.slug == "/en/guides/features/selective-testing"
+      assert selective_testing_page.source_path == "en/guides/features/selective-testing.md"
     end
 
     test "loads static CLI documentation pages" do

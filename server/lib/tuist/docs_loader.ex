@@ -88,13 +88,13 @@ defmodule Tuist.Docs.Loader do
 
   def load_page_sources! do
     page_sources =
-      Map.new(source_paths(), fn source_path ->
+      Enum.reduce(source_paths(), %{}, fn source_path, page_sources ->
         slug = source_path |> Path.relative_to(docs_root()) |> source_to_slug()
-        {slug, {:page, source_path}}
+        Map.put_new(page_sources, slug, {:page, source_path})
       end)
 
     Enum.reduce(example_readmes(), page_sources, fn readme_path, page_sources ->
-      Map.put(page_sources, example_slug(readme_path), {:example, readme_path})
+      Map.put_new(page_sources, example_slug(readme_path), {:example, readme_path})
     end)
   end
 
