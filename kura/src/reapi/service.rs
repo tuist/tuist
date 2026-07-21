@@ -1663,7 +1663,11 @@ impl ByteStream for ReapiService {
         let permit = self
             .state
             .memory
-            .acquire_response_stream_memory(requested_bytes, "bytestream")
+            .acquire_response_stream_memory(
+                requested_bytes,
+                "bytestream",
+                crate::memory::ResponseStreamAdmissionPatience::Blocking,
+            )
             .await
             .map_err(|_| {
                 Status::resource_exhausted(

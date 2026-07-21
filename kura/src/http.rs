@@ -33,7 +33,10 @@ use crate::{
     },
     extension::{AccessDecision, ExtensionContext},
     io::is_fd_pool_exhausted_error,
-    memory::{MemoryPressure, ResponseStreamMemoryPermit, ResponseTransportGuard},
+    memory::{
+        MemoryPressure, ResponseStreamAdmissionPatience, ResponseStreamMemoryPermit,
+        ResponseTransportGuard,
+    },
     metrics::Metrics,
     multipart::error::MultipartError,
     replication::replication_targets,
@@ -2480,7 +2483,11 @@ async fn serve_file_reader(
         // busy node never turns a cache hit into a client-visible error.
         ResponseStreamClass::Public => match state
             .memory
-            .acquire_response_stream_memory(requested_bytes, "http")
+            .acquire_response_stream_memory(
+                requested_bytes,
+                "http",
+                ResponseStreamAdmissionPatience::Degradable,
+            )
             .await
         {
             Ok(permit) => (permit, stream_chunk_bytes),
@@ -3550,7 +3557,11 @@ mod tests {
         let permit = context
             .state
             .memory
-            .acquire_response_stream_memory(requested_bytes, "http")
+            .acquire_response_stream_memory(
+                requested_bytes,
+                "http",
+                ResponseStreamAdmissionPatience::Degradable,
+            )
             .await
             .expect("response stream should be admitted");
         let mut response = Response::new(Body::from("payload"));

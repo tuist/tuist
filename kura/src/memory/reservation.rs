@@ -12,6 +12,16 @@ use super::{MemoryController, MemoryControllerInner};
 pub(super) const FOREGROUND_ADMISSION_TIMEOUT: std::time::Duration =
     std::time::Duration::from_secs(30);
 pub(super) const RESPONSE_STREAM_ADMISSION_TIMEOUT: Duration = Duration::from_secs(5);
+/// How long a caller that can degrade will wait for a full-size reservation.
+///
+/// Short on purpose. When failing admission meant returning `503` it was worth
+/// waiting a long time to avoid that, but a degradable caller's fallback is a
+/// served response, so a long wait only delays bytes it could already be
+/// sending. This is long enough to ride out the microsecond-to-millisecond
+/// contention of a slot being released by a finishing stream, and short enough
+/// not to show up in the tail.
+pub(super) const DEGRADABLE_RESPONSE_STREAM_ADMISSION_TIMEOUT: Duration =
+    Duration::from_millis(250);
 pub(super) const DEGRADED_RESPONSE_STREAM_SLOT_TIMEOUT: Duration = Duration::from_secs(5);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -118,6 +128,29 @@ pub struct ForegroundAdmissionTimeout;
 pub enum ResponseStreamAdmissionError {
     QueueFull,
     Timeout,
+}
+
+/// How long admission should wait, decided by what the caller does when it
+/// fails. The two response transports differ: an HTTP artifact read degrades to
+/// a smaller reservation and still serves the object, while a ByteStream read
+/// surfaces `RESOURCE_EXHAUSTED`. Waiting is worth much more to the caller whose
+/// alternative is an error, so the patience is the caller's to choose rather
+/// than a single constant shared by both.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ResponseStreamAdmissionPatience {
+    /// The caller degrades on failure and still serves the response.
+    Degradable,
+    /// The caller returns a retryable error on failure.
+    Blocking,
+}
+
+impl ResponseStreamAdmissionPatience {
+    pub(super) fn timeout(self) -> Duration {
+        match self {
+            Self::Degradable => DEGRADABLE_RESPONSE_STREAM_ADMISSION_TIMEOUT,
+            Self::Blocking => RESPONSE_STREAM_ADMISSION_TIMEOUT,
+        }
+    }
 }
 
 impl ForegroundMemoryReservation {

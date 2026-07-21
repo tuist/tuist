@@ -20,15 +20,15 @@ pub use cgroup::{
 pub use pressure::MemoryPressure;
 pub use reservation::{
     ForegroundAdmissionTimeout, ForegroundMemoryReservation, MemoryPermit, MmapMemoryPermit,
-    ResponseStreamAdmissionError, ResponseStreamMemoryPermit, ResponseTransportGuard,
-    TransientMemoryReservation,
+    ResponseStreamAdmissionError, ResponseStreamAdmissionPatience, ResponseStreamMemoryPermit,
+    ResponseTransportGuard, TransientMemoryReservation,
 };
 
 use pools::MemoryPools;
 use pressure::transition;
 use reservation::{
     AdmissionClass, DEGRADED_RESPONSE_STREAM_SLOT_TIMEOUT, FOREGROUND_ADMISSION_TIMEOUT,
-    ForegroundWaiter, RESPONSE_STREAM_ADMISSION_TIMEOUT, ResponseStreamWaiter,
+    ForegroundWaiter, ResponseStreamWaiter,
 };
 
 #[derive(Clone)]
@@ -599,6 +599,7 @@ impl MemoryController {
         &self,
         requested_bytes: usize,
         protocol: &'static str,
+        patience: ResponseStreamAdmissionPatience,
     ) -> Result<ResponseStreamMemoryPermit, ResponseStreamAdmissionError> {
         let started_at = Instant::now();
         if self.inner.response_stream_waiters.load(Ordering::Acquire) == 0
@@ -634,7 +635,7 @@ impl MemoryController {
                 ResponseStreamAdmissionError::QueueFull
             })?;
         let _waiter = ResponseStreamWaiter::new(self.inner.clone(), protocol, queue);
-        let result = timeout(RESPONSE_STREAM_ADMISSION_TIMEOUT, async {
+        let result = timeout(patience.timeout(), async {
             let _turn = self
                 .inner
                 .pools
@@ -875,6 +876,7 @@ impl MemoryController {
 mod tests {
     use super::*;
     use crate::constants::RESPONSE_STREAM_SEND_BUFFER_BYTES;
+    use crate::memory::reservation::RESPONSE_STREAM_ADMISSION_TIMEOUT;
 
     #[test]
     fn pressure_uses_hysteresis_before_recovering() {
@@ -1074,7 +1076,11 @@ mod tests {
             192 * 1024 * 1024,
         );
         let permit = controller
-            .acquire_response_stream_memory(1024 * 1024, "http")
+            .acquire_response_stream_memory(
+                1024 * 1024,
+                "http",
+                ResponseStreamAdmissionPatience::Degradable,
+            )
             .await
             .expect("stream permit should be admitted");
         assert_eq!(controller.transient_reserved_bytes(), 1024 * 1024);
@@ -1094,6 +1100,7 @@ mod tests {
             .acquire_response_stream_memory(
                 controller.foreground_response_streaming_pool_bytes(),
                 "bytestream",
+                ResponseStreamAdmissionPatience::Blocking,
             )
             .await
             .expect("dropping the body should release every stream permit");
@@ -1174,6 +1181,50 @@ mod tests {
             "bootstrap must leave the other half available for public responses"
         );
         drop(permit);
+    }
+
+    #[tokio::test]
+    async fn a_degradable_caller_gives_up_far_sooner_than_one_that_would_error() {
+        let metrics = Metrics::new("eu-west".into(), "tenant".into());
+        let controller = MemoryController::with_runtime_limit(
+            metrics,
+            256 * 1024 * 1024,
+            128 * 1024 * 1024,
+            192 * 1024 * 1024,
+        );
+        controller.observe(0);
+        // Occupy the whole pool so neither caller can be admitted.
+        let _held = controller
+            .try_acquire_response_stream_memory(
+                controller.foreground_response_streaming_pool_bytes(),
+                "http",
+            )
+            .expect("the pool should start empty");
+
+        let started_at = Instant::now();
+        assert!(
+            controller
+                .acquire_response_stream_memory(
+                    1024 * 1024,
+                    "http",
+                    ResponseStreamAdmissionPatience::Degradable,
+                )
+                .await
+                .is_err()
+        );
+        let degradable_wait = started_at.elapsed();
+
+        // An HTTP read still serves the object after this returns, so waiting
+        // longer would only delay bytes it could already be sending.
+        assert!(
+            degradable_wait < RESPONSE_STREAM_ADMISSION_TIMEOUT / 2,
+            "a degradable caller must not pay the blocking timeout, waited {degradable_wait:?}"
+        );
+        assert!(
+            ResponseStreamAdmissionPatience::Blocking.timeout()
+                > ResponseStreamAdmissionPatience::Degradable.timeout(),
+            "a caller whose fallback is an error must be the more patient one"
+        );
     }
 
     #[tokio::test]
