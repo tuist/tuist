@@ -148,10 +148,27 @@ defmodule Tuist.Application do
     end)
   end
 
+  # `capture_log_messages: true` is load-bearing, not a nicety. Without it the
+  # handler only reports crashes, so every `Logger.error/1` in the codebase is
+  # invisible in Sentry — including the two paths in `TestsController` that fire
+  # when an xcresult job can't be enqueued or its run can't be marked failed.
+  # Those are exactly the failures that leave a test run stuck on "processing"
+  # forever, and they were silent while we hunted a queue stall.
+  #
+  # `rate_limiting` is the valve that makes this safe to turn on: promoting
+  # every error log to an event means a single hot loop (a saturated DB pool
+  # already produces tens of thousands of events a week on its own) could
+  # otherwise flood the project. Dropping past the cap is preferable to
+  # amplifying an incident into a Sentry outage.
   defp start_sentry_logger do
     if Environment.error_tracking_enabled?() do
       :logger.add_handler(:sentry_handler, Sentry.LoggerHandler, %{
-        config: %{metadata: [:file, :line]}
+        config: %{
+          metadata: [:file, :line],
+          capture_log_messages: true,
+          level: :error,
+          rate_limiting: [max_events: 300, interval: to_timeout(minute: 1)]
+        }
       })
     end
   end
