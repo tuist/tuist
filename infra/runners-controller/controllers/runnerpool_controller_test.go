@@ -935,3 +935,81 @@ func TestReconcileDrainsIdleReplicasWhenFullyClaimed(t *testing.T) {
 		t.Fatalf("idle replicas on a fully-claimed pool = %v, want 0", got)
 	}
 }
+
+// A darwin Pod that never got a node has no VM and cannot accept a job,
+// so it is not warm capacity however long it has been alive. Counting it
+// would invert the starvation signal: a pool starved of Mac minis would
+// report idle Pods sitting on queued work, which is the fingerprint of
+// dispatch failing, not of a capacity shortfall.
+func TestIdleReplicasExcludesUnschedulableDarwinPods(t *testing.T) {
+	const poolName = "p"
+
+	metrics.ClearRunnerPool(poolName)
+	t.Cleanup(func() { metrics.ClearRunnerPool(poolName) })
+
+	scheme := mustScheme(t)
+	pool := newPool(poolName, "img", 3)
+	pool.Spec.OS = "darwin"
+
+	// One booted warm Pod, plus two that never scheduled (the shape of a
+	// Mac mini fleet at 100% memory: unclaimed, unowned, no node).
+	booted := newRunnerPod(poolName+"-runner-a", "img", corev1.PodRunning, poolName)
+	stuckA := newRunnerPod(poolName+"-runner-b", "img", corev1.PodPending, poolName)
+	stuckB := newRunnerPod(poolName+"-runner-c", "img", corev1.PodPending, poolName)
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(pool, booted, stuckA, stuckB).
+		WithStatusSubresource(&tuistv1.RunnerPool{}).
+		Build()
+
+	r := &RunnerPoolReconciler{
+		Client:      c,
+		Scheme:      scheme,
+		DispatchURL: "http://dispatch",
+	}
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: nn(pool.Namespace, pool.Name)}); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	if got := idleReplicasGauge(t, poolName); got != 1 {
+		t.Fatalf("idle replicas = %v, want 1 (only the booted Pod is capacity)", got)
+	}
+}
+
+// The mirror case: on Linux the dispatch poller is an init container, so
+// kubelet reports a warm idle runner as Pending for its entire life.
+// Applying the darwin rule here would report every idle Linux pool as
+// having zero warm capacity and silence starvation on the platform.
+func TestIdleReplicasCountsPendingLinuxPollers(t *testing.T) {
+	const poolName = "p"
+
+	metrics.ClearRunnerPool(poolName)
+	t.Cleanup(func() { metrics.ClearRunnerPool(poolName) })
+
+	scheme := mustScheme(t)
+	pool := newPool(poolName, "img", 2)
+	pool.Spec.OS = "linux"
+
+	warmA := newRunnerPod(poolName+"-runner-a", "img", corev1.PodPending, poolName)
+	warmB := newRunnerPod(poolName+"-runner-b", "img", corev1.PodPending, poolName)
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(pool, warmA, warmB).
+		WithStatusSubresource(&tuistv1.RunnerPool{}).
+		Build()
+
+	r := &RunnerPoolReconciler{
+		Client:      c,
+		Scheme:      scheme,
+		DispatchURL: "http://dispatch",
+	}
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: nn(pool.Namespace, pool.Name)}); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	if got := idleReplicasGauge(t, poolName); got != 2 {
+		t.Fatalf("idle replicas on a Linux pool = %v, want 2 (Pending is warm-polling)", got)
+	}
+}

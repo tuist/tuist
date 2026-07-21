@@ -194,6 +194,11 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	markedStale := 0
 	newNotReady := 0
 	var idleAlive []*corev1.Pod
+	// Subset of idleAlive that can actually accept a job right now — see
+	// isWarmCapacity. Tracked separately because idleAlive is the
+	// scale-down candidate list, where an unschedulable Pod is a
+	// perfectly good thing to delete.
+	idleWarm := 0
 	// Stale idle Pods are retired under the roll cap (below), not all at
 	// once: Running ones (macOS) get the drain-eligible label so the
 	// server 410s them; Pending ones (Linux warm pollers, or macOS that
@@ -231,6 +236,9 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 				// retired by the roll throttle, not scale-down.
 				if isIdle(p) {
 					idleAlive = append(idleAlive, p)
+					if isWarmCapacity(p, pool) {
+						idleWarm++
+					}
 				}
 				if !isReady(p) {
 					newNotReady++
@@ -318,7 +326,7 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	// Settled here rather than after scale-down: that loop can return
 	// early on a failed delete, and defaulting the gauge to 0 on that path
 	// would read as "no warm capacity" and mask the starvation signal.
-	idleCount = len(idleAlive)
+	idleCount = idleWarm
 
 	gap := int(pool.Spec.Replicas) - alive
 	overflow := 0
@@ -358,7 +366,9 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 		}
 		phaseReplicas.remove(p)
-		idleCount--
+		if isWarmCapacity(p, pool) {
+			idleCount--
+		}
 		scaledDown++
 	}
 
@@ -604,6 +614,28 @@ func isIdle(pod *corev1.Pod) bool {
 		return false
 	}
 	return !pollerTerminated(pod)
+}
+
+// isWarmCapacity reports whether an idle Pod can actually accept a job
+// right now. `isIdle` alone can't answer that: it only asks "unclaimed
+// and still polling", which a Pod that has never been scheduled also
+// satisfies. On a contended Tart fleet such a Pod can sit Pending for
+// hours with no node and no VM, and counting it as available capacity
+// inverts the reading it feeds — a pool starved of hosts would report
+// idle Pods sitting on queued work, the signature of the opposite
+// failure.
+//
+// The test is OS-dependent for the same reason oldestPendingPodAge is
+// darwin-only. On a Tart pool, Pending means the VM isn't up, so only
+// Running is real capacity. On a Linux pool, Pending is the healthy
+// steady state — the dispatch poller is an init container and kubelet
+// holds the Pod in Pending for as long as it runs — so a warm Linux
+// runner is Pending for its whole idle life and must still count.
+func isWarmCapacity(pod *corev1.Pod, pool *tuistv1.RunnerPool) bool {
+	if pool.Spec.OS != "darwin" {
+		return true
+	}
+	return pod.Status.Phase == corev1.PodRunning
 }
 
 // pollerTerminated reports whether the Linux `poller` init container

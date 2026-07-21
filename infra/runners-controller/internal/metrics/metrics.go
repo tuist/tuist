@@ -135,8 +135,12 @@ var (
 		Help: "Jobs waiting for a runner Pod in this pool (server signal).",
 	}, []string{poolLabel})
 
-	// idleReplicas is how many current-image Pods are alive and
-	// unclaimed — warm capacity able to take work right now.
+	// idleReplicas is how many current-image Pods are alive, unclaimed,
+	// and actually able to take work right now. On darwin that means
+	// Running: a Pod still waiting for a Mac mini has no VM and is not
+	// capacity, however long it has been alive. On Linux it includes
+	// Pending, which is where a warm dispatch poller spends its whole
+	// idle life. See isWarmCapacity in the RunnerPool reconciler.
 	//
 	// Pair with queuedJobs to detect dispatch starvation. `queued > 0 AND
 	// idle > 0`, sustained, is a contradiction in a healthy fleet: an idle

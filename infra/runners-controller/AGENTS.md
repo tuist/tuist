@@ -107,9 +107,16 @@ independent workqueues:
   **Starvation vs saturation.** `..._autoscaler_claimed_jobs{pool}` and
   `..._autoscaler_queued_jobs{pool}` publish the server's two demand
   signals unsummed, and `tuist_runners_pool_idle_replicas{pool}` counts
-  alive current-image Pods with no `tuist.dev/runner-pool-owner` — warm
-  capacity able to take work right now. Together they separate two
-  failures that every other series conflates:
+  alive current-image Pods with no `tuist.dev/runner-pool-owner` that can
+  actually accept a job right now. "Can accept" is OS-dependent, for the
+  same reason the un-booted age above is darwin-only: on a Tart pool only
+  `Running` counts, because a Pod still waiting on a Mac mini has no VM
+  and is not capacity however long it has been alive; on Linux `Pending`
+  counts, because that is where a warm dispatch poller spends its whole
+  idle life. Getting this wrong inverts the reading — a fleet starved of
+  hosts would report idle Pods sitting on queued work, which is the
+  fingerprint of the opposite failure. Together they separate two failures
+  that every other series conflates:
 
   - **Saturated**: `queued > 0`, `idle == 0`. Real work exceeds hosts.
     The fix is capacity.
