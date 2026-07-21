@@ -261,7 +261,7 @@ defmodule Tuist.Runners.Jobs do
   caller's responsibility to then atomically claim it via
   `Tuist.Runners.Claims.attempt/5`.
 
-  `ineligible_account_ids` is an optional set of account_ids to
+  `ineligible_account_ids` is an optional set of account IDs to
   exclude from candidate selection. `excluded_workflow_job_ids`
   skips specific queued rows that are already claimed in Postgres or
   that this dispatch poll already lost a claim race for. Returns the
@@ -297,6 +297,16 @@ defmodule Tuist.Runners.Jobs do
   def pick_queued_top_k(fleet_name, ineligible_account_ids \\ [], excluded_workflow_job_ids \\ [], k \\ 20)
       when is_binary(fleet_name) and is_list(ineligible_account_ids) and is_list(excluded_workflow_job_ids) and
              is_integer(k) and k > 0 do
+    pick_queued_top_k(fleet_name, ineligible_account_ids, [], excluded_workflow_job_ids, k)
+  end
+
+  @doc """
+  Like `pick_queued_top_k/4`, while also excluding queued candidates
+  whose latest repository is in `excluded_repositories`.
+  """
+  def pick_queued_top_k(fleet_name, ineligible_account_ids, excluded_repositories, excluded_workflow_job_ids, k)
+      when is_binary(fleet_name) and is_list(ineligible_account_ids) and is_list(excluded_repositories) and
+             is_list(excluded_workflow_job_ids) and is_integer(k) and k > 0 do
     lookback_floor = queued_lookback_floor()
 
     from(j in Job,
@@ -322,6 +332,7 @@ defmodule Tuist.Runners.Jobs do
       }
     )
     |> exclude_accounts(ineligible_account_ids)
+    |> exclude_repositories(excluded_repositories)
     |> exclude_workflow_jobs(excluded_workflow_job_ids)
     |> order_by([j], asc: fragment("argMax(?, ?)", j.enqueued_at, j.updated_at), asc: j.workflow_job_id)
     |> limit(^k)
@@ -336,6 +347,12 @@ defmodule Tuist.Runners.Jobs do
 
   defp exclude_accounts(query, account_ids) when is_list(account_ids) do
     having(query, [j], fragment("argMax(?, ?)", j.account_id, j.updated_at) not in ^account_ids)
+  end
+
+  defp exclude_repositories(query, []), do: query
+
+  defp exclude_repositories(query, repositories) when is_list(repositories) do
+    having(query, [j], fragment("argMax(?, ?)", j.repository, j.updated_at) not in ^repositories)
   end
 
   defp exclude_workflow_jobs(query, []), do: query
@@ -438,9 +455,50 @@ defmodule Tuist.Runners.Jobs do
 
   @doc """
   Records the `queued` state — re-surfaces the workflow_job as
-  claimable after a release / stale-recovery. The caller is
-  responsible for having already DELETE'd the matching PG claim.
+  claimable after a release / stale-recovery.
+
+  The candidate-map variant is used by the dispatch hot path. It already
+  carries the stable job metadata selected by `pick_queued/3`, so it can write
+  the queued row without reading the current ClickHouse row first. This keeps
+  a failed dispatch releasable when ClickHouse is under read-memory pressure.
+
+  The workflow-job-id variant remains for recovery workers that do not retain
+  the original candidate metadata.
   """
+  def record_queued(%{workflow_job_id: workflow_job_id} = candidate) when is_integer(workflow_job_id) do
+    with_workflow_job_ordering_lock(workflow_job_id, fn ->
+      if completion_recorded?(workflow_job_id) do
+        :ok
+      else
+        now = DateTime.utc_now()
+
+        row =
+          Map.merge(candidate, %{
+            status: "queued",
+            conclusion: "",
+            claimed_at: nil,
+            started_at: nil,
+            completed_at: nil,
+            pod_name: "",
+            runner_name: "",
+            log_archived_at: nil,
+            updated_at: now
+          })
+
+        insert_row!(row)
+
+        :telemetry.execute(
+          Telemetry.event_name_job_requeued(),
+          %{count: 1},
+          %{fleet: Map.get(candidate, :fleet_name, "")}
+        )
+
+        broadcast_status_change(Map.get(candidate, :account_id), "queued")
+        :ok
+      end
+    end)
+  end
+
   def record_queued(workflow_job_id) when is_integer(workflow_job_id) do
     with_workflow_job_ordering_lock(workflow_job_id, fn ->
       if completion_recorded?(workflow_job_id) do
@@ -458,8 +516,13 @@ defmodule Tuist.Runners.Jobs do
               |> job_to_row()
               |> Map.merge(%{
                 status: "queued",
+                conclusion: "",
                 claimed_at: nil,
+                started_at: nil,
+                completed_at: nil,
                 pod_name: "",
+                runner_name: "",
+                log_archived_at: nil,
                 updated_at: now
               })
 
