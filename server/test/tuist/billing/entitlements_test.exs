@@ -105,4 +105,31 @@ defmodule Tuist.Billing.EntitlementsTest do
       assert Entitlements.allows?(nil, :github_enterprise_server)
     end
   end
+
+  describe "allowed_features/2" do
+    test "resolves one plan for multiple hosted features" do
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      account = AccountsFixtures.organization_fixture(preload: [:account]).account
+
+      expect(Tuist.Billing, :get_current_active_subscription, 1, fn ^account ->
+        %{plan: :enterprise}
+      end)
+
+      assert Entitlements.allowed_features(account, [
+               :self_hosted_cache,
+               :guaranteed_egress_floor
+             ]) == MapSet.new([:self_hosted_cache, :guaranteed_egress_floor])
+    end
+
+    test "uses preloaded subscriptions without another lookup" do
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      account = AccountsFixtures.organization_fixture(preload: [:account]).account
+      BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
+      account = Tuist.Repo.preload(account, :subscriptions)
+      reject(&Tuist.Billing.get_current_active_subscription/1)
+
+      assert Entitlements.allowed_features(account, [:self_hosted_cache]) ==
+               MapSet.new([:self_hosted_cache])
+    end
+  end
 end

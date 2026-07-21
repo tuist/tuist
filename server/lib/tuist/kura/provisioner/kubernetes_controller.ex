@@ -55,10 +55,11 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
          %{image_tag: image_tag, account: account, server: %Server{} = server, region: %Regions{} = region} = inputs
        ) do
     with {:ok, hook_script} <- hook_script(inputs) do
-      external_peers = self_hosted_peers(account, region)
+      entitlements = manifest_entitlements(account, region)
+      external_peers = self_hosted_peers(account, region, entitlements)
 
       case apply_manifests(
-             [manifest(name, image_tag, account, region, server, hook_script, external_peers)],
+             [render_manifest(name, image_tag, account, region, server, hook_script, external_peers, entitlements)],
              region
            ) do
         :ok -> :ok
@@ -191,7 +192,8 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
   @impl true
   def manifest_revision(account, %Regions{} = region) do
-    manifest_revision_string(account, region, self_hosted_peers(account, region))
+    entitlements = manifest_entitlements(account, region)
+    manifest_revision_string(region, self_hosted_peers(account, region, entitlements), entitlements)
   end
 
   @doc "The base manifest revision, independent of dynamic per-account inputs."
@@ -228,9 +230,14 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
   @doc false
   def manifest(name, image_tag, account, %Regions{} = region, %Server{} = server, hook_script, external_peers \\ []) do
+    entitlements = manifest_entitlements(account, region)
+    render_manifest(name, image_tag, account, region, server, hook_script, external_peers, entitlements)
+  end
+
+  defp render_manifest(name, image_tag, account, region, server, hook_script, external_peers, entitlements) do
     account_handle = dns_handle(account.name)
-    external_peers = entitled_self_hosted_peers(account, region, external_peers)
-    revision = manifest_revision_string(account, region, external_peers)
+    external_peers = entitled_self_hosted_peers(region, external_peers, entitlements)
+    revision = manifest_revision_string(region, external_peers, entitlements)
     annotations = %{@manifest_revision_annotation => revision}
 
     %{
@@ -271,14 +278,14 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
           "exposeNodePort" => Regions.node_port_data_plane?(region),
           "clientCIDRs" => client_cidrs(region),
           "podAnnotations" => pod_annotations(region),
-          "egressGuaranteedMbps" => egress_guaranteed_mbps(account, region),
+          "egressGuaranteedMbps" => egress_guaranteed_mbps(region, entitlements),
           "storageClassName" => storage_class(region),
           "storageSize" => storage_size(region),
           "replicas" => replicas(region),
           "nodeSelector" => instance_node_selector(region, server),
           "tolerations" => tolerations(region),
           "extensionScript" => hook_script,
-          "extraEnv" => extension_env(account, region)
+          "extraEnv" => extension_env(region, entitlements)
         }
         |> Enum.reject(fn {_key, value} -> value in [nil, "", false] end)
         |> Map.new()
@@ -321,26 +328,38 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   defp mesh_enabled?(%Regions{provisioner_config: %{mesh: mesh}}) when is_boolean(mesh), do: mesh
   defp mesh_enabled?(_region), do: false
 
-  defp mesh_peers_sync_enabled?(account, %Regions{} = region) do
-    mesh_enabled?(region) and Entitlements.allows?(account, :self_hosted_cache)
+  defp manifest_entitlements(account, %Regions{} = region) do
+    features =
+      []
+      |> maybe_request_entitlement(mesh_enabled?(region), :self_hosted_cache)
+      |> maybe_request_entitlement(guaranteed_egress_configured?(region), :guaranteed_egress_floor)
+
+    Entitlements.allowed_features(account, features)
   end
 
-  defp self_hosted_peers(account, %Regions{} = region) do
-    if mesh_peers_sync_enabled?(account, region) do
+  defp maybe_request_entitlement(features, true, feature), do: [feature | features]
+  defp maybe_request_entitlement(features, false, _feature), do: features
+
+  defp mesh_peers_sync_enabled?(%Regions{} = region, entitlements) do
+    mesh_enabled?(region) and MapSet.member?(entitlements, :self_hosted_cache)
+  end
+
+  defp self_hosted_peers(account, %Regions{} = region, entitlements) do
+    if mesh_peers_sync_enabled?(region, entitlements) do
       Mesh.self_hosted_peer_urls(account)
     else
       []
     end
   end
 
-  defp entitled_self_hosted_peers(account, %Regions{} = region, peer_urls) do
-    if mesh_peers_sync_enabled?(account, region), do: peer_urls, else: []
+  defp entitled_self_hosted_peers(%Regions{} = region, peer_urls, entitlements) do
+    if mesh_peers_sync_enabled?(region, entitlements), do: peer_urls, else: []
   end
 
-  defp manifest_revision_string(account, %Regions{} = region, peer_urls) do
+  defp manifest_revision_string(%Regions{} = region, peer_urls, entitlements) do
     @manifest_revision <>
       peers_revision_suffix(peer_urls) <>
-      mesh_peers_sync_revision_suffix(account, region)
+      mesh_peers_sync_revision_suffix(region, entitlements)
   end
 
   # Folded into the manifest revision so enrolling or dropping a self-hosted
@@ -362,8 +381,8 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   # The provisioner converges on the manifest revision. Include the peer-view
   # gate in that revision so a plan change reapplies the instance instead of
   # leaving the running environment in the old entitlement state.
-  defp mesh_peers_sync_revision_suffix(account, region) do
-    if mesh_enabled?(region) and not mesh_peers_sync_enabled?(account, region) do
+  defp mesh_peers_sync_revision_suffix(region, entitlements) do
+    if mesh_enabled?(region) and not mesh_peers_sync_enabled?(region, entitlements) do
       "+nosync"
     else
       ""
@@ -432,7 +451,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   # that ever runs Kura. The controller's envFrom on the StatefulSet
   # picks up that Secret automatically. Non-secret knobs such as the
   # introspection client ID are safe to keep in the spec.
-  defp extension_env(account, %Regions{} = region) do
+  defp extension_env(%Regions{} = region, entitlements) do
     [
       env_var("KURA_EXTENSION_FAIL_CLOSED_AUTHENTICATE", "true"),
       env_var("KURA_EXTENSION_FAIL_CLOSED_AUTHORIZE", "true"),
@@ -447,7 +466,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
         Environment.kura_control_plane_client_id()
       ) ++
       cas_capacity_env(region) ++
-      mesh_peers_sync_env(account, region) ++
+      mesh_peers_sync_env(region, entitlements) ++
       telemetry_env(region)
   end
 
@@ -558,8 +577,8 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
   # The variable also arms Kura's peer-view readiness gate, so only accounts
   # that may enroll a self-hosted peer should receive it.
-  defp mesh_peers_sync_env(account, region) do
-    if mesh_peers_sync_enabled?(account, region) do
+  defp mesh_peers_sync_env(region, entitlements) do
+    if mesh_peers_sync_enabled?(region, entitlements) do
       [env_var("KURA_MESH_PEERS_SYNC", "true")]
     else
       []
@@ -649,12 +668,17 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   # is bursty, so non-enterprise tenants run best-effort under the Cilium burst
   # ceiling alone and pack densely. nil (dropped) when the region has no floor or
   # the account isn't entitled.
-  defp egress_guaranteed_mbps(account, %Regions{provisioner_config: %{egress_guaranteed_mbps: mbps}})
+  defp guaranteed_egress_configured?(%Regions{provisioner_config: %{egress_guaranteed_mbps: mbps}})
+       when is_integer(mbps) and mbps > 0, do: true
+
+  defp guaranteed_egress_configured?(_region), do: false
+
+  defp egress_guaranteed_mbps(%Regions{provisioner_config: %{egress_guaranteed_mbps: mbps}}, entitlements)
        when is_integer(mbps) and mbps > 0 do
-    if Entitlements.allows?(account, :guaranteed_egress_floor), do: mbps
+    if MapSet.member?(entitlements, :guaranteed_egress_floor), do: mbps
   end
 
-  defp egress_guaranteed_mbps(_account, _region), do: nil
+  defp egress_guaranteed_mbps(_region, _entitlements), do: nil
 
   # Whether the region's shared gateway runs host-network (directly on the
   # bare-metal box NIC) rather than as an LB-fronted controller. Drives the
