@@ -633,13 +633,16 @@ public class GraphTraverser: GraphTraversing {
 
             // Exclude any static products linked in a host application
             // however, for search paths it's fine to keep them included
+            let hostApplication: GraphTarget? = if target.target.product == .unitTests, shouldExcludeHostAppDependencies {
+                unitTestHost(path: path, name: name)
+            } else {
+                nil
+            }
             let hostApplicationStaticTargets: Set<GraphDependency>
-            if target.target.product == .unitTests, shouldExcludeHostAppDependencies,
-               let hostApp = unitTestHost(path: path, name: name)
-            {
+            if let hostApplication {
                 hostApplicationStaticTargets =
                     transitiveStaticDependencies(
-                        from: .target(name: hostApp.target.name, path: hostApp.project.path)
+                        from: .target(name: hostApplication.target.name, path: hostApplication.project.path)
                     )
             } else {
                 hostApplicationStaticTargets = Set()
@@ -676,9 +679,18 @@ public class GraphTraverser: GraphTraversing {
                     .compactMap { dependencyReference(to: $0, from: targetGraphDependency) }
             )
 
-            references.formUnion(
-                packageProductsLinkedThroughStaticTargets(from: targetGraphDependency)
-            )
+            var packageProducts = packageProductsLinkedThroughStaticTargets(from: targetGraphDependency)
+            if let hostApplication {
+                packageProducts = packageProductsExcludingProductsLinkedByHost(
+                    packageProducts,
+                    hostPackageProducts: packageProductsLinkedThroughStaticTargets(
+                        from: .target(name: hostApplication.target.name, path: hostApplication.project.path)
+                    ),
+                    targetPlatformFilters: target.target.dependencyPlatformFilters,
+                    hostPlatformFilters: hostApplication.target.dependencyPlatformFilters
+                )
+            }
+            references.formUnion(packageProducts)
         }
 
         // Link dynamic libraries and frameworks
@@ -753,6 +765,55 @@ public class GraphTraverser: GraphTraversing {
     private func isPackageProductLinkingBoundary(_ dependency: GraphDependency) -> Bool {
         canDependencyLinkStaticProducts(dependency: dependency)
             || testTarget(dependency: dependency) { $0.product.isDynamic }
+    }
+
+    private func packageProductsExcludingProductsLinkedByHost(
+        _ packageProducts: Set<GraphDependencyReference>,
+        hostPackageProducts: Set<GraphDependencyReference>,
+        targetPlatformFilters: PlatformFilters,
+        hostPlatformFilters: PlatformFilters
+    ) -> Set<GraphDependencyReference> {
+        var hostProductConditions: [String: PlatformCondition.CombinationResult] = [:]
+        for case let .packageProduct(product, condition) in hostPackageProducts {
+            hostProductConditions[product] = hostProductConditions[
+                product,
+                default: .incompatible
+            ].combineWith(.condition(condition))
+        }
+
+        return Set(packageProducts.compactMap { packageProduct in
+            guard case let .packageProduct(product, condition) = packageProduct,
+                  case let .condition(hostCondition) = hostProductConditions[product]
+            else {
+                return packageProduct
+            }
+
+            let requiredPlatformFilters = resolvedPlatformFilters(
+                condition,
+                default: targetPlatformFilters
+            )
+            let providedPlatformFilters = resolvedPlatformFilters(
+                hostCondition,
+                default: hostPlatformFilters
+            )
+            let remainingPlatformFilters = requiredPlatformFilters.subtracting(providedPlatformFilters)
+            guard !remainingPlatformFilters.isEmpty else { return nil }
+
+            return .packageProduct(
+                product: product,
+                condition: remainingPlatformFilters == requiredPlatformFilters
+                    ? condition
+                    : .when(remainingPlatformFilters)
+            )
+        })
+    }
+
+    private func resolvedPlatformFilters(
+        _ condition: PlatformCondition?,
+        default platformFilters: PlatformFilters
+    ) -> PlatformFilters {
+        condition?.platformFilters
+            ?? (platformFilters.isEmpty ? Set(PlatformFilter.allCases) : platformFilters)
     }
 
     private func intersection(
