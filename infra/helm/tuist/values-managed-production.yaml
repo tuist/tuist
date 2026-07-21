@@ -426,6 +426,31 @@ xcresultProcessor:
   podDisruptionBudget:
     enabled: true
     minAvailable: 1
+  # Raised from the chart default of 4 (8 slots fleet-wide) because that no
+  # longer covers production load. Measured on 2026-07-21: arrivals into
+  # `:process_xcresult` stepped from ~10/hour to 300-545/hour between 10:00 and
+  # 11:00 UTC and stayed there, while throughput held at ~200/hour. The queue
+  # settled ~5 hours behind with ~2,200 jobs `available`, every worker slot
+  # busy, and jobs sitting at `attempt=0` with no errors. Nothing was failing;
+  # there simply were not enough consumers.
+  #
+  # 10 per pod x 2 pods = 20 slots, ~2.5x the previous ceiling, which matches
+  # the measured shortfall. Replica count can't absorb this instead: hostPort
+  # 9091 plus the topology spread pin one Pod per Mac mini and the fleet has
+  # two hosts, so more replicas means more hardware first.
+  queueConcurrency: 10
+  # Sized to keep the per-job budget roughly flat while tripling the slot
+  # count: memory stays at ~1Gi per concurrent job, CPU goes from ~0.75 to
+  # ~0.6, which the workload tolerates because a job spends much of its time on
+  # S3 download, unzip and ClickHouse writes rather than in `xcresulttool`.
+  # Still inside the Mac mini's 8 CPU / 14Gi allocatable, with headroom.
+  resources:
+    requests:
+      cpu: "2000m"
+      memory: "4Gi"
+    limits:
+      cpu: "6000m"
+      memory: "10Gi"
   # Opt into the Tailscale-fronted URL the processor's ExternalSecret
   # renders when postgresql.cnpg.pooler.tailscale.enabled is true.
   # Linux processors keep the direct in-cluster URL via the default
