@@ -3,7 +3,8 @@ use std::sync::Arc;
 use tokio::sync::{Mutex, OwnedMutexGuard, OwnedSemaphorePermit, Semaphore};
 
 use crate::constants::{
-    MAX_INLINE_REPLICATION_BODY_BYTES, RESPONSE_STREAM_CHUNK_BYTES, RESPONSE_STREAM_MIN_CHUNK_BYTES,
+    MAX_INLINE_REPLICATION_BODY_BYTES, RESPONSE_STREAM_CHUNK_BYTES,
+    RESPONSE_STREAM_MIN_CHUNK_BYTES, RESPONSE_STREAM_SEND_BUFFER_BYTES,
 };
 
 use super::MemoryPressure;
@@ -33,10 +34,12 @@ pub(super) struct MemoryPools {
     background_response_streaming: Arc<Semaphore>,
     response_stream_waiters: Arc<Semaphore>,
     response_stream_admission: Arc<Mutex<()>>,
+    degraded_response_streaming: Arc<Semaphore>,
     reapi_materialization_bytes: usize,
     mmap_serving_bytes: usize,
     response_streaming_bytes: usize,
     foreground_response_streaming_bytes: usize,
+    degraded_response_stream_slots: usize,
 }
 
 impl MemoryPools {
@@ -67,6 +70,14 @@ impl MemoryPools {
                 MAX_BACKGROUND_RESPONSE_STREAM_POOL_BYTES,
             )
             .min(response_streaming_bytes);
+        // A degraded stream reserves only the 8 KiB chunk floor, but Hyper can
+        // still hold up to one `RESPONSE_STREAM_SEND_BUFFER_BYTES` send buffer
+        // per stream for a slow client. Counting degraded streams at that real
+        // per-stream cost keeps their aggregate footprint inside the same
+        // budget the weighted pool already accounts for, instead of letting it
+        // grow with the file-descriptor pool.
+        let degraded_response_stream_slots =
+            (response_streaming_bytes / RESPONSE_STREAM_SEND_BUFFER_BYTES).max(1);
         Self {
             reapi_materialization: Arc::new(Semaphore::new(reapi_materialization_bytes)),
             mmap_serving: Arc::new(Semaphore::new(mmap_serving_bytes)),
@@ -79,10 +90,12 @@ impl MemoryPools {
             )),
             response_stream_waiters: Arc::new(Semaphore::new(response_stream_waiters)),
             response_stream_admission: Arc::new(Mutex::new(())),
+            degraded_response_streaming: Arc::new(Semaphore::new(degraded_response_stream_slots)),
             reapi_materialization_bytes,
             mmap_serving_bytes,
             response_streaming_bytes,
             foreground_response_streaming_bytes,
+            degraded_response_stream_slots,
         }
     }
 
@@ -187,6 +200,18 @@ impl MemoryPools {
 
     pub(super) async fn acquire_response_stream_admission_turn(&self) -> OwnedMutexGuard<()> {
         self.response_stream_admission.clone().lock_owned().await
+    }
+
+    pub(super) fn degraded_response_stream_slots(&self) -> usize {
+        self.degraded_response_stream_slots
+    }
+
+    pub(super) async fn acquire_degraded_response_stream(&self) -> Option<OwnedSemaphorePermit> {
+        self.degraded_response_streaming
+            .clone()
+            .acquire_owned()
+            .await
+            .ok()
     }
 }
 

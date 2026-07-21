@@ -147,6 +147,7 @@ pub struct Metrics {
     foreground_memory_waiters: Gauge,
     response_stream_pool_capacity_bytes: Gauge,
     response_stream_foreground_pool_capacity_bytes: Gauge,
+    response_stream_degraded_slots: Gauge,
     response_stream_reserved_bytes: Family<ResponseStreamProtocolLabels, Gauge>,
     response_stream_active: Family<ResponseStreamProtocolLabels, Gauge>,
     response_stream_waiters: Family<ResponseStreamProtocolLabels, Gauge>,
@@ -339,6 +340,7 @@ impl Metrics {
         let foreground_memory_waiters = Gauge::default();
         let response_stream_pool_capacity_bytes = Gauge::default();
         let response_stream_foreground_pool_capacity_bytes = Gauge::default();
+        let response_stream_degraded_slots = Gauge::default();
         let response_stream_reserved_bytes =
             Family::<ResponseStreamProtocolLabels, Gauge>::default();
         let response_stream_active = Family::<ResponseStreamProtocolLabels, Gauge>::default();
@@ -954,6 +956,11 @@ impl Metrics {
             response_stream_foreground_pool_capacity_bytes.clone(),
         );
         registry.register(
+            "kura_response_stream_degraded_slots",
+            "Concurrent degraded response streams allowed, counted at Hyper's per-stream send buffer",
+            response_stream_degraded_slots.clone(),
+        );
+        registry.register(
             "kura_response_stream_reserved_bytes",
             "Response-stream bytes currently reserved by protocol",
             response_stream_reserved_bytes.clone(),
@@ -1204,6 +1211,7 @@ impl Metrics {
             foreground_memory_waiters,
             response_stream_pool_capacity_bytes,
             response_stream_foreground_pool_capacity_bytes,
+            response_stream_degraded_slots,
             response_stream_reserved_bytes,
             response_stream_active,
             response_stream_waiters,
@@ -1861,10 +1869,17 @@ impl Metrics {
         self.foreground_memory_waiters.set(waiters as i64);
     }
 
-    pub fn update_response_stream_pool_capacity(&self, bytes: usize, foreground_bytes: usize) {
+    pub fn update_response_stream_pool_capacity(
+        &self,
+        bytes: usize,
+        foreground_bytes: usize,
+        degraded_slots: usize,
+    ) {
         self.response_stream_pool_capacity_bytes.set(bytes as i64);
         self.response_stream_foreground_pool_capacity_bytes
             .set(foreground_bytes as i64);
+        self.response_stream_degraded_slots
+            .set(degraded_slots as i64);
     }
 
     pub fn add_response_stream_reservation(&self, protocol: &str, bytes: u64) {
@@ -2433,7 +2448,7 @@ mod tests {
         metrics.update_memory_limits(4_096, 8_192);
         metrics.update_memory_pressure_state(1);
         metrics.update_memory_accounting(3_000, 1_000, true);
-        metrics.update_response_stream_pool_capacity(16 * 1024 * 1024, 10 * 1024 * 1024);
+        metrics.update_response_stream_pool_capacity(16 * 1024 * 1024, 10 * 1024 * 1024, 32);
         metrics.add_response_stream_reservation("http", 1024 * 1024);
         metrics.add_response_stream_waiter("bytestream");
         metrics.record_response_stream_admission("http", "immediate", Duration::from_millis(1));
@@ -2572,6 +2587,7 @@ mod tests {
         assert!(rendered.contains("kura_foreground_memory_waiters"));
         assert!(rendered.contains("kura_response_stream_pool_capacity_bytes"));
         assert!(rendered.contains("kura_response_stream_foreground_pool_capacity_bytes"));
+        assert!(rendered.contains("kura_response_stream_degraded_slots"));
         assert!(rendered.contains("kura_response_stream_reserved_bytes"));
         assert!(rendered.contains("kura_response_stream_active"));
         assert!(rendered.contains("kura_response_stream_waiters"));

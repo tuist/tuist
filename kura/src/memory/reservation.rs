@@ -12,6 +12,7 @@ use super::{MemoryController, MemoryControllerInner};
 pub(super) const FOREGROUND_ADMISSION_TIMEOUT: std::time::Duration =
     std::time::Duration::from_secs(30);
 pub(super) const RESPONSE_STREAM_ADMISSION_TIMEOUT: Duration = Duration::from_secs(5);
+pub(super) const DEGRADED_RESPONSE_STREAM_SLOT_TIMEOUT: Duration = Duration::from_secs(5);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum AdmissionClass {
@@ -40,6 +41,11 @@ pub struct ResponseStreamMemoryPermit {
 }
 
 impl ResponseStreamMemoryPermit {
+    #[cfg(test)]
+    pub(super) fn holds_degraded_slot(&self) -> bool {
+        self.concurrency.is_some()
+    }
+
     pub fn into_transport_guard(mut self) -> ResponseTransportGuard {
         if let Some(transient) = &mut self.transient {
             transient.defer_release_until_observation = cfg!(target_os = "linux");

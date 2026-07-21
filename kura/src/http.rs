@@ -2493,7 +2493,8 @@ async fn serve_file_reader(
                 (
                     state
                         .memory
-                        .acquire_degraded_response_stream_memory(degraded_bytes, "http"),
+                        .acquire_degraded_response_stream_memory(degraded_bytes, "http")
+                        .await,
                     RESPONSE_STREAM_MIN_CHUNK_BYTES,
                 )
             }
