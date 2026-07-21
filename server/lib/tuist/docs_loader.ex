@@ -81,37 +81,32 @@ defmodule Tuist.Docs.Loader do
   end
 
   def load_slugs! do
-    docs_slugs =
-      Enum.map(source_paths(), fn source_path ->
-        source_path
-        |> Path.relative_to(docs_root())
-        |> source_to_slug()
-      end)
-
-    example_slugs = Enum.map(example_readmes(), &example_slug/1)
-
-    Enum.sort(docs_slugs ++ example_slugs)
+    load_page_sources!()
+    |> Map.keys()
+    |> Enum.sort()
   end
 
-  def load_page!(slug) do
-    source_path =
-      Enum.find(source_paths(), fn source_path ->
-        source_path
-        |> Path.relative_to(docs_root())
-        |> source_to_slug() == slug
+  def load_page_sources! do
+    page_sources =
+      Map.new(source_paths(), fn source_path ->
+        slug = source_path |> Path.relative_to(docs_root()) |> source_to_slug()
+        {slug, {:page, source_path}}
       end)
 
-    cond do
-      source_path != nil ->
-        build_page!(source_path)
-
-      readme_path = Enum.find(example_readmes(), &(example_slug(&1) == slug)) ->
-        build_example_page!(readme_path)
-
-      true ->
-        nil
-    end
+    Enum.reduce(example_readmes(), page_sources, fn readme_path, page_sources ->
+      Map.put(page_sources, example_slug(readme_path), {:example, readme_path})
+    end)
   end
+
+  def load_page!(slug, page_sources \\ load_page_sources!()) do
+    page_sources
+    |> Map.get(slug)
+    |> load_page_source!()
+  end
+
+  def load_page_source!({:page, source_path}), do: build_page!(source_path)
+  def load_page_source!({:example, readme_path}), do: build_example_page!(readme_path)
+  def load_page_source!(nil), do: nil
 
   def load_example_items! do
     Enum.map(example_readmes(), fn readme_path ->
