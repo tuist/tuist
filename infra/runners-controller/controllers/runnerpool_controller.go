@@ -168,8 +168,13 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			phaseReplicas.add(p)
 		}
 	}
+	// Settled below, once scale-down has run; the deferred publish reads
+	// the final value so every return path reports the idle count that
+	// actually survived this reconcile.
+	idleCount := 0
 	defer func() {
 		metrics.RecordPodPhases(pool.Name, phaseReplicas.pending, phaseReplicas.running, phaseReplicas.unknown)
+		metrics.RecordIdleReplicas(pool.Name, idleCount)
 		// darwin only: Pending means "no VM yet" for a Tart pool, but it
 		// is the healthy steady state for a Linux one. Linux warm-standby
 		// Pods run their dispatch poller as an init container and kubelet
@@ -310,6 +315,11 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	}
 	metrics.RecordRoll(pool.Name, rolling, staleAlive, capN)
 
+	// Settled here rather than after scale-down: that loop can return
+	// early on a failed delete, and defaulting the gauge to 0 on that path
+	// would read as "no warm capacity" and mask the starvation signal.
+	idleCount = len(idleAlive)
+
 	gap := int(pool.Spec.Replicas) - alive
 	overflow := 0
 	if gap < 0 {
@@ -348,6 +358,7 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 		}
 		phaseReplicas.remove(p)
+		idleCount--
 		scaledDown++
 	}
 

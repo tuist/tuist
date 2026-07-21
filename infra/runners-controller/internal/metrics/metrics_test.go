@@ -139,3 +139,83 @@ func TestClearDropsOldestPendingPodAge(t *testing.T) {
 		t.Fatalf("oldest pending pod age count after Clear = %d, want 0", got)
 	}
 }
+
+func TestRecordDemandPublishesSignalsUnsummed(t *testing.T) {
+	const pool = "p"
+
+	claimedJobs.Reset()
+	queuedJobs.Reset()
+
+	RecordDemand(pool, 3, 8)
+
+	if got := testutil.ToFloat64(claimedJobs.WithLabelValues(pool)); got != 3 {
+		t.Fatalf("claimed jobs = %v, want 3", got)
+	}
+	if got := testutil.ToFloat64(queuedJobs.WithLabelValues(pool)); got != 8 {
+		t.Fatalf("queued jobs = %v, want 8", got)
+	}
+
+	// The whole point of the split: work draining normally moves a job
+	// from queued to claimed and leaves claimed+queued flat, so only the
+	// separate series show that dispatch is making progress.
+	RecordDemand(pool, 4, 7)
+	if got := testutil.ToFloat64(claimedJobs.WithLabelValues(pool)); got != 4 {
+		t.Fatalf("claimed jobs after drain = %v, want 4", got)
+	}
+	if got := testutil.ToFloat64(queuedJobs.WithLabelValues(pool)); got != 7 {
+		t.Fatalf("queued jobs after drain = %v, want 7", got)
+	}
+}
+
+func TestRecordIdleReplicas(t *testing.T) {
+	const pool = "p"
+
+	idleReplicas.Reset()
+
+	RecordIdleReplicas(pool, 8)
+	if got := testutil.ToFloat64(idleReplicas.WithLabelValues(pool)); got != 8 {
+		t.Fatalf("idle replicas = %v, want 8", got)
+	}
+
+	// Drains when the pool goes fully busy; a stale non-zero sample would
+	// read as warm capacity sitting unused and fire starvation falsely.
+	RecordIdleReplicas(pool, 0)
+	if got := testutil.ToFloat64(idleReplicas.WithLabelValues(pool)); got != 0 {
+		t.Fatalf("idle replicas after drain = %v, want 0", got)
+	}
+}
+
+// Defensive: a scale-down decrement racing the count must not publish a
+// negative gauge, which would plot below any starvation threshold.
+func TestRecordIdleReplicasClampsNegative(t *testing.T) {
+	const pool = "p"
+
+	idleReplicas.Reset()
+
+	RecordIdleReplicas(pool, -2)
+	if got := testutil.ToFloat64(idleReplicas.WithLabelValues(pool)); got != 0 {
+		t.Fatalf("negative idle replicas = %v, want clamped to 0", got)
+	}
+}
+
+func TestClearDropsDemandAndIdleSeries(t *testing.T) {
+	const pool = "p"
+
+	claimedJobs.Reset()
+	queuedJobs.Reset()
+	idleReplicas.Reset()
+
+	RecordDemand(pool, 1, 2)
+	RecordIdleReplicas(pool, 3)
+	Clear(pool)
+
+	if got := testutil.CollectAndCount(claimedJobs); got != 0 {
+		t.Fatalf("claimed jobs series after Clear = %d, want 0", got)
+	}
+	if got := testutil.CollectAndCount(queuedJobs); got != 0 {
+		t.Fatalf("queued jobs series after Clear = %d, want 0", got)
+	}
+	if got := testutil.CollectAndCount(idleReplicas); got != 0 {
+		t.Fatalf("idle replicas series after Clear = %d, want 0", got)
+	}
+}

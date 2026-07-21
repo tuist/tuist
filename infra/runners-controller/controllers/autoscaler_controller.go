@@ -230,6 +230,12 @@ func (r *AutoscalerReconciler) desiredForPool(
 	// on its own series, not inferred from alive-vs-desired.
 	metrics.RecordAllocation(pool.Name, signals.Claimed+signals.Queued, knobs.MinWarmPoolFloor, perPool, allocated)
 
+	// Publish the demand signals unsummed as well. The allocator only
+	// needs claimed+queued, but that sum is flat while work drains
+	// normally (queued -> claimed), so it cannot distinguish a pool
+	// serving its backlog from one wedged with the same backlog.
+	metrics.RecordDemand(pool.Name, signals.Claimed, signals.Queued)
+
 	return allocated
 }
 

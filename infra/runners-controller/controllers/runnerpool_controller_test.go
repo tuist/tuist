@@ -834,3 +834,104 @@ func TestOldestPendingPodAgeIsDarwinOnly(t *testing.T) {
 		})
 	}
 }
+
+// idleReplicasGauge reads the published idle gauge out of the shared
+// controller-runtime registry, the same surface Prometheus scrapes.
+func idleReplicasGauge(t *testing.T, pool string) float64 {
+	t.Helper()
+	families, err := ctrlmetrics.Registry.Gather()
+	if err != nil {
+		t.Fatalf("gather: %v", err)
+	}
+	var value float64
+	for _, f := range families {
+		if f.GetName() != "tuist_runners_pool_idle_replicas" {
+			continue
+		}
+		for _, m := range f.GetMetric() {
+			for _, l := range m.GetLabel() {
+				if l.GetName() == "pool" && l.GetValue() == pool {
+					value = m.GetGauge().GetValue()
+				}
+			}
+		}
+	}
+	return value
+}
+
+// Warm capacity has to be countable on its own. phaseReplicas cannot
+// substitute: a Pod running a customer job and a Pod polling for work are
+// both Running, so "jobs are queued while warm Pods sit idle" — the
+// dispatch-starvation signature — is inexpressible without this series.
+func TestReconcilePublishesIdleReplicas(t *testing.T) {
+	const poolName = "p"
+
+	metrics.ClearRunnerPool(poolName)
+	t.Cleanup(func() { metrics.ClearRunnerPool(poolName) })
+
+	scheme := mustScheme(t)
+	pool := newPool(poolName, "img", 3)
+	pool.Spec.OS = "darwin"
+
+	// Two unclaimed warm Pods and one running a customer job. Only the
+	// unclaimed pair is idle capacity.
+	idleA := newRunnerPod(poolName+"-runner-a", "img", corev1.PodRunning, poolName)
+	idleB := newRunnerPod(poolName+"-runner-b", "img", corev1.PodRunning, poolName)
+	claimed := newRunnerPod(poolName+"-runner-c", "img", corev1.PodRunning, poolName)
+	claimed.Labels["tuist.dev/runner-pool-owner"] = "acme"
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(pool, idleA, idleB, claimed).
+		WithStatusSubresource(&tuistv1.RunnerPool{}).
+		Build()
+
+	r := &RunnerPoolReconciler{
+		Client:      c,
+		Scheme:      scheme,
+		DispatchURL: "http://dispatch",
+	}
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: nn(pool.Namespace, pool.Name)}); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	if got := idleReplicasGauge(t, poolName); got != 2 {
+		t.Fatalf("idle replicas = %v, want 2 (the claimed Pod is not idle capacity)", got)
+	}
+}
+
+// A fully-busy pool must publish 0, not carry its last non-zero sample.
+// A stale reading here would look like warm capacity ignoring queued work
+// and fire starvation on a pool that is simply saturated.
+func TestReconcileDrainsIdleReplicasWhenFullyClaimed(t *testing.T) {
+	const poolName = "p"
+
+	metrics.ClearRunnerPool(poolName)
+	t.Cleanup(func() { metrics.ClearRunnerPool(poolName) })
+
+	scheme := mustScheme(t)
+	pool := newPool(poolName, "img", 1)
+	pool.Spec.OS = "darwin"
+
+	claimed := newRunnerPod(poolName+"-runner-a", "img", corev1.PodRunning, poolName)
+	claimed.Labels["tuist.dev/runner-pool-owner"] = "acme"
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(pool, claimed).
+		WithStatusSubresource(&tuistv1.RunnerPool{}).
+		Build()
+
+	r := &RunnerPoolReconciler{
+		Client:      c,
+		Scheme:      scheme,
+		DispatchURL: "http://dispatch",
+	}
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: nn(pool.Namespace, pool.Name)}); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	if got := idleReplicasGauge(t, poolName); got != 0 {
+		t.Fatalf("idle replicas on a fully-claimed pool = %v, want 0", got)
+	}
+}

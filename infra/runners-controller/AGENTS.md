@@ -104,6 +104,29 @@ independent workqueues:
   this gauge exists to catch, and one that leaves the Node `Ready` and
   `kube_pod_status_unschedulable` at 0 throughout.
 
+  **Starvation vs saturation.** `..._autoscaler_claimed_jobs{pool}` and
+  `..._autoscaler_queued_jobs{pool}` publish the server's two demand
+  signals unsummed, and `tuist_runners_pool_idle_replicas{pool}` counts
+  alive current-image Pods with no `tuist.dev/runner-pool-owner` — warm
+  capacity able to take work right now. Together they separate two
+  failures that every other series conflates:
+
+  - **Saturated**: `queued > 0`, `idle == 0`. Real work exceeds hosts.
+    The fix is capacity.
+  - **Starved**: `queued > 0` *and* `idle > 0`, sustained. Warm Pods are
+    polling dispatch and getting nothing while jobs wait. The fix is
+    server-side; adding hosts changes nothing.
+
+  The second state should be impossible — an idle Pod polls continuously,
+  so queued work reaches it within a poll interval — which is what makes
+  the overlap a reliable fingerprint. Nothing else shows it: the phase
+  count reads a warm idle Pod and a Pod running a customer job
+  identically (both `Running`), `claimed+queued` stays flat while work
+  drains normally (`queued` → `claimed`), and the oldest-un-booted-Pod
+  age above only sees Pods that never booted, not booted Pods that never
+  received work. The `Runner queue age` alert fires on either state, so
+  it says something is wrong without saying which lever to pull.
+
   Pod-level autoscaling only — bare-metal Host count is operator-
   managed via the CAPI cluster topology, since Hetzner Robot hosts
   are monthly-billed and can't be auto-ordered. To grow capacity,
