@@ -253,6 +253,9 @@ pub(super) fn named_value(input: &str, name: &str) -> Option<u64> {
     })
 }
 
+#[cfg(target_os = "linux")]
+const CGROUP_V1_UNLIMITED_THRESHOLD_BYTES: u64 = 1 << 53;
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -307,5 +310,3 @@ mod tests {
         assert_eq!(bracketed_working_set_bytes(400, 900, 600), 300);
     }
 }
-#[cfg(target_os = "linux")]
-const CGROUP_V1_UNLIMITED_THRESHOLD_BYTES: u64 = 1 << 53;
