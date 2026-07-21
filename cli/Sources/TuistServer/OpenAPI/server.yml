@@ -8747,6 +8747,14 @@ paths:
       callbacks: {}
       operationId: listBundles
       parameters:
+        - description: Filter bundles by git branch.
+          in: query
+          name: git_branch
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
         - description: Page number for pagination.
           in: query
           name: page
@@ -8769,14 +8777,6 @@ paths:
           required: false
           schema:
             type: integer
-            x-struct:
-            x-validate:
-        - description: Filter bundles by git branch.
-          in: query
-          name: git_branch
-          required: false
-          schema:
-            type: string
             x-struct:
             x-validate:
         - description: The handle of the project.
@@ -15640,6 +15640,15 @@ paths:
           name: reference
           required: true
           schema:
+            type: string
+            x-struct:
+            x-validate:
+        - description: The exact shard plan identifier. When present, it takes precedence over the reference.
+          in: query
+          name: shard_plan_id
+          required: false
+          schema:
+            format: uuid
             type: string
             x-struct:
             x-validate:

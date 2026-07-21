@@ -429,6 +429,7 @@ struct XcodeBuildTestCommandServiceTests {
                 fullHandle: .any,
                 serverURL: .any,
                 reference: .any,
+                shardPlanId: .any,
                 testProductsPath: .any,
                 testProductsArchivePath: .any
             )
@@ -459,6 +460,7 @@ struct XcodeBuildTestCommandServiceTests {
                 "-resultBundlePath", resultBundlePath.pathString,
             ],
             shardIndex: 1,
+            shardPlanId: "plan-123",
             shardArchivePath: shardArchivePath
         )
 
@@ -468,6 +470,7 @@ struct XcodeBuildTestCommandServiceTests {
                 fullHandle: .value("tuist/tuist"),
                 serverURL: .any,
                 reference: .any,
+                shardPlanId: .value("plan-123"),
                 testProductsPath: .value(nil),
                 testProductsArchivePath: .value(shardArchivePath)
             )

@@ -288,6 +288,35 @@ defmodule TuistWeb.API.ShardsControllerTest do
   end
 
   describe "GET /api/projects/:account/:project/tests/shards/:reference/:shard_index" do
+    test "uses the exact shard plan id when provided", %{conn: conn, user: user, project: project} do
+      plan_id = Ecto.UUID.generate()
+
+      stub(Tuist.Shards, :get_shard_for_plan_id, fn _project, _account, ^plan_id, 0, opts ->
+        refute Keyword.fetch!(opts, :suite_catch_all?)
+
+        {:ok,
+         %{
+           shard_plan_id: plan_id,
+           modules: ["AppTests"],
+           suites: %{},
+           skip: [],
+           download_url: "https://download.example.com",
+           download_urls: ["https://download.example.com"]
+         }}
+      end)
+
+      conn =
+        conn
+        |> Authentication.put_current_user(user)
+        |> get(
+          ~p"/api/projects/#{project.account.name}/#{project.name}/tests/shards/reused-reference/0?shard_plan_id=#{plan_id}"
+        )
+
+      response = json_response(conn, :ok)
+      assert response["shard_plan_id"] == plan_id
+      assert response["modules"] == ["AppTests"]
+    end
+
     test "returns shard for valid params", %{conn: conn, user: user, project: project} do
       stub(Tuist.Shards, :get_shard, fn _project, _account, _reference, _shard_index, opts ->
         refute Keyword.fetch!(opts, :suite_catch_all?)

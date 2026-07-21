@@ -4715,6 +4715,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 fullHandle: .any,
                 serverURL: .any,
                 reference: .any,
+                shardPlanId: .any,
                 testProductsPath: .any,
                 testProductsArchivePath: .any
             )
@@ -4882,6 +4883,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 fullHandle: .any,
                 serverURL: .any,
                 reference: .any,
+                shardPlanId: .any,
                 testProductsPath: .any,
                 testProductsArchivePath: .any
             )
@@ -5650,6 +5652,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 fullHandle: .any,
                 serverURL: .any,
                 reference: .any,
+                shardPlanId: .any,
                 testProductsPath: .any,
                 testProductsArchivePath: .any
             )
@@ -5713,6 +5716,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 fullHandle: .any,
                 serverURL: .any,
                 reference: .any,
+                shardPlanId: .any,
                 testProductsPath: .any,
                 testProductsArchivePath: .any
             )
@@ -5737,6 +5741,7 @@ final class TestServiceTests: TuistUnitTestCase {
             try await testRun(
                 path: path,
                 action: .testWithoutBuilding,
+                shardPlanId: "plan-123",
                 shardIndex: 1,
                 shardArchivePath: shardArchivePath
             )
@@ -5749,6 +5754,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 fullHandle: .value("tuist/tuist"),
                 serverURL: .any,
                 reference: .any,
+                shardPlanId: .value("plan-123"),
                 testProductsPath: .value(nil),
                 testProductsArchivePath: .value(shardArchivePath)
             )
@@ -6022,6 +6028,7 @@ final class TestServiceTests: TuistUnitTestCase {
         passthroughXcodeBuildArguments: [String] = [],
         skipQuarantine: Bool = false,
         shardReference: String? = nil,
+        shardPlanId: String? = nil,
         shardGranularity: ShardGranularity = .module,
         shardMin: Int? = nil,
         shardMax: Int? = nil,
@@ -6059,6 +6066,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
                 skipQuarantine: skipQuarantine,
                 shardReference: shardReference,
+                shardPlanId: shardPlanId,
                 shardGranularity: shardGranularity,
                 shardMin: shardMin,
                 shardMax: shardMax,

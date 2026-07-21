@@ -8,6 +8,7 @@ public protocol GetShardServicing {
         fullHandle: String,
         serverURL: URL,
         reference: String,
+        shardPlanId: String?,
         shardIndex: Int
     ) async throws -> Components.Schemas.Shard
 }
@@ -41,6 +42,7 @@ public struct GetShardService: GetShardServicing {
         fullHandle: String,
         serverURL: URL,
         reference: String,
+        shardPlanId: String? = nil,
         shardIndex: Int
     ) async throws -> Components.Schemas.Shard {
         let client = Client.authenticated(serverURL: serverURL)
@@ -52,7 +54,8 @@ public struct GetShardService: GetShardServicing {
                 project_handle: handles.projectHandle,
                 reference: reference,
                 shard_index: shardIndex
-            )
+            ),
+            query: .init(shard_plan_id: shardPlanId)
         )
 
         switch response {
