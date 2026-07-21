@@ -183,6 +183,7 @@ Replication is leaderless and eventually consistent:
 
 - 🔁 local writes become durable together with their outbox work
 - 🌍 peers bootstrap by pulling manifests, tombstones, and artifact bodies, reconciling only the diverging ranges via a per-bucket manifest digest exchange
+- 📈 in-flight bootstraps log a progress line every 30 seconds and report per-peer counters (phase, buckets completed, artifacts applied/failed) as `bootstrap_progress` on `/ready` and `/status/rollout`, so a long cold pull is distinguishable from a hang
 - 🔎 DNS discovery can expand the peer set automatically
 - 🧠 the outbox is processed incrementally so queue depth does not blow up heap usage during backlog
 

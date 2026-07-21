@@ -161,6 +161,7 @@ where
         bootstrap_fetch_locks: (0..crate::constants::BOOTSTRAP_FETCH_LOCK_STRIPES)
             .map(|_| tokio::sync::Mutex::new(()))
             .collect(),
+        bootstrap_progress: std::sync::Mutex::new(std::collections::HashMap::new()),
         replication_backoff: tokio::sync::Mutex::new(std::collections::HashMap::new()),
     });
     state.sync_runtime_metrics().await;

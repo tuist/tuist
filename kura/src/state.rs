@@ -1,11 +1,15 @@
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
-    sync::Arc,
+    sync::{
+        Arc,
+        atomic::{AtomicU8, AtomicU64, Ordering},
+    },
 };
 
 use arc_swap::ArcSwap;
 use axum_server::tls_rustls::RustlsConfig;
 use reqwest::Client;
+use serde::Serialize;
 use tokio::{
     sync::{Mutex, Notify, Semaphore},
     time::{Duration, Instant},
@@ -64,6 +68,12 @@ pub struct AppState {
     // `bootstrap_fetch_lock`). Bootstrap-scoped so it never blocks the
     // live-replication apply path, which the node still serves while joining.
     pub bootstrap_fetch_locks: Vec<Mutex<()>>,
+    // Live per-peer progress of in-flight bootstraps, keyed by peer URL. A cold
+    // pull of a large dataset can run for an hour; this is what lets the
+    // periodic progress log line and the `/ready` / `/status/rollout` bodies
+    // show that it is advancing rather than hung. std mutex: touched briefly
+    // from sync and async contexts alike, never held across an await.
+    pub bootstrap_progress: std::sync::Mutex<HashMap<String, Arc<BootstrapProgress>>>,
     pub replication_backoff: Mutex<HashMap<String, ReplicationBackoff>>,
 }
 
@@ -87,6 +97,199 @@ impl AppState {
         let index =
             (std::hash::Hasher::finish(&hasher) as usize) % self.bootstrap_fetch_locks.len();
         &self.bootstrap_fetch_locks[index]
+    }
+
+    /// Registers a fresh progress tracker for a starting bootstrap pass. Each
+    /// pass gets its own tracker, so a retried pass restarts its counters.
+    pub fn begin_bootstrap_progress(&self, peer: &str) -> Arc<BootstrapProgress> {
+        let progress = Arc::new(BootstrapProgress::new());
+        self.bootstrap_progress
+            .lock()
+            .expect("bootstrap progress lock poisoned")
+            .insert(peer.to_string(), progress.clone());
+        progress
+    }
+
+    pub fn end_bootstrap_progress(&self, peer: &str) {
+        self.bootstrap_progress
+            .lock()
+            .expect("bootstrap progress lock poisoned")
+            .remove(peer);
+    }
+
+    pub fn bootstrap_progress_snapshots(&self) -> Vec<BootstrapProgressSnapshot> {
+        let mut snapshots: Vec<BootstrapProgressSnapshot> = self
+            .bootstrap_progress
+            .lock()
+            .expect("bootstrap progress lock poisoned")
+            .iter()
+            .map(|(peer, progress)| progress.snapshot(peer))
+            .collect();
+        snapshots.sort_by(|a, b| a.peer.cmp(&b.peer));
+        snapshots
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum BootstrapPhase {
+    NamespaceTombstones = 0,
+    DigestReconcile = 1,
+    ManifestFetch = 2,
+}
+
+impl BootstrapPhase {
+    fn from_u8(value: u8) -> Self {
+        match value {
+            0 => BootstrapPhase::NamespaceTombstones,
+            1 => BootstrapPhase::DigestReconcile,
+            _ => BootstrapPhase::ManifestFetch,
+        }
+    }
+}
+
+/// Live counters for one in-flight peer bootstrap. While a node bootstraps it
+/// is NotReady, which drops it from the Service endpoints Prometheus scrapes —
+/// so these counters, surfaced through the periodic progress log line and the
+/// `/ready` / `/status/rollout` bodies, are the only external evidence that a
+/// long cold pull is advancing. Also carries the no-progress watchdog counter
+/// (`ticks`), bumped on every fetched page and applied artifact.
+#[derive(Debug, Default)]
+pub struct BootstrapProgress {
+    started_at: Option<Instant>,
+    ticks: AtomicU64,
+    phase: AtomicU8,
+    tombstones_applied: AtomicU64,
+    divergent_buckets: AtomicU64,
+    completed_buckets: AtomicU64,
+    pages_fetched: AtomicU64,
+    artifacts_applied: AtomicU64,
+    artifacts_failed: AtomicU64,
+}
+
+impl BootstrapProgress {
+    pub fn new() -> Self {
+        Self {
+            started_at: Some(Instant::now()),
+            ..Self::default()
+        }
+    }
+
+    /// Records raw forward progress for the no-progress watchdog.
+    pub fn tick(&self) {
+        self.ticks.fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn ticks(&self) -> u64 {
+        self.ticks.load(Ordering::Relaxed)
+    }
+
+    pub fn set_phase(&self, phase: BootstrapPhase) {
+        self.phase.store(phase as u8, Ordering::Relaxed);
+    }
+
+    pub fn record_tombstone_applied(&self) {
+        self.tombstones_applied.fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn set_divergent_buckets(&self, total: u64) {
+        self.divergent_buckets.store(total, Ordering::Relaxed);
+    }
+
+    pub fn record_bucket_completed(&self) {
+        self.completed_buckets.fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn record_manifest_page(&self) {
+        self.pages_fetched.fetch_add(1, Ordering::Relaxed);
+        self.tick();
+    }
+
+    pub fn record_artifact_applied(&self) {
+        self.artifacts_applied.fetch_add(1, Ordering::Relaxed);
+        self.tick();
+    }
+
+    pub fn record_artifact_failed(&self) {
+        self.artifacts_failed.fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn snapshot(&self, peer: &str) -> BootstrapProgressSnapshot {
+        let divergent_buckets = self.divergent_buckets.load(Ordering::Relaxed);
+        let completed_buckets = self.completed_buckets.load(Ordering::Relaxed);
+        // Approximate: buckets vary in size, but it is the only completion
+        // denominator known up front (the digest exchange fixes the bucket
+        // count before the walk starts).
+        let percent_buckets_completed = (divergent_buckets > 0).then(|| {
+            ((completed_buckets.min(divergent_buckets) as f64 / divergent_buckets as f64) * 1000.0)
+                .round()
+                / 10.0
+        });
+        BootstrapProgressSnapshot {
+            peer: peer.to_string(),
+            phase: BootstrapPhase::from_u8(self.phase.load(Ordering::Relaxed)),
+            elapsed_seconds: self
+                .started_at
+                .map_or(0, |started_at| started_at.elapsed().as_secs()),
+            tombstones_applied: self.tombstones_applied.load(Ordering::Relaxed),
+            divergent_buckets,
+            completed_buckets,
+            pages_fetched: self.pages_fetched.load(Ordering::Relaxed),
+            artifacts_applied: self.artifacts_applied.load(Ordering::Relaxed),
+            artifacts_failed: self.artifacts_failed.load(Ordering::Relaxed),
+            percent_buckets_completed,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct BootstrapProgressSnapshot {
+    pub peer: String,
+    pub phase: BootstrapPhase,
+    pub elapsed_seconds: u64,
+    pub tombstones_applied: u64,
+    pub divergent_buckets: u64,
+    pub completed_buckets: u64,
+    pub pages_fetched: u64,
+    pub artifacts_applied: u64,
+    pub artifacts_failed: u64,
+    pub percent_buckets_completed: Option<f64>,
+}
+
+impl BootstrapProgressSnapshot {
+    /// One-line summary for the periodic bootstrap progress log.
+    pub fn describe(&self) -> String {
+        let elapsed = self.elapsed_seconds;
+        match self.phase {
+            BootstrapPhase::NamespaceTombstones => format!(
+                "bootstrap from {} in progress: applying namespace tombstones, {} applied, {elapsed}s elapsed",
+                self.peer, self.tombstones_applied
+            ),
+            BootstrapPhase::DigestReconcile => format!(
+                "bootstrap from {} in progress: exchanging manifest digests, {elapsed}s elapsed",
+                self.peer
+            ),
+            BootstrapPhase::ManifestFetch => {
+                let rate = if elapsed > 0 {
+                    self.artifacts_applied / elapsed
+                } else {
+                    self.artifacts_applied
+                };
+                let buckets = match self.percent_buckets_completed {
+                    Some(percent) => format!(
+                        "{}/{} diverged buckets (~{percent}%), ",
+                        self.completed_buckets, self.divergent_buckets
+                    ),
+                    // No digest exchange happened (peer predates the digest
+                    // endpoint), so the walk has no known denominator.
+                    None => String::new(),
+                };
+                format!(
+                    "bootstrap from {} in progress: {buckets}{} artifacts applied (~{rate}/s), {} failed, {} pages fetched, {elapsed}s elapsed",
+                    self.peer, self.artifacts_applied, self.artifacts_failed, self.pages_fetched
+                )
+            }
+        }
     }
 }
 
@@ -625,6 +828,104 @@ mod tests {
     use crate::test_support::test_context;
 
     use super::*;
+
+    #[test]
+    fn bootstrap_progress_snapshot_reports_phase_counters_and_percent() {
+        let progress = BootstrapProgress::new();
+        let initial = progress.snapshot("http://peer-a:7443");
+        assert_eq!(initial.phase, BootstrapPhase::NamespaceTombstones);
+        assert_eq!(initial.percent_buckets_completed, None);
+
+        progress.record_tombstone_applied();
+        progress.set_phase(BootstrapPhase::ManifestFetch);
+        progress.set_divergent_buckets(400);
+        for _ in 0..100 {
+            progress.record_bucket_completed();
+        }
+        progress.record_manifest_page();
+        progress.record_manifest_page();
+        progress.record_artifact_applied();
+        progress.record_artifact_failed();
+
+        let snapshot = progress.snapshot("http://peer-a:7443");
+        assert_eq!(snapshot.peer, "http://peer-a:7443");
+        assert_eq!(snapshot.phase, BootstrapPhase::ManifestFetch);
+        assert_eq!(snapshot.tombstones_applied, 1);
+        assert_eq!(snapshot.divergent_buckets, 400);
+        assert_eq!(snapshot.completed_buckets, 100);
+        assert_eq!(snapshot.percent_buckets_completed, Some(25.0));
+        assert_eq!(snapshot.pages_fetched, 2);
+        assert_eq!(snapshot.artifacts_applied, 1);
+        assert_eq!(snapshot.artifacts_failed, 1);
+        // Pages and applied artifacts both feed the no-progress watchdog.
+        assert_eq!(progress.ticks(), 3);
+    }
+
+    #[test]
+    fn bootstrap_progress_describe_covers_each_phase() {
+        let progress = BootstrapProgress::new();
+        progress.record_tombstone_applied();
+        assert_eq!(
+            progress.snapshot("http://peer-a:7443").describe(),
+            "bootstrap from http://peer-a:7443 in progress: applying namespace tombstones, 1 applied, 0s elapsed"
+        );
+
+        progress.set_phase(BootstrapPhase::DigestReconcile);
+        assert_eq!(
+            progress.snapshot("http://peer-a:7443").describe(),
+            "bootstrap from http://peer-a:7443 in progress: exchanging manifest digests, 0s elapsed"
+        );
+
+        progress.set_phase(BootstrapPhase::ManifestFetch);
+        progress.set_divergent_buckets(8);
+        progress.record_bucket_completed();
+        progress.record_manifest_page();
+        progress.record_artifact_applied();
+        progress.record_artifact_applied();
+        assert_eq!(
+            progress.snapshot("http://peer-a:7443").describe(),
+            "bootstrap from http://peer-a:7443 in progress: 1/8 diverged buckets (~12.5%), 2 artifacts applied (~2/s), 0 failed, 1 pages fetched, 0s elapsed"
+        );
+    }
+
+    #[test]
+    fn bootstrap_progress_describe_omits_buckets_when_no_digest_was_exchanged() {
+        let progress = BootstrapProgress::new();
+        progress.set_phase(BootstrapPhase::ManifestFetch);
+        progress.record_manifest_page();
+        progress.record_artifact_applied();
+        assert_eq!(
+            progress.snapshot("http://peer-a:7443").describe(),
+            "bootstrap from http://peer-a:7443 in progress: 1 artifacts applied (~1/s), 0 failed, 1 pages fetched, 0s elapsed"
+        );
+    }
+
+    #[tokio::test]
+    async fn bootstrap_progress_registry_tracks_inflight_passes() {
+        let context = test_context(|_| {}).await;
+        let progress = context.state.begin_bootstrap_progress("http://peer-b:7443");
+        context.state.begin_bootstrap_progress("http://peer-a:7443");
+        progress.set_phase(BootstrapPhase::ManifestFetch);
+
+        let snapshots = context.state.bootstrap_progress_snapshots();
+        assert_eq!(
+            snapshots
+                .iter()
+                .map(|snapshot| snapshot.peer.as_str())
+                .collect::<Vec<_>>(),
+            vec!["http://peer-a:7443", "http://peer-b:7443"]
+        );
+        assert_eq!(snapshots[1].phase, BootstrapPhase::ManifestFetch);
+
+        // A retried pass re-registers and restarts its counters.
+        progress.record_artifact_applied();
+        let fresh = context.state.begin_bootstrap_progress("http://peer-b:7443");
+        assert_eq!(fresh.snapshot("http://peer-b:7443").artifacts_applied, 0);
+
+        context.state.end_bootstrap_progress("http://peer-a:7443");
+        context.state.end_bootstrap_progress("http://peer-b:7443");
+        assert!(context.state.bootstrap_progress_snapshots().is_empty());
+    }
 
     #[test]
     fn readiness_state_advances_generation_and_reconciles_peer_sets() {

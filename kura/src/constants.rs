@@ -72,6 +72,12 @@ pub const ACTION_CACHE_TRUNK_SCAN_FACTOR: usize = 8;
 // is abandoned and retried. A large cold pull that keeps making progress runs to
 // completion however long that takes; only a genuinely stalled one is dropped.
 pub const DEFAULT_BOOTSTRAP_TIMEOUT_MS: u64 = 30 * 60 * 1000;
+// How often an in-flight bootstrap logs a progress line. Between the one-shot
+// divergence-scan log and completion, a large cold pull is otherwise log-silent
+// for its whole duration (possibly an hour+), which is externally
+// indistinguishable from a hang — the node is NotReady during that window, so
+// it is also absent from scraped metrics.
+pub const BOOTSTRAP_PROGRESS_LOG_INTERVAL_SECS: u64 = 30;
 pub const SEGMENT_FREE_SPACE_MARGIN: u64 = 2;
 pub const DEFAULT_USAGE_WINDOW_SECS: u64 = 60;
 pub const DEFAULT_USAGE_FLUSH_INTERVAL_MS: u64 = 60_000;
