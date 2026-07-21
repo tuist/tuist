@@ -37,6 +37,7 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
   alias Tuist.Tests.XcresultProcessing
 
   require Logger
+  require OpenTelemetry.Tracer
 
   @processing_attempts 5
   @finalization_snooze_seconds 300
@@ -164,7 +165,12 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
       temp_path = Path.join(System.tmp_dir!(), filename)
 
       try do
-        case Storage.download_to_file(storage_key, temp_path, account) do
+        download =
+          OpenTelemetry.Tracer.with_span "xcresult.download" do
+            Storage.download_to_file(storage_key, temp_path, account)
+          end
+
+        case download do
           {:ok, _} ->
             opts = [
               test_run_id: test_run_id,
@@ -191,7 +197,16 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
     end
   end
 
+  # Sibling of the parse spans in `XCResultProcessor`: this is the ClickHouse
+  # write half of the job, and splitting it out is what makes it possible to
+  # say whether a slow job was slow at parsing or at persisting.
   defp replace_test_run(parsed_data, args) do
+    OpenTelemetry.Tracer.with_span "xcresult.persist" do
+      do_replace_test_run(parsed_data, args)
+    end
+  end
+
+  defp do_replace_test_run(parsed_data, args) do
     test_modules = parsed_data["test_modules"] || []
 
     attrs =
