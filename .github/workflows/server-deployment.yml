@@ -859,6 +859,48 @@ jobs:
           # so dependent pods (Pending or otherwise) go with the Job.
           echo "$stale_jobs" | xargs -r kubectl -n "$NAMESPACE" delete job \
             --ignore-not-found --cascade=foreground --timeout=2m
+      - name: Adopt server ServiceAccount into the Helm release
+        # One-time migration guard. The server ServiceAccount used to render
+        # as a Helm *hook* (before-hook-creation), which churned its UID every
+        # deploy and broke bound-token auth. It is now a normal release
+        # resource, but a hook-created object carries no `meta.helm.sh/release-*`
+        # ownership annotations, so the first `helm upgrade` after the switch
+        # would fail its import check with "invalid ownership metadata". Stamp
+        # the ownership annotations + managed-by label (and strip the now-stale
+        # hook annotations) so helm adopts the live SA in place, preserving its
+        # UID. Runs in every environment because the production cascade deploys
+        # canary first — a production-only manual step would not gate it.
+        #
+        # Self-skipping: once helm owns the SA it re-stamps these annotations
+        # itself, so the step short-circuits with no API write on every deploy
+        # after the one that adopts a given cluster (and tolerates first
+        # installs where the SA does not exist). Safe to delete once every
+        # managed cluster has adopted. SA name is `server.serviceAccount.name`
+        # in values-managed-common.yaml.
+        run: |
+          set -euo pipefail
+          SA_NAME=tuist-server
+
+          if ! kubectl -n "$NAMESPACE" get serviceaccount "$SA_NAME" >/dev/null 2>&1; then
+            echo "ServiceAccount $SA_NAME not present yet (first install); nothing to adopt."
+            exit 0
+          fi
+
+          owner="$(kubectl -n "$NAMESPACE" get serviceaccount "$SA_NAME" \
+            -o jsonpath='{.metadata.annotations.meta\.helm\.sh/release-name}' 2>/dev/null || true)"
+          if [ "$owner" = "$HELM_RELEASE_NAME" ]; then
+            echo "ServiceAccount $SA_NAME already adopted by release $HELM_RELEASE_NAME; nothing to do."
+            exit 0
+          fi
+
+          echo "Adopting ServiceAccount $SA_NAME into Helm release $HELM_RELEASE_NAME."
+          kubectl -n "$NAMESPACE" annotate serviceaccount "$SA_NAME" \
+            "meta.helm.sh/release-name=$HELM_RELEASE_NAME" \
+            "meta.helm.sh/release-namespace=$NAMESPACE" --overwrite
+          kubectl -n "$NAMESPACE" label serviceaccount "$SA_NAME" \
+            app.kubernetes.io/managed-by=Helm --overwrite
+          kubectl -n "$NAMESPACE" annotate serviceaccount "$SA_NAME" \
+            helm.sh/hook- helm.sh/hook-weight- helm.sh/hook-delete-policy-
       - name: helm upgrade --install
         # App secrets never pass through --set: the chart runs in
         # `server.managedSecrets: true` mode, which reads DATABASE_URL /

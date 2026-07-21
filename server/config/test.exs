@@ -68,7 +68,11 @@ config :tuist, Tuist.Repo,
   pool: Sandbox,
   pool_size: System.schedulers_online() * 2,
   queue_target: 5000,
-  queue_interval: 1000
+  queue_interval: 1000,
+  # Tolerate transient statement stalls on oversubscribed CI runners where a
+  # single round-trip can block on the socket well past the 15s DBConnection
+  # default; a genuinely hung query still fails within this bound.
+  timeout: 60_000
 
 config :tuist, Tuist.Tasks, sync: true
 

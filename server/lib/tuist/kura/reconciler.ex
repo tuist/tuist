@@ -465,11 +465,18 @@ defmodule Tuist.Kura.Reconciler do
       {:ok, observed} ->
         record(server, derived_status(server, latest_status), observed, now())
 
-      {:error, :not_found} when latest_status == :succeeded ->
-        apply_current_manifest(server, desired)
-
       {:error, :not_found} ->
-        record(server, derived_status(server, latest_status), nil, now())
+        # A present-intent server (provisioning/active/failed) whose backing
+        # KuraInstance has vanished is drift to correct on its own, regardless
+        # of the latest deployment's status. Gating recreation on a `:succeeded`
+        # latest deployment let a transient control-plane error — e.g. an
+        # apiserver 401 during a rollout that marked the deployment `:failed` —
+        # silently and permanently disable self-heal: a failed latest deployment
+        # never flips back to `:succeeded` on its own, so a CR later deleted
+        # out-of-band was never recreated and the instance stranded. Re-applying
+        # is idempotent; a genuinely broken rollout surfaces its own error each
+        # tick instead of the instance disappearing.
+        apply_current_manifest(server, desired)
 
       {:error, reason} ->
         Logger.warning("[Kura.Reconciler] could not observe server #{server.id}: #{inspect(reason)}")
