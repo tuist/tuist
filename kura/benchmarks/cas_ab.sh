@@ -62,10 +62,18 @@ fi
 [ -n "${GITHUB_ACTIONS:-}" ] && echo "::add-mask::$TOKEN"
 
 # Backends: Kura always; legacy only if a distinct URL was provided.
-names=(kura); declare -A URLS=([kura]="$URL_KURA")
+# Plain function rather than an associative array: macOS ships bash 3.2, which
+# has no `declare -A`, and this repo's primary dev platform is macOS.
+names=(kura)
 if [ -n "$LEGACY_URL" ] && [ "$LEGACY_URL" != "$URL_KURA" ]; then
-  names+=(legacy); URLS[legacy]="$LEGACY_URL"
+  names+=(legacy)
 fi
+url_for() {
+  case "$1" in
+    kura) printf '%s' "$URL_KURA" ;;
+    legacy) printf '%s' "$LEGACY_URL" ;;
+  esac
+}
 
 Q="account_handle=${ACC}&project_handle=${PROJ}"
 AUTH=(-H "Authorization: Bearer $TOKEN")
@@ -81,9 +89,9 @@ cas_get() { curl -sS "${CT[@]}" -o /dev/null "${AUTH[@]}" -w '%{http_code} %{spe
 # than hanging until the job timeout.
 echo "== reachability =="
 for n in "${names[@]}"; do
-  probe=$(curl -sS --connect-timeout 10 --max-time 20 -o /dev/null -w '%{http_code} %{time_total}s' "${URLS[$n]}/up" 2>&1) \
-    && echo "  $n ${URLS[$n]}/up -> $probe" \
-    || { echo "  $n ${URLS[$n]}/up -> UNREACHABLE ($probe)"; [ "$n" = kura ] && { echo "Kura endpoint unreachable from this runner; aborting." >&2; exit 1; }; }
+  probe=$(curl -sS --connect-timeout 10 --max-time 20 -o /dev/null -w '%{http_code} %{time_total}s' "$(url_for "$n")/up" 2>&1) \
+    && echo "  $n $(url_for "$n")/up -> $probe" \
+    || { echo "  $n $(url_for "$n")/up -> UNREACHABLE ($probe)"; [ "$n" = kura ] && { echo "Kura endpoint unreachable from this runner; aborting." >&2; exit 1; }; }
 done
 echo
 
@@ -93,7 +101,7 @@ emit() { echo "$1"; echo "$1" >> "$SUMMARY"; }
 emit "## Kura CAS benchmark (public CI runner)"
 emit ""
 if [ "${#names[@]}" -gt 1 ]; then
-  emit "Kura \`$URL_KURA\` vs legacy \`${URLS[legacy]}\`, account \`${ACC}/${PROJ}\`."
+  emit "Kura \`$URL_KURA\` vs legacy \`$(url_for legacy)\`, account \`${ACC}/${PROJ}\`."
 else
   emit "Kura \`$URL_KURA\`, account \`${ACC}/${PROJ}\` (legacy A/B skipped)."
 fi
@@ -107,7 +115,7 @@ emit "| backend | mode | p50 | p90 | p99 |"
 emit "|---|---|---:|---:|---:|"
 head -c $((LATENCY_KB*1024)) /dev/urandom > "$TMP/small"
 for name in "${names[@]}"; do
-  base="${URLS[$name]}"
+  base="$(url_for "$name")"
   id="lat-$name-$RANDOM-$(date +%s%N)"
   cas_put "$base" "$TMP/small" "$id" >/dev/null
   args=(); for _ in $(seq 1 60); do args+=(-o /dev/null "$base/api/cache/cas/$id?$Q"); done
@@ -130,7 +138,7 @@ emit "|---|---|---:|---:|"
 for size in $SIZES_MB; do
   bytes=$((size*1024*1024))
   for name in "${names[@]}"; do
-    base="${URLS[$name]}"; ups=""; downs=""
+    base="$(url_for "$name")"; ups=""; downs=""
     for i in $(seq 1 "$ITERS"); do
       head -c "$bytes" /dev/urandom > "$TMP/blob"
       id="tp-${size}m-${name}-${i}-${RANDOM}-$(date +%s%N)"
@@ -150,7 +158,7 @@ emit "| backend | upload | download |"
 emit "|---|---:|---:|"
 head -c $((8*1024*1024)) /dev/urandom > "$TMP/p8"
 for name in "${names[@]}"; do
-  base="${URLS[$name]}"
+  base="$(url_for "$name")"
   ids=(); for k in $(seq 1 "$PARALLEL"); do ids+=("par-$name-$k-$RANDOM-$(date +%s%N)"); done
   s=$(date +%s.%N); for id in "${ids[@]}"; do cas_put "$base" "$TMP/p8" "$id" >/dev/null & done; wait; e=$(date +%s.%N)
   up=$(awk -v s="$s" -v e="$e" -v p="$PARALLEL" 'BEGIN{printf "%.1f", (p*8)/(e-s)}')
