@@ -895,6 +895,76 @@ k8s-monitoring:
             enabled = true
           }
         }
+        // annotationAutodiscovery only scrapes Ready pods: the upstream
+        // feature-annotation-autodiscovery template (_pods.alloy.tpl) hardcodes
+        // a __meta_kubernetes_pod_ready=true keep with no values knob to relax
+        // it. So a Kura replica that is Running but still bootstrapping (/ready
+        // 503s until the bootstrap gate passes) goes unscraped for the whole
+        // pull — exactly when its kura_bootstrap_* / memory metrics are
+        // diagnostic. /metrics, unlike /ready, is not readiness-gated, so
+        // scrape those pods here.
+        //
+        // Under the same job="kura" as the Ready scrape (not a separate job) so
+        // existing job="kura" queries/alerts keep covering the bootstrap
+        // window. The ready="false" label marks the window and keeps these
+        // series distinct from the Ready ones (which carry no ready label), so a
+        // transient double-match at the readiness flip can't collide.
+        discovery.kubernetes "tuist_kura_unready" {
+          role = "pod"
+          selectors {
+            role = "pod"
+            label = "app.kubernetes.io/name=kura"
+          }
+        }
+
+        discovery.relabel "tuist_kura_unready" {
+          targets = discovery.kubernetes.tuist_kura_unready.targets
+          rule {
+            source_labels = ["__meta_kubernetes_pod_phase", "__meta_kubernetes_pod_ready"]
+            separator = ";"
+            regex = "Running;false"
+            action = "keep"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_container_port_name"]
+            regex = "http"
+            action = "keep"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_ip"]
+            target_label = "__address__"
+            replacement = "$1:4000"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_namespace"]
+            target_label = "namespace"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_pod_name"]
+            target_label = "pod"
+          }
+          rule {
+            target_label = "container"
+            replacement = "kura"
+          }
+          rule {
+            target_label = "ready"
+            replacement = "false"
+          }
+        }
+
+        prometheus.scrape "tuist_kura_unready" {
+          targets = discovery.relabel.tuist_kura_unready.output
+          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver]
+          job_name = "kura"
+          scrape_interval = "30s"
+          scrape_timeout = "10s"
+
+          clustering {
+            enabled = true
+          }
+        }
+
     # filesystem-log-reader mounts /var/log so the DaemonSet can tail pod
     # logs from disk (matches the podLogsViaLoki feature).
     alloy-logs:
