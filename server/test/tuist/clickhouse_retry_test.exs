@@ -89,4 +89,65 @@ defmodule Tuist.ClickHouseRetryTest do
       assert :counters.get(counter, 1) == 1
     end
   end
+
+  describe "with_retry_result/1" do
+    test "returns the result on success without retrying" do
+      counter = :counters.new(1, [])
+
+      result =
+        ClickHouseRetry.with_retry_result(fn ->
+          :counters.add(counter, 1, 1)
+          {:ok, :result}
+        end)
+
+      assert result == {:ok, :result}
+      assert :counters.get(counter, 1) == 1
+    end
+
+    test "retries a returned transport error and succeeds" do
+      counter = :counters.new(1, [])
+
+      log =
+        capture_log(fn ->
+          assert ClickHouseRetry.with_retry_result(fn ->
+                   :counters.add(counter, 1, 1)
+
+                   if :counters.get(counter, 1) < 2 do
+                     {:error, %Mint.TransportError{reason: :closed}}
+                   else
+                     {:ok, :result}
+                   end
+                 end) == {:ok, :result}
+        end)
+
+      assert :counters.get(counter, 1) == 2
+      assert log =~ "retrying in"
+    end
+
+    test "gives up after exhausting retries and returns the error" do
+      counter = :counters.new(1, [])
+
+      capture_log(fn ->
+        assert {:error, %Mint.TransportError{}} =
+                 ClickHouseRetry.with_retry_result(fn ->
+                   :counters.add(counter, 1, 1)
+                   {:error, %Mint.TransportError{reason: :closed}}
+                 end)
+      end)
+
+      assert :counters.get(counter, 1) == 4
+    end
+
+    test "does not retry a ClickHouse query error" do
+      counter = :counters.new(1, [])
+
+      assert {:error, %Ch.Error{code: 241}} =
+               ClickHouseRetry.with_retry_result(fn ->
+                 :counters.add(counter, 1, 1)
+                 {:error, %Ch.Error{code: 241, message: "memory limit exceeded"}}
+               end)
+
+      assert :counters.get(counter, 1) == 1
+    end
+  end
 end

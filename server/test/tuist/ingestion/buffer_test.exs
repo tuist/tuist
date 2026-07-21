@@ -7,7 +7,103 @@ defmodule Tuist.Ingestion.BufferTest do
 
   setup do
     stub(IngestRepo, :query!, fn _sql, _params, _opts -> :ok end)
+    stub(IngestRepo, :query, fn _sql, _params, _opts -> {:ok, %{}} end)
     :ok
+  end
+
+  defp start_buffer(name) do
+    opts = [
+      name: name,
+      insert_sql: "INSERT INTO test_table FORMAT RowBinaryWithNamesAndTypes",
+      insert_opts: [command: :insert],
+      header: "test_header",
+      max_buffer_size: 1000,
+      flush_interval_ms: 60_000
+    ]
+
+    {:ok, pid} = Buffer.start_link(opts)
+    pid
+  end
+
+  describe "flush failures" do
+    test "raises to the caller instead of taking the buffer down with it" do
+      pid = start_buffer(:test_buffer_flush_error)
+      Mimic.allow(IngestRepo, self(), pid)
+
+      stub(IngestRepo, :query, fn _sql, _params, _opts ->
+        {:error, %Ch.Error{code: 241, message: "(total) memory limit exceeded"}}
+      end)
+
+      GenServer.cast(pid, {:insert, "row"})
+
+      assert_raise RuntimeError, ~r/memory limit exceeded/, fn -> Buffer.flush(pid) end
+
+      # The whole point: one bad insert must not evict every other producer.
+      assert Process.alive?(pid)
+
+      GenServer.stop(pid)
+    end
+
+    test "keeps serving callers after a failed flush" do
+      pid = start_buffer(:test_buffer_recovers)
+      Mimic.allow(IngestRepo, self(), pid)
+
+      stub(IngestRepo, :query, fn _sql, _params, _opts ->
+        {:error, %Ch.Error{code: 241, message: "boom"}}
+      end)
+
+      GenServer.cast(pid, {:insert, "row"})
+      assert_raise RuntimeError, fn -> Buffer.flush(pid) end
+
+      stub(IngestRepo, :query, fn _sql, _params, _opts -> {:ok, %{}} end)
+      GenServer.cast(pid, {:insert, "row"})
+
+      assert Buffer.flush(pid) == :ok
+
+      GenServer.stop(pid)
+    end
+
+    test "a failing periodic flush drops the batch without crashing" do
+      pid = start_buffer(:test_buffer_tick_error)
+      Mimic.allow(IngestRepo, self(), pid)
+
+      stub(IngestRepo, :query, fn _sql, _params, _opts ->
+        {:error, %Ch.Error{code: 241, message: "boom"}}
+      end)
+
+      GenServer.cast(pid, {:insert, "row"})
+      send(pid, :tick)
+
+      state = :sys.get_state(pid)
+      assert state.buffer == []
+      assert state.buffer_size == 0
+      assert Process.alive?(pid)
+
+      GenServer.stop(pid)
+    end
+  end
+
+  describe "bounded waits" do
+    test "flush/2 gives up rather than waiting forever on a stalled ClickHouse" do
+      pid = start_buffer(:test_buffer_timeout)
+      Mimic.allow(IngestRepo, self(), pid)
+
+      stub(IngestRepo, :query, fn _sql, _params, _opts ->
+        Process.sleep(5_000)
+        {:ok, %{}}
+      end)
+
+      GenServer.cast(pid, {:insert, "row"})
+
+      # An `:infinity` wait here is what let a stalled ClickHouse park every
+      # producer on the node indefinitely, with nothing surfacing anywhere.
+      assert catch_exit(Buffer.flush(pid, 50))
+
+      # Still mid-sleep, so it can't be stopped gracefully; unlink first so
+      # killing it doesn't take the test process with it.
+      Process.unlink(pid)
+      Process.exit(pid, :kill)
+    end
   end
 
   describe "start_link/1" do

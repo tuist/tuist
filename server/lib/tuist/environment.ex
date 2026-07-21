@@ -1149,6 +1149,36 @@ defmodule Tuist.Environment do
     end
   end
 
+  # Per-query memory ceiling (in bytes) for the write path. The read path has
+  # had one since it was introduced; `IngestRepo` had none, so a materialized
+  # view that aggregates on insert could walk the whole server up to its
+  # `(total)` ceiling and let OvercommitTracker kill unrelated queries. A
+  # per-query cap turns that into a `(for query)` failure isolated to the
+  # offending insert, which the caller retries. Lower than the read ceiling:
+  # buffered inserts are bounded by `max_buffer_size`, so a write needing
+  # gigabytes means a view is misbehaving, and failing it early is the point.
+  def clickhouse_write_max_memory_usage_bytes(secrets \\ secrets()) do
+    case get([:clickhouse, :write_max_memory_usage_bytes], secrets) do
+      value when is_binary(value) -> String.to_integer(value)
+      _ -> 2 * 1024 * 1024 * 1024
+    end
+  end
+
+  # Upper bound (in milliseconds) on how long a caller waits for an ingestion
+  # buffer flush. These calls used to be `:infinity`, so a ClickHouse stall
+  # blocked every producer on the node forever: no crash, no error, no
+  # telemetry, and on the xcresult processor no way back short of a redeploy.
+  # A bounded wait turns that into a failed, retryable job that surfaces in
+  # Sentry. Generous by default — a buffer flush is capped at
+  # `max_buffer_size` and normally completes in well under a second, so this
+  # only trips when something is genuinely wrong.
+  def clickhouse_flush_timeout_ms(secrets \\ secrets()) do
+    case get([:clickhouse, :flush_timeout_ms], secrets) do
+      value when is_binary(value) -> String.to_integer(value)
+      _ -> 60_000
+    end
+  end
+
   @doc """
   Returns additional Finch pools from the TUIST_ADDITIONAL_FINCH_POOLS environment variable.
 

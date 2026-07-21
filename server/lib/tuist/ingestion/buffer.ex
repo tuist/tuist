@@ -1,8 +1,28 @@
 defmodule Tuist.Ingestion.Buffer do
-  @moduledoc false
+  @moduledoc """
+  Batches RowBinary payloads and flushes them to ClickHouse.
+
+  One named process per destination table, shared by every producer on the
+  node, which makes its failure modes everyone's failure modes:
+
+    * Callers wait a bounded time, never `:infinity`. An unbounded wait meant a
+      stalled ClickHouse silently parked every producer on the node with no
+      crash, no error and no telemetry — on the xcresult processor that
+      presented as a queue that had simply stopped, with healthy-looking pods,
+      recoverable only by redeploying.
+
+    * A failed flush is reported back to the caller instead of raising inside
+      the process. Raising here killed the buffer *and* every unrelated caller
+      blocked on it, turning one bad insert into a node-wide outage. Now the
+      requesting caller fails (its job retries) and everyone else is untouched.
+
+  `flush/2` still raises on failure so callers keep today's fail-the-job
+  semantics; what changed is that the buffer survives.
+  """
 
   use GenServer
 
+  alias Tuist.ClickHouseRetry
   alias Tuist.IngestRepo
 
   require Logger
@@ -11,16 +31,27 @@ defmodule Tuist.Ingestion.Buffer do
     GenServer.start_link(__MODULE__, opts, name: Keyword.fetch!(opts, :name))
   end
 
-  def insert(server, row_binary) do
+  def insert(server, row_binary, timeout \\ flush_timeout_ms()) do
     if sync_writes?() do
-      GenServer.call(server, {:insert_and_flush, row_binary}, :infinity)
+      server
+      |> GenServer.call({:insert_and_flush, row_binary}, timeout)
+      |> raise_on_flush_error(server)
     else
       GenServer.cast(server, {:insert, row_binary})
     end
   end
 
-  def flush(server) do
-    GenServer.call(server, :flush, :infinity)
+  def flush(server, timeout \\ flush_timeout_ms()) do
+    server
+    |> GenServer.call(:flush, timeout)
+    |> raise_on_flush_error(server)
+  end
+
+  defp raise_on_flush_error(:ok, _server), do: :ok
+
+  defp raise_on_flush_error({:error, error}, server) do
+    raise RuntimeError,
+      message: "Failed to flush #{inspect(server)} buffer to ClickHouse: #{Exception.message(error)}"
   end
 
   @impl true
@@ -57,7 +88,7 @@ defmodule Tuist.Ingestion.Buffer do
     if state.buffer_size >= state.max_buffer_size do
       Logger.notice("#{state.name} buffer full, flushing to ClickHouse")
       Process.cancel_timer(state.timer)
-      do_flush(state)
+      log_flush_error(do_flush(state), state)
       new_timer = Process.send_after(self(), :tick, state.flush_interval_ms)
       {:noreply, %{state | buffer: [], timer: new_timer, buffer_size: 0}}
     else
@@ -67,7 +98,7 @@ defmodule Tuist.Ingestion.Buffer do
 
   @impl true
   def handle_info(:tick, state) do
-    do_flush(state)
+    log_flush_error(do_flush(state), state)
     timer = Process.send_after(self(), :tick, state.flush_interval_ms)
     {:noreply, %{state | buffer: [], buffer_size: 0, timer: timer}}
   end
@@ -80,23 +111,22 @@ defmodule Tuist.Ingestion.Buffer do
         buffer_size: state.buffer_size + IO.iodata_length(row_binary)
     }
 
-    do_flush(state)
-    {:reply, :ok, %{state | buffer: [], buffer_size: 0}}
+    {:reply, do_flush(state), %{state | buffer: [], buffer_size: 0}}
   end
 
   @impl true
   def handle_call(:flush, _from, state) do
     %{timer: timer, flush_interval_ms: flush_interval_ms} = state
     Process.cancel_timer(timer)
-    do_flush(state)
+    result = do_flush(state)
     new_timer = Process.send_after(self(), :tick, flush_interval_ms)
-    {:reply, :ok, %{state | buffer: [], buffer_size: 0, timer: new_timer}}
+    {:reply, result, %{state | buffer: [], buffer_size: 0, timer: new_timer}}
   end
 
   @impl true
   def terminate(_reason, %{name: name} = state) do
     Logger.notice("Flushing #{name} buffer before shutdown...")
-    do_flush(state)
+    log_flush_error(do_flush(state), state)
   end
 
   defp do_flush(state) do
@@ -111,11 +141,38 @@ defmodule Tuist.Ingestion.Buffer do
 
     case buffer do
       [] ->
-        nil
+        :ok
 
       _not_empty ->
         Logger.notice("Flushing #{buffer_size} byte(s) RowBinary from #{name}")
-        IngestRepo.with_retry(fn -> IngestRepo.query!(insert_sql, [header | buffer], insert_opts) end)
+
+        case ClickHouseRetry.with_retry_result(fn ->
+               IngestRepo.query(insert_sql, [header | buffer], insert_opts)
+             end) do
+          {:ok, _result} -> :ok
+          {:error, _error} = error -> error
+        end
+    end
+  end
+
+  # Flushes with no caller to answer to — the periodic tick, a full buffer, and
+  # shutdown. There is nobody to hand the error to and crashing would take out
+  # every unrelated producer waiting on this process, so the batch is dropped
+  # and the failure is recorded. Dropping matches what the previous raise-based
+  # behaviour did in practice (the supervisor restarted with an empty buffer),
+  # minus the collateral damage.
+  defp log_flush_error(:ok, _state), do: :ok
+
+  defp log_flush_error({:error, error}, %{name: name, buffer_size: buffer_size}) do
+    Logger.error("Dropped #{buffer_size} byte(s) from #{name}: #{Exception.message(error)}")
+
+    :ok
+  end
+
+  defp flush_timeout_ms do
+    case Application.get_env(:tuist, IngestRepo) do
+      config when is_list(config) -> Keyword.get(config, :flush_timeout_ms, 60_000)
+      _ -> 60_000
     end
   end
 

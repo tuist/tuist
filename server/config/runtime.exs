@@ -306,8 +306,14 @@ if Enum.member?([:prod, :stag, :can, :preview], env) do
     queue_interval: Tuist.Environment.clickhouse_queue_interval(secrets),
     flush_interval_ms: Tuist.Environment.clickhouse_flush_interval_ms(secrets),
     max_buffer_size: Tuist.Environment.clickhouse_max_buffer_size(secrets),
+    flush_timeout_ms: Tuist.Environment.clickhouse_flush_timeout_ms(secrets),
     settings: [
-      max_threads: Tuist.Environment.clickhouse_write_max_threads(secrets)
+      max_threads: Tuist.Environment.clickhouse_write_max_threads(secrets),
+      # Mirrors the read path's per-query ceiling. Without it an insert that
+      # fans out into an expensive materialized view keeps allocating until it
+      # hits the server's `(total)` limit, at which point OvercommitTracker
+      # picks a victim query that need not be this one.
+      max_memory_usage: Tuist.Environment.clickhouse_write_max_memory_usage_bytes(secrets)
     ],
     transport_opts: [
       keepalive: true,
