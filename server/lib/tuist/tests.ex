@@ -1200,21 +1200,65 @@ defmodule Tuist.Tests do
     test_case_ids = slim_results |> Enum.map(& &1.test_case_id) |> Enum.uniq()
     {min_ran_at, max_ran_at} = ran_at_bounds(slim_results)
 
-    # `test_case_runs` is ReplacingMergeTree; re-inserts (e.g. flaky flag
-    # updates) leave multiple versions per id until background merges
-    # collapse them. Dedupe in Elixir by `desc: inserted_at` rather than
-    # paying FINAL's full-part scan and in-memory merge for the page-sized
-    # set of ids that the slim MV already narrowed us to.
-    from(tcr in TestCaseRun,
-      where: tcr.project_id in ^project_ids,
-      where: tcr.test_case_id in ^test_case_ids,
-      where: tcr.ran_at >= ^min_ran_at,
-      where: tcr.ran_at <= ^max_ran_at,
-      where: tcr.id in ^ids,
-      order_by: [desc: tcr.inserted_at]
-    )
-    |> ClickHouseRepo.all()
-    |> Enum.uniq_by(& &1.id)
+    base_query =
+      from(tcr in TestCaseRun,
+        where: tcr.project_id in ^project_ids,
+        where: tcr.test_case_id in ^test_case_ids,
+        where: tcr.ran_at >= ^min_ran_at,
+        where: tcr.ran_at <= ^max_ran_at,
+        where: tcr.id in ^ids,
+        order_by: [desc: tcr.inserted_at]
+      )
+
+    results =
+      case inserted_at_by_id(slim_results) do
+        nil ->
+          ClickHouseRepo.all(base_query)
+
+        inserted_at_by_id ->
+          inserted_ats = inserted_at_by_id |> Map.values() |> Enum.uniq()
+
+          versioned_results =
+            base_query
+            |> where([tcr], tcr.inserted_at in ^inserted_ats)
+            |> ClickHouseRepo.all()
+
+          versioned_results =
+            Enum.filter(versioned_results, fn result ->
+              Map.fetch!(inserted_at_by_id, result.id) == result.inserted_at
+            end)
+
+          found_ids = MapSet.new(versioned_results, & &1.id)
+          missing_ids = Enum.reject(ids, &MapSet.member?(found_ids, &1))
+
+          missing_results =
+            case missing_ids do
+              [] ->
+                []
+
+              missing_ids ->
+                base_query
+                |> where([tcr], tcr.id in ^missing_ids)
+                |> ClickHouseRepo.all()
+            end
+
+          versioned_results ++ missing_results
+      end
+
+    # `test_case_runs` is ReplacingMergeTree; re-inserts leave multiple
+    # versions per id until background merges collapse them. The timestamp
+    # filter normally selects the versions returned by the slim view and
+    # prunes unrelated parts. Missing ids are retried without it so reads
+    # remain correct if two replicas have temporarily different visibility.
+    Enum.uniq_by(results, & &1.id)
+  end
+
+  defp inserted_at_by_id(slim_results) do
+    versions = Enum.map(slim_results, &{&1.id, Map.get(&1, :inserted_at)})
+
+    if Enum.all?(versions, fn {_id, inserted_at} -> not is_nil(inserted_at) end) do
+      Map.new(versions)
+    end
   end
 
   defp ran_at_bounds([first | rest]) do
