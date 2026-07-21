@@ -170,6 +170,12 @@ head -c $((8*1024*1024)) /dev/urandom > "$TMP/p8"
 for name in "${names[@]}"; do
   base="$(url_for "$name")"
   ids=(); for k in $(seq 1 "$PARALLEL"); do ids+=("par-$name-$k-$RANDOM-$(date +%s)"); done
+  download_id="par-download-$name-$RANDOM-$(date +%s)"
+  read -r seed_code _ < <(cas_put "$base" "$TMP/p8" "$download_id")
+  if [ "$seed_code" != 204 ]; then
+    echo "failed to seed aggregate download object for $name (response $seed_code)" >&2
+    exit 1
+  fi
 
   s=$(now_seconds)
   put_pids=()
@@ -186,7 +192,7 @@ for name in "${names[@]}"; do
   s=$(now_seconds)
   get_pids=()
   for k in $(seq 1 "$PARALLEL"); do
-    cas_get "$base" "${ids[$((k-1))]}" > "$TMP/par-get-$name-$k" &
+    cas_get "$base" "$download_id" > "$TMP/par-get-$name-$k" &
     get_pids+=("$!")
   done
   for pid in "${get_pids[@]}"; do wait "$pid" || true; done
