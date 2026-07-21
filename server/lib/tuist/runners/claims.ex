@@ -338,14 +338,14 @@ defmodule Tuist.Runners.Claims do
   end
 
   @doc """
-  Deletes claims whose workflow_job already has a recorded completion
-  and whose `claimed_at` predates `threshold`. Returns the row count.
+  Deletes claims with nothing left to run: every workflow_job attached to
+  the claim has a recorded completion, and `claimed_at` predates
+  `threshold`. Returns the row count.
 
-  A `runner_job_completions` row is proof the job is over: it is written
-  from the `workflow_job.completed` webhook, which is the same handler
-  that releases the claim. A claim still present alongside one is a slot
-  held for a job that finished, and every other recovery path is blind
-  to it:
+  A `runner_job_completions` row is proof a job is over. It is written
+  from the `workflow_job.completed` webhook, the same handler that
+  releases the claim, so a claim still present alongside one is a slot
+  held for work that finished. Every other recovery path is blind to it:
 
     * `list_stale/1` filters `lifecycle_state = 'claimed'`, and these
       sit in `running`.
@@ -354,9 +354,24 @@ defmodule Tuist.Runners.Claims do
       that state, so the scan never returns it.
 
   That leaves the row consuming the account's concurrency budget
-  permanently. Because the completion is independent proof rather than
-  a timeout, this can safely release `running` claims that the
-  time-based sweep must not touch.
+  permanently. Because a completion is independent proof rather than a
+  timeout, this can safely release `running` claims that the time-based
+  sweep must not touch.
+
+  ## Why the claimed job alone is not enough
+
+  GitHub hands a queued job to any label-eligible runner, so the Pod that
+  *claimed* job A is often executing job B (`executed_workflow_job_id`,
+  learned from `workflow_job.in_progress`). Keying release on the claimed
+  job's completion alone would delete a live runner's reservation the
+  moment A finished elsewhere, pushing the account over cap while B is
+  still running. This is the same trap `complete/1` warns about and that
+  `executing?/1` guards for the queued-side recovery.
+
+  So the claim is released only when the claimed job AND the executed job
+  (when the runner took one) are both complete. A runner minted for a
+  single-shot JIT runs at most one job, so those two cover everything the
+  claim can be holding the slot for.
 
   `threshold` only avoids racing the webhook's own release between the
   completion insert and the delete; it is not the staleness signal.
@@ -367,7 +382,11 @@ defmodule Tuist.Runners.Claims do
     {count, _} =
       Repo.delete_all(
         from(c in Claim,
-          where: c.claimed_at < ^threshold and c.workflow_job_id in subquery(completed)
+          where: c.claimed_at < ^threshold,
+          where: c.workflow_job_id in subquery(completed),
+          where:
+            is_nil(c.executed_workflow_job_id) or
+              c.executed_workflow_job_id in subquery(completed)
         )
       )
 

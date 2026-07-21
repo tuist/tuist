@@ -578,6 +578,43 @@ defmodule Tuist.Runners.ClaimsTest do
       assert remaining == [7104]
     end
 
+    # The trap this nearly walked into. GitHub hands a queued job to any
+    # label-eligible runner, so the Pod that claimed job A is frequently
+    # executing job B. Releasing on A's completion alone would delete a
+    # live runner's reservation mid-job and push the account over cap.
+    # Production had two claims in exactly this shape.
+    test "leaves a claim whose runner is executing an unfinished job" do
+      account = account_fixture()
+
+      assert {:ok, _} = Claims.attempt(7201, account.id, "fleet-a", "pod-1", @linux_resources)
+      assert :ok = Claims.mark_running(7201, "runner-busy")
+      assert :mismatch = Claims.record_execution("runner-busy", 7299, account.id)
+
+      # The CLAIMED job finished; the job the runner actually took has not.
+      completion_fixture(7201, account)
+      backdate_claim(7201, 86_400)
+
+      assert Claims.release_completed(DateTime.add(DateTime.utc_now(), -300, :second)) == 0
+      assert Repo.exists?(from(c in Claim, where: c.workflow_job_id == 7201))
+    end
+
+    # Once the executed job finishes too, the runner has nothing left and
+    # the slot is genuinely leaked, so it must be reclaimed.
+    test "releases once both the claimed and executed jobs are complete" do
+      account = account_fixture()
+
+      assert {:ok, _} = Claims.attempt(7202, account.id, "fleet-a", "pod-1", @linux_resources)
+      assert :ok = Claims.mark_running(7202, "runner-done")
+      assert :mismatch = Claims.record_execution("runner-done", 7298, account.id)
+
+      completion_fixture(7202, account)
+      completion_fixture(7298, account)
+      backdate_claim(7202, 600)
+
+      assert Claims.release_completed(DateTime.add(DateTime.utc_now(), -300, :second)) == 1
+      refute Repo.exists?(from(c in Claim, where: c.workflow_job_id == 7202))
+    end
+
     test "is a no-op when nothing is held past a completion" do
       assert Claims.release_completed(DateTime.utc_now()) == 0
     end
