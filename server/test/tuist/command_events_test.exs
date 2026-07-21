@@ -902,8 +902,8 @@ defmodule Tuist.CommandEventsTest do
     end
   end
 
-  describe "get_yesterdays_remote_cache_hits_count_for_customer/1" do
-    test "counts only yesterday's events for the customer's projects" do
+  describe "remote_cache_hits_count_for_customer/3" do
+    test "counts only events in the supplied period for the customer's projects" do
       # Given
       %{account: %{id: account_id}, id: user_id} =
         AccountsFixtures.user_fixture(customer_id: "cust_" <> UUIDv7.generate())
@@ -914,8 +914,8 @@ defmodule Tuist.CommandEventsTest do
       project = ProjectsFixtures.project_fixture(account_id: account_id)
       other_project = ProjectsFixtures.project_fixture(account_id: other_account_id)
 
-      today = ~U[2025-01-02 12:00:00Z]
-      stub(DateTime, :utc_now, fn -> today end)
+      period_start = ~U[2025-01-01 00:00:00Z]
+      period_end = ~U[2025-01-02 00:00:00Z]
 
       CommandEventsFixtures.command_event_fixture(
         name: "generate",
@@ -951,9 +951,18 @@ defmodule Tuist.CommandEventsTest do
         ran_at: ~U[2024-12-31 23:59:59Z]
       )
 
+      # An event exactly at the next period boundary belongs to the next period.
+      CommandEventsFixtures.command_event_fixture(
+        name: "generate",
+        project_id: project.id,
+        user_id: user_id,
+        remote_cache_target_hits: ["E"],
+        ran_at: period_end
+      )
+
       # When
       customer_id = Repo.get!(Tuist.Accounts.Account, account_id).customer_id
-      count = CommandEvents.get_yesterdays_remote_cache_hits_count_for_customer(customer_id)
+      count = CommandEvents.remote_cache_hits_count_for_customer(customer_id, period_start, period_end)
 
       # Then
       assert count == 2

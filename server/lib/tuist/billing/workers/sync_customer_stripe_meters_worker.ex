@@ -1,32 +1,71 @@
 defmodule Tuist.Billing.Workers.SyncCustomerStripeMetersWorker do
   @moduledoc """
-  A daily job that updates a customer's billing meters in Stripe with yesterday's usage metrics.
+  Snapshots a customer's meter values for the parent billing period
+  and fans out one Stripe reporting job per meter.
   """
   use Oban.Worker
 
   alias Tuist.Accounts
   alias Tuist.Billing
+  alias Tuist.Billing.Workers.SyncCustomerStripeMeterWorker
 
   @impl Oban.Worker
+  def perform(%Oban.Job{
+        args: %{"customer_id" => customer_id, "period_start" => period_start, "period_end" => period_end}
+      }) do
+    sync(
+      customer_id,
+      DateTime.from_unix!(period_start, :microsecond),
+      DateTime.from_unix!(period_end, :microsecond)
+    )
+  end
 
+  # Transitional clause for jobs enqueued by the pre-fan-out parent worker,
+  # which carried only the customer id. During a rolling deploy those jobs
+  # can still be draining from the queue; without this clause a new-code node
+  # would raise FunctionClauseError on them, exhaust their retries, and
+  # silently drop a day of usage for that customer. We recompute the period
+  # the same way the parent now does (yesterday's half-open day). Safe to
+  # remove once no pre-deploy jobs remain in the queue.
   def perform(%Oban.Job{args: %{"customer_id" => customer_id}}) do
-    date = Timex.format!(Tuist.Time.utc_now(), "{YYYY}.{0M}.{D}")
-    idempotency_key = "#{customer_id}-#{date}"
+    period_end = Timex.beginning_of_day(DateTime.utc_now())
+    period_start = Timex.shift(period_end, days: -1)
+    sync(customer_id, period_start, period_end)
+  end
 
+  defp sync(customer_id, %DateTime{} = period_start, %DateTime{} = period_end) do
     if Tuist.Environment.error_tracking_enabled?() do
       Sentry.Context.set_extra_context(%{
         customer_id: customer_id,
-        date: date
+        period_start: period_start,
+        period_end: period_end
       })
     end
 
     {:ok, account} = Accounts.get_account_from_customer_id(customer_id)
 
-    {:ok, _} = Billing.update_remote_cache_hit_meter(customer_id, idempotency_key)
+    include_qa = FunWithFlags.enabled?(:qa_billing_enabled, for: account)
 
-    if FunWithFlags.enabled?(:qa_billing_enabled, for: account) do
-      {:ok, _} = Billing.update_llm_token_meters(customer_id, idempotency_key)
-    end
+    # Snapshot each service period the day covers separately. A day that
+    # straddles a subscription renewal produces two sets of jobs, each
+    # reporting only the usage its own period earned, so no event ever
+    # crosses an invoice boundary.
+    account
+    |> Billing.usage_windows(period_start, period_end)
+    |> Enum.flat_map(fn {window_start, window_end} ->
+      account
+      |> Billing.customer_meter_values(window_start, window_end, include_qa: include_qa)
+      |> Enum.map(fn meter ->
+        SyncCustomerStripeMeterWorker.new(%{
+          customer_id: customer_id,
+          event_name: meter.event_name,
+          value: meter.value,
+          period_start: DateTime.to_unix(window_start, :microsecond),
+          period_end: DateTime.to_unix(window_end, :microsecond)
+        })
+      end)
+    end)
+    |> Oban.insert_all()
 
     :ok
   end

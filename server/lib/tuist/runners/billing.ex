@@ -39,14 +39,41 @@ defmodule Tuist.Runners.Billing do
   or hours happens at the formatting boundary. Daily series use
   the same interval-intersection but bucketed per UTC day, so a
   session that spans midnight contributes to both days.
+
+  ## Stripe reporting
+
+  Usage is metered as normalized compute units, one Stripe meter
+  per platform. A session's elapsed milliseconds are scaled by the
+  cost-weighted multiplier frozen on the row when it opened, so the
+  2 vCPU / 8 GB baseline reports one unit-millisecond per elapsed
+  millisecond and larger shapes report proportionally more. The
+  meter receives compute-unit milliseconds and its price transforms
+  60,000 units into one billed baseline-minute.
+
+  Two platform meters rather than one meter per exact shape: Stripe
+  caps classic subscriptions at 20 items, and a per-shape catalog
+  would burn one item per shape plus a Meter, Price, config key,
+  and backfill for every shape ever added. Two meters keep the
+  macOS premium independently priceable in Stripe while the
+  multiplier stays purely about resources. Raw shape and raw
+  milliseconds stay on the row, so analytics lose nothing.
+
+  Usage is always reported gross. Prepaid runner access is a
+  money-denominated Stripe billing credit grant scoped to the
+  runner meter prices, rather than minutes subtracted in Tuist.
+  That keeps mixed machine types fungible without pretending that
+  every machine minute has the same value.
   """
 
   import Ecto.Query
+  import Tuist.Runners.Catalog, only: [valid_machine_resources: 3]
 
   alias Tuist.Repo
   alias Tuist.Runners.Analytics
   alias Tuist.Runners.Catalog
   alias Tuist.Runners.RunnerSession
+
+  require Logger
 
   @default_window_days 30
 
@@ -152,6 +179,106 @@ defmodule Tuist.Runners.Billing do
       %{total_ms: ms} when is_integer(ms) -> ms
       _ -> 0
     end
+  end
+
+  @doc """
+  Returns billable milliseconds grouped by immutable machine
+  specification for the requested window, each entry carrying the
+  cost-weighted `billing_multiplier` that shape was admitted under.
+
+  New sessions persist their resource selection and multiplier
+  directly. Rows created during the rollout can have neither; those
+  fall back to the fleet catalog. An unresolvable historical fleet is
+  omitted with a warning so billing remains biased toward
+  undercharging.
+  """
+  def compute_milliseconds_by_machine(account_id, %DateTime{} = period_start, %DateTime{} = period_end, opts \\ [])
+      when is_integer(account_id) do
+    now = DateTime.utc_now()
+
+    account_id
+    |> sessions_overlapping(period_start, period_end)
+    |> scope(opts)
+    |> group_by([s], [s.fleet_name, s.platform, s.vcpus, s.memory_gb, s.billing_multiplier])
+    |> select([s], %{
+      fleet_name: s.fleet_name,
+      platform: s.platform,
+      vcpus: s.vcpus,
+      memory_gb: s.memory_gb,
+      billing_multiplier: s.billing_multiplier,
+      total_ms:
+        fragment(
+          """
+          COALESCE(SUM(GREATEST(
+            0,
+            (EXTRACT(EPOCH FROM (
+              LEAST(
+                COALESCE(?, ?),
+                ?,
+                ? + make_interval(secs => ?)
+              ) - GREATEST(?, ?)
+            )) * 1000)::bigint
+          )), 0)::bigint
+          """,
+          s.ended_at,
+          ^now,
+          ^period_end,
+          s.started_at,
+          ^@max_session_lifetime_seconds,
+          s.started_at,
+          ^period_start
+        )
+    })
+    |> Repo.all()
+    |> Enum.reduce(%{}, &merge_machine_usage/2)
+    |> Enum.map(fn {{platform, vcpus, memory_gb, multiplier}, total_ms} ->
+      %{
+        platform: platform,
+        vcpus: vcpus,
+        memory_gb: memory_gb,
+        billing_multiplier: multiplier,
+        total_ms: total_ms
+      }
+    end)
+    |> Enum.sort_by(&{&1.platform, &1.vcpus, &1.memory_gb, &1.billing_multiplier})
+  end
+
+  @doc """
+  Billable compute-unit milliseconds grouped by platform for the
+  requested window.
+
+  This is what Stripe is metered on. Each machine group's elapsed
+  milliseconds are scaled by the cost-weighted multiplier frozen on its
+  sessions, so a 4 vCPU / 16 GB machine contributes twice the units of
+  the 2 vCPU / 8 GB baseline for the same wall-clock time. Collapsing
+  to two platform meters, instead of one per exact shape, keeps a
+  subscription at two runner items no matter how many shapes the
+  catalog grows to, and leaves the macOS premium to the per-platform
+  Stripe Price.
+
+  Weighted milliseconds truncate rather than round, keeping the same
+  under-bill bias the rest of this module holds to.
+  """
+  def compute_units_by_platform(account_id, %DateTime{} = period_start, %DateTime{} = period_end, opts \\ [])
+      when is_integer(account_id) do
+    account_id
+    |> compute_milliseconds_by_machine(period_start, period_end, opts)
+    |> Enum.reduce(%{}, fn usage, acc ->
+      Map.update(acc, usage.platform, compute_units(usage), &(&1 + compute_units(usage)))
+    end)
+    |> Enum.map(fn {platform, total_units} -> %{platform: platform, total_units: total_units} end)
+    |> Enum.sort_by(& &1.platform)
+  end
+
+  defp compute_units(%{total_ms: total_ms, billing_multiplier: multiplier}) do
+    div(total_ms * multiplier, Catalog.compute_unit_basis_points())
+  end
+
+  @doc """
+  Stable Stripe meter event name for a runner platform.
+  """
+  def meter_event_name(%{platform: platform}) when platform in [:linux, :macos] do
+    "runner_#{platform}_compute_unit_milliseconds"
   end
 
   @doc """
@@ -301,6 +428,38 @@ defmodule Tuist.Runners.Billing do
       where: is_nil(s.ended_at) or s.ended_at >= ^period_start
     )
   end
+
+  defp merge_machine_usage(row, usage) do
+    case resources_for_session(row) do
+      {:ok, %{platform: platform, vcpus: vcpus, memory_gb: memory_gb}} ->
+        multiplier = multiplier_for_session(row, platform, vcpus, memory_gb)
+        Map.update(usage, {platform, vcpus, memory_gb, multiplier}, row.total_ms, &(&1 + row.total_ms))
+
+      {:error, :invalid_resources} ->
+        Logger.warning(
+          "runners: omitting #{row.total_ms} billing milliseconds with unknown resources for fleet #{row.fleet_name}"
+        )
+
+        usage
+    end
+  end
+
+  defp resources_for_session(%{platform: platform, vcpus: vcpus, memory_gb: memory_gb})
+       when valid_machine_resources(platform, vcpus, memory_gb) do
+    {:ok, %{platform: platform, vcpus: vcpus, memory_gb: memory_gb}}
+  end
+
+  defp resources_for_session(%{fleet_name: fleet_name}), do: Catalog.resources_for_fleet(fleet_name)
+
+  # Sessions opened before the multiplier was persisted fall back to the
+  # current catalog weighting. That is the one case where a rate-card
+  # change can move an old session's price, and it is unavoidable: those
+  # rows never recorded what they were admitted under.
+  defp multiplier_for_session(%{billing_multiplier: multiplier}, _platform, _vcpus, _memory_gb)
+       when is_integer(multiplier) and multiplier > 0, do: multiplier
+
+  defp multiplier_for_session(_row, platform, vcpus, memory_gb),
+    do: Catalog.billing_multiplier(platform, vcpus, memory_gb)
 
   defp scope(query, opts) do
     query

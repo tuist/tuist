@@ -500,7 +500,7 @@ defmodule Tuist.Runners do
 
         case Jobs.record_claimed(candidate, sa_name, claim.claimed_at) do
           :ok ->
-            serve_claim(namespace, sa_name, fleet_name, candidate, claim)
+            serve_claim(namespace, sa_name, fleet_name, candidate, claim, resources)
 
           {:error, :completed} ->
             _ = Claims.release(candidate.workflow_job_id, claim.claimed_at)
@@ -699,7 +699,7 @@ defmodule Tuist.Runners do
   defp dispatch_outcome({:error, reason}) when is_atom(reason), do: Atom.to_string(reason)
   defp dispatch_outcome(_), do: "unknown"
 
-  defp serve_claim(namespace, sa_name, fleet_name, candidate, claim) do
+  defp serve_claim(namespace, sa_name, fleet_name, candidate, claim, resources) do
     case Accounts.get_account_by_id(candidate.account_id) do
       {:ok, account} ->
         pod_name = pod_name_from_sa(sa_name)
@@ -739,6 +739,9 @@ defmodule Tuist.Runners do
             workflow_job_id: candidate.workflow_job_id,
             account_id: candidate.account_id,
             fleet_name: Map.get(candidate, :fleet_name, fleet_name),
+            platform: resources.platform,
+            vcpus: resources.vcpus,
+            memory_gb: resources.memory_gb,
             pod_name: pod_name,
             runner_name: runner_name,
             repository: Map.get(candidate, :repository, ""),

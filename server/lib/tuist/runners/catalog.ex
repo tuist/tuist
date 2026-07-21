@@ -34,6 +34,60 @@ defmodule Tuist.Runners.Catalog do
   @platforms [:linux, :macos]
 
   @doc """
+  True when `platform` is a known runner platform and `vcpus`/`memory_gb`
+  are positive integers. Shared by the billing and session-tracking paths
+  so a machine spec accepted when a session opens is exactly the spec that
+  billing later meters.
+  """
+  defguard valid_machine_resources(platform, vcpus, memory_gb)
+           when platform in @platforms and is_integer(vcpus) and vcpus > 0 and
+                  is_integer(memory_gb) and memory_gb > 0
+
+  # One compute unit is the baseline shape: 2 vCPU / 8 GB. On a cloud bill
+  # roughly two thirds of a machine's cost is CPU and one third memory, so
+  #
+  #   units = 2/3 * (vcpus / 2) + 1/3 * (memory_gb / 8)
+  #         = (8 * vcpus + memory_gb) / 24
+  #
+  # which is exact at the baseline and stays integral in basis points for
+  # every shape that doubles from it.
+  @compute_unit_bp 10_000
+  @vcpu_weight 8
+  @shape_divisor 24
+
+  @doc """
+  Cost-weighted billing multiplier for a machine shape, in basis points
+  (10_000 = one compute unit per elapsed millisecond).
+
+  Runner usage is metered as normalized compute units rather than one
+  Stripe meter per exact `(platform, vcpus, memory_gb)` shape. A meter
+  per shape would make every shape a permanent subscription item, and
+  Stripe caps classic subscriptions at 20 items; adding a shape would
+  also mean a new Meter, Price, config key, and a backfill across
+  existing subscriptions. Multiplying elapsed time by an immutable
+  machine factor is still metering: Stripe keeps ownership of the
+  currency amount, tiers, discounts, taxes, and credits.
+
+  The multiplier deliberately encodes only resources. The macOS premium
+  lives in the per-platform Stripe Price, which is why there are two
+  platform meters rather than one global one; that keeps Linux and
+  macOS economics independently priceable without a shape explosion.
+
+  The value is persisted on the runner session when it opens (see
+  `Tuist.Runners.RunnerSessions.open/1`), so changing this function
+  cannot reprice usage that already happened.
+  """
+  def billing_multiplier(platform, vcpus, memory_gb) when valid_machine_resources(platform, vcpus, memory_gb) do
+    div(@compute_unit_bp * (@vcpu_weight * vcpus + memory_gb), @shape_divisor)
+  end
+
+  @doc """
+  Basis points that make up one compute unit. Callers convert weighted
+  milliseconds into compute-unit milliseconds by dividing by this.
+  """
+  def compute_unit_basis_points, do: @compute_unit_bp
+
+  @doc """
   All shapes for `platform`, deduped and sorted by
   `(vcpus, memory_gb)`. Returns `[]` when the corresponding config
   key is unset (both keys ship with a default in `config/config.exs`).

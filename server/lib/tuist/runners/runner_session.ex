@@ -16,6 +16,12 @@ defmodule Tuist.Runners.RunnerSession do
   schema "runner_sessions" do
     field :workflow_job_id, :integer
     field :fleet_name, :string
+    field :platform, Ecto.Enum, values: [:linux, :macos]
+    field :vcpus, :integer
+    field :memory_gb, :integer
+    # Cost-weighted machine factor in basis points, frozen at open time so
+    # a later rate-card change can't reprice usage that already happened.
+    field :billing_multiplier, :integer
     field :pod_name, :string, default: ""
     field :runner_name, :string, default: ""
     # The workflow_job GitHub actually ran on this runner, learned

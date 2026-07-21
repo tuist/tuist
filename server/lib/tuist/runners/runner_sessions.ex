@@ -4,12 +4,11 @@ defmodule Tuist.Runners.RunnerSessions do
 
   Two write paths:
 
-    * **Open** — `open/1`, called from
-      `Tuist.Runners.Jobs.record_claimed/3` at claim-win. Anchoring
-      the open here (rather than on the controller's Pod-create
-      event) keeps the warm pool's idle-poll time out of billing —
-      a session only exists for Pods that actually claimed a
-      customer workflow_job.
+    * **Open** — `open/1`, called from `Tuist.Runners` after runner
+      dispatch commits. Using the claim timestamp as the start
+      keeps the warm pool's idle-poll time out of billing, while
+      delaying the insert until dispatch succeeds avoids billing a
+      failed runner registration.
 
     * **Close** — `close_by_pod_name/2`, called from the
       runners-controller via `POST /api/internal/runners/pods/stopped`
@@ -42,37 +41,47 @@ defmodule Tuist.Runners.RunnerSessions do
   session bills longer than it ran."
   """
   import Ecto.Query
+  import Tuist.Runners.Catalog, only: [valid_machine_resources: 3]
 
   alias Tuist.Repo
+  alias Tuist.Runners.Catalog
   alias Tuist.Runners.RunnerSession
 
   require Logger
 
   @doc """
-  Open a billing session once dispatch has committed (JIT
-  minted + `running` recorded). `started_at` is the claim
-  timestamp — the moment we bound the warm Pod to this
-  workflow_job — which is a few hundred ms earlier than
-  `running`. Opening at this point and not at claim-win is
-  what makes failed dispatches leak-free: every call site is on
-  the success branch of `Tuist.Runners.serve_claim/5`, after the
-  with chain that can return `release_safely`.
+  Open a billing session once dispatch has committed and the runner
+  is recorded as running. `started_at` is the claim timestamp, the
+  moment we bound the warm Pod to this workflow job. Opening at this
+  point instead of at claim-win keeps failed dispatches from leaving
+  billable sessions behind.
   """
   def open(
         %{
           workflow_job_id: workflow_job_id,
           account_id: account_id,
           fleet_name: fleet_name,
+          platform: platform,
+          vcpus: vcpus,
+          memory_gb: memory_gb,
           pod_name: pod_name,
           started_at: started_at
         } = attrs
-      ) do
+      )
+      when valid_machine_resources(platform, vcpus, memory_gb) do
     now = DateTime.utc_now()
 
     attrs = %{
       workflow_job_id: workflow_job_id,
       account_id: account_id,
       fleet_name: fleet_name,
+      platform: platform,
+      vcpus: vcpus,
+      memory_gb: memory_gb,
+      # Freeze the rate card the session was admitted under. Deriving this
+      # at invoice time instead would let a catalog edit reprice sessions
+      # that already ran.
+      billing_multiplier: Catalog.billing_multiplier(platform, vcpus, memory_gb),
       pod_name: pod_name,
       runner_name: Map.get(attrs, :runner_name, ""),
       repository: Map.get(attrs, :repository, ""),

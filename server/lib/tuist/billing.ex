@@ -15,6 +15,7 @@ defmodule Tuist.Billing do
   alias Tuist.Billing.TokenUsage
   alias Tuist.CommandEvents
   alias Tuist.Repo
+  alias Tuist.Runners.Billing, as: RunnerBilling
 
   # Unfortunately, this data can't be obtained and cached
   # from the Stripe's API, so we have to make sure it's in sync
@@ -99,27 +100,181 @@ defmodule Tuist.Billing do
     session
   end
 
-  def update_remote_cache_hit_meter(customer_id, idempotency_key) do
-    count = CommandEvents.get_yesterdays_remote_cache_hits_count_for_customer(customer_id)
-    path = Stripe.OpenApi.Path.replace_path_params("/v1/billing/meter_events", [], [])
-
-    identifier =
-      "#{customer_id}-#{Timex.format!(Tuist.Time.utc_now(), "{YYYY}.{0M}.{D}")}"
-
-    {:ok, _} =
-      []
-      |> Stripe.Request.new_request(%{"Idempotency-Key" => "#{idempotency_key}-remote-cache-hit"})
-      |> Stripe.Request.put_endpoint(path)
-      |> Stripe.Request.put_params(%{
+  @doc """
+  Snapshots every meter value for one customer and one immutable
+  half-open billing period `[period_start, period_end)`. The caller
+  can enqueue each returned value as an independent Stripe reporting
+  job without recalculating usage when that job retries.
+  """
+  def customer_meter_values(
+        %Account{customer_id: customer_id, id: account_id},
+        %DateTime{} = period_start,
+        %DateTime{} = period_end,
+        opts \\ []
+      ) do
+    remote_cache_values = [
+      %{
         event_name: "remote_cache_hit",
-        identifier: identifier,
-        payload: %{
-          value: count,
-          stripe_customer_id: customer_id
-        }
-      })
-      |> Stripe.Request.put_method(:post)
-      |> Stripe.Request.make_request()
+        value: CommandEvents.remote_cache_hits_count_for_customer(customer_id, period_start, period_end) || 0
+      }
+    ]
+
+    language_model_values =
+      if Keyword.get(opts, :include_qa, false) do
+        {input_tokens, output_tokens} = customer_llm_token_usage(customer_id, period_start, period_end)
+
+        [
+          %{event_name: "llm_input_token", value: input_tokens},
+          %{event_name: "llm_output_token", value: output_tokens}
+        ]
+      else
+        []
+      end
+
+    # Only report runner meters whose Stripe price is configured. During
+    # the staged rollout `stripe.prices.runners` is empty, so no runner
+    # meters exist in Stripe yet; reporting to an unprovisioned meter just
+    # errors the job and adds Sentry noise, and usage without an attached
+    # price wouldn't bill anyway. Each platform turns on the moment its
+    # price lands in config.
+    runner_prices = Map.get(Tuist.Environment.stripe_prices() || %{}, "runners", %{})
+
+    runner_values =
+      account_id
+      |> RunnerBilling.compute_units_by_platform(period_start, period_end)
+      |> Enum.map(fn usage ->
+        %{event_name: RunnerBilling.meter_event_name(usage), value: usage.total_units}
+      end)
+      |> Enum.filter(&runner_meter_priced?(runner_prices, &1.event_name))
+
+    # Drop zero-value meters uniformly so an idle customer fans out no
+    # Stripe reporting jobs at all, rather than one no-op POST per meter.
+    Enum.reject(remote_cache_values ++ language_model_values ++ runner_values, &(&1.value == 0))
+  end
+
+  defp runner_meter_priced?(runner_prices, event_name) do
+    case Map.get(runner_prices, event_name) do
+      price when is_binary(price) and price != "" -> true
+      _ -> false
+    end
+  end
+
+  @doc """
+  Half-open reporting windows covering `[period_start, period_end)`,
+  split at the account's subscription renewal boundary when one falls
+  inside the window.
+
+  A meter event carries a single timestamp, so a UTC-day aggregate that
+  straddles a renewal would have to be attributed entirely to one side
+  of the boundary or the other. Splitting first means every event we
+  send lies wholly within one service period, and the value reported is
+  exactly the usage that period earned. Renewals are the only boundary
+  that can fall inside a one-day window, and there can be at most one.
+
+  Falls back to the whole window when the account has no active
+  subscription or Stripe can't be reached: over-reporting into the
+  current period is better than dropping the day entirely, and a
+  customer with no subscription has nothing to invoice against anyway.
+  """
+  def usage_windows(%Account{} = account, %DateTime{} = period_start, %DateTime{} = period_end) do
+    case renewal_boundary(account) do
+      %DateTime{} = boundary ->
+        if DateTime.after?(boundary, period_start) and DateTime.before?(boundary, period_end) do
+          [{period_start, boundary}, {boundary, period_end}]
+        else
+          [{period_start, period_end}]
+        end
+
+      nil ->
+        [{period_start, period_end}]
+    end
+  end
+
+  defp renewal_boundary(%Account{} = account) do
+    case get_current_active_subscription(account) do
+      %Subscription{subscription_id: subscription_id} when is_binary(subscription_id) ->
+        case Stripe.Subscription.retrieve(subscription_id) do
+          {:ok, %{current_period_start: current_period_start}} when is_integer(current_period_start) ->
+            DateTime.from_unix!(current_period_start)
+
+          _ ->
+            nil
+        end
+
+      _ ->
+        nil
+    end
+  end
+
+  @doc """
+  Reports one previously-snapshotted value to Stripe. The event
+  identifier and request idempotency key both include the parent
+  period, so a retried child job reports the same value under the same
+  identifier and Stripe deduplicates it rather than double-counting.
+
+  The event is stamped just inside the end of its own usage window, so
+  Stripe attributes it to the service period the usage actually
+  happened in. Letting Stripe default the timestamp to ingestion time
+  would move a day of usage into whichever period happened to be open
+  when the job ran, which breaks down at a renewal, at a mid-cycle
+  price change, and worst of all at `cancel_at_period_end`, where there
+  is no following invoice for the shifted usage to land on.
+
+  This makes the reporting delay matter: an event stamped inside a
+  period that has already finalized is never billed. `usage_windows/3`
+  keeps each event inside one period, and Stripe's invoice
+  finalization grace period (Billing settings, up to 72 hours) has to
+  cover the gap between period close and this daily job.
+
+  Returns `{:ok, :already_reported}` when Stripe rejects the event as a
+  duplicate, so the caller treats it as delivered instead of retrying.
+  """
+  def report_meter_event(customer_id, event_name, value, %DateTime{} = period_start, %DateTime{} = period_end)
+      when is_binary(customer_id) and is_binary(event_name) and is_integer(value) and value >= 0 do
+    identifier =
+      "#{customer_id}-#{event_name}-#{DateTime.to_unix(period_start)}-#{DateTime.to_unix(period_end)}"
+
+    []
+    |> Stripe.Request.new_request(%{"Idempotency-Key" => identifier})
+    |> Stripe.Request.put_endpoint(Stripe.OpenApi.Path.replace_path_params("/v1/billing/meter_events", [], []))
+    |> Stripe.Request.put_params(%{
+      event_name: event_name,
+      identifier: identifier,
+      timestamp: DateTime.to_unix(usage_timestamp(period_start, period_end)),
+      payload: %{
+        value: value,
+        stripe_customer_id: customer_id
+      }
+    })
+    |> Stripe.Request.put_method(:post)
+    |> Stripe.Request.make_request()
+    |> resolve_duplicate()
+  end
+
+  # A rejected duplicate means Stripe already has this exact event, which
+  # is the outcome we wanted. Retrying it would only burn attempts and,
+  # once the dedup window lapses, risk landing a second copy. Stripe
+  # doesn't document a stable error code for this, so match on the
+  # identifier-conflict shape and let anything else stay an error.
+  defp resolve_duplicate({:error, %Stripe.Error{code: code, message: message} = error})
+       when code in [:invalid_request_error, :conflict, :bad_request] do
+    if is_binary(message) and String.contains?(message, "identifier") and
+         String.contains?(String.downcase(message), ["already", "duplicate"]) do
+      {:ok, :already_reported}
+    else
+      {:error, error}
+    end
+  end
+
+  defp resolve_duplicate(result), do: result
+
+  # The window is half-open, so `period_end` itself belongs to the next
+  # service period. Stamp one second earlier to stay inside this one,
+  # clamping up to `period_start` for windows shorter than a second.
+  defp usage_timestamp(period_start, period_end) do
+    timestamp = DateTime.add(period_end, -1, :second)
+
+    if DateTime.before?(timestamp, period_start), do: period_start, else: timestamp
   end
 
   def update_plan(%{plan: plan, account: %Account{} = account, success_url: success_url}) do
@@ -157,14 +312,18 @@ defmodule Tuist.Billing do
   defp get_subscription_items(plan) do
     available_prices = Tuist.Environment.stripe_prices()
 
-    usage_prices = Enum.map(available_prices[plan]["usage"], &%{price: &1})
+    usage_prices =
+      available_prices[plan]["usage"]
+      |> List.wrap()
+      |> Enum.map(&%{price: &1})
 
     flat_prices =
       available_prices[plan]["flat_monthly"]
+      |> List.wrap()
       |> Enum.map(&%{price: &1, quantity: 1})
       |> Enum.take(1)
 
-    usage_prices ++ flat_prices
+    usage_prices ++ runner_subscription_items(available_prices) ++ flat_prices
   end
 
   @doc """
@@ -224,11 +383,30 @@ defmodule Tuist.Billing do
     available_prices = Tuist.Environment.stripe_prices()
     key = if cadence == "yearly", do: "flat_yearly", else: "flat_monthly"
 
+    usage_prices =
+      available_prices["enterprise"]["usage"]
+      |> List.wrap()
+      |> Enum.map(&%{price: &1})
+
     # Enterprise is negotiated per-deal; start the subscription with 0 seats
     # so sales can fill in the actual quantity on Stripe without us guessing.
-    (available_prices["enterprise"][key] || [])
-    |> Enum.take(1)
-    |> Enum.map(&%{price: &1, quantity: 0})
+    flat_prices =
+      available_prices["enterprise"][key]
+      |> List.wrap()
+      |> Enum.take(1)
+      |> Enum.map(&%{price: &1, quantity: 0})
+
+    usage_prices ++ runner_subscription_items(available_prices) ++ flat_prices
+  end
+
+  defp runner_subscription_items(available_prices) do
+    available_prices
+    |> Map.get("runners", %{})
+    |> Enum.sort_by(&elem(&1, 0))
+    |> Enum.flat_map(fn
+      {_meter_event_name, price_id} when is_binary(price_id) and price_id != "" -> [%{price: price_id}]
+      _ -> []
+    end)
   end
 
   @doc """
@@ -304,20 +482,26 @@ defmodule Tuist.Billing do
 
     plan =
       available_prices
-      |> Enum.filter(&plan_valid?(&1, subscription_prices))
+      |> Enum.filter(fn prices ->
+        plan_prices?(prices) and plan_valid?(prices, subscription_prices)
+      end)
       |> Enum.map(&elem(&1, 0))
       |> List.first()
 
     if plan == nil, do: :none, else: plan
   end
 
+  defp plan_prices?({_plan, prices}) do
+    is_map(prices) and Map.has_key?(prices, "flat_monthly")
+  end
+
   defp plan_valid?({plan, plan_prices}, subscription_prices) do
     if plan == "enterprise" do
-      flat = plan_prices["flat_monthly"] ++ plan_prices["flat_yearly"]
+      flat = List.wrap(plan_prices["flat_monthly"]) ++ List.wrap(plan_prices["flat_yearly"])
       Enum.any?(flat, &Enum.member?(subscription_prices, &1))
     else
-      usage = plan_prices["usage"]
-      flat = plan_prices["flat_monthly"]
+      usage = List.wrap(plan_prices["usage"])
+      flat = List.wrap(plan_prices["flat_monthly"])
 
       # The subscription must:
       #   - Include all the usage-based prices
@@ -559,68 +743,19 @@ defmodule Tuist.Billing do
   end
 
   @doc """
-  Gets LLM token usage for a specific customer for the current billing period (yesterday).
-  Returns {input_tokens, output_tokens}.
+  Gets language-model token usage for a customer within the supplied
+  half-open billing period. Returns `{input_tokens, output_tokens}`.
   """
-  def get_yesterdays_customer_llm_token_usage(customer_id) do
-    now = DateTime.utc_now()
-    start_of_yesterday = now |> Timex.shift(days: -1) |> Timex.beginning_of_day()
-    end_of_yesterday = now |> Timex.shift(days: -1) |> Timex.end_of_day()
-
+  def customer_llm_token_usage(customer_id, %DateTime{} = period_start, %DateTime{} = period_end) do
     Repo.one(
       from(tu in TokenUsage,
         join: a in assoc(tu, :account),
         where:
-          a.customer_id == ^customer_id and tu.timestamp >= ^start_of_yesterday and
-            tu.timestamp <= ^end_of_yesterday,
-        select: {sum(tu.input_tokens), sum(tu.output_tokens)}
+          a.customer_id == ^customer_id and tu.timestamp >= ^period_start and
+            tu.timestamp < ^period_end,
+        select: {coalesce(sum(tu.input_tokens), 0), coalesce(sum(tu.output_tokens), 0)}
       )
     )
-  end
-
-  @doc """
-  Updates both LLM input and output token usage meters in Stripe for a specific customer.
-  Fetches the current period token usage and updates both meters.
-  """
-  def update_llm_token_meters(customer_id, idempotency_key) do
-    {input_tokens, output_tokens} = get_yesterdays_customer_llm_token_usage(customer_id)
-    path = Stripe.OpenApi.Path.replace_path_params("/v1/billing/meter_events", [], [])
-
-    input_identifier =
-      "#{customer_id}-input-#{Timex.format!(Tuist.Time.utc_now(), "{YYYY}.{0M}.{D}")}"
-
-    {:ok, _} =
-      []
-      |> Stripe.Request.new_request(%{"Idempotency-Key" => "#{idempotency_key}-input"})
-      |> Stripe.Request.put_endpoint(path)
-      |> Stripe.Request.put_params(%{
-        event_name: "llm_input_token",
-        identifier: input_identifier,
-        payload: %{
-          value: input_tokens,
-          stripe_customer_id: customer_id
-        }
-      })
-      |> Stripe.Request.put_method(:post)
-      |> Stripe.Request.make_request()
-
-    output_identifier =
-      "#{customer_id}-output-#{Timex.format!(Tuist.Time.utc_now(), "{YYYY}.{0M}.{D}")}"
-
-    {:ok, _} =
-      []
-      |> Stripe.Request.new_request(%{"Idempotency-Key" => "#{idempotency_key}-output"})
-      |> Stripe.Request.put_endpoint(path)
-      |> Stripe.Request.put_params(%{
-        event_name: "llm_output_token",
-        identifier: output_identifier,
-        payload: %{
-          value: output_tokens,
-          stripe_customer_id: customer_id
-        }
-      })
-      |> Stripe.Request.put_method(:post)
-      |> Stripe.Request.make_request()
   end
 
   # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
