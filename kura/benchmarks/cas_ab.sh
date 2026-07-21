@@ -85,6 +85,9 @@ pctl() { sort -n | awk -v p="$1" '{a[NR]=$1} END{if(NR==0){print 0;exit} i=int(p
 now_seconds() { python3 -c 'import time; print(time.time())'; }
 cas_put() { curl -sS "${CT[@]}" -o /dev/null "${AUTH[@]}" -H "Content-Type: application/octet-stream" -X POST --data-binary @"$2" -w '%{http_code} %{speed_upload}' "$1/api/cache/cas/$3?$Q"; }
 cas_get() { curl -sS "${CT[@]}" -o /dev/null "${AUTH[@]}" -w '%{http_code} %{speed_download}' "$1/api/cache/cas/$2?$Q"; }
+response_counts() {
+  awk 'NF {counts[$1]++} END {for (code in counts) print code ":" counts[code]}' "$@" | sort -n | paste -sd ',' -
+}
 
 # Reachability probe: fail fast + loud if the runner can't reach a backend, rather
 # than hanging until the job timeout.
@@ -161,8 +164,8 @@ emit ""
 # --- 3) parallel aggregate throughput -------------------------------------------
 emit "### Aggregate throughput, ${PARALLEL} parallel streams of 8MB (MB/s)"
 emit ""
-emit "| backend | upload | successful uploads | download | successful downloads |"
-emit "|---|---:|---:|---:|---:|"
+emit "| backend | upload | successful uploads | upload responses | download | successful downloads | download responses |"
+emit "|---|---:|---:|---|---:|---:|---|"
 head -c $((8*1024*1024)) /dev/urandom > "$TMP/p8"
 for name in "${names[@]}"; do
   base="$(url_for "$name")"
@@ -177,6 +180,7 @@ for name in "${names[@]}"; do
   for pid in "${put_pids[@]}"; do wait "$pid" || true; done
   e=$(now_seconds)
   put_ok=$(awk '$1 == 204 {count++} END {print count+0}' "$TMP"/par-put-"$name"-*)
+  put_responses=$(response_counts "$TMP"/par-put-"$name"-*)
   up=$(awk -v s="$s" -v e="$e" -v ok="$put_ok" 'BEGIN{printf "%.1f", (ok*8)/(e-s)}')
 
   s=$(now_seconds)
@@ -188,9 +192,10 @@ for name in "${names[@]}"; do
   for pid in "${get_pids[@]}"; do wait "$pid" || true; done
   e=$(now_seconds)
   get_ok=$(awk '$1 == 200 {count++} END {print count+0}' "$TMP"/par-get-"$name"-*)
+  get_responses=$(response_counts "$TMP"/par-get-"$name"-*)
   dn=$(awk -v s="$s" -v e="$e" -v ok="$get_ok" 'BEGIN{printf "%.1f", (ok*8)/(e-s)}')
 
-  emit "| $name | $up | $put_ok/$PARALLEL | $dn | $get_ok/$PARALLEL |"
+  emit "| $name | $up | $put_ok/$PARALLEL | $put_responses | $dn | $get_ok/$PARALLEL | $get_responses |"
 done
 emit ""
 

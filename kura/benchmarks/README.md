@@ -14,6 +14,11 @@ It measures three things:
 - **Aggregate throughput** — many parallel streams, to find the real ceiling that a
   single latency-bound stream hides.
 
+The aggregate probe reports successful transfer counts and response-code
+distributions alongside throughput. Failed requests therefore do not inflate the
+transferred-byte total, and controlled load shedding stays distinguishable from
+transport failures.
+
 Endpoints and auth are resolved from `tuist cache config` (the `kura` client feature
 flag selects the Kura endpoint; its absence selects legacy), so nothing is hardcoded.
 
