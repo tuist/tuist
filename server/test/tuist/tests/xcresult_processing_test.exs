@@ -2,12 +2,17 @@ defmodule Tuist.Tests.XcresultProcessingTest do
   use TuistTestSupport.Cases.DataCase, async: false
 
   import Ecto.Query
+  import ExUnit.CaptureLog
 
+  alias Tuist.ClickHouseRepo
   alias Tuist.Repo
+  alias Tuist.Shards.ShardRun
+  alias Tuist.Tests
   alias Tuist.Tests.Workers.ProcessXcresultWorker
   alias Tuist.Tests.XcresultProcessing
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
+  alias TuistTestSupport.Fixtures.ShardsFixtures
 
   setup do
     %{account: account} = AccountsFixtures.user_fixture(preload: [:account])
@@ -46,6 +51,79 @@ defmodule Tuist.Tests.XcresultProcessingTest do
 
     assert {:ok, second_job} = XcresultProcessing.enqueue(args)
     assert second_job.id == first_job.id
+  end
+
+  test "deserializes ran_at before persisting a failed sharded run", %{account: account, project: project} do
+    test_run_id = UUIDv7.generate()
+    ran_at = ~N[2026-07-21 02:59:14.935065]
+    plan = ShardsFixtures.shard_plan_fixture(project_id: project.id, shard_count: 2)
+
+    assert {:ok, _test} =
+             Tests.create_test(%{
+               id: test_run_id,
+               project_id: project.id,
+               account_id: account.id,
+               duration: 0,
+               status: "processing",
+               ran_at: ran_at,
+               is_ci: true,
+               shard_plan_id: plan.id,
+               shard_index: 0
+             })
+
+    assert :ok =
+             XcresultProcessing.mark_test_run_failed(%{
+               "test_run_id" => test_run_id,
+               "project_id" => project.id,
+               "account_id" => account.id,
+               "is_ci" => true,
+               "shard_plan_id" => plan.id,
+               "shard_index" => 0,
+               "ran_at" => "2026-07-21T02:59:14.935065"
+             })
+
+    failed_shard_run =
+      ClickHouseRepo.one(
+        from(shard_run in ShardRun,
+          where: shard_run.test_run_id == ^test_run_id,
+          where: shard_run.status == "failed_processing",
+          limit: 1
+        )
+      )
+
+    assert failed_shard_run.ran_at == ran_at
+  end
+
+  test "normalizes offset-bearing ran_at values to Coordinated Universal Time" do
+    attrs =
+      XcresultProcessing.base_test_attrs(%{
+        "ran_at" => "2026-07-21T02:59:14.935065+02:00"
+      })
+
+    assert attrs.ran_at == ~N[2026-07-21 00:59:14.935065]
+  end
+
+  test "falls back to the current time when ran_at is invalid" do
+    before_fallback = NaiveDateTime.utc_now()
+
+    {attrs, log} =
+      with_log(fn ->
+        XcresultProcessing.base_test_attrs(%{"ran_at" => "not-a-date"})
+      end)
+
+    after_fallback = NaiveDateTime.utc_now()
+
+    assert NaiveDateTime.compare(attrs.ran_at, before_fallback) in [:eq, :gt]
+    assert NaiveDateTime.compare(attrs.ran_at, after_fallback) in [:eq, :lt]
+    assert log =~ "Invalid Xcode result processing ran_at"
+  end
+
+  test "serializes ran_at values for Oban arguments" do
+    assert XcresultProcessing.serialize_ran_at(~N[2026-07-21 02:59:14.935065]) ==
+             "2026-07-21T02:59:14.935065"
+
+    assert XcresultProcessing.serialize_ran_at(~U[2026-07-21 02:59:14.935065Z]) ==
+             "2026-07-21T02:59:14.935065Z"
   end
 
   defp processing_args(account_id, project_id) do

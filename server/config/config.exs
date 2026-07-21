@@ -108,6 +108,7 @@ config :fun_with_flags, :persistence,
   ecto_primary_key_type: :binary_id
 
 config :guardian, Guardian.DB,
+  adapter: Tuist.GuardianDatabaseAdapter,
   repo: Tuist.Repo,
   schema_name: "guardian_tokens",
   token_types: ["refresh"]
@@ -171,6 +172,7 @@ config :logger, :console,
     :grace_seconds,
     :delivery_id,
     :workflow_job_id,
+    :repository,
     :conclusion,
     :ours,
     :winner,
@@ -221,6 +223,7 @@ config :tower, reporters: [TowerOpentelemetry]
 
 # Oban
 config :tuist, Oban,
+  engine: Tuist.Oban.Engine,
   repo: Tuist.Repo,
   notifier: Oban.Notifiers.PG
 

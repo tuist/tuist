@@ -525,6 +525,16 @@ defmodule Tuist.Runners.JobsTest do
       assert {:ok, %{workflow_job_id: 3102}} = Jobs.pick_queued("fleet-skip", [], [3101])
     end
 
+    test "skips excluded repositories without excluding the account" do
+      account = account_fixture()
+
+      :ok = enqueue_fixture(account, 3151, fleet: "fleet-repository", repository: "acme/unavailable")
+      :ok = enqueue_fixture(account, 3152, fleet: "fleet-repository", repository: "acme/available")
+
+      assert {:ok, [%{workflow_job_id: 3152}]} =
+               Jobs.pick_queued_top_k("fleet-repository", [], ["acme/unavailable"], [], 1)
+    end
+
     test "ignores queued rows enqueued beyond the lookback window" do
       account = account_fixture()
       recent = DateTime.add(DateTime.utc_now(), -60, :second)
@@ -586,6 +596,27 @@ defmodule Tuist.Runners.JobsTest do
   end
 
   describe "record_queued/1" do
+    test "re-surfaces a claimed candidate without re-reading its ClickHouse row" do
+      account = account_fixture()
+
+      :ok =
+        enqueue_fixture(account, 6000,
+          fleet: "fleet-q",
+          repository: "acme/releasable",
+          requested_dispatch_label: "tuist-release"
+        )
+
+      {:ok, candidate} = Jobs.pick_queued("fleet-q", [])
+      :ok = Jobs.record_claimed(candidate, "pod-1", DateTime.utc_now())
+
+      assert :ok = Jobs.record_queued(candidate)
+
+      assert {:ok, requeued} = Jobs.pick_queued("fleet-q", [])
+      assert requeued.workflow_job_id == 6000
+      assert requeued.repository == "acme/releasable"
+      assert requeued.requested_dispatch_label == "tuist-release"
+    end
+
     test "re-surfaces a claimed row as queued (after release/stale)" do
       account = account_fixture()
       :ok = enqueue_fixture(account, 6001, fleet: "fleet-q")
@@ -597,6 +628,26 @@ defmodule Tuist.Runners.JobsTest do
       counts = Jobs.status_counts(account.id)
       assert Map.get(counts, "queued", 0) == 1
       assert Map.get(counts, "claimed", 0) == 0
+    end
+
+    test "clears stale execution fields when recovery requeues by workflow job id" do
+      account = account_fixture()
+      :ok = enqueue_fixture(account, 6003, fleet: "fleet-q")
+      {:ok, candidate} = Jobs.pick_queued("fleet-q", [])
+      :ok = Jobs.record_claimed(candidate, "pod-stale", DateTime.utc_now())
+      :ok = Jobs.record_running(6003, "runner-stale")
+
+      assert :ok = Jobs.record_queued(6003)
+
+      assert {:ok, requeued} = Jobs.get(6003)
+      assert requeued.status == "queued"
+      assert requeued.conclusion == ""
+      assert requeued.claimed_at == nil
+      assert requeued.started_at == nil
+      assert requeued.completed_at == nil
+      assert requeued.pod_name == ""
+      assert requeued.runner_name == ""
+      assert requeued.log_archived_at == nil
     end
 
     test "does not re-surface a terminal job as queued" do
