@@ -49,7 +49,27 @@ defmodule Tuist.Tests.XcresultProcessing do
       build_run_id: Map.get(args, "build_run_id"),
       shard_plan_id: Map.get(args, "shard_plan_id"),
       shard_index: Map.get(args, "shard_index"),
-      ran_at: Map.get(args, "ran_at", NaiveDateTime.utc_now())
+      ran_at: args |> Map.get("ran_at") |> deserialize_ran_at()
     }
+  end
+
+  defp deserialize_ran_at(nil), do: NaiveDateTime.utc_now()
+  defp deserialize_ran_at(%NaiveDateTime{} = ran_at), do: ran_at
+  defp deserialize_ran_at(%DateTime{} = ran_at), do: DateTime.to_naive(ran_at)
+
+  defp deserialize_ran_at(ran_at) when is_binary(ran_at) do
+    case NaiveDateTime.from_iso8601(ran_at) do
+      {:ok, naive_datetime} ->
+        naive_datetime
+
+      {:error, _reason} ->
+        ran_at |> DateTime.from_iso8601() |> deserialize_datetime_result(ran_at)
+    end
+  end
+
+  defp deserialize_datetime_result({:ok, datetime, _offset}, _ran_at), do: DateTime.to_naive(datetime)
+
+  defp deserialize_datetime_result({:error, reason}, ran_at) do
+    raise ArgumentError, "invalid Xcode result processing ran_at #{inspect(ran_at)}: #{inspect(reason)}"
   end
 end
