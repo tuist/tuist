@@ -10,7 +10,7 @@ final class DelayProviderTests: TuistUnitTestCase {
     override func setUp() {
         super.setUp()
 
-        subject = DelayProvider()
+        subject = DelayProvider(baseDelayMilliseconds: 100)
     }
 
     override func tearDown() {
@@ -21,7 +21,7 @@ final class DelayProviderTests: TuistUnitTestCase {
     func test_delay_for_first_retry() {
         for _ in 0 ... 20 {
             XCTAssertTrue(
-                (UInt64(0) ... UInt64(2_000_000)).contains(subject.delay(for: 0))
+                (UInt64(100_000_000) ... UInt64(200_000_000)).contains(subject.delay(for: 0))
             )
         }
     }
@@ -29,7 +29,7 @@ final class DelayProviderTests: TuistUnitTestCase {
     func test_delay_for_second_retry() {
         for _ in 0 ... 20 {
             XCTAssertTrue(
-                (UInt64(1_000_000) ... UInt64(3_000_000)).contains(subject.delay(for: 1))
+                (UInt64(200_000_000) ... UInt64(300_000_000)).contains(subject.delay(for: 1))
             )
         }
     }
@@ -37,7 +37,7 @@ final class DelayProviderTests: TuistUnitTestCase {
     func test_delay_for_third_retry() {
         for _ in 0 ... 20 {
             XCTAssertTrue(
-                (UInt64(3_000_000) ... UInt64(5_000_000)).contains(subject.delay(for: 2))
+                (UInt64(400_000_000) ... UInt64(500_000_000)).contains(subject.delay(for: 2))
             )
         }
     }
