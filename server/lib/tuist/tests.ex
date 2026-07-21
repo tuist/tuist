@@ -814,17 +814,12 @@ defmodule Tuist.Tests do
           last_ran_at: data.ran_at,
           last_ran_at_ci: last_ran_at_ci,
           last_ran_at_local: last_ran_at_local,
-          # Legacy columns. Nothing in this release reads them, but pods still
-          # running the previous one do, so they keep being carried forward
-          # exactly as before for the length of the rollout. That carry-forward
-          # is the stale snapshot this whole change exists to remove, and it
-          # still loses races here — which is fine, because it only affects a
-          # column that old pods read and that behaves no worse than it does
-          # today. The follow-up release drops the carry-forward and the
-          # columns with it.
-          is_flaky: Map.get(existing, :legacy_is_flaky, false),
+          # Legacy columns, now inert: every pod reads `test_case_states`, so
+          # there is nothing left to carry forward for. Written as the schema
+          # defaults until a follow-up drops the columns outright.
+          is_flaky: false,
           last_run_id: test_run_id,
-          state: Map.get(existing, :legacy_state, "enabled"),
+          state: "enabled",
           inserted_at: now,
           recent_durations: new_durations,
           avg_duration: new_avg
@@ -977,9 +972,7 @@ defmodule Tuist.Tests do
         recent_durations: tc.recent_durations,
         last_ran_at_ci: tc.last_ran_at_ci,
         last_ran_at_local: tc.last_ran_at_local,
-        inserted_at: tc.inserted_at,
-        legacy_state: tc.state,
-        legacy_is_flaky: tc.is_flaky
+        inserted_at: tc.inserted_at
       }
     )
   end
@@ -1116,21 +1109,6 @@ defmodule Tuist.Tests do
       ensure_projectable!(test_case)
 
       updated_test_case = Map.merge(test_case, filtered_attrs)
-
-      # Legacy mirror, kept only so pods still running the previous release
-      # (which read these columns) stay in agreement for the length of the
-      # rollout. It republishes the whole `test_cases` row, which is why a state
-      # change can roll `last_ran_at` / `recent_durations` back to whatever the
-      # read saw when a buffered ingestion write hasn't landed yet. That's
-      # existing behaviour, and the follow-up release drops this write.
-      legacy_attrs =
-        test_case
-        |> Map.from_struct()
-        |> Map.delete(:__meta__)
-        |> Map.merge(filtered_attrs)
-        |> Map.put(:inserted_at, NaiveDateTime.utc_now())
-
-      IngestRepo.insert_all(TestCase, [legacy_attrs])
 
       event_types = determine_test_case_events(test_case, filtered_attrs)
       record_test_case_events(test_case, event_types, actor_id, alert_id)
