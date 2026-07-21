@@ -1537,7 +1537,7 @@ fn detect_cgroup_memory_limit_bytes() -> Option<u64> {
             }
             if let Ok(value) = trimmed.parse::<u64>()
                 && value > 0
-                && !unlimited_threshold_bytes.is_some_and(|threshold| value >= threshold)
+                && unlimited_threshold_bytes.is_none_or(|threshold| value < threshold)
             {
                 return Some(value);
             }

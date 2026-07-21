@@ -777,9 +777,9 @@ async fn establish_initial_memory_baseline(memory: &MemoryController) -> Result<
                 tokio::time::sleep(MEMORY_SAMPLE_INTERVAL).await;
             }
         }
-        return Err(format!(
+        Err(format!(
             "failed to read Linux control-group memory accounting after {INITIAL_MEMORY_SAMPLE_ATTEMPTS} attempts; refusing to serve without bounded memory accounting"
-        ));
+        ))
     }
 
     #[cfg(not(target_os = "linux"))]
