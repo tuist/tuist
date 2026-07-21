@@ -82,6 +82,7 @@ TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
 
 med()  { sort -n | awk '{a[NR]=$1} END{if(NR==0){print 0;exit} print (NR%2)?a[(NR+1)/2]:(a[NR/2]+a[NR/2+1])/2}'; }
 pctl() { sort -n | awk -v p="$1" '{a[NR]=$1} END{if(NR==0){print 0;exit} i=int(p/100*NR); if(i<1)i=1; print a[i]}'; }
+now_seconds() { python3 -c 'import time; print(time.time())'; }
 cas_put() { curl -sS "${CT[@]}" -o /dev/null "${AUTH[@]}" -H "Content-Type: application/octet-stream" -X POST --data-binary @"$2" -w '%{http_code} %{speed_upload}' "$1/api/cache/cas/$3?$Q"; }
 cas_get() { curl -sS "${CT[@]}" -o /dev/null "${AUTH[@]}" -w '%{http_code} %{speed_download}' "$1/api/cache/cas/$2?$Q"; }
 
@@ -89,9 +90,15 @@ cas_get() { curl -sS "${CT[@]}" -o /dev/null "${AUTH[@]}" -w '%{http_code} %{spe
 # than hanging until the job timeout.
 echo "== reachability =="
 for n in "${names[@]}"; do
-  probe=$(curl -sS --connect-timeout 10 --max-time 20 -o /dev/null -w '%{http_code} %{time_total}s' "$(url_for "$n")/up" 2>&1) \
-    && echo "  $n $(url_for "$n")/up -> $probe" \
-    || { echo "  $n $(url_for "$n")/up -> UNREACHABLE ($probe)"; [ "$n" = kura ] && { echo "Kura endpoint unreachable from this runner; aborting." >&2; exit 1; }; }
+  if probe=$(curl -sS --connect-timeout 10 --max-time 20 -o /dev/null -w '%{http_code} %{time_total}s' "$(url_for "$n")/up" 2>&1); then
+    echo "  $n $(url_for "$n")/up -> $probe"
+  else
+    echo "  $n $(url_for "$n")/up -> UNREACHABLE ($probe)"
+    if [ "$n" = kura ]; then
+      echo "Kura endpoint unreachable from this runner; aborting." >&2
+      exit 1
+    fi
+  fi
 done
 echo
 
@@ -116,7 +123,7 @@ emit "|---|---|---:|---:|---:|"
 head -c $((LATENCY_KB*1024)) /dev/urandom > "$TMP/small"
 for name in "${names[@]}"; do
   base="$(url_for "$name")"
-  id="lat-$name-$RANDOM-$(date +%s%N)"
+  id="lat-$name-$RANDOM-$(date +%s)"
   cas_put "$base" "$TMP/small" "$id" >/dev/null
   args=(); for _ in $(seq 1 60); do args+=(-o /dev/null "$base/api/cache/cas/$id?$Q"); done
   curl -sS --connect-timeout 10 --max-time 120 "${AUTH[@]}" -w '%{time_starttransfer}\n' "${args[@]}" > "$TMP/warm_$name" 2>/dev/null
@@ -141,7 +148,7 @@ for size in $SIZES_MB; do
     base="$(url_for "$name")"; ups=""; downs=""
     for i in $(seq 1 "$ITERS"); do
       head -c "$bytes" /dev/urandom > "$TMP/blob"
-      id="tp-${size}m-${name}-${i}-${RANDOM}-$(date +%s%N)"
+      id="tp-${size}m-${name}-${i}-${RANDOM}-$(date +%s)"
       read -r pc pu < <(cas_put "$base" "$TMP/blob" "$id"); [ "$pc" = 204 ] && ups+="$pu"$'\n'
       read -r gc gd < <(cas_get "$base" "$id");            [ "$gc" = 200 ] && downs+="$gd"$'\n'
     done
@@ -154,17 +161,36 @@ emit ""
 # --- 3) parallel aggregate throughput -------------------------------------------
 emit "### Aggregate throughput, ${PARALLEL} parallel streams of 8MB (MB/s)"
 emit ""
-emit "| backend | upload | download |"
-emit "|---|---:|---:|"
+emit "| backend | upload | successful uploads | download | successful downloads |"
+emit "|---|---:|---:|---:|---:|"
 head -c $((8*1024*1024)) /dev/urandom > "$TMP/p8"
 for name in "${names[@]}"; do
   base="$(url_for "$name")"
-  ids=(); for k in $(seq 1 "$PARALLEL"); do ids+=("par-$name-$k-$RANDOM-$(date +%s%N)"); done
-  s=$(date +%s.%N); for id in "${ids[@]}"; do cas_put "$base" "$TMP/p8" "$id" >/dev/null & done; wait; e=$(date +%s.%N)
-  up=$(awk -v s="$s" -v e="$e" -v p="$PARALLEL" 'BEGIN{printf "%.1f", (p*8)/(e-s)}')
-  s=$(date +%s.%N); for id in "${ids[@]}"; do cas_get "$base" "$id" >/dev/null & done; wait; e=$(date +%s.%N)
-  dn=$(awk -v s="$s" -v e="$e" -v p="$PARALLEL" 'BEGIN{printf "%.1f", (p*8)/(e-s)}')
-  emit "| $name | $up | $dn |"
+  ids=(); for k in $(seq 1 "$PARALLEL"); do ids+=("par-$name-$k-$RANDOM-$(date +%s)"); done
+
+  s=$(now_seconds)
+  put_pids=()
+  for k in $(seq 1 "$PARALLEL"); do
+    cas_put "$base" "$TMP/p8" "${ids[$((k-1))]}" > "$TMP/par-put-$name-$k" &
+    put_pids+=("$!")
+  done
+  for pid in "${put_pids[@]}"; do wait "$pid" || true; done
+  e=$(now_seconds)
+  put_ok=$(awk '$1 == 204 {count++} END {print count+0}' "$TMP"/par-put-"$name"-*)
+  up=$(awk -v s="$s" -v e="$e" -v ok="$put_ok" 'BEGIN{printf "%.1f", (ok*8)/(e-s)}')
+
+  s=$(now_seconds)
+  get_pids=()
+  for k in $(seq 1 "$PARALLEL"); do
+    cas_get "$base" "${ids[$((k-1))]}" > "$TMP/par-get-$name-$k" &
+    get_pids+=("$!")
+  done
+  for pid in "${get_pids[@]}"; do wait "$pid" || true; done
+  e=$(now_seconds)
+  get_ok=$(awk '$1 == 200 {count++} END {print count+0}' "$TMP"/par-get-"$name"-*)
+  dn=$(awk -v s="$s" -v e="$e" -v ok="$get_ok" 'BEGIN{printf "%.1f", (ok*8)/(e-s)}')
+
+  emit "| $name | $up | $put_ok/$PARALLEL | $dn | $get_ok/$PARALLEL |"
 done
 emit ""
 
