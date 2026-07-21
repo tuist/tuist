@@ -176,9 +176,44 @@ k8s-monitoring:
         # container metrics. No-op for the runner pods cAdvisor never scrapes.
         excludeNamespaces:
           - tuist-runners
+      # Tart nodes never answer these. tart-kubelet is not a real kubelet:
+      # it serves no /metrics/cadvisor, /metrics/resource or /stats/summary,
+      # and the cluster has no route to a mini's CGNAT address anyway. The
+      # targets were failing on every scrape (40 of them in production, 3 per
+      # Tart node across the macos, runners and builders fleets), which is
+      # noise in the target list and a standing false signal for any
+      # "scrape target down" alerting.
+      #
+      # Nothing is lost by dropping them: host-level telemetry for these
+      # machines already arrives through the tailnet egress jobs further
+      # down (`tuist-macos-node-exporter` and `tuist-macos-tart-kubelet`,
+      # both `up == 1` on every Tart node in all three environments).
+      extraDiscoveryRules: |
+        rule {
+          source_labels = ["__meta_kubernetes_node_label_tuist_dev_runtime"]
+          regex = "tart"
+          action = "drop"
+        }
     kubelet:
       metricsTuning:
         useDefaultAllowList: true
+      # Same reason as cadvisor above.
+      extraDiscoveryRules: |
+        rule {
+          source_labels = ["__meta_kubernetes_node_label_tuist_dev_runtime"]
+          regex = "tart"
+          action = "drop"
+        }
+    kubeletResource:
+      metricsTuning:
+        useDefaultAllowList: true
+      # Same reason as cadvisor above.
+      extraDiscoveryRules: |
+        rule {
+          source_labels = ["__meta_kubernetes_node_label_tuist_dev_runtime"]
+          regex = "tart"
+          action = "drop"
+        }
     kube-state-metrics:
       # Do not blank the `pod` label on kube_pod_* metrics: relabeling
       # cannot aggregate duplicate samples, so that produces colliding
