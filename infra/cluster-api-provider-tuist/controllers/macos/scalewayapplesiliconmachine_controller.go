@@ -1047,6 +1047,11 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileTailscaleEgressService(
 		svc.Labels["app.kubernetes.io/component"] = "macmini-egress"
 		svc.Labels["tuist.dev/macmini-egress"] = "true"
 		svc.Labels["tuist.dev/macmini-machine"] = machine.Name
+		if machine.Spec.FleetName != "" {
+			svc.Labels["tuist.dev/fleet"] = machine.Spec.FleetName
+		} else {
+			delete(svc.Labels, "tuist.dev/fleet")
+		}
 
 		if svc.Annotations == nil {
 			svc.Annotations = map[string]string{}

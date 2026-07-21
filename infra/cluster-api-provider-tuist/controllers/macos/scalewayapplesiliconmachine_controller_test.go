@@ -498,7 +498,10 @@ func TestReconcileTailscaleEgressService_Create(t *testing.T) {
 	r.EgressProxyGroup = "macmini-egress"
 	r.EgressNamespace = "tailscale-operator"
 	r.EgressMagicDNSSuffix = "taild6d7bb.ts.net"
-	machine := &infrav1.ScalewayAppleSiliconMachine{ObjectMeta: metav1.ObjectMeta{Name: "macmini-1"}}
+	machine := &infrav1.ScalewayAppleSiliconMachine{
+		ObjectMeta: metav1.ObjectMeta{Name: "macmini-1"},
+		Spec:       infrav1.ScalewayAppleSiliconMachineSpec{FleetName: "tuist-macos-fleet"},
+	}
 	if err := r.reconcileTailscaleEgressService(context.Background(), machine); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -520,6 +523,9 @@ func TestReconcileTailscaleEgressService_Create(t *testing.T) {
 	}
 	if got.Labels["tuist.dev/macmini-egress"] != "true" {
 		t.Errorf("macmini-egress label = %q, want true", got.Labels["tuist.dev/macmini-egress"])
+	}
+	if got.Labels["tuist.dev/fleet"] != "tuist-macos-fleet" {
+		t.Errorf("fleet label = %q, want tuist-macos-fleet", got.Labels["tuist.dev/fleet"])
 	}
 	if len(got.Spec.Ports) != 5 {
 		t.Fatalf("Spec.Ports len = %d, want 5", len(got.Spec.Ports))

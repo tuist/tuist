@@ -208,7 +208,7 @@ k8s-monitoring:
       metricsTuning:
         useDefaultAllowList: true
       # Same reason as cadvisor above.
-      extraDiscoveryRules: |
+      extraRelabelingRules: |
         rule {
           source_labels = ["__meta_kubernetes_node_label_tuist_dev_runtime"]
           regex = "tart"
@@ -745,14 +745,20 @@ k8s-monitoring:
         // Tart node in all three environments, which is why nothing from
         // the macOS fleet has ever appeared in Grafana.
         //
-        // Service-role discovery emits one target per (Service, port),
-        // so filtering on `port_name` picks the forwarder out of the
-        // node-exporter / tart-kubelet / vnc-relay / ssh set.
+        // Service-role discovery emits one target per (Service, port).
+        // Filter on both the port name and the processor fleet label:
+        // runner and builder minis publish the same Service ports, but
+        // they do not run a guest metrics endpoint on :9091.
         discovery.relabel "tuist_macos_pod_metrics" {
           targets = discovery.kubernetes.tuist_macmini_egress.targets
           rule {
             source_labels = ["__meta_kubernetes_service_port_name"]
             regex = "pod-metrics"
+            action = "keep"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_service_label_tuist_dev_fleet"]
+            regex = ".*-macos-fleet"
             action = "keep"
           }
           rule {
@@ -1101,6 +1107,14 @@ k8s-monitoring:
       # auth is involved and the tailnet ACL is the access control.
       alloy:
         extraPorts:
+          - name: otlp-grpc
+            port: 4317
+            targetPort: 4317
+            protocol: TCP
+          - name: otlp-http
+            port: 4318
+            targetPort: 4318
+            protocol: TCP
           - name: loki-push
             port: 3100
             targetPort: 3100
