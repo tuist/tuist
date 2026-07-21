@@ -56,7 +56,7 @@ let package = Package(
     dependencies: [
         .package(id: "flight-school.AnyCodable", .upToNextMajor(from: "0.6.7")),
         .package(id: "tuist.Path", .upToNextMajor(from: "0.3.8")),
-        .package(id: "tuist.XcodeProj", .upToNextMajor(from: "9.9.0")),
+        .package(id: "tuist.XcodeProj", .upToNextMajor(from: "9.14.0")),
         .package(id: "tuist.Command", from: "0.13.0"),
         .package(id: "tuist.FileSystem", .upToNextMajor(from: "0.16.2")),
         .package(id: "kolos65.Mockable", .upToNextMajor(from: "0.6.1")),

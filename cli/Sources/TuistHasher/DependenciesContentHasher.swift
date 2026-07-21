@@ -163,9 +163,23 @@ public struct DependenciesContentHasher: DependenciesContentHashing {
                 )
             }
         case let .package(product, type, _):
+            let packageTraits = packageTraitsFingerprint(graphTarget.project.packageTraits)
+            guard let packageTraits else {
+                return DependenciesContentHash(
+                    hashedPaths: hashedPaths,
+                    hash: try contentHasher.hash("package-\(product)-\(type.rawValue)")
+                )
+            }
+            let fingerprint = PackageDependencyFingerprint(
+                product: product,
+                type: type.rawValue,
+                packageTraits: packageTraits
+            )
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
             return DependenciesContentHash(
                 hashedPaths: hashedPaths,
-                hash: try contentHasher.hash("package-\(product)-\(type.rawValue)")
+                hash: try contentHasher.hash(String(decoding: try encoder.encode(fingerprint), as: UTF8.self))
             )
         case let .sdk(name, status, _):
             return DependenciesContentHash(
@@ -178,5 +192,23 @@ public struct DependenciesContentHasher: DependenciesContentHashing {
                 hash: try contentHasher.hash("xctest")
             )
         }
+    }
+
+    private func packageTraitsFingerprint(_ packageTraits: [String: [String]]?) -> [PackageTraitsFingerprint]? {
+        guard let packageTraits, !packageTraits.isEmpty else { return nil }
+        return packageTraits
+            .map { PackageTraitsFingerprint(identity: $0.key, traits: $0.value.sorted()) }
+            .sorted { $0.identity < $1.identity }
+    }
+
+    private struct PackageDependencyFingerprint: Codable {
+        let product: String
+        let type: String
+        let packageTraits: [PackageTraitsFingerprint]
+    }
+
+    private struct PackageTraitsFingerprint: Codable {
+        let identity: String
+        let traits: [String]
     }
 }

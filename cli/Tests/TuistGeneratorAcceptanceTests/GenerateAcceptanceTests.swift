@@ -549,6 +549,14 @@ struct GenerateAcceptanceTestiOSAppWithLocalSwiftPackage {
     }
 }
 
+struct GenerateAcceptanceTestCommandLineToolWithNativePackageTraits {
+    @Test(.withFixture("generated_command_line_tool_with_native_package_traits"), .inTemporaryDirectory)
+    func command_line_tool_with_native_package_traits() async throws {
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self)
+    }
+}
+
 struct GenerateAcceptanceTestiOSAppWithObjCStaticFrameworkPackage {
     @Test(.withFixture("generated_ios_app_with_objc_static_framework_package"), .inTemporaryDirectory)
     func ios_app_with_objc_static_framework_package() async throws {
