@@ -27,6 +27,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
+	"github.com/tuist/tuist/infra/tart-kubelet/internal/hostdisk"
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/tart"
 )
 
@@ -57,6 +58,30 @@ type Collector struct {
 	// ignores it.
 	GoldenRetention time.Duration
 
+	// HostDiskFreeFloor is the root-volume free-space percentage below
+	// which the collector reclaims golden bases even when a Pod still
+	// references their digest. This is the only bound on golden
+	// accumulation: keepGolden always keeps a referenced golden, and the
+	// runners-controller pins a warm Pod per Xcode-version pool to a host
+	// (golden node-affinity), so every golden stays permanently referenced
+	// and the retention pass never reaps it — the disk fills to 100% (~6
+	// goldens on a 460GiB mini) and every operator SSH update then fails
+	// with "No space left on device" while the Node still looks Ready. Set
+	// above the DiskPressure floor so reclaim runs before the node reports
+	// pressure. Zero falls back to defaultGoldenReclaimFreeFloor.
+	HostDiskFreeFloor float64
+
+	// HostDiskFree probes the host root volume's free-space percent.
+	// Overridable in tests (statvfs isn't stubbable via the Tart binary);
+	// defaults to a real statvfs of "/".
+	HostDiskFree func() (float64, error)
+
+	// MinGoldensKept floors how many golden bases the disk-pressure
+	// reclaim leaves behind, so a wedged measurement or a pathological
+	// host never strands it with zero warm bases (every subsequent launch
+	// cold-pulls). Zero falls back to defaultMinGoldensKept.
+	MinGoldensKept int
+
 	// Now is overridable in tests; defaults to time.Now.
 	Now func() time.Time
 
@@ -82,6 +107,16 @@ type Collector struct {
 // from it rather than re-pulling, short enough that a rolled-out digest's
 // golden is reclaimed within a day.
 const defaultGoldenRetention = 24 * time.Hour
+
+// defaultGoldenReclaimFreeFloor keeps the host above 15% free by reclaiming
+// golden bases, leaving headroom above the 10% DiskPressure/alert floor so
+// the disk-pressure reclaim fires and frees space before the Node ever
+// reports pressure.
+const defaultGoldenReclaimFreeFloor = 15.0
+
+// defaultMinGoldensKept never lets the disk-pressure reclaim strand a host
+// with zero warm bases.
+const defaultMinGoldensKept = 1
 
 // Start blocks until ctx is cancelled. Conforms to manager.Runnable.
 func (c *Collector) Start(ctx context.Context) error {
@@ -196,6 +231,129 @@ func (c *Collector) runOnce(ctx context.Context, aggressive bool) {
 			"stale_oci_images", droppedImages,
 			"stale_golden_bases", droppedGoldens)
 	}
+
+	// The retention pass above never reaps a referenced golden; enforce the
+	// host-disk bound that actually keeps the mini from filling.
+	c.reclaimGoldensUnderDiskPressure(ctx, expected, vms)
+}
+
+// reclaimGoldensUnderDiskPressure is the bound the retention pass lacks:
+// when the host root volume drops below the free-space floor, it reaps
+// golden bases even if a Pod still references their digest (keepGolden
+// always keeps those, so a warm Pod per Xcode pool otherwise pins every
+// golden and the disk fills unbounded). It reaps least-valuable first —
+// unreferenced goldens (superseded digests), then referenced ones whose
+// clone isn't currently running (idle warm-pool bases) — never touches a
+// golden that backs a live clone, spares any golden with a live `tart run`,
+// keeps at least MinGoldensKept, and stops the moment free space recovers.
+// A reaped golden re-pulls on its pool's next launch; that one cold clone
+// is the deliberate price of not letting the disk fill and silently break
+// the operator's SSH-driven config updates.
+func (c *Collector) reclaimGoldensUnderDiskPressure(ctx context.Context, expected *expectedSet, vms []tart.VM) {
+	logger := log.FromContext(ctx).WithName("gc")
+
+	floor := c.HostDiskFreeFloor
+	if floor <= 0 {
+		floor = defaultGoldenReclaimFreeFloor
+	}
+	free, err := c.hostDiskFree()
+	if err != nil {
+		logger.Error(err, "measure host disk free; skipping golden disk-pressure reclaim")
+		return
+	}
+	if free >= floor {
+		return
+	}
+
+	minKept := c.MinGoldensKept
+	if minKept <= 0 {
+		minKept = defaultMinGoldensKept
+	}
+
+	// Reap order: unreferenced (stalest) first, then referenced-but-idle.
+	// Goldens backing a live clone are excluded entirely.
+	liveBacked := c.liveBackedGoldens(ctx)
+	var unreferenced, idleReferenced []string
+	total := 0
+	for _, vm := range vms {
+		if vm.Source != "local" || !isGoldenVMName(vm.Name) {
+			continue
+		}
+		total++
+		if _, backed := liveBacked[vm.Name]; backed {
+			continue
+		}
+		if _, ref := expected.vms[vm.Name]; ref {
+			idleReferenced = append(idleReferenced, vm.Name)
+		} else {
+			unreferenced = append(unreferenced, vm.Name)
+		}
+	}
+
+	reaped := 0
+	for _, name := range append(unreferenced, idleReferenced...) {
+		if free >= floor || total-reaped <= minKept {
+			break
+		}
+		if c.live(ctx, name) {
+			continue
+		}
+		if err := c.Tart.Delete(ctx, name); err != nil {
+			logger.Error(err, "delete golden under host disk pressure", "name", name)
+			continue
+		}
+		c.forgetGolden(name)
+		reaped++
+		if f, ferr := c.hostDiskFree(); ferr == nil {
+			free = f
+		}
+	}
+
+	switch {
+	case reaped > 0:
+		logger.Info("reclaimed golden bases under host disk pressure",
+			"reaped", reaped, "host_free_percent", free, "floor", floor)
+	case free < floor:
+		logger.Info("host disk below free floor but no reclaimable golden bases (all live-backed or at minimum kept)",
+			"host_free_percent", free, "floor", floor, "min_kept", minKept)
+	}
+}
+
+// hostDiskFree returns the host root volume's free-space percent, using the
+// injected probe when set (tests) or a real statvfs of "/".
+func (c *Collector) hostDiskFree() (float64, error) {
+	if c.HostDiskFree != nil {
+		return c.HostDiskFree()
+	}
+	st, err := hostdisk.Root("/")
+	if err != nil {
+		return 0, err
+	}
+	return st.FreePercent(), nil
+}
+
+// liveBackedGoldens returns the set of golden base VM names whose clone is
+// currently running a Pod on this Node — the bases a disk-pressure reclaim
+// must not reap, since deleting them would force the active pool to
+// cold-pull its next launch. A List error yields the empty set: with no
+// evidence a golden is in use, the reclaim's other guards (live probe,
+// MinGoldensKept) still hold.
+func (c *Collector) liveBackedGoldens(ctx context.Context) map[string]struct{} {
+	out := map[string]struct{}{}
+	pods := &corev1.PodList{}
+	if err := c.K8s.List(ctx, pods, client.MatchingFields{"spec.nodeName": c.NodeName}); err != nil {
+		return out
+	}
+	for i := range pods.Items {
+		pod := &pods.Items[i]
+		if pod.DeletionTimestamp != nil || len(pod.Spec.Containers) != 1 {
+			continue
+		}
+		if c.live(ctx, VMNameForPod(pod)) {
+			out[goldenVMName(pod.Spec.Containers[0].Image)] = struct{}{}
+		}
+	}
+	return out
 }
 
 // keepGolden decides whether to retain a golden base VM this pass and
