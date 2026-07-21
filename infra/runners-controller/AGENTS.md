@@ -126,7 +126,12 @@ independent workqueues:
 
   The second state should be impossible — an idle Pod polls continuously,
   so queued work reaches it within a poll interval — which is what makes
-  the overlap a reliable fingerprint. Nothing else shows it: the phase
+  the overlap a reliable fingerprint, **provided `queued` counts only
+  dispatchable work**. Raw queue depth includes jobs held back because
+  their account is at its platform concurrency limit; dispatch will never
+  hand those out, so with a raw count the overlap is a valid steady state
+  rather than a fault. `..._queued_jobs` is only trustworthy for this
+  once the server reports dispatchable demand. Nothing else shows it: the phase
   count reads a warm idle Pod and a Pod running a customer job
   identically (both `Running`), `claimed+queued` stays flat while work
   drains normally (`queued` → `claimed`), and the oldest-un-booted-Pod

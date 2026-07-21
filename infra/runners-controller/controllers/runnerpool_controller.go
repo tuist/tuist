@@ -161,17 +161,26 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{}, fmt.Errorf("list pods: %w", err)
 	}
 
+	// Warm capacity is counted here, in the one pass with no early
+	// returns, rather than alongside the classification below. The reap
+	// path can bail mid-loop, and a deferred publish of a not-yet-
+	// assigned counter would report 0 warm Pods on an error path — which
+	// reads as "no capacity" and masks exactly the starvation this series
+	// exists to surface.
 	phaseReplicas := podPhaseReplicaCounts{}
+	idleCount := 0
 	for i := range pods.Items {
 		p := &pods.Items[i]
-		if isAlive(p) {
-			phaseReplicas.add(p)
+		if !isAlive(p) {
+			continue
+		}
+		phaseReplicas.add(p)
+		// Mirrors the classification below: stale-image Pods are retired
+		// by the roll throttle rather than counted as available.
+		if !isStaleImage(p, pool) && isIdle(p) && isWarmCapacity(p, pool) {
+			idleCount++
 		}
 	}
-	// Settled below, once scale-down has run; the deferred publish reads
-	// the final value so every return path reports the idle count that
-	// actually survived this reconcile.
-	idleCount := 0
 	defer func() {
 		metrics.RecordPodPhases(pool.Name, phaseReplicas.pending, phaseReplicas.running, phaseReplicas.unknown)
 		metrics.RecordIdleReplicas(pool.Name, idleCount)
@@ -194,11 +203,6 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	markedStale := 0
 	newNotReady := 0
 	var idleAlive []*corev1.Pod
-	// Subset of idleAlive that can actually accept a job right now — see
-	// isWarmCapacity. Tracked separately because idleAlive is the
-	// scale-down candidate list, where an unschedulable Pod is a
-	// perfectly good thing to delete.
-	idleWarm := 0
 	// Stale idle Pods are retired under the roll cap (below), not all at
 	// once: Running ones (macOS) get the drain-eligible label so the
 	// server 410s them; Pending ones (Linux warm pollers, or macOS that
@@ -236,9 +240,6 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 				// retired by the roll throttle, not scale-down.
 				if isIdle(p) {
 					idleAlive = append(idleAlive, p)
-					if isWarmCapacity(p, pool) {
-						idleWarm++
-					}
 				}
 				if !isReady(p) {
 					newNotReady++
@@ -322,11 +323,6 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		rolling++
 	}
 	metrics.RecordRoll(pool.Name, rolling, staleAlive, capN)
-
-	// Settled here rather than after scale-down: that loop can return
-	// early on a failed delete, and defaulting the gauge to 0 on that path
-	// would read as "no warm capacity" and mask the starvation signal.
-	idleCount = idleWarm
 
 	gap := int(pool.Spec.Replicas) - alive
 	overflow := 0
@@ -626,16 +622,37 @@ func isIdle(pod *corev1.Pod) bool {
 // failure.
 //
 // The test is OS-dependent for the same reason oldestPendingPodAge is
-// darwin-only. On a Tart pool, Pending means the VM isn't up, so only
-// Running is real capacity. On a Linux pool, Pending is the healthy
-// steady state — the dispatch poller is an init container and kubelet
-// holds the Pod in Pending for as long as it runs — so a warm Linux
-// runner is Pending for its whole idle life and must still count.
+// darwin-only, but neither platform can use the Pod phase alone:
+//
+//   - darwin: Pending means the VM isn't up, so only Running is capacity.
+//   - linux: Pending is the healthy steady state, because the dispatch
+//     poller is an init container and kubelet holds the Pod in Pending
+//     for as long as it runs. But an *unscheduled* Linux Pod is equally
+//     Pending, equally unowned, and `pollerTerminated` reports false for
+//     it because no poller status exists at all. Treating every non-
+//     darwin Pod as capacity would therefore classify a Linux pool that
+//     is simply out of hosts as starved — the exact inversion this
+//     function exists to prevent, just on the other platform.
+//
+// So Linux asks whether the poller is *actively running*, which is only
+// true once the Pod has a node and kubelet has started the container.
 func isWarmCapacity(pod *corev1.Pod, pool *tuistv1.RunnerPool) bool {
-	if pool.Spec.OS != "darwin" {
-		return true
+	if pool.Spec.OS == "darwin" {
+		return pod.Status.Phase == corev1.PodRunning
 	}
-	return pod.Status.Phase == corev1.PodRunning
+	return pollerRunning(pod)
+}
+
+// pollerRunning reports whether the Linux `poller` init container is
+// currently executing. Absent status means the Pod has not started it
+// (unscheduled, or still pulling), which is not warm capacity.
+func pollerRunning(pod *corev1.Pod) bool {
+	for _, cs := range pod.Status.InitContainerStatuses {
+		if cs.Name == "poller" {
+			return cs.State.Running != nil
+		}
+	}
+	return false
 }
 
 // pollerTerminated reports whether the Linux `poller` init container
