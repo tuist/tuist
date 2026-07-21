@@ -49,7 +49,7 @@ use crate::{
     },
     io::{IoController, PersistentFile},
     memory::MemoryController,
-    mmap::map_file_region,
+    mmap::{map_file_region, mapped_span_bytes},
     multipart::{error::MultipartError, part::MultipartPart, upload::MultipartUpload},
     replication::{operation::ReplicationOperation, outbox_message::OutboxMessage},
     segment::{
@@ -1123,17 +1123,17 @@ impl Store {
         if manifest.inline || manifest.size > self.memory.mmap_serving_pool_bytes() as u64 {
             return Ok(None);
         }
-        let Ok(requested_bytes) = usize::try_from(manifest.size) else {
-            return Ok(None);
-        };
-        let Some(permit) = self.memory.try_acquire_mmap_serving(requested_bytes) else {
-            return Ok(None);
-        };
 
         if let Some(segment_id) = &manifest.segment_id {
             let offset = manifest
                 .segment_offset
                 .ok_or_else(|| "segment-backed manifest is missing segment offset".to_string())?;
+            let Some(requested_bytes) = mapped_span_bytes(offset, manifest.size) else {
+                return Ok(None);
+            };
+            let Some(permit) = self.memory.try_acquire_mmap_serving(requested_bytes) else {
+                return Ok(None);
+            };
             let handle = self.segment_handle(segment_id).await?;
             let Some(serve) = map_file_region(handle.as_std(), offset, manifest.size, permit)?
             else {
@@ -1147,6 +1147,12 @@ impl Store {
         }
 
         if let Some(blob_path) = &manifest.blob_path {
+            let Some(requested_bytes) = mapped_span_bytes(0, manifest.size) else {
+                return Ok(None);
+            };
+            let Some(permit) = self.memory.try_acquire_mmap_serving(requested_bytes) else {
+                return Ok(None);
+            };
             let handle = self.blob_handle(blob_path).await?;
             let Some(serve) = map_file_region(handle.as_std(), 0, manifest.size, permit)? else {
                 return Ok(None);

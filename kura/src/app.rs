@@ -46,9 +46,12 @@ const HTTP2_MAX_CONCURRENT_STREAMS: u32 = 128;
 const HTTP2_STREAM_WINDOW_BYTES: u32 = 4 * 1024 * 1024;
 const HTTP2_CONNECTION_WINDOW_BYTES: u32 = 16 * 1024 * 1024;
 const HTTP2_MAX_FRAME_SIZE: u32 = 64 * 1024;
-const HTTP2_MAX_SEND_BUFFER_BYTES: usize = 512 * 1024;
+const HTTP2_MAX_SEND_BUFFER_BYTES: usize = crate::constants::RESPONSE_STREAM_SEND_BUFFER_BYTES;
 const HTTP2_KEEP_ALIVE_INTERVAL: Duration = Duration::from_secs(30);
 const HTTP2_KEEP_ALIVE_TIMEOUT: Duration = Duration::from_secs(20);
+const MEMORY_SAMPLE_INTERVAL: Duration = Duration::from_millis(200);
+#[cfg(target_os = "linux")]
+const INITIAL_MEMORY_SAMPLE_ATTEMPTS: u8 = 5;
 
 #[derive(Clone, Copy, Debug)]
 struct ShutdownBudget {
@@ -144,16 +147,7 @@ async fn run_with_config(
         Ok(swept) => tracing::info!(swept, "removed orphaned segment files"),
         Err(error) => tracing::warn!("failed to sweep orphaned segments: {error}"),
     }
-    // Establish a post-store-open baseline before any listener can admit an
-    // upload. The recurring sensor refreshes it every 200 ms, but treating an
-    // unknown baseline as zero would let a startup burst reserve the whole hard
-    // limit on top of RocksDB and allocator memory already charged to the
-    // container.
-    if let Some(accounted_bytes) = crate::memory::container_memory_current_bytes()
-        .or_else(|| process_memory_snapshot().map(|snapshot| snapshot.resident_bytes))
-    {
-        memory.observe(accounted_bytes);
-    }
+    establish_initial_memory_baseline(&memory).await?;
     let peer_client_factory = crate::peer_tls::PeerClientFactory::from_config(&config).await?;
     let client = peer_client_factory.build()?;
     let internal_tls = match &config.peer_tls {
@@ -594,27 +588,82 @@ fn spawn_snapshot_task(state: Arc<AppState>) {
 
 fn spawn_memory_pressure_tasks(state: Arc<AppState>) {
     let sensor_state = state.clone();
-    tokio::spawn(
+    let watchdog_memory = state.memory.clone();
+    let mut sensor = tokio::spawn(
         async move {
             loop {
-                let accounted_bytes = crate::memory::container_memory_current_bytes()
-                    .or_else(|| process_memory_snapshot().map(|snapshot| snapshot.resident_bytes));
-                if let Some(accounted_bytes) = accounted_bytes {
+                sensor_state.memory.begin_observation();
+                if let Some(sample) = crate::memory::container_memory_pressure_sample() {
+                    if let Err(error) =
+                        validate_container_memory_limit(&sensor_state.memory, sample)
+                    {
+                        tracing::error!("{error}; terminating Kura");
+                        eprintln!("{error}; terminating Kura");
+                        std::process::exit(1);
+                    }
                     let previous = sensor_state.memory.pressure();
-                    let pressure = sensor_state.memory.observe(accounted_bytes);
+                    let pressure = sensor_state.memory.observe_prepared_container(sample);
                     if pressure != previous {
+                        let accounted_bytes = sensor_state.memory.accounted_container_bytes(sample);
                         tracing::warn!(
                             from = previous.as_str(),
                             to = pressure.as_str(),
+                            raw_bytes = sample.current_bytes,
+                            working_set_bytes = sample.working_set_bytes,
                             accounted_bytes,
+                            reclaim_credit_bytes = sensor_state.memory.reclaim_credit_bytes(),
+                            raw_guard_dominant = accounted_bytes > sample.working_set_bytes,
                             runtime_limit_bytes = sensor_state.memory.runtime_limit_bytes(),
                             transient_reserved_bytes =
                                 sensor_state.memory.transient_reserved_bytes(),
+                            deferred_release_bytes = sensor_state.memory.deferred_release_bytes(),
                             "Kura memory pressure changed"
                         );
                     }
+                } else {
+                    #[cfg(not(target_os = "linux"))]
+                    if let Some(snapshot) = process_memory_snapshot() {
+                        sensor_state
+                            .memory
+                            .observe_prepared(snapshot.resident_bytes);
+                    }
                 }
-                tokio::time::sleep(Duration::from_millis(200)).await;
+                tokio::time::sleep(MEMORY_SAMPLE_INTERVAL).await;
+            }
+        }
+        .in_current_span(),
+    );
+    tokio::spawn(
+        async move {
+            let mut last_sequence = watchdog_memory.observation_sequence();
+            let mut stale_checks = 0_u8;
+            loop {
+                tokio::select! {
+                    result = &mut sensor => {
+                        tracing::error!(?result, "memory pressure sensor exited; terminating Kura");
+                        eprintln!("memory pressure sensor exited; terminating Kura: {result:?}");
+                        std::process::exit(1);
+                    }
+                    _ = tokio::time::sleep(Duration::from_secs(1)) => {
+                        let sequence = watchdog_memory.observation_sequence();
+                        if !cfg!(target_os = "linux")
+                            && !watchdog_memory.uses_container_accounting()
+                        {
+                            continue;
+                        }
+                        if sequence == last_sequence {
+                            stale_checks = stale_checks.saturating_add(1);
+                            if stale_checks >= 5 {
+                                tracing::error!("memory pressure sensor has not produced a sample for five seconds; terminating Kura");
+                                eprintln!("memory pressure sensor has not produced a sample for five seconds; terminating Kura");
+                                std::process::exit(1);
+                            }
+                        } else {
+                            last_sequence = sequence;
+                            stale_checks = 0;
+                        }
+                    }
+                }
             }
         }
         .in_current_span(),
@@ -713,6 +762,58 @@ fn spawn_memory_pressure_tasks(state: Arc<AppState>) {
         }
         .in_current_span(),
     );
+}
+
+async fn establish_initial_memory_baseline(memory: &MemoryController) -> Result<(), String> {
+    #[cfg(target_os = "linux")]
+    {
+        for attempt in 1..=INITIAL_MEMORY_SAMPLE_ATTEMPTS {
+            if let Some(sample) = crate::memory::container_memory_pressure_sample() {
+                validate_container_memory_limit(memory, sample)?;
+                memory.observe_container(sample);
+                return Ok(());
+            }
+            if attempt < INITIAL_MEMORY_SAMPLE_ATTEMPTS {
+                tokio::time::sleep(MEMORY_SAMPLE_INTERVAL).await;
+            }
+        }
+        return Err(format!(
+            "failed to read Linux control-group memory accounting after {INITIAL_MEMORY_SAMPLE_ATTEMPTS} attempts; refusing to serve without bounded memory accounting"
+        ));
+    }
+
+    #[cfg(not(target_os = "linux"))]
+    {
+        if let Some(snapshot) = process_memory_snapshot() {
+            memory.observe(snapshot.resident_bytes);
+        }
+        Ok(())
+    }
+}
+
+fn validate_container_memory_limit(
+    memory: &MemoryController,
+    sample: crate::memory::ContainerMemoryPressureSample,
+) -> Result<(), String> {
+    let Some(enforced_limit_bytes) = sample.limit_bytes else {
+        return Ok(());
+    };
+    if enforced_limit_bytes == 0 {
+        return Err("the Linux control-group memory limit is zero".into());
+    }
+    if memory.runtime_limit_bytes() > enforced_limit_bytes {
+        return Err(format!(
+            "the detected runtime memory limit of {} bytes exceeds the enforced Linux control-group limit of {enforced_limit_bytes} bytes",
+            memory.runtime_limit_bytes()
+        ));
+    }
+    if memory.hard_limit_bytes() >= enforced_limit_bytes {
+        return Err(format!(
+            "the hard memory watermark of {} bytes must stay below the enforced Linux control-group limit of {enforced_limit_bytes} bytes",
+            memory.hard_limit_bytes()
+        ));
+    }
+    Ok(())
 }
 
 fn spawn_runtime_metrics_task(state: Arc<AppState>) {
@@ -1152,6 +1253,50 @@ mod tests {
         // HTTP/2 (h2c REAPI gRPC) on the same socket.
         assert!(builder.is_http1_available());
         assert!(builder.is_http2_available());
+    }
+
+    #[test]
+    fn container_limit_validation_rejects_an_oversized_runtime_budget() {
+        let memory = MemoryController::with_runtime_limit(
+            Metrics::new("eu-west".into(), "tenant".into()),
+            256,
+            179,
+            217,
+        );
+        let error = validate_container_memory_limit(
+            &memory,
+            crate::memory::ContainerMemoryPressureSample {
+                current_bytes: 100,
+                working_set_bytes: 100,
+                reclaimable_inactive_file_bytes: 0,
+                limit_bytes: Some(200),
+            },
+        )
+        .expect_err("the runtime budget must fit the enforced limit");
+
+        assert!(error.contains("runtime memory limit"));
+    }
+
+    #[test]
+    fn container_limit_validation_accepts_bounded_and_unlimited_groups() {
+        let memory = MemoryController::with_runtime_limit(
+            Metrics::new("eu-west".into(), "tenant".into()),
+            256,
+            179,
+            217,
+        );
+        for limit_bytes in [Some(256), None] {
+            validate_container_memory_limit(
+                &memory,
+                crate::memory::ContainerMemoryPressureSample {
+                    current_bytes: 100,
+                    working_set_bytes: 100,
+                    reclaimable_inactive_file_bytes: 0,
+                    limit_bytes,
+                },
+            )
+            .expect("the runtime budget should fit the container limit");
+        }
     }
 
     #[cfg(not(target_env = "msvc"))]

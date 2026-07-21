@@ -113,6 +113,24 @@
         },
         {
           "editorMode": "code",
+          "expr": "kura_container_memory_working_set_bytes",
+          "legendFormat": "{{region}} working set",
+          "refId": "J"
+        },
+        {
+          "editorMode": "code",
+          "expr": "kura_container_memory_reclaimable_inactive_file_bytes",
+          "legendFormat": "{{region}} reclaimable inactive file",
+          "refId": "O"
+        },
+        {
+          "editorMode": "code",
+          "expr": "kura_container_memory_limit_bytes",
+          "legendFormat": "{{region}} container limit",
+          "refId": "K"
+        },
+        {
+          "editorMode": "code",
           "expr": "kura_container_memory_anon_bytes",
           "legendFormat": "{{region}} anonymous",
           "refId": "D"
@@ -131,6 +149,24 @@
         },
         {
           "editorMode": "code",
+          "expr": "kura_container_memory_shmem_bytes",
+          "legendFormat": "{{region}} shared memory",
+          "refId": "L"
+        },
+        {
+          "editorMode": "code",
+          "expr": "kura_container_memory_file_dirty_bytes",
+          "legendFormat": "{{region}} dirty file",
+          "refId": "M"
+        },
+        {
+          "editorMode": "code",
+          "expr": "kura_container_memory_file_writeback_bytes",
+          "legendFormat": "{{region}} file writeback",
+          "refId": "N"
+        },
+        {
+          "editorMode": "code",
           "expr": "kura_memory_soft_limit_bytes",
           "legendFormat": "{{region}} soft watermark",
           "refId": "G"
@@ -146,6 +182,42 @@
           "expr": "kura_memory_transient_reserved_bytes",
           "legendFormat": "{{region}} transient reserved",
           "refId": "I"
+        },
+        {
+          "editorMode": "code",
+          "expr": "kura_memory_deferred_release_bytes",
+          "legendFormat": "{{region}} deferred release",
+          "refId": "P"
+        },
+        {
+          "editorMode": "code",
+          "expr": "kura_memory_accounted_bytes",
+          "legendFormat": "{{region}} accounted",
+          "refId": "Q"
+        },
+        {
+          "editorMode": "code",
+          "expr": "kura_memory_reclaim_credit_bytes",
+          "legendFormat": "{{region}} reclaim credit",
+          "refId": "R"
+        },
+        {
+          "editorMode": "code",
+          "expr": "kura_response_stream_pool_capacity_bytes",
+          "legendFormat": "{{region}} stream pool capacity",
+          "refId": "S"
+        },
+        {
+          "editorMode": "code",
+          "expr": "sum by (region) (kura_response_stream_reserved_bytes)",
+          "legendFormat": "{{region}} stream pool reserved",
+          "refId": "T"
+        },
+        {
+          "editorMode": "code",
+          "expr": "kura_response_stream_foreground_pool_capacity_bytes",
+          "legendFormat": "{{region}} stream pool public ceiling",
+          "refId": "U"
         }
       ],
       "title": "Container and Process Memory",
@@ -226,6 +298,36 @@
           "expr": "kura_memory_pressure_state",
           "legendFormat": "{{region}}",
           "refId": "A"
+        },
+        {
+          "editorMode": "code",
+          "expr": "kura_foreground_memory_waiters",
+          "legendFormat": "{{region}} foreground waiters",
+          "refId": "B"
+        },
+        {
+          "editorMode": "code",
+          "expr": "sum by (region) (rate(kura_memory_raw_guard_dominant_samples_total[5m])) / clamp_min(sum by (region) (rate(kura_memory_accounting_samples_total[5m])), 0.001)",
+          "legendFormat": "{{region}} raw guard share",
+          "refId": "C"
+        },
+        {
+          "editorMode": "code",
+          "expr": "sum by (region, protocol) (kura_response_stream_active)",
+          "legendFormat": "{{region}} {{protocol}} active streams",
+          "refId": "D"
+        },
+        {
+          "editorMode": "code",
+          "expr": "sum by (region, protocol) (kura_response_stream_waiters)",
+          "legendFormat": "{{region}} {{protocol}} stream waiters",
+          "refId": "E"
+        },
+        {
+          "editorMode": "code",
+          "expr": "sum by (region, protocol, outcome) (rate(kura_response_stream_admissions_total{outcome=~\"timeout|queue_full\"}[5m]))",
+          "legendFormat": "{{region}} {{protocol}} {{outcome}} rate",
+          "refId": "F"
         }
       ],
       "title": "Memory Pressure State",
@@ -308,6 +410,12 @@
           "expr": "sum by (region, route) (rate(kura_http_requests_total[5m]))",
           "legendFormat": "{{region}} {{route}}",
           "refId": "A"
+        },
+        {
+          "editorMode": "code",
+          "expr": "sum by (region, path) (rate(kura_artifact_serving_paths_total[5m]))",
+          "legendFormat": "{{region}} artifact {{path}}",
+          "refId": "B"
         }
       ],
       "title": "HTTP Request Rate",

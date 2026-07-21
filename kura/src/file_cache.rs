@@ -37,13 +37,14 @@ impl ForegroundFileCacheReservation {
 
 impl Drop for ForegroundFileCacheReservation {
     fn drop(&mut self) {
-        // Convert the completed upload's real kernel charge into the controller
-        // baseline before the transient reservation is released and wakes the
-        // next waiter. Otherwise several sub-200 ms uploads can reuse the same
-        // stale headroom while their retained segment pages are already charged
-        // to the container.
-        if self.policy == FileCachePolicy::Bounded || self.memory.has_waiters() {
-            self.memory.observe_container_memory();
+        // Keep the reservation charged until the next sensor observation has
+        // incorporated the completed upload's real memory footprint. Otherwise
+        // several sub-200 ms uploads can reuse the same stale headroom while
+        // their retained segment pages are already charged to the container.
+        if cfg!(target_os = "linux")
+            && (self.policy == FileCachePolicy::Bounded || self.memory.has_waiters())
+        {
+            self.memory.defer_release_until_observation();
         }
     }
 }
@@ -115,6 +116,16 @@ mod tests {
         tokio::task::yield_now().await;
         assert!(!waiting.is_finished());
         drop(first);
+        #[cfg(target_os = "linux")]
+        {
+            assert_eq!(
+                memory.deferred_release_bytes(),
+                2 * FOREGROUND_STAGING_WINDOW_BYTES
+            );
+            memory.observe(0);
+        }
+        #[cfg(not(target_os = "linux"))]
+        assert_eq!(memory.deferred_release_bytes(), 0);
 
         let second = waiting
             .await
@@ -122,6 +133,7 @@ mod tests {
             .expect("queued reservation should fit after release");
         assert_eq!(second.file_cache_policy(), FileCachePolicy::Bounded);
         drop(second);
+        memory.observe(0);
         assert_eq!(memory.transient_reserved_bytes(), 0);
     }
 

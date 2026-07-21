@@ -29,6 +29,7 @@ use crate::{
     artifact::producer::ArtifactProducer,
     config::{AcceleratedFileServingConfig, AcceleratedFileServingMode},
     extension::{AccessDecision, ExtensionContext},
+    memory::{MemoryController, MemoryPressure},
     runtime::HttpTrafficClass,
     state::SharedState,
     store::AcceleratedArtifactFile,
@@ -570,6 +571,8 @@ async fn serve_accelerated(
     let content_type = sanitized_content_type(&file.content_type);
     let mode = config.mode;
     let chunk_bytes = config.chunk_bytes;
+    let memory = state.memory.clone();
+    let metrics = state.metrics.clone();
     let result = tokio::task::spawn_blocking(
         move || -> std::io::Result<(std::net::TcpStream, u64, Duration)> {
             let mut stream = stream.into_std()?;
@@ -588,8 +591,18 @@ async fn serve_accelerated(
             // before the body transfer, so large downloads do not inflate the
             // responsiveness signal.
             let time_to_first_byte = request_started_at.elapsed();
-            let bytes = transfer_file(&mut stream, &file, mode, chunk_bytes)?;
-            Ok((stream, bytes, time_to_first_byte))
+            let mut cache_drop = AcceleratedReadCacheDrop::new(chunk_bytes);
+            let transfer = transfer_file(
+                &mut stream,
+                &file,
+                mode,
+                chunk_bytes,
+                &memory,
+                &mut cache_drop,
+            );
+            cache_drop.finish(&file, &memory);
+            cache_drop.record(&metrics);
+            Ok((stream, transfer?, time_to_first_byte))
         },
     )
     .await
@@ -597,6 +610,7 @@ async fn serve_accelerated(
 
     match result {
         Ok((std_stream, bytes, time_to_first_byte)) => {
+            state.metrics.record_artifact_serving_path("accelerated");
             state.runtime.record_public_request_latency(
                 &state.metrics,
                 "http",
@@ -652,6 +666,128 @@ async fn serve_accelerated(
             Err(error)
         }
     }
+}
+
+struct AcceleratedReadCacheDrop {
+    interval_bytes: u64,
+    page_bytes: u64,
+    advised_through: u64,
+    sent_through: u64,
+    next_advice_at: u64,
+    pressure_active: bool,
+    advised_bytes: u64,
+    failed: bool,
+}
+
+impl AcceleratedReadCacheDrop {
+    fn new(chunk_bytes: usize) -> Self {
+        Self {
+            interval_bytes: chunk_bytes.max(1) as u64,
+            page_bytes: system_page_bytes(),
+            advised_through: 0,
+            sent_through: 0,
+            next_advice_at: 0,
+            pressure_active: false,
+            advised_bytes: 0,
+            failed: false,
+        }
+    }
+
+    fn observe_progress(
+        &mut self,
+        file: &AcceleratedArtifactFile,
+        memory: &MemoryController,
+        sent_through: u64,
+        finish: bool,
+    ) {
+        self.sent_through = self.sent_through.max(sent_through.min(file.size));
+        if memory.pressure() == MemoryPressure::Normal {
+            self.pressure_active = false;
+            self.advised_through = align_up(
+                file.offset.saturating_add(self.sent_through),
+                self.page_bytes,
+            );
+            self.next_advice_at = self.sent_through.saturating_add(self.interval_bytes);
+            return;
+        }
+        if !self.pressure_active {
+            self.pressure_active = true;
+            // Skip the older prefix rather than walking an arbitrarily large
+            // range while holding an accelerator permit. Those pages are the
+            // first to age into the inactive list; the most recently touched
+            // transfer window is what keeps the working set elevated.
+            self.advised_through = align_up(
+                file.offset
+                    .saturating_add(self.sent_through.saturating_sub(self.interval_bytes)),
+                self.page_bytes,
+            );
+            self.next_advice_at = self.sent_through.saturating_add(self.interval_bytes);
+        } else if !finish && self.sent_through < self.next_advice_at {
+            return;
+        }
+
+        let completed_through = align_down(
+            file.offset.saturating_add(self.sent_through),
+            self.page_bytes,
+        );
+        let bytes = completed_through.saturating_sub(self.advised_through);
+        if bytes == 0 {
+            return;
+        }
+        if let Err(error) = file.handle.drop_cached_pages(self.advised_through, bytes) {
+            if !self.failed {
+                tracing::warn!(
+                    error = %error,
+                    "failed to release accelerated read file cache under memory pressure"
+                );
+            }
+            self.failed = true;
+        } else {
+            self.advised_bytes = self.advised_bytes.saturating_add(bytes);
+        }
+        self.advised_through = completed_through;
+        self.next_advice_at = self.sent_through.saturating_add(self.interval_bytes);
+    }
+
+    fn finish(&mut self, file: &AcceleratedArtifactFile, memory: &MemoryController) {
+        self.observe_progress(file, memory, self.sent_through, true);
+    }
+
+    fn record(&self, metrics: &crate::metrics::Metrics) {
+        if self.advised_bytes > 0 {
+            metrics.record_memory_action("accelerated_read_file_cache_drop");
+            metrics
+                .record_memory_action_bytes("accelerated_read_file_cache_drop", self.advised_bytes);
+        }
+        if self.failed {
+            metrics.record_memory_action("accelerated_read_file_cache_drop_failed");
+        }
+    }
+}
+
+fn align_up(value: u64, alignment: u64) -> u64 {
+    value
+        .saturating_add(alignment.saturating_sub(1))
+        .saturating_div(alignment)
+        .saturating_mul(alignment)
+}
+
+fn align_down(value: u64, alignment: u64) -> u64 {
+    value.saturating_div(alignment).saturating_mul(alignment)
+}
+
+fn system_page_bytes() -> u64 {
+    static PAGE_BYTES: std::sync::OnceLock<u64> = std::sync::OnceLock::new();
+    *PAGE_BYTES.get_or_init(|| {
+        #[cfg(unix)]
+        {
+            let page_bytes = unsafe { libc::sysconf(libc::_SC_PAGESIZE) };
+            if page_bytes > 0 {
+                return page_bytes as u64;
+            }
+        }
+        4096
+    })
 }
 
 fn record_usage(
@@ -941,10 +1077,16 @@ fn transfer_file(
     file: &AcceleratedArtifactFile,
     mode: AcceleratedFileServingMode,
     chunk_bytes: usize,
+    memory: &MemoryController,
+    cache_drop: &mut AcceleratedReadCacheDrop,
 ) -> std::io::Result<u64> {
     match mode {
-        AcceleratedFileServingMode::Sendfile => transfer_sendfile(stream, file, chunk_bytes),
-        AcceleratedFileServingMode::Splice => transfer_splice(stream, file, chunk_bytes),
+        AcceleratedFileServingMode::Sendfile => {
+            transfer_sendfile(stream, file, chunk_bytes, memory, cache_drop)
+        }
+        AcceleratedFileServingMode::Splice => {
+            transfer_splice(stream, file, chunk_bytes, memory, cache_drop)
+        }
     }
 }
 
@@ -954,6 +1096,8 @@ fn transfer_file(
     _file: &AcceleratedArtifactFile,
     _mode: AcceleratedFileServingMode,
     _chunk_bytes: usize,
+    _memory: &MemoryController,
+    _cache_drop: &mut AcceleratedReadCacheDrop,
 ) -> std::io::Result<u64> {
     Err(std::io::Error::new(
         std::io::ErrorKind::Unsupported,
@@ -966,6 +1110,8 @@ fn transfer_sendfile(
     stream: &mut std::net::TcpStream,
     file: &AcceleratedArtifactFile,
     chunk_bytes: usize,
+    memory: &MemoryController,
+    cache_drop: &mut AcceleratedReadCacheDrop,
 ) -> std::io::Result<u64> {
     use std::os::fd::AsRawFd;
 
@@ -989,6 +1135,7 @@ fn transfer_sendfile(
             break;
         }
         sent_total += sent as u64;
+        cache_drop.observe_progress(file, memory, sent_total, false);
     }
     ensure_complete_transfer("sendfile", sent_total, file.size)
 }
@@ -998,6 +1145,8 @@ fn transfer_splice(
     stream: &mut std::net::TcpStream,
     file: &AcceleratedArtifactFile,
     chunk_bytes: usize,
+    memory: &MemoryController,
+    cache_drop: &mut AcceleratedReadCacheDrop,
 ) -> std::io::Result<u64> {
     use std::os::fd::AsRawFd;
 
@@ -1061,6 +1210,7 @@ fn transfer_splice(
                 pending -= spliced_out as usize;
                 sent_total += spliced_out as u64;
             }
+            cache_drop.observe_progress(file, memory, sent_total, false);
         }
         ensure_complete_transfer("splice", sent_total, file.size)
     })();
@@ -1086,11 +1236,18 @@ fn ensure_complete_transfer(operation: &str, sent: u64, expected: u64) -> std::i
 
 #[cfg(test)]
 mod tests {
+    use std::{sync::Arc, time::Duration};
+
     use crate::artifact::producer::ArtifactProducer;
+    use crate::{
+        io::IoController, memory::MemoryController, metrics::Metrics,
+        store::AcceleratedArtifactFile,
+    };
+    use tempfile::tempdir;
 
     use super::{
-        ParsedRequest, artifact_request, parse_request, request_wants_keep_alive,
-        sanitized_content_type,
+        AcceleratedReadCacheDrop, ParsedRequest, artifact_request, parse_request,
+        request_wants_keep_alive, sanitized_content_type, system_page_bytes,
     };
 
     fn parsed_with_headers(headers: &[(&str, &str)]) -> ParsedRequest {
@@ -1184,6 +1341,91 @@ mod tests {
             sanitized_content_type("text/plain\r\nset-cookie: x=y"),
             "application/octet-stream"
         );
+    }
+
+    #[tokio::test]
+    async fn accelerated_reads_release_file_cache_only_under_memory_pressure() {
+        let directory = tempdir().expect("temporary directory");
+        let path = directory.path().join("artifact");
+        let size = system_page_bytes();
+        let artifact = std::fs::File::create(&path).expect("create artifact");
+        artifact.set_len(size).expect("size artifact");
+        let metrics = Metrics::new("eu-west".into(), "tenant".into());
+        let io = IoController::new(
+            metrics.clone(),
+            4,
+            Duration::from_secs(1),
+            vec![directory.path().to_path_buf()],
+        )
+        .expect("create input-output controller");
+        let file = AcceleratedArtifactFile {
+            handle: Arc::new(
+                io.open_persistent_read_file(&path)
+                    .await
+                    .expect("open artifact"),
+            ),
+            offset: 0,
+            size,
+            content_type: "application/octet-stream".into(),
+        };
+        let memory = MemoryController::new(metrics, 100, 200);
+
+        let mut cache_drop = AcceleratedReadCacheDrop::new(1024 * 1024);
+        cache_drop.observe_progress(&file, &memory, file.size, false);
+        assert_eq!(cache_drop.advised_bytes, 0);
+        memory.observe(100);
+        cache_drop.observe_progress(&file, &memory, file.size, false);
+        assert_eq!(cache_drop.advised_bytes, size);
+    }
+
+    #[tokio::test]
+    async fn accelerated_reads_release_file_cache_incrementally() {
+        let directory = tempdir().expect("temporary directory");
+        let path = directory.path().join("large-artifact");
+        let chunk_bytes = 1024 * 1024;
+        let size = 2 * chunk_bytes as u64;
+        let offset = 100;
+        let artifact = std::fs::File::create(&path).expect("create artifact");
+        artifact.set_len(size + offset).expect("size artifact");
+        let metrics = Metrics::new("eu-west".into(), "tenant".into());
+        let io = IoController::new(
+            metrics.clone(),
+            4,
+            Duration::from_secs(1),
+            vec![directory.path().to_path_buf()],
+        )
+        .expect("create input-output controller");
+        let file = AcceleratedArtifactFile {
+            handle: Arc::new(
+                io.open_persistent_read_file(&path)
+                    .await
+                    .expect("open artifact"),
+            ),
+            offset,
+            size,
+            content_type: "application/octet-stream".into(),
+        };
+        let memory = MemoryController::new(metrics, 100, 200);
+        memory.observe(100);
+        let mut cache_drop = AcceleratedReadCacheDrop::new(chunk_bytes);
+
+        cache_drop.observe_progress(&file, &memory, chunk_bytes as u64, false);
+        assert_eq!(
+            cache_drop.advised_bytes,
+            chunk_bytes as u64 - cache_drop.page_bytes
+        );
+        cache_drop.observe_progress(
+            &file,
+            &memory,
+            chunk_bytes as u64 + cache_drop.page_bytes,
+            false,
+        );
+        assert_eq!(
+            cache_drop.advised_bytes,
+            chunk_bytes as u64 - cache_drop.page_bytes
+        );
+        cache_drop.observe_progress(&file, &memory, size, false);
+        assert_eq!(cache_drop.advised_bytes, size - cache_drop.page_bytes);
     }
 
     #[test]
