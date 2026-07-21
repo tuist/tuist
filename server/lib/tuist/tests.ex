@@ -952,6 +952,8 @@ defmodule Tuist.Tests do
     alert_id = Keyword.get(opts, :alert_id)
 
     with {:ok, test_case} <- get_test_case_by_id(test_case_id) do
+      ensure_projectable!(test_case)
+
       attrs =
         test_case
         |> Map.from_struct()
@@ -964,7 +966,7 @@ defmodule Tuist.Tests do
       updated_test_case = Map.merge(test_case, filtered_attrs)
 
       event_types = determine_test_case_events(test_case, filtered_attrs)
-      record_test_case_events(test_case_id, event_types, actor_id, alert_id)
+      record_test_case_events(test_case, event_types, actor_id, alert_id)
       # Broadcast THIS call's update before fanning out to event-driven
       # automations. An automation action (e.g. change_state) re-enters
       # `update_test_case/3`, which will broadcast its own update; we want
@@ -1016,16 +1018,34 @@ defmodule Tuist.Tests do
     )
   end
 
-  defp record_test_case_events(_test_case_id, [], _actor_id, _alert_id), do: :ok
+  # The projection is keyed by project and every read of it is project-scoped,
+  # so an event without a real `project_id` records history that no read can
+  # ever resolve back into state. That is the exact failure this whole change
+  # exists to remove, so it fails loudly. Checked before any write rather than
+  # at the point of use, so a violation can't leave the legacy column updated
+  # with no matching event behind it.
+  defp ensure_projectable!(test_case) do
+    if is_nil(test_case.project_id) or test_case.project_id == 0 do
+      raise ArgumentError, "test case #{test_case.id} has no project_id; refusing to record a state change"
+    end
 
-  defp record_test_case_events(test_case_id, event_types, actor_id, alert_id) do
+    :ok
+  end
+
+  defp record_test_case_events(_test_case, [], _actor_id, _alert_id), do: :ok
+
+  # `project_id` is denormalized onto the event so `test_case_states_mv` can
+  # project it into `test_case_states`, whose reads are all project-scoped. A
+  # materialized view only sees the inserted rows and can't join back for it.
+  defp record_test_case_events(test_case, event_types, actor_id, alert_id) do
     now = NaiveDateTime.utc_now()
 
     events =
       Enum.map(event_types, fn event_type ->
         %{
           id: UUIDv7.generate(),
-          test_case_id: test_case_id,
+          test_case_id: test_case.id,
+          project_id: test_case.project_id,
           event_type: to_string(event_type),
           actor_id: actor_id,
           alert_id: alert_id,
@@ -1997,6 +2017,7 @@ defmodule Tuist.Tests do
         %{
           id: TestCaseEvent.first_run_id(run.test_case_id),
           test_case_id: run.test_case_id,
+          project_id: run.project_id,
           event_type: "first_run",
           actor_id: nil,
           alert_id: nil,

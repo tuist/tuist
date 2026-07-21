@@ -7697,6 +7697,69 @@ defmodule Tuist.TestsTest do
     end
   end
 
+  describe "test_case_states materialized view" do
+    test "projects control-plane events into test_case_states" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id)
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      # When
+      {:ok, _} = Tests.update_test_case(test_case.id, %{state: "muted"})
+
+      # Then
+      assert %{state: "muted"} = projected_test_case_state(project.id, test_case.id)
+    end
+
+    test "a flaky event does not clobber the state set by an earlier mute" do
+      # This is the bug the whole move exists to fix, in its final form. Both
+      # columns used to share a row, so writing one carried the other along and
+      # a concurrent change to it was lost. Each event now sets only the column
+      # it is about and leaves the other NULL, so resolving them independently
+      # is the thing that has to hold.
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id)
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      # When
+      {:ok, _} = Tests.update_test_case(test_case.id, %{state: "muted"})
+      {:ok, _} = Tests.update_test_case(test_case.id, %{is_flaky: true})
+
+      # Then
+      assert %{state: "muted", is_flaky: true} = projected_test_case_state(project.id, test_case.id)
+    end
+
+    test "an unmute after a mute resolves back to enabled" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id)
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      # When
+      {:ok, _} = Tests.update_test_case(test_case.id, %{state: "muted"})
+      {:ok, _} = Tests.update_test_case(test_case.id, %{state: "enabled"})
+
+      # Then
+      assert %{state: "enabled"} = projected_test_case_state(project.id, test_case.id)
+    end
+  end
+
+  # Resolves the projection the same way `Tuist.Tests` does: each column from
+  # its own event stream, ignoring the rows that left it NULL.
+  defp projected_test_case_state(project_id, test_case_id) do
+    ClickHouseRepo.one(
+      from(s in Tuist.Tests.TestCaseState,
+        where: s.project_id == ^project_id and s.test_case_id == ^test_case_id,
+        group_by: s.test_case_id,
+        select: %{
+          state: fragment("argMaxIf(?, ?, isNotNull(?))", s.state, s.inserted_at, s.state),
+          is_flaky: fragment("argMaxIf(?, ?, isNotNull(?))", s.is_flaky, s.inserted_at, s.is_flaky)
+        }
+      )
+    )
+  end
+
   describe "update_test_case/3 with event creation" do
     test "creates marked_flaky event when is_flaky changes from false to true" do
       # Given
