@@ -108,6 +108,7 @@ config :fun_with_flags, :persistence,
   ecto_primary_key_type: :binary_id
 
 config :guardian, Guardian.DB,
+  adapter: Tuist.GuardianDatabaseAdapter,
   repo: Tuist.Repo,
   schema_name: "guardian_tokens",
   token_types: ["refresh"]
