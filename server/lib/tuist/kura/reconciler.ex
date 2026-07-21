@@ -193,9 +193,7 @@ defmodule Tuist.Kura.Reconciler do
   defp destroy_retired_region_server(%Server{} = server) do
     case Kura.destroy_server(server) do
       {:ok, _server} ->
-        Logger.info(
-          "[Kura.Reconciler] scheduled destruction of server #{server.id} in retired region #{server.region}"
-        )
+        Logger.info("[Kura.Reconciler] scheduled destruction of server #{server.id} in retired region #{server.region}")
 
         :ok
 
