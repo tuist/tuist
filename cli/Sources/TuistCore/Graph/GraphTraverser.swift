@@ -675,6 +675,10 @@ public class GraphTraverser: GraphTraversing {
                 hostApplicationStaticTargets
                     .compactMap { dependencyReference(to: $0, from: targetGraphDependency) }
             )
+
+            references.formUnion(
+                packageProductsLinkedThroughStaticTargets(from: targetGraphDependency)
+            )
         }
 
         // Link dynamic libraries and frameworks
@@ -687,6 +691,82 @@ public class GraphTraverser: GraphTraversing {
         references.formUnion(dynamicLibrariesAndFrameworks)
 
         return references
+    }
+
+    private func packageProductsLinkedThroughStaticTargets(
+        from rootDependency: GraphDependency
+    ) -> Set<GraphDependencyReference> {
+        var dependenciesToVisit = [rootDependency]
+        var dependencyConditions: [GraphDependency: PlatformCondition.CombinationResult] = [
+            rootDependency: .condition(nil),
+        ]
+        var packageProductConditions: [GraphDependency: PlatformCondition.CombinationResult] = [:]
+
+        while let dependency = dependenciesToVisit.popLast() {
+            guard let accumulatedCondition = dependencyConditions[dependency] else { continue }
+
+            for childDependency in graph.dependencies[dependency, default: []] {
+                let condition = intersection(
+                    accumulatedCondition,
+                    with: graph.dependencyConditions[(dependency, childDependency)]
+                )
+                guard condition != .incompatible else { continue }
+
+                switch childDependency {
+                case .packageProduct(_, _, .runtime), .packageProduct(_, _, .runtimeEmbedded):
+                    packageProductConditions[childDependency] = packageProductConditions[
+                        childDependency,
+                        default: .incompatible
+                    ].combineWith(condition)
+                case .target:
+                    guard !isPackageProductLinkingBoundary(childDependency) else {
+                        continue
+                    }
+                    let combinedCondition = dependencyConditions[
+                        childDependency,
+                        default: .incompatible
+                    ].combineWith(condition)
+                    guard dependencyConditions[childDependency] != combinedCondition else {
+                        continue
+                    }
+                    dependencyConditions[childDependency] = combinedCondition
+                    dependenciesToVisit.append(childDependency)
+                case .bundle, .framework, .foreignBuildOutput, .library, .macro, .packageProduct, .sdk, .xcframework:
+                    continue
+                }
+            }
+        }
+
+        return Set(packageProductConditions.compactMap { dependency, condition in
+            guard case let .packageProduct(_, product, _) = dependency,
+                  case let .condition(platformCondition) = condition
+            else {
+                return nil
+            }
+            return GraphDependencyReference.packageProduct(
+                product: product,
+                condition: platformCondition
+            )
+        })
+    }
+
+    private func isPackageProductLinkingBoundary(_ dependency: GraphDependency) -> Bool {
+        canDependencyLinkStaticProducts(dependency: dependency)
+            || testTarget(dependency: dependency) { $0.product.isDynamic }
+    }
+
+    private func intersection(
+        _ accumulatedCondition: PlatformCondition.CombinationResult,
+        with edgeCondition: PlatformCondition?
+    ) -> PlatformCondition.CombinationResult {
+        switch accumulatedCondition {
+        case .incompatible:
+            return .incompatible
+        case let .condition(.some(condition)):
+            return condition.intersection(edgeCondition)
+        case .condition(nil):
+            return .condition(edgeCondition)
+        }
     }
 
     private func precompiledDynamicLibrariesAndFrameworks(

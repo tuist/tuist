@@ -3027,6 +3027,159 @@ final class GraphTraverserTests: TuistUnitTestCase {
         )
     }
 
+    func test_linkableDependencies_linksSharedPackageProductOnceAtStaticProductsBoundary() throws {
+        // Given
+        let app = Target.test(name: "App", product: .app)
+        let featureA = Target.test(name: "FeatureA", product: .staticFramework)
+        let featureB = Target.test(name: "FeatureB", product: .staticFramework)
+        let project = Project.test(path: "/path/project", targets: [app, featureA, featureB])
+        let appDependency = GraphDependency.target(name: app.name, path: project.path)
+        let featureADependency = GraphDependency.target(name: featureA.name, path: project.path)
+        let featureBDependency = GraphDependency.target(name: featureB.name, path: project.path)
+        let packageProduct = GraphDependency.packageProduct(
+            path: "/path/package",
+            product: "SwiftProtobuf",
+            type: .runtime
+        )
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: [
+                appDependency: [featureADependency, featureBDependency],
+                featureADependency: [packageProduct],
+                featureBDependency: [packageProduct],
+            ]
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let appDependencies = try subject.linkableDependencies(path: project.path, name: app.name)
+        let featureADependencies = try subject.linkableDependencies(path: project.path, name: featureA.name)
+        let featureBDependencies = try subject.linkableDependencies(path: project.path, name: featureB.name)
+
+        // Then
+        XCTAssertEqual(
+            appDependencies.filter { if case .packageProduct = $0 { true } else { false } },
+            [.packageProduct(product: "SwiftProtobuf")]
+        )
+        XCTAssertFalse(featureADependencies.contains(.packageProduct(product: "SwiftProtobuf")))
+        XCTAssertFalse(featureBDependencies.contains(.packageProduct(product: "SwiftProtobuf")))
+    }
+
+    func test_linkableDependencies_stopsPackageProductPropagationAtDynamicBoundary() throws {
+        // Given
+        let app = Target.test(name: "App", product: .app)
+        let dynamicFeature = Target.test(name: "DynamicFeature", product: .framework)
+        let staticFeature = Target.test(name: "StaticFeature", product: .staticFramework)
+        let project = Project.test(path: "/path/project", targets: [app, dynamicFeature, staticFeature])
+        let appDependency = GraphDependency.target(name: app.name, path: project.path)
+        let dynamicFeatureDependency = GraphDependency.target(name: dynamicFeature.name, path: project.path)
+        let staticFeatureDependency = GraphDependency.target(name: staticFeature.name, path: project.path)
+        let packageProduct = GraphDependency.packageProduct(
+            path: "/path/package",
+            product: "SwiftProtobuf",
+            type: .runtime
+        )
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: [
+                appDependency: [dynamicFeatureDependency],
+                dynamicFeatureDependency: [staticFeatureDependency],
+                staticFeatureDependency: [packageProduct],
+            ]
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let appDependencies = try subject.linkableDependencies(path: project.path, name: app.name)
+        let dynamicFeatureDependencies = try subject.linkableDependencies(path: project.path, name: dynamicFeature.name)
+
+        // Then
+        XCTAssertFalse(appDependencies.contains(.packageProduct(product: "SwiftProtobuf")))
+        XCTAssertTrue(dynamicFeatureDependencies.contains(.packageProduct(product: "SwiftProtobuf")))
+    }
+
+    func test_linkableDependencies_stopsPackageProductPropagationAtDynamicLibraryBoundary() throws {
+        // Given
+        let app = Target.test(name: "App", product: .app)
+        let dynamicLibrary = Target.test(name: "DynamicLibrary", product: .dynamicLibrary)
+        let project = Project.test(path: "/path/project", targets: [app, dynamicLibrary])
+        let appDependency = GraphDependency.target(name: app.name, path: project.path)
+        let dynamicLibraryDependency = GraphDependency.target(name: dynamicLibrary.name, path: project.path)
+        let packageProduct = GraphDependency.packageProduct(
+            path: "/path/package",
+            product: "SwiftProtobuf",
+            type: .runtime
+        )
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: [
+                appDependency: [dynamicLibraryDependency],
+                dynamicLibraryDependency: [packageProduct],
+            ]
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let appDependencies = try subject.linkableDependencies(path: project.path, name: app.name)
+
+        // Then
+        XCTAssertFalse(appDependencies.contains(.packageProduct(product: "SwiftProtobuf")))
+    }
+
+    func test_linkableDependencies_combinesPackageProductConditionsOnlyAcrossStaticPaths() throws {
+        // Given
+        let app = Target.test(name: "App", product: .app)
+        let iosFeature = Target.test(name: "iOSFeature", product: .staticFramework)
+        let macOSFeature = Target.test(name: "macOSFeature", product: .staticFramework)
+        let dynamicFeature = Target.test(name: "DynamicFeature", product: .framework)
+        let project = Project.test(path: "/path/project", targets: [app, iosFeature, macOSFeature, dynamicFeature])
+        let appDependency = GraphDependency.target(name: app.name, path: project.path)
+        let iosFeatureDependency = GraphDependency.target(name: iosFeature.name, path: project.path)
+        let macOSFeatureDependency = GraphDependency.target(name: macOSFeature.name, path: project.path)
+        let dynamicFeatureDependency = GraphDependency.target(name: dynamicFeature.name, path: project.path)
+        let packageProduct = GraphDependency.packageProduct(
+            path: "/path/package",
+            product: "SharedPackage",
+            type: .runtimeEmbedded
+        )
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: [
+                appDependency: [iosFeatureDependency, macOSFeatureDependency, dynamicFeatureDependency],
+                iosFeatureDependency: [packageProduct],
+                macOSFeatureDependency: [packageProduct],
+                dynamicFeatureDependency: [packageProduct],
+            ],
+            dependencyConditions: [
+                GraphEdge(from: appDependency, to: iosFeatureDependency): try XCTUnwrap(.when([.ios])),
+                GraphEdge(from: appDependency, to: macOSFeatureDependency): try XCTUnwrap(.when([.macos])),
+                GraphEdge(from: appDependency, to: dynamicFeatureDependency): try XCTUnwrap(.when([.visionos])),
+            ]
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let dependencies = try subject.linkableDependencies(path: project.path, name: app.name)
+
+        // Then
+        XCTAssertTrue(
+            dependencies.contains(
+                .packageProduct(
+                    product: "SharedPackage",
+                    condition: .when([.ios, .macos])
+                )
+            )
+        )
+        XCTAssertFalse(
+            dependencies.contains(
+                .packageProduct(
+                    product: "SharedPackage",
+                    condition: .when([.visionos])
+                )
+            )
+        )
+    }
+
     func test_linkableDependencies_includeTransitivePrecompiledDependenciesOfStaticFrameworks() throws {
         // Given
         // App > StaticFramework > PrecompiledDynamicFramework
