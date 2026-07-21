@@ -1085,3 +1085,31 @@ k8s-monitoring:
     # footprint of the upstream default.
     alloy-receiver:
       presets: [deployment]
+      # Loki push endpoint for workloads that cannot be tailed.
+      #
+      # Alloy's pod-log collection reads container log files from the node,
+      # which works for Linux pods and cannot work for a macOS Tart guest:
+      # the "pod" is a VM and the cluster has no route into it. `kubectl logs`
+      # fails on those pods too, because the apiserver cannot resolve the
+      # Tailscale-only kubelet hostnames. The xcresult-processor has therefore
+      # never had readable output by any route.
+      #
+      # Rather than give the application Grafana Cloud credentials, it pushes
+      # here over the tailnet and Alloy forwards using the credentials it
+      # already holds. `loki.source.api` serves the same
+      # /loki/api/v1/push contract the app's handler speaks, so no client-side
+      # auth is involved and the tailnet ACL is the access control.
+      alloy:
+        extraPorts:
+          - name: loki-push
+            port: 3100
+            targetPort: 3100
+            protocol: TCP
+      extraConfig: |
+        loki.source.api "tuist_tart_guests" {
+          http {
+            listen_address = "0.0.0.0"
+            listen_port = 3100
+          }
+          forward_to = [loki.write.grafana_cloud_logs.receiver]
+        }
