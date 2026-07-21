@@ -52,11 +52,21 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorker do
   @unprocessable_input_reasons [:bundle_invalid, :xcresult_not_found]
 
   @impl Oban.Worker
-  def perform(%Oban.Job{args: args, attempt: attempt}) when attempt > @processing_attempts do
+  def perform(%Oban.Job{args: %{"test_run_id" => test_run_id}} = job) do
+    OpenTelemetry.Tracer.with_span "xcresult.process" do
+      OpenTelemetry.Tracer.set_attribute("test_run_id", test_run_id)
+      perform_job(job)
+    end
+  end
+
+  defp perform_job(%Oban.Job{args: args, attempt: attempt}) when attempt > @processing_attempts do
     finalize_failed_processing(args)
   end
 
-  def perform(%Oban.Job{args: %{"test_run_id" => test_run_id, "storage_key" => storage_key} = args, attempt: attempt}) do
+  defp perform_job(%Oban.Job{
+         args: %{"test_run_id" => test_run_id, "storage_key" => storage_key} = args,
+         attempt: attempt
+       }) do
     case process_xcresult(test_run_id, storage_key, args) do
       {:ok, parsed_data} ->
         case replace_test_run(parsed_data, args) do
