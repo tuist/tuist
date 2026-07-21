@@ -391,8 +391,8 @@ defmodule Tuist.GitHub.Client do
           case Map.get(attrs, :repository_full_handle) do
             repository_full_handle when is_binary(repository_full_handle) ->
               Logger.info("github: organization runner endpoint unavailable; trying repository endpoint",
-                organization: org,
-                repository: repository_full_handle
+                org: org,
+                repo: repository_full_handle
               )
 
               generate_repository_jit_config(repository_full_handle, body, token, api_url)

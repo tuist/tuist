@@ -468,10 +468,12 @@ defmodule Tuist.Runners do
           fleet_name,
           node_name,
           candidate,
-          excluded_account_ids,
-          excluded_repositories,
-          excluded_workflow_job_ids,
-          attempts_left
+          %{
+            excluded_account_ids: excluded_account_ids,
+            excluded_repositories: excluded_repositories,
+            excluded_workflow_job_ids: excluded_workflow_job_ids,
+            attempts_left: attempts_left
+          }
         )
 
       {:error, :empty} ->
@@ -479,17 +481,7 @@ defmodule Tuist.Runners do
     end
   end
 
-  defp claim_candidate(
-         namespace,
-         sa_name,
-         fleet_name,
-         node_name,
-         candidate,
-         excluded_account_ids,
-         excluded_repositories,
-         excluded_workflow_job_ids,
-         attempts_left
-       ) do
+  defp claim_candidate(namespace, sa_name, fleet_name, node_name, candidate, retry_context) do
     case candidate_resources(candidate, fleet_name) do
       {:ok, resources} ->
         attempt_candidate(
@@ -499,12 +491,7 @@ defmodule Tuist.Runners do
           node_name,
           candidate,
           resources,
-          %{
-            excluded_account_ids: excluded_account_ids,
-            excluded_repositories: excluded_repositories,
-            excluded_workflow_job_ids: excluded_workflow_job_ids,
-            attempts_left: attempts_left
-          }
+          retry_context
         )
 
       {:error, reason} ->
@@ -513,112 +500,121 @@ defmodule Tuist.Runners do
   end
 
   defp attempt_candidate(namespace, sa_name, fleet_name, node_name, candidate, resources, retry_context) do
-    case Claims.attempt(candidate.workflow_job_id, candidate.account_id, fleet_name, sa_name, resources) do
-      {:ok, claim} ->
-        record_volume_affinity(fleet_name, node_name, candidate.account_id)
+    context = %{
+      namespace: namespace,
+      sa_name: sa_name,
+      fleet_name: fleet_name,
+      node_name: node_name,
+      candidate: candidate,
+      retry_context: retry_context
+    }
 
-        case Jobs.record_claimed(candidate, sa_name, claim.claimed_at) do
-          :ok ->
-            case serve_claim(namespace, sa_name, fleet_name, candidate, claim) do
-              {:error, {:github_mint_failed, exclusion_scope}}
-              when exclusion_scope in [:account, :repository, :workflow_job] ->
-                retry_claim_and_serve(
-                  namespace,
-                  sa_name,
-                  fleet_name,
-                  node_name,
-                  retry_context,
-                  candidate,
-                  exclusion_scope
-                )
+    candidate.workflow_job_id
+    |> Claims.attempt(candidate.account_id, fleet_name, sa_name, resources)
+    |> handle_claim_attempt(context)
+  end
 
-              result ->
-                result
-            end
+  defp handle_claim_attempt({:ok, claim}, context) do
+    %{namespace: namespace, sa_name: sa_name, fleet_name: fleet_name, node_name: node_name, candidate: candidate} =
+      context
 
-          {:error, :completed} ->
-            _ = Claims.release(candidate.workflow_job_id, claim.claimed_at)
+    record_volume_affinity(fleet_name, node_name, candidate.account_id)
 
-            retry_claim_and_serve(
-              namespace,
-              sa_name,
-              fleet_name,
-              node_name,
-              retry_context,
-              candidate,
-              :workflow_job
-            )
-        end
+    case Jobs.record_claimed(candidate, sa_name, claim.claimed_at) do
+      :ok ->
+        namespace
+        |> serve_claim(sa_name, fleet_name, candidate, claim)
+        |> handle_serve_claim(context)
 
-      {:error, :lost_race} ->
-        Logger.debug("runners: claim attempt lost race; trying next queued job",
-          fleet: fleet_name,
-          sa: sa_name,
-          workflow_job_id: candidate.workflow_job_id
-        )
-
-        retry_claim_and_serve(
-          namespace,
-          sa_name,
-          fleet_name,
-          node_name,
-          retry_context,
-          candidate,
-          :workflow_job
-        )
-
-      {:error, :account_busy} ->
-        Logger.debug("runners: account admission is busy; trying next account",
-          fleet: fleet_name,
-          sa: sa_name,
-          account_id: candidate.account_id
-        )
-
-        retry_claim_and_serve(
-          namespace,
-          sa_name,
-          fleet_name,
-          node_name,
-          retry_context,
-          candidate,
-          :account
-        )
-
-      {:error, {:concurrency_limit_reached, details}} ->
-        Logger.debug("runners: account reached platform concurrency limit; trying next account",
-          fleet: fleet_name,
-          sa: sa_name,
-          account_id: candidate.account_id,
-          reason: inspect({:concurrency_limit_reached, details})
-        )
-
-        retry_claim_and_serve(
-          namespace,
-          sa_name,
-          fleet_name,
-          node_name,
-          retry_context,
-          candidate,
-          :account
-        )
-
-      {:error, :pod_in_use} ->
-        Logger.debug("runners: claim attempt declined",
-          reason: :pod_in_use,
-          fleet: fleet_name,
-          sa: sa_name
-        )
-
-        {:error, :pod_in_use}
-
-      {:error, reason} ->
-        Logger.warning("runners: dispatch_for_sa failed",
-          reason: inspect(reason),
-          fleet: fleet_name
-        )
-
-        {:error, reason}
+      {:error, :completed} ->
+        _ = Claims.release(candidate.workflow_job_id, claim.claimed_at)
+        retry_claim_and_serve(context, :workflow_job)
     end
+  end
+
+  defp handle_claim_attempt({:error, :lost_race}, context) do
+    %{fleet_name: fleet_name, sa_name: sa_name, candidate: candidate} = context
+
+    Logger.debug("runners: claim attempt lost race; trying next queued job",
+      fleet: fleet_name,
+      sa: sa_name,
+      workflow_job_id: candidate.workflow_job_id
+    )
+
+    retry_claim_and_serve(context, :workflow_job)
+  end
+
+  defp handle_claim_attempt({:error, :account_busy}, context) do
+    %{fleet_name: fleet_name, sa_name: sa_name, candidate: candidate} = context
+
+    Logger.debug("runners: account admission is busy; trying next account",
+      fleet: fleet_name,
+      sa: sa_name,
+      account_id: candidate.account_id
+    )
+
+    retry_claim_and_serve(context, :account)
+  end
+
+  defp handle_claim_attempt({:error, {:concurrency_limit_reached, details}}, context) do
+    %{fleet_name: fleet_name, sa_name: sa_name, candidate: candidate} = context
+
+    Logger.debug("runners: account reached platform concurrency limit; trying next account",
+      fleet: fleet_name,
+      sa: sa_name,
+      account_id: candidate.account_id,
+      reason: inspect({:concurrency_limit_reached, details})
+    )
+
+    retry_claim_and_serve(context, :account)
+  end
+
+  defp handle_claim_attempt({:error, :pod_in_use}, %{fleet_name: fleet_name, sa_name: sa_name}) do
+    Logger.debug("runners: claim attempt declined",
+      reason: :pod_in_use,
+      fleet: fleet_name,
+      sa: sa_name
+    )
+
+    {:error, :pod_in_use}
+  end
+
+  defp handle_claim_attempt({:error, reason}, %{fleet_name: fleet_name}) do
+    Logger.warning("runners: dispatch_for_sa failed",
+      reason: inspect(reason),
+      fleet: fleet_name
+    )
+
+    {:error, reason}
+  end
+
+  defp handle_serve_claim({:error, {:github_mint_failed, exclusion_scope}}, context)
+       when exclusion_scope in [:account, :repository, :workflow_job] do
+    retry_claim_and_serve(context, exclusion_scope)
+  end
+
+  defp handle_serve_claim(result, _context), do: result
+
+  defp retry_claim_and_serve(
+         %{
+           namespace: namespace,
+           sa_name: sa_name,
+           fleet_name: fleet_name,
+           node_name: node_name,
+           retry_context: retry_context,
+           candidate: candidate
+         },
+         exclusion_scope
+       ) do
+    retry_claim_and_serve(
+      namespace,
+      sa_name,
+      fleet_name,
+      node_name,
+      retry_context,
+      candidate,
+      exclusion_scope
+    )
   end
 
   defp candidate_resources(%{platform: "linux", vcpus: vcpus, memory_gb: memory_gb}, _fleet_name)
@@ -1097,7 +1093,7 @@ defmodule Tuist.Runners do
       {:error, {:repository_administration_permission_required, status, _body}} ->
         Logger.error("runners: GitHub App installation must accept repository administration permission",
           account: account.name,
-          repository: Map.get(candidate, :repository),
+          repo: Map.get(candidate, :repository),
           status: status,
           workflow_job_id: candidate.workflow_job_id
         )
@@ -1107,7 +1103,7 @@ defmodule Tuist.Runners do
       {:error, {:repository_jit_config_not_found, status, _body}} ->
         Logger.error("runners: GitHub repository runner endpoint returned not found",
           account: account.name,
-          repository: Map.get(candidate, :repository),
+          repo: Map.get(candidate, :repository),
           status: status,
           workflow_job_id: candidate.workflow_job_id
         )
