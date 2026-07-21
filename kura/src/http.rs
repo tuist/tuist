@@ -29,7 +29,7 @@ use crate::{
     constants::{
         BOOTSTRAP_DIGEST_DEFAULT_PREFIX_LEN, MAX_GRADLE_BYTES, MAX_INLINE_REPLICATION_BODY_BYTES,
         MAX_MODULE_PART_BYTES, MAX_MODULE_TOTAL_BYTES, MAX_REPLICATION_BODY_BYTES, MAX_XCODE_BYTES,
-        response_stream_chunk_bytes,
+        RESPONSE_STREAM_MIN_CHUNK_BYTES, response_stream_chunk_bytes,
     },
     extension::{AccessDecision, ExtensionContext},
     io::is_fd_pool_exhausted_error,
@@ -2418,7 +2418,18 @@ async fn serve_file(
                 .await
             {
                 Ok(permit) => permit,
-                Err(_) => return response_stream_unavailable(),
+                // mmap serving is an optimization; hand a budget-constrained
+                // read to the streaming path, which degrades rather than fails.
+                Err(_) => {
+                    return serve_file_reader(
+                        state,
+                        status,
+                        manifest,
+                        None,
+                        ResponseStreamClass::Public,
+                    )
+                    .await;
+                }
             };
             let stream = instrument_artifact_stream(state, manifest, bytes_chunks(bytes), true);
             let mut response = Response::new(Body::from_stream(stream));
@@ -2457,26 +2468,45 @@ async fn serve_file_reader(
     state.metrics.record_artifact_serving_path("streaming");
     let inline_bytes = if manifest.inline { manifest.size } else { 0 };
     let stream_chunk_bytes = response_stream_chunk_bytes(manifest.size);
-    let requested_bytes = u64::try_from(stream_chunk_bytes.saturating_mul(4))
-        .unwrap_or(u64::MAX)
-        .saturating_add(inline_bytes);
-    let Ok(requested_bytes) = usize::try_from(requested_bytes) else {
-        return response_stream_unavailable();
-    };
-    let permit = match class {
-        ResponseStreamClass::Public => {
-            state
-                .memory
-                .acquire_response_stream_memory(requested_bytes, "http")
-                .await
-        }
-        ResponseStreamClass::Bootstrap => state
+    let requested_bytes = usize::try_from(
+        u64::try_from(stream_chunk_bytes.saturating_mul(4))
+            .unwrap_or(u64::MAX)
+            .saturating_add(inline_bytes),
+    )
+    .unwrap_or(usize::MAX);
+    let (permit, stream_chunk_bytes) = match class {
+        // A public read degrades to the minimum chunk rather than failing, so a
+        // busy node never turns a cache hit into a client-visible error.
+        ResponseStreamClass::Public => match state
             .memory
-            .try_acquire_background_response_stream_memory(requested_bytes, "bootstrap"),
-    };
-    let permit = match permit {
-        Ok(permit) => permit,
-        Err(_) => return response_stream_unavailable(),
+            .acquire_response_stream_memory(requested_bytes, "http")
+            .await
+        {
+            Ok(permit) => (permit, stream_chunk_bytes),
+            Err(_) => {
+                let degraded_bytes = usize::try_from(
+                    u64::try_from(RESPONSE_STREAM_MIN_CHUNK_BYTES.saturating_mul(4))
+                        .unwrap_or(u64::MAX)
+                        .saturating_add(inline_bytes),
+                )
+                .unwrap_or(usize::MAX);
+                (
+                    state
+                        .memory
+                        .acquire_degraded_response_stream_memory(degraded_bytes, "http"),
+                    RESPONSE_STREAM_MIN_CHUNK_BYTES,
+                )
+            }
+        },
+        // Bootstrap is internal peer traffic that retries on its own schedule,
+        // so shedding it keeps the background bound intact.
+        ResponseStreamClass::Bootstrap => match state
+            .memory
+            .try_acquire_background_response_stream_memory(requested_bytes, "bootstrap")
+        {
+            Ok(permit) => (permit, stream_chunk_bytes),
+            Err(_) => return response_stream_unavailable(),
+        },
     };
     // Tolerates a concurrent background promotion relocating the artifact
     // between the caller's manifest fetch and this open (see
@@ -3689,6 +3719,64 @@ mod tests {
         assert!(metrics.contains("producer=\"xcode\""));
         assert!(metrics.contains("result=\"ok\""));
         assert!(metrics.contains(&format!("{}", payload.len() * 2)));
+    }
+
+    #[tokio::test]
+    async fn a_public_read_degrades_instead_of_failing_when_the_stream_pool_is_exhausted() {
+        let context = test_context(|_| {}).await;
+        let app = router(context.state.clone());
+        let payload: Vec<u8> = (0..(512 * 1024 + 13))
+            .map(|index| (index % 251) as u8)
+            .collect();
+
+        let put_response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/cache/cas/degraded-read?tenant_id=acme&namespace_id=ios")
+                    .header("content-type", "application/octet-stream")
+                    .body(Body::from(payload.clone()))
+                    .expect("failed to build put request"),
+            )
+            .await
+            .expect("put request failed");
+        assert_eq!(put_response.status(), StatusCode::NO_CONTENT);
+
+        // Leave no transient headroom at all, so both the weighted pool and the
+        // ledger refuse the full four-buffer reservation.
+        context
+            .state
+            .memory
+            .observe(context.state.memory.hard_limit_bytes());
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/cache/cas/degraded-read?tenant_id=acme&namespace_id=ios")
+                    .body(Body::empty())
+                    .expect("failed to build get request"),
+            )
+            .await
+            .expect("get request failed");
+
+        // Older clients treat a 5xx on a read as fatal, so an exhausted pool
+        // must still serve the artifact rather than shed it.
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = response
+            .into_body()
+            .collect()
+            .await
+            .expect("failed to collect degraded body")
+            .to_bytes();
+        assert_eq!(body.as_ref(), payload.as_slice());
+        assert!(
+            context
+                .state
+                .metrics
+                .render()
+                .contains("outcome=\"degraded\"")
+        );
     }
 
     #[tokio::test]

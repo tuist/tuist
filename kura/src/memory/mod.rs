@@ -427,6 +427,44 @@ impl MemoryController {
         self.try_acquire_reapi_materialization(content_bytes.checked_mul(2).ok_or(())?)
     }
 
+    /// Admits a public read that could not reserve its full streaming buffers.
+    ///
+    /// A cache read must never fail because the node is busy. Clients we do not
+    /// control — older CLIs, Gradle build-cache clients, Metro — treat a 5xx on
+    /// a read as a hard error rather than a retryable miss, so shedding a read
+    /// turns node pressure into a broken build. The degraded stream keeps the
+    /// smallest chunk the reader supports, so its footprint is bounded by
+    /// connection concurrency rather than the weighted pool, and it still
+    /// charges the transient ledger when headroom exists so the bytes stay
+    /// visible to pressure accounting.
+    pub fn acquire_degraded_response_stream_memory(
+        &self,
+        requested_bytes: usize,
+        protocol: &'static str,
+    ) -> ResponseStreamMemoryPermit {
+        let bytes = requested_bytes as u64;
+        let transient = self
+            .try_reserve_transient(bytes, AdmissionClass::Foreground)
+            .ok();
+        self.inner.metrics.record_response_stream_admission(
+            protocol,
+            "degraded",
+            std::time::Duration::ZERO,
+        );
+        self.inner
+            .metrics
+            .add_response_stream_reservation(protocol, bytes);
+        ResponseStreamMemoryPermit {
+            concurrency: None,
+            foreground_concurrency: None,
+            background_concurrency: None,
+            transient,
+            metrics: self.inner.metrics.clone(),
+            protocol,
+            bytes,
+        }
+    }
+
     pub async fn reserve_background_transient(
         &self,
         requested_bytes: u64,
