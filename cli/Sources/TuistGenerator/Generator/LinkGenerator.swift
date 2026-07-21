@@ -177,9 +177,21 @@ struct LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_lengt
         for dependency in target.dependencies {
             switch dependency {
             case let .package(product: product, type: type, condition: condition):
+                guard !target.canLinkStaticProducts() || type == .plugin || type == .macro else {
+                    continue
+                }
+                let role: PBXTarget.SwiftPackageProductRole
+                switch type {
+                case .plugin:
+                    role = .plugin
+                case .macro:
+                    role = .link
+                case .runtime, .runtimeEmbedded:
+                    role = target.product.isStatic ? .buildOnly : .link
+                }
                 try pbxTarget.addSwiftPackageProduct(
                     productName: product,
-                    isPlugin: type == .plugin,
+                    role: role,
                     pbxproj: pbxproj,
                     target: target,
                     condition: condition
@@ -462,8 +474,16 @@ struct LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_lengt
                 try addBuildFile(path, condition: condition, status: status)
             case let .foreignBuildOutput(path, _, condition):
                 try addBuildFile(path, condition: condition)
-            case .bundle, .macro, .packageProduct:
+            case .bundle, .macro:
                 break
+            case let .packageProduct(product, condition):
+                try pbxTarget.addSwiftPackageProduct(
+                    productName: product,
+                    role: .link,
+                    pbxproj: pbxproj,
+                    target: target,
+                    condition: condition
+                )
             case let .product(dependencyTarget, _, status, condition):
                 guard status != .none else { continue }
                 guard let fileRef = fileElements.product(target: dependencyTarget) else {
@@ -654,22 +674,32 @@ struct LinkGenerator: LinkGenerating { // swiftlint:disable:this type_body_lengt
 }
 
 extension PBXTarget {
+    enum SwiftPackageProductRole {
+        case buildOnly
+        case link
+        case plugin
+    }
+
     func addSwiftPackageProduct(
         productName: String,
-        isPlugin: Bool,
+        role: SwiftPackageProductRole,
         pbxproj: PBXProj,
         target: Target,
         condition: PlatformCondition?
     ) throws {
-        let productDependency = XCSwiftPackageProductDependency(productName: productName, isPlugin: isPlugin)
+        let productDependency = XCSwiftPackageProductDependency(productName: productName, isPlugin: role == .plugin)
         pbxproj.add(object: productDependency)
 
-        if isPlugin {
-            let pluginDependency = PBXTargetDependency(product: productDependency)
-            pbxproj.add(object: pluginDependency)
+        switch role {
+        case .buildOnly, .plugin:
+            let targetDependency = PBXTargetDependency(product: productDependency)
+            if role == .buildOnly {
+                targetDependency.applyCondition(condition, applicableTo: target)
+            }
+            pbxproj.add(object: targetDependency)
 
-            dependencies.append(pluginDependency)
-        } else {
+            dependencies.append(targetDependency)
+        case .link:
             // Build file
             let buildFile = PBXBuildFile(product: productDependency)
             buildFile.applyCondition(condition, applicableTo: target)
