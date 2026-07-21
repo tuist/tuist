@@ -169,6 +169,22 @@ func (c *Collector) runOnce(ctx context.Context, aggressive bool) {
 		retention = defaultGoldenRetention
 	}
 
+	// Host-disk pressure escalates this whole pass to aggressive. Goldens are
+	// APFS copy-on-write clones of their pulled OCI image (tart clone), so
+	// reaping a golden while the normal pass KEEPS its referenced OCI source
+	// frees only metadata — the ~68 GiB of backing blocks stay alive as long
+	// as the OCI entry references them. Aggressive mode also evicts the OCI
+	// cache (reconstructible by re-pull), so the golden and its source both
+	// go and the blocks are actually released. The referenced-golden reclaim
+	// below then handles the bases keepGolden pins. A probe error just skips
+	// the escalation this pass (the periodic retention behaviour still runs).
+	floor := c.goldenReclaimFreeFloor()
+	free, freeErr := c.hostDiskFree()
+	underPressure := freeErr == nil && free < floor
+	if underPressure {
+		aggressive = true
+	}
+
 	var droppedClones, droppedImages, droppedGoldens int
 	for _, vm := range vms {
 		switch vm.Source {
@@ -233,29 +249,34 @@ func (c *Collector) runOnce(ctx context.Context, aggressive bool) {
 	}
 
 	// The retention pass above never reaps a referenced golden; enforce the
-	// host-disk bound that actually keeps the mini from filling.
-	c.reclaimGoldensUnderDiskPressure(ctx, expected, vms)
+	// host-disk bound that actually keeps the mini from filling. Only under
+	// pressure — the aggressive main loop already freed what it could.
+	if underPressure {
+		c.reclaimGoldensUnderDiskPressure(ctx, expected, floor)
+	}
 }
 
 // reclaimGoldensUnderDiskPressure is the bound the retention pass lacks:
-// when the host root volume drops below the free-space floor, it reaps
-// golden bases even if a Pod still references their digest (keepGolden
-// always keeps those, so a warm Pod per Xcode pool otherwise pins every
-// golden and the disk fills unbounded). It reaps least-valuable first —
-// unreferenced goldens (superseded digests), then referenced ones whose
-// clone isn't currently running (idle warm-pool bases) — never touches a
-// golden that backs a live clone, spares any golden with a live `tart run`,
-// keeps at least MinGoldensKept, and stops the moment free space recovers.
-// A reaped golden re-pulls on its pool's next launch; that one cold clone
-// is the deliberate price of not letting the disk fill and silently break
-// the operator's SSH-driven config updates.
-func (c *Collector) reclaimGoldensUnderDiskPressure(ctx context.Context, expected *expectedSet, vms []tart.VM) {
+// while the host root volume is below the free-space floor, it reaps golden
+// bases even if a Pod still references their digest (keepGolden always keeps
+// those, so a warm Pod per Xcode pool otherwise pins every golden and the
+// disk fills unbounded). It reaps least-valuable first — unreferenced
+// goldens (superseded digests), then referenced ones whose clone isn't
+// currently running (idle warm-pool bases) — never touches a golden that
+// backs a live clone, spares any golden with a live `tart run`, keeps at
+// least MinGoldensKept, and stops the moment free space recovers. A reaped
+// golden re-pulls on its pool's next launch; that one cold clone is the
+// deliberate price of not letting the disk fill and silently break the
+// operator's SSH-driven config updates.
+//
+// The caller runs the aggressive main loop first (which evicts the OCI
+// sources these goldens clone from, so a golden delete actually releases
+// blocks rather than metadata), then this re-measures: if evicting the OCI
+// cache + unreferenced goldens already cleared the pressure, the warm
+// referenced goldens are left alone.
+func (c *Collector) reclaimGoldensUnderDiskPressure(ctx context.Context, expected *expectedSet, floor float64) {
 	logger := log.FromContext(ctx).WithName("gc")
 
-	floor := c.HostDiskFreeFloor
-	if floor <= 0 {
-		floor = defaultGoldenReclaimFreeFloor
-	}
 	free, err := c.hostDiskFree()
 	if err != nil {
 		logger.Error(err, "measure host disk free; skipping golden disk-pressure reclaim")
@@ -268,6 +289,16 @@ func (c *Collector) reclaimGoldensUnderDiskPressure(ctx context.Context, expecte
 	minKept := c.MinGoldensKept
 	if minKept <= 0 {
 		minKept = defaultMinGoldensKept
+	}
+
+	// Re-list rather than reuse the caller's inventory: the aggressive main
+	// loop just deleted unreferenced goldens + OCI entries, so a stale list
+	// would count already-deleted goldens toward `total` (their re-delete
+	// fails without advancing `reaped`) and could delete the last real base.
+	vms, err := c.Tart.List(ctx)
+	if err != nil {
+		logger.Error(err, "re-list tart entries for golden disk-pressure reclaim")
+		return
 	}
 
 	// Reap order: unreferenced (stalest) first, then referenced-but-idle.
@@ -317,6 +348,15 @@ func (c *Collector) reclaimGoldensUnderDiskPressure(ctx context.Context, expecte
 		logger.Info("host disk below free floor but no reclaimable golden bases (all live-backed or at minimum kept)",
 			"host_free_percent", free, "floor", floor, "min_kept", minKept)
 	}
+}
+
+// goldenReclaimFreeFloor is the root-volume free-space percent below which
+// the disk-pressure golden reclaim runs, defaulting when unset.
+func (c *Collector) goldenReclaimFreeFloor() float64 {
+	if c.HostDiskFreeFloor > 0 {
+		return c.HostDiskFreeFloor
+	}
+	return defaultGoldenReclaimFreeFloor
 }
 
 // hostDiskFree returns the host root volume's free-space percent, using the
