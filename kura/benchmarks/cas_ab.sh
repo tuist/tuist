@@ -30,7 +30,7 @@ SIZES_MB=${SIZES_MB:-"1 8 24"}
 ITERS=${ITERS:-6}
 PARALLEL=${PARALLEL:-16}
 LATENCY_KB=${LATENCY_KB:-256}
-LEGACY_URL=${BENCH_LEGACY_URL:-https://cache-eu-central.tuist.dev}
+LEGACY_URL=${BENCH_LEGACY_URL-https://cache-eu-central.tuist.dev}
 [ "$LEGACY_URL" = none ] && LEGACY_URL=""   # sentinel to benchmark Kura alone
 
 # The tuist-linux runner ships the repo's mise dev environment, which points the CLI
