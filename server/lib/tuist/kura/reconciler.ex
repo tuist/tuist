@@ -83,6 +83,7 @@ defmodule Tuist.Kura.Reconciler do
     RunnerCache.reconcile()
 
     schedule_runtime_image_deployments()
+    reconcile_retired_region_servers()
     reconcile_destroying_servers()
     reconcile_moving_out_servers()
     handled = reconcile_deployments()
@@ -162,6 +163,49 @@ defmodule Tuist.Kura.Reconciler do
   defp log_scheduled_deployments(deployments) do
     Logger.info("[Kura.Reconciler] scheduled #{length(deployments)} runtime image deployment(s)")
     :ok
+  end
+
+  # Retiring a region leaves its servers stranded. The catalog tombstone exists
+  # so the reconciler can still resolve their cluster identity, but nothing ever
+  # scheduled their teardown, so the rows kept their status, their KuraInstances
+  # kept being reconciled, and their pods sat unschedulable forever against a
+  # node pool that was deleted with the region. Scheduling destruction here is
+  # what the tombstone was always for; `reconcile_destroying_servers` then runs
+  # the same teardown an operator-initiated destroy uses.
+  defp reconcile_retired_region_servers do
+    case Regions.retired_ids() do
+      [] ->
+        :ok
+
+      retired_ids ->
+        Server
+        |> where([s], s.region in ^retired_ids)
+        |> where([s], s.status not in [:destroying, :destroyed])
+        |> order_by([s], asc: s.updated_at, asc: s.id)
+        |> limit(^@reconcile_batch_size)
+        |> Repo.all()
+        |> Enum.each(&destroy_retired_region_server/1)
+
+        :ok
+    end
+  end
+
+  defp destroy_retired_region_server(%Server{} = server) do
+    case Kura.destroy_server(server) do
+      {:ok, _server} ->
+        Logger.info(
+          "[Kura.Reconciler] scheduled destruction of server #{server.id} in retired region #{server.region}"
+        )
+
+        :ok
+
+      {:error, reason} ->
+        Logger.warning(
+          "[Kura.Reconciler] could not schedule destruction of server #{server.id} in retired region #{server.region}: #{inspect(reason)}"
+        )
+
+        :ok
+    end
   end
 
   defp reconcile_destroying_servers do
