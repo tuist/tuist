@@ -15,6 +15,7 @@ public protocol GetShardServicing {
 
 public enum GetShardServiceError: LocalizedError, Equatable {
     case unknownError(Int)
+    case badRequest(String)
     case forbidden(String)
     case notFound(String)
     case unauthorized(String)
@@ -23,7 +24,7 @@ public enum GetShardServiceError: LocalizedError, Equatable {
         switch self {
         case let .unknownError(statusCode):
             return "Failed to get shard due to an unknown server response of \(statusCode)."
-        case let .forbidden(message), let .notFound(message), let .unauthorized(message):
+        case let .badRequest(message), let .forbidden(message), let .notFound(message), let .unauthorized(message):
             return message
         }
     }
@@ -63,6 +64,11 @@ public struct GetShardService: GetShardServicing {
             switch okResponse.body {
             case let .json(shard):
                 return shard
+            }
+        case let .badRequest(badRequestResponse):
+            switch badRequestResponse.body {
+            case let .json(error):
+                throw GetShardServiceError.badRequest(error.message)
             }
         case let .forbidden(forbiddenResponse):
             switch forbiddenResponse.body {

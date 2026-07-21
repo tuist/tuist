@@ -247,6 +247,7 @@ defmodule TuistWeb.API.ShardsController do
     ],
     responses: %{
       ok: {"The shard", "application/json", Shard},
+      bad_request: {"The request parameters are invalid", "application/json", Error},
       unauthorized: {"You need to be authenticated", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized", "application/json", Error},
       not_found: {"The session or shard was not found", "application/json", Error}
