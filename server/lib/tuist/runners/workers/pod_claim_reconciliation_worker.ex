@@ -58,6 +58,17 @@ defmodule Tuist.Runners.Workers.PodClaimReconciliationWorker do
   Losing all five leaves the current behaviour (a leak), which is
   survivable. Over-releasing is not, which is why the bias runs this
   way.
+
+  ## CH before PG
+
+  Freeing the slot is only half the job. A Pod can vanish while its
+  ClickHouse row still reads `claimed` or `running`, so releasing the
+  Postgres claim first would free the capacity and strand the
+  workflow_job permanently: `pick_queued` only selects `queued`, and with
+  no claim left no later sweep can recover it. Each release therefore
+  writes `queued` to ClickHouse before deleting the row, the same
+  ordering `StaleClaimsWorker` follows, and a ClickHouse failure skips
+  the claim so the pair is retried intact next tick.
   """
 
   use Oban.Worker, queue: :default, max_attempts: 1
@@ -65,6 +76,7 @@ defmodule Tuist.Runners.Workers.PodClaimReconciliationWorker do
   alias Tuist.Environment
   alias Tuist.Kubernetes.Client, as: K8sClient
   alias Tuist.Runners.Claims
+  alias Tuist.Runners.Jobs
   alias Tuist.Runners.Telemetry
 
   require Logger
@@ -167,7 +179,12 @@ defmodule Tuist.Runners.Workers.PodClaimReconciliationWorker do
     confirmed_before = DateTime.add(now, -@confirm_seconds, :second)
     eligible = Claims.count_pods_missing_since(confirmed_before)
 
-    released = Claims.release_pods_missing_since(confirmed_before, @max_releases_per_tick)
+    released =
+      confirmed_before
+      |> Claims.list_pods_missing_since(@max_releases_per_tick)
+      |> Enum.filter(&recover_one/1)
+      |> Enum.map(& &1.workflow_job_id)
+
     count = length(released)
 
     if count > 0 do
@@ -196,6 +213,40 @@ defmodule Tuist.Runners.Workers.PodClaimReconciliationWorker do
     end
 
     count
+  end
+
+  # CH before PG, the contract `Claims.list_stale/1` documents.
+  #
+  # Freeing the slot is only half the job. A Pod can vanish while its
+  # ClickHouse row still reads `claimed` or `running` — the crash window
+  # between `mark_running/2` and `Jobs.record_running/2` produces exactly
+  # that, and production had rows stuck there for over ten days. Deleting
+  # the PG claim first would free the capacity and strand the
+  # workflow_job for good: `pick_queued` only selects `queued`, and with
+  # no PG row left no later sweep can put it back.
+  #
+  # `record_queued/1` no-ops when a completion is already recorded, so a
+  # finished job is never resurrected — it just loses its claim.
+  #
+  # A CH failure means skip: the claim stays, the handle stays, and the
+  # next tick retries the pair.
+  defp recover_one(%{workflow_job_id: workflow_job_id, pod_missing_since: handle}) do
+    case safe_record_queued(workflow_job_id) do
+      :ok -> Claims.release_pod_missing(workflow_job_id, handle) == :ok
+      :error -> false
+    end
+  end
+
+  defp safe_record_queued(workflow_job_id) do
+    Jobs.record_queued(workflow_job_id)
+  rescue
+    e ->
+      Logger.warning("runners: record_queued failed in pod reconciliation; will retry next tick",
+        workflow_job_id: workflow_job_id,
+        ch_error: Exception.message(e)
+      )
+
+      :error
   end
 
   defp observed_pod_names do

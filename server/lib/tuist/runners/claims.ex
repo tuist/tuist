@@ -664,38 +664,56 @@ defmodule Tuist.Runners.Claims do
   end
 
   @doc """
-  Releases claims whose Pod has been continuously absent since before
-  `confirmed_before`, at most `limit` per call. Returns the released
-  `workflow_job_id`s.
+  Candidates for release: claims whose Pod has been continuously absent
+  since before `confirmed_before`, at most `limit` per call.
 
-  A claim is capacity held by a Pod. With no Pod there is no runner and
-  no capacity, whatever the webhook history or either store's lifecycle
-  column says — which is the point of reconciling against the cluster
-  instead of against our own records.
+  Returns the rows WITHOUT deleting them, carrying `pod_missing_since` as
+  the release handle. A claim is capacity held by a Pod, and with no Pod
+  there is no runner and no capacity — but the caller still has to
+  reconcile ClickHouse before dropping the Postgres row (see
+  `release_pod_missing/2`), the same CH-first contract `list_stale/1`
+  documents: delete the claim while CH still reads `claimed` and the
+  workflow_job is stranded, because `pick_queued` only selects `queued`
+  and no PG row remains for a later sweep to recover from.
 
   The `limit` bounds the blast radius of a wrong-but-plausible cluster
   read that survives the caller's checks. Anything above it waits for the
   next tick, and the caller reports the overflow.
   """
-  def release_pods_missing_since(%DateTime{} = confirmed_before, limit) when is_integer(limit) and limit > 0 do
-    doomed =
-      Repo.all(
+  def list_pods_missing_since(%DateTime{} = confirmed_before, limit) when is_integer(limit) and limit > 0 do
+    Repo.all(
+      from(c in Claim,
+        where: not is_nil(c.pod_missing_since) and c.pod_missing_since < ^confirmed_before,
+        order_by: [asc: c.pod_missing_since],
+        limit: ^limit,
+        select: %{
+          workflow_job_id: c.workflow_job_id,
+          pod_missing_since: c.pod_missing_since
+        }
+      )
+    )
+  end
+
+  @doc """
+  Releases one claim selected by `list_pods_missing_since/2`, keyed on
+  the `pod_missing_since` handle it was selected with.
+
+  The handle closes a stale-delete race. Between selection and delete,
+  another path can release the row and the same workflow_job be
+  re-claimed by a live Pod; deleting by id alone would drop that fresh
+  claim. A re-claimed row carries a NULL `pod_missing_since`, so the
+  handle no longer matches and nothing is deleted. Same reason `release/2`
+  keys on `claimed_at`.
+  """
+  def release_pod_missing(workflow_job_id, %DateTime{} = pod_missing_since) when is_integer(workflow_job_id) do
+    {count, _} =
+      Repo.delete_all(
         from(c in Claim,
-          where: not is_nil(c.pod_missing_since) and c.pod_missing_since < ^confirmed_before,
-          order_by: [asc: c.pod_missing_since],
-          limit: ^limit,
-          select: c.workflow_job_id
+          where: c.workflow_job_id == ^workflow_job_id and c.pod_missing_since == ^pod_missing_since
         )
       )
 
-    case doomed do
-      [] ->
-        []
-
-      ids ->
-        Repo.delete_all(from(c in Claim, where: c.workflow_job_id in ^ids))
-        ids
-    end
+    if count == 1, do: :ok, else: {:error, :stale_claim}
   end
 
   @doc """
