@@ -43,6 +43,23 @@ const drainEligibleLabel = "tuist.dev/drain-eligible"
 // spec.rollout.maxConcurrentPercent.
 const defaultRollMaxConcurrentPercent = 5
 
+// tartKubeletVMCleanupFinalizer is tart-kubelet's Pod finalizer, which
+// gates the Pod object's removal on the host tearing its Tart VM down.
+// Source of truth is `podagent.PodFinalizer` in infra/tart-kubelet;
+// redeclared here because the two live in separate Go modules.
+//
+// It is node-local: the only code that removes it is the podagent's
+// DeletionTimestamp branch, and each podagent filters the Pod informer
+// down to its OWN `spec.nodeName`. So when a Node disappears — the CAPI
+// provider deletes the Node object after releasing the Mac mini, and
+// MachineHealthCheck remediation churns them routinely — every Pod still
+// bound to it keeps this finalizer with no agent left alive to remove it.
+// The apiserver then holds the Pod object open forever, and the terminal
+// reap below can't help: the Pod is neither alive nor
+// DeletionTimestamp-free, so it matches no branch. See
+// releaseOrphanedRunner.
+const tartKubeletVMCleanupFinalizer = "tart-kubelet.tuist.dev/vm-cleanup"
+
 // RunnerPoolReconciler maintains a fleet of runner Pods + per-Pod
 // ServiceAccounts. Pods are owned directly by the RunnerPool (no
 // RunnerAssignment intermediate). When a Pod hits a terminal
@@ -51,6 +68,25 @@ const defaultRollMaxConcurrentPercent = 5
 type RunnerPoolReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
+
+	// APIReader is an uncached, direct-to-apiserver reader used to
+	// confirm a Node is really gone before the orphan sweep deletes
+	// anything bound to it. Set from `mgr.GetAPIReader()`.
+	//
+	// The cached client cannot answer this question safely. Pod and Node
+	// informers are independent watch streams with no atomic cross-type
+	// view, so a Node that exists can be transiently absent from the Node
+	// cache while a Pod already bound to it is visible in the Pod cache —
+	// exactly the shape of a fleet where minis join and are released
+	// continuously. Believing the cache there means deleting a healthy
+	// runner mid-job: every live macOS runner Pod carries tart-kubelet's
+	// finalizer and no deletionTimestamp, so Node existence is the ONLY
+	// thing separating "busy runner" from "wedged orphan" — there is no
+	// second signal to fall back on.
+	//
+	// nil disables the sweep entirely (see confirmedOrphans). Failing
+	// closed on unwired plumbing loses cleanup; failing open loses jobs.
+	APIReader client.Reader
 
 	// DispatchURL is the customer-server's runner dispatch endpoint
 	// threaded into every Pod via env. Set from the manager's
@@ -161,10 +197,15 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{}, fmt.Errorf("list pods: %w", err)
 	}
 
+	// Orphan verdict for the sweep below. Resolved once per reconcile and
+	// shared with the phase-count loop so a Pod stranded on a deleted Node
+	// isn't reported as warm capacity it can no longer provide.
+	orphans := r.confirmedOrphans(ctx, pods.Items)
+
 	phaseReplicas := podPhaseReplicaCounts{}
 	for i := range pods.Items {
 		p := &pods.Items[i]
-		if isAlive(p) {
+		if isAlive(p) && !orphans[p.Name] {
 			phaseReplicas.add(p)
 		}
 	}
@@ -185,6 +226,7 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 	alive := 0
 	reaped := 0
+	orphaned := 0
 	staleAlive := 0
 	markedStale := 0
 	newNotReady := 0
@@ -198,6 +240,28 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	var stalePendingCandidates []*corev1.Pod
 	for i := range pods.Items {
 		p := &pods.Items[i]
+
+		// Pod stranded on a Node that no longer exists. Its VM died with
+		// the host, so it is neither doing work nor capacity we can fill
+		// a job with, whatever phase it last published. Nothing else will
+		// ever clean it up: tart-kubelet's finalizer is node-local, and
+		// upstream PodGC's orphan collection only issues a Delete, which
+		// a finalizer blocks. Release it before the branches below, which
+		// all assume a Pod whose host is still around to act on it.
+		if orphans[p.Name] {
+			if err := r.releaseOrphanedRunner(ctx, p); err != nil {
+				logger.Error(err, "release orphaned runner; will retry next tick",
+					"pod", p.Name, "node", p.Spec.NodeName)
+				continue
+			}
+			logger.Info("released orphaned runner",
+				"pod", p.Name,
+				"node", p.Spec.NodeName,
+				"phase", string(p.Status.Phase),
+			)
+			orphaned++
+			continue
+		}
 
 		switch {
 		case isAlive(p):
@@ -321,6 +385,7 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		"target", pool.Spec.Replicas,
 		"observed", alive,
 		"reaped", reaped,
+		"orphaned", orphaned,
 		"gap", gap,
 		"overflow", overflow,
 		"idleAlive", len(idleAlive),
@@ -372,7 +437,9 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 // are left to finish their single-shot lifecycle. The CR stays
 // Terminating until no live Pod remains, so GC never cascade-deletes
 // a mid-job runner. Terminal Pods and the per-Pod SAs are collected
-// by GC alongside the CR once the finalizer clears.
+// by GC alongside the CR once the finalizer clears — except for
+// orphans, which the sweep has to release explicitly because a held
+// finalizer blocks the GC this path otherwise leans on.
 func (r *RunnerPoolReconciler) reconcileDelete(ctx context.Context, pool *tuistv1.RunnerPool) (ctrl.Result, error) {
 	logger := log.FromContext(ctx).WithValues("pool", client.ObjectKeyFromObject(pool))
 
@@ -389,11 +456,32 @@ func (r *RunnerPoolReconciler) reconcileDelete(ctx context.Context, pool *tuistv
 		return ctrl.Result{}, fmt.Errorf("list pods: %w", err)
 	}
 
+	// The drain needs the same orphan sweep as the steady-state path, and
+	// needs it first. A Pod whose host is gone is neither draining nor
+	// collectable, and both of the branches below get it wrong: a busy-
+	// looking orphan counts as `running` forever, holding the CR in
+	// Terminating and wedging the `helm --wait` that a pool rename or
+	// removal triggers; a terminal one is left to a GC that a held
+	// finalizer blocks, stranding exactly the Pod this controller exists
+	// to release. Deleting the CR is also the one path where nothing ever
+	// reconciles again to catch up later.
+	orphans := r.confirmedOrphans(ctx, pods.Items)
+
 	running := 0
 	drainedIdle := 0
+	orphaned := 0
 	for i := range pods.Items {
 		p := &pods.Items[i]
 		switch {
+		case orphans[p.Name]:
+			if err := r.releaseOrphanedRunner(ctx, p); err != nil {
+				logger.Error(err, "release orphaned runner while draining; will retry",
+					"pod", p.Name, "node", p.Spec.NodeName)
+				return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+			}
+			logger.Info("released orphaned runner while draining",
+				"pod", p.Name, "node", p.Spec.NodeName, "phase", string(p.Status.Phase))
+			orphaned++
 		case !isAlive(p):
 			// Terminal or already deleting — GC takes it with the CR.
 		case isIdle(p):
@@ -412,7 +500,7 @@ func (r *RunnerPoolReconciler) reconcileDelete(ctx context.Context, pool *tuistv
 		// re-check; single-shot Pods turn over to terminal on exit.
 		// Bounded in practice by the GitHub Actions job timeout.
 		logger.Info("draining pool; waiting on in-flight runners",
-			"running", running, "drainedIdle", drainedIdle)
+			"running", running, "drainedIdle", drainedIdle, "orphaned", orphaned)
 		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 	}
 
@@ -420,7 +508,8 @@ func (r *RunnerPoolReconciler) reconcileDelete(ctx context.Context, pool *tuistv
 	if err := r.Update(ctx, pool); err != nil {
 		return ctrl.Result{}, fmt.Errorf("remove drain finalizer: %w", err)
 	}
-	logger.Info("pool drained; finalizer released", "drainedIdle", drainedIdle)
+	logger.Info("pool drained; finalizer released",
+		"drainedIdle", drainedIdle, "orphaned", orphaned)
 	return ctrl.Result{}, nil
 }
 
@@ -481,6 +570,130 @@ func (r *RunnerPoolReconciler) reapRunner(ctx context.Context, pod *corev1.Pod) 
 		return fmt.Errorf("delete sa %s: %w", pod.Name, err)
 	}
 	return nil
+}
+
+// liveNodeNames returns the names of every Node currently registered in
+// the cluster.
+//
+// ok is false when the view is unusable, and callers must then skip the
+// orphan sweep entirely rather than treat what they have as authoritative.
+// Both failure modes collapse to "every Pod looks orphaned", and acting on
+// that would delete the whole fleet mid-job: a List error is the obvious
+// one, and an empty list is the subtle one (a Node informer that hasn't
+// synced yet reads as zero Nodes, not as an error). A cluster with no Nodes
+// at all has no runner Pods to sweep, so refusing to act on an empty view
+// costs nothing.
+func (r *RunnerPoolReconciler) liveNodeNames(ctx context.Context) (map[string]struct{}, bool) {
+	nodes := &corev1.NodeList{}
+	if err := r.List(ctx, nodes); err != nil {
+		return nil, false
+	}
+	if len(nodes.Items) == 0 {
+		return nil, false
+	}
+	names := make(map[string]struct{}, len(nodes.Items))
+	for i := range nodes.Items {
+		names[nodes.Items[i].Name] = struct{}{}
+	}
+	return names, true
+}
+
+// isOrphaned reports whether pod is bound to a Node absent from the
+// cached Node view. An unscheduled Pod (no nodeName yet) is not orphaned
+// — it is waiting for a host, which is the normal Pending state for a
+// warm poller that hasn't been placed.
+//
+// This is only the cheap first pass. A cached miss is a suspicion, not a
+// verdict: see confirmedOrphans, which re-checks every hit against the
+// apiserver before anything is deleted.
+func isOrphaned(pod *corev1.Pod, liveNodes map[string]struct{}) bool {
+	if pod.Spec.NodeName == "" {
+		return false
+	}
+	_, live := liveNodes[pod.Spec.NodeName]
+	return !live
+}
+
+// confirmedOrphans returns, by Pod name, the Pods bound to a Node that
+// really is gone. Computed once per reconcile and shared by every loop
+// that needs the verdict, so the apiserver sees at most one Get per
+// suspect Node however many Pods were stranded on it.
+//
+// Two-pass on purpose. The cached NodeList is the cheap filter that keeps
+// the steady state (no orphans) free; every Pod it flags is then confirmed
+// against the apiserver, whose Get is authoritative and linearizable where
+// the informer's absence is merely "nothing delivered yet". Only a definite
+// NotFound counts as gone: a transient error, an RBAC regression, or a
+// timeout all leave the Pod alone, because the cost of waiting a tick is a
+// Pod cleaned up late, and the cost of guessing wrong is a job killed.
+//
+// Returns empty (sweep disabled) when the Node view is unusable or the
+// APIReader is unwired.
+func (r *RunnerPoolReconciler) confirmedOrphans(ctx context.Context, pods []corev1.Pod) map[string]bool {
+	orphans := map[string]bool{}
+	if r.APIReader == nil {
+		return orphans
+	}
+	liveNodes, ok := r.liveNodeNames(ctx)
+	if !ok {
+		return orphans
+	}
+
+	gone := map[string]bool{}
+	for i := range pods {
+		p := &pods[i]
+		if !isOrphaned(p, liveNodes) {
+			continue
+		}
+		node := p.Spec.NodeName
+		verdict, checked := gone[node]
+		if !checked {
+			verdict = r.nodeConfirmedGone(ctx, node)
+			gone[node] = verdict
+		}
+		if verdict {
+			orphans[p.Name] = true
+		}
+	}
+	return orphans
+}
+
+// nodeConfirmedGone asks the apiserver directly whether a Node exists.
+// Only an explicit NotFound is treated as gone; every other outcome
+// (including errors) reports "still there" so callers leave the Pod be.
+func (r *RunnerPoolReconciler) nodeConfirmedGone(ctx context.Context, name string) bool {
+	err := r.APIReader.Get(ctx, client.ObjectKey{Name: name}, &corev1.Node{})
+	return apierrors.IsNotFound(err)
+}
+
+// releaseOrphanedRunner force-completes the removal of a Pod whose Node
+// is gone, by stripping tart-kubelet's node-local finalizer before the
+// usual reap. Removing the finalizer is safe precisely because the host
+// is gone: the finalizer exists to keep the Pod object visible until the
+// VM is torn down, and a released Mac mini takes its VMs with it, so
+// there is nothing left to wait for. We strip only tart-kubelet's own
+// finalizer and leave any other intact, so this can't bulldoze a
+// finalizer whose owner is still alive to honour it.
+//
+// Ordering matters: the finalizer patch has to land before the Delete,
+// or the Pod just re-enters the same wedged state (deletionTimestamp
+// set, finalizer held, no agent to remove it) that stranded it here. The
+// Delete is what the apiserver needs to actually collect the object; on
+// a Pod already carrying a deletionTimestamp, dropping the finalizer
+// completes the deletion on its own and reapRunner's Delete no-ops on
+// NotFound while still collecting the sibling ServiceAccount.
+func (r *RunnerPoolReconciler) releaseOrphanedRunner(ctx context.Context, pod *corev1.Pod) error {
+	if controllerutil.ContainsFinalizer(pod, tartKubeletVMCleanupFinalizer) {
+		// Optimistic lock: a blind merge patch rewrites the whole
+		// finalizer array, which would silently drop a finalizer added
+		// concurrently. Conflict just means re-read and retry next tick.
+		patch := client.MergeFromWithOptions(pod.DeepCopy(), client.MergeFromWithOptimisticLock{})
+		controllerutil.RemoveFinalizer(pod, tartKubeletVMCleanupFinalizer)
+		if err := r.Patch(ctx, pod, patch); err != nil && !apierrors.IsNotFound(err) {
+			return fmt.Errorf("strip vm-cleanup finalizer from %s: %w", pod.Name, err)
+		}
+	}
+	return r.reapRunner(ctx, pod)
 }
 
 // reapAlivePod is the scale-down path. Same shape as

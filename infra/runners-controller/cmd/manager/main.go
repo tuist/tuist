@@ -107,6 +107,7 @@ func main() {
 
 	if err := (&controllers.RunnerPoolReconciler{
 		Client:              mgr.GetClient(),
+		APIReader:           mgr.GetAPIReader(),
 		Scheme:              mgr.GetScheme(),
 		DispatchURL:         dispatchURL,
 		DispatchInternalURL: dispatchInternalURL,
