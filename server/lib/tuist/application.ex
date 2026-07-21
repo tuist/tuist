@@ -4,6 +4,7 @@ defmodule Tuist.Application do
   use Application
   use Boundary, top_level?: true, deps: [Tuist, TuistWeb]
 
+  alias EMCP.SessionStore.ETS, as: SessionStore
   alias Tuist.Application.RuntimeChildren
   alias Tuist.Builds.Build
   alias Tuist.Builds.BuildFile
@@ -47,7 +48,7 @@ defmodule Tuist.Application do
     start_telemetry()
     start_sentry_logger()
     start_loki_logger()
-    EMCP.SessionStore.ETS.init()
+    SessionStore.init()
 
     application =
       Supervisor.start_link(get_children(), strategy: :one_for_one, name: Tuist.Supervisor)
@@ -437,7 +438,10 @@ defmodule Tuist.Application do
 
       base_pools =
         %{
-          :default => [size: 10, start_pool_metrics?: true],
+          :default => [
+            size: TuistCommon.FinchPools.download_pool_size(active_download_queue_concurrencies()),
+            start_pool_metrics?: true
+          ],
           "https://api.github.com" => [
             conn_opts: [
               log: true,
@@ -494,6 +498,21 @@ defmodule Tuist.Application do
         end)
 
       Map.merge(base_pools, additional_pools)
+    end
+  end
+
+  defp active_download_queue_concurrencies do
+    :tuist
+    |> Application.fetch_env!(Oban)
+    |> Keyword.get(:queues, [])
+    |> case do
+      queues when is_list(queues) ->
+        queues
+        |> Keyword.take([:process_build, :process_xcresult])
+        |> Keyword.values()
+
+      _ ->
+        []
     end
   end
 

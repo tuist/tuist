@@ -499,6 +499,21 @@ async fn bootstrap_manifest_range_from_peer(
         // a per-artifact fetch failure below.
         let mut to_fetch = Vec::new();
         for manifest in &page.manifests {
+            // A legacy oversized inline entry can never be pulled: the puller's
+            // read_bounded_body caps the inline body at
+            // MAX_INLINE_REPLICATION_BODY_BYTES, so fetching it fails every pass
+            // and keeps this node in perpetual partial bootstrap — which stalls
+            // the rollout, since a node that never finishes bootstrap never
+            // reaches a serving state. Skip it (not fail); the owning peer purges
+            // it from its side as its outbox drains.
+            if manifest.inline && manifest.size > MAX_INLINE_REPLICATION_BODY_BYTES {
+                state.metrics.record_replication_apply(
+                    "bootstrap",
+                    "artifact",
+                    "skipped_oversized",
+                );
+                continue;
+            }
             let outcome = state.store.artifact_apply_outcome(
                 manifest.producer,
                 &manifest.namespace_id,
@@ -1045,6 +1060,30 @@ struct BootstrapStats {
     artifacts_applied: u64,
 }
 
+// After a message is cleared, rewind the scan cursor to the outbox head if a
+// higher-priority metadata-lane message was enqueued mid-pass and now sorts
+// before it. Without this a fresh action-cache entry parks behind the rest of a
+// bulk backlog (a cache populate can hold the sibling's entries for the ~30
+// minutes its blobs take to ship). Jump back only for a target that is not
+// backed off, so a parked failing backlog is not re-scanned after every clear.
+async fn rewind_to_priority_head(
+    state: &SharedState,
+    after: &mut Option<Vec<u8>>,
+) -> Result<(), String> {
+    if let Some((head_key, head)) = state.store.next_outbox_message(None)?
+        && head_key.as_slice() < crate::store::OUTBOX_BULK_LANE_PREFIX.as_bytes()
+        && after
+            .as_deref()
+            .is_some_and(|cursor| head_key.as_slice() < cursor)
+        && !state
+            .replication_target_backed_off(&head.target, Instant::now())
+            .await
+    {
+        *after = None;
+    }
+    Ok(())
+}
+
 pub async fn process_outbox(state: &SharedState) -> Result<(), String> {
     // The loop runs every few seconds regardless of load; skip the target-set
     // rebuild (readiness lock + clones) when there is nothing to deliver.
@@ -1125,7 +1164,20 @@ pub async fn process_outbox(state: &SharedState) -> Result<(), String> {
         let result = replicate_message(state, &message).await;
 
         match result {
-            Ok(()) => {
+            Ok(ReplicationOutcome::DroppedOversized) => {
+                // The artifact was purged and can never replicate; drop the
+                // message. Not a delivery and not a target failure, so leave the
+                // target's success/backoff state untouched.
+                state.metrics.record_replication(
+                    &message.target,
+                    operation_name,
+                    "dropped_oversized",
+                    started_at.elapsed(),
+                );
+                state.store.delete_outbox_message(&message_key)?;
+                rewind_to_priority_head(state, &mut after).await?;
+            }
+            Ok(ReplicationOutcome::Delivered) => {
                 state.note_replication_success(&message.target).await;
                 match state
                     .store
@@ -1140,26 +1192,7 @@ pub async fn process_outbox(state: &SharedState) -> Result<(), String> {
                             started_at.elapsed(),
                         );
                         state.store.delete_outbox_message(&message_key)?;
-                        // A metadata-lane message enqueued mid-pass sorts
-                        // before the cursor, so without this re-check it
-                        // would wait out the rest of a bulk backlog (a cache
-                        // populate parks the sibling's fresh action-cache
-                        // entries for the ~30 minutes its blobs take to
-                        // ship). Jump back only for a target that is not
-                        // backed off, so a parked failing backlog does not
-                        // get re-scanned after every delivery.
-                        if let Some((head_key, head)) = state.store.next_outbox_message(None)?
-                            && head_key.as_slice()
-                                < crate::store::OUTBOX_BULK_LANE_PREFIX.as_bytes()
-                            && after
-                                .as_deref()
-                                .is_some_and(|cursor| head_key.as_slice() < cursor)
-                            && !state
-                                .replication_target_backed_off(&head.target, Instant::now())
-                                .await
-                        {
-                            after = None;
-                        }
+                        rewind_to_priority_head(state, &mut after).await?;
                     }
                     Err(error) => {
                         state.metrics.record_replication(
@@ -1194,7 +1227,18 @@ pub async fn process_outbox(state: &SharedState) -> Result<(), String> {
     Ok(())
 }
 
-async fn replicate_message(state: &SharedState, message: &OutboxMessage) -> Result<(), String> {
+enum ReplicationOutcome {
+    Delivered,
+    // A legacy oversized inline artifact that no peer can accept inline (every
+    // receiver bounds the inline body by MAX_INLINE_REPLICATION_BODY_BYTES).
+    // The local copy was purged and the poison outbox message must be dropped.
+    DroppedOversized,
+}
+
+async fn replicate_message(
+    state: &SharedState,
+    message: &OutboxMessage,
+) -> Result<ReplicationOutcome, String> {
     match &message.operation {
         ReplicationOperation::UpsertArtifact {
             producer,
@@ -1209,8 +1253,24 @@ async fn replicate_message(state: &SharedState, message: &OutboxMessage) -> Resu
         } => {
             let manifest = match state.store.manifest(artifact_id)? {
                 Some(manifest) => manifest,
-                None => return Ok(()),
+                None => return Ok(ReplicationOutcome::Delivered),
             };
+
+            // Legacy entries stored before the write-side cap can exceed the
+            // inline ceiling. They 413 on every inline push (poison message)
+            // and wedge a fresh peer's bootstrap, so purge the local copy and
+            // drop the message instead of retrying forever. A re-run re-uploads
+            // and the write cap cleanly rejects it, so it never comes back.
+            if manifest.inline && manifest.size > MAX_INLINE_REPLICATION_BODY_BYTES {
+                state
+                    .store
+                    .delete_artifact_metadata(std::slice::from_ref(&manifest))?;
+                warn!(
+                    "purged oversized inline artifact {} ({} bytes > {} limit); dropping replication to {}",
+                    manifest.key, manifest.size, MAX_INLINE_REPLICATION_BODY_BYTES, message.target
+                );
+                return Ok(ReplicationOutcome::DroppedOversized);
+            }
 
             let file = state
                 .store
@@ -1293,7 +1353,7 @@ async fn replicate_message(state: &SharedState, message: &OutboxMessage) -> Resu
                 }
                 response
                     .error_for_status()
-                    .map(|_| ())
+                    .map(|_| ReplicationOutcome::Delivered)
                     .map_err(|error| format!("artifact replication response failed: {error}"))
             }
             .instrument(request_span)
@@ -1341,7 +1401,7 @@ async fn replicate_message(state: &SharedState, message: &OutboxMessage) -> Resu
                 }
                 response
                     .error_for_status()
-                    .map(|_| ())
+                    .map(|_| ReplicationOutcome::Delivered)
                     .map_err(|error| format!("namespace replication response failed: {error}"))
             }
             .instrument(request_span)
@@ -2386,6 +2446,128 @@ mod tests {
                 .expect("bad fetch should succeed")
                 .is_none(),
             "the failed artifact must not be applied"
+        );
+    }
+
+    #[tokio::test]
+    async fn bootstrap_skips_oversized_inline_artifacts_instead_of_wedging() {
+        let remote = test_context(|_| {}).await;
+        remote
+            .state
+            .store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Gradle,
+                "ios",
+                "good",
+                "application/octet-stream",
+                b"good-data",
+            )
+            .await
+            .expect("good artifact should persist");
+        remote
+            .state
+            .store
+            .persist_inline_artifact_from_bytes(
+                ArtifactProducer::Reapi,
+                "ios",
+                "action_cache/oversized/1",
+                "application/x-protobuf",
+                &vec![0u8; MAX_INLINE_REPLICATION_BODY_BYTES as usize + 1],
+            )
+            .await
+            .expect("oversized inline artifact should persist");
+        let (remote_url, _server) = spawn_server(router(remote.state.clone())).await;
+
+        let local = test_context(|_| {}).await;
+        let result =
+            bootstrap_manifests_from_peer(&local.state, &remote_url, &AtomicU64::new(0)).await;
+
+        // The oversized entry is skipped, not fetched-and-failed, so the peer
+        // bootstrap completes rather than surfacing a retryable failure that
+        // would keep the node in perpetual partial bootstrap.
+        assert!(
+            result.is_ok(),
+            "an un-pullable oversized inline entry must be skipped, not fail the bootstrap"
+        );
+        assert!(
+            local
+                .state
+                .store
+                .fetch_artifact(ArtifactProducer::Gradle, "ios", "good")
+                .await
+                .expect("good fetch should succeed")
+                .is_some(),
+            "the good artifact must apply"
+        );
+        assert!(
+            local
+                .state
+                .store
+                .fetch_artifact(ArtifactProducer::Reapi, "ios", "action_cache/oversized/1")
+                .await
+                .expect("oversized fetch should succeed")
+                .is_none(),
+            "the oversized inline artifact must be skipped, never applied"
+        );
+    }
+
+    #[tokio::test]
+    async fn replicating_an_oversized_inline_artifact_purges_it_and_drops_the_message() {
+        let ctx = test_context(|_| {}).await;
+        let manifest = ctx
+            .state
+            .store
+            .persist_inline_artifact_from_bytes(
+                ArtifactProducer::Reapi,
+                "tuist",
+                "action_cache/dead/1",
+                "application/x-protobuf",
+                &vec![0u8; MAX_INLINE_REPLICATION_BODY_BYTES as usize + 1],
+            )
+            .await
+            .expect("oversized inline artifact should persist");
+
+        let message = OutboxMessage {
+            target: "https://unused.invalid:7443".to_owned(),
+            operation: ReplicationOperation::UpsertArtifact {
+                producer: manifest.producer,
+                namespace_id: manifest.namespace_id.clone(),
+                key: manifest.key.clone(),
+                content_type: manifest.content_type.clone(),
+                artifact_id: manifest.artifact_id.clone(),
+                version_ms: manifest.version_ms,
+                inline: manifest.inline,
+                branch: None,
+                trunk: None,
+            },
+        };
+
+        // Resolves without a network call — the oversized entry is purged and
+        // the message dropped before any send is attempted.
+        let outcome = replicate_message(&ctx.state, &message)
+            .await
+            .expect("oversized inline replication should resolve");
+        assert!(matches!(outcome, ReplicationOutcome::DroppedOversized));
+
+        assert!(
+            ctx.state
+                .store
+                .manifest(&manifest.artifact_id)
+                .expect("manifest lookup should succeed")
+                .is_none(),
+            "the oversized inline manifest must be purged"
+        );
+        assert!(
+            ctx.state
+                .store
+                .fetch_inline_artifact_bytes(
+                    ArtifactProducer::Reapi,
+                    "tuist",
+                    "action_cache/dead/1"
+                )
+                .expect("inline lookup should succeed")
+                .is_none(),
+            "the oversized inline bytes must be reclaimed"
         );
     }
 

@@ -166,6 +166,59 @@ defmodule TuistWeb.Utilities.QueryTest do
     end
   end
 
+  describe "clear_cursors_on_initial_load/2" do
+    test "clears cursors before current parameters have been assigned" do
+      params = %{"before" => "cursor123", "search" => "App"}
+
+      assert Query.clear_cursors_on_initial_load(params, %{}) == %{"search" => "App"}
+    end
+
+    test "preserves cursors after current parameters have been assigned" do
+      params = %{"after" => "cursor123", "search" => "App"}
+      assigns = %{current_params: %{"search" => "App"}}
+
+      assert Query.clear_cursors_on_initial_load(params, assigns) == params
+    end
+  end
+
+  describe "clear_incompatible_cursors/2" do
+    test "preserves a cursor whose fields match the sort order" do
+      cursor = Flop.Cursor.encode(%{inserted_at: ~N[2025-04-14 12:30:17]})
+      params = %{"after" => cursor, "search" => "App"}
+
+      assert Query.clear_incompatible_cursors(params, [:inserted_at]) == params
+    end
+
+    test "clears a cursor whose fields do not match the sort order" do
+      cursor = Flop.Cursor.encode(%{inserted_at_naive: ~N[2025-04-14 12:30:17]})
+      params = %{"before" => cursor, "search" => "App"}
+
+      assert Query.clear_incompatible_cursors(params, [:inserted_at]) == %{"search" => "App"}
+    end
+
+    test "clears a cursor that carries extra fields beyond the sort order" do
+      # Flop validates the cursor's key set against the exact order_by fields,
+      # so a superset cursor (e.g. from a page sorted by [:inserted_at, :id])
+      # would still raise on a page sorted only by [:inserted_at].
+      cursor = Flop.Cursor.encode(%{inserted_at: ~N[2025-04-14 12:30:17], id: 42})
+      params = %{"after" => cursor, "search" => "App"}
+
+      assert Query.clear_incompatible_cursors(params, [:inserted_at]) == %{"search" => "App"}
+    end
+
+    test "clears a cursor that cannot be decoded" do
+      params = %{"after" => "not-a-valid-cursor", "search" => "App"}
+
+      assert Query.clear_incompatible_cursors(params, [:inserted_at]) == %{"search" => "App"}
+    end
+
+    test "returns params unchanged when no cursor is present" do
+      params = %{"search" => "App"}
+
+      assert Query.clear_incompatible_cursors(params, [:inserted_at]) == params
+    end
+  end
+
   describe "has_cursor?/1" do
     test "returns true when after param present" do
       assert Query.has_cursor?(%{"after" => "cursor123"}) == true

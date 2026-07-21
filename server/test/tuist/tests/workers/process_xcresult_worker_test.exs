@@ -3,7 +3,10 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
   use Mimic
 
   alias Tuist.Processor.XCResultProcessor
+  alias Tuist.Tests.Workers.BroadcastTestCreatedWorker
   alias Tuist.Tests.Workers.ProcessXcresultWorker
+  alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.ProjectsFixtures
 
   @moduletag capture_log: true
 
@@ -12,10 +15,9 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
   @storage_key "tuist/tests/test-xcresult.zip"
 
   setup do
-    %{account: account} =
-      TuistTestSupport.Fixtures.AccountsFixtures.user_fixture(preload: [:account])
+    %{account: account} = AccountsFixtures.user_fixture(preload: [:account])
 
-    project = TuistTestSupport.Fixtures.ProjectsFixtures.project_fixture()
+    project = ProjectsFixtures.project_fixture()
 
     %{account: account, project: project}
   end
@@ -44,7 +46,7 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
     end)
   end
 
-  defp oban_job(args, attempt \\ 1, max_attempts \\ 3) do
+  defp oban_job(args, attempt \\ 1, max_attempts \\ 20) do
     %Oban.Job{args: args, attempt: attempt, max_attempts: max_attempts}
   end
 
@@ -310,6 +312,16 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
   end
 
   describe "perform/1 failure path" do
+    test "returns an error when the parsed test run cannot be persisted", %{account: account, project: project} do
+      test_run_id = Ecto.UUID.generate()
+      expect_local_parse(parsed_data())
+
+      expect(Tuist.Tests, :create_test, fn _attrs -> {:error, :clickhouse_unavailable} end)
+
+      assert {:error, :clickhouse_unavailable} =
+               ProcessXcresultWorker.perform(oban_job(job_args(test_run_id, account.id, project.id), 1, 3))
+    end
+
     test "returns error when the parser fails", %{account: account, project: project} do
       test_run_id = Ecto.UUID.generate()
 
@@ -334,14 +346,14 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
                ProcessXcresultWorker.perform(oban_job(job_args(test_run_id, account.id, project.id), 1, 3))
     end
 
-    test "marks test run as failed_processing on max attempts", %{account: account, project: project} do
+    test "uses later Oban attempts to mark the test run as failed processing", %{
+      account: account,
+      project: project
+    } do
       test_run_id = Ecto.UUID.generate()
 
-      expect(Tuist.Storage, :download_to_file, fn _key, _path, _account -> {:ok, :done} end)
-
-      expect(XCResultProcessor, :process_local, fn _path, _opts ->
-        {:error, "parse failed"}
-      end)
+      reject(&Tuist.Storage.download_to_file/3)
+      reject(&XCResultProcessor.process_local/2)
 
       expect(Tuist.Tests, :create_test, fn attrs ->
         assert attrs.id == test_run_id
@@ -351,8 +363,10 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
         {:ok, %{id: test_run_id}}
       end)
 
-      assert {:error, _} =
-               ProcessXcresultWorker.perform(oban_job(job_args(test_run_id, account.id, project.id), 3, 3))
+      assert {:cancel, :processing_failed} =
+               ProcessXcresultWorker.perform(oban_job(job_args(test_run_id, account.id, project.id), 6, 20))
+
+      assert_enqueued(worker: BroadcastTestCreatedWorker, args: %{"test_run_id" => test_run_id})
     end
 
     test "passes ci_project_handle through for failed_processing", %{account: account, project: project} do
@@ -364,11 +378,8 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
         "ci_provider" => "github"
       }
 
-      expect(Tuist.Storage, :download_to_file, fn _key, _path, _account -> {:ok, :done} end)
-
-      expect(XCResultProcessor, :process_local, fn _path, _opts ->
-        {:error, "parse failed"}
-      end)
+      reject(&Tuist.Storage.download_to_file/3)
+      reject(&XCResultProcessor.process_local/2)
 
       expect(Tuist.Tests, :create_test, fn attrs ->
         assert attrs.status == "failed_processing"
@@ -377,7 +388,50 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
       end)
 
       args = job_args(test_run_id, account.id, project.id, extra: extra)
-      assert {:error, _} = ProcessXcresultWorker.perform(oban_job(args, 3, 3))
+      assert {:cancel, :processing_failed} = ProcessXcresultWorker.perform(oban_job(args, 6, 20))
+    end
+
+    test "snoozes finalization when the failure status cannot be persisted", %{
+      account: account,
+      project: project
+    } do
+      test_run_id = Ecto.UUID.generate()
+
+      reject(&Tuist.Storage.download_to_file/3)
+      reject(&XCResultProcessor.process_local/2)
+      expect(Tuist.Tests, :create_test, fn _attrs -> {:error, :clickhouse_unavailable} end)
+
+      assert {:snooze, 300} =
+               ProcessXcresultWorker.perform(oban_job(job_args(test_run_id, account.id, project.id), 6, 20))
+    end
+
+    test "snoozes finalization when persisting the failure status raises", %{
+      account: account,
+      project: project
+    } do
+      test_run_id = Ecto.UUID.generate()
+
+      reject(&Tuist.Storage.download_to_file/3)
+      reject(&XCResultProcessor.process_local/2)
+      expect(Tuist.Tests, :create_test, fn _attrs -> raise "ClickHouse unavailable" end)
+
+      assert {:snooze, 300} =
+               ProcessXcresultWorker.perform(oban_job(job_args(test_run_id, account.id, project.id), 6, 20))
+    end
+
+    test "snoozes finalization when the web-tier broadcast cannot be enqueued", %{
+      account: account,
+      project: project
+    } do
+      test_run_id = Ecto.UUID.generate()
+
+      reject(&Tuist.Storage.download_to_file/3)
+      reject(&XCResultProcessor.process_local/2)
+      expect(Tuist.Tests, :create_test, fn _attrs -> {:ok, %{id: test_run_id}} end)
+      expect(Oban, :insert, fn _changeset -> {:error, :database_unavailable} end)
+
+      assert {:snooze, 300} =
+               ProcessXcresultWorker.perform(oban_job(job_args(test_run_id, account.id, project.id), 6, 20))
     end
 
     test "does not mark as failed_processing on non-final attempt", %{account: account, project: project} do
@@ -411,9 +465,18 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
           {:ok, %{id: test_run_id}}
         end)
 
-        assert {:discard, unquote(reason)} =
-                 ProcessXcresultWorker.perform(oban_job(job_args(test_run_id, account.id, project.id), 1, 5))
+        assert {:cancel, unquote(reason)} =
+                 ProcessXcresultWorker.perform(oban_job(job_args(test_run_id, account.id, project.id), 1, 20))
       end
+    end
+  end
+
+  describe "backoff/1" do
+    test "spaces processing retries and enters finalization immediately after the fifth failure" do
+      assert [30, 120, 300, 600, 1] ==
+               Enum.map(1..5, fn attempt ->
+                 ProcessXcresultWorker.backoff(%Oban.Job{attempt: attempt, max_attempts: 20})
+               end)
     end
   end
 
@@ -470,11 +533,8 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
     } do
       test_run_id = Ecto.UUID.generate()
 
-      expect(Tuist.Storage, :download_to_file, fn _key, _path, _account -> {:ok, :done} end)
-
-      expect(XCResultProcessor, :process_local, fn _path, _opts ->
-        {:error, "parse failed"}
-      end)
+      reject(&Tuist.Storage.download_to_file/3)
+      reject(&XCResultProcessor.process_local/2)
 
       expect(Tuist.Tests, :create_test, fn _attrs -> {:ok, %{id: test_run_id}} end)
       reject(&Tuist.VCS.enqueue_vcs_pull_request_comment/1)
@@ -490,7 +550,7 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
         |> job_args(account.id, project.id)
         |> Map.put("vcs_comment_params", vcs_params)
 
-      assert {:error, _} = ProcessXcresultWorker.perform(oban_job(args, 3, 3))
+      assert {:cancel, :processing_failed} = ProcessXcresultWorker.perform(oban_job(args, 6, 20))
     end
   end
 

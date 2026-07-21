@@ -87,14 +87,7 @@ defmodule TuistWeb.TestRunsLive do
   end
 
   def handle_params(_params, uri, socket) do
-    params = Query.query_params(uri)
-
-    params =
-      if not Map.has_key?(socket.assigns, :current_params) and Query.has_cursor?(params) do
-        Query.clear_cursors(params)
-      else
-        params
-      end
+    params = uri |> Query.query_params() |> Query.clear_cursors_on_initial_load(socket.assigns)
 
     {
       :noreply,
