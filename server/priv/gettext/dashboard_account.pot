@@ -56,11 +56,6 @@ msgstr ""
 msgid "Air"
 msgstr ""
 
-#: lib/tuist_web/live/billing_live.html.heex:314
-#, elixir-autogen, elixir-format
-msgid "All billing correspondence will go to this email"
-msgstr ""
-
 #: lib/tuist/billing.ex:46
 #: lib/tuist_web/live/billing_live.ex:193
 #, elixir-autogen, elixir-format
@@ -94,7 +89,7 @@ msgstr ""
 msgid "Billing"
 msgstr ""
 
-#: lib/tuist_web/live/billing_live.html.heex:311
+#: lib/tuist_web/live/billing_live.html.heex:334
 #, elixir-autogen, elixir-format
 msgid "Billing email"
 msgstr ""
@@ -337,7 +332,6 @@ msgstr ""
 msgid "E-mail"
 msgstr ""
 
-#: lib/tuist_web/live/billing_live.html.heex:331
 #: lib/tuist_web/live/members_live.ex:290
 #, elixir-autogen, elixir-format
 msgid "Email"
@@ -825,11 +819,6 @@ msgstr ""
 #: lib/tuist/billing.ex:70
 #, elixir-autogen, elixir-format
 msgid "Unlimited projects"
-msgstr ""
-
-#: lib/tuist_web/live/billing_live.html.heex:322
-#, elixir-autogen, elixir-format
-msgid "Update billing email"
 msgstr ""
 
 #: lib/tuist_web/live/billing_live.html.heex:254
@@ -2632,4 +2621,19 @@ msgstr ""
 #: lib/tuist_web/live/account_token_live.html.heex:21
 #, elixir-autogen, elixir-format
 msgid "Revoke account token?"
+msgstr ""
+
+#: lib/tuist_web/live/billing_live.html.heex:311
+#, elixir-autogen, elixir-format
+msgid "Billing details"
+msgstr ""
+
+#: lib/tuist_web/live/billing_live.html.heex:325
+#, elixir-autogen, elixir-format
+msgid "Update billing details"
+msgstr ""
+
+#: lib/tuist_web/live/billing_live.html.heex:314
+#, elixir-autogen, elixir-format
+msgid "Update the company name, billing address, tax number, and email shown on your invoices."
 msgstr ""
