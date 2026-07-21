@@ -40,6 +40,24 @@ struct HTTPRetryPolicyTests {
         #expect(subject.baseDelayMilliseconds == 100)
     }
 
+    @Test func clamps_extreme_environment_values_to_safe_limits() {
+        let subject = HTTPRetryPolicy(environment: [
+            "TUIST_HTTP_MAXIMUM_RETRY_COUNT": String(Int.max),
+            "TUIST_HTTP_RETRY_BASE_DELAY_IN_MILLISECONDS": String(UInt64.max),
+        ])
+
+        #expect(subject.maximumRetryCount == HTTPRetryPolicy.maximumRetryCountLimit)
+        #expect(subject.baseDelayMilliseconds == HTTPRetryPolicy.maximumDelayMilliseconds)
+    }
+
+    @Test func caps_computed_delays() {
+        let subject = HTTPRetryPolicy(baseDelayMilliseconds: 100, environment: [:])
+        let maximumDelayNanoseconds = HTTPRetryPolicy.maximumDelayMilliseconds * 1_000_000
+
+        #expect(subject.delay(for: 9) == maximumDelayNanoseconds)
+        #expect(subject.delay(for: .max) == maximumDelayNanoseconds)
+    }
+
     @Test func applies_exponential_backoff_and_jitter() {
         let subject = HTTPRetryPolicy(baseDelayMilliseconds: 100, environment: [:])
 

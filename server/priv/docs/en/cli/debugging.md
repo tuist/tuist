@@ -94,11 +94,11 @@ export TUIST_HTTP_TIMEOUT_INTERVAL_FOR_REQUEST=300
 # Maximum number of simultaneous connections per host (default: 20)
 export TUIST_HTTP_MAXIMUM_CONNECTIONS_PER_HOST=40
 
-# Maximum retries after the initial attempt (default: 3, for up to 4 attempts)
+# Maximum retries after the initial attempt (default: 3, maximum: 10)
 export TUIST_HTTP_MAXIMUM_RETRY_COUNT=1
 
-# Initial exponential backoff delay in milliseconds (default: 100)
+# Initial exponential backoff delay in milliseconds (default: 100, maximum: 30000)
 export TUIST_HTTP_RETRY_BASE_DELAY_IN_MILLISECONDS=250
 ```
 
-Raising `TUIST_HTTP_TIMEOUT_INTERVAL_FOR_RESOURCE` lets a recoverable but slow download finish instead of timing out. For cache downloads, that means landing a cache hit rather than falling back to a build from source. Lowering `TUIST_HTTP_MAXIMUM_RETRY_COUNT` can keep a longer timeout from multiplying the worst-case wait across several attempts. Retry delays double after every failure and include up to one base delay of random jitter.
+Raising `TUIST_HTTP_TIMEOUT_INTERVAL_FOR_RESOURCE` lets a recoverable but slow download finish instead of timing out. For cache downloads, that means landing a cache hit rather than falling back to a build from source. Lowering `TUIST_HTTP_MAXIMUM_RETRY_COUNT` can keep a longer timeout from multiplying the worst-case wait across several attempts. Retry delays double after every failure, include up to one base delay of random jitter, and never exceed 30 seconds.

@@ -17,5 +17,5 @@ This module provides HTTP client helpers used by server and cache integrations.
 ## Invariants
 - File transfers treat non-2xx responses as fatal errors.
 - Default URL session uses explicit request/resource timeouts.
-- [Hypertext Transfer Protocol (HTTP)](https://developer.mozilla.org/en-US/docs/Web/HTTP) retry behavior uses one shared policy with environment-configurable retry count and base delay.
+- [Hypertext Transfer Protocol (HTTP)](https://developer.mozilla.org/en-US/docs/Web/HTTP) retry behavior uses one shared policy with environment-configurable retry count and base delay, with bounded attempts and per-attempt delay.
 - Default proxy mode comes from runtime HTTP settings, and the shared session is resolved lazily, reused process-wide, and invalidated when those runtime settings change.

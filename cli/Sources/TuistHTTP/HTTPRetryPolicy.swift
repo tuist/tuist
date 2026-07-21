@@ -4,6 +4,10 @@ import TuistEnvironment
 public struct HTTPRetryPolicy: Sendable {
     public static let defaultMaximumRetryCount = 3
     public static let defaultBaseDelayMilliseconds: UInt64 = 100
+    static let maximumRetryCountLimit = 10
+    static let maximumDelayMilliseconds: UInt64 = 30000
+
+    private static let nanosecondsPerMillisecond: UInt64 = 1_000_000
 
     public let maximumRetryCount: Int
     public let baseDelayMilliseconds: UInt64
@@ -16,23 +20,31 @@ public struct HTTPRetryPolicy: Sendable {
         let resolvedMaximumRetryCount = maximumRetryCount ?? Self.maximumRetryCount(environment: environment)
         let resolvedBaseDelayMilliseconds = baseDelayMilliseconds ?? Self.baseDelayMilliseconds(environment: environment)
 
-        self.maximumRetryCount = max(0, resolvedMaximumRetryCount)
-        self.baseDelayMilliseconds = Self.validatedBaseDelayMilliseconds(resolvedBaseDelayMilliseconds)
+        self.maximumRetryCount = min(max(0, resolvedMaximumRetryCount), Self.maximumRetryCountLimit)
+        self.baseDelayMilliseconds = min(resolvedBaseDelayMilliseconds, Self.maximumDelayMilliseconds)
     }
 
     public func delay(for retry: Int) -> UInt64 {
-        let baseDelayNanoseconds = baseDelayMilliseconds * 1_000_000
+        let maximumDelayNanoseconds = Self.maximumDelayMilliseconds * Self.nanosecondsPerMillisecond
+        let baseDelayNanoseconds = baseDelayMilliseconds * Self.nanosecondsPerMillisecond
         guard baseDelayNanoseconds > 0 else { return 0 }
 
         let exponent = max(0, retry)
-        guard exponent < UInt64.bitWidth else { return .max }
+        guard exponent < UInt64.bitWidth else { return maximumDelayNanoseconds }
 
         let exponentialDelay = baseDelayNanoseconds.multipliedReportingOverflow(by: UInt64(1) << exponent)
-        guard !exponentialDelay.overflow else { return .max }
+        guard !exponentialDelay.overflow,
+              exponentialDelay.partialValue < maximumDelayNanoseconds
+        else {
+            return maximumDelayNanoseconds
+        }
 
-        let jitter = UInt64.random(in: 0 ... baseDelayNanoseconds)
-        let delay = exponentialDelay.partialValue.addingReportingOverflow(jitter)
-        return delay.overflow ? .max : delay.partialValue
+        let maximumJitter = min(
+            baseDelayNanoseconds,
+            maximumDelayNanoseconds - exponentialDelay.partialValue
+        )
+        let jitter = UInt64.random(in: 0 ... maximumJitter)
+        return exponentialDelay.partialValue + jitter
     }
 
     private static func maximumRetryCount(environment: [String: String]) -> Int {
@@ -52,10 +64,5 @@ public struct HTTPRetryPolicy: Sendable {
             return defaultBaseDelayMilliseconds
         }
         return baseDelayMilliseconds
-    }
-
-    private static func validatedBaseDelayMilliseconds(_ baseDelayMilliseconds: UInt64) -> UInt64 {
-        let nanoseconds = baseDelayMilliseconds.multipliedReportingOverflow(by: 1_000_000)
-        return nanoseconds.overflow ? defaultBaseDelayMilliseconds : baseDelayMilliseconds
     }
 }
