@@ -697,6 +697,55 @@ k8s-monitoring:
           }
         }
 
+        // PromEx metrics from the BEAM running inside the Tart guests
+        // (today: the xcresult-processor), reached through tart-kubelet's
+        // host-side forwarder on :9091.
+        //
+        // This has to come through the egress Services like every other
+        // mini port. The Pods carry `prometheus.io/scrape` annotations,
+        // but annotation autodiscovery resolves them to the guest's
+        // 100.64.0.0/10 address, which no ordinary cluster Pod can route
+        // to — only the Connector Pod's tailscaled knows those routes.
+        // That scrape has therefore never succeeded: `up == 0` on every
+        // Tart node in all three environments, which is why nothing from
+        // the macOS fleet has ever appeared in Grafana.
+        //
+        // Service-role discovery emits one target per (Service, port),
+        // so filtering on `port_name` picks the forwarder out of the
+        // node-exporter / tart-kubelet / vnc-relay / ssh set.
+        discovery.relabel "tuist_macos_pod_metrics" {
+          targets = discovery.kubernetes.tuist_macmini_egress.targets
+          rule {
+            source_labels = ["__meta_kubernetes_service_port_name"]
+            regex = "pod-metrics"
+            action = "keep"
+          }
+          rule {
+            source_labels = ["__meta_kubernetes_service_name"]
+            target_label = "instance"
+          }
+        }
+
+        prometheus.scrape "tuist_macos_pod_metrics" {
+          targets = discovery.relabel.tuist_macos_pod_metrics.output
+          // Top-level extraConfig sits OUTSIDE the chart's `declare`
+          // blocks, so `argument.metrics_destinations.value` is out of
+          // scope here. Forward straight to the concrete Grafana Cloud
+          // metrics destination (matches the `destinations` key in
+          // values.yaml — dashes → underscores per Alloy syntax).
+          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver]
+          job_name = "tuist-macos-pod-metrics"
+          scrape_interval = "30s"
+          scrape_timeout = "10s"
+
+          // Same reason as the node-exporter job above: without this,
+          // every alloy-metrics replica scrapes the target independently
+          // and multiplies the reported data points.
+          clustering {
+            enabled = true
+          }
+        }
+
         // CloudNativePG instance metrics. Managed clusters don't install
         // prometheus-operator CRDs, and CNPG doesn't add prometheus.io/*
         // annotations to instance pods, so annotationAutodiscovery can't
