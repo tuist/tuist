@@ -6,6 +6,7 @@ use std::time::Instant;
 use tokio::sync::Notify;
 use tokio::time::timeout;
 
+use crate::constants::RESPONSE_STREAM_SEND_BUFFER_BYTES;
 use crate::metrics::Metrics;
 
 mod cgroup;
@@ -428,16 +429,6 @@ impl MemoryController {
         self.try_acquire_reapi_materialization(content_bytes.checked_mul(2).ok_or(())?)
     }
 
-    /// Admits a public read that could not reserve its full streaming buffers.
-    ///
-    /// A cache read must never fail because the node is busy. Clients we do not
-    /// control — older CLIs, Gradle build-cache clients, Metro — treat a 5xx on
-    /// a read as a hard error rather than a retryable miss, so shedding a read
-    /// turns node pressure into a broken build. The degraded stream keeps the
-    /// smallest chunk the reader supports, so its footprint is bounded by
-    /// connection concurrency rather than the weighted pool, and it still
-    /// charges the transient ledger when headroom exists so the bytes stay
-    /// visible to pressure accounting.
     /// Non-waiting admission for the mmap fast path.
     ///
     /// mmap serving is an optimization over the streaming reader, so queueing
@@ -462,53 +453,81 @@ impl MemoryController {
         Some(permit)
     }
 
-    /// A degraded stream holds a slot counted at Hyper's real per-stream send
-    /// buffer, not at the 8 KiB chunk floor it reserves, so a flood of slow
-    /// readers cannot grow the aggregate footprint with the file-descriptor
-    /// pool. The wait is bounded: a stalled client holds its slot for as long
-    /// as it stalls, so blocking here indefinitely would let a handful of dead
-    /// connections wedge every subsequent read. When the wait elapses the read
-    /// is still served without a slot — never failing a read is the stronger
-    /// guarantee — and `degraded_unslotted` records that the bound was
-    /// exceeded.
+    /// Admits a public read that could not reserve its full streaming buffers.
+    ///
+    /// A degraded stream keeps the smallest reader chunk but holds a slot
+    /// counted at Hyper's real per-stream send buffer, not at that chunk size.
+    /// Both the slot and the transient reservation are mandatory so slow
+    /// readers cannot escape the process-wide memory bound. The wait and its
+    /// queue are bounded: once either fills, the caller sheds the response with
+    /// a retryable error instead of opening an unaccounted stream.
     pub async fn acquire_degraded_response_stream_memory(
         &self,
         requested_bytes: usize,
         protocol: &'static str,
-    ) -> ResponseStreamMemoryPermit {
+    ) -> Result<ResponseStreamMemoryPermit, ResponseStreamAdmissionError> {
         let started_at = Instant::now();
+        let queue = self
+            .inner
+            .pools
+            .try_acquire_response_stream_waiter()
+            .map_err(|()| {
+                self.inner.metrics.record_response_stream_admission(
+                    protocol,
+                    "queue_full",
+                    started_at.elapsed(),
+                );
+                ResponseStreamAdmissionError::QueueFull
+            })?;
+        let _waiter = ResponseStreamWaiter::new(self.inner.clone(), protocol, queue);
         let slot = timeout(
             DEGRADED_RESPONSE_STREAM_SLOT_TIMEOUT,
             self.inner.pools.acquire_degraded_response_stream(),
         )
         .await
         .ok()
-        .flatten();
-        let bytes = requested_bytes as u64;
+        .flatten()
+        .ok_or_else(|| {
+            self.inner.metrics.record_response_stream_admission(
+                protocol,
+                "degraded_timeout",
+                started_at.elapsed(),
+            );
+            ResponseStreamAdmissionError::Timeout
+        })?;
+        // The 8 KiB degraded reader chunk is not the stream's complete memory
+        // cost. Hyper may retain a much larger per-stream send buffer while a
+        // client is slow, so charge that real upper bound against live
+        // headroom as well as using it to size the concurrency pool. Inline
+        // values can be larger still and remain fully charged.
+        let bytes = requested_bytes.max(RESPONSE_STREAM_SEND_BUFFER_BYTES) as u64;
         let transient = self
             .try_reserve_transient(bytes, AdmissionClass::Foreground)
-            .ok();
+            .map_err(|()| {
+                self.inner.metrics.record_response_stream_admission(
+                    protocol,
+                    "degraded_memory_unavailable",
+                    started_at.elapsed(),
+                );
+                ResponseStreamAdmissionError::QueueFull
+            })?;
         self.inner.metrics.record_response_stream_admission(
             protocol,
-            if slot.is_some() {
-                "degraded"
-            } else {
-                "degraded_unslotted"
-            },
+            "degraded",
             started_at.elapsed(),
         );
         self.inner
             .metrics
             .add_response_stream_reservation(protocol, bytes);
-        ResponseStreamMemoryPermit {
-            concurrency: slot,
+        Ok(ResponseStreamMemoryPermit {
+            concurrency: Some(slot),
             foreground_concurrency: None,
             background_concurrency: None,
-            transient,
+            transient: Some(transient),
             metrics: self.inner.metrics.clone(),
             protocol,
             bytes,
-        }
+        })
     }
 
     #[cfg(test)]
@@ -875,7 +894,6 @@ impl MemoryController {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::constants::RESPONSE_STREAM_SEND_BUFFER_BYTES;
     use crate::memory::reservation::RESPONSE_STREAM_ADMISSION_TIMEOUT;
 
     #[test]
@@ -1238,8 +1256,8 @@ mod tests {
         );
         controller.observe(0);
 
-        // The cap counts Hyper's per-stream send buffer, not the 8 KiB floor a
-        // degraded stream reserves, so the aggregate stays inside the pool.
+        // The cap counts Hyper's per-stream send buffer, not the degraded
+        // reader's 8 KiB chunk floor, so the aggregate stays bounded.
         let slots = controller.degraded_response_stream_slots();
         assert_eq!(
             slots,
@@ -1251,26 +1269,32 @@ mod tests {
             held.push(
                 controller
                     .acquire_degraded_response_stream_memory(8 * 1024, "http")
-                    .await,
+                    .await
+                    .expect("a stream inside the cap must be admitted"),
             );
         }
         assert!(
             held.iter().all(|permit| permit.holds_degraded_slot()),
             "every stream inside the cap must hold a slot"
         );
+        assert_eq!(
+            controller.transient_reserved_bytes(),
+            (slots * RESPONSE_STREAM_SEND_BUFFER_BYTES) as u64,
+            "each degraded stream must reserve its complete transport buffer cost"
+        );
 
-        // Past the cap a read is still served, but without a slot, and the
-        // overflow is visible rather than silent.
+        // Past the cap the wait stays bounded and no unaccounted stream is
+        // returned to the caller.
         let overflow = controller
             .acquire_degraded_response_stream_memory(8 * 1024, "http")
             .await;
-        assert!(!overflow.holds_degraded_slot());
+        assert_eq!(overflow.err(), Some(ResponseStreamAdmissionError::Timeout));
         assert!(
             controller
                 .inner
                 .metrics
                 .render()
-                .contains("outcome=\"degraded_unslotted\"")
+                .contains("outcome=\"degraded_timeout\"")
         );
 
         drop(held.pop());
@@ -1278,8 +1302,34 @@ mod tests {
             controller
                 .acquire_degraded_response_stream_memory(8 * 1024, "http")
                 .await
+                .expect("a released slot must admit another stream")
                 .holds_degraded_slot(),
             "a released slot must become reusable"
+        );
+    }
+
+    #[tokio::test]
+    async fn degraded_streams_require_transient_memory_headroom() {
+        let metrics = Metrics::new("eu-west".into(), "tenant".into());
+        let controller = MemoryController::with_runtime_limit(
+            metrics,
+            256 * 1024 * 1024,
+            128 * 1024 * 1024,
+            192 * 1024 * 1024,
+        );
+        controller.observe(192 * 1024 * 1024);
+
+        let result = controller
+            .acquire_degraded_response_stream_memory(8 * 1024, "http")
+            .await;
+
+        assert_eq!(result.err(), Some(ResponseStreamAdmissionError::QueueFull));
+        assert!(
+            controller
+                .inner
+                .metrics
+                .render()
+                .contains("outcome=\"degraded_memory_unavailable\"")
         );
     }
 

@@ -2421,9 +2421,9 @@ async fn serve_file(
             {
                 Some(permit) => permit,
                 // mmap serving is an optimization; hand a budget-constrained
-                // read straight to the streaming path, which degrades rather
-                // than fails. Waiting here first would only delay that fallback
-                // by a full admission timeout without changing the outcome.
+                // read straight to the streaming path, which can use the
+                // smaller degraded pool. Waiting here first would only delay
+                // that fallback by a full admission timeout.
                 None => {
                     return serve_file_reader(
                         state,
@@ -2479,8 +2479,9 @@ async fn serve_file_reader(
     )
     .unwrap_or(usize::MAX);
     let (permit, stream_chunk_bytes) = match class {
-        // A public read degrades to the minimum chunk rather than failing, so a
-        // busy node never turns a cache hit into a client-visible error.
+        // A public read first degrades to the minimum chunk. If even that
+        // bounded path has no slot or live headroom, shed it with a retryable
+        // response rather than opening an unaccounted stream.
         ResponseStreamClass::Public => match state
             .memory
             .acquire_response_stream_memory(
@@ -2498,13 +2499,14 @@ async fn serve_file_reader(
                         .saturating_add(inline_bytes),
                 )
                 .unwrap_or(usize::MAX);
-                (
-                    state
-                        .memory
-                        .acquire_degraded_response_stream_memory(degraded_bytes, "http")
-                        .await,
-                    RESPONSE_STREAM_MIN_CHUNK_BYTES,
-                )
+                match state
+                    .memory
+                    .acquire_degraded_response_stream_memory(degraded_bytes, "http")
+                    .await
+                {
+                    Ok(permit) => (permit, RESPONSE_STREAM_MIN_CHUNK_BYTES),
+                    Err(_) => return response_stream_unavailable(),
+                }
             }
         },
         // Bootstrap is internal peer traffic that retries on its own schedule,
@@ -3735,7 +3737,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn a_public_read_degrades_instead_of_failing_when_the_stream_pool_is_exhausted() {
+    async fn a_public_read_sheds_when_no_bounded_stream_reservation_remains() {
         let context = test_context(|_| {}).await;
         let app = router(context.state.clone());
         let payload: Vec<u8> = (0..(512 * 1024 + 13))
@@ -3773,8 +3775,66 @@ mod tests {
             .await
             .expect("get request failed");
 
-        // Older clients treat a 5xx on a read as fatal, so an exhausted pool
-        // must still serve the artifact rather than shed it.
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        assert_eq!(
+            response.headers().get(axum::http::header::RETRY_AFTER),
+            Some(&HeaderValue::from_static("1"))
+        );
+        assert!(
+            context
+                .state
+                .metrics
+                .render()
+                .contains("outcome=\"degraded_memory_unavailable\"")
+        );
+    }
+
+    #[tokio::test]
+    async fn a_public_read_uses_the_bounded_degraded_pool_when_full_size_admission_is_exhausted() {
+        let context = test_context(|_| {}).await;
+        let app = router(context.state.clone());
+        let payload: Vec<u8> = (0..(512 * 1024 + 13))
+            .map(|index| (index % 251) as u8)
+            .collect();
+
+        let put_response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/cache/cas/degraded-read?tenant_id=acme&namespace_id=ios")
+                    .header("content-type", "application/octet-stream")
+                    .body(Body::from(payload.clone()))
+                    .expect("failed to build put request"),
+            )
+            .await
+            .expect("put request failed");
+        assert_eq!(put_response.status(), StatusCode::NO_CONTENT);
+
+        let _held = context
+            .state
+            .memory
+            .acquire_response_stream_memory(
+                context
+                    .state
+                    .memory
+                    .foreground_response_streaming_pool_bytes(),
+                "test",
+                ResponseStreamAdmissionPatience::Blocking,
+            )
+            .await
+            .expect("the full-size response pool should start available");
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/cache/cas/degraded-read?tenant_id=acme&namespace_id=ios")
+                    .body(Body::empty())
+                    .expect("failed to build get request"),
+            )
+            .await
+            .expect("get request failed");
+
         assert_eq!(response.status(), StatusCode::OK);
         let body = response
             .into_body()

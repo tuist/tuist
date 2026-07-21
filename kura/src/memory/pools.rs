@@ -70,12 +70,12 @@ impl MemoryPools {
                 MAX_BACKGROUND_RESPONSE_STREAM_POOL_BYTES,
             )
             .min(response_streaming_bytes);
-        // A degraded stream reserves only the 8 KiB chunk floor, but Hyper can
-        // still hold up to one `RESPONSE_STREAM_SEND_BUFFER_BYTES` send buffer
-        // per stream for a slow client. Counting degraded streams at that real
-        // per-stream cost keeps their aggregate footprint inside the same
-        // budget the weighted pool already accounts for, instead of letting it
-        // grow with the file-descriptor pool.
+        // A degraded reader uses the 8 KiB chunk floor, but Hyper can still
+        // hold up to one `RESPONSE_STREAM_SEND_BUFFER_BYTES` send buffer per
+        // stream for a slow client. The transient ledger charges that real
+        // cost; sizing this concurrency pool from the same value keeps the
+        // aggregate bounded instead of letting it grow with the file-descriptor
+        // pool.
         let degraded_response_stream_slots =
             (response_streaming_bytes / RESPONSE_STREAM_SEND_BUFFER_BYTES).max(1);
         Self {
