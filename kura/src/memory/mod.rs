@@ -438,6 +438,30 @@ impl MemoryController {
     /// connection concurrency rather than the weighted pool, and it still
     /// charges the transient ledger when headroom exists so the bytes stay
     /// visible to pressure accounting.
+    /// Non-waiting admission for the mmap fast path.
+    ///
+    /// mmap serving is an optimization over the streaming reader, so queueing
+    /// for it would spend the admission budget twice: once here, and again in
+    /// the streaming path this falls back to, delaying a read by up to two full
+    /// admission timeouts before it degrades. A miss returns immediately and is
+    /// not counted as a rejection, because the read still proceeds by another
+    /// route.
+    pub fn try_acquire_mmap_response_stream_memory(
+        &self,
+        requested_bytes: usize,
+        protocol: &'static str,
+    ) -> Option<ResponseStreamMemoryPermit> {
+        let permit = self
+            .try_acquire_response_stream_memory(requested_bytes, protocol)
+            .ok()?;
+        self.inner.metrics.record_response_stream_admission(
+            protocol,
+            "immediate",
+            std::time::Duration::ZERO,
+        );
+        Some(permit)
+    }
+
     /// A degraded stream holds a slot counted at Hyper's real per-stream send
     /// buffer, not at the 8 KiB chunk floor it reserves, so a flood of slow
     /// readers cannot grow the aggregate footprint with the file-descriptor

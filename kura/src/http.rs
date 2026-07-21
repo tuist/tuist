@@ -2414,13 +2414,14 @@ async fn serve_file(
             let requested_bytes = response_stream_chunk_bytes(manifest.size).saturating_mul(4);
             let permit = match state
                 .memory
-                .acquire_response_stream_memory(requested_bytes, "http")
-                .await
+                .try_acquire_mmap_response_stream_memory(requested_bytes, "http")
             {
-                Ok(permit) => permit,
+                Some(permit) => permit,
                 // mmap serving is an optimization; hand a budget-constrained
-                // read to the streaming path, which degrades rather than fails.
-                Err(_) => {
+                // read straight to the streaming path, which degrades rather
+                // than fails. Waiting here first would only delay that fallback
+                // by a full admission timeout without changing the outcome.
+                None => {
                     return serve_file_reader(
                         state,
                         status,
