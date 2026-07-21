@@ -59,6 +59,12 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
   @default_rolling_window_size 100
   @recent_runs_bucket_sizes [100, 250, 500, 750]
 
+  # Merging the rolling aggregate states is memory-heavy and memory grows with
+  # parallelism. Keep this limit local to these queries so concurrent alert
+  # evaluations leave headroom for runner lifecycle writes and other reads.
+  @rolling_query_max_threads 2
+  @rolling_query_max_memory_bytes 1024 * 1024 * 1024
+
   def evaluate(alert, test_case_ids \\ nil) do
     trigger_config = alert.trigger_config
     threshold = trigger_config["threshold"] || 10
@@ -396,6 +402,8 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
       )
     )
     WHERE length(recent_runs) > 0
+    SETTINGS max_threads = #{@rolling_query_max_threads},
+             max_memory_usage = #{@rolling_query_max_memory_bytes}
     """
 
     %{rows: rows} =
@@ -525,6 +533,8 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
     )
     WHERE length(recent_runs) > 0
       AND #{rolling_having_expr(monitor_type)} #{rolling_comparison_op(comparison)} {threshold:Float64}
+    SETTINGS max_threads = #{@rolling_query_max_threads},
+             max_memory_usage = #{@rolling_query_max_memory_bytes}
     """
 
     params = maybe_put_test_case_ids(%{project_id: project_id, threshold: threshold * 1.0}, test_case_ids)

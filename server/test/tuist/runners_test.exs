@@ -196,7 +196,7 @@ defmodule Tuist.RunnersTest do
         workflow_job_id: workflow_job_id,
         account_id: account.id,
         fleet_name: "fleet-a",
-        repository: "acme/cli",
+        repository: Keyword.get(opts, :repository, "acme/cli"),
         workflow_run_id: workflow_job_id * 10,
         run_attempt: 1,
         workflow_name: "CI",
@@ -249,7 +249,9 @@ defmodule Tuist.RunnersTest do
 
       expect(Claims, :workflow_job_ids_for_fleet, fn "fleet-a" -> excluded_workflow_job_ids end)
 
-      expect(Jobs, :pick_queued_top_k, fn "fleet-a", [], ^excluded_workflow_job_ids, _k -> {:ok, [candidate]} end)
+      expect(Jobs, :pick_queued_top_k, fn "fleet-a", [], [], ^excluded_workflow_job_ids, _k ->
+        {:ok, [candidate]}
+      end)
 
       expect(Claims, :attempt, fn ^workflow_job_id, _account_id, "fleet-a", ^pod_name, resources ->
         assert resources == %{platform: :linux, vcpus: 4, memory_gb: 16}
@@ -292,6 +294,120 @@ defmodule Tuist.RunnersTest do
         assert String.starts_with?(runner_name, String.slice(pod_name, 0, 55))
         assert byte_size(runner_name) <= 64
         :ok
+      end)
+    end
+
+    defp stub_mint_failure_then_success(
+           failed_account,
+           failed_candidate,
+           eligible_account,
+           eligible_candidate,
+           mint_error,
+           exclusion_scope
+         ) do
+      pod_name = "pod-1"
+      first_claimed_at = DateTime.utc_now()
+      second_claimed_at = DateTime.add(first_claimed_at, 1, :microsecond)
+
+      expect(K8sClient, :get_pod, fn "tuist-runners", ^pod_name ->
+        {:ok, pod_with_image(pod_name, "ghcr.io/tuist/tuist-runner@sha256:current")}
+      end)
+
+      expect(K8sClient, :get_service_account, fn "tuist-runners", ^pod_name ->
+        {:ok, sa_with_pool_label(pod_name, "fleet-a")}
+      end)
+
+      expect(K8sClient, :get_runner_pool, fn "tuist-runners", "fleet-a" ->
+        {:error, :not_found}
+      end)
+
+      expect(Claims, :workflow_job_ids_for_fleet, fn "fleet-a" -> [] end)
+      expect(Jobs, :pick_queued_top_k, fn "fleet-a", [], [], [], _k -> {:ok, [failed_candidate]} end)
+
+      expect(Claims, :attempt, fn workflow_job_id, account_id, "fleet-a", ^pod_name, _resources ->
+        assert workflow_job_id == failed_candidate.workflow_job_id
+        assert account_id == failed_account.id
+        {:ok, %{claimed_at: first_claimed_at}}
+      end)
+
+      expect(Jobs, :record_claimed, fn candidate, ^pod_name, ^first_claimed_at ->
+        assert candidate == failed_candidate
+        :ok
+      end)
+
+      expect(Dispatch, :pool_summary_by_name, 2, fn "fleet-a" ->
+        {:ok, %{dispatch_label: "shape-linux-4vcpu-16gb", runner_labels: ["self-hosted", "Linux", "X64"]}}
+      end)
+
+      stub(K8sClient, :patch_pod, fn _namespace, _pod, _patch -> {:ok, %{}} end)
+
+      stub(VCS, :get_github_app_installation_for_account, fn _account_id ->
+        {:ok, %{installation_id: 42, client_url: "https://github.com"}}
+      end)
+
+      expect(GitHubClient, :generate_jit_config, fn _installation, _login, attrs ->
+        assert attrs.repository_full_handle == failed_candidate.repository
+        mint_error
+      end)
+
+      expect(Jobs, :record_queued, fn candidate ->
+        assert candidate == failed_candidate
+        :ok
+      end)
+
+      expect(Claims, :release, fn workflow_job_id, ^first_claimed_at ->
+        assert workflow_job_id == failed_candidate.workflow_job_id
+        :ok
+      end)
+
+      case exclusion_scope do
+        :account ->
+          expect(Jobs, :pick_queued_top_k, fn "fleet-a", excluded_account_ids, [], [], _k ->
+            assert excluded_account_ids == [failed_account.id]
+            {:ok, [eligible_candidate]}
+          end)
+
+        :repository ->
+          expect(Jobs, :pick_queued_top_k, fn "fleet-a", [], excluded_repositories, [], _k ->
+            assert excluded_repositories == [failed_candidate.repository]
+            {:ok, [eligible_candidate]}
+          end)
+
+        :workflow_job ->
+          expect(Jobs, :pick_queued_top_k, fn "fleet-a", [], [], excluded_workflow_job_ids, _k ->
+            assert excluded_workflow_job_ids == [failed_candidate.workflow_job_id]
+            {:ok, [eligible_candidate]}
+          end)
+      end
+
+      expect(Claims, :attempt, fn workflow_job_id, account_id, "fleet-a", ^pod_name, _resources ->
+        assert workflow_job_id == eligible_candidate.workflow_job_id
+        assert account_id == eligible_account.id
+        {:ok, %{claimed_at: second_claimed_at}}
+      end)
+
+      expect(Jobs, :record_claimed, fn candidate, ^pod_name, ^second_claimed_at ->
+        assert candidate == eligible_candidate
+        :ok
+      end)
+
+      expect(GitHubClient, :generate_jit_config, fn _installation, _login, attrs ->
+        assert attrs.repository_full_handle == eligible_candidate.repository
+        {:ok, %{encoded_jit_config: "jit-blob", runner_name: attrs.name}}
+      end)
+
+      expect(Claims, :mark_running, fn workflow_job_id, _runner_name ->
+        assert workflow_job_id == eligible_candidate.workflow_job_id
+        :ok
+      end)
+
+      expect(Jobs, :record_running, fn workflow_job_id, _runner_name ->
+        assert workflow_job_id == eligible_candidate.workflow_job_id
+        :ok
+      end)
+
+      stub(GitHubClient, :get_workflow_run, fn %{repository_full_handle: repository} ->
+        {:ok, %{"head_repository" => %{"full_name" => repository}, "repository" => %{"full_name" => repository}}}
       end)
     end
 
@@ -476,13 +592,13 @@ defmodule Tuist.RunnersTest do
 
       expect(Claims, :workflow_job_ids_for_fleet, fn "fleet-a" -> [] end)
 
-      expect(Jobs, :pick_queued_top_k, fn "fleet-a", [], [], _k -> {:ok, [stale_candidate]} end)
+      expect(Jobs, :pick_queued_top_k, fn "fleet-a", [], [], [], _k -> {:ok, [stale_candidate]} end)
 
       expect(Claims, :attempt, fn 90_001, _account_id, "fleet-a", ^pod_name, _resources ->
         {:error, :lost_race}
       end)
 
-      expect(Jobs, :pick_queued_top_k, fn "fleet-a", [], [90_001], _k -> {:ok, [candidate]} end)
+      expect(Jobs, :pick_queued_top_k, fn "fleet-a", [], [], [90_001], _k -> {:ok, [candidate]} end)
 
       expect(Claims, :attempt, fn 90_002, _account_id, "fleet-a", ^pod_name, _resources ->
         {:ok, %{claimed_at: DateTime.utc_now()}}
@@ -521,6 +637,68 @@ defmodule Tuist.RunnersTest do
       assert "tuist-default" in labels
     end
 
+    test "skips an account whose GitHub App permission prevents minting and dispatches other work" do
+      failed_account = account_fixture()
+      eligible_account = account_fixture()
+      failed_candidate = candidate_with_label(failed_account, "tuist-default", workflow_job_id: 90_101)
+      eligible_candidate = candidate_with_label(eligible_account, "tuist-default", workflow_job_id: 90_102)
+
+      stub_mint_failure_then_success(
+        failed_account,
+        failed_candidate,
+        eligible_account,
+        eligible_candidate,
+        {:error, {:repository_administration_permission_required, 403, %{"message" => "Forbidden"}}},
+        :account
+      )
+
+      assert {:ok, %{workflow_job_id: 90_102}} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+    end
+
+    test "skips only the repository whose runner endpoint returns not found" do
+      account = account_fixture()
+
+      failed_candidate =
+        candidate_with_label(account, "tuist-default",
+          workflow_job_id: 90_151,
+          repository: "acme/unavailable"
+        )
+
+      eligible_candidate =
+        candidate_with_label(account, "tuist-default",
+          workflow_job_id: 90_152,
+          repository: "acme/available"
+        )
+
+      stub_mint_failure_then_success(
+        account,
+        failed_candidate,
+        account,
+        eligible_candidate,
+        {:error, {:repository_jit_config_not_found, 404, %{"message" => "Not Found"}}},
+        :repository
+      )
+
+      assert {:ok, %{workflow_job_id: 90_152}} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+    end
+
+    test "skips only the failed workflow job after a transient mint failure" do
+      account = account_fixture()
+      failed_candidate = candidate_with_label(account, "tuist-default", workflow_job_id: 90_201)
+      eligible_candidate = candidate_with_label(account, "tuist-default", workflow_job_id: 90_202)
+
+      stub_mint_failure_then_success(
+        account,
+        failed_candidate,
+        account,
+        eligible_candidate,
+        {:error, {:transport, :timeout}},
+        :workflow_job
+      )
+
+      assert {:ok, %{workflow_job_id: 90_202}} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+    end
+
     test "skips all queued work for an account that reached its platform limit" do
       capped_account = account_fixture()
       other_account = account_fixture()
@@ -541,7 +719,7 @@ defmodule Tuist.RunnersTest do
       end)
 
       expect(Claims, :workflow_job_ids_for_fleet, fn "fleet-a" -> [] end)
-      expect(Jobs, :pick_queued_top_k, fn "fleet-a", [], [], _k -> {:ok, [capped_candidate]} end)
+      expect(Jobs, :pick_queued_top_k, fn "fleet-a", [], [], [], _k -> {:ok, [capped_candidate]} end)
 
       expect(Claims, :attempt, fn 91_001, account_id, "fleet-a", ^pod_name, resources ->
         assert account_id == capped_account.id
@@ -556,7 +734,7 @@ defmodule Tuist.RunnersTest do
           }}}
       end)
 
-      expect(Jobs, :pick_queued_top_k, fn "fleet-a", excluded_account_ids, [], _k ->
+      expect(Jobs, :pick_queued_top_k, fn "fleet-a", excluded_account_ids, [], [], _k ->
         assert excluded_account_ids == [capped_account.id]
         assert other_candidate.account_id == other_account.id
         {:error, :empty}
@@ -583,14 +761,14 @@ defmodule Tuist.RunnersTest do
       end)
 
       expect(Claims, :workflow_job_ids_for_fleet, fn "fleet-a" -> [] end)
-      expect(Jobs, :pick_queued_top_k, fn "fleet-a", [], [], _k -> {:ok, [busy_candidate]} end)
+      expect(Jobs, :pick_queued_top_k, fn "fleet-a", [], [], [], _k -> {:ok, [busy_candidate]} end)
 
       expect(Claims, :attempt, fn 91_010, account_id, "fleet-a", ^pod_name, _resources ->
         assert account_id == busy_account.id
         {:error, :account_busy}
       end)
 
-      expect(Jobs, :pick_queued_top_k, fn "fleet-a", excluded_account_ids, [], _k ->
+      expect(Jobs, :pick_queued_top_k, fn "fleet-a", excluded_account_ids, [], [], _k ->
         assert excluded_account_ids == [busy_account.id]
         {:error, :empty}
       end)
@@ -625,7 +803,7 @@ defmodule Tuist.RunnersTest do
 
       expect(Claims, :workflow_job_ids_for_fleet, fn "fleet-a" -> [] end)
 
-      expect(Jobs, :pick_queued_top_k, 17, fn "fleet-a", excluded_account_ids, [], _k ->
+      expect(Jobs, :pick_queued_top_k, 17, fn "fleet-a", excluded_account_ids, [], [], _k ->
         candidate = Enum.find(candidates, &(&1.account_id not in excluded_account_ids))
         {:ok, [candidate]}
       end)
