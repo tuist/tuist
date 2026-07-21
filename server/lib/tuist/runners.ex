@@ -58,6 +58,7 @@ defmodule Tuist.Runners do
   alias Tuist.Runners.CacheGrant
   alias Tuist.Runners.Catalog
   alias Tuist.Runners.Claims
+  alias Tuist.Runners.Concurrency
   alias Tuist.Runners.Dispatch
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.RunnerSessions
@@ -355,9 +356,52 @@ defmodule Tuist.Runners do
     %{
       fleet: fleet_name,
       claimed: Map.get(Claims.counts_per_fleet(), fleet_name, 0),
-      queued: Jobs.queued_count_by_fleet(fleet_name),
+      queued: dispatchable_queued_count(fleet_name),
       p95_concurrent_last_hour: Jobs.p95_concurrent_last_hour(fleet_name)
     }
+  end
+
+  # Queued jobs the fleet could actually be handed right now: each
+  # account's queue depth capped at its remaining concurrency headroom.
+  #
+  # Raw queue depth overstates demand whenever an account queues past its
+  # limit. Dispatch declines those jobs and leaves them queued, so they
+  # persist in the count while never becoming claimable, and the
+  # autoscaler sizes the pool for them. The resulting Pods can't serve
+  # them either, so they idle on hosts that pools with claimable work are
+  # then denied — one account at its cap quietly starves the fleet.
+  #
+  # Falls back to the raw count when the fleet's shape is unknown: an
+  # unrecognised fleet should size on the signal it has rather than
+  # silently report zero demand and scale itself to nothing.
+  defp dispatchable_queued_count(fleet_name) do
+    queued_by_account = Jobs.queued_count_by_fleet_and_account(fleet_name)
+    raw = queued_by_account |> Map.values() |> Enum.sum()
+
+    case Catalog.resources_for_fleet(fleet_name) do
+      {:ok, resources} ->
+        dispatchable =
+          Enum.reduce(queued_by_account, 0, fn {account_id, count}, acc ->
+            acc + min(count, Concurrency.headroom_jobs(account_id, resources))
+          end)
+
+        :telemetry.execute(
+          Telemetry.event_name_queue_withheld(),
+          %{count: raw - dispatchable},
+          %{fleet: fleet_name}
+        )
+
+        dispatchable
+
+      {:error, _reason} ->
+        :telemetry.execute(
+          Telemetry.event_name_queue_withheld(),
+          %{count: 0},
+          %{fleet: fleet_name}
+        )
+
+        raw
+    end
   end
 
   @doc """
