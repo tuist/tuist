@@ -2,6 +2,7 @@ defmodule Tuist.Tests.XcresultProcessingTest do
   use TuistTestSupport.Cases.DataCase, async: false
 
   import Ecto.Query
+  import ExUnit.CaptureLog
 
   alias Tuist.ClickHouseRepo
   alias Tuist.Repo
@@ -91,6 +92,38 @@ defmodule Tuist.Tests.XcresultProcessingTest do
       )
 
     assert failed_shard_run.ran_at == ran_at
+  end
+
+  test "normalizes offset-bearing ran_at values to Coordinated Universal Time" do
+    attrs =
+      XcresultProcessing.base_test_attrs(%{
+        "ran_at" => "2026-07-21T02:59:14.935065+02:00"
+      })
+
+    assert attrs.ran_at == ~N[2026-07-21 00:59:14.935065]
+  end
+
+  test "falls back to the current time when ran_at is invalid" do
+    before_fallback = NaiveDateTime.utc_now()
+
+    {attrs, log} =
+      with_log(fn ->
+        XcresultProcessing.base_test_attrs(%{"ran_at" => "not-a-date"})
+      end)
+
+    after_fallback = NaiveDateTime.utc_now()
+
+    assert NaiveDateTime.compare(attrs.ran_at, before_fallback) in [:eq, :gt]
+    assert NaiveDateTime.compare(attrs.ran_at, after_fallback) in [:eq, :lt]
+    assert log =~ "Invalid Xcode result processing ran_at"
+  end
+
+  test "serializes ran_at values for Oban arguments" do
+    assert XcresultProcessing.serialize_ran_at(~N[2026-07-21 02:59:14.935065]) ==
+             "2026-07-21T02:59:14.935065"
+
+    assert XcresultProcessing.serialize_ran_at(~U[2026-07-21 02:59:14.935065Z]) ==
+             "2026-07-21T02:59:14.935065Z"
   end
 
   defp processing_args(account_id, project_id) do
