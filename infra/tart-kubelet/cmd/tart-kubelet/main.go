@@ -125,11 +125,11 @@ func main() {
 		"Provisioned capacity (GiB) of each per-account cache master image. The image is sparse, so this is a "+
 			"ceiling, not an allocation; the runner-cache-root quota is the real aggregate bound.")
 	flag.IntVar(&cacheVolumeCASGiB, "cache-volume-cas-gib", envIntOr("TART_KUBELET_CACHE_VOLUME_CAS_GIB", 0),
-		"Enable toggle for the Xcode compilation cache (CAS), which is now FOLDED into the cache image "+
-			"(a store dir beside the binary cache, sharing --cache-volume-cap-gib — size the volume for both). "+
-			">0 signals the guest to point the compiler at the store so it persists across VMs and rides the "+
-			"binary cache's HEAD/convergence; 0 (default) leaves the compilation cache VM-local. The value no "+
-			"longer sizes a separate image (there isn't one); keep the volume cap reasonable so HEAD uploads stay fast.")
+		"The Xcode compilation cache (CAS) is FOLDED into the cache image (a store dir beside the binary cache). "+
+			"This is the CAS's byte BUDGET within that shared image: it sets the CAS's share of --cache-volume-cap-gib "+
+			"(COMPILATION_CACHE_LIMIT_PERCENT ≈ cas-gib/cap-gib), and the binary cache gets the rest minus a ~10% "+
+			"reserve, so the two pruners never over-commit the one image. Persisted across VMs, riding the binary "+
+			"cache's HEAD/convergence. 0 (default) leaves the compilation cache VM-local. Must be < --cache-volume-cap-gib.")
 	flag.BoolVar(&disableVMGC, "disable-vm-gc", false,
 		"Disable the periodic orphan-VM garbage collector. The GC deletes every local "+
 			"Tart VM not backed by a Pod scheduled to this Node. On builder-fleet Nodes — "+
@@ -295,6 +295,10 @@ func main() {
 	// ticker alongside the reconciler.
 	volumes := podagent.NewVolumeManager(runnerCacheRoot, cacheVolumeCapGiB, nil)
 	volumes.CASGiB = cacheVolumeCASGiB
+	if cacheVolumeCASGiB >= cacheVolumeCapGiB && cacheVolumeCASGiB > 0 {
+		setupLog.Info("WARNING --cache-volume-cas-gib >= --cache-volume-cap-gib; the CAS budget is clamped so the binary cache and reserve keep a slice — lower cas-gib or raise cap-gib",
+			"cas-gib", cacheVolumeCASGiB, "cap-gib", cacheVolumeCapGiB)
+	}
 	if volumes.Enabled() {
 		setupLog.Info("per-account cache volumes enabled", "root", runnerCacheRoot, "cap-gib", cacheVolumeCapGiB, "cas-gib", cacheVolumeCASGiB)
 		// Wait for the runner-cache volume to actually mount BEFORE recoverState

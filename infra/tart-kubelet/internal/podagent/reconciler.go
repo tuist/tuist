@@ -510,7 +510,7 @@ func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
 			// Stage the per-branch byte budget for the guest's cache LRU prune
 			// before the VM boots (the whole shared quota volume's free space
 			// would be the wrong, far-too-large budget over a virtio-fs share).
-			writeCacheBudget(statusDir, r.Volumes.CapGiB, r.Volumes.casEnabled())
+			writeCacheBudget(statusDir, r.Volumes.CapGiB, r.Volumes.CASGiB)
 		} else {
 			statusDir = ""
 		}

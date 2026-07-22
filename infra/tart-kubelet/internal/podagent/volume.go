@@ -200,11 +200,13 @@ type VolumeManager struct {
 	// the real aggregate ceiling.
 	CapGiB int
 
-	// CASGiB is the logical cap of each account's CAS disk image and the extra
-	// headroom admission reserves per live branch for it. Zero disables the CAS
-	// image entirely — the binary cache still rides the virtio-fs tree, but the
-	// Xcode compilation cache is not persisted (it stays VM-local, dying with
-	// the VM). The image is sparse, so this is a ceiling, not an allocation.
+	// CASGiB is the CAS's byte budget WITHIN the shared cache image (the CAS is
+	// folded in as a subdir, not its own image). It sets the CAS's share of the
+	// CapGiB cap — COMPILATION_CACHE_LIMIT_PERCENT ≈ CASGiB/CapGiB — and the binary
+	// cache gets the rest minus a filesystem reserve, so the two pruners never
+	// over-commit the one image. Zero disables the CAS entirely: the compilation
+	// cache is not persisted across VMs (it stays VM-local, dying with the VM), and
+	// the binary cache gets the full budget.
 	CASGiB int
 
 	// LowWatermarkFraction is the free-space fraction the background evictor

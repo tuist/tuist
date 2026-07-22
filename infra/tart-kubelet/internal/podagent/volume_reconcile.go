@@ -182,27 +182,44 @@ func writeCacheReady(statusDir string) {
 // writeCacheBudget stages the per-branch byte budget (≈80% of a master's
 // provisioned cap) into the status share before the VM boots, for the guest's
 // TUIST_CACHE_MAX_BYTES.
-// casSharedPercent is each cache's share of the image when the CAS is folded in:
-// the binary cache LRU (TUIST_CACHE_MAX_BYTES) and the CAS pruner
-// (COMPILATION_CACHE_LIMIT_PERCENT) each get this percent of the cap, so their
-// worst case is 2×casSharedPercent and the rest is filesystem reserve. Without a
-// coordinated split each would independently claim ~80% and together over-commit
-// the one image to ENOSPC. With the CAS off, the binary cache gets the full
-// budget below.
-const casSharedPercent = 45
+// cacheVolumeReservePercent is the slice of the cache image kept free as
+// filesystem reserve, so neither the binary-cache LRU nor the CAS pruner can fill
+// it to ENOSPC. The binary cache and the CAS split the rest.
+const cacheVolumeReservePercent = 10
+
+// casPercent is the CAS's share of the cache image (its
+// COMPILATION_CACHE_LIMIT_PERCENT), derived from the operator-configured CASGiB
+// budget against the image cap. 0 when the CAS is off. Clamped so the binary
+// cache and the reserve always keep a slice even if CASGiB is set larger than the
+// cap — the whole point is that the two pruners share one image without
+// over-committing it.
+func casPercent(capGiB, casGiB int) int {
+	if capGiB <= 0 || casGiB <= 0 {
+		return 0
+	}
+	pct := casGiB * 100 / capGiB
+	if maxPct := 100 - cacheVolumeReservePercent - 1; pct > maxPct {
+		pct = maxPct // oversized CASGiB: leave the reserve + a 1% binary floor
+	}
+	if pct < 1 {
+		pct = 1
+	}
+	return pct
+}
 
 // writeCacheBudget stages the binary cache's byte budget (TUIST_CACHE_MAX_BYTES)
-// into the status share. When the CAS shares the image it gets casSharedPercent
-// of the cap so it and the CAS pruner cannot both fill it; otherwise ~80%.
-func writeCacheBudget(statusDir string, capGiB int, casEnabled bool) {
+// into the status share. With the CAS folded in it gets the cap minus the CAS's
+// share minus the reserve, so the two pruners cannot both fill the one image;
+// with the CAS off it gets ~80%.
+func writeCacheBudget(statusDir string, capGiB, casGiB int) {
 	if statusDir == "" || capGiB <= 0 {
 		return
 	}
-	pct := uint64(80)
-	if casEnabled {
-		pct = casSharedPercent
+	binaryPct := uint64(80)
+	if cas := casPercent(capGiB, casGiB); cas > 0 {
+		binaryPct = uint64(100 - cacheVolumeReservePercent - cas)
 	}
-	budget := uint64(capGiB) * 1024 * 1024 * 1024 * pct / 100
+	budget := uint64(capGiB) * 1024 * 1024 * 1024 * binaryPct / 100
 	_ = os.WriteFile(filepath.Join(statusDir, cacheBudgetFile), []byte(strconv.FormatUint(budget, 10)), 0o644)
 }
 
@@ -216,9 +233,10 @@ func (r *Reconciler) writeCASEnabled(statusDir string) {
 	if statusDir == "" || r.Volumes == nil || !r.Volumes.casEnabled() {
 		return
 	}
-	// The marker carries the CAS's share percent (the coordinated other half of
-	// writeCacheBudget's split), which the guest uses for COMPILATION_CACHE_LIMIT_PERCENT.
-	_ = os.WriteFile(filepath.Join(statusDir, casEnabledFile), []byte(strconv.Itoa(casSharedPercent)), 0o644)
+	// The marker carries the CAS's share percent (derived from CASGiB, the
+	// coordinated other half of writeCacheBudget's split), which the guest uses for
+	// COMPILATION_CACHE_LIMIT_PERCENT.
+	_ = os.WriteFile(filepath.Join(statusDir, casEnabledFile), []byte(strconv.Itoa(casPercent(r.Volumes.CapGiB, r.Volumes.CASGiB))), 0o644)
 }
 
 // uploadMillisFile carries the wall-clock ms the guest teardown spent uploading
