@@ -7,6 +7,8 @@ defmodule TuistWeb.RateLimit.InMemory do
   broadcasting mechanism to keep counters in sync across nodes in a cluster.
   """
   alias Tuist.Environment
+  alias TuistWeb.Authentication
+  alias TuistWeb.RemoteIp
 
   defmodule Local do
     @moduledoc false
@@ -31,7 +33,7 @@ defmodule TuistWeb.RateLimit.InMemory do
     def start_link(opts) do
       pubsub = Keyword.fetch!(opts, :pubsub)
       topic = Keyword.fetch!(opts, :topic)
-      GenServer.start_link(__MODULE__, {pubsub, topic})
+      GenServer.start_link(__MODULE__, {pubsub, topic}, name: __MODULE__)
     end
 
     @impl true
@@ -54,7 +56,7 @@ defmodule TuistWeb.RateLimit.InMemory do
       scale_ms = to_timeout(minute: 1)
       limit = opts[:limit] || Environment.dashboard_rate_limit_bucket_size()
       route = route_pattern(conn)
-      key = "dashboard:#{conn.method}:#{route}:ip:#{TuistWeb.RemoteIp.get(conn)}"
+      key = "dashboard:#{conn.method}:#{route}:#{requester_key(conn)}"
 
       case hit(key, scale_ms, limit) do
         {:allow, _count} ->
@@ -66,6 +68,13 @@ defmodule TuistWeb.RateLimit.InMemory do
       end
     else
       conn
+    end
+  end
+
+  defp requester_key(conn) do
+    case Authentication.current_user(conn) do
+      %{id: id} -> "user:#{id}"
+      nil -> "ip:#{RemoteIp.get(conn)}"
     end
   end
 
@@ -87,7 +96,8 @@ defmodule TuistWeb.RateLimit.InMemory do
 
   # Sends a message to other nodes in the cluster to synchronize rate-limiting information.
   defp broadcast(message) do
-    Phoenix.PubSub.broadcast(@pubsub, @topic, message)
+    listener = Process.whereis(Listener)
+    Phoenix.PubSub.broadcast_from(@pubsub, listener, @topic, message)
   end
 
   def child_spec(opts) do
