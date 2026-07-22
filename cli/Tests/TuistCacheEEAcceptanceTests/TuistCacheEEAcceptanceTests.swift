@@ -579,4 +579,58 @@ struct TuistCacheEEAcceptanceTests {
         TuistTest.expectLogs("Targets to be cached: ExpensiveModule, NonCacheableModule")
         TuistTest.doesntExpectLogs("All cacheable targets are already cached")
     }
+
+    /// Foundation's #bundle macro expands to Bundle.module only when
+    /// SWIFT_MODULE_RESOURCE_BUNDLE_AVAILABLE is set at compile time, and the expansion is baked
+    /// into cached binaries. StaticFramework uses #bundle directly and through an SE-0422
+    /// caller-side default argument declared in ResourceLoader, so testing App while both
+    /// frameworks are consumed as cached xcframeworks exercises the expansion that warming froze
+    /// into the artifacts. The fixture's tests resolve a bundled resource at runtime and fail if
+    /// the macro fell back to the DSO-handle lookup.
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment(inheritingVariables: ["PATH"]),
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true),
+        .withTestingSimulator("iPhone 17"),
+        .withFixture("generated_static_framework_with_bundle_macro")
+    ) func generated_static_framework_with_bundle_macro_from_cached_binaries() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let simulator = try #require(Simulator.testing)
+        let xcodeprojPath = fixtureDirectory.appending(component: "BundleMacro.xcodeproj")
+
+        try await TuistTest.run(
+            CacheCommand.self,
+            ["--path", fixtureDirectory.pathString]
+        )
+
+        try await TuistTest.run(
+            TestCommand.self,
+            [
+                "App",
+                "--path",
+                fixtureDirectory.pathString,
+                "--derived-data-path",
+                temporaryDirectory.pathString,
+                "--device",
+                simulator.name,
+                "--",
+                "CODE_SIGN_IDENTITY=",
+                "CODE_SIGNING_REQUIRED=NO",
+                "CODE_SIGNING_ALLOWED=NO",
+            ]
+        )
+
+        try TuistAcceptanceTest.expectXCFrameworkLinked(
+            "StaticFramework",
+            by: "App",
+            xcodeprojPath: xcodeprojPath
+        )
+        try TuistAcceptanceTest.expectXCFrameworkLinked(
+            "ResourceLoader",
+            by: "App",
+            xcodeprojPath: xcodeprojPath
+        )
+    }
 }

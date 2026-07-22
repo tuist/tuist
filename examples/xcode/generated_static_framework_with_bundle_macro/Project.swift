@@ -34,5 +34,28 @@ let project = Project(
                 .target(name: "StaticFramework"),
             ]
         ),
+        .target(
+            name: "App",
+            destinations: .iOS,
+            product: .app,
+            bundleId: "dev.tuist.App",
+            deploymentTargets: .iOS("16.0"),
+            sources: "App/Sources/**",
+            dependencies: [
+                .target(name: "StaticFramework"),
+            ]
+        ),
+        .target(
+            name: "AppTests",
+            destinations: .iOS,
+            product: .unitTests,
+            bundleId: "dev.tuist.AppTests",
+            deploymentTargets: .iOS("16.0"),
+            sources: "AppTests/Sources/**",
+            dependencies: [
+                .target(name: "App"),
+                .target(name: "StaticFramework"),
+            ]
+        ),
     ]
 )

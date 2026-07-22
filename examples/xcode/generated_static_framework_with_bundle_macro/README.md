@@ -15,6 +15,9 @@ Project:
   - StaticFramework (static iOS framework with resources)
   - BundleMacro_StaticFramework (iOS bundle, synthesized)
   - StaticFrameworkTests (unit tests asserting the resource resolves at runtime)
+  - App (iOS app linking StaticFramework)
+  - AppTests (unit tests hosted in App exercising StaticFramework's expansions from a consumer,
+    so cache acceptance tests can consume StaticFramework as a binary while these run from source)
 ```
 
 Dependencies:
@@ -22,3 +25,5 @@ Dependencies:
 - StaticFramework -> ResourceLoader
 - StaticFramework -> BundleMacro_StaticFramework
 - StaticFrameworkTests -> StaticFramework
+- App -> StaticFramework
+- AppTests -> App, StaticFramework
