@@ -27,6 +27,7 @@ use crate::{
         MAX_INLINE_REPLICATION_BODY_BYTES, MAX_REPLICATION_BODY_BYTES, REPLICATION_RETRY_SECS,
     },
     failpoints::FailpointName,
+    metrics::Metrics,
     state::SharedState,
     store::{
         ArtifactApplyOutcome, ManifestBucketDigest, ManifestDigest, ManifestPage,
@@ -379,6 +380,34 @@ async fn bootstrap_namespace_tombstones_from_peer(
     }
 }
 
+/// Zeroes the per-peer bootstrap pass-progress gauges when a pass ends —
+/// including the `?` and watchdog-cancellation paths, via `Drop` — so a
+/// finished or abandoned pass reads as zero rather than freezing at its last
+/// mid-pass value, which would be indistinguishable from a live wedge. A
+/// still-running pass never drops the guard, so the wedge stays visible.
+struct BootstrapPassGauges {
+    metrics: Metrics,
+    peer: String,
+    mode: &'static str,
+}
+
+impl BootstrapPassGauges {
+    fn new(metrics: &Metrics, peer: &str, mode: &'static str) -> Self {
+        Self {
+            metrics: metrics.clone(),
+            peer: peer.to_owned(),
+            mode,
+        }
+    }
+}
+
+impl Drop for BootstrapPassGauges {
+    fn drop(&mut self) {
+        self.metrics
+            .clear_bootstrap_pass_progress(&self.peer, self.mode);
+    }
+}
+
 async fn bootstrap_manifests_from_peer(
     state: &SharedState,
     peer: &str,
@@ -396,6 +425,7 @@ async fn bootstrap_manifests_from_peer(
     // timeout fires.
     match fetch_bootstrap_digest(state, peer, prefix_len).await? {
         Some(peer_digest) => {
+            let _pass = BootstrapPassGauges::new(&state.metrics, peer, "digest");
             progress.fetch_add(1, Ordering::Relaxed);
             let local_digest = state.store.manifests_digest(prefix_len)?;
             let divergent = divergent_prefixes(&local_digest, &peer_digest.buckets);
@@ -408,22 +438,45 @@ async fn bootstrap_manifests_from_peer(
                 "bootstrap from {peer}: {walked}/{} manifest buckets diverged, {matched} matched and skipped",
                 peer_digest.buckets.len()
             );
+            state
+                .metrics
+                .set_bootstrap_pass_buckets_divergent(peer, "digest", divergent.len());
+            state
+                .metrics
+                .set_bootstrap_pass_buckets_reconciled(peer, "digest", 0);
+            let mut reconciled = 0;
             for prefix in divergent {
                 let (range_applied, range_failed) =
                     bootstrap_manifest_range_from_peer(state, peer, Some(&prefix), progress)
                         .await?;
                 applied += range_applied;
                 failed += range_failed;
+                reconciled += 1;
+                state
+                    .metrics
+                    .set_bootstrap_pass_buckets_reconciled(peer, "digest", reconciled);
             }
         }
         None => {
             // Peer predates the digest endpoint (one-version-skew during a
             // rollout, or a mixed-version mesh): fall back to a full keyspace
-            // walk, exactly as before.
+            // walk, exactly as before. Labeled mode="full_walk" so this
+            // whole-keyspace walk is never read as a single wedged digest
+            // bucket.
+            let _pass = BootstrapPassGauges::new(&state.metrics, peer, "full_walk");
+            state
+                .metrics
+                .set_bootstrap_pass_buckets_divergent(peer, "full_walk", 1);
+            state
+                .metrics
+                .set_bootstrap_pass_buckets_reconciled(peer, "full_walk", 0);
             let (range_applied, range_failed) =
                 bootstrap_manifest_range_from_peer(state, peer, None, progress).await?;
             applied += range_applied;
             failed += range_failed;
+            state
+                .metrics
+                .set_bootstrap_pass_buckets_reconciled(peer, "full_walk", 1);
         }
     }
 
@@ -473,9 +526,18 @@ async fn bootstrap_manifest_range_from_peer(
     prefix: Option<&str>,
     progress: &AtomicU64,
 ) -> Result<(u64, u64), String> {
+    let mode = if prefix.is_some() {
+        "digest"
+    } else {
+        "full_walk"
+    };
     let mut after = None;
     let mut applied = 0_u64;
     let mut failed = 0_u64;
+    let mut manifests_walked = 0;
+    state
+        .metrics
+        .set_bootstrap_current_bucket_manifests_walked(peer, mode, 0);
 
     loop {
         let page = fetch_bootstrap_manifests_page(state, peer, after.as_deref(), prefix).await?;
@@ -483,6 +545,10 @@ async fn bootstrap_manifest_range_from_peer(
         // warm re-walk or an already-present range), so the no-progress watchdog
         // never abandons a bootstrap that is still advancing through the walk.
         progress.fetch_add(1, Ordering::Relaxed);
+        manifests_walked += page.manifests.len();
+        state
+            .metrics
+            .set_bootstrap_current_bucket_manifests_walked(peer, mode, manifests_walked);
         state
             .store
             .hit_failpoint(FailpointName::AfterBootstrapManifestPageFetchBeforeApply)
@@ -2884,6 +2950,28 @@ mod tests {
             "digest path walks only diverging buckets, got {digest_page_count} pages"
         );
 
+        // Pass-progress gauges clear when a pass returns, so a finished digest
+        // pass reads present-with-mode="digest" at zero rather than frozen at
+        // its last mid-pass value. Also fails if the pass call sites are removed.
+        let pass_gauge = |rendered: &str, name: &str, mode: &str| -> Option<i64> {
+            rendered
+                .lines()
+                .find(|line| line.starts_with(name) && line.contains(&format!("mode=\"{mode}\"")))
+                .and_then(|line| line.rsplit(' ').next())
+                .and_then(|value| value.trim().parse::<i64>().ok())
+        };
+        for name in [
+            "kura_bootstrap_pass_buckets_divergent",
+            "kura_bootstrap_pass_buckets_reconciled",
+            "kura_bootstrap_current_bucket_manifests_walked",
+        ] {
+            assert_eq!(
+                pass_gauge(&rendered, name, "digest"),
+                Some(0),
+                "{name} present with mode=digest and cleared after the pass"
+            );
+        }
+
         // --- Old path (A/B control): identical peer, but the digest endpoint
         // 404s so the joining node takes the legacy full walk. Same ~99%-in-sync
         // local, yet it must page the entire keyspace to apply the same delta. ---
@@ -2915,6 +3003,21 @@ mod tests {
             applied_old, MISSING as u64,
             "fallback applies the same delta"
         );
+
+        // The digest-less fallback labels its pass mode="full_walk", so a
+        // healthy whole-keyspace pull is never read as a wedged digest bucket.
+        let rendered_old = local_old.state.metrics.render();
+        for name in [
+            "kura_bootstrap_pass_buckets_divergent",
+            "kura_bootstrap_pass_buckets_reconciled",
+            "kura_bootstrap_current_bucket_manifests_walked",
+        ] {
+            assert_eq!(
+                pass_gauge(&rendered_old, name, "full_walk"),
+                Some(0),
+                "{name} present with mode=full_walk and cleared after the fallback pass"
+            );
+        }
 
         let full_page_count = full_pages.load(Ordering::SeqCst);
         let expected_full_walk = TOTAL.div_ceil(BOOTSTRAP_PAGE_LIMIT);
