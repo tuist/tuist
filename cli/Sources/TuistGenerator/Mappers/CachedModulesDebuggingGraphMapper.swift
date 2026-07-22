@@ -100,7 +100,9 @@ public struct CachedModulesDebuggingGraphMapper: GraphMapping {
             }
 
             if var testAction = scheme.testAction, testAction.attachDebugger {
-                let testTargets = testAction.targets.map(\.target)
+                let testTargets = testAction.targets.map(\.target) + (testAction.testPlans ?? []).flatMap {
+                    $0.testTargets.map(\.target)
+                }
                 let artifacts = try testTargets.reduce(into: Set<AbsolutePath>()) { artifacts, target in
                     artifacts.formUnion(try cachedArtifacts(
                         reachableFrom: target,

@@ -1,27 +1,19 @@
+import FileSystem
+import FileSystemTesting
 import Foundation
 import Path
+import Testing
 import TuistCore
-import TuistSupport
 import TuistTesting
 import XcodeGraph
-import XCTest
 @testable import TuistGenerator
 
-final class CachedModulesDebuggingGraphMapperTests: TuistUnitTestCase {
-    private var subject: CachedModulesDebuggingGraphMapper!
+struct CachedModulesDebuggingGraphMapperTests {
+    private let subject = CachedModulesDebuggingGraphMapper()
 
-    override func setUp() {
-        super.setUp()
-        subject = CachedModulesDebuggingGraphMapper()
-    }
-
-    override func tearDown() {
-        subject = nil
-        super.tearDown()
-    }
-
-    func test_map_configuresRunAndTestActionsThatUseCachedModules() async throws {
-        let projectPath = try temporaryPath()
+    @Test(.inTemporaryDirectory)
+    func map_configuresRunAndTestActionsThatUseCachedModules() async throws {
+        let projectPath = try #require(FileSystem.temporaryTestDirectory)
         let originalLLDBInitFile = projectPath.appending(components: "Debugger", "custom.lldbinit")
         let cachedFrameworkPath = projectPath.appending(
             components: ".tuist-cache", "hash", "Feature.xcframework"
@@ -87,43 +79,96 @@ final class CachedModulesDebuggingGraphMapperTests: TuistUnitTestCase {
             environment: environment
         )
 
-        let mappedScheme = try XCTUnwrap(mappedGraph.projects[projectPath]?.schemes.first)
-        let runAction = try XCTUnwrap(mappedScheme.runAction)
-        let testAction = try XCTUnwrap(mappedScheme.testAction)
-        XCTAssertEqual(runAction.preActions.first?.title, "Update Tuist cache debugger settings")
-        XCTAssertEqual(testAction.preActions.first?.title, "Update Tuist cache debugger settings")
-        XCTAssertEqual(runAction.preActions.first?.target?.name, "App")
-        XCTAssertEqual(testAction.preActions.first?.target?.name, "AppTests")
-        XCTAssertTrue(runAction.customLLDBInitFile?.pathString.hasSuffix("-run.lldbinit") == true)
-        XCTAssertTrue(testAction.customLLDBInitFile?.pathString.hasSuffix("-test.lldbinit") == true)
-        XCTAssertNotNil(mappedGraph.workspace.schemes.first?.runAction?.customLLDBInitFile)
-        XCTAssertNotNil(mappedGraph.workspace.schemes.first?.testAction?.customLLDBInitFile)
+        let mappedScheme = try #require(mappedGraph.projects[projectPath]?.schemes.first)
+        let runAction = try #require(mappedScheme.runAction)
+        let testAction = try #require(mappedScheme.testAction)
+        #expect(runAction.preActions.first?.title == "Update Tuist cache debugger settings")
+        #expect(testAction.preActions.first?.title == "Update Tuist cache debugger settings")
+        #expect(runAction.preActions.first?.target?.name == "App")
+        #expect(testAction.preActions.first?.target?.name == "AppTests")
+        #expect(runAction.customLLDBInitFile?.pathString.hasSuffix("-run.lldbinit") == true)
+        #expect(testAction.customLLDBInitFile?.pathString.hasSuffix("-test.lldbinit") == true)
+        #expect(mappedGraph.workspace.schemes.first?.runAction?.customLLDBInitFile != nil)
+        #expect(mappedGraph.workspace.schemes.first?.testAction?.customLLDBInitFile != nil)
 
-        let runFile = try XCTUnwrap(fileDescriptor(at: runAction.customLLDBInitFile, in: sideEffects))
-        let runContents = try XCTUnwrap(String(data: try XCTUnwrap(runFile.contents), encoding: .utf8))
-        XCTAssertTrue(runContents.contains("command source -s 0 \"\(originalLLDBInitFile.pathString)\""))
-        XCTAssertTrue(runContents.contains(cachedFrameworkPath.parentDirectory.pathString))
-        XCTAssertTrue(runContents.contains("settings set symbols.use-swift-explicit-module-loader false"))
+        let runFile = try #require(fileDescriptor(at: runAction.customLLDBInitFile, in: sideEffects))
+        let runData = try #require(runFile.contents)
+        let runContents = try #require(String(data: runData, encoding: .utf8))
+        #expect(runContents.contains("command source -s 0 \"\(originalLLDBInitFile.pathString)\""))
+        #expect(runContents.contains(cachedFrameworkPath.parentDirectory.pathString))
+        #expect(runContents.contains("settings set symbols.use-swift-explicit-module-loader false"))
 
-        let testFile = try XCTUnwrap(fileDescriptor(at: testAction.customLLDBInitFile, in: sideEffects))
-        let testContents = try XCTUnwrap(String(data: try XCTUnwrap(testFile.contents), encoding: .utf8))
-        XCTAssertTrue(testContents.contains(cachedFrameworkPath.parentDirectory.pathString))
-        XCTAssertTrue(testContents.contains(cachedUIFrameworkPath.parentDirectory.pathString))
-        XCTAssertFalse(testContents.contains("command source"))
+        let testFile = try #require(fileDescriptor(at: testAction.customLLDBInitFile, in: sideEffects))
+        let testData = try #require(testFile.contents)
+        let testContents = try #require(String(data: testData, encoding: .utf8))
+        #expect(testContents.contains(cachedFrameworkPath.parentDirectory.pathString))
+        #expect(testContents.contains(cachedUIFrameworkPath.parentDirectory.pathString))
+        #expect(!testContents.contains("command source"))
 
-        let script = try XCTUnwrap(runAction.preActions.first?.scriptText)
-        XCTAssertTrue(script.contains("symbols.cas-path"))
-        XCTAssertTrue(script.contains("symbols.cas-plugin-path"))
-        XCTAssertTrue(script.contains("symbols.cas-plugin-options"))
-        XCTAssertTrue(script.contains("target.swift-framework-search-paths"))
-        XCTAssertTrue(script.contains("target.swift-module-search-paths"))
-        XCTAssertTrue(script.contains("target.swift-extra-clang-flags"))
-        XCTAssertTrue(script.contains("/^sdk"))
-        XCTAssertTrue(script.contains("symbols.use-swift-explicit-module-loader false"))
+        let script = try #require(runAction.preActions.first?.scriptText)
+        #expect(script.contains("symbols.cas-path"))
+        #expect(script.contains("symbols.cas-plugin-path"))
+        #expect(script.contains("symbols.cas-plugin-options"))
+        #expect(script.contains("target.swift-framework-search-paths"))
+        #expect(script.contains("target.swift-module-search-paths"))
+        #expect(script.contains("target.swift-extra-clang-flags"))
+        #expect(script.contains("/^sdk"))
+        #expect(script.contains("symbols.use-swift-explicit-module-loader false"))
     }
 
-    func test_map_doesNotConfigureRunActionUsingCachedModulesFromALaterBuildTarget() async throws {
-        let projectPath = try temporaryPath()
+    @Test(.inTemporaryDirectory)
+    func map_configuresTestActionsUsingCachedModulesFromTestPlans() async throws {
+        let projectPath = try #require(FileSystem.temporaryTestDirectory)
+        let cachedFrameworkPath = projectPath.appending(
+            components: ".tuist-cache", "hash", "Feature.xcframework"
+        )
+        let tests = Target.test(name: "AppTests", product: .unitTests)
+        let feature = Target.test(name: "Feature", product: .framework)
+        let testTarget = TestableTarget(target: TargetReference(projectPath: projectPath, name: "AppTests"))
+        let scheme = Scheme.test(
+            testAction: TestAction.test(
+                targets: [],
+                testPlans: [TestPlan(
+                    path: projectPath.appending(component: "App.xctestplan"),
+                    testTargets: [testTarget],
+                    isDefault: true
+                )]
+            ),
+            runAction: nil
+        )
+        let project = Project.test(path: projectPath, targets: [tests, feature], schemes: [scheme])
+        let cachedFramework = GraphDependency.testXCFramework(path: cachedFrameworkPath, linking: .dynamic)
+        let sourceGraph = Graph.test(
+            projects: [projectPath: project],
+            dependencies: [
+                .target(name: "AppTests", path: projectPath): [.target(name: "Feature", path: projectPath)],
+                .target(name: "Feature", path: projectPath): [],
+            ]
+        )
+        let cachedGraph = Graph.test(
+            projects: [projectPath: project],
+            dependencies: [
+                .target(name: "AppTests", path: projectPath): [cachedFramework],
+                cachedFramework: [],
+            ]
+        )
+        var environment = MapperEnvironment()
+        environment.initialGraphWithSources = sourceGraph
+
+        let (mappedGraph, sideEffects, _) = try await subject.map(graph: cachedGraph, environment: environment)
+
+        let testAction = try #require(mappedGraph.projects[projectPath]?.schemes.first?.testAction)
+        #expect(testAction.preActions.first?.title == "Update Tuist cache debugger settings")
+        #expect(testAction.preActions.first?.target == testTarget.target)
+        let testFile = try #require(fileDescriptor(at: testAction.customLLDBInitFile, in: sideEffects))
+        let testData = try #require(testFile.contents)
+        let testContents = try #require(String(data: testData, encoding: .utf8))
+        #expect(testContents.contains(cachedFrameworkPath.parentDirectory.pathString))
+    }
+
+    @Test(.inTemporaryDirectory)
+    func map_doesNotConfigureRunActionUsingCachedModulesFromALaterBuildTarget() async throws {
+        let projectPath = try #require(FileSystem.temporaryTestDirectory)
         let cachedFrameworkPath = projectPath.appending(
             components: ".tuist-cache", "hash", "Feature.xcframework"
         )
@@ -168,12 +213,13 @@ final class CachedModulesDebuggingGraphMapperTests: TuistUnitTestCase {
 
         let (mappedGraph, sideEffects, _) = try await subject.map(graph: cachedGraph, environment: environment)
 
-        XCTAssertNil(mappedGraph.projects[projectPath]?.schemes.first?.runAction?.customLLDBInitFile)
-        XCTAssertTrue(sideEffects.isEmpty)
+        #expect(mappedGraph.projects[projectPath]?.schemes.first?.runAction?.customLLDBInitFile == nil)
+        #expect(sideEffects.isEmpty)
     }
 
-    func test_map_doesNotConfigureActionsWhenDebuggerAttachmentIsDisabled() async throws {
-        let projectPath = try temporaryPath()
+    @Test(.inTemporaryDirectory)
+    func map_doesNotConfigureActionsWhenDebuggerAttachmentIsDisabled() async throws {
+        let projectPath = try #require(FileSystem.temporaryTestDirectory)
         let cachedFrameworkPath = projectPath.appending(
             components: ".tuist-cache", "hash", "Feature.xcframework"
         )
@@ -214,12 +260,13 @@ final class CachedModulesDebuggingGraphMapperTests: TuistUnitTestCase {
 
         let (mappedGraph, sideEffects, _) = try await subject.map(graph: cachedGraph, environment: environment)
 
-        XCTAssertEqual(mappedGraph, cachedGraph)
-        XCTAssertTrue(sideEffects.isEmpty)
+        #expect(mappedGraph == cachedGraph)
+        #expect(sideEffects.isEmpty)
     }
 
-    func test_map_doesNotConfigureSchemesForPrecompiledDependenciesThatWereAlreadyInTheSourceGraph() async throws {
-        let projectPath = try temporaryPath()
+    @Test(.inTemporaryDirectory)
+    func map_doesNotConfigureSchemesForPrecompiledDependenciesThatWereAlreadyInTheSourceGraph() async throws {
+        let projectPath = try #require(FileSystem.temporaryTestDirectory)
         let frameworkPath = projectPath.appending(components: "Frameworks", "Vendor.xcframework")
         let app = Target.test(name: "App", product: .app)
         let scheme = Scheme.test(
@@ -241,11 +288,11 @@ final class CachedModulesDebuggingGraphMapperTests: TuistUnitTestCase {
 
         let (mappedGraph, sideEffects, _) = try await subject.map(graph: graph, environment: environment)
 
-        XCTAssertEqual(mappedGraph, graph)
-        XCTAssertTrue(sideEffects.isEmpty)
+        #expect(mappedGraph == graph)
+        #expect(sideEffects.isEmpty)
     }
 
-    func test_map_doesNothingWithoutTheSourceGraph() async throws {
+    @Test func map_doesNothingWithoutTheSourceGraph() async throws {
         let graph = Graph.test()
 
         let (mappedGraph, sideEffects, _) = try await subject.map(
@@ -253,8 +300,8 @@ final class CachedModulesDebuggingGraphMapperTests: TuistUnitTestCase {
             environment: MapperEnvironment()
         )
 
-        XCTAssertEqual(mappedGraph, graph)
-        XCTAssertTrue(sideEffects.isEmpty)
+        #expect(mappedGraph == graph)
+        #expect(sideEffects.isEmpty)
     }
 
     private func fileDescriptor(
