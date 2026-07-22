@@ -61,18 +61,20 @@ defmodule Tuist.Processor.XCResultProcessor do
       root_dir = Path.dirname(xcresult_path)
 
       with {:ok, parsed_data} <-
-             span("xcresult.parse", fn ->
-               with {:ok, parsed_data} <- parse_xcresult(xcresult_path, root_dir) do
-                 set_span_attribute("xcresult.test_case_count", count_test_cases(parsed_data))
-                 {:ok, parsed_data}
-               end
-             end) do
+             span("xcresult.parse", fn -> parse_xcresult_with_telemetry(xcresult_path, root_dir) end) do
         quarantined_tests = span("xcresult.read_quarantined_tests", fn -> read_quarantined_tests(xcresult_path) end)
         {:ok, apply_quarantine(parsed_data, quarantined_tests)}
       end
     else
       nil -> {:error, :xcresult_not_found}
       {:error, _} = error -> error
+    end
+  end
+
+  defp parse_xcresult_with_telemetry(xcresult_path, root_dir) do
+    with {:ok, parsed_data} <- parse_xcresult(xcresult_path, root_dir) do
+      set_span_attribute("xcresult.test_case_count", count_test_cases(parsed_data))
+      {:ok, parsed_data}
     end
   end
 
