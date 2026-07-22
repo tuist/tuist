@@ -238,8 +238,16 @@ func (r *Reconciler) convergeMaster(vmName, statusDir, volumeName, account strin
 	if head == nil || head.Digest == "" || head.DownloadURL == "" {
 		return
 	}
-	if local, err := r.Volumes.MasterDigest(account, volumeName); err == nil && local == head.Digest {
-		return // already at HEAD
+	// Skip if this host has already merged this exact HEAD. A union leaves the
+	// master a superset of the HEAD, so MasterDigest no longer equals head.Digest
+	// after the first merge — the converged-head marker is what prevents
+	// re-downloading a HEAD already absorbed. A brand-new host has no marker and
+	// still converges.
+	if merged, err := r.Volumes.MasterConvergedHead(account, volumeName); err == nil && merged == head.Digest {
+		return
+	}
+	if local, err := r.Volumes.MasterDigest(account, volumeName); err == nil && local != "" && local == head.Digest {
+		return // master's own inventory already equals HEAD — nothing to union
 	}
 
 	logger := log.Log.WithName("volume")
@@ -256,21 +264,25 @@ func (r *Reconciler) convergeMaster(vmName, statusDir, volumeName, account strin
 		logger.Error(err, "converge: download master image", "vm", vmName, "account", account)
 		return
 	}
-	// The HEAD digest and the (mutable) object can diverge — a failed digest
-	// report after a successful upload, or interleaved jobs for the same account
-	// overwriting the object. Verify the downloaded image's inventory actually
-	// matches the HEAD digest before installing it, so the host never adopts a
-	// master under a digest it doesn't have. On mismatch, stay on the local
-	// master (status quo). Immutable, content-addressed keys are the fuller fix
-	// and a tracked follow-up.
+	// Verify the downloaded image's inventory actually matches the HEAD digest
+	// before merging it, so the host never records a converged-head it did not
+	// actually absorb. On mismatch, stay on the local master (status quo). With
+	// content-addressed HEAD keys a mismatch is rare, but a stale presigned URL or
+	// a partial download can still surface one.
 	if got, err := r.Volumes.ImageDigest(image); err != nil || got != head.Digest {
 		logger.Info("converge: image digest does not match HEAD; keeping local master",
 			"vm", vmName, "account", account, "want", head.Digest, "got", got)
 		return
 	}
-	if err := r.Volumes.ReplaceMaster(account, volumeName, image, head.Digest); err != nil {
-		logger.Error(err, "converge: replace master", "vm", vmName, "account", account)
+	// Union the HEAD's objects into the local master rather than replacing it: the
+	// local master may hold objects this HEAD lacks (promoted by other jobs on
+	// this host, or absorbed from earlier HEADs), and a replace would drop them.
+	if err := r.Volumes.MergeMaster(account, volumeName, image, head.Digest); err != nil {
+		logger.Error(err, "converge: merge master", "vm", vmName, "account", account)
 		return
+	}
+	if err := r.Volumes.RecordConvergedHead(account, volumeName, head.Digest); err != nil {
+		logger.Error(err, "converge: record converged head", "vm", vmName, "account", account)
 	}
 	RecordVolumeConverged()
 	logger.Info("converged master to HEAD", "vm", vmName, "account", account, "generation", head.Generation)

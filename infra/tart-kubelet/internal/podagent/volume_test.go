@@ -7,6 +7,8 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -18,13 +20,17 @@ import (
 // fakeBackend models APFS clonefile + statfs + hdiutil against real files under
 // a temp root so the manager's os-based master scanning works unchanged.
 //
-// A cache image is modelled as what it is to every caller but hdiutil: an opaque
-// regular file. Its CONTENTS are a real APFS filesystem that only a macOS attach
-// can read, so nothing here pretends to look inside — the fake's "digest" is
-// whatever imageDigests says it is, and the real read-through-attach behaviour is
-// covered by the on-host probe instead. Free space is total minus one
-// provisioned cap per resident master image; branches are CoW-sparse and don't
-// count, mirroring the real backend.
+// A cache image's CONTENTS are a real APFS filesystem that only a macOS attach
+// can read (the real read-through-attach behaviour is covered by the on-host
+// darwin probe). Off a Mac the fake stands in for that filesystem by treating an
+// image file's bytes as a newline-joined SET of cache-object tokens: a single
+// opaque marker like "image-of-42" is a one-object set, and mergeInto unions two
+// sets exactly as the real ditto-the-delta merge unions two attached images. The
+// "digest" is imageDigests[content] when registered, else sha1(content) — so a
+// merged image's digest reflects the union, which is what the object-level
+// reconciliation tests assert. Free space is total minus one provisioned cap per
+// resident master image; branches are CoW-sparse and don't count, mirroring the
+// real backend.
 type fakeBackend struct {
 	totalBytes uint64
 	perMaster  uint64
@@ -76,10 +82,58 @@ func (f *fakeBackend) imageInventoryDigest(path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if d, ok := f.imageDigests[string(b)]; ok {
-		return d, nil
+	return f.digestForContent(string(b)), nil
+}
+
+// digestForContent returns the digest a real attach would report for an image
+// whose modelled content is the given token set: a registered override when the
+// test pinned one, else sha1 of the content so a union changes the digest.
+func (f *fakeBackend) digestForContent(content string) string {
+	if d, ok := f.imageDigests[content]; ok {
+		return d
 	}
-	return "", errors.New("fake: no digest registered for image content " + string(b))
+	h := sha1.Sum([]byte(content))
+	return hex.EncodeToString(h[:])
+}
+
+// mergeInto models the real ditto-the-delta union: dstImage's content becomes the
+// sorted, de-duplicated union of dst's and src's object tokens, and the merged
+// digest is returned. A token present on both sides collapses to one (content-
+// addressed → identical), and no token is ever removed.
+func (f *fakeBackend) mergeInto(dstImage, srcImage string) (string, error) {
+	db, err := os.ReadFile(dstImage)
+	if err != nil {
+		return "", err
+	}
+	sb, err := os.ReadFile(srcImage)
+	if err != nil {
+		return "", err
+	}
+	merged := unionImageTokens(string(db), string(sb))
+	if err := os.WriteFile(dstImage, []byte(merged), 0o644); err != nil {
+		return "", err
+	}
+	return f.digestForContent(merged), nil
+}
+
+// unionImageTokens merges two newline-joined object-token sets into one sorted,
+// de-duplicated set — the fake's stand-in for unioning the objects of two
+// attached cache images.
+func unionImageTokens(a, b string) string {
+	set := map[string]struct{}{}
+	for _, content := range []string{a, b} {
+		for _, tok := range strings.Split(content, "\n") {
+			if tok != "" {
+				set[tok] = struct{}{}
+			}
+		}
+	}
+	tokens := make([]string, 0, len(set))
+	for tok := range set {
+		tokens = append(tokens, tok)
+	}
+	sort.Strings(tokens)
+	return strings.Join(tokens, "\n")
 }
 
 func (f *fakeBackend) isMounted(string) (bool, error) {
@@ -867,6 +921,35 @@ func TestMasterDigestReadsSidecar(t *testing.T) {
 	}
 }
 
+// The converged-head marker records which HEAD a host has already absorbed.
+// After a union merge the master is a superset of that HEAD, so MasterDigest no
+// longer equals it — the marker is the only thing that lets convergence skip a
+// re-download, and it must read empty until the host actually converges.
+func TestConvergedHeadMarkerRoundTrips(t *testing.T) {
+	m, _ := newTestManager(t, 100)
+
+	// No marker yet: a host that never converged must not claim to be at any HEAD,
+	// or it would skip the convergence that would warm it.
+	if got, err := m.MasterConvergedHead("42", ReservedTuistCacheVolume); err != nil || got != "" {
+		t.Fatalf("MasterConvergedHead with no marker = %q, %v; want empty", got, err)
+	}
+
+	if err := m.RecordConvergedHead("42", ReservedTuistCacheVolume, "head-xyz"); err != nil {
+		t.Fatalf("RecordConvergedHead: %v", err)
+	}
+	if got, err := m.MasterConvergedHead("42", ReservedTuistCacheVolume); err != nil || got != "head-xyz" {
+		t.Fatalf("MasterConvergedHead = %q, %v; want the recorded HEAD", got, err)
+	}
+
+	// A newer HEAD overwrites the marker so the next comparison re-converges.
+	if err := m.RecordConvergedHead("42", ReservedTuistCacheVolume, "head-abc"); err != nil {
+		t.Fatalf("RecordConvergedHead (update): %v", err)
+	}
+	if got, _ := m.MasterConvergedHead("42", ReservedTuistCacheVolume); got != "head-abc" {
+		t.Fatalf("MasterConvergedHead after update = %q; want the newer HEAD", got)
+	}
+}
+
 // The host's inventory digest must match dispatch-poll.sh's cache_inventory
 // (sorted, subtree-prefixed entry names joined by newlines, SHA-1'd): the guest
 // computes it inside the mounted image and the host computes it through a
@@ -966,30 +1049,67 @@ func TestObjectsToMergeIsAdditiveDelta(t *testing.T) {
 	}
 }
 
-func TestReplaceMasterFastForwards(t *testing.T) {
+// MergeMaster UNIONS a converged HEAD image into the local master rather than
+// replacing it: an object the local master holds but the HEAD lacks must survive.
+// This is the cross-host half of the whole-image-replace fix — a replace here is
+// exactly what stranded objects and emptied masters fleet-wide.
+func TestMergeMasterUnionsConvergedHead(t *testing.T) {
 	m, _ := newTestManager(t, 100)
-	seedMasterWithDigest(t, m, "42", "stale-digest")
+	seedMasterImage(t, m, "42", "objLocalA\nobjShared", "stale-digest")
 
-	// A converged HEAD image staged on the runner-cache volume.
+	// A converged HEAD image staged on the runner-cache volume, holding a shared
+	// object plus one the local master does not have.
 	staging := m.ConvergeStagingDir("vmX")
 	if err := os.MkdirAll(staging, 0o755); err != nil {
 		t.Fatal(err)
 	}
 	image := filepath.Join(staging, convergeImageName)
-	if err := os.WriteFile(image, []byte("fresher-image"), 0o644); err != nil {
+	if err := os.WriteFile(image, []byte("objShared\nobjHeadB"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := m.ReplaceMaster("42", ReservedTuistCacheVolume, image, "fresh-digest"); err != nil {
-		t.Fatalf("ReplaceMaster: %v", err)
+	if err := m.MergeMaster("42", ReservedTuistCacheVolume, image, "head-digest"); err != nil {
+		t.Fatalf("MergeMaster: %v", err)
 	}
 
+	// The master now holds the union: the HEAD's new object AND the local-only one
+	// a replace would have dropped.
 	got, err := os.ReadFile(m.masterImage("42", ReservedTuistCacheVolume))
-	if err != nil || string(got) != "fresher-image" {
-		t.Fatalf("master image = %q, %v; want the converged image", got, err)
+	if err != nil {
+		t.Fatalf("read master: %v", err)
 	}
-	if d, err := m.MasterDigest("42", ReservedTuistCacheVolume); err != nil || d != "fresh-digest" {
-		t.Fatalf("MasterDigest = %q, %v; want the converged digest", d, err)
+	if want := "objHeadB\nobjLocalA\nobjShared"; string(got) != want {
+		t.Fatalf("merged master = %q; want the union %q", got, want)
+	}
+	// The recorded digest reflects the merged union, not the incoming HEAD digest.
+	if d, _ := m.MasterDigest("42", ReservedTuistCacheVolume); d == "head-digest" || d == "stale-digest" {
+		t.Fatalf("MasterDigest = %q; want a digest recomputed from the union", d)
+	}
+}
+
+// MergeMaster on a host with no master yet installs the image verbatim and
+// records the digest it was handed (the cold-converge path).
+func TestMergeMasterColdInstallsVerbatim(t *testing.T) {
+	m, _ := newTestManager(t, 100)
+
+	staging := m.ConvergeStagingDir("vmX")
+	if err := os.MkdirAll(staging, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	image := filepath.Join(staging, convergeImageName)
+	if err := os.WriteFile(image, []byte("objA\nobjB"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := m.MergeMaster("42", ReservedTuistCacheVolume, image, "head-digest"); err != nil {
+		t.Fatalf("MergeMaster: %v", err)
+	}
+	got, err := os.ReadFile(m.masterImage("42", ReservedTuistCacheVolume))
+	if err != nil || string(got) != "objA\nobjB" {
+		t.Fatalf("cold master = %q, %v; want the HEAD image verbatim", got, err)
+	}
+	if d, _ := m.MasterDigest("42", ReservedTuistCacheVolume); d != "head-digest" {
+		t.Fatalf("cold MasterDigest = %q; want the HEAD digest recorded as-is", d)
 	}
 }
 
@@ -1013,6 +1133,68 @@ func TestConvergeStagingIsNotAMaster(t *testing.T) {
 	}
 	if len(masters) != 0 {
 		t.Fatalf("convergence scratch must not be scanned as a master; got %+v", masters)
+	}
+}
+
+// A promote UNIONS the branch's objects into the master instead of replacing it.
+// This reproduces the bug the object-level reconciliation fixes: a job whose
+// end-of-job cache dropped an object the master held (e.g. a `test` job that
+// carried manifests but none of the master's binaries) used to clobber the
+// richer master via a whole-image replace, emptying it. The union keeps both the
+// job's new object and the master's pre-existing one.
+func TestPromoteUnionsIntoMaster(t *testing.T) {
+	m, _ := newTestManager(t, 100)
+	seedMasterImage(t, m, "42", "objShared\nobjMaster", "master-digest")
+
+	att := mustAllocate(t, m, "vm-union")
+	if _, err := m.Materialize(att, "42"); err != nil {
+		t.Fatalf("Materialize: %v", err)
+	}
+	att.SourceAccount = "42"
+
+	// The job ends with a cache that shares one object with the master, adds a new
+	// one, and — critically — no longer carries objMaster.
+	writeBranchCache(t, m, att, "objShared\nobjJob")
+	att.ReportedDigest = "branch-digest"
+
+	if out, err := m.Finalize(att, "42", true, true); err != nil || out != VolumeOutcomePromoted {
+		t.Fatalf("Finalize = %s, %v; want promoted", out, err)
+	}
+
+	got, err := os.ReadFile(m.masterImage("42", ReservedTuistCacheVolume))
+	if err != nil {
+		t.Fatalf("read master: %v", err)
+	}
+	if want := "objJob\nobjMaster\nobjShared"; string(got) != want {
+		t.Fatalf("promoted master = %q; want the union %q (objMaster must survive)", got, want)
+	}
+	if d, _ := m.MasterDigest("42", ReservedTuistCacheVolume); d == "branch-digest" {
+		t.Fatal("MasterDigest still the branch digest; a warm promote must recompute it from the union")
+	}
+}
+
+// A promote onto a host with no prior master installs the branch verbatim and
+// trusts the guest-reported digest (the cold-first-job path), unchanged by the
+// union rework.
+func TestPromoteColdRecordsReportedDigest(t *testing.T) {
+	m, _ := newTestManager(t, 100)
+	att := mustAllocate(t, m, "vm-cold")
+	if _, err := m.Materialize(att, "42"); err != nil {
+		t.Fatalf("Materialize: %v", err)
+	}
+	att.SourceAccount = "42"
+	writeBranchCache(t, m, att, "objA\nobjB")
+	att.ReportedDigest = "reported-digest"
+
+	if out, err := m.Finalize(att, "42", true, true); err != nil || out != VolumeOutcomePromoted {
+		t.Fatalf("Finalize = %s, %v; want promoted", out, err)
+	}
+	got, err := os.ReadFile(m.masterImage("42", ReservedTuistCacheVolume))
+	if err != nil || string(got) != "objA\nobjB" {
+		t.Fatalf("cold master = %q, %v; want the branch image verbatim", got, err)
+	}
+	if d, _ := m.MasterDigest("42", ReservedTuistCacheVolume); d != "reported-digest" {
+		t.Fatalf("cold MasterDigest = %q; want the guest-reported digest", d)
 	}
 }
 
@@ -1072,11 +1254,19 @@ func seedMaster(t *testing.T, m *VolumeManager, account string) {
 
 func seedMasterWithDigest(t *testing.T, m *VolumeManager, account, digest string) {
 	t.Helper()
+	seedMasterImage(t, m, account, masterImageContent(account), digest)
+}
+
+// seedMasterImage writes a resident master with explicit modelled content (a
+// newline-joined object-token set) plus its digest sidecar, so union tests can
+// set up a master holding specific objects.
+func seedMasterImage(t *testing.T, m *VolumeManager, account, content, digest string) {
+	t.Helper()
 	if err := os.MkdirAll(m.volumeDir(account, ReservedTuistCacheVolume), 0o755); err != nil {
 		t.Fatalf("mkdir volume dir: %v", err)
 	}
 	image := m.masterImage(account, ReservedTuistCacheVolume)
-	if err := os.WriteFile(image, []byte(masterImageContent(account)), 0o644); err != nil {
+	if err := os.WriteFile(image, []byte(content), 0o644); err != nil {
 		t.Fatalf("seed master image: %v", err)
 	}
 	if err := os.WriteFile(m.masterDigestPath(account, ReservedTuistCacheVolume), []byte(digest), 0o644); err != nil {

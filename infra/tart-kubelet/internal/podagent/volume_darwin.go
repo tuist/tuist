@@ -94,6 +94,65 @@ func (darwinVolumeBackend) imageInventoryDigest(path string) (digest string, err
 	return inventoryDigest(filepath.Join(mnt, cacheHomeSubdir))
 }
 
+// mergeInto unions the cache objects present in srcImage but absent from
+// dstImage into dstImage, then returns the inventory digest of the merged
+// dstImage. It attaches dstImage read-WRITE and srcImage read-only at private
+// mountpoints, `ditto`s each object the destination lacks (ditto preserves the
+// xattrs, symlinks and modes the signed cache relies on — a plain copy or `cp`
+// would drop the xattrs-on-symlinks this whole disk-image design exists to
+// carry), and recomputes the digest before detaching. Content-addressed objects
+// already present in dst are skipped; nothing is ever removed.
+//
+// Both detaches are deferred so no path can leak an attach: a leaked attach pins
+// the image file open, which would keep LRU eviction from ever reclaiming it.
+func (darwinVolumeBackend) mergeInto(dstImage, srcImage string) (digest string, err error) {
+	dstMnt, err := os.MkdirTemp("", "tuist-cache-merge-dst-")
+	if err != nil {
+		return "", fmt.Errorf("mkdir merge target mountpoint: %w", err)
+	}
+	defer os.RemoveAll(dstMnt)
+	srcMnt, err := os.MkdirTemp("", "tuist-cache-merge-src-")
+	if err != nil {
+		return "", fmt.Errorf("mkdir merge source mountpoint: %w", err)
+	}
+	defer os.RemoveAll(srcMnt)
+
+	if _, err := runCmd(2*time.Minute, "hdiutil", "attach", dstImage,
+		"-owners", "off", "-nobrowse", "-noverify", "-quiet",
+		"-mountpoint", dstMnt); err != nil {
+		return "", fmt.Errorf("attach merge target read-write: %w", err)
+	}
+	defer func() {
+		if _, derr := runCmd(1*time.Minute, "hdiutil", "detach", dstMnt, "-force", "-quiet"); derr != nil && err == nil {
+			err = fmt.Errorf("detach merge target: %w", derr)
+		}
+	}()
+
+	if _, err := runCmd(2*time.Minute, "hdiutil", "attach", srcImage,
+		"-readonly", "-owners", "off", "-nobrowse", "-noverify", "-quiet",
+		"-mountpoint", srcMnt); err != nil {
+		return "", fmt.Errorf("attach merge source read-only: %w", err)
+	}
+	defer func() {
+		if _, derr := runCmd(1*time.Minute, "hdiutil", "detach", srcMnt, "-force", "-quiet"); derr != nil && err == nil {
+			err = fmt.Errorf("detach merge source: %w", derr)
+		}
+	}()
+
+	dstHome := filepath.Join(dstMnt, cacheHomeSubdir)
+	srcHome := filepath.Join(srcMnt, cacheHomeSubdir)
+	for _, obj := range objectsToMerge(srcHome, dstHome) {
+		dstObj := filepath.Join(dstHome, obj)
+		if err := os.MkdirAll(filepath.Dir(dstObj), 0o755); err != nil {
+			return "", fmt.Errorf("mkdir merge object parent for %s: %w", obj, err)
+		}
+		if _, err := runCmd(5*time.Minute, "ditto", filepath.Join(srcHome, obj), dstObj); err != nil {
+			return "", fmt.Errorf("ditto merge object %s: %w", obj, err)
+		}
+	}
+	return inventoryDigest(dstHome)
+}
+
 // isMounted reports whether root is its own mounted volume rather than a bare
 // mountpoint directory on the boot filesystem. A mount point's device id
 // differs from its parent's; an unmounted path either does not exist (the

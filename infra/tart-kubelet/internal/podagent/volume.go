@@ -80,6 +80,12 @@ const cacheHomeSubdir = "tuist"
 const (
 	masterImageName  = "master.sparseimage"
 	masterDigestName = "master.digest"
+	// masterConvergedName records the HEAD digest this host last UNIONED into the
+	// account's master during convergence. A union leaves the master a superset of
+	// that HEAD, so the master's own digest (masterDigestName) no longer equals it
+	// — this marker, not the digest, is what lets convergence skip re-downloading a
+	// HEAD it has already absorbed.
+	masterConvergedName = "master.converged"
 )
 
 // branchImageName is the cache image inside a VM's branch share — the only
@@ -117,6 +123,14 @@ type volumeBackend interface {
 	// imageInventoryDigest attaches the image read-only and returns the
 	// inventory digest of the cache home inside it.
 	imageInventoryDigest(path string) (string, error)
+	// mergeInto unions the cache objects present in srcImage but absent from
+	// dstImage into dstImage (attach dst read-write + src read-only, copy the
+	// delta preserving xattrs/symlinks), then returns the inventory digest of
+	// the merged dstImage. Content-addressed objects already in dst are skipped;
+	// nothing is removed. This is the applicator for object-level reconciliation:
+	// a promote or converge unions rather than replaces, so a master never loses
+	// objects the incoming image happened to lack.
+	mergeInto(dstImage, srcImage string) (string, error)
 }
 
 // VolumeOutcome is the terminal disposition of a branch, for observability.
@@ -252,6 +266,12 @@ func (m *VolumeManager) masterDigestPath(account, volume string) string {
 	return filepath.Join(m.volumeDir(account, volume), masterDigestName)
 }
 
+// masterConvergedPath is the sidecar recording the last HEAD digest merged into
+// the master (see masterConvergedName).
+func (m *VolumeManager) masterConvergedPath(account, volume string) string {
+	return filepath.Join(m.volumeDir(account, volume), masterConvergedName)
+}
+
 // branchDir is <root>/branches/<vm>. Branches are per-VM and account-agnostic
 // until Materialize — they live under a single top-level dir, not per account.
 func (m *VolumeManager) branchDir(vm string) string {
@@ -267,8 +287,8 @@ func (m *VolumeManager) BranchImage(att VolumeAttachment) string {
 }
 
 // ConvergeStagingDir is scratch on the runner-cache volume where a downloaded
-// HEAD image is written before ReplaceMaster swaps it in — on the same volume
-// as the masters so the swap stays a same-volume CoW op.
+// HEAD image is written before MergeMaster unions it into the local master — on
+// the same volume as the masters so the clone-and-merge stays same-volume CoW.
 func (m *VolumeManager) ConvergeStagingDir(vm string) string {
 	return filepath.Join(m.Root, convergeDirName, vm)
 }
@@ -462,6 +482,39 @@ func (m *VolumeManager) MasterDigest(account, volume string) (string, error) {
 	return strings.TrimSpace(string(b)), nil
 }
 
+// MasterConvergedHead returns the HEAD digest this host last unioned into the
+// account's master during convergence, or "" if it never converged (or the
+// marker was never written). Convergence compares against this — not
+// MasterDigest — to decide whether to re-download a HEAD: after a union the
+// master is a superset of the HEAD it merged, so MasterDigest no longer matches
+// that HEAD, but this marker still does.
+func (m *VolumeManager) MasterConvergedHead(account, volume string) (string, error) {
+	if volume == "" {
+		volume = ReservedTuistCacheVolume
+	}
+	b, err := os.ReadFile(m.masterConvergedPath(account, volume))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", nil
+		}
+		return "", err
+	}
+	return strings.TrimSpace(string(b)), nil
+}
+
+// RecordConvergedHead marks headDigest as merged into the account's master so a
+// later convergence for the same HEAD skips the (gigabyte) re-download and
+// re-merge. Best-effort: a failure only costs a redundant future merge.
+func (m *VolumeManager) RecordConvergedHead(account, volume, headDigest string) error {
+	if volume == "" {
+		volume = ReservedTuistCacheVolume
+	}
+	if err := os.MkdirAll(m.volumeDir(account, volume), 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(m.masterConvergedPath(account, volume), []byte(headDigest), 0o644)
+}
+
 // ImageDigest returns the inventory digest of the cache inside an image — the
 // one place the host looks in. It attaches READ-ONLY, so it is safe to run
 // beside a concurrent reader and cannot mutate what it measures. Used to verify
@@ -535,11 +588,14 @@ func objectsToMerge(srcRoot, dstRoot string) []string {
 	return missing
 }
 
-// ReplaceMaster fast-forwards an account's master to the image at src (a
-// fresher master downloaded from the volume HEAD), recording digest as the
-// inventory it holds. src must live on the runner-cache volume so the clone
-// stays a same-volume CoW op.
-func (m *VolumeManager) ReplaceMaster(account, volume, src, digest string) error {
+// MergeMaster reconciles an account's master toward the image at src (a HEAD
+// image downloaded during convergence) by UNIONING src's cache objects into the
+// local master rather than replacing it. headDigest describes the downloaded
+// image; it is recorded as-is only when this host has no master yet (the src
+// becomes the master verbatim), and is recomputed from the union on a warm host.
+// src must live on the runner-cache volume so the clone stays a same-volume CoW
+// op.
+func (m *VolumeManager) MergeMaster(account, volume, src, headDigest string) error {
 	if !m.Enabled() {
 		return nil
 	}
@@ -552,7 +608,55 @@ func (m *VolumeManager) ReplaceMaster(account, volume, src, digest string) error
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return m.installMasterLocked(account, volume, src, digest)
+	return m.mergeMasterLocked(account, volume, src, headDigest)
+}
+
+// mergeMasterLocked reconciles the account's master with the image at srcImage by
+// UNIONING srcImage's cache objects into it rather than replacing the whole image
+// — the fix for the whole-image-replace bug where a promote or converge carrying
+// fewer objects dropped everything the master already had, emptying masters
+// fleet-wide. On a cold host (no master yet) the src becomes the master verbatim
+// and its known digest (srcDigest) is recorded; on a warm host the current master
+// is cloned, the src's missing objects are merged in, and the digest is
+// RECOMPUTED from the union — srcDigest describes only the incoming image, not the
+// merged result. Additive: nothing the master held is ever lost.
+func (m *VolumeManager) mergeMasterLocked(account, volume, srcImage, srcDigest string) error {
+	if err := os.MkdirAll(m.volumeDir(account, volume), 0o755); err != nil {
+		return fmt.Errorf("mkdir volume dir: %w", err)
+	}
+	master := m.masterImage(account, volume)
+	if _, err := os.Stat(master); err != nil {
+		if !os.IsNotExist(err) {
+			return fmt.Errorf("stat master: %w", err)
+		}
+		// Cold: no master to union into — the src IS the account's first master.
+		return m.installMasterLocked(account, volume, srcImage, srcDigest)
+	}
+
+	staged := master + ".new"
+	_ = os.Remove(staged)
+	if err := m.backend.clonePath(master, staged); err != nil {
+		_ = os.Remove(staged)
+		return fmt.Errorf("clone master into staged: %w", err)
+	}
+	digest, err := m.backend.mergeInto(staged, srcImage)
+	if err != nil {
+		_ = os.Remove(staged)
+		return fmt.Errorf("union objects into master: %w", err)
+	}
+	// Rename first, digest second — same crash-ordering rationale as
+	// installMasterLocked: a fresh image under a stale digest only re-converges,
+	// while the reverse would claim a freshness the image lacks.
+	if err := os.Rename(staged, master); err != nil {
+		_ = os.Remove(staged)
+		return fmt.Errorf("swap merged master image: %w", err)
+	}
+	sidecar := m.masterDigestPath(account, volume)
+	if err := os.WriteFile(sidecar, []byte(digest), 0o644); err != nil {
+		_ = os.Remove(sidecar)
+	}
+	_ = os.Chtimes(master, m.now(), m.now())
+	return nil
 }
 
 // installMasterLocked clones srcImage into the account's master slot and swaps
@@ -625,7 +729,12 @@ func (m *VolumeManager) Finalize(att VolumeAttachment, account string, jobSuccee
 		return discard()
 	}
 
-	if err := m.installMasterLocked(account, att.VolumeName, image, att.ReportedDigest); err != nil {
+	// Union the branch's objects into the account's master rather than replacing
+	// it: the branch was clonefiled from this host's master at job start, but the
+	// master may have advanced since (a converge or another job promoting), so a
+	// whole-image replace would drop whatever the branch's materialize-time
+	// snapshot lacked. Merging keeps both sets.
+	if err := m.mergeMasterLocked(account, att.VolumeName, image, att.ReportedDigest); err != nil {
 		_ = os.RemoveAll(att.BranchPath)
 		return "", err
 	}
