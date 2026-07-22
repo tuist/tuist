@@ -118,10 +118,47 @@ var (
 		Name: "tuist_runners_pool_oldest_pending_pod_age_seconds",
 		Help: "Age of a darwin pool's oldest alive Pod that has not reached Running (0 when none).",
 	}, []string{poolLabel})
+
+	// claimedJobs and queuedJobs are the server's two demand signals,
+	// published separately rather than as the `claimed+queued` sum the
+	// allocator consumes. The sum answers "how big should this pool be";
+	// only the split answers "is dispatch actually serving this pool",
+	// because the two move independently: work draining normally shifts
+	// queued -> claimed and leaves the sum flat.
+	claimedJobs = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "tuist_runners_autoscaler_claimed_jobs",
+		Help: "Jobs currently claimed by a runner Pod in this pool (server signal).",
+	}, []string{poolLabel})
+
+	queuedJobs = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "tuist_runners_autoscaler_queued_jobs",
+		Help: "Jobs waiting for a runner Pod in this pool (server signal).",
+	}, []string{poolLabel})
+
+	// idleReplicas is how many current-image Pods are alive, unclaimed,
+	// and actually able to take work right now. On darwin that means
+	// Running: a Pod still waiting for a Mac mini has no VM and is not
+	// capacity, however long it has been alive. On Linux it includes
+	// Pending, which is where a warm dispatch poller spends its whole
+	// idle life. See isWarmCapacity in the RunnerPool reconciler.
+	//
+	// Pair with queuedJobs to detect dispatch starvation. `queued > 0 AND
+	// idle > 0`, sustained, is a contradiction in a healthy fleet: an idle
+	// warm Pod polls dispatch continuously, so queued work should reach it
+	// within a poll interval. Sustained overlap means dispatch is not
+	// serving this pool despite capacity being available, which is the
+	// starvation signature that no other series can express — phaseReplicas
+	// counts a warm idle Pod and a Pod running a customer job identically,
+	// and oldestPendingPodAge only sees Pods that never booted, not booted
+	// Pods that never received work.
+	idleReplicas = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "tuist_runners_pool_idle_replicas",
+		Help: "Alive current-image runner Pods with no claim (warm capacity available to take work).",
+	}, []string{poolLabel})
 )
 
 func init() {
-	ctrlmetrics.Registry.MustRegister(target, allocated, warmDeficitReplicas, minWarmFloor, rollingPods, stalePods, rollCap, phaseReplicas, oldestPendingPodAge)
+	ctrlmetrics.Registry.MustRegister(target, allocated, warmDeficitReplicas, minWarmFloor, rollingPods, stalePods, rollCap, phaseReplicas, oldestPendingPodAge, claimedJobs, queuedJobs, idleReplicas)
 }
 
 // RecordAllocation publishes one pool's allocation outcome for this
@@ -134,6 +171,25 @@ func RecordAllocation(pool string, load, floor, targetReplicas, allocatedReplica
 	allocated.WithLabelValues(pool).Set(float64(allocatedReplicas))
 	minWarmFloor.WithLabelValues(pool).Set(float64(floor))
 	warmDeficitReplicas.WithLabelValues(pool).Set(float64(warmDeficit(load, floor, targetReplicas, allocatedReplicas)))
+}
+
+// RecordDemand publishes the server's two demand signals for a pool as
+// separate series. Called on every autoscaler tick, including when the
+// fleet allocator falls back to the per-pool target, so the signals stay
+// live even while allocation is degraded.
+func RecordDemand(pool string, claimed, queued int32) {
+	claimedJobs.WithLabelValues(pool).Set(float64(claimed))
+	queuedJobs.WithLabelValues(pool).Set(float64(queued))
+}
+
+// RecordIdleReplicas publishes the pool's unclaimed warm Pod count.
+// Callers pass 0 rather than skipping the call so the gauge drains when
+// a pool goes fully busy, instead of holding its last sample.
+func RecordIdleReplicas(pool string, idle int) {
+	if idle < 0 {
+		idle = 0
+	}
+	idleReplicas.WithLabelValues(pool).Set(float64(idle))
 }
 
 // RecordRoll publishes a pool's image-roll progress for this reconcile
@@ -174,6 +230,8 @@ func ClearAutoscaler(pool string) {
 	allocated.DeleteLabelValues(pool)
 	warmDeficitReplicas.DeleteLabelValues(pool)
 	minWarmFloor.DeleteLabelValues(pool)
+	claimedJobs.DeleteLabelValues(pool)
+	queuedJobs.DeleteLabelValues(pool)
 }
 
 // ClearRunnerPool drops the primary RunnerPool reconciler's series for
@@ -183,6 +241,7 @@ func ClearRunnerPool(pool string) {
 	stalePods.DeleteLabelValues(pool)
 	rollCap.DeleteLabelValues(pool)
 	oldestPendingPodAge.DeleteLabelValues(pool)
+	idleReplicas.DeleteLabelValues(pool)
 	for _, phase := range podPhaseLabels {
 		phaseReplicas.DeleteLabelValues(pool, phase)
 	}

@@ -104,6 +104,42 @@ independent workqueues:
   this gauge exists to catch, and one that leaves the Node `Ready` and
   `kube_pod_status_unschedulable` at 0 throughout.
 
+  **Starvation vs saturation.** `..._autoscaler_claimed_jobs{pool}` and
+  `..._autoscaler_queued_jobs{pool}` publish the server's two demand
+  signals unsummed, and `tuist_runners_pool_idle_replicas{pool}` counts
+  alive current-image Pods with no `tuist.dev/runner-pool-owner` that can
+  actually accept a job right now. "Can accept" is OS-dependent, for the
+  same reason the un-booted age above is darwin-only: on a Tart pool only
+  `Running` counts, because a Pod still waiting on a Mac mini has no VM
+  and is not capacity however long it has been alive; on Linux `Pending`
+  counts, because that is where a warm dispatch poller spends its whole
+  idle life. Getting this wrong inverts the reading — a fleet starved of
+  hosts would report idle Pods sitting on queued work, which is the
+  fingerprint of the opposite failure. Together they separate two failures
+  that every other series conflates:
+
+  - **Saturated**: `queued > 0`, `idle == 0`. Real work exceeds hosts.
+    The fix is capacity.
+  - **Starved**: `queued > 0` *and* `idle > 0`, sustained. Warm Pods are
+    polling dispatch and getting nothing while jobs wait. The fix is
+    server-side; adding hosts changes nothing.
+
+  The second state should be impossible — an idle Pod polls continuously,
+  so queued work reaches it within a poll interval — which is what makes
+  the overlap a reliable fingerprint, **provided `queued` counts only
+  dispatchable work**. Raw queue depth includes jobs held back because
+  their account is at its platform concurrency limit; dispatch will never
+  hand those out, so with a raw count the overlap is a valid steady state
+  rather than a fault. The server caps each account's contribution at its
+  remaining concurrency headroom before exporting the count (tuist/tuist#11981),
+  which is what makes `..._queued_jobs` trustworthy here. Nothing else shows it: the phase
+  count reads a warm idle Pod and a Pod running a customer job
+  identically (both `Running`), `claimed+queued` stays flat while work
+  drains normally (`queued` → `claimed`), and the oldest-un-booted-Pod
+  age above only sees Pods that never booted, not booted Pods that never
+  received work. The `Runner queue age` alert fires on either state, so
+  it says something is wrong without saying which lever to pull.
+
   Pod-level autoscaling only — bare-metal Host count is operator-
   managed via the CAPI cluster topology, since Hetzner Robot hosts
   are monthly-billed and can't be auto-ordered. To grow capacity,
