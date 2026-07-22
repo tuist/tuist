@@ -4,6 +4,7 @@ defmodule Tuist.KuraTest do
   import Mimic
 
   alias Tuist.Accounts
+  alias Tuist.Accounts.Account
   alias Tuist.Accounts.AccountCacheEndpoint
   alias Tuist.Kura
   alias Tuist.Kura.Deployment
@@ -229,6 +230,52 @@ defmodule Tuist.KuraTest do
                Kura.schedule_runtime_image_deployments()
 
       assert deployment.kura_server_id == server.id
+    end
+
+    test "schedules runtime image deployments in bounded batches" do
+      account_now = NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
+      server_now = DateTime.utc_now()
+
+      account_rows =
+        for index <- 1..101 do
+          %{
+            name: "kura-rollout-#{index}",
+            billing_email: "kura-rollout-#{index}@example.com",
+            created_at: account_now,
+            updated_at: account_now
+          }
+        end
+
+      {101, accounts} = Repo.insert_all(Account, account_rows, returning: [:id])
+
+      server_rows =
+        accounts
+        |> Enum.with_index(1)
+        |> Enum.map(fn {account, index} ->
+          %{
+            id: Ecto.UUID.generate(),
+            account_id: account.id,
+            region: "local-controller",
+            status: :active,
+            current_image_tag: "0.5.2",
+            provisioner_node_ref: "kura-rollout-#{index}",
+            move_phase: :none,
+            inserted_at: server_now,
+            updated_at: server_now
+          }
+        end)
+
+      {101, nil} = Repo.insert_all(Server, server_rows)
+
+      assert {:ok, %{scheduled: first_batch, failures: []}} =
+               Kura.schedule_version_deployments("0.5.3")
+
+      assert length(first_batch) == 100
+
+      assert {:ok, %{scheduled: second_batch, failures: []}} =
+               Kura.schedule_version_deployments("0.5.3")
+
+      assert length(second_batch) == 1
     end
   end
 

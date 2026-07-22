@@ -51,6 +51,7 @@ defmodule Tuist.Kura do
   # to rescue and forces manual intervention. Only terminal servers
   # (`:destroying`/`:destroyed`) are skipped.
   @version_rollout_statuses [:provisioning, :replicating, :active, :failed]
+  @version_rollout_batch_size 100
 
   @doc "Reconciles desired Kura server rows with the observed Kubernetes state."
   def reconcile_orphaned_deployments, do: Reconciler.reconcile()
@@ -155,9 +156,15 @@ defmodule Tuist.Kura do
   end
 
   defp servers_needing_version_query(image_tag) do
-    deployment_exists_query =
+    deployment_for_image_exists_query =
       from(d in Deployment,
         where: parent_as(:server).id == d.kura_server_id and d.image_tag == ^image_tag,
+        select: 1
+      )
+
+    open_deployment_exists_query =
+      from(d in Deployment,
+        where: parent_as(:server).id == d.kura_server_id and d.status in [:pending, :running],
         select: 1
       )
 
@@ -171,7 +178,10 @@ defmodule Tuist.Kura do
       where: s.move_phase == :none,
       where: s.status in @version_rollout_statuses,
       where: s.current_image_tag != ^image_tag,
-      where: not exists(deployment_exists_query)
+      where: not exists(deployment_for_image_exists_query),
+      where: not exists(open_deployment_exists_query),
+      order_by: [asc: s.updated_at, asc: s.id],
+      limit: ^@version_rollout_batch_size
     )
   end
 
@@ -1150,7 +1160,7 @@ defmodule Tuist.Kura do
       Repo.transaction(fn ->
         server
         |> lock_server_or_rollback()
-        |> maybe_insert_scheduled_deployment(region, image_tag)
+        |> insert_scheduled_deployment(region, image_tag)
       end)
     end
   end
@@ -1162,15 +1172,32 @@ defmodule Tuist.Kura do
     end
   end
 
-  defp maybe_insert_scheduled_deployment(server, region, image_tag) do
-    if deployment_for_image_exists?(server.id, image_tag) or open_deployment_exists?(server.id) do
-      nil
-    else
-      case insert_deployment(server, region, image_tag) do
-        {:ok, deployment} -> deployment
-        {:error, reason} -> Repo.rollback(reason)
-      end
+  defp insert_scheduled_deployment(server, region, image_tag) do
+    case insert_deployment(server, region, image_tag) do
+      {:ok, deployment} ->
+        deployment
+
+      {:error, %Ecto.Changeset{} = changeset} ->
+        if open_deployment_conflict?(changeset) do
+          nil
+        else
+          Repo.rollback(changeset)
+        end
+
+      {:error, reason} ->
+        Repo.rollback(reason)
     end
+  end
+
+  defp open_deployment_conflict?(changeset) do
+    Enum.any?(changeset.errors, fn
+      {:kura_server_id, {_message, metadata}} ->
+        metadata[:constraint] == :unique and
+          metadata[:constraint_name] == "kura_deployments_one_open_per_server_index"
+
+      _error ->
+        false
+    end)
   end
 
   defp insert_deployment(%Server{} = server, region, image_tag) do
@@ -1181,14 +1208,6 @@ defmodule Tuist.Kura do
     }
     |> Deployment.create_changeset()
     |> Repo.insert()
-  end
-
-  defp deployment_for_image_exists?(server_id, image_tag) do
-    Repo.exists?(
-      from(d in Deployment,
-        where: d.kura_server_id == ^server_id and d.image_tag == ^image_tag
-      )
-    )
   end
 
   defp open_deployment_exists?(server_id) do
