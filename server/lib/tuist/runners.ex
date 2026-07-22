@@ -46,6 +46,37 @@ defmodule Tuist.Runners do
   minutes and re-INSERTs `queued` state into CH so the next poll
   can pick the workflow_job up again.
 
+  ## Who releases a claim, and why there is a backstop
+
+  A claim is a reservation against the account's concurrency budget.
+  Releasing it is attempted from several places, and all but the last
+  are *edge*-triggered, meaning they act on an event that may never
+  arrive:
+
+    * `workflow_job.completed` webhook, keyed on the executing
+      `runner_name` (`Claims.complete_by_runner_name/2`). Releases
+      nothing when GitHub reports no runner, e.g. a job cancelled while
+      queued, or one GitHub placed on a sibling runner.
+    * The controller's pod-stopped POST
+      (`Claims.release_by_pod_name/1`). Skipped entirely when the
+      reaper deletes the Pod before the lifecycle reconciler observes
+      it ending.
+    * `StaleClaimsWorker`, keyed on the Postgres `lifecycle_state`.
+    * `OrphanedRunnersWorker`, keyed on the ClickHouse `status`.
+
+  Those last two are keyed on *different stores*, and the stores can
+  disagree, so a claim can be invisible to both at once — Postgres
+  `running` dodges the `claimed` sweep while ClickHouse `claimed`
+  dodges the `running` sweep. Production held claims stranded that way
+  for over ten days, silently consuming an account's budget.
+
+  `PodClaimReconciliationWorker` is the level-triggered backstop and
+  the only path that does not infer: it compares claims against the
+  Pods that actually exist and releases the ones whose Pod is gone,
+  because a claim is capacity held by a Pod. Prefer fixing a leak there
+  over adding a fifth edge-keyed sweep; every one of those closes a
+  slice and leaves a new blind spot at the intersections.
+
   GitHub repo-scoping is currently delegated to the GitHub default
   runner group (id=1), which allows every repo in the org. A
   per-account `runner_group_id` is a follow-up once multi-tenant
