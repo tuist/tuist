@@ -67,6 +67,7 @@ defmodule Tuist.Runners.Claims do
   alias Tuist.Runners.Concurrency
   alias Tuist.Runners.ConcurrencyLimit
   alias Tuist.Runners.JobCompletion
+  alias Tuist.Runners.WorkflowJobs
 
   @doc """
   Attempts to claim `workflow_job_id` for `pod_name` on behalf of
@@ -102,6 +103,13 @@ defmodule Tuist.Runners.Claims do
                {:ok, claim} <- insert_claim(workflow_job_id, account.id, fleet_name, pod_name, resources),
                {:ok, limit} <- try_lock_concurrency_limit(account.id, resources.platform),
                :ok <- check_reserved_capacity(account.id, limit, resources) do
+            # Same transaction as the claim insert, so the claim and
+            # the lifecycle row's `queued → claimed` commit or roll
+            # back together. `:noop` (row missing or not queued) never
+            # fails the claim — during dark writes the ClickHouse view
+            # stays authoritative and the drift comparator measures
+            # the misses.
+            WorkflowJobs.transition_claimed(claim.workflow_job_id, claim.pod_name, claim.claimed_at)
             {:ok, claim}
           end
 
@@ -292,11 +300,16 @@ defmodule Tuist.Runners.Claims do
   under us).
   """
   def mark_running(workflow_job_id, runner_name) when is_integer(workflow_job_id) and is_binary(runner_name) do
-    {_count, _} =
-      Repo.update_all(
-        from(c in Claim, where: c.workflow_job_id == ^workflow_job_id and c.lifecycle_state == "claimed"),
-        set: [lifecycle_state: "running", runner_name: runner_name]
-      )
+    {:ok, _} =
+      Repo.transaction(fn ->
+        {_count, _} =
+          Repo.update_all(
+            from(c in Claim, where: c.workflow_job_id == ^workflow_job_id and c.lifecycle_state == "claimed"),
+            set: [lifecycle_state: "running", runner_name: runner_name]
+          )
+
+        WorkflowJobs.transition_running(workflow_job_id, runner_name)
+      end)
 
     :ok
   end
@@ -313,10 +326,25 @@ defmodule Tuist.Runners.Claims do
   is gone or its `claimed_at` has moved on.
   """
   def release(workflow_job_id, %DateTime{} = claimed_at) when is_integer(workflow_job_id) do
-    {count, _} =
-      Repo.delete_all(from(c in Claim, where: c.workflow_job_id == ^workflow_job_id and c.claimed_at == ^claimed_at))
+    {:ok, outcome} =
+      Repo.transaction(fn ->
+        {count, _} =
+          Repo.delete_all(from(c in Claim, where: c.workflow_job_id == ^workflow_job_id and c.claimed_at == ^claimed_at))
 
-    if count == 1, do: :ok, else: {:error, :stale_claim}
+        # The lifecycle row re-queues in the same transaction as the
+        # claim delete, so the CH-first ordering the recovery workers
+        # follow for ClickHouse does not apply here: claim and row
+        # state cannot diverge across a crash. Terminal rows never
+        # match `requeue/1`'s guard and stay completed.
+        if count == 1 do
+          WorkflowJobs.requeue(workflow_job_id)
+          :ok
+        else
+          {:error, :stale_claim}
+        end
+      end)
+
+    outcome
   end
 
   @doc """
@@ -706,14 +734,24 @@ defmodule Tuist.Runners.Claims do
   keys on `claimed_at`.
   """
   def release_pod_missing(workflow_job_id, %DateTime{} = pod_missing_since) when is_integer(workflow_job_id) do
-    {count, _} =
-      Repo.delete_all(
-        from(c in Claim,
-          where: c.workflow_job_id == ^workflow_job_id and c.pod_missing_since == ^pod_missing_since
-        )
-      )
+    {:ok, outcome} =
+      Repo.transaction(fn ->
+        {count, _} =
+          Repo.delete_all(
+            from(c in Claim,
+              where: c.workflow_job_id == ^workflow_job_id and c.pod_missing_since == ^pod_missing_since
+            )
+          )
 
-    if count == 1, do: :ok, else: {:error, :stale_claim}
+        if count == 1 do
+          WorkflowJobs.requeue(workflow_job_id)
+          :ok
+        else
+          {:error, :stale_claim}
+        end
+      end)
+
+    outcome
   end
 
   @doc """

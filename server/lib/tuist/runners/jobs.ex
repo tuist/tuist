@@ -62,6 +62,7 @@ defmodule Tuist.Runners.Jobs do
   alias Tuist.Runners.Job
   alias Tuist.Runners.JobCompletion
   alias Tuist.Runners.Telemetry
+  alias Tuist.Runners.WorkflowJobs
   alias Tuist.Tests.Test, as: TestRun
 
   require Logger
@@ -81,6 +82,14 @@ defmodule Tuist.Runners.Jobs do
   # far enough beyond the 24h backstop to survive worker downtime, so a
   # still-claimable job is never pruned out of view.
   @queued_lookback_seconds 7 * 86_400
+
+  # Kill switch for reading the dispatch queue from Postgres
+  # (`Tuist.Runners.WorkflowJobs`) instead of ClickHouse. Default OFF:
+  # the ClickHouse paths below stay authoritative, and disabling the
+  # flag is an instant rollback with no deploy. Gate flipping is
+  # driven by `Tuist.Runners.Workers.JobStateDriftWorker` reporting
+  # zero drift between the two stores.
+  @postgres_reads_flag :runner_dispatch_postgres_reads
 
   @doc """
   Serializes GitHub workflow_job events for a single `workflow_job_id`.
@@ -212,6 +221,7 @@ defmodule Tuist.Runners.Jobs do
       |> Map.put_new(:enqueued_at, now)
       |> Map.put(:updated_at, now)
 
+    :ok = WorkflowJobs.upsert_queued(row)
     insert_row!(row)
 
     :telemetry.execute(
@@ -307,6 +317,33 @@ defmodule Tuist.Runners.Jobs do
   def pick_queued_top_k(fleet_name, ineligible_account_ids, excluded_repositories, excluded_workflow_job_ids, k)
       when is_binary(fleet_name) and is_list(ineligible_account_ids) and is_list(excluded_repositories) and
              is_list(excluded_workflow_job_ids) and is_integer(k) and k > 0 do
+    if postgres_reads_enabled?() do
+      WorkflowJobs.pick_queued_top_k(
+        fleet_name,
+        ineligible_account_ids,
+        excluded_repositories,
+        excluded_workflow_job_ids,
+        k,
+        queued_lookback_floor()
+      )
+    else
+      pick_queued_top_k_clickhouse(
+        fleet_name,
+        ineligible_account_ids,
+        excluded_repositories,
+        excluded_workflow_job_ids,
+        k
+      )
+    end
+  end
+
+  defp pick_queued_top_k_clickhouse(
+         fleet_name,
+         ineligible_account_ids,
+         excluded_repositories,
+         excluded_workflow_job_ids,
+         k
+       ) do
     lookback_floor = queued_lookback_floor()
 
     from(j in Job,
@@ -932,16 +969,20 @@ defmodule Tuist.Runners.Jobs do
   def queued_count_by_fleet(fleet_name) when is_binary(fleet_name) do
     lookback_floor = queued_lookback_floor()
 
-    inner =
-      from j in Job,
-        where: j.fleet_name == ^fleet_name and j.enqueued_at > ^lookback_floor,
-        group_by: j.workflow_job_id,
-        having: fragment("argMax(?, ?) = ?", j.status, j.updated_at, "queued"),
-        select: j.workflow_job_id
+    if postgres_reads_enabled?() do
+      WorkflowJobs.queued_count_by_fleet(fleet_name, lookback_floor)
+    else
+      inner =
+        from j in Job,
+          where: j.fleet_name == ^fleet_name and j.enqueued_at > ^lookback_floor,
+          group_by: j.workflow_job_id,
+          having: fragment("argMax(?, ?) = ?", j.status, j.updated_at, "queued"),
+          select: j.workflow_job_id
 
-    from(s in subquery(inner), select: count())
-    |> ClickHouseRepo.one()
-    |> Kernel.||(0)
+      from(s in subquery(inner), select: count())
+      |> ClickHouseRepo.one()
+      |> Kernel.||(0)
+    end
   end
 
   @doc """
@@ -954,22 +995,26 @@ defmodule Tuist.Runners.Jobs do
   def queued_count_by_fleet_and_account(fleet_name) when is_binary(fleet_name) do
     lookback_floor = queued_lookback_floor()
 
-    inner =
-      from j in Job,
-        where: j.fleet_name == ^fleet_name and j.enqueued_at > ^lookback_floor,
-        group_by: j.workflow_job_id,
-        having: fragment("argMax(?, ?) = ?", j.status, j.updated_at, "queued"),
-        select: %{
-          workflow_job_id: j.workflow_job_id,
-          account_id: fragment("argMax(?, ?)", j.account_id, j.updated_at)
-        }
+    if postgres_reads_enabled?() do
+      WorkflowJobs.queued_count_by_fleet_and_account(fleet_name, lookback_floor)
+    else
+      inner =
+        from j in Job,
+          where: j.fleet_name == ^fleet_name and j.enqueued_at > ^lookback_floor,
+          group_by: j.workflow_job_id,
+          having: fragment("argMax(?, ?) = ?", j.status, j.updated_at, "queued"),
+          select: %{
+            workflow_job_id: j.workflow_job_id,
+            account_id: fragment("argMax(?, ?)", j.account_id, j.updated_at)
+          }
 
-    from(s in subquery(inner),
-      group_by: s.account_id,
-      select: {s.account_id, count()}
-    )
-    |> ClickHouseRepo.all()
-    |> Map.new()
+      from(s in subquery(inner),
+        group_by: s.account_id,
+        select: {s.account_id, count()}
+      )
+      |> ClickHouseRepo.all()
+      |> Map.new()
+    end
   end
 
   @doc """
@@ -1419,6 +1464,10 @@ defmodule Tuist.Runners.Jobs do
     DateTime.add(DateTime.utc_now(), -@queued_lookback_seconds, :second)
   end
 
+  defp postgres_reads_enabled? do
+    FunWithFlags.enabled?(@postgres_reads_flag)
+  end
+
   defp latest_runner_runs_by_id(runs) do
     runs
     |> Enum.sort_by(&datetime_sort_key(&1.inserted_at), :desc)
@@ -1456,6 +1505,7 @@ defmodule Tuist.Runners.Jobs do
       |> Map.merge(completion)
 
     persist_completion!(job.workflow_job_id, job.account_id, conclusion, now)
+    :ok = WorkflowJobs.record_completed(job_to_row(job), conclusion, now)
     insert_row!(row)
 
     :telemetry.execute(
@@ -1489,6 +1539,7 @@ defmodule Tuist.Runners.Jobs do
       |> Map.put(:updated_at, now)
 
     persist_completion!(Map.fetch!(row, :workflow_job_id), Map.fetch!(row, :account_id), conclusion, now)
+    :ok = WorkflowJobs.record_completed(row, conclusion, now)
     insert_row!(row)
 
     :telemetry.execute(

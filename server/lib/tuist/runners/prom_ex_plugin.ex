@@ -220,6 +220,25 @@ defmodule Tuist.Runners.PromExPlugin do
             tags: [:kind]
           )
         ]
+      ),
+      Event.build(
+        :tuist_runners_workflow_job_event_metrics,
+        [
+          counter(
+            @metric_prefix ++ [:workflow_job, :transition, :count],
+            event_name: Telemetry.event_name_workflow_job_transition(),
+            measurement: :count,
+            description: "Postgres lifecycle-row transitions by target status and outcome (applied vs guard miss).",
+            tags: [:to, :outcome]
+          ),
+          counter(
+            @metric_prefix ++ [:workflow_job, :drift, :count],
+            event_name: Telemetry.event_name_workflow_job_drift(),
+            measurement: :count,
+            description: "Postgres-vs-ClickHouse workflow_job status drift observations, by kind.",
+            tags: [:kind]
+          )
+        ]
       )
     ]
   end
