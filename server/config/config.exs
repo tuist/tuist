@@ -125,6 +125,8 @@ config :logger, :console,
     # Operator project-access grant (forensic join key for the audit trail)
     :operator_grant_jti,
     :operator_grant_sub,
+    :session_payload_bytes,
+    :warning_threshold_bytes,
     # Tuist.Runners structured fields
     :pod_uid,
     :pod_name,
