@@ -397,7 +397,16 @@ probe_cache_share() {
 # it sets (the CAS path included) wins over these defaults.
 setup_cas_store() {
   [ -n "${CACHE_MOUNT}" ] || return 0
-  [ -f "${STATUS_SHARE}/${CAS_ENABLED_MARKER}" ] || { echo "$(date -u +%FT%TZ) dispatch-poll: CAS not enabled; compilation cache runs VM-local"; return 0; }
+  # The marker carries the CAS's coordinated share percent (empty/absent = the
+  # host disabled the feature). Reclaim of a stale store left by a previously
+  # enabled run happens at teardown, not here — see reclaim_cas_if_disabled.
+  local cas_pct
+  cas_pct=$(cat "${STATUS_SHARE}/${CAS_ENABLED_MARKER}" 2>/dev/null)
+  if [ -z "${cas_pct}" ]; then
+    echo "$(date -u +%FT%TZ) dispatch-poll: CAS not enabled; compilation cache runs VM-local"
+    return 0
+  fi
+  case "${cas_pct}" in ''|*[!0-9]*) cas_pct=45 ;; esac
   local store="${CACHE_MOUNT}/${CAS_STORE_DIR}"
   mkdir -p "${store}" 2>/dev/null || true
   # Never export a store the build can't write. `mkdir -p` says nothing about an
@@ -410,10 +419,11 @@ setup_cas_store() {
   {
     printf 'COMPILATION_CACHE_CAS_PATH = %s\n' "${store}"
     printf 'COMPILATION_CACHE_KEEP_CAS_DIRECTORY = YES\n'
-    # Bound the store to a fraction of the image volume so llcas prunes before the
-    # image can hit ENOSPC. The image holds the binary cache too, so this cap is
-    # shared with the CLI's TUIST_CACHE_MAX_BYTES — keep the volume sized for both.
-    printf 'COMPILATION_CACHE_LIMIT_PERCENT = 80\n'
+    # Bound the store to the host-computed share of the image so llcas prunes
+    # before the image can hit ENOSPC. This is coordinated with the binary cache's
+    # TUIST_CACHE_MAX_BYTES (each gets the same percent, the rest is reserve) so
+    # the two pruners cannot both fill the one shared image.
+    printf 'COMPILATION_CACHE_LIMIT_PERCENT = %s\n' "${cas_pct}"
     # A pre-existing user xcconfig is chained LAST: the variable is a single slot,
     # so carry theirs rather than clobber it, and including it after our defaults
     # means anything they set explicitly (the CAS path included) wins.
@@ -423,6 +433,22 @@ setup_cas_store() {
   } > "${CAS_XCCONFIG}"
   export XCODE_XCCONFIG_FILE="${CAS_XCCONFIG}"
   echo "$(date -u +%FT%TZ) dispatch-poll: CAS store at ${store}; XCODE_XCCONFIG_FILE -> ${CAS_XCCONFIG}"
+}
+
+# reclaim_cas_if_disabled removes a leftover CAS store from the image when the
+# feature is OFF (no marker), so masters that were promoted while it was on stop
+# cloning and uploading dead CAS bytes (which also eat binary-cache capacity).
+# Runs at TEARDOWN, after the pre-job inventory was snapshotted WITH the store
+# present, so the removal registers as an inventory change (~cas.bytes → 0) →
+# dirty → the cleaned image promotes and other hosts converge to it. A no-op when
+# the feature is on or no store is present. Best-effort; never blocks teardown.
+reclaim_cas_if_disabled() {
+  [ -n "${CACHE_MOUNT}" ] || return 0
+  [ -f "${STATUS_SHARE}/${CAS_ENABLED_MARKER}" ] && return 0
+  local store="${CACHE_MOUNT}/${CAS_STORE_DIR}"
+  [ -d "${store}" ] || return 0
+  rm -rf "${store}" 2>/dev/null || true
+  echo "$(date -u +%FT%TZ) dispatch-poll: CAS disabled; reclaimed stale store from image"
 }
 
 # CACHE_READY_TIMEOUT bounds the wait for the host's cache-ready signal — the
@@ -863,6 +889,10 @@ HOOK
       #      upload the settled image as the account's new HEAD. A detach failure
       #      or an early exit leaves no dirty marker, so the host discards.
       # rc gates promotion — a failed run never advances the master.
+      # If the CAS feature was turned off, drop its stale store from the image
+      # BEFORE snapshotting the post-job inventory, so the removal promotes a
+      # cleaned master instead of masters carrying dead CAS bytes forever.
+      reclaim_cas_if_disabled
       capture_cache_state
       if detach_cache_image; then
         report_cache_dirty "${rc}"

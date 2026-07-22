@@ -182,11 +182,27 @@ func writeCacheReady(statusDir string) {
 // writeCacheBudget stages the per-branch byte budget (≈80% of a master's
 // provisioned cap) into the status share before the VM boots, for the guest's
 // TUIST_CACHE_MAX_BYTES.
-func writeCacheBudget(statusDir string, capGiB int) {
+// casSharedPercent is each cache's share of the image when the CAS is folded in:
+// the binary cache LRU (TUIST_CACHE_MAX_BYTES) and the CAS pruner
+// (COMPILATION_CACHE_LIMIT_PERCENT) each get this percent of the cap, so their
+// worst case is 2×casSharedPercent and the rest is filesystem reserve. Without a
+// coordinated split each would independently claim ~80% and together over-commit
+// the one image to ENOSPC. With the CAS off, the binary cache gets the full
+// budget below.
+const casSharedPercent = 45
+
+// writeCacheBudget stages the binary cache's byte budget (TUIST_CACHE_MAX_BYTES)
+// into the status share. When the CAS shares the image it gets casSharedPercent
+// of the cap so it and the CAS pruner cannot both fill it; otherwise ~80%.
+func writeCacheBudget(statusDir string, capGiB int, casEnabled bool) {
 	if statusDir == "" || capGiB <= 0 {
 		return
 	}
-	budget := uint64(capGiB) * 1024 * 1024 * 1024 * 8 / 10
+	pct := uint64(80)
+	if casEnabled {
+		pct = casSharedPercent
+	}
+	budget := uint64(capGiB) * 1024 * 1024 * 1024 * pct / 100
 	_ = os.WriteFile(filepath.Join(statusDir, cacheBudgetFile), []byte(strconv.FormatUint(budget, 10)), 0o644)
 }
 
@@ -200,7 +216,9 @@ func (r *Reconciler) writeCASEnabled(statusDir string) {
 	if statusDir == "" || r.Volumes == nil || !r.Volumes.casEnabled() {
 		return
 	}
-	_ = os.WriteFile(filepath.Join(statusDir, casEnabledFile), []byte("1"), 0o644)
+	// The marker carries the CAS's share percent (the coordinated other half of
+	// writeCacheBudget's split), which the guest uses for COMPILATION_CACHE_LIMIT_PERCENT.
+	_ = os.WriteFile(filepath.Join(statusDir, casEnabledFile), []byte(strconv.Itoa(casSharedPercent)), 0o644)
 }
 
 // uploadMillisFile carries the wall-clock ms the guest teardown spent uploading
