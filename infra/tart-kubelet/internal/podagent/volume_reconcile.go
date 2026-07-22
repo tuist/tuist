@@ -277,12 +277,11 @@ func (r *Reconciler) convergeMaster(vmName, statusDir, volumeName, account strin
 	// Union the HEAD's objects into the local master rather than replacing it: the
 	// local master may hold objects this HEAD lacks (promoted by other jobs on
 	// this host, or absorbed from earlier HEADs), and a replace would drop them.
+	// MergeMaster records the converged-head marker in the master's own locked
+	// commit, so there is no separate marker write that an eviction could strand.
 	if err := r.Volumes.MergeMaster(account, volumeName, image, head.Digest); err != nil {
 		logger.Error(err, "converge: merge master", "vm", vmName, "account", account)
 		return
-	}
-	if err := r.Volumes.RecordConvergedHead(account, volumeName, head.Digest); err != nil {
-		logger.Error(err, "converge: record converged head", "vm", vmName, "account", account)
 	}
 	RecordVolumeConverged()
 	logger.Info("converged master to HEAD", "vm", vmName, "account", account, "generation", head.Generation)

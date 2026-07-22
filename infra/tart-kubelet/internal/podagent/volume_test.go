@@ -49,6 +49,11 @@ type fakeBackend struct {
 	// imageDigests maps an image's opaque content to the digest a real attach
 	// would report, standing in for the filesystem inside it.
 	imageDigests map[string]string
+	// mergeGate, when non-nil, blocks mergeInto until the test releases it, after
+	// signalling on mergeEntered. Used to hold a merge in its slow phase and prove
+	// a concurrent Materialize does not block behind it.
+	mergeEntered chan struct{}
+	mergeGate    chan struct{}
 }
 
 func (f *fakeBackend) clonePath(src, dst string) error {
@@ -101,6 +106,13 @@ func (f *fakeBackend) digestForContent(content string) string {
 // digest is returned. A token present on both sides collapses to one (content-
 // addressed → identical), and no token is ever removed.
 func (f *fakeBackend) mergeInto(dstImage, srcImage string) (string, error) {
+	if f.mergeGate != nil {
+		select {
+		case f.mergeEntered <- struct{}{}:
+		default:
+		}
+		<-f.mergeGate
+	}
 	db, err := os.ReadFile(dstImage)
 	if err != nil {
 		return "", err
@@ -921,33 +933,111 @@ func TestMasterDigestReadsSidecar(t *testing.T) {
 	}
 }
 
-// The converged-head marker records which HEAD a host has already absorbed.
-// After a union merge the master is a superset of that HEAD, so MasterDigest no
-// longer equals it — the marker is the only thing that lets convergence skip a
-// re-download, and it must read empty until the host actually converges.
+// The converged-head marker records which HEAD a host has already absorbed. A
+// converge (MergeMaster) writes it atomically with the master, and it is honored
+// only while the master exists — so a stranded marker can never skip the
+// convergence that would rebuild a missing master.
 func TestConvergedHeadMarkerRoundTrips(t *testing.T) {
 	m, _ := newTestManager(t, 100)
 
-	// No marker yet: a host that never converged must not claim to be at any HEAD,
+	// No master, no marker: a host that never converged must not claim any HEAD,
 	// or it would skip the convergence that would warm it.
 	if got, err := m.MasterConvergedHead("42", ReservedTuistCacheVolume); err != nil || got != "" {
-		t.Fatalf("MasterConvergedHead with no marker = %q, %v; want empty", got, err)
+		t.Fatalf("MasterConvergedHead with no master = %q, %v; want empty", got, err)
 	}
 
-	if err := m.RecordConvergedHead("42", ReservedTuistCacheVolume, "head-xyz"); err != nil {
-		t.Fatalf("RecordConvergedHead: %v", err)
+	// The first converge cold-installs the HEAD and records it as absorbed.
+	if err := m.MergeMaster("42", ReservedTuistCacheVolume, stageConvergeImage(t, m, "vmX", "objA"), "head-xyz"); err != nil {
+		t.Fatalf("MergeMaster: %v", err)
 	}
 	if got, err := m.MasterConvergedHead("42", ReservedTuistCacheVolume); err != nil || got != "head-xyz" {
 		t.Fatalf("MasterConvergedHead = %q, %v; want the recorded HEAD", got, err)
 	}
 
-	// A newer HEAD overwrites the marker so the next comparison re-converges.
-	if err := m.RecordConvergedHead("42", ReservedTuistCacheVolume, "head-abc"); err != nil {
-		t.Fatalf("RecordConvergedHead (update): %v", err)
+	// A newer HEAD is unioned in and overwrites the marker so a later comparison
+	// re-converges only for HEADs newer than this one.
+	if err := m.MergeMaster("42", ReservedTuistCacheVolume, stageConvergeImage(t, m, "vmY", "objB"), "head-abc"); err != nil {
+		t.Fatalf("MergeMaster (update): %v", err)
 	}
 	if got, _ := m.MasterConvergedHead("42", ReservedTuistCacheVolume); got != "head-abc" {
 		t.Fatalf("MasterConvergedHead after update = %q; want the newer HEAD", got)
 	}
+
+	// Drop the master image: the marker must no longer be honored, so a converge
+	// re-downloads and rebuilds the master rather than skipping on a stale marker.
+	if err := os.Remove(m.masterImage("42", ReservedTuistCacheVolume)); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := m.MasterConvergedHead("42", ReservedTuistCacheVolume); got != "" {
+		t.Fatalf("MasterConvergedHead with master removed = %q; want empty (not honored without a master)", got)
+	}
+}
+
+// A slow union merge must NOT block a concurrent Materialize. The expensive
+// attach+ditto runs on a private staged clone with the manager lock released, so
+// another VM's job-start materialize — which the guest waits on under a
+// deadline — proceeds while the merge is still in flight. This reproduces the
+// finding: holding the manager-wide mutex across the merge would deadlock this.
+func TestSlowMergeDoesNotBlockMaterialize(t *testing.T) {
+	m, be := newTestManager(t, 100)
+	be.mergeEntered = make(chan struct{}, 1)
+	be.mergeGate = make(chan struct{})
+	seedMasterImage(t, m, "merging", "objBase", "base-digest")
+	seedMasterImage(t, m, "other", masterImageContent("other"), "other-digest")
+
+	// Kick off a warm union for account "merging" and wait until it is parked
+	// inside the slow merge (lock released, staged clone in hand).
+	mergeDone := make(chan error, 1)
+	go func() {
+		mergeDone <- m.MergeMaster("merging", ReservedTuistCacheVolume, stageConvergeImage(t, m, "vmMerge", "objNew"), "head-1")
+	}()
+	select {
+	case <-be.mergeEntered:
+	case <-time.After(2 * time.Second):
+		t.Fatal("merge never reached its slow phase")
+	}
+
+	// While the merge is parked, another VM materializes a different account. It
+	// must complete promptly rather than block on the merge.
+	attB := mustAllocate(t, m, "vmOther")
+	materialized := make(chan error, 1)
+	go func() {
+		_, err := m.Materialize(attB, "other")
+		materialized <- err
+	}()
+	select {
+	case err := <-materialized:
+		if err != nil {
+			t.Fatalf("Materialize during in-flight merge: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Materialize blocked behind an in-flight merge (manager lock held across the slow merge)")
+	}
+
+	// Release the merge and confirm it committed the union.
+	close(be.mergeGate)
+	if err := <-mergeDone; err != nil {
+		t.Fatalf("MergeMaster: %v", err)
+	}
+	got, err := os.ReadFile(m.masterImage("merging", ReservedTuistCacheVolume))
+	if err != nil || string(got) != "objBase\nobjNew" {
+		t.Fatalf("merged master = %q, %v; want the union objBase+objNew", got, err)
+	}
+}
+
+// stageConvergeImage writes a downloaded-HEAD image with the given modelled
+// content into the convergence staging dir and returns its path.
+func stageConvergeImage(t *testing.T, m *VolumeManager, vm, content string) string {
+	t.Helper()
+	staging := m.ConvergeStagingDir(vm)
+	if err := os.MkdirAll(staging, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	img := filepath.Join(staging, convergeImageName)
+	if err := os.WriteFile(img, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return img
 }
 
 // The host's inventory digest must match dispatch-poll.sh's cache_inventory
