@@ -126,6 +126,7 @@ pub struct RolloutStatusReport {
     pub outbox_messages: u64,
     pub memory_pressure_state: i64,
     pub fd_timeout_count: u64,
+    pub peer_connection_failure_count: u64,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -630,6 +631,7 @@ impl AppState {
             outbox_messages: metrics.outbox_messages,
             memory_pressure_state: self.memory.pressure().as_i64(),
             fd_timeout_count: metrics.fd_timeout_count,
+            peer_connection_failure_count: metrics.peer_connection_failure_count,
         }
     }
 
