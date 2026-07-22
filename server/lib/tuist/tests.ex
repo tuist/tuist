@@ -1282,11 +1282,11 @@ defmodule Tuist.Tests do
   end
 
   # Filter precedence for routing: a narrower scope wins so we use the
-  # most-selective MV available. `test_case_id` keeps the main table because
-  # its primary key `(project_id, test_case_id, ran_at, id)` already serves
-  # those queries cheaply. `project_id` falls through to the project MV when
-  # no narrower scope is present — without it, the listing query scans every
-  # row for the project.
+  # most-selective materialized view available. `test_case_id` keeps the main
+  # table because callers also scope it by `project_id`, matching the primary
+  # key prefix `(project_id, test_case_id)`. `project_id` falls through to the
+  # project materialized view when no narrower scope is present; without it,
+  # the listing query scans every row for the project.
   defp extract_mv_scope_filter(%{filters: filters}) when is_list(filters) do
     filters
     |> Enum.map(&filter_scope/1)
