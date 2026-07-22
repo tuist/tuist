@@ -1,0 +1,69 @@
+name: Kura Cache Benchmark
+
+# Manually-dispatched Kura CAS benchmark (with an optional legacy A/B), run from a
+# GitHub-hosted runner. It hits Kura's public customer endpoint — the same path an
+# external CLI takes — from a datacenter-grade uplink, so throughput isn't bounded
+# by a laptop link. Note: in-cluster runners (tuist-linux) can't reach the box's
+# public endpoint (cluster egress to the box's public IP is blocked; in-cluster
+# cache clients use the private path instead), so this runs on ubuntu-latest.
+# See kura/benchmarks/cas_ab.sh.
+
+on:
+  workflow_dispatch:
+    inputs:
+      sizes_mb:
+        description: "Throughput blob sizes in MB, space-separated (each <= 24; CAS cap is 25MB)"
+        default: "1 8 24"
+      iters:
+        description: "Iterations per size for the throughput medians"
+        default: "6"
+      parallel:
+        description: "Concurrent streams for the aggregate-throughput probe"
+        default: "16"
+      latency_kb:
+        description: "Object size (KB) for the latency sweep"
+        default: "256"
+      legacy_url:
+        description: "Legacy cache base URL to A/B against (blank to benchmark Kura alone)"
+        default: ""
+      server_url:
+        description: "Tuist server the cache config and login resolve against"
+        default: "https://staging.tuist.dev"
+      full_handle:
+        description: "account/project the cache token is minted for"
+        default: "tuist/tuist"
+
+permissions:
+  contents: read
+  id-token: write # tuist auth login uses GitHub OIDC on CI runners
+
+env:
+  MISE_VERSION: "2026.5.15"
+  MISE_GITHUB_TOKEN: ${{ secrets.TUIST_APP_GITHUB_TOKEN || github.token }}
+  MISE_GITHUB_ATTESTATIONS: 0
+
+concurrency:
+  group: kura-cache-benchmark-${{ github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  benchmark:
+    name: CAS A/B (Kura vs legacy)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          version: ${{ env.MISE_VERSION }}
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      - name: Run CAS A/B benchmark
+        env:
+          SIZES_MB: ${{ inputs.sizes_mb }}
+          ITERS: ${{ inputs.iters }}
+          PARALLEL: ${{ inputs.parallel }}
+          LATENCY_KB: ${{ inputs.latency_kb }}
+          BENCH_LEGACY_URL: ${{ inputs.legacy_url }}
+          BENCH_SERVER_URL: ${{ inputs.server_url }}
+          FULL_HANDLE: ${{ inputs.full_handle }}
+        run: bash kura/benchmarks/cas_ab.sh
