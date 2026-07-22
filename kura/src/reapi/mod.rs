@@ -1108,7 +1108,7 @@ impl ActionCache for ReapiService {
         // reconcile-time gate and cascade never examine, so without this they
         // serve dead forever. This checks every blob a replay fetches — output
         // files, stdout/stderr, and each output directory's tree plus the files
-        // it lists — not just output files, so a Bazel client with tree
+        // it lists — not just output files, so an REAPI client with tree
         // artifacts is covered as well. Mostly existence-cache hits.
         if let Some(missing) = first_evicted_output(
             &self.state,
@@ -1886,7 +1886,7 @@ async fn maybe_read_cas_bytes(
 /// `stderr`, and each output directory's `Tree` blob together with the file
 /// blobs the tree lists. Any one of them missing hard-fails the replay on the
 /// first missing object exactly as an evicted output file does, so all of them
-/// must gate the serve — a Bazel client emitting tree artifacts would otherwise
+/// must gate the serve — an REAPI client emitting tree artifacts would otherwise
 /// keep hitting the same "Lost inputs"/missing-object failure this fix targets.
 /// The checks are manifest lookups (mostly existence-cache hits); only an entry
 /// that actually carries directory outputs pays the extra tree read, and only
