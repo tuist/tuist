@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -73,13 +74,15 @@ const ReservedTuistCacheVolume = "tuist-cache"
 // through a read-only attach.
 const cacheHomeSubdir = "tuist"
 
-// masterImageName / masterDigestName are the account's promoted cache image and
-// the sidecar recording the inventory digest of what is inside it. The host
-// cannot see into an image without attaching it, so the digest travels beside
-// the file rather than being computed on demand.
+// masterImageName / masterGenerationName are the account's promoted cache image
+// and the sidecar recording the HEAD generation that image corresponds to. The
+// generation is the fast-forward version marker: a promote is accepted only if it
+// builds on the current generation, and convergence adopts a HEAD only when it is
+// newer, so the local master's generation is the single value both compare
+// against.
 const (
-	masterImageName  = "master.sparseimage"
-	masterDigestName = "master.digest"
+	masterImageName      = "master.sparseimage"
+	masterGenerationName = "master.generation"
 )
 
 // branchImageName is the cache image inside a VM's branch share — the only
@@ -115,7 +118,8 @@ type volumeBackend interface {
 	// at path. Sparse: the file costs megabytes until written.
 	createImage(path string, sizeGiB int) error
 	// imageInventoryDigest attaches the image read-only and returns the
-	// inventory digest of the cache home inside it.
+	// inventory digest of the cache home inside it. Used to verify a downloaded
+	// HEAD image matches its advertised digest before adopting it.
 	imageInventoryDigest(path string) (string, error)
 }
 
@@ -152,11 +156,12 @@ type VolumeAttachment struct {
 	// the branch (or determined absent — a cold first job). Guards against
 	// re-materializing on repeated reconciles.
 	Materialized bool
-	// ReportedDigest is the inventory digest the guest computed inside the
-	// mounted image at job end, recorded beside the master on promotion. The
-	// host cannot compute it itself without attaching the image, so the guest
-	// — which had it mounted anyway — reports it.
-	ReportedDigest string
+	// PromotedGeneration is the HEAD generation the server accepted for this
+	// job's fast-forward, relayed by the guest into the status share at promote.
+	// Zero means the guest did not promote or the server rejected the bump (the
+	// job built on a stale base); the host then discards the branch rather than
+	// moving its local master off the accepted lineage.
+	PromotedGeneration int
 }
 
 // VolumeManager manages per-account cache-volume master images under a single
@@ -180,8 +185,9 @@ type VolumeManager struct {
 	backend volumeBackend
 
 	// mu serializes disk-mutating operations and the live-branch reservation
-	// count. Clones are fast (CoW) so a single lock is sufficient at the
-	// 2-VMs-per-host concurrency of this fleet.
+	// count. Every master mutation is a fast CoW clone + rename (promote and
+	// converge both whole-image REPLACE, gated by generation), so a single lock is
+	// sufficient at the 2-VMs-per-host concurrency of this fleet.
 	mu sync.Mutex
 
 	// liveBranches counts branches that have been allocated but not yet
@@ -246,10 +252,10 @@ func (m *VolumeManager) masterImage(account, volume string) string {
 	return filepath.Join(m.volumeDir(account, volume), masterImageName)
 }
 
-// masterDigestPath is the sidecar recording the inventory digest of the
-// master image's contents.
-func (m *VolumeManager) masterDigestPath(account, volume string) string {
-	return filepath.Join(m.volumeDir(account, volume), masterDigestName)
+// masterGenerationPath is the sidecar recording the HEAD generation the master
+// image corresponds to (see masterGenerationName).
+func (m *VolumeManager) masterGenerationPath(account, volume string) string {
+	return filepath.Join(m.volumeDir(account, volume), masterGenerationName)
 }
 
 // branchDir is <root>/branches/<vm>. Branches are per-VM and account-agnostic
@@ -267,8 +273,8 @@ func (m *VolumeManager) BranchImage(att VolumeAttachment) string {
 }
 
 // ConvergeStagingDir is scratch on the runner-cache volume where a downloaded
-// HEAD image is written before ReplaceMaster swaps it in — on the same volume
-// as the masters so the swap stays a same-volume CoW op.
+// HEAD image is written before InstallMaster replaces the local master with it —
+// on the same volume as the masters so the clone stays a same-volume CoW op.
 func (m *VolumeManager) ConvergeStagingDir(vm string) string {
 	return filepath.Join(m.Root, convergeDirName, vm)
 }
@@ -365,9 +371,15 @@ func (m *VolumeManager) AllocateBranch(volume, vm string) (VolumeAttachment, err
 // on its first cache write. So a clone failure or an absent master falls back to
 // creating an EMPTY image and running cold — cold costs warmth, no image costs
 // the job.
-func (m *VolumeManager) Materialize(att VolumeAttachment, account string) (warm bool, err error) {
+//
+// Returns baseGeneration: the generation of the local master the branch was
+// cloned from, captured under the same lock as the clone so a background converge
+// cannot advance it out from under the value. This is the base the job builds on
+// — the guest sends it at promote and the server's fast-forward accepts the bump
+// only if HEAD is still at it. A cold clone (no master) has base 0.
+func (m *VolumeManager) Materialize(att VolumeAttachment, account string) (warm bool, baseGeneration int, err error) {
 	if !m.Enabled() || !att.Attached || account == "" {
-		return false, nil
+		return false, 0, nil
 	}
 
 	m.mu.Lock()
@@ -378,7 +390,12 @@ func (m *VolumeManager) Materialize(att VolumeAttachment, account string) (warm 
 	if _, statErr := os.Stat(master); statErr != nil {
 		// No master for this account here yet: cold path. The guest warms from
 		// the remote cache and Finalize promotes the result into a new master.
-		return false, m.createBranchImageLocked(dest)
+		return false, 0, m.createBranchImageLocked(dest)
+	}
+
+	base, err := m.masterGenerationLocked(account, att.VolumeName)
+	if err != nil {
+		return false, 0, err
 	}
 
 	// Clone beside the destination and rename, so a clone that fails partway
@@ -387,20 +404,20 @@ func (m *VolumeManager) Materialize(att VolumeAttachment, account string) (warm 
 	_ = os.Remove(tmp)
 	if err := m.backend.clonePath(master, tmp); err != nil {
 		_ = os.Remove(tmp)
-		return false, joinFallback(fmt.Errorf("clone master image into branch: %w", err), m.createBranchImageLocked(dest))
+		return false, 0, joinFallback(fmt.Errorf("clone master image into branch: %w", err), m.createBranchImageLocked(dest))
 	}
 	_ = os.Remove(dest)
 	if err := os.Rename(tmp, dest); err != nil {
 		_ = os.Remove(tmp)
-		return false, joinFallback(fmt.Errorf("swap materialized image into place: %w", err), m.createBranchImageLocked(dest))
+		return false, 0, joinFallback(fmt.Errorf("swap materialized image into place: %w", err), m.createBranchImageLocked(dest))
 	}
 	if err := chmodImageGuestWritable(dest); err != nil {
-		return false, fmt.Errorf("make materialized image guest-writable: %w", err)
+		return false, 0, fmt.Errorf("make materialized image guest-writable: %w", err)
 	}
 	// Mark the master used so LRU tracks materialization, not just promotion —
 	// an account whose jobs keep landing here stays hot.
 	_ = os.Chtimes(master, m.now(), m.now())
-	return true, nil
+	return true, base, nil
 }
 
 // MaterializeEmpty gives a branch an empty image without consulting any
@@ -442,24 +459,38 @@ func joinFallback(err, fallbackErr error) error {
 	return errors.Join(err, fallbackErr)
 }
 
-// MasterDigest returns the inventory digest of an account's on-disk master —
-// the same fingerprint the guest reports as the volume HEAD. It READS the
-// sidecar rather than computing it: the host cannot see inside an image without
-// attaching it, so the digest is recorded when the master is written. Empty when
-// the account has no master here (or its digest was never recorded), which makes
-// the caller converge rather than assume it is current.
-func (m *VolumeManager) MasterDigest(account, volume string) (string, error) {
+// MasterGeneration returns the HEAD generation an account's on-disk master
+// corresponds to, or 0 when the account has no master here (or its generation was
+// never recorded). It is honored ONLY when the master image itself exists: a
+// generation beside a missing master must read 0 so a promote/converge treats the
+// host as behind and rebuilds, rather than skipping on a stranded marker.
+//
+// This is the fast-forward version marker. Convergence adopts a HEAD only when
+// head.Generation > this; a promote installs its branch only when the accepted
+// generation exceeds this. Both comparisons are against the same monotonic
+// counter the server assigns, so the local master and the HEAD stay on one scale.
+func (m *VolumeManager) MasterGeneration(account, volume string) (int, error) {
 	if volume == "" {
 		volume = ReservedTuistCacheVolume
 	}
-	b, err := os.ReadFile(m.masterDigestPath(account, volume))
+	if _, err := os.Stat(m.masterImage(account, volume)); err != nil {
+		if os.IsNotExist(err) {
+			return 0, nil
+		}
+		return 0, err
+	}
+	b, err := os.ReadFile(m.masterGenerationPath(account, volume))
 	if err != nil {
 		if os.IsNotExist(err) {
-			return "", nil
+			return 0, nil
 		}
-		return "", err
+		return 0, err
 	}
-	return strings.TrimSpace(string(b)), nil
+	gen, err := strconv.Atoi(strings.TrimSpace(string(b)))
+	if err != nil {
+		return 0, nil
+	}
+	return gen, nil
 }
 
 // ImageDigest returns the inventory digest of the cache inside an image — the
@@ -504,54 +535,111 @@ func inventoryDigest(cacheRoot string) (string, error) {
 	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
-// ReplaceMaster fast-forwards an account's master to the image at src (a
-// fresher master downloaded from the volume HEAD), recording digest as the
-// inventory it holds. src must live on the runner-cache volume so the clone
-// stays a same-volume CoW op.
-func (m *VolumeManager) ReplaceMaster(account, volume, src, digest string) error {
+// InstallMaster replaces an account's local master with the whole image at src,
+// tagging it with generation, but ONLY when generation is newer than what the
+// host already holds — a fast-forward. src is a settled cache image (a promoted
+// branch, or a downloaded HEAD) living on the runner-cache volume, so the clone
+// stays a same-volume CoW op. Returns (installed, err): installed is false when
+// the host is already at or past generation (a stale or redundant fast-forward),
+// which is not an error.
+//
+// This is the whole of reconciliation under fast-forward last-writer-wins: no
+// per-object merge, no attach+ditto — just a CoW clone and an atomic swap, gated
+// by the monotonic generation. The generation compare-and-swap that prevents a
+// stale writer from clobbering a newer master lives in the server's HEAD bump;
+// this local gate only keeps the on-disk master from moving backwards.
+func (m *VolumeManager) InstallMaster(account, volume, src string, generation int) (bool, error) {
 	if !m.Enabled() {
-		return nil
+		return false, nil
 	}
 	if volume == "" {
 		volume = ReservedTuistCacheVolume
 	}
+	if generation <= 0 {
+		return false, nil
+	}
 	if _, err := os.Stat(src); err != nil {
-		return fmt.Errorf("converged image missing: %w", err)
+		return false, fmt.Errorf("master image missing: %w", err)
 	}
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return m.installMasterLocked(account, volume, src, digest)
-}
 
-// installMasterLocked clones srcImage into the account's master slot and swaps
-// it in, recording digest beside it. Last-writer-wins.
-func (m *VolumeManager) installMasterLocked(account, volume, srcImage, digest string) error {
+	current, err := m.masterGenerationLocked(account, volume)
+	if err != nil {
+		return false, err
+	}
+	if generation <= current {
+		return false, nil // already at or past this generation — nothing to do
+	}
+
 	if err := os.MkdirAll(m.volumeDir(account, volume), 0o755); err != nil {
-		return fmt.Errorf("mkdir volume dir: %w", err)
+		return false, fmt.Errorf("mkdir volume dir: %w", err)
 	}
 	master := m.masterImage(account, volume)
 	staged := master + ".new"
 	_ = os.Remove(staged)
-	if err := m.backend.clonePath(srcImage, staged); err != nil {
+	if err := m.backend.clonePath(src, staged); err != nil {
 		_ = os.Remove(staged)
-		return fmt.Errorf("clone image into staged master: %w", err)
+		return false, fmt.Errorf("clone image into staged master: %w", err)
 	}
-	// Rename first, digest second. A crash between the two leaves a fresh image
-	// under a stale/absent digest, which only makes the next convergence
-	// re-download; the reverse order would leave a digest claiming a freshness
-	// the image doesn't have, and the host would never converge again.
+	// Rename the image first, generation sidecar second. A crash between the two
+	// leaves a fresh image under a stale/absent generation, which only makes the
+	// next convergence re-adopt; the reverse would claim a generation the image
+	// doesn't have and let the host skip a convergence it still needs.
 	if err := os.Rename(staged, master); err != nil {
 		_ = os.Remove(staged)
-		return fmt.Errorf("swap master image: %w", err)
+		return false, fmt.Errorf("swap master image: %w", err)
 	}
-	sidecar := m.masterDigestPath(account, volume)
-	if err := os.WriteFile(sidecar, []byte(digest), 0o644); err != nil {
-		_ = os.Remove(sidecar)
+	if err := os.WriteFile(m.masterGenerationPath(account, volume), []byte(strconv.Itoa(generation)), 0o644); err != nil {
+		return false, fmt.Errorf("record master generation: %w", err)
 	}
 	_ = os.Chtimes(master, m.now(), m.now())
-	return nil
+	return true, nil
 }
+
+// masterGenerationLocked reads the local master's generation with mu already
+// held. Mirrors MasterGeneration but avoids re-locking from within a mutation.
+func (m *VolumeManager) masterGenerationLocked(account, volume string) (int, error) {
+	if _, err := os.Stat(m.masterImage(account, volume)); err != nil {
+		if os.IsNotExist(err) {
+			return 0, nil
+		}
+		return 0, err
+	}
+	b, err := os.ReadFile(m.masterGenerationPath(account, volume))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return 0, nil
+		}
+		return 0, err
+	}
+	gen, err := strconv.Atoi(strings.TrimSpace(string(b)))
+	if err != nil {
+		return 0, nil
+	}
+	return gen, nil
+}
+
+// Finalize promotes or discards a branch after the job ends and releases its
+// reservation. Promotion is a whole-image replace and happens only when the job
+// succeeded, the guest reported the cache actually changed (dirty), the account
+// is known, that account matches the one the branch was materialized from, AND
+// the server ACCEPTED the HEAD fast-forward (PromotedGeneration > 0, parsed from
+// the guest-relayed "accepted <generation>" result). A read-only, failed,
+// crashed (no marker), never-dispatched, conflicted (409), or errored branch
+// discards.
+//
+// The SourceAccount == account guard is the defense-in-depth half of the
+// cross-account fix: the server only stamps the materialize-trigger label after
+// a dispatch commits, so in the normal path SourceAccount always equals the
+// account the job ran. If a stale label from a failed dispatch ever let a
+// branch materialized for account A reach a job the label now says is account
+// B, promoting into B's master would leak A's artifacts — so a mismatch
+// discards instead of promoting.
+//
+// The branch image is promoted as-is: the guest detaches before the host reads
+// it, so the file is a settled filesystem rather than a torn snapshot.
 
 // Finalize promotes or discards a branch after the job ends and releases its
 // reservation. Promotion is last-writer-wins and happens only when the job
@@ -575,18 +663,26 @@ func (m *VolumeManager) Finalize(att VolumeAttachment, account string, jobSuccee
 		return VolumeOutcomeNone, nil
 	}
 
+	// Release the branch reservation. Only this counter needs mu; the promote
+	// below does its own locking, so mu is not held across it.
 	m.mu.Lock()
-	defer m.mu.Unlock()
 	if m.liveBranches > 0 {
 		m.liveBranches--
 	}
+	m.mu.Unlock()
 
 	discard := func() (VolumeOutcome, error) {
 		_ = os.RemoveAll(att.BranchPath)
 		return VolumeOutcomeDiscarded, nil
 	}
 
-	if !jobSucceeded || !dirty || account == "" || att.SourceAccount != account {
+	// PromotedGeneration is the generation the SERVER accepted for this job's
+	// HEAD fast-forward (relayed by the guest). Zero means the guest never
+	// promoted or the server REJECTED the bump — the branch built on a stale base
+	// while another host advanced HEAD — so installing it locally would move this
+	// host's master off the accepted lineage. Discard it and let convergence bring
+	// the accepted HEAD instead.
+	if !jobSucceeded || !dirty || account == "" || att.SourceAccount != account || att.PromotedGeneration <= 0 {
 		return discard()
 	}
 	image := m.BranchImage(att)
@@ -594,7 +690,10 @@ func (m *VolumeManager) Finalize(att VolumeAttachment, account string, jobSuccee
 		return discard()
 	}
 
-	if err := m.installMasterLocked(account, att.VolumeName, image, att.ReportedDigest); err != nil {
+	// Install the promoted branch as this host's local master at the accepted
+	// generation — a whole-image replace, fast-forward-gated so it never moves the
+	// master backwards (a concurrent converge to a newer HEAD wins).
+	if _, err := m.InstallMaster(account, att.VolumeName, image, att.PromotedGeneration); err != nil {
 		_ = os.RemoveAll(att.BranchPath)
 		return "", err
 	}

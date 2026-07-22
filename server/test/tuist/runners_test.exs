@@ -15,6 +15,8 @@ defmodule Tuist.RunnersTest do
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.VolumeAffinities
   alias Tuist.Runners.VolumeHeads
+  alias Tuist.Runners.VolumeMasterOrphans
+  alias Tuist.Runners.Workers.PruneVolumeMasterOrphanWorker
   alias Tuist.Runners.Workers.PruneVolumeMasterWorker
   alias Tuist.VCS
 
@@ -917,23 +919,37 @@ defmodule Tuist.RunnersTest do
     end
   end
 
-  describe "report_volume_head/3" do
-    test "bumps the HEAD for a valid hex digest" do
+  describe "report_volume_head/4" do
+    test "fast-forwards the HEAD for a valid hex digest built on the current base" do
       account = account_fixture()
       digest = String.duplicate("a", 40)
 
-      assert :ok = Runners.report_volume_head(account.id, "node-1", digest)
-      assert %{tree_digest: ^digest} = VolumeHeads.get_head(account.id)
+      assert {:ok, 1} = Runners.report_volume_head(account.id, "node-1", digest, 0)
+      assert %{generation: 1, tree_digest: ^digest} = VolumeHeads.get_head(account.id)
     end
 
     test "rejects a digest with path characters (or non-hex) without bumping the HEAD" do
       account = account_fixture()
 
       for bad <- ["../../etc/passwd", "tuist-cache/../x", "a/b", "", nil, String.duplicate("A", 40)] do
-        assert :error = Runners.report_volume_head(account.id, "node-1", bad)
+        assert :error = Runners.report_volume_head(account.id, "node-1", bad, 0)
       end
 
       assert VolumeHeads.get_head(account.id) == nil
+    end
+
+    test "rejects a promote built on a stale base and leaves the HEAD untouched" do
+      account = account_fixture()
+      first = String.duplicate("a", 40)
+      Runners.report_volume_head(account.id, "node-1", first, 0)
+
+      # A job that built on generation 1 promotes after the HEAD already moved to 2.
+      second = String.duplicate("b", 40)
+      Runners.report_volume_head(account.id, "node-2", second, 1)
+      stale = String.duplicate("c", 40)
+
+      assert :conflict = Runners.report_volume_head(account.id, "node-3", stale, 1)
+      assert %{generation: 2, tree_digest: ^second} = VolumeHeads.get_head(account.id)
     end
 
     test "schedules a delayed prune of the superseded master only once a digest changes" do
@@ -942,16 +958,96 @@ defmodule Tuist.RunnersTest do
       new = String.duplicate("b", 40)
 
       # First promote: nothing is superseded, so nothing to prune.
-      assert :ok = Runners.report_volume_head(account.id, "node-1", old)
+      assert {:ok, 1} = Runners.report_volume_head(account.id, "node-1", old, 0)
       refute_enqueued(worker: PruneVolumeMasterWorker)
 
       # A new digest supersedes the old object → schedule its delayed deletion.
-      assert :ok = Runners.report_volume_head(account.id, "node-1", new)
+      assert {:ok, 2} = Runners.report_volume_head(account.id, "node-1", new, 1)
 
       assert_enqueued(
         worker: PruneVolumeMasterWorker,
         args: %{account_id: account.id, tree_digest: old}
       )
+    end
+
+    test "records a rejected promote's upload as an orphan and schedules its reclaim" do
+      account = account_fixture()
+      Runners.report_volume_head(account.id, "node-1", String.duplicate("a", 40), 0)
+
+      # The guest uploaded its object before the compare-and-swap, so a rejected
+      # promote leaves an orphan with no HEAD pointing at it. Record it and
+      # schedule a delayed reclaim so it does not accumulate indefinitely — but do
+      # NOT touch the superseded-master worker (this digest never superseded one).
+      rejected = String.duplicate("c", 40)
+      assert :conflict = Runners.report_volume_head(account.id, "node-2", rejected, 0)
+
+      assert VolumeMasterOrphans.exists?(account.id, rejected)
+
+      assert_enqueued(
+        worker: PruneVolumeMasterOrphanWorker,
+        args: %{account_id: account.id, tree_digest: rejected}
+      )
+
+      refute_enqueued(worker: PruneVolumeMasterWorker, args: %{tree_digest: rejected})
+    end
+
+    test "forgets an orphan once the same digest is later accepted as HEAD" do
+      account = account_fixture()
+      Runners.report_volume_head(account.id, "node-1", String.duplicate("a", 40), 0)
+
+      # A digest is rejected (recorded as orphan)…
+      digest = String.duplicate("c", 40)
+      assert :conflict = Runners.report_volume_head(account.id, "node-2", digest, 0)
+      assert VolumeMasterOrphans.exists?(account.id, digest)
+
+      # …then a later job builds on the current base and commits that same
+      # inventory. It is now the live HEAD, so it is no longer an orphan and the
+      # scheduled reclaim must skip it.
+      assert {:ok, 2} = Runners.report_volume_head(account.id, "node-3", digest, 1)
+      refute VolumeMasterOrphans.exists?(account.id, digest)
+    end
+  end
+
+  describe "prune_orphan_volume_master/2" do
+    test "deletes the orphaned object and forgets the row" do
+      account = account_fixture()
+      # HEAD sits elsewhere; `digest` was rejected and recorded as an orphan.
+      Runners.report_volume_head(account.id, "node-1", String.duplicate("a", 40), 0)
+      digest = String.duplicate("c", 40)
+      Runners.report_volume_head(account.id, "node-2", digest, 0)
+      key = "runner-volume-masters/#{account.id}/tuist-cache/#{digest}.image"
+
+      expect(Tuist.Storage, :delete_object, fn ^key, actor ->
+        assert actor.id == account.id
+        :ok
+      end)
+
+      assert :ok = Runners.prune_orphan_volume_master(account.id, digest)
+      refute VolumeMasterOrphans.exists?(account.id, digest)
+    end
+
+    test "skips deletion when the digest was accepted as HEAD (no longer an orphan)" do
+      account = account_fixture()
+      digest = String.duplicate("a", 40)
+      Runners.report_volume_head(account.id, "node-1", digest, 0)
+
+      # It is the live HEAD and was never recorded as an orphan, so the reclaim is
+      # a no-op that must never delete the object.
+      reject(&Tuist.Storage.delete_object/2)
+
+      assert :ok = Runners.prune_orphan_volume_master(account.id, digest)
+    end
+
+    test "keeps the orphan row when the storage delete fails so a retry can reclaim it" do
+      account = account_fixture()
+      Runners.report_volume_head(account.id, "node-1", String.duplicate("a", 40), 0)
+      digest = String.duplicate("c", 40)
+      Runners.report_volume_head(account.id, "node-2", digest, 0)
+
+      expect(Tuist.Storage, :delete_object, fn _key, _actor -> {:error, :timeout} end)
+
+      assert {:error, :timeout} = Runners.prune_orphan_volume_master(account.id, digest)
+      assert VolumeMasterOrphans.exists?(account.id, digest)
     end
   end
 
@@ -960,7 +1056,7 @@ defmodule Tuist.RunnersTest do
       account = account_fixture()
       digest = String.duplicate("a", 40)
       # HEAD sits at a different digest, so `digest` is genuinely superseded.
-      Runners.report_volume_head(account.id, "node-1", String.duplicate("b", 40))
+      Runners.report_volume_head(account.id, "node-1", String.duplicate("b", 40), 0)
       key = "runner-volume-masters/#{account.id}/tuist-cache/#{digest}.image"
 
       expect(Tuist.Storage, :delete_object, fn ^key, actor ->
@@ -974,7 +1070,7 @@ defmodule Tuist.RunnersTest do
     test "skips deletion when the digest is (again) the current HEAD (re-promoted)" do
       account = account_fixture()
       digest = String.duplicate("a", 40)
-      Runners.report_volume_head(account.id, "node-1", digest)
+      Runners.report_volume_head(account.id, "node-1", digest, 0)
 
       reject(&Tuist.Storage.delete_object/2)
 

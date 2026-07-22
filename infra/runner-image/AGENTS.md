@@ -51,16 +51,34 @@ runtime — no service, sudo entry, or auto-login targets it.
   points `TUIST_XDG_CACHE_HOME` at the **mountpoint**
   (`/Users/runner/.tuist-cache-volume`), reads the host-staged per-branch byte
   budget (`cache-max-bytes` in the `status` share) into `TUIST_CACHE_MAX_BYTES`
-  for the CLI's LRU self-prune, and snapshots the pre-job inventory. Timeout /
-  absent share / failed attach ⇒ cold path, unchanged. A cold first job still
-  gets an *empty* image — the guest can only attach what is there, and no image
-  would kill the job rather than cost it warmth.
-  Teardown order is load-bearing: read the inventory and write `cache-dirty` +
-  `cache-digest` while still MOUNTED, then **detach**, then upload the detached
-  image as the account's HEAD. The host clones the image to promote it and
-  cannot tell a torn snapshot from a good one, so a mount torn down by the VM
-  halting would poison the account's master. If the detach fails even with
-  `-force`, the guest withdraws the image from both promotion and publication.
+  for the CLI's LRU self-prune, reads the host-staged base generation
+  (`cache-base-generation`) — the HEAD generation the branch was clonefiled from,
+  used as the fast-forward base at promote — and snapshots the pre-job inventory.
+  Timeout / absent share / failed attach ⇒ cold path, unchanged. A cold first job
+  still gets an *empty* image — the guest can only attach what is there, and no
+  image would kill the job rather than cost it warmth.
+  Teardown order is load-bearing: snapshot the post-job inventory while still
+  MOUNTED, then **detach**, then write `cache-dirty` (only after a clean detach —
+  its absence is what tells the host to discard, the safe default for any teardown
+  that never reaches a clean detach). Promotion is a **fast-forward
+  compare-and-swap**, not a direct host clone: the guest uploads the detached
+  image to a content-addressed key and reports the HEAD with `base_generation`,
+  and the server advances the HEAD only if it is still at that base (200,
+  returning the accepted generation) or rejects a stale base (409). The guest
+  captures the HTTP status EXPLICITLY (no `curl -f`, which would collapse a 409
+  and a transport error into one failure) and relays the outcome into the
+  `status` share as `cache-promote-result`: `accepted <generation>`, `conflict`,
+  or `error`. The host's `Finalize` installs the branch as the account's local
+  master (a whole-image replace) ONLY on `accepted` — so the local master and the
+  HEAD advance together. A `conflict` (a stale base another host advanced past) or
+  an `error` (upload/network/control-plane failure — kept distinct so an outage
+  is not mistaken for cross-host contention) discards the branch and lets
+  convergence re-warm it. A rejected promote still uploaded its object, so the
+  server records it as an orphan and reclaims it after the URL-TTL grace. The
+  host clones the promoted image and cannot tell a torn snapshot from a good one,
+  so a mount torn down by the VM halting would poison the account's master; if the
+  detach fails even with `-force`, the guest withdraws the image from both
+  promotion and publication.
   The server also delivers a `cache_signing_grant` in
   the dispatch 200, exported as `TUIST_CACHE_SIGNING_GRANT` so the EE CLI signs
   artifacts with the account scope instead of the machine MAC — which is what

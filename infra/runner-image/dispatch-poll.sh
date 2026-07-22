@@ -396,20 +396,15 @@ wait_for_cache_ready() {
 }
 
 # capture_cache_state snapshots the post-job inventory while the image is still
-# MOUNTED — after the detach nothing inside it is readable. It records the
-# inventory digest (which the host records beside a promoted master; the host
-# cannot compute it itself without attaching) and remembers the inventory in
-# CACHE_INVENTORY_AFTER for report_cache_dirty.
-#
-# It writes NO promotion authorization: cache-digest is only ever read by the
-# host WHEN it promotes, so staging it before the detach is harmless. The marker
-# that actually authorizes promotion (cache-dirty) is deliberately withheld until
-# report_cache_dirty runs post-detach.
+# MOUNTED — after the detach nothing inside it is readable — into
+# CACHE_INVENTORY_AFTER, used by report_cache_dirty (to detect a change) and by
+# report_volume_head (as the new HEAD's tree_digest). The host tracks a promoted
+# master by its GENERATION, not this digest, so nothing is staged to the share
+# here; the digest travels to the server in the HEAD report instead.
 capture_cache_state() {
   [ -n "${CACHE_MOUNT}" ] || return 0
   [ -d "${STATUS_SHARE}" ] || return 0
   CACHE_INVENTORY_AFTER=$(cache_inventory)
-  printf '%s' "${CACHE_INVENTORY_AFTER}" > "${STATUS_SHARE}/cache-digest" 2>/dev/null || true
 }
 
 # report_cache_dirty writes the guest's dirty marker into the writable status
@@ -462,6 +457,32 @@ stage_volume_head() {
     "${gen:-0}" "${digest}" "${download}" >"${STATUS_SHARE}/volume-head.json" 2>/dev/null || true
 }
 
+# read_base_generation returns the HEAD generation this VM's branch was cloned
+# from — staged by the host into the status share at materialize. It is the
+# fast-forward base the server checks the promote against: the server advances the
+# HEAD only if it is still at this generation. Absent or non-numeric (a cold
+# branch with no local master, or a host that did not stage it) reads as 0, which
+# the server accepts only when the account has no HEAD yet.
+read_base_generation() {
+  local gen=""
+  if [ -r "${STATUS_SHARE}/cache-base-generation" ]; then
+    gen=$(tr -cd '0-9' < "${STATUS_SHARE}/cache-base-generation" 2>/dev/null)
+  fi
+  printf '%s' "${gen:-0}"
+}
+
+# write_promote_result relays the promote outcome to the host so it can tell a
+# genuine fast-forward REJECTION (409 — a stale base another host advanced past,
+# real cross-host contention) apart from an upload/network/control-plane FAILURE.
+# Conflating the two would make a storage outage look like cache races on the
+# dashboard. The host reads this to pick the metric bucket and, on "accepted",
+# the generation to install the branch at. Values: "accepted <gen>", "conflict",
+# or "error".
+write_promote_result() {
+  [ -d "${STATUS_SHARE}" ] || return 0
+  printf '%s' "$1" > "${STATUS_SHARE}/cache-promote-result" 2>/dev/null || true
+}
+
 # VOLUME_HEAD_UPLOAD_TIMEOUT bounds the master upload. The image is sparse, so
 # this transfers the cache actually written rather than the provisioned cap, but
 # that is still GBs on a full working set — hence a far larger ceiling than the
@@ -506,6 +527,7 @@ report_volume_head() {
     | sed -n 's/.*"upload_url"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
   if [ -z "${upload_url}" ]; then
     echo "$(date -u +%FT%TZ) dispatch-poll: no master upload URL; HEAD not advanced"
+    write_promote_result "error"
     return 0
   fi
 
@@ -522,14 +544,45 @@ report_volume_head() {
   if ! curl -fsS --connect-timeout 10 --max-time "${VOLUME_HEAD_UPLOAD_TIMEOUT}" \
     -X PUT --upload-file "${CACHE_IMAGE}" "${upload_url}" >/dev/null 2>&1; then
     echo "$(date -u +%FT%TZ) dispatch-poll: master image upload failed/timed out; HEAD not advanced"
+    write_promote_result "error"
     return 0
   fi
   # Only now advance the HEAD: the object at the digest key exists, so a
   # converging host that reads this HEAD will find it.
-  curl -fsS --connect-timeout 10 --max-time 15 -X POST \
+  #
+  # The bump is a fast-forward compare-and-swap keyed by the base generation this
+  # job's branch was cloned from (staged by the host at materialize). The server
+  # accepts only if the HEAD is still at that base and returns the accepted
+  # generation (200); a stale base is a 409. Capture the HTTP status explicitly —
+  # WITHOUT curl -f, which would collapse a 409 and a transport error into the
+  # same failure — so the host can distinguish a genuine fast-forward rejection
+  # (cross-host contention) from an upload/network/control-plane failure. On 200
+  # the host installs the branch as its local master at the accepted generation;
+  # on 409 or error it discards and re-converges.
+  local base_generation body http_code promoted_generation
+  base_generation=$(read_base_generation)
+  body=$(mktemp 2>/dev/null || echo "/tmp/volhead-report.$$")
+  http_code=$(curl -sS --connect-timeout 10 --max-time 15 -X POST \
     -H "Authorization: Bearer ${SA_TOKEN}" -H "Content-Type: application/json" \
-    --data "{\"tree_digest\":\"${CACHE_INVENTORY_AFTER}\"}" "${VOLUME_HEAD_REPORT_URL}" >/dev/null 2>&1 || true
-  echo "$(date -u +%FT%TZ) dispatch-poll: published volume HEAD (digest=${CACHE_INVENTORY_AFTER})"
+    --data "{\"tree_digest\":\"${CACHE_INVENTORY_AFTER}\",\"base_generation\":${base_generation}}" \
+    -o "${body}" -w '%{http_code}' \
+    "${VOLUME_HEAD_REPORT_URL}" 2>/dev/null)
+  case "${http_code}" in
+    200)
+      promoted_generation=$(sed -n 's/.*"generation"[[:space:]]*:[[:space:]]*\([0-9]*\).*/\1/p' "${body}")
+      write_promote_result "accepted ${promoted_generation:-0}"
+      echo "$(date -u +%FT%TZ) dispatch-poll: published volume HEAD (digest=${CACHE_INVENTORY_AFTER} generation=${promoted_generation:-0})"
+      ;;
+    409)
+      write_promote_result "conflict"
+      echo "$(date -u +%FT%TZ) dispatch-poll: volume HEAD fast-forward rejected (stale base=${base_generation}); branch not promoted"
+      ;;
+    *)
+      write_promote_result "error"
+      echo "$(date -u +%FT%TZ) dispatch-poll: volume HEAD report failed/unreachable (http=${http_code:-000}); branch not promoted"
+      ;;
+  esac
+  rm -f "${body}" 2>/dev/null || true
 }
 
 # Probe before polling: the share is attached at boot, independent of which
