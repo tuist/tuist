@@ -39,6 +39,9 @@ enum PackageInfoMapperError: LocalizedError, Equatable {
     /// Thrown when a target defined in a product is not present in the package
     case unknownProductTarget(package: String, product: String, target: String)
 
+    /// Thrown when an included local package test target depends on a product from another package.
+    case unsupportedExternalProductInLocalPackageTest(package: String, target: String, product: String)
+
     /// Thrown when unsupported `PackageInfo.Target.TargetBuildSettingDescription` `Tool`/`SettingName` pair is found.
     case unsupportedSetting(
         PackageInfo.Target.TargetBuildSettingDescription.Tool,
@@ -66,6 +69,12 @@ enum PackageInfoMapperError: LocalizedError, Equatable {
             return "The product \(name) of package \(package) cannot be found."
         case let .unknownProductTarget(package, product, target):
             return "The target \(target) of product \(product) cannot be found in package \(package)."
+        case let .unsupportedExternalProductInLocalPackageTest(package, target, product):
+            return """
+            The test target `\(target)` in the local package `\(package)` depends on the external product `\(product)`. \
+            Tuist can include local package test targets only when all their dependencies belong to the same package. Remove \
+            the external product dependency, or set `includeLocalPackageTestTargets` to `false` in `PackageSettings`.
+            """
         case let .unsupportedSetting(tool, setting):
             return "The \(tool) and \(setting) pair is not a supported setting."
         case let .modulemapMissing(moduleMapPath, package, target):
@@ -87,11 +96,13 @@ public enum PackageType {
         packagePrebuilts: [String: [String: SwiftPackageManagerPrebuilt]] = [:]
     )
 
-    fileprivate var includesTestTargets: Bool {
+    fileprivate func includesTestTargets(includeLocalPackageTestTargets: Bool) -> Bool {
         switch self {
         case .local, .external(origin: .local, artifactPaths: _, packagePrebuilts: _):
             return true
-        case .external:
+        case .external(origin: .local, artifactPaths: _, packagePrebuilts: _, derivedXCFrameworksPath: _):
+            return includeLocalPackageTestTargets
+        case .external(origin: .remote, artifactPaths: _, packagePrebuilts: _, derivedXCFrameworksPath: _):
             return false
         }
     }
@@ -698,7 +709,9 @@ public struct PackageInfoMapper: PackageInfoMapping {
         // Ignores or passes a target based on the `type` and the `packageType`.
         // After that, it assumes that no target is ignored.
         switch target.type {
-        case .test where !packageType.includesTestTargets:
+        case .test where !packageType.includesTestTargets(
+            includeLocalPackageTestTargets: packageSettings.includeLocalPackageTestTargets
+        ):
             Logger.current.debug("Target \(target.name) of type \(target.type) ignored")
             return nil
         case .regular, .system, .macro, .test:
@@ -714,6 +727,26 @@ public struct PackageInfoMapper: PackageInfoMapping {
         default:
             Logger.current.debug("Target \(target.name) of type \(target.type) ignored")
             return nil
+        }
+
+        if target.type == .test,
+           case .external(origin: .local, artifactPaths: _, packagePrebuilts: _, derivedXCFrameworksPath: _) = packageType,
+           let productName = target.dependencies.compactMap({ dependency -> String? in
+               switch dependency {
+               case let .product(name, package: _, moduleAliases: _, condition: _):
+                   return name
+               case let .byName(name, condition: _) where targetsByName[name] == nil:
+                   return name
+               case .target, .byName:
+                   return nil
+               }
+           }).first
+        {
+            throw PackageInfoMapperError.unsupportedExternalProductInLocalPackageTest(
+                package: packageInfo.name,
+                target: target.name,
+                product: productName
+            )
         }
 
         let products = targetToProducts[target.name] ?? Set()

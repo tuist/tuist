@@ -4958,7 +4958,107 @@ struct PackageInfoMapperTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
-    ) func map_whenExternalRemoteSwiftPackageHasTestTarget() async throws {
+    ) func map_whenExternalLocalSwiftPackageHasTestTarget_andTestsAreEnabled_includesTestTarget() async throws {
+        // Given
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        let sourcesPath = basePath.appending(components: ["Package", "Sources", "Target"])
+        try await fileSystem.makeDirectory(at: sourcesPath)
+        let testsPath = basePath.appending(components: ["Package", "Tests", "TargetTests"])
+        try await fileSystem.makeDirectory(at: testsPath)
+
+        // When
+        let project = try await subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageType: .external(origin: .local, artifactPaths: [:]),
+            packageInfos: [
+                "Package": .test(
+                    name: "Package",
+                    products: [
+                        .init(name: "Product", type: .library(.automatic), targets: ["Target"]),
+                    ],
+                    targets: [
+                        .test(name: "Target"),
+                        .test(
+                            name: "TargetTests",
+                            type: .test,
+                            dependencies: [.target(name: "Target", condition: nil)]
+                        ),
+                    ],
+                    platforms: [.ios]
+                ),
+            ],
+            packageSettings: .test(
+                baseSettings: .default,
+                includeLocalPackageTestTargets: true
+            )
+        )
+
+        // Then
+        #expect(project != nil)
+        #expect(Set(project?.targets.map(\.name) ?? []) == Set(["Target", "TargetTests"]))
+        let testTarget = project?.targets.first(where: { $0.name == "TargetTests" })
+        #expect(testTarget?.product == .unitTests)
+        #expect(testTarget?.metadata.tags.contains(TargetTags.localSwiftPackageTest) == true)
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider
+    ) func map_whenEnabledExternalLocalPackageTestDependsOnExternalProduct_throwsConcreteError() async throws {
+        // Given
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        let sourcesPath = basePath.appending(components: ["Package", "Sources", "Target"])
+        try await fileSystem.makeDirectory(at: sourcesPath)
+        let testsPath = basePath.appending(components: ["Package", "Tests", "TargetTests"])
+        try await fileSystem.makeDirectory(at: testsPath)
+
+        // When / Then
+        await #expect(
+            throws: PackageInfoMapperError.unsupportedExternalProductInLocalPackageTest(
+                package: "Package",
+                target: "TargetTests",
+                product: "TestSupport"
+            )
+        ) {
+            _ = try await subject.map(
+                package: "Package",
+                basePath: basePath,
+                packageType: .external(origin: .local, artifactPaths: [:]),
+                packageInfos: [
+                    "Package": .test(
+                        name: "Package",
+                        products: [
+                            .init(name: "Product", type: .library(.automatic), targets: ["Target"]),
+                        ],
+                        targets: [
+                            .test(name: "Target"),
+                            .test(
+                                name: "TargetTests",
+                                type: .test,
+                                dependencies: [
+                                    .target(name: "Target", condition: nil),
+                                    .product(
+                                        name: "TestSupport",
+                                        package: "TestSupportPackage",
+                                        moduleAliases: nil,
+                                        condition: nil
+                                    ),
+                                ]
+                            ),
+                        ],
+                        platforms: [.ios]
+                    ),
+                ],
+                packageSettings: .test(includeLocalPackageTestTargets: true)
+            )
+        }
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider
+    ) func map_whenExternalRemoteSwiftPackageHasTestTarget_andTestsAreEnabled_ignoresTestTarget() async throws {
         // Given
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(components: ["Package", "Sources", "Target"])
@@ -4987,7 +5087,8 @@ struct PackageInfoMapperTests {
                     ],
                     platforms: [.ios]
                 ),
-            ]
+            ],
+            packageSettings: .test(includeLocalPackageTestTargets: true)
         )
 
         // Then
