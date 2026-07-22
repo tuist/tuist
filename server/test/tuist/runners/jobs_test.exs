@@ -2,7 +2,6 @@ defmodule Tuist.Runners.JobsTest do
   use TuistTestSupport.Cases.DataCase, async: true
 
   import Ecto.Query
-  import Mimic
   import TuistTestSupport.Fixtures.AccountsFixtures
 
   alias Tuist.IngestRepo
@@ -1164,6 +1163,7 @@ defmodule Tuist.Runners.JobsTest do
       }
 
       :ok = Jobs.record_claimed(candidate, "pod-1", DateTime.utc_now())
+      :ok = WorkflowJobs.transition_claimed(8511, "pod-1", DateTime.utc_now())
 
       floor = ~U[2026-04-01 00:00:00.000000Z]
       threshold = ~U[2026-05-15 00:00:00.000000Z]
@@ -1192,6 +1192,7 @@ defmodule Tuist.Runners.JobsTest do
       :ok = enqueue_fixture(account, 8101, fleet: "fleet-trans")
       {:ok, candidate} = Jobs.pick_queued("fleet-trans", [])
       :ok = Jobs.record_claimed(candidate, "pod-1", DateTime.utc_now())
+      :ok = WorkflowJobs.transition_claimed(8101, "pod-1", DateTime.utc_now())
 
       assert Jobs.queued_count_by_fleet("fleet-trans") == 0
     end
@@ -1247,6 +1248,7 @@ defmodule Tuist.Runners.JobsTest do
       :ok = enqueue_fixture(account, 8321, fleet: "fleet-qca-trans")
       {:ok, candidate} = Jobs.pick_queued("fleet-qca-trans", [])
       :ok = Jobs.record_claimed(candidate, "pod-1", DateTime.utc_now())
+      :ok = WorkflowJobs.transition_claimed(8321, "pod-1", DateTime.utc_now())
 
       assert Jobs.queued_count_by_fleet_and_account("fleet-qca-trans") == %{}
     end
@@ -1361,16 +1363,7 @@ defmodule Tuist.Runners.JobsTest do
     end
   end
 
-  describe "postgres dispatch reads behind :runner_dispatch_postgres_reads" do
-    setup do
-      stub(FunWithFlags, :enabled?, fn
-        :runner_dispatch_postgres_reads -> true
-        _other -> false
-      end)
-
-      :ok
-    end
-
+  describe "postgres dispatch reads" do
     test "pick_queued_top_k/5 serves candidates from the Postgres lifecycle table" do
       account = account_fixture()
       now = DateTime.utc_now()

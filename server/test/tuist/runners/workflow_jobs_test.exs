@@ -1,7 +1,6 @@
 defmodule Tuist.Runners.WorkflowJobsTest do
   use TuistTestSupport.Cases.DataCase, async: true
 
-  import Mimic
   import TuistTestSupport.Fixtures.AccountsFixtures
 
   alias Tuist.Repo
@@ -331,17 +330,7 @@ defmodule Tuist.Runners.WorkflowJobsTest do
   end
 
   describe "transition outbox" do
-    test "does not write events while the flag is off" do
-      account = account_fixture()
-
-      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_100))
-      :ok = WorkflowJobs.transition_claimed(910_100, "pod-1", DateTime.utc_now())
-
-      assert Repo.all(WorkflowJobTransitionEvent) == []
-    end
-
     test "writes one event per applied transition carrying the CH insert shape" do
-      stub(FunWithFlags, :enabled?, fn :runner_job_transition_outbox -> true end)
       account = account_fixture()
       claimed_at = DateTime.utc_now()
 
@@ -368,7 +357,6 @@ defmodule Tuist.Runners.WorkflowJobsTest do
     end
 
     test "guard misses emit no events and a cancelled status maps to CH completed" do
-      stub(FunWithFlags, :enabled?, fn :runner_job_transition_outbox -> true end)
       account = account_fixture()
 
       :ok = WorkflowJobs.record_completed(attrs(account, 910_102), "cancelled", DateTime.utc_now())
@@ -384,7 +372,6 @@ defmodule Tuist.Runners.WorkflowJobsTest do
 
   describe "decode_transition_payload/1" do
     test "round-trips a stored payload into the CH insert row" do
-      stub(FunWithFlags, :enabled?, fn :runner_job_transition_outbox -> true end)
       account = account_fixture()
 
       :ok = WorkflowJobs.upsert_queued(attrs(account, 910_110))

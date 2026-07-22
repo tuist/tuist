@@ -51,7 +51,8 @@ defmodule Tuist.Oban.RuntimeConfig do
     {"*/5 * * * *", Tuist.Runners.Workers.WebhookRedeliveryWorker},
     {"*/5 * * * *", Tuist.Runners.Workers.StaleQueuedJobsWorker},
     {"*/5 * * * *", Tuist.Runners.Workers.JobStateDriftWorker},
-    {"* * * * *", Tuist.Runners.Workers.FlushJobTransitionEventsWorker}
+    {"* * * * *", Tuist.Runners.Workers.FlushJobTransitionEventsWorker},
+    {"* * * * *", Tuist.Runners.Workers.BackfillWorkflowJobsWorker}
   ]
 
   @database_artifact_retention_resource_types [

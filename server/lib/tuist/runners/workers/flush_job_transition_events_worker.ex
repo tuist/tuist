@@ -4,8 +4,7 @@ defmodule Tuist.Runners.Workers.FlushJobTransitionEventsWorker do
   into the ClickHouse `runner_jobs` table.
 
   Events are written by `Tuist.Runners.WorkflowJobs` in the same
-  Postgres transaction as the lifecycle transition they describe
-  (only while the `:runner_job_transition_outbox` flag is enabled),
+  Postgres transaction as the lifecycle transition they describe,
   so the outbox is exactly the committed transition stream. This
   worker drains it in id-ordered batches: SELECT … FOR UPDATE SKIP
   LOCKED, INSERT the decoded payloads into ClickHouse, then DELETE
@@ -20,9 +19,6 @@ defmodule Tuist.Runners.Workers.FlushJobTransitionEventsWorker do
   Crash safety: the CH INSERT happens before the PG DELETE, so a
   crash between the two re-flushes the batch next tick. Replayed
   rows are byte-identical (same `updated_at`), which the RMT dedups.
-  The worker runs unconditionally — with the flag off the SELECT
-  returns nothing, and a just-disabled flag still gets its residual
-  events drained.
   """
 
   use Oban.Worker, queue: :default, max_attempts: 1

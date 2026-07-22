@@ -31,8 +31,9 @@ defmodule Tuist.Runners.Telemetry do
   def event_name_workflow_job_transition, do: [:tuist, :runners, :workflow_job, :transition]
 
   # Postgres-vs-ClickHouse status drift found by
-  # `Tuist.Runners.Workers.JobStateDriftWorker`. Zero drift over a
-  # bake window is the gate for `:runner_dispatch_postgres_reads`.
+  # `Tuist.Runners.Workers.JobStateDriftWorker` — the confidence
+  # signal that the outbox-replicated ClickHouse view matches the
+  # Postgres control-plane state.
   def event_name_workflow_job_drift, do: [:tuist, :runners, :workflow_job, :drift]
 
   def event_name_queue_length, do: [:tuist, :runners, :queue, :length]

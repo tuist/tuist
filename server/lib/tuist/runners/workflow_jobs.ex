@@ -13,9 +13,10 @@ defmodule Tuist.Runners.WorkflowJobs do
   redeliveries and claim races cannot regress a row: a late `queued`
   cannot resurrect a terminal job, a stale `claimed → running` cannot
   overwrite a re-queued one. A transition whose guard doesn't match is
-  a `:noop`, surfaced via telemetry rather than an error — during the
-  dark-write rollout the ClickHouse paths stay authoritative and a
-  miss must never fail the caller.
+  a `:noop`, surfaced via telemetry rather than an error — a miss
+  means another path already won (a completion raced a claim, a
+  release raced a completion) and the row is already where it should
+  be.
 
   Callers and their transitions:
 
@@ -29,8 +30,7 @@ defmodule Tuist.Runners.WorkflowJobs do
     * `Tuist.Runners.Jobs` completion choke point (webhook `completed`
       plus the recovery workers' force-completes) → `record_completed/3`
 
-  When the `:runner_job_transition_outbox` flag is enabled, each
-  applied transition also inserts a
+  Each applied transition also inserts a
   `Tuist.Runners.WorkflowJobTransitionEvent` row in the same
   transaction, carrying the ClickHouse `runner_jobs` insert shape for
   the batch flusher to replay.
@@ -45,9 +45,6 @@ defmodule Tuist.Runners.WorkflowJobs do
   alias Tuist.Runners.WorkflowJobTransitionEvent
 
   @terminal_statuses ~w(completed cancelled)
-  @outbox_flag :runner_job_transition_outbox
-
-  def outbox_flag, do: @outbox_flag
 
   @doc """
   Inserts a `queued` row for the workflow_job when none exists.
@@ -331,6 +328,45 @@ defmodule Tuist.Runners.WorkflowJobs do
   end
 
   @doc """
+  Adopts lifecycle rows for jobs that exist only in ClickHouse —
+  enqueued by code that predates this table. Inserts each row in its
+  current ClickHouse status (`ON CONFLICT DO NOTHING`, completion
+  guard included), so redeliveries and races with live transitions
+  are safe. Adopted rows emit no outbox event: ClickHouse is the
+  source here, so there is nothing to replicate back.
+
+  Transitional, used only by
+  `Tuist.Runners.Workers.BackfillWorkflowJobsWorker`; deleted with it.
+  """
+  def adopt_missing(ch_rows) when is_list(ch_rows) do
+    now = DateTime.utc_now()
+    truncated_now = DateTime.truncate(now, :second)
+
+    rows =
+      for ch_row <- ch_rows,
+          not completion_recorded?(ch_row.workflow_job_id) do
+        ch_row
+        |> base_row()
+        |> Map.merge(%{
+          status: adopt_status(ch_row),
+          enqueued_at: ch_row.enqueued_at,
+          claimed_at: Map.get(ch_row, :claimed_at),
+          started_at: Map.get(ch_row, :started_at),
+          pod_name: blank_to_nil(Map.get(ch_row, :pod_name)),
+          runner_name: blank_to_nil(Map.get(ch_row, :runner_name)),
+          inserted_at: truncated_now,
+          updated_at: truncated_now
+        })
+      end
+
+    {count, _} = Repo.insert_all(WorkflowJob, rows, on_conflict: :nothing)
+    count
+  end
+
+  defp adopt_status(%{status: "completed", conclusion: "cancelled"}), do: "cancelled"
+  defp adopt_status(%{status: status}), do: status
+
+  @doc """
   Rows whose `updated_at` falls in `(updated_after, updated_before)`,
   newest first, capped at `limit`. Feeds the drift comparator: the
   upper bound keeps rows mid-transition (Postgres committed, the
@@ -423,16 +459,14 @@ defmodule Tuist.Runners.WorkflowJobs do
   end
 
   defp emit_transition_event(%WorkflowJob{} = row, %DateTime{} = transition_at) do
-    if FunWithFlags.enabled?(@outbox_flag) do
-      Repo.insert_all(WorkflowJobTransitionEvent, [
-        %{
-          workflow_job_id: row.workflow_job_id,
-          account_id: row.account_id,
-          payload: ch_row(row, transition_at),
-          inserted_at: DateTime.truncate(transition_at, :second)
-        }
-      ])
-    end
+    Repo.insert_all(WorkflowJobTransitionEvent, [
+      %{
+        workflow_job_id: row.workflow_job_id,
+        account_id: row.account_id,
+        payload: ch_row(row, transition_at),
+        inserted_at: DateTime.truncate(transition_at, :second)
+      }
+    ])
 
     :ok
   end

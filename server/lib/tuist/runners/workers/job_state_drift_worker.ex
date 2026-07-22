@@ -1,11 +1,13 @@
 defmodule Tuist.Runners.Workers.JobStateDriftWorker do
   @moduledoc """
   Log-only comparator between the Postgres workflow_job lifecycle rows
-  (`runner_workflow_jobs`) and the ClickHouse `runner_jobs` argMax
-  view. This is the production gate for the
-  `:runner_dispatch_postgres_reads` kill switch: the flag only flips
-  once this worker reports zero drift over a bake window. It never
-  mutates either store.
+  (`runner_workflow_jobs`) — the control-plane store dispatch and the
+  recovery workers read — and the ClickHouse `runner_jobs` argMax view
+  that the customer-facing dashboards read. Sustained zero drift is
+  the confidence signal that ClickHouse (fed by both the direct writes
+  and the transition outbox) faithfully mirrors Postgres; once it
+  holds, the direct ClickHouse writes and this worker itself can be
+  deleted. It never mutates either store.
 
   Each tick diffs the Postgres rows updated inside the lookback
   window against ClickHouse's latest status for the same
@@ -22,14 +24,15 @@ defmodule Tuist.Runners.Workers.JobStateDriftWorker do
 
   Rows updated in the last minute are excluded: a Postgres transition
   commits before its paired ClickHouse INSERT lands (claim transitions
-  commit inside the claim transaction, the CH write follows), so
-  very fresh rows would report propagation lag as drift.
+  commit inside the claim transaction, the CH write follows; outbox
+  replication adds up to a minute of flusher lag), so very fresh rows
+  would report propagation lag as drift.
 
-  `missing_in_postgres` is deliberately not a kind: jobs enqueued
-  before the lifecycle table shipped exist only in ClickHouse, and
-  scanning CH for them would re-run the full-history aggregation this
-  table exists to retire. Those jobs age out of the comparison window
-  on their own.
+  `missing_in_postgres` is deliberately not a kind: this worker's scan
+  is Postgres-driven, and jobs that exist only in ClickHouse (enqueued
+  by code predating the lifecycle table) are
+  `Tuist.Runners.Workers.BackfillWorkflowJobsWorker`'s job to adopt,
+  not this one's to report.
   """
 
   use Oban.Worker, queue: :default, max_attempts: 1

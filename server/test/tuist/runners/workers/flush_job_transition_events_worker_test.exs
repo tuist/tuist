@@ -1,7 +1,6 @@
 defmodule Tuist.Runners.Workers.FlushJobTransitionEventsWorkerTest do
   use TuistTestSupport.Cases.DataCase, async: true
 
-  import Mimic
   import TuistTestSupport.Fixtures.AccountsFixtures
 
   alias Tuist.ClickHouseRepo
@@ -50,7 +49,6 @@ defmodule Tuist.Runners.Workers.FlushJobTransitionEventsWorkerTest do
   end
 
   test "replays outbox events as ClickHouse runner_jobs rows and deletes them" do
-    stub(FunWithFlags, :enabled?, fn :runner_job_transition_outbox -> true end)
     account = account_fixture()
 
     :ok = WorkflowJobs.upsert_queued(attrs(account, 920_001))
