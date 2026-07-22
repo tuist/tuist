@@ -2141,6 +2141,73 @@ jobs:
           TUIST_EXECUTABLE: ${{ steps.oldtuist.outputs.tuist_bin }}
         run: mise run --no-deps e2e module_cache_backward_compat
 
+  # Kura promotion gate - production's wave 0 never starts on an image the
+  # canary environment has not actually converged on (spec #79). The canary
+  # environment's rollout runs expedited, so completion is minutes; a
+  # paused, aborted, or superseded canary rollout blocks promotion. When
+  # rollout orchestration is disabled on canary (flag off) the gate passes
+  # with a notice, so enabling the machinery stays an ops action rather
+  # than a deploy-order dependency.
+  kura-canary-rollout-gate:
+    name: Kura canary rollout gate
+    needs: [check-releases, build, canary]
+    if: ${{ always() && needs.canary.result == 'success' && needs.check-releases.outputs.is-hotfix != 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          # Full history + tags to resolve the same kura@ release tag the
+          # canary deploy pinned.
+          fetch-depth: 0
+      - name: Wait for the canary Kura rollout to complete
+        run: |
+          set -euo pipefail
+          kura_tag="$(git tag --list 'kura@*' --merged "$GITHUB_SHA" \
+            | sed 's|^kura@||' \
+            | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' \
+            | sort -V | tail -n1)"
+          if [ -z "$kura_tag" ]; then
+            echo "No kura@ release tag reachable from this commit; nothing to gate."
+            exit 0
+          fi
+          echo "Gating production promotion on the canary rollout of kura ${kura_tag}"
+          deadline=$((SECONDS + 25 * 60))
+          while (( SECONDS < deadline )); do
+            response="$(curl -fsS "https://canary.tuist.dev/api/kura/rollout-status?image_tag=${kura_tag}" || true)"
+            if [ -z "$response" ]; then
+              echo "Rollout status endpoint unreachable; retrying..."
+              sleep 30
+              continue
+            fi
+            enabled="$(jq -r '.enabled // false' <<<"$response")"
+            status="$(jq -r '.rollout.status // empty' <<<"$response")"
+            if [ "$enabled" != "true" ]; then
+              echo "Rollout orchestration is disabled on canary; skipping the gate."
+              exit 0
+            fi
+            case "$status" in
+              completed)
+                echo "Canary rollout of kura ${kura_tag} completed."
+                exit 0
+                ;;
+              paused|aborted|superseded)
+                echo "Canary rollout of kura ${kura_tag} is ${status}; blocking production promotion." >&2
+                exit 1
+                ;;
+              running)
+                echo "Canary rollout of kura ${kura_tag} is running; waiting..."
+                ;;
+              *)
+                echo "No rollout recorded for kura ${kura_tag} yet; waiting..."
+                ;;
+            esac
+            sleep 30
+          done
+          echo "Timed out waiting for the canary rollout of kura ${kura_tag} to complete." >&2
+          exit 1
+
   # Production leg - standard path: canary ready + tests green. Promotes the
   # same image bytes tests ran against. Skipped on a hotfix. The
   # `always() && needs.*.result == 'success'` guard is required for the
@@ -2149,13 +2216,22 @@ jobs:
     # `canary` is listed explicitly (not just relied on transitively through the
     # acceptance jobs) so the "canary must be green before prod" invariant is
     # encoded in this job's own gate, not in the acceptance jobs' needs.
-    needs: [check-releases, build, canary, acceptance-tests, backward-compatibility-acceptance]
+    needs:
+      [
+        check-releases,
+        build,
+        canary,
+        acceptance-tests,
+        backward-compatibility-acceptance,
+        kura-canary-rollout-gate,
+      ]
     if: >-
       always() &&
       needs.build.result == 'success' &&
       needs.canary.result == 'success' &&
       needs.acceptance-tests.result == 'success' &&
       needs.backward-compatibility-acceptance.result == 'success' &&
+      needs.kura-canary-rollout-gate.result == 'success' &&
       needs.check-releases.outputs.is-hotfix != 'true'
     # See `canary` above: grant the callee's full permission union.
     permissions:

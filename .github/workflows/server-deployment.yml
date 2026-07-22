@@ -60,6 +60,11 @@ on:
       kura_runtime_image_tag:
         description: Pre-built Kura runtime image tag to deploy
         required: false
+      kura_expedite:
+        description: Expedite the Kura rollout of this deploy's runtime tag (all-at-once fan-out; for rollbacks to a tag that previously completed)
+        required: false
+        default: false
+        type: boolean
       linux_runner_image_tag:
         description: Pre-built Linux runner image tag to pin (e.g. `sha-7ed4b250bfb5`); wins over the resolved `linux-runner-image@*` semver
         required: false
@@ -110,6 +115,16 @@ on:
           tag prefix before passing it to Helm.
         required: false
         type: string
+      kura_expedite:
+        description: >-
+          Expedite the Kura rollout of this deploy's runtime tag
+          (all-at-once fan-out at rollout creation). Always an explicit
+          input — never inferred from commit messages or the hotfix
+          fast-path. Intended for rollbacks to a tag that previously
+          completed a rollout in the environment.
+        required: false
+        default: false
+        type: boolean
       linux_runner_image_tag:
         description: >-
           Pre-built Linux runner image tag to pin (e.g.
@@ -926,6 +941,13 @@ jobs:
             echo "Kura runtime: ${{ inputs.environment }} pins released tag ${kura_runtime_tag}"
           fi
           add_set "kuraRuntime.image.tag" "$kura_runtime_tag"
+          # Expediting the rollout is always an explicit deployment input,
+          # never inferred. The value pins this deploy's tag so a later
+          # unrelated rollout can never inherit the expedite.
+          if [ "${{ inputs.kura_expedite }}" = "true" ] && [ -n "$kura_runtime_tag" ]; then
+            echo "Kura runtime: expediting rollout of ${kura_runtime_tag} (deployment input)"
+            add_set "kuraRuntime.rollout.expediteTag" "$kura_runtime_tag"
+          fi
           # The explicit capi_image_tag / runners_controller_image_tag
           # inputs win over the resolved release tags — same pattern as the
           # runner images above. Needed when a chart change adds operator
