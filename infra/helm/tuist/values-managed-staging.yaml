@@ -84,6 +84,12 @@ server:
     # being exercised behind the kura_rollout_orchestration flag.
     - name: TUIST_KURA_CANARY_ACCOUNT_HANDLES
       value: tuist
+    # Drill phase (spec #79 rollout plan): staging exercises progressive
+    # pacing through real releases before production enablement. Remove
+    # once production runs progressive by default and the drills are
+    # done.
+    - name: TUIST_KURA_ROLLOUT_PACING
+      value: progressive
     # Runner platforms whose fleets can reach their region's private
     # cache endpoint — the dispatch gate for handing out
     # `cache_endpoint_url` (Catalog.fleet_on_cluster_network?/1).

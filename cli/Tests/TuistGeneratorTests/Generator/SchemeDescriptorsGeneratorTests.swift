@@ -2582,6 +2582,38 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
     }
 }
 
+struct SchemeDescriptorsGeneratorDebuggerTests {
+    private let subject = SchemeDescriptorsGenerator()
+
+    @Test func schemeTestAction_withCustomLLDBInitFile() throws {
+        let projectPath = try AbsolutePath(validating: "/somepath/Workspace/Project")
+        let lldbInitPath = projectPath.appending(components: "Derived", "TuistCacheDebugging", "test.lldbinit")
+        let testTarget = Target.test(name: "AppTests", product: .unitTests)
+        let project = Project.test(path: projectPath, targets: [testTarget])
+        let testAction = TestAction.test(
+            targets: [TestableTarget(target: TargetReference(projectPath: projectPath, name: "AppTests"))],
+            customLLDBInitFile: lldbInitPath
+        )
+        let scheme = Scheme.test(testAction: testAction)
+        let generatedProject = GeneratedProject(
+            pbxproj: .init(),
+            path: project.xcodeProjPath,
+            targets: [testTarget.name: PBXNativeTarget(name: testTarget.name)],
+            name: project.xcodeProjPath.basename
+        )
+
+        let got = try subject.schemeTestAction(
+            scheme: scheme,
+            graphTraverser: GraphTraverser(graph: Graph.test(projects: [projectPath: project])),
+            rootPath: projectPath,
+            generatedProjects: [project.xcodeProjPath: generatedProject]
+        )
+        let result = try #require(got)
+
+        #expect(result.customLLDBInitFile == "$(SRCROOT)/Derived/TuistCacheDebugging/test.lldbinit")
+    }
+}
+
 struct SchemeDescriptorsGeneratorCodeCoverageTests {
     private let subject = SchemeDescriptorsGenerator()
 

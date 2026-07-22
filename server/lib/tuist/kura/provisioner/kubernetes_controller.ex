@@ -19,8 +19,9 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   alias Tuist.Kura.Server
 
   @namespace "kura"
-  @manifest_revision "2026-07-16-cas-capacity-v1"
+  @manifest_revision "2026-07-19-peer-publication-v1"
   @manifest_revision_annotation "tuist.dev/kura-manifest-revision"
+  @warm_handoffs_enabled Application.compile_env(:tuist, :kura_warm_handoffs_enabled, false)
   # Mirrors Kura's DEFAULT_TMP_DIR_MAX_BYTES (kura/src/constants.rs): 4 x
   # MAX_REPLICATION_BODY_BYTES, itself 4 x MAX_SEGMENT_BYTES. We never set
   # KURA_TMP_DIR_MAX_BYTES, so this default is what upload staging can reach
@@ -41,10 +42,18 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   end
 
   @impl true
-  def rollout(
-        name,
-        %{image_tag: image_tag, account: account, server: %Server{} = server, region: %Regions{} = region} = inputs
-      ) do
+  def rollout(name, %{server: %Server{} = server} = inputs) do
+    if @warm_handoffs_enabled or server.move_phase == :none do
+      do_rollout(name, inputs)
+    else
+      {:error, :stable_endpoint_binding_required}
+    end
+  end
+
+  defp do_rollout(
+         name,
+         %{image_tag: image_tag, account: account, server: %Server{} = server, region: %Regions{} = region} = inputs
+       ) do
     with {:ok, hook_script} <- hook_script(inputs) do
       external_peers = self_hosted_peers(account, region)
 
@@ -295,15 +304,14 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
           "tenantID" => account_handle,
           "region" => region.id,
           "image" => "ghcr.io/tuist/kura:#{image_tag}",
-          # Only the steady-state (`:none`) server owns the account's customer
-          # host. A `:moving_in` target warms with the customer plane withheld
-          # (peer plane only, so it bootstraps from the source without two
-          # instances claiming the same host), and a `:moving_out` source has
-          # already handed the host to the promoted target. The kura-controller
-          # leaves the public Ingress/DNS/Certificate unreconciled for an empty
-          # publicHost, so host ownership stays with exactly one instance.
-          "publicHost" => if(owns_customer_host?(server), do: public_host(account_handle, region)),
-          "grpcPublicHost" => if(owns_customer_host?(server), do: grpc_public_host(account_handle, region)),
+          # Only the steady-state (`:none`) server publishes the account's
+          # customer and peer endpoints. A moving target keeps the peer hostname
+          # as certificate identity while its publication flag is false, so it
+          # can warm over the account mesh without adding a second public route.
+          # A moving-out source likewise retains the identity while the promoted
+          # target takes publication ownership.
+          "publicHost" => if(owns_public_endpoints?(server), do: public_host(account_handle, region)),
+          "grpcPublicHost" => if(owns_public_endpoints?(server), do: grpc_public_host(account_handle, region)),
           "ingressClassName" => ingress_class_name(region),
           "publicHostNetwork" => public_host_network?(region),
           "peerTLSSecretName" => peer_tls_secret_name(region),
@@ -328,6 +336,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
         }
         |> Enum.reject(fn {_key, value} -> value in [nil, "", false] end)
         |> Map.new()
+        |> put_mesh_public_peer_publication(region, server)
     }
   end
 
@@ -428,6 +437,19 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
   defp mesh_public_peer_host(handle, region) do
     if mesh_enabled?(region), do: Regions.peer_public_host(handle, region)
+  end
+
+  # Keep the public peer hostname on every move phase because it is also part of
+  # the instance certificate identity. Publication is a separate boolean so a
+  # warming or draining instance does not claim the regional public route. The
+  # controller treats a missing field as the legacy publish-by-host behavior,
+  # which keeps the controller-first rollout backward compatible.
+  defp put_mesh_public_peer_publication(spec, region, server) do
+    if mesh_enabled?(region) do
+      Map.put(spec, "meshPublicPeerPublished", owns_public_endpoints?(server))
+    else
+      spec
+    end
   end
 
   defp mesh_external_peers(region, external_peers) do
@@ -672,11 +694,11 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
   defp node_selector(_), do: nil
 
-  # Only the steady-state (`:none`) server publishes the account's customer host.
-  # See the `publicHost` gating in `manifest/8`.
-  defp owns_customer_host?(%Server{move_phase: :moving_in}), do: false
-  defp owns_customer_host?(%Server{move_phase: :moving_out}), do: false
-  defp owns_customer_host?(%Server{}), do: true
+  # Only the steady-state (`:none`) server publishes the account's customer and
+  # peer endpoints. See the endpoint fields in `manifest/7`.
+  defp owns_public_endpoints?(%Server{move_phase: :moving_in}), do: false
+  defp owns_public_endpoints?(%Server{move_phase: :moving_out}), do: false
+  defp owns_public_endpoints?(%Server{}), do: true
 
   # A `:moving_in` target is pinned to the destination box (its `target_node`)
   # so the warm handoff lands the account on the intended box, layered on top of

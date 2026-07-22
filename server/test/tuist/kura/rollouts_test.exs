@@ -59,8 +59,28 @@ defmodule Tuist.Kura.RolloutsTest do
     {:ok, server} =
       Kura.create_server(%{account_id: account.id, region: "local-controller", image_tag: @baseline_tag})
 
+    # Close the initial install deployment the way the reconciler's apply
+    # path would: a server holds at most one open deployment, so the
+    # rollout can only mint once the install has finished.
+    close_open_deployments(server)
+
     {:ok, server} = Kura.activate_server(server, @baseline_tag)
     %{account: account, server: server}
+  end
+
+  defp close_open_deployments(server) do
+    Deployment
+    |> where([d], d.kura_server_id == ^server.id and d.status in [:pending, :running])
+    |> Repo.all()
+    |> Enum.each(fn deployment ->
+      {:ok, deployment} =
+        case deployment.status do
+          :pending -> Kura.mark_running(deployment)
+          :running -> {:ok, deployment}
+        end
+
+      {:ok, _} = Kura.mark_succeeded(deployment)
+    end)
   end
 
   defp rollout_server(rollout, server) do

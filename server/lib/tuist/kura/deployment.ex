@@ -70,6 +70,10 @@ defmodule Tuist.Kura.Deployment do
     |> validate_length(:image_tag, max: 128)
     |> foreign_key_constraint(:kura_server_id)
     |> foreign_key_constraint(:kura_rollout_id)
+    |> unique_constraint(:kura_server_id,
+      name: :kura_deployments_one_open_per_server_index,
+      message: "already has an open deployment"
+    )
   end
 
   def status_changeset(deployment, attrs) do

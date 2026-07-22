@@ -70,12 +70,6 @@ func ReattachVolumeForPod(volumes *VolumeManager, pod *corev1.Pod, vm string) (V
 // discarded.
 const dirtyMarkerFile = "cache-dirty"
 
-// digestMarkerFile carries the inventory digest the guest computed inside the
-// mounted cache image at job end. The host records it beside a promoted master:
-// it cannot compute the digest itself without attaching the image, and the guest
-// had it mounted anyway.
-const digestMarkerFile = "cache-digest"
-
 // cacheReadyFile is the marker the host writes into the writable status share
 // once it has materialized the dispatched account's cache into the VM's branch
 // (or determined there is no master to materialize — a cold first job).
@@ -143,12 +137,17 @@ func (r *Reconciler) maybeMaterializeVolume(pod *corev1.Pod) {
 	// Materialize this host's LOCAL master into the branch immediately — a CoW
 	// clonefile that touches the network zero times (~tens of ms) — and signal
 	// the guest, so the job starts warm without ever blocking on a download.
-	warm, err := r.Volumes.Materialize(entry.Volume, account)
+	warm, baseGeneration, err := r.Volumes.Materialize(entry.Volume, account)
 	if err != nil {
 		log.Log.WithName("volume").Error(err, "materialize cache volume", "vm", entry.VMName, "account", account)
 	}
 	entry.Volume.SourceAccount = account
 	entry.Volume.Materialized = true
+	// Stage the base generation the branch was cloned from into the status share.
+	// The guest sends it back at promote, and the server accepts the HEAD
+	// fast-forward only if HEAD is still at this generation — so a job that built
+	// on a stale master cannot clobber a newer HEAD.
+	writeBaseGeneration(entry.VolumeStatusDir, baseGeneration)
 	// Drop the host-written materialization marker so a kubelet restart can tell
 	// this (materialized) branch from an idle VM's boot-created empty cache dir.
 	r.Volumes.MarkMaterialized(entry.Volume)
@@ -186,6 +185,68 @@ func writeCacheBudget(statusDir string, capGiB int) {
 	}
 	budget := uint64(capGiB) * 1024 * 1024 * 1024 * 8 / 10
 	_ = os.WriteFile(filepath.Join(statusDir, cacheBudgetFile), []byte(strconv.FormatUint(budget, 10)), 0o644)
+}
+
+// baseGenerationFile carries the HEAD generation the branch was clonefiled from,
+// staged by the host at materialize. The guest sends it as the fast-forward base
+// at promote so the server accepts the bump only if HEAD is still at it.
+const baseGenerationFile = "cache-base-generation"
+
+// writeBaseGeneration stages the branch's base generation for the guest to relay
+// at promote. Always written (even 0 for a cold branch) so the guest sends a
+// definite base rather than guessing.
+func writeBaseGeneration(statusDir string, generation int) {
+	if statusDir == "" {
+		return
+	}
+	_ = os.WriteFile(filepath.Join(statusDir, baseGenerationFile), []byte(strconv.Itoa(generation)), 0o644)
+}
+
+// promoteResultFile carries the outcome of this job's HEAD fast-forward, written
+// by the guest after the bump. It distinguishes the three cases the host must not
+// conflate: "accepted <generation>" (200 — install the branch as the local master
+// at that generation), "conflict" (409 — a stale base another host advanced past,
+// genuine cross-host contention), and "error" (an upload/network/control-plane
+// failure). Absent means the guest never reached the bump (also treated as an
+// error for an otherwise promote-eligible job). Only "accepted" installs; the
+// rest discard and re-converge.
+const promoteResultFile = "cache-promote-result"
+
+// promoteResult is the parsed guest outcome. Result is "accepted", "conflict",
+// "error", or "" (absent). Generation is the accepted HEAD generation, non-zero
+// only when Result == "accepted".
+type promoteResult struct {
+	Result     string
+	Generation int
+}
+
+// readPromoteResult parses the guest-relayed promote outcome.
+func readPromoteResult(statusDir string) promoteResult {
+	if statusDir == "" {
+		return promoteResult{}
+	}
+	b, err := os.ReadFile(filepath.Join(statusDir, promoteResultFile))
+	if err != nil {
+		return promoteResult{}
+	}
+	fields := strings.Fields(string(b))
+	if len(fields) == 0 {
+		return promoteResult{}
+	}
+	switch fields[0] {
+	case "accepted":
+		gen := 0
+		if len(fields) > 1 {
+			if g, err := strconv.Atoi(fields[1]); err == nil && g > 0 {
+				gen = g
+			}
+		}
+		return promoteResult{Result: "accepted", Generation: gen}
+	case "conflict":
+		return promoteResult{Result: "conflict"}
+	default:
+		return promoteResult{Result: "error"}
+	}
 }
 
 // volumeHeadFile carries the account's cache-volume HEAD (generation, inventory
@@ -235,11 +296,15 @@ func (r *Reconciler) convergeMaster(vmName, statusDir, volumeName, account strin
 	// would usually miss it and permanently skip convergence; since this runs in
 	// the background, it can afford to wait for the file to appear.
 	head := awaitVolumeHead(statusDir)
-	if head == nil || head.Digest == "" || head.DownloadURL == "" {
+	if head == nil || head.Generation <= 0 || head.DownloadURL == "" {
 		return
 	}
-	if local, err := r.Volumes.MasterDigest(account, volumeName); err == nil && local == head.Digest {
-		return // already at HEAD
+	// Skip if this host's master is already at or past the HEAD generation. The
+	// generation is monotonic (the server only ever fast-forwards it), so a local
+	// generation >= the HEAD's means this host already holds that HEAD (or its own
+	// newer promote) and has nothing to adopt.
+	if local, err := r.Volumes.MasterGeneration(account, volumeName); err == nil && local >= head.Generation {
+		return
 	}
 
 	logger := log.Log.WithName("volume")
@@ -256,24 +321,31 @@ func (r *Reconciler) convergeMaster(vmName, statusDir, volumeName, account strin
 		logger.Error(err, "converge: download master image", "vm", vmName, "account", account)
 		return
 	}
-	// The HEAD digest and the (mutable) object can diverge — a failed digest
-	// report after a successful upload, or interleaved jobs for the same account
-	// overwriting the object. Verify the downloaded image's inventory actually
-	// matches the HEAD digest before installing it, so the host never adopts a
-	// master under a digest it doesn't have. On mismatch, stay on the local
-	// master (status quo). Immutable, content-addressed keys are the fuller fix
-	// and a tracked follow-up.
-	if got, err := r.Volumes.ImageDigest(image); err != nil || got != head.Digest {
-		logger.Info("converge: image digest does not match HEAD; keeping local master",
-			"vm", vmName, "account", account, "want", head.Digest, "got", got)
+	// Verify the downloaded image's inventory matches the HEAD digest before
+	// adopting it, so the host never records a generation for an image that isn't
+	// the one the HEAD advertised. On mismatch, stay on the local master (status
+	// quo). With content-addressed HEAD keys a mismatch is rare, but a stale
+	// presigned URL or a partial download can still surface one.
+	if head.Digest != "" {
+		if got, err := r.Volumes.ImageDigest(image); err != nil || got != head.Digest {
+			logger.Info("converge: image digest does not match HEAD; keeping local master",
+				"vm", vmName, "account", account, "want", head.Digest, "got", got)
+			return
+		}
+	}
+	// Adopt the HEAD wholesale: a plain generation-gated whole-image replace. HEAD
+	// is a monotonic fast-forward lineage (the server rejects any bump that does
+	// not build on the current tip), so replacing a behind master with it strands
+	// nothing — the local master is meant to match HEAD exactly.
+	installed, err := r.Volumes.InstallMaster(account, volumeName, image, head.Generation)
+	if err != nil {
+		logger.Error(err, "converge: install master", "vm", vmName, "account", account)
 		return
 	}
-	if err := r.Volumes.ReplaceMaster(account, volumeName, image, head.Digest); err != nil {
-		logger.Error(err, "converge: replace master", "vm", vmName, "account", account)
-		return
+	if installed {
+		RecordVolumeConverged()
+		logger.Info("converged master to HEAD", "vm", vmName, "account", account, "generation", head.Generation)
 	}
-	RecordVolumeConverged()
-	logger.Info("converged master to HEAD", "vm", vmName, "account", account, "generation", head.Generation)
 }
 
 // convergeHeadWaitInterval / convergeHeadWaitAttempts bound how long the
@@ -340,7 +412,28 @@ func (r *Reconciler) finalizeVolume(entry *Entry, actualAccount string, cleanExi
 	}
 	present, dirty := readDirtyMarker(entry.VolumeStatusDir)
 	succeeded := cleanExit && present
-	entry.Volume.ReportedDigest = readReportedDigest(entry.VolumeStatusDir)
+	// The guest-relayed outcome of the HEAD fast-forward. Only "accepted" carries a
+	// generation to install the branch at; "conflict"/"error"/absent discard the
+	// branch rather than moving the local master off the accepted lineage.
+	promote := readPromoteResult(entry.VolumeStatusDir)
+	entry.Volume.PromotedGeneration = promote.Generation
+
+	// For a promote-eligible job (it did cache-changing work for its own account),
+	// record the server's decision. "rejected" is reserved for an actual 409
+	// (stale-base contention); an upload/network/control-plane failure — or an
+	// absent result for an otherwise-eligible job — is "error", so a storage
+	// outage does not masquerade as cache races. Read-only, failed, and
+	// account-mismatched jobs never promote and are excluded from the ratio.
+	if succeeded && dirty && actualAccount != "" && entry.Volume.SourceAccount == actualAccount {
+		switch promote.Result {
+		case "accepted":
+			RecordVolumePromote("accepted")
+		case "conflict":
+			RecordVolumePromote("rejected")
+		default:
+			RecordVolumePromote("error")
+		}
+	}
 
 	outcome, err := r.Volumes.Finalize(entry.Volume, actualAccount, succeeded, dirty)
 	if err != nil {
@@ -366,19 +459,4 @@ func readDirtyMarker(statusDir string) (present, dirty bool) {
 		return false, false
 	}
 	return true, strings.TrimSpace(string(b)) == "1"
-}
-
-// readReportedDigest reads the guest-computed inventory digest of the cache
-// image. Empty when the guest never wrote it; the master is then recorded with
-// no digest, so the next convergence treats this host as behind and refreshes
-// rather than trusting an unknown inventory.
-func readReportedDigest(statusDir string) string {
-	if statusDir == "" {
-		return ""
-	}
-	b, err := os.ReadFile(filepath.Join(statusDir, digestMarkerFile))
-	if err != nil {
-		return ""
-	}
-	return strings.TrimSpace(string(b))
 }

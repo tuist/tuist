@@ -482,6 +482,18 @@ struct SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
                     return .screenRecording
                 }
             }
+        let customLLDBInitFile: String? = if let customLLDBInitFile = testAction.customLLDBInitFile,
+                                             let targetReference = testAction.expandVariableFromTarget
+                                             ?? testAction.targets.first?.target,
+                                             let graphTarget = graphTraverser.target(
+                                                 path: targetReference.projectPath,
+                                                 name: targetReference.name
+                                             )
+        {
+            "$(SRCROOT)/\(customLLDBInitFile.relative(to: graphTarget.project.path).pathString)"
+        } else {
+            testAction.customLLDBInitFile?.pathString
+        }
 
         return XCScheme.TestAction(
             buildConfiguration: testAction.configurationName,
@@ -505,7 +517,8 @@ struct SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             environmentVariables: environments,
             language: language,
             region: region,
-            preferredScreenCaptureFormat: preferredScreenCaptureFormat
+            preferredScreenCaptureFormat: preferredScreenCaptureFormat,
+            customLLDBInitFile: customLLDBInitFile
         )
     } // swiftlint:enable function_body_length
 

@@ -4,6 +4,7 @@ defmodule Tuist.KuraTest do
   import Mimic
 
   alias Tuist.Accounts
+  alias Tuist.Accounts.Account
   alias Tuist.Accounts.AccountCacheEndpoint
   alias Tuist.Kura
   alias Tuist.Kura.Deployment
@@ -66,10 +67,11 @@ defmodule Tuist.KuraTest do
         })
 
       {:ok, server} = Kura.activate_server(server, "0.5.2")
+      mark_initial_deployment_succeeded(server)
 
       stub(Tuist.Environment, :kura_runtime_image_tag, fn -> "sha-abcdef123456" end)
 
-      assert {:ok, [%Deployment{image_tag: "sha-abcdef123456"} = deployment]} =
+      assert {:ok, %{scheduled: [%Deployment{image_tag: "sha-abcdef123456"} = deployment], failures: []}} =
                Kura.schedule_runtime_image_deployments()
 
       assert deployment.kura_server_id == server.id
@@ -87,13 +89,14 @@ defmodule Tuist.KuraTest do
         })
 
       {:ok, server} = Kura.activate_server(server, "0.5.2")
+      mark_initial_deployment_succeeded(server)
       {:ok, server} = Kura.fail_server(server)
 
       assert %Server{status: :failed, current_image_tag: "0.5.2"} = server
 
       stub(Tuist.Environment, :kura_runtime_image_tag, fn -> "sha-abcdef123456" end)
 
-      assert {:ok, [%Deployment{image_tag: "sha-abcdef123456"} = deployment]} =
+      assert {:ok, %{scheduled: [%Deployment{image_tag: "sha-abcdef123456"} = deployment], failures: []}} =
                Kura.schedule_runtime_image_deployments()
 
       assert deployment.kura_server_id == server.id
@@ -113,11 +116,13 @@ defmodule Tuist.KuraTest do
       {:ok, server} =
         Kura.record_observation(server, %{status: :replicating, current_image_tag: "0.5.2"})
 
+      mark_initial_deployment_succeeded(server)
+
       assert %Server{status: :replicating, current_image_tag: "0.5.2"} = server
 
       stub(Tuist.Environment, :kura_runtime_image_tag, fn -> "sha-abcdef123456" end)
 
-      assert {:ok, [%Deployment{image_tag: "sha-abcdef123456"} = deployment]} =
+      assert {:ok, %{scheduled: [%Deployment{image_tag: "sha-abcdef123456"} = deployment], failures: []}} =
                Kura.schedule_runtime_image_deployments()
 
       assert deployment.kura_server_id == server.id
@@ -138,7 +143,7 @@ defmodule Tuist.KuraTest do
 
       stub(Tuist.Environment, :kura_runtime_image_tag, fn -> "0.5.3" end)
 
-      assert {:ok, []} = Kura.schedule_runtime_image_deployments()
+      assert {:ok, %{scheduled: [], failures: []}} = Kura.schedule_runtime_image_deployments()
     end
 
     test "schedules a version only once per server" do
@@ -153,17 +158,54 @@ defmodule Tuist.KuraTest do
         })
 
       {:ok, server} = Kura.activate_server(server, "0.5.2")
+      mark_initial_deployment_succeeded(server)
       {:ok, _existing} = Kura.create_deployment(server, "0.5.3")
 
       stub(Tuist.Environment, :kura_runtime_image_tag, fn -> "0.5.3" end)
 
-      assert {:ok, []} = Kura.schedule_runtime_image_deployments()
+      assert {:ok, %{scheduled: [], failures: []}} = Kura.schedule_runtime_image_deployments()
     end
 
     test "does not create deployments when no runtime image tag is configured" do
       stub(Tuist.Environment, :kura_runtime_image_tag, fn -> nil end)
 
-      assert {:ok, []} = Kura.schedule_runtime_image_deployments()
+      assert {:ok, %{scheduled: [], failures: []}} = Kura.schedule_runtime_image_deployments()
+    end
+
+    test "returns per-server failures without discarding successfully scheduled deployments" do
+      first_account = Accounts.get_account_from_user(AccountsFixtures.user_fixture())
+      stale_account = Accounts.get_account_from_user(AccountsFixtures.user_fixture())
+
+      {:ok, healthy} =
+        Kura.create_server(%{
+          account_id: first_account.id,
+          region: "local-controller",
+          image_tag: "0.5.2"
+        })
+
+      {:ok, stale} =
+        Kura.create_server(%{
+          account_id: stale_account.id,
+          region: "local-controller",
+          image_tag: "0.5.2"
+        })
+
+      {:ok, healthy} = Kura.activate_server(healthy, "0.5.2")
+      {:ok, stale} = Kura.activate_server(stale, "0.5.2")
+      mark_initial_deployment_succeeded(healthy)
+      mark_initial_deployment_succeeded(stale)
+      stale = stale |> Ecto.Changeset.change(region: "removed-region") |> Repo.update!()
+
+      stub(Tuist.Environment, :kura_runtime_image_tag, fn -> "0.5.3" end)
+
+      assert {:ok, %{scheduled: [deployment], failures: [failure]}} =
+               Kura.schedule_runtime_image_deployments()
+
+      assert deployment.kura_server_id == healthy.id
+      assert failure.server_id == stale.id
+      assert failure.account_id == stale.account_id
+      assert failure.region == "removed-region"
+      assert failure.reason == :not_found
     end
 
     test "schedules the deploy-configured runtime image tag outside dev and test" do
@@ -178,15 +220,66 @@ defmodule Tuist.KuraTest do
         })
 
       {:ok, server} = Kura.activate_server(server, "0.5.1")
+      mark_initial_deployment_succeeded(server)
 
       stub(Tuist.Environment, :dev?, fn -> false end)
       stub(Tuist.Environment, :test?, fn -> false end)
       stub(Tuist.Environment, :kura_runtime_image_tag, fn -> "0.5.2" end)
 
-      assert {:ok, [%Deployment{image_tag: "0.5.2"} = deployment]} =
+      assert {:ok, %{scheduled: [%Deployment{image_tag: "0.5.2"} = deployment], failures: []}} =
                Kura.schedule_runtime_image_deployments()
 
       assert deployment.kura_server_id == server.id
+    end
+
+    test "schedules runtime image deployments in bounded batches" do
+      account_now = NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
+      server_now = DateTime.utc_now()
+
+      account_rows =
+        for index <- 1..101 do
+          %{
+            name: "kura-rollout-#{index}",
+            billing_email: "kura-rollout-#{index}@example.com",
+            created_at: account_now,
+            updated_at: account_now
+          }
+        end
+
+      {101, accounts} = Repo.insert_all(Account, account_rows, returning: [:id])
+
+      server_rows =
+        accounts
+        |> Enum.with_index(1)
+        |> Enum.map(fn {account, index} ->
+          %{
+            id: Ecto.UUID.generate(),
+            account_id: account.id,
+            region: "local-controller",
+            status: :active,
+            current_image_tag: "0.5.2",
+            provisioner_node_ref: "kura-rollout-#{index}",
+            move_phase: :none,
+            inserted_at: server_now,
+            updated_at: server_now
+          }
+        end)
+
+      {101, nil} = Repo.insert_all(Server, server_rows)
+
+      # Interim pacing (spec #79 phase 2): bounded batches per call. The
+      # wait-for-open-deployments pacing between batches lives in
+      # schedule_runtime_image_deployments/0; calling the version
+      # scheduler directly moves on to the next batch.
+      assert {:ok, %{scheduled: first_batch, failures: []}} =
+               Kura.schedule_version_deployments("0.5.3")
+
+      assert length(first_batch) == 25
+
+      assert {:ok, %{scheduled: second_batch, failures: []}} =
+               Kura.schedule_version_deployments("0.5.3")
+
+      assert length(second_batch) == 25
     end
   end
 
@@ -213,6 +306,18 @@ defmodule Tuist.KuraTest do
 
       assert deployment.kura_server_id == server.id
       assert deployment.cluster_id == "local-controller"
+    end
+
+    test "allows only one open deployment per server", %{server: server} do
+      assert {:ok, %Deployment{}} = Kura.create_deployment(server, "0.5.2")
+      assert {:error, :deployment_in_progress} = Kura.create_deployment(server, "0.5.3")
+
+      assert Repo.aggregate(
+               from(d in Deployment,
+                 where: d.kura_server_id == ^server.id and d.status in [:pending, :running]
+               ),
+               :count
+             ) == 1
     end
 
     test "rejects an invalid OCI image tag", %{server: server} do
@@ -247,6 +352,8 @@ defmodule Tuist.KuraTest do
         |> Repo.insert()
 
       {:ok, d1} = Kura.create_deployment(server_a, "0.5.0")
+      {:ok, d1} = Kura.mark_running(d1)
+      {:ok, _d1} = Kura.mark_succeeded(d1)
       {:ok, d2} = Kura.create_deployment(server_a, "0.5.1")
       {:ok, _other} = Kura.create_deployment(server_b, "0.5.0")
 
@@ -391,6 +498,39 @@ defmodule Tuist.KuraTest do
 
     test "rejects moving a server that is not a steady-state active server", %{source: source} do
       assert {:error, :not_movable} = Kura.move_server(%{source | status: :provisioning}, "box-2")
+    end
+
+    test "submits target ownership before source relinquishment and then swaps phases", %{source: source} do
+      {:ok, target} = Kura.move_server(source, "box-2")
+      test_process = self()
+
+      expect(Provisioner, :rollout, 2, fn server, inputs ->
+        send(test_process, {:rollout, server.id, inputs.server.move_phase})
+        :ok
+      end)
+
+      assert {:ok, %Server{id: promoted_id, move_phase: :none}} = Kura.promote_move(target)
+      assert promoted_id == target.id
+
+      assert_receive {:rollout, target_id, :none}
+      assert target_id == target.id
+      assert_receive {:rollout, source_id, :moving_out}
+      assert source_id == source.id
+
+      assert %Server{move_phase: :none} = Repo.get!(Server, target.id)
+      assert %Server{move_phase: :moving_out} = Repo.get!(Server, source.id)
+    end
+
+    test "keeps database ownership unchanged when a manifest submission fails", %{source: source} do
+      {:ok, target} = Kura.move_server(source, "box-2")
+
+      expect(Provisioner, :rollout, 2, fn server, _inputs ->
+        if server.id == target.id, do: :ok, else: {:error, :source_submission_failed}
+      end)
+
+      assert {:error, :source_submission_failed} = Kura.promote_move(target)
+      assert %Server{move_phase: :moving_in} = Repo.get!(Server, target.id)
+      assert %Server{move_phase: :none} = Repo.get!(Server, source.id)
     end
   end
 
@@ -981,6 +1121,7 @@ defmodule Tuist.KuraTest do
           image_tag: "0.5.2"
         })
 
+      mark_initial_deployment_failed(server)
       {:ok, failed} = Kura.fail_server(server)
 
       assert {:ok, %Server{id: id, status: :provisioning, region: "local-controller"} = retried} =
@@ -1011,11 +1152,36 @@ defmodule Tuist.KuraTest do
 
       assert_receive {:kura_server, :created, _}
 
+      mark_initial_deployment_failed(server)
       {:ok, failed} = Kura.fail_server(server)
       {:ok, _retried} = Kura.retry_server(failed, "0.5.3")
 
       assert_receive {:kura_server, :updated, %{id: id, status: :provisioning}}
       assert id == server.id
+    end
+
+    test "rechecks the locked server before appending a retry deployment" do
+      account = Accounts.get_account_from_user(AccountsFixtures.user_fixture())
+
+      {:ok, server} =
+        Kura.create_server(%{
+          account_id: account.id,
+          region: "local-controller",
+          image_tag: "0.5.2"
+        })
+
+      mark_initial_deployment_failed(server)
+      {:ok, failed} = Kura.fail_server(server)
+
+      assert {:ok, _retried} = Kura.retry_server(failed, "0.5.3")
+      assert {:error, :not_retryable} = Kura.retry_server(failed, "0.5.3")
+
+      assert Repo.aggregate(
+               from(d in Deployment,
+                 where: d.kura_server_id == ^server.id and d.status in [:pending, :running]
+               ),
+               :count
+             ) == 1
     end
 
     test "refuses to retry a previously-active server" do
@@ -1078,6 +1244,18 @@ defmodule Tuist.KuraTest do
   # A public server as `activate_server/2` leaves it: active, public
   # `url`, and the URL mirrored into `account_cache_endpoints`. The
   # fallback intersects mirror and active servers, so tests need both.
+  defp mark_initial_deployment_succeeded(server) do
+    deployment = Repo.get_by!(Deployment, kura_server_id: server.id)
+    {:ok, deployment} = Kura.mark_running(deployment)
+    {:ok, _deployment} = Kura.mark_succeeded(deployment)
+  end
+
+  defp mark_initial_deployment_failed(server) do
+    deployment = Repo.get_by!(Deployment, kura_server_id: server.id)
+    {:ok, deployment} = Kura.mark_running(deployment)
+    {:ok, _deployment} = Kura.mark_failed(deployment, "apply failed")
+  end
+
   defp activate_public_server!(account, region) do
     handle = String.downcase(account.name)
     url = "https://#{handle}-#{region}-1.kura.tuist.dev"

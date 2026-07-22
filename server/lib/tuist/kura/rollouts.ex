@@ -442,6 +442,7 @@ defmodule Tuist.Kura.Rollouts do
   defp advance_expedited(rollout) do
     assign_missing_accounts(rollout)
     scope_servers(rollout, max_wave(rollout))
+    mint_missing_deployments(rollout)
     mark_convergences(rollout)
 
     cond do
@@ -465,6 +466,7 @@ defmodule Tuist.Kura.Rollouts do
 
       {:open, rollout} ->
         scope_servers(rollout, rollout.current_wave)
+        mint_missing_deployments(rollout)
         mark_convergences(rollout)
 
         if failure = hard_failure(rollout) do
@@ -604,27 +606,69 @@ defmodule Tuist.Kura.Rollouts do
     }
 
     attrs =
-      cond do
-        server.observed_image_tag == rollout.image_tag ->
-          Map.put(attrs, :converged_at, now())
-
-        deployment = adoptable_open_deployment(server, rollout.image_tag) ->
-          Map.put(attrs, :deployment_id, deployment.id)
-
-        true ->
-          case Kura.create_deployment(server, rollout.image_tag, rollout_id: rollout.id) do
-            {:ok, deployment} ->
-              Map.put(attrs, :deployment_id, deployment.id)
-
-            {:error, reason} ->
-              Logger.warning("[Kura.Rollouts] could not mint deployment for server #{server.id}: #{inspect(reason)}")
-
-              attrs
-          end
+      if server.observed_image_tag == rollout.image_tag do
+        Map.put(attrs, :converged_at, now())
+      else
+        Map.put(attrs, :deployment_id, mint_deployment(rollout, server))
       end
 
     {:ok, _} = attrs |> RolloutServer.create_changeset() |> Repo.insert()
     :ok
+  end
+
+  # Adopts a same-tag open deployment (a server created mid-rollout after
+  # its wave completed provisions directly on the target) or mints a new
+  # one. A server can hold only one open deployment at a time; when a
+  # different-tag deployment is still open (initial install, warm-handoff
+  # move), minting yields nil and `mint_missing_deployments/1` retries on
+  # a later tick once that deployment closes.
+  defp mint_deployment(rollout, server) do
+    case adoptable_open_deployment(server, rollout.image_tag) do
+      %Deployment{id: deployment_id} ->
+        deployment_id
+
+      nil ->
+        case Kura.create_deployment(server, rollout.image_tag, rollout_id: rollout.id) do
+          {:ok, deployment} ->
+            deployment.id
+
+          {:error, :deployment_in_progress} ->
+            Logger.info(
+              "[Kura.Rollouts] server #{server.id} has an open deployment; deferring the rollout deployment"
+            )
+
+            nil
+
+          {:error, reason} ->
+            Logger.warning("[Kura.Rollouts] could not mint deployment for server #{server.id}: #{inspect(reason)}")
+
+            nil
+        end
+    end
+  end
+
+  # Scoped servers whose deployment could not be minted yet (an initial
+  # install or move deployment was still open) get their rollout
+  # deployment as soon as the server frees up.
+  defp mint_missing_deployments(rollout) do
+    RolloutServer
+    |> join(:inner, [rs], s in assoc(rs, :kura_server))
+    |> where([rs], rs.kura_rollout_id == ^rollout.id and is_nil(rs.deployment_id) and is_nil(rs.converged_at))
+    |> where([_rs, s], s.status not in ^@terminal_server_statuses and s.move_phase == :none)
+    |> preload([rs, s], kura_server: s)
+    |> Repo.all()
+    |> Enum.each(fn rollout_server ->
+      case mint_deployment(rollout, rollout_server.kura_server) do
+        nil ->
+          :ok
+
+        deployment_id ->
+          {:ok, _} =
+            rollout_server
+            |> RolloutServer.update_changeset(%{deployment_id: deployment_id})
+            |> Repo.update()
+      end
+    end)
   end
 
   # A server created mid-rollout after its wave completed provisions
@@ -1069,16 +1113,9 @@ defmodule Tuist.Kura.Rollouts do
       server = rollout_server.kura_server
       {baseline, soak_eligible} = capture_baseline(server)
 
-      deployment_id =
-        case Kura.create_deployment(server, rollout.image_tag, rollout_id: rollout.id) do
-          {:ok, deployment} ->
-            deployment.id
-
-          {:error, reason} ->
-            Logger.warning("[Kura.Rollouts] could not re-mint deployment for server #{server.id}: #{inspect(reason)}")
-
-            nil
-        end
+      # nil when another (non-rollout) deployment still holds the
+      # server's open slot; mint_missing_deployments retries next tick.
+      deployment_id = mint_deployment(rollout, server)
 
       {:ok, _} =
         rollout_server
