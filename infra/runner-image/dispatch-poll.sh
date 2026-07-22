@@ -484,8 +484,19 @@ detach_cas_image() {
     sleep 1
     i=$((i + 1))
   done
-  hdiutil detach "${CAS_ATTACHED}" -force >/dev/null 2>&1 || true
-  CAS_ATTACHED=""
+  if hdiutil detach "${CAS_ATTACHED}" -force >/dev/null 2>&1; then
+    echo "$(date -u +%FT%TZ) dispatch-poll: CAS image force-detached"
+    CAS_ATTACHED=""
+    return 0
+  fi
+  # Detach failed even with -force: the image may still be mounted and possibly
+  # mid-write. Report failure (CAS_ATTACHED left set) so the caller withholds
+  # runner-ok and the host does NOT promote it — the host clones this file to
+  # promote and cannot tell a torn snapshot from a good one, so a live mount
+  # would poison the account's master. Mirrors the binary cache's
+  # not-promotable path on a failed detach.
+  echo "$(date -u +%FT%TZ) dispatch-poll: WARNING CAS image detach failed; withholding from promotion"
+  return 1
 }
 
 # CACHE_READY_TIMEOUT bounds the wait for the host's cache-ready signal — the
@@ -898,11 +909,15 @@ HOOK
       # CAS image teardown, independent of the binary cache below (a separate
       # image and mount). Detach it before the reports + VM halt so the host
       # promotes a quiesced, consistent image (FinalizeCAS clonefiles the branch
-      # CAS image into the account's master).
-      detach_cas_image
-      # Carry the runner's real exit status to the host as the CAS-promote gate,
-      # separate from the dirty bit (which is "0" even on failure).
-      report_runner_ok "${rc}"
+      # CAS image into the account's master). Authorize the CAS promote (runner-ok)
+      # ONLY on a clean detach: a still-mounted, possibly mid-write image cloned
+      # into a master would poison every job that later clones it — the same
+      # reason the binary path withholds promotion when its detach fails.
+      if detach_cas_image; then
+        # Carry the runner's real exit status to the host as the CAS-promote gate,
+        # separate from the dirty bit (which is "0" even on failure).
+        report_runner_ok "${rc}"
+      fi
 
       # Binary cache teardown. The order here is load-bearing:
       #   1. capture the inventory + digest, which only works while the image is

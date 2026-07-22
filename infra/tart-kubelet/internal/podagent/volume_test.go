@@ -421,6 +421,27 @@ func TestConvergePreservesCASImage(t *testing.T) {
 	}
 }
 
+// TestCASOnlyMasterIsTracked: a compile-only job promotes only the CAS, leaving a
+// volume with xcode-cas.sparseimage and no master.sparseimage. That volume is
+// still real disk and must be scanned as a master — otherwise it escapes stats
+// and LRU eviction and eventually fills the quota volume, forcing every admission
+// cold.
+func TestCASOnlyMasterIsTracked(t *testing.T) {
+	m, _ := newTestManager(t, 100)
+	m.CASGiB = 2
+	seedMasterCASImage(t, m, "acct-a", "cas-only") // no binary master.sparseimage
+	if masterExists(m, "acct-a") {
+		t.Fatal("precondition: no binary master should exist for a CAS-only volume")
+	}
+	masters, err := m.allMastersLocked()
+	if err != nil {
+		t.Fatalf("allMastersLocked: %v", err)
+	}
+	if len(masters) != 1 || masters[0].account != "acct-a" {
+		t.Fatalf("CAS-only volume must be scanned as a master; got %+v", masters)
+	}
+}
+
 // branchHasWarmCache reports whether the branch carries a master's contents
 // rather than the empty image the cold path creates.
 func branchHasWarmCache(m *VolumeManager, att VolumeAttachment) bool {

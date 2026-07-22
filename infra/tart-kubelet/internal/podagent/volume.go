@@ -522,9 +522,11 @@ func (m *VolumeManager) materializeCASImageLocked(att VolumeAttachment, account 
 			logger.Error(err, "swap CAS image into branch", "account", account)
 			return
 		}
-		// Bump master recency so LRU keeps a CAS-active account hot even when its
-		// binary cache is cold on this host (that path doesn't touch the mtime).
-		_ = os.Chtimes(m.volumeDir(account, att.VolumeName), m.now(), m.now())
+		// Bump the CAS master's mtime so LRU keeps a CAS-active account hot even
+		// when its binary cache is cold on this host. allMastersLocked orders by
+		// the newest of the two master images, so this must touch the CAS image
+		// itself — touching the volume dir would not move the LRU key.
+		_ = os.Chtimes(masterImg, m.now(), m.now())
 	} else {
 		// No master yet: create a fresh empty sparse image directly at the branch
 		// path (createImage writes at the given .sparseimage path, like the binary
@@ -873,6 +875,18 @@ func (m *VolumeManager) promoteCASImageLocked(att VolumeAttachment, account stri
 		log.Log.WithName("volume-cas").Info("refusing to promote non-regular CAS image (possible symlink attack)", "account", account, "mode", fi.Mode().String())
 		return
 	}
+	// Whole-image last-writer-wins, deliberately: like the binary cache's
+	// fast-forward LWW, a promote replaces the master wholesale and a concurrent
+	// loser's delta is dropped (rebuilt next run). The CAS master is host-local,
+	// so the only lost update is two VMs on THIS host (max 2 per host) racing the
+	// same account — the caller holds m.mu, so the two promotes serialize and the
+	// second's whole image wins. Cross-host jobs promote to different hosts'
+	// masters, and sequential jobs each clone the latest master, so warm sets
+	// accumulate over time; only same-host concurrency drops one run's delta, and
+	// it self-heals. Full matrix accumulation (every concurrent slice retained)
+	// is the job of the cross-host kura object ingestion (see the cross-host CAS
+	// plan), not this host-local promote — object-level union here was tried for
+	// the binary cache and removed (#11996) as too costly for the gain.
 	logger := log.Log.WithName("volume-cas")
 	if err := os.MkdirAll(m.volumeDir(account, att.VolumeName), 0o755); err != nil {
 		logger.Error(err, "ensure volume dir for CAS promote", "account", account)
@@ -1204,10 +1218,11 @@ func (m *VolumeManager) mastersByLRULocked() ([]masterEntry, error) {
 	return all, nil
 }
 
-// allMastersLocked scans <root>/<account>/<volume>/master.sparseimage. Accounts
-// are directory names; the branches dir (per-VM scratch) and the convergence
+// allMastersLocked scans <root>/<account>/<volume> for either master image
+// (binary master.sparseimage or CAS xcode-cas.sparseimage). Accounts are
+// directory names; the branches dir (per-VM scratch) and the convergence
 // scratch dir are skipped. Eviction drops the whole <account>/<volume> dir, so
-// the entry path is that dir, while LRU order comes from the image's mtime.
+// the entry path is that dir, while LRU order comes from the newer image's mtime.
 func (m *VolumeManager) allMastersLocked() ([]masterEntry, error) {
 	accounts, err := os.ReadDir(m.Root)
 	if err != nil {
@@ -1229,14 +1244,33 @@ func (m *VolumeManager) allMastersLocked() ([]masterEntry, error) {
 			if !vol.IsDir() {
 				continue
 			}
-			info, err := os.Stat(m.masterImage(acct.Name(), vol.Name()))
-			if err != nil {
+			// A volume counts as a master if it holds EITHER the binary image or
+			// the CAS image. A compile-only job promotes only the CAS (its binary
+			// cache stayed clean), leaving a volume with just xcode-cas.sparseimage
+			// — still real disk that must be counted for stats and evicted under
+			// quota pressure, or it leaks the quota volume until every admission
+			// goes cold. LRU orders by the NEWEST of the two images so a
+			// CAS-active-but-binary-cold account stays hot.
+			dir := m.volumeDir(acct.Name(), vol.Name())
+			var modTime time.Time
+			found := false
+			for _, name := range [2]string{masterImageName, casImageName} {
+				info, err := os.Stat(filepath.Join(dir, name))
+				if err != nil {
+					continue
+				}
+				found = true
+				if info.ModTime().After(modTime) {
+					modTime = info.ModTime()
+				}
+			}
+			if !found {
 				continue
 			}
 			out = append(out, masterEntry{
 				account: acct.Name(),
-				path:    m.volumeDir(acct.Name(), vol.Name()),
-				modTime: info.ModTime(),
+				path:    dir,
+				modTime: modTime,
 			})
 		}
 	}
