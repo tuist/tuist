@@ -265,7 +265,9 @@ defmodule Tuist.Kura.ReconcilerTest do
       assert extra.deployment_id == deployment.id
       assert extra.server_id == server.id
       assert extra.region == server.region
-      assert extra.reason == "apply failed"
+      assert extra.failure_detail == "apply failed"
+      assert extra.failure_kind == "provisioner_error"
+      assert opts[:tags].failure_kind == "provisioner_error"
       :ignored
     end)
 
@@ -285,7 +287,8 @@ defmodule Tuist.Kura.ReconcilerTest do
 
     expect(Sentry, :capture_message, fn "Kura deploy failed", opts ->
       assert opts[:level] == :error
-      assert opts[:extra].reason == "Kubernetes API unavailable"
+      assert opts[:extra].failure_detail == "Kubernetes API unavailable"
+      assert opts[:extra].failure_kind == "provisioner_error"
       :ignored
     end)
 
@@ -297,6 +300,43 @@ defmodule Tuist.Kura.ReconcilerTest do
            } = Repo.get!(Deployment, deployment.id)
 
     assert %Server{status: :failed, current_image_tag: nil} = Repo.get!(Server, server.id)
+  end
+
+  test "continues later reconciliation phases after one server cannot schedule" do
+    {_account, stale, stale_deployment} = create_server()
+    {:ok, stale} = Kura.activate_server(stale, stale_deployment.image_tag)
+    mark_deployment_succeeded(stale_deployment)
+    stale = stale |> Ecto.Changeset.change(region: "removed-region") |> Repo.update!()
+
+    {_account, destroying, destroying_deployment} = create_server()
+    {:ok, destroying} = Kura.activate_server(destroying, destroying_deployment.image_tag)
+    mark_deployment_succeeded(destroying_deployment)
+    {:ok, destroying} = Kura.destroy_server(destroying)
+
+    stub(Tuist.Environment, :kura_runtime_image_tag, fn -> "0.5.3" end)
+
+    stub(Provisioner, :current_image_tag, fn
+      %Server{id: id} when id == destroying.id -> {:error, :not_found}
+      %Server{id: id} when id == stale.id -> {:error, :not_found}
+    end)
+
+    expect(Sentry, :capture_message, fn "Kura deployment scheduling failed", opts ->
+      assert opts[:extra].server_id == stale.id
+      assert opts[:extra].region == "removed-region"
+      assert opts[:extra].failure_kind == "not_found"
+      :ignored
+    end)
+
+    assert :ok = Reconciler.reconcile()
+    assert %Server{status: :destroyed} = Repo.get!(Server, destroying.id)
+  end
+
+  test "deduplicates overlapping reconciler jobs" do
+    assert {:ok, first} = Oban.insert(Reconciler.new(%{}))
+    assert {:ok, second} = Oban.insert(Reconciler.new(%{}))
+
+    assert second.conflict?
+    assert second.id == first.id
   end
 
   test "keeps an active server at :failed when a drift rollout fails so the working endpoint stays up" do

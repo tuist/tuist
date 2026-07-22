@@ -41,14 +41,23 @@ defmodule Tuist.Kura.Reconciler do
   this loop observes the same rows on the next tick and converges again.
   """
 
-  use Oban.Worker, queue: :default, max_attempts: 3
+  use Oban.Worker,
+    queue: :default,
+    max_attempts: 3,
+    unique: [
+      fields: [:worker],
+      period: :infinity,
+      states: [:available, :scheduled, :executing, :retryable]
+    ]
 
   import Ecto.Query
 
+  alias Oban.Job
   alias Tuist.Kura
   alias Tuist.Kura.Deployment
   alias Tuist.Kura.Provisioner
   alias Tuist.Kura.Regions
+  alias Tuist.Kura.RunnerCache
   alias Tuist.Kura.Server
   alias Tuist.Repo
 
@@ -63,7 +72,7 @@ defmodule Tuist.Kura.Reconciler do
   @reconcile_batch_size 200
 
   @impl Oban.Worker
-  def perform(%Oban.Job{}) do
+  def perform(%Job{}) do
     reconcile()
   end
 
@@ -71,15 +80,42 @@ defmodule Tuist.Kura.Reconciler do
     # Converge runner-cache nodes with runner enablement before the rest
     # of the loop so a freshly enabled account's node enters the normal
     # provisioning/observation path within the same tick.
-    Tuist.Kura.RunnerCache.reconcile()
+    RunnerCache.reconcile()
 
-    with {:ok, scheduled} <- Kura.schedule_runtime_image_deployments() do
-      log_scheduled_deployments(scheduled)
-      reconcile_destroying_servers()
-      reconcile_moving_out_servers()
-      handled = reconcile_deployments()
-      reconcile_observed_servers(handled)
-    end
+    schedule_runtime_image_deployments()
+    reconcile_destroying_servers()
+    reconcile_moving_out_servers()
+    handled = reconcile_deployments()
+    reconcile_observed_servers(handled)
+  end
+
+  defp schedule_runtime_image_deployments do
+    {:ok, %{scheduled: scheduled, failures: failures}} = Kura.schedule_runtime_image_deployments()
+    log_scheduled_deployments(scheduled)
+    Enum.each(failures, &report_scheduling_failure/1)
+
+    :ok
+  end
+
+  defp report_scheduling_failure(failure) do
+    detail = inspect(failure.reason)
+    kind = failure_kind(failure.reason)
+
+    Logger.error(
+      "[Kura.Reconciler] could not schedule runtime image deployment for server #{failure.server_id} in #{failure.region}: #{detail}"
+    )
+
+    Sentry.capture_message("Kura deployment scheduling failed",
+      level: :error,
+      tags: %{failure_kind: kind, region: failure.region},
+      extra: %{
+        account_id: failure.account_id,
+        failure_detail: detail,
+        failure_kind: kind,
+        region: failure.region,
+        server_id: failure.server_id
+      }
+    )
   end
 
   # Drain window a promoted move's source keeps serving before teardown, so
@@ -570,26 +606,37 @@ defmodule Tuist.Kura.Reconciler do
   defp fail(deployment, server, reason) do
     message = if is_binary(reason), do: reason, else: inspect(reason)
 
-    capture_deploy_failure(deployment, server, message)
+    capture_deploy_failure(deployment, server, reason, message)
 
     {:ok, _} = Kura.mark_failed(deployment, message)
     if server, do: Kura.fail_server(server)
     :ok
   end
 
-  defp capture_deploy_failure(deployment, server, message) do
+  defp capture_deploy_failure(deployment, server, reason, message) do
+    kind = failure_kind(reason)
+
     Sentry.capture_message("Kura deploy failed",
       level: :error,
+      tags: %{failure_kind: kind, region: server && server.region},
       extra: %{
         deployment_id: deployment.id,
         image_tag: deployment.image_tag,
         server_id: server && server.id,
         account_id: server && server.account_id,
         region: server && server.region,
-        reason: message
+        failure_detail: message,
+        failure_kind: kind
       }
     )
   end
+
+  defp failure_kind(:not_found), do: "not_found"
+  defp failure_kind({kind, _}) when is_atom(kind), do: Atom.to_string(kind)
+  defp failure_kind({kind, _, _}) when is_atom(kind), do: Atom.to_string(kind)
+  defp failure_kind(%{__struct__: module}), do: module |> Module.split() |> List.last() |> Macro.underscore()
+  defp failure_kind(reason) when is_binary(reason), do: "provisioner_error"
+  defp failure_kind(_reason), do: "unknown"
 
   defp server_status(:server_destroying), do: "destroying"
   defp server_status(:server_destroyed), do: "destroyed"

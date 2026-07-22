@@ -7,8 +7,8 @@ defmodule Tuist.Kura.RunnerCache do
   region:
 
     * an account with at least one Runner Profile whose platform the
-      region serves (`Regions.runner_platforms`) AND an explicit
-      `:runners` FunWithFlags toggle should have exactly one
+      region serves (`Regions.runner_platforms`) AND an explicit enabled
+      account-actor gate on the `:runners` flag should have exactly one
       non-destroyed Kura server in that region, and
     * an account with no such profiles — or without the flag — should
       have none there.
@@ -22,12 +22,13 @@ defmodule Tuist.Kura.RunnerCache do
   node even while its Linux profiles keep a node in a Linux-serving
   region.
 
-  The flag check is the explicit `FunWithFlags.enabled?(:runners, for:
-  account)` gate, deliberately NOT `FeatureFlags.runners_enabled?/1` —
-  that helper short-circuits to `true` outside production, which here
-  would provision a cache node for every dev account with auto-created
-  profiles and exhaust the kura node pool. A dedicated infra node is an
-  explicit opt-in in every environment.
+  Runner Profiles are auto-created for every account, so the candidate
+  query starts from the flag's explicit account actors instead of scanning
+  the full accounts table and evaluating the flag one row at a time. Global,
+  group, and percentage gates are intentionally rejected: they are suitable
+  for choosing request-time code paths, but they must not create or destroy
+  durable infrastructure for a broad or unstable cohort. When an unsafe gate
+  is present the reconciler preserves existing nodes and provisions nothing.
 
   This runs inside `Tuist.Kura.Reconciler`'s tick rather than on its own
   cron, so it shares the same cadence and self-heals after a BEAM
@@ -46,6 +47,7 @@ defmodule Tuist.Kura.RunnerCache do
 
   alias Tuist.Accounts.Account
   alias Tuist.Kura
+  alias Tuist.Kura.Deployment
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
   alias Tuist.Repo
@@ -53,38 +55,55 @@ defmodule Tuist.Kura.RunnerCache do
 
   require Logger
 
-  @provision_page_size 100
-  # Backstop against a pathological candidate set (e.g. the flag
-  # globally enabled in an env where every auto-profile account
-  # matches): a tick scans at most this many pages before deferring
-  # the rest to the next tick.
-  @max_provision_pages_per_tick 50
+  @retry_backoff_seconds [60, 300, 900, 3600]
 
   @doc """
   Converges runner-cache nodes with runner enablement. Safe to call on
   every reconciler tick; returns `:ok`.
   """
   def reconcile do
-    Enum.each(runner_cache_regions(), &reconcile_region/1)
+    case runner_cache_cohort() do
+      {:ok, account_ids} ->
+        Enum.each(runner_cache_regions(), &reconcile_region(&1, account_ids))
+
+      {:error, reason} ->
+        # The runner feature flag can control request paths with global or
+        # percentage gates, but those gates are unsafe for durable, per-account
+        # infrastructure. Preserve every existing node and provision nothing
+        # until the flag returns to an explicit actor-only shape.
+        detail = inspect(reason)
+
+        Logger.error("kura.runner_cache: refusing to reconcile an unsafe runner-cache cohort",
+          reason: detail
+        )
+
+        Sentry.capture_message("Kura runner-cache reconciliation paused",
+          level: :error,
+          tags: %{failure_kind: cohort_failure_kind(reason)},
+          extra: %{failure_detail: detail}
+        )
+    end
+
+    :ok
   end
 
-  defp reconcile_region(%Regions{id: region_id} = region) do
+  defp reconcile_region(%Regions{id: region_id} = region, account_ids) do
     # Tear down first so an account that flips runners off frees its node
     # even when no image tag is configured to provision new ones.
-    Enum.each(nodes_to_tear_down(region), &tear_down/1)
+    Enum.each(nodes_to_tear_down(region, account_ids), &tear_down/1)
 
     case image_tag() do
       nil ->
         :ok
 
       image_tag ->
-        Enum.each(accounts_needing_node(region), &provision(&1, region_id, image_tag))
+        Enum.each(accounts_needing_node(region, account_ids), &provision(&1, region_id, image_tag))
         # A node that failed before its first successful deployment
         # (transient apiserver error, missing CRD field, ...) would
         # otherwise strand its account forever: the server row exists,
         # so provisioning never re-runs, and nothing else retries
         # failed servers. Self-heal them on the same cadence.
-        Enum.each(nodes_to_retry(region_id), &retry(&1, image_tag))
+        Enum.each(nodes_to_retry(region_id, image_tag), &retry(&1, image_tag))
     end
 
     :ok
@@ -123,7 +142,7 @@ defmodule Tuist.Kura.RunnerCache do
     end
   end
 
-  defp accounts_needing_node(%Regions{id: region_id} = region) do
+  defp accounts_needing_node(%Regions{id: region_id} = region, account_ids) do
     platforms = region_platforms(region)
 
     server_exists =
@@ -141,61 +160,19 @@ defmodule Tuist.Kura.RunnerCache do
         select: 1
       )
 
-    # The SQL narrows to "has profiles, lacks a node"; the flag check
-    # runs per account in Elixir because FunWithFlags gates are
-    # actor-scoped (and can be set via a global boolean gate, so they
-    # can't be pre-joined as a column). Since default profiles are
-    # auto-created for every account, non-enabled accounts dominate
-    # the candidate set and never leave it (no node ever gets
-    # provisioned for them) — so a single capped page would return
-    # the same non-enabled rows every tick and permanently starve an
-    # enabled account that sorts after them. Keyset-page through the
-    # whole set instead, with a page backstop so a pathological env
-    # still yields a bounded tick.
-    base =
+    Repo.all(
       from(a in Account,
         as: :account,
+        where: a.id in ^MapSet.to_list(account_ids),
         where: exists(profile_exists),
         where: not exists(server_exists),
         order_by: [asc: a.id],
-        limit: @provision_page_size
+        select: a.id
       )
-
-    collect_enabled_candidates(base, region_id, nil, [], @max_provision_pages_per_tick)
-  end
-
-  defp collect_enabled_candidates(_base, region_id, _cursor, enabled_ids, 0) do
-    Logger.warning("kura.runner_cache: provision candidate scan hit the per-tick page cap",
-      cap: @max_provision_pages_per_tick,
-      region: region_id
     )
-
-    Enum.reverse(enabled_ids)
   end
 
-  defp collect_enabled_candidates(base, region_id, cursor, enabled_ids, pages_left) do
-    page =
-      base
-      |> after_cursor(cursor)
-      |> Repo.all()
-
-    enabled_ids =
-      page
-      |> Enum.filter(&runner_cache_enabled?/1)
-      |> Enum.map(& &1.id)
-      |> Enum.reverse(enabled_ids)
-
-    if length(page) < @provision_page_size do
-      Enum.reverse(enabled_ids)
-    else
-      collect_enabled_candidates(base, region_id, List.last(page).id, enabled_ids, pages_left - 1)
-    end
-  end
-
-  defp after_cursor(query, nil), do: query
-  defp after_cursor(query, cursor), do: where(query, [a], a.id > ^cursor)
-
-  defp nodes_to_tear_down(%Regions{id: region_id} = region) do
+  defp nodes_to_tear_down(%Regions{id: region_id} = region, account_ids) do
     platforms = region_platforms(region)
 
     profile_exists =
@@ -216,22 +193,73 @@ defmodule Tuist.Kura.RunnerCache do
         )
       )
 
-    flag_off =
-      from(s in Server,
-        as: :server,
-        join: a in assoc(s, :account),
-        where: s.region == ^region_id,
-        where: s.status not in [:destroying, :destroyed],
-        where: exists(profile_exists),
-        preload: [account: a]
-      )
-      |> Repo.all()
-      |> Enum.reject(&runner_cache_enabled?(&1.account))
+    cohort_ids = MapSet.to_list(account_ids)
 
-    no_profiles ++ flag_off
+    outside_cohort =
+      Repo.all(
+        from(s in Server,
+          as: :server,
+          where: s.region == ^region_id,
+          where: s.status not in [:destroying, :destroyed],
+          where: exists(profile_exists),
+          where: s.account_id not in ^cohort_ids,
+          select: s
+        )
+      )
+
+    Enum.uniq_by(no_profiles ++ outside_cohort, & &1.id)
   end
 
-  defp runner_cache_enabled?(account), do: FunWithFlags.enabled?(:runners, for: account)
+  defp runner_cache_cohort do
+    case FunWithFlags.get_flag(:runners) do
+      nil ->
+        {:ok, MapSet.new()}
+
+      {:error, reason} ->
+        {:error, {:feature_flag_unavailable, reason}}
+
+      %FunWithFlags.Flag{gates: gates} ->
+        if Enum.any?(gates, &unsafe_infrastructure_gate?/1) do
+          {:error, :non_actor_runner_gate}
+        else
+          actor_account_ids(gates)
+        end
+    end
+  end
+
+  defp actor_account_ids(gates) do
+    gates
+    |> Enum.filter(&match?(%FunWithFlags.Gate{type: :actor, enabled: true}, &1))
+    |> collect_actor_account_ids(MapSet.new())
+  end
+
+  defp collect_actor_account_ids([], account_ids), do: {:ok, account_ids}
+
+  defp collect_actor_account_ids([gate | gates], account_ids) do
+    case parse_account_actor(gate.for) do
+      {:ok, account_id} -> collect_actor_account_ids(gates, MapSet.put(account_ids, account_id))
+      :error -> {:error, {:unsupported_runner_actor, gate.for}}
+    end
+  end
+
+  defp unsafe_infrastructure_gate?(%FunWithFlags.Gate{type: :boolean, enabled: true}), do: true
+  defp unsafe_infrastructure_gate?(%FunWithFlags.Gate{type: :percentage_of_time}), do: true
+  defp unsafe_infrastructure_gate?(%FunWithFlags.Gate{type: :percentage_of_actors}), do: true
+  defp unsafe_infrastructure_gate?(%FunWithFlags.Gate{type: :group, enabled: true}), do: true
+  defp unsafe_infrastructure_gate?(_gate), do: false
+
+  defp cohort_failure_kind({:feature_flag_unavailable, _reason}), do: "feature_flag_unavailable"
+  defp cohort_failure_kind({:unsupported_runner_actor, _actor}), do: "unsupported_runner_actor"
+  defp cohort_failure_kind(:non_actor_runner_gate), do: "non_actor_runner_gate"
+
+  defp parse_account_actor("account:" <> id) do
+    case Integer.parse(id) do
+      {account_id, ""} -> {:ok, account_id}
+      _ -> :error
+    end
+  end
+
+  defp parse_account_actor(_actor), do: :error
 
   defp provision(account_id, region_id, image_tag) do
     case Kura.create_server(%{account_id: account_id, region: region_id, image_tag: image_tag}) do
@@ -252,7 +280,14 @@ defmodule Tuist.Kura.RunnerCache do
   # (`current_image_tag` nil) — the only state `Kura.retry_server/2`
   # accepts. Failures after a successful deploy keep their node and are
   # an operator concern, not ours.
-  defp nodes_to_retry(region_id) do
+  defp nodes_to_retry(region_id, image_tag) do
+    servers = failed_first_deploy_servers(region_id)
+    failure_histories = retry_failure_histories(servers, image_tag)
+
+    Enum.filter(servers, &retry_due?(&1, Map.get(failure_histories, &1.id, [])))
+  end
+
+  defp failed_first_deploy_servers(region_id) do
     Repo.all(
       from(s in Server,
         where: s.region == ^region_id,
@@ -261,6 +296,60 @@ defmodule Tuist.Kura.RunnerCache do
         select: s
       )
     )
+  end
+
+  defp retry_failure_histories([], _image_tag), do: %{}
+
+  defp retry_failure_histories(servers, image_tag) do
+    server_ids = Enum.map(servers, & &1.id)
+
+    ranked_failures =
+      from(d in Deployment,
+        where: d.kura_server_id in ^server_ids,
+        where: d.image_tag == ^image_tag,
+        where: d.status == :failed,
+        windows: [
+          per_server: [
+            partition_by: d.kura_server_id,
+            order_by: [desc: d.finished_at, desc: d.inserted_at, desc: d.id]
+          ]
+        ],
+        select: %{
+          finished_at: d.finished_at,
+          rank: over(row_number(), :per_server),
+          server_id: d.kura_server_id
+        }
+      )
+
+    ranked_failures
+    |> subquery()
+    |> where([failure], failure.rank <= ^length(@retry_backoff_seconds))
+    |> order_by([failure], asc: failure.server_id, asc: failure.rank)
+    |> select([failure], {failure.server_id, failure.finished_at})
+    |> Repo.all()
+    |> Enum.group_by(fn {server_id, _finished_at} -> server_id end, fn {_server_id, finished_at} -> finished_at end)
+  end
+
+  defp retry_due?(%Server{} = server, failures) do
+    case failures do
+      [] ->
+        true
+
+      [nil | _] ->
+        false
+
+      [last_failed_at | _] ->
+        delay = retry_delay_seconds(server.id, length(failures))
+        retry_at = DateTime.add(last_failed_at, delay, :second)
+        DateTime.compare(DateTime.utc_now(), retry_at) != :lt
+    end
+  end
+
+  defp retry_delay_seconds(server_id, failure_count) do
+    base_delay = Enum.at(@retry_backoff_seconds, failure_count - 1)
+    jitter_window = div(base_delay, 10)
+    jitter = :erlang.phash2(server_id, jitter_window * 2 + 1) - jitter_window
+    min(base_delay + jitter, List.last(@retry_backoff_seconds))
   end
 
   defp retry(%Server{} = server, image_tag) do
