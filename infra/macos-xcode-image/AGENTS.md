@@ -52,8 +52,8 @@ ghcr.io/tuist/tuist-xcresult-processor:<server-semver>
 ```
 
 Why split this layer out: the Xcode install is ~30 min of work
-(unxip, license accept, runFirstLaunch, Metal Toolchain, and
-downloadAllPlatforms). If that lived in the runner-image /
+(unxip, license accept, runFirstLaunch, downloadAllPlatforms, and
+download Metal Toolchain). If that lived in the runner-image /
 xcresult-processor packer files,
 every `fix(runner-image): ...` commit on main would pay the cost
 again. With the split, Layer 2 builds re-clone Layer 1 and lay a
