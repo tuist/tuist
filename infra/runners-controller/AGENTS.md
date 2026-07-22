@@ -130,8 +130,9 @@ independent workqueues:
   dispatchable work**. Raw queue depth includes jobs held back because
   their account is at its platform concurrency limit; dispatch will never
   hand those out, so with a raw count the overlap is a valid steady state
-  rather than a fault. `..._queued_jobs` is only trustworthy for this
-  once the server reports dispatchable demand. Nothing else shows it: the phase
+  rather than a fault. The server caps each account's contribution at its
+  remaining concurrency headroom before exporting the count (tuist/tuist#11981),
+  which is what makes `..._queued_jobs` trustworthy here. Nothing else shows it: the phase
   count reads a warm idle Pod and a Pod running a customer job
   identically (both `Running`), `claimed+queued` stays flat while work
   drains normally (`queued` → `claimed`), and the oldest-un-booted-Pod
