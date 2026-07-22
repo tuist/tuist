@@ -1110,14 +1110,14 @@ impl ActionCache for ReapiService {
         // files, stdout/stderr, and each output directory's tree plus the files
         // it lists — not just output files, so a Bazel client with tree
         // artifacts is covered as well. Mostly existence-cache hits.
-        let evicted = first_evicted_output(
+        if let Some(missing) = first_evicted_output(
             &self.state,
             namespace_id,
             &action_result,
             &mut materialization_budget,
         )
-        .await;
-        if let Some(missing) = evicted {
+        .await
+        {
             // Delete the dead entry past the replication grace window (a
             // freshly replicated entry's blobs may still be in flight), so
             // the next publish recreates it instead of every reader paying
