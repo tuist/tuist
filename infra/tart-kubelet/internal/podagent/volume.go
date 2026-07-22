@@ -504,6 +504,37 @@ func inventoryDigest(cacheRoot string) (string, error) {
 	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
+// objectsToMerge returns the cache objects (relative "<subdir>/<name>") present
+// under srcRoot but not under dstRoot — the additive delta a union merge copies.
+//
+// This is the heart of object-level reconciliation: a promote or a converge no
+// longer REPLACES one image with another (which drops every object the other
+// side had and this one lacked — the bug that emptied masters fleet-wide), it
+// UNIONS the missing objects in. Cache objects are content-addressed, so a name
+// present on both sides is byte-identical and skipped; nothing is ever removed
+// here (the cap is handled separately by LRU). Dotfiles are ignored, matching
+// inventoryDigest, so an in-flight .tmp never counts as an object.
+func objectsToMerge(srcRoot, dstRoot string) []string {
+	var missing []string
+	for _, sub := range cacheInventorySubdirs {
+		entries, err := os.ReadDir(filepath.Join(srcRoot, sub))
+		if err != nil {
+			continue // src lacks this subtree — nothing to contribute
+		}
+		for _, e := range entries {
+			if strings.HasPrefix(e.Name(), ".") {
+				continue
+			}
+			if _, err := os.Stat(filepath.Join(dstRoot, sub, e.Name())); err == nil {
+				continue // already present — content-addressed, so identical
+			}
+			missing = append(missing, sub+"/"+e.Name())
+		}
+	}
+	sort.Strings(missing)
+	return missing
+}
+
 // ReplaceMaster fast-forwards an account's master to the image at src (a
 // fresher master downloaded from the volume HEAD), recording digest as the
 // inventory it holds. src must live on the runner-cache volume so the clone

@@ -922,6 +922,50 @@ func TestInventoryDigestMatchesGuestScript(t *testing.T) {
 	}
 }
 
+func TestObjectsToMergeIsAdditiveDelta(t *testing.T) {
+	src := t.TempDir()
+	dst := t.TempDir()
+
+	// src holds two binaries + a manifest; dst already has one of the binaries.
+	// The union delta is everything in src that dst lacks — never what dst
+	// already has (content-addressed → identical) and never dst-only objects
+	// (union removes nothing).
+	for _, p := range []string{"Binaries/hashA", "Binaries/hashB", "Manifests/m1"} {
+		if err := os.MkdirAll(filepath.Join(src, p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, p := range []string{"Binaries/hashA", "Plugins/keepMe", ".DS_Store"} {
+		if err := os.MkdirAll(filepath.Join(dst, filepath.Dir(p)), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.MkdirAll(filepath.Join(dst, p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// A dotfile in src must never be treated as an object.
+	if err := os.WriteFile(filepath.Join(src, "Binaries", ".DS_Store"), []byte("noise"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	got := objectsToMerge(src, dst)
+	want := []string{"Binaries/hashB", "Manifests/m1"}
+	if len(got) != len(want) {
+		t.Fatalf("objectsToMerge = %v; want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("objectsToMerge = %v; want %v", got, want)
+		}
+	}
+
+	// No delta when dst already has everything src does — a converge that would
+	// be a no-op must copy nothing (and skip the expensive attach+ditto).
+	if d := objectsToMerge(src, src); len(d) != 0 {
+		t.Fatalf("objectsToMerge(src, src) = %v; want empty (nothing to add)", d)
+	}
+}
+
 func TestReplaceMasterFastForwards(t *testing.T) {
 	m, _ := newTestManager(t, 100)
 	seedMasterWithDigest(t, m, "42", "stale-digest")
