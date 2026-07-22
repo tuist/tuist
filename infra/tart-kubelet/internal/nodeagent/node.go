@@ -20,6 +20,8 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+
+	"github.com/tuist/tuist/infra/tart-kubelet/internal/hostdisk"
 )
 
 // Maintainer is a controller-runtime Runnable. Owns the Node object's
@@ -303,6 +305,22 @@ func (m *Maintainer) configureNode(node *corev1.Node, dynamicLabels map[string]s
 		list[corev1.ResourceCPU] = resource.MustParse(fmt.Sprintf("%d", cpu))
 		list[corev1.ResourceMemory] = resource.MustParse(fmt.Sprintf("%dMi", mem))
 		list[corev1.ResourcePods] = resource.MustParse(fmt.Sprintf("%d", maxPods))
+	}
+
+	// Ephemeral storage = the root APFS container that holds every Tart
+	// golden base + clone. A real kubelet reports this; without it the
+	// host disk is absent from `kubectl describe node` and invisible to
+	// ephemeral-storage-aware tooling, so a fill (which silently breaks
+	// the operator's SSH config updates) can't be seen at the k8s layer.
+	// We report the filesystem size for both capacity and allocatable —
+	// tart-kubelet does no ephemeral-storage request accounting, so the
+	// dynamic fill signal is the DiskPressure condition (applyDiskPressure),
+	// not a shrinking allocatable. A statvfs error just omits the resource
+	// this heartbeat rather than failing the whole status update.
+	if st, err := hostdisk.Root("/"); err == nil && st.TotalBytes > 0 {
+		q := resource.NewQuantity(int64(st.TotalBytes), resource.BinarySI)
+		node.Status.Capacity[corev1.ResourceEphemeralStorage] = *q
+		node.Status.Allocatable[corev1.ResourceEphemeralStorage] = *q
 	}
 
 	now := metav1.Now()

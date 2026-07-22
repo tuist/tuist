@@ -363,6 +363,36 @@ k8s-monitoring:
   # this chart and the embedded Prometheus that self-hosters opt into
   # via observability.enabled in the main Tuist chart.
   #
+  # This is what scrapes the capi-scaleway-applesilicon operator's :8080
+  # (annotated in infra/helm/tuist/templates/capi-scaleway-applesilicon.yaml),
+  # including its custom capt_scaleway_applesilicon_machine_phase gauge.
+  #
+  # Alert to create in Grafana Cloud (PromQL) — runner host stuck terminal
+  # Failed. A host whose tart-kubelet config roll keeps failing (e.g.
+  # TartKubeletUpdateExceededRetries from a full disk or wedged sshd) goes
+  # terminal Failed and stops receiving operator updates while its Node may
+  # still serve — otherwise only visible via `kubectl get machine`:
+  #
+  #   max by (cluster, machine, fleet, failure_reason) (
+  #     capt_scaleway_applesilicon_machine_phase{phase="Failed", fleet="tuist-tuist-runners-fleet"}
+  #   ) == 1
+  #
+  # Group by failure_reason (and cluster) so the alert keeps that label —
+  # dropping it would render the summary's {{ $labels.failure_reason }} empty.
+  # phase and failure_reason move together (one series per machine), so
+  # grouping on failure_reason never splits a machine into two alerts.
+  #
+  # Recommended config:
+  #   - For: 30m   (a transient roll failure self-heals via the retry cap /
+  #                 config-drift clear; 30m means genuinely stuck)
+  #   - Severity: warning
+  #   - Summary: "Runner machine {{ $labels.machine }} stuck Failed
+  #              ({{ $labels.failure_reason }}) — not receiving operator
+  #              updates. Read the operator log for the real error before
+  #              clearing status.failureReason."
+  #   - Note: exactly one series per machine (recordMachinePhase clears the
+  #     prior phase on transition), so a recovered machine stops matching.
+  #
   # metricsPortName narrows the discovery output to a single target per
   # pod when the pod declares more than one container port. Without it,
   # Kubernetes pod-role discovery emits one target per declared port
@@ -600,6 +630,32 @@ k8s-monitoring:
       # materialise these Services, so the discovery returns zero
       # targets and the scrape jobs are no-ops. No need to gate this
       # block behind a values flag.
+      #
+      # Alert to create in Grafana Cloud (PromQL) — runner-host disk buffer.
+      # The Mac minis accumulate Tart golden base images (~68G each) on the
+      # root APFS container; at ~6 goldens the disk fills and every operator
+      # SSH config update fails with "No space left on device" while the Node
+      # still reports Ready (tart-kubelet now also reports DiskPressure + a
+      # golden GC reclaims at 15% free, but the alert is the backstop). Keep
+      # at least a 10% free buffer:
+      #
+      #   100 * (
+      #     node_filesystem_avail_bytes{job="tuist-macos-node-exporter", instance=~"tuist-tuist-runners-fleet-.*", mountpoint="/"}
+      #     /
+      #     node_filesystem_size_bytes{job="tuist-macos-node-exporter", instance=~"tuist-tuist-runners-fleet-.*", mountpoint="/"}
+      #   ) < 10
+      #
+      # Recommended config:
+      #   - For: 15m   (ride out a scrape gap; well under the fill timescale)
+      #   - Severity: warning
+      #   - Summary: "Runner host {{ $labels.instance }} root disk
+      #              {{ $value | printf \"%.0f\" }}% free (< 10% buffer) —
+      #              Tart goldens filling the disk; the golden GC should be
+      #              reclaiming. Check tart-kubelet DiskPressure + ~/.tart/vms."
+      #   - Note: node_* series carry no fleet label; the machine-name prefix
+      #     `instance=~"tuist-tuist-runners-fleet-.*"` scopes to the runners
+      #     fleet (vs -macos-fleet-/-builders-fleet-). Add env="production"
+      #     to scope by environment.
       extraConfig: |
         // Discover all Services labelled tuist.dev/macmini-egress=true.
         // Materialised by infra/helm/tailscale-operator/templates/
