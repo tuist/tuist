@@ -279,6 +279,39 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       refute Map.has_key?(non_entitled["spec"], "meshExternalPeers")
     end
 
+    test "resolves the subscription once for every entitlement-dependent manifest field" do
+      stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+
+      stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
+        "00000000-0000-0000-0000-000000000001"
+      end)
+
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+      account = %Account{id: 1, name: "tuist"}
+
+      expect(Tuist.Billing, :get_current_active_subscription, 1, fn ^account ->
+        %{plan: :enterprise}
+      end)
+
+      manifest =
+        KubernetesController.manifest(
+          "kura-tuist-eu-central-1",
+          "0.5.2",
+          account,
+          eu_region(%{mesh: true, egress_guaranteed_mbps: 25}),
+          %Server{},
+          "return true",
+          ["https://kura.acme.example:7443"]
+        )
+
+      assert manifest["spec"]["meshExternalPeers"] == ["https://kura.acme.example:7443"]
+      assert manifest["spec"]["egressGuaranteedMbps"] == 25
+
+      assert Map.new(manifest["spec"]["extraEnv"], &{&1["name"], &1["value"]})[
+               "KURA_MESH_PEERS_SYNC"
+             ] == "true"
+    end
+
     test "withholds peer-view sync outside a mesh region" do
       stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
 
