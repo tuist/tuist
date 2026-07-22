@@ -2,6 +2,7 @@ defmodule Tuist.Runners.JobsTest do
   use TuistTestSupport.Cases.DataCase, async: true
 
   import Ecto.Query
+  import Mimic
   import TuistTestSupport.Fixtures.AccountsFixtures
 
   alias Tuist.IngestRepo
@@ -13,6 +14,7 @@ defmodule Tuist.Runners.JobsTest do
   alias Tuist.Runners.RunnerSessions
   alias Tuist.Runners.Telemetry
   alias Tuist.Runners.WorkflowJob
+  alias Tuist.Runners.WorkflowJobs
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
@@ -1356,6 +1358,65 @@ defmodule Tuist.Runners.JobsTest do
       row = Repo.get!(WorkflowJob, 9603)
       assert row.status == "cancelled"
       assert row.conclusion == "cancelled"
+    end
+  end
+
+  describe "postgres dispatch reads behind :runner_dispatch_postgres_reads" do
+    setup do
+      stub(FunWithFlags, :enabled?, fn
+        :runner_dispatch_postgres_reads -> true
+        _other -> false
+      end)
+
+      :ok
+    end
+
+    test "pick_queued_top_k/5 serves candidates from the Postgres lifecycle table" do
+      account = account_fixture()
+      now = DateTime.utc_now()
+
+      :ok =
+        WorkflowJobs.upsert_queued(%{
+          workflow_job_id: 9610,
+          account_id: account.id,
+          fleet_name: "fleet-pg-reads",
+          platform: "linux",
+          vcpus: 4,
+          memory_gb: 16,
+          repository: "acme/cli",
+          workflow_run_id: 96_100,
+          workflow_name: "CI",
+          run_attempt: 1,
+          job_name: "build",
+          head_branch: "main",
+          head_sha: "deadbeef",
+          requested_dispatch_label: "tuist-linux",
+          enqueued_at: DateTime.add(now, -60, :second)
+        })
+
+      assert {:ok, [candidate]} = Jobs.pick_queued_top_k("fleet-pg-reads", [], [], [], 20)
+      assert candidate.workflow_job_id == 9610
+      assert candidate.fleet_name == "fleet-pg-reads"
+      assert candidate.platform == "linux"
+      assert candidate.requested_dispatch_label == "tuist-linux"
+
+      assert {:ok, ^candidate} = Jobs.pick_queued("fleet-pg-reads", [])
+    end
+
+    test "queued counts come from the Postgres lifecycle table" do
+      account = account_fixture()
+
+      for workflow_job_id <- [9620, 9621] do
+        :ok =
+          WorkflowJobs.upsert_queued(%{
+            workflow_job_id: workflow_job_id,
+            account_id: account.id,
+            fleet_name: "fleet-pg-counts"
+          })
+      end
+
+      assert Jobs.queued_count_by_fleet("fleet-pg-counts") == 2
+      assert Jobs.queued_count_by_fleet_and_account("fleet-pg-counts") == %{account.id => 2}
     end
   end
 end

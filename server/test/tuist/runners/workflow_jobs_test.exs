@@ -264,4 +264,87 @@ defmodule Tuist.Runners.WorkflowJobsTest do
       assert [%{status: "queued", enqueued_at: %DateTime{}}] = rows
     end
   end
+
+  describe "pick_queued_top_k/6" do
+    test "returns queued candidates in (enqueued_at, workflow_job_id) order with the CH candidate shape" do
+      account = account_fixture()
+      now = DateTime.utc_now()
+      floor = DateTime.add(now, -7 * 86_400, :second)
+
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_061, enqueued_at: DateTime.add(now, -60, :second)))
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_060, enqueued_at: DateTime.add(now, -120, :second)))
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_062, enqueued_at: DateTime.add(now, -30, :second)))
+
+      assert {:ok, [first, second, third]} = WorkflowJobs.pick_queued_top_k("fleet-a", [], [], [], 20, floor)
+
+      assert [first.workflow_job_id, second.workflow_job_id, third.workflow_job_id] == [910_060, 910_061, 910_062]
+
+      assert %{
+               workflow_job_id: 910_060,
+               account_id: _,
+               fleet_name: "fleet-a",
+               platform: "linux",
+               vcpus: 4,
+               memory_gb: 16,
+               repository: "acme/cli",
+               workflow_run_id: _,
+               workflow_name: "CI",
+               run_attempt: 1,
+               job_name: "build",
+               head_branch: "main",
+               head_sha: "deadbeef",
+               enqueued_at: %DateTime{},
+               requested_dispatch_label: "tuist-linux"
+             } = first
+    end
+
+    test "applies the account, repository, and workflow_job exclusions" do
+      account = account_fixture()
+      excluded_account = account_fixture()
+      floor = DateTime.add(DateTime.utc_now(), -7 * 86_400, :second)
+
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_070))
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_071))
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_072, repository: "acme/other"))
+      :ok = WorkflowJobs.upsert_queued(attrs(excluded_account, 910_073))
+
+      assert {:ok, [candidate]} =
+               WorkflowJobs.pick_queued_top_k("fleet-a", [excluded_account.id], ["acme/other"], [910_070], 20, floor)
+
+      assert candidate.workflow_job_id == 910_071
+    end
+
+    test "skips non-queued rows and rows older than the floor" do
+      account = account_fixture()
+      now = DateTime.utc_now()
+      floor = DateTime.add(now, -7 * 86_400, :second)
+
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_080))
+      :ok = WorkflowJobs.transition_claimed(910_080, "pod-1", now)
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_081, enqueued_at: DateTime.add(now, -8 * 86_400, :second)))
+
+      assert {:error, :empty} = WorkflowJobs.pick_queued_top_k("fleet-a", [], [], [], 20, floor)
+    end
+  end
+
+  describe "queued counts" do
+    test "count totals and per-account breakdown match the queued rows" do
+      account = account_fixture()
+      other_account = account_fixture()
+      floor = DateTime.add(DateTime.utc_now(), -7 * 86_400, :second)
+
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_090))
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_091))
+      :ok = WorkflowJobs.upsert_queued(attrs(other_account, 910_092))
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_093, fleet: "fleet-b"))
+      :ok = WorkflowJobs.transition_claimed(910_091, "pod-1", DateTime.utc_now())
+
+      assert WorkflowJobs.queued_count_by_fleet("fleet-a", floor) == 2
+
+      assert WorkflowJobs.queued_count_by_fleet_and_account("fleet-a", floor) == %{
+               account.id => 1,
+               other_account.id => 1
+             }
+    end
+  end
 end

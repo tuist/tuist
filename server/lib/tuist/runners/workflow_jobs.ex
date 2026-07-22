@@ -190,6 +190,79 @@ defmodule Tuist.Runners.WorkflowJobs do
   def record_execution(_runner_name, _executed_workflow_job_id, _account_id), do: :ok
 
   @doc """
+  Postgres twin of `Tuist.Runners.Jobs.pick_queued_top_k/5`, returning
+  the same candidate map shape in the same deterministic
+  `(enqueued_at ASC, workflow_job_id ASC)` order. `enqueued_floor`
+  mirrors the ClickHouse read's lookback bound so a flag flip cannot
+  resurface jobs the CH path had already aged out of view.
+  """
+  def pick_queued_top_k(
+        fleet_name,
+        ineligible_account_ids,
+        excluded_repositories,
+        excluded_workflow_job_ids,
+        k,
+        %DateTime{} = enqueued_floor
+      )
+      when is_binary(fleet_name) and is_integer(k) and k > 0 do
+    from(j in WorkflowJob,
+      where: j.fleet_name == ^fleet_name and j.status == "queued" and j.enqueued_at > ^enqueued_floor,
+      order_by: [asc: j.enqueued_at, asc: j.workflow_job_id],
+      limit: ^k,
+      select: %{
+        workflow_job_id: j.workflow_job_id,
+        account_id: j.account_id,
+        fleet_name: j.fleet_name,
+        platform: j.platform,
+        vcpus: j.vcpus,
+        memory_gb: j.memory_gb,
+        repository: j.repository,
+        workflow_run_id: j.workflow_run_id,
+        workflow_name: j.workflow_name,
+        run_attempt: j.run_attempt,
+        job_name: j.job_name,
+        head_branch: j.head_branch,
+        head_sha: j.head_sha,
+        enqueued_at: j.enqueued_at,
+        requested_dispatch_label: j.requested_dispatch_label
+      }
+    )
+    |> exclude_accounts(ineligible_account_ids)
+    |> exclude_repositories(excluded_repositories)
+    |> exclude_workflow_jobs(excluded_workflow_job_ids)
+    |> Repo.all()
+    |> case do
+      [] -> {:error, :empty}
+      candidates -> {:ok, candidates}
+    end
+  end
+
+  @doc """
+  Postgres twin of `Tuist.Runners.Jobs.queued_count_by_fleet/1`.
+  """
+  def queued_count_by_fleet(fleet_name, %DateTime{} = enqueued_floor) when is_binary(fleet_name) do
+    Repo.aggregate(
+      from(j in WorkflowJob,
+        where: j.fleet_name == ^fleet_name and j.status == "queued" and j.enqueued_at > ^enqueued_floor
+      ),
+      :count
+    )
+  end
+
+  @doc """
+  Postgres twin of `Tuist.Runners.Jobs.queued_count_by_fleet_and_account/1`.
+  """
+  def queued_count_by_fleet_and_account(fleet_name, %DateTime{} = enqueued_floor) when is_binary(fleet_name) do
+    from(j in WorkflowJob,
+      where: j.fleet_name == ^fleet_name and j.status == "queued" and j.enqueued_at > ^enqueued_floor,
+      group_by: j.account_id,
+      select: {j.account_id, count()}
+    )
+    |> Repo.all()
+    |> Map.new()
+  end
+
+  @doc """
   Rows whose `updated_at` falls in `(updated_after, updated_before)`,
   newest first, capped at `limit`. Feeds the drift comparator: the
   upper bound keeps rows mid-transition (Postgres committed, the
@@ -268,6 +341,24 @@ defmodule Tuist.Runners.WorkflowJobs do
 
   defp blank_to_nil(""), do: nil
   defp blank_to_nil(value), do: value
+
+  defp exclude_accounts(query, []), do: query
+
+  defp exclude_accounts(query, account_ids) when is_list(account_ids) do
+    where(query, [j], j.account_id not in ^account_ids)
+  end
+
+  defp exclude_repositories(query, []), do: query
+
+  defp exclude_repositories(query, repositories) when is_list(repositories) do
+    where(query, [j], j.repository not in ^repositories)
+  end
+
+  defp exclude_workflow_jobs(query, []), do: query
+
+  defp exclude_workflow_jobs(query, workflow_job_ids) when is_list(workflow_job_ids) do
+    where(query, [j], j.workflow_job_id not in ^workflow_job_ids)
+  end
 
   defp completion_recorded?(workflow_job_id) do
     Repo.exists?(from(completion in JobCompletion, where: completion.workflow_job_id == ^workflow_job_id))
