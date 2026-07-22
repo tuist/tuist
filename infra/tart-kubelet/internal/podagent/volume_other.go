@@ -22,7 +22,3 @@ func (unsupportedVolumeBackend) createImage(string, int) error    { return errUn
 func (unsupportedVolumeBackend) imageInventoryDigest(string) (string, error) {
 	return "", errUnsupported
 }
-
-func (unsupportedVolumeBackend) mergeInto(string, string) (string, error) {
-	return "", errUnsupported
-}
