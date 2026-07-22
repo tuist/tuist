@@ -66,7 +66,7 @@ defmodule Tuist.Billing.Entitlements do
     |> Enum.filter(&(&1.status in ["active", "trialing"]))
     |> case do
       [] -> :air
-      active -> active |> Enum.max_by(&{&1.inserted_at, &1.id}) |> Map.fetch!(:plan)
+      active -> active |> latest_subscription() |> Map.fetch!(:plan)
     end
   end
 
@@ -78,4 +78,14 @@ defmodule Tuist.Billing.Entitlements do
   end
 
   defp current_plan(_), do: :air
+
+  defp latest_subscription([subscription | subscriptions]) do
+    Enum.reduce(subscriptions, subscription, fn candidate, latest ->
+      case NaiveDateTime.compare(candidate.inserted_at, latest.inserted_at) do
+        :gt -> candidate
+        :lt -> latest
+        :eq -> if candidate.id > latest.id, do: candidate, else: latest
+      end
+    end)
+  end
 end

@@ -278,7 +278,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
           "exposeNodePort" => Regions.node_port_data_plane?(region),
           "clientCIDRs" => client_cidrs(region),
           "podAnnotations" => pod_annotations(region),
-          "egressGuaranteedMbps" => egress_guaranteed_mbps(region, entitlements),
+          "egressGuaranteedMbps" => entitlements.egress_guaranteed_mbps,
           "storageClassName" => storage_class(region),
           "storageSize" => storage_size(region),
           "replicas" => replicas(region),
@@ -337,18 +337,29 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   # roster (its managed peers, baked into the manifest), so it has nothing
   # dynamic to under-replicate to and must not arm Kura's peer-view boot gate.
   defp manifest_entitlements(account, %Regions{} = region) do
+    configured_egress_mbps = configured_egress_guaranteed_mbps(region)
+
     features =
       []
       |> maybe_request_entitlement(mesh_enabled?(region), :self_hosted_cache)
-      |> maybe_request_entitlement(guaranteed_egress_configured?(region), :guaranteed_egress_floor)
-    Entitlements.allowed_features(account, features)
+      |> maybe_request_entitlement(not is_nil(configured_egress_mbps), :guaranteed_egress_floor)
+
+    allowed_features = Entitlements.allowed_features(account, features)
+
+    egress_guaranteed_mbps =
+      case configured_egress_mbps do
+        nil -> nil
+        mbps -> if MapSet.member?(allowed_features, :guaranteed_egress_floor), do: mbps, else: 0
+      end
+
+    %{allowed_features: allowed_features, egress_guaranteed_mbps: egress_guaranteed_mbps}
   end
 
   defp maybe_request_entitlement(features, true, feature), do: [feature | features]
   defp maybe_request_entitlement(features, false, _feature), do: features
 
   defp mesh_peers_sync_enabled?(%Regions{} = region, entitlements) do
-    mesh_enabled?(region) and MapSet.member?(entitlements, :self_hosted_cache)
+    mesh_enabled?(region) and MapSet.member?(entitlements.allowed_features, :self_hosted_cache)
   end
 
   defp self_hosted_peers(account, %Regions{} = region, entitlements) do
@@ -690,19 +701,12 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   # tuist.dev/egress-mbps extended resource so the scheduler bin-packs the pod
   # against the node's advertised budget. Enterprise-only — the default pattern
   # is bursty, so non-enterprise tenants run best-effort under the Cilium burst
-  # ceiling alone and pack densely. nil (dropped) when the region has no floor or
-  # the account isn't entitled.
-  defp guaranteed_egress_configured?(%Regions{provisioner_config: %{egress_guaranteed_mbps: mbps}})
-       when is_integer(mbps) and mbps > 0, do: true
+  # ceiling alone and pack densely. A configured floor renders as zero for an
+  # unentitled account, while nil drops the field when the region has no floor.
+  defp configured_egress_guaranteed_mbps(%Regions{provisioner_config: %{egress_guaranteed_mbps: mbps}})
+       when is_integer(mbps) and mbps > 0, do: mbps
 
-  defp guaranteed_egress_configured?(_region), do: false
-
-  defp egress_guaranteed_mbps(%Regions{provisioner_config: %{egress_guaranteed_mbps: mbps}}, entitlements)
-       when is_integer(mbps) and mbps > 0 do
-    if MapSet.member?(entitlements, :guaranteed_egress_floor), do: mbps
-  end
-
-  defp egress_guaranteed_mbps(_region, _entitlements), do: nil
+  defp configured_egress_guaranteed_mbps(_region), do: nil
 
   # Whether the region's shared gateway runs host-network (directly on the
   # bare-metal box NIC) rather than as an LB-fronted controller. Drives the

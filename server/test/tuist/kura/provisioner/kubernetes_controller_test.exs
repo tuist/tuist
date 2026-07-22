@@ -101,7 +101,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       assert spec["podAnnotations"] == %{"kubernetes.io/egress-bandwidth" => "1500M"}
     end
 
-    test "withholds the egress floor from non-enterprise accounts (burst ceiling only)" do
+    test "renders a zero egress floor for non-enterprise accounts" do
       stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
 
       stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
@@ -125,9 +125,9 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
         )
 
       spec = manifest["spec"]
-      # No floor for the bursty default tenant ...
-      refute Map.has_key?(spec, "egressGuaranteedMbps")
-      # ... but the burst ceiling still applies.
+      # Zero keeps the effective value explicit without requesting the extended resource.
+      assert spec["egressGuaranteedMbps"] == 0
+      # The burst ceiling still applies.
       assert spec["podAnnotations"] == %{"kubernetes.io/egress-bandwidth" => "1500M"}
     end
 
@@ -176,15 +176,14 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       refute Map.has_key?(non_entitled_env, "KURA_MESH_PEERS_SYNC")
     end
 
-    test "withholds the peer-view sync outside a mesh region even for a self-hosting account" do
+    test "does not resolve entitlements when the region has no gated manifest fields" do
       stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
 
       stub(Tuist.Environment, :kura_control_plane_client_id, fn ->
         "00000000-0000-0000-0000-000000000001"
       end)
 
-      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
-      stub(Tuist.Billing, :get_current_active_subscription, fn _ -> %{plan: :enterprise} end)
+      reject(&Tuist.Billing.get_current_active_subscription/1)
 
       manifest =
         KubernetesController.manifest(
@@ -198,6 +197,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       env = Map.new(manifest["spec"]["extraEnv"], &{&1["name"], &1["value"]})
       refute Map.has_key?(env, "KURA_MESH_PEERS_SYNC")
+      refute Map.has_key?(manifest["spec"], "egressGuaranteedMbps")
     end
 
     test "emits the mesh flag only when the region enables the per-account peer mesh" do

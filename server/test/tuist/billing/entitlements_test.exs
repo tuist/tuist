@@ -131,5 +131,30 @@ defmodule Tuist.Billing.EntitlementsTest do
       assert Entitlements.allowed_features(account, [:self_hosted_cache]) ==
                MapSet.new([:self_hosted_cache])
     end
+
+    test "selects the newest preloaded subscription across a month boundary" do
+      stub(Environment, :tuist_hosted?, fn -> true end)
+      account = AccountsFixtures.organization_fixture(preload: [:account]).account
+
+      older =
+        BillingFixtures.subscription_fixture(
+          account_id: account.id,
+          plan: :air,
+          inserted_at: ~N[2026-01-31 23:59:59]
+        )
+
+      newer =
+        BillingFixtures.subscription_fixture(
+          account_id: account.id,
+          plan: :enterprise,
+          inserted_at: ~N[2026-02-01 00:00:00]
+        )
+
+      account = %{account | subscriptions: [older, newer]}
+      reject(&Tuist.Billing.get_current_active_subscription/1)
+
+      assert Entitlements.allowed_features(account, [:self_hosted_cache]) ==
+               MapSet.new([:self_hosted_cache])
+    end
   end
 end
