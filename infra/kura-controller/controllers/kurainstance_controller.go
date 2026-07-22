@@ -17,6 +17,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -100,6 +101,16 @@ type KuraInstanceReconciler struct {
 	OTLPTracesEndpoint  string
 	Environment         string
 	RuntimeStatusClient RuntimeStatusClient
+
+	// podSamples holds the last-known /status/rollout report per pod, keyed
+	// by instance. It exists for the rollout-health aggregate: a pod that
+	// temporarily stops answering keeps contributing its last report (with
+	// its old timestamp, so staleness is visible), and the monotone counters
+	// survive pod restarts through reset clamping. In-memory only — a
+	// controller restart starts the accumulation over, which the consumer
+	// tolerates by treating counter decreases as no growth.
+	podSamplesMu sync.Mutex
+	podSamples   map[types.NamespacedName]map[string]*podRuntimeSample
 }
 
 type RuntimeStatusClient interface {
@@ -107,10 +118,48 @@ type RuntimeStatusClient interface {
 }
 
 type runtimeStatus struct {
-	Ready           bool   `json:"ready"`
-	State           string `json:"state"`
-	RingMembers     int    `json:"ring_members"`
-	WriterLockOwned bool   `json:"writer_lock_owned"`
+	Ready                      bool   `json:"ready"`
+	State                      string `json:"state"`
+	RingMembers                int    `json:"ring_members"`
+	WriterLockOwned            bool   `json:"writer_lock_owned"`
+	Generation                 uint64 `json:"generation"`
+	BootstrapInflightPeers     int64  `json:"bootstrap_inflight_peers"`
+	OutboxMessages             int64  `json:"outbox_messages"`
+	MemoryPressureState        int64  `json:"memory_pressure_state"`
+	FDTimeoutCount             uint64 `json:"fd_timeout_count"`
+	PeerConnectionFailureCount uint64 `json:"peer_connection_failure_count"`
+}
+
+// podRuntimeSample is one pod's last observed /status/rollout report plus
+// the reset-clamped counter accumulation. clampedFDTimeouts/clampedPeerFailures
+// are the values published upward: base + the pod's current reading, where
+// the base absorbs everything a previous incarnation of the pod's counter
+// had reached before a restart reset it.
+type podRuntimeSample struct {
+	status    runtimeStatus
+	sampledAt time.Time
+
+	fdTimeoutBase   uint64
+	peerFailureBase uint64
+}
+
+func (s *podRuntimeSample) observe(status runtimeStatus, now time.Time) {
+	if status.FDTimeoutCount < s.status.FDTimeoutCount {
+		s.fdTimeoutBase += s.status.FDTimeoutCount
+	}
+	if status.PeerConnectionFailureCount < s.status.PeerConnectionFailureCount {
+		s.peerFailureBase += s.status.PeerConnectionFailureCount
+	}
+	s.status = status
+	s.sampledAt = now
+}
+
+func (s *podRuntimeSample) clampedFDTimeouts() uint64 {
+	return s.fdTimeoutBase + s.status.FDTimeoutCount
+}
+
+func (s *podRuntimeSample) clampedPeerFailures() uint64 {
+	return s.peerFailureBase + s.status.PeerConnectionFailureCount
 }
 
 type httpRuntimeStatusClient struct {
@@ -211,6 +260,7 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		if err := r.reclaimDataVolumes(ctx, instance); err != nil {
 			return ctrl.Result{}, err
 		}
+		r.forgetPodSamples(instance)
 		controllerutil.RemoveFinalizer(instance, KuraInstanceFinalizer)
 		return ctrl.Result{}, r.Update(ctx, instance)
 	}
@@ -252,7 +302,12 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	if err := r.reconcilePeerDNSEndpoint(ctx, instance); err != nil {
 		return ctrl.Result{}, err
 	}
-	primaryPod, err := r.selectPrimaryPod(ctx, instance)
+	pods, err := r.instancePods(ctx, instance)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	samples := r.sampleRuntimeStatuses(ctx, instance, pods)
+	primaryPod, err := r.selectPrimaryPod(ctx, instance, pods, samples)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -314,6 +369,7 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	instance.Status.NodeAddress = external.nodeAddress
 	instance.Status.NodePortCache = external.nodePortCache
 	instance.Status.LastReconciledAt = &now
+	instance.Status.RolloutHealth = r.aggregateRolloutHealth(instance, pods)
 
 	if err := r.Status().Update(ctx, instance); err != nil {
 		return ctrl.Result{}, err
@@ -897,7 +953,12 @@ func primaryServiceSelector(instance *kurav1alpha1.KuraInstance, primaryPod stri
 // to. The currently routed pod is read back from the existing Service
 // selector so the choice is sticky across reconciles and survives a
 // controller restart without a dedicated status field.
-func (r *KuraInstanceReconciler) selectPrimaryPod(ctx context.Context, instance *kurav1alpha1.KuraInstance) (string, error) {
+func (r *KuraInstanceReconciler) selectPrimaryPod(
+	ctx context.Context,
+	instance *kurav1alpha1.KuraInstance,
+	pods []corev1.Pod,
+	samples map[string]runtimeStatus,
+) (string, error) {
 	current := ""
 	service := &corev1.Service{}
 	switch err := r.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, service); {
@@ -908,31 +969,111 @@ func (r *KuraInstanceReconciler) selectPrimaryPod(ctx context.Context, instance 
 		return "", err
 	}
 
-	pods := &corev1.PodList{}
-	if err := r.List(ctx, pods, client.InNamespace(instance.Namespace), client.MatchingLabels(selectorLabels(instance))); err != nil {
-		return "", err
-	}
-	return choosePrimaryPod(current, instance.Name, pods.Items, r.primaryPodHealth(ctx, instance, pods.Items)), nil
+	return choosePrimaryPod(current, instance.Name, pods, primaryPodHealthFromSamples(instance, pods, samples, time.Now())), nil
 }
 
-func (r *KuraInstanceReconciler) primaryPodHealth(ctx context.Context, instance *kurav1alpha1.KuraInstance, pods []corev1.Pod) map[string]bool {
-	now := time.Now()
+func (r *KuraInstanceReconciler) instancePods(ctx context.Context, instance *kurav1alpha1.KuraInstance) ([]corev1.Pod, error) {
+	pods := &corev1.PodList{}
+	if err := r.List(ctx, pods, client.InNamespace(instance.Namespace), client.MatchingLabels(selectorLabels(instance))); err != nil {
+		return nil, err
+	}
+	return pods.Items, nil
+}
 
+// sampleRuntimeStatuses polls /status/rollout on every pod backing the
+// instance — including not-ready ones, since the endpoint keeps answering
+// while a pod bootstraps or drains and a sick standby is exactly what the
+// rollout-health aggregate exists to surface. Fresh reports are folded into
+// the per-pod sample cache (reset-clamping the monotone counters) and
+// returned; pods that could not be sampled this tick keep their cached
+// last-known report for the aggregate, with its old timestamp.
+func (r *KuraInstanceReconciler) sampleRuntimeStatuses(
+	ctx context.Context,
+	instance *kurav1alpha1.KuraInstance,
+	pods []corev1.Pod,
+) map[string]runtimeStatus {
 	statusClient := r.RuntimeStatusClient
 	if statusClient == nil {
 		statusClient = defaultRuntimeStatusClient()
 	}
 
-	// Age-gated Kubernetes readiness is only the FALLBACK, used when the runtime
-	// status endpoint is unreachable for every pod: without the runtime's
-	// bootstrap signal we keep the minPrimaryPodAge buffer so a still-bootstrapping
-	// pod isn't promoted. When the runtime status IS reachable it supersedes this —
-	// a pod that reports Ready+serving has already completed bootstrap (the runtime's
-	// is_serving requires bootstrapped_peers == known_peers), so the runtime-confirmed
-	// path does NOT age-gate. That lets a freshly-rolled but caught-up standby be
-	// promoted immediately, which is what makes a rolling deploy gapless instead of
-	// waiting out the 10-minute age with no eligible primary. The runtime status is
-	// therefore probed for every Ready pod, not just the age-eligible ones.
+	fresh := map[string]runtimeStatus{}
+	for i := range pods {
+		status, err := statusClient.Status(ctx, pods[i])
+		if err != nil {
+			log.FromContext(ctx).V(1).Info("failed to read Kura pod rollout status", "pod", pods[i].Name, "error", err)
+			continue
+		}
+		fresh[pods[i].Name] = status
+	}
+
+	now := time.Now()
+
+	r.podSamplesMu.Lock()
+	defer r.podSamplesMu.Unlock()
+	if r.podSamples == nil {
+		r.podSamples = map[types.NamespacedName]map[string]*podRuntimeSample{}
+	}
+	key := types.NamespacedName{Namespace: instance.Namespace, Name: instance.Name}
+	samples := r.podSamples[key]
+	if samples == nil {
+		samples = map[string]*podRuntimeSample{}
+		r.podSamples[key] = samples
+	}
+	for name, status := range fresh {
+		sample := samples[name]
+		if sample == nil {
+			sample = &podRuntimeSample{}
+			samples[name] = sample
+		}
+		sample.observe(status, now)
+	}
+	// A pod that no longer exists stops contributing: its counters leave the
+	// aggregate (the consumer clamps decreases to no-growth) and its stale
+	// timestamp stops pinning SampledAt.
+	current := map[string]bool{}
+	for i := range pods {
+		current[pods[i].Name] = true
+	}
+	for name := range samples {
+		if !current[name] {
+			delete(samples, name)
+		}
+	}
+
+	return fresh
+}
+
+func (r *KuraInstanceReconciler) forgetPodSamples(instance *kurav1alpha1.KuraInstance) {
+	r.podSamplesMu.Lock()
+	defer r.podSamplesMu.Unlock()
+	delete(r.podSamples, types.NamespacedName{Namespace: instance.Namespace, Name: instance.Name})
+}
+
+// primaryPodHealth samples the runtime statuses and derives routability in
+// one call. The reconcile loop instead samples once via
+// sampleRuntimeStatuses and reuses the result for both primary selection and
+// the rollout-health aggregate.
+func (r *KuraInstanceReconciler) primaryPodHealth(ctx context.Context, instance *kurav1alpha1.KuraInstance, pods []corev1.Pod) map[string]bool {
+	return primaryPodHealthFromSamples(instance, pods, r.sampleRuntimeStatuses(ctx, instance, pods), time.Now())
+}
+
+// Age-gated Kubernetes readiness is only the FALLBACK, used when the runtime
+// status endpoint is unreachable for every pod: without the runtime's
+// bootstrap signal we keep the minPrimaryPodAge buffer so a still-bootstrapping
+// pod isn't promoted. When the runtime status IS reachable it supersedes this —
+// a pod that reports Ready+serving has already completed bootstrap (the runtime's
+// is_serving requires bootstrapped_peers == known_peers), so the runtime-confirmed
+// path does NOT age-gate. That lets a freshly-rolled but caught-up standby be
+// promoted immediately, which is what makes a rolling deploy gapless instead of
+// waiting out the 10-minute age with no eligible primary. The runtime status is
+// therefore consulted for every Ready pod, not just the age-eligible ones.
+func primaryPodHealthFromSamples(
+	instance *kurav1alpha1.KuraInstance,
+	pods []corev1.Pod,
+	samples map[string]runtimeStatus,
+	now time.Time,
+) map[string]bool {
 	fallbackReady := map[string]bool{}
 	runtimeHealthy := map[string]bool{}
 	runtimeStatuses := 0
@@ -943,9 +1084,8 @@ func (r *KuraInstanceReconciler) primaryPodHealth(ctx context.Context, instance 
 		if podOldEnoughForPrimary(&pods[i], now, replicas(instance)) {
 			fallbackReady[pods[i].Name] = true
 		}
-		status, err := statusClient.Status(ctx, pods[i])
-		if err != nil {
-			log.FromContext(ctx).V(1).Info("failed to read Kura pod rollout status", "pod", pods[i].Name, "error", err)
+		status, ok := samples[pods[i].Name]
+		if !ok {
 			continue
 		}
 		runtimeStatuses++
@@ -956,6 +1096,66 @@ func (r *KuraInstanceReconciler) primaryPodHealth(ctx context.Context, instance 
 		return fallbackReady
 	}
 	return runtimeHealthy
+}
+
+// aggregateRolloutHealth folds the per-pod sample cache into the status
+// aggregate. Per-field semantics are documented on the API type. Pods that
+// answered a previous reconcile but not this one contribute their last-known
+// report with its old timestamp, so the oldest-sample rule surfaces them as
+// stale instead of dropping them from the conjunctions.
+func (r *KuraInstanceReconciler) aggregateRolloutHealth(
+	instance *kurav1alpha1.KuraInstance,
+	pods []corev1.Pod,
+) *kurav1alpha1.KuraInstanceRolloutHealth {
+	expected := replicas(instance)
+
+	r.podSamplesMu.Lock()
+	defer r.podSamplesMu.Unlock()
+	samples := r.podSamples[types.NamespacedName{Namespace: instance.Namespace, Name: instance.Name}]
+
+	health := &kurav1alpha1.KuraInstanceRolloutHealth{ExpectedPods: expected}
+	var oldest time.Time
+	var generation uint64
+	generationConsistent := true
+	allReady := true
+	allServing := true
+	for i := range pods {
+		sample := samples[pods[i].Name]
+		if sample == nil {
+			continue
+		}
+		if health.SampledPods == 0 {
+			generation = sample.status.Generation
+		} else if sample.status.Generation != generation {
+			generationConsistent = false
+		}
+		health.SampledPods++
+		allReady = allReady && sample.status.Ready
+		allServing = allServing && sample.status.State == "serving"
+		health.BootstrapInflightPeers += sample.status.BootstrapInflightPeers
+		health.OutboxMessages += sample.status.OutboxMessages
+		health.FDTimeoutCount += int64(sample.clampedFDTimeouts())
+		health.PeerConnectionFailures += int64(sample.clampedPeerFailures())
+		if sample.status.MemoryPressureState > health.MemoryPressureState {
+			health.MemoryPressureState = sample.status.MemoryPressureState
+		}
+		if oldest.IsZero() || sample.sampledAt.Before(oldest) {
+			oldest = sample.sampledAt
+		}
+	}
+	// The conjunctions require every expected pod to have a report: a pod
+	// that exists but cannot be sampled, or a replica that never came up,
+	// reads as unhealthy rather than silently narrowing the aggregate to
+	// the pods that happened to answer.
+	sampledAll := health.SampledPods == expected && int32(len(pods)) >= expected
+	health.Ready = sampledAll && allReady
+	health.Serving = sampledAll && allServing
+	health.GenerationConsistent = sampledAll && generationConsistent
+	if !oldest.IsZero() {
+		t := metav1.NewTime(oldest.UTC())
+		health.SampledAt = &t
+	}
+	return health
 }
 
 func defaultRuntimeStatusClient() RuntimeStatusClient {

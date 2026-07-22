@@ -2382,6 +2382,198 @@ func (c fakeRuntimeStatusClient) Status(_ context.Context, pod corev1.Pod) (runt
 	return status, nil
 }
 
+func TestAggregateRolloutHealthAppliesPerFieldSemantics(t *testing.T) {
+	const name = "kura-tuist-eu-1"
+	instance := &kurav1alpha1.KuraInstance{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "kura"},
+		Spec:       kurav1alpha1.KuraInstanceSpec{Replicas: ptr(int32(2))},
+	}
+	pods := []corev1.Pod{
+		*kuraPod(name, "kura", 0, true),
+		*kuraPod(name, "kura", 1, false),
+	}
+	reconciler := &KuraInstanceReconciler{
+		RuntimeStatusClient: fakeRuntimeStatusClient{
+			statuses: map[string]runtimeStatus{
+				name + "-0": {
+					Ready: true, State: "serving", WriterLockOwned: true, Generation: 4,
+					BootstrapInflightPeers: 0, OutboxMessages: 10, MemoryPressureState: 0,
+					FDTimeoutCount: 2, PeerConnectionFailureCount: 1,
+				},
+				name + "-1": {
+					Ready: false, State: "bootstrapping", Generation: 3,
+					BootstrapInflightPeers: 1, OutboxMessages: 5, MemoryPressureState: 2,
+					FDTimeoutCount: 1, PeerConnectionFailureCount: 4,
+				},
+			},
+		},
+	}
+
+	reconciler.sampleRuntimeStatuses(context.Background(), instance, pods)
+	health := reconciler.aggregateRolloutHealth(instance, pods)
+
+	if health.Ready {
+		t.Fatal("expected the sick standby to drag Ready down (conjunction)")
+	}
+	if health.Serving {
+		t.Fatal("expected the sick standby to drag Serving down (conjunction)")
+	}
+	if health.GenerationConsistent {
+		t.Fatal("expected mismatched generations to clear GenerationConsistent")
+	}
+	if health.BootstrapInflightPeers != 1 {
+		t.Fatalf("expected summed bootstrap inflight peers, got %d", health.BootstrapInflightPeers)
+	}
+	if health.OutboxMessages != 15 {
+		t.Fatalf("expected summed outbox depth, got %d", health.OutboxMessages)
+	}
+	if health.FDTimeoutCount != 3 {
+		t.Fatalf("expected summed fd timeouts, got %d", health.FDTimeoutCount)
+	}
+	if health.PeerConnectionFailures != 5 {
+		t.Fatalf("expected summed peer failures, got %d", health.PeerConnectionFailures)
+	}
+	if health.MemoryPressureState != 2 {
+		t.Fatalf("expected max memory pressure, got %d", health.MemoryPressureState)
+	}
+	if health.SampledPods != 2 || health.ExpectedPods != 2 {
+		t.Fatalf("expected 2/2 sampled pods, got %d/%d", health.SampledPods, health.ExpectedPods)
+	}
+	if health.SampledAt == nil {
+		t.Fatal("expected a sample timestamp")
+	}
+}
+
+func TestAggregateRolloutHealthHealthyConjunctions(t *testing.T) {
+	const name = "kura-tuist-eu-1"
+	instance := &kurav1alpha1.KuraInstance{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "kura"},
+		Spec:       kurav1alpha1.KuraInstanceSpec{Replicas: ptr(int32(2))},
+	}
+	pods := []corev1.Pod{
+		*kuraPod(name, "kura", 0, true),
+		*kuraPod(name, "kura", 1, true),
+	}
+	reconciler := &KuraInstanceReconciler{
+		RuntimeStatusClient: fakeRuntimeStatusClient{
+			statuses: map[string]runtimeStatus{
+				name + "-0": {Ready: true, State: "serving", WriterLockOwned: true, Generation: 4},
+				name + "-1": {Ready: true, State: "serving", Generation: 4},
+			},
+		},
+	}
+
+	reconciler.sampleRuntimeStatuses(context.Background(), instance, pods)
+	health := reconciler.aggregateRolloutHealth(instance, pods)
+
+	if !health.Ready || !health.Serving || !health.GenerationConsistent {
+		t.Fatalf("expected healthy conjunctions, got %+v", health)
+	}
+}
+
+func TestAggregateRolloutHealthClampsCounterResets(t *testing.T) {
+	// A pod restart resets its process-local counters; the published
+	// aggregate must never go backwards because of it.
+	const name = "kura-tuist-eu-1"
+	instance := &kurav1alpha1.KuraInstance{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "kura"},
+		Spec:       kurav1alpha1.KuraInstanceSpec{Replicas: ptr(int32(1))},
+	}
+	pods := []corev1.Pod{*kuraPod(name, "kura", 0, true)}
+
+	before := &KuraInstanceReconciler{
+		RuntimeStatusClient: fakeRuntimeStatusClient{
+			statuses: map[string]runtimeStatus{
+				name + "-0": {Ready: true, State: "serving", FDTimeoutCount: 7, PeerConnectionFailureCount: 3},
+			},
+		},
+	}
+	before.sampleRuntimeStatuses(context.Background(), instance, pods)
+
+	// Same reconciler observes the pod again after a restart reset its
+	// counters to lower values.
+	before.RuntimeStatusClient = fakeRuntimeStatusClient{
+		statuses: map[string]runtimeStatus{
+			name + "-0": {Ready: true, State: "serving", FDTimeoutCount: 1, PeerConnectionFailureCount: 0},
+		},
+	}
+	before.sampleRuntimeStatuses(context.Background(), instance, pods)
+	health := before.aggregateRolloutHealth(instance, pods)
+
+	if health.FDTimeoutCount != 8 {
+		t.Fatalf("expected reset-clamped fd timeouts 7+1=8, got %d", health.FDTimeoutCount)
+	}
+	if health.PeerConnectionFailures != 3 {
+		t.Fatalf("expected reset-clamped peer failures 3+0=3, got %d", health.PeerConnectionFailures)
+	}
+}
+
+func TestAggregateRolloutHealthKeepsLastKnownSampleForUnreachablePod(t *testing.T) {
+	const name = "kura-tuist-eu-1"
+	instance := &kurav1alpha1.KuraInstance{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "kura"},
+		Spec:       kurav1alpha1.KuraInstanceSpec{Replicas: ptr(int32(1))},
+	}
+	pods := []corev1.Pod{*kuraPod(name, "kura", 0, true)}
+
+	reconciler := &KuraInstanceReconciler{
+		RuntimeStatusClient: fakeRuntimeStatusClient{
+			statuses: map[string]runtimeStatus{
+				name + "-0": {Ready: true, State: "serving", Generation: 2},
+			},
+		},
+	}
+	reconciler.sampleRuntimeStatuses(context.Background(), instance, pods)
+	first := reconciler.aggregateRolloutHealth(instance, pods)
+	if first.SampledAt == nil {
+		t.Fatal("expected a sample timestamp")
+	}
+
+	// The pod stops answering; the aggregate keeps the last-known report
+	// with its old timestamp so the consumer sees staleness, not absence.
+	reconciler.RuntimeStatusClient = fakeRuntimeStatusClient{err: fmt.Errorf("unreachable")}
+	reconciler.sampleRuntimeStatuses(context.Background(), instance, pods)
+	second := reconciler.aggregateRolloutHealth(instance, pods)
+
+	if second.SampledPods != 1 {
+		t.Fatalf("expected the cached sample to keep counting, got %d", second.SampledPods)
+	}
+	if !second.Ready {
+		t.Fatal("expected the cached ready report to carry over")
+	}
+	if !second.SampledAt.Equal(first.SampledAt) {
+		t.Fatalf("expected the stale timestamp to be preserved, got %v vs %v", second.SampledAt, first.SampledAt)
+	}
+}
+
+func TestAggregateRolloutHealthUnsampledExpectedPodBlocksConjunctions(t *testing.T) {
+	// One expected replica never came up (or never answered): the
+	// conjunctions must fail rather than narrow to the pods that answered.
+	const name = "kura-tuist-eu-1"
+	instance := &kurav1alpha1.KuraInstance{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "kura"},
+		Spec:       kurav1alpha1.KuraInstanceSpec{Replicas: ptr(int32(2))},
+	}
+	pods := []corev1.Pod{*kuraPod(name, "kura", 0, true)}
+
+	reconciler := &KuraInstanceReconciler{
+		RuntimeStatusClient: fakeRuntimeStatusClient{
+			statuses: map[string]runtimeStatus{
+				name + "-0": {Ready: true, State: "serving", Generation: 2},
+			},
+		},
+	}
+	reconciler.sampleRuntimeStatuses(context.Background(), instance, pods)
+	health := reconciler.aggregateRolloutHealth(instance, pods)
+
+	if health.Ready || health.Serving || health.GenerationConsistent {
+		t.Fatalf("expected a missing expected pod to fail the conjunctions, got %+v", health)
+	}
+	if health.SampledPods != 1 || health.ExpectedPods != 2 {
+		t.Fatalf("expected 1/2 sampled, got %d/%d", health.SampledPods, health.ExpectedPods)
+	}
+}
+
 func TestKuraInstanceReconcileExposesNodePortDataPlane(t *testing.T) {
 	ctx := context.Background()
 	scheme := runtime.NewScheme()
