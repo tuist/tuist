@@ -658,7 +658,7 @@ impl ReapiService {
             .state
             .memory
             .reapi_response_budget_bytes()
-            .min(self.state.memory.reapi_materialization_pool_bytes() / 2);
+            .min(self.state.memory.reapi_materialization_limit_bytes() / 2);
         if content_budget == 0 {
             return Err(Status::resource_exhausted(
                 "action-cache snapshot encode declined under memory pressure",
@@ -829,7 +829,7 @@ impl ReapiService {
         // to small pools so tests and tiny nodes still build; the
         // streaming reconcile keeps the real peak near it.
         let budget = SNAPSHOT_BUILD_BUDGET_BYTES
-            .min(state.memory.reapi_materialization_pool_bytes() / 2)
+            .min(state.memory.reapi_materialization_limit_bytes() / 2)
             .max(1);
         let build_budgets = SnapshotBuildBudgets::new(budget, index_max_bytes);
         let permit = tokio::time::timeout(
@@ -2103,10 +2103,10 @@ impl<'a> MaterializationBudget<'a> {
                 self.remaining_bytes
             )));
         }
-        let pool_bytes = self.state.memory.reapi_materialization_pool_bytes();
-        if requested_bytes > pool_bytes {
+        let limit_bytes = self.state.memory.reapi_materialization_limit_bytes();
+        if requested_bytes > limit_bytes {
             return Err(self.reject(format!(
-                "{label} needs {requested_bytes} bytes but the node only allows {pool_bytes} bytes of concurrent REAPI response materialization"
+                "{label} needs {requested_bytes} bytes but the node allows at most {limit_bytes} bytes of response materialization per request"
             )));
         }
         let permit = self
@@ -3908,15 +3908,20 @@ mod tests {
             .await
             .expect("blob should persist");
 
-        // Exhaust the pool: the old try-acquire declined the build here —
+        // Exhaust the transient budget: the old try-acquire declined the build here —
         // which, under the per-key load a stale snapshot causes, parked the
         // index stale indefinitely. The build must wait instead.
-        let pool = context.state.memory.reapi_materialization_pool_bytes();
-        let hog = context
+        let limit = context.state.memory.reapi_materialization_limit_bytes();
+        let first_hog = context
             .state
             .memory
-            .try_acquire_reapi_materialization(pool)
-            .expect("pool should be acquirable when idle");
+            .try_acquire_reapi_materialization(limit)
+            .expect("the per-request limit should be acquirable when idle");
+        let second_hog = context
+            .state
+            .memory
+            .try_acquire_reapi_materialization(limit)
+            .expect("the remaining transient budget should be acquirable when idle");
         let serve = tokio::spawn({
             let service = service.clone();
             async move { service.serve_actioncache_snapshot("ios", 0, None).await }
@@ -3926,7 +3931,7 @@ mod tests {
             !serve.is_finished(),
             "the build waits for headroom rather than declining"
         );
-        drop(hog);
+        drop((first_hog, second_hog));
         let bytes = tokio::time::timeout(std::time::Duration::from_secs(30), serve)
             .await
             .expect("build should complete once the pool frees")
@@ -4002,15 +4007,15 @@ mod tests {
         );
 
         // Simulate a reconcile in flight: the index is OUT of the map. Exhaust
-        // the pool so the serve's kicked rebuild cannot reinsert it before the
+        // the transient budget so the serve's kicked rebuild cannot reinsert it before the
         // assertion.
         service.snapshot_cache.indexes.lock().unwrap().remove("ios");
-        let pool = context.state.memory.reapi_materialization_pool_bytes();
+        let limit = context.state.memory.reapi_materialization_limit_bytes();
         let _hog = context
             .state
             .memory
-            .try_acquire_reapi_materialization(pool.saturating_sub(first.len()))
-            .expect("pool should be acquirable when idle");
+            .try_acquire_reapi_materialization(limit.saturating_sub(first.len()))
+            .expect("the requested transient bytes should be acquirable when idle");
 
         // A full serve now finds no index but returns the cached full view
         // immediately, rather than shedding a cold client to UNAVAILABLE while
@@ -4036,12 +4041,17 @@ mod tests {
         // serve must answer UNAVAILABLE within its bound instead of pinning
         // the request to the build — production builds ran for tens of
         // minutes and walked every client fetch into its deadline.
-        let pool = context.state.memory.reapi_materialization_pool_bytes();
-        let hog = context
+        let limit = context.state.memory.reapi_materialization_limit_bytes();
+        let first_hog = context
             .state
             .memory
-            .try_acquire_reapi_materialization(pool)
-            .expect("pool should be acquirable when idle");
+            .try_acquire_reapi_materialization(limit)
+            .expect("the per-request limit should be acquirable when idle");
+        let second_hog = context
+            .state
+            .memory
+            .try_acquire_reapi_materialization(limit)
+            .expect("the remaining transient budget should be acquirable when idle");
         let status = service
             .serve_actioncache_snapshot("ios", 0, None)
             .await
@@ -4049,7 +4059,7 @@ mod tests {
         assert_eq!(status.code(), tonic::Code::Unavailable);
         // Once the pool frees the same build completes in the background and
         // the next fetch is served from the index it produced.
-        drop(hog);
+        drop((first_hog, second_hog));
         let bytes = tokio::time::timeout(
             std::time::Duration::from_secs(120),
             service.serve_actioncache_snapshot("ios", 0, None),
@@ -4907,10 +4917,10 @@ end
     }
 
     #[tokio::test]
-    async fn concurrent_cas_batch_reads_respect_shared_materialization_pool() {
+    async fn concurrent_cas_batch_reads_respect_the_shared_transient_budget() {
         let context = test_context(|config| {
             config.memory_soft_limit_bytes = 64 * 1024 * 1024;
-            config.memory_hard_limit_bytes = 128 * 1024 * 1024;
+            config.memory_hard_limit_bytes = 96 * 1024 * 1024;
         })
         .await;
         let first_service = ReapiService {

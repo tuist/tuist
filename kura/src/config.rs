@@ -291,7 +291,7 @@ impl DerivedRuntimeDefaults {
             clamp_usize(usable_fds / 2, 128, 1024).min(i32::MAX as usize) as i32;
 
         let memory_limit_bytes = host_resources.memory_limit_bytes.max(1);
-        let memory_soft_limit_bytes = round_down_to_mib(memory_limit_bytes * 70 / 100).max(1);
+        let memory_soft_limit_bytes = round_down_to_mib(memory_limit_bytes * 60 / 100).max(1);
         let memory_hard_limit_bytes = round_down_to_mib(memory_limit_bytes * 85 / 100)
             .max(memory_soft_limit_bytes.saturating_add(1))
             .min(memory_limit_bytes.saturating_sub(1).max(1));
@@ -1656,15 +1656,15 @@ mod tests {
         assert_eq!(config.drain_completion_timeout_ms, 240_000);
         assert_eq!(config.segment_handle_cache_size, 224);
         assert_eq!(config.memory_limit_bytes, 1024 * BYTES_PER_MIB);
-        assert_eq!(config.memory_soft_limit_bytes, 716 * BYTES_PER_MIB);
+        assert_eq!(config.memory_soft_limit_bytes, 614 * BYTES_PER_MIB);
         assert_eq!(config.memory_hard_limit_bytes, 870 * BYTES_PER_MIB);
         assert_eq!(
             config.snapshot_cache_max_bytes,
-            (179 * BYTES_PER_MIB) as usize
+            (153 * BYTES_PER_MIB) as usize
         );
         assert_eq!(
             config.manifest_cache_max_bytes,
-            (44 * BYTES_PER_MIB) as usize
+            (38 * BYTES_PER_MIB) as usize
         );
         assert_eq!(config.max_keyvalue_bytes, 1024 * 1024);
         assert_eq!(config.rocksdb_max_open_files, 1024);
@@ -1726,7 +1726,7 @@ mod tests {
             cpu_count: 2,
         });
 
-        assert_eq!(defaults.memory_soft_limit_bytes, 89 * BYTES_PER_MIB);
+        assert_eq!(defaults.memory_soft_limit_bytes, 76 * BYTES_PER_MIB);
         assert_eq!(defaults.memory_hard_limit_bytes, 108 * BYTES_PER_MIB);
         assert!(defaults.memory_hard_limit_bytes < 128 * BYTES_PER_MIB);
     }

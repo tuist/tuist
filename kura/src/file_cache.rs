@@ -35,19 +35,6 @@ impl ForegroundFileCacheReservation {
     }
 }
 
-impl Drop for ForegroundFileCacheReservation {
-    fn drop(&mut self) {
-        // Convert the completed upload's real kernel charge into the controller
-        // baseline before the transient reservation is released and wakes the
-        // next waiter. Otherwise several sub-200 ms uploads can reuse the same
-        // stale headroom while their retained segment pages are already charged
-        // to the container.
-        if self.policy == FileCachePolicy::Bounded || self.memory.has_waiters() {
-            self.memory.observe_container_memory();
-        }
-    }
-}
-
 impl FileCachePolicy {
     pub fn should_drop(self, pressure: MemoryPressure, transient_reserved_bytes: u64) -> bool {
         match self {
@@ -71,7 +58,9 @@ pub(crate) async fn reserve_foreground_staging(
     memory: &MemoryController,
     declared_or_max_bytes: u64,
 ) -> Result<ForegroundFileCacheReservation, ForegroundAdmissionTimeout> {
-    let working_set_bytes = declared_or_max_bytes.min(FOREGROUND_STAGING_WINDOW_BYTES);
+    let working_set_bytes = declared_or_max_bytes
+        .min(FOREGROUND_STAGING_WINDOW_BYTES)
+        .min(memory.transient_capacity_bytes().saturating_div(2));
     let requested_bytes = working_set_bytes.saturating_mul(2);
     let (reservation, waited) = memory.reserve_foreground_memory(requested_bytes).await?;
     let policy = if waited || declared_or_max_bytes > FOREGROUND_STAGING_WINDOW_BYTES {
@@ -104,7 +93,7 @@ mod tests {
         assert_eq!(
             first.file_cache_policy(),
             FileCachePolicy::Foreground {
-                reservation_bytes: 2 * FOREGROUND_STAGING_WINDOW_BYTES,
+                reservation_bytes: 8 * 1024 * 1024,
             }
         );
 
@@ -130,9 +119,9 @@ mod tests {
         let metrics = Metrics::new("eu-west".into(), "tenant".into());
         let memory = MemoryController::with_runtime_limit(
             metrics,
-            128 * 1024 * 1024,
+            160 * 1024 * 1024,
             64 * 1024 * 1024,
-            96 * 1024 * 1024,
+            128 * 1024 * 1024,
         );
         let first = reserve_foreground_staging(&memory, FOREGROUND_STAGING_WINDOW_BYTES)
             .await

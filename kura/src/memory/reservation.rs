@@ -14,12 +14,12 @@ pub(super) enum AdmissionClass {
 }
 
 pub struct MemoryPermit {
-    pub(super) _concurrency: OwnedSemaphorePermit,
     pub(super) _transient: TransientMemoryReservation,
 }
 
 pub struct TransientMemoryReservation {
     pub(super) controller: MemoryController,
+    pub(super) permit: Option<OwnedSemaphorePermit>,
     pub(super) bytes: u64,
 }
 
@@ -37,22 +37,6 @@ impl ForegroundMemoryReservation {
 
     pub(crate) fn try_resize(&mut self, requested_bytes: u64) -> Result<(), ()> {
         self.transient.try_resize_foreground(requested_bytes)
-    }
-
-    pub(crate) fn has_waiters(&self) -> bool {
-        self.transient
-            .controller
-            .inner
-            .foreground_waiters
-            .load(Ordering::Acquire)
-            > 0
-    }
-
-    pub(crate) fn observe_container_memory(&self) {
-        #[cfg(not(test))]
-        if let Some(current_bytes) = super::container_memory_current_bytes() {
-            self.transient.controller.observe(current_bytes);
-        }
     }
 }
 
@@ -73,27 +57,37 @@ impl Drop for ForegroundWaiter {
     }
 }
 
-impl Drop for TransientMemoryReservation {
-    fn drop(&mut self) {
-        self.controller
-            .inner
-            .transient_reserved_bytes
-            .fetch_sub(self.bytes, Ordering::AcqRel);
-        self.controller.inner.pressure_changed.notify_waiters();
-    }
-}
-
 impl TransientMemoryReservation {
     fn try_resize_foreground(&mut self, requested_bytes: u64) -> Result<(), ()> {
         if requested_bytes > self.bytes {
-            self.controller
-                .try_grow_transient(requested_bytes - self.bytes, AdmissionClass::Foreground)?;
-        } else if requested_bytes < self.bytes {
-            self.controller
+            if !self
+                .controller
+                .allow_transient_admission(AdmissionClass::Foreground)
+            {
+                return Err(());
+            }
+            let additional_bytes = requested_bytes - self.bytes;
+            let additional_permits = u32::try_from(additional_bytes).map_err(|_| ())?;
+            let additional = self
+                .controller
                 .inner
-                .transient_reserved_bytes
-                .fetch_sub(self.bytes - requested_bytes, Ordering::AcqRel);
-            self.controller.inner.pressure_changed.notify_waiters();
+                .pools
+                .try_acquire_transient(additional_permits)?;
+            match self.permit.as_mut() {
+                Some(permit) => permit.merge(additional),
+                None => self.permit = Some(additional),
+            }
+        } else if requested_bytes < self.bytes {
+            let released_bytes = usize::try_from(self.bytes - requested_bytes).map_err(|_| ())?;
+            let released = self
+                .permit
+                .as_mut()
+                .and_then(|permit| permit.split(released_bytes))
+                .ok_or(())?;
+            drop(released);
+            if requested_bytes == 0 {
+                self.permit = None;
+            }
         }
         self.bytes = requested_bytes;
         Ok(())
