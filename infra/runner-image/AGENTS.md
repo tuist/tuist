@@ -78,19 +78,26 @@ runtime — no service, sudo entry, or auto-login targets it.
   the dispatch 200, exported as `TUIST_CACHE_SIGNING_GRANT` so the EE CLI signs
   artifacts with the account scope instead of the machine MAC — which is what
   lets a clonefiled master validate across the account's VMs. The Xcode
-  compilation cache (CAS) rides a **separate** path: it can't live on the
-  virtio-fs share (llcas's mmap'd file locking SIGBUSes over virtio-fs), so the
-  host stages it as a sparse APFS disk *image* (`xcode-cas.sparseimage`) inside
-  the same branch share. `attach_cas_image` `hdiutil attach`es it as a real
-  block-device volume at `/Users/runner/xcode-cas`, then writes an xcconfig
-  pointing `COMPILATION_CACHE_CAS_PATH` at a single per-account
-  `CompilationCache.noindex` store on it and exports **`XCODE_XCCONFIG_FILE`**;
-  `detach_cas_image` unsets it and unmounts after `./run.sh` so the host promotes
-  a quiesced image. The store carries Xcode's own `.noindex` name because that
-  suffix is what keeps Spotlight out of it — otherwise `mds` would index a
-  multi-GB, high-file-count CAS on a mounted volume. Absent image ⇒ the
-  compilation cache runs VM-local (cold), unchanged. Gated on the host's
-  `--cache-volume-cas-gib`.
+  compilation cache (CAS) is **folded INTO the cache image**: a
+  `CompilationCache.noindex` store dir beside `tuist/` inside the one mounted
+  image, so it rides the binary cache's whole lifecycle — clone, promote,
+  fast-forward HEAD, convergence — with no separate image, mount, or promote
+  gate. (It works because the store is on the block-device image, not the
+  virtio-fs share — llcas mmaps its store and mmap over virtio-fs SIGBUSes.) When
+  the host stages the `cas-enabled` marker (gated on `--cache-volume-cas-gib`),
+  `setup_cas_store` — called from `attach_cache_image` after the mount — creates
+  the store, writes an xcconfig pointing `COMPILATION_CACHE_CAS_PATH` at it, and
+  exports **`XCODE_XCCONFIG_FILE`**. There is no separate detach or CAS success
+  gate: the cache image's own quiesced detach (and not-promotable-on-failed-detach
+  guard) covers it. A compile-only job still persists its CAS because the
+  inventory digest includes the store's total logical size (the `~cas.bytes`
+  line, computed identically host- and guest-side), so CAS growth flips the digest
+  → dirty → the whole image promotes. The `.noindex` name keeps Spotlight (`mds`)
+  out of the multi-GB store. Absent marker ⇒ the compilation cache runs VM-local
+  (cold), unchanged. The CAS shares the volume cap with the binary cache, so size
+  `--cache-volume-cap-gib` for both and keep HEAD uploads fast
+  (`tart_kubelet_cache_volume_upload_seconds` watches the teardown upload that
+  blocks slot reclaim).
   `XCODE_XCCONFIG_FILE` is the mechanism because the common case is a plain
   `xcodebuild build` against a project Tuist never generated and never wraps —
   which the generate-time project mapper and the `tuist xcodebuild` wrapper both
@@ -102,10 +109,11 @@ runtime — no service, sudo entry, or auto-login targets it.
   opt-in; this only says *where* an already-caching build keeps its store); it
   chains a pre-existing `XCODE_XCCONFIG_FILE` via `#include` rather than
   clobbering it, but a workflow exporting that variable *after* us wins and the
-  CAS falls back to VM-local; and because an xcconfig sits below
-  project/target-defined settings, a project that sets
-  `COMPILATION_CACHE_CAS_PATH` itself still wins — an escape hatch, and the
-  reason a stray target-level value cannot be forced onto the image.
+  CAS falls back to VM-local; and `XCODE_XCCONFIG_FILE` is an OVERRIDES layer
+  (swift-build's `environmentConfigPath`), so it FORCES the CAS path over
+  project/target-defined settings — a stray target-level `COMPILATION_CACHE_CAS_PATH`
+  does NOT win. The escape hatch is a workflow's own xcconfig, which we `#include`
+  LAST, so anything it sets explicitly (the CAS path included) still wins.
 - `/opt/tuist/metrics-poll.sh` — the machine-metrics sampler.
   `dispatch-poll.sh` forks it into the background right before it
   starts `./run.sh`, so it samples whole-VM CPU/memory/network/disk

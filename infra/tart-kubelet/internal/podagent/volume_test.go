@@ -5,8 +5,10 @@ import (
 	"crypto/sha1"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"testing"
 	"time"
@@ -151,46 +153,6 @@ func branchImageExists(m *VolumeManager, att VolumeAttachment) bool {
 	return err == nil
 }
 
-func branchCASImageExists(att VolumeAttachment) bool {
-	_, err := os.Stat(filepath.Join(att.BranchPath, casImageName))
-	return err == nil
-}
-
-func masterCASImageExists(m *VolumeManager, account string) bool {
-	_, err := os.Stat(m.masterCASImage(account, ReservedTuistCacheVolume))
-	return err == nil
-}
-
-// seedMasterCASImage plants an account's CAS master image, simulating a prior
-// promote on this host.
-func seedMasterCASImage(t *testing.T, m *VolumeManager, account, content string) {
-	t.Helper()
-	if err := os.MkdirAll(m.volumeDir(account, ReservedTuistCacheVolume), 0o755); err != nil {
-		t.Fatalf("seed volume dir: %v", err)
-	}
-	if err := os.WriteFile(m.masterCASImage(account, ReservedTuistCacheVolume), []byte(content), 0o644); err != nil {
-		t.Fatalf("seed master CAS image: %v", err)
-	}
-}
-
-// writeBranchCASImage simulates the guest's build growing the attached CAS image
-// (its content changing) before promote.
-func writeBranchCASImage(t *testing.T, att VolumeAttachment, content string) {
-	t.Helper()
-	if err := os.WriteFile(filepath.Join(att.BranchPath, casImageName), []byte(content), 0o644); err != nil {
-		t.Fatalf("write branch CAS image: %v", err)
-	}
-}
-
-func readMasterCASImage(t *testing.T, m *VolumeManager, account string) string {
-	t.Helper()
-	b, err := os.ReadFile(m.masterCASImage(account, ReservedTuistCacheVolume))
-	if err != nil {
-		t.Fatalf("read master CAS image: %v", err)
-	}
-	return string(b)
-}
-
 func branchImageContent(t *testing.T, m *VolumeManager, att VolumeAttachment) string {
 	t.Helper()
 	b, err := os.ReadFile(m.BranchImage(att))
@@ -198,248 +160,6 @@ func branchImageContent(t *testing.T, m *VolumeManager, att VolumeAttachment) st
 		t.Fatalf("read branch image: %v", err)
 	}
 	return string(b)
-}
-
-// TestCASImageColdCreatesFresh: with the CAS feature on and no master image, a
-// cold first job (no binary master either) still gets a fresh sparse image in
-// its branch to attach and later promote.
-func TestCASImageColdCreatesFresh(t *testing.T) {
-	m, _ := newTestManager(t, 10)
-	m.CASGiB = 2
-	att := mustAllocate(t, m, "vm1")
-	warm, _, err := m.Materialize(att, "acct-a")
-	if err != nil {
-		t.Fatalf("Materialize: %v", err)
-	}
-	if warm {
-		t.Fatal("cold first job should report warm=false")
-	}
-	if !branchCASImageExists(att) {
-		t.Fatal("cold first job should get a fresh CAS image in its branch")
-	}
-}
-
-// TestCASImageWarmClonesMaster: an account with a master image gets it cloned
-// into the branch on Materialize.
-func TestCASImageWarmClonesMaster(t *testing.T) {
-	m, _ := newTestManager(t, 10)
-	m.CASGiB = 2
-	seedMasterCASImage(t, m, "acct-a", "warm-cas-bytes")
-	att := mustAllocate(t, m, "vm1")
-	if _, _, err := m.Materialize(att, "acct-a"); err != nil {
-		t.Fatalf("Materialize: %v", err)
-	}
-	if !branchCASImageExists(att) {
-		t.Fatal("branch should have the cloned CAS image")
-	}
-	b, _ := os.ReadFile(filepath.Join(att.BranchPath, casImageName))
-	if string(b) != "warm-cas-bytes" {
-		t.Fatalf("branch CAS image = %q, want the master's bytes", string(b))
-	}
-}
-
-// TestCASImageDisabledNoImage: with CASGiB=0 the CAS image is never created,
-// even though the binary tree lifecycle runs.
-func TestCASImageDisabledNoImage(t *testing.T) {
-	m, _ := newTestManager(t, 10) // CASGiB defaults to 0
-	att := mustAllocate(t, m, "vm1")
-	if _, _, err := m.Materialize(att, "acct-a"); err != nil {
-		t.Fatalf("Materialize: %v", err)
-	}
-	if branchCASImageExists(att) {
-		t.Fatal("CAS disabled: no image should be created")
-	}
-}
-
-// TestCASImagePromotedOnCompileOnlyJob: a job that succeeds but leaves the
-// binary cache clean (dirty=false) — a pure compile job — still promotes its
-// grown CAS image, because the CAS gate is success+account, not tree dirtiness.
-func TestCASImagePromotedOnCompileOnlyJob(t *testing.T) {
-	m, _ := newTestManager(t, 10)
-	m.CASGiB = 2
-	att := mustAllocate(t, m, "vm1")
-	if _, _, err := m.Materialize(att, "acct-a"); err != nil {
-		t.Fatalf("Materialize: %v", err)
-	}
-	att.SourceAccount = "acct-a"
-	writeBranchCASImage(t, att, "grown-cas")
-	// Runner succeeded (rc==0) but the binary tree didn't change (dirty=false).
-	m.FinalizeCAS(att, "acct-a", true)
-	outcome, err := m.Finalize(att, "acct-a", true, false)
-	if err != nil {
-		t.Fatalf("Finalize: %v", err)
-	}
-	if outcome != VolumeOutcomeDiscarded {
-		t.Fatalf("binary tree should discard on a clean job, got %s", outcome)
-	}
-	if !masterCASImageExists(m, "acct-a") {
-		t.Fatal("compile-only job should still promote its CAS image")
-	}
-	if got := readMasterCASImage(t, m, "acct-a"); got != "grown-cas" {
-		t.Fatalf("master CAS image = %q, want grown-cas", got)
-	}
-}
-
-// TestCASImageNotPromotedOnFailedRun: a job whose runner exited non-zero must
-// NOT promote its CAS, even though the VM halted cleanly and the guest wrote the
-// dirty marker (present=true) — the promote gates on the runner-success signal,
-// not on marker presence or the clean VM halt.
-func TestCASImageNotPromotedOnFailedRun(t *testing.T) {
-	m, _ := newTestManager(t, 10)
-	m.CASGiB = 2
-	att := mustAllocate(t, m, "vm1")
-	if _, _, err := m.Materialize(att, "acct-a"); err != nil {
-		t.Fatalf("Materialize: %v", err)
-	}
-	att.SourceAccount = "acct-a"
-	writeBranchCASImage(t, att, "from-failed-run")
-	// runnerSucceeded=false models rc!=0. The binary path still sees a present
-	// marker / clean exit, but the CAS gate must reject.
-	m.FinalizeCAS(att, "acct-a", false)
-	if masterCASImageExists(m, "acct-a") {
-		t.Fatal("failed run must not promote its CAS image")
-	}
-}
-
-// TestCASImageNotPromotedOnAccountMismatch: the defense-in-depth guard also
-// covers the CAS image — a branch materialized for A must not promote into B.
-func TestCASImageNotPromotedOnAccountMismatch(t *testing.T) {
-	m, _ := newTestManager(t, 10)
-	m.CASGiB = 2
-	att := mustAllocate(t, m, "vm1")
-	if _, _, err := m.Materialize(att, "acct-a"); err != nil {
-		t.Fatalf("Materialize: %v", err)
-	}
-	att.SourceAccount = "acct-a"
-	writeBranchCASImage(t, att, "leak")
-	m.FinalizeCAS(att, "acct-b", true)
-	if _, err := m.Finalize(att, "acct-b", true, true); err != nil {
-		t.Fatalf("Finalize: %v", err)
-	}
-	if masterCASImageExists(m, "acct-b") {
-		t.Fatal("account mismatch must not promote the CAS image into B")
-	}
-}
-
-// TestCASImageRejectsSymlinkBranchImage: the branch CAS image is on a guest-
-// writable share; a hostile job can replace it with a symlink to another
-// account's master. FinalizeCAS must refuse to clone a non-regular file, so no
-// cross-account CAS content is promoted.
-func TestCASImageRejectsSymlinkBranchImage(t *testing.T) {
-	m, _ := newTestManager(t, 10)
-	m.CASGiB = 2
-	// Victim account B has a master CAS image on the same volume.
-	seedMasterCASImage(t, m, "acct-b", "victim-B-cas")
-
-	att := mustAllocate(t, m, "vm1")
-	if _, _, err := m.Materialize(att, "acct-a"); err != nil {
-		t.Fatalf("Materialize: %v", err)
-	}
-	att.SourceAccount = "acct-a"
-	// Attacker swaps its branch image for a symlink to B's master image.
-	branchImg := filepath.Join(att.BranchPath, casImageName)
-	_ = os.Remove(branchImg)
-	if err := os.Symlink(m.masterCASImage("acct-b", ReservedTuistCacheVolume), branchImg); err != nil {
-		t.Fatalf("plant symlink: %v", err)
-	}
-	m.FinalizeCAS(att, "acct-a", true)
-	// A's master image must NOT have been created from B's content.
-	if masterCASImageExists(m, "acct-a") {
-		t.Fatalf("symlinked branch image was promoted: A's master = %q (leak of B)", readMasterCASImage(t, m, "acct-a"))
-	}
-}
-
-// TestBinaryPromotePreservesCASImage: promoting the binary cache image must not
-// drop the sibling CAS image. Under the image model the two are independent
-// files in the volume dir, so a binary promote (rename of master.sparseimage)
-// leaves xcode-cas.sparseimage untouched by construction — this guards that.
-func TestBinaryPromotePreservesCASImage(t *testing.T) {
-	m, _ := newTestManager(t, 10)
-	m.CASGiB = 2
-	// First job promotes both binary + CAS image for acct-a.
-	att1 := mustAllocate(t, m, "vm1")
-	if _, _, err := m.Materialize(att1, "acct-a"); err != nil {
-		t.Fatalf("Materialize1: %v", err)
-	}
-	att1.SourceAccount = "acct-a"
-	att1.PromotedGeneration = 1
-	writeBranchCache(t, m, att1, "binary-v1")
-	writeBranchCASImage(t, att1, "cas-v1")
-	m.FinalizeCAS(att1, "acct-a", true)
-	if o, err := m.Finalize(att1, "acct-a", true, true); err != nil || o != VolumeOutcomePromoted {
-		t.Fatalf("Finalize1: outcome=%s err=%v", o, err)
-	}
-	if !masterCASImageExists(m, "acct-a") {
-		t.Fatal("first job should promote the CAS image")
-	}
-	// Second job changes ONLY the binary cache and promotes; the CAS image
-	// sibling must survive the binary master swap.
-	att2 := mustAllocate(t, m, "vm2")
-	if _, _, err := m.Materialize(att2, "acct-a"); err != nil {
-		t.Fatalf("Materialize2: %v", err)
-	}
-	att2.SourceAccount = "acct-a"
-	att2.PromotedGeneration = 2
-	writeBranchCache(t, m, att2, "binary-v2")
-	// Note: no writeBranchCASImage here — but Materialize cloned the CAS master
-	// into att2's branch, so the promote re-promotes the same CAS bytes.
-	m.FinalizeCAS(att2, "acct-a", true)
-	if o, err := m.Finalize(att2, "acct-a", true, true); err != nil || o != VolumeOutcomePromoted {
-		t.Fatalf("Finalize2: outcome=%s err=%v", o, err)
-	}
-	if !masterCASImageExists(m, "acct-a") {
-		t.Fatal("binary promote dropped the sibling CAS image")
-	}
-	if got := readMasterCASImage(t, m, "acct-a"); got != "cas-v1" {
-		t.Fatalf("CAS image after binary promote = %q, want preserved cas-v1", got)
-	}
-}
-
-// TestConvergePreservesCASImage: a HEAD convergence (InstallMaster) replaces the
-// binary master image but must keep the local CAS image — the HEAD image never
-// carries the CAS, which is per-host and never uploaded.
-func TestConvergePreservesCASImage(t *testing.T) {
-	m, _ := newTestManager(t, 10)
-	m.CASGiB = 2
-	seedMasterCASImage(t, m, "acct-a", "local-cas")
-	// Seed a binary master too (generation 1) so convergence has something to replace.
-	seedMaster(t, m, "acct-a")
-	// Build a converged source image (a fresher HEAD image staged for install).
-	src := filepath.Join(t.TempDir(), "head.sparseimage")
-	if err := os.WriteFile(src, []byte("converged-binary"), 0o644); err != nil {
-		t.Fatalf("build converged src: %v", err)
-	}
-	// Install at generation 2 (newer than the seeded 1) so the fast-forward takes.
-	if _, err := m.InstallMaster("acct-a", ReservedTuistCacheVolume, src, 2); err != nil {
-		t.Fatalf("InstallMaster: %v", err)
-	}
-	if !masterCASImageExists(m, "acct-a") {
-		t.Fatal("convergence dropped the local CAS image")
-	}
-	if got := readMasterCASImage(t, m, "acct-a"); got != "local-cas" {
-		t.Fatalf("CAS image after converge = %q, want preserved local-cas", got)
-	}
-}
-
-// TestCASOnlyMasterIsTracked: a compile-only job promotes only the CAS, leaving a
-// volume with xcode-cas.sparseimage and no master.sparseimage. That volume is
-// still real disk and must be scanned as a master — otherwise it escapes stats
-// and LRU eviction and eventually fills the quota volume, forcing every admission
-// cold.
-func TestCASOnlyMasterIsTracked(t *testing.T) {
-	m, _ := newTestManager(t, 100)
-	m.CASGiB = 2
-	seedMasterCASImage(t, m, "acct-a", "cas-only") // no binary master.sparseimage
-	if masterExists(m, "acct-a") {
-		t.Fatal("precondition: no binary master should exist for a CAS-only volume")
-	}
-	masters, err := m.allMastersLocked()
-	if err != nil {
-		t.Fatalf("allMastersLocked: %v", err)
-	}
-	if len(masters) != 1 || masters[0].account != "acct-a" {
-		t.Fatalf("CAS-only volume must be scanned as a master; got %+v", masters)
-	}
 }
 
 // branchHasWarmCache reports whether the branch carries a master's contents
@@ -1214,20 +934,33 @@ func stageConvergeImage(t *testing.T, m *VolumeManager, vm, content string) stri
 // computes it inside the mounted image and the host computes it through a
 // read-only attach, and the two are compared against each other.
 func TestInventoryDigestMatchesGuestScript(t *testing.T) {
-	root := t.TempDir()
+	root := t.TempDir() // the image MOUNT root (parent of tuist/ and the CAS store)
 
-	// Empty inventory: SHA-1 of the empty string, matching `... | sort | shasum`
-	// over no entries.
-	d0, err := inventoryDigest(filepath.Join(root, cacheHomeSubdir))
+	// wantDigest builds the digest exactly as the guest's cache_inventory does:
+	// the binary entry-name lines plus one `~cas.bytes/N` line, LC_ALL=C sorted
+	// (`~` sorts last), newline-joined, sha1'd.
+	wantDigest := func(entries []string, casBytes uint64) string {
+		lines := append(append([]string{}, entries...), fmt.Sprintf("%s/%d", casSizeSentinel, casBytes))
+		sort.Strings(lines)
+		h := sha1.New()
+		for _, l := range lines {
+			h.Write([]byte(l))
+			h.Write([]byte("\n"))
+		}
+		return hex.EncodeToString(h.Sum(nil))
+	}
+
+	// Empty binary inventory + absent CAS store: just the ~cas.bytes/0 line (NOT
+	// sha1("") — the CAS size line is always present).
+	d0, err := inventoryDigest(root)
 	if err != nil {
 		t.Fatalf("inventoryDigest: %v", err)
 	}
-	if d0 != "da39a3ee5e6b4b0d3255bfef95601890afd80709" {
-		t.Fatalf("empty digest = %q; want sha1(\"\")", d0)
+	if want := wantDigest(nil, 0); d0 != want {
+		t.Fatalf("empty digest = %q; want %q (must include %s/0)", d0, want, casSizeSentinel)
 	}
 
-	// Two Binaries entries → SHA-1 over the sorted, prefixed, newline-joined
-	// lines, independent of creation order.
+	// Two Binaries entries, still no CAS — order-independent.
 	binaries := filepath.Join(root, cacheHomeSubdir, "Binaries")
 	if err := os.MkdirAll(filepath.Join(binaries, "hashB"), 0o755); err != nil {
 		t.Fatal(err)
@@ -1235,32 +968,46 @@ func TestInventoryDigestMatchesGuestScript(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(binaries, "hashA"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-
-	got, err := inventoryDigest(filepath.Join(root, cacheHomeSubdir))
+	got, err := inventoryDigest(root)
 	if err != nil {
 		t.Fatalf("inventoryDigest: %v", err)
 	}
-	h := sha1.New()
-	for _, l := range []string{"Binaries/hashA", "Binaries/hashB"} {
-		h.Write([]byte(l))
-		h.Write([]byte("\n"))
-	}
-	if want := hex.EncodeToString(h.Sum(nil)); got != want {
+	if want := wantDigest([]string{"Binaries/hashA", "Binaries/hashB"}, 0); got != want {
 		t.Fatalf("digest = %q; want %q", got, want)
 	}
 
-	// A dotfile (.DS_Store, an in-flight .tmp) must be ignored: the guest's
-	// `ls -1` never lists it, so counting it here would make the host digest
-	// disagree with the guest-reported one and abort convergence forever.
+	// A dotfile in the binary subtree is ignored (matches the guest's `ls -1`).
 	if err := os.WriteFile(filepath.Join(binaries, ".DS_Store"), []byte("noise"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	withDotfile, err := inventoryDigest(filepath.Join(root, cacheHomeSubdir))
+	if withDotfile, _ := inventoryDigest(root); withDotfile != got {
+		t.Fatalf("dotfile changed the digest: %q != %q (must be skipped to match the guest)", withDotfile, got)
+	}
+
+	// The folded CAS store's total logical size enters the digest: a compile-only
+	// job (binary subtree unchanged) that only grew the CAS still changes the
+	// digest → promotes. The sum matches the guest's `find -type f -exec stat -f
+	// %z` — regular files only, logical bytes, recursive; dotfiles counted (llcas
+	// locks/tmp are stable at teardown), unlike the binary entry-name filter.
+	casDir := filepath.Join(root, casStoreDir)
+	if err := os.MkdirAll(filepath.Join(casDir, "v1"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(casDir, "v1", "records"), make([]byte, 100), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(casDir, "data"), make([]byte, 40), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	withCAS, err := inventoryDigest(root)
 	if err != nil {
 		t.Fatalf("inventoryDigest: %v", err)
 	}
-	if withDotfile != got {
-		t.Fatalf("dotfile changed the digest: %q != %q (must be skipped to match the guest)", withDotfile, got)
+	if withCAS == got {
+		t.Fatal("CAS growth must change the digest so a compile-only job promotes")
+	}
+	if want := wantDigest([]string{"Binaries/hashA", "Binaries/hashB"}, 140); withCAS != want {
+		t.Fatalf("digest with CAS = %q; want %q (140 = 100 + 40 logical bytes)", withCAS, want)
 	}
 }
 

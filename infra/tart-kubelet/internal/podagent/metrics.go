@@ -253,6 +253,20 @@ var cacheVolumeAdmissionDeclinedTotal = prometheus.NewCounter(
 	},
 )
 
+// cacheVolumeUploadSeconds measures how long the guest's teardown HEAD upload of
+// the cache image took. The upload blocks the VM from halting, so this is exactly
+// how long a promoting job holds the host slot before it can be reclaimed — the
+// signal for keeping the volume sized so uploads stay fast (the CAS is folded in,
+// so this now includes CAS bytes). Reported by the guest via the volume-upload-ms
+// status marker and recorded here at finalize.
+var cacheVolumeUploadSeconds = prometheus.NewHistogram(
+	prometheus.HistogramOpts{
+		Name:    "tart_kubelet_cache_volume_upload_seconds",
+		Help:    "Wall-clock the guest teardown spent uploading the cache image as the account HEAD; blocks slot reclaim.",
+		Buckets: []float64{0.5, 1, 2, 5, 10, 20, 30, 60, 120, 300, 600},
+	},
+)
+
 func init() {
 	metrics.Registry.MustRegister(
 		vmBootDurationSeconds,
@@ -270,7 +284,17 @@ func init() {
 		cacheVolumeEnabled,
 		cacheVolumeRootMounted,
 		cacheVolumeAdmissionDeclinedTotal,
+		cacheVolumeUploadSeconds,
 	)
+}
+
+// RecordVolumeUpload records how long the guest's HEAD upload blocked teardown
+// (ms in, seconds observed).
+func RecordVolumeUpload(ms int64) {
+	if ms < 0 {
+		return
+	}
+	cacheVolumeUploadSeconds.Observe(float64(ms) / 1000)
 }
 
 // RecordVolumeOutcome increments the per-outcome count of finalized cache

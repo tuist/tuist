@@ -70,12 +70,6 @@ func ReattachVolumeForPod(volumes *VolumeManager, pod *corev1.Pod, vm string) (V
 // discarded.
 const dirtyMarkerFile = "cache-dirty"
 
-// runnerOkFile carries the runner's own exit status (rc == 0), written by the
-// guest at teardown independent of the dirty bit. It is the ONLY signal that a
-// job actually succeeded — cleanExit is true on any VM halt and the dirty marker
-// is written even on a failed run — so the CAS promote gates on it.
-const runnerOkFile = "runner-ok"
-
 // cacheReadyFile is the marker the host writes into the writable status share
 // once it has materialized the dispatched account's cache into the VM's branch
 // (or determined there is no master to materialize — a cold first job).
@@ -136,6 +130,7 @@ func (r *Reconciler) maybeMaterializeVolume(pod *corev1.Pod) {
 		// restart re-enters here and recreates the image while the guest still has
 		// it mounted.
 		r.Volumes.MarkMaterialized(entry.Volume)
+		r.writeCASEnabled(entry.VolumeStatusDir)
 		writeCacheReady(entry.VolumeStatusDir)
 		return
 	}
@@ -157,6 +152,8 @@ func (r *Reconciler) maybeMaterializeVolume(pod *corev1.Pod) {
 	// Drop the host-written materialization marker so a kubelet restart can tell
 	// this (materialized) branch from an idle VM's boot-created empty cache dir.
 	r.Volumes.MarkMaterialized(entry.Volume)
+	// Point the guest at the folded CAS store (before cache-ready, no race).
+	r.writeCASEnabled(entry.VolumeStatusDir)
 	// Signal the guest the cache is ready (warm or cold) so its bounded wait
 	// releases and the job runs.
 	writeCacheReady(entry.VolumeStatusDir)
@@ -191,6 +188,41 @@ func writeCacheBudget(statusDir string, capGiB int) {
 	}
 	budget := uint64(capGiB) * 1024 * 1024 * 1024 * 8 / 10
 	_ = os.WriteFile(filepath.Join(statusDir, cacheBudgetFile), []byte(strconv.FormatUint(budget, 10)), 0o644)
+}
+
+// casEnabledFile signals the guest to point the compiler at the folded CAS store
+// inside the mounted cache image. Written (before cache-ready, so the guest never
+// races it) only when the feature is on; absent ⇒ the guest leaves the
+// compilation cache VM-local.
+const casEnabledFile = "cas-enabled"
+
+func (r *Reconciler) writeCASEnabled(statusDir string) {
+	if statusDir == "" || r.Volumes == nil || !r.Volumes.casEnabled() {
+		return
+	}
+	_ = os.WriteFile(filepath.Join(statusDir, casEnabledFile), []byte("1"), 0o644)
+}
+
+// uploadMillisFile carries the wall-clock ms the guest teardown spent uploading
+// the cache image as the account HEAD. That upload blocks the VM halt, so it is
+// how long a promoting job held the host slot.
+const uploadMillisFile = "volume-upload-ms"
+
+// readUploadMillis returns the guest-reported upload duration in ms, or -1 when
+// absent (no promote, or the job did not upload).
+func readUploadMillis(statusDir string) int64 {
+	if statusDir == "" {
+		return -1
+	}
+	b, err := os.ReadFile(filepath.Join(statusDir, uploadMillisFile))
+	if err != nil {
+		return -1
+	}
+	ms, err := strconv.ParseInt(strings.TrimSpace(string(b)), 10, 64)
+	if err != nil {
+		return -1
+	}
+	return ms
 }
 
 // baseGenerationFile carries the HEAD generation the branch was clonefiled from,
@@ -408,19 +440,21 @@ func (r *Reconciler) finalizeVolume(entry *Entry, actualAccount string, cleanExi
 		RecordVolumePromote(entry.Volume.PromotedGeneration > 0)
 	}
 
-	// The CAS image promotes on runner success (rc == 0), carried separately from
-	// the dirty bit, gated additionally on a clean VM halt so a crash mid-teardown
-	// never advances the master from an inconsistent image. Runs BEFORE Finalize,
-	// which removes the branch on discard, so a binary-clean compile-only job
-	// still persists its CAS.
-	runnerOk := cleanExit && readRunnerOk(entry.VolumeStatusDir)
-	r.Volumes.FinalizeCAS(entry.Volume, actualAccount, runnerOk)
-
+	// The CAS store is folded into the cache image, so it promotes as part of the
+	// one image below — no separate CAS finalize. A compile-only job still
+	// persists its CAS because its growth flips the inventory digest (via the CAS
+	// size line) → dirty → the whole image promotes.
 	outcome, err := r.Volumes.Finalize(entry.Volume, actualAccount, succeeded, dirty)
 	if err != nil {
 		log.Log.WithName("volume").Error(err, "finalize cache volume", "vm", entry.VMName, "account", actualAccount)
 	}
 	RecordVolumeOutcome(string(outcome))
+	// Record how long the guest's HEAD upload blocked teardown (and thus slot
+	// reclaim), if it uploaded — the signal for keeping the volume sized so the
+	// folded-in CAS doesn't make uploads slow.
+	if ms := readUploadMillis(entry.VolumeStatusDir); ms >= 0 {
+		RecordVolumeUpload(ms)
+	}
 
 	// Consumed: the branch has been renamed away (promote) or removed
 	// (discard). Clear the flag so a later teardown path does not re-run
@@ -440,17 +474,4 @@ func readDirtyMarker(statusDir string) (present, dirty bool) {
 		return false, false
 	}
 	return true, strings.TrimSpace(string(b)) == "1"
-}
-
-// readRunnerOk reports whether the guest's runner-ok marker says the runner
-// exited 0. False when absent (crash / incomplete job) or "0" (failed run).
-func readRunnerOk(statusDir string) bool {
-	if statusDir == "" {
-		return false
-	}
-	b, err := os.ReadFile(filepath.Join(statusDir, runnerOkFile))
-	if err != nil {
-		return false
-	}
-	return strings.TrimSpace(string(b)) == "1"
 }

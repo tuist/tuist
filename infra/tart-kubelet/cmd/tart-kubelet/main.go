@@ -125,11 +125,11 @@ func main() {
 		"Provisioned capacity (GiB) of each per-account cache master image. The image is sparse, so this is a "+
 			"ceiling, not an allocation; the runner-cache-root quota is the real aggregate bound.")
 	flag.IntVar(&cacheVolumeCASGiB, "cache-volume-cas-gib", envIntOr("TART_KUBELET_CACHE_VOLUME_CAS_GIB", 0),
-		"Logical cap (GiB) of each account's Xcode compilation-cache (CAS) disk image, and the extra "+
-			"admission headroom reserved per live branch for it. 0 (default) disables the CAS image: the "+
-			"binary cache still rides the virtio-fs tree, but the compilation cache is not persisted across VMs. "+
-			"The image is sparse (a ceiling, not an allocation). Kept separate from the tree because the CAS "+
-			"cannot live on virtio-fs (llcas mmap'd locking SIGBUSes there) and must ride a block-device image.")
+		"Enable toggle for the Xcode compilation cache (CAS), which is now FOLDED into the cache image "+
+			"(a store dir beside the binary cache, sharing --cache-volume-cap-gib — size the volume for both). "+
+			">0 signals the guest to point the compiler at the store so it persists across VMs and rides the "+
+			"binary cache's HEAD/convergence; 0 (default) leaves the compilation cache VM-local. The value no "+
+			"longer sizes a separate image (there isn't one); keep the volume cap reasonable so HEAD uploads stay fast.")
 	flag.BoolVar(&disableVMGC, "disable-vm-gc", false,
 		"Disable the periodic orphan-VM garbage collector. The GC deletes every local "+
 			"Tart VM not backed by a Pod scheduled to this Node. On builder-fleet Nodes — "+

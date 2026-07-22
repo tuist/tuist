@@ -176,17 +176,16 @@ CACHE_INVENTORY_BEFORE=""
 # publish (which runs after detach, when nothing can be read) can still use it.
 CACHE_INVENTORY_AFTER=""
 STATUS_SHARE="/Volumes/My Shared Files/status"
-# The Xcode compilation cache (CAS) can't live on the virtio-fs share directly —
-# llcas's mmap'd file locking SIGBUSes over virtio-fs. The host stages it as a
-# sparse APFS disk IMAGE inside the branch share instead; the guest attaches it
-# as a real block device (whose block layer does plain read/write to the backing
-# file, dodging the mmap fault) and points the CLI's compilation cache at it.
-CAS_IMAGE_NAME="xcode-cas.sparseimage"
-CAS_MOUNT="/Users/runner/xcode-cas"
-CAS_ATTACHED=""
-# The xcconfig that points every xcodebuild in the job at the attached image.
-# Lives on the VM's own disk, not the share: xcodebuild only reads it.
+# The Xcode compilation cache (CAS) is FOLDED into the cache image: a top-level
+# store dir beside `tuist/` inside the one mounted image. It works because it
+# lives on the attached block-device APFS image, not the virtio-fs share (llcas
+# mmaps its store and mmap over virtio-fs SIGBUSes). No separate image or mount —
+# the guest just points the compiler at <CACHE_MOUNT>/<CAS_STORE_DIR> when the
+# host stages the cas-enabled marker. The xcconfig lives on the VM's own disk
+# (xcodebuild only reads it).
+CAS_STORE_DIR="CompilationCache.noindex"
 CAS_XCCONFIG="/Users/runner/.tuist-cas.xcconfig"
+CAS_ENABLED_MARKER="cas-enabled"
 # Control-plane endpoints (dispatch URL's siblings/child). Neither receives the
 # image bytes: the mint endpoint returns a presigned object-storage PUT URL, and
 # the image is uploaded DIRECTLY to that URL (see report_volume_head). The
@@ -205,13 +204,22 @@ VOLUME_HEAD_UPLOAD_URL_MINT_ENDPOINT="${VOLUME_HEAD_REPORT_URL}/upload-url"
 cache_inventory() {
   [ -n "${CACHE_MOUNT}" ] || { echo "none"; return 0; }
   local root="${CACHE_MOUNT}/tuist"
+  local cas="${CACHE_MOUNT}/${CAS_STORE_DIR}"
+  # Total logical bytes of the folded CAS store. llcas grows by APPENDING to fixed
+  # files, so its entry names don't reliably change on growth — the size does — so
+  # a compile-only job (binary cache clean, CAS grown) still flips the digest and
+  # promotes. MUST match the host's inventoryDigest/dirLogicalSize EXACTLY: regular
+  # files only, logical st_size (stat -f %z), summed.
+  local cas_bytes
+  cas_bytes=$( { find "${cas}" -type f -exec stat -f %z {} + 2>/dev/null || true; } | awk '{s += $1} END {printf "%d", s + 0}' )
   # LC_ALL=C: byte-order sort, so this agrees with the host's inventoryDigest
-  # (Go sort.Strings is byte-wise). A locale collation here would order mixed-case
-  # or punctuated hash names differently and make every convergence digest-mismatch.
+  # (Go sort.Strings is byte-wise). The `~cas.bytes/` line sorts LAST (0x7E > the
+  # alphanumeric subdir names), matching the host's casSizeSentinel placement.
   {
     for d in Binaries Manifests ProjectDescriptionHelpers Plugins; do
       /bin/ls -1 "${root}/${d}" 2>/dev/null | sed "s|^|${d}/|"
     done
+    printf '~cas.bytes/%s\n' "${cas_bytes}"
   } | LC_ALL=C sort | shasum | awk '{print $1}'
 }
 
@@ -286,6 +294,8 @@ attach_cache_image() {
     export TUIST_CACHE_MAX_BYTES="${budget}"
   fi
   echo "$(date -u +%FT%TZ) dispatch-poll: cache image mounted at ${CACHE_MOUNT}; TUIST_XDG_CACHE_HOME set (budget=${TUIST_CACHE_MAX_BYTES:-none})"
+  # The CAS store is folded into this image; point the compiler at it (if enabled).
+  setup_cas_store
   return 0
 }
 
@@ -362,141 +372,57 @@ probe_cache_share() {
   echo "$(date -u +%FT%TZ) dispatch-poll: cache share present at ${CACHE_SHARE}; image attaches after dispatch"
 }
 
-# attach_cas_image attaches the per-account CAS disk image the host clonefiled
-# into the branch (present only when the CAS-volume feature is on and the host
-# materialized one) as a block device, and points EVERY xcodebuild build in the
-# job at it. Attaching gives a real APFS volume whose block layer reads/writes
-# the backing file — sidestepping the virtio-fs mmap SIGBUS that a CAS pointed
-# straight at the share would hit. Absent image => the compilation cache falls to
-# the VM-local default (cold, dies with the VM), i.e. today's behavior. Never
-# blocks the job.
+
+# setup_cas_store points every xcodebuild in the job at the folded CAS store
+# inside the mounted cache image, when the host staged the cas-enabled marker.
+# Called after attach_cache_image (CACHE_MOUNT set); the store rides the one
+# image, so there is nothing to attach and nothing to detach separately — the
+# cache image's own quiesced detach + not-promotable-on-failed-detach gate cover
+# it. Absent marker / unwritable store => the compilation cache falls to the
+# VM-local default (cold, dies with the VM). Never blocks the job.
 #
 # The CAS location rides XCODE_XCCONFIG_FILE, not a build setting Tuist writes
 # into a project: the common case is a plain `xcodebuild build` against a project
-# Tuist never generated and never wraps, so a project mapper (generate-only) and
-# `tuist xcodebuild` (wrapper-only) both miss it. An xcconfig injected through the
-# environment is the one layer every xcodebuild invocation honors. Measured on
-# staging: COMPILATION_CACHE_* exported as plain env vars does NOTHING (xcodebuild
-# does not read build settings from the environment); via XCODE_XCCONFIG_FILE a
-# raw build caches onto the image and replays warm.
+# Tuist never generated and never wraps, which a project mapper (generate-only)
+# and `tuist xcodebuild` (wrapper-only) both miss. An xcconfig injected through
+# the environment is the one layer every xcodebuild invocation honors. (Measured
+# on staging: COMPILATION_CACHE_* as plain env vars does NOTHING; via
+# XCODE_XCCONFIG_FILE a raw build caches and replays warm.) It deliberately does
+# NOT set COMPILATION_CACHE_ENABLE_CACHING — enabling the cache stays the
+# project's opt-in; this only says WHERE an already-caching build keeps its store.
 #
-# Deliberately does NOT set COMPILATION_CACHE_ENABLE_CACHING: enabling the cache
-# stays the project's opt-in (generated settings, or the manual ones from
-# `tuist setup cache`). This only tells a build that ALREADY caches where to keep
-# its store, so a project that never opted in is unaffected.
-#
-# PRECEDENCE, measured — `XCODE_XCCONFIG_FILE` OVERRIDES project/target-defined
-# settings (swift-build calls it `environmentConfigPath`, "the xcconfig overrides
-# file from an environment variable", sibling to `-xcconfig`; verified: an
-# xcconfig PRODUCT_NAME beats the target's). So this FORCES the CAS location:
-# a target-level COMPILATION_CACHE_CAS_PATH does NOT win.
-#
-# That is deliberate here. On an ephemeral runner a project-set CAS path is
-# either somewhere on the VM's own disk — thrown away with the VM, so no worse
-# off — or on the virtio-fs share, where llcas SIGBUSes and takes the build down
-# with it. Forcing the image is the only option that both persists and doesn't
-# crash. The escape hatch is a workflow's OWN xcconfig: it is `#include`d LAST
-# below, so anything it sets (including the CAS path) wins over these defaults.
-attach_cas_image() {
-  # The CAS image is a sibling of the binary cache image on the virtio-fs share,
-  # NOT inside the mounted binary image — so look on the share (CACHE_SHARE), and
-  # gate on the share being present rather than on the binary cache having
-  # mounted. The host stages the CAS image independent of the binary cache's
-  # warm/cold outcome, so a binary-cold job can still have a warm CAS here.
-  [ -n "${CACHE_SHARE_PRESENT}" ] || return 0
-  local img="${CACHE_SHARE}/${CAS_IMAGE_NAME}"
-  [ -f "${img}" ] || { echo "$(date -u +%FT%TZ) dispatch-poll: no CAS image; compilation cache runs VM-local"; return 0; }
-  mkdir -p "${CAS_MOUNT}" 2>/dev/null || true
-  # `-owners off`: the image outlives the runner image that made it, but the
-  # `runner` user is created WITHOUT a fixed UID (`sysadminctl -addUser runner`),
-  # so its UID can shift between runner-image releases. With ownership enforced, a
-  # store written as the old UID becomes unwritable to the new one — and since
-  # `mkdir -p` on an existing dir succeeds, we would happily export a CAS path the
-  # build cannot write. Disabling ownership makes the mounting user own everything
-  # regardless of what UID wrote it. Safe here: the image is already per-account
-  # (one trust domain) and holds no security boundary of its own.
-  if ! hdiutil attach "${img}" -mountpoint "${CAS_MOUNT}" -nobrowse -owners off >/dev/null 2>&1; then
-    echo "$(date -u +%FT%TZ) dispatch-poll: WARNING CAS image attach failed; compilation cache runs VM-local"
-    return 0
-  fi
-  CAS_ATTACHED="${CAS_MOUNT}"
-
-  # One store per account image. Not per project handle: a raw xcodebuild knows
-  # no Tuist handle, so a handle-keyed path could not be produced here — and it
-  # needs none. The image is already per-account (one trust domain), the store is
-  # content-addressed, and a VM runs one job at a time, so sharing it across an
-  # account's projects is safe and dedups their common dependencies.
-  #
-  # Named CompilationCache.noindex — the name Xcode itself uses — because the
-  # `.noindex` suffix is what keeps Spotlight out of it. Without it, mds would
-  # index a multi-GB, high-file-count CAS on a mounted volume: wasted CPU on
-  # every job, and churn against a store the host is about to clonefile.
-  local store="${CAS_MOUNT}/CompilationCache.noindex"
+# PRECEDENCE, measured — XCODE_XCCONFIG_FILE OVERRIDES project/target settings
+# (swift-build's `environmentConfigPath`), so this FORCES the CAS location; the
+# escape hatch is a workflow's OWN xcconfig, `#include`d LAST below, so anything
+# it sets (the CAS path included) wins over these defaults.
+setup_cas_store() {
+  [ -n "${CACHE_MOUNT}" ] || return 0
+  [ -f "${STATUS_SHARE}/${CAS_ENABLED_MARKER}" ] || { echo "$(date -u +%FT%TZ) dispatch-poll: CAS not enabled; compilation cache runs VM-local"; return 0; }
+  local store="${CACHE_MOUNT}/${CAS_STORE_DIR}"
   mkdir -p "${store}" 2>/dev/null || true
   # Never export a store the build can't write. `mkdir -p` says nothing about an
-  # ALREADY-EXISTING dir, so prove writability rather than assume it: an
-  # unwritable store must degrade to a VM-local cache (a cold job) instead of
-  # pointing every compile at a path that errors.
+  # ALREADY-EXISTING dir, so prove writability rather than assume it.
   if ! touch "${store}/.writable" 2>/dev/null; then
-    echo "$(date -u +%FT%TZ) dispatch-poll: WARNING CAS store not writable; detaching, compilation cache runs VM-local"
-    hdiutil detach "${CAS_MOUNT}" -force >/dev/null 2>&1 || true
-    CAS_ATTACHED=""
+    echo "$(date -u +%FT%TZ) dispatch-poll: WARNING CAS store not writable; compilation cache runs VM-local"
     return 0
   fi
   rm -f "${store}/.writable" 2>/dev/null || true
   {
     printf 'COMPILATION_CACHE_CAS_PATH = %s\n' "${store}"
     printf 'COMPILATION_CACHE_KEEP_CAS_DIRECTORY = YES\n'
-    # Bound the store to a fraction of the dedicated image volume, so llcas prunes
-    # before the image can hit ENOSPC.
+    # Bound the store to a fraction of the image volume so llcas prunes before the
+    # image can hit ENOSPC. The image holds the binary cache too, so this cap is
+    # shared with the CLI's TUIST_CACHE_MAX_BYTES — keep the volume sized for both.
     printf 'COMPILATION_CACHE_LIMIT_PERCENT = 80\n'
-    # A pre-existing user xcconfig is chained LAST, not first: the variable is a
-    # single slot, so we must carry theirs rather than clobber it — and including
-    # it after our defaults means anything they set explicitly (the CAS path
-    # included) wins. That is the opt-out for a repo that runs its own CAS.
-    # (A workflow that exports the variable AFTER us still wins outright; the CAS
-    # then falls back to VM-local, which costs warmth but never breaks a job.)
+    # A pre-existing user xcconfig is chained LAST: the variable is a single slot,
+    # so carry theirs rather than clobber it, and including it after our defaults
+    # means anything they set explicitly (the CAS path included) wins.
     if [ -n "${XCODE_XCCONFIG_FILE:-}" ] && [ -f "${XCODE_XCCONFIG_FILE}" ]; then
       printf '#include "%s"\n' "${XCODE_XCCONFIG_FILE}"
     fi
   } > "${CAS_XCCONFIG}"
   export XCODE_XCCONFIG_FILE="${CAS_XCCONFIG}"
-  echo "$(date -u +%FT%TZ) dispatch-poll: CAS image attached at ${CAS_MOUNT}; XCODE_XCCONFIG_FILE -> ${CAS_XCCONFIG} (store=${store})"
-}
-
-# detach_cas_image unmounts the CAS image so the host promotes a quiesced,
-# consistent image after the VM halts (Finalize clonefiles the branch image into
-# the account's master). Called after the runner exits. Best-effort with a short
-# retry — a just-finished build may briefly hold a file open — then a forced
-# detach. Never blocks teardown.
-detach_cas_image() {
-  [ -n "${CAS_ATTACHED}" ] || return 0
-  # Stop pointing builds at a store that is about to go away.
-  unset XCODE_XCCONFIG_FILE
-  rm -f "${CAS_XCCONFIG}" 2>/dev/null || true
-  local i=0
-  while [ "${i}" -lt 5 ]; do
-    if hdiutil detach "${CAS_ATTACHED}" >/dev/null 2>&1; then
-      echo "$(date -u +%FT%TZ) dispatch-poll: CAS image detached"
-      CAS_ATTACHED=""
-      return 0
-    fi
-    sleep 1
-    i=$((i + 1))
-  done
-  if hdiutil detach "${CAS_ATTACHED}" -force >/dev/null 2>&1; then
-    echo "$(date -u +%FT%TZ) dispatch-poll: CAS image force-detached"
-    CAS_ATTACHED=""
-    return 0
-  fi
-  # Detach failed even with -force: the image may still be mounted and possibly
-  # mid-write. Report failure (CAS_ATTACHED left set) so the caller withholds
-  # runner-ok and the host does NOT promote it — the host clones this file to
-  # promote and cannot tell a torn snapshot from a good one, so a live mount
-  # would poison the account's master. Mirrors the binary cache's
-  # not-promotable path on a failed detach.
-  echo "$(date -u +%FT%TZ) dispatch-poll: WARNING CAS image detach failed; withholding from promotion"
-  return 1
+  echo "$(date -u +%FT%TZ) dispatch-poll: CAS store at ${store}; XCODE_XCCONFIG_FILE -> ${CAS_XCCONFIG}"
 }
 
 # CACHE_READY_TIMEOUT bounds the wait for the host's cache-ready signal — the
@@ -579,19 +505,6 @@ capture_cache_state() {
 # still promotes, which is acceptable — those artifacts are content-addressed
 # and signature-validated, so they warm rather than corrupt.) Mirrors the rc
 # gate in report_volume_head so local promote and HEAD publish agree.
-# report_runner_ok writes the runner's own exit status (1 iff rc == 0) into the
-# status share as a signal SEPARATE from the dirty bit. The host promotes the
-# per-account CAS image on runner success alone (not the binary-cache dirty
-# bit, so a compile-only job still persists its CAS) — but the dirty marker is
-# written "0" even on a failed run and the VM always halts cleanly, so neither
-# is a safe success signal. This marker is. Written unconditionally at teardown
-# (independent of the cache mount), so a wedged/cold cache never suppresses it.
-report_runner_ok() {
-  [ -d "${STATUS_SHARE}" ] || return 0
-  local rc="${1:-1}" ok=0
-  [ "${rc}" = "0" ] && ok=1
-  printf '%s' "${ok}" > "${STATUS_SHARE}/runner-ok" 2>/dev/null || true
-}
 
 report_cache_dirty() {
   [ -d "${STATUS_SHARE}" ] || return 0
@@ -690,10 +603,20 @@ report_volume_head() {
   # endpoint could 307 the upload to an internal address and receive the image
   # body (SSRF), the write-side twin of the download guard. The server has
   # already checked the URL host is public before handing it over.
+  # Time the PUT — the volume upload blocks teardown, so the VM cannot halt and
+  # the host cannot reclaim the slot until it finishes. Report the duration to the
+  # host (volume-upload-ms) so we can watch how long uploads hold slots and keep
+  # the volume sized so it stays fast. perl for ms precision (BSD date has no %N).
+  local upload_start upload_end
+  upload_start=$(perl -MTime::HiRes -e 'printf "%d", Time::HiRes::time()*1000' 2>/dev/null || echo 0)
   if ! curl -fsS --connect-timeout 10 --max-time "${VOLUME_HEAD_UPLOAD_TIMEOUT}" \
     -X PUT --upload-file "${CACHE_IMAGE}" "${upload_url}" >/dev/null 2>&1; then
     echo "$(date -u +%FT%TZ) dispatch-poll: master image upload failed/timed out; HEAD not advanced"
     return 0
+  fi
+  upload_end=$(perl -MTime::HiRes -e 'printf "%d", Time::HiRes::time()*1000' 2>/dev/null || echo 0)
+  if [ -d "${STATUS_SHARE}" ] && [ "${upload_end}" -gt "${upload_start}" ] 2>/dev/null; then
+    printf '%s' "$(( upload_end - upload_start ))" > "${STATUS_SHARE}/volume-upload-ms" 2>/dev/null || true
   fi
   # Only now advance the HEAD: the object at the digest key exists, so a
   # converging host that reads this HEAD will find it.
@@ -800,9 +723,6 @@ while true; do
       # the cache-ready signal before the runner touches the cache, then
       # snapshot the pre-job inventory. Cold path on timeout; never blocks.
       wait_for_cache_ready
-      # Attach the per-account CAS disk image (if the host staged one) so the
-      # compilation cache resolves against a warm, block-device-backed store.
-      attach_cas_image
       # Force an NTP step before the job runs. A golden-base VM can be
       # handed a job within seconds of boot — before macOS `timed` has
       # synced the guest clock, which can start minutes behind. The
@@ -906,20 +826,7 @@ HOOK
       rc=$?
       # The runner is gone, so the idle watchdog has nothing left to police.
       [ -n "${watchdog_pid:-}" ] && kill "${watchdog_pid}" 2>/dev/null || true
-      # CAS image teardown, independent of the binary cache below (a separate
-      # image and mount). Detach it before the reports + VM halt so the host
-      # promotes a quiesced, consistent image (FinalizeCAS clonefiles the branch
-      # CAS image into the account's master). Authorize the CAS promote (runner-ok)
-      # ONLY on a clean detach: a still-mounted, possibly mid-write image cloned
-      # into a master would poison every job that later clones it — the same
-      # reason the binary path withholds promotion when its detach fails.
-      if detach_cas_image; then
-        # Carry the runner's real exit status to the host as the CAS-promote gate,
-        # separate from the dirty bit (which is "0" even on failure).
-        report_runner_ok "${rc}"
-      fi
-
-      # Binary cache teardown. The order here is load-bearing:
+      # Cache teardown. The order here is load-bearing:
       #   1. capture the inventory + digest, which only works while the image is
       #      still MOUNTED, but withhold the promotion-authorizing dirty marker;
       #   2. detach, so the image is a settled filesystem rather than a torn

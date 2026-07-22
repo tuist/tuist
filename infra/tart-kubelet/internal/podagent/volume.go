@@ -89,27 +89,26 @@ const (
 // thing that crosses virtio-fs. The guest attaches it by this name.
 const branchImageName = "cache.sparseimage"
 
-// casImageName is the per-account Xcode compilation-cache (CAS) store, carried
-// as a SECOND sparse APFS disk image sitting beside the binary cache image in
-// the same volume dir (master) and branch share.
-//
-// It is a separate image, not a subtree of the binary cache image, for two
-// reasons. First, promotion gate: the binary cache promotes only when the guest
-// reports it changed (dirty), while the CAS promotes on runner success alone —
-// a compile-only job that leaves the binary cache clean still grew its
-// compilation cache — so the two cannot share one promote decision. Second,
-// blast radius: llcas is the component that corrupts under load, and a torn CAS
-// snapshot must not be able to tear the binary cache. Two sibling image files
-// are independent by construction: promoting one via rename never touches the
-// other.
-//
-// Like the binary cache, an image (not a bare subtree on the share) because
-// Xcode's on-disk CAS (llcas / UnifiedOnDiskCache) memory-maps its store, and
-// mmap over virtio-fs faults with SIGBUS; attaching a block-device APFS image
-// off the share gives llcas real read/write. The host clonefiles it
-// master<->branch exactly like the binary image, and it is sparse so a master
-// costs only its real CAS bytes.
-const casImageName = "xcode-cas.sparseimage"
+// casStoreDir is the Xcode compilation-cache (CAS) store, folded INTO the cache
+// image as a top-level directory beside `tuist/` rather than carried as its own
+// image. The guest points COMPILATION_CACHE_CAS_PATH at it and llcas mmaps its
+// store — which works because it lives on the attached block-device APFS image,
+// not the virtio-fs share (mmap over virtio-fs SIGBUSes). Folding it in means it
+// rides the binary cache's whole lifecycle — clone, promote, fast-forward HEAD,
+// convergence — with no separate promote gate of its own. Named with Xcode's own
+// `.noindex` suffix so Spotlight (mds) never indexes a multi-GB, high-file-count
+// store.
+const casStoreDir = "CompilationCache.noindex"
+
+// casSizeSentinel is the inventory line carrying the CAS store's total logical
+// byte count. llcas grows partly by APPENDING to fixed files, so its entry NAMES
+// do not reliably change on growth — the total size does. Including it lets a
+// compile-only job (binary cache clean, CAS grown) register as a real change and
+// promote. It is a coarse content proxy: two different CAS states of equal total
+// size collide, which for a cache is at worst an occasional miss. The `~` prefix
+// (0x7E) sorts it AFTER the alphanumeric entry names under LC_ALL=C, matching the
+// guest, and it must be computed identically to the guest's `find … -exec stat`.
+const casSizeSentinel = "~cas.bytes"
 
 // materializedMarker is a host-written sentinel dropped in the branch once the
 // host has materialized (or decided cold-path) for a VM. It is the ONLY signal
@@ -271,22 +270,14 @@ func (m *VolumeManager) Enabled() bool { return m != nil && m.Root != "" }
 
 func (m *VolumeManager) capBytes() uint64 { return uint64(m.CapGiB) * 1024 * 1024 * 1024 }
 
-// casEnabled reports whether the CAS disk image is managed (feature on AND a
-// non-zero image cap configured).
+// casEnabled reports whether the folded CAS store is served for this feature.
+// The host uses it only to signal the guest (via a status-share marker) to point
+// the compiler at the store; the store itself is just a directory inside the
+// cache image, so there is no separate image to manage.
 func (m *VolumeManager) casEnabled() bool { return m.Enabled() && m.CASGiB > 0 }
 
-// casReserveBytes is the per-live-branch headroom admission keeps for the CAS
-// image on top of capBytes. Zero when the CAS image is disabled.
-func (m *VolumeManager) casReserveBytes() uint64 {
-	if !m.casEnabled() {
-		return 0
-	}
-	return uint64(m.CASGiB) * 1024 * 1024 * 1024
-}
-
-// volumeDir is <root>/<account>/<volume> — the master image, its digest
-// sidecar, and the sibling CAS master image live here, and eviction drops the
-// whole directory.
+// volumeDir is <root>/<account>/<volume> — the master image and its generation
+// sidecar live here, and eviction drops the whole directory.
 func (m *VolumeManager) volumeDir(account, volume string) string {
 	return filepath.Join(m.Root, account, volume)
 }
@@ -300,20 +291,6 @@ func (m *VolumeManager) masterImage(account, volume string) string {
 // image corresponds to (see masterGenerationName).
 func (m *VolumeManager) masterGenerationPath(account, volume string) string {
 	return filepath.Join(m.volumeDir(account, volume), masterGenerationName)
-}
-
-// masterCASImage is the account's CAS disk image at
-// <root>/<account>/<volume>/xcode-cas.sparseimage — a sibling of the binary
-// master image in the same volume dir.
-func (m *VolumeManager) masterCASImage(account, volume string) string {
-	return filepath.Join(m.volumeDir(account, volume), casImageName)
-}
-
-// branchCASImage is a VM branch's CAS disk image at <branch>/xcode-cas.sparseimage.
-// It lives inside the branch dir, which is already the virtio-fs share, so the
-// guest attaches it with no extra mount.
-func (m *VolumeManager) branchCASImage(att VolumeAttachment) string {
-	return filepath.Join(att.BranchPath, casImageName)
 }
 
 // branchDir is <root>/branches/<vm>. Branches are per-VM and account-agnostic
@@ -379,7 +356,7 @@ func (m *VolumeManager) AllocateBranch(volume, vm string) (VolumeAttachment, err
 	// enough headroom that all of them reaching full cap cannot ENOSPC the
 	// volume. If it doesn't fit, evict LRU masters; if it still doesn't,
 	// decline (cold path).
-	want := (m.capBytes() + m.casReserveBytes()) * uint64(m.liveBranches+1)
+	want := m.capBytes() * uint64(m.liveBranches+1)
 	free, err := m.ensureFreeLocked(want)
 	if err != nil {
 		if errors.Is(err, errNoRoom) {
@@ -443,14 +420,8 @@ func (m *VolumeManager) Materialize(att VolumeAttachment, account string) (warm 
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	// Materialize the CAS image FIRST and independent of the binary cache: a job
-	// whose binary cache is cold on this host may still want a warm (or at least
-	// a fresh, promotable) compilation cache, so this must run even when the
-	// binary branch below takes the cold early return. Best-effort — a CAS
-	// failure never costs the job its binary-cache warmth, which is the larger
-	// win. The guest attaches whatever CAS image lands here; if none does, its
-	// compilation cache is simply VM-local (cold) this job.
-	m.materializeCASImageLocked(att, account)
+	// The CAS store is folded into the cache image (casStoreDir), so it is cloned
+	// into the branch as part of the one image below — no separate CAS clone.
 
 	dest := m.BranchImage(att)
 	master := m.masterImage(account, att.VolumeName)
@@ -485,64 +456,6 @@ func (m *VolumeManager) Materialize(att VolumeAttachment, account string) (warm 
 	// an account whose jobs keep landing here stays hot.
 	_ = os.Chtimes(master, m.now(), m.now())
 	return true, base, nil
-}
-
-// materializeCASImageLocked places the account's CAS disk image into the branch
-// so the guest can attach it: a CoW clone of the account's master image when one
-// exists, or a fresh empty sparse image for a cold first job (whose writes
-// Finalize promotes into that account's first master). Best-effort and
-// non-fatal — the caller holds m.mu. No-op when the CAS image is disabled.
-//
-// A cold first job with no master must still get an EMPTY image (not nothing):
-// the guest needs a block device to attach so its build's CAS lands on the
-// image and can be promoted. Without it the first job's CAS would fall to the
-// VM-local disk and never persist.
-func (m *VolumeManager) materializeCASImageLocked(att VolumeAttachment, account string) {
-	if !m.casEnabled() {
-		return
-	}
-	logger := log.Log.WithName("volume-cas")
-	masterImg := m.masterCASImage(account, att.VolumeName)
-	branchImg := m.branchCASImage(att)
-
-	if _, statErr := os.Stat(masterImg); statErr == nil {
-		// Warm: CoW-clone the CAS master into the branch beside the destination
-		// and rename, so a clone that fails partway never leaves a torn image the
-		// guest could attach.
-		tmp := branchImg + ".materialize.tmp"
-		_ = os.Remove(tmp)
-		if err := m.backend.clonePath(masterImg, tmp); err != nil {
-			_ = os.Remove(tmp)
-			logger.Error(err, "clone CAS master image into branch", "account", account)
-			return
-		}
-		_ = os.Remove(branchImg)
-		if err := os.Rename(tmp, branchImg); err != nil {
-			_ = os.Remove(tmp)
-			logger.Error(err, "swap CAS image into branch", "account", account)
-			return
-		}
-		// Bump the CAS master's mtime so LRU keeps a CAS-active account hot even
-		// when its binary cache is cold on this host. allMastersLocked orders by
-		// the newest of the two master images, so this must touch the CAS image
-		// itself — touching the volume dir would not move the LRU key.
-		_ = os.Chtimes(masterImg, m.now(), m.now())
-	} else {
-		// No master yet: create a fresh empty sparse image directly at the branch
-		// path (createImage writes at the given .sparseimage path, like the binary
-		// cold path's createBranchImageLocked).
-		_ = os.Remove(branchImg)
-		if err := m.backend.createImage(branchImg, m.CASGiB); err != nil {
-			logger.Error(err, "create fresh CAS image", "account", account)
-			return
-		}
-	}
-	// The guest attaches this READ-WRITE with its unprivileged runner user. A
-	// cloned image carries the master's mode and a fresh one the kubelet's;
-	// 0666 (uid-independent, and everything inside is the guest's own under
-	// `-owners off`) lets the attach succeed. Without it the CAS silently
-	// degrades to VM-local.
-	_ = chmodImageGuestWritable(branchImg)
 }
 
 // MaterializeEmpty gives a branch an empty image without consulting any
@@ -631,8 +544,19 @@ func (m *VolumeManager) ImageDigest(image string) (string, error) {
 // means the cache actually changed.
 var cacheInventorySubdirs = []string{"Binaries", "Manifests", "ProjectDescriptionHelpers", "Plugins"}
 
-func inventoryDigest(cacheRoot string) (string, error) {
+// inventoryDigest hashes a cache image's content into the digest both the guest
+// and host compute, so a converging host can verify a downloaded master matches
+// its advertised HEAD. mountRoot is the image's mount point — the parent of the
+// `tuist` cache home AND the folded CAS store.
+//
+// It mirrors dispatch-poll.sh's cache_inventory EXACTLY: the sorted, dotfile-
+// filtered entry names under the binary subtrees, plus one casSizeSentinel line
+// carrying the CAS store's total logical bytes. Any drift between the two makes
+// every convergence digest-mismatch, so a change here must land in both (guarded
+// by TestInventoryDigestMatchesGuestScript).
+func inventoryDigest(mountRoot string) (string, error) {
 	var lines []string
+	cacheRoot := filepath.Join(mountRoot, cacheHomeSubdir)
 	for _, sub := range cacheInventorySubdirs {
 		entries, err := os.ReadDir(filepath.Join(cacheRoot, sub))
 		if err != nil {
@@ -649,6 +573,12 @@ func inventoryDigest(cacheRoot string) (string, error) {
 			lines = append(lines, sub+"/"+e.Name())
 		}
 	}
+	// One line for the folded CAS store's total logical size (see casSizeSentinel).
+	casBytes, err := dirLogicalSize(filepath.Join(mountRoot, casStoreDir))
+	if err != nil {
+		return "", err
+	}
+	lines = append(lines, fmt.Sprintf("%s/%d", casSizeSentinel, casBytes))
 	// Byte order, matching the guest's `LC_ALL=C sort`. Go's sort.Strings is
 	// already byte-wise; the guest is the side that has to pin the locale.
 	sort.Strings(lines)
@@ -658,6 +588,27 @@ func inventoryDigest(cacheRoot string) (string, error) {
 		_, _ = h.Write([]byte("\n"))
 	}
 	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
+// dirLogicalSize sums the logical byte sizes (st_size) of every regular file
+// under root, recursively; 0 when root is absent. It must match the guest's
+// `find <dir> -type f -exec stat -f %z {} +` sum exactly: regular files only (no
+// symlinks, no directories), logical size (not on-disk blocks).
+func dirLogicalSize(root string) (uint64, error) {
+	var total uint64
+	err := filepath.Walk(root, func(_ string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.Mode().IsRegular() {
+			total += uint64(info.Size())
+		}
+		return nil
+	})
+	if errors.Is(err, os.ErrNotExist) {
+		return 0, nil
+	}
+	return total, err
 }
 
 // InstallMaster replaces an account's local master with the whole image at src,
@@ -823,87 +774,6 @@ func (m *VolumeManager) Finalize(att VolumeAttachment, account string, jobSuccee
 	}
 	_ = os.RemoveAll(att.BranchPath)
 	return VolumeOutcomePromoted, nil
-}
-
-// FinalizeCAS promotes the branch's CAS disk image into the account's master
-// when the runner exited 0 and the branch was materialized for this account.
-// It is SEPARATE from Finalize (the binary cache) because the CAS promotes on
-// its own gate — runner success alone, NOT the dirty bit — so a compile-only
-// job that leaves the binary cache clean still persists its compilation cache.
-// Must be called BEFORE Finalize, which removes the branch on discard.
-//
-// runnerSucceeded MUST reflect the runner's own exit status (rc == 0), carried
-// separately from the dirty marker. The host's clean-VM-halt signal is true on
-// any exit (the VM always halts), and the dirty marker is written as "0" even on
-// a failed run — so both stay true for a failed or cancelled job. Gating the CAS
-// promote on either would advance the account's master from a failed run; only a
-// dedicated runner-success signal is safe.
-func (m *VolumeManager) FinalizeCAS(att VolumeAttachment, account string, runnerSucceeded bool) {
-	if !m.casEnabled() || !att.Attached {
-		return
-	}
-	if !runnerSucceeded || account == "" || att.SourceAccount != account {
-		return
-	}
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.promoteCASImageLocked(att, account)
-}
-
-// promoteCASImageLocked clones the branch's CAS disk image over the account's
-// master image (atomic tmp + rename), so the next job on this host materializes
-// the grown compilation cache. Best-effort and non-fatal; the caller holds m.mu
-// and has already checked runner success + account match. No-op when the CAS
-// image is disabled or the branch produced none (the guest never attached one —
-// its CAS ran VM-local this job).
-func (m *VolumeManager) promoteCASImageLocked(att VolumeAttachment, account string) {
-	if !m.casEnabled() {
-		return
-	}
-	branchImg := m.branchCASImage(att)
-	// Lstat, not Stat: the branch share is guest-writable, so a hostile job can
-	// unlink its own CAS image and drop a SYMLINK in its place pointing at
-	// another account's master image (a guessable numeric path on the same
-	// runner-cache volume). clonePath's `cp -c` follows a command-line symlink,
-	// so cloning it would pull that account's CAS into this job's master — a
-	// cross-account leak. Refuse anything that isn't a plain regular file.
-	fi, err := os.Lstat(branchImg)
-	if err != nil {
-		return
-	}
-	if !fi.Mode().IsRegular() {
-		log.Log.WithName("volume-cas").Info("refusing to promote non-regular CAS image (possible symlink attack)", "account", account, "mode", fi.Mode().String())
-		return
-	}
-	// Whole-image last-writer-wins, deliberately: like the binary cache's
-	// fast-forward LWW, a promote replaces the master wholesale and a concurrent
-	// loser's delta is dropped (rebuilt next run). The CAS master is host-local,
-	// so the only lost update is two VMs on THIS host (max 2 per host) racing the
-	// same account — the caller holds m.mu, so the two promotes serialize and the
-	// second's whole image wins. Cross-host jobs promote to different hosts'
-	// masters, and sequential jobs each clone the latest master, so warm sets
-	// accumulate over time; only same-host concurrency drops one run's delta, and
-	// it self-heals. Full matrix accumulation (every concurrent slice retained)
-	// is the job of the cross-host kura object ingestion (see the cross-host CAS
-	// plan), not this host-local promote — object-level union here was tried for
-	// the binary cache and removed (#11996) as too costly for the gain.
-	logger := log.Log.WithName("volume-cas")
-	if err := os.MkdirAll(m.volumeDir(account, att.VolumeName), 0o755); err != nil {
-		logger.Error(err, "ensure volume dir for CAS promote", "account", account)
-		return
-	}
-	masterImg := m.masterCASImage(account, att.VolumeName)
-	tmp := masterImg + ".promote.tmp"
-	_ = os.Remove(tmp)
-	if err := m.backend.clonePath(branchImg, tmp); err != nil {
-		_ = os.Remove(tmp)
-		logger.Error(err, "clone branch CAS image", "account", account)
-		return
-	}
-	if err := os.Rename(tmp, masterImg); err != nil {
-		_ = os.Remove(tmp)
-		logger.Error(err, "swap CAS master image", "account", account)
-	}
 }
 
 // ReattachBranch reconstructs the attachment for a VM whose branch survived a
@@ -1218,11 +1088,10 @@ func (m *VolumeManager) mastersByLRULocked() ([]masterEntry, error) {
 	return all, nil
 }
 
-// allMastersLocked scans <root>/<account>/<volume> for either master image
-// (binary master.sparseimage or CAS xcode-cas.sparseimage). Accounts are
-// directory names; the branches dir (per-VM scratch) and the convergence
+// allMastersLocked scans <root>/<account>/<volume>/master.sparseimage. Accounts
+// are directory names; the branches dir (per-VM scratch) and the convergence
 // scratch dir are skipped. Eviction drops the whole <account>/<volume> dir, so
-// the entry path is that dir, while LRU order comes from the newer image's mtime.
+// the entry path is that dir, while LRU order comes from the image's mtime.
 func (m *VolumeManager) allMastersLocked() ([]masterEntry, error) {
 	accounts, err := os.ReadDir(m.Root)
 	if err != nil {
@@ -1244,33 +1113,17 @@ func (m *VolumeManager) allMastersLocked() ([]masterEntry, error) {
 			if !vol.IsDir() {
 				continue
 			}
-			// A volume counts as a master if it holds EITHER the binary image or
-			// the CAS image. A compile-only job promotes only the CAS (its binary
-			// cache stayed clean), leaving a volume with just xcode-cas.sparseimage
-			// — still real disk that must be counted for stats and evicted under
-			// quota pressure, or it leaks the quota volume until every admission
-			// goes cold. LRU orders by the NEWEST of the two images so a
-			// CAS-active-but-binary-cold account stays hot.
-			dir := m.volumeDir(acct.Name(), vol.Name())
-			var modTime time.Time
-			found := false
-			for _, name := range [2]string{masterImageName, casImageName} {
-				info, err := os.Stat(filepath.Join(dir, name))
-				if err != nil {
-					continue
-				}
-				found = true
-				if info.ModTime().After(modTime) {
-					modTime = info.ModTime()
-				}
-			}
-			if !found {
+			// The CAS is folded into the cache image, so a volume is a master iff
+			// it holds master.sparseimage — the one image carries both caches, and
+			// LRU orders by its mtime.
+			info, err := os.Stat(m.masterImage(acct.Name(), vol.Name()))
+			if err != nil {
 				continue
 			}
 			out = append(out, masterEntry{
 				account: acct.Name(),
-				path:    dir,
-				modTime: modTime,
+				path:    m.volumeDir(acct.Name(), vol.Name()),
+				modTime: info.ModTime(),
 			})
 		}
 	}
