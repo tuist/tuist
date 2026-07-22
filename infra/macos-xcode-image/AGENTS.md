@@ -52,8 +52,9 @@ ghcr.io/tuist/tuist-xcresult-processor:<server-semver>
 ```
 
 Why split this layer out: the Xcode install is ~30 min of work
-(unxip, license accept, runFirstLaunch, downloadAllPlatforms). If
-that lived in the runner-image / xcresult-processor packer files,
+(unxip, license accept, runFirstLaunch, Metal Toolchain, and
+downloadAllPlatforms). If that lived in the runner-image /
+xcresult-processor packer files,
 every `fix(runner-image): ...` commit on main would pay the cost
 again. With the split, Layer 2 builds re-clone Layer 1 and lay a
 thin runtime on top — ~2 min instead of ~30.
@@ -66,6 +67,8 @@ thin runtime on top — ~2 min instead of ~30.
   the same bundle.
 - iOS / tvOS / watchOS / visionOS simulator runtimes from
   `xcodebuild -downloadAllPlatforms`.
+- The Metal compiler toolchain from
+  `xcodebuild -downloadComponent MetalToolchain`.
 - Dev tools via brew: `xcodes`, `xcbeautify`, `swiftformat`,
   `swiftlint`, `swiftgen`, `licenseplist`, `mint`, `carthage`,
   `fastlane`, `cocoapods`, `libimobiledevice`, `ideviceinstaller`,
