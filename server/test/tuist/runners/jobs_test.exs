@@ -12,6 +12,7 @@ defmodule Tuist.Runners.JobsTest do
   alias Tuist.Runners.RunnerSession
   alias Tuist.Runners.RunnerSessions
   alias Tuist.Runners.Telemetry
+  alias Tuist.Runners.WorkflowJob
   alias TuistTestSupport.Fixtures.CommandEventsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
@@ -1304,6 +1305,57 @@ defmodule Tuist.Runners.JobsTest do
       {:ok, _} = Jobs.complete(9101, "success")
 
       assert Jobs.p95_concurrent_last_hour("fleet-old") == 0
+    end
+  end
+
+  describe "postgres lifecycle dark writes" do
+    test "enqueue/1 upserts a queued Postgres lifecycle row" do
+      account = account_fixture()
+
+      :ok = enqueue_fixture(account, 9601, fleet: "fleet-pg")
+
+      row = Repo.get!(WorkflowJob, 9601)
+      assert row.status == "queued"
+      assert row.fleet_name == "fleet-pg"
+      assert row.account_id == account.id
+    end
+
+    test "complete/2 transitions the Postgres lifecycle row terminal" do
+      account = account_fixture()
+      :ok = enqueue_fixture(account, 9602, fleet: "fleet-pg")
+
+      assert {:ok, _} = Jobs.complete(9602, "success")
+
+      row = Repo.get!(WorkflowJob, 9602)
+      assert row.status == "completed"
+      assert row.conclusion == "success"
+    end
+
+    test "record_completed/2 inserts a terminal Postgres lifecycle row when queued never arrived" do
+      account = account_fixture()
+
+      attrs = %{
+        workflow_job_id: 9603,
+        account_id: account.id,
+        fleet_name: "fleet-pg",
+        platform: "linux",
+        vcpus: 4,
+        memory_gb: 16,
+        repository: "acme/cli",
+        workflow_run_id: 96_030,
+        run_attempt: 1,
+        workflow_name: "",
+        job_name: "build",
+        head_branch: "main",
+        head_sha: "deadbeef",
+        requested_dispatch_label: ""
+      }
+
+      assert :ok = Jobs.record_completed(attrs, "cancelled")
+
+      row = Repo.get!(WorkflowJob, 9603)
+      assert row.status == "cancelled"
+      assert row.conclusion == "cancelled"
     end
   end
 end

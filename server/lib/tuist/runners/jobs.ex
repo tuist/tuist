@@ -62,6 +62,7 @@ defmodule Tuist.Runners.Jobs do
   alias Tuist.Runners.Job
   alias Tuist.Runners.JobCompletion
   alias Tuist.Runners.Telemetry
+  alias Tuist.Runners.WorkflowJobs
   alias Tuist.Tests.Test, as: TestRun
 
   require Logger
@@ -212,6 +213,7 @@ defmodule Tuist.Runners.Jobs do
       |> Map.put_new(:enqueued_at, now)
       |> Map.put(:updated_at, now)
 
+    :ok = WorkflowJobs.upsert_queued(row)
     insert_row!(row)
 
     :telemetry.execute(
@@ -1456,6 +1458,7 @@ defmodule Tuist.Runners.Jobs do
       |> Map.merge(completion)
 
     persist_completion!(job.workflow_job_id, job.account_id, conclusion, now)
+    :ok = WorkflowJobs.record_completed(job_to_row(job), conclusion, now)
     insert_row!(row)
 
     :telemetry.execute(
@@ -1489,6 +1492,7 @@ defmodule Tuist.Runners.Jobs do
       |> Map.put(:updated_at, now)
 
     persist_completion!(Map.fetch!(row, :workflow_job_id), Map.fetch!(row, :account_id), conclusion, now)
+    :ok = WorkflowJobs.record_completed(row, conclusion, now)
     insert_row!(row)
 
     :telemetry.execute(
