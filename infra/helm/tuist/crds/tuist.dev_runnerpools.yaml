@@ -127,6 +127,33 @@ spec:
                     sidecar to every Linux runner Pod. The microVM keeps
                     the sidecar's privileged surface off the bare-metal
                     host.
+                provisioning:
+                  type: object
+                  description: |
+                    Linux Kata sandbox admission controls. Sibling pools that
+                    share `(os, fleetSelector)` also share one provisioning
+                    budget. The controller uses the lowest sibling maximum so
+                    one mismatched pool cannot weaken the fleet safety limit.
+                    Ignored for macOS pools.
+                  properties:
+                    maxConcurrentPerFleetSelector:
+                      type: integer
+                      default: 4
+                      minimum: 1
+                      description: |
+                        Maximum Linux runner Pods across the shared fleet that
+                        may be waiting for their dispatch poller to start.
+                        Excess replica demand remains uncreated and is retried
+                        as existing sandboxes become ready.
+                    startTimeoutSeconds:
+                      type: integer
+                      default: 300
+                      minimum: 0
+                      description: |
+                        Maximum time a Linux runner Pod that is already bound
+                        to a node may wait for its dispatch poller to start.
+                        Timed-out Pods are reaped. Unscheduled Pods are not
+                        timed out. 0 disables the timeout.
                 autoscaling:
                   type: object
                   description: |

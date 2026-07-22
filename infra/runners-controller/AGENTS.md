@@ -60,11 +60,46 @@ independent workqueues:
     mini under the Virtualization.framework SLA). The allocator
     apportions the host budget across competing Xcode pools.
 
+  Only nodes that report `Ready=True`, remain schedulable, and have no
+  memory, disk, or process identifier pressure contribute to either
+  budget. A fleet filtered to zero capacity still takes the existing
+  per-pool fallback, so a transient node roll never triggers a mass
+  scale-down of warm Pods. Pod creation has a separate fail-closed
+  healthy-node gate described below.
+
   The reconciler reads nodes via the cluster-scoped `nodes` verb in
   the ClusterRole. Any failure gathering the fleet view falls back to
   the per-pool target — a node-read blip must never trigger a mass
   scale-down. A pool with an unrecognised `OS` (or without autoscaling
   enabled) skips the allocator entirely.
+
+  **Linux Kata provisioning admission.** Capacity and creation velocity
+  are separate safety boundaries. A queue spike can fit within the
+  fleet's memory budget while still asking kubelet and Kata to start too
+  many sandboxes together. Before filling a Linux Kata pool's replica
+  gap, `RunnerPoolReconciler` counts every alive, unclaimed Pod whose
+  dispatch poller has not started across sibling pools sharing
+  the same operating system and `FleetSelector`. It creates only up to
+  `spec.provisioning.maxConcurrentPerFleetSelector` (default 4), using
+  the lowest sibling value so one mismatched pool cannot weaken the
+  fleet boundary. Excess demand remains a replica gap and is retried
+  every five seconds. macOS pools skip this gate.
+
+  Pod creates are visible to the cached client asynchronously. The
+  reconciler therefore keeps a 30-second in-process reservation for each
+  successful create and counts it until the cache observes the Pod. This
+  prevents an immediate reconcile from admitting a second full batch in
+  the cache-lag window. The controller keeps its default single reconcile
+  worker; raising that concurrency requires revisiting the admission
+  invariant.
+
+  A Linux Pod that is bound to a node but whose poller has not started
+  within `spec.provisioning.startTimeoutSeconds` (default 300, 0 disables)
+  is reaped with a warning event and node-condition log. Unscheduled Pods
+  are not recycled because recreation cannot solve a scheduler capacity
+  wait. Claimed Pods and Pods whose poller has terminated are protected.
+  Terminal cleanup and idle scale-down run before admission and are never
+  blocked by the provisioning ceiling.
 
   **Allocation observability (`internal/metrics`).** Each tick the
   reconciler publishes the squeeze on the controller's existing
@@ -85,6 +120,13 @@ independent workqueues:
   Kubernetes phase (`Pending`, `Running`, `Unknown`). This preserves the
   runner dashboard's macOS ready vs cold-booting split without relying
   on pod-scoped kube-state-metrics series.
+
+  Provisioning safety publishes
+  `tuist_runners_pool_pending_provisioning_pods{pool}`,
+  `tuist_runners_pool_admission_blocked_total{pool,reason}`,
+  `tuist_runners_fleet_ready_nodes{fleet_selector,operating_system}`,
+  `tuist_runners_fleet_filtered_nodes{fleet_selector,operating_system,reason}`,
+  and `tuist_runners_pool_pod_start_timeouts_total{pool,reason}`.
 
   Alongside it, `tuist_runners_pool_oldest_pending_pod_age_seconds{pool}`
   is how long the pool's oldest un-`Running` Pod has been waiting (0 when
