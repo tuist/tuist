@@ -235,6 +235,17 @@ defmodule Tuist.Kura.RegionsTest do
 
       assert Enum.map(Regions.available(), & &1.id) == ["eu-central"]
     end
+
+    test "never makes a retired cleanup region available" do
+      stub(Tuist.Environment, :dev?, fn -> false end)
+      stub(Tuist.Environment, :test?, fn -> false end)
+
+      stub(Tuist.Environment, :kura_available_region_ids, fn ->
+        ["hetzner-staging-runners"]
+      end)
+
+      assert Regions.available() == []
+    end
   end
 
   describe "private runner-cache regions" do
@@ -254,9 +265,15 @@ defmodule Tuist.Kura.RegionsTest do
       refute Map.has_key?(scw_config, :public_host_template)
       refute Map.has_key?(scw_config, :ingress_class_name)
 
-      # The only private region. Linux runners have no cache region of their
-      # own: the Hetzner-backed staging one was removed with its node pool.
-      assert Regions.all() |> Enum.filter(&Regions.private?/1) |> Enum.map(& &1.id) == ["scw-fr-par-runners"]
+      # The retired Hetzner entry remains fetchable only so old resources can
+      # be deleted. It is not an available serving region.
+      assert Regions.all() |> Enum.filter(&Regions.private?/1) |> Enum.map(& &1.id) == [
+               "scw-fr-par-runners",
+               "hetzner-staging-runners"
+             ]
+
+      assert Regions.retired?(Regions.get("hetzner-staging-runners"))
+      refute Regions.retired?(Regions.get("scw-fr-par-runners"))
     end
   end
 
