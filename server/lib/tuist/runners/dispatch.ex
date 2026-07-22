@@ -384,7 +384,7 @@ defmodule Tuist.Runners.Dispatch do
     # framework noise, and step content streams directly from the
     # .NET Worker to GitHub's `ResultsLog`. See
     # `Tuist.Runners.Workers.FetchLogsWorker`.
-    enqueue_log_fetch(workflow_job_id, account_id, installation_id, repository)
+    enqueue_log_fetch(workflow_job_id, account_id, installation_id, repository, raw_steps)
 
     Logger.info("runners: completed",
       workflow_job_id: workflow_job_id,
@@ -411,13 +411,25 @@ defmodule Tuist.Runners.Dispatch do
     end
   end
 
-  defp enqueue_log_fetch(_workflow_job_id, _account_id, _installation_id, "") do
+  defp enqueue_log_fetch(_workflow_job_id, _account_id, _installation_id, "", _raw_steps) do
     # Cancelled / synthetic workflow_jobs sometimes ship without a
     # repository field. Without it we can't address the Logs API.
     :ok
   end
 
-  defp enqueue_log_fetch(workflow_job_id, account_id, installation_id, repository) do
+  defp enqueue_log_fetch(_workflow_job_id, _account_id, _installation_id, _repository, []) do
+    # A completed job that reports no steps never executed: either it
+    # was `skipped` by an `if:` gate, or `cancelled` while still queued
+    # so no runner ever picked it up. GitHub uploads no log archive for
+    # that class, and its Logs API answers 404 forever — not the
+    # ~30 s finalisation window the fetch worker retries through. Left
+    # unfiltered, every one of these burns all five attempts before
+    # discarding. A job cancelled mid-run does report its steps and
+    # does have a (partial) log, so it still goes through.
+    :ok
+  end
+
+  defp enqueue_log_fetch(workflow_job_id, account_id, installation_id, repository, _raw_steps) do
     %{
       workflow_job_id: workflow_job_id,
       account_id: account_id,

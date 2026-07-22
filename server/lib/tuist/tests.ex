@@ -1392,7 +1392,8 @@ defmodule Tuist.Tests do
         fn {{_name, mod_name, _suite}, _data} -> mod_name end
       )
 
-    Enum.flat_map_reduce(test_modules, [], fn module_attrs, acc_test_case_runs ->
+    test_modules
+    |> Enum.flat_map_reduce([], fn module_attrs, acc_test_case_runs ->
       module_id = UUIDv7.generate()
       module_name = Map.get(module_attrs, :name)
 
@@ -1462,6 +1463,30 @@ defmodule Tuist.Tests do
 
       {flaky_ids, acc_test_case_runs ++ test_case_runs}
     end)
+    |> tap(fn _ -> flush_test_case_run_buffers() end)
+  end
+
+  # One flush for the whole run rather than one per module.
+  #
+  # The client uploads attachments and crash reports as soon as it receives the
+  # test case run IDs in the response, and those endpoints authorize each upload
+  # against the run and its arguments. Both tables sit behind an ingestion
+  # buffer that otherwise only flushes periodically, so the rows have to be
+  # written through before the caller returns or the uploads race the flush and
+  # are rejected as not found. Flushing here still satisfies that: every module
+  # has been staged and this runs before `create_new_test/3` returns.
+  #
+  # Doing it per module was expensive out of proportion to what it bought.
+  # ClickHouse insert cost on `test_case_runs` is almost entirely fixed
+  # overhead (~480ms whether the batch is 52 rows or 25,515), and every buffer
+  # is a single named process shared by every worker on the node, so each extra
+  # flush blocked all of them for another round trip. Runs carry a median of 2
+  # modules but a p90 of 134 and a maximum of 647, so the tail was paying
+  # hundreds of serialized round trips to write data that one insert covers.
+  defp flush_test_case_run_buffers do
+    TestCaseRun.Buffer.flush()
+    TestCaseRunArgument.Buffer.flush()
+    :ok
   end
 
   defp get_test_case_run_data(test, test_modules) do
@@ -1799,18 +1824,14 @@ defmodule Tuist.Tests do
         }
       end)
 
-    # The client uploads attachments and crash reports as soon as it receives the
-    # IDs in this response, and those endpoints authorize each upload against the
-    # test case run and its arguments. Both tables sit behind an ingestion buffer
-    # that only flushes periodically, so write them through before returning
-    # rather than leaving them to the asynchronous batch below, which would make
-    # the uploads race the flush and be rejected as not found.
+    # Buffered here, flushed once by `create_test_modules/4` after every module
+    # has been staged. The rows still land before the caller returns, which is
+    # what the attachment and crash-report endpoints depend on (see the flush
+    # site), but a run no longer pays one round trip per module.
     TestCaseRun.Buffer.insert_all(test_case_runs)
-    TestCaseRun.Buffer.flush()
 
     if Enum.any?(all_arguments) do
       TestCaseRunArgument.Buffer.insert_all(all_arguments)
-      TestCaseRunArgument.Buffer.flush()
     end
 
     Tuist.Tasks.run_async(fn ->
