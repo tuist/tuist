@@ -11,6 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	ctrlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics"
@@ -832,5 +833,248 @@ func TestOldestPendingPodAgeIsDarwinOnly(t *testing.T) {
 				t.Errorf("%s pool published %d series, want %d", tc.os, gotSeries, tc.wantSeries)
 			}
 		})
+	}
+}
+
+// idleReplicasGauge reads the published idle gauge out of the shared
+// controller-runtime registry, the same surface Prometheus scrapes.
+func idleReplicasGauge(t *testing.T, pool string) float64 {
+	t.Helper()
+	families, err := ctrlmetrics.Registry.Gather()
+	if err != nil {
+		t.Fatalf("gather: %v", err)
+	}
+	var value float64
+	for _, f := range families {
+		if f.GetName() != "tuist_runners_pool_idle_replicas" {
+			continue
+		}
+		for _, m := range f.GetMetric() {
+			for _, l := range m.GetLabel() {
+				if l.GetName() == "pool" && l.GetValue() == pool {
+					value = m.GetGauge().GetValue()
+				}
+			}
+		}
+	}
+	return value
+}
+
+// Warm capacity has to be countable on its own. phaseReplicas cannot
+// substitute: a Pod running a customer job and a Pod polling for work are
+// both Running, so "jobs are queued while warm Pods sit idle" — the
+// dispatch-starvation signature — is inexpressible without this series.
+func TestReconcilePublishesIdleReplicas(t *testing.T) {
+	const poolName = "p"
+
+	metrics.ClearRunnerPool(poolName)
+	t.Cleanup(func() { metrics.ClearRunnerPool(poolName) })
+
+	scheme := mustScheme(t)
+	pool := newPool(poolName, "img", 3)
+	pool.Spec.OS = "darwin"
+
+	// Two unclaimed warm Pods and one running a customer job. Only the
+	// unclaimed pair is idle capacity.
+	idleA := newRunnerPod(poolName+"-runner-a", "img", corev1.PodRunning, poolName)
+	idleB := newRunnerPod(poolName+"-runner-b", "img", corev1.PodRunning, poolName)
+	claimed := newRunnerPod(poolName+"-runner-c", "img", corev1.PodRunning, poolName)
+	claimed.Labels["tuist.dev/runner-pool-owner"] = "acme"
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(pool, idleA, idleB, claimed).
+		WithStatusSubresource(&tuistv1.RunnerPool{}).
+		Build()
+
+	r := &RunnerPoolReconciler{
+		Client:      c,
+		Scheme:      scheme,
+		DispatchURL: "http://dispatch",
+	}
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: nn(pool.Namespace, pool.Name)}); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	if got := idleReplicasGauge(t, poolName); got != 2 {
+		t.Fatalf("idle replicas = %v, want 2 (the claimed Pod is not idle capacity)", got)
+	}
+}
+
+// A fully-busy pool must publish 0, not carry its last non-zero sample.
+// A stale reading here would look like warm capacity ignoring queued work
+// and fire starvation on a pool that is simply saturated.
+func TestReconcileDrainsIdleReplicasWhenFullyClaimed(t *testing.T) {
+	const poolName = "p"
+
+	metrics.ClearRunnerPool(poolName)
+	t.Cleanup(func() { metrics.ClearRunnerPool(poolName) })
+
+	scheme := mustScheme(t)
+	pool := newPool(poolName, "img", 1)
+	pool.Spec.OS = "darwin"
+
+	claimed := newRunnerPod(poolName+"-runner-a", "img", corev1.PodRunning, poolName)
+	claimed.Labels["tuist.dev/runner-pool-owner"] = "acme"
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(pool, claimed).
+		WithStatusSubresource(&tuistv1.RunnerPool{}).
+		Build()
+
+	r := &RunnerPoolReconciler{
+		Client:      c,
+		Scheme:      scheme,
+		DispatchURL: "http://dispatch",
+	}
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: nn(pool.Namespace, pool.Name)}); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	if got := idleReplicasGauge(t, poolName); got != 0 {
+		t.Fatalf("idle replicas on a fully-claimed pool = %v, want 0", got)
+	}
+}
+
+// A darwin Pod that never got a node has no VM and cannot accept a job,
+// so it is not warm capacity however long it has been alive. Counting it
+// would invert the starvation signal: a pool starved of Mac minis would
+// report idle Pods sitting on queued work, which is the fingerprint of
+// dispatch failing, not of a capacity shortfall.
+func TestIdleReplicasExcludesUnschedulableDarwinPods(t *testing.T) {
+	const poolName = "p"
+
+	metrics.ClearRunnerPool(poolName)
+	t.Cleanup(func() { metrics.ClearRunnerPool(poolName) })
+
+	scheme := mustScheme(t)
+	pool := newPool(poolName, "img", 3)
+	pool.Spec.OS = "darwin"
+
+	// One booted warm Pod, plus two that never scheduled (the shape of a
+	// Mac mini fleet at 100% memory: unclaimed, unowned, no node).
+	booted := newRunnerPod(poolName+"-runner-a", "img", corev1.PodRunning, poolName)
+	stuckA := newRunnerPod(poolName+"-runner-b", "img", corev1.PodPending, poolName)
+	stuckB := newRunnerPod(poolName+"-runner-c", "img", corev1.PodPending, poolName)
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(pool, booted, stuckA, stuckB).
+		WithStatusSubresource(&tuistv1.RunnerPool{}).
+		Build()
+
+	r := &RunnerPoolReconciler{
+		Client:      c,
+		Scheme:      scheme,
+		DispatchURL: "http://dispatch",
+	}
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: nn(pool.Namespace, pool.Name)}); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	if got := idleReplicasGauge(t, poolName); got != 1 {
+		t.Fatalf("idle replicas = %v, want 1 (only the booted Pod is capacity)", got)
+	}
+}
+
+// linuxPod builds a Linux runner Pod with an explicit `poller` init
+// container state. Linux warm runners are Pending for their whole idle
+// life, so the phase alone says nothing; the poller's state decides.
+func linuxPod(name, poolName string, pollerState *corev1.ContainerState) *corev1.Pod {
+	p := newRunnerPod(name, "img", corev1.PodPending, poolName)
+	if pollerState != nil {
+		p.Status.InitContainerStatuses = []corev1.ContainerStatus{
+			{Name: "dind", State: corev1.ContainerState{Running: &corev1.ContainerStateRunning{}}},
+			{Name: "poller", State: *pollerState},
+		}
+	}
+	return p
+}
+
+func reconcileLinuxPool(t *testing.T, poolName string, pods ...*corev1.Pod) {
+	t.Helper()
+
+	scheme := mustScheme(t)
+	pool := newPool(poolName, "img", int32(len(pods)))
+	pool.Spec.OS = "linux"
+
+	objs := []client.Object{pool}
+	for _, p := range pods {
+		objs = append(objs, p)
+	}
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(objs...).
+		WithStatusSubresource(&tuistv1.RunnerPool{}).
+		Build()
+
+	r := &RunnerPoolReconciler{Client: c, Scheme: scheme, DispatchURL: "http://dispatch"}
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: nn(pool.Namespace, pool.Name)}); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+}
+
+// The mirror case: on Linux the dispatch poller is an init container, so
+// kubelet reports a warm idle runner as Pending for its entire life.
+// Applying the darwin rule here would report every idle Linux pool as
+// having zero warm capacity and silence starvation on the platform.
+func TestIdleReplicasCountsRunningLinuxPollers(t *testing.T) {
+	const poolName = "p"
+
+	metrics.ClearRunnerPool(poolName)
+	t.Cleanup(func() { metrics.ClearRunnerPool(poolName) })
+
+	running := &corev1.ContainerState{Running: &corev1.ContainerStateRunning{}}
+	reconcileLinuxPool(t, poolName,
+		linuxPod(poolName+"-runner-a", poolName, running),
+		linuxPod(poolName+"-runner-b", poolName, running),
+	)
+
+	if got := idleReplicasGauge(t, poolName); got != 2 {
+		t.Fatalf("idle replicas on a Linux pool = %v, want 2 (a running poller is warm)", got)
+	}
+}
+
+// The Linux twin of the darwin unschedulable case. An unscheduled Linux
+// Pod is Pending, unowned, and has no poller status at all, so
+// `pollerTerminated` reports false for it. Counting it would classify a
+// Linux pool that is merely out of hosts as starved, inverting the
+// signal on the other platform.
+func TestIdleReplicasExcludesUnscheduledLinuxPods(t *testing.T) {
+	const poolName = "p"
+
+	metrics.ClearRunnerPool(poolName)
+	t.Cleanup(func() { metrics.ClearRunnerPool(poolName) })
+
+	running := &corev1.ContainerState{Running: &corev1.ContainerStateRunning{}}
+	reconcileLinuxPool(t, poolName,
+		linuxPod(poolName+"-runner-a", poolName, running),
+		// No init status: never scheduled, or still pulling.
+		linuxPod(poolName+"-runner-b", poolName, nil),
+	)
+
+	if got := idleReplicasGauge(t, poolName); got != 1 {
+		t.Fatalf("idle replicas = %v, want 1 (the unscheduled Pod is not capacity)", got)
+	}
+}
+
+// A poller still Waiting has not begun polling, so the Pod cannot accept
+// a job yet either.
+func TestIdleReplicasExcludesWaitingLinuxPoller(t *testing.T) {
+	const poolName = "p"
+
+	metrics.ClearRunnerPool(poolName)
+	t.Cleanup(func() { metrics.ClearRunnerPool(poolName) })
+
+	reconcileLinuxPool(t, poolName,
+		linuxPod(poolName+"-runner-a", poolName, &corev1.ContainerState{
+			Waiting: &corev1.ContainerStateWaiting{Reason: "PodInitializing"},
+		}),
+	)
+
+	if got := idleReplicasGauge(t, poolName); got != 0 {
+		t.Fatalf("idle replicas = %v, want 0 (a waiting poller is not warm)", got)
 	}
 }

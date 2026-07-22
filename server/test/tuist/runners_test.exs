@@ -10,6 +10,7 @@ defmodule Tuist.RunnersTest do
   alias Tuist.Runners.CacheGrant
   alias Tuist.Runners.Catalog
   alias Tuist.Runners.Claims
+  alias Tuist.Runners.Concurrency
   alias Tuist.Runners.Dispatch
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.VolumeAffinities
@@ -1048,6 +1049,92 @@ defmodule Tuist.RunnersTest do
     test "errors when the account does not exist" do
       digest = String.duplicate("c", 40)
       assert :error = Runners.volume_master_upload_url(-1, digest)
+    end
+  end
+
+  describe "scaling_signals_for_fleet/1" do
+    defp queue_job(account, workflow_job_id, fleet_name, resources) do
+      :ok =
+        Jobs.enqueue(%{
+          workflow_job_id: workflow_job_id,
+          account_id: account.id,
+          fleet_name: fleet_name,
+          platform: Atom.to_string(resources.platform),
+          vcpus: resources.vcpus,
+          memory_gb: resources.memory_gb,
+          repository: "acme/cli",
+          workflow_run_id: workflow_job_id * 10,
+          run_attempt: 1,
+          workflow_name: "CI",
+          job_name: "build",
+          head_branch: "main",
+          head_sha: "deadbeef",
+          requested_dispatch_label: ""
+        })
+    end
+
+    test "reports full queue depth while the account has headroom" do
+      account = account_fixture()
+      fleet = "macos-signal-headroom"
+      {:ok, resources} = Catalog.resources_for_fleet(fleet)
+
+      queue_job(account, 91_001, fleet, resources)
+
+      assert %{queued: 1} = Runners.scaling_signals_for_fleet(fleet)
+    end
+
+    # The regression this exists for. An account that queues past its
+    # concurrency limit used to inflate the signal with jobs dispatch
+    # will refuse, so the autoscaler provisioned Pods that could never
+    # serve them and that then idled on hosts other pools needed.
+    test "caps the queue depth at what the account can actually claim" do
+      account = account_fixture()
+      fleet = "macos-signal-capped"
+      {:ok, resources} = Catalog.resources_for_fleet(fleet)
+
+      headroom = Concurrency.headroom_jobs(account.id, resources)
+      queued = headroom + 5
+
+      for i <- 1..queued do
+        queue_job(account, 91_100 + i, fleet, resources)
+      end
+
+      assert Jobs.queued_count_by_fleet(fleet) == queued
+      assert %{queued: ^headroom} = Runners.scaling_signals_for_fleet(fleet)
+    end
+
+    test "counts each account's headroom independently" do
+      account_a = account_fixture()
+      account_b = account_fixture()
+      fleet = "macos-signal-multi"
+      {:ok, resources} = Catalog.resources_for_fleet(fleet)
+
+      headroom = Concurrency.headroom_jobs(account_a.id, resources)
+
+      # A is parked over its cap; B queues a single claimable job. B's
+      # job must still register, or one capped customer would zero out
+      # the whole fleet's demand signal.
+      for i <- 1..(headroom + 3) do
+        queue_job(account_a, 91_200 + i, fleet, resources)
+      end
+
+      queue_job(account_b, 91_300, fleet, resources)
+
+      assert %{queued: signal} = Runners.scaling_signals_for_fleet(fleet)
+      assert signal == headroom + 1
+    end
+
+    # An unrecognised fleet has no shape to price headroom against.
+    # Reporting 0 there would scale the pool to nothing; fall back to
+    # the raw depth instead.
+    test "falls back to raw queue depth for a fleet with no known shape" do
+      account = account_fixture()
+      fleet = "not-a-known-prefix"
+
+      queue_job(account, 91_401, fleet, %{platform: :linux, vcpus: 4, memory_gb: 16})
+
+      assert {:error, _} = Catalog.resources_for_fleet(fleet)
+      assert %{queued: 1} = Runners.scaling_signals_for_fleet(fleet)
     end
   end
 end

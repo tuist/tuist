@@ -112,6 +112,50 @@ defmodule Tuist.Runners.Concurrency do
 
   def fits?(_used, _limit, _requested), do: false
 
+  @doc """
+  How many more jobs of shape `resources` the account could claim right
+  now before hitting its platform concurrency limit.
+
+  This is the *forward-looking* companion to `fits?/3`: `fits?/3` answers
+  "does one more fit" at claim time, this answers "how many more fit" for
+  callers that must size ahead of the claim. Both read the same usage and
+  limit, so a job counted here is a job `fits?/3` would admit.
+
+  The autoscaler is the caller that matters. Sizing a pool on raw queue
+  depth provisions Pods for jobs dispatch will refuse, and those Pods
+  then sit idle holding hosts that pools with claimable work cannot get.
+  Capping each account's contribution at its headroom keeps the demand
+  signal to what can actually be served.
+
+  Returns 0 for an unknown account, a missing limit row, or a malformed
+  shape: this runs on the autoscaler's poll path, where raising would
+  fail the whole fleet's signal over one bad account.
+  """
+  def headroom_jobs(account_id, %{platform: platform, vcpus: vcpus, memory_gb: memory_gb})
+      when is_integer(account_id) and platform in @platforms and is_integer(vcpus) and is_integer(memory_gb) and vcpus > 0 and
+             memory_gb > 0 do
+    case limit_for_platform(account_id, platform) do
+      {:ok, limit} ->
+        used = Map.get(usage_by_platform(account_id), platform, %{vcpus: 0, memory_gb: 0})
+
+        [div(limit.vcpus - used.vcpus, vcpus), div(limit.memory_gb - used.memory_gb, memory_gb)]
+        |> Enum.min()
+        |> max(0)
+
+      :error ->
+        0
+    end
+  end
+
+  def headroom_jobs(_account_id, _resources), do: 0
+
+  defp limit_for_platform(account_id, platform) do
+    case Repo.get_by(ConcurrencyLimit, account_id: account_id, platform: platform) do
+      nil -> :error
+      limit -> {:ok, limit_resources(limit)}
+    end
+  end
+
   defp valid_usage?(resources) do
     Enum.all?([resources.vcpus, resources.memory_gb], &(is_integer(&1) and &1 >= 0))
   end

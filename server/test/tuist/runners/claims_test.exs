@@ -619,4 +619,47 @@ defmodule Tuist.Runners.ClaimsTest do
       assert Claims.release_completed(DateTime.utc_now()) == 0
     end
   end
+
+  describe "release_pod_missing/2" do
+    # The stale-delete race Codex flagged: between selection and delete,
+    # another path can release the row and the same workflow_job be
+    # re-claimed by a live Pod. Deleting by id alone would drop that
+    # fresh claim and free capacity a running job is using.
+    test "does not delete a claim that was re-claimed after selection" do
+      account = account_fixture()
+      handle = DateTime.add(DateTime.utc_now(), -600, :second)
+
+      assert {:ok, _} = Claims.attempt(7401, account.id, "fleet-a", "pod-1", @linux_resources)
+
+      Repo.update_all(
+        from(c in Claim, where: c.workflow_job_id == 7401),
+        set: [pod_missing_since: handle]
+      )
+
+      # Simulate the row being released and the job re-claimed by a live
+      # Pod, which clears the absence stamp.
+      Repo.update_all(
+        from(c in Claim, where: c.workflow_job_id == 7401),
+        set: [pod_missing_since: nil]
+      )
+
+      assert {:error, :stale_claim} = Claims.release_pod_missing(7401, handle)
+      assert Repo.exists?(from(c in Claim, where: c.workflow_job_id == 7401))
+    end
+
+    test "deletes when the handle still matches" do
+      account = account_fixture()
+      handle = DateTime.add(DateTime.utc_now(), -600, :second)
+
+      assert {:ok, _} = Claims.attempt(7402, account.id, "fleet-a", "pod-1", @linux_resources)
+
+      Repo.update_all(
+        from(c in Claim, where: c.workflow_job_id == 7402),
+        set: [pod_missing_since: handle]
+      )
+
+      assert :ok = Claims.release_pod_missing(7402, handle)
+      refute Repo.exists?(from(c in Claim, where: c.workflow_job_id == 7402))
+    end
+  end
 end

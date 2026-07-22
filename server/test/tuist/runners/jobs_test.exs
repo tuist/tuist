@@ -1209,6 +1209,61 @@ defmodule Tuist.Runners.JobsTest do
     end
   end
 
+  describe "queued_count_by_fleet_and_account/1" do
+    test "groups the fleet's queued rows by account" do
+      account_a = account_fixture()
+      account_b = account_fixture()
+
+      :ok = enqueue_fixture(account_a, 8301, fleet: "fleet-qca")
+      :ok = enqueue_fixture(account_a, 8302, fleet: "fleet-qca")
+      :ok = enqueue_fixture(account_b, 8303, fleet: "fleet-qca")
+      :ok = enqueue_fixture(account_a, 8304, fleet: "fleet-qca-other")
+
+      assert Jobs.queued_count_by_fleet_and_account("fleet-qca") == %{
+               account_a.id => 2,
+               account_b.id => 1
+             }
+    end
+
+    test "totals to queued_count_by_fleet/1 so the two cannot drift" do
+      account_a = account_fixture()
+      account_b = account_fixture()
+
+      :ok = enqueue_fixture(account_a, 8311, fleet: "fleet-qca-sum")
+      :ok = enqueue_fixture(account_b, 8312, fleet: "fleet-qca-sum")
+      :ok = enqueue_fixture(account_b, 8313, fleet: "fleet-qca-sum")
+
+      by_account = Jobs.queued_count_by_fleet_and_account("fleet-qca-sum")
+
+      assert by_account |> Map.values() |> Enum.sum() ==
+               Jobs.queued_count_by_fleet("fleet-qca-sum")
+    end
+
+    test "excludes rows that have transitioned out of `queued`" do
+      account = account_fixture()
+      :ok = enqueue_fixture(account, 8321, fleet: "fleet-qca-trans")
+      {:ok, candidate} = Jobs.pick_queued("fleet-qca-trans", [])
+      :ok = Jobs.record_claimed(candidate, "pod-1", DateTime.utc_now())
+
+      assert Jobs.queued_count_by_fleet_and_account("fleet-qca-trans") == %{}
+    end
+
+    test "returns an empty map for an unknown fleet" do
+      assert Jobs.queued_count_by_fleet_and_account("fleet-qca-none") == %{}
+    end
+
+    test "honours the same lookback window as the total" do
+      account = account_fixture()
+      recent = DateTime.add(DateTime.utc_now(), -60, :second)
+      stale = DateTime.add(DateTime.utc_now(), -8 * 86_400, :second)
+
+      :ok = enqueue_fixture(account, 8331, fleet: "fleet-qca-look", enqueued_at: recent)
+      :ok = enqueue_fixture(account, 8332, fleet: "fleet-qca-look", enqueued_at: stale)
+
+      assert Jobs.queued_count_by_fleet_and_account("fleet-qca-look") == %{account.id => 1}
+    end
+  end
+
   describe "p95_concurrent_last_hour/1" do
     test "returns 0 on a fleet with no history" do
       assert Jobs.p95_concurrent_last_hour("fleet-empty") == 0
