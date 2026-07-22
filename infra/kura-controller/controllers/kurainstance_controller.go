@@ -86,7 +86,6 @@ const (
 	legacyPeerOldAddressesAnnotation            = "kura.tuist.dev/legacy-peer-old-addresses"
 	legacyPeerTargetAddressesAnnotation         = "kura.tuist.dev/legacy-peer-target-addresses"
 	legacyPeerRetireAfterAnnotation             = "kura.tuist.dev/legacy-peer-retire-after"
-	legacyPeerCutoverRequestedAnnotation        = "kura.tuist.dev/legacy-peer-cutover-requested-at"
 	legacyPeerFallbackRepublishAnnotation       = "kura.tuist.dev/legacy-peer-fallback-republish-requested-at"
 	legacyPeerFallbackObservedAnnotation        = "kura.tuist.dev/legacy-peer-fallback-observed-at"
 	legacyPeerPhaseRepairing                    = "repairing-fallback"
@@ -730,7 +729,6 @@ func (r *KuraInstanceReconciler) retireLegacyAccountPublicPeerService(
 
 		delete(annotations, externalDNSHostnameAnnotation)
 		annotations[legacyPeerMigrationAnnotation] = legacyPeerPhaseCutoverRequested
-		annotations[legacyPeerCutoverRequestedAnnotation] = now.Format(time.RFC3339)
 		service.SetAnnotations(annotations)
 		return r.Update(ctx, service)
 
@@ -803,7 +801,6 @@ func (r *KuraInstanceReconciler) restartLegacyPeerCutover(
 	annotations[legacyPeerMigrationAnnotation] = legacyPeerPhaseRepairing
 	annotations[legacyPeerFallbackRepublishAnnotation] = now.Format(time.RFC3339)
 	delete(annotations, legacyPeerRetireAfterAnnotation)
-	delete(annotations, legacyPeerCutoverRequestedAnnotation)
 	delete(annotations, legacyPeerFallbackObservedAnnotation)
 	if _, valid := decodePeerAddresses(annotations[legacyPeerOldAddressesAnnotation]); !valid {
 		if oldAddresses := legacyPeerServiceAddresses(service); len(oldAddresses) > 0 {
