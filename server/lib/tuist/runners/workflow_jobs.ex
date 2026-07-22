@@ -305,16 +305,6 @@ defmodule Tuist.Runners.WorkflowJobs do
   end
 
   @doc """
-  Fetches the lifecycle row for a workflow_job.
-  """
-  def get(workflow_job_id) when is_integer(workflow_job_id) do
-    case Repo.get(WorkflowJob, workflow_job_id) do
-      nil -> {:error, :not_found}
-      row -> {:ok, row}
-    end
-  end
-
-  @doc """
   Decodes a transition event's JSONB payload back into the ClickHouse
   `runner_jobs` insert row: string keys to atoms, ISO-8601 datetimes
   to `DateTime` promoted to microsecond precision for
@@ -393,6 +383,7 @@ defmodule Tuist.Runners.WorkflowJobs do
       Repo.insert_all(WorkflowJobTransitionEvent, [
         %{
           workflow_job_id: row.workflow_job_id,
+          account_id: row.account_id,
           payload: ch_row(row, transition_at),
           inserted_at: DateTime.truncate(transition_at, :second)
         }

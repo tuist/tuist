@@ -352,6 +352,7 @@ defmodule Tuist.Runners.WorkflowJobsTest do
 
       events = Repo.all(from(e in WorkflowJobTransitionEvent, order_by: [asc: e.id]))
       assert Enum.map(events, & &1.workflow_job_id) == [910_101, 910_101, 910_101, 910_101]
+      assert Enum.all?(events, &(&1.account_id == account.id))
 
       statuses = Enum.map(events, & &1.payload["status"])
       assert statuses == ["queued", "claimed", "running", "completed"]

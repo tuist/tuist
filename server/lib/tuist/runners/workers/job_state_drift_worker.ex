@@ -11,9 +11,11 @@ defmodule Tuist.Runners.Workers.JobStateDriftWorker do
   window against ClickHouse's latest status for the same
   workflow_jobs:
 
-    * `status_mismatch` — both stores have the job, statuses differ
-      (terminal statuses normalised: Postgres `cancelled` ≡ ClickHouse
-      `completed` + conclusion).
+    * `status_mismatch` — both stores have the job, statuses differ.
+      ClickHouse's `completed` + conclusion pair is folded into the
+      Postgres status space first (`completed` with conclusion
+      `cancelled` reads as `cancelled`), so a cancelled/completed
+      disagreement between the stores is drift, not equivalence.
     * `missing_in_clickhouse` — Postgres has a row, ClickHouse has
       none. Expected only if the paired CH INSERT failed after the PG
       transaction committed.
@@ -69,7 +71,7 @@ defmodule Tuist.Runners.Workers.JobStateDriftWorker do
             [{:missing_in_clickhouse, row, nil}]
 
           {:ok, ch_status} ->
-            if normalize(row.status) == normalize(ch_status) do
+            if row.status == ch_status do
               []
             else
               [{:status_mismatch, row, ch_status}]
@@ -113,7 +115,9 @@ defmodule Tuist.Runners.Workers.JobStateDriftWorker do
   defp drift_kind(:telemetry_compared), do: "compared"
   defp drift_kind(kind), do: Atom.to_string(kind)
 
-  # The enqueued_at floor prunes the ClickHouse scan to the partitions
+  # Latest (status, conclusion) per job, folded into the Postgres
+  # status space so the comparison is a plain equality. The
+  # enqueued_at floor prunes the ClickHouse scan to the partitions
   # the compared rows can live in — same reason the dispatch read
   # floors on it. `enqueued_at` is stable across a job's transitions,
   # so the batch minimum (minus a second of slack) is exact.
@@ -129,12 +133,16 @@ defmodule Tuist.Runners.Workers.JobStateDriftWorker do
     from(j in Job,
       where: j.workflow_job_id in ^ids and j.enqueued_at > ^floor,
       group_by: j.workflow_job_id,
-      select: {j.workflow_job_id, fragment("argMax(?, ?)", j.status, j.updated_at)}
+      select:
+        {j.workflow_job_id,
+         {fragment("argMax(?, ?)", j.status, j.updated_at), fragment("argMax(?, ?)", j.conclusion, j.updated_at)}}
     )
     |> ClickHouseRepo.all()
-    |> Map.new()
+    |> Map.new(fn {workflow_job_id, {status, conclusion}} ->
+      {workflow_job_id, equivalent_status(status, conclusion)}
+    end)
   end
 
-  defp normalize("cancelled"), do: "completed"
-  defp normalize(status), do: status
+  defp equivalent_status("completed", "cancelled"), do: "cancelled"
+  defp equivalent_status(status, _conclusion), do: status
 end

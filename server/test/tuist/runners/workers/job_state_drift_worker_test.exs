@@ -96,7 +96,7 @@ defmodule Tuist.Runners.Workers.JobStateDriftWorkerTest do
     assert_receive {:drift, %{count: 1}, %{kind: "missing_in_clickhouse"}}, 500
   end
 
-  test "does not flag Postgres cancelled against ClickHouse completed" do
+  test "does not flag Postgres cancelled against ClickHouse completed with a cancelled conclusion" do
     attach_drift_telemetry!()
     account = account_fixture()
 
@@ -108,5 +108,22 @@ defmodule Tuist.Runners.Workers.JobStateDriftWorkerTest do
 
     assert_receive {:drift, %{count: 1}, %{kind: "compared"}}, 500
     refute_receive {:drift, _, %{kind: "status_mismatch"}}, 100
+  end
+
+  test "flags terminal rows whose cancelled-ness disagrees across stores" do
+    attach_drift_telemetry!()
+    account = account_fixture()
+
+    # Postgres lands completed/success first, so the ClickHouse-side
+    # cancellation only reaches CH (the PG terminal guard rejects the
+    # rewrite) — the stores now disagree about how the job ended.
+    :ok = Jobs.enqueue(attrs(account, 930_005))
+    :ok = WorkflowJobs.record_completed(attrs(account, 930_005), "success", DateTime.utc_now())
+    assert {:ok, _} = Jobs.complete(930_005, "cancelled")
+    settle!(930_005)
+
+    assert :ok = perform_job(JobStateDriftWorker, %{})
+
+    assert_receive {:drift, %{count: 1}, %{kind: "status_mismatch"}}, 500
   end
 end
