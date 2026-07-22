@@ -558,8 +558,53 @@ func TestLegacyAccountPublicPeerServiceRetiresAfterReadyCutover(t *testing.T) {
 		t.Fatal("old DNS must keep the retirement timer unset")
 	}
 
+	// If the replacement path regresses after DNS publication was removed,
+	// republish the fallback before attempting another cutover.
+	prober.fail = map[string]error{targetAddress: fmt.Errorf("replacement path regressed")}
+	if err := reconciler.retireLegacyAccountPublicPeerService(ctx, instance, cutoverStartedAt); err != nil {
+		t.Fatal(err)
+	}
+	if err := client.Get(ctx, types.NamespacedName{Name: legacy.Name, Namespace: legacy.Namespace}, got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Annotations[legacyPeerMigrationAnnotation] != legacyPeerPhaseRepairing ||
+		got.Annotations[externalDNSHostnameAnnotation] != instance.Spec.MeshPublicPeerHost {
+		t.Fatalf("expected a failed replacement path to republish the fallback, got %v", got.Annotations)
+	}
+	prober.fail = nil
+	fallbackObservedAt := cutoverStartedAt.Add(time.Minute)
+	if err := reconciler.retireLegacyAccountPublicPeerService(ctx, instance, fallbackObservedAt); err != nil {
+		t.Fatal(err)
+	}
+	if err := client.Get(ctx, types.NamespacedName{Name: legacy.Name, Namespace: legacy.Namespace}, got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Annotations[legacyPeerFallbackObservedAnnotation] != fallbackObservedAt.Format(time.RFC3339) {
+		t.Fatalf("expected the restored fallback publication to be observed, got %v", got.Annotations)
+	}
+	if err := reconciler.retireLegacyAccountPublicPeerService(
+		ctx,
+		instance,
+		fallbackObservedAt.Add(time.Duration(peerDNSRecordTTLSeconds)*time.Second-time.Second),
+	); err != nil {
+		t.Fatal(err)
+	}
+	if err := client.Get(ctx, types.NamespacedName{Name: legacy.Name, Namespace: legacy.Namespace}, got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Annotations[externalDNSHostnameAnnotation] == "" {
+		t.Fatal("the restored fallback must remain published for a full DNS record lifetime")
+	}
+	if err := reconciler.retireLegacyAccountPublicPeerService(
+		ctx,
+		instance,
+		fallbackObservedAt.Add(time.Duration(peerDNSRecordTTLSeconds)*time.Second),
+	); err != nil {
+		t.Fatal(err)
+	}
+
 	resolver.addresses = []string{targetAddress}
-	dnsObservedAt := cutoverStartedAt.Add(time.Minute)
+	dnsObservedAt := fallbackObservedAt.Add(time.Duration(peerDNSRecordTTLSeconds)*time.Second + time.Minute)
 	if err := reconciler.retireLegacyAccountPublicPeerService(ctx, instance, dnsObservedAt); err != nil {
 		t.Fatal(err)
 	}
@@ -572,21 +617,43 @@ func TestLegacyAccountPublicPeerServiceRetiresAfterReadyCutover(t *testing.T) {
 		t.Fatalf("expected a post-observation drain until %s, got %v", wantRetireAfter, got.Annotations)
 	}
 
-	// A DNS regression cancels the deadline and keeps the fallback.
+	// A DNS regression cancels the deadline and keeps the fallback. A malformed
+	// stored old-address list is rebuilt from the retained LoadBalancer status.
 	resolver.addresses = []string{oldAddress}
-	if err := reconciler.retireLegacyAccountPublicPeerService(ctx, instance, dnsObservedAt.Add(legacyPeerRetirementDelay)); err != nil {
+	got.Annotations[legacyPeerOldAddressesAnnotation] = "invalid"
+	if err := client.Update(ctx, got); err != nil {
+		t.Fatal(err)
+	}
+	regressedAt := dnsObservedAt.Add(legacyPeerRetirementDelay)
+	if err := reconciler.retireLegacyAccountPublicPeerService(ctx, instance, regressedAt); err != nil {
 		t.Fatal(err)
 	}
 	if err := client.Get(ctx, types.NamespacedName{Name: legacy.Name, Namespace: legacy.Namespace}, got); err != nil {
 		t.Fatalf("expected the fallback to survive a DNS regression: %v", err)
 	}
-	if got.Annotations[legacyPeerMigrationAnnotation] != legacyPeerPhaseCutoverRequested ||
+	if got.Annotations[legacyPeerMigrationAnnotation] != legacyPeerPhaseRepairing ||
+		got.Annotations[externalDNSHostnameAnnotation] != instance.Spec.MeshPublicPeerHost ||
 		got.Annotations[legacyPeerRetireAfterAnnotation] != "" {
 		t.Fatalf("expected the drain to reset after regression, got %v", got.Annotations)
 	}
+	oldAddresses, valid := decodePeerAddresses(got.Annotations[legacyPeerOldAddressesAnnotation])
+	if !valid || !stringSlicesEqual(oldAddresses, []string{oldAddress}) {
+		t.Fatalf("expected the fallback addresses to be rebuilt from Service status, got %v", got.Annotations)
+	}
 
+	fallbackReobservedAt := regressedAt.Add(time.Minute)
+	if err := reconciler.retireLegacyAccountPublicPeerService(ctx, instance, fallbackReobservedAt); err != nil {
+		t.Fatal(err)
+	}
+	if err := reconciler.retireLegacyAccountPublicPeerService(
+		ctx,
+		instance,
+		fallbackReobservedAt.Add(time.Duration(peerDNSRecordTTLSeconds)*time.Second),
+	); err != nil {
+		t.Fatal(err)
+	}
 	resolver.addresses = []string{targetAddress}
-	reobservedAt := dnsObservedAt.Add(legacyPeerRetirementDelay + time.Minute)
+	reobservedAt := fallbackReobservedAt.Add(time.Duration(peerDNSRecordTTLSeconds)*time.Second + time.Minute)
 	if err := reconciler.retireLegacyAccountPublicPeerService(ctx, instance, reobservedAt); err != nil {
 		t.Fatal(err)
 	}
