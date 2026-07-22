@@ -1059,6 +1059,7 @@ async fn ready(State(state): State<SharedState>) -> impl IntoResponse {
             "known_peers": readiness.known_peers,
             "bootstrapped_peers": readiness.bootstrapped_peers,
             "bootstrap_inflight_peers": readiness.bootstrap_inflight_peers,
+            "bootstrap_progress": state.bootstrap_progress_snapshots(),
             "http_inflight_requests": readiness.http_inflight,
             "grpc_inflight_requests": readiness.grpc_inflight,
             "reasons": readiness.reasons,
@@ -1079,6 +1080,7 @@ async fn rollout_status(State(state): State<SharedState>) -> impl IntoResponse {
         "bootstrap_known_peers": status.bootstrap_known_peers,
         "bootstrap_completed_peers": status.bootstrap_completed_peers,
         "bootstrap_inflight_peers": status.bootstrap_inflight_peers,
+        "bootstrap_progress": state.bootstrap_progress_snapshots(),
         "http_inflight_requests": status.http_inflight,
         "grpc_inflight_requests": status.grpc_inflight,
         "outbox_messages": status.outbox_messages,
@@ -2906,6 +2908,60 @@ mod tests {
             .expect("ready response should be json");
         assert_eq!(body["state"], "serving");
         assert_eq!(body["ready"], true);
+    }
+
+    #[tokio::test]
+    async fn ready_reports_inflight_bootstrap_progress() {
+        let context = test_context(|_| {}).await;
+        let peer = "http://peer.kura.internal:7443";
+
+        let progress = context.state.begin_bootstrap_progress(peer);
+        progress.set_phase(crate::state::BootstrapPhase::ManifestFetch);
+        progress.set_divergent_buckets(200);
+        for _ in 0..50 {
+            progress.record_bucket_completed();
+        }
+        progress.record_manifest_page();
+        progress.record_artifact_applied();
+        progress.record_artifact_failed();
+
+        let response = public_router(context.state.clone())
+            .oneshot(
+                Request::builder()
+                    .uri("/ready")
+                    .body(Body::empty())
+                    .expect("failed to build request"),
+            )
+            .await
+            .expect("ready route should respond");
+        let body: Value = serde_json::from_str(&response_text(response).await)
+            .expect("ready response should be json");
+        let entries = body["bootstrap_progress"]
+            .as_array()
+            .expect("bootstrap_progress should be an array");
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0]["peer"], peer);
+        assert_eq!(entries[0]["phase"], "manifest_fetch");
+        assert_eq!(entries[0]["divergent_buckets"], 200);
+        assert_eq!(entries[0]["completed_buckets"], 50);
+        assert_eq!(entries[0]["percent_buckets_completed"], 25.0);
+        assert_eq!(entries[0]["pages_fetched"], 1);
+        assert_eq!(entries[0]["artifacts_applied"], 1);
+        assert_eq!(entries[0]["artifacts_failed"], 1);
+
+        context.state.end_bootstrap_progress(peer);
+        let response = public_router(context.state.clone())
+            .oneshot(
+                Request::builder()
+                    .uri("/ready")
+                    .body(Body::empty())
+                    .expect("failed to build request"),
+            )
+            .await
+            .expect("ready route should respond");
+        let body: Value = serde_json::from_str(&response_text(response).await)
+            .expect("ready response should be json");
+        assert_eq!(body["bootstrap_progress"], serde_json::json!([]));
     }
 
     #[tokio::test]

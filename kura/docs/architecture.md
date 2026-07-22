@@ -105,6 +105,8 @@ Before walking a peer's manifests, bootstrap runs **range-digest anti-entropy** 
 
 A per-peer bootstrap runs under a **no-progress watchdog** rather than a fixed total-runtime cap. `KURA_BOOTSTRAP_TIMEOUT_MS` is the maximum time the bootstrap may go *without* forward progress (a fetched page or applied artifact); a bootstrap that keeps advancing runs to completion however long that takes, and only a genuinely stalled one is abandoned and retried. A single wall-clock cap could never let a large cold pull finish — it would be killed and restarted from scratch every window — so a node whose backlog exceeds one window's worth of transfer would stay `NotReady` indefinitely.
 
+Bootstrap progress is **externally observable** while a pass runs. Each in-flight pass logs a progress line every 30 seconds (phase, diverged buckets completed with an approximate percentage, artifacts applied and failed, pages fetched, elapsed time), and the same per-peer counters are reported as `bootstrap_progress` in the `/ready` and `/status/rollout` bodies. This exists because a bootstrapping node is `NotReady` — excluded from the Service endpoints Prometheus scrapes — and previously logged nothing between the one-shot divergence-scan line and completion, which made a slow-but-converging multi-hour cold pull indistinguishable from a hang.
+
 See `src/replication/mod.rs` for the membership/outbox/bootstrap loops, and `src/replication/operation.rs` + `outbox_message.rs` for the message types.
 
 ## Discovery And Membership
