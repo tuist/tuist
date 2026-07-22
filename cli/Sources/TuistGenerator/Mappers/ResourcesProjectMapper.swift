@@ -77,7 +77,7 @@ public struct ResourcesProjectMapper: ProjectMapping {
                 bundleName: bundleName
             )
             if targetNeedsCompanionBundle(target) {
-                appendModuleResourceBundleAvailableCondition(to: &modifiedTarget)
+                modifiedTarget = addingModuleResourceBundleAvailableCondition(to: modifiedTarget)
             }
         }
 
@@ -285,20 +285,22 @@ public struct ResourcesProjectMapper: ProjectMapping {
     /// the companion bundle's resources are invisible.
     ///   - https://github.com/swiftlang/swift-foundation/blob/main/Sources/FoundationMacros/BundleMacro.swift
     ///   - https://github.com/swiftlang/swift-package-manager/blob/main/Sources/SwiftBuildSupport/PackagePIFProjectBuilder%2BModules.swift
-    private func appendModuleResourceBundleAvailableCondition(to target: inout Target) {
+    private func addingModuleResourceBundleAvailableCondition(to target: Target) -> Target {
         let condition = "SWIFT_MODULE_RESOURCE_BUNDLE_AVAILABLE"
         var base = target.settings?.base ?? SettingsDictionary()
         switch base["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] {
         case let .array(values):
-            guard !values.contains(condition) else { return }
+            guard !values.contains(condition) else { return target }
             base["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] = .array(values + [condition])
         case let .string(value):
-            guard !value.contains(condition) else { return }
+            guard !value.contains(condition) else { return target }
             base["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] = .string("\(value) \(condition)")
         case nil:
             base["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] = .array(["$(inherited)", condition])
         }
+        var target = target
         target.settings = target.settings?.with(base: base) ?? Settings(base: base, configurations: [:])
+        return target
     }
 
     private func appendObjcBundleAccessor(
