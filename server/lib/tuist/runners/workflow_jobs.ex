@@ -287,6 +287,50 @@ defmodule Tuist.Runners.WorkflowJobs do
   end
 
   @doc """
+  Postgres twin of `Tuist.Runners.Jobs.list_orphaned_running/1`,
+  feeding `OrphanedRunnersWorker`'s candidate scan: `running` rows
+  whose `started_at` is older than `threshold`, in the same map shape
+  (`claimed_at` is the claim-release handle — written from the same
+  `DateTime` as the claim row's, in the same transaction, so the
+  handle matches regardless of which store served the scan).
+  """
+  def list_orphaned_running(%DateTime{} = threshold) do
+    Repo.all(
+      from(j in WorkflowJob,
+        where: j.status == "running" and j.started_at < ^threshold,
+        select: %{
+          workflow_job_id: j.workflow_job_id,
+          account_id: j.account_id,
+          repository: j.repository,
+          claimed_at: j.claimed_at,
+          started_at: j.started_at,
+          pod_name: j.pod_name
+        }
+      )
+    )
+  end
+
+  @doc """
+  Postgres twin of `Tuist.Runners.Jobs.list_stale_queued/2`, feeding
+  `StaleQueuedJobsWorker`'s candidate scan: `queued` rows whose
+  `enqueued_at` falls in `(enqueued_after, enqueued_before)`, in the
+  same map shape.
+  """
+  def list_stale_queued(%DateTime{} = enqueued_after, %DateTime{} = enqueued_before) do
+    Repo.all(
+      from(j in WorkflowJob,
+        where: j.status == "queued" and j.enqueued_at > ^enqueued_after and j.enqueued_at < ^enqueued_before,
+        select: %{
+          workflow_job_id: j.workflow_job_id,
+          account_id: j.account_id,
+          repository: j.repository,
+          enqueued_at: j.enqueued_at
+        }
+      )
+    )
+  end
+
+  @doc """
   Rows whose `updated_at` falls in `(updated_after, updated_before)`,
   newest first, capped at `limit`. Feeds the drift comparator: the
   upper bound keeps rows mid-transition (Postgres committed, the

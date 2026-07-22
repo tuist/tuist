@@ -421,4 +421,48 @@ defmodule Tuist.Runners.WorkflowJobsTest do
       assert [%{status: "queued", enqueued_at: %DateTime{}}] = rows
     end
   end
+
+  describe "recovery scans" do
+    test "list_orphaned_running/1 returns running rows older than the threshold with the worker shape" do
+      account = account_fixture()
+      claimed_at = DateTime.utc_now()
+
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_130))
+      :ok = WorkflowJobs.transition_claimed(910_130, "pod-1", claimed_at)
+      :ok = WorkflowJobs.transition_running(910_130, "runner-x")
+
+      Repo.update_all(
+        from(j in WorkflowJob, where: j.workflow_job_id == ^910_130),
+        set: [started_at: DateTime.add(claimed_at, -600, :second)]
+      )
+
+      # Still claimed (not running) and recently running rows are not candidates.
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_131))
+      :ok = WorkflowJobs.transition_claimed(910_131, "pod-2", DateTime.utc_now())
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_132))
+      :ok = WorkflowJobs.transition_claimed(910_132, "pod-3", DateTime.utc_now())
+      :ok = WorkflowJobs.transition_running(910_132, "runner-z")
+
+      threshold = DateTime.add(DateTime.utc_now(), -300, :second)
+
+      assert [candidate] = WorkflowJobs.list_orphaned_running(threshold)
+      assert %{workflow_job_id: 910_130, repository: "acme/cli", pod_name: "pod-1", started_at: %DateTime{}} = candidate
+      assert DateTime.compare(candidate.claimed_at, claimed_at) == :eq
+      assert candidate.account_id == account.id
+    end
+
+    test "list_stale_queued/2 returns queued rows inside the enqueued_at window with the worker shape" do
+      account = account_fixture()
+      now = DateTime.utc_now()
+
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_140, enqueued_at: DateTime.add(now, -7_200, :second)))
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_141, enqueued_at: DateTime.add(now, -60, :second)))
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_142, enqueued_at: DateTime.add(now, -7_200, :second)))
+      :ok = WorkflowJobs.transition_claimed(910_142, "pod-1", now)
+
+      candidates = WorkflowJobs.list_stale_queued(DateTime.add(now, -86_400, :second), DateTime.add(now, -3_600, :second))
+
+      assert [%{workflow_job_id: 910_140, repository: "acme/cli", enqueued_at: %DateTime{}, account_id: _}] = candidates
+    end
+  end
 end

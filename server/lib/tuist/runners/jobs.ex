@@ -83,7 +83,9 @@ defmodule Tuist.Runners.Jobs do
   # still-claimable job is never pruned out of view.
   @queued_lookback_seconds 7 * 86_400
 
-  # Kill switch for reading the dispatch queue from Postgres
+  # Kill switch for serving the control-plane state reads — the
+  # dispatch queue picks, the autoscaler's queued counts, and the
+  # recovery workers' candidate scans — from Postgres
   # (`Tuist.Runners.WorkflowJobs`) instead of ClickHouse. Default OFF:
   # the ClickHouse paths below stay authoritative, and disabling the
   # flag is an instant rollback with no deploy. Gate flipping is
@@ -1397,20 +1399,29 @@ defmodule Tuist.Runners.Jobs do
   Returns a list of maps carrying everything the worker needs
   (`repository` for the GH API call, `claimed_at` for the PG release
   handle), so the worker doesn't need a second round trip.
+
+  Serves from the Postgres lifecycle table when the
+  `:runner_dispatch_postgres_reads` kill switch is enabled, so one
+  flag moves the whole control-plane read surface — dispatch picks,
+  autoscaler counts, and the recovery scans — between stores together.
   """
   def list_orphaned_running(%DateTime{} = threshold) do
-    Job
-    |> from(hints: ["FINAL"])
-    |> where([j], j.status == "running" and j.started_at < ^threshold)
-    |> select([j], %{
-      workflow_job_id: j.workflow_job_id,
-      account_id: j.account_id,
-      repository: j.repository,
-      claimed_at: j.claimed_at,
-      started_at: j.started_at,
-      pod_name: j.pod_name
-    })
-    |> ClickHouseRepo.all()
+    if postgres_reads_enabled?() do
+      WorkflowJobs.list_orphaned_running(threshold)
+    else
+      Job
+      |> from(hints: ["FINAL"])
+      |> where([j], j.status == "running" and j.started_at < ^threshold)
+      |> select([j], %{
+        workflow_job_id: j.workflow_job_id,
+        account_id: j.account_id,
+        repository: j.repository,
+        claimed_at: j.claimed_at,
+        started_at: j.started_at,
+        pod_name: j.pod_name
+      })
+      |> ClickHouseRepo.all()
+    end
   end
 
   @doc """
@@ -1441,21 +1452,29 @@ defmodule Tuist.Runners.Jobs do
   Returns the fields the worker needs to address GitHub's Actions
   jobs API (`repository`) and to apply the hard backstop
   (`enqueued_at`).
+
+  Serves from the Postgres lifecycle table when the
+  `:runner_dispatch_postgres_reads` kill switch is enabled — see
+  `list_orphaned_running/1`.
   """
   def list_stale_queued(%DateTime{} = enqueued_after, %DateTime{} = enqueued_before) do
-    ClickHouseRepo.all(
-      from(j in Job,
-        where: j.enqueued_at > ^enqueued_after and j.enqueued_at < ^enqueued_before,
-        group_by: j.workflow_job_id,
-        having: fragment("argMax(?, ?) = ?", j.status, j.updated_at, "queued"),
-        select: %{
-          workflow_job_id: j.workflow_job_id,
-          account_id: fragment("argMax(?, ?)", j.account_id, j.updated_at),
-          repository: fragment("argMax(?, ?)", j.repository, j.updated_at),
-          enqueued_at: fragment("argMax(?, ?)", j.enqueued_at, j.updated_at)
-        }
+    if postgres_reads_enabled?() do
+      WorkflowJobs.list_stale_queued(enqueued_after, enqueued_before)
+    else
+      ClickHouseRepo.all(
+        from(j in Job,
+          where: j.enqueued_at > ^enqueued_after and j.enqueued_at < ^enqueued_before,
+          group_by: j.workflow_job_id,
+          having: fragment("argMax(?, ?) = ?", j.status, j.updated_at, "queued"),
+          select: %{
+            workflow_job_id: j.workflow_job_id,
+            account_id: fragment("argMax(?, ?)", j.account_id, j.updated_at),
+            repository: fragment("argMax(?, ?)", j.repository, j.updated_at),
+            enqueued_at: fragment("argMax(?, ?)", j.enqueued_at, j.updated_at)
+          }
+        )
       )
-    )
+    end
   end
 
   # ----- internal -----

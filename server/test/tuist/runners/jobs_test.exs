@@ -1418,5 +1418,41 @@ defmodule Tuist.Runners.JobsTest do
       assert Jobs.queued_count_by_fleet("fleet-pg-counts") == 2
       assert Jobs.queued_count_by_fleet_and_account("fleet-pg-counts") == %{account.id => 2}
     end
+
+    test "recovery scans serve from the Postgres lifecycle table" do
+      account = account_fixture()
+      now = DateTime.utc_now()
+
+      :ok =
+        WorkflowJobs.upsert_queued(%{
+          workflow_job_id: 9630,
+          account_id: account.id,
+          fleet_name: "fleet-pg-scans",
+          repository: "acme/cli",
+          enqueued_at: DateTime.add(now, -7_200, :second)
+        })
+
+      :ok =
+        WorkflowJobs.upsert_queued(%{
+          workflow_job_id: 9631,
+          account_id: account.id,
+          fleet_name: "fleet-pg-scans",
+          repository: "acme/cli"
+        })
+
+      :ok = WorkflowJobs.transition_claimed(9631, "pod-scan", now)
+      :ok = WorkflowJobs.transition_running(9631, "runner-scan")
+
+      Repo.update_all(
+        from(j in WorkflowJob, where: j.workflow_job_id == ^9631),
+        set: [started_at: DateTime.add(now, -600, :second)]
+      )
+
+      assert [%{workflow_job_id: 9631, pod_name: "pod-scan"}] =
+               Jobs.list_orphaned_running(DateTime.add(now, -300, :second))
+
+      assert [%{workflow_job_id: 9630, repository: "acme/cli"}] =
+               Jobs.list_stale_queued(DateTime.add(now, -86_400, :second), DateTime.add(now, -3_600, :second))
+    end
   end
 end
