@@ -115,6 +115,7 @@ mod tests {
             .expect("queued reservation should fit after release");
         assert_eq!(second.file_cache_policy(), FileCachePolicy::Bounded);
         drop(second);
+        memory.observe(0);
         assert_eq!(memory.transient_reserved_bytes(), 0);
     }
 

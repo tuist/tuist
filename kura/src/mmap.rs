@@ -1,7 +1,7 @@
 use std::fs::File;
 
+use crate::memory::MmapMemoryPermit;
 use bytes::Bytes;
-use tokio::sync::OwnedSemaphorePermit;
 
 #[cfg(unix)]
 use std::os::raw::c_void;
@@ -21,6 +21,19 @@ pub struct MmapServe {
     /// clear. This is the one path that can fault a single cold page on a tokio
     /// worker, so the store meters how often it happens.
     pub partial_page_exempted: bool,
+}
+
+pub fn mapped_span_bytes(offset: u64, len: u64) -> Option<usize> {
+    if len == 0 {
+        return Some(0);
+    }
+    let page_size = page_size()?;
+    let prefix = usize::try_from(offset % page_size as u64).ok()?;
+    let len = usize::try_from(len).ok()?;
+    prefix
+        .checked_add(len)?
+        .div_ceil(page_size)
+        .checked_mul(page_size)
 }
 
 /// Maps `len` bytes of `file` starting at `offset` into a read-only `Bytes`
@@ -66,7 +79,7 @@ pub fn map_file_region(
     file: &File,
     offset: u64,
     len: u64,
-    permit: OwnedSemaphorePermit,
+    permit: MmapMemoryPermit,
 ) -> Result<Option<MmapServe>, String> {
     if len == 0 {
         return Ok(Some(MmapServe {
@@ -107,6 +120,12 @@ pub fn map_file_region(
         return Ok(None);
     }
 
+    // Keep the reservation only for the response lifetime. Unlike an upload,
+    // this mapping cannot add newly retained pages after admission: the
+    // residency gate proves the mapped span was already present in the sampled
+    // container charge. Deferring its release would double-count those pages
+    // until the next sensor tick and throttle hot reads at the sampling rate.
+
     Ok(Some(MmapServe {
         bytes: Bytes::from_owner(MmapRegion {
             mmap,
@@ -121,7 +140,7 @@ pub fn map_file_region(
     _file: &File,
     _offset: u64,
     _len: u64,
-    _permit: OwnedSemaphorePermit,
+    _permit: MmapMemoryPermit,
 ) -> Result<Option<MmapServe>, String> {
     Ok(None)
 }
@@ -250,7 +269,7 @@ fn page_size() -> Option<usize> {
 #[cfg(unix)]
 struct MmapRegion {
     mmap: Mmap,
-    _permit: OwnedSemaphorePermit,
+    _permit: MmapMemoryPermit,
 }
 
 #[cfg(unix)]
@@ -262,12 +281,27 @@ impl AsRef<[u8]> for MmapRegion {
 
 #[cfg(all(test, unix))]
 mod tests {
-    use std::{io::Write, sync::Arc};
+    use std::io::Write;
 
     use tempfile::NamedTempFile;
-    use tokio::sync::Semaphore;
 
-    use super::{fully_backed_pages_resident, map_file_region, partial_page_exemption_applied};
+    use super::{
+        MmapMemoryPermit, fully_backed_pages_resident, map_file_region, mapped_span_bytes,
+        partial_page_exemption_applied,
+    };
+    use crate::{memory::MemoryController, metrics::Metrics};
+
+    fn mmap_permit(bytes: usize) -> (MemoryController, MmapMemoryPermit) {
+        let memory = MemoryController::new(
+            Metrics::new("eu-west".into(), "tenant".into()),
+            128 * 1024 * 1024,
+            192 * 1024 * 1024,
+        );
+        let permit = memory
+            .try_acquire_mmap_serving(bytes.max(1))
+            .expect("permit should be acquired");
+        (memory, permit)
+    }
 
     #[test]
     fn maps_unaligned_file_regions() {
@@ -277,15 +311,16 @@ mod tests {
         file.as_file()
             .sync_all()
             .expect("temp file should be flushed");
-        let permit = Arc::new(Semaphore::new(16))
-            .try_acquire_many_owned(8)
-            .expect("permit should be acquired");
+        let mapped_bytes = mapped_span_bytes(3, 8).expect("mapped span should fit");
+        let (memory, permit) = mmap_permit(mapped_bytes);
 
         let serve = map_file_region(file.as_file(), 3, 8, permit)
             .expect("region should map")
             .expect("freshly written region should be page-cache resident");
 
         assert_eq!(&serve.bytes[..], b"3456789a");
+        drop(serve);
+        assert_eq!(memory.transient_reserved_bytes(), 0);
     }
 
     #[test]
@@ -382,9 +417,7 @@ mod tests {
     #[test]
     fn maps_empty_regions_without_mmap() {
         let file = NamedTempFile::new().expect("temp file should be created");
-        let permit = Arc::new(Semaphore::new(1))
-            .try_acquire_owned()
-            .expect("permit should be acquired");
+        let (_memory, permit) = mmap_permit(1);
 
         let serve = map_file_region(file.as_file(), 0, 0, permit)
             .expect("empty region should map")
@@ -401,13 +434,12 @@ mod tests {
         file.as_file()
             .sync_all()
             .expect("temp file should be flushed");
-        let permit = Arc::new(Semaphore::new(16))
-            .try_acquire_many_owned(4)
-            .expect("permit should be acquired");
+        let (memory, permit) = mmap_permit(4);
 
         let error = map_file_region(file.as_file(), 2, 4, permit)
             .expect_err("region should exceed file length");
 
         assert!(error.contains("exceeds file size"));
+        assert_eq!(memory.transient_reserved_bytes(), 0);
     }
 }
