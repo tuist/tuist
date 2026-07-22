@@ -14,7 +14,10 @@ use tonic::{
 };
 use tower::Layer;
 
-use super::{protobuf_shape::*, service::REAPI_MAX_DECODING_MESSAGE_SIZE};
+use super::{
+    protobuf_shape::*,
+    service::{REAPI_MAX_DECODING_MESSAGE_SIZE, ResponseMemoryGuard},
+};
 use crate::{
     file_cache::{
         FOREGROUND_STAGING_WINDOW_BYTES, FileCachePolicy, ForegroundFileCacheReservation,
@@ -451,7 +454,7 @@ where
         let state = self.state.clone();
         let future = self.inner.call(request);
         Box::pin(async move {
-            let response = future.await?;
+            let mut response = future.await?;
             // Sample latency once the response is ready, before the body
             // streams, so long ByteStream reads do not inflate the signal.
             state.runtime.record_public_request_latency(
@@ -460,9 +463,11 @@ where
                 &route,
                 started_at.elapsed(),
             );
+            let response_memory = response.extensions_mut().remove::<ResponseMemoryGuard>();
             Ok(response.map(|body| {
                 body.map_frame(move |frame| {
                     let _guard = &guard;
+                    let _response_memory = &response_memory;
                     frame
                 })
                 .map_err(|error| -> BoxError { error.into() })
