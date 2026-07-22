@@ -32,6 +32,78 @@ struct CacheGraphContentHasherTests {
 
     @Test(
         .withMockedSwiftVersionProvider
+    ) func contentHashes_scopesSettingsToSelectedConfiguration() async throws {
+        // Given
+        let requestedConfigurationName = "Debug-SharedCache"
+        let selectedConfiguration = BuildConfiguration.debug("debug-sharedcache")
+        let unrelatedConfiguration = BuildConfiguration.debug("Debug-AppVariant-B")
+        let settings = Settings(
+            baseDebug: ["ENABLE_TESTING_SEARCH_PATHS": "YES"],
+            configurations: [
+                selectedConfiguration: Configuration(settings: ["SELECTED": "YES"]),
+                unrelatedConfiguration: Configuration(settings: ["UNRELATED": "YES"]),
+            ],
+            defaultConfiguration: unrelatedConfiguration.name
+        )
+        let target = Target.test(name: "Framework", product: .framework, settings: settings)
+        let project = Project.test(
+            path: "/Project/Path",
+            settings: settings,
+            targets: [target]
+        )
+        let projectPath = project.path
+        let graph = Graph.test(
+            path: projectPath,
+            projects: [projectPath: project]
+        )
+        given(graphContentHasher)
+            .contentHashes(
+                for: .any,
+                include: .any,
+                destination: .any,
+                additionalStrings: .any
+            )
+            .willReturn([:])
+        given(defaultConfigurationFetcher)
+            .fetch(configuration: .any, defaultConfiguration: .any, graph: .any)
+            .willReturn(requestedConfigurationName)
+        let swiftVersionProviderMock = try #require(SwiftVersionProvider.mocked)
+        given(swiftVersionProviderMock).swiftlangVersion().willReturn("5.10.0")
+
+        // When
+        _ = try await subject.contentHashes(
+            for: graph,
+            configuration: requestedConfigurationName,
+            defaultConfiguration: nil,
+            excludedTargets: [],
+            destination: nil
+        )
+
+        // Then
+        verify(graphContentHasher)
+            .contentHashes(
+                for: .matching { graph in
+                    guard let scopedProject = graph.projects[projectPath],
+                          let targetSettings = scopedProject.targets[target.name]?.settings
+                    else {
+                        return false
+                    }
+                    return Set(scopedProject.settings.configurations.keys) == [selectedConfiguration]
+                        && Set(targetSettings.configurations.keys) == [selectedConfiguration]
+                        && scopedProject.settings.baseDebug == settings.baseDebug
+                        && targetSettings.baseDebug == settings.baseDebug
+                        && scopedProject.settings.defaultConfiguration == nil
+                        && targetSettings.defaultConfiguration == nil
+                },
+                include: .any,
+                destination: .any,
+                additionalStrings: .any
+            )
+            .called(1)
+    }
+
+    @Test(
+        .withMockedSwiftVersionProvider
     ) func contentHashes_when_no_excluded_targets_all_hashes_are_computed() async throws {
         // Given
         let includedTarget = GraphTarget(
