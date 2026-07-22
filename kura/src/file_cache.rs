@@ -58,12 +58,16 @@ pub(crate) async fn reserve_foreground_staging(
     memory: &MemoryController,
     declared_or_max_bytes: u64,
 ) -> Result<ForegroundFileCacheReservation, ForegroundAdmissionTimeout> {
-    let working_set_bytes = declared_or_max_bytes
-        .min(FOREGROUND_STAGING_WINDOW_BYTES)
-        .min(memory.transient_capacity_bytes().saturating_div(2));
+    let desired_working_set_bytes = declared_or_max_bytes.min(FOREGROUND_STAGING_WINDOW_BYTES);
+    let working_set_bytes =
+        desired_working_set_bytes.min(memory.transient_capacity_bytes().saturating_div(2));
+    let reservation_was_clamped = working_set_bytes < desired_working_set_bytes;
     let requested_bytes = working_set_bytes.saturating_mul(2);
     let (reservation, waited) = memory.reserve_foreground_memory(requested_bytes).await?;
-    let policy = if waited || declared_or_max_bytes > FOREGROUND_STAGING_WINDOW_BYTES {
+    let policy = if waited
+        || reservation_was_clamped
+        || declared_or_max_bytes > FOREGROUND_STAGING_WINDOW_BYTES
+    {
         FileCachePolicy::Bounded
     } else {
         FileCachePolicy::Foreground {
@@ -85,7 +89,7 @@ mod tests {
             metrics,
             64 * 1024 * 1024,
             24 * 1024 * 1024,
-            32 * 1024 * 1024,
+            56 * 1024 * 1024,
         );
         let first = reserve_foreground_staging(&memory, FOREGROUND_STAGING_WINDOW_BYTES)
             .await
@@ -93,7 +97,7 @@ mod tests {
         assert_eq!(
             first.file_cache_policy(),
             FileCachePolicy::Foreground {
-                reservation_bytes: 8 * 1024 * 1024,
+                reservation_bytes: 32 * 1024 * 1024,
             }
         );
 
@@ -112,6 +116,39 @@ mod tests {
         assert_eq!(second.file_cache_policy(), FileCachePolicy::Bounded);
         drop(second);
         assert_eq!(memory.transient_reserved_bytes(), 0);
+    }
+
+    #[tokio::test]
+    async fn clamped_uploads_use_bounded_file_cache() {
+        let metrics = Metrics::new("eu-west".into(), "tenant".into());
+        let memory = MemoryController::with_runtime_limit(
+            metrics.clone(),
+            64 * 1024 * 1024,
+            24 * 1024 * 1024,
+            32 * 1024 * 1024,
+        );
+
+        let reservation = reserve_foreground_staging(&memory, FOREGROUND_STAGING_WINDOW_BYTES)
+            .await
+            .expect("clamped reservation should fit");
+
+        assert_eq!(reservation.file_cache_policy(), FileCachePolicy::Bounded);
+        assert_eq!(memory.transient_reserved_bytes(), 8 * 1024 * 1024);
+
+        let tiny_memory = MemoryController::with_runtime_limit(
+            metrics,
+            64 * 1024 * 1024,
+            32 * 1024 * 1024,
+            32 * 1024 * 1024 + 1,
+        );
+        let tiny_reservation = reserve_foreground_staging(&tiny_memory, 1)
+            .await
+            .expect("zero-byte clamped reservation should use bounded cache handling");
+        assert_eq!(
+            tiny_reservation.file_cache_policy(),
+            FileCachePolicy::Bounded
+        );
+        assert_eq!(tiny_memory.transient_reserved_bytes(), 0);
     }
 
     #[tokio::test]
