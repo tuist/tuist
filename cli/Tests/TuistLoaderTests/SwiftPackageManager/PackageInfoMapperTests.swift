@@ -5501,6 +5501,51 @@ struct PackageInfoMapperTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
+    ) func map_whenEnabledExternalLocalPackageTestDependsOnExecutableTarget_throwsConcreteError() async throws {
+        // Given
+        let basePath = try #require(FileSystem.temporaryTestDirectory)
+        let sourcesPath = basePath.appending(components: ["Package", "Sources", "MyTool"])
+        try await fileSystem.makeDirectory(at: sourcesPath)
+        let testsPath = basePath.appending(components: ["Package", "Tests", "MyToolTests"])
+        try await fileSystem.makeDirectory(at: testsPath)
+
+        // When / Then
+        await #expect(
+            throws: PackageInfoMapperError.unsupportedExecutableTargetInLocalPackageTest(
+                package: "Package",
+                target: "MyToolTests",
+                executable: "MyTool"
+            )
+        ) {
+            _ = try await subject.map(
+                package: "Package",
+                basePath: basePath,
+                packageType: .external(origin: .local, artifactPaths: [:]),
+                packageInfos: [
+                    "Package": .test(
+                        name: "Package",
+                        products: [
+                            .init(name: "MyTool", type: .executable, targets: ["MyTool"]),
+                        ],
+                        targets: [
+                            .test(name: "MyTool", type: .executable),
+                            .test(
+                                name: "MyToolTests",
+                                type: .test,
+                                dependencies: [.target(name: "MyTool", condition: nil)]
+                            ),
+                        ],
+                        platforms: [.macos]
+                    ),
+                ],
+                packageSettings: .test(includeLocalPackageTestTargets: true)
+            )
+        }
+    }
+
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedSwiftVersionProvider
     ) func map_whenExternalRemoteSwiftPackageHasTestTarget_andTestsAreEnabled_ignoresTestTarget() async throws {
         // Given
         let basePath = try #require(FileSystem.temporaryTestDirectory)

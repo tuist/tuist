@@ -43,6 +43,9 @@ enum PackageInfoMapperError: LocalizedError, Equatable {
     /// Thrown when an included local package test target depends on a product from another package.
     case unsupportedExternalProductInLocalPackageTest(package: String, target: String, product: String)
 
+    /// Thrown when an included local package test target depends on an executable target that is not mapped.
+    case unsupportedExecutableTargetInLocalPackageTest(package: String, target: String, executable: String)
+
     /// Thrown when unsupported `PackageInfo.Target.TargetBuildSettingDescription` `Tool`/`SettingName` pair is found.
     case unsupportedSetting(
         PackageInfo.Target.TargetBuildSettingDescription.Tool,
@@ -75,6 +78,12 @@ enum PackageInfoMapperError: LocalizedError, Equatable {
             The test target `\(target)` in the local package `\(package)` depends on the external product `\(product)`. \
             Tuist can include local package test targets only when all their dependencies belong to the same package. Remove \
             the external product dependency, or set `includeLocalPackageTestTargets` to `false` in `PackageSettings`.
+            """
+        case let .unsupportedExecutableTargetInLocalPackageTest(package, target, executable):
+            return """
+            The test target `\(target)` in the local package `\(package)` depends on the executable target `\(executable)`, \
+            which Tuist omits when mapping local package dependencies. Remove the executable target dependency, or set \
+            `includeLocalPackageTestTargets` to `false` in `PackageSettings`.
             """
         case let .unsupportedSetting(tool, setting):
             return "The \(tool) and \(setting) pair is not a supported setting."
@@ -767,6 +776,24 @@ public struct PackageInfoMapper: PackageInfoMapping {
                 package: packageInfo.name,
                 target: target.name,
                 product: productName
+            )
+        }
+
+        if target.type == .test,
+           case .external(origin: .local, artifactPaths: _, packagePrebuilts: _, derivedXCFrameworksPath: _) = packageType,
+           let executableName = target.dependencies.compactMap({ dependency -> String? in
+               switch dependency {
+               case let .target(name, _), let .byName(name, _):
+                   return targetsByName[name]?.type == .executable ? name : nil
+               case .product:
+                   return nil
+               }
+           }).first
+        {
+            throw PackageInfoMapperError.unsupportedExecutableTargetInLocalPackageTest(
+                package: packageInfo.name,
+                target: target.name,
+                executable: executableName
             )
         }
 
