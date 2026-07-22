@@ -446,9 +446,14 @@ async fn bootstrap_manifests_from_peer(
                 .set_bootstrap_pass_buckets_reconciled(peer, "digest", 0);
             let mut reconciled = 0;
             for prefix in divergent {
-                let (range_applied, range_failed) =
-                    bootstrap_manifest_range_from_peer(state, peer, Some(&prefix), progress)
-                        .await?;
+                let (range_applied, range_failed) = bootstrap_manifest_range_from_peer(
+                    state,
+                    peer,
+                    Some(&prefix),
+                    "digest",
+                    progress,
+                )
+                .await?;
                 applied += range_applied;
                 failed += range_failed;
                 reconciled += 1;
@@ -471,7 +476,8 @@ async fn bootstrap_manifests_from_peer(
                 .metrics
                 .set_bootstrap_pass_buckets_reconciled(peer, "full_walk", 0);
             let (range_applied, range_failed) =
-                bootstrap_manifest_range_from_peer(state, peer, None, progress).await?;
+                bootstrap_manifest_range_from_peer(state, peer, None, "full_walk", progress)
+                    .await?;
             applied += range_applied;
             failed += range_failed;
             state
@@ -524,13 +530,12 @@ async fn bootstrap_manifest_range_from_peer(
     state: &SharedState,
     peer: &str,
     prefix: Option<&str>,
+    // Passed by the caller (which already labels its pass gauge and Drop guard
+    // with the same value) so the mode has a single source of truth: a walked
+    // value and its clear can never end up under different labels.
+    mode: &'static str,
     progress: &AtomicU64,
 ) -> Result<(u64, u64), String> {
-    let mode = if prefix.is_some() {
-        "digest"
-    } else {
-        "full_walk"
-    };
     let mut after = None;
     let mut applied = 0_u64;
     let mut failed = 0_u64;
@@ -2950,9 +2955,10 @@ mod tests {
             "digest path walks only diverging buckets, got {digest_page_count} pages"
         );
 
-        // Pass-progress gauges clear when a pass returns, so a finished digest
-        // pass reads present-with-mode="digest" at zero rather than frozen at
-        // its last mid-pass value. Also fails if the pass call sites are removed.
+        // After the pass returns the Drop guard has zeroed these, so this pins
+        // only the mode label and the pass-end clearing (present with
+        // mode="digest", at 0) — not that progress was reported. The reporting
+        // of the walked gauge is pinned by range_walk_reports_manifests_walked.
         let pass_gauge = |rendered: &str, name: &str, mode: &str| -> Option<i64> {
             rendered
                 .lines()
@@ -3028,6 +3034,85 @@ mod tests {
         assert!(
             digest_page_count < full_page_count,
             "range digest walks fewer pages than the full walk ({digest_page_count} < {full_page_count}); at prod scale (1.4M) the full walk is ~5652 pages while the digest path stays == delta"
+        );
+    }
+
+    #[tokio::test]
+    async fn range_walk_reports_manifests_walked() {
+        // The range walk is not wrapped by the pass Drop guard, so its gauge is
+        // observable after the call — this is what actually pins the reporting,
+        // which the guard-cleared pass-level assertions cannot.
+        const N: usize = 5;
+        let remote = test_context(|_| {}).await;
+        for i in 0..N {
+            remote
+                .state
+                .store
+                .persist_artifact_from_bytes(
+                    ArtifactProducer::Xcode,
+                    "ios",
+                    &format!("key-{i}"),
+                    "application/octet-stream",
+                    b"payload",
+                )
+                .await
+                .expect("remote artifact should persist");
+        }
+        let (remote_url, _server) = spawn_server(router(remote.state.clone())).await;
+
+        let local = test_context(|_| {}).await;
+        let walked = || -> Option<i64> {
+            let peer_needle = format!("peer=\"{remote_url}\"");
+            local
+                .state
+                .metrics
+                .render()
+                .lines()
+                .find(|line| {
+                    line.starts_with("kura_bootstrap_current_bucket_manifests_walked")
+                        && line.contains(&peer_needle)
+                })
+                .and_then(|line| line.rsplit(' ').next())
+                .and_then(|value| value.trim().parse::<i64>().ok())
+        };
+
+        // Seed a stale value; the walk must overwrite it with exactly the N
+        // manifests it sees. Removing the per-page setter leaves the gauge stuck
+        // at 999 and fails here.
+        local
+            .state
+            .metrics
+            .set_bootstrap_current_bucket_manifests_walked(&remote_url, "full_walk", 999);
+        bootstrap_manifest_range_from_peer(
+            &local.state,
+            &remote_url,
+            None,
+            "full_walk",
+            &AtomicU64::new(0),
+        )
+        .await
+        .expect("range walk succeeds");
+        assert_eq!(
+            walked(),
+            Some(N as i64),
+            "walked reports the manifests seen this walk"
+        );
+
+        // A second walk of the same peer reports N again, not 2N — each walk
+        // counts fresh rather than accumulating.
+        bootstrap_manifest_range_from_peer(
+            &local.state,
+            &remote_url,
+            None,
+            "full_walk",
+            &AtomicU64::new(0),
+        )
+        .await
+        .expect("second range walk succeeds");
+        assert_eq!(
+            walked(),
+            Some(N as i64),
+            "each walk counts fresh, not cumulatively"
         );
     }
 
