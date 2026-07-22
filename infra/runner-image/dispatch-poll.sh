@@ -505,6 +505,14 @@ capture_cache_state() {
   [ -n "${CACHE_MOUNT}" ] || return 0
   [ -d "${STATUS_SHARE}" ] || return 0
   CACHE_INVENTORY_AFTER=$(cache_inventory)
+  # Sample the image's post-job fill % (binary cache + CAS + overhead) while it's
+  # still mounted, for the host's fill histogram — the signal for whether the
+  # reserve is holding or the volume is running near ENOSPC. `df -P` for the
+  # portable one-line format; column 5 is Use%.
+  local fill
+  fill=$(df -P "${CACHE_MOUNT}" 2>/dev/null | awk 'NR==2 {gsub(/%/,"",$5); print $5}')
+  case "${fill}" in ''|*[!0-9]*) fill="" ;; esac
+  [ -n "${fill}" ] && printf '%s' "${fill}" > "${STATUS_SHARE}/cache-fill-percent" 2>/dev/null || true
 }
 
 # report_cache_dirty writes the guest's dirty marker into the writable status

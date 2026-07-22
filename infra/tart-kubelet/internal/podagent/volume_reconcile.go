@@ -182,44 +182,65 @@ func writeCacheReady(statusDir string) {
 // writeCacheBudget stages the per-branch byte budget (≈80% of a master's
 // provisioned cap) into the status share before the VM boots, for the guest's
 // TUIST_CACHE_MAX_BYTES.
-// cacheVolumeReservePercent is the slice of the cache image kept free as
-// filesystem reserve, so neither the binary-cache LRU nor the CAS pruner can fill
-// it to ENOSPC. The binary cache and the CAS split the rest.
-const cacheVolumeReservePercent = 10
+const (
+	// cacheVolumeReserveFloorGiB / cacheVolumeReservePercent size the filesystem
+	// reserve kept free in the cache image: reserve = max(floor, percent of cap).
+	// It is max(absolute, proportional) — NOT a flat percent — because the two
+	// risks it guards (APFS metadata/CoW headroom, and a single build's pruner
+	// OVERSHOOT before the LRU/llcas reclaim) scale absolutely, not with cap size.
+	// A flat percent over-reserves a big image and starves a small one; the floor
+	// keeps a real slice on small caps while the percent bounds it on large ones
+	// (crossover at 40 GiB). The binary cache and the folded CAS split the rest.
+	cacheVolumeReserveFloorGiB = 2
+	cacheVolumeReservePercent  = 5
+)
 
-// casPercent is the CAS's share of the cache image (its
-// COMPILATION_CACHE_LIMIT_PERCENT), derived from the operator-configured CASGiB
-// budget against the image cap. 0 when the CAS is off. Clamped so the binary
-// cache and the reserve always keep a slice even if CASGiB is set larger than the
-// cap — the whole point is that the two pruners share one image without
-// over-committing it.
-func casPercent(capGiB, casGiB int) int {
-	if capGiB <= 0 || casGiB <= 0 {
-		return 0
+// cacheImageSplit computes the coordinated budget split for a capGiB cache image
+// shared by the binary cache and the folded CAS. It returns the binary cache's
+// byte budget (TUIST_CACHE_MAX_BYTES) and the CAS's share percent
+// (COMPILATION_CACHE_LIMIT_PERCENT, 0 when the CAS is off). binary + CAS never
+// exceed cap−reserve, so the two independent pruners cannot over-commit the one
+// image to ENOSPC. A CASGiB set larger than the usable space is clamped so the
+// binary cache always keeps a slice.
+func cacheImageSplit(capGiB, casGiB int) (binaryBytes uint64, casPercent int) {
+	if capGiB <= 0 {
+		return 0, 0
 	}
-	pct := casGiB * 100 / capGiB
-	if maxPct := 100 - cacheVolumeReservePercent - 1; pct > maxPct {
-		pct = maxPct // oversized CASGiB: leave the reserve + a 1% binary floor
+	const gib = uint64(1024 * 1024 * 1024)
+	capBytes := uint64(capGiB) * gib
+	reserve := uint64(cacheVolumeReserveFloorGiB) * gib
+	if pct := capBytes * cacheVolumeReservePercent / 100; pct > reserve {
+		reserve = pct
 	}
-	if pct < 1 {
-		pct = 1
+	if reserve > capBytes/2 {
+		reserve = capBytes / 2 // a tiny cap never reserves more than half
 	}
-	return pct
+	usable := capBytes - reserve
+	if casGiB <= 0 {
+		b := capBytes * 80 / 100 // CAS off: binary keeps ~80% (its own 20% headroom)
+		if b > usable {
+			b = usable
+		}
+		return b, 0
+	}
+	casBytes := uint64(casGiB) * gib
+	if maxCAS := usable * 90 / 100; casBytes > maxCAS {
+		casBytes = maxCAS // oversized CASGiB: keep the binary cache a ≥10% slice
+	}
+	binaryBytes = usable - casBytes
+	casPercent = int(casBytes * 100 / capBytes)
+	if casPercent < 1 {
+		casPercent = 1
+	}
+	return binaryBytes, casPercent
 }
 
-// writeCacheBudget stages the binary cache's byte budget (TUIST_CACHE_MAX_BYTES)
-// into the status share. With the CAS folded in it gets the cap minus the CAS's
-// share minus the reserve, so the two pruners cannot both fill the one image;
-// with the CAS off it gets ~80%.
+// writeCacheBudget stages the binary cache's byte budget (TUIST_CACHE_MAX_BYTES).
 func writeCacheBudget(statusDir string, capGiB, casGiB int) {
 	if statusDir == "" || capGiB <= 0 {
 		return
 	}
-	binaryPct := uint64(80)
-	if cas := casPercent(capGiB, casGiB); cas > 0 {
-		binaryPct = uint64(100 - cacheVolumeReservePercent - cas)
-	}
-	budget := uint64(capGiB) * 1024 * 1024 * 1024 * binaryPct / 100
+	budget, _ := cacheImageSplit(capGiB, casGiB)
 	_ = os.WriteFile(filepath.Join(statusDir, cacheBudgetFile), []byte(strconv.FormatUint(budget, 10)), 0o644)
 }
 
@@ -233,10 +254,11 @@ func (r *Reconciler) writeCASEnabled(statusDir string) {
 	if statusDir == "" || r.Volumes == nil || !r.Volumes.casEnabled() {
 		return
 	}
-	// The marker carries the CAS's share percent (derived from CASGiB, the
-	// coordinated other half of writeCacheBudget's split), which the guest uses for
-	// COMPILATION_CACHE_LIMIT_PERCENT.
-	_ = os.WriteFile(filepath.Join(statusDir, casEnabledFile), []byte(strconv.Itoa(casPercent(r.Volumes.CapGiB, r.Volumes.CASGiB))), 0o644)
+	// The marker carries the CAS's share percent (the coordinated other half of
+	// writeCacheBudget's split, from the same cacheImageSplit so the two can't
+	// drift), which the guest uses for COMPILATION_CACHE_LIMIT_PERCENT.
+	_, casPct := cacheImageSplit(r.Volumes.CapGiB, r.Volumes.CASGiB)
+	_ = os.WriteFile(filepath.Join(statusDir, casEnabledFile), []byte(strconv.Itoa(casPct)), 0o644)
 }
 
 // uploadMillisFile carries the wall-clock ms the guest teardown spent uploading
@@ -259,6 +281,28 @@ func readUploadMillis(statusDir string) int64 {
 		return -1
 	}
 	return ms
+}
+
+// fillPercentFile carries the cache image mount's post-job fill % (binary cache +
+// CAS + overhead), sampled by the guest while still mounted. It is the signal for
+// whether the reserve is holding or the volume runs near ENOSPC — the missing
+// observation that makes the reserve tunable from data rather than from failures.
+const fillPercentFile = "cache-fill-percent"
+
+// readFillPercent returns the guest-reported image fill %, or -1 when absent.
+func readFillPercent(statusDir string) int {
+	if statusDir == "" {
+		return -1
+	}
+	b, err := os.ReadFile(filepath.Join(statusDir, fillPercentFile))
+	if err != nil {
+		return -1
+	}
+	pct, err := strconv.Atoi(strings.TrimSpace(string(b)))
+	if err != nil || pct < 0 || pct > 100 {
+		return -1
+	}
+	return pct
 }
 
 // baseGenerationFile carries the HEAD generation the branch was clonefiled from,
@@ -523,6 +567,11 @@ func (r *Reconciler) finalizeVolume(entry *Entry, actualAccount string, cleanExi
 	// folded-in CAS doesn't make uploads slow.
 	if ms := readUploadMillis(entry.VolumeStatusDir); ms >= 0 {
 		RecordVolumeUpload(ms)
+	}
+	// Record how full the image got this job — the ENOSPC-pressure signal for
+	// tuning the reserve/split from observation instead of from build failures.
+	if pct := readFillPercent(entry.VolumeStatusDir); pct >= 0 {
+		RecordVolumeFill(pct)
 	}
 
 	// Consumed: the branch has been renamed away (promote) or removed

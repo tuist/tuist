@@ -1105,52 +1105,51 @@ func TestReadPromoteResult(t *testing.T) {
 	}
 }
 
-func TestCASBudgetSplit(t *testing.T) {
-	// casPercent: the CAS's share of the image, derived from CASGiB/CapGiB, clamped.
-	for _, tc := range []struct{ cap, cas, want int }{
-		{20, 0, 0},   // off
-		{20, 8, 40},  // 8/20
-		{20, 18, 89}, // 90% would leave no reserve → clamp to 100-reserve-1
-		{20, 25, 89}, // oversized CASGiB → clamped, not negative binary
-		{1000, 1, 1}, // rounds to 0 → 1% floor
-	} {
-		if got := casPercent(tc.cap, tc.cas); got != tc.want {
-			t.Errorf("casPercent(cap=%d, cas=%d) = %d; want %d", tc.cap, tc.cas, got, tc.want)
-		}
-	}
-
-	readBudget := func(dir string) uint64 {
-		b, err := os.ReadFile(filepath.Join(dir, cacheBudgetFile))
-		if err != nil {
-			t.Fatal(err)
-		}
-		v, err := strconv.ParseUint(string(b), 10, 64)
-		if err != nil {
-			t.Fatalf("parse budget %q: %v", b, err)
-		}
-		return v
-	}
+func TestCacheImageSplit(t *testing.T) {
 	const gib = uint64(1024 * 1024 * 1024)
 
-	// CAS off: the binary cache gets the full ~80%.
-	off := t.TempDir()
-	writeCacheBudget(off, 20, 0)
-	if got, want := readBudget(off), 20*gib*80/100; got != want {
-		t.Fatalf("CAS-off binary budget = %d; want %d (80%%)", got, want)
+	// CAS off: the binary cache gets ~80% of a mid cap; no CAS share.
+	if b, p := cacheImageSplit(20, 0); b != 20*gib*80/100 || p != 0 {
+		t.Fatalf("cap20 cas0 = %d,%d; want %d,0", b, p, 20*gib*80/100)
 	}
 
-	// CAS on (8 of 20 GiB): binary gets 100-10(reserve)-40(cas) = 50%, and the
-	// three shares never exceed the cap — the ENOSPC guard.
-	on := t.TempDir()
-	writeCacheBudget(on, 20, 8)
-	binary := readBudget(on)
-	if want := 20 * gib * 50 / 100; binary != want {
-		t.Fatalf("CAS-on binary budget = %d; want %d (50%%)", binary, want)
+	// CAS on, mid cap (8 of 20): reserve = max(2 GiB, 5%=1 GiB) = 2 GiB (the FLOOR
+	// binds); binary 10 GiB (50%), CAS 40%, and binary+CAS+reserve == cap exactly.
+	if b, p := cacheImageSplit(20, 8); b != 10*gib || p != 40 || b+8*gib+2*gib != 20*gib {
+		t.Fatalf("cap20 cas8 = %d,%d; want 10GiB,40%% summing to cap", b, p)
 	}
-	casBytes := 20 * gib * uint64(casPercent(20, 8)) / 100
-	reserve := 20 * gib * cacheVolumeReservePercent / 100
-	if binary+casBytes+reserve > 20*gib {
-		t.Fatalf("binary(%d)+cas(%d)+reserve(%d) exceeds cap(%d)", binary, casBytes, reserve, 20*gib)
+
+	// Large cap: the PERCENT binds, not the floor (5% of 100 = 5 GiB > 2). CAS 20
+	// of 100 → binary = 100 - 5(reserve) - 20 = 75 GiB, CAS 20%.
+	if b, p := cacheImageSplit(100, 20); b != 75*gib || p != 20 {
+		t.Fatalf("cap100 cas20 = %d,%d; want 75GiB,20%%", b, p)
+	}
+
+	// Small cap: the floor binds — reserve stays 2 GiB on a 10 GiB cap (20%), where
+	// a flat 5% would have left far too little.
+	if b, _ := cacheImageSplit(10, 4); 10*gib-(b+4*gib) != 2*gib {
+		t.Fatalf("cap10 cas4 reserve = %d GiB; want 2 (floor)", (10*gib-(b+4*gib))/gib)
+	}
+
+	// Oversized CASGiB: clamped so the binary cache keeps a slice and the
+	// invariant binary + CAS + reserve <= cap still holds (the ENOSPC guard).
+	b, p := cacheImageSplit(20, 25)
+	if b == 0 {
+		t.Fatal("oversized cas-gib starved the binary cache to 0")
+	}
+	if casBytes := 20 * gib * uint64(p) / 100; b+casBytes+2*gib > 20*gib {
+		t.Fatalf("oversized: binary(%d)+cas(%d)+reserve exceeds cap", b, casBytes)
+	}
+
+	// writeCacheBudget stages exactly the binary half.
+	dir := t.TempDir()
+	writeCacheBudget(dir, 20, 8)
+	raw, err := os.ReadFile(filepath.Join(dir, cacheBudgetFile))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := strconv.ParseUint(string(raw), 10, 64); got != 10*gib {
+		t.Fatalf("staged budget = %d; want 10 GiB", got)
 	}
 }
 

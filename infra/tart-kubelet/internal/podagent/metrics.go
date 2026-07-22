@@ -271,6 +271,18 @@ var cacheVolumeUploadSeconds = prometheus.NewHistogram(
 	},
 )
 
+// cacheVolumeFillPercent is the post-job fill % of the cache image mount (binary
+// cache + folded CAS + overhead), sampled at teardown. The tail approaching 100
+// is the ENOSPC pressure the reserve guards against — this is what makes the
+// reserve/split tunable from observation rather than from build failures.
+var cacheVolumeFillPercent = prometheus.NewHistogram(
+	prometheus.HistogramOpts{
+		Name:    "tart_kubelet_cache_volume_fill_percent",
+		Help:    "Post-job fill % of the cache image mount (binary cache + CAS + overhead); the tail near 100 is ENOSPC pressure.",
+		Buckets: []float64{25, 50, 60, 70, 80, 85, 90, 93, 95, 97, 99, 100},
+	},
+)
+
 func init() {
 	metrics.Registry.MustRegister(
 		vmBootDurationSeconds,
@@ -289,6 +301,7 @@ func init() {
 		cacheVolumeRootMounted,
 		cacheVolumeAdmissionDeclinedTotal,
 		cacheVolumeUploadSeconds,
+		cacheVolumeFillPercent,
 	)
 
 	// Initialize every promote-result series to 0 at registration. Counter-vector
@@ -308,6 +321,14 @@ func RecordVolumeUpload(ms int64) {
 		return
 	}
 	cacheVolumeUploadSeconds.Observe(float64(ms) / 1000)
+}
+
+// RecordVolumeFill records the post-job fill % of the cache image mount.
+func RecordVolumeFill(pct int) {
+	if pct < 0 {
+		return
+	}
+	cacheVolumeFillPercent.Observe(float64(pct))
 }
 
 // RecordVolumeOutcome increments the per-outcome count of finalized cache
