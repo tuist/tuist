@@ -102,6 +102,24 @@ const MAX_BATCH_BYTES: i64 = 32 << 20;
 // systematically.
 const RPC_TIMEOUT: Duration = Duration::from_secs(180);
 const ATTEMPTS: usize = 3;
+// How many times `batch_read` re-requests the subset of blobs a `BatchReadBlobs`
+// call returned with a retryable per-blob status. This is a separate budget from
+// `ATTEMPTS`: that one retries the RPC itself, which succeeds here -- the
+// rejection rides on each response entry, so the RPC-level retry never sees it.
+const BLOB_STATUS_ATTEMPTS: usize = 3;
+// After a `batch_read` exhausts its per-blob retries with blobs still declined,
+// how long the same `Remote` fails fast (no retries) instead. Long enough that a
+// build's thousands of reads against a deterministically-pressured node don't
+// each pay the retry ladder and pile read load onto it; short enough to re-probe
+// for recovery several times within one build.
+const PRESSURE_BACKOFF_MS: u64 = 30_000;
+
+fn now_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|elapsed| elapsed.as_millis() as u64)
+        .unwrap_or(0)
+}
 
 /// Delay between retries: the first retry is immediate -- the dominant
 /// retryable condition is kura's graceful GOAWAY rotation, where re-issuing
@@ -209,6 +227,13 @@ pub struct Remote {
     channel: OnceLock<Result<Channel, String>>,
     pub get_stats: OpStats,
     pub post_stats: OpStats,
+    // Epoch-ms until which `batch_read` skips its per-blob retries because the
+    // node was just seen persistently declining reads under memory pressure.
+    // Retrying a deterministically-pressured node only triples its read load
+    // and deepens the pressure (the same reasoning `retryable` applies to
+    // server-sent Internal), so once tripped we fail fast until it may have
+    // recovered. 0 means healthy.
+    pressure_backoff_until_ms: AtomicU64,
 }
 
 fn retryable(status: &tonic::Status) -> bool {
@@ -238,6 +263,20 @@ fn retryable(status: &tonic::Status) -> bool {
         tonic::Code::Internal | tonic::Code::Cancelled => transport_caused(status),
         _ => false,
     }
+}
+
+/// Whether a per-blob status on a `BatchReadBlobs` response entry means "the
+/// blob exists but the server briefly declined to serve it" rather than "the
+/// blob is gone". RESOURCE_EXHAUSTED is kura shedding load under memory
+/// pressure -- it zeroes its per-request REAPI materialization budget and
+/// rejects every read until pressure eases -- and UNAVAILABLE is a transient
+/// serving hiccup. Both are worth re-requesting: the byte is there, and
+/// dropping it as absent hands the compiler a missing object it fails the build
+/// on even though a retry moments later succeeds. NOT_FOUND is deliberately
+/// excluded -- a genuinely evicted blob must fall through to the caller's
+/// skip-and-recompile path, not spin on retries that can never find it.
+fn retryable_blob_status(code: i32) -> bool {
+    code == tonic::Code::ResourceExhausted as i32 || code == tonic::Code::Unavailable as i32
 }
 
 /// Whether a status was synthesized by the local h2/hyper transport rather
@@ -281,6 +320,7 @@ impl Remote {
             channel: OnceLock::new(),
             get_stats: OpStats::default(),
             post_stats: OpStats::default(),
+            pressure_backoff_until_ms: AtomicU64::new(0),
         })
     }
 
@@ -507,71 +547,132 @@ impl Remote {
         }
     }
 
-    /// Reads blobs in size-bounded batches. Chunks are fetched concurrently
-    /// over the multiplexed channel: bulk resolves can carry gigabytes, and
-    /// a sequential chunk loop turns them into round-trip ladders.
+    /// Reads blobs, returning the bytes keyed by content hash for every blob
+    /// the server served. Blobs the server reports absent (NOT_FOUND) are
+    /// simply missing from the map -- the caller treats that as an incomplete
+    /// graph and recompiles. Blobs the server briefly declined under load
+    /// (RESOURCE_EXHAUSTED/UNAVAILABLE) are re-requested with backoff before
+    /// giving up, because the byte is there and reporting it absent fails the
+    /// build on a missing object; a persistent decline is logged so a build
+    /// that then fails has a cause in the proxy log.
     pub fn batch_read(
         &self,
         blobs: &[reapi::Digest],
     ) -> Result<std::collections::HashMap<String, Vec<u8>>, String> {
         let started = Instant::now();
         let result = (|| {
-            let client = self.cas_client()?;
-            let instance = self.config.instance.clone();
-            let auth = self.authorization();
-            let chunks = chunk_digests(blobs);
-            let outcomes = runtime().block_on(async {
-                let mut join_set = tokio::task::JoinSet::new();
-                for chunk in &chunks {
-                    let client = client.clone();
-                    let auth = auth.clone();
-                    let request = reapi::BatchReadBlobsRequest {
-                        instance_name: instance.clone(),
-                        digests: chunk.to_vec(),
-                        ..Default::default()
-                    };
-                    join_set.spawn(async move {
-                        retry_call_async(|| {
-                            let mut client = client.clone();
-                            let request = request.clone();
-                            let auth = auth.clone();
-                            async move {
-                                client
-                                    .batch_read_blobs(authed_request(request, auth.as_ref()))
-                                    .await
-                            }
-                        })
-                        .await
-                        .map(|response| response.into_inner().responses)
-                        .map_err(|status| format!("batch_read: {status}"))
-                    });
-                }
-                let mut all = Vec::new();
-                while let Some(joined) = join_set.join_next().await {
-                    match joined {
-                        Ok(Ok(responses)) => all.extend(responses),
-                        Ok(Err(message)) => return Err(message),
-                        Err(join_error) => return Err(format!("batch_read join: {join_error}")),
-                    }
-                }
-                Ok(all)
-            })?;
+            // Skip the retries while a recent persistent decline is still in its
+            // backoff window: re-requesting blobs a pressured node just refused
+            // only deepens the pressure. During backoff we make a single pass
+            // and let still-declined blobs fall through to recompile.
+            let backing_off = now_ms() < self.pressure_backoff_until_ms.load(Ordering::Relaxed);
+            let attempts = if backing_off { 1 } else { BLOB_STATUS_ATTEMPTS };
             let mut contents = std::collections::HashMap::new();
-            for entry in outcomes {
-                let ok = entry.status.as_ref().map(|s| s.code == 0).unwrap_or(false);
-                if ok {
-                    if let Some(digest) = entry.digest {
-                        // The loop owns `entry`; move its data out rather than
-                        // deep-copying every fetched blob (batches run to 32MB
-                        // while the requesting compiler blocks on the resolve).
-                        contents.insert(digest.hash, entry.data);
+            let mut pending: Vec<reapi::Digest> = blobs.to_vec();
+            for round in 1..=attempts {
+                let outcomes = self.batch_read_once(&pending)?;
+                let mut retry: Vec<reapi::Digest> = Vec::new();
+                for entry in outcomes {
+                    let code = entry.status.as_ref().map(|status| status.code).unwrap_or(-1);
+                    if code == 0 {
+                        if let Some(digest) = entry.digest {
+                            // The loop owns `entry`; move its data out rather
+                            // than deep-copying every fetched blob (batches run
+                            // to 32MB while the requesting compiler blocks on
+                            // the resolve).
+                            contents.insert(digest.hash, entry.data);
+                        }
+                    } else if retryable_blob_status(code) {
+                        if let Some(digest) = entry.digest {
+                            retry.push(digest);
+                        }
                     }
+                    // Any other status (NOT_FOUND, ...) is a genuine miss: leave
+                    // it out of the map so the caller's skip path takes over.
                 }
+                if retry.is_empty() {
+                    break;
+                }
+                if round == attempts {
+                    // Still declined after this call's attempts. Arm the backoff
+                    // (so concurrent and subsequent reads fail fast rather than
+                    // pile the retry ladder onto a struggling node) and log the
+                    // transition once -- not per call -- so a build that then
+                    // fails on a missing object has a single clear cause instead
+                    // of a bare compiler error. `backing_off` already means it
+                    // was armed, so this fires on the edge into pressure.
+                    if !backing_off {
+                        self.pressure_backoff_until_ms
+                            .store(now_ms() + PRESSURE_BACKOFF_MS, Ordering::Relaxed);
+                        crate::log_line(&format!(
+                            "batch_read: server declining reads under memory pressure \
+                             ({} blob(s) unmaterialized after {round} attempt(s)); \
+                             backing off retries for {}s",
+                            retry.len(),
+                            PRESSURE_BACKOFF_MS / 1000
+                        ));
+                    }
+                    break;
+                }
+                std::thread::sleep(RETRY_BACKOFF * round as u32);
+                pending = retry;
             }
             Ok(contents)
         })();
         self.get_stats.record(started.elapsed());
         result
+    }
+
+    /// One `BatchReadBlobs` pass: fetches `blobs` in size-bounded chunks
+    /// concurrently over the multiplexed channel (bulk resolves can carry
+    /// gigabytes, and a sequential chunk loop turns them into round-trip
+    /// ladders) and returns the raw per-blob responses. RPC-level transient
+    /// failures are retried inside; per-blob statuses ride out on each response
+    /// for `batch_read` to interpret and selectively re-request.
+    fn batch_read_once(
+        &self,
+        blobs: &[reapi::Digest],
+    ) -> Result<Vec<reapi::batch_read_blobs_response::Response>, String> {
+        let client = self.cas_client()?;
+        let instance = self.config.instance.clone();
+        let auth = self.authorization();
+        let chunks = chunk_digests(blobs);
+        runtime().block_on(async {
+            let mut join_set = tokio::task::JoinSet::new();
+            for chunk in &chunks {
+                let client = client.clone();
+                let auth = auth.clone();
+                let request = reapi::BatchReadBlobsRequest {
+                    instance_name: instance.clone(),
+                    digests: chunk.to_vec(),
+                    ..Default::default()
+                };
+                join_set.spawn(async move {
+                    retry_call_async(|| {
+                        let mut client = client.clone();
+                        let request = request.clone();
+                        let auth = auth.clone();
+                        async move {
+                            client
+                                .batch_read_blobs(authed_request(request, auth.as_ref()))
+                                .await
+                        }
+                    })
+                    .await
+                    .map(|response| response.into_inner().responses)
+                    .map_err(|status| format!("batch_read: {status}"))
+                });
+            }
+            let mut all = Vec::new();
+            while let Some(joined) = join_set.join_next().await {
+                match joined {
+                    Ok(Ok(responses)) => all.extend(responses),
+                    Ok(Err(message)) => return Err(message),
+                    Err(join_error) => return Err(format!("batch_read join: {join_error}")),
+                }
+            }
+            Ok(all)
+        })
     }
 
     /// Returns the subset of digests the server does not have.
@@ -768,7 +869,7 @@ pub fn decompress_frame(blob: &[u8]) -> Option<Vec<u8>> {
 
 #[cfg(test)]
 mod tests {
-    use super::{reapi_instance, retryable};
+    use super::{reapi_instance, retryable, retryable_blob_status};
 
     #[test]
     fn reapi_instance_strips_the_account_from_a_full_handle() {
@@ -817,5 +918,17 @@ mod tests {
         assert!(!retryable(&tonic::Status::out_of_range(
             "message length too large"
         )));
+    }
+
+    #[test]
+    fn per_blob_backpressure_is_retryable_but_absence_is_not() {
+        // RESOURCE_EXHAUSTED (8) is kura declining a blob it holds under memory
+        // pressure, and UNAVAILABLE (14) is a transient serving hiccup: both
+        // mean re-request. NOT_FOUND (5) is a genuine eviction that must fall
+        // through to skip-and-recompile, and OK (0) is served, not retried.
+        assert!(retryable_blob_status(tonic::Code::ResourceExhausted as i32));
+        assert!(retryable_blob_status(tonic::Code::Unavailable as i32));
+        assert!(!retryable_blob_status(tonic::Code::NotFound as i32));
+        assert!(!retryable_blob_status(0));
     }
 }
