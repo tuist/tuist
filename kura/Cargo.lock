@@ -1371,6 +1371,7 @@ dependencies = [
  "futures-util",
  "hex",
  "hmac",
+ "http-body",
  "http-body-util",
  "httparse",
  "hyper",

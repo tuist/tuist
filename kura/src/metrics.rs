@@ -114,6 +114,14 @@ pub struct Metrics {
     process_resident_anon_bytes: Gauge,
     process_resident_file_bytes: Gauge,
     process_virtual_memory_bytes: Gauge,
+    container_memory_current_bytes: Gauge,
+    container_memory_limit_bytes: Gauge,
+    container_memory_anon_bytes: Gauge,
+    container_memory_file_bytes: Gauge,
+    container_memory_kernel_bytes: Gauge,
+    container_memory_inactive_file_bytes: Gauge,
+    container_memory_oom_events: Gauge,
+    container_memory_oom_kill_events: Gauge,
     jemalloc_allocated_bytes: Gauge,
     jemalloc_resident_bytes: Gauge,
     jemalloc_retained_bytes: Gauge,
@@ -125,9 +133,16 @@ pub struct Metrics {
     memory_pressure_state: Gauge,
     memory_soft_limit_bytes: Gauge,
     memory_hard_limit_bytes: Gauge,
+    memory_transient_reserved_bytes: Gauge,
     memory_pressure_transitions: Family<MemoryPressureTransitionLabels, Counter>,
     background_work_paused: Family<BackgroundWorkerLabels, Gauge>,
     memory_actions: Family<MemoryActionLabels, Counter>,
+    snapshot_cache_bytes: Gauge,
+    snapshot_cache_capacity_bytes: Gauge,
+    snapshot_cache_namespaces: Gauge,
+    snapshot_cache_entries: Gauge,
+    snapshot_cache_nodes: Gauge,
+    snapshot_cache_served_full_bytes: Gauge,
     geoip_refresh: Family<GeoIpRefreshLabels, Counter>,
     traffic_state: Gauge,
     ready_state: Gauge,
@@ -276,6 +291,14 @@ impl Metrics {
         let process_resident_anon_bytes = Gauge::default();
         let process_resident_file_bytes = Gauge::default();
         let process_virtual_memory_bytes = Gauge::default();
+        let container_memory_current_bytes = Gauge::default();
+        let container_memory_limit_bytes = Gauge::default();
+        let container_memory_anon_bytes = Gauge::default();
+        let container_memory_file_bytes = Gauge::default();
+        let container_memory_kernel_bytes = Gauge::default();
+        let container_memory_inactive_file_bytes = Gauge::default();
+        let container_memory_oom_events = Gauge::default();
+        let container_memory_oom_kill_events = Gauge::default();
         let jemalloc_allocated_bytes = Gauge::default();
         let jemalloc_resident_bytes = Gauge::default();
         let jemalloc_retained_bytes = Gauge::default();
@@ -287,10 +310,17 @@ impl Metrics {
         let memory_pressure_state = Gauge::default();
         let memory_soft_limit_bytes = Gauge::default();
         let memory_hard_limit_bytes = Gauge::default();
+        let memory_transient_reserved_bytes = Gauge::default();
         let memory_pressure_transitions =
             Family::<MemoryPressureTransitionLabels, Counter>::default();
         let background_work_paused = Family::<BackgroundWorkerLabels, Gauge>::default();
         let memory_actions = Family::<MemoryActionLabels, Counter>::default();
+        let snapshot_cache_bytes = Gauge::default();
+        let snapshot_cache_capacity_bytes = Gauge::default();
+        let snapshot_cache_namespaces = Gauge::default();
+        let snapshot_cache_entries = Gauge::default();
+        let snapshot_cache_nodes = Gauge::default();
+        let snapshot_cache_served_full_bytes = Gauge::default();
         let geoip_refresh = Family::<GeoIpRefreshLabels, Counter>::default();
         let traffic_state = Gauge::default();
         let ready_state = Gauge::default();
@@ -723,6 +753,46 @@ impl Metrics {
             process_virtual_memory_bytes.clone(),
         );
         registry.register(
+            "kura_container_memory_current_bytes",
+            "Total memory currently charged to the container control group",
+            container_memory_current_bytes.clone(),
+        );
+        registry.register(
+            "kura_container_memory_limit_bytes",
+            "Memory limit enforced by the container control group",
+            container_memory_limit_bytes.clone(),
+        );
+        registry.register(
+            "kura_container_memory_anon_bytes",
+            "Anonymous memory charged to the container control group",
+            container_memory_anon_bytes.clone(),
+        );
+        registry.register(
+            "kura_container_memory_file_bytes",
+            "File-backed memory charged to the container control group",
+            container_memory_file_bytes.clone(),
+        );
+        registry.register(
+            "kura_container_memory_kernel_bytes",
+            "Kernel memory charged to the container control group",
+            container_memory_kernel_bytes.clone(),
+        );
+        registry.register(
+            "kura_container_memory_inactive_file_bytes",
+            "Inactive file-backed memory charged to the container control group",
+            container_memory_inactive_file_bytes.clone(),
+        );
+        registry.register(
+            "kura_container_memory_oom_events",
+            "Out-of-memory events reported by the container control group",
+            container_memory_oom_events.clone(),
+        );
+        registry.register(
+            "kura_container_memory_oom_kill_events",
+            "Out-of-memory kills reported by the container control group",
+            container_memory_oom_kill_events.clone(),
+        );
+        registry.register(
             "kura_jemalloc_allocated_bytes",
             "Bytes allocated by the application, as reported by jemalloc stats.allocated",
             jemalloc_allocated_bytes.clone(),
@@ -778,6 +848,11 @@ impl Metrics {
             memory_hard_limit_bytes.clone(),
         );
         registry.register(
+            "kura_memory_transient_reserved_bytes",
+            "Predicted transient bytes reserved by admitted concurrent work",
+            memory_transient_reserved_bytes.clone(),
+        );
+        registry.register(
             "kura_memory_pressure_transitions_total",
             "Memory pressure state transitions",
             memory_pressure_transitions.clone(),
@@ -791,6 +866,36 @@ impl Metrics {
             "kura_memory_actions_total",
             "Memory pressure actions taken by the node",
             memory_actions.clone(),
+        );
+        registry.register(
+            "kura_snapshot_cache_bytes",
+            "Estimated bytes retained by action-cache snapshot indexes and encoded full views",
+            snapshot_cache_bytes.clone(),
+        );
+        registry.register(
+            "kura_snapshot_cache_capacity_bytes",
+            "Configured action-cache snapshot retained-byte capacity",
+            snapshot_cache_capacity_bytes.clone(),
+        );
+        registry.register(
+            "kura_snapshot_cache_namespaces",
+            "Namespaces currently retained in the action-cache snapshot cache",
+            snapshot_cache_namespaces.clone(),
+        );
+        registry.register(
+            "kura_snapshot_cache_entries",
+            "Action-cache entries currently retained across snapshot indexes",
+            snapshot_cache_entries.clone(),
+        );
+        registry.register(
+            "kura_snapshot_cache_nodes",
+            "Output nodes currently retained across snapshot indexes",
+            snapshot_cache_nodes.clone(),
+        );
+        registry.register(
+            "kura_snapshot_cache_served_full_bytes",
+            "Encoded full-snapshot bytes retained for serves during reconciliation",
+            snapshot_cache_served_full_bytes.clone(),
         );
         registry.register(
             "kura_geoip_refresh_total",
@@ -950,6 +1055,14 @@ impl Metrics {
             process_resident_anon_bytes,
             process_resident_file_bytes,
             process_virtual_memory_bytes,
+            container_memory_current_bytes,
+            container_memory_limit_bytes,
+            container_memory_anon_bytes,
+            container_memory_file_bytes,
+            container_memory_kernel_bytes,
+            container_memory_inactive_file_bytes,
+            container_memory_oom_events,
+            container_memory_oom_kill_events,
             jemalloc_allocated_bytes,
             jemalloc_resident_bytes,
             jemalloc_retained_bytes,
@@ -961,9 +1074,16 @@ impl Metrics {
             memory_pressure_state,
             memory_soft_limit_bytes,
             memory_hard_limit_bytes,
+            memory_transient_reserved_bytes,
             memory_pressure_transitions,
             background_work_paused,
             memory_actions,
+            snapshot_cache_bytes,
+            snapshot_cache_capacity_bytes,
+            snapshot_cache_namespaces,
+            snapshot_cache_entries,
+            snapshot_cache_nodes,
+            snapshot_cache_served_full_bytes,
             geoip_refresh,
             traffic_state,
             ready_state,
@@ -1581,6 +1701,59 @@ impl Metrics {
         self.process_resident_file_bytes.set(file_bytes as i64);
     }
 
+    pub fn update_container_memory(
+        &self,
+        snapshot: crate::memory::ContainerMemorySnapshot,
+        fallback_limit_bytes: u64,
+    ) {
+        self.container_memory_current_bytes
+            .set(snapshot.current_bytes as i64);
+        self.container_memory_limit_bytes
+            .set(snapshot.limit_bytes.unwrap_or(fallback_limit_bytes) as i64);
+        if let Some(value) = snapshot.anon_bytes {
+            self.container_memory_anon_bytes.set(value as i64);
+        }
+        if let Some(value) = snapshot.file_bytes {
+            self.container_memory_file_bytes.set(value as i64);
+        }
+        if let Some(value) = snapshot.kernel_bytes {
+            self.container_memory_kernel_bytes.set(value as i64);
+        }
+        if let Some(value) = snapshot.inactive_file_bytes {
+            self.container_memory_inactive_file_bytes.set(value as i64);
+        }
+        if let Some(value) = snapshot.oom_events {
+            self.container_memory_oom_events.set(value as i64);
+        }
+        if let Some(value) = snapshot.oom_kill_events {
+            self.container_memory_oom_kill_events.set(value as i64);
+        }
+    }
+
+    pub fn update_transient_memory_reserved(&self, reserved_bytes: u64) {
+        self.memory_transient_reserved_bytes
+            .set(reserved_bytes as i64);
+    }
+
+    pub fn update_snapshot_cache(
+        &self,
+        bytes: usize,
+        capacity_bytes: usize,
+        namespaces: usize,
+        entries: usize,
+        nodes: usize,
+        served_full_bytes: usize,
+    ) {
+        self.snapshot_cache_bytes.set(bytes as i64);
+        self.snapshot_cache_capacity_bytes
+            .set(capacity_bytes as i64);
+        self.snapshot_cache_namespaces.set(namespaces as i64);
+        self.snapshot_cache_entries.set(entries as i64);
+        self.snapshot_cache_nodes.set(nodes as i64);
+        self.snapshot_cache_served_full_bytes
+            .set(served_full_bytes as i64);
+    }
+
     pub fn update_jemalloc_stats(
         &self,
         allocated_bytes: u64,
@@ -2046,6 +2219,20 @@ mod tests {
         metrics.update_segment_generation_count("old", 1);
         metrics.update_process_memory(1024, 2048);
         metrics.update_process_resident_breakdown(768, 256);
+        metrics.update_container_memory(
+            crate::memory::ContainerMemorySnapshot {
+                current_bytes: 1_500,
+                limit_bytes: Some(4_096),
+                anon_bytes: Some(700),
+                file_bytes: Some(600),
+                kernel_bytes: Some(200),
+                inactive_file_bytes: Some(100),
+                oom_events: Some(1),
+                oom_kill_events: Some(0),
+            },
+            8_192,
+        );
+        metrics.update_transient_memory_reserved(512);
         metrics.update_jemalloc_stats(700, 900, 200);
         metrics.update_rocksdb_memory(256, 64, 4096, 512, 2048);
         metrics.update_memory_limits(4_096, 8_192);
@@ -2053,6 +2240,7 @@ mod tests {
         metrics.record_memory_pressure_transition("normal", "constrained");
         metrics.update_background_work_paused("outbox", true);
         metrics.record_memory_action("manifest_cache_trim");
+        metrics.update_snapshot_cache(1_024, 2_048, 1, 2, 3, 256);
         metrics.update_runtime_state(1, true, false, true, true);
         metrics.update_membership_generation(7);
         metrics.record_membership_peer_changes("lost", 1);
@@ -2160,6 +2348,9 @@ mod tests {
         assert!(rendered.contains("kura_process_resident_memory_bytes"));
         assert!(rendered.contains("kura_process_resident_anon_bytes"));
         assert!(rendered.contains("kura_process_resident_file_bytes"));
+        assert!(rendered.contains("kura_container_memory_current_bytes"));
+        assert!(rendered.contains("kura_container_memory_file_bytes"));
+        assert!(rendered.contains("kura_container_memory_oom_kill_events"));
         assert!(rendered.contains("kura_jemalloc_allocated_bytes"));
         assert!(rendered.contains("kura_jemalloc_resident_bytes"));
         assert!(rendered.contains("kura_jemalloc_retained_bytes"));
@@ -2170,8 +2361,11 @@ mod tests {
         assert!(rendered.contains("kura_rocksdb_write_buffer_capacity_bytes"));
         assert!(rendered.contains("kura_memory_pressure_state"));
         assert!(rendered.contains("kura_memory_pressure_transitions_total"));
+        assert!(rendered.contains("kura_memory_transient_reserved_bytes"));
         assert!(rendered.contains("kura_background_work_paused"));
         assert!(rendered.contains("kura_memory_actions_total"));
+        assert!(rendered.contains("kura_snapshot_cache_bytes"));
+        assert!(rendered.contains("kura_snapshot_cache_served_full_bytes"));
         assert!(rendered.contains("kura_traffic_state"));
         assert!(rendered.contains("kura_ready_state"));
         assert!(rendered.contains("kura_membership_generation"));

@@ -224,7 +224,7 @@ When `Optional` is `Yes`, the `Default` column shows what Kura uses today. `auto
 | `KURA_TENANT_ID` | Default tenant identifier for the node. | No | `—` |
 | `KURA_REGION` | Region label advertised in metrics and replication state. | No | `—` |
 | `KURA_TMP_DIR` | Temporary directory for staged request bodies and multipart assembly. | No | `—` |
-| `KURA_TMP_DIR_MAX_BYTES` | Maximum staged bytes admitted into `KURA_TMP_DIR` before requests receive backpressure. | Yes | `8589934592` |
+| `KURA_TMP_DIR_MAX_BYTES` | Process-wide byte budget shared by every temporary writer before requests receive backpressure. Reservations remain held until the staged file is moved or unlinked. | Yes | `8589934592` |
 | `KURA_DATA_DIR` | Persistent directory for metadata state and segment files. | No | `—` |
 | `KURA_CAS_CAPACITY_BYTES` | Artifact-body budget for the CAS segment ring. Rounded down to whole 512 MiB segments and capped at 80% of the `KURA_DATA_DIR` filesystem so segment rotation can never run the disk full. | Yes | 50% of the `KURA_DATA_DIR` filesystem (legacy 5-segment ring when the filesystem size cannot be determined) |
 | `KURA_NODE_URL` | Canonical internal URL other peers use to reach this node. | No | `—` |
@@ -243,6 +243,7 @@ When `Optional` is `Yes`, the `Default` column shows what Kura uses today. `auto
 | `KURA_ACCELERATED_FILE_SERVING_CHUNK_BYTES` | Maximum per-syscall transfer size used by accelerated `splice`/`sendfile` loops. | Yes | `1048576` |
 | `KURA_MEMORY_SOFT_LIMIT_BYTES` | Soft watermark where Kura starts shedding optional memory use. | Yes | auto |
 | `KURA_MEMORY_HARD_LIMIT_BYTES` | Hard watermark where Kura pauses replication work and trims hot caches aggressively. | Yes | auto |
+| `KURA_SNAPSHOT_CACHE_MAX_BYTES` | Maximum estimated retained bytes across action-cache snapshot indexes and cached encoded full views. | Yes | auto |
 | `KURA_MANIFEST_CACHE_MAX_BYTES` | Maximum size of the in-memory manifest hot cache. | Yes | auto |
 | `KURA_MAX_KEYVALUE_BYTES` | Maximum per-request keyvalue payload size on public and replication APIs. | Yes | `1048576` |
 | `KURA_METADATA_STORE_MAX_OPEN_FILES` | Descriptor budget reserved for the metadata store itself. | Yes | auto |
@@ -251,7 +252,7 @@ When `Optional` is `Yes`, the `Default` column shows what Kura uses today. `auto
 | `KURA_METADATA_STORE_WRITE_BUFFER_POOL_BYTES` | Total memory budget reserved for metadata write buffering. | Yes | auto |
 | `KURA_METADATA_STORE_WRITE_BUFFER_BYTES` | Size of each metadata write buffer before flush. | Yes | auto |
 | `KURA_METADATA_STORE_MAX_WRITE_BUFFERS` | Maximum number of metadata write buffers kept in memory. | Yes | auto |
-| `KURA_OUTBOX_MAX_DEPTH` | Maximum number of replication outbox messages allowed before public writes return 503 with Retry-After. | Yes | `100000` |
+| `KURA_OUTBOX_MAX_DEPTH` | Maximum number of replication outbox messages reserved atomically by the store before cache writes receive retryable backpressure. | Yes | `100000` |
 | `KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND` | Aggregate per-node byte-per-second ceiling for peer artifact body transfers. Kura dynamically divides this ceiling by the larger of `public_inflight + 1` and recent public request latency pressure, so sync traffic backs off while public HTTP or gRPC cache work is active or slow; `0` disables throttling. | Yes | `536870912` |
 | `KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS` | Public HTTP/gRPC request latency target used to adapt peer artifact body bandwidth. If recent public latency exceeds the target, sync traffic backs off proportionally; `0` disables latency-based pressure. | Yes | `100` |
 | `KURA_CONTROL_PLANE_URL` | Base URL for the control plane Kura reports usage to. When set with the client credentials below, Kura pushes usage rollups to `/_internal/kura/usage`. | Yes | disabled |
@@ -269,7 +270,9 @@ When `Optional` is `Yes`, the `Default` column shows what Kura uses today. `auto
 | `KURA_USAGE_OUTBOX_MAX_DEPTH` | Maximum number of durable usage rollups retained in RocksDB before closed windows stop flushing. | Yes | `100000` |
 | `KURA_MULTIPART_UPLOAD_TTL_MS` | How long an in-progress multipart upload may sit before the janitor expires it. | Yes | `86400000` |
 | `KURA_MULTIPART_JANITOR_INTERVAL_MS` | How often the multipart janitor scans for stale uploads. | Yes | `600000` |
-| `KURA_BOOTSTRAP_TIMEOUT_MS` | Maximum time a single bootstrap-from-peer task may run before it is cancelled. | Yes | `1800000` |
+| `KURA_MULTIPART_MAX_ACTIVE_UPLOADS` | Process-wide cap on active multipart uploads. The count is rebuilt from durable upload records after a restart. | Yes | `128` |
+| `KURA_MULTIPART_MAX_STORED_BYTES` | Process-wide byte cap for durable, incomplete multipart parts. Defaults to the temporary-directory byte budget when unset. | Yes | `KURA_TMP_DIR_MAX_BYTES` |
+| `KURA_BOOTSTRAP_TIMEOUT_MS` | Maximum time a bootstrap-from-peer task may make no forward progress before it is cancelled and retried. | Yes | `1800000` |
 | `KURA_BOOTSTRAP_MAX_CONCURRENT_PEERS` | Upper bound on concurrent bootstrap-from-peer tasks. Holds a semaphore so a discovery burst can't fan out unbounded. | Yes | `8` |
 | `KURA_EXTENSION_CACHE_MAX_ENTRIES` | Maximum entries kept in each of the extension authenticate/authorize caches. New entries are dropped (with metric `extension_cache{result="rejected"}`) once the cap is reached and no expired entries remain. | Yes | `100000` |
 | `KURA_TOKIO_WORKER_THREADS` | Number of tokio worker threads. Pin this to the cgroup CPU quota in containers; defaults to detected parallelism clamped to `[2, 16]`. | Yes | auto |
@@ -277,7 +280,8 @@ When `Optional` is `Yes`, the `Default` column shows what Kura uses today. `auto
 Kura also enforces a few hard-coded budgets that are not configurable:
 
 - Replication ingest bodies on `/_internal/replicate/artifact` are capped at four times `MAX_SEGMENT_BYTES` (2 GiB) so a misbehaving peer cannot fill the data PVC. Bootstrap-from-peer fetches enforce the same ceiling for segment-backed artifacts and a 4 MiB ceiling for inline artifacts; bootstrap manifest and tombstone pages, and the manifest digest response, are capped at 32 MiB each. When `KURA_REPLICATION_BANDWIDTH_LIMIT_BYTES_PER_SECOND` is positive, Kura also applies a shared per-node bandwidth ceiling to peer artifact body traffic. The effective rate shrinks as public HTTP and gRPC requests are in flight or recent public latency rises above `KURA_REPLICATION_PUBLIC_LATENCY_TARGET_MS`, so background sync yields network capacity to public cache reads.
-- Public writes are rejected with `503 Service Unavailable` and a short `Retry-After` header when memory pressure reaches `Critical`, when the outbox is at `KURA_OUTBOX_MAX_DEPTH`, when the FD pool is exhausted, or when the data PVC has insufficient free space for a new segment.
+- Cache writes are rejected with retryable transport-specific backpressure when memory pressure reaches `Critical`, when the outbox is at `KURA_OUTBOX_MAX_DEPTH`, when the file-descriptor pool is exhausted, or when the data volume has insufficient free space for a new segment.
+- Kura samples the container's complete cgroup memory charge every 200 milliseconds, including heap, file cache, kernel allocations, and socket buffers. Sampling only publishes atomic pressure state; a separate task performs lock-taking cache trims so cleanup latency cannot blind the sensor. Concurrent response materialization, foreground uploads, multipart assembly, and bootstrap transfers reserve predicted transient bytes against live headroom before starting. A foreground upload reserves up to a 32 MiB source-plus-destination working set. Objects larger than 16 MiB, smaller uploads that had to queue for headroom, and overlapping foreground uploads synchronize and release completed staging and append-only segment ranges every 8 MiB. Kura closes the synchronized writer before advising the kernel to release a range, then reopens it in append mode, so cache reclamation cannot invalidate later buffered writes. The reservation remains held through persistence, refreshes the kernel charge when a bounded upload or waiting request needs an exact handoff, and times out after 30 seconds with `503 Service Unavailable` or gRPC `RESOURCE_EXHAUSTED`. REAPI ByteStream keeps its existing 64 MiB decode limit. A request-body scanner reads every five-byte gRPC envelope header and non-blockingly grows the reservation to twice the largest message actually observed before Tonic can allocate its retained wire buffer and decoded byte vector. Once the first resource name reveals the blob size, Kura adds only its bounded disk working set. Excess growth returns retryable `RESOURCE_EXHAUSTED` without waiting behind a shared HTTP/2 connection window, while small chunks retain high concurrency even for a large artifact. Large decoded messages use the same 8 MiB file-cache windows. Stored multipart parts release their clean file cache immediately and use the same bounded window during final assembly. Bootstrap pauses when the soft watermark is crossed and applies equivalent bounded-range reclamation while copying a large artifact. Temporary upload, assembly, and bootstrap files are owned by cancellation-safe cleanup guards, so aborted futures cannot strand disk usage; cancellation cleanup runs on Tokio's blocking pool instead of a runtime worker. The allocator reclaims unused pages on one background thread with a four-second decay, so a quiet node returns memory after a burst without relying on a later request to trigger maintenance.
 - Public plaintext HTTP/1 artifact downloads can use the same-port Linux accelerator after the request has been parsed, matched to a known artifact route, authorized through the extension hook, and resolved to a local file. The accelerator owns only a bounded pool of blocking transfer workers and falls back to the normal Axum/Hyper serving path whenever classification is incomplete or unsafe.
 - RocksDB column families are configured with explicit level-0 slowdown/stop triggers and pending compaction limits so backlog turns into write-side backpressure instead of unbounded write-buffer growth.
 - Inline keyvalue payloads are buffered in memory before being written. Total RAM committed to inline payloads is bounded by `KURA_FILE_DESCRIPTOR_POOL_SIZE * KURA_MAX_KEYVALUE_BYTES`; both knobs are tuned together when sizing per-pod memory.
@@ -286,12 +290,13 @@ Kura also enforces a few hard-coded budgets that are not configurable:
 Auto-derived defaults currently follow these rules:
 
 - `file_descriptor_limit` comes from `RLIMIT_NOFILE` when available, otherwise Kura falls back to a conservative host default.
-- `memory_limit_bytes` comes from the cgroup memory limit when available, otherwise Kura falls back to physical host memory.
+- `memory_limit_bytes` comes from the exact cgroup memory limit when available, otherwise Kura falls back to physical host memory.
 - `cpu_count` comes from detected parallelism via the runtime.
 - `KURA_FILE_DESCRIPTOR_POOL_SIZE` is `usable_fds / 8`, clamped to `[64, 256]`, where `usable_fds` is the detected FD limit minus reserved headroom.
 - `KURA_SEGMENT_HANDLE_CACHE_SIZE` is `KURA_FILE_DESCRIPTOR_POOL_SIZE / 4`, clamped to `[16, 64]`, and then capped below the FD pool so transient work keeps headroom.
-- `KURA_MEMORY_SOFT_LIMIT_BYTES` is `70%` of detected memory, rounded down to MiB boundaries, with a minimum of `128 MiB`.
-- `KURA_MEMORY_HARD_LIMIT_BYTES` is `85%` of detected memory, rounded down to MiB boundaries, and always at least `64 MiB` above the soft limit.
+- `KURA_MEMORY_SOFT_LIMIT_BYTES` is `70%` of detected memory, rounded down to MiB boundaries.
+- `KURA_MEMORY_HARD_LIMIT_BYTES` is `85%` of detected memory, rounded down to MiB boundaries. Both watermarks are validated below the exact runtime limit.
+- `KURA_SNAPSHOT_CACHE_MAX_BYTES` is `KURA_MEMORY_SOFT_LIMIT_BYTES / 4`, rounded down to MiB boundaries and capped at `256 MiB`.
 - `KURA_MANIFEST_CACHE_MAX_BYTES` is `KURA_MEMORY_SOFT_LIMIT_BYTES / 16`, rounded down to MiB boundaries and clamped to `[8 MiB, 64 MiB]`.
 - `KURA_METADATA_STORE_MAX_OPEN_FILES` is `usable_fds / 2`, clamped to `[128, 1024]`.
 - `KURA_METADATA_STORE_MAX_BACKGROUND_JOBS` is `cpu_count`, clamped to `[1, 8]`.
