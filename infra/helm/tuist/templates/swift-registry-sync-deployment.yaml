@@ -29,9 +29,6 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9091"
         prometheus.io/port-name: metrics
-        {{- if and .Values.server.serviceAccount.create .Values.server.migrationJob.asHook }}
-        tuist.dev/server-service-account-revision: {{ .Release.Revision | quote }}
-        {{- end }}
         {{- with .Values.swiftRegistrySync.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
