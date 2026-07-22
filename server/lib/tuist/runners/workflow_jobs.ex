@@ -189,6 +189,24 @@ defmodule Tuist.Runners.WorkflowJobs do
 
   def record_execution(_runner_name, _executed_workflow_job_id, _account_id), do: :ok
 
+  @doc """
+  Rows whose `updated_at` falls in `(updated_after, updated_before)`,
+  newest first, capped at `limit`. Feeds the drift comparator: the
+  upper bound keeps rows mid-transition (Postgres committed, the
+  paired ClickHouse INSERT still in flight) out of the diff.
+  """
+  def list_recently_updated(%DateTime{} = updated_after, %DateTime{} = updated_before, limit)
+      when is_integer(limit) and limit > 0 do
+    Repo.all(
+      from(j in WorkflowJob,
+        where: j.updated_at > ^updated_after and j.updated_at < ^updated_before,
+        order_by: [desc: j.updated_at],
+        limit: ^limit,
+        select: %{workflow_job_id: j.workflow_job_id, status: j.status, enqueued_at: j.enqueued_at}
+      )
+    )
+  end
+
   # ----- internal -----
 
   defp transition(workflow_job_id, expected_statuses, new_status, set_fields) do
