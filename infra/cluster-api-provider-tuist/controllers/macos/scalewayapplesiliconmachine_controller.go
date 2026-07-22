@@ -278,6 +278,10 @@ func (r *ScalewayAppleSiliconMachineReconciler) Reconcile(ctx context.Context, r
 	machine := &infrav1.ScalewayAppleSiliconMachine{}
 	if getErr := r.Get(ctx, req.NamespacedName, machine); getErr != nil {
 		if apierrors.IsNotFound(getErr) {
+			// CR is gone; drop its phase series so a deleted machine
+			// stops emitting a phantom phase (and never alerts on a
+			// stale Failed).
+			forgetMachinePhase(req.Name)
 			return ctrl.Result{}, nil
 		}
 		return ctrl.Result{}, getErr
@@ -292,6 +296,13 @@ func (r *ScalewayAppleSiliconMachineReconciler) Reconcile(ctx context.Context, r
 			err = patchErr
 		}
 	}()
+
+	// Publish the phase this reconcile leaves the machine in, so a host
+	// stuck terminal Failed (TartKubeletUpdateExceededRetries) is alertable
+	// instead of only visible via `kubectl get machine`. Deferred so it
+	// reads the final status set below (including the delete path's
+	// Deleting; the NotFound branch above forgets it once fully gone).
+	defer recordMachinePhase(machine)
 
 	// Resolve the parent CAPI Machine, if there is one. The chart
 	// renders MachineDeployment → MachineSet → Machine →
