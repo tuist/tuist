@@ -155,6 +155,56 @@ defmodule Tuist.Kura.RolloutsTest do
       assert second.image_tag == "0.7.0"
     end
 
+    test "abort cancels adopted deployments, not only rollout-minted ones" do
+      create_active_server()
+
+      assert :ok = Rollouts.sync()
+      rollout = Rollouts.active_rollout()
+
+      # A server created mid-rollout provisions straight onto the target;
+      # its initial install deployment stays open and the rollout adopts
+      # it instead of double-deploying.
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      {:ok, adopted_server} =
+        Kura.create_server(%{account_id: account.id, region: "local-controller", image_tag: @target_tag})
+
+      assert :ok = Rollouts.sync()
+
+      adopted_rollout_server = rollout_server(rollout, adopted_server)
+      adopted_deployment = Repo.get!(Deployment, adopted_rollout_server.deployment_id)
+      assert adopted_deployment.kura_rollout_id == nil
+      assert adopted_deployment.status == :pending
+
+      {:ok, _} = Rollouts.abort(rollout, "op@tuist.dev", "wrong tag")
+
+      assert Repo.get!(Deployment, adopted_deployment.id).status == :cancelled
+    end
+
+    test "a paused rollout pins fresh servers to the baseline even in expedited mode" do
+      %{account: account} = create_active_server()
+
+      assert :ok = Rollouts.sync()
+      rollout = Rollouts.active_rollout()
+      assert rollout.mode == :expedited
+
+      {1, _} =
+        Rollout
+        |> where([r], r.id == ^rollout.id)
+        |> Repo.update_all(set: [baseline_image_tag: @baseline_tag])
+
+      stub(Tuist.FeatureFlags, :kura_rollout_orchestration_enabled?, fn -> true end)
+
+      # Running expedited: fan-out intent, fresh servers take the target.
+      assert Rollouts.provisioning_image_tag(account.id, @target_tag) == @target_tag
+
+      {:ok, _} = Rollouts.pause(Repo.get!(Rollout, rollout.id), "op@tuist.dev", "suspect")
+
+      # Paused: the target is suspect; fresh servers stay on the baseline.
+      assert Rollouts.provisioning_image_tag(account.id, @target_tag) == @baseline_tag
+    end
+
     test "pauses on a terminal deployment failure" do
       %{server: server} = create_active_server()
 
@@ -273,6 +323,35 @@ defmodule Tuist.Kura.RolloutsTest do
 
       {:ok, _} = Kura.activate_server(Repo.get!(Server, canary_server.id), @target_tag)
 
+      stub(Provisioner, :rollout_health, fn _server ->
+        {:ok, healthy_health(%{memory_pressure_state: 2})}
+      end)
+
+      assert :ok = Rollouts.sync()
+
+      rollout = Repo.get!(Rollout, rollout.id)
+      assert rollout.status == :paused
+      assert rollout.pause_reason == "memory_pressure_critical"
+    end
+
+    test "critical memory pressure pauses even for soak-ineligible servers" do
+      %{account: canary_account, server: canary_server} = create_active_server()
+
+      stub(Tuist.Environment, :kura_canary_account_handles, fn -> [String.downcase(canary_account.name)] end)
+
+      # Unhealthy at wave-schedule time: the server is excluded from the
+      # comparative soak.
+      stub(Provisioner, :rollout_health, fn _server ->
+        {:ok, healthy_health(%{ready: false, serving: false})}
+      end)
+
+      assert :ok = Rollouts.sync()
+      rollout = Rollouts.active_rollout()
+      refute rollout_server(rollout, canary_server).soak_eligible
+
+      {:ok, _} = Kura.activate_server(Repo.get!(Server, canary_server.id), @target_tag)
+
+      # The safety stop still applies to ungated servers.
       stub(Provisioner, :rollout_health, fn _server ->
         {:ok, healthy_health(%{memory_pressure_state: 2})}
       end)

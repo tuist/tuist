@@ -231,16 +231,19 @@ defmodule Tuist.Kura.Rollouts do
   provision on. Servers created mid-rollout inherit their account's wave
   state instead of jumping to the configured tag: until the account's
   wave has completed they provision on the rollout's baseline tag, after
-  it on the target. Keeps a paused-as-suspect version off fresh servers
-  and an account's mesh on a single version ahead of its wave — which
-  matters most for runner-cache servers, since they take traffic the
-  moment they exist.
+  it on the target. A paused rollout — whatever its mode, including the
+  expedited fan-outs the canary/staging environments run — pins every
+  fresh server to the baseline: the pause marked the target as suspect,
+  and new or retried runner-cache servers take traffic the moment they
+  exist.
   """
   def provisioning_image_tag(account_id, default_tag) do
     if Tuist.FeatureFlags.kura_rollout_orchestration_enabled?() do
       case active_rollout() do
+        nil -> default_tag
+        %Rollout{status: :paused} = rollout -> rollout.baseline_image_tag || default_tag
         %Rollout{mode: :progressive} = rollout -> inherited_image_tag(rollout, account_id, default_tag)
-        _ -> default_tag
+        %Rollout{mode: :expedited} -> default_tag
       end
     else
       default_tag
@@ -301,13 +304,6 @@ defmodule Tuist.Kura.Rollouts do
     mode = initial_mode(tag)
     baseline = baseline_image_tag(previous)
 
-    {:ok, rollout} =
-      %{image_tag: tag, baseline_image_tag: baseline, mode: mode}
-      |> Rollout.create_changeset()
-      |> Repo.insert()
-
-    assign_waves(rollout, previous)
-
     metadata = %{
       mode: Atom.to_string(mode),
       source_tag: baseline,
@@ -315,11 +311,29 @@ defmodule Tuist.Kura.Rollouts do
       previously_completed: previously_completed?(tag)
     }
 
-    record_event(rollout, "created", "system", nil, metadata)
+    # Wave assignments are computed before the transaction (they read
+    # ClickHouse usage) and committed atomically with the rollout row:
+    # a rollout must never become visible with partial assignments, or
+    # the missing-account backstop would flatten the canary/5%/25%
+    # ordering into the last wave.
+    assignments = compute_wave_assignments(previous)
 
-    if mode == :expedited and expedited_by_deploy_input?(tag) do
-      record_event(rollout, "expedited", "deploy-input", "expedited at creation via deployment input", metadata)
-    end
+    {:ok, rollout} =
+      Repo.transaction(fn ->
+        {:ok, rollout} =
+          %{image_tag: tag, baseline_image_tag: baseline, mode: mode}
+          |> Rollout.create_changeset()
+          |> Repo.insert()
+
+        insert_wave_assignments(rollout, assignments)
+        record_event(rollout, "created", "system", nil, metadata)
+
+        if mode == :expedited and expedited_by_deploy_input?(tag) do
+          record_event(rollout, "expedited", "deploy-input", "expedited at creation via deployment input", metadata)
+        end
+
+        rollout
+      end)
 
     Notifier.notify(:started, rollout, metadata)
     rollout
@@ -364,7 +378,7 @@ defmodule Tuist.Kura.Rollouts do
   # exposure), tie-broken by account id. A superseding rollout orders
   # accounts still on the oldest image first after the canary, to collapse
   # version skew quickly.
-  defp assign_waves(rollout, previous) do
+  defp compute_wave_assignments(previous) do
     accounts = accounts_with_rollout_servers()
     canary_handles = MapSet.new(Environment.kura_canary_account_handles())
 
@@ -387,18 +401,18 @@ defmodule Tuist.Kura.Rollouts do
     {wave_one, rest} = Enum.split(rest, wave_one_count)
     {wave_two, wave_three} = Enum.split(rest, wave_two_count)
 
-    assignments =
-      Enum.map(canary, &{&1, 0}) ++
-        Enum.map(wave_one, &{&1, 1}) ++ Enum.map(wave_two, &{&1, 2}) ++ Enum.map(wave_three, &{&1, @last_wave})
+    Enum.map(canary, &{elem(&1, 0), 0}) ++
+      Enum.map(wave_one, &{elem(&1, 0), 1}) ++
+      Enum.map(wave_two, &{elem(&1, 0), 2}) ++ Enum.map(wave_three, &{elem(&1, 0), @last_wave})
+  end
 
-    Enum.each(assignments, fn {{account_id, _name}, wave} ->
+  defp insert_wave_assignments(rollout, assignments) do
+    Enum.each(assignments, fn {account_id, wave} ->
       {:ok, _} =
         %{kura_rollout_id: rollout.id, account_id: account_id, wave: wave}
         |> RolloutWaveAssignment.create_changeset()
         |> Repo.insert()
     end)
-
-    :ok
   end
 
   defp fraction_count(0, _fraction), do: 0
@@ -633,9 +647,7 @@ defmodule Tuist.Kura.Rollouts do
             deployment.id
 
           {:error, :deployment_in_progress} ->
-            Logger.info(
-              "[Kura.Rollouts] server #{server.id} has an open deployment; deferring the rollout deployment"
-            )
+            Logger.info("[Kura.Rollouts] server #{server.id} has an open deployment; deferring the rollout deployment")
 
             nil
 
@@ -848,16 +860,19 @@ defmodule Tuist.Kura.Rollouts do
   defp soak_seconds(0), do: @canary_soak_seconds
   defp soak_seconds(_wave), do: @wave_soak_seconds
 
-  # The gate is evaluated over every soak-eligible server updated so far
-  # in the rollout — not only the current wave — so a slow-burn regression
-  # surfacing in the canary still stops wave 2 from scheduling. Returns
-  # nil when all pass, `{:unhealthy, details}` for a soak-clock reset, or
+  # The gate is evaluated over every server updated so far in the
+  # rollout — not only the current wave — so a slow-burn regression
+  # surfacing in the canary still stops wave 2 from scheduling.
+  # Soak-ineligible servers (unhealthy at wave-schedule time) skip only
+  # the comparative and absolute soak conditions; the critical safety
+  # signal (memory pressure) still applies to them. Returns nil when all
+  # pass, `{:unhealthy, details}` for a soak-clock reset, or
   # `{:critical, details}` for an immediate pause.
   defp gate_failure(rollout) do
     failures =
       RolloutServer
       |> join(:inner, [rs], s in assoc(rs, :kura_server))
-      |> where([rs], rs.kura_rollout_id == ^rollout.id and rs.soak_eligible and not is_nil(rs.converged_at))
+      |> where([rs], rs.kura_rollout_id == ^rollout.id and not is_nil(rs.converged_at))
       |> where([_rs, s], s.status not in ^@terminal_server_statuses)
       |> preload([rs, s], kura_server: s)
       |> Repo.all()
@@ -883,11 +898,24 @@ defmodule Tuist.Kura.Rollouts do
     }
   end
 
-  defp server_gate_failure(rollout_server) do
+  defp server_gate_failure(%RolloutServer{soak_eligible: true} = rollout_server) do
     case Provisioner.rollout_health(rollout_server.kura_server) do
       {:ok, health} when is_map(health) -> health_gate_failure(rollout_server, health)
       {:ok, nil} -> {:unhealthy, :health_unavailable}
       {:error, _reason} -> {:unhealthy, :health_unreadable}
+    end
+  end
+
+  # Ungated servers were already unhealthy before their wave scheduled,
+  # so absolute and comparative soak conditions would blame the new
+  # image for pre-existing sickness — but critical memory pressure is a
+  # safety stop, not a comparison, and an unreadable aggregate simply
+  # cannot veto here (these servers are what the gate must never stand
+  # in front of).
+  defp server_gate_failure(%RolloutServer{soak_eligible: false} = rollout_server) do
+    case Provisioner.rollout_health(rollout_server.kura_server) do
+      {:ok, %{memory_pressure_state: pressure}} when pressure >= 2 -> {:critical, :memory_pressure_critical}
+      _ -> nil
     end
   end
 
@@ -1145,9 +1173,20 @@ defmodule Tuist.Kura.Rollouts do
     end
   end
 
+  # Covers both deployments this rollout minted (kura_rollout_id) and
+  # open deployments it adopted (a server created mid-rollout whose
+  # initial install already carried the target tag) — adopted rows keep
+  # their original attribution but their lifecycle belongs to the
+  # rollout, so an abort or supersede must stop them too.
   defp cancel_open_rollout_deployments(rollout, message) do
+    adopted =
+      RolloutServer
+      |> where([rs], rs.kura_rollout_id == ^rollout.id and not is_nil(rs.deployment_id))
+      |> select([rs], rs.deployment_id)
+
     Deployment
-    |> where([d], d.kura_rollout_id == ^rollout.id and d.status in ^@open_deployment_statuses)
+    |> where([d], d.status in ^@open_deployment_statuses)
+    |> where([d], d.kura_rollout_id == ^rollout.id or d.id in subquery(adopted))
     |> Repo.all()
     |> Enum.each(fn deployment ->
       {:ok, _} = Kura.mark_cancelled(deployment, message)
