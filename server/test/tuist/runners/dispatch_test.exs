@@ -13,6 +13,7 @@ defmodule Tuist.Runners.DispatchTest do
   alias Tuist.Runners.JobSteps
   alias Tuist.Runners.Profiles
   alias Tuist.Runners.RunnerSessions
+  alias Tuist.Runners.Workers.FetchLogsWorker
   alias Tuist.VCS
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
@@ -321,6 +322,37 @@ defmodule Tuist.Runners.DispatchTest do
       assert {:ok, :completed} = Dispatch.handle_webhook(completed_payload(steps: []), 1)
 
       assert_receive {:steps, []}
+    end
+
+    test "enqueues the log fetch when the job actually ran steps" do
+      stub(Jobs, :complete, fn _id, _conclusion -> {:ok, %{account_id: 1}} end)
+      stub(JobSteps, :record, fn _rows -> :ok end)
+
+      payload =
+        completed_payload(
+          id: 4310,
+          conclusion: "success",
+          steps: [%{"name" => "Set up job", "status" => "completed", "number" => 1}]
+        )
+
+      assert {:ok, :completed} = Dispatch.handle_webhook(payload, 1)
+
+      assert_enqueued(worker: FetchLogsWorker, args: %{workflow_job_id: 4310, repository: "tuist/repo"})
+    end
+
+    test "skips the log fetch for a completed job that never ran a step" do
+      # `skipped` (an `if:` gate) and `cancelled`-while-queued jobs ship
+      # no steps and have no log archive on GitHub's side, so fetching
+      # one only burns every retry on a permanent 404.
+      stub(Jobs, :complete, fn _id, _conclusion -> {:ok, %{account_id: 1}} end)
+      stub(JobSteps, :record, fn _rows -> :ok end)
+
+      for {id, conclusion} <- [{4320, "skipped"}, {4321, "cancelled"}] do
+        assert {:ok, :completed} =
+                 Dispatch.handle_webhook(completed_payload(id: id, conclusion: conclusion, steps: []), 1)
+
+        refute_enqueued(worker: FetchLogsWorker, args: %{workflow_job_id: id})
+      end
     end
 
     test "does not resurrect a canceled job when completed arrives before queued" do

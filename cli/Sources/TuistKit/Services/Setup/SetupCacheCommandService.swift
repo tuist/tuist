@@ -17,6 +17,7 @@ import TuistSupport
 enum SetupCacheCommandServiceError: Equatable, LocalizedError {
     case missingFullHandle
     case notAuthenticated
+    case cacheDaemonNotReady(label: String, socketPath: String, logPath: String)
     case registryNotReplaced(String, Int32)
     case registryNotLocked(String, Int32)
 
@@ -28,6 +29,9 @@ enum SetupCacheCommandServiceError: Equatable, LocalizedError {
         case .notAuthenticated:
             return
                 "You must be authenticated to set up the cache. Run `tuist auth login` (or set the `TUIST_TOKEN` environment variable) and run `tuist setup cache` again."
+        case let .cacheDaemonNotReady(label, socketPath, logPath):
+            return
+                "The Xcode cache daemon '\(label)' did not start listening at \(socketPath), so its launch agent was stopped. Check the daemon log at \(logPath), address the reported error, and run `tuist setup cache` again."
         case let .registryNotReplaced(path, code):
             return "Could not update the cache proxy's registry at \(path) (errno \(code))."
         case let .registryNotLocked(path, code):
@@ -86,6 +90,8 @@ struct SetupCacheCommandService {
     private let fileSystem: FileSysteming
     private let getProjectService: GetProjectServicing
     private let gitController: GitControlling
+    private let cacheSocketService: CacheSocketServicing
+    private let cacheDaemonStartupTimeout: Duration
 
     init(
         launchAgentService: LaunchAgentServicing = LaunchAgentService(),
@@ -95,7 +101,9 @@ struct SetupCacheCommandService {
         manifestLoader: ManifestLoading = ManifestLoader.current,
         fileSystem: FileSysteming = FileSystem(),
         getProjectService: GetProjectServicing = GetProjectService(),
-        gitController: GitControlling = GitController()
+        gitController: GitControlling = GitController(),
+        cacheSocketService: CacheSocketServicing = CacheSocketService(),
+        cacheDaemonStartupTimeout: Duration = .seconds(10)
     ) {
         self.launchAgentService = launchAgentService
         self.configLoader = configLoader
@@ -105,6 +113,8 @@ struct SetupCacheCommandService {
         self.fileSystem = fileSystem
         self.getProjectService = getProjectService
         self.gitController = gitController
+        self.cacheSocketService = cacheSocketService
+        self.cacheDaemonStartupTimeout = cacheDaemonStartupTimeout
     }
 
     /// The project's default branch, which is what a trunk-scoped cache snapshot is
@@ -240,6 +250,41 @@ struct SetupCacheCommandService {
         }
         defer { flock(descriptor, LOCK_UN) }
         try await body()
+    }
+
+    private func ensureCacheDaemonIsListening(label: String, socketPath: AbsolutePath) async throws {
+        if await cacheSocketService.waitUntilListening(
+            at: socketPath,
+            timeout: cacheDaemonStartupTimeout
+        ) {
+            return
+        }
+
+        Logger.current.debug(
+            "The Xcode cache daemon did not start listening at \(socketPath.pathString). Restarting \(label) once."
+        )
+        do {
+            try await launchAgentService.restartLaunchAgent(label: label)
+            if await cacheSocketService.waitUntilListening(
+                at: socketPath,
+                timeout: cacheDaemonStartupTimeout
+            ) {
+                return
+            }
+        } catch {
+            Logger.current.debug("Could not restart \(label): \(error.localizedDescription)")
+        }
+
+        try? await launchAgentService.teardownLaunchAgent(
+            label: label,
+            plistFileName: "\(label).plist"
+        )
+        let logPath = Environment.current.stateDirectory.appending(component: "\(label).stderr.log")
+        throw SetupCacheCommandServiceError.cacheDaemonNotReady(
+            label: label,
+            socketPath: socketPath.pathString,
+            logPath: logPath.pathString
+        )
     }
 
     func run(
@@ -467,6 +512,10 @@ struct SetupCacheCommandService {
             programArguments: programArguments,
             environmentVariables: environmentVariables
         )
+        try await ensureCacheDaemonIsListening(
+            label: label,
+            socketPath: Environment.current.casProxySocketPath()
+        )
     }
 
     /// Installs the legacy per-project CAS daemon (non-kura path): one launchd
@@ -509,6 +558,10 @@ struct SetupCacheCommandService {
             plistFileName: "\(label).plist",
             programArguments: programArguments,
             environmentVariables: environmentVariables
+        )
+        try await ensureCacheDaemonIsListening(
+            label: label,
+            socketPath: Environment.current.cacheSocketPath(for: fullHandle)
         )
     }
 }

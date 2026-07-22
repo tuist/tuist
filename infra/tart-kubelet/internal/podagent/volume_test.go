@@ -7,6 +7,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 
@@ -18,13 +19,12 @@ import (
 // fakeBackend models APFS clonefile + statfs + hdiutil against real files under
 // a temp root so the manager's os-based master scanning works unchanged.
 //
-// A cache image is modelled as what it is to every caller but hdiutil: an opaque
-// regular file. Its CONTENTS are a real APFS filesystem that only a macOS attach
-// can read, so nothing here pretends to look inside — the fake's "digest" is
-// whatever imageDigests says it is, and the real read-through-attach behaviour is
-// covered by the on-host probe instead. Free space is total minus one
-// provisioned cap per resident master image; branches are CoW-sparse and don't
-// count, mirroring the real backend.
+// A cache image's CONTENTS are a real APFS filesystem that only a macOS attach
+// can read (covered by the on-host darwin probe). Off a Mac the fake treats an
+// image file's bytes as opaque content, cloned verbatim; its "digest" is
+// sha1(content), standing in for the inventory a real attach would report. Free
+// space is total minus one provisioned cap per resident master image; branches
+// are CoW-sparse and don't count, mirroring the real backend.
 type fakeBackend struct {
 	totalBytes uint64
 	perMaster  uint64
@@ -40,9 +40,6 @@ type fakeBackend struct {
 	notMounted bool
 	// mountErr, when set, is returned from isMounted to model a stat failure.
 	mountErr error
-	// imageDigests maps an image's opaque content to the digest a real attach
-	// would report, standing in for the filesystem inside it.
-	imageDigests map[string]string
 }
 
 func (f *fakeBackend) clonePath(src, dst string) error {
@@ -71,15 +68,15 @@ func (f *fakeBackend) createImage(path string, sizeGiB int) error {
 	return os.WriteFile(path, []byte("empty-image"), 0o644)
 }
 
+// imageInventoryDigest stands in for a read-through attach: the digest is
+// sha1(content) of the opaque image bytes.
 func (f *fakeBackend) imageInventoryDigest(path string) (string, error) {
 	b, err := os.ReadFile(path)
 	if err != nil {
 		return "", err
 	}
-	if d, ok := f.imageDigests[string(b)]; ok {
-		return d, nil
-	}
-	return "", errors.New("fake: no digest registered for image content " + string(b))
+	h := sha1.Sum(b)
+	return hex.EncodeToString(h[:]), nil
 }
 
 func (f *fakeBackend) isMounted(string) (bool, error) {
@@ -210,7 +207,7 @@ func TestCASImageColdCreatesFresh(t *testing.T) {
 	m, _ := newTestManager(t, 10)
 	m.CASGiB = 2
 	att := mustAllocate(t, m, "vm1")
-	warm, err := m.Materialize(att, "acct-a")
+	warm, _, err := m.Materialize(att, "acct-a")
 	if err != nil {
 		t.Fatalf("Materialize: %v", err)
 	}
@@ -229,7 +226,7 @@ func TestCASImageWarmClonesMaster(t *testing.T) {
 	m.CASGiB = 2
 	seedMasterCASImage(t, m, "acct-a", "warm-cas-bytes")
 	att := mustAllocate(t, m, "vm1")
-	if _, err := m.Materialize(att, "acct-a"); err != nil {
+	if _, _, err := m.Materialize(att, "acct-a"); err != nil {
 		t.Fatalf("Materialize: %v", err)
 	}
 	if !branchCASImageExists(att) {
@@ -246,7 +243,7 @@ func TestCASImageWarmClonesMaster(t *testing.T) {
 func TestCASImageDisabledNoImage(t *testing.T) {
 	m, _ := newTestManager(t, 10) // CASGiB defaults to 0
 	att := mustAllocate(t, m, "vm1")
-	if _, err := m.Materialize(att, "acct-a"); err != nil {
+	if _, _, err := m.Materialize(att, "acct-a"); err != nil {
 		t.Fatalf("Materialize: %v", err)
 	}
 	if branchCASImageExists(att) {
@@ -261,7 +258,7 @@ func TestCASImagePromotedOnCompileOnlyJob(t *testing.T) {
 	m, _ := newTestManager(t, 10)
 	m.CASGiB = 2
 	att := mustAllocate(t, m, "vm1")
-	if _, err := m.Materialize(att, "acct-a"); err != nil {
+	if _, _, err := m.Materialize(att, "acct-a"); err != nil {
 		t.Fatalf("Materialize: %v", err)
 	}
 	att.SourceAccount = "acct-a"
@@ -291,7 +288,7 @@ func TestCASImageNotPromotedOnFailedRun(t *testing.T) {
 	m, _ := newTestManager(t, 10)
 	m.CASGiB = 2
 	att := mustAllocate(t, m, "vm1")
-	if _, err := m.Materialize(att, "acct-a"); err != nil {
+	if _, _, err := m.Materialize(att, "acct-a"); err != nil {
 		t.Fatalf("Materialize: %v", err)
 	}
 	att.SourceAccount = "acct-a"
@@ -310,7 +307,7 @@ func TestCASImageNotPromotedOnAccountMismatch(t *testing.T) {
 	m, _ := newTestManager(t, 10)
 	m.CASGiB = 2
 	att := mustAllocate(t, m, "vm1")
-	if _, err := m.Materialize(att, "acct-a"); err != nil {
+	if _, _, err := m.Materialize(att, "acct-a"); err != nil {
 		t.Fatalf("Materialize: %v", err)
 	}
 	att.SourceAccount = "acct-a"
@@ -335,7 +332,7 @@ func TestCASImageRejectsSymlinkBranchImage(t *testing.T) {
 	seedMasterCASImage(t, m, "acct-b", "victim-B-cas")
 
 	att := mustAllocate(t, m, "vm1")
-	if _, err := m.Materialize(att, "acct-a"); err != nil {
+	if _, _, err := m.Materialize(att, "acct-a"); err != nil {
 		t.Fatalf("Materialize: %v", err)
 	}
 	att.SourceAccount = "acct-a"
@@ -361,10 +358,11 @@ func TestBinaryPromotePreservesCASImage(t *testing.T) {
 	m.CASGiB = 2
 	// First job promotes both binary + CAS image for acct-a.
 	att1 := mustAllocate(t, m, "vm1")
-	if _, err := m.Materialize(att1, "acct-a"); err != nil {
+	if _, _, err := m.Materialize(att1, "acct-a"); err != nil {
 		t.Fatalf("Materialize1: %v", err)
 	}
 	att1.SourceAccount = "acct-a"
+	att1.PromotedGeneration = 1
 	writeBranchCache(t, m, att1, "binary-v1")
 	writeBranchCASImage(t, att1, "cas-v1")
 	m.FinalizeCAS(att1, "acct-a", true)
@@ -377,10 +375,11 @@ func TestBinaryPromotePreservesCASImage(t *testing.T) {
 	// Second job changes ONLY the binary cache and promotes; the CAS image
 	// sibling must survive the binary master swap.
 	att2 := mustAllocate(t, m, "vm2")
-	if _, err := m.Materialize(att2, "acct-a"); err != nil {
+	if _, _, err := m.Materialize(att2, "acct-a"); err != nil {
 		t.Fatalf("Materialize2: %v", err)
 	}
 	att2.SourceAccount = "acct-a"
+	att2.PromotedGeneration = 2
 	writeBranchCache(t, m, att2, "binary-v2")
 	// Note: no writeBranchCASImage here — but Materialize cloned the CAS master
 	// into att2's branch, so the promote re-promotes the same CAS bytes.
@@ -396,22 +395,23 @@ func TestBinaryPromotePreservesCASImage(t *testing.T) {
 	}
 }
 
-// TestConvergePreservesCASImage: a HEAD convergence (ReplaceMaster) replaces the
+// TestConvergePreservesCASImage: a HEAD convergence (InstallMaster) replaces the
 // binary master image but must keep the local CAS image — the HEAD image never
 // carries the CAS, which is per-host and never uploaded.
 func TestConvergePreservesCASImage(t *testing.T) {
 	m, _ := newTestManager(t, 10)
 	m.CASGiB = 2
 	seedMasterCASImage(t, m, "acct-a", "local-cas")
-	// Seed a binary master too so convergence has something to replace.
+	// Seed a binary master too (generation 1) so convergence has something to replace.
 	seedMaster(t, m, "acct-a")
 	// Build a converged source image (a fresher HEAD image staged for install).
 	src := filepath.Join(t.TempDir(), "head.sparseimage")
 	if err := os.WriteFile(src, []byte("converged-binary"), 0o644); err != nil {
 		t.Fatalf("build converged src: %v", err)
 	}
-	if err := m.ReplaceMaster("acct-a", ReservedTuistCacheVolume, src, "digest-converged"); err != nil {
-		t.Fatalf("ReplaceMaster: %v", err)
+	// Install at generation 2 (newer than the seeded 1) so the fast-forward takes.
+	if _, err := m.InstallMaster("acct-a", ReservedTuistCacheVolume, src, 2); err != nil {
+		t.Fatalf("InstallMaster: %v", err)
 	}
 	if !masterCASImageExists(m, "acct-a") {
 		t.Fatal("convergence dropped the local CAS image")
@@ -434,7 +434,7 @@ func TestVolumeDisabled(t *testing.T) {
 	if err != nil || att.Attached {
 		t.Fatalf("disabled manager should not attach: att=%+v err=%v", att, err)
 	}
-	if warm, err := m.Materialize(att, "42"); err != nil || warm {
+	if warm, _, err := m.Materialize(att, "42"); err != nil || warm {
 		t.Fatalf("disabled Materialize = %v, %v; want false, nil", warm, err)
 	}
 	out, err := m.Finalize(att, "42", true, true)
@@ -450,9 +450,9 @@ func TestColdFirstJobSeedsMaster(t *testing.T) {
 		t.Fatalf("branch should attach: %+v", att)
 	}
 	// No master for account 42 yet: cold materialize.
-	warm, err := m.Materialize(att, "42")
-	if err != nil || warm {
-		t.Fatalf("cold Materialize = %v, %v; want false, nil", warm, err)
+	warm, base, err := m.Materialize(att, "42")
+	if err != nil || warm || base != 0 {
+		t.Fatalf("cold Materialize = %v, %v, %v; want false, 0, nil", warm, base, err)
 	}
 	// The reconciler records the dispatched account on the attachment (what
 	// maybeMaterializeVolume does); Finalize checks it before promoting.
@@ -465,9 +465,10 @@ func TestColdFirstJobSeedsMaster(t *testing.T) {
 	if !branchImageExists(m, att) {
 		t.Fatal("cold materialize must still leave an empty image for the guest to attach")
 	}
-	// The job pulls + writes the cache, then promotes.
+	// The job pulls + writes the cache, then promotes. The server accepted this
+	// first HEAD fast-forward as generation 1 (relayed by the guest).
 	writeBranchCache(t, m, att, "from-42")
-	att.ReportedDigest = "digest-from-42"
+	att.PromotedGeneration = 1
 	out, err := m.Finalize(att, "42", true, true)
 	if err != nil || out != VolumeOutcomePromoted {
 		t.Fatalf("Finalize = %s, %v; want promoted", out, err)
@@ -475,10 +476,9 @@ func TestColdFirstJobSeedsMaster(t *testing.T) {
 	if !masterExists(m, "42") {
 		t.Fatal("account 42 master should exist after promote")
 	}
-	// The promoted master records the digest the guest reported from inside the
-	// image, since the host can't compute it without attaching.
-	if got, err := m.MasterDigest("42", ReservedTuistCacheVolume); err != nil || got != "digest-from-42" {
-		t.Fatalf("MasterDigest after promote = %q, %v; want the guest-reported digest", got, err)
+	// The promoted master is tagged with the accepted generation.
+	if got, err := m.MasterGeneration("42", ReservedTuistCacheVolume); err != nil || got != 1 {
+		t.Fatalf("MasterGeneration after promote = %d, %v; want the accepted generation 1", got, err)
 	}
 	if _, err := os.Stat(att.BranchPath); !os.IsNotExist(err) {
 		t.Fatal("branch should be gone after promote")
@@ -487,24 +487,29 @@ func TestColdFirstJobSeedsMaster(t *testing.T) {
 
 func TestWarmMaterializeAndPromote(t *testing.T) {
 	m, _ := newTestManager(t, 100)
-	// Seed account 42's master with a known artifact.
-	seedMaster(t, m, "42")
+	// Seed account 42's master at generation 3.
+	seedMasterGen(t, m, "42", masterImageContent("42"), 3)
 
 	att := mustAllocate(t, m, "vm2")
-	warm, err := m.Materialize(att, "42")
-	if err != nil || !warm {
-		t.Fatalf("warm Materialize = %v, %v; want true, nil", warm, err)
+	warm, base, err := m.Materialize(att, "42")
+	if err != nil || !warm || base != 3 {
+		t.Fatalf("warm Materialize = %v, %v, %v; want true, 3, nil", warm, base, err)
 	}
 	att.SourceAccount = "42"
 	// The account's cached image is now the branch's image.
 	if got := branchImageContent(t, m, att); got != masterImageContent("42") {
 		t.Fatalf("materialized branch image = %q; want a clone of account 42's master", got)
 	}
+	// The server accepted the fast-forward from base 3 to generation 4.
+	att.PromotedGeneration = 4
 	if out, err := m.Finalize(att, "42", true, true); err != nil || out != VolumeOutcomePromoted {
 		t.Fatalf("warm Finalize = %s, %v; want promoted", out, err)
 	}
 	if !masterExists(m, "42") {
 		t.Fatal("account 42 master should still exist")
+	}
+	if got, _ := m.MasterGeneration("42", ReservedTuistCacheVolume); got != 4 {
+		t.Fatalf("MasterGeneration after promote = %d; want 4", got)
 	}
 }
 
@@ -516,7 +521,7 @@ func TestMaterializeIsAccountScoped(t *testing.T) {
 	seedMaster(t, m, "42")
 
 	att := mustAllocate(t, m, "vm3")
-	warm, err := m.Materialize(att, "99") // dispatched to 99, which has no master here
+	warm, _, err := m.Materialize(att, "99") // dispatched to 99, which has no master here
 	if err != nil || warm {
 		t.Fatalf("Materialize(99) = %v, %v; want cold (false), nil", warm, err)
 	}
@@ -525,6 +530,7 @@ func TestMaterializeIsAccountScoped(t *testing.T) {
 		t.Fatalf("account 99's VM must not see account 42's cache; branch image = %q", branchImageContent(t, m, att))
 	}
 	writeBranchCache(t, m, att, "from-99")
+	att.PromotedGeneration = 1
 	if out, err := m.Finalize(att, "99", true, true); err != nil || out != VolumeOutcomePromoted {
 		t.Fatalf("Finalize(99) = %s, %v; want promoted", out, err)
 	}
@@ -546,10 +552,11 @@ func TestFinalizeRejectsAccountMismatch(t *testing.T) {
 	seedMaster(t, m, "A")
 
 	att := mustAllocate(t, m, "vm-mismatch")
-	if _, err := m.Materialize(att, "A"); err != nil {
+	if _, _, err := m.Materialize(att, "A"); err != nil {
 		t.Fatalf("Materialize(A): %v", err)
 	}
 	att.SourceAccount = "A" // materialized from A...
+	att.PromotedGeneration = 1
 	writeBranchCache(t, m, att, "from-A")
 
 	// ...but finalized as if the VM ran account B.
@@ -567,7 +574,7 @@ func TestReadOnlyAndFailedDiscard(t *testing.T) {
 
 	// Clean/read-only job: success but not dirty.
 	att := mustAllocate(t, m, "vm-ro")
-	_, _ = m.Materialize(att, "42")
+	_, _, _ = m.Materialize(att, "42")
 	if out, _ := m.Finalize(att, "42", true, false); out != VolumeOutcomeDiscarded {
 		t.Fatalf("read-only job should discard, got %s", out)
 	}
@@ -577,7 +584,7 @@ func TestReadOnlyAndFailedDiscard(t *testing.T) {
 
 	// Failed job: dirty but not successful.
 	att = mustAllocate(t, m, "vm-fail")
-	_, _ = m.Materialize(att, "42")
+	_, _, _ = m.Materialize(att, "42")
 	writeBranchCache(t, m, att, "half")
 	if out, _ := m.Finalize(att, "42", false, true); out != VolumeOutcomeDiscarded {
 		t.Fatalf("failed job should discard, got %s", out)
@@ -790,6 +797,7 @@ func TestFinalizeReleasesReservation(t *testing.T) {
 
 	a1 := mustAllocate(t, m, "vm1")
 	a1.SourceAccount = "42"
+	a1.PromotedGeneration = 1
 	writeBranchCache(t, m, a1, "x")
 	if out, _ := m.Finalize(a1, "42", true, true); out != VolumeOutcomePromoted {
 		t.Fatalf("promote = %s", out)
@@ -907,7 +915,7 @@ func TestMaterializedImageIsGuestWritable(t *testing.T) {
 	}
 
 	att := mustAllocate(t, m, "vm-warm")
-	warm, err := m.Materialize(att, "42")
+	warm, _, err := m.Materialize(att, "42")
 	if err != nil || !warm {
 		t.Fatalf("Materialize = warm %v, err %v; want warm", warm, err)
 	}
@@ -922,7 +930,7 @@ func TestMaterializedImageIsGuestWritable(t *testing.T) {
 
 	// The cold path creates rather than clones, and must land on the same mode.
 	cold := mustAllocate(t, m, "vm-cold")
-	if _, err := m.Materialize(cold, "no-master-here"); err != nil {
+	if _, _, err := m.Materialize(cold, "no-master-here"); err != nil {
 		t.Fatalf("cold Materialize: %v", err)
 	}
 	cfi, err := os.Stat(m.BranchImage(cold))
@@ -944,7 +952,7 @@ func TestMaterializeFailureStillLeavesAnImage(t *testing.T) {
 	seedMaster(t, m, "42")
 	be.cloneErr = errors.New("clonefile boom")
 
-	if _, err := m.Materialize(att, "42"); err == nil {
+	if _, _, err := m.Materialize(att, "42"); err == nil {
 		t.Fatal("expected Materialize to fail")
 	}
 	if !branchImageExists(m, att) {
@@ -965,7 +973,7 @@ func TestMaterializeReportsFallbackFailure(t *testing.T) {
 	be.cloneErr = errors.New("clonefile boom")
 	be.createErr = errors.New("hdiutil boom")
 
-	_, err := m.Materialize(att, "42")
+	_, _, err := m.Materialize(att, "42")
 	if err == nil {
 		t.Fatal("expected Materialize to fail")
 	}
@@ -1049,6 +1057,9 @@ func TestReattachVolumeForPodTrustedPromotes(t *testing.T) {
 	if !ok || got.SourceAccount != "42" {
 		t.Fatalf("trusted reattach SourceAccount = %q (ok=%v); want 42", got.SourceAccount, ok)
 	}
+	// finalizeVolume fills this from the guest-relayed status share; set it here to
+	// stand in for a server-accepted fast-forward.
+	got.PromotedGeneration = 1
 	if out, _ := m.Finalize(got, "42", true, true); out != VolumeOutcomePromoted {
 		t.Fatalf("trusted recovered branch should promote, got %s", out)
 	}
@@ -1089,40 +1100,92 @@ func TestReattachBranchIdleNotMaterialized(t *testing.T) {
 	}
 }
 
-// MasterDigest must match dispatch-poll.sh's cache_inventory (sorted, subtree-
-// prefixed entry names joined by newlines, SHA-1'd) so a host can compare its
-// local master against the HEAD digest the guest reports.
-func TestMasterDigestReadsSidecar(t *testing.T) {
+// MasterGeneration reads the generation sidecar, but ONLY while the master image
+// exists — a generation beside a missing master must read 0 so a promote/converge
+// treats the host as behind and rebuilds rather than skipping on a stale marker.
+func TestMasterGenerationReadsSidecar(t *testing.T) {
 	m, _ := newTestManager(t, 100)
 
-	// No master: empty, NOT the digest of an empty inventory. The host can't see
-	// into an image, so "I don't know" must not be reported as "I am empty" —
-	// that would look like a legitimate state and could match a HEAD.
-	d0, err := m.MasterDigest("42", ReservedTuistCacheVolume)
-	if err != nil {
-		t.Fatalf("MasterDigest: %v", err)
-	}
-	if d0 != "" {
-		t.Fatalf("digest with no master = %q; want empty", d0)
+	// No master: 0, not a guessed generation. The host can't see into an image, so
+	// "I have nothing" must not read as "I am at some generation" and match a HEAD.
+	if g0, err := m.MasterGeneration("42", ReservedTuistCacheVolume); err != nil || g0 != 0 {
+		t.Fatalf("generation with no master = %d, %v; want 0", g0, err)
 	}
 
-	seedMasterWithDigest(t, m, "42", "deadbeef")
-	got, err := m.MasterDigest("42", ReservedTuistCacheVolume)
-	if err != nil {
-		t.Fatalf("MasterDigest: %v", err)
-	}
-	if got != "deadbeef" {
-		t.Fatalf("digest = %q; want the recorded sidecar value", got)
+	seedMasterGen(t, m, "42", masterImageContent("42"), 7)
+	if got, err := m.MasterGeneration("42", ReservedTuistCacheVolume); err != nil || got != 7 {
+		t.Fatalf("generation = %d, %v; want the recorded sidecar value 7", got, err)
 	}
 
-	// A master whose sidecar never landed reads as unknown, so convergence
-	// refreshes it rather than trusting an inventory nobody recorded.
-	if err := os.Remove(m.masterDigestPath("42", ReservedTuistCacheVolume)); err != nil {
+	// A master whose sidecar never landed reads as 0, so convergence refreshes it
+	// rather than trusting a version nobody recorded.
+	if err := os.Remove(m.masterGenerationPath("42", ReservedTuistCacheVolume)); err != nil {
 		t.Fatal(err)
 	}
-	if got, err := m.MasterDigest("42", ReservedTuistCacheVolume); err != nil || got != "" {
-		t.Fatalf("digest with no sidecar = %q, %v; want empty", got, err)
+	if got, err := m.MasterGeneration("42", ReservedTuistCacheVolume); err != nil || got != 0 {
+		t.Fatalf("generation with no sidecar = %d, %v; want 0", got, err)
 	}
+
+	// A generation beside a MISSING master reads 0: re-seed both, drop only the
+	// image, and the marker must not be honored.
+	seedMasterGen(t, m, "42", masterImageContent("42"), 7)
+	if err := os.Remove(m.masterImage("42", ReservedTuistCacheVolume)); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := m.MasterGeneration("42", ReservedTuistCacheVolume); got != 0 {
+		t.Fatalf("generation with master removed = %d; want 0 (not honored without a master)", got)
+	}
+}
+
+// InstallMaster is the whole of reconciliation under fast-forward last-writer-
+// wins: it replaces the local master with a newer generation's image and REFUSES
+// to move the master backwards. It is both the converge path (adopt a newer HEAD)
+// and the promote path (install the branch at the server-accepted generation).
+func TestInstallMasterFastForwardsAndRefusesRegression(t *testing.T) {
+	m, _ := newTestManager(t, 100)
+	seedMasterGen(t, m, "42", "gen-5-image", 5)
+
+	// A newer generation replaces the master wholesale.
+	installed, err := m.InstallMaster("42", ReservedTuistCacheVolume, stageConvergeImage(t, m, "vmX", "gen-8-image"), 8)
+	if err != nil || !installed {
+		t.Fatalf("InstallMaster newer = installed %v, err %v; want installed", installed, err)
+	}
+	if got, _ := os.ReadFile(m.masterImage("42", ReservedTuistCacheVolume)); string(got) != "gen-8-image" {
+		t.Fatalf("master image = %q; want the newer generation's image", got)
+	}
+	if got, _ := m.MasterGeneration("42", ReservedTuistCacheVolume); got != 8 {
+		t.Fatalf("master generation = %d; want 8", got)
+	}
+
+	// An equal or older generation is a no-op: a slow promote or a redundant
+	// converge must never overwrite a newer master.
+	for _, stale := range []int{8, 6} {
+		installed, err := m.InstallMaster("42", ReservedTuistCacheVolume, stageConvergeImage(t, m, "vmStale", "gen-stale-image"), stale)
+		if err != nil {
+			t.Fatalf("InstallMaster stale gen %d: %v", stale, err)
+		}
+		if installed {
+			t.Fatalf("InstallMaster at generation %d installed over generation 8; must refuse to regress", stale)
+		}
+	}
+	if got, _ := os.ReadFile(m.masterImage("42", ReservedTuistCacheVolume)); string(got) != "gen-8-image" {
+		t.Fatalf("master image after stale installs = %q; want the generation-8 image untouched", got)
+	}
+}
+
+// stageConvergeImage writes a downloaded-HEAD image with the given modelled
+// content into the convergence staging dir and returns its path.
+func stageConvergeImage(t *testing.T, m *VolumeManager, vm, content string) string {
+	t.Helper()
+	staging := m.ConvergeStagingDir(vm)
+	if err := os.MkdirAll(staging, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	img := filepath.Join(staging, convergeImageName)
+	if err := os.WriteFile(img, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return img
 }
 
 // The host's inventory digest must match dispatch-poll.sh's cache_inventory
@@ -1180,33 +1243,6 @@ func TestInventoryDigestMatchesGuestScript(t *testing.T) {
 	}
 }
 
-func TestReplaceMasterFastForwards(t *testing.T) {
-	m, _ := newTestManager(t, 100)
-	seedMasterWithDigest(t, m, "42", "stale-digest")
-
-	// A converged HEAD image staged on the runner-cache volume.
-	staging := m.ConvergeStagingDir("vmX")
-	if err := os.MkdirAll(staging, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	image := filepath.Join(staging, convergeImageName)
-	if err := os.WriteFile(image, []byte("fresher-image"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	if err := m.ReplaceMaster("42", ReservedTuistCacheVolume, image, "fresh-digest"); err != nil {
-		t.Fatalf("ReplaceMaster: %v", err)
-	}
-
-	got, err := os.ReadFile(m.masterImage("42", ReservedTuistCacheVolume))
-	if err != nil || string(got) != "fresher-image" {
-		t.Fatalf("master image = %q, %v; want the converged image", got, err)
-	}
-	if d, err := m.MasterDigest("42", ReservedTuistCacheVolume); err != nil || d != "fresh-digest" {
-		t.Fatalf("MasterDigest = %q, %v; want the converged digest", d, err)
-	}
-}
-
 // The convergence staging dir lives under Root, beside the account dirs. A
 // downloaded HEAD image there must never be mistaken for a resident master —
 // it would be counted against capacity and could be evicted as one.
@@ -1230,19 +1266,56 @@ func TestConvergeStagingIsNotAMaster(t *testing.T) {
 	}
 }
 
-func TestReadReportedDigest(t *testing.T) {
-	if got := readReportedDigest(""); got != "" {
-		t.Fatalf("empty status dir = %q; want empty", got)
+// A promote is discarded when the server did NOT accept the HEAD fast-forward
+// (PromotedGeneration 0): the job built on a base another host has since advanced
+// past, so installing its branch would move this host's master off the accepted
+// lineage. The local master must stay exactly as it was.
+func TestFinalizeDiscardsWhenFastForwardRejected(t *testing.T) {
+	m, _ := newTestManager(t, 100)
+	seedMasterGen(t, m, "42", "existing-master", 5)
+
+	att := mustAllocate(t, m, "vm-rejected")
+	if _, _, err := m.Materialize(att, "42"); err != nil {
+		t.Fatalf("Materialize: %v", err)
+	}
+	att.SourceAccount = "42"
+	writeBranchCache(t, m, att, "stale-branch")
+	att.PromotedGeneration = 0 // server rejected: HEAD advanced past this job's base
+
+	if out, err := m.Finalize(att, "42", true, true); err != nil || out != VolumeOutcomeDiscarded {
+		t.Fatalf("Finalize with rejected fast-forward = %s, %v; want discarded", out, err)
+	}
+	if got, _ := os.ReadFile(m.masterImage("42", ReservedTuistCacheVolume)); string(got) != "existing-master" {
+		t.Fatalf("master after rejected promote = %q; want the pre-existing master untouched", got)
+	}
+	if got, _ := m.MasterGeneration("42", ReservedTuistCacheVolume); got != 5 {
+		t.Fatalf("master generation after rejected promote = %d; want 5 (unchanged)", got)
+	}
+	if _, err := os.Stat(att.BranchPath); !os.IsNotExist(err) {
+		t.Fatal("branch should be discarded (removed) after a rejected promote")
+	}
+}
+
+func TestReadPromotedGeneration(t *testing.T) {
+	if got := readPromotedGeneration(""); got != 0 {
+		t.Fatalf("empty status dir = %d; want 0", got)
 	}
 	dir := t.TempDir()
-	if got := readReportedDigest(dir); got != "" {
-		t.Fatalf("missing digest file = %q; want empty", got)
+	if got := readPromotedGeneration(dir); got != 0 {
+		t.Fatalf("missing file = %d; want 0", got)
 	}
-	if err := os.WriteFile(filepath.Join(dir, digestMarkerFile), []byte("abc123\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, promotedGenerationFile), []byte("9\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if got := readReportedDigest(dir); got != "abc123" {
-		t.Fatalf("digest = %q; want abc123 (trimmed)", got)
+	if got := readPromotedGeneration(dir); got != 9 {
+		t.Fatalf("promoted generation = %d; want 9 (trimmed)", got)
+	}
+	// A non-numeric value reads as 0 (no promote), never a bogus generation.
+	if err := os.WriteFile(filepath.Join(dir, promotedGenerationFile), []byte("nope"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := readPromotedGeneration(dir); got != 0 {
+		t.Fatalf("non-numeric promoted generation = %d; want 0", got)
 	}
 }
 
@@ -1276,24 +1349,27 @@ func setMtime(t *testing.T, path string, at time.Time) {
 	}
 }
 
-// seedMaster writes a resident master image for an account directly, plus its
-// digest sidecar, bypassing the allocate/promote flow so tests can set up hosts
+// seedMaster writes a resident master image for an account directly at
+// generation 1, bypassing the allocate/promote flow so tests can set up hosts
 // holding several distinct accounts' masters.
 func seedMaster(t *testing.T, m *VolumeManager, account string) {
 	t.Helper()
-	seedMasterWithDigest(t, m, account, "digest-of-"+account)
+	seedMasterGen(t, m, account, masterImageContent(account), 1)
 }
 
-func seedMasterWithDigest(t *testing.T, m *VolumeManager, account, digest string) {
+// seedMasterGen writes a resident master with explicit opaque content and its
+// generation sidecar, so tests can set up a master at a known fast-forward
+// version.
+func seedMasterGen(t *testing.T, m *VolumeManager, account, content string, generation int) {
 	t.Helper()
 	if err := os.MkdirAll(m.volumeDir(account, ReservedTuistCacheVolume), 0o755); err != nil {
 		t.Fatalf("mkdir volume dir: %v", err)
 	}
 	image := m.masterImage(account, ReservedTuistCacheVolume)
-	if err := os.WriteFile(image, []byte(masterImageContent(account)), 0o644); err != nil {
+	if err := os.WriteFile(image, []byte(content), 0o644); err != nil {
 		t.Fatalf("seed master image: %v", err)
 	}
-	if err := os.WriteFile(m.masterDigestPath(account, ReservedTuistCacheVolume), []byte(digest), 0o644); err != nil {
-		t.Fatalf("seed master digest: %v", err)
+	if err := os.WriteFile(m.masterGenerationPath(account, ReservedTuistCacheVolume), []byte(strconv.Itoa(generation)), 0o644); err != nil {
+		t.Fatalf("seed master generation: %v", err)
 	}
 }

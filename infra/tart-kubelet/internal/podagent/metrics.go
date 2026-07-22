@@ -164,6 +164,24 @@ var cacheVolumeMaterializeTotal = prometheus.NewCounterVec(
 	[]string{"result"},
 )
 
+// cacheVolumePromoteTotal counts the server's fast-forward decision for
+// cache-changing jobs on this host: "accepted" (the HEAD fast-forwarded and the
+// branch became this host's local master) or "rejected" (the job built on a base
+// another host had already advanced past — the branch is discarded and the host
+// re-converges). rejected/(accepted+rejected) is the fast-forward CONTENTION
+// RATE, the headline health signal for the last-writer-wins model: a sustained
+// climb means jobs for an account are racing across hosts, or convergence is
+// lagging so hosts keep building on stale bases. Only promote-eligible jobs
+// (succeeded, cache-changing, own account) are counted, so read-only and failed
+// jobs never dilute the ratio.
+var cacheVolumePromoteTotal = prometheus.NewCounterVec(
+	prometheus.CounterOpts{
+		Name: "tart_kubelet_cache_volume_promote_total",
+		Help: "Server fast-forward decisions for cache-changing jobs, by accepted/rejected.",
+	},
+	[]string{"result"},
+)
+
 // cacheVolumeConvergedTotal counts background fast-forwards of this host's
 // master to the account's HEAD — a host that was behind pulling the latest
 // master after a job started (off the job-start path), so the next job on it
@@ -245,6 +263,7 @@ func init() {
 		vmProvisionWorkSeconds,
 		cacheVolumeOutcomeTotal,
 		cacheVolumeMaterializeTotal,
+		cacheVolumePromoteTotal,
 		cacheVolumeConvergedTotal,
 		cacheVolumeResidentCount,
 		cacheVolumeRootFreeBytes,
@@ -261,6 +280,18 @@ func RecordVolumeOutcome(outcome string) {
 		outcome = string(VolumeOutcomeNone)
 	}
 	cacheVolumeOutcomeTotal.WithLabelValues(outcome).Inc()
+}
+
+// RecordVolumePromote increments the accepted/rejected count of fast-forward
+// promotes. Call only for promote-eligible jobs (succeeded, cache-changing,
+// account matched) so the ratio reflects the server's fast-forward decision
+// rather than jobs that were never going to promote.
+func RecordVolumePromote(accepted bool) {
+	result := "rejected"
+	if accepted {
+		result = "accepted"
+	}
+	cacheVolumePromoteTotal.WithLabelValues(result).Inc()
 }
 
 // RecordVolumeMaterialized increments the warm/cold count of post-dispatch

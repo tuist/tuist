@@ -5,11 +5,14 @@ defmodule TuistWeb.API.TestsController do
   alias OpenApiSpex.Schema
   alias Tuist.Tests
   alias Tuist.Tests.TestRunQuery
+  alias Tuist.Tests.XcresultProcessing
   alias TuistWeb.API.Schemas.BuildSystem
   alias TuistWeb.API.Schemas.Error
   alias TuistWeb.API.Schemas.PaginationMetadata
   alias TuistWeb.API.Schemas.Tests.Test
   alias TuistWeb.Authentication
+
+  require Logger
 
   plug(TuistWeb.Plugs.CastAndValidate,
     json_render_error_v2: true,
@@ -513,7 +516,8 @@ defmodule TuistWeb.API.TestsController do
       unauthorized: {"You need to be authenticated to create a test run", "application/json", Error},
       forbidden: {"The authenticated subject is not authorized to perform this action", "application/json", Error},
       not_found: {"The project doesn't exist", "application/json", Error},
-      bad_request: {"The request parameters are invalid", "application/json", Error}
+      bad_request: {"The request parameters are invalid", "application/json", Error},
+      service_unavailable: {"The test run could not be scheduled for processing", "application/json", Error}
     }
   )
 
@@ -537,79 +541,109 @@ defmodule TuistWeb.API.TestsController do
         # to "in_progress" while it waits for the other shards, so
         # test_run.status is never "processing" even though the CLI is
         # uploading an xcresult that still needs parsing.
-        if Map.get(body_params, :status) == "processing" do
-          # The CLI uploads each shard's xcresult to S3 keyed on the UUID
-          # it generated locally (body_params.id). For sharded runs, the
-          # server merges all shards into a single Test row, so test_run.id
-          # is the merged id — only the first shard's. Falling back to the
-          # merged id would point the worker at a missing object for every
-          # other shard, leaving their data unprocessed and the dashboard
-          # stuck at 0.
-          xcresult_id = Map.get(body_params, :id) || test_run.id
+        processing_result =
+          if Map.get(body_params, :status) == "processing" do
+            # The CLI uploads each shard's xcresult to S3 keyed on the UUID
+            # it generated locally (body_params.id). For sharded runs, the
+            # server merges all shards into a single Test row, so test_run.id
+            # is the merged id — only the first shard's. Falling back to the
+            # merged id would point the worker at a missing object for every
+            # other shard, leaving their data unprocessed and the dashboard
+            # stuck at 0.
+            xcresult_id = Map.get(body_params, :id) || test_run.id
 
-          storage_key =
-            "#{selected_project.account.name}/#{selected_project.name}/runs/#{xcresult_id}/result_bundle.zip"
+            storage_key =
+              "#{selected_project.account.name}/#{selected_project.name}/runs/#{xcresult_id}/result_bundle.zip"
 
-          %{
-            test_run_id: test_run.id,
-            storage_key: storage_key,
-            account_id: test_run.account_id,
-            project_id: selected_project.id,
-            account_handle: selected_project.account.name,
-            project_handle: selected_project.name,
-            is_ci: test_run.is_ci || false,
-            git_branch: test_run.git_branch,
-            git_commit_sha: test_run.git_commit_sha,
-            git_ref: test_run.git_ref,
-            macos_version: test_run.macos_version,
-            xcode_version: test_run.xcode_version,
-            model_identifier: test_run.model_identifier,
-            scheme: test_run.scheme,
-            ci_run_id: test_run.ci_run_id,
-            ci_project_handle: test_run.ci_project_handle,
-            ci_host: test_run.ci_host,
-            ci_provider: test_run.ci_provider,
-            build_run_id: test_run.build_run_id,
-            shard_plan_id: test_run.shard_plan_id,
-            shard_index: Map.get(body_params, :shard_index),
-            vcs_comment_params: vcs_comment_params
-          }
-          |> Tuist.Tests.Workers.ProcessXcresultWorker.new()
-          |> Oban.insert()
-          |> then(fn {:ok, _job} -> :ok end)
-        else
-          Tuist.VCS.enqueue_vcs_pull_request_comment(vcs_comment_params)
-        end
+            enqueue_xcresult_processing(%{
+              test_run_id: test_run.id,
+              storage_key: storage_key,
+              account_id: test_run.account_id,
+              project_id: selected_project.id,
+              account_handle: selected_project.account.name,
+              project_handle: selected_project.name,
+              is_ci: test_run.is_ci || false,
+              git_branch: test_run.git_branch,
+              git_commit_sha: test_run.git_commit_sha,
+              git_ref: test_run.git_ref,
+              macos_version: test_run.macos_version,
+              xcode_version: test_run.xcode_version,
+              model_identifier: test_run.model_identifier,
+              scheme: test_run.scheme,
+              ci_run_id: test_run.ci_run_id,
+              ci_project_handle: test_run.ci_project_handle,
+              ci_host: test_run.ci_host,
+              ci_provider: test_run.ci_provider,
+              build_run_id: test_run.build_run_id,
+              shard_plan_id: test_run.shard_plan_id,
+              shard_index: Map.get(body_params, :shard_index),
+              ran_at: XcresultProcessing.serialize_ran_at(test_run.ran_at),
+              vcs_comment_params: vcs_comment_params
+            })
+          else
+            Tuist.VCS.enqueue_vcs_pull_request_comment(vcs_comment_params)
+            :ok
+          end
 
-        conn
-        |> put_status(:ok)
-        |> json(%{
-          type: "test",
-          id: test_run.id,
-          duration: test_run.duration,
-          project_id: test_run.project_id,
-          url: url(~p"/#{selected_project.account.name}/#{selected_project.name}/tests/test-runs/#{test_run.id}"),
-          test_case_runs:
-            Enum.map(test_run.test_case_runs, fn run ->
-              result = %{
-                id: run.id,
-                name: run.name,
-                module_name: run.module_name,
-                suite_name: run.suite_name
-              }
-
-              case Map.get(run, :arguments) do
-                nil ->
-                  result
-
-                arguments ->
-                  Map.put(result, :arguments, Enum.map(arguments, &Map.take(&1, [:id, :name])))
-              end
-            end)
-        })
+        respond_to_test_creation(conn, test_run, selected_project, processing_result)
 
       {:error, _changeset} ->
         conn |> put_status(:bad_request) |> json(%{message: "The request parameters are invalid"})
+    end
+  end
+
+  defp respond_to_test_creation(conn, test_run, selected_project, :ok) do
+    conn
+    |> put_status(:ok)
+    |> json(%{
+      type: "test",
+      id: test_run.id,
+      duration: test_run.duration,
+      project_id: test_run.project_id,
+      url: url(~p"/#{selected_project.account.name}/#{selected_project.name}/tests/test-runs/#{test_run.id}"),
+      test_case_runs:
+        Enum.map(test_run.test_case_runs, fn run ->
+          result = %{
+            id: run.id,
+            name: run.name,
+            module_name: run.module_name,
+            suite_name: run.suite_name
+          }
+
+          case Map.get(run, :arguments) do
+            nil ->
+              result
+
+            arguments ->
+              Map.put(result, :arguments, Enum.map(arguments, &Map.take(&1, [:id, :name])))
+          end
+        end)
+    })
+  end
+
+  defp respond_to_test_creation(conn, _test_run, _selected_project, {:error, _reason}) do
+    conn
+    |> put_status(:service_unavailable)
+    |> json(%{message: "The test run could not be scheduled for processing"})
+  end
+
+  defp enqueue_xcresult_processing(args) do
+    case XcresultProcessing.enqueue(args) do
+      {:ok, _result} ->
+        :ok
+
+      {:error, reason} = error ->
+        Logger.error("Failed to enqueue Xcode result processing: #{inspect(reason)}")
+
+        case XcresultProcessing.mark_test_run_failed(Map.new(args, fn {key, value} -> {to_string(key), value} end)) do
+          :ok ->
+            :ok
+
+          {:error, mark_reason} ->
+            Logger.error("Failed to mark unscheduled Xcode result processing: #{inspect(mark_reason)}")
+        end
+
+        error
     end
   end
 

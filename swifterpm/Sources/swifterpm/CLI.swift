@@ -286,14 +286,15 @@ public struct SwifterPMCommand: AsyncParsableCommand {
     }
 
     func makeCLI() throws -> CLI {
+        let arguments = DeprecatedSwiftPMOptions.strip(commandArguments)
         let command: CLI.Command
         switch action {
         case .resolve:
-            command = .resolve(try ResolveArguments.parse(commandArguments).makeOptions())
+            command = .resolve(try ResolveArguments.parse(arguments).makeOptions())
         case .update:
-            command = .update(try UpdateArguments.parse(commandArguments).makeOptions())
+            command = .update(try UpdateArguments.parse(arguments).makeOptions())
         case .restore:
-            command = .restore(try RestoreArguments.parse(commandArguments).makeOptions())
+            command = .restore(try RestoreArguments.parse(arguments).makeOptions())
         }
 
         return CLI(
@@ -332,7 +333,35 @@ extension SwifterPMCachedDirectoryMaterialization: ExpressibleByArgument {
 
 enum CLIParser {
     static func parse(_ args: [String]) throws -> CLI {
-        try SwifterPMCommand.parse(args).makeCLI()
+        try SwifterPMCommand.parse(DeprecatedSwiftPMOptions.strip(args)).makeCLI()
+    }
+}
+
+/// Swift Package Manager options that are still accepted but do nothing.
+///
+/// `tuist install` forwards its passthrough arguments here verbatim, so any flag
+/// SwiftPM tolerates has to be tolerated too: rejecting one turns an invocation
+/// that worked for years into a hard `Unknown option` failure the moment
+/// SwifterPM becomes the default resolver. Verified against Swift 6.3.3, where
+/// both of these exit 0 and print nothing, so we drop them silently rather than
+/// warning on every run.
+///
+/// This is deliberately an exact allowlist and not a blanket "ignore anything
+/// unrecognized": genuinely unknown options must still fail, the same way
+/// SwiftPM rejects e.g. `--enable-resolver-trace`.
+///
+/// Stripping happens at every entry point rather than only before the
+/// subcommand parse, because `.allUnrecognized` on `commandArguments` only
+/// collects arguments that trail the `action` positional, and `tuist install`
+/// forwards passthrough arguments ahead of it.
+public enum DeprecatedSwiftPMOptions {
+    static let ignored: Set<String> = [
+        "--disable-prefetching",
+        "--enable-prefetching",
+    ]
+
+    public static func strip(_ arguments: [String]) -> [String] {
+        arguments.filter { !ignored.contains($0) }
     }
 }
 

@@ -1559,6 +1559,610 @@
         ],
         "title": "Oldest un-booted Pod age by pool",
         "type": "timeseries"
+      },
+      {
+        "datasource": "$datasource",
+        "description": "Warm Pods sitting idle while jobs wait for one, per pool: min(queued jobs, unclaimed warm Pods). In a healthy fleet this is 0 by construction \u2014 an idle warm Pod polls dispatch continuously, so queued work reaches it within a poll interval. A sustained non-zero value means dispatch is not serving this pool even though capacity is free: starvation, not saturation, and it needs a server-side fix rather than more hosts. Read it against `Oldest queued job age by fleet`, which backs the `Runner queue age` alert: that gauge fires for a starved pool and a merely saturated one alike, and this panel is what separates them \u2014 saturated reads queued high with idle 0, starved reads both non-zero at once. No other series expresses it: the pool phase counts a warm idle Pod and a Pod running a customer job identically (both Running), the autoscaler's claimed+queued sum stays flat while work drains normally, and the oldest un-booted Pod age only sees Pods that never booted \u2014 not booted Pods that never received work. Caveat: this reads as a fault only while `queued` counts DISPATCHABLE work. An account parked at its concurrency limit keeps jobs queued that dispatch will never hand out, which would make the overlap a valid steady state. The server caps each account's contribution at its remaining concurrency headroom before exporting the count (tuist/tuist#11981), which is what this panel relies on.",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "lineInterpolation": "linear",
+              "lineWidth": 2,
+              "pointSize": 5,
+              "showPoints": "never",
+              "spanNulls": false,
+              "stacking": {
+                "group": "A",
+                "mode": "none"
+              }
+            },
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "color": "green", "value": null },
+                { "color": "red", "value": 1 }
+              ]
+            },
+            "unit": "none"
+          }
+        },
+        "gridPos": {
+          "h": 9,
+          "w": 12,
+          "x": 12,
+          "y": 58
+        },
+        "id": 134,
+        "options": {
+          "legend": {
+            "calcs": ["max"],
+            "displayMode": "list",
+            "placement": "bottom"
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "min by (pool) (\n  label_replace(max by (pool) (tuist_runners_autoscaler_queued_jobs{pool=~\".*$platform.*\", env=\"$env\"}), \"signal\", \"queued\", \"\", \"\")\n  or\n  label_replace(max by (pool) (tuist_runners_pool_idle_replicas{pool=~\".*$platform.*\", env=\"$env\"}), \"signal\", \"idle\", \"\", \"\")\n)\n# Both operands must exist. `or` keeps a lone series, and `min` would\n# then chart it alone: a static or autoscaling-disabled pool clears the\n# demand series while idle capacity keeps publishing, so idle=5 with no\n# queued series would read as 5 starved replicas.\nand on (pool) (max by (pool) (tuist_runners_autoscaler_queued_jobs{pool=~\".*$platform.*\", env=\"$env\"}))\nand on (pool) (max by (pool) (tuist_runners_pool_idle_replicas{pool=~\".*$platform.*\", env=\"$env\"}))",
+            "legendFormat": "{{pool}}",
+            "refId": "A"
+          }
+        ],
+        "title": "Starved warm capacity (queued jobs with idle Pods) by pool",
+        "type": "timeseries"
+      },
+      {
+        "id": 520,
+        "type": "row",
+        "title": "Cache volumes (fast-forward last-writer-wins)",
+        "collapsed": false,
+        "gridPos": {
+          "h": 1,
+          "w": 24,
+          "x": 0,
+          "y": 68
+        },
+        "panels": []
+      },
+      {
+        "id": 521,
+        "type": "stat",
+        "title": "Fast-forward reject rate",
+        "description": "Share of cache-changing promotes the server REJECTED because the job built on a stale base (another host advanced the HEAD first). The headline health signal for the last-writer-wins model: a sustained climb means jobs for an account are racing across hosts, or convergence is lagging so hosts keep building on stale bases. No data = no cache-changing promotes in the window.",
+        "datasource": "$datasource",
+        "gridPos": {
+          "h": 5,
+          "w": 6,
+          "x": 0,
+          "y": 69
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "yellow",
+                  "value": 15
+                },
+                {
+                  "color": "red",
+                  "value": 35
+                }
+              ]
+            },
+            "unit": "percent"
+          }
+        },
+        "options": {
+          "colorMode": "background",
+          "graphMode": "area",
+          "justifyMode": "center",
+          "orientation": "horizontal",
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "fields": "",
+            "values": false
+          },
+          "textMode": "auto"
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "100 * sum(rate(tart_kubelet_cache_volume_promote_total{result=\"rejected\",env=\"$env\"}[$__rate_interval])) / sum(rate(tart_kubelet_cache_volume_promote_total{env=\"$env\"}[$__rate_interval]))",
+            "instant": false,
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 522,
+        "type": "stat",
+        "title": "Local warmth delivered",
+        "description": "Share of dispatched jobs whose account master already existed on the host and was clonefiled into the branch (warm), vs a cold first job. Higher is better \u2014 it is the payoff of the volume: affinity routing jobs to hosts that hold their master. The Prometheus-side proxy for local-cache-hit share (the per-artifact command_events local_cache_hits share is tracked in ClickHouse).",
+        "datasource": "$datasource",
+        "gridPos": {
+          "h": 5,
+          "w": 6,
+          "x": 6,
+          "y": 69
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "red",
+                  "value": null
+                },
+                {
+                  "color": "yellow",
+                  "value": 40
+                },
+                {
+                  "color": "green",
+                  "value": 70
+                }
+              ]
+            },
+            "unit": "percent"
+          }
+        },
+        "options": {
+          "colorMode": "background",
+          "graphMode": "area",
+          "justifyMode": "center",
+          "orientation": "horizontal",
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "fields": "",
+            "values": false
+          },
+          "textMode": "auto"
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "100 * sum(rate(tart_kubelet_cache_volume_materialize_total{result=\"warm\",env=\"$env\"}[$__rate_interval])) / sum(rate(tart_kubelet_cache_volume_materialize_total{env=\"$env\"}[$__rate_interval]))",
+            "instant": false,
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 523,
+        "type": "stat",
+        "title": "Resident masters (fleet)",
+        "description": "Total resident per-account cache master images across all hosts. Divided by the fleet size it is the 'how many accounts does each host keep hot' signal.",
+        "datasource": "$datasource",
+        "gridPos": {
+          "h": 5,
+          "w": 6,
+          "x": 12,
+          "y": 69
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "short"
+          }
+        },
+        "options": {
+          "colorMode": "background",
+          "graphMode": "area",
+          "justifyMode": "center",
+          "orientation": "horizontal",
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "fields": "",
+            "values": false
+          },
+          "textMode": "auto"
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum(tart_kubelet_cache_volume_resident_count{env=\"$env\"})",
+            "instant": true,
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 524,
+        "type": "stat",
+        "title": "Enabled hosts not mounted",
+        "description": "Hosts where the cache-volume feature is enabled but the runner-cache root is NOT a mounted volume \u2014 every job on them silently runs cold. Should be 0; any nonzero value is a host whose quota volume did not (re)mount.",
+        "datasource": "$datasource",
+        "gridPos": {
+          "h": 5,
+          "w": 6,
+          "x": 18,
+          "y": 69
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 1
+                }
+              ]
+            },
+            "unit": "short"
+          }
+        },
+        "options": {
+          "colorMode": "background",
+          "graphMode": "area",
+          "justifyMode": "center",
+          "orientation": "horizontal",
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "fields": "",
+            "values": false
+          },
+          "textMode": "auto"
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum(tart_kubelet_cache_volume_enabled{env=\"$env\"}) - sum(tart_kubelet_cache_volume_root_mounted{env=\"$env\"})",
+            "instant": true,
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 525,
+        "type": "timeseries",
+        "title": "Promote decisions / sec",
+        "description": "Server fast-forward decisions for cache-changing jobs: accepted (the branch became this host's master) vs rejected (built on a stale base, discarded and re-converged). The absolute companion to the reject-rate stat.",
+        "datasource": "$datasource",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 74
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "lineInterpolation": "linear",
+              "lineWidth": 2,
+              "pointSize": 5,
+              "showPoints": "never",
+              "spanNulls": false,
+              "stacking": {
+                "group": "A",
+                "mode": "none"
+              }
+            },
+            "unit": "ops"
+          }
+        },
+        "options": {
+          "legend": {
+            "calcs": [],
+            "displayMode": "list",
+            "placement": "bottom"
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum(rate(tart_kubelet_cache_volume_promote_total{result=\"accepted\",env=\"$env\"}[$__rate_interval]))",
+            "legendFormat": "accepted",
+            "refId": "A"
+          },
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum(rate(tart_kubelet_cache_volume_promote_total{result=\"rejected\",env=\"$env\"}[$__rate_interval]))",
+            "legendFormat": "rejected",
+            "refId": "B"
+          }
+        ]
+      },
+      {
+        "id": 526,
+        "type": "timeseries",
+        "title": "Materialize warm vs cold / sec",
+        "description": "Post-dispatch materializations by whether the dispatched account's master already existed on the host (warm) or not (cold first job). warm/(warm+cold) is the 'Local warmth delivered' stat.",
+        "datasource": "$datasource",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 74
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "lineInterpolation": "linear",
+              "lineWidth": 2,
+              "pointSize": 5,
+              "showPoints": "never",
+              "spanNulls": false,
+              "stacking": {
+                "group": "A",
+                "mode": "none"
+              }
+            },
+            "unit": "ops"
+          }
+        },
+        "options": {
+          "legend": {
+            "calcs": [],
+            "displayMode": "list",
+            "placement": "bottom"
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum(rate(tart_kubelet_cache_volume_materialize_total{result=\"warm\",env=\"$env\"}[$__rate_interval]))",
+            "legendFormat": "warm",
+            "refId": "A"
+          },
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum(rate(tart_kubelet_cache_volume_materialize_total{result=\"cold\",env=\"$env\"}[$__rate_interval]))",
+            "legendFormat": "cold",
+            "refId": "B"
+          }
+        ]
+      },
+      {
+        "id": 527,
+        "type": "timeseries",
+        "title": "Promote outcomes / sec",
+        "description": "Terminal disposition of finalized cache-volume branches: promoted (became a master) vs discarded (read-only, failed, never-dispatched, or a rejected fast-forward).",
+        "datasource": "$datasource",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 82
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "lineInterpolation": "linear",
+              "lineWidth": 2,
+              "pointSize": 5,
+              "showPoints": "never",
+              "spanNulls": false,
+              "stacking": {
+                "group": "A",
+                "mode": "none"
+              }
+            },
+            "unit": "ops"
+          }
+        },
+        "options": {
+          "legend": {
+            "calcs": [],
+            "displayMode": "list",
+            "placement": "bottom"
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum(rate(tart_kubelet_cache_volume_outcome_total{outcome=\"promoted\",env=\"$env\"}[$__rate_interval]))",
+            "legendFormat": "promoted",
+            "refId": "A"
+          },
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum(rate(tart_kubelet_cache_volume_outcome_total{outcome=\"discarded\",env=\"$env\"}[$__rate_interval]))",
+            "legendFormat": "discarded",
+            "refId": "B"
+          }
+        ]
+      },
+      {
+        "id": 528,
+        "type": "timeseries",
+        "title": "Convergence & admission / sec",
+        "description": "Background master fast-forwards to the account's HEAD (converged \u2014 a behind host adopting the latest master), and admissions declined for lack of room even after LRU eviction (the VM ran cold). A high converge rate relative to materialize means hosts are frequently stale; a nonzero admission-declined means the quota volume is full.",
+        "datasource": "$datasource",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 82
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "lineInterpolation": "linear",
+              "lineWidth": 2,
+              "pointSize": 5,
+              "showPoints": "never",
+              "spanNulls": false,
+              "stacking": {
+                "group": "A",
+                "mode": "none"
+              }
+            },
+            "unit": "ops"
+          }
+        },
+        "options": {
+          "legend": {
+            "calcs": [],
+            "displayMode": "list",
+            "placement": "bottom"
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum(rate(tart_kubelet_cache_volume_converged_total{env=\"$env\"}[$__rate_interval]))",
+            "legendFormat": "converged",
+            "refId": "A"
+          },
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum(rate(tart_kubelet_cache_volume_admission_declined_total{env=\"$env\"}[$__rate_interval]))",
+            "legendFormat": "admission-declined",
+            "refId": "B"
+          }
+        ]
+      },
+      {
+        "id": 529,
+        "type": "timeseries",
+        "title": "Runner-cache root free bytes (tightest host)",
+        "description": "statfs free space on the quota-bounded runner-cache volume, taken as the minimum across hosts \u2014 the ground truth behind admission and watermark eviction. A sustained decline toward the low watermark is eviction pressure; under fast-forward LWW masters are bounded (the CLI's own prune shapes each promote), so this should plateau rather than climb.",
+        "datasource": "$datasource",
+        "gridPos": {
+          "h": 8,
+          "w": 24,
+          "x": 0,
+          "y": 90
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "lineInterpolation": "linear",
+              "lineWidth": 2,
+              "pointSize": 5,
+              "showPoints": "never",
+              "spanNulls": false,
+              "stacking": {
+                "group": "A",
+                "mode": "none"
+              }
+            },
+            "unit": "bytes"
+          }
+        },
+        "options": {
+          "legend": {
+            "calcs": [],
+            "displayMode": "list",
+            "placement": "bottom"
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "min(tart_kubelet_cache_volume_root_free_bytes{env=\"$env\"})",
+            "legendFormat": "tightest host",
+            "refId": "A"
+          }
+        ]
       }
     ]
   }

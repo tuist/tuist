@@ -28,6 +28,120 @@ defmodule Tuist.GitHub.ClientTest do
     :ok
   end
 
+  describe "generate_jit_config/3" do
+    test "uses the organization endpoint when it is available" do
+      expect(Req, :post, fn opts ->
+        assert opts[:url] == "https://api.github.com/orgs/tuist/actions/runners/generate-jitconfig"
+        assert opts[:headers] == @default_api_headers
+
+        assert opts[:json] == %{
+                 "labels" => ["self-hosted", "macOS", "ARM64", "tuist-macos"],
+                 "name" => "runner-1",
+                 "runner_group_id" => 1,
+                 "work_folder" => "/Users/runner/work"
+               }
+
+        {:ok,
+         %Req.Response{
+           status: 201,
+           body: %{
+             "encoded_jit_config" => "jit-config",
+             "runner" => %{"id" => 42, "name" => "runner-1"}
+           }
+         }}
+      end)
+
+      assert {:ok, %{encoded_jit_config: "jit-config", runner_id: 42, runner_name: "runner-1"}} =
+               Client.generate_jit_config(
+                 %{installation_id: "installation-id"},
+                 "tuist",
+                 %{
+                   name: "runner-1",
+                   labels: ["self-hosted", "macOS", "ARM64", "tuist-macos"],
+                   work_folder: "/Users/runner/work",
+                   repository_full_handle: "tuist/tuist"
+                 }
+               )
+    end
+
+    test "falls back to the repository endpoint for a personal account" do
+      expect(Req, :post, fn opts ->
+        assert opts[:url] == "https://api.github.com/orgs/2sem/actions/runners/generate-jitconfig"
+        {:ok, %Req.Response{status: 404, body: %{"message" => "Not Found"}}}
+      end)
+
+      expect(Req, :post, fn opts ->
+        assert opts[:url] == "https://api.github.com/repos/2sem/gersanghelper/actions/runners/generate-jitconfig"
+
+        {:ok,
+         %Req.Response{
+           status: 201,
+           body: %{
+             "encoded_jit_config" => "repository-jit-config",
+             "runner" => %{"id" => 43, "name" => "runner-2"}
+           }
+         }}
+      end)
+
+      assert {:ok, %{encoded_jit_config: "repository-jit-config", runner_id: 43, runner_name: "runner-2"}} =
+               Client.generate_jit_config(
+                 %{installation_id: "installation-id"},
+                 "2sem",
+                 %{
+                   name: "runner-2",
+                   labels: ["self-hosted", "macOS", "ARM64", "tuist-macos"],
+                   repository_full_handle: "2sem/gersanghelper"
+                 }
+               )
+    end
+
+    test "identifies a repository endpoint that returns not found" do
+      expect(Req, :post, fn opts ->
+        assert opts[:url] == "https://api.github.com/orgs/2sem/actions/runners/generate-jitconfig"
+        {:ok, %Req.Response{status: 404, body: %{"message" => "Not Found"}}}
+      end)
+
+      expect(Req, :post, fn opts ->
+        assert opts[:url] == "https://api.github.com/repos/2sem/gersanghelper/actions/runners/generate-jitconfig"
+        {:ok, %Req.Response{status: 404, body: %{"message" => "Not Found"}}}
+      end)
+
+      assert {:error, {:repository_jit_config_not_found, 404, %{"message" => "Not Found"}}} =
+               Client.generate_jit_config(
+                 %{installation_id: "installation-id"},
+                 "2sem",
+                 %{
+                   name: "runner-3",
+                   labels: ["self-hosted", "macOS", "ARM64", "tuist-macos"],
+                   repository_full_handle: "2sem/gersanghelper"
+                 }
+               )
+    end
+
+    test "identifies a repository installation that has not accepted the administration permission" do
+      expect(Req, :post, fn opts ->
+        assert opts[:url] == "https://api.github.com/orgs/2sem/actions/runners/generate-jitconfig"
+        {:ok, %Req.Response{status: 404, body: %{"message" => "Not Found"}}}
+      end)
+
+      expect(Req, :post, fn opts ->
+        assert opts[:url] == "https://api.github.com/repos/2sem/gersanghelper/actions/runners/generate-jitconfig"
+        {:ok, %Req.Response{status: 403, body: %{"message" => "Forbidden"}}}
+      end)
+
+      assert {:error, {:repository_administration_permission_required, 403, %{"message" => "Forbidden"}}} =
+               Client.generate_jit_config(
+                 %{installation_id: "installation-id"},
+                 "2sem",
+                 %{
+                   name: "runner-4",
+                   labels: ["self-hosted", "macOS", "ARM64", "tuist-macos"],
+                   repository_full_handle: "2sem/gersanghelper"
+                 }
+               )
+    end
+  end
+
   describe "get_comments/1" do
     test "returns comments" do
       # Given

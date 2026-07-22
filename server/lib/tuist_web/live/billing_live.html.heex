@@ -305,13 +305,16 @@
       </div>
     </div>
   </.card_section>
-  <.card_section data-part="billing-email-card-section">
+  <.card_section data-part="billing-details-card-section">
     <div data-part="header">
       <span data-part="title">
-        {dgettext("dashboard_account", "Billing email")}
+        {dgettext("dashboard_account", "Billing details")}
       </span>
       <span data-part="subtitle">
-        {dgettext("dashboard_account", "All billing correspondence will go to this email")}
+        {dgettext(
+          "dashboard_account",
+          "Update the company name, billing address, tax number, and email shown on your invoices."
+        )}
       </span>
     </div>
     <div data-part="content">
@@ -319,7 +322,7 @@
         href={~p"/#{@selected_account.name}/billing/manage"}
         target="_blank"
         variant="secondary"
-        label={dgettext("dashboard_account", "Update billing email")}
+        label={dgettext("dashboard_account", "Update billing details")}
         size="medium"
         data-part="update-button"
       >
@@ -328,7 +331,7 @@
         </:icon_right>
       </.button>
       <div data-part="email">
-        <.label label={dgettext("dashboard_account", "Email")} />
+        <.label label={dgettext("dashboard_account", "Billing email")} />
         <span data-part="billing-email">
           {@selected_account.billing_email}
         </span>

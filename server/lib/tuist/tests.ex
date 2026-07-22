@@ -549,19 +549,27 @@ defmodule Tuist.Tests do
               create_test_modules(existing_test, test_modules, shard_index, shard_plan)
             end
 
-          # Each shard can have multiple ShardRun rows (the controller
-          # inserts one with status=processing when the CLI is still
-          # uploading, the worker inserts another after parsing). Count
-          # distinct shard indexes that have already produced a non-
-          # processing row, and only count the current shard if its own
-          # status is non-processing too.
-          reported_count =
-            count_completed_shards(existing_test.id, shard_index) +
-              if shard_status == "processing", do: 0, else: 1
+          insert_shard_run(
+            shard_plan_id,
+            project_id,
+            existing_test.id,
+            shard_index,
+            shard_status,
+            shard_duration,
+            attrs
+          )
+
+          # A shard can move through processing, failed_processing, and a
+          # successful client retry. Collapse that append-only history before
+          # deciding whether the merged run is complete. Insert the current
+          # row first so concurrent workers cannot both miss each other's
+          # terminal status and leave the merged run in_progress forever.
+          latest_statuses = latest_shard_statuses(existing_test.id)
+          reported_count = Enum.count(latest_statuses, &(&1 != "processing"))
 
           merged_status =
             if reported_count >= expected_shard_count do
-              compute_final_shard_status(existing_test, shard_status)
+              compute_final_shard_status(latest_statuses)
             else
               "in_progress"
             end
@@ -598,15 +606,17 @@ defmodule Tuist.Tests do
       end
 
     with {:ok, test} <- result do
-      insert_shard_run(
-        shard_plan_id,
-        project_id,
-        test.id,
-        shard_index,
-        shard_status,
-        shard_duration,
-        attrs
-      )
+      if is_nil(existing) do
+        insert_shard_run(
+          shard_plan_id,
+          project_id,
+          test.id,
+          shard_index,
+          shard_status,
+          shard_duration,
+          attrs
+        )
+      end
 
       {:ok, test}
     end
@@ -650,34 +660,20 @@ defmodule Tuist.Tests do
   defp blank?(""), do: true
   defp blank?(_), do: false
 
-  defp count_completed_shards(test_run_id, current_shard_index) do
-    # A shard counts as completed once any ShardRun row for it carries a
-    # non-processing status. The current shard is excluded because the
-    # caller decides whether to add it based on the incoming attrs.
-    ClickHouseRepo.one(
+  defp latest_shard_statuses(test_run_id) do
+    ClickHouseRepo.all(
       from(sr in ShardRun,
         where: sr.test_run_id == ^test_run_id,
-        where: sr.status != "processing",
-        where: sr.shard_index != ^(current_shard_index || -1),
-        select: fragment("uniqExact(?)", sr.shard_index)
+        group_by: sr.shard_index,
+        select: fragment("argMax(?, ?)", sr.status, sr.inserted_at)
       )
-    ) || 0
+    )
   end
 
-  defp compute_final_shard_status(existing_test, current_shard_status) do
-    has_failed_shard =
-      ClickHouseRepo.one(
-        from(sr in ShardRun,
-          where: sr.test_run_id == ^existing_test.id,
-          where: sr.status == "failure",
-          select: count(),
-          limit: 1
-        )
-      ) || 0
-
+  defp compute_final_shard_status(latest_statuses) do
     cond do
-      current_shard_status == "failure" -> "failure"
-      has_failed_shard > 0 -> "failure"
+      "failed_processing" in latest_statuses -> "failed_processing"
+      "failure" in latest_statuses -> "failure"
       true -> "success"
     end
   end
@@ -1204,21 +1200,65 @@ defmodule Tuist.Tests do
     test_case_ids = slim_results |> Enum.map(& &1.test_case_id) |> Enum.uniq()
     {min_ran_at, max_ran_at} = ran_at_bounds(slim_results)
 
-    # `test_case_runs` is ReplacingMergeTree; re-inserts (e.g. flaky flag
-    # updates) leave multiple versions per id until background merges
-    # collapse them. Dedupe in Elixir by `desc: inserted_at` rather than
-    # paying FINAL's full-part scan and in-memory merge for the page-sized
-    # set of ids that the slim MV already narrowed us to.
-    from(tcr in TestCaseRun,
-      where: tcr.project_id in ^project_ids,
-      where: tcr.test_case_id in ^test_case_ids,
-      where: tcr.ran_at >= ^min_ran_at,
-      where: tcr.ran_at <= ^max_ran_at,
-      where: tcr.id in ^ids,
-      order_by: [desc: tcr.inserted_at]
-    )
-    |> ClickHouseRepo.all()
-    |> Enum.uniq_by(& &1.id)
+    base_query =
+      from(tcr in TestCaseRun,
+        where: tcr.project_id in ^project_ids,
+        where: tcr.test_case_id in ^test_case_ids,
+        where: tcr.ran_at >= ^min_ran_at,
+        where: tcr.ran_at <= ^max_ran_at,
+        where: tcr.id in ^ids,
+        order_by: [desc: tcr.inserted_at]
+      )
+
+    results =
+      case inserted_at_by_id(slim_results) do
+        nil ->
+          ClickHouseRepo.all(base_query)
+
+        inserted_at_by_id ->
+          inserted_ats = inserted_at_by_id |> Map.values() |> Enum.uniq()
+
+          versioned_results =
+            base_query
+            |> where([tcr], tcr.inserted_at in ^inserted_ats)
+            |> ClickHouseRepo.all()
+
+          versioned_results =
+            Enum.filter(versioned_results, fn result ->
+              Map.fetch!(inserted_at_by_id, result.id) == result.inserted_at
+            end)
+
+          found_ids = MapSet.new(versioned_results, & &1.id)
+          missing_ids = Enum.reject(ids, &MapSet.member?(found_ids, &1))
+
+          missing_results =
+            case missing_ids do
+              [] ->
+                []
+
+              missing_ids ->
+                base_query
+                |> where([tcr], tcr.id in ^missing_ids)
+                |> ClickHouseRepo.all()
+            end
+
+          versioned_results ++ missing_results
+      end
+
+    # `test_case_runs` is ReplacingMergeTree; re-inserts leave multiple
+    # versions per id until background merges collapse them. The timestamp
+    # filter normally selects the versions returned by the slim view and
+    # prunes unrelated parts. Missing ids are retried without it so reads
+    # remain correct if two replicas have temporarily different visibility.
+    Enum.uniq_by(results, & &1.id)
+  end
+
+  defp inserted_at_by_id(slim_results) do
+    versions = Enum.map(slim_results, &{&1.id, Map.get(&1, :inserted_at)})
+
+    if Enum.all?(versions, fn {_id, inserted_at} -> not is_nil(inserted_at) end) do
+      Map.new(versions)
+    end
   end
 
   defp ran_at_bounds([first | rest]) do
@@ -1352,7 +1392,8 @@ defmodule Tuist.Tests do
         fn {{_name, mod_name, _suite}, _data} -> mod_name end
       )
 
-    Enum.flat_map_reduce(test_modules, [], fn module_attrs, acc_test_case_runs ->
+    test_modules
+    |> Enum.flat_map_reduce([], fn module_attrs, acc_test_case_runs ->
       module_id = UUIDv7.generate()
       module_name = Map.get(module_attrs, :name)
 
@@ -1422,6 +1463,30 @@ defmodule Tuist.Tests do
 
       {flaky_ids, acc_test_case_runs ++ test_case_runs}
     end)
+    |> tap(fn _ -> flush_test_case_run_buffers() end)
+  end
+
+  # One flush for the whole run rather than one per module.
+  #
+  # The client uploads attachments and crash reports as soon as it receives the
+  # test case run IDs in the response, and those endpoints authorize each upload
+  # against the run and its arguments. Both tables sit behind an ingestion
+  # buffer that otherwise only flushes periodically, so the rows have to be
+  # written through before the caller returns or the uploads race the flush and
+  # are rejected as not found. Flushing here still satisfies that: every module
+  # has been staged and this runs before `create_new_test/3` returns.
+  #
+  # Doing it per module was expensive out of proportion to what it bought.
+  # ClickHouse insert cost on `test_case_runs` is almost entirely fixed
+  # overhead (~480ms whether the batch is 52 rows or 25,515), and every buffer
+  # is a single named process shared by every worker on the node, so each extra
+  # flush blocked all of them for another round trip. Runs carry a median of 2
+  # modules but a p90 of 134 and a maximum of 647, so the tail was paying
+  # hundreds of serialized round trips to write data that one insert covers.
+  defp flush_test_case_run_buffers do
+    TestCaseRun.Buffer.flush()
+    TestCaseRunArgument.Buffer.flush()
+    :ok
   end
 
   defp get_test_case_run_data(test, test_modules) do
@@ -1759,18 +1824,14 @@ defmodule Tuist.Tests do
         }
       end)
 
-    # The client uploads attachments and crash reports as soon as it receives the
-    # IDs in this response, and those endpoints authorize each upload against the
-    # test case run and its arguments. Both tables sit behind an ingestion buffer
-    # that only flushes periodically, so write them through before returning
-    # rather than leaving them to the asynchronous batch below, which would make
-    # the uploads race the flush and be rejected as not found.
+    # Buffered here, flushed once by `create_test_modules/4` after every module
+    # has been staged. The rows still land before the caller returns, which is
+    # what the attachment and crash-report endpoints depend on (see the flush
+    # site), but a run no longer pays one round trip per module.
     TestCaseRun.Buffer.insert_all(test_case_runs)
-    TestCaseRun.Buffer.flush()
 
     if Enum.any?(all_arguments) do
       TestCaseRunArgument.Buffer.insert_all(all_arguments)
-      TestCaseRunArgument.Buffer.flush()
     end
 
     Tuist.Tasks.run_async(fn ->

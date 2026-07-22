@@ -8089,6 +8089,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: The project doesn't exist
+        '503':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The test run could not be scheduled for processing
       summary: Create a new test run.
       tags:
         - Tests
@@ -8741,14 +8747,6 @@ paths:
       callbacks: {}
       operationId: listBundles
       parameters:
-        - description: Filter bundles by git branch.
-          in: query
-          name: git_branch
-          required: false
-          schema:
-            type: string
-            x-struct:
-            x-validate:
         - description: Page number for pagination.
           in: query
           name: page
@@ -8771,6 +8769,14 @@ paths:
           required: false
           schema:
             type: integer
+            x-struct:
+            x-validate:
+        - description: Filter bundles by git branch.
+          in: query
+          name: git_branch
+          required: false
+          schema:
+            type: string
             x-struct:
             x-validate:
         - description: The handle of the project.

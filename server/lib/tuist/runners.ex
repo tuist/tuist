@@ -46,6 +46,37 @@ defmodule Tuist.Runners do
   minutes and re-INSERTs `queued` state into CH so the next poll
   can pick the workflow_job up again.
 
+  ## Who releases a claim, and why there is a backstop
+
+  A claim is a reservation against the account's concurrency budget.
+  Releasing it is attempted from several places, and all but the last
+  are *edge*-triggered, meaning they act on an event that may never
+  arrive:
+
+    * `workflow_job.completed` webhook, keyed on the executing
+      `runner_name` (`Claims.complete_by_runner_name/2`). Releases
+      nothing when GitHub reports no runner, e.g. a job cancelled while
+      queued, or one GitHub placed on a sibling runner.
+    * The controller's pod-stopped POST
+      (`Claims.release_by_pod_name/1`). Skipped entirely when the
+      reaper deletes the Pod before the lifecycle reconciler observes
+      it ending.
+    * `StaleClaimsWorker`, keyed on the Postgres `lifecycle_state`.
+    * `OrphanedRunnersWorker`, keyed on the ClickHouse `status`.
+
+  Those last two are keyed on *different stores*, and the stores can
+  disagree, so a claim can be invisible to both at once — Postgres
+  `running` dodges the `claimed` sweep while ClickHouse `claimed`
+  dodges the `running` sweep. Production held claims stranded that way
+  for over ten days, silently consuming an account's budget.
+
+  `PodClaimReconciliationWorker` is the level-triggered backstop and
+  the only path that does not infer: it compares claims against the
+  Pods that actually exist and releases the ones whose Pod is gone,
+  because a claim is capacity held by a Pod. Prefer fixing a leak there
+  over adding a fifth edge-keyed sweep; every one of those closes a
+  slice and leaves a new blind spot at the intersections.
+
   GitHub repo-scoping is currently delegated to the GitHub default
   runner group (id=1), which allows every repo in the org. A
   per-account `runner_group_id` is a follow-up once multi-tenant
@@ -58,6 +89,7 @@ defmodule Tuist.Runners do
   alias Tuist.Runners.CacheGrant
   alias Tuist.Runners.Catalog
   alias Tuist.Runners.Claims
+  alias Tuist.Runners.Concurrency
   alias Tuist.Runners.Dispatch
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.RunnerSessions
@@ -211,9 +243,11 @@ defmodule Tuist.Runners do
   defp valid_inventory_digest?(digest), do: Regex.match?(~r/^[a-f0-9]{40}$/, digest)
 
   @doc """
-  Records a runner's promote of `account_id`'s cache volume: bumps the account's
-  HEAD to `tree_digest` published from `node_name`. Called by the runner after a
-  successful, cache-changing job whose branch it uploaded to the master archive.
+  Records a runner's promote of `account_id`'s cache volume: fast-forwards the
+  account's HEAD to `tree_digest` published from `node_name`, but ONLY when
+  `base_generation` (the generation the job built on) is still the current HEAD.
+  Called by the runner after a successful, cache-changing job whose branch it
+  uploaded to the master archive.
 
   `tree_digest` MUST be a 40-char SHA-1 hex string. dispatch interpolates the
   stored HEAD digest straight into the master object key
@@ -221,14 +255,33 @@ defmodule Tuist.Runners do
   runner could persist `/` or `..` and poison a future dispatch's download key or
   escape the account prefix. Validate here too — not just when minting the upload
   URL — since this is the write that the download key is later derived from.
-  Returns `:ok` on a valid digest, `:error` otherwise.
+
+  Returns `{:ok, generation}` on an accepted fast-forward, `:conflict` when the
+  base is stale (another host advanced the HEAD first), or `:error` on an invalid
+  digest.
   """
-  def report_volume_head(account_id, node_name, tree_digest) do
+  def report_volume_head(account_id, node_name, tree_digest, base_generation) do
     if is_binary(tree_digest) and valid_inventory_digest?(tree_digest) do
       superseded = VolumeHeads.get_head(account_id)
-      VolumeHeads.bump_head(account_id, node_name, tree_digest)
-      schedule_superseded_master_prune(account_id, superseded, tree_digest)
-      :ok
+
+      case VolumeHeads.bump_head(account_id, node_name, tree_digest, base_generation) do
+        {:ok, generation} ->
+          schedule_superseded_master_prune(account_id, superseded, tree_digest)
+          {:ok, generation}
+
+        :conflict ->
+          # Do NOT schedule a prune of the losing upload here. Content-addressed
+          # keys mean a rejected digest can be, or later become, the live HEAD (a
+          # concurrent or subsequent accepted promote of the same inventory reuses
+          # the exact object), and download URLs are minted only for the current
+          # HEAD's digest — so a conflict-clocked prune could delete an object that
+          # is HEAD or whose in-flight converge URLs are still valid, or race an
+          # upload→bump. Cleanup stays tied to an observed supersession (the
+          # accepted branch above): a losing digest that never becomes HEAD is a
+          # true orphan, reclaimed by the account-deletion sweep rather than on a
+          # guess made at conflict time.
+          :conflict
+      end
     else
       :error
     end
@@ -355,9 +408,52 @@ defmodule Tuist.Runners do
     %{
       fleet: fleet_name,
       claimed: Map.get(Claims.counts_per_fleet(), fleet_name, 0),
-      queued: Jobs.queued_count_by_fleet(fleet_name),
+      queued: dispatchable_queued_count(fleet_name),
       p95_concurrent_last_hour: Jobs.p95_concurrent_last_hour(fleet_name)
     }
+  end
+
+  # Queued jobs the fleet could actually be handed right now: each
+  # account's queue depth capped at its remaining concurrency headroom.
+  #
+  # Raw queue depth overstates demand whenever an account queues past its
+  # limit. Dispatch declines those jobs and leaves them queued, so they
+  # persist in the count while never becoming claimable, and the
+  # autoscaler sizes the pool for them. The resulting Pods can't serve
+  # them either, so they idle on hosts that pools with claimable work are
+  # then denied — one account at its cap quietly starves the fleet.
+  #
+  # Falls back to the raw count when the fleet's shape is unknown: an
+  # unrecognised fleet should size on the signal it has rather than
+  # silently report zero demand and scale itself to nothing.
+  defp dispatchable_queued_count(fleet_name) do
+    queued_by_account = Jobs.queued_count_by_fleet_and_account(fleet_name)
+    raw = queued_by_account |> Map.values() |> Enum.sum()
+
+    case Catalog.resources_for_fleet(fleet_name) do
+      {:ok, resources} ->
+        dispatchable =
+          Enum.reduce(queued_by_account, 0, fn {account_id, count}, acc ->
+            acc + min(count, Concurrency.headroom_jobs(account_id, resources))
+          end)
+
+        :telemetry.execute(
+          Telemetry.event_name_queue_withheld(),
+          %{count: raw - dispatchable},
+          %{fleet: fleet_name}
+        )
+
+        dispatchable
+
+      {:error, _reason} ->
+        :telemetry.execute(
+          Telemetry.event_name_queue_withheld(),
+          %{count: 0},
+          %{fleet: fleet_name}
+        )
+
+        raw
+    end
   end
 
   @doc """
@@ -373,7 +469,6 @@ defmodule Tuist.Runners do
     * `{:error, :no_pool_label}` — SA missing the fleet label.
     * `{:error, :unknown_account}` — claimed entry's account
       went away.
-    * `{:error, :github_mint_failed}` — GitHub refused the JIT.
     * `{:error, :not_in_cluster}` — server not running in-cluster.
     * `{:error, :drain}` — the polling Pod's image no longer
       matches its RunnerPool's `spec.image`. The Pod is idle
@@ -421,12 +516,22 @@ defmodule Tuist.Runners do
       fleet_name,
       node_name,
       [],
+      [],
       excluded_workflow_job_ids,
       @max_claim_attempts_per_dispatch
     )
   end
 
-  defp claim_and_serve(_namespace, sa_name, fleet_name, _node_name, _excluded_account_ids, _excluded_workflow_job_ids, 0) do
+  defp claim_and_serve(
+         _namespace,
+         sa_name,
+         fleet_name,
+         _node_name,
+         _excluded_account_ids,
+         _excluded_repositories,
+         _excluded_workflow_job_ids,
+         0
+       ) do
     Logger.debug("runners: claim attempts exhausted",
       fleet: fleet_name,
       sa: sa_name
@@ -441,10 +546,17 @@ defmodule Tuist.Runners do
          fleet_name,
          node_name,
          excluded_account_ids,
+         excluded_repositories,
          excluded_workflow_job_ids,
          attempts_left
        ) do
-    case pick_affine_candidate(fleet_name, node_name, excluded_account_ids, excluded_workflow_job_ids) do
+    case pick_affine_candidate(
+           fleet_name,
+           node_name,
+           excluded_account_ids,
+           excluded_repositories,
+           excluded_workflow_job_ids
+         ) do
       {:ok, candidate} ->
         claim_candidate(
           namespace,
@@ -452,9 +564,12 @@ defmodule Tuist.Runners do
           fleet_name,
           node_name,
           candidate,
-          excluded_account_ids,
-          excluded_workflow_job_ids,
-          attempts_left
+          %{
+            excluded_account_ids: excluded_account_ids,
+            excluded_repositories: excluded_repositories,
+            excluded_workflow_job_ids: excluded_workflow_job_ids,
+            attempts_left: attempts_left
+          }
         )
 
       {:error, :empty} ->
@@ -462,16 +577,7 @@ defmodule Tuist.Runners do
     end
   end
 
-  defp claim_candidate(
-         namespace,
-         sa_name,
-         fleet_name,
-         node_name,
-         candidate,
-         excluded_account_ids,
-         excluded_workflow_job_ids,
-         attempts_left
-       ) do
+  defp claim_candidate(namespace, sa_name, fleet_name, node_name, candidate, retry_context) do
     case candidate_resources(candidate, fleet_name) do
       {:ok, resources} ->
         attempt_candidate(
@@ -481,11 +587,7 @@ defmodule Tuist.Runners do
           node_name,
           candidate,
           resources,
-          %{
-            excluded_account_ids: excluded_account_ids,
-            excluded_workflow_job_ids: excluded_workflow_job_ids,
-            attempts_left: attempts_left
-          }
+          retry_context
         )
 
       {:error, reason} ->
@@ -494,97 +596,121 @@ defmodule Tuist.Runners do
   end
 
   defp attempt_candidate(namespace, sa_name, fleet_name, node_name, candidate, resources, retry_context) do
-    case Claims.attempt(candidate.workflow_job_id, candidate.account_id, fleet_name, sa_name, resources) do
-      {:ok, claim} ->
-        record_volume_affinity(fleet_name, node_name, candidate.account_id)
+    context = %{
+      namespace: namespace,
+      sa_name: sa_name,
+      fleet_name: fleet_name,
+      node_name: node_name,
+      candidate: candidate,
+      retry_context: retry_context
+    }
 
-        case Jobs.record_claimed(candidate, sa_name, claim.claimed_at) do
-          :ok ->
-            serve_claim(namespace, sa_name, fleet_name, candidate, claim)
+    candidate.workflow_job_id
+    |> Claims.attempt(candidate.account_id, fleet_name, sa_name, resources)
+    |> handle_claim_attempt(context)
+  end
 
-          {:error, :completed} ->
-            _ = Claims.release(candidate.workflow_job_id, claim.claimed_at)
+  defp handle_claim_attempt({:ok, claim}, context) do
+    %{namespace: namespace, sa_name: sa_name, fleet_name: fleet_name, node_name: node_name, candidate: candidate} =
+      context
 
-            retry_claim_and_serve(
-              namespace,
-              sa_name,
-              fleet_name,
-              node_name,
-              retry_context,
-              candidate,
-              :workflow_job
-            )
-        end
+    record_volume_affinity(fleet_name, node_name, candidate.account_id)
 
-      {:error, :lost_race} ->
-        Logger.debug("runners: claim attempt lost race; trying next queued job",
-          fleet: fleet_name,
-          sa: sa_name,
-          workflow_job_id: candidate.workflow_job_id
-        )
+    case Jobs.record_claimed(candidate, sa_name, claim.claimed_at) do
+      :ok ->
+        namespace
+        |> serve_claim(sa_name, fleet_name, candidate, claim)
+        |> handle_serve_claim(context)
 
-        retry_claim_and_serve(
-          namespace,
-          sa_name,
-          fleet_name,
-          node_name,
-          retry_context,
-          candidate,
-          :workflow_job
-        )
-
-      {:error, :account_busy} ->
-        Logger.debug("runners: account admission is busy; trying next account",
-          fleet: fleet_name,
-          sa: sa_name,
-          account_id: candidate.account_id
-        )
-
-        retry_claim_and_serve(
-          namespace,
-          sa_name,
-          fleet_name,
-          node_name,
-          retry_context,
-          candidate,
-          :account
-        )
-
-      {:error, {:concurrency_limit_reached, details}} ->
-        Logger.debug("runners: account reached platform concurrency limit; trying next account",
-          fleet: fleet_name,
-          sa: sa_name,
-          account_id: candidate.account_id,
-          reason: inspect({:concurrency_limit_reached, details})
-        )
-
-        retry_claim_and_serve(
-          namespace,
-          sa_name,
-          fleet_name,
-          node_name,
-          retry_context,
-          candidate,
-          :account
-        )
-
-      {:error, :pod_in_use} ->
-        Logger.debug("runners: claim attempt declined",
-          reason: :pod_in_use,
-          fleet: fleet_name,
-          sa: sa_name
-        )
-
-        {:error, :pod_in_use}
-
-      {:error, reason} ->
-        Logger.warning("runners: dispatch_for_sa failed",
-          reason: inspect(reason),
-          fleet: fleet_name
-        )
-
-        {:error, reason}
+      {:error, :completed} ->
+        _ = Claims.release(candidate.workflow_job_id, claim.claimed_at)
+        retry_claim_and_serve(context, :workflow_job)
     end
+  end
+
+  defp handle_claim_attempt({:error, :lost_race}, context) do
+    %{fleet_name: fleet_name, sa_name: sa_name, candidate: candidate} = context
+
+    Logger.debug("runners: claim attempt lost race; trying next queued job",
+      fleet: fleet_name,
+      sa: sa_name,
+      workflow_job_id: candidate.workflow_job_id
+    )
+
+    retry_claim_and_serve(context, :workflow_job)
+  end
+
+  defp handle_claim_attempt({:error, :account_busy}, context) do
+    %{fleet_name: fleet_name, sa_name: sa_name, candidate: candidate} = context
+
+    Logger.debug("runners: account admission is busy; trying next account",
+      fleet: fleet_name,
+      sa: sa_name,
+      account_id: candidate.account_id
+    )
+
+    retry_claim_and_serve(context, :account)
+  end
+
+  defp handle_claim_attempt({:error, {:concurrency_limit_reached, details}}, context) do
+    %{fleet_name: fleet_name, sa_name: sa_name, candidate: candidate} = context
+
+    Logger.debug("runners: account reached platform concurrency limit; trying next account",
+      fleet: fleet_name,
+      sa: sa_name,
+      account_id: candidate.account_id,
+      reason: inspect({:concurrency_limit_reached, details})
+    )
+
+    retry_claim_and_serve(context, :account)
+  end
+
+  defp handle_claim_attempt({:error, :pod_in_use}, %{fleet_name: fleet_name, sa_name: sa_name}) do
+    Logger.debug("runners: claim attempt declined",
+      reason: :pod_in_use,
+      fleet: fleet_name,
+      sa: sa_name
+    )
+
+    {:error, :pod_in_use}
+  end
+
+  defp handle_claim_attempt({:error, reason}, %{fleet_name: fleet_name}) do
+    Logger.warning("runners: dispatch_for_sa failed",
+      reason: inspect(reason),
+      fleet: fleet_name
+    )
+
+    {:error, reason}
+  end
+
+  defp handle_serve_claim({:error, {:github_mint_failed, exclusion_scope}}, context)
+       when exclusion_scope in [:account, :repository, :workflow_job] do
+    retry_claim_and_serve(context, exclusion_scope)
+  end
+
+  defp handle_serve_claim(result, _context), do: result
+
+  defp retry_claim_and_serve(
+         %{
+           namespace: namespace,
+           sa_name: sa_name,
+           fleet_name: fleet_name,
+           node_name: node_name,
+           retry_context: retry_context,
+           candidate: candidate
+         },
+         exclusion_scope
+       ) do
+    retry_claim_and_serve(
+      namespace,
+      sa_name,
+      fleet_name,
+      node_name,
+      retry_context,
+      candidate,
+      exclusion_scope
+    )
   end
 
   defp candidate_resources(%{platform: "linux", vcpus: vcpus, memory_gb: memory_gb}, _fleet_name)
@@ -615,6 +741,7 @@ defmodule Tuist.Runners do
          node_name,
          %{
            excluded_account_ids: excluded_account_ids,
+           excluded_repositories: excluded_repositories,
            excluded_workflow_job_ids: excluded_workflow_job_ids,
            attempts_left: attempts_left
          },
@@ -627,6 +754,7 @@ defmodule Tuist.Runners do
       fleet_name,
       node_name,
       excluded_account_ids,
+      excluded_repositories,
       [candidate.workflow_job_id | excluded_workflow_job_ids],
       attempts_left - 1
     )
@@ -639,6 +767,7 @@ defmodule Tuist.Runners do
          node_name,
          %{
            excluded_account_ids: excluded_account_ids,
+           excluded_repositories: excluded_repositories,
            excluded_workflow_job_ids: excluded_workflow_job_ids,
            attempts_left: attempts_left
          },
@@ -651,8 +780,35 @@ defmodule Tuist.Runners do
       fleet_name,
       node_name,
       [candidate.account_id | excluded_account_ids],
+      excluded_repositories,
       excluded_workflow_job_ids,
       attempts_left
+    )
+  end
+
+  defp retry_claim_and_serve(
+         namespace,
+         sa_name,
+         fleet_name,
+         node_name,
+         %{
+           excluded_account_ids: excluded_account_ids,
+           excluded_repositories: excluded_repositories,
+           excluded_workflow_job_ids: excluded_workflow_job_ids,
+           attempts_left: attempts_left
+         },
+         candidate,
+         :repository
+       ) do
+    claim_and_serve(
+      namespace,
+      sa_name,
+      fleet_name,
+      node_name,
+      excluded_account_ids,
+      [candidate.repository | excluded_repositories],
+      excluded_workflow_job_ids,
+      attempts_left - 1
     )
   end
 
@@ -660,10 +816,17 @@ defmodule Tuist.Runners do
   # pick the one to hand this node: the oldest affine candidate within the
   # age tolerance of the head, else the head. With no node identity or no
   # affinity, this is exactly today's "oldest queued job".
-  defp pick_affine_candidate(fleet_name, node_name, excluded_account_ids, excluded_workflow_job_ids) do
+  defp pick_affine_candidate(
+         fleet_name,
+         node_name,
+         excluded_account_ids,
+         excluded_repositories,
+         excluded_workflow_job_ids
+       ) do
     case Jobs.pick_queued_top_k(
            fleet_name,
            excluded_account_ids,
+           excluded_repositories,
            excluded_workflow_job_ids,
            volume_affinity_top_k()
          ) do
@@ -689,8 +852,11 @@ defmodule Tuist.Runners do
   # The dispatch poll loop only needs "nothing for you this tick", so
   # the empty-queue / claim-contention family collapses to the single
   # `:no_work_yet` the web layer and the polling Pod already handle.
-  # Every other reason — `:drain`, `:no_pool_label`, `:github_mint_failed`,
-  # … — passes through untouched.
+  # Every other reason — `:drain`, `:no_pool_label`, … — passes
+  # through untouched. A GitHub mint failure is handled inside the
+  # claim loop: the failed job is requeued and this poll tries the next
+  # eligible job, repository, or account, so one broken installation cannot
+  # monopolize every idle runner.
   defp to_caller_result({:error, reason}) when reason in [:empty, :lost_race, :pod_in_use], do: {:error, :no_work_yet}
 
   defp to_caller_result(result), do: result
@@ -709,7 +875,8 @@ defmodule Tuist.Runners do
              dispatch_label = pick_dispatch_label(candidate, pool_dispatch_label),
              github_org = github_org_login(candidate, account),
              :ok <- stamp_owner_label(namespace, pod_name, account),
-             {:ok, jit, runner_name} <- mint_jit(account, github_org, sa_name, dispatch_label, runner_labels),
+             {:ok, jit, runner_name} <-
+               mint_jit(account, github_org, candidate, sa_name, dispatch_label, runner_labels),
              :ok <- Claims.mark_running(candidate.workflow_job_id, runner_name),
              :ok <- record_running_safe(candidate.workflow_job_id, runner_name) do
           # Fork-exclusion: only a trusted (same-repo, non-fork) job may touch
@@ -831,7 +998,7 @@ defmodule Tuist.Runners do
   #     drop the PG row AND re-INSERT `queued` to CH on its
   #     normal recovery path.
   defp release_safely(candidate, claim, reason) do
-    Jobs.record_queued(candidate.workflow_job_id)
+    Jobs.record_queued(candidate)
   rescue
     e ->
       Logger.warning("runners: record_queued failed; leaving PG claim for stale-worker",
@@ -958,7 +1125,7 @@ defmodule Tuist.Runners do
 
   defp github_org_login(_candidate, account), do: account.name
 
-  defp mint_jit(account, github_org, sa_name, dispatch_label, runner_labels) do
+  defp mint_jit(account, github_org, candidate, sa_name, dispatch_label, runner_labels) do
     # GitHub's `create JIT config` API caps `name` at 64 characters.
     # Earlier versions prefixed `tuist-<account.name>-` — for macOS
     # pools that fit, but the Linux pool name is longer
@@ -1002,7 +1169,8 @@ defmodule Tuist.Runners do
            GitHubClient.generate_jit_config(installation, github_org, %{
              name: runner_name,
              labels: runner_labels ++ [dispatch_label],
-             work_folder: work_folder
+             work_folder: work_folder,
+             repository_full_handle: Map.get(candidate, :repository)
            }) do
       {:ok, jit, runner_name}
     else
@@ -1012,21 +1180,42 @@ defmodule Tuist.Runners do
           account_id: account.id
         )
 
-        {:error, :github_mint_failed}
+        {:error, {:github_mint_failed, :account}}
 
       {:error, :not_installed} ->
         Logger.warning("runners: GitHub App not installed on org", account: account.name)
-        {:error, :github_mint_failed}
+        {:error, {:github_mint_failed, :account}}
+
+      {:error, {:repository_administration_permission_required, status, _body}} ->
+        Logger.error("runners: GitHub App installation must accept repository administration permission",
+          account: account.name,
+          repo: Map.get(candidate, :repository),
+          status: status,
+          workflow_job_id: candidate.workflow_job_id
+        )
+
+        {:error, {:github_mint_failed, :account}}
+
+      {:error, {:repository_jit_config_not_found, status, _body}} ->
+        Logger.error("runners: GitHub repository runner endpoint returned not found",
+          account: account.name,
+          repo: Map.get(candidate, :repository),
+          status: status,
+          workflow_job_id: candidate.workflow_job_id
+        )
+
+        {:error, {:github_mint_failed, :repository}}
 
       {:error, reason} ->
         Logger.error("runners: GitHub jit mint failed",
           account: account.name,
           org: github_org,
           runner: runner_name,
-          reason: inspect(reason)
+          reason: inspect(reason),
+          workflow_job_id: candidate.workflow_job_id
         )
 
-        {:error, :github_mint_failed}
+        {:error, {:github_mint_failed, :workflow_job}}
     end
   end
 

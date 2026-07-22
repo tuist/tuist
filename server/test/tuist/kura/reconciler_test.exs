@@ -360,7 +360,11 @@ defmodule Tuist.Kura.ReconcilerTest do
     assert %Server{status: :active, current_image_tag: "0.5.2"} = Repo.get!(Server, server.id)
   end
 
-  test "leaves a failed server failed while the controller has not converged on the target image" do
+  test "re-applies a vanished KuraInstance for a failed server, healing it forward" do
+    # Regression: a transient apiserver 401 during a rollout marks the
+    # deployment :failed; if the CR is later deleted out-of-band, self-heal must
+    # still recreate it. Gating recreation on a :succeeded latest deployment used
+    # to strand the instance with no CR and no path back.
     {_account, server, deployment} = create_server()
     {:ok, _deployment} = Kura.mark_failed(deployment, "apply failed")
     {:ok, server} = Kura.fail_server(server)
@@ -370,9 +374,15 @@ defmodule Tuist.Kura.ReconcilerTest do
       {:error, :not_found}
     end)
 
+    expect(Provisioner, :rollout, fn %Server{id: id}, inputs ->
+      assert id == server.id
+      assert inputs.image_tag == deployment.image_tag
+      :ok
+    end)
+
     assert :ok = Reconciler.reconcile()
 
-    assert %Server{status: :failed, current_image_tag: nil, url: nil} = Repo.get!(Server, server.id)
+    assert %Server{status: :active, current_image_tag: "0.5.2"} = Repo.get!(Server, server.id)
   end
 
   test "leaves a failed server failed while its public endpoint is not yet serving" do

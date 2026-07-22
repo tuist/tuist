@@ -35,9 +35,10 @@ func TestCASImageIntegrationRealBackend(t *testing.T) {
 		t.Fatal("admission declined on a real host with free disk")
 	}
 	att1.SourceAccount = acct
+	att1.PromotedGeneration = 1
 
 	t0 := time.Now()
-	warm, err := m.Materialize(att1, acct)
+	warm, _, err := m.Materialize(att1, acct)
 	if err != nil {
 		t.Fatalf("Materialize (cold): %v", err)
 	}
@@ -73,8 +74,9 @@ func TestCASImageIntegrationRealBackend(t *testing.T) {
 	// --- Lifecycle B: warm second job clones the master image (real cp -c CoW).
 	att2 := mustAllocate(t, m, "vm2")
 	att2.SourceAccount = acct
+	att2.PromotedGeneration = 2
 	t1 := time.Now()
-	warm, err = m.Materialize(att2, acct)
+	warm, _, err = m.Materialize(att2, acct)
 	if err != nil {
 		t.Fatalf("Materialize (warm): %v", err)
 	}
@@ -101,14 +103,16 @@ func TestCASImageIntegrationRealBackend(t *testing.T) {
 	}
 	assertRealSparseImage(t, masterImg, "master image after binary promote")
 
-	// --- Converge (ReplaceMaster) swaps the binary master image but must PRESERVE
-	// the sibling CAS image. The converged source is itself a real sparse image.
+	// --- Converge (InstallMaster) swaps the binary master image but must PRESERVE
+	// the sibling CAS image. The converged source is itself a real sparse image,
+	// installed at a newer generation than the promotes above so the fast-forward
+	// takes.
 	src := filepath.Join(t.TempDir(), "head.sparseimage")
 	if err := m.backend.createImage(src, 1); err != nil {
 		t.Fatalf("build converged src image: %v", err)
 	}
-	if err := m.ReplaceMaster(acct, ReservedTuistCacheVolume, src, "digest-converged"); err != nil {
-		t.Fatalf("ReplaceMaster: %v", err)
+	if _, err := m.InstallMaster(acct, ReservedTuistCacheVolume, src, 3); err != nil {
+		t.Fatalf("InstallMaster: %v", err)
 	}
 	assertRealSparseImage(t, masterImg, "master image after HEAD convergence")
 

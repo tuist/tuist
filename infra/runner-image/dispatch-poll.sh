@@ -533,20 +533,15 @@ wait_for_cache_ready() {
 }
 
 # capture_cache_state snapshots the post-job inventory while the image is still
-# MOUNTED — after the detach nothing inside it is readable. It records the
-# inventory digest (which the host records beside a promoted master; the host
-# cannot compute it itself without attaching) and remembers the inventory in
-# CACHE_INVENTORY_AFTER for report_cache_dirty.
-#
-# It writes NO promotion authorization: cache-digest is only ever read by the
-# host WHEN it promotes, so staging it before the detach is harmless. The marker
-# that actually authorizes promotion (cache-dirty) is deliberately withheld until
-# report_cache_dirty runs post-detach.
+# MOUNTED — after the detach nothing inside it is readable — into
+# CACHE_INVENTORY_AFTER, used by report_cache_dirty (to detect a change) and by
+# report_volume_head (as the new HEAD's tree_digest). The host tracks a promoted
+# master by its GENERATION, not this digest, so nothing is staged to the share
+# here; the digest travels to the server in the HEAD report instead.
 capture_cache_state() {
   [ -n "${CACHE_MOUNT}" ] || return 0
   [ -d "${STATUS_SHARE}" ] || return 0
   CACHE_INVENTORY_AFTER=$(cache_inventory)
-  printf '%s' "${CACHE_INVENTORY_AFTER}" > "${STATUS_SHARE}/cache-digest" 2>/dev/null || true
 }
 
 # report_cache_dirty writes the guest's dirty marker into the writable status
@@ -613,6 +608,20 @@ stage_volume_head() {
     "${gen:-0}" "${digest}" "${download}" >"${STATUS_SHARE}/volume-head.json" 2>/dev/null || true
 }
 
+# read_base_generation returns the HEAD generation this VM's branch was cloned
+# from — staged by the host into the status share at materialize. It is the
+# fast-forward base the server checks the promote against: the server advances the
+# HEAD only if it is still at this generation. Absent or non-numeric (a cold
+# branch with no local master, or a host that did not stage it) reads as 0, which
+# the server accepts only when the account has no HEAD yet.
+read_base_generation() {
+  local gen=""
+  if [ -r "${STATUS_SHARE}/cache-base-generation" ]; then
+    gen=$(tr -cd '0-9' < "${STATUS_SHARE}/cache-base-generation" 2>/dev/null)
+  fi
+  printf '%s' "${gen:-0}"
+}
+
 # VOLUME_HEAD_UPLOAD_TIMEOUT bounds the master upload. The image is sparse, so
 # this transfers the cache actually written rather than the provisioned cap, but
 # that is still GBs on a full working set — hence a far larger ceiling than the
@@ -677,10 +686,28 @@ report_volume_head() {
   fi
   # Only now advance the HEAD: the object at the digest key exists, so a
   # converging host that reads this HEAD will find it.
-  curl -fsS --connect-timeout 10 --max-time 15 -X POST \
+  #
+  # The bump is a fast-forward compare-and-swap keyed by the base generation this
+  # job's branch was cloned from (staged by the host at materialize). The server
+  # accepts only if the HEAD is still at that base, and returns the accepted
+  # generation. Relay it to the host via cache-promoted-generation: the host
+  # installs the branch as its local master at that generation only on an accept,
+  # so local master and HEAD advance together. A rejected fast-forward (409, a
+  # stale base another host advanced past) leaves the marker unwritten, and the
+  # host discards the branch and re-converges.
+  local base_generation response promoted_generation
+  base_generation=$(read_base_generation)
+  response=$(curl -fsS --connect-timeout 10 --max-time 15 -X POST \
     -H "Authorization: Bearer ${SA_TOKEN}" -H "Content-Type: application/json" \
-    --data "{\"tree_digest\":\"${CACHE_INVENTORY_AFTER}\"}" "${VOLUME_HEAD_REPORT_URL}" >/dev/null 2>&1 || true
-  echo "$(date -u +%FT%TZ) dispatch-poll: published volume HEAD (digest=${CACHE_INVENTORY_AFTER})"
+    --data "{\"tree_digest\":\"${CACHE_INVENTORY_AFTER}\",\"base_generation\":${base_generation}}" \
+    "${VOLUME_HEAD_REPORT_URL}" 2>/dev/null)
+  promoted_generation=$(printf '%s' "${response}" | sed -n 's/.*"generation"[[:space:]]*:[[:space:]]*\([0-9]*\).*/\1/p')
+  if [ -n "${promoted_generation}" ] && [ -d "${STATUS_SHARE}" ]; then
+    printf '%s' "${promoted_generation}" > "${STATUS_SHARE}/cache-promoted-generation" 2>/dev/null || true
+    echo "$(date -u +%FT%TZ) dispatch-poll: published volume HEAD (digest=${CACHE_INVENTORY_AFTER} generation=${promoted_generation})"
+  else
+    echo "$(date -u +%FT%TZ) dispatch-poll: volume HEAD fast-forward rejected or unreachable (base=${base_generation}); branch not promoted"
+  fi
 }
 
 # Probe before polling: the share is attached at boot, independent of which

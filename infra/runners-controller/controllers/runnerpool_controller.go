@@ -161,15 +161,29 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{}, fmt.Errorf("list pods: %w", err)
 	}
 
+	// Warm capacity is counted here, in the one pass with no early
+	// returns, rather than alongside the classification below. The reap
+	// path can bail mid-loop, and a deferred publish of a not-yet-
+	// assigned counter would report 0 warm Pods on an error path — which
+	// reads as "no capacity" and masks exactly the starvation this series
+	// exists to surface.
 	phaseReplicas := podPhaseReplicaCounts{}
+	idleCount := 0
 	for i := range pods.Items {
 		p := &pods.Items[i]
-		if isAlive(p) {
-			phaseReplicas.add(p)
+		if !isAlive(p) {
+			continue
+		}
+		phaseReplicas.add(p)
+		// Mirrors the classification below: stale-image Pods are retired
+		// by the roll throttle rather than counted as available.
+		if !isStaleImage(p, pool) && isIdle(p) && isWarmCapacity(p, pool) {
+			idleCount++
 		}
 	}
 	defer func() {
 		metrics.RecordPodPhases(pool.Name, phaseReplicas.pending, phaseReplicas.running, phaseReplicas.unknown)
+		metrics.RecordIdleReplicas(pool.Name, idleCount)
 		// darwin only: Pending means "no VM yet" for a Tart pool, but it
 		// is the healthy steady state for a Linux one. Linux warm-standby
 		// Pods run their dispatch poller as an init container and kubelet
@@ -348,6 +362,9 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 		}
 		phaseReplicas.remove(p)
+		if isWarmCapacity(p, pool) {
+			idleCount--
+		}
 		scaledDown++
 	}
 
@@ -593,6 +610,49 @@ func isIdle(pod *corev1.Pod) bool {
 		return false
 	}
 	return !pollerTerminated(pod)
+}
+
+// isWarmCapacity reports whether an idle Pod can actually accept a job
+// right now. `isIdle` alone can't answer that: it only asks "unclaimed
+// and still polling", which a Pod that has never been scheduled also
+// satisfies. On a contended Tart fleet such a Pod can sit Pending for
+// hours with no node and no VM, and counting it as available capacity
+// inverts the reading it feeds — a pool starved of hosts would report
+// idle Pods sitting on queued work, the signature of the opposite
+// failure.
+//
+// The test is OS-dependent for the same reason oldestPendingPodAge is
+// darwin-only, but neither platform can use the Pod phase alone:
+//
+//   - darwin: Pending means the VM isn't up, so only Running is capacity.
+//   - linux: Pending is the healthy steady state, because the dispatch
+//     poller is an init container and kubelet holds the Pod in Pending
+//     for as long as it runs. But an *unscheduled* Linux Pod is equally
+//     Pending, equally unowned, and `pollerTerminated` reports false for
+//     it because no poller status exists at all. Treating every non-
+//     darwin Pod as capacity would therefore classify a Linux pool that
+//     is simply out of hosts as starved — the exact inversion this
+//     function exists to prevent, just on the other platform.
+//
+// So Linux asks whether the poller is *actively running*, which is only
+// true once the Pod has a node and kubelet has started the container.
+func isWarmCapacity(pod *corev1.Pod, pool *tuistv1.RunnerPool) bool {
+	if pool.Spec.OS == "darwin" {
+		return pod.Status.Phase == corev1.PodRunning
+	}
+	return pollerRunning(pod)
+}
+
+// pollerRunning reports whether the Linux `poller` init container is
+// currently executing. Absent status means the Pod has not started it
+// (unscheduled, or still pulling), which is not warm capacity.
+func pollerRunning(pod *corev1.Pod) bool {
+	for _, cs := range pod.Status.InitContainerStatuses {
+		if cs.Name == "poller" {
+			return cs.State.Running != nil
+		}
+	}
+	return false
 }
 
 // pollerTerminated reports whether the Linux `poller` init container
