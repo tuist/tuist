@@ -96,6 +96,8 @@ defmodule Tuist.Runners do
   alias Tuist.Runners.Telemetry
   alias Tuist.Runners.VolumeAffinities
   alias Tuist.Runners.VolumeHeads
+  alias Tuist.Runners.VolumeMasterOrphans
+  alias Tuist.Runners.Workers.PruneVolumeMasterOrphanWorker
   alias Tuist.Runners.Workers.PruneVolumeMasterWorker
   alias Tuist.Storage
   alias Tuist.VCS
@@ -266,20 +268,26 @@ defmodule Tuist.Runners do
 
       case VolumeHeads.bump_head(account_id, node_name, tree_digest, base_generation) do
         {:ok, generation} ->
+          # This digest is now HEAD, so it is no longer an orphan candidate even if
+          # an earlier job's promote of the same inventory was rejected — forget it
+          # so the scheduled reclaim below becomes a no-op and never deletes the
+          # live master. Its lifecycle now belongs to the supersession prune.
+          VolumeMasterOrphans.forget(account_id, tree_digest)
           schedule_superseded_master_prune(account_id, superseded, tree_digest)
           {:ok, generation}
 
         :conflict ->
-          # Do NOT schedule a prune of the losing upload here. Content-addressed
-          # keys mean a rejected digest can be, or later become, the live HEAD (a
-          # concurrent or subsequent accepted promote of the same inventory reuses
-          # the exact object), and download URLs are minted only for the current
-          # HEAD's digest — so a conflict-clocked prune could delete an object that
-          # is HEAD or whose in-flight converge URLs are still valid, or race an
-          # upload→bump. Cleanup stays tied to an observed supersession (the
-          # accepted branch above): a losing digest that never becomes HEAD is a
-          # true orphan, reclaimed by the account-deletion sweep rather than on a
-          # guess made at conflict time.
+          # The guest uploaded its object before this compare-and-swap, so a
+          # rejected promote leaves a <digest>.image no HEAD points at. Record it
+          # and schedule a delayed reclaim: a digest that never becomes HEAD has no
+          # download URL minted for it (URLs are only ever minted for the current
+          # HEAD) and is safe to delete after the URL-TTL grace. If a later job
+          # instead ACCEPTS this same digest, the accept branch above forgets the
+          # orphan, so the reclaim skips it — a live master is never deleted. This
+          # is what keeps rejected uploads from accumulating indefinitely under
+          # contention, without the conflict-time-guessing hazard of pruning
+          # straight away.
+          reclaim_rejected_master_upload(account_id, tree_digest)
           :conflict
       end
     else
@@ -327,6 +335,61 @@ defmodule Tuist.Runners do
       _ ->
         with {:ok, account} <- Accounts.get_account_by_id(account_id) do
           Storage.delete_object(volume_master_object_key(account_id, tree_digest), account)
+        end
+    end
+  end
+
+  # Record a rejected promote's uploaded object as an orphan and schedule its
+  # reclaim after the URL-TTL grace. The grace covers the window where a
+  # concurrent job might accept this same digest (which forgets the orphan); a
+  # digest that stays orphaned past it never became HEAD, so no download URL
+  # points at it.
+  defp reclaim_rejected_master_upload(account_id, tree_digest) do
+    VolumeMasterOrphans.record(account_id, tree_digest)
+
+    case %{account_id: account_id, tree_digest: tree_digest}
+         |> PruneVolumeMasterOrphanWorker.new(schedule_in: @volume_master_url_ttl_seconds)
+         |> Oban.insert() do
+      {:ok, _job} ->
+        :ok
+
+      {:error, reason} ->
+        # Best-effort: a failed schedule just leaves the orphan row and object for
+        # the account-deletion sweep — never fail the report over retention.
+        Logger.warning("runners: failed to schedule orphan master reclaim for #{account_id}: #{inspect(reason)}")
+
+        :ok
+    end
+  end
+
+  @doc """
+  Reclaims the object for a rejected-promote `tree_digest`, UNLESS it has since
+  been accepted as the account's HEAD. Deletes only a digest that is still
+  recorded as an orphan (never accepted) and is not the current HEAD — a rejected
+  digest a later job committed is forgotten on acceptance and skipped here, so a
+  live master is never dropped. Best-effort; called from
+  `PruneVolumeMasterOrphanWorker` on a delay after the promote was rejected.
+  """
+  def prune_orphan_volume_master(account_id, tree_digest) do
+    cond do
+      not VolumeMasterOrphans.exists?(account_id, tree_digest) ->
+        # Accepted as HEAD (forgotten on acceptance) or already reclaimed.
+        :ok
+
+      match?(%{tree_digest: ^tree_digest}, VolumeHeads.get_head(account_id)) ->
+        # Belt-and-suspenders: it is the live HEAD, so it is not an orphan. Forget
+        # the stale row without deleting the object.
+        VolumeMasterOrphans.forget(account_id, tree_digest)
+        :ok
+
+      true ->
+        # Forget the row only after a confirmed delete: on a storage error the row
+        # stays so the worker's retry (or a later run) reclaims the object rather
+        # than orphaning it permanently.
+        with {:ok, account} <- Accounts.get_account_by_id(account_id),
+             :ok <- Storage.delete_object(volume_master_object_key(account_id, tree_digest), account) do
+          VolumeMasterOrphans.forget(account_id, tree_digest)
+          :ok
         end
     end
   end
