@@ -1110,7 +1110,13 @@ impl ActionCache for ReapiService {
         // files, stdout/stderr, and each output directory's tree plus the files
         // it lists — not just output files, so a Bazel client with tree
         // artifacts is covered as well. Mostly existence-cache hits.
-        let evicted = first_evicted_output(&self.state, namespace_id, &action_result).await;
+        let evicted = first_evicted_output(
+            &self.state,
+            namespace_id,
+            &action_result,
+            &mut materialization_budget,
+        )
+        .await;
         if let Some(missing) = evicted {
             // Delete the dead entry past the replication grace window (a
             // freshly replicated entry's blobs may still be in flight), so
@@ -1344,6 +1350,12 @@ impl ContentAddressableStorage for ReapiService {
         let principal = self.authorize_request(&request, extension.clone()).await?;
         let mut missing = Vec::new();
         for digest in &request.get_ref().blob_digests {
+            // The empty blob is present by REAPI convention even when it was
+            // never uploaded; reporting it missing would push clients to upload
+            // a zero-byte blob they otherwise synthesize.
+            if is_empty_blob(digest) {
+                continue;
+            }
             let key = blob_key(&digest_key(digest)?);
             let exists = self
                 .state
@@ -1878,21 +1890,33 @@ async fn maybe_read_cas_bytes(
 /// keep hitting the same "Lost inputs"/missing-object failure this fix targets.
 /// The checks are manifest lookups (mostly existence-cache hits); only an entry
 /// that actually carries directory outputs pays the extra tree read, and only
-/// once its cheap checks pass. Read or decode failures are treated as "present"
-/// so a transient blip never turns a live entry into a spurious miss — the same
-/// bias as the `unwrap_or(true)` manifest checks.
+/// once its cheap checks pass. That read claims the request's
+/// `MaterializationBudget` like every other read on this path, so a large tree
+/// cannot pull unbounded bytes into a pressured node — a failed claim surfaces
+/// as an error the loop treats as "present", degrading the gate to serving
+/// unchecked rather than adding load. Read or decode failures are treated as
+/// "present" throughout, and the canonical empty blob is always present (REAPI
+/// convention), so a transient blip or a zero-byte reference never turns a live
+/// entry into a spurious miss — the same bias as the `unwrap_or(true)` manifest
+/// checks.
 async fn first_evicted_output(
     state: &SharedState,
     namespace_id: &str,
     action_result: &reapi::ActionResult,
+    materialization_budget: &mut MaterializationBudget<'_>,
 ) -> Option<String> {
     let missing = |digest: &reapi::Digest| {
-        digest_key(digest).is_ok_and(|key| {
-            !state
-                .store
-                .artifact_manifest_exists(ArtifactProducer::Reapi, namespace_id, &blob_key(&key))
-                .unwrap_or(true)
-        })
+        !is_empty_blob(digest)
+            && digest_key(digest).is_ok_and(|key| {
+                !state
+                    .store
+                    .artifact_manifest_exists(
+                        ArtifactProducer::Reapi,
+                        namespace_id,
+                        &blob_key(&key),
+                    )
+                    .unwrap_or(true)
+            })
     };
 
     let stream_evicted = action_result
@@ -1916,8 +1940,15 @@ async fn first_evicted_output(
         // The tree blob survives; a client next fetches every file it lists, so
         // an evicted leaf poisons the replay just as a missing tree would. This
         // read is the one non-manifest cost, paid only by directory-output
-        // entries and only after their tree passed the cheap check above.
-        let Ok(Some(bytes)) = maybe_read_cas_bytes(state, namespace_id, tree_digest, None).await
+        // entries and only after their tree passed the cheap check above, and it
+        // claims the shared budget so a large tree can't materialize unbounded.
+        let Ok(Some(bytes)) = maybe_read_cas_bytes(
+            state,
+            namespace_id,
+            tree_digest,
+            Some(&mut *materialization_budget),
+        )
+        .await
         else {
             continue;
         };
@@ -2414,6 +2445,18 @@ fn compress_snapshot(body: &[u8]) -> Vec<u8> {
     out.extend_from_slice(&(body.len() as u64).to_le_bytes());
     out.extend_from_slice(&compressed);
     out
+}
+
+/// The canonical SHA-256 of the empty byte string. REAPI clients assume the
+/// empty blob always exists and never fetch it (Bazel synthesizes it
+/// client-side), so a server must report it present regardless of whether a
+/// zero-byte blob was ever uploaded — otherwise a result referencing an empty
+/// file, empty stdout, or empty stderr would be treated as evicted even though
+/// a replay succeeds.
+const EMPTY_BLOB_SHA256: &str = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+
+fn is_empty_blob(digest: &reapi::Digest) -> bool {
+    digest.size_bytes == 0 && digest.hash == EMPTY_BLOB_SHA256
 }
 
 fn digest_key(digest: &reapi::Digest) -> Result<String, Status> {
@@ -3157,6 +3200,15 @@ mod tests {
                 },
                 "a present tree that lists an evicted file",
             ),
+            (
+                [0x46u8; 32],
+                reapi::ActionResult {
+                    output_files: vec![live_file()],
+                    stderr_digest: Some(digest(missing_blob, 7)),
+                    ..Default::default()
+                },
+                "an evicted stderr blob",
+            ),
         ];
         for (action, result, label) in &cases {
             write_artifact(
@@ -3197,6 +3249,90 @@ mod tests {
             .get_action_result(get_request(all_live_action))
             .await
             .expect("an entry whose stream and tree blobs are all present serves");
+
+        // The canonical empty blob is present by REAPI convention even though it
+        // was never uploaded, so an entry referencing it for stdout and as a
+        // tree leaf must still serve rather than gate as evicted.
+        let empty_digest = reapi::Digest {
+            hash: EMPTY_BLOB_SHA256.to_string(),
+            size_bytes: 0,
+        };
+        let empty_leaf_tree = reapi::Tree {
+            root: Some(reapi::Directory {
+                files: vec![reapi::FileNode {
+                    name: "empty".into(),
+                    digest: Some(empty_digest.clone()),
+                    ..Default::default()
+                }],
+                ..Default::default()
+            }),
+            ..Default::default()
+        }
+        .encode_to_vec();
+        let empty_leaf_tree_hash = [0x37u8; 32];
+        write_artifact(
+            store,
+            &uploads,
+            &blob_key(&format!(
+                "{}/{}",
+                hex::encode(empty_leaf_tree_hash),
+                empty_leaf_tree.len()
+            )),
+            &empty_leaf_tree,
+            now,
+        )
+        .await;
+        let empty_ref_action = [0x45u8; 32];
+        let empty_ref = reapi::ActionResult {
+            output_files: vec![live_file()],
+            stdout_digest: Some(empty_digest),
+            output_directories: vec![with_tree(empty_leaf_tree_hash, empty_leaf_tree.len())],
+            ..Default::default()
+        };
+        write_artifact(
+            store,
+            &uploads,
+            &format!("action_cache/{}/10", hex::encode(empty_ref_action)),
+            &empty_ref.encode_to_vec(),
+            now,
+        )
+        .await;
+        service
+            .get_action_result(get_request(empty_ref_action))
+            .await
+            .expect("an entry referencing the empty blob for stdout and a tree leaf still serves");
+    }
+
+    #[tokio::test]
+    async fn find_missing_blobs_treats_the_empty_blob_as_present() {
+        let context = test_context(|_| {}).await;
+        let service = ReapiService {
+            snapshot_cache: Default::default(),
+            state: context.state.clone(),
+        };
+        let empty = reapi::Digest {
+            hash: EMPTY_BLOB_SHA256.to_string(),
+            size_bytes: 0,
+        };
+        let absent = reapi::Digest {
+            hash: hex::encode([0x77u8; 32]),
+            size_bytes: 5,
+        };
+        let missing = service
+            .find_missing_blobs(Request::new(reapi::FindMissingBlobsRequest {
+                instance_name: "ios".into(),
+                blob_digests: vec![empty, absent.clone()],
+                digest_function: 0,
+            }))
+            .await
+            .expect("find_missing_blobs should succeed")
+            .into_inner()
+            .missing_blob_digests;
+        assert_eq!(
+            missing,
+            vec![absent],
+            "the empty blob is always present; only the genuinely absent blob is reported"
+        );
     }
 
     #[tokio::test]
