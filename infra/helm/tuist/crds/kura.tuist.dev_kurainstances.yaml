@@ -132,6 +132,12 @@ spec:
                 # self-hosted node can dial the managed mesh over the internet.
                 meshPublicPeerHost:
                   type: string
+                # Whether the peer hostname is actively published. False keeps
+                # the internal peer backend and certificate warm without creating
+                # public DNS or a regional demultiplexer route. Omitted preserves
+                # legacy behavior during a controller/server rollout overlap.
+                meshPublicPeerPublished:
+                  type: boolean
                 # Self-hosted node peer URLs injected into managed pods'
                 # KURA_PEERS so the managed mesh dials them (managed->self-hosted
                 # replication leg).
