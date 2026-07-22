@@ -37,7 +37,10 @@ use super::{admission::*, snapshot::*};
 
 use crate::{
     artifact::{manifest::ArtifactManifest, producer::ArtifactProducer},
-    constants::{MAX_INLINE_REPLICATION_BODY_BYTES, MAX_MODULE_TOTAL_BYTES},
+    constants::{
+        MAX_INLINE_REPLICATION_BODY_BYTES, MAX_MODULE_TOTAL_BYTES,
+        encoded_response_stream_chunk_bytes, response_stream_chunk_bytes,
+    },
     extension::{AccessDecision, ExtensionContext, Principal},
     file_cache::{FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES, FileCachePolicy},
     io::is_fd_pool_exhausted_error,
@@ -50,7 +53,6 @@ use crate::{
 };
 
 const DEFAULT_INSTANCE_NAME: &str = "default";
-const REAPI_READ_STREAM_CHUNK_BYTES: usize = 512 * 1024;
 const REAPI_MATERIALIZATION_REJECTED_ACTION: &str = "reapi_materialization_rejected";
 // Abort a ByteStream upload only when no chunk arrives within this window. The
 // timer resets on every chunk received, so an actively transferring upload is
@@ -127,6 +129,9 @@ pub fn routes(state: SharedState) -> axum::Router {
             admit_grpc_write_decode,
         ))
         .layer(GrpcRequestAccountingLayer { state })
+        .layer(axum::middleware::map_response(
+            crate::http::guard_response_stream_transport,
+        ))
 }
 
 fn spawn_snapshot_refresh_task(service: ReapiService) {
@@ -212,6 +217,32 @@ impl ReapiService {
             let metadata_value = tonic::metadata::MetadataValue::try_from(value.as_str())
                 .map_err(|_| Status::internal("invalid extension response header value"))?;
             response.metadata_mut().insert(metadata_key, metadata_value);
+        }
+        Ok(())
+    }
+
+    fn retain_unary_response_materialization<T: Message>(
+        &self,
+        response: &mut Response<T>,
+        label: &str,
+    ) -> Result<(), Status> {
+        let encoded_bytes = response.get_ref().encoded_len();
+        let permit = self
+            .state
+            .memory
+            .try_acquire_response_materialization(encoded_bytes)
+            .map_err(|_| {
+                self.state
+                    .metrics
+                    .record_memory_action(REAPI_MATERIALIZATION_REJECTED_ACTION);
+                Status::resource_exhausted(format!(
+                    "{label} was rejected because the concurrent REAPI response materialization pool is exhausted"
+                ))
+            })?;
+        if let Some(permit) = permit {
+            response.extensions_mut().insert(
+                crate::memory::ResponseTransportGuard::from_materialization_permits(vec![permit]),
+            );
         }
         Ok(())
     }
@@ -565,7 +596,7 @@ impl ReapiService {
                 let permit = self
                     .state
                     .memory
-                    .try_acquire_reapi_materialization(cached.len())
+                    .try_acquire_response_materialization(cached.len())
                     .map_err(|_| {
                         Status::resource_exhausted(
                             "action-cache snapshot serve declined under memory pressure",
@@ -1062,9 +1093,11 @@ impl ActionCache for ReapiService {
             };
             let mut response = Response::new(action_result);
             if let Some(permit) = response_memory {
-                response
-                    .extensions_mut()
-                    .insert(ResponseMemoryGuard::new(vec![permit]));
+                response.extensions_mut().insert(
+                    crate::memory::ResponseTransportGuard::from_materialization_permits(vec![
+                        permit,
+                    ]),
+                );
             }
             self.apply_response_headers(&mut response, extension, principal.as_ref())
                 .await?;
@@ -1349,6 +1382,7 @@ impl ActionCache for ReapiService {
         let mut response = Response::new(action_result);
         self.apply_response_headers(&mut response, extension, principal.as_ref())
             .await?;
+        self.retain_unary_response_materialization(&mut response, "action result response")?;
         // Book usage only after the response is fully built. Every applied
         // update is billed: an action result is a mutable entry whose content
         // changes across updates, so there is no CAS-style "already present"
@@ -1403,6 +1437,7 @@ impl ContentAddressableStorage for ReapiService {
         });
         self.apply_response_headers(&mut response, extension, principal.as_ref())
             .await?;
+        self.retain_unary_response_materialization(&mut response, "missing blobs response")?;
         Ok(response)
     }
 
@@ -1477,6 +1512,7 @@ impl ContentAddressableStorage for ReapiService {
         let mut response = Response::new(reapi::BatchUpdateBlobsResponse { responses });
         self.apply_response_headers(&mut response, extension, principal.as_ref())
             .await?;
+        self.retain_unary_response_materialization(&mut response, "batch update response")?;
         if stored_any {
             self.record_reapi_upload(request.metadata(), namespace_id, stored_bytes);
         }
@@ -1656,6 +1692,29 @@ impl ByteStream for ReapiService {
         let bytes_to_read = read_limit
             .unwrap_or_else(|| manifest.size.saturating_sub(read_offset))
             .min(manifest.size.saturating_sub(read_offset));
+        let inline_bytes = if manifest.inline { manifest.size } else { 0 };
+        let stream_chunk_bytes = response_stream_chunk_bytes(bytes_to_read);
+        let encoded_chunk_bytes = encoded_response_stream_chunk_bytes(bytes_to_read);
+        let requested_bytes = u64::try_from(encoded_chunk_bytes.saturating_mul(4))
+            .unwrap_or(u64::MAX)
+            .saturating_add(inline_bytes);
+        let requested_bytes = usize::try_from(requested_bytes).map_err(|_| {
+            Status::resource_exhausted("blob stream memory requirement is too large")
+        })?;
+        let permit = self
+            .state
+            .memory
+            .acquire_response_stream_memory(
+                requested_bytes,
+                "bytestream",
+                crate::memory::ResponseStreamAdmissionPatience::Blocking,
+            )
+            .await
+            .map_err(|_| {
+                Status::resource_exhausted(
+                    "server is limiting concurrent ByteStream reads; retry shortly",
+                )
+            })?;
         // Tolerates a concurrent background promotion relocating the blob
         // between the manifest fetch above and this open (see
         // `Store::open_artifact_reader_range_tolerating_promotion`); a genuine
@@ -1680,21 +1739,25 @@ impl ByteStream for ReapiService {
         self.state
             .metrics
             .record_artifact_read(ArtifactProducer::Reapi, "ok", bytes_to_read);
+        self.state.metrics.record_artifact_serving_path("streaming");
         let stream =
-            ReaderStream::with_capacity(reader, REAPI_READ_STREAM_CHUNK_BYTES).map(move |result| {
-                match result {
+            ReaderStream::with_capacity(reader, stream_chunk_bytes).map(
+                move |result| match result {
                     Ok(bytes) => Ok(bytestream::ReadResponse {
                         data: bytes.to_vec(),
                     }),
                     Err(error) => Err(Status::internal(format!(
                         "failed to stream blob chunk: {error}"
                     ))),
-                }
-            });
+                },
+            );
 
         let mut response = Response::new(Box::pin(stream) as Self::ReadStream);
         self.apply_response_headers(&mut response, extension, principal.as_ref())
             .await?;
+        response
+            .extensions_mut()
+            .insert(permit.into_transport_guard());
         // Book usage only once the response is fully built (headers applied): a
         // failure above turns into a gRPC error with no payload, so billing must
         // not have fired. Recorded before the body streams, mirroring the "ok"
@@ -1997,7 +2060,12 @@ impl MaterializedSnapshot {
 
     fn retain_response_memory(&mut self) -> Result<(), Status> {
         if let Some(permit) = self.response_memory.as_mut() {
-            permit.shrink_to(self.bytes.len()).map_err(|_| {
+            let retained_bytes = self
+                .bytes
+                .len()
+                .checked_mul(2)
+                .ok_or_else(|| Status::resource_exhausted("snapshot response size overflow"))?;
+            permit.shrink_to(retained_bytes).map_err(|_| {
                 Status::internal("failed to retain snapshot response memory reservation")
             })?;
         }
@@ -2041,19 +2109,6 @@ fn snapshot_encode_peak_bytes(content_bytes: usize) -> usize {
         .saturating_add(SNAPSHOT_COMPRESSION_SCRATCH_BYTES)
 }
 
-#[derive(Clone)]
-pub(super) struct ResponseMemoryGuard {
-    _permits: std::sync::Arc<Vec<crate::memory::MemoryPermit>>,
-}
-
-impl ResponseMemoryGuard {
-    fn new(permits: Vec<crate::memory::MemoryPermit>) -> Self {
-        Self {
-            _permits: std::sync::Arc::new(permits),
-        }
-    }
-}
-
 impl<'a> MaterializationBudget<'a> {
     fn new(state: &'a SharedState) -> Self {
         Self {
@@ -2084,7 +2139,7 @@ impl<'a> MaterializationBudget<'a> {
         let permit = self
             .state
             .memory
-            .try_acquire_reapi_materialization(requested_bytes)
+            .try_acquire_response_materialization(requested_bytes)
             .map_err(|_| {
                 self.reject(format!(
                     "{label} was rejected because the concurrent REAPI response materialization pool is exhausted"
@@ -2104,8 +2159,10 @@ impl<'a> MaterializationBudget<'a> {
         Status::resource_exhausted(message)
     }
 
-    fn into_response_guard(self) -> Option<ResponseMemoryGuard> {
-        (!self.held_permits.is_empty()).then(|| ResponseMemoryGuard::new(self.held_permits))
+    fn into_response_guard(self) -> Option<crate::memory::ResponseTransportGuard> {
+        (!self.held_permits.is_empty()).then(|| {
+            crate::memory::ResponseTransportGuard::from_materialization_permits(self.held_permits)
+        })
     }
 }
 
@@ -2340,6 +2397,25 @@ mod tests {
         framed.extend_from_slice(&(encoded_message_bytes as u32).to_be_bytes());
         framed.extend(std::iter::repeat_n(byte, encoded_message_bytes));
         framed
+    }
+
+    fn grpc_request<T: Message>(path: &str, message: &T) -> http::Request<axum::body::Body> {
+        let encoded = message.encode_to_vec();
+        let mut framed = Vec::with_capacity(GRPC_MESSAGE_HEADER_BYTES + encoded.len());
+        framed.push(0);
+        framed.extend_from_slice(
+            &u32::try_from(encoded.len())
+                .expect("test message should fit in a gRPC frame")
+                .to_be_bytes(),
+        );
+        framed.extend_from_slice(&encoded);
+        http::Request::builder()
+            .method("POST")
+            .uri(path)
+            .header("content-type", "application/grpc")
+            .header("te", "trailers")
+            .body(axum::body::Body::from(framed))
+            .expect("gRPC request should build")
     }
 
     #[test]
@@ -3805,7 +3881,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn grpc_request_accounting_layer_keeps_response_memory_until_body_drops() {
+    async fn response_transport_keeps_materialization_memory_until_body_drops() {
         let context = test_context(|_| {}).await;
         let materialization_limit = context.state.memory.reapi_materialization_limit_bytes();
         let first_permit = context
@@ -3820,33 +3896,14 @@ mod tests {
             .try_acquire_reapi_materialization(materialization_limit)
             .expect("the response should reserve the rest of the materialization pool")
             .expect("a non-zero reservation should return a permit");
-        let layer = GrpcRequestAccountingLayer {
-            state: context.state.clone(),
-        };
-        let response_memory =
-            std::sync::Arc::new(std::sync::Mutex::new(Some(ResponseMemoryGuard::new(vec![
+        let mut response = axum::response::Response::new(axum::body::Body::empty());
+        response.extensions_mut().insert(
+            crate::memory::ResponseTransportGuard::from_materialization_permits(vec![
                 first_permit,
                 second_permit,
-            ]))));
-        let mut service = layer.layer(tower::service_fn(
-            move |_request: http::Request<TonicBody>| {
-                let guard = response_memory
-                    .lock()
-                    .expect("response memory lock poisoned")
-                    .take()
-                    .expect("test service should be called once");
-                async move {
-                    let mut response = http::Response::new(TonicBody::empty());
-                    response.extensions_mut().insert(guard);
-                    Ok::<_, Infallible>(response)
-                }
-            },
-        ));
-
-        let response = service
-            .call(http::Request::new(TonicBody::empty()))
-            .await
-            .expect("accounting layer should pass through service response");
+            ]),
+        );
+        let response = crate::http::guard_response_stream_transport(response).await;
 
         assert!(
             context
@@ -3867,6 +3924,169 @@ mod tests {
                 .is_ok(),
             "dropping the response body must release its materialization permit"
         );
+    }
+
+    #[tokio::test]
+    async fn bytestream_route_keeps_stream_memory_until_encoded_bytes_drop() {
+        let context = test_context(|_| {}).await;
+        let blob = vec![0xA5; 64 * 1024];
+        let hash = hex::encode(Sha256::digest(&blob));
+        context
+            .state
+            .store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Reapi,
+                DEFAULT_INSTANCE_NAME,
+                &blob_key(&format!("{hash}/{}", blob.len())),
+                "application/octet-stream",
+                &blob,
+            )
+            .await
+            .expect("CAS blob should persist");
+
+        let mut response = routes(context.state.clone())
+            .oneshot(grpc_request(
+                "/google.bytestream.ByteStream/Read",
+                &bytestream::ReadRequest {
+                    resource_name: format!("blobs/{hash}/{}", blob.len()),
+                    read_offset: 0,
+                    read_limit: 0,
+                },
+            ))
+            .await
+            .expect("ByteStream route should respond");
+        assert_eq!(response.status(), http::StatusCode::OK);
+        let reserved_bytes = context.state.memory.transient_reserved_bytes();
+        assert!(reserved_bytes > 0);
+
+        let frame = response
+            .body_mut()
+            .frame()
+            .await
+            .expect("ByteStream response should yield a frame")
+            .expect("ByteStream response frame should be valid");
+        let encoded = frame
+            .into_data()
+            .expect("ByteStream response frame should contain encoded data");
+        drop(response);
+        assert_eq!(
+            context.state.memory.transient_reserved_bytes(),
+            reserved_bytes,
+            "the encoded transport bytes must retain the stream reservation"
+        );
+
+        drop(encoded);
+        #[cfg(target_os = "linux")]
+        context.state.memory.observe(0);
+        assert_eq!(context.state.memory.transient_reserved_bytes(), 0);
+    }
+
+    #[tokio::test]
+    async fn batch_read_route_keeps_materialization_memory_until_encoded_bytes_drop() {
+        let context = test_context(|_| {}).await;
+        let blob = vec![0x5A; 64 * 1024];
+        let digest = reapi::Digest {
+            hash: hex::encode(Sha256::digest(&blob)),
+            size_bytes: blob.len() as i64,
+        };
+        context
+            .state
+            .store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Reapi,
+                DEFAULT_INSTANCE_NAME,
+                &blob_key(&digest_key(&digest).expect("digest key should build")),
+                "application/octet-stream",
+                &blob,
+            )
+            .await
+            .expect("CAS blob should persist");
+
+        let mut response = routes(context.state.clone())
+            .oneshot(grpc_request(
+                "/build.bazel.remote.execution.v2.ContentAddressableStorage/BatchReadBlobs",
+                &reapi::BatchReadBlobsRequest {
+                    instance_name: DEFAULT_INSTANCE_NAME.into(),
+                    digests: vec![digest],
+                    digest_function: reapi::digest_function::Value::Sha256 as i32,
+                    ..Default::default()
+                },
+            ))
+            .await
+            .expect("BatchReadBlobs route should respond");
+        assert_eq!(response.status(), http::StatusCode::OK);
+        let reserved_bytes = context.state.memory.transient_reserved_bytes();
+        assert_eq!(reserved_bytes, (blob.len() * 2) as u64);
+
+        let frame = response
+            .body_mut()
+            .frame()
+            .await
+            .expect("BatchReadBlobs response should yield a frame")
+            .expect("BatchReadBlobs response frame should be valid");
+        let encoded = frame
+            .into_data()
+            .expect("BatchReadBlobs response frame should contain encoded data");
+        drop(response);
+        assert_eq!(
+            context.state.memory.transient_reserved_bytes(),
+            reserved_bytes,
+            "the encoded transport bytes must retain the materialization reservation"
+        );
+
+        drop(encoded);
+        #[cfg(target_os = "linux")]
+        context.state.memory.observe(0);
+        assert_eq!(context.state.memory.transient_reserved_bytes(), 0);
+    }
+
+    #[tokio::test]
+    async fn unary_response_keeps_materialization_memory_until_encoded_bytes_drop() {
+        let context = test_context(|_| {}).await;
+        let digests = (0..128)
+            .map(|index| reapi::Digest {
+                hash: format!("{index:064x}"),
+                size_bytes: index,
+            })
+            .collect::<Vec<_>>();
+        let expected = reapi::FindMissingBlobsResponse {
+            missing_blob_digests: digests.clone(),
+        };
+
+        let mut response = routes(context.state.clone())
+            .oneshot(grpc_request(
+                "/build.bazel.remote.execution.v2.ContentAddressableStorage/FindMissingBlobs",
+                &reapi::FindMissingBlobsRequest {
+                    instance_name: DEFAULT_INSTANCE_NAME.into(),
+                    blob_digests: digests,
+                    digest_function: reapi::digest_function::Value::Sha256 as i32,
+                },
+            ))
+            .await
+            .expect("FindMissingBlobs route should respond");
+        assert_eq!(response.status(), http::StatusCode::OK);
+        let reserved_bytes = context.state.memory.transient_reserved_bytes();
+        assert_eq!(reserved_bytes, (expected.encoded_len() * 2) as u64);
+
+        let frame = response
+            .body_mut()
+            .frame()
+            .await
+            .expect("FindMissingBlobs response should yield a frame")
+            .expect("FindMissingBlobs response frame should be valid");
+        let encoded = frame
+            .into_data()
+            .expect("FindMissingBlobs response frame should contain encoded data");
+        drop(response);
+        assert_eq!(
+            context.state.memory.transient_reserved_bytes(),
+            reserved_bytes
+        );
+
+        drop(encoded);
+        #[cfg(target_os = "linux")]
+        context.state.memory.observe(0);
+        assert_eq!(context.state.memory.transient_reserved_bytes(), 0);
     }
 
     // Regression test for the missing flush in the ByteStream `write` handler. The
@@ -4686,7 +4906,7 @@ end
             snapshot_cache: Default::default(),
             state: context.state.clone(),
         };
-        let bytes = vec![b'b'; 16 * 1024 * 1024];
+        let bytes = vec![b'b'; 8 * 1024 * 1024];
         let digest = reapi::Digest {
             hash: hex::encode(Sha256::digest(&bytes)),
             size_bytes: bytes.len() as i64,

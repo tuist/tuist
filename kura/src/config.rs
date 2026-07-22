@@ -98,6 +98,7 @@ const KURA_NODE_COUNTRY: &str = "KURA_NODE_COUNTRY";
 const KURA_NODE_SUBDIVISION: &str = "KURA_NODE_SUBDIVISION";
 
 const BYTES_PER_MIB: u64 = 1024 * 1024;
+const MEMORY_WATERMARK_MIN_GAP_BYTES: u64 = 64 * BYTES_PER_MIB;
 const DEFAULT_FILE_DESCRIPTOR_ACQUIRE_TIMEOUT_MS: u64 = 5_000;
 const DEFAULT_DRAIN_COMPLETION_TIMEOUT_MS: u64 = 240_000;
 const DEFAULT_MAX_KEYVALUE_BYTES: usize = 1024 * 1024;
@@ -106,6 +107,8 @@ const DEFAULT_REPLICATION_PUBLIC_LATENCY_TARGET_MS: u64 = 100;
 const FALLBACK_HOST_FD_LIMIT: usize = 4096;
 const FALLBACK_HOST_MEMORY_LIMIT_BYTES: u64 = 1024 * BYTES_PER_MIB;
 const FALLBACK_HOST_CPU_COUNT: usize = 4;
+#[cfg(target_os = "linux")]
+const CGROUP_V1_UNLIMITED_THRESHOLD_BYTES: u64 = 1 << 53;
 
 #[derive(Clone, Debug)]
 pub struct Config {
@@ -608,7 +611,7 @@ impl Config {
                 "{KURA_SEGMENT_HANDLE_CACHE_SIZE} must be less than {KURA_FILE_DESCRIPTOR_POOL_SIZE} so transient file operations keep headroom"
             ));
         }
-        let memory_soft_limit_bytes = optional_parsed_value(
+        let memory_soft_limit_bytes_override = optional_parsed_value(
             &mut lookup,
             KURA_MEMORY_SOFT_LIMIT_BYTES,
             &mut invalid,
@@ -617,14 +620,15 @@ impl Config {
                     .parse::<u64>()
                     .map_err(|_| format!("{KURA_MEMORY_SOFT_LIMIT_BYTES} must be a valid u64"))
             },
-        )
-        .unwrap_or(derived_defaults.memory_soft_limit_bytes);
+        );
+        let memory_soft_limit_bytes =
+            memory_soft_limit_bytes_override.unwrap_or(derived_defaults.memory_soft_limit_bytes);
         if memory_soft_limit_bytes == 0 {
             invalid.push(format!(
                 "{KURA_MEMORY_SOFT_LIMIT_BYTES} must be greater than 0"
             ));
         }
-        let memory_hard_limit_bytes = optional_parsed_value(
+        let memory_hard_limit_bytes_override = optional_parsed_value(
             &mut lookup,
             KURA_MEMORY_HARD_LIMIT_BYTES,
             &mut invalid,
@@ -633,11 +637,15 @@ impl Config {
                     .parse::<u64>()
                     .map_err(|_| format!("{KURA_MEMORY_HARD_LIMIT_BYTES} must be a valid u64"))
             },
-        )
-        .unwrap_or_else(|| {
-            derived_defaults
-                .memory_hard_limit_bytes
-                .max(memory_soft_limit_bytes.saturating_add(64 * BYTES_PER_MIB))
+        );
+        let memory_hard_limit_bytes = memory_hard_limit_bytes_override.unwrap_or_else(|| {
+            if memory_soft_limit_bytes_override.is_some() {
+                derived_defaults
+                    .memory_hard_limit_bytes
+                    .max(memory_soft_limit_bytes.saturating_add(MEMORY_WATERMARK_MIN_GAP_BYTES))
+            } else {
+                derived_defaults.memory_hard_limit_bytes
+            }
         });
         if memory_hard_limit_bytes <= memory_soft_limit_bytes {
             invalid.push(format!(
@@ -651,9 +659,17 @@ impl Config {
             ));
         }
         if memory_hard_limit_bytes >= memory_limit_bytes {
-            invalid.push(format!(
-                "{KURA_MEMORY_HARD_LIMIT_BYTES} must be less than the detected runtime memory limit of {memory_limit_bytes} bytes"
-            ));
+            if memory_hard_limit_bytes_override.is_none()
+                && memory_soft_limit_bytes_override.is_some()
+            {
+                invalid.push(format!(
+                    "{KURA_MEMORY_SOFT_LIMIT_BYTES} must leave at least {MEMORY_WATERMARK_MIN_GAP_BYTES} bytes below the detected runtime memory limit of {memory_limit_bytes} bytes when {KURA_MEMORY_HARD_LIMIT_BYTES} is unset; lower {KURA_MEMORY_SOFT_LIMIT_BYTES} or set both watermarks explicitly"
+                ));
+            } else {
+                invalid.push(format!(
+                    "{KURA_MEMORY_HARD_LIMIT_BYTES} must be less than the detected runtime memory limit of {memory_limit_bytes} bytes"
+                ));
+            }
         }
         let snapshot_cache_max_bytes = optional_parsed_value(
             &mut lookup,
@@ -1505,9 +1521,12 @@ fn detect_memory_limit_bytes() -> Option<u64> {
 fn detect_cgroup_memory_limit_bytes() -> Option<u64> {
     #[cfg(target_os = "linux")]
     {
-        for path in [
-            "/sys/fs/cgroup/memory.max",
-            "/sys/fs/cgroup/memory/memory.limit_in_bytes",
+        for (path, unlimited_threshold_bytes) in [
+            ("/sys/fs/cgroup/memory.max", None),
+            (
+                "/sys/fs/cgroup/memory/memory.limit_in_bytes",
+                Some(CGROUP_V1_UNLIMITED_THRESHOLD_BYTES),
+            ),
         ] {
             let Ok(raw) = std::fs::read_to_string(path) else {
                 continue;
@@ -1518,6 +1537,7 @@ fn detect_cgroup_memory_limit_bytes() -> Option<u64> {
             }
             if let Ok(value) = trimmed.parse::<u64>()
                 && value > 0
+                && unlimited_threshold_bytes.is_none_or(|threshold| value < threshold)
             {
                 return Some(value);
             }
@@ -1729,6 +1749,65 @@ mod tests {
         assert_eq!(defaults.memory_soft_limit_bytes, 76 * BYTES_PER_MIB);
         assert_eq!(defaults.memory_hard_limit_bytes, 108 * BYTES_PER_MIB);
         assert!(defaults.memory_hard_limit_bytes < 128 * BYTES_PER_MIB);
+    }
+
+    #[test]
+    fn from_lookup_preserves_proportional_watermarks_for_small_runtime_limits() {
+        let values = base_values();
+        let config = Config::from_lookup_with_resources(
+            |key| values.get(key).cloned(),
+            HostResources {
+                file_descriptor_limit: 4096,
+                memory_limit_bytes: 256 * BYTES_PER_MIB,
+                cpu_count: 2,
+            },
+        )
+        .expect("expected proportional memory defaults to remain valid");
+
+        assert_eq!(config.memory_soft_limit_bytes, 153 * BYTES_PER_MIB);
+        assert_eq!(config.memory_hard_limit_bytes, 217 * BYTES_PER_MIB);
+    }
+
+    #[test]
+    fn from_lookup_keeps_headroom_after_an_explicit_soft_watermark() {
+        let mut values = base_values();
+        values.insert(
+            KURA_MEMORY_SOFT_LIMIT_BYTES.to_owned(),
+            (160 * BYTES_PER_MIB).to_string(),
+        );
+        let config = Config::from_lookup_with_resources(
+            |key| values.get(key).cloned(),
+            HostResources {
+                file_descriptor_limit: 4096,
+                memory_limit_bytes: 256 * BYTES_PER_MIB,
+                cpu_count: 2,
+            },
+        )
+        .expect("expected the explicit soft watermark to remain valid");
+
+        assert_eq!(config.memory_soft_limit_bytes, 160 * BYTES_PER_MIB);
+        assert_eq!(config.memory_hard_limit_bytes, 224 * BYTES_PER_MIB);
+    }
+
+    #[test]
+    fn from_lookup_explains_an_explicit_soft_watermark_without_runtime_headroom() {
+        let mut values = base_values();
+        values.insert(
+            KURA_MEMORY_SOFT_LIMIT_BYTES.to_owned(),
+            (200 * BYTES_PER_MIB).to_string(),
+        );
+        let error = Config::from_lookup_with_resources(
+            |key| values.get(key).cloned(),
+            HostResources {
+                file_descriptor_limit: 4096,
+                memory_limit_bytes: 256 * BYTES_PER_MIB,
+                cpu_count: 2,
+            },
+        )
+        .expect_err("expected the unsafe soft watermark to fail");
+
+        assert!(error.contains(KURA_MEMORY_SOFT_LIMIT_BYTES));
+        assert!(error.contains("set both watermarks explicitly"));
     }
 
     #[test]
