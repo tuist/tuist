@@ -25,6 +25,13 @@ defmodule Tuist.Runners.Telemetry do
   def event_name_webhook, do: [:tuist, :runners, :webhook]
 
   def event_name_queue_length, do: [:tuist, :runners, :queue, :length]
+
+  # Queued jobs excluded from the autoscaler's demand signal because
+  # their account is at its concurrency limit. Sustained non-zero means
+  # a customer is queueing past their cap: the queue is deep but the
+  # fleet must not grow for it. Without this the withholding is
+  # invisible, since dispatch declines those jobs at `Logger.debug`.
+  def event_name_queue_withheld, do: [:tuist, :runners, :queue, :withheld]
   def event_name_claims_count, do: [:tuist, :runners, :claims, :count]
   def event_name_pool_replicas, do: [:tuist, :runners, :pool, :replicas]
 end

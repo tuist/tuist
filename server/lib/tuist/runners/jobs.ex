@@ -945,6 +945,34 @@ defmodule Tuist.Runners.Jobs do
   end
 
   @doc """
+  Queued workflow_job counts for `fleet_name`, broken down by account.
+
+  Same rows `queued_count_by_fleet/1` totals, grouped so the caller can
+  weigh each account's share against what that account is actually
+  allowed to run concurrently. Returns `%{account_id => count}`.
+  """
+  def queued_count_by_fleet_and_account(fleet_name) when is_binary(fleet_name) do
+    lookback_floor = queued_lookback_floor()
+
+    inner =
+      from j in Job,
+        where: j.fleet_name == ^fleet_name and j.enqueued_at > ^lookback_floor,
+        group_by: j.workflow_job_id,
+        having: fragment("argMax(?, ?) = ?", j.status, j.updated_at, "queued"),
+        select: %{
+          workflow_job_id: j.workflow_job_id,
+          account_id: fragment("argMax(?, ?)", j.account_id, j.updated_at)
+        }
+
+    from(s in subquery(inner),
+      group_by: s.account_id,
+      select: {s.account_id, count()}
+    )
+    |> ClickHouseRepo.all()
+    |> Map.new()
+  end
+
+  @doc """
   Computes the rolling p95 of concurrent (claimed + running) jobs
   on `fleet_name` over the last 60 minutes, in one-minute buckets.
 
