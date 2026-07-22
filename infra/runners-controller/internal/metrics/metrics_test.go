@@ -127,6 +127,39 @@ func TestRecordOldestPendingPodAgeClampsNegative(t *testing.T) {
 	}
 }
 
+func TestRecordProvisioningSafetyMetrics(t *testing.T) {
+	const pool = "linux"
+	pendingProvisioningPods.Reset()
+	admissionBlockedTotal.Reset()
+	podStartTimeoutsTotal.Reset()
+	fleetReadyNodes.Reset()
+	fleetFilteredNodes.Reset()
+
+	RecordPendingProvisioningPods(pool, 3)
+	RecordAdmissionBlocked(pool, "fleet_cap")
+	RecordPodStartTimeout(pool, "poller_not_started")
+	RecordFleetNodes("runners-linux", "linux", 2, map[string]int{"not_ready": 1})
+
+	if got := testutil.ToFloat64(pendingProvisioningPods.WithLabelValues(pool)); got != 3 {
+		t.Fatalf("pending provisioning pods = %v, want 3", got)
+	}
+	if got := testutil.ToFloat64(admissionBlockedTotal.WithLabelValues(pool, "fleet_cap")); got != 1 {
+		t.Fatalf("fleet-cap blocks = %v, want 1", got)
+	}
+	if got := testutil.ToFloat64(podStartTimeoutsTotal.WithLabelValues(pool, "poller_not_started")); got != 1 {
+		t.Fatalf("pod start timeouts = %v, want 1", got)
+	}
+	if got := testutil.ToFloat64(fleetReadyNodes.WithLabelValues("runners-linux", "linux")); got != 2 {
+		t.Fatalf("ready fleet nodes = %v, want 2", got)
+	}
+	if got := testutil.ToFloat64(fleetFilteredNodes.WithLabelValues("runners-linux", "linux", "not_ready")); got != 1 {
+		t.Fatalf("not-ready fleet nodes = %v, want 1", got)
+	}
+	if got := testutil.ToFloat64(fleetFilteredNodes.WithLabelValues("runners-linux", "linux", "disk_pressure")); got != 0 {
+		t.Fatalf("disk-pressure fleet nodes = %v, want 0", got)
+	}
+}
+
 func TestClearDropsOldestPendingPodAge(t *testing.T) {
 	const pool = "p"
 

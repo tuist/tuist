@@ -1642,6 +1642,15 @@ runnersFleetLinux:
   # split shape the watchdog runs in the credential-free `run-job.sh`
   # runner container. 0 disables it.
   idleTimeoutSeconds: 300
+  # Linux Kata sandbox admission is shared across every pool using this
+  # fleet selector. Keeping only four sandboxes in the pre-poller start
+  # phase prevents a queue spike from asking both bare-metal kubelets to
+  # boot dozens of virtual machines at once. Per-pool / per-shape values
+  # override these defaults; the controller enforces the lowest sibling maximum.
+  provisioning:
+    maxConcurrentPerFleetSelector: 4
+    # Starts after the scheduler binds the Pod to a node. 0 disables.
+    startTimeoutSeconds: 300
   # Value of the `node.cluster.x-k8s.io/pool=` label CAPI's
   # label-sync propagates from the runner MachineDeployment to
   # each runner Node. Must match the
@@ -1679,6 +1688,9 @@ runnersFleetLinux:
     #   # the kata-qemu microVM is the safety boundary that keeps
     #   # the privileged sidecar off the bare-metal host kernel.
     #   runtimeClass: kata-qemu
+    #   provisioning:
+    #     maxConcurrentPerFleetSelector: 4
+    #     startTimeoutSeconds: 300
     #   autoscaling:
     #     enabled: true
     #     minWarmPoolFloor: 3
