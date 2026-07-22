@@ -546,6 +546,18 @@ read_base_generation() {
   printf '%s' "${gen:-0}"
 }
 
+# write_promote_result relays the promote outcome to the host so it can tell a
+# genuine fast-forward REJECTION (409 — a stale base another host advanced past,
+# real cross-host contention) apart from an upload/network/control-plane FAILURE.
+# Conflating the two would make a storage outage look like cache races on the
+# dashboard. The host reads this to pick the metric bucket and, on "accepted",
+# the generation to install the branch at. Values: "accepted <gen>", "conflict",
+# or "error".
+write_promote_result() {
+  [ -d "${STATUS_SHARE}" ] || return 0
+  printf '%s' "$1" > "${STATUS_SHARE}/cache-promote-result" 2>/dev/null || true
+}
+
 # VOLUME_HEAD_UPLOAD_TIMEOUT bounds the master upload. The image is sparse, so
 # this transfers the cache actually written rather than the provisioned cap, but
 # that is still GBs on a full working set — hence a far larger ceiling than the
@@ -590,6 +602,7 @@ report_volume_head() {
     | sed -n 's/.*"upload_url"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
   if [ -z "${upload_url}" ]; then
     echo "$(date -u +%FT%TZ) dispatch-poll: no master upload URL; HEAD not advanced"
+    write_promote_result "error"
     return 0
   fi
 
@@ -612,6 +625,7 @@ report_volume_head() {
   if ! curl -fsS --connect-timeout 10 --max-time "${VOLUME_HEAD_UPLOAD_TIMEOUT}" \
     -X PUT --upload-file "${CACHE_IMAGE}" "${upload_url}" >/dev/null 2>&1; then
     echo "$(date -u +%FT%TZ) dispatch-poll: master image upload failed/timed out; HEAD not advanced"
+    write_promote_result "error"
     return 0
   fi
   upload_end=$(perl -MTime::HiRes -e 'printf "%d", Time::HiRes::time()*1000' 2>/dev/null || echo 0)
@@ -623,25 +637,37 @@ report_volume_head() {
   #
   # The bump is a fast-forward compare-and-swap keyed by the base generation this
   # job's branch was cloned from (staged by the host at materialize). The server
-  # accepts only if the HEAD is still at that base, and returns the accepted
-  # generation. Relay it to the host via cache-promoted-generation: the host
-  # installs the branch as its local master at that generation only on an accept,
-  # so local master and HEAD advance together. A rejected fast-forward (409, a
-  # stale base another host advanced past) leaves the marker unwritten, and the
-  # host discards the branch and re-converges.
-  local base_generation response promoted_generation
+  # accepts only if the HEAD is still at that base and returns the accepted
+  # generation (200); a stale base is a 409. Capture the HTTP status explicitly —
+  # WITHOUT curl -f, which would collapse a 409 and a transport error into the
+  # same failure — so the host can distinguish a genuine fast-forward rejection
+  # (cross-host contention) from an upload/network/control-plane failure. On 200
+  # the host installs the branch as its local master at the accepted generation;
+  # on 409 or error it discards and re-converges.
+  local base_generation body http_code promoted_generation
   base_generation=$(read_base_generation)
-  response=$(curl -fsS --connect-timeout 10 --max-time 15 -X POST \
+  body=$(mktemp 2>/dev/null || echo "/tmp/volhead-report.$$")
+  http_code=$(curl -sS --connect-timeout 10 --max-time 15 -X POST \
     -H "Authorization: Bearer ${SA_TOKEN}" -H "Content-Type: application/json" \
     --data "{\"tree_digest\":\"${CACHE_INVENTORY_AFTER}\",\"base_generation\":${base_generation}}" \
+    -o "${body}" -w '%{http_code}' \
     "${VOLUME_HEAD_REPORT_URL}" 2>/dev/null)
-  promoted_generation=$(printf '%s' "${response}" | sed -n 's/.*"generation"[[:space:]]*:[[:space:]]*\([0-9]*\).*/\1/p')
-  if [ -n "${promoted_generation}" ] && [ -d "${STATUS_SHARE}" ]; then
-    printf '%s' "${promoted_generation}" > "${STATUS_SHARE}/cache-promoted-generation" 2>/dev/null || true
-    echo "$(date -u +%FT%TZ) dispatch-poll: published volume HEAD (digest=${CACHE_INVENTORY_AFTER} generation=${promoted_generation})"
-  else
-    echo "$(date -u +%FT%TZ) dispatch-poll: volume HEAD fast-forward rejected or unreachable (base=${base_generation}); branch not promoted"
-  fi
+  case "${http_code}" in
+    200)
+      promoted_generation=$(sed -n 's/.*"generation"[[:space:]]*:[[:space:]]*\([0-9]*\).*/\1/p' "${body}")
+      write_promote_result "accepted ${promoted_generation:-0}"
+      echo "$(date -u +%FT%TZ) dispatch-poll: published volume HEAD (digest=${CACHE_INVENTORY_AFTER} generation=${promoted_generation:-0})"
+      ;;
+    409)
+      write_promote_result "conflict"
+      echo "$(date -u +%FT%TZ) dispatch-poll: volume HEAD fast-forward rejected (stale base=${base_generation}); branch not promoted"
+      ;;
+    *)
+      write_promote_result "error"
+      echo "$(date -u +%FT%TZ) dispatch-poll: volume HEAD report failed/unreachable (http=${http_code:-000}); branch not promoted"
+      ;;
+  esac
+  rm -f "${body}" 2>/dev/null || true
 }
 
 # Probe before polling: the share is attached at boot, independent of which

@@ -1064,26 +1064,44 @@ func TestFinalizeDiscardsWhenFastForwardRejected(t *testing.T) {
 	}
 }
 
-func TestReadPromotedGeneration(t *testing.T) {
-	if got := readPromotedGeneration(""); got != 0 {
-		t.Fatalf("empty status dir = %d; want 0", got)
+func TestReadPromoteResult(t *testing.T) {
+	if got := readPromoteResult(""); got.Result != "" || got.Generation != 0 {
+		t.Fatalf("empty status dir = %+v; want zero", got)
 	}
 	dir := t.TempDir()
-	if got := readPromotedGeneration(dir); got != 0 {
-		t.Fatalf("missing file = %d; want 0", got)
+	if got := readPromoteResult(dir); got.Result != "" {
+		t.Fatalf("missing file = %+v; want zero (guest did not report)", got)
 	}
-	if err := os.WriteFile(filepath.Join(dir, promotedGenerationFile), []byte("9\n"), 0o644); err != nil {
-		t.Fatal(err)
+
+	write := func(s string) {
+		if err := os.WriteFile(filepath.Join(dir, promoteResultFile), []byte(s), 0o644); err != nil {
+			t.Fatal(err)
+		}
 	}
-	if got := readPromotedGeneration(dir); got != 9 {
-		t.Fatalf("promoted generation = %d; want 9 (trimmed)", got)
+
+	write("accepted 9\n")
+	if got := readPromoteResult(dir); got.Result != "accepted" || got.Generation != 9 {
+		t.Fatalf("accepted = %+v; want {accepted 9}", got)
 	}
-	// A non-numeric value reads as 0 (no promote), never a bogus generation.
-	if err := os.WriteFile(filepath.Join(dir, promotedGenerationFile), []byte("nope"), 0o644); err != nil {
-		t.Fatal(err)
+	// Accepted without a usable generation carries no install target.
+	write("accepted")
+	if got := readPromoteResult(dir); got.Result != "accepted" || got.Generation != 0 {
+		t.Fatalf("accepted-no-gen = %+v; want {accepted 0}", got)
 	}
-	if got := readPromotedGeneration(dir); got != 0 {
-		t.Fatalf("non-numeric promoted generation = %d; want 0", got)
+	// A 409 is a distinct rejection, NOT an error.
+	write("conflict")
+	if got := readPromoteResult(dir); got.Result != "conflict" || got.Generation != 0 {
+		t.Fatalf("conflict = %+v; want {conflict 0}", got)
+	}
+	// An upload/network failure is an error, never a rejection.
+	write("error")
+	if got := readPromoteResult(dir); got.Result != "error" {
+		t.Fatalf("error = %+v; want error", got)
+	}
+	// Anything unrecognized is treated as an error, never a false rejection.
+	write("weird garbage")
+	if got := readPromoteResult(dir); got.Result != "error" {
+		t.Fatalf("garbage = %+v; want error", got)
 	}
 }
 

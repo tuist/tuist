@@ -34,15 +34,29 @@ func TestGuestDiskUsageGauge(t *testing.T) {
 func TestRecordVolumePromote(t *testing.T) {
 	acceptedBefore := testutil.ToFloat64(cacheVolumePromoteTotal.WithLabelValues("accepted"))
 	rejectedBefore := testutil.ToFloat64(cacheVolumePromoteTotal.WithLabelValues("rejected"))
+	errorBefore := testutil.ToFloat64(cacheVolumePromoteTotal.WithLabelValues("error"))
 
-	RecordVolumePromote(true)
-	RecordVolumePromote(false)
-	RecordVolumePromote(false)
+	RecordVolumePromote("accepted")
+	RecordVolumePromote("rejected")
+	RecordVolumePromote("rejected")
+	RecordVolumePromote("error")
+	RecordVolumePromote("garbage") // unknown → error, never a false rejection
 
 	if got := testutil.ToFloat64(cacheVolumePromoteTotal.WithLabelValues("accepted")); got != acceptedBefore+1 {
 		t.Fatalf("accepted = %v, want %v", got, acceptedBefore+1)
 	}
 	if got := testutil.ToFloat64(cacheVolumePromoteTotal.WithLabelValues("rejected")); got != rejectedBefore+2 {
 		t.Fatalf("rejected = %v, want %v", got, rejectedBefore+2)
+	}
+	if got := testutil.ToFloat64(cacheVolumePromoteTotal.WithLabelValues("error")); got != errorBefore+2 {
+		t.Fatalf("error = %v, want %v", got, errorBefore+2)
+	}
+}
+
+func TestCacheVolumePromoteSeriesInitialized(t *testing.T) {
+	// All three result series must exist from registration so a reject-rate panel
+	// reads 0 (not "No data") while promotions happen with zero rejections.
+	if got := testutil.CollectAndCount(cacheVolumePromoteTotal); got < 3 {
+		t.Fatalf("promote series count = %d, want >= 3 (accepted/rejected/error pre-initialized)", got)
 	}
 }

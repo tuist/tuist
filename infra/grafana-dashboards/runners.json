@@ -1638,7 +1638,7 @@
         "id": 521,
         "type": "stat",
         "title": "Fast-forward reject rate",
-        "description": "Share of cache-changing promotes the server REJECTED because the job built on a stale base (another host advanced the HEAD first). The headline health signal for the last-writer-wins model: a sustained climb means jobs for an account are racing across hosts, or convergence is lagging so hosts keep building on stale bases. No data = no cache-changing promotes in the window.",
+        "description": "Share of cache-changing promotes the server REJECTED with a 409 because the job built on a stale base (another host advanced the HEAD first): rejected/(accepted+rejected). The headline health signal for the last-writer-wins model — a sustained climb means jobs for an account are racing across hosts, or convergence is lagging so hosts keep building on stale bases. Upload/network/control-plane failures are counted as 'error' (see the Promote decisions panel), NOT as rejections, so a storage outage does not inflate this. Reads 0% during healthy zero-rejection activity (the series are pre-initialized); 'No data' only when there are no accepted-or-rejected promotes at all.",
         "datasource": "$datasource",
         "gridPos": {
           "h": 5,
@@ -1689,7 +1689,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "100 * sum(rate(tart_kubelet_cache_volume_promote_total{result=\"rejected\",env=\"$env\"}[$__rate_interval])) / sum(rate(tart_kubelet_cache_volume_promote_total{env=\"$env\"}[$__rate_interval]))",
+            "expr": "100 * (sum(rate(tart_kubelet_cache_volume_promote_total{result=\"rejected\",env=\"$env\"}[$__rate_interval])) or vector(0)) / sum(rate(tart_kubelet_cache_volume_promote_total{result=~\"accepted|rejected\",env=\"$env\"}[$__rate_interval]))",
             "instant": false,
             "refId": "A"
           }
@@ -1870,7 +1870,7 @@
         "id": 525,
         "type": "timeseries",
         "title": "Promote decisions / sec",
-        "description": "Server fast-forward decisions for cache-changing jobs: accepted (the branch became this host's master) vs rejected (built on a stale base, discarded and re-converged). The absolute companion to the reject-rate stat.",
+        "description": "Outcome of cache-changing jobs' HEAD fast-forward: accepted (the branch became this host's master), rejected (409 — built on a stale base, genuine cross-host contention, discarded and re-converged), and error (an upload/network/control-plane failure, kept distinct so an outage is not mistaken for cache races). The absolute companion to the reject-rate stat.",
         "datasource": "$datasource",
         "gridPos": {
           "h": 8,
@@ -1922,8 +1922,15 @@
             "datasource": "$datasource",
             "editorMode": "code",
             "expr": "sum(rate(tart_kubelet_cache_volume_promote_total{result=\"rejected\",env=\"$env\"}[$__rate_interval]))",
-            "legendFormat": "rejected",
+            "legendFormat": "rejected (stale base)",
             "refId": "B"
+          },
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum(rate(tart_kubelet_cache_volume_promote_total{result=\"error\",env=\"$env\"}[$__rate_interval]))",
+            "legendFormat": "error (upload/network)",
+            "refId": "C"
           }
         ]
       },
