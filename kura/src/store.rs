@@ -4,7 +4,7 @@ use std::{
     pin::Pin,
     sync::{
         Arc, Mutex as StdMutex,
-        atomic::{AtomicU64, Ordering},
+        atomic::{AtomicU64, AtomicUsize, Ordering},
     },
     task::{Context, Poll},
     time::{Duration, Instant},
@@ -18,7 +18,7 @@ use rocksdb::{
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use tokio::{
-    io::{AsyncRead, AsyncWriteExt, ReadBuf},
+    io::{AsyncRead, AsyncReadExt, AsyncWriteExt, ReadBuf},
     sync::{Mutex, Notify},
 };
 use uuid::Uuid;
@@ -44,6 +44,9 @@ use crate::{
         SEGMENT_FREE_SPACE_MARGIN,
     },
     failpoints::{FailpointName, FailpointSet},
+    file_cache::{
+        FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES, FileCachePolicy, reserve_foreground_staging,
+    },
     io::{IoController, PersistentFile},
     memory::MemoryController,
     mmap::map_file_region,
@@ -55,17 +58,33 @@ use crate::{
     },
     usage::UsageRollup,
     utils::{
-        IndexRowBranch, action_cache_index_key, action_cache_index_key_branch,
-        action_cache_index_prefix, action_cache_manifest_hash, artifact_storage_id,
-        ensure_tmp_dir_capacity, module_key, namespace_artifact_index_key, now_ms,
-        segment_artifact_index_key, segment_artifact_index_prefix, segment_path, temp_file_path,
+        IndexRowBranch, TempFileCleanup, TmpBudget, action_cache_index_key,
+        action_cache_index_key_branch, action_cache_index_prefix, action_cache_manifest_hash,
+        artifact_storage_id, drop_staging_cache_range, module_key, namespace_artifact_index_key,
+        now_ms, segment_artifact_index_key, segment_artifact_index_prefix, segment_path,
+        temp_file_path, try_path_size_bytes,
     },
 };
 
 const MULTIPART_LOCK_STRIPES: usize = 64;
+const MAX_MULTIPART_PARTS: usize = 10_000;
+const MAX_MULTIPART_RECORD_BYTES: usize = 8 << 20;
+const MULTIPART_RECONCILE_DELETE_BATCH: usize = 256;
+const ACTION_CACHE_STALE_DELETE_BATCH: usize = 1_024;
 const ARTIFACT_WRITE_LOCK_STRIPES: usize = 64;
 pub const EXISTENCE_CACHE_CAPACITY: usize = 65_536;
 const EXISTENCE_CACHE_TTL: Duration = Duration::from_secs(30);
+const SEGMENT_COPY_BUFFER_BYTES: usize = 256 * 1024;
+const OUTBOX_FULL_ERROR: &str = "replication outbox capacity exhausted";
+const MULTIPART_CAPACITY_ERROR: &str = "multipart capacity exhausted";
+
+pub fn is_outbox_full_error(error: &str) -> bool {
+    error.starts_with(OUTBOX_FULL_ERROR)
+}
+
+pub fn is_multipart_capacity_error(error: &str) -> bool {
+    error.starts_with(MULTIPART_CAPACITY_ERROR)
+}
 
 pub struct Store {
     db: DB,
@@ -73,12 +92,18 @@ pub struct Store {
     memory: MemoryController,
     tenant_id: String,
     tmp_dir: PathBuf,
-    tmp_dir_max_bytes: u64,
+    tmp_staging_budget: Arc<TmpBudget>,
     data_dir: PathBuf,
     segment_ring_limits: SegmentRingLimits,
     rocksdb_block_cache_capacity_bytes: usize,
     rocksdb_block_cache: Cache,
     rocksdb_write_buffer_manager: WriteBufferManager,
+    outbox_depth: AtomicUsize,
+    outbox_max_depth: usize,
+    multipart_uploads: AtomicUsize,
+    multipart_stored_bytes: AtomicU64,
+    multipart_max_active_uploads: usize,
+    multipart_max_stored_bytes: u64,
     segment_write_lock: Mutex<()>,
     /// Bumped whenever a namespace's action cache changes, so a snapshot index
     /// that came back EMPTY can tell "nothing to show" from "out of date". An
@@ -234,6 +259,66 @@ struct PersistArtifactSpec<'a> {
     trunk: Option<&'a str>,
 }
 
+struct OutboxReservation<'a> {
+    depth: &'a AtomicUsize,
+    slots: usize,
+    committed: bool,
+}
+
+struct MultipartUploadReservation<'a> {
+    uploads: &'a AtomicUsize,
+    committed: bool,
+}
+
+impl MultipartUploadReservation<'_> {
+    fn commit(mut self) {
+        self.committed = true;
+    }
+}
+
+impl Drop for MultipartUploadReservation<'_> {
+    fn drop(&mut self) {
+        if !self.committed {
+            release_atomic_slots(self.uploads, 1);
+        }
+    }
+}
+
+struct MultipartByteReservation<'a> {
+    bytes: &'a AtomicU64,
+    added: u64,
+    committed: bool,
+}
+
+impl MultipartByteReservation<'_> {
+    fn commit(mut self, released: u64) {
+        release_atomic_bytes(self.bytes, released);
+        self.committed = true;
+    }
+}
+
+impl Drop for MultipartByteReservation<'_> {
+    fn drop(&mut self) {
+        if !self.committed {
+            release_atomic_bytes(self.bytes, self.added);
+        }
+    }
+}
+
+impl OutboxReservation<'_> {
+    fn commit(mut self) {
+        self.committed = true;
+    }
+}
+
+impl Drop for OutboxReservation<'_> {
+    fn drop(&mut self) {
+        if !self.committed && self.slots > 0 {
+            release_atomic_slots(self.depth, self.slots);
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ArtifactApplyOutcome {
     Applied,
@@ -292,6 +377,21 @@ enum PersistArtifactOutcome {
 pub struct PersistedArtifact {
     pub manifest: ArtifactManifest,
     pub already_present: bool,
+}
+
+#[derive(Clone, Copy)]
+pub struct StagedArtifactPath<'a> {
+    path: &'a Path,
+    file_cache_policy: FileCachePolicy,
+}
+
+impl<'a> StagedArtifactPath<'a> {
+    pub fn new(path: &'a Path, file_cache_policy: FileCachePolicy) -> Self {
+        Self {
+            path,
+            file_cache_policy,
+        }
+    }
 }
 
 impl PersistArtifactOutcome {
@@ -469,12 +569,18 @@ impl Store {
             memory,
             tenant_id: config.tenant_id.clone(),
             tmp_dir: config.tmp_dir.clone(),
-            tmp_dir_max_bytes: config.tmp_dir_max_bytes,
+            tmp_staging_budget: TmpBudget::new(config.tmp_dir_max_bytes),
             data_dir: config.data_dir.clone(),
             segment_ring_limits,
             rocksdb_block_cache_capacity_bytes: config.rocksdb_block_cache_bytes,
             rocksdb_block_cache,
             rocksdb_write_buffer_manager,
+            outbox_depth: AtomicUsize::new(0),
+            outbox_max_depth: config.outbox_max_depth,
+            multipart_uploads: AtomicUsize::new(0),
+            multipart_stored_bytes: AtomicU64::new(0),
+            multipart_max_active_uploads: config.multipart_max_active_uploads,
+            multipart_max_stored_bytes: config.multipart_max_stored_bytes,
             segment_write_lock: Mutex::new(()),
             action_cache_generations: StdMutex::new(HashMap::new()),
             segment_fsync_count: Arc::new(AtomicU64::new(0)),
@@ -500,7 +606,127 @@ impl Store {
         // constructed (with a placeholder snapshot) before it can be seeded.
         let segment_state = store.load_segment_state_from_db()?;
         store.replace_segment_state_snapshot(segment_state);
+        let outbox_depth = store.count_cf_entries_exact(ROCKSDB_CF_OUTBOX)?;
+        store.outbox_depth.store(outbox_depth, Ordering::Release);
+        let (multipart_uploads, multipart_stored_bytes) = store.reconcile_multipart_storage()?;
+        store
+            .multipart_uploads
+            .store(multipart_uploads, Ordering::Release);
+        store
+            .multipart_stored_bytes
+            .store(multipart_stored_bytes, Ordering::Release);
+        if multipart_uploads > store.multipart_max_active_uploads
+            || multipart_stored_bytes > store.multipart_max_stored_bytes
+        {
+            tracing::warn!(
+                multipart_uploads,
+                multipart_stored_bytes,
+                max_active_uploads = store.multipart_max_active_uploads,
+                max_stored_bytes = store.multipart_max_stored_bytes,
+                "persisted multipart usage starts above its configured limits; rejecting growth until the janitor reclaims it"
+            );
+        }
         Ok(store)
+    }
+
+    pub fn tmp_staging_budget(&self) -> Arc<TmpBudget> {
+        self.tmp_staging_budget.clone()
+    }
+
+    pub fn outbox_depth(&self) -> usize {
+        self.outbox_depth.load(Ordering::Acquire)
+    }
+
+    fn reserve_outbox_slots(&self, slots: usize) -> Result<OutboxReservation<'_>, String> {
+        if slots == 0 {
+            return Ok(OutboxReservation {
+                depth: &self.outbox_depth,
+                slots,
+                committed: false,
+            });
+        }
+
+        let mut current = self.outbox_depth.load(Ordering::Acquire);
+        loop {
+            let requested = current.saturating_add(slots);
+            if requested > self.outbox_max_depth {
+                return Err(format!(
+                    "{OUTBOX_FULL_ERROR}: {current} messages queued, {slots} slots requested, {} allowed",
+                    self.outbox_max_depth
+                ));
+            }
+            match self.outbox_depth.compare_exchange_weak(
+                current,
+                requested,
+                Ordering::AcqRel,
+                Ordering::Acquire,
+            ) {
+                Ok(_) => {
+                    return Ok(OutboxReservation {
+                        depth: &self.outbox_depth,
+                        slots,
+                        committed: false,
+                    });
+                }
+                Err(observed) => current = observed,
+            }
+        }
+    }
+
+    fn reserve_multipart_upload(&self) -> Result<MultipartUploadReservation<'_>, String> {
+        let mut current = self.multipart_uploads.load(Ordering::Acquire);
+        loop {
+            let requested = current.saturating_add(1);
+            if requested > self.multipart_max_active_uploads {
+                return Err(format!(
+                    "{MULTIPART_CAPACITY_ERROR}: {current} active uploads, {} allowed",
+                    self.multipart_max_active_uploads
+                ));
+            }
+            match self.multipart_uploads.compare_exchange_weak(
+                current,
+                requested,
+                Ordering::AcqRel,
+                Ordering::Acquire,
+            ) {
+                Ok(_) => {
+                    return Ok(MultipartUploadReservation {
+                        uploads: &self.multipart_uploads,
+                        committed: false,
+                    });
+                }
+                Err(observed) => current = observed,
+            }
+        }
+    }
+
+    fn reserve_multipart_bytes(
+        &self,
+        next_bytes: u64,
+    ) -> Result<MultipartByteReservation<'_>, MultipartError> {
+        let added = next_bytes;
+        let mut current = self.multipart_stored_bytes.load(Ordering::Acquire);
+        loop {
+            let requested = current.saturating_add(added);
+            if requested > self.multipart_max_stored_bytes {
+                return Err(MultipartError::CapacityExceeded);
+            }
+            match self.multipart_stored_bytes.compare_exchange_weak(
+                current,
+                requested,
+                Ordering::AcqRel,
+                Ordering::Acquire,
+            ) {
+                Ok(_) => {
+                    return Ok(MultipartByteReservation {
+                        bytes: &self.multipart_stored_bytes,
+                        added,
+                        committed: false,
+                    });
+                }
+                Err(observed) => current = observed,
+            }
+        }
     }
 
     fn multipart_lock_for(&self, upload_id: &str) -> &Mutex<()> {
@@ -645,7 +871,7 @@ impl Store {
         namespace_id: &str,
         key: &str,
         content_type: &str,
-        source_path: &Path,
+        staged: StagedArtifactPath<'_>,
         replication_targets: &[String],
     ) -> Result<PersistedArtifact, String> {
         let spec = PersistArtifactSpec {
@@ -659,7 +885,7 @@ impl Store {
             trunk: None,
         };
         let (outcome, already_present) = self
-            .persist_artifact_from_path_with_version(spec, source_path)
+            .persist_artifact_from_path_with_version(spec, staged.path, staged.file_cache_policy)
             .await?;
         outcome.into_persisted(already_present, producer, namespace_id, key)
     }
@@ -684,7 +910,7 @@ impl Store {
             trunk: None,
         };
         Ok(self
-            .persist_artifact_from_path_with_version(spec, source_path)
+            .persist_artifact_from_path_with_version(spec, source_path, FileCachePolicy::Adaptive)
             .await?
             .0
             .apply_outcome())
@@ -696,6 +922,7 @@ impl Store {
         &self,
         spec: PersistArtifactSpec<'_>,
         source_path: &Path,
+        file_cache_policy: FileCachePolicy,
     ) -> Result<(PersistArtifactOutcome, bool), String> {
         let artifact_id =
             artifact_storage_id(spec.producer, &self.tenant_id, spec.namespace_id, spec.key);
@@ -729,9 +956,12 @@ impl Store {
             self.io.remove_file_if_exists(source_path).await;
             return Ok((PersistArtifactOutcome::IgnoredTombstone, already_present));
         }
+        let outbox_reservation = self.reserve_outbox_slots(spec.replication_targets.len())?;
 
         let persisted_version_ms = persisted_version_ms(spec.version_ms);
-        let (location, evicted_segments) = self.append_to_segment(source_path, size).await?;
+        let (location, evicted_segments) = self
+            .append_to_segment(source_path, size, file_cache_policy)
+            .await?;
 
         self.hit_failpoint(FailpointName::AfterArtifactBytesDurableBeforeMetadata)
             .await?;
@@ -820,6 +1050,7 @@ impl Store {
         )?;
 
         self.write_batch_sync(batch, "manifest batch")?;
+        outbox_reservation.commit();
         self.hit_failpoint(FailpointName::AfterMetadataCommitBeforeReturn)
             .await?;
         self.maybe_cache_manifest(manifest.clone());
@@ -1245,7 +1476,7 @@ impl Store {
 
         let mut reader = self.open_manifest_reader(&current).await?;
         let (location, evicted_segments) = self
-            .append_reader_to_segment(&mut reader, current.size)
+            .append_reader_to_segment(&mut reader, current.size, None, FileCachePolicy::Adaptive)
             .await?;
         let mut refreshed = current.clone();
         let previous_segment_id = current_segment_id.to_owned();
@@ -1337,6 +1568,7 @@ impl Store {
         if self.namespace_tombstone_blocks(spec.namespace_id, spec.version_ms)? {
             return Ok(PersistArtifactOutcome::IgnoredTombstone);
         }
+        let outbox_reservation = self.reserve_outbox_slots(spec.replication_targets.len())?;
 
         let persisted_version_ms = persisted_version_ms(spec.version_ms);
 
@@ -1410,6 +1642,7 @@ impl Store {
         )?;
 
         self.write_batch_sync(batch, "keyvalue batch")?;
+        outbox_reservation.commit();
         // Only after the batch commits: the generation is what a snapshot serve
         // reads to decide its cached view is current, and the new index row is
         // not visible to that scan until the write lands. Bumping before the
@@ -1437,9 +1670,12 @@ impl Store {
         &self,
         source_path: &Path,
         size: u64,
+        file_cache_policy: FileCachePolicy,
     ) -> Result<(SegmentLocation, Vec<SegmentReference>), String> {
         let mut source = self.io.open_file(source_path).await?;
-        let result = self.append_reader_to_segment(&mut source, size).await;
+        let result = self
+            .append_reader_to_segment(&mut source, size, Some(source_path), file_cache_policy)
+            .await;
         self.io.remove_file_if_exists(source_path).await;
         result
     }
@@ -1448,6 +1684,8 @@ impl Store {
         &self,
         source: &mut R,
         size: u64,
+        source_cache_path: Option<&Path>,
+        file_cache_policy: FileCachePolicy,
     ) -> Result<(SegmentLocation, Vec<SegmentReference>), String>
     where
         R: AsyncRead + Unpin,
@@ -1473,14 +1711,90 @@ impl Store {
             };
 
             let mut destination = self.io.open_append_file(&segment_path).await?;
-            let copied = tokio::io::copy(source, &mut destination)
-                .await
-                .map_err(|error| {
-                    format!(
-                        "failed to append into segment {}: {error}",
-                        segment_path.display()
+            let mut buffer = vec![0_u8; SEGMENT_COPY_BUFFER_BYTES];
+            let mut copied = 0_u64;
+            let mut advised_through = 0_u64;
+            while copied < size {
+                let remaining = usize::try_from((size - copied).min(buffer.len() as u64))
+                    .expect("copy chunk fits usize");
+                let read = source
+                    .read(&mut buffer[..remaining])
+                    .await
+                    .map_err(|error| {
+                        format!(
+                            "failed to read source while appending into segment {}: {error}",
+                            segment_path.display()
+                        )
+                    })?;
+                if read == 0 {
+                    break;
+                }
+                destination
+                    .write_all(&buffer[..read])
+                    .await
+                    .map_err(|error| {
+                        format!(
+                            "failed to append into segment {}: {error}",
+                            segment_path.display()
+                        )
+                    })?;
+                copied = copied.saturating_add(read as u64);
+
+                if copied.saturating_sub(advised_through)
+                    >= FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES
+                    && file_cache_policy.should_drop(
+                        self.memory.pressure(),
+                        self.memory.transient_reserved_bytes(),
                     )
-                })?;
+                {
+                    destination = match self
+                        .io
+                        .sync_drop_cache_and_reopen_append(
+                            destination,
+                            &segment_path,
+                            offset.saturating_add(advised_through),
+                            copied - advised_through,
+                        )
+                        .await
+                    {
+                        Ok(destination) => destination,
+                        Err(error) => {
+                            self.io
+                                .metrics()
+                                .record_memory_action("segment_file_cache_drop_failed");
+                            return Err(format!(
+                                "failed to bound segment file cache for {}: {error}",
+                                segment_path.display()
+                            ));
+                        }
+                    };
+                    if let Some(source_path) = source_cache_path
+                        && let Err(error) = self
+                            .io
+                            .drop_cached_pages(
+                                source_path,
+                                advised_through,
+                                copied - advised_through,
+                            )
+                            .await
+                    {
+                        self.io
+                            .metrics()
+                            .record_memory_action("source_file_cache_drop_failed");
+                        tracing::warn!("failed to release source file cache: {error}");
+                        if file_cache_policy.drop_failure_is_fatal() {
+                            return Err(format!(
+                                "failed to bound source file cache while appending {}: {error}",
+                                segment_path.display()
+                            ));
+                        }
+                    }
+                    advised_through = copied;
+                    self.io
+                        .metrics()
+                        .record_memory_action("segment_file_cache_drop");
+                }
+            }
             if copied != size {
                 return Err(format!(
                     "appended {copied} bytes into segment {}, expected {size}",
@@ -1493,7 +1807,59 @@ impl Store {
                     segment_path.display()
                 )
             })?;
-            drop(destination);
+            let drop_final_range = copied > advised_through
+                && file_cache_policy.should_drop(
+                    self.memory.pressure(),
+                    self.memory.transient_reserved_bytes(),
+                );
+            if drop_final_range {
+                destination.sync_data().await.map_err(|error| {
+                    format!("failed to sync segment {}: {error}", segment_path.display())
+                })?;
+                drop(destination);
+                if let Err(error) = self
+                    .io
+                    .drop_cached_pages(
+                        &segment_path,
+                        offset.saturating_add(advised_through),
+                        copied - advised_through,
+                    )
+                    .await
+                {
+                    self.io
+                        .metrics()
+                        .record_memory_action("segment_file_cache_drop_failed");
+                    tracing::warn!(
+                        path = %segment_path.display(),
+                        "failed to release segment file cache: {error}"
+                    );
+                    if file_cache_policy.drop_failure_is_fatal() {
+                        return Err(format!(
+                            "failed to bound segment file cache for {}: {error}",
+                            segment_path.display()
+                        ));
+                    }
+                }
+                if let Some(source_path) = source_cache_path
+                    && let Err(error) = self
+                        .io
+                        .drop_cached_pages(source_path, advised_through, copied - advised_through)
+                        .await
+                {
+                    self.io
+                        .metrics()
+                        .record_memory_action("source_file_cache_drop_failed");
+                    tracing::warn!("failed to release source file cache: {error}");
+                    if file_cache_policy.drop_failure_is_fatal() {
+                        return Err(format!(
+                            "failed to bound source file cache while appending {}: {error}",
+                            segment_path.display()
+                        ));
+                    }
+                }
+            } else {
+                drop(destination);
+            }
             if !segment_already_exists {
                 self.io.sync_directory(segment_dir).await?;
             }
@@ -2180,10 +2546,15 @@ impl Store {
         spec: PersistArtifactSpec<'_>,
         bytes: &[u8],
     ) -> Result<(PersistArtifactOutcome, bool), String> {
+        let disk_reservation = self.tmp_staging_budget.try_reserve(bytes.len() as u64)?;
         let temp_path = temp_file_path(&self.tmp_dir.join("uploads"), "replication");
+        let mut cleanup = TempFileCleanup::new(temp_path.clone(), disk_reservation);
         self.io.write(&temp_path, bytes).await?;
-        self.persist_artifact_from_path_with_version(spec, &temp_path)
-            .await
+        let result = self
+            .persist_artifact_from_path_with_version(spec, &temp_path, FileCachePolicy::Adaptive)
+            .await;
+        cleanup.remove_and_disarm(&self.io).await;
+        result
     }
 
     #[cfg(test)]
@@ -2234,6 +2605,11 @@ impl Store {
         {
             return Ok(NamespaceDeleteOutcome::IgnoredOlder);
         }
+        let outbox_reservation = self.reserve_outbox_slots(if delete_everything {
+            0
+        } else {
+            replication_targets.len()
+        })?;
         if !delete_everything {
             batch.put_cf(
                 self.cf(ROCKSDB_CF_NAMESPACE_TOMBSTONES),
@@ -2312,6 +2688,7 @@ impl Store {
         }
 
         self.write_batch_sync(batch, "delete namespace batch")?;
+        outbox_reservation.commit();
         self.remove_manifest_cache_keys(&removed_artifact_ids);
 
         for path in blob_paths {
@@ -2333,6 +2710,7 @@ impl Store {
         hash: &str,
         name: &str,
     ) -> Result<String, String> {
+        let reservation = self.reserve_multipart_upload()?;
         let upload_id = Uuid::now_v7().to_string();
         let upload = MultipartUpload {
             upload_id: upload_id.clone(),
@@ -2347,6 +2725,11 @@ impl Store {
 
         let upload_bytes = serde_json::to_vec(&upload)
             .map_err(|error| format!("failed to encode multipart upload: {error}"))?;
+        if upload_bytes.len() > MAX_MULTIPART_RECORD_BYTES {
+            return Err(format!(
+                "{MULTIPART_CAPACITY_ERROR}: multipart upload metadata exceeds {MAX_MULTIPART_RECORD_BYTES} bytes"
+            ));
+        }
         self.db
             .put_cf(
                 self.cf(ROCKSDB_CF_MULTIPART_UPLOADS),
@@ -2355,6 +2738,7 @@ impl Store {
             )
             .map_err(|error| format!("failed to store multipart upload: {error}"))?;
 
+        reservation.commit();
         Ok(upload_id)
     }
 
@@ -2371,14 +2755,32 @@ impl Store {
         .transpose()
     }
 
-    pub fn multipart_uploads_older_than(&self, cutoff_ms: u64) -> Result<Vec<String>, String> {
+    pub fn multipart_uploads_older_than_bounded(
+        &self,
+        cutoff_ms: u64,
+        after: Option<&[u8]>,
+        max_scanned: usize,
+    ) -> Result<(Vec<String>, Option<Vec<u8>>), String> {
+        if max_scanned == 0 {
+            return Ok((Vec::new(), None));
+        }
+        let mode = after.map_or(IteratorMode::Start, |after| {
+            IteratorMode::From(after, rocksdb::Direction::Forward)
+        });
         let iter = self
             .db
-            .iterator_cf(self.cf(ROCKSDB_CF_MULTIPART_UPLOADS), IteratorMode::Start);
-        let mut stale = Vec::new();
+            .iterator_cf(self.cf(ROCKSDB_CF_MULTIPART_UPLOADS), mode);
+        let mut stale = Vec::with_capacity(max_scanned);
+        let mut scanned = 0_usize;
+        let mut next_after = None;
         for item in iter {
             let (key, value) =
                 item.map_err(|error| format!("failed to iterate multipart uploads: {error}"))?;
+            if after.is_some_and(|after| key.as_ref() <= after) {
+                continue;
+            }
+            scanned += 1;
+            next_after = Some(key.to_vec());
             let upload_id = match std::str::from_utf8(&key) {
                 Ok(value) => value.to_owned(),
                 Err(error) => {
@@ -2389,14 +2791,23 @@ impl Store {
                 Ok(upload) => upload,
                 Err(error) => {
                     tracing::warn!("failed to decode multipart upload {upload_id}: {error}");
+                    if scanned == max_scanned {
+                        break;
+                    }
                     continue;
                 }
             };
             if upload.created_at_ms < cutoff_ms {
                 stale.push(upload_id);
             }
+            if scanned == max_scanned {
+                break;
+            }
         }
-        Ok(stale)
+        if scanned < max_scanned {
+            next_after = None;
+        }
+        Ok((stale, next_after))
     }
 
     pub async fn add_multipart_part(
@@ -2406,51 +2817,140 @@ impl Store {
         part_path: &Path,
         size: u64,
     ) -> Result<(), MultipartError> {
+        if part_number == 0 || part_number as usize > MAX_MULTIPART_PARTS {
+            return Err(MultipartError::PartsMismatch);
+        }
         let _guard = self.multipart_lock_for(upload_id).lock().await;
         let mut upload = self
             .multipart_upload(upload_id)
             .map_err(MultipartError::Other)?
             .ok_or(MultipartError::NotFound)?;
+        if !upload.parts.contains_key(&part_number) && upload.parts.len() >= MAX_MULTIPART_PARTS {
+            return Err(MultipartError::CapacityExceeded);
+        }
 
         let next_total = next_total_size(&upload.parts, part_number, size);
         validate_total_size(next_total, MAX_MODULE_TOTAL_BYTES)?;
+        let previous_part = upload.parts.get(&part_number).cloned();
+        let previous_size = previous_part.as_ref().map(|part| part.size).unwrap_or(0);
+        // The candidate and the previous immutable part coexist until the
+        // durable upload record points at the candidate. Reserve that physical
+        // overlap so replacement traffic cannot temporarily exceed the quota.
+        let byte_reservation = self.reserve_multipart_bytes(size)?;
 
         let upload_dir = self.data_dir.join("multipart").join(upload_id);
         self.io.create_dir_all(&upload_dir).await.map_err(|error| {
             MultipartError::Other(format!("failed to create multipart dir: {error}"))
         })?;
-        let final_path = upload_dir.join(part_number.to_string());
+        let candidate_path = upload_dir.join(format!("{part_number}-{}", Uuid::now_v7()));
 
-        if let Err(rename_error) = self.io.rename(part_path, &final_path).await {
-            self.io.copy(part_path, &final_path).await.map_err(|error| {
-                MultipartError::Other(format!(
-                    "failed to store multipart part after rename error ({rename_error}): {error}"
-                ))
+        let store_result: Result<(), MultipartError> = async {
+            if let Err(rename_error) = self.io.rename(part_path, &candidate_path).await {
+                self.io.copy(part_path, &candidate_path).await.map_err(|error| {
+                    MultipartError::Other(format!(
+                        "failed to store multipart part after rename error ({rename_error}): {error}"
+                    ))
+                })?;
+                self.io.remove_file_if_exists_result(part_path).await.map_err(|error| {
+                    MultipartError::Other(format!("failed to remove staged multipart part: {error}"))
+                })?;
+            }
+            let physical_size = self
+                .io
+                .metadata_len(&candidate_path)
+                .await
+                .map_err(MultipartError::Other)?;
+            if physical_size != size {
+                return Err(MultipartError::Other(format!(
+                    "multipart part declared {size} bytes but stored {physical_size} bytes"
+                )));
+            }
+            let stored_part = self
+                .io
+                .open_file(&candidate_path)
+                .await
+                .map_err(MultipartError::Other)?;
+            stored_part.sync_data().await.map_err(|error| {
+                MultipartError::Other(format!("failed to sync multipart part: {error}"))
             })?;
-            self.io.remove_file_if_exists(part_path).await;
-        }
+            drop(stored_part);
+            self.io
+                .drop_cached_pages(&candidate_path, 0, size)
+                .await
+                .map_err(MultipartError::Other)?;
+            self.io
+                .metrics()
+                .record_memory_action("multipart_part_file_cache_drop");
+            self.io
+                .sync_dir(&upload_dir)
+                .await
+                .map_err(MultipartError::Other)?;
 
-        upload.parts.insert(
-            part_number,
-            MultipartPart {
-                path: final_path.to_string_lossy().into_owned(),
-                size,
-            },
-        );
-
-        let upload_bytes = serde_json::to_vec(&upload).map_err(|error| {
-            MultipartError::Other(format!("failed to encode multipart upload: {error}"))
-        })?;
-        self.db
-            .put_cf(
+            upload.parts.insert(
+                part_number,
+                MultipartPart {
+                    path: candidate_path.to_string_lossy().into_owned(),
+                    size,
+                },
+            );
+            let upload_bytes = serde_json::to_vec(&upload).map_err(|error| {
+                MultipartError::Other(format!("failed to encode multipart upload: {error}"))
+            })?;
+            if upload_bytes.len() > MAX_MULTIPART_RECORD_BYTES {
+                return Err(MultipartError::CapacityExceeded);
+            }
+            let mut batch = WriteBatch::default();
+            batch.put_cf(
                 self.cf(ROCKSDB_CF_MULTIPART_UPLOADS),
                 upload_id.as_bytes(),
                 upload_bytes,
-            )
-            .map_err(|error| {
-                MultipartError::Other(format!("failed to update multipart upload: {error}"))
-            })?;
+            );
+            self.write_batch_sync(batch, "multipart upload replacement")
+                .map_err(MultipartError::Other)?;
+            Ok(())
+        }
+        .await;
 
+        if let Err(error) = store_result {
+            match self.io.remove_file_if_exists_result(&candidate_path).await {
+                Ok(()) => return Err(error),
+                Err(cleanup_error) => {
+                    // The failed candidate remains on disk, so keep its full
+                    // reservation. Startup reconciliation will retry cleanup.
+                    byte_reservation.commit(0);
+                    return Err(MultipartError::Other(format!(
+                        "{error:?}; failed to remove the uncommitted multipart candidate: {cleanup_error}"
+                    )));
+                }
+            }
+        }
+
+        if let Some(previous_part) = previous_part {
+            match self
+                .io
+                .remove_file_if_exists_result(Path::new(&previous_part.path))
+                .await
+            {
+                Ok(()) => byte_reservation.commit(previous_size),
+                Err(error) => {
+                    // The database already committed the candidate. Keep both
+                    // physical files accounted and let startup or abort reclaim
+                    // the unreferenced predecessor.
+                    byte_reservation.commit(0);
+                    self.io
+                        .metrics()
+                        .record_memory_action("multipart_replaced_part_cleanup_failed");
+                    tracing::warn!(
+                        upload_id,
+                        part_number,
+                        path = previous_part.path,
+                        "failed to remove replaced multipart part: {error}"
+                    );
+                }
+            }
+        } else {
+            byte_reservation.commit(0);
+        }
         Ok(())
     }
 
@@ -2470,6 +2970,14 @@ impl Store {
         expected_parts: &[u32],
         replication_targets: &[String],
     ) -> Result<ArtifactManifest, MultipartError> {
+        if expected_parts.is_empty()
+            || expected_parts.len() > MAX_MULTIPART_PARTS
+            || expected_parts
+                .iter()
+                .any(|part| *part == 0 || *part as usize > MAX_MULTIPART_PARTS)
+        {
+            return Err(MultipartError::PartsMismatch);
+        }
         let _guard = self.multipart_lock_for(upload_id).lock().await;
         let upload = self
             .multipart_upload(upload_id)
@@ -2481,16 +2989,25 @@ impl Store {
             return Err(MultipartError::PartsMismatch);
         }
         let upload_size: u64 = upload.parts.values().map(|part| part.size).sum();
-        ensure_tmp_dir_capacity(&self.tmp_dir, upload_size, self.tmp_dir_max_bytes)
+        let memory_reservation = reserve_foreground_staging(&self.memory, upload_size)
             .await
+            .map_err(|_| MultipartError::MemoryPressure)?;
+        let file_cache_policy = memory_reservation.file_cache_policy();
+        let disk_reservation = self
+            .tmp_staging_budget
+            .try_reserve(upload_size)
             .map_err(MultipartError::Other)?;
 
         let assembled_path = temp_file_path(&self.tmp_dir.join("uploads"), "module");
+        let mut cleanup = TempFileCleanup::new(assembled_path.clone(), disk_reservation);
         let mut assembled = self
             .io
             .create_file(&assembled_path)
             .await
             .map_err(MultipartError::Other)?;
+        let mut assembled_bytes = 0_u64;
+        let mut advised_through = 0_u64;
+        let mut copy_buffer = vec![0_u8; SEGMENT_COPY_BUFFER_BYTES];
 
         for part_number in expected_parts {
             let part = upload
@@ -2502,17 +3019,60 @@ impl Store {
                 .open_file(Path::new(&part.path))
                 .await
                 .map_err(MultipartError::Other)?;
-            let copied = tokio::io::copy(&mut part_file, &mut assembled)
-                .await
-                .map_err(|error| {
-                    MultipartError::Other(format!("failed to assemble multipart artifact: {error}"))
-                })?;
+            let mut copied = 0_u64;
+            while copied < part.size {
+                let remaining = usize::try_from((part.size - copied).min(copy_buffer.len() as u64))
+                    .expect("multipart copy chunk fits usize");
+                let read = part_file
+                    .read(&mut copy_buffer[..remaining])
+                    .await
+                    .map_err(|error| {
+                        MultipartError::Other(format!(
+                            "failed to read multipart part {part_number}: {error}"
+                        ))
+                    })?;
+                if read == 0 {
+                    break;
+                }
+                assembled
+                    .write_all(&copy_buffer[..read])
+                    .await
+                    .map_err(|error| {
+                        MultipartError::Other(format!(
+                            "failed to assemble multipart artifact: {error}"
+                        ))
+                    })?;
+                copied = copied.saturating_add(read as u64);
+                assembled_bytes = assembled_bytes.saturating_add(read as u64);
+                if file_cache_policy.should_drop(
+                    self.memory.pressure(),
+                    self.memory.transient_reserved_bytes(),
+                ) && assembled_bytes.saturating_sub(advised_through)
+                    >= FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES
+                {
+                    assembled = drop_staging_cache_range(
+                        assembled,
+                        &assembled_path,
+                        advised_through,
+                        assembled_bytes - advised_through,
+                        &self.io,
+                    )
+                    .await
+                    .map_err(MultipartError::Other)?;
+                    advised_through = assembled_bytes;
+                }
+            }
             if copied != part.size {
                 return Err(MultipartError::Other(format!(
                     "multipart part {part_number} expected {} bytes but copied {copied}",
                     part.size
                 )));
             }
+            drop(part_file);
+            self.io
+                .drop_cached_pages(Path::new(&part.path), 0, part.size)
+                .await
+                .map_err(MultipartError::Other)?;
         }
         assembled.flush().await.map_err(|error| {
             MultipartError::Other(format!("failed to flush assembled artifact: {error}"))
@@ -2525,12 +3085,14 @@ impl Store {
                 &upload.namespace_id,
                 &key,
                 "application/octet-stream",
-                &assembled_path,
+                StagedArtifactPath::new(&assembled_path, file_cache_policy),
                 replication_targets,
             )
             .await
             .map_err(MultipartError::Other)?
             .manifest;
+        cleanup.remove_and_disarm(&self.io).await;
+        drop(memory_reservation);
 
         self.abort_multipart_upload_locked(upload_id)
             .await
@@ -2545,17 +3107,35 @@ impl Store {
     }
 
     async fn abort_multipart_upload_locked(&self, upload_id: &str) -> Result<(), String> {
-        if let Some(upload) = self.multipart_upload(upload_id)? {
-            self.io
-                .remove_dir_all_if_exists(&self.data_dir.join("multipart").join(upload_id))
-                .await;
-            self.db
-                .delete_cf(self.cf(ROCKSDB_CF_MULTIPART_UPLOADS), upload_id.as_bytes())
-                .map_err(|error| format!("failed to delete multipart upload: {error}"))?;
+        let upload_dir = self.data_dir.join("multipart").join(upload_id);
+        let upload_exists = self.multipart_upload(upload_id)?.is_some();
 
-            for part in upload.parts.values() {
-                self.io.remove_file_if_exists(Path::new(&part.path)).await;
-            }
+        let stored_before = path_size_bytes_on_blocking_pool(upload_dir.clone())
+            .await
+            .map_err(|error| {
+            format!(
+                "failed to account multipart upload {upload_id} before removal; its durable record was retained: {error}"
+            )
+            })?;
+        let removal = self.io.remove_dir_all_if_exists(&upload_dir).await;
+        let stored_after = path_size_bytes_on_blocking_pool(upload_dir)
+            .await
+            .map_err(|error| {
+            format!(
+                "failed to account multipart upload {upload_id} after removal; its durable record was retained: {error}"
+            )
+            })?;
+        let reclaimed = stored_before.saturating_sub(stored_after);
+        if reclaimed > 0 {
+            release_atomic_bytes(&self.multipart_stored_bytes, reclaimed);
+        }
+        removal?;
+
+        if upload_exists {
+            let mut batch = WriteBatch::default();
+            batch.delete_cf(self.cf(ROCKSDB_CF_MULTIPART_UPLOADS), upload_id.as_bytes());
+            self.write_batch_sync(batch, "multipart upload deletion")?;
+            release_atomic_slots(&self.multipart_uploads, 1);
         }
 
         Ok(())
@@ -2563,12 +3143,15 @@ impl Store {
 
     #[cfg(test)]
     pub fn enqueue(&self, message: OutboxMessage) -> Result<(), String> {
+        let outbox_reservation = self.reserve_outbox_slots(1)?;
         let key = outbox_message_key(&message);
         let value = serde_json::to_vec(&message)
             .map_err(|error| format!("failed to encode outbox message: {error}"))?;
         let mut batch = WriteBatch::default();
         batch.put_cf(self.cf(ROCKSDB_CF_OUTBOX), key.as_bytes(), value);
-        self.write_batch_sync(batch, "outbox message")
+        self.write_batch_sync(batch, "outbox message")?;
+        outbox_reservation.commit();
+        Ok(())
     }
 
     pub fn next_outbox_message(
@@ -2599,7 +3182,7 @@ impl Store {
     }
 
     pub fn outbox_message_count(&self) -> Result<usize, String> {
-        self.count_cf_entries(ROCKSDB_CF_OUTBOX)
+        Ok(self.outbox_depth())
     }
 
     pub fn append_usage_rollups(&self, rollups: &[UsageRollup]) -> Result<(), String> {
@@ -2821,14 +3404,25 @@ impl Store {
     /// only (an untagged entry is not in the baseline: see `branch_in_trunk`)
     /// are returned; the cap counts kept entries only. `None` returns every
     /// action-cache entry regardless of branch.
+    #[cfg(test)]
     pub fn action_cache_manifests(
         &self,
         namespace_id: &str,
         max_entries: usize,
         trunk: Option<&str>,
     ) -> Result<Vec<ArtifactManifest>, String> {
+        self.action_cache_manifests_bounded(namespace_id, max_entries, usize::MAX, trunk)
+    }
+
+    pub fn action_cache_manifests_bounded(
+        &self,
+        namespace_id: &str,
+        max_entries: usize,
+        max_working_bytes: usize,
+        trunk: Option<&str>,
+    ) -> Result<Vec<ArtifactManifest>, String> {
         if !self.action_cache_index_backfilled(namespace_id)? {
-            return self.backfill_action_cache_index(namespace_id, max_entries, trunk);
+            self.backfill_action_cache_index(namespace_id)?;
         }
         let prefix = action_cache_index_prefix(namespace_id);
         let iter = self.db.iterator_cf(
@@ -2836,11 +3430,13 @@ impl Store {
             IteratorMode::From(&prefix, rocksdb::Direction::Forward),
         );
         let mut manifests = Vec::new();
+        let mut working_bytes = 0_usize;
+        let mut stale_working_bytes = 0_usize;
         // Rows whose manifest is gone or has moved to a different version:
         // overwrites and deletes clean up their own rows, but a row written by
         // a crashed batch or a pre-fix overwrite can linger — drop it here so
         // the index converges instead of paying the dead point-read forever.
-        let mut stale_rows: Vec<Vec<u8>> = Vec::new();
+        let mut stale_rows: Vec<Vec<u8>> = Vec::with_capacity(ACTION_CACHE_STALE_DELETE_BATCH);
         // Bounds the point-reads, which are the work: each is a random read into
         // the manifests CF, where advancing the iterator is a sequential step over
         // a compact CF. A row that carries its branch answers the trunk filter
@@ -2905,21 +3501,53 @@ impl Store {
                 {
                     // A valid entry outside the trunk filter is skipped, not
                     // deleted: it is a live entry for another branch.
-                    if manifest_in_trunk(&manifest, trunk) {
-                        manifests.push(manifest);
+                    if !manifest_in_trunk(&manifest, trunk) {
+                        continue;
                     }
+                    if !stale_rows.is_empty() {
+                        self.delete_stale_action_cache_rows(&mut stale_rows)?;
+                        working_bytes = working_bytes.saturating_sub(stale_working_bytes);
+                        stale_working_bytes = 0;
+                    }
+                    let charge = estimated_manifest_working_bytes(&manifest);
+                    if working_bytes.saturating_add(charge) > max_working_bytes {
+                        break;
+                    }
+                    working_bytes = working_bytes.saturating_add(charge);
+                    manifests.push(manifest);
                 }
-                _ => stale_rows.push(index_key.to_vec()),
+                _ => {
+                    if stale_rows.len() == ACTION_CACHE_STALE_DELETE_BATCH {
+                        self.delete_stale_action_cache_rows(&mut stale_rows)?;
+                        working_bytes = working_bytes.saturating_sub(stale_working_bytes);
+                        stale_working_bytes = 0;
+                    }
+                    let charge = std::mem::size_of::<Vec<u8>>().saturating_add(index_key.len());
+                    let flush_peak = working_bytes
+                        .saturating_add(stale_working_bytes)
+                        .saturating_add(charge.saturating_mul(2));
+                    if flush_peak > max_working_bytes {
+                        break;
+                    }
+                    working_bytes = working_bytes.saturating_add(charge);
+                    stale_working_bytes = stale_working_bytes.saturating_add(charge);
+                    stale_rows.push(index_key.to_vec());
+                }
             }
         }
-        if !stale_rows.is_empty() {
-            let mut batch = WriteBatch::default();
-            for row in &stale_rows {
-                batch.delete_cf(self.cf(ROCKSDB_CF_ACTION_CACHE_INDEX), row);
-            }
-            self.write_batch_sync(batch, "action-cache index stale rows")?;
-        }
+        self.delete_stale_action_cache_rows(&mut stale_rows)?;
         Ok(manifests)
+    }
+
+    fn delete_stale_action_cache_rows(&self, stale_rows: &mut Vec<Vec<u8>>) -> Result<(), String> {
+        if stale_rows.is_empty() {
+            return Ok(());
+        }
+        let mut batch = WriteBatch::default();
+        for row in std::mem::take(stale_rows) {
+            batch.delete_cf(self.cf(ROCKSDB_CF_ACTION_CACHE_INDEX), row);
+        }
+        self.write_batch_sync(batch, "action-cache index stale rows")
     }
 
     /// The namespace's action-cache generation. A snapshot index records this at
@@ -2969,19 +3597,11 @@ impl Store {
     }
 
     /// One-time migration per namespace: the legacy full namespace scan,
-    /// writing an index row for EVERY action-cache manifest it encounters
+    /// writing an index row for every action-cache manifest it encounters
     /// (the index must be complete for later capped scans to be correct),
-    /// then the backfill marker — all in one batch, so a crash mid-scan
-    /// leaves the marker unset and the next call redoes the work. Returns
-    /// the newest `max_entries` like the indexed path. Only the snapshot
-    /// reconcile calls this, from its background build task, so the
-    /// scan's cost no longer sits on any request path.
-    fn backfill_action_cache_index(
-        &self,
-        namespace_id: &str,
-        max_entries: usize,
-        trunk: Option<&str>,
-    ) -> Result<Vec<ArtifactManifest>, String> {
+    /// then the backfill marker. Idempotent bounded batches keep the migration
+    /// working set fixed; a crash before the marker safely repeats them.
+    fn backfill_action_cache_index(&self, namespace_id: &str) -> Result<(), String> {
         let started = std::time::Instant::now();
         let prefix = format!("{namespace_id}\0");
         let iter = self.db.iterator_cf(
@@ -2990,7 +3610,7 @@ impl Store {
         );
         let mut batch = WriteBatch::default();
         let mut rows = 0_usize;
-        let mut manifests = Vec::new();
+        let mut pending_rows = 0_usize;
         for item in iter {
             let (index_key, _) =
                 item.map_err(|error| format!("failed to iterate namespace index: {error}"))?;
@@ -3019,37 +3639,32 @@ impl Store {
                 manifest.artifact_id.as_bytes(),
             );
             rows += 1;
-            // The index row is written for every entry regardless of the trunk
-            // filter, so the built index stays complete; only the returned set
-            // is branch-scoped.
-            if !manifest_in_trunk(&manifest, trunk) {
-                continue;
-            }
-            manifests.push(manifest);
-            // Keep the working set bounded while scanning: shed the
-            // oldest half whenever the buffer doubles the cap.
-            if manifests.len() >= max_entries.saturating_mul(2).max(2) {
-                manifests.sort_unstable_by(|a, b| b.version_ms.cmp(&a.version_ms));
-                manifests.truncate(max_entries);
+            pending_rows += 1;
+            if pending_rows == 1_024 {
+                self.write_batch_sync(
+                    std::mem::take(&mut batch),
+                    "action-cache index backfill batch",
+                )?;
+                pending_rows = 0;
             }
         }
-        batch.put_cf(
+        if pending_rows > 0 {
+            self.write_batch_sync(batch, "action-cache index backfill batch")?;
+        }
+        let mut marker_batch = WriteBatch::default();
+        marker_batch.put_cf(
             self.cf(ROCKSDB_CF_KEY_VALUE),
             Self::action_cache_index_marker_key(namespace_id).as_bytes(),
             [],
         );
-        self.write_batch_sync(batch, "action-cache index backfill")?;
-        if manifests.len() > max_entries {
-            manifests.sort_unstable_by(|a, b| b.version_ms.cmp(&a.version_ms));
-            manifests.truncate(max_entries);
-        }
+        self.write_batch_sync(marker_batch, "action-cache index backfill marker")?;
         tracing::info!(
             namespace_id,
             rows,
             elapsed_ms = started.elapsed().as_millis() as u64,
             "action-cache index backfilled"
         );
-        Ok(manifests)
+        Ok(())
     }
 
     /// Walk the manifest keyspace, optionally restricted to an `artifact_id`
@@ -3205,7 +3820,9 @@ impl Store {
     pub fn delete_outbox_message(&self, key: &[u8]) -> Result<(), String> {
         self.db
             .delete_cf(self.cf(ROCKSDB_CF_OUTBOX), key)
-            .map_err(|error| format!("failed to delete outbox entry: {error}"))
+            .map_err(|error| format!("failed to delete outbox entry: {error}"))?;
+        release_atomic_slots(&self.outbox_depth, 1);
+        Ok(())
     }
 
     #[cfg(test)]
@@ -3494,6 +4111,254 @@ impl Store {
     fn note_artifact_exists(&self, artifact_id: &str) {
         self.existence_cache.insert(artifact_id);
     }
+
+    fn count_cf_entries_exact(&self, name: &str) -> Result<usize, String> {
+        let iter = self.db.iterator_cf(self.cf(name), IteratorMode::Start);
+        let mut count = 0_usize;
+        for item in iter {
+            item.map_err(|error| format!("failed to iterate {name}: {error}"))?;
+            count = count.saturating_add(1);
+        }
+        Ok(count)
+    }
+
+    fn delete_invalid_multipart_records(
+        &self,
+        invalid_keys: &mut Vec<Vec<u8>>,
+    ) -> Result<(), String> {
+        if invalid_keys.is_empty() {
+            return Ok(());
+        }
+        let mut batch = WriteBatch::default();
+        for key in std::mem::take(invalid_keys) {
+            batch.delete_cf(self.cf(ROCKSDB_CF_MULTIPART_UPLOADS), key);
+        }
+        self.write_batch_sync(batch, "invalid multipart upload cleanup")
+    }
+
+    fn reconcile_multipart_storage(&self) -> Result<(usize, u64), String> {
+        let multipart_root = self.data_dir.join("multipart");
+        let iter = self
+            .db
+            .iterator_cf(self.cf(ROCKSDB_CF_MULTIPART_UPLOADS), IteratorMode::Start);
+        let mut uploads = 0_usize;
+        let mut stored_bytes = 0_u64;
+        let mut invalid_keys = Vec::with_capacity(MULTIPART_RECONCILE_DELETE_BATCH);
+        for item in iter {
+            let (key, value) =
+                item.map_err(|error| format!("failed to iterate multipart uploads: {error}"))?;
+            let upload = if value.len() > MAX_MULTIPART_RECORD_BYTES {
+                tracing::warn!(
+                    record_bytes = value.len(),
+                    max_record_bytes = MAX_MULTIPART_RECORD_BYTES,
+                    "discarding an oversized multipart upload record during startup"
+                );
+                None
+            } else {
+                match serde_json::from_slice::<MultipartUpload>(&value) {
+                    Ok(upload) if upload.upload_id.as_bytes() == key.as_ref() => Some(upload),
+                    Ok(upload) => {
+                        tracing::warn!(
+                            record_upload_id = upload.upload_id,
+                            "discarding a multipart record whose key does not match its upload id"
+                        );
+                        None
+                    }
+                    Err(error) => {
+                        tracing::warn!(
+                            "discarding an undecodable multipart upload record during startup: {error}"
+                        );
+                        None
+                    }
+                }
+            };
+            let Some(upload) = upload else {
+                invalid_keys.push(key.to_vec());
+                if invalid_keys.len() == MULTIPART_RECONCILE_DELETE_BATCH {
+                    self.delete_invalid_multipart_records(&mut invalid_keys)?;
+                }
+                continue;
+            };
+
+            let upload_dir = multipart_root.join(&upload.upload_id);
+            let mut referenced_paths = HashSet::with_capacity(upload.parts.len());
+            let valid = upload.parts.len() <= MAX_MULTIPART_PARTS
+                && upload.parts.iter().all(|(part_number, part)| {
+                    if *part_number == 0 || *part_number as usize > MAX_MULTIPART_PARTS {
+                        return false;
+                    }
+                    let path = PathBuf::from(&part.path);
+                    if path.parent() != Some(upload_dir.as_path())
+                        || !referenced_paths.insert(path.clone())
+                    {
+                        return false;
+                    }
+                    std::fs::metadata(path)
+                        .map(|metadata| metadata.is_file() && metadata.len() == part.size)
+                        .unwrap_or(false)
+                });
+            if !valid {
+                tracing::warn!(
+                    upload_id = upload.upload_id,
+                    "discarding an incomplete multipart upload with missing or mismatched part files"
+                );
+                invalid_keys.push(key.to_vec());
+                if invalid_keys.len() == MULTIPART_RECONCILE_DELETE_BATCH {
+                    self.delete_invalid_multipart_records(&mut invalid_keys)?;
+                }
+                continue;
+            }
+
+            uploads = uploads.saturating_add(1);
+            stored_bytes = stored_bytes
+                .saturating_add(upload.parts.values().map(|part| part.size).sum::<u64>());
+
+            match std::fs::read_dir(&upload_dir) {
+                Ok(entries) => {
+                    for entry in entries {
+                        let entry = entry.map_err(|error| {
+                            format!(
+                                "failed to enumerate multipart upload {}: {error}",
+                                upload.upload_id
+                            )
+                        })?;
+                        let path = entry.path();
+                        if referenced_paths.contains(&path) {
+                            continue;
+                        }
+                        let reclaimed = entry
+                            .file_type()
+                            .map(|kind| {
+                                if kind.is_dir() {
+                                    std::fs::remove_dir_all(&path)
+                                } else {
+                                    std::fs::remove_file(&path)
+                                }
+                            })
+                            .unwrap_or_else(Err);
+                        if let Err(error) = reclaimed {
+                            let retained = try_path_size_bytes(&path).map_err(|accounting_error| {
+                                format!(
+                                    "failed to account unreclaimed multipart path {} after {error}: {accounting_error}",
+                                    path.display()
+                                )
+                            })?;
+                            stored_bytes = stored_bytes.saturating_add(retained);
+                            tracing::warn!(
+                                path = %path.display(),
+                                retained,
+                                "failed to reclaim an unreferenced multipart file during startup: {error}"
+                            );
+                        }
+                    }
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                Err(error) => {
+                    return Err(format!(
+                        "failed to enumerate multipart upload {}: {error}",
+                        upload.upload_id
+                    ));
+                }
+            }
+        }
+        self.delete_invalid_multipart_records(&mut invalid_keys)?;
+
+        match std::fs::read_dir(&multipart_root) {
+            Ok(entries) => {
+                for entry in entries {
+                    let entry = entry.map_err(|error| {
+                        format!("failed to enumerate multipart storage: {error}")
+                    })?;
+                    let upload_id = entry.file_name().to_string_lossy().into_owned();
+                    let has_record = self
+                        .db
+                        .get_cf(self.cf(ROCKSDB_CF_MULTIPART_UPLOADS), upload_id.as_bytes())
+                        .map_err(|error| {
+                            format!("failed to inspect multipart upload {upload_id}: {error}")
+                        })?
+                        .is_some();
+                    if has_record {
+                        continue;
+                    }
+                    let path = entry.path();
+                    let reclaimed = entry
+                        .file_type()
+                        .map(|kind| {
+                            if kind.is_dir() {
+                                std::fs::remove_dir_all(&path)
+                            } else {
+                                std::fs::remove_file(&path)
+                            }
+                        })
+                        .unwrap_or_else(Err);
+                    if let Err(error) = reclaimed {
+                        let retained = try_path_size_bytes(&path).map_err(|accounting_error| {
+                            format!(
+                                "failed to account unreclaimed orphaned multipart path {} after {error}: {accounting_error}",
+                                path.display()
+                            )
+                        })?;
+                        stored_bytes = stored_bytes.saturating_add(retained);
+                        tracing::warn!(
+                            path = %path.display(),
+                            retained,
+                            "failed to reclaim an orphaned multipart path during startup: {error}"
+                        );
+                    }
+                }
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => {
+                return Err(format!(
+                    "failed to enumerate multipart storage {}: {error}",
+                    multipart_root.display()
+                ));
+            }
+        }
+        Ok((uploads, stored_bytes))
+    }
+
+    #[cfg(test)]
+    fn multipart_usage(&self) -> (usize, u64) {
+        (
+            self.multipart_uploads.load(Ordering::Acquire),
+            self.multipart_stored_bytes.load(Ordering::Acquire),
+        )
+    }
+}
+
+fn release_atomic_slots(depth: &AtomicUsize, slots: usize) {
+    let _ = depth.fetch_update(Ordering::AcqRel, Ordering::Acquire, |current| {
+        Some(current.saturating_sub(slots))
+    });
+}
+
+async fn path_size_bytes_on_blocking_pool(path: PathBuf) -> Result<u64, String> {
+    tokio::task::spawn_blocking(move || try_path_size_bytes(&path))
+        .await
+        .map_err(|error| format!("filesystem accounting task failed: {error}"))?
+        .map_err(|error| error.to_string())
+}
+
+fn release_atomic_bytes(bytes: &AtomicU64, released: u64) {
+    let _ = bytes.fetch_update(Ordering::AcqRel, Ordering::Acquire, |current| {
+        Some(current.saturating_sub(released))
+    });
+}
+
+fn estimated_manifest_working_bytes(manifest: &ArtifactManifest) -> usize {
+    let strings = manifest
+        .artifact_id
+        .len()
+        .saturating_add(manifest.namespace_id.len())
+        .saturating_add(manifest.key.len())
+        .saturating_add(manifest.content_type.len())
+        .saturating_add(manifest.blob_path.as_ref().map_or(0, String::len))
+        .saturating_add(manifest.segment_id.as_ref().map_or(0, String::len));
+    std::mem::size_of::<ArtifactManifest>()
+        .saturating_add(strings)
+        .saturating_mul(2)
+        .saturating_add(256)
 }
 
 fn next_total_size(parts: &BTreeMap<u32, MultipartPart>, part_number: u32, size: u64) -> u64 {
@@ -3810,7 +4675,9 @@ impl ExistenceCache {
 fn estimated_manifest_bytes(manifest: &ArtifactManifest) -> usize {
     let optional_blob_path = manifest.blob_path.as_deref().map(str::len).unwrap_or(0);
     let optional_segment_id = manifest.segment_id.as_deref().map(str::len).unwrap_or(0);
-    manifest.artifact_id.len()
+    // The artifact id is owned three times: inside the manifest, as the
+    // HashMap key, and in AccessOrder's BTreeMap value.
+    manifest.artifact_id.len().saturating_mul(3)
         + manifest.namespace_id.len()
         + manifest.key.len()
         + manifest.content_type.len()
@@ -4351,8 +5218,10 @@ mod tests {
             file_descriptor_acquire_timeout_ms: 5_000,
             drain_completion_timeout_ms: 240_000,
             segment_handle_cache_size: 8,
+            memory_limit_bytes: 512 * 1024 * 1024,
             memory_soft_limit_bytes: 128 * 1024 * 1024,
             memory_hard_limit_bytes: 256 * 1024 * 1024,
+            snapshot_cache_max_bytes: 32 * 1024 * 1024,
             manifest_cache_max_bytes: 8 * 1024 * 1024,
             max_keyvalue_bytes: 512 * 1024,
             rocksdb_max_open_files: 256,
@@ -4366,6 +5235,8 @@ mod tests {
             replication_public_latency_target_ms: 100,
             multipart_upload_ttl_ms: 24 * 60 * 60 * 1000,
             multipart_janitor_interval_ms: 10 * 60 * 1000,
+            multipart_max_active_uploads: 128,
+            multipart_max_stored_bytes: 8 * 1024 * 1024 * 1024,
             bootstrap_timeout_ms: 30 * 60 * 1000,
             bootstrap_max_concurrent_peers: 8,
             analytics: None,
@@ -6812,6 +7683,255 @@ mod tests {
         );
     }
 
+    #[test]
+    fn multipart_start_rejects_oversized_initial_metadata_without_reserving_a_slot() {
+        let (_temp_dir, _config, store) = temp_store();
+        let oversized_name = "x".repeat(MAX_MULTIPART_RECORD_BYTES);
+
+        let error = store
+            .start_multipart_upload("acme", "ios", "builds", "hash-1", &oversized_name)
+            .expect_err("oversized initial metadata should be rejected");
+
+        assert!(is_multipart_capacity_error(&error));
+        assert_eq!(store.multipart_usage(), (0, 0));
+        assert_eq!(
+            store
+                .count_cf_entries_exact(ROCKSDB_CF_MULTIPART_UPLOADS)
+                .expect("multipart records should count"),
+            0
+        );
+    }
+
+    #[tokio::test]
+    async fn multipart_quotas_survive_restart_and_release_on_abort() {
+        let (_temp_dir, config, store) = temp_store_with(|config| {
+            config.multipart_max_active_uploads = 1;
+            config.multipart_max_stored_bytes = 20;
+        });
+        let upload_id = store
+            .start_multipart_upload("acme", "ios", "builds", "hash-1", "Module.framework")
+            .expect("first upload should fit");
+        assert!(is_multipart_capacity_error(
+            &store
+                .start_multipart_upload("acme", "ios", "builds", "hash-2", "Other.framework")
+                .expect_err("active upload limit should reject another upload")
+        ));
+
+        let part_1 = config.tmp_dir.join("bounded-part-1");
+        let part_2 = config.tmp_dir.join("bounded-part-2");
+        std::fs::write(&part_1, b"1234567").expect("write first part");
+        std::fs::write(&part_2, b"1234").expect("write second part");
+        let mismatched = config.tmp_dir.join("bounded-mismatched-part");
+        std::fs::write(&mismatched, b"1234").expect("write mismatched part");
+        let mismatch_error = store
+            .add_multipart_part(&upload_id, 1, &mismatched, 3)
+            .await
+            .expect_err("declared size must match physical storage");
+        assert!(matches!(mismatch_error, MultipartError::Other(_)));
+        assert_eq!(store.multipart_usage(), (1, 0));
+        assert_eq!(
+            store.add_multipart_part(&upload_id, 0, &part_1, 7).await,
+            Err(MultipartError::PartsMismatch)
+        );
+        assert_eq!(
+            store
+                .add_multipart_part(&upload_id, (MAX_MULTIPART_PARTS + 1) as u32, &part_1, 7,)
+                .await,
+            Err(MultipartError::PartsMismatch)
+        );
+        store
+            .add_multipart_part(&upload_id, 1, &part_1, 7)
+            .await
+            .expect("first part should fit");
+        assert_eq!(store.multipart_usage(), (1, 7));
+        let oversized = config.tmp_dir.join("bounded-oversized-part");
+        std::fs::write(&oversized, vec![b'x'; 14]).expect("write oversized part");
+        assert_eq!(
+            store
+                .add_multipart_part(&upload_id, 2, &oversized, 14)
+                .await,
+            Err(MultipartError::CapacityExceeded)
+        );
+
+        let replacement = config.tmp_dir.join("bounded-part-replacement");
+        std::fs::write(&replacement, b"12345").expect("write replacement part");
+        store
+            .add_multipart_part(&upload_id, 1, &replacement, 5)
+            .await
+            .expect("smaller replacement should release capacity");
+        store
+            .add_multipart_part(&upload_id, 2, &part_2, 4)
+            .await
+            .expect("released capacity should be reusable");
+        assert_eq!(store.multipart_usage(), (1, 9));
+
+        let orphan = config
+            .data_dir
+            .join("multipart")
+            .join(&upload_id)
+            .join("uncommitted-candidate");
+        std::fs::write(&orphan, b"orphan").expect("write orphaned candidate");
+
+        drop(store);
+        let io = IoController::new(
+            Metrics::new(config.region.clone(), config.tenant_id.clone()),
+            config.file_descriptor_pool_size,
+            std::time::Duration::from_millis(config.file_descriptor_acquire_timeout_ms),
+            vec![config.tmp_dir.clone(), config.data_dir.clone()],
+        )
+        .expect("reopened io controller should build");
+        let memory = MemoryController::new(
+            io.metrics(),
+            config.memory_soft_limit_bytes,
+            config.memory_hard_limit_bytes,
+        );
+        let reopened = Store::open(&config, io, memory).expect("store should reopen");
+        assert_eq!(reopened.multipart_usage(), (1, 9));
+        assert!(!orphan.exists(), "startup must reclaim orphaned candidates");
+        assert!(is_multipart_capacity_error(
+            &reopened
+                .start_multipart_upload("acme", "ios", "builds", "hash-3", "Third.framework")
+                .expect_err("reopened store should enforce durable upload count")
+        ));
+
+        reopened
+            .abort_multipart_upload(&upload_id)
+            .await
+            .expect("abort should release quota");
+        assert_eq!(reopened.multipart_usage(), (0, 0));
+        reopened
+            .start_multipart_upload("acme", "ios", "builds", "hash-4", "Fourth.framework")
+            .expect("released upload slot should be reusable");
+    }
+
+    #[tokio::test]
+    async fn multipart_startup_discards_records_with_mismatched_files() {
+        let (_temp_dir, config, store) = temp_store();
+        let upload_id = store
+            .start_multipart_upload("acme", "ios", "builds", "hash", "Module.framework")
+            .expect("upload should start");
+        let staged = config.tmp_dir.join("mismatched-part");
+        std::fs::write(&staged, b"original").expect("write staged part");
+        store
+            .add_multipart_part(&upload_id, 1, &staged, 8)
+            .await
+            .expect("part should be stored");
+        let stored = store
+            .multipart_upload(&upload_id)
+            .expect("upload lookup should succeed")
+            .expect("upload should exist");
+        let stored_path = PathBuf::from(&stored.parts[&1].path);
+        std::fs::write(&stored_path, b"wrong").expect("corrupt stored part");
+        drop(store);
+
+        let io = IoController::new(
+            Metrics::new(config.region.clone(), config.tenant_id.clone()),
+            config.file_descriptor_pool_size,
+            std::time::Duration::from_millis(config.file_descriptor_acquire_timeout_ms),
+            vec![config.tmp_dir.clone(), config.data_dir.clone()],
+        )
+        .expect("reopened io controller should build");
+        let memory = MemoryController::new(
+            io.metrics(),
+            config.memory_soft_limit_bytes,
+            config.memory_hard_limit_bytes,
+        );
+        let reopened = Store::open(&config, io, memory).expect("store should reopen");
+        assert_eq!(reopened.multipart_usage(), (0, 0));
+        assert!(
+            reopened
+                .multipart_upload(&upload_id)
+                .expect("upload lookup should succeed")
+                .is_none(),
+            "a mismatched incomplete upload cannot complete safely"
+        );
+        assert!(!stored_path.exists());
+    }
+
+    #[tokio::test]
+    async fn multipart_startup_preserves_records_above_the_active_limit() {
+        let (_temp_dir, mut config, store) = temp_store_with(|config| {
+            config.multipart_max_active_uploads = 3;
+        });
+        let mut upload_ids = Vec::new();
+        for index in 0..3 {
+            upload_ids.push(
+                store
+                    .start_multipart_upload(
+                        "acme",
+                        "ios",
+                        "builds",
+                        &format!("hash-{index}"),
+                        &format!("Module-{index}.framework"),
+                    )
+                    .expect("upload should start"),
+            );
+        }
+        drop(store);
+
+        config.multipart_max_active_uploads = 1;
+        let io = IoController::new(
+            Metrics::new(config.region.clone(), config.tenant_id.clone()),
+            config.file_descriptor_pool_size,
+            std::time::Duration::from_millis(config.file_descriptor_acquire_timeout_ms),
+            vec![config.tmp_dir.clone(), config.data_dir.clone()],
+        )
+        .expect("reopened io controller should build");
+        let memory = MemoryController::new(
+            io.metrics(),
+            config.memory_soft_limit_bytes,
+            config.memory_hard_limit_bytes,
+        );
+        let reopened = Store::open(&config, io, memory).expect("store should reopen");
+        assert_eq!(reopened.multipart_usage(), (3, 0));
+        assert_eq!(
+            reopened
+                .count_cf_entries_exact(ROCKSDB_CF_MULTIPART_UPLOADS)
+                .expect("multipart records should count"),
+            3
+        );
+        assert!(is_multipart_capacity_error(
+            &reopened
+                .start_multipart_upload("acme", "ios", "builds", "new", "New.framework")
+                .expect_err("persisted overage should reject growth")
+        ));
+        for upload_id in upload_ids {
+            reopened
+                .abort_multipart_upload(&upload_id)
+                .await
+                .expect("preserved upload should remain abortable");
+        }
+        reopened
+            .start_multipart_upload("acme", "ios", "builds", "new", "New.framework")
+            .expect("a new upload should start after the overage is reclaimed");
+    }
+
+    #[test]
+    fn multipart_janitor_scan_pages_durable_uploads_with_a_fixed_bound() {
+        let (_temp_dir, _config, store) = temp_store();
+        for index in 0..3 {
+            store
+                .start_multipart_upload(
+                    "acme",
+                    "ios",
+                    "builds",
+                    &format!("hash-{index}"),
+                    &format!("Module-{index}.framework"),
+                )
+                .expect("upload should start");
+        }
+
+        let (first, cursor) = store
+            .multipart_uploads_older_than_bounded(u64::MAX, None, 2)
+            .expect("first page should scan");
+        assert_eq!(first.len(), 2);
+        let (second, cursor) = store
+            .multipart_uploads_older_than_bounded(u64::MAX, cursor.as_deref(), 2)
+            .expect("second page should scan");
+        assert_eq!(second.len(), 1);
+        assert!(cursor.is_none(), "the final page should reset the cursor");
+    }
+
     #[tokio::test]
     async fn concurrent_multipart_part_writes_do_not_lose_updates() {
         let (_temp_dir, config, store) = temp_store();
@@ -6916,6 +8036,112 @@ mod tests {
                 .expect("failed to read outbox messages")
                 .is_empty()
         );
+    }
+
+    #[tokio::test]
+    async fn outbox_capacity_is_enforced_atomically_across_writers() {
+        let (_temp_dir, _config, store) = temp_store_with(|config| {
+            config.outbox_max_depth = 5;
+        });
+        let store = Arc::new(store);
+        let mut writers = Vec::new();
+        for index in 0..20 {
+            let store = store.clone();
+            writers.push(tokio::spawn(async move {
+                store
+                    .persist_inline_artifact_from_bytes_and_enqueue(
+                        ArtifactProducer::Reapi,
+                        "ios",
+                        &format!("action_cache/{index}"),
+                        "application/x-protobuf",
+                        b"value",
+                        &["http://peer".into()],
+                        None,
+                        None,
+                    )
+                    .await
+            }));
+        }
+
+        let mut accepted = 0;
+        let mut rejected = 0;
+        for writer in writers {
+            match writer.await.expect("writer task") {
+                Ok(_) => accepted += 1,
+                Err(error) if is_outbox_full_error(&error) => rejected += 1,
+                Err(error) => panic!("unexpected write failure: {error}"),
+            }
+        }
+
+        assert_eq!(accepted, 5);
+        assert_eq!(rejected, 15);
+        assert_eq!(store.outbox_depth(), 5);
+        assert_eq!(store.outbox_message_count().expect("outbox count"), 5);
+    }
+
+    #[tokio::test]
+    async fn deleting_an_outbox_message_releases_capacity() {
+        let (_temp_dir, _config, store) = temp_store_with(|config| {
+            config.outbox_max_depth = 1;
+        });
+        let message = OutboxMessage {
+            target: "http://peer".into(),
+            operation: ReplicationOperation::DeleteNamespace {
+                namespace_id: "ios".into(),
+                version_ms: 123,
+            },
+        };
+        store.enqueue(message.clone()).expect("first enqueue");
+        assert!(is_outbox_full_error(
+            &store
+                .enqueue(message.clone())
+                .expect_err("capacity rejection")
+        ));
+
+        let (key, _) = store
+            .next_outbox_message(None)
+            .expect("outbox read")
+            .expect("queued message");
+        store.delete_outbox_message(&key).expect("outbox deletion");
+        store.enqueue(message).expect("capacity should be reusable");
+        assert_eq!(store.outbox_depth(), 1);
+    }
+
+    #[test]
+    fn reopening_the_store_rebuilds_exact_outbox_depth() {
+        let (_temp_dir, config, store) = temp_store_with(|config| {
+            config.outbox_max_depth = 1;
+        });
+        let message = OutboxMessage {
+            target: "http://peer".into(),
+            operation: ReplicationOperation::DeleteNamespace {
+                namespace_id: "ios".into(),
+                version_ms: 123,
+            },
+        };
+        store.enqueue(message.clone()).expect("seed outbox");
+        drop(store);
+
+        let io = IoController::new(
+            Metrics::new(config.region.clone(), config.tenant_id.clone()),
+            config.file_descriptor_pool_size,
+            std::time::Duration::from_millis(config.file_descriptor_acquire_timeout_ms),
+            vec![config.tmp_dir.clone(), config.data_dir.clone()],
+        )
+        .expect("failed to recreate io controller");
+        let memory = MemoryController::new(
+            io.metrics(),
+            config.memory_soft_limit_bytes,
+            config.memory_hard_limit_bytes,
+        );
+        let reopened = Store::open(&config, io, memory).expect("failed to reopen store");
+
+        assert_eq!(reopened.outbox_depth(), 1);
+        assert!(is_outbox_full_error(
+            &reopened
+                .enqueue(message)
+                .expect_err("reopened store must enforce persisted depth")
+        ));
     }
 
     #[test]
@@ -7093,7 +8319,7 @@ mod tests {
                         "ns",
                         &format!("key-{i}"),
                         "application/octet-stream",
-                        &path,
+                        StagedArtifactPath::new(&path, FileCachePolicy::Adaptive),
                         &[],
                     )
                     .await
