@@ -8,6 +8,7 @@ defmodule TuistWeb.OperatorGrantPlugsTest do
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistWeb.OperatorGrant
+  alias TuistWeb.Router
 
   describe "redirect_to_ops_if_operator/2" do
     setup do
@@ -250,6 +251,14 @@ defmodule TuistWeb.OperatorGrantPlugsTest do
       assert get_session(conn, "operator_grants") == nil
     end
 
+    test "prunes expired grants in the Ueberauth request pipeline" do
+      assert_auth_pipeline_prunes_expired_grants(:ueberauth)
+    end
+
+    test "prunes expired grants in the unprotected authentication callback pipeline" do
+      assert_auth_pipeline_prunes_expired_grants(:unprotected_browser_app)
+    end
+
     test "warns when the compacted session payload reaches the size guardrail" do
       now = System.system_time(:second)
 
@@ -391,6 +400,30 @@ defmodule TuistWeb.OperatorGrantPlugsTest do
       sub: user.email,
       exp: Keyword.get(opts, :exp, now + 600)
     }
+  end
+
+  defp assert_auth_pipeline_prunes_expired_grants(pipeline) do
+    now = System.system_time(:second)
+
+    conn =
+      :get
+      |> Phoenix.ConnTest.build_conn("/")
+      |> Plug.Test.init_test_session(%{
+        "operator_grants" => %{
+          "expired-account" => %{
+            tier: :read,
+            account_id: 1,
+            account_handle: "expired-account",
+            sub: "operator@tuist.dev",
+            jti: "expired-grant",
+            exp: now - 1
+          }
+        }
+      })
+
+    conn = apply(Router, pipeline, [conn, []])
+
+    assert get_session(conn, "operator_grants") == nil
   end
 
   defp operator_user do
