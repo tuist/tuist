@@ -2,6 +2,7 @@ defmodule TuistWeb.OperatorGrantPlugsTest do
   use TuistTestSupport.Cases.ConnCase, async: true
   use Mimic
 
+  import ExUnit.CaptureLog
   import Plug.Conn
 
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -122,6 +123,10 @@ defmodule TuistWeb.OperatorGrantPlugsTest do
       grant = get_session(conn, "operator_grants")[account.name]
       assert grant.tier == :read
       assert grant.account_id == account.id
+
+      assert grant
+             |> Map.keys()
+             |> Enum.sort() == [:account_handle, :account_id, :exp, :jti, :sub, :tier]
     end
 
     test "rejects a grant when the session is not Google-authenticated", %{signer: signer} do
@@ -188,6 +193,94 @@ defmodule TuistWeb.OperatorGrantPlugsTest do
 
       assert conn.halted
       assert get_session(conn, "operator_grants") == nil
+    end
+  end
+
+  describe "prune_operator_grants/2" do
+    test "removes expired grants and fields that are not needed for authorization" do
+      now = System.system_time(:second)
+
+      active_grant = %{
+        tier: :read,
+        account_id: 1,
+        account_handle: "active-account",
+        sub: "operator@tuist.dev",
+        reason: "investigating",
+        jti: "active-grant",
+        iat: now - 60,
+        exp: now + 600
+      }
+
+      expired_grant = %{active_grant | account_handle: "expired-account", jti: "expired-grant", exp: now - 1}
+
+      conn =
+        Phoenix.ConnTest.build_conn()
+        |> Plug.Test.init_test_session(%{
+          "operator_grants" => %{
+            "active-account" => active_grant,
+            "expired-account" => expired_grant
+          }
+        })
+        |> OperatorGrant.prune_operator_grants([])
+
+      assert get_session(conn, "operator_grants") == %{
+               "active-account" => Map.take(active_grant, [:tier, :account_id, :account_handle, :sub, :jti, :exp])
+             }
+    end
+
+    test "deletes the operator grants session entry when every grant is expired" do
+      now = System.system_time(:second)
+
+      conn =
+        Phoenix.ConnTest.build_conn()
+        |> Plug.Test.init_test_session(%{
+          "operator_grants" => %{
+            "expired-account" => %{
+              tier: :read,
+              account_id: 1,
+              account_handle: "expired-account",
+              sub: "operator@tuist.dev",
+              jti: "expired-grant",
+              exp: now - 1
+            }
+          }
+        })
+        |> OperatorGrant.prune_operator_grants([])
+
+      assert get_session(conn, "operator_grants") == nil
+    end
+
+    test "warns when the compacted session payload reaches the size guardrail" do
+      now = System.system_time(:second)
+
+      grants =
+        Map.new(1..40, fn index ->
+          handle = "account-#{index}"
+
+          {handle,
+           %{
+             tier: :read,
+             account_id: index,
+             account_handle: handle,
+             sub: "operator@tuist.dev",
+             reason: "removed during compaction",
+             jti: "grant-#{index}",
+             iat: now,
+             exp: now + 600
+           }}
+        end)
+
+      log =
+        capture_log(fn ->
+          conn =
+            Phoenix.ConnTest.build_conn()
+            |> Plug.Test.init_test_session(%{"operator_grants" => grants})
+            |> OperatorGrant.prune_operator_grants([])
+
+          assert map_size(get_session(conn, "operator_grants")) == 40
+        end)
+
+      assert log =~ "operator grant session payload is approaching the cookie size limit"
     end
   end
 
