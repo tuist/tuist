@@ -1011,6 +1011,40 @@ defmodule Tuist.Kura do
     {:ok, server}
   end
 
+  @doc """
+  True iff the server's client-facing cache endpoint is already mirrored into
+  `account_cache_endpoints` (the table the CLI resolves).
+
+  Private regions never mirror — their URL is in-cluster only and reachable
+  solely by runner dispatch — so they are always reported as mirrored.
+
+  Public regions must carry the derived `:kura` endpoint row for their current
+  URL. The mirror is written once, when the server transitions into `:active`
+  (`activate_server/2`); the steady-state reconcile otherwise treats a server
+  whose stored URL matches the rendered host as converged and never re-derives
+  it. A public server missing its row — activated before the mirror existed, or
+  with a row pruned out of band — would therefore stay invisible to the CLI
+  forever. Reporting the absent row as out of sync (see `Reconciler`) routes the
+  server back through activation, which re-runs the idempotent mirror insert and
+  self-heals it on the next tick.
+  """
+  def cache_endpoint_mirrored?(%Server{region: region_id} = server) do
+    case Regions.fetch(region_id) do
+      {:ok, region} -> Regions.private?(region) or cache_endpoint_row_present?(server)
+      {:error, _} -> true
+    end
+  end
+
+  defp cache_endpoint_row_present?(%Server{account_id: account_id, url: url}) when is_binary(url) do
+    Repo.exists?(
+      from(e in AccountCacheEndpoint,
+        where: e.account_id == ^account_id and e.technology == :kura and e.url == ^url
+      )
+    )
+  end
+
+  defp cache_endpoint_row_present?(%Server{}), do: true
+
   defp ensure_cache_endpoint(_account, nil), do: :ok
 
   defp ensure_cache_endpoint(account, url) do

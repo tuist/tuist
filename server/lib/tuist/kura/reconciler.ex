@@ -482,6 +482,14 @@ defmodule Tuist.Kura.Reconciler do
   # not re-written every tick. A non-binary render (e.g. unknown region) leaves
   # the existing `converged?` behaviour untouched.
   #
+  # A matching URL is necessary but not sufficient: the derived `:kura` endpoint
+  # row must also be present. An active public server whose row is missing (e.g.
+  # activated before the mirror existed, or the row pruned out of band) would
+  # otherwise stay converged and invisible to the CLI forever, since the mirror
+  # is only written on the transition into `:active`. `Kura.cache_endpoint_mirrored?/1`
+  # reports the absent row as out of sync so activation re-runs the idempotent
+  # insert and backfills it on the next tick.
+  #
   # Node-port regions are the exception: their dispatch `url` is the
   # node-published `http://<pn-ip>:<node-port>`, which the cluster-DNS template
   # `public_url/2` renders never matches, so this would report drift on every
@@ -493,7 +501,7 @@ defmodule Tuist.Kura.Reconciler do
       true
     else
       case Provisioner.public_url(server.account, server) do
-        url when url == server.url -> true
+        url when url == server.url -> Kura.cache_endpoint_mirrored?(server)
         rendered when is_binary(rendered) -> false
         _ -> true
       end

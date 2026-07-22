@@ -176,6 +176,49 @@ defmodule Tuist.Kura.ReconcilerTest do
     assert [%{url: "http://localhost:4200"}] = Accounts.list_account_cache_endpoints(account, :kura)
   end
 
+  test "re-activates an active public server whose cache-endpoint mirror row is missing" do
+    {account, server, deployment} = create_server()
+    {:ok, server} = Kura.activate_server(server, deployment.image_tag)
+    mark_deployment_succeeded(deployment)
+
+    # The mirror row goes missing while the server stays active on a URL that
+    # still matches the rendered host (activated before the mirror existed, or
+    # the row pruned out of band). The URL matches, so only the mirror-presence
+    # check forces the server back through activation to re-derive the row.
+    [endpoint] = Accounts.list_account_cache_endpoints(account, :kura)
+    {:ok, _} = Accounts.delete_account_cache_endpoint(endpoint)
+    assert [] = Accounts.list_account_cache_endpoints(account, :kura)
+
+    stub(Provisioner, :current_image_tag, fn _ -> {:ok, "0.5.2"} end)
+    stub(Provisioner, :manifest_revision, fn _ -> {:ok, nil} end)
+    stub(Provisioner, :current_manifest_revision, fn _ -> {:ok, "rev"} end)
+
+    assert :ok = Reconciler.reconcile()
+
+    assert %Server{status: :active, url: "http://localhost:4100"} = Repo.get!(Server, server.id)
+    assert [%{url: "http://localhost:4100"}] = Accounts.list_account_cache_endpoints(account, :kura)
+  end
+
+  test "leaves a converged public server with its mirror row present untouched" do
+    {account, server, deployment} = create_server()
+    {:ok, _server} = Kura.activate_server(server, deployment.image_tag)
+    mark_deployment_succeeded(deployment)
+
+    assert [%{url: "http://localhost:4100"}] = Accounts.list_account_cache_endpoints(account, :kura)
+
+    stub(Provisioner, :current_image_tag, fn _ -> {:ok, "0.5.2"} end)
+    stub(Provisioner, :manifest_revision, fn _ -> {:ok, nil} end)
+    stub(Provisioner, :current_manifest_revision, fn _ -> {:ok, "rev"} end)
+
+    # URL matches and the row is present, so the server is converged: it must not
+    # be routed back through activation (no per-tick DB write or broadcast).
+    reject(&Kura.activate_server/2)
+
+    assert :ok = Reconciler.reconcile()
+
+    assert [%{url: "http://localhost:4100"}] = Accounts.list_account_cache_endpoints(account, :kura)
+  end
+
   test "refreshes a converged node-port server instead of re-activating it every tick" do
     {_account, server, deployment} = create_server()
     {:ok, server} = Kura.activate_server(server, deployment.image_tag)

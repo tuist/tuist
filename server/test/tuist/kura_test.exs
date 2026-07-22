@@ -631,6 +631,48 @@ defmodule Tuist.KuraTest do
     end
   end
 
+  describe "cache_endpoint_mirrored?/1" do
+    test "is true for a private region regardless of any mirror row" do
+      server = %Server{region: "scw-fr-par-runners", account_id: Ecto.UUID.generate(), url: "http://in-cluster:4000"}
+
+      assert Kura.cache_endpoint_mirrored?(server)
+    end
+
+    test "is true for an unknown region" do
+      server = %Server{region: "moon", account_id: Ecto.UUID.generate(), url: "https://x.kura.tuist.dev"}
+
+      assert Kura.cache_endpoint_mirrored?(server)
+    end
+
+    test "is false for a public region whose mirror row is absent" do
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      server = %Server{
+        region: "eu-central",
+        account_id: account.id,
+        url: "https://#{account.name}-eu-central-1.kura.tuist.dev"
+      }
+
+      refute Kura.cache_endpoint_mirrored?(server)
+    end
+
+    test "is true for a public region whose mirror row is present" do
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      url = "https://#{account.name}-eu-central-1.kura.tuist.dev"
+
+      {:ok, _} =
+        %AccountCacheEndpoint{}
+        |> AccountCacheEndpoint.create_changeset(%{account_id: account.id, url: url, technology: :kura})
+        |> Repo.insert()
+
+      server = %Server{region: "eu-central", account_id: account.id, url: url}
+
+      assert Kura.cache_endpoint_mirrored?(server)
+    end
+  end
+
   describe "refresh_private_server_url/1" do
     setup do
       stub(Tuist.Environment, :dev?, fn -> false end)
