@@ -1496,6 +1496,14 @@ struct GenerateAcceptanceTestiOSAppWithStaticFrameworkWithXcstrings {
     }
 }
 
+struct GenerateAcceptanceTestStaticFrameworkWithBundleMacro {
+    @Test(.withFixture("generated_static_framework_with_bundle_macro"), .inTemporaryDirectory)
+    func static_framework_with_bundle_macro() async throws {
+        try await run(GenerateCommand.self)
+        try await run(TestCommand.self, "--platform", "ios")
+    }
+}
+
 struct GenerateAcceptanceTestsAppWithMetalOptions {
     @Test(.disabled(), .withFixture("generated_app_with_metal_options"), .inTemporaryDirectory)
     func app_with_metal_options() async throws {

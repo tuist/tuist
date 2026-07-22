@@ -76,6 +76,9 @@ public struct ResourcesProjectMapper: ProjectMapping {
                 project: project,
                 bundleName: bundleName
             )
+            if targetNeedsCompanionBundle(target) {
+                appendModuleResourceBundleAvailableCondition(to: &modifiedTarget)
+            }
         }
 
         if targetNeedsObjcAccessor(target, project: project) {
@@ -273,6 +276,29 @@ public struct ResourcesProjectMapper: ProjectMapping {
         let hash = try file.contents.map(contentHasher.hash)
         modifiedTarget.sources.append(SourceFile(path: file.path, contentHash: hash))
         sideEffects.append(.file(.init(path: file.path, contents: file.contents, state: .present)))
+    }
+
+    /// Foundation's `#bundle` macro expands to `Bundle.module` only when this compilation
+    /// condition declares that the module's resources live in a separate resource bundle —
+    /// SwiftPM sets it for resource-bearing modules. Without it, the macro falls back to a
+    /// DSO-handle lookup that resolves to the main bundle for statically linked code, where
+    /// the companion bundle's resources are invisible.
+    ///   - https://github.com/swiftlang/swift-foundation/blob/main/Sources/FoundationMacros/BundleMacro.swift
+    ///   - https://github.com/swiftlang/swift-package-manager/blob/main/Sources/SwiftBuildSupport/PackagePIFProjectBuilder%2BModules.swift
+    private func appendModuleResourceBundleAvailableCondition(to target: inout Target) {
+        let condition = "SWIFT_MODULE_RESOURCE_BUNDLE_AVAILABLE"
+        var base = target.settings?.base ?? SettingsDictionary()
+        switch base["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] {
+        case let .array(values):
+            guard !values.contains(condition) else { return }
+            base["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] = .array(values + [condition])
+        case let .string(value):
+            guard !value.contains(condition) else { return }
+            base["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] = .string("\(value) \(condition)")
+        case nil:
+            base["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] = .array(["$(inherited)", condition])
+        }
+        target.settings = target.settings?.with(base: base) ?? Settings(base: base, configurations: [:])
     }
 
     private func appendObjcBundleAccessor(
