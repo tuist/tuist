@@ -220,6 +220,17 @@ fn attach_response_stream_permit(response: &mut Response, permit: ResponseStream
         .insert(permit.into_transport_guard());
 }
 
+fn attach_materialized_response_permit(
+    response: &mut Response,
+    permit: crate::memory::MemoryPermit,
+) {
+    response
+        .extensions_mut()
+        .insert(ResponseTransportGuard::from_materialization_permits(vec![
+            permit,
+        ]));
+}
+
 #[cfg(test)]
 pub(crate) fn router(state: SharedState) -> Router {
     combined_router(state)
@@ -1195,6 +1206,18 @@ async fn get_keyvalue(
         &key,
     ) {
         Ok(Some(bytes)) => {
+            let permit = match state
+                .memory
+                .try_acquire_response_materialization(bytes.len())
+            {
+                Ok(permit) => permit,
+                Err(()) => {
+                    state
+                        .metrics
+                        .record_memory_action("keyvalue_response_materialization_rejected");
+                    return response_stream_unavailable();
+                }
+            };
             state
                 .metrics
                 .record_artifact_read(ArtifactProducer::Xcode, "ok", bytes.len() as u64);
@@ -1205,14 +1228,18 @@ async fn get_keyvalue(
                 Some(&usage),
                 bytes.len() as u64,
             );
-            (
+            let mut response = (
                 [(
                     axum::http::header::CONTENT_TYPE,
                     HeaderValue::from_static("application/json"),
                 )],
                 bytes,
             )
-                .into_response()
+                .into_response();
+            if let Some(permit) = permit {
+                attach_materialized_response_permit(&mut response, permit);
+            }
+            response
         }
         Ok(None) => {
             state
@@ -3439,6 +3466,43 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn keyvalue_response_holds_materialization_memory_until_transport_drops() {
+        let context = test_context(|_| {}).await;
+        let app = router(context.state.clone());
+
+        let put_response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("PUT")
+                    .uri("/api/cache/keyvalue?tenant_id=acme&namespace_id=ios")
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        r#"{"cas_id":"cas-1","entries":[{"value":"hello"}]}"#,
+                    ))
+                    .expect("failed to build put request"),
+            )
+            .await
+            .expect("put request failed");
+        assert_eq!(put_response.status(), StatusCode::NO_CONTENT);
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/cache/keyvalue/cas-1?tenant_id=acme&namespace_id=ios")
+                    .body(Body::empty())
+                    .expect("failed to build get request"),
+            )
+            .await
+            .expect("get request failed");
+        assert_eq!(response.status(), StatusCode::OK);
+        assert!(context.state.memory.transient_reserved_bytes() > 0);
+
+        drop(response);
+        assert_eq!(context.state.memory.transient_reserved_bytes(), 0);
+    }
+
+    #[tokio::test]
     async fn keyvalue_misses_return_json_not_found_errors() {
         let context = test_context(|_| {}).await;
 
@@ -3595,7 +3659,7 @@ mod tests {
         let permit = context
             .state
             .memory
-            .try_acquire_reapi_response_materialization(content_bytes)
+            .try_acquire_response_materialization(content_bytes)
             .expect("materialized response should be admitted")
             .expect("non-empty response should return a permit");
         let mut response = Response::new(Body::from(vec![0_u8; content_bytes]));
