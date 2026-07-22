@@ -17,6 +17,16 @@ pub struct MemoryPermit {
     pub(super) _transient: TransientMemoryReservation,
 }
 
+impl MemoryPermit {
+    pub(crate) fn shrink_to(&mut self, retained_bytes: usize) -> Result<(), ()> {
+        let retained_bytes = u64::try_from(retained_bytes).map_err(|_| ())?;
+        if retained_bytes > self._transient.bytes {
+            return Err(());
+        }
+        self._transient.try_resize_foreground(retained_bytes)
+    }
+}
+
 pub struct TransientMemoryReservation {
     pub(super) controller: MemoryController,
     pub(super) permit: Option<OwnedSemaphorePermit>,

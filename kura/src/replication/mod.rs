@@ -27,10 +27,11 @@ use crate::{
         MAX_INLINE_REPLICATION_BODY_BYTES, MAX_REPLICATION_BODY_BYTES, REPLICATION_RETRY_SECS,
     },
     failpoints::FailpointName,
+    file_cache::FileCachePolicy,
     state::SharedState,
     store::{
         ArtifactApplyOutcome, ManifestBucketDigest, ManifestDigest, ManifestPage,
-        NamespaceTombstonePage,
+        NamespaceTombstonePage, StagedArtifactPath,
     },
     telemetry::{inject_current_trace_context, record_trace_context},
     utils::{TempFileCleanup, replication_target_label, temp_file_path, url_encode},
@@ -749,7 +750,7 @@ async fn bootstrap_artifact_from_peer(
             &manifest.namespace_id,
             &manifest.key,
             &manifest.content_type,
-            &temp_path,
+            StagedArtifactPath::new(&temp_path, FileCachePolicy::Bounded),
             manifest.version_ms,
         )
         .await;

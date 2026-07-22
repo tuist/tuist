@@ -511,7 +511,7 @@ impl ReapiService {
         namespace_id: &str,
         after: u64,
         trunk: Option<&str>,
-    ) -> Result<Vec<u8>, Status> {
+    ) -> Result<MaterializedSnapshot, Status> {
         let cache_key = snapshot_cache_key(namespace_id, trunk);
         let generation = self.state.store.action_cache_generation(namespace_id);
         // Serve the cached index immediately, kicking the reconcile in the
@@ -536,14 +536,15 @@ impl ReapiService {
                 let stale = index.reconciled_at.elapsed() >= SNAPSHOT_RECONCILE_INTERVAL;
                 index.last_used = Instant::now();
                 let entries = index.entries.len();
-                let bytes = self.encode_snapshot(index, after)?;
+                let mut snapshot = self.encode_snapshot(index, after)?;
                 drop(indexes);
-                self.cache_full_view(&cache_key, after, entries, &bytes);
+                self.cache_full_view(&cache_key, after, entries, &snapshot);
+                snapshot.retain_response_memory()?;
                 if stale {
                     let _build =
                         self.ensure_index_build(namespace_id, trunk, IndexBuildTrigger::Serve);
                 }
-                return Ok(bytes);
+                return Ok(snapshot);
             }
         }
         // The index is out — either a reconcile has it, or it has never been
@@ -561,7 +562,7 @@ impl ReapiService {
                 .get(&cache_key)
                 .cloned();
             if let Some(cached) = cached {
-                let _permit = self
+                let permit = self
                     .state
                     .memory
                     .try_acquire_reapi_materialization(cached.len())
@@ -571,7 +572,7 @@ impl ReapiService {
                         )
                     })?;
                 let _build = self.ensure_index_build(namespace_id, trunk, IndexBuildTrigger::Serve);
-                return Ok((*cached).clone());
+                return Ok(MaterializedSnapshot::new((*cached).clone(), permit));
             }
         }
         // Cold path: wait briefly for the build so small (and already
@@ -607,10 +608,11 @@ impl ReapiService {
         };
         index.last_used = Instant::now();
         let entries = index.entries.len();
-        let bytes = self.encode_snapshot(index, after)?;
+        let mut snapshot = self.encode_snapshot(index, after)?;
         drop(indexes);
-        self.cache_full_view(&cache_key, after, entries, &bytes);
-        Ok(bytes)
+        self.cache_full_view(&cache_key, after, entries, &snapshot);
+        snapshot.retain_response_memory()?;
+        Ok(snapshot)
     }
 
     /// Caches a full (`after == 0`) encoded view as the namespace's
@@ -653,27 +655,45 @@ impl ReapiService {
         &self,
         index: &NamespaceSnapshotIndex,
         after: u64,
-    ) -> Result<Vec<u8>, Status> {
-        let content_budget = self
-            .state
-            .memory
-            .reapi_response_budget_bytes()
-            .min(self.state.memory.reapi_materialization_limit_bytes() / 2);
+    ) -> Result<MaterializedSnapshot, Status> {
+        let response_budget = self.state.memory.reapi_response_budget_bytes();
+        let materialization_limit = self.state.memory.reapi_materialization_limit_bytes();
+        let mut content_budget = response_budget.min(SNAPSHOT_CONTENT_BUDGET_BYTES).min(
+            materialization_limit
+                .saturating_sub(SNAPSHOT_COMPRESSION_SCRATCH_BYTES)
+                .saturating_div(2),
+        );
+        while content_budget > 0 {
+            let peak_bytes = snapshot_encode_peak_bytes(content_budget);
+            if peak_bytes <= materialization_limit {
+                break;
+            }
+            let excess = peak_bytes - materialization_limit;
+            content_budget = content_budget.saturating_sub(excess.div_ceil(2).max(1));
+        }
         if content_budget == 0 {
             return Err(Status::resource_exhausted(
                 "action-cache snapshot encode declined under memory pressure",
             ));
         }
-        let _permit = self
+        let peak_bytes = snapshot_encode_peak_bytes(content_budget);
+        let permit = self
             .state
             .memory
-            .try_acquire_reapi_materialization(content_budget)
+            .try_acquire_reapi_materialization(peak_bytes)
             .map_err(|_| {
                 Status::resource_exhausted(
                     "action-cache snapshot encode is waiting for memory headroom",
                 )
             })?;
-        Ok(index.encode_with_budget(after, content_budget))
+        let bytes = index.encode_with_budget(after, content_budget).map_err(
+            |SnapshotEncodeError::WireLimitExceeded| {
+                Status::resource_exhausted(
+                    "action-cache snapshot could not fit the response wire ceiling",
+                )
+            },
+        )?;
+        Ok(MaterializedSnapshot::new(bytes, permit))
     }
 
     /// The namespace's in-flight index build, starting one when none is
@@ -1027,15 +1047,7 @@ impl ActionCache for ReapiService {
                 .serve_actioncache_snapshot(namespace_id, after, trunk.as_deref())
                 .await?;
             let served = snapshot.len() as u64;
-            let response_memory = self
-                .state
-                .memory
-                .try_acquire_reapi_materialization(snapshot.len())
-                .map_err(|_| {
-                    Status::resource_exhausted(
-                        "action-cache snapshot response is waiting for memory headroom",
-                    )
-                })?;
+            let (snapshot, response_memory) = snapshot.into_parts();
             let action_result = reapi::ActionResult {
                 output_files: vec![reapi::OutputFile {
                     path: SNAPSHOT_OUTPUT_PATH.to_owned(),
@@ -1970,8 +1982,67 @@ struct MaterializationBudget<'a> {
     held_permits: Vec<crate::memory::MemoryPermit>,
 }
 
+struct MaterializedSnapshot {
+    bytes: Vec<u8>,
+    response_memory: Option<crate::memory::MemoryPermit>,
+}
+
+impl MaterializedSnapshot {
+    fn new(bytes: Vec<u8>, response_memory: Option<crate::memory::MemoryPermit>) -> Self {
+        Self {
+            bytes,
+            response_memory,
+        }
+    }
+
+    fn retain_response_memory(&mut self) -> Result<(), Status> {
+        if let Some(permit) = self.response_memory.as_mut() {
+            permit.shrink_to(self.bytes.len()).map_err(|_| {
+                Status::internal("failed to retain snapshot response memory reservation")
+            })?;
+        }
+        Ok(())
+    }
+
+    fn into_parts(self) -> (Vec<u8>, Option<crate::memory::MemoryPermit>) {
+        (self.bytes, self.response_memory)
+    }
+}
+
+impl std::ops::Deref for MaterializedSnapshot {
+    type Target = [u8];
+
+    fn deref(&self) -> &Self::Target {
+        &self.bytes
+    }
+}
+
+impl std::fmt::Debug for MaterializedSnapshot {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("MaterializedSnapshot")
+            .field("bytes", &self.bytes)
+            .finish_non_exhaustive()
+    }
+}
+
+impl PartialEq for MaterializedSnapshot {
+    fn eq(&self, other: &Self) -> bool {
+        self.bytes == other.bytes
+    }
+}
+
+fn snapshot_encode_peak_bytes(content_bytes: usize) -> usize {
+    let output_bytes = zstd::zstd_safe::compress_bound(content_bytes)
+        .saturating_add(SNAPSHOT_WIRE_HEADER_BYTES)
+        .min(SNAPSHOT_WIRE_MAX_BYTES);
+    content_bytes
+        .saturating_add(output_bytes)
+        .saturating_add(SNAPSHOT_COMPRESSION_SCRATCH_BYTES)
+}
+
 #[derive(Clone)]
-struct ResponseMemoryGuard {
+pub(super) struct ResponseMemoryGuard {
     _permits: std::sync::Arc<Vec<crate::memory::MemoryPermit>>,
 }
 
@@ -3731,6 +3802,71 @@ mod tests {
 
         assert_eq!(context.state.runtime.grpc_inflight(), 0);
         assert_eq!(context.state.runtime.public_inflight(), 0);
+    }
+
+    #[tokio::test]
+    async fn grpc_request_accounting_layer_keeps_response_memory_until_body_drops() {
+        let context = test_context(|_| {}).await;
+        let materialization_limit = context.state.memory.reapi_materialization_limit_bytes();
+        let first_permit = context
+            .state
+            .memory
+            .try_acquire_reapi_materialization(materialization_limit)
+            .expect("the response should reserve the materialization pool")
+            .expect("a non-zero reservation should return a permit");
+        let second_permit = context
+            .state
+            .memory
+            .try_acquire_reapi_materialization(materialization_limit)
+            .expect("the response should reserve the rest of the materialization pool")
+            .expect("a non-zero reservation should return a permit");
+        let layer = GrpcRequestAccountingLayer {
+            state: context.state.clone(),
+        };
+        let response_memory =
+            std::sync::Arc::new(std::sync::Mutex::new(Some(ResponseMemoryGuard::new(vec![
+                first_permit,
+                second_permit,
+            ]))));
+        let mut service = layer.layer(tower::service_fn(
+            move |_request: http::Request<TonicBody>| {
+                let guard = response_memory
+                    .lock()
+                    .expect("response memory lock poisoned")
+                    .take()
+                    .expect("test service should be called once");
+                async move {
+                    let mut response = http::Response::new(TonicBody::empty());
+                    response.extensions_mut().insert(guard);
+                    Ok::<_, Infallible>(response)
+                }
+            },
+        ));
+
+        let response = service
+            .call(http::Request::new(TonicBody::empty()))
+            .await
+            .expect("accounting layer should pass through service response");
+
+        assert!(
+            context
+                .state
+                .memory
+                .try_acquire_reapi_materialization(1)
+                .is_err(),
+            "an unconsumed response body must retain its materialization permit"
+        );
+
+        drop(response);
+
+        assert!(
+            context
+                .state
+                .memory
+                .try_acquire_reapi_materialization(1)
+                .is_ok(),
+            "dropping the response body must release its materialization permit"
+        );
     }
 
     // Regression test for the missing flush in the ByteStream `write` handler. The

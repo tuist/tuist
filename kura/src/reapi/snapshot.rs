@@ -1,5 +1,6 @@
 use std::{
     collections::BTreeMap,
+    io::Write,
     time::{Duration, Instant},
 };
 
@@ -36,6 +37,12 @@ pub(super) const SNAPSHOT_MIN_BUDGET_BYTES: usize = 48 << 20;
 /// net-negative over the WAN. Entries are encoded newest-first, so what sheds
 /// is the oldest; dropped keys resolve through the per-key path.
 pub(super) const SNAPSHOT_WIRE_MAX_BYTES: usize = 48 << 20;
+pub(super) const SNAPSHOT_WIRE_HEADER_BYTES: usize = 13;
+
+/// Conservative allowance for the level-three compressor context and buffers.
+/// Snapshot admission reserves this in addition to the uncompressed body and
+/// the final wire allocation.
+pub(super) const SNAPSHOT_COMPRESSION_SCRATCH_BYTES: usize = 8 << 20;
 
 /// How much UNCOMPRESSED body to include before it stops adding keys. Sized so
 /// the zstd output of a full body lands near the wire ceiling for this data's
@@ -348,35 +355,37 @@ impl NamespaceSnapshotIndex {
     #[cfg(test)]
     pub(super) fn encode(&self, after: u64) -> Vec<u8> {
         self.encode_with_budget(after, SNAPSHOT_CONTENT_BUDGET_BYTES)
+            .expect("the default snapshot budget should fit the wire ceiling")
     }
 
-    pub(super) fn encode_with_budget(&self, after: u64, max_content_bytes: usize) -> Vec<u8> {
+    pub(super) fn encode_with_budget(
+        &self,
+        after: u64,
+        max_content_bytes: usize,
+    ) -> Result<Vec<u8>, SnapshotEncodeError> {
         let mut budget = SNAPSHOT_CONTENT_BUDGET_BYTES.min(max_content_bytes.max(1));
         let minimum_budget = SNAPSHOT_MIN_BUDGET_BYTES.min(budget);
-        let mut wire = Vec::new();
         for attempt in 0..SNAPSHOT_COMPRESS_MAX_ATTEMPTS {
             let body = self.encode_body(after, budget);
-            wire = compress_snapshot(&body);
-            if wire.len() <= SNAPSHOT_WIRE_MAX_BYTES {
-                return wire;
+            if let Some(wire) = compress_snapshot(&body) {
+                return Ok(wire);
             }
-            // Overshot: this batch compressed worse than the budget assumed.
-            // Scale the content budget down from the ratio we just measured
-            // (strictly shrinks, since the compressed size is over the
-            // ceiling) but never below the minimum budget, whose body is
-            // guaranteed to compress under the wire ceiling. So the retry
-            // converges on a safe view.
-            let ratio = (body.len() as f64 / wire.len().max(1) as f64).max(1.0);
-            let scaled = (SNAPSHOT_WIRE_MAX_BYTES as f64 * ratio * 0.9) as usize;
-            budget = scaled.min(budget * 9 / 10).max(minimum_budget);
+            // The size-limited writer discarded the failed wire allocation.
+            // Drop the input before starting another attempt so retries never
+            // retain two uncompressed bodies at once.
+            drop(body);
             if attempt + 1 == SNAPSHOT_COMPRESS_MAX_ATTEMPTS {
-                tracing::warn!(
-                    wire_bytes = wire.len(),
-                    "action-cache snapshot still over the wire ceiling after compression retries; shipping the trimmed view"
-                );
+                return Err(SnapshotEncodeError::WireLimitExceeded);
             }
+            // Move halfway toward the proven-safe floor, reaching it for the
+            // final attempt even when the first body is incompressible.
+            budget = if attempt + 2 == SNAPSHOT_COMPRESS_MAX_ATTEMPTS {
+                minimum_budget
+            } else {
+                ((budget + minimum_budget) / 2).max(minimum_budget)
+            };
         }
-        wire
+        Err(SnapshotEncodeError::WireLimitExceeded)
     }
 
     /// The uncompressed body, including keys until `budget` bytes of wire are
@@ -505,15 +514,66 @@ fn estimated_snapshot_entry_bytes(node_count: usize) -> usize {
 /// uncompressed length (so the client can size its buffer and reject a torn
 /// payload), then the zstd stream. Only clients that advertise zstd support
 /// receive this; everyone else gets the raw body.
-fn compress_snapshot(body: &[u8]) -> Vec<u8> {
-    let compressed = zstd::stream::encode_all(body, SNAPSHOT_ZSTD_LEVEL)
-        .expect("zstd encode of an in-memory buffer cannot fail");
-    let mut out = Vec::with_capacity(compressed.len() + 13);
-    out.extend_from_slice(b"TSNZ");
-    out.push(1);
-    out.extend_from_slice(&(body.len() as u64).to_le_bytes());
-    out.extend_from_slice(&compressed);
-    out
+#[derive(Debug)]
+pub(super) enum SnapshotEncodeError {
+    WireLimitExceeded,
+}
+
+struct SnapshotWireWriter {
+    bytes: Vec<u8>,
+    max_bytes: usize,
+}
+
+impl SnapshotWireWriter {
+    fn new(uncompressed_bytes: usize) -> Self {
+        Self::with_limit(uncompressed_bytes, SNAPSHOT_WIRE_MAX_BYTES)
+    }
+
+    fn with_limit(uncompressed_bytes: usize, max_bytes: usize) -> Self {
+        let capacity = zstd::zstd_safe::compress_bound(uncompressed_bytes)
+            .saturating_add(SNAPSHOT_WIRE_HEADER_BYTES)
+            .min(max_bytes);
+        let mut bytes = Vec::with_capacity(capacity);
+        bytes.extend_from_slice(b"TSNZ");
+        bytes.push(1);
+        bytes.extend_from_slice(&(uncompressed_bytes as u64).to_le_bytes());
+        Self { bytes, max_bytes }
+    }
+}
+
+impl Write for SnapshotWireWriter {
+    fn write(&mut self, buffer: &[u8]) -> std::io::Result<usize> {
+        if self.bytes.len().saturating_add(buffer.len()) > self.max_bytes {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::FileTooLarge,
+                "snapshot wire ceiling exceeded",
+            ));
+        }
+        self.bytes.extend_from_slice(buffer);
+        Ok(buffer.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+fn compress_snapshot(body: &[u8]) -> Option<Vec<u8>> {
+    let writer = SnapshotWireWriter::new(body.len());
+    let mut encoder = zstd::stream::write::Encoder::new(writer, SNAPSHOT_ZSTD_LEVEL)
+        .expect("zstd encoder construction should succeed");
+    encoder.write_all(body).ok()?;
+    Some(encoder.finish().ok()?.bytes)
+}
+
+#[cfg(test)]
+#[test]
+fn snapshot_wire_writer_rejects_bytes_past_its_limit() {
+    let mut writer = SnapshotWireWriter::with_limit(1, SNAPSHOT_WIRE_HEADER_BYTES + 1);
+    writer
+        .write_all(&[0xAA])
+        .expect("the final byte inside the limit should fit");
+    assert!(writer.write_all(&[0xBB]).is_err());
 }
 
 /// Completed snapshot indexes (bounded by SNAPSHOT_CACHE_MAX_NAMESPACES, LRU

@@ -2037,7 +2037,7 @@ async fn internal_replicate_artifact(
             &query.namespace_id,
             &query.key,
             &query.content_type,
-            &temp.path,
+            StagedArtifactPath::new(&temp.path, temp.file_cache_policy),
             query.version_ms,
         )
         .await;

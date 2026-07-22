@@ -394,6 +394,20 @@ impl<'a> StagedArtifactPath<'a> {
     }
 }
 
+#[cfg(test)]
+impl<'a> From<&'a Path> for StagedArtifactPath<'a> {
+    fn from(path: &'a Path) -> Self {
+        Self::new(path, FileCachePolicy::Adaptive)
+    }
+}
+
+#[cfg(test)]
+impl<'a> From<&'a PathBuf> for StagedArtifactPath<'a> {
+    fn from(path: &'a PathBuf) -> Self {
+        Self::from(path.as_path())
+    }
+}
+
 impl PersistArtifactOutcome {
     fn apply_outcome(&self) -> ArtifactApplyOutcome {
         match self {
@@ -890,15 +904,16 @@ impl Store {
         outcome.into_persisted(already_present, producer, namespace_id, key)
     }
 
-    pub async fn apply_replicated_artifact_from_path(
+    pub async fn apply_replicated_artifact_from_path<'a>(
         &self,
         producer: ArtifactProducer,
         namespace_id: &str,
         key: &str,
         content_type: &str,
-        source_path: &Path,
+        staged: impl Into<StagedArtifactPath<'a>>,
         version_ms: u64,
     ) -> Result<ArtifactApplyOutcome, String> {
+        let staged = staged.into();
         let spec = PersistArtifactSpec {
             producer,
             namespace_id,
@@ -910,7 +925,7 @@ impl Store {
             trunk: None,
         };
         Ok(self
-            .persist_artifact_from_path_with_version(spec, source_path, FileCachePolicy::Adaptive)
+            .persist_artifact_from_path_with_version(spec, staged.path, staged.file_cache_policy)
             .await?
             .0
             .apply_outcome())
@@ -5337,6 +5352,39 @@ mod tests {
             segments_bytes <= (artifact_len as u64) * 2,
             "segment store held {segments_bytes} bytes, expected ~{artifact_len} (one copy); \
              concurrent same-key applies amplified on-disk data"
+        );
+    }
+
+    #[tokio::test]
+    async fn replicated_path_apply_preserves_the_staged_file_cache_policy() {
+        let (_temp_dir, config, store) = temp_store();
+        let source = config.tmp_dir.join("uploads").join("bounded-replication");
+        let payload = vec![
+            0xAB;
+            usize::try_from(FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES + 1)
+                .expect("test payload should fit usize")
+        ];
+        std::fs::write(&source, payload).expect("source should write");
+
+        store
+            .apply_replicated_artifact_from_path(
+                ArtifactProducer::Gradle,
+                "ios",
+                "bounded-artifact",
+                "application/octet-stream",
+                StagedArtifactPath::new(&source, FileCachePolicy::Bounded),
+                100,
+            )
+            .await
+            .expect("bounded replicated artifact should persist");
+
+        assert!(
+            store
+                .io
+                .metrics()
+                .render()
+                .contains("action=\"segment_file_cache_drop\""),
+            "the bounded staging policy should reach the segment copy"
         );
     }
 
