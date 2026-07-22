@@ -244,4 +244,24 @@ defmodule Tuist.Runners.WorkflowJobsTest do
       assert get_row!(910_052).runner_name == nil
     end
   end
+
+  describe "list_recently_updated/3" do
+    test "returns rows inside the window only" do
+      account = account_fixture()
+      now = DateTime.utc_now()
+
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_120))
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_121))
+
+      Repo.update_all(
+        from(j in WorkflowJob, where: j.workflow_job_id == ^910_120),
+        set: [updated_at: now |> DateTime.add(-120, :second) |> DateTime.truncate(:second)]
+      )
+
+      rows = WorkflowJobs.list_recently_updated(DateTime.add(now, -3_600, :second), DateTime.add(now, -60, :second), 100)
+
+      assert Enum.map(rows, & &1.workflow_job_id) == [910_120]
+      assert [%{status: "queued", enqueued_at: %DateTime{}}] = rows
+    end
+  end
 end
