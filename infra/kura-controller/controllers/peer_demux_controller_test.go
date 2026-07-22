@@ -89,25 +89,22 @@ func TestPeerDemuxDesiredStatePublishesOneSafeRoutePerHost(t *testing.T) {
 	host := "peer.acme-eu-central.kura.tuist.dev"
 	legacy := hostNetworkPeerInstance("kura-acme-old", "eu-central", host)
 	legacy.CreationTimestamp = metav1.NewTime(time.Date(2026, time.July, 1, 0, 0, 0, 0, time.UTC))
-	explicit := hostNetworkPeerInstance("kura-acme-current", "eu-central", host)
-	explicit.CreationTimestamp = metav1.NewTime(time.Date(2026, time.July, 2, 0, 0, 0, 0, time.UTC))
-	explicit.Spec.MeshPublicPeerPublished = ptr(true)
-	warming := hostNetworkPeerInstance("kura-acme-warming", "eu-central", host)
-	warming.Spec.MeshPublicPeerPublished = ptr(false)
+	current := hostNetworkPeerInstance("kura-acme-current", "eu-central", host)
+	current.CreationTimestamp = metav1.NewTime(time.Date(2026, time.July, 2, 0, 0, 0, 0, time.UTC))
 	invalid := hostNetworkPeerInstance("kura-invalid", "eu-central", "not a host; include /tmp/file")
 
 	routes, _, _, issues := peerDemuxDesiredState(
 		"eu-central",
 		"kura",
-		[]kurav1alpha1.KuraInstance{*warming, *legacy, *invalid, *explicit},
+		[]kurav1alpha1.KuraInstance{*current, *legacy, *invalid},
 	)
 
 	if len(routes) != 1 {
 		t.Fatalf("expected one deduplicated route, got %+v", routes)
 	}
-	wantBackend := instancePublicPeerServiceName(explicit) + ".kura.svc.cluster.local:7443"
+	wantBackend := instancePublicPeerServiceName(legacy) + ".kura.svc.cluster.local:7443"
 	if routes[0].host != host || routes[0].backend != wantBackend {
-		t.Fatalf("expected the explicit owner route %s -> %s, got %+v", host, wantBackend, routes[0])
+		t.Fatalf("expected the oldest owner route %s -> %s, got %+v", host, wantBackend, routes[0])
 	}
 	if len(issues) != 2 {
 		t.Fatalf("expected duplicate and invalid-host diagnostics, got %+v", issues)
@@ -244,58 +241,6 @@ func TestInstancePublicPeerServiceUsesClusterIPOnHostNetwork(t *testing.T) {
 	}
 	if _, ok := service.Annotations["external-dns.alpha.kubernetes.io/hostname"]; ok {
 		t.Fatal("host-network peer service must not carry an LB external-dns annotation")
-	}
-}
-
-func TestUnpublishedHostNetworkPeerKeepsWarmBackendWithoutAdvertising(t *testing.T) {
-	ctx := context.Background()
-	scheme := runtime.NewScheme()
-	if err := clientgoscheme.AddToScheme(scheme); err != nil {
-		t.Fatal(err)
-	}
-	if err := kurav1alpha1.AddToScheme(scheme); err != nil {
-		t.Fatal(err)
-	}
-	scheme.AddKnownTypeWithName(dnsEndpointGVK, &unstructured.Unstructured{})
-	mapper := meta.NewDefaultRESTMapper([]schema.GroupVersion{dnsEndpointGVK.GroupVersion()})
-	mapper.Add(dnsEndpointGVK, meta.RESTScopeNamespace)
-
-	instance := hostNetworkPeerInstance("kura-acme", "eu-central", "peer.acme-eu-central.kura.tuist.dev")
-	instance.Spec.MeshPublicPeerPublished = ptr(false)
-	staleEndpoint := &unstructured.Unstructured{}
-	staleEndpoint.SetGroupVersionKind(dnsEndpointGVK)
-	staleEndpoint.SetName(instance.Name + "-peer-dns")
-	staleEndpoint.SetNamespace(instance.Namespace)
-	client := fake.NewClientBuilder().WithScheme(scheme).WithRESTMapper(mapper).WithObjects(instance, staleEndpoint).Build()
-	reconciler := &KuraInstanceReconciler{Client: client, Scheme: scheme}
-
-	if err := reconciler.reconcileInstancePublicPeerService(ctx, instance); err != nil {
-		t.Fatal(err)
-	}
-	if err := reconciler.reconcilePeerDNSEndpoint(ctx, instance); err != nil {
-		t.Fatal(err)
-	}
-
-	service := &corev1.Service{}
-	if err := client.Get(ctx, types.NamespacedName{Name: instancePublicPeerServiceName(instance), Namespace: instance.Namespace}, service); err != nil {
-		t.Fatalf("expected the unpublished instance to retain a warm peer backend: %v", err)
-	}
-	if service.Spec.Type != corev1.ServiceTypeClusterIP {
-		t.Fatalf("expected a ClusterIP warm backend, got %q", service.Spec.Type)
-	}
-	endpoint := &unstructured.Unstructured{}
-	endpoint.SetGroupVersionKind(dnsEndpointGVK)
-	if err := client.Get(ctx, types.NamespacedName{Name: staleEndpoint.GetName(), Namespace: instance.Namespace}, endpoint); !apierrors.IsNotFound(err) {
-		t.Fatalf("expected public peer DNS to be absent while unpublished, got %v", err)
-	}
-	routes, _, _, _ := peerDemuxDesiredState(instance.Spec.Region, instance.Namespace, []kurav1alpha1.KuraInstance{*instance})
-	if len(routes) != 0 {
-		t.Fatalf("expected no demultiplexer route while unpublished, got %+v", routes)
-	}
-	for _, env := range baseEnv(instance, "", "test") {
-		if env.Name == "KURA_PEER_GATEWAY_URL" {
-			t.Fatalf("expected an unpublished warm instance not to advertise itself, got %q", env.Value)
-		}
 	}
 }
 

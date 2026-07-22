@@ -229,6 +229,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   @doc false
   def manifest(name, image_tag, account, %Regions{} = region, %Server{} = server, hook_script, external_peers \\ []) do
     account_handle = dns_handle(account.name)
+    external_peers = entitled_self_hosted_peers(account, region, external_peers)
     revision = manifest_revision_string(account, region, external_peers)
     annotations = %{@manifest_revision_annotation => revision}
 
@@ -253,11 +254,8 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
           "region" => region.id,
           "image" => "ghcr.io/tuist/kura:#{image_tag}",
           # Only the steady-state (`:none`) server publishes the account's
-          # customer and peer endpoints. A moving target keeps the peer hostname
-          # as certificate identity while its publication flag is false, so it
-          # can warm over the account mesh without adding a second public route.
-          # A moving-out source likewise retains the identity while the promoted
-          # target takes publication ownership.
+          # customer endpoints. Warm handoffs remain disabled in production
+          # until the peer endpoint has a stable account-region owner.
           "publicHost" => if(owns_public_endpoints?(server), do: public_host(account_handle, region)),
           "grpcPublicHost" => if(owns_public_endpoints?(server), do: grpc_public_host(account_handle, region)),
           "ingressClassName" => ingress_class_name(region),
@@ -336,7 +334,15 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   end
 
   defp self_hosted_peers(account, %Regions{} = region) do
-    (mesh_enabled?(region) && Mesh.self_hosted_peer_urls(account)) || []
+    if mesh_peers_sync_enabled?(account, region) do
+      Mesh.self_hosted_peer_urls(account)
+    else
+      []
+    end
+  end
+
+  defp entitled_self_hosted_peers(account, %Regions{} = region, peer_urls) do
+    if mesh_peers_sync_enabled?(account, region), do: peer_urls, else: []
   end
 
   # The desired revision the reconciler compares against the live CR's

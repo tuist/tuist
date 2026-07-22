@@ -249,8 +249,6 @@ kind: Deployment
 metadata:
   name: {{ $name }}
   namespace: {{ $namespace }}
-  annotations:
-    kura.tuist.dev/peer-publication-protocol: "v1"
   labels:
     {{- include "tuist.labels" . | nindent 4 }}
     app.kubernetes.io/component: kura-controller

@@ -221,10 +221,6 @@ func meshManagedPeerTLS(instance *kurav1alpha1.KuraInstance) bool {
 	return instance.Spec.Mesh && instance.Spec.PeerTLSSecretName == ""
 }
 
-func meshPublicPeerPublished(instance *kurav1alpha1.KuraInstance) bool {
-	return instance.Spec.MeshPublicPeerPublished == nil || *instance.Spec.MeshPublicPeerPublished
-}
-
 func accountPeerCASecretName(instance *kurav1alpha1.KuraInstance) string {
 	name := "kura-" + instance.Spec.AccountHandle + "-peer-ca"
 	if len(name) <= 63 {
@@ -468,8 +464,7 @@ func (r *KuraInstanceReconciler) reconcileAccountPeerService(ctx context.Context
 // (meshManagedPeerTLS) and a public host is requested.
 func (r *KuraInstanceReconciler) reconcileInstancePublicPeerService(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
 	service := &corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: instancePublicPeerServiceName(instance), Namespace: instance.Namespace}}
-	if !meshManagedPeerTLS(instance) || instance.Spec.MeshPublicPeerHost == "" ||
-		(!instance.Spec.MeshPeerHostNetwork && !meshPublicPeerPublished(instance)) {
+	if !meshManagedPeerTLS(instance) || instance.Spec.MeshPublicPeerHost == "" {
 		// No public peer plane requested (a non-mesh region, or the host was
 		// cleared). Tear down any LoadBalancer + external-dns record created
 		// earlier so an internet-facing Service does not linger, mirroring the
@@ -581,7 +576,7 @@ func (r *KuraInstanceReconciler) reconcilePeerDNSEndpoint(ctx context.Context, i
 	// No public host, or no routable target yet (failover IP unset and no pod
 	// scheduled): tear down any DNSEndpoint created earlier so external-dns stops
 	// publishing a dead peer record, mirroring reconcileInstancePublicPeerService.
-	if instance.Spec.MeshPublicPeerHost == "" || target == "" || !meshPublicPeerPublished(instance) {
+	if instance.Spec.MeshPublicPeerHost == "" || target == "" {
 		if err := r.Delete(ctx, endpoint); err != nil && !apierrors.IsNotFound(err) {
 			return err
 		}
@@ -626,8 +621,7 @@ func (r *KuraInstanceReconciler) retireLegacyAccountPublicPeerService(
 	instance *kurav1alpha1.KuraInstance,
 	now time.Time,
 ) error {
-	if !meshManagedPeerTLS(instance) || !instance.Spec.MeshPeerHostNetwork || instance.Spec.MeshPublicPeerHost == "" ||
-		!meshPublicPeerPublished(instance) {
+	if !meshManagedPeerTLS(instance) || !instance.Spec.MeshPeerHostNetwork || instance.Spec.MeshPublicPeerHost == "" {
 		return nil
 	}
 
@@ -2846,7 +2840,7 @@ func baseEnv(instance *kurav1alpha1.KuraInstance, otlpTracesEndpoint string, env
 	// reach). It reaches this node via the `?scope=global` status path, which
 	// returns this gateway URL; in-cluster peers use Local-scope discovery
 	// (KURA_DISCOVERY_DNS_NAME above) and dial pod-to-pod directly.
-	if meshManagedPeerTLS(instance) && instance.Spec.MeshPublicPeerHost != "" && meshPublicPeerPublished(instance) {
+	if meshManagedPeerTLS(instance) && instance.Spec.MeshPublicPeerHost != "" {
 		env = append(env, corev1.EnvVar{
 			Name:  "KURA_PEER_GATEWAY_URL",
 			Value: fmt.Sprintf("https://%s:%d", instance.Spec.MeshPublicPeerHost, peerPort),
