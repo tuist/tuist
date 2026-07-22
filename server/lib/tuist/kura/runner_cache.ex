@@ -71,8 +71,16 @@ defmodule Tuist.Kura.RunnerCache do
         # percentage gates, but those gates are unsafe for durable, per-account
         # infrastructure. Preserve every existing node and provision nothing
         # until the flag returns to an explicit actor-only shape.
+        detail = inspect(reason)
+
         Logger.error("kura.runner_cache: refusing to reconcile an unsafe runner-cache cohort",
-          reason: inspect(reason)
+          reason: detail
+        )
+
+        Sentry.capture_message("Kura runner-cache reconciliation paused",
+          level: :error,
+          tags: %{failure_kind: cohort_failure_kind(reason)},
+          extra: %{failure_detail: detail}
         )
     end
 
@@ -239,6 +247,10 @@ defmodule Tuist.Kura.RunnerCache do
   defp unsafe_infrastructure_gate?(%FunWithFlags.Gate{type: :percentage_of_actors}), do: true
   defp unsafe_infrastructure_gate?(%FunWithFlags.Gate{type: :group, enabled: true}), do: true
   defp unsafe_infrastructure_gate?(_gate), do: false
+
+  defp cohort_failure_kind({:feature_flag_unavailable, _reason}), do: "feature_flag_unavailable"
+  defp cohort_failure_kind({:unsupported_runner_actor, _actor}), do: "unsupported_runner_actor"
+  defp cohort_failure_kind(:non_actor_runner_gate), do: "non_actor_runner_gate"
 
   defp parse_account_actor("account:" <> id) do
     case Integer.parse(id) do

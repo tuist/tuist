@@ -22,6 +22,7 @@ defmodule Tuist.Kura.RunnerCacheTest do
   setup do
     stub(Tuist.Environment, :dev?, fn -> false end)
     stub(Tuist.Environment, :test?, fn -> false end)
+    stub(Sentry, :capture_message, fn _message, _opts -> :ignored end)
 
     stub(Tuist.Environment, :kura_available_region_ids, fn ->
       ["scw-fr-par-runners"]
@@ -197,6 +198,13 @@ defmodule Tuist.Kura.RunnerCacheTest do
         name: :runners,
         gates: [%FunWithFlags.Gate{type: :boolean, for: nil, enabled: true}]
       }
+    end)
+
+    expect(Sentry, :capture_message, fn "Kura runner-cache reconciliation paused", opts ->
+      assert opts[:level] == :error
+      assert opts[:tags] == %{failure_kind: "non_actor_runner_gate"}
+      assert opts[:extra] == %{failure_detail: ":non_actor_runner_gate"}
+      :ignored
     end)
 
     assert :ok = RunnerCache.reconcile()
