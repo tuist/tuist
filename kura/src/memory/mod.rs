@@ -275,7 +275,7 @@ impl MemoryController {
         }))
     }
 
-    pub fn try_acquire_reapi_response_materialization(
+    pub fn try_acquire_response_materialization(
         &self,
         content_bytes: usize,
     ) -> Result<Option<MemoryPermit>, ()> {

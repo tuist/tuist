@@ -28,8 +28,9 @@ use crate::{
     analytics::Analytics,
     artifact::producer::ArtifactProducer,
     config::{AcceleratedFileServingConfig, AcceleratedFileServingMode},
+    constants::response_stream_chunk_bytes,
     extension::{AccessDecision, ExtensionContext},
-    memory::{MemoryController, MemoryPressure},
+    memory::{MemoryController, MemoryPressure, ResponseStreamAdmissionPatience},
     runtime::HttpTrafficClass,
     state::SharedState,
     store::AcceleratedArtifactFile,
@@ -573,8 +574,42 @@ async fn serve_accelerated(
     let chunk_bytes = config.chunk_bytes;
     let memory = state.memory.clone();
     let metrics = state.metrics.clone();
+    let response_stream_bytes = response_stream_chunk_bytes(file.size);
+    let response_stream_permit = match memory
+        .acquire_response_stream_memory(
+            response_stream_bytes,
+            "http",
+            ResponseStreamAdmissionPatience::Blocking,
+        )
+        .await
+    {
+        Ok(permit) => permit,
+        Err(_) => {
+            let mut stream = stream;
+            let headers = BTreeMap::from([("retry-after".to_owned(), "1".to_owned())]);
+            let body =
+                b"The server is limiting concurrent artifact response streams; retry shortly";
+            write_response(
+                &mut stream,
+                503,
+                "Service Unavailable",
+                "text/plain",
+                &headers,
+                body,
+            )
+            .await?;
+            state.metrics.record_http(
+                route,
+                StatusCode::SERVICE_UNAVAILABLE,
+                None,
+                transfer_started_at.elapsed(),
+            );
+            return Ok(None);
+        }
+    };
     let result = tokio::task::spawn_blocking(
         move || -> std::io::Result<(std::net::TcpStream, u64, Duration)> {
+            let _response_stream_permit = response_stream_permit;
             let mut stream = stream.into_std()?;
             stream.set_nonblocking(false)?;
             stream.set_write_timeout(Some(IO_TIMEOUT))?;
@@ -1236,18 +1271,25 @@ fn ensure_complete_transfer(operation: &str, sent: u64, expected: u64) -> std::i
 
 #[cfg(test)]
 mod tests {
-    use std::{sync::Arc, time::Duration};
+    use std::{
+        collections::BTreeMap,
+        sync::Arc,
+        time::{Duration, Instant},
+    };
 
     use crate::artifact::producer::ArtifactProducer;
     use crate::{
-        io::IoController, memory::MemoryController, metrics::Metrics,
+        io::IoController,
+        memory::{MemoryController, ResponseStreamAdmissionPatience},
+        metrics::Metrics,
         store::AcceleratedArtifactFile,
     };
     use tempfile::tempdir;
 
     use super::{
-        AcceleratedReadCacheDrop, ParsedRequest, artifact_request, parse_request,
-        request_wants_keep_alive, sanitized_content_type, system_page_bytes,
+        AcceleratedCandidate, AcceleratedReadCacheDrop, ArtifactRequest, ParsedRequest,
+        artifact_request, parse_request, request_wants_keep_alive, sanitized_content_type,
+        serve_accelerated, system_page_bytes,
     };
 
     fn parsed_with_headers(headers: &[(&str, &str)]) -> ParsedRequest {
@@ -1341,6 +1383,87 @@ mod tests {
             sanitized_content_type("text/plain\r\nset-cookie: x=y"),
             "application/octet-stream"
         );
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn accelerator_sends_retryable_error_before_success_when_memory_is_exhausted() {
+        let context = crate::test_support::test_context(|_| {}).await;
+        let response_pool_bytes = context
+            .state
+            .memory
+            .foreground_response_streaming_pool_bytes();
+        let pool_hog = context
+            .state
+            .memory
+            .acquire_response_stream_memory(
+                response_pool_bytes,
+                "http",
+                ResponseStreamAdmissionPatience::Blocking,
+            )
+            .await
+            .expect("response pool should be available before the test");
+
+        let path = context.state.config.tmp_dir.join("accelerated-artifact");
+        std::fs::write(&path, b"artifact").expect("write accelerated artifact");
+        let file = AcceleratedArtifactFile {
+            handle: Arc::new(
+                context
+                    .state
+                    .io
+                    .open_persistent_read_file(&path)
+                    .await
+                    .expect("open accelerated artifact"),
+            ),
+            offset: 0,
+            size: 8,
+            content_type: "application/octet-stream".into(),
+        };
+        let candidate = AcceleratedCandidate {
+            header_len: 0,
+            artifact: ArtifactRequest {
+                producer: ArtifactProducer::Xcode,
+                tenant_id: context.state.config.tenant_id.clone(),
+                namespace_id: "ios".into(),
+                key: "blob/hash".into(),
+                analytics_key: None,
+                artifact_hash: Some("hash".into()),
+                route: "/api/cache/cas/{id}",
+                path: "/api/cache/cas/hash".into(),
+                query: BTreeMap::new(),
+            },
+            file,
+            extension_response_headers: BTreeMap::new(),
+        };
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind test listener");
+        let address = listener.local_addr().expect("test listener address");
+        let mut client = tokio::net::TcpStream::connect(address)
+            .await
+            .expect("connect test client");
+        let (server, _) = listener.accept().await.expect("accept test client");
+
+        let reuse = serve_accelerated(
+            server,
+            &context.state,
+            &context.state.config.accelerated_file_serving,
+            candidate,
+            Instant::now(),
+            false,
+        )
+        .await
+        .expect("accelerated response should complete");
+        assert!(reuse.is_none());
+        let mut response = Vec::new();
+        tokio::io::AsyncReadExt::read_to_end(&mut client, &mut response)
+            .await
+            .expect("read accelerated response");
+        let response = String::from_utf8(response).expect("response should be valid UTF-8");
+        assert!(response.starts_with("HTTP/1.1 503 Service Unavailable\r\n"));
+        assert!(response.contains("retry-after: 1\r\n"));
+        assert!(!response.contains("200 OK"));
+
+        drop(pool_hog);
     }
 
     #[tokio::test]

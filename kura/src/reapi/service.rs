@@ -221,6 +221,32 @@ impl ReapiService {
         Ok(())
     }
 
+    fn retain_unary_response_materialization<T: Message>(
+        &self,
+        response: &mut Response<T>,
+        label: &str,
+    ) -> Result<(), Status> {
+        let encoded_bytes = response.get_ref().encoded_len();
+        let permit = self
+            .state
+            .memory
+            .try_acquire_response_materialization(encoded_bytes)
+            .map_err(|_| {
+                self.state
+                    .metrics
+                    .record_memory_action(REAPI_MATERIALIZATION_REJECTED_ACTION);
+                Status::resource_exhausted(format!(
+                    "{label} was rejected because the concurrent REAPI response materialization pool is exhausted"
+                ))
+            })?;
+        if let Some(permit) = permit {
+            response.extensions_mut().insert(
+                crate::memory::ResponseTransportGuard::from_materialization_permits(vec![permit]),
+            );
+        }
+        Ok(())
+    }
+
     // Record a served gRPC download (egress) against the usage rollups so REAPI
     // bandwidth reaches `kura_usage_events` on parity with the HTTP path. A no-op
     // when usage reporting is disabled. Call only on success arms, mirroring how
@@ -570,7 +596,7 @@ impl ReapiService {
                 let permit = self
                     .state
                     .memory
-                    .try_acquire_reapi_response_materialization(cached.len())
+                    .try_acquire_response_materialization(cached.len())
                     .map_err(|_| {
                         Status::resource_exhausted(
                             "action-cache snapshot serve declined under memory pressure",
@@ -1356,6 +1382,7 @@ impl ActionCache for ReapiService {
         let mut response = Response::new(action_result);
         self.apply_response_headers(&mut response, extension, principal.as_ref())
             .await?;
+        self.retain_unary_response_materialization(&mut response, "action result response")?;
         // Book usage only after the response is fully built. Every applied
         // update is billed: an action result is a mutable entry whose content
         // changes across updates, so there is no CAS-style "already present"
@@ -1410,6 +1437,7 @@ impl ContentAddressableStorage for ReapiService {
         });
         self.apply_response_headers(&mut response, extension, principal.as_ref())
             .await?;
+        self.retain_unary_response_materialization(&mut response, "missing blobs response")?;
         Ok(response)
     }
 
@@ -1484,6 +1512,7 @@ impl ContentAddressableStorage for ReapiService {
         let mut response = Response::new(reapi::BatchUpdateBlobsResponse { responses });
         self.apply_response_headers(&mut response, extension, principal.as_ref())
             .await?;
+        self.retain_unary_response_materialization(&mut response, "batch update response")?;
         if stored_any {
             self.record_reapi_upload(request.metadata(), namespace_id, stored_bytes);
         }
@@ -2110,7 +2139,7 @@ impl<'a> MaterializationBudget<'a> {
         let permit = self
             .state
             .memory
-            .try_acquire_reapi_response_materialization(requested_bytes)
+            .try_acquire_response_materialization(requested_bytes)
             .map_err(|_| {
                 self.reject(format!(
                     "{label} was rejected because the concurrent REAPI response materialization pool is exhausted"
@@ -4003,6 +4032,55 @@ mod tests {
             context.state.memory.transient_reserved_bytes(),
             reserved_bytes,
             "the encoded transport bytes must retain the materialization reservation"
+        );
+
+        drop(encoded);
+        #[cfg(target_os = "linux")]
+        context.state.memory.observe(0);
+        assert_eq!(context.state.memory.transient_reserved_bytes(), 0);
+    }
+
+    #[tokio::test]
+    async fn unary_response_keeps_materialization_memory_until_encoded_bytes_drop() {
+        let context = test_context(|_| {}).await;
+        let digests = (0..128)
+            .map(|index| reapi::Digest {
+                hash: format!("{index:064x}"),
+                size_bytes: index,
+            })
+            .collect::<Vec<_>>();
+        let expected = reapi::FindMissingBlobsResponse {
+            missing_blob_digests: digests.clone(),
+        };
+
+        let mut response = routes(context.state.clone())
+            .oneshot(grpc_request(
+                "/build.bazel.remote.execution.v2.ContentAddressableStorage/FindMissingBlobs",
+                &reapi::FindMissingBlobsRequest {
+                    instance_name: DEFAULT_INSTANCE_NAME.into(),
+                    blob_digests: digests,
+                    digest_function: reapi::digest_function::Value::Sha256 as i32,
+                },
+            ))
+            .await
+            .expect("FindMissingBlobs route should respond");
+        assert_eq!(response.status(), http::StatusCode::OK);
+        let reserved_bytes = context.state.memory.transient_reserved_bytes();
+        assert_eq!(reserved_bytes, (expected.encoded_len() * 2) as u64);
+
+        let frame = response
+            .body_mut()
+            .frame()
+            .await
+            .expect("FindMissingBlobs response should yield a frame")
+            .expect("FindMissingBlobs response frame should be valid");
+        let encoded = frame
+            .into_data()
+            .expect("FindMissingBlobs response frame should contain encoded data");
+        drop(response);
+        assert_eq!(
+            context.state.memory.transient_reserved_bytes(),
+            reserved_bytes
         );
 
         drop(encoded);
