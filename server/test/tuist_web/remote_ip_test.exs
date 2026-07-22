@@ -3,10 +3,26 @@ defmodule TuistWeb.RemoteIpTest do
   use Mimic
 
   describe "get/1" do
-    test "gets ip from the forwarder-for header when there's only one" do
+    test "prefers the Cloudflare connecting IP header" do
       # Given
       conn = build_conn()
-      conn = Plug.Conn.put_req_header(conn, "x-forwarded-for", "ip-one")
+
+      conn =
+        conn
+        |> Plug.Conn.put_req_header("cf-connecting-ip", " cloudflare-ip ")
+        |> Plug.Conn.put_req_header("x-forwarded-for", "spoofed-ip, forwarded-ip")
+
+      # When
+      got = TuistWeb.RemoteIp.get(conn)
+
+      # Then
+      assert got == "cloudflare-ip"
+    end
+
+    test "falls back to the first forwarded IP when the Cloudflare header is not present" do
+      # Given
+      conn = build_conn()
+      conn = Plug.Conn.put_req_header(conn, "x-forwarded-for", " ip-one, ip-two")
 
       # When
       got = TuistWeb.RemoteIp.get(conn)
@@ -15,19 +31,21 @@ defmodule TuistWeb.RemoteIpTest do
       assert got == "ip-one"
     end
 
-    test "gets ip from the forwarder-for header when there are multiple" do
+    test "ignores empty forwarding headers" do
       # Given
-      conn = build_conn()
-      conn = Plug.Conn.put_req_header(conn, "x-forwarded-for", "ip-one, ip-two")
+      conn =
+        build_conn()
+        |> Plug.Conn.put_req_header("cf-connecting-ip", "  ")
+        |> Plug.Conn.put_req_header("x-forwarded-for", " , ip-two")
 
       # When
       got = TuistWeb.RemoteIp.get(conn)
 
       # Then
-      assert got == "ip-one"
+      assert got == "ip-two"
     end
 
-    test "gets default value when the x-forwarded-for headre is not present" do
+    test "gets the connection address when forwarding headers are not present" do
       # Given
       conn = build_conn()
 

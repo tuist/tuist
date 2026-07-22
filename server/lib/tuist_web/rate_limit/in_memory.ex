@@ -49,12 +49,14 @@ defmodule TuistWeb.RateLimit.InMemory do
     end
   end
 
-  def rate_limit(%Plug.Conn{} = conn, _opts) do
+  def rate_limit(%Plug.Conn{} = conn, opts) do
     if Environment.tuist_hosted?() do
       scale_ms = to_timeout(minute: 1)
-      limit = 1_000
+      limit = opts[:limit] || Environment.dashboard_rate_limit_bucket_size()
+      route = route_pattern(conn)
+      key = "dashboard:#{conn.method}:#{route}:ip:#{TuistWeb.RemoteIp.get(conn)}"
 
-      case hit(TuistWeb.RemoteIp.get(conn), scale_ms, limit) do
+      case hit(key, scale_ms, limit) do
         {:allow, _count} ->
           conn
 
@@ -64,6 +66,19 @@ defmodule TuistWeb.RateLimit.InMemory do
       end
     else
       conn
+    end
+  end
+
+  defp route_pattern(conn) do
+    case conn.private[:phoenix_router] do
+      nil ->
+        conn.request_path
+
+      router ->
+        case Phoenix.Router.route_info(router, conn.method, conn.path_info, conn.host) do
+          %{route: route} -> route
+          :error -> conn.request_path
+        end
     end
   end
 
