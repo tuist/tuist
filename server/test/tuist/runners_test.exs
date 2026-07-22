@@ -916,23 +916,37 @@ defmodule Tuist.RunnersTest do
     end
   end
 
-  describe "report_volume_head/3" do
-    test "bumps the HEAD for a valid hex digest" do
+  describe "report_volume_head/4" do
+    test "fast-forwards the HEAD for a valid hex digest built on the current base" do
       account = account_fixture()
       digest = String.duplicate("a", 40)
 
-      assert :ok = Runners.report_volume_head(account.id, "node-1", digest)
-      assert %{tree_digest: ^digest} = VolumeHeads.get_head(account.id)
+      assert {:ok, 1} = Runners.report_volume_head(account.id, "node-1", digest, 0)
+      assert %{generation: 1, tree_digest: ^digest} = VolumeHeads.get_head(account.id)
     end
 
     test "rejects a digest with path characters (or non-hex) without bumping the HEAD" do
       account = account_fixture()
 
       for bad <- ["../../etc/passwd", "tuist-cache/../x", "a/b", "", nil, String.duplicate("A", 40)] do
-        assert :error = Runners.report_volume_head(account.id, "node-1", bad)
+        assert :error = Runners.report_volume_head(account.id, "node-1", bad, 0)
       end
 
       assert VolumeHeads.get_head(account.id) == nil
+    end
+
+    test "rejects a promote built on a stale base and leaves the HEAD untouched" do
+      account = account_fixture()
+      first = String.duplicate("a", 40)
+      Runners.report_volume_head(account.id, "node-1", first, 0)
+
+      # A job that built on generation 1 promotes after the HEAD already moved to 2.
+      second = String.duplicate("b", 40)
+      Runners.report_volume_head(account.id, "node-2", second, 1)
+      stale = String.duplicate("c", 40)
+
+      assert :conflict = Runners.report_volume_head(account.id, "node-3", stale, 1)
+      assert %{generation: 2, tree_digest: ^second} = VolumeHeads.get_head(account.id)
     end
 
     test "schedules a delayed prune of the superseded master only once a digest changes" do
@@ -941,15 +955,30 @@ defmodule Tuist.RunnersTest do
       new = String.duplicate("b", 40)
 
       # First promote: nothing is superseded, so nothing to prune.
-      assert :ok = Runners.report_volume_head(account.id, "node-1", old)
+      assert {:ok, 1} = Runners.report_volume_head(account.id, "node-1", old, 0)
       refute_enqueued(worker: PruneVolumeMasterWorker)
 
       # A new digest supersedes the old object → schedule its delayed deletion.
-      assert :ok = Runners.report_volume_head(account.id, "node-1", new)
+      assert {:ok, 2} = Runners.report_volume_head(account.id, "node-1", new, 1)
 
       assert_enqueued(
         worker: PruneVolumeMasterWorker,
         args: %{account_id: account.id, tree_digest: old}
+      )
+    end
+
+    test "schedules a prune of a rejected promote's orphaned object" do
+      account = account_fixture()
+      Runners.report_volume_head(account.id, "node-1", String.duplicate("a", 40), 0)
+
+      # A losing promote uploaded its object but the fast-forward is rejected, so
+      # that object never becomes a HEAD — schedule its cleanup.
+      rejected = String.duplicate("c", 40)
+      assert :conflict = Runners.report_volume_head(account.id, "node-2", rejected, 0)
+
+      assert_enqueued(
+        worker: PruneVolumeMasterWorker,
+        args: %{account_id: account.id, tree_digest: rejected}
       )
     end
   end
@@ -959,7 +988,7 @@ defmodule Tuist.RunnersTest do
       account = account_fixture()
       digest = String.duplicate("a", 40)
       # HEAD sits at a different digest, so `digest` is genuinely superseded.
-      Runners.report_volume_head(account.id, "node-1", String.duplicate("b", 40))
+      Runners.report_volume_head(account.id, "node-1", String.duplicate("b", 40), 0)
       key = "runner-volume-masters/#{account.id}/tuist-cache/#{digest}.image"
 
       expect(Tuist.Storage, :delete_object, fn ^key, actor ->
@@ -973,7 +1002,7 @@ defmodule Tuist.RunnersTest do
     test "skips deletion when the digest is (again) the current HEAD (re-promoted)" do
       account = account_fixture()
       digest = String.duplicate("a", 40)
-      Runners.report_volume_head(account.id, "node-1", digest)
+      Runners.report_volume_head(account.id, "node-1", digest, 0)
 
       reject(&Tuist.Storage.delete_object/2)
 

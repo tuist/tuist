@@ -211,9 +211,11 @@ defmodule Tuist.Runners do
   defp valid_inventory_digest?(digest), do: Regex.match?(~r/^[a-f0-9]{40}$/, digest)
 
   @doc """
-  Records a runner's promote of `account_id`'s cache volume: bumps the account's
-  HEAD to `tree_digest` published from `node_name`. Called by the runner after a
-  successful, cache-changing job whose branch it uploaded to the master archive.
+  Records a runner's promote of `account_id`'s cache volume: fast-forwards the
+  account's HEAD to `tree_digest` published from `node_name`, but ONLY when
+  `base_generation` (the generation the job built on) is still the current HEAD.
+  Called by the runner after a successful, cache-changing job whose branch it
+  uploaded to the master archive.
 
   `tree_digest` MUST be a 40-char SHA-1 hex string. dispatch interpolates the
   stored HEAD digest straight into the master object key
@@ -221,14 +223,28 @@ defmodule Tuist.Runners do
   runner could persist `/` or `..` and poison a future dispatch's download key or
   escape the account prefix. Validate here too — not just when minting the upload
   URL — since this is the write that the download key is later derived from.
-  Returns `:ok` on a valid digest, `:error` otherwise.
+
+  Returns `{:ok, generation}` on an accepted fast-forward, `:conflict` when the
+  base is stale (another host advanced the HEAD first), or `:error` on an invalid
+  digest.
   """
-  def report_volume_head(account_id, node_name, tree_digest) do
+  def report_volume_head(account_id, node_name, tree_digest, base_generation) do
     if is_binary(tree_digest) and valid_inventory_digest?(tree_digest) do
       superseded = VolumeHeads.get_head(account_id)
-      VolumeHeads.bump_head(account_id, node_name, tree_digest)
-      schedule_superseded_master_prune(account_id, superseded, tree_digest)
-      :ok
+
+      case VolumeHeads.bump_head(account_id, node_name, tree_digest, base_generation) do
+        {:ok, generation} ->
+          schedule_superseded_master_prune(account_id, superseded, tree_digest)
+          {:ok, generation}
+
+        :conflict ->
+          # The runner already uploaded its image to the content-addressed key, but
+          # the fast-forward was rejected, so that object never becomes a HEAD —
+          # it is orphaned. Schedule its deletion (the pruner skips it if it is, or
+          # later becomes, the live HEAD), so a losing promote does not leak storage.
+          schedule_superseded_master_prune(account_id, %{tree_digest: tree_digest}, nil)
+          :conflict
+      end
     else
       :error
     end
