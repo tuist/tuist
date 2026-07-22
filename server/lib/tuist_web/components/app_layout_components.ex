@@ -497,6 +497,12 @@ defmodule TuistWeb.AppLayoutComponents do
         selected={@current_path == "/ops"}
       />
       <.sidebar_item
+        label={dgettext("dashboard", "Kura")}
+        icon="cube_send"
+        navigate={~p"/ops/kura"}
+        selected={String.starts_with?(@current_path, "/ops/kura")}
+      />
+      <.sidebar_item
         :if={Tuist.Environment.tuist_hosted?()}
         label={dgettext("dashboard", "Accounts")}
         icon="users"

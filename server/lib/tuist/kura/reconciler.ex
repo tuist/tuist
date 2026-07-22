@@ -73,12 +73,25 @@ defmodule Tuist.Kura.Reconciler do
     # provisioning/observation path within the same tick.
     Tuist.Kura.RunnerCache.reconcile()
 
-    with {:ok, scheduled} <- Kura.schedule_runtime_image_deployments() do
-      log_scheduled_deployments(scheduled)
+    with :ok <- schedule_runtime_rollout() do
       reconcile_destroying_servers()
       reconcile_moving_out_servers()
       handled = reconcile_deployments()
       reconcile_observed_servers(handled)
+    end
+  end
+
+  # Version scheduling has two paths (spec #79): the rollout
+  # orchestration — durable rollout records, account-grouped waves with
+  # the health gate in production, expedited fan-out elsewhere — and the
+  # interim-paced scheduler as the flag-off fallback and rollback path.
+  defp schedule_runtime_rollout do
+    if Tuist.FeatureFlags.kura_rollout_orchestration_enabled?() do
+      Tuist.Kura.Rollouts.sync()
+    else
+      with {:ok, scheduled} <- Kura.schedule_runtime_image_deployments() do
+        log_scheduled_deployments(scheduled)
+      end
     end
   end
 

@@ -264,6 +264,11 @@ defmodule Tuist.Kura.RunnerCache do
   end
 
   defp retry(%Server{} = server, image_tag) do
+    # A retry re-provisions from scratch, so it inherits the account's
+    # rollout wave state like a fresh server: the baseline tag until the
+    # wave completes, the target after.
+    image_tag = Tuist.Kura.Rollouts.provisioning_image_tag(server.account_id, image_tag)
+
     case Kura.retry_server(server, image_tag) do
       {:ok, _server} ->
         Logger.info("[Kura.RunnerCache] retrying failed runner-cache node #{server.id}")

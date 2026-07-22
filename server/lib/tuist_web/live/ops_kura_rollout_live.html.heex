@@ -1,0 +1,170 @@
+<div id="ops-kura-rollout">
+  <div data-part="header">
+    <h1 data-part="title">{dgettext("dashboard", "Kura Rollouts")}</h1>
+  </div>
+
+  <.card
+    :if={not @orchestration_enabled}
+    title="Rollout orchestration disabled"
+    icon="alert_triangle"
+  >
+    <.card_section>
+      <span data-part="disabled-note">
+        The kura_rollout_orchestration flag is off, so runtime image versions roll through the
+        interim-paced scheduler (bounded batches, Tuist-owned accounts first). Enable the flag to
+        run health-gated wave rollouts.
+      </span>
+    </.card_section>
+  </.card>
+
+  <%= if @rollout do %>
+    <.card title={"Rollout #{@rollout.image_tag}"} icon="cube_send">
+      <.card_section>
+        <div data-part="rollout-summary">
+          <dl data-part="rollout-facts">
+            <div data-part="fact">
+              <dt>Status</dt>
+              <dd>{@rollout.status}</dd>
+            </div>
+            <div data-part="fact">
+              <dt>Mode</dt>
+              <dd>{@rollout.mode}</dd>
+            </div>
+            <div data-part="fact">
+              <dt>Wave</dt>
+              <dd>{@rollout.current_wave}</dd>
+            </div>
+            <div data-part="fact">
+              <dt>Baseline</dt>
+              <dd>{@rollout.baseline_image_tag || "none"}</dd>
+            </div>
+            <div data-part="fact">
+              <dt>Wave started</dt>
+              <dd>{@rollout.wave_started_at || "-"}</dd>
+            </div>
+            <div data-part="fact">
+              <dt>Healthy since</dt>
+              <dd>{@rollout.wave_healthy_since || "-"}</dd>
+            </div>
+            <div :if={@rollout.status == :paused} data-part="fact">
+              <dt>Paused</dt>
+              <dd>{@rollout.paused_at} ({@rollout.pause_reason})</dd>
+            </div>
+            <div data-part="fact">
+              <dt>Created</dt>
+              <dd>{@rollout.inserted_at}</dd>
+            </div>
+          </dl>
+        </div>
+      </.card_section>
+      <.card_section :if={@rollout.status in [:running, :paused]}>
+        <form phx-submit="operate" data-part="rollout-controls">
+          <.text_input
+            id="reason"
+            name="reason"
+            label="Reason"
+            placeholder="Recorded on the rollout's audit trail"
+            required
+            show_required
+          />
+          <label data-part="action-label" for="action">Action</label>
+          <select name="action" id="action" data-part="action-select">
+            <option :if={@rollout.status == :running} value="pause">Pause</option>
+            <option :if={@rollout.status == :paused} value="resume">Resume (re-attempt)</option>
+            <option value="expedite">Expedite (fan out remainder)</option>
+            <option value="abort">Abort</option>
+          </select>
+          <.button type="submit" variant="primary" label="Apply" />
+        </form>
+      </.card_section>
+    </.card>
+
+    <.card title="Waves" icon="chart_column">
+      <.card_section>
+        <.table id="kura-rollout-waves-table" rows={@waves}>
+          <:col :let={wave} label="Wave">
+            <.text_cell label={to_string(wave.wave)} />
+          </:col>
+          <:col :let={wave} label="Accounts">
+            <.text_cell label={to_string(wave.accounts)} />
+          </:col>
+          <:col :let={wave} label="Servers">
+            <.text_cell label={to_string(wave.servers)} />
+          </:col>
+          <:col :let={wave} label="Converged">
+            <.text_cell label={"#{wave.converged}/#{wave.servers}"} />
+          </:col>
+          <:col :let={wave} label="Soak-eligible">
+            <.text_cell label={to_string(wave.soak_eligible)} />
+          </:col>
+          <:empty_state>
+            <.table_empty_state
+              icon="chart_column"
+              title="No waves scheduled yet"
+              subtitle="Waves appear once the reconciler opens them."
+            />
+          </:empty_state>
+        </.table>
+      </.card_section>
+    </.card>
+
+    <.card title="Events" icon="history">
+      <.card_section>
+        <.table id="kura-rollout-events-table" rows={@events}>
+          <:col :let={event} label="When">
+            <.text_cell label={to_string(event.inserted_at)} />
+          </:col>
+          <:col :let={event} label="Action">
+            <.text_cell label={event.action} />
+          </:col>
+          <:col :let={event} label="Actor">
+            <.text_cell label={event.actor} />
+          </:col>
+          <:col :let={event} label="Reason">
+            <.text_cell label={event.reason || ""} />
+          </:col>
+          <:col :let={event} label="Details">
+            <.text_cell label={format_metadata(event.metadata)} />
+          </:col>
+          <:empty_state>
+            <.table_empty_state icon="history" title="No events" subtitle="" />
+          </:empty_state>
+        </.table>
+      </.card_section>
+    </.card>
+  <% else %>
+    <.card title="Kura Rollouts" icon="cube_send">
+      <.card_section>
+        <span data-part="empty-note">
+          No rollout has been recorded yet. One is minted when the configured Kura runtime image
+          tag changes with rollout orchestration enabled.
+        </span>
+      </.card_section>
+    </.card>
+  <% end %>
+
+  <.card title="History" icon="stack_2">
+    <.card_section>
+      <.table id="kura-rollouts-history-table" rows={@rollouts}>
+        <:col :let={rollout} label="Tag">
+          <.text_cell label={rollout.image_tag} />
+        </:col>
+        <:col :let={rollout} label="Status">
+          <.text_cell label={to_string(rollout.status)} />
+        </:col>
+        <:col :let={rollout} label="Mode">
+          <.text_cell label={to_string(rollout.mode)} />
+        </:col>
+        <:col :let={rollout} label="Created">
+          <.text_cell label={to_string(rollout.inserted_at)} />
+        </:col>
+        <:col :let={rollout} label="Completed">
+          <.text_cell label={to_string(rollout.completed_at || "-")} />
+        </:col>
+        <:empty_state>
+          <.table_empty_state icon="stack_2" title="No rollouts" subtitle="" />
+        </:empty_state>
+      </.table>
+    </.card_section>
+  </.card>
+</div>

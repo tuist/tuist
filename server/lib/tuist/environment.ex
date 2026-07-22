@@ -329,6 +329,55 @@ defmodule Tuist.Environment do
   end
 
   @doc """
+  Account handles of the Tuist-owned accounts that make up wave 0 (the
+  canary) of a progressive Kura runtime rollout. Comma-separated in
+  `TUIST_KURA_CANARY_ACCOUNT_HANDLES`; matching is case-insensitive.
+  """
+  def kura_canary_account_handles do
+    "TUIST_KURA_CANARY_ACCOUNT_HANDLES"
+    |> System.get_env("")
+    |> String.split(",", trim: true)
+    |> Enum.map(&(&1 |> String.trim() |> String.downcase()))
+    |> Enum.reject(&(&1 == ""))
+  end
+
+  @doc """
+  Per-environment override of the rollout pacing default ("progressive"
+  or "expedited"). Unset, production paces progressively and every other
+  environment fans out expedited. Exists for the staging drills that
+  exercise progressive mode through real releases before production
+  enablement (spec #79 rollout plan).
+  """
+  def kura_rollout_pacing do
+    case System.get_env("TUIST_KURA_ROLLOUT_PACING") do
+      value when value in ["progressive", "expedited"] -> value
+      _ -> nil
+    end
+  end
+
+  @doc """
+  Image tag the deploy explicitly asked to expedite (the deployment-input
+  form of the expedite verb, used for rollbacks to a proven tag). Only a
+  rollout created for exactly this tag starts expedited, so the value
+  cannot leak onto a later unrelated rollout.
+  """
+  def kura_rollout_expedite_tag do
+    case System.get_env("TUIST_KURA_ROLLOUT_EXPEDITE_TAG") do
+      nil -> nil
+      value -> with "" <- String.trim(value), do: nil
+    end
+  end
+
+  @doc """
+  Webhook URL for best-effort internal ops notifications (Kura rollout
+  lifecycle). Context only — Grafana owns paging — so an unset value
+  disables the notifications rather than failing anything.
+  """
+  def ops_slack_webhook_url(secrets \\ secrets()) do
+    System.get_env("TUIST_OPS_SLACK_WEBHOOK_URL") || get([:ops, :slack_webhook_url], secrets)
+  end
+
+  @doc """
   The public peer failover IP for a bare-metal region, or `nil` when none is
   configured. Self-hosted nodes resolve a region's `peer.` host to this IP; the
   CAPI provider keeps it routed to a healthy box of the region's pool. Read from

@@ -1,0 +1,69 @@
+#ops-kura-rollout {
+  display: flex;
+  flex-direction: column;
+  gap: var(--noora-spacing-9);
+  padding: var(--noora-spacing-7) var(--noora-spacing-5);
+
+  & > [data-part="header"] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--noora-spacing-2);
+
+    & > [data-part="title"] {
+      margin: var(--noora-spacing-0);
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-medium) var(--noora-font-heading-large);
+    }
+  }
+
+  & [data-part="rollout-facts"] {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: var(--noora-spacing-5);
+    margin: var(--noora-spacing-0);
+
+    & [data-part="fact"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-1);
+
+      & > dt {
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+      }
+
+      & > dd {
+        margin: var(--noora-spacing-0);
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+      }
+    }
+  }
+
+  & [data-part="rollout-controls"] {
+    display: flex;
+    align-items: flex-end;
+    gap: var(--noora-spacing-5);
+
+    & [data-part="action-label"] {
+      color: var(--noora-surface-label-secondary);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+    }
+
+    & [data-part="action-select"] {
+      height: var(--noora-spacing-9);
+      padding: var(--noora-spacing-2) var(--noora-spacing-4);
+      border: 1px solid var(--noora-surface-border-primary);
+      border-radius: var(--noora-radius-medium);
+      background: var(--noora-surface-background-primary);
+      color: var(--noora-surface-label-primary);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+    }
+  }
+
+  & [data-part="disabled-note"],
+  & [data-part="empty-note"] {
+    color: var(--noora-surface-label-secondary);
+    font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+  }
+}

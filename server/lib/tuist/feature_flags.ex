@@ -29,6 +29,19 @@ defmodule Tuist.FeatureFlags do
     not Environment.tuist_hosted?() or FunWithFlags.enabled?(:kura, for: account)
   end
 
+  @doc """
+  Whether Kura runtime-image rollouts run through the rollout
+  orchestration (`Tuist.Kura.Rollouts`): durable rollout records,
+  account-grouped waves with the health gate in production, expedited
+  fan-out in the other environments, and the operator verbs. Off falls
+  back to the interim-paced scheduler
+  (`Tuist.Kura.schedule_runtime_image_deployments/0`), which stays the
+  rollback path while the machinery soaks (spec #79).
+  """
+  def kura_rollout_orchestration_enabled? do
+    FunWithFlags.enabled?(:kura_rollout_orchestration)
+  end
+
   defimpl FunWithFlags.Actor, for: Tuist.Accounts.User do
     def id(%{id: id}) do
       "user:#{id}"

@@ -121,6 +121,16 @@ defmodule Tuist.Kura.Provisioner do
   @callback caught_up?(ref :: String.t(), Regions.t()) ::
               {:ok, boolean()} | {:error, term()}
 
+  @doc """
+  The rollout-health aggregate the backing platform publishes for the
+  server's workload, or `{:ok, nil}` when the resource exists but has not
+  published one yet (old controller, no pods sampled). Consumed by
+  `Tuist.Kura.Rollouts` as the health authority for the progressive
+  rollout gate; never on the cache hot path.
+  """
+  @callback rollout_health(ref :: String.t(), Regions.t()) ::
+              {:ok, map() | nil} | {:error, term()}
+
   ## Convenience dispatchers
 
   @doc "Calls `rollout/2` on the region's provisioner."
@@ -192,6 +202,13 @@ defmodule Tuist.Kura.Provisioner do
   def caught_up?(%Server{provisioner_node_ref: ref, region: region_id}) do
     with {:ok, region} <- Regions.fetch(region_id) do
       region.provisioner.caught_up?(ref, region)
+    end
+  end
+
+  @doc "Calls `rollout_health/2` on the region's provisioner."
+  def rollout_health(%Server{provisioner_node_ref: ref, region: region_id}) do
+    with {:ok, region} <- Regions.fetch(region_id) do
+      region.provisioner.rollout_health(ref, region)
     end
   end
 end
