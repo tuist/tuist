@@ -1,12 +1,14 @@
 defmodule Tuist.Runners.WorkflowJobsTest do
   use TuistTestSupport.Cases.DataCase, async: true
 
+  import Mimic
   import TuistTestSupport.Fixtures.AccountsFixtures
 
   alias Tuist.Repo
   alias Tuist.Runners.JobCompletion
   alias Tuist.Runners.WorkflowJob
   alias Tuist.Runners.WorkflowJobs
+  alias Tuist.Runners.WorkflowJobTransitionEvent
 
   defp attrs(account, workflow_job_id, opts \\ []) do
     %{
@@ -245,26 +247,6 @@ defmodule Tuist.Runners.WorkflowJobsTest do
     end
   end
 
-  describe "list_recently_updated/3" do
-    test "returns rows inside the window only" do
-      account = account_fixture()
-      now = DateTime.utc_now()
-
-      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_120))
-      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_121))
-
-      Repo.update_all(
-        from(j in WorkflowJob, where: j.workflow_job_id == ^910_120),
-        set: [updated_at: now |> DateTime.add(-120, :second) |> DateTime.truncate(:second)]
-      )
-
-      rows = WorkflowJobs.list_recently_updated(DateTime.add(now, -3_600, :second), DateTime.add(now, -60, :second), 100)
-
-      assert Enum.map(rows, & &1.workflow_job_id) == [910_120]
-      assert [%{status: "queued", enqueued_at: %DateTime{}}] = rows
-    end
-  end
-
   describe "pick_queued_top_k/6" do
     test "returns queued candidates in (enqueued_at, workflow_job_id) order with the CH candidate shape" do
       account = account_fixture()
@@ -345,6 +327,98 @@ defmodule Tuist.Runners.WorkflowJobsTest do
                account.id => 1,
                other_account.id => 1
              }
+    end
+  end
+
+  describe "transition outbox" do
+    test "does not write events while the flag is off" do
+      account = account_fixture()
+
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_100))
+      :ok = WorkflowJobs.transition_claimed(910_100, "pod-1", DateTime.utc_now())
+
+      assert Repo.all(WorkflowJobTransitionEvent) == []
+    end
+
+    test "writes one event per applied transition carrying the CH insert shape" do
+      stub(FunWithFlags, :enabled?, fn :runner_job_transition_outbox -> true end)
+      account = account_fixture()
+      claimed_at = DateTime.utc_now()
+
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_101))
+      :ok = WorkflowJobs.transition_claimed(910_101, "pod-1", claimed_at)
+      :ok = WorkflowJobs.transition_running(910_101, "runner-x")
+      :ok = WorkflowJobs.record_completed(attrs(account, 910_101), "success", DateTime.utc_now())
+
+      events = Repo.all(from(e in WorkflowJobTransitionEvent, order_by: [asc: e.id]))
+      assert Enum.map(events, & &1.workflow_job_id) == [910_101, 910_101, 910_101, 910_101]
+      assert Enum.all?(events, &(&1.account_id == account.id))
+
+      statuses = Enum.map(events, & &1.payload["status"])
+      assert statuses == ["queued", "claimed", "running", "completed"]
+
+      completed = List.last(events)
+      assert completed.payload["conclusion"] == "success"
+      assert completed.payload["pod_name"] == "pod-1"
+      assert completed.payload["runner_name"] == "runner-x"
+      assert completed.payload["fleet_name"] == "fleet-a"
+      assert completed.payload["account_id"] == account.id
+      assert is_binary(completed.payload["enqueued_at"])
+      assert is_binary(completed.payload["updated_at"])
+    end
+
+    test "guard misses emit no events and a cancelled status maps to CH completed" do
+      stub(FunWithFlags, :enabled?, fn :runner_job_transition_outbox -> true end)
+      account = account_fixture()
+
+      :ok = WorkflowJobs.record_completed(attrs(account, 910_102), "cancelled", DateTime.utc_now())
+      # Terminal redelivery and a stale requeue both miss their guards.
+      :ok = WorkflowJobs.record_completed(attrs(account, 910_102), "success", DateTime.utc_now())
+      :noop = WorkflowJobs.requeue(910_102)
+
+      assert [event] = Repo.all(WorkflowJobTransitionEvent)
+      assert event.payload["status"] == "completed"
+      assert event.payload["conclusion"] == "cancelled"
+    end
+  end
+
+  describe "decode_transition_payload/1" do
+    test "round-trips a stored payload into the CH insert row" do
+      stub(FunWithFlags, :enabled?, fn :runner_job_transition_outbox -> true end)
+      account = account_fixture()
+
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_110))
+
+      [event] = Repo.all(WorkflowJobTransitionEvent)
+      row = WorkflowJobs.decode_transition_payload(event.payload)
+
+      assert row.workflow_job_id == 910_110
+      assert row.account_id == account.id
+      assert row.status == "queued"
+      assert %DateTime{microsecond: {_, 6}} = row.enqueued_at
+      assert %DateTime{microsecond: {_, 6}} = row.updated_at
+      assert row.claimed_at == nil
+      assert row.pod_name == ""
+    end
+  end
+
+  describe "list_recently_updated/3" do
+    test "returns rows inside the window only" do
+      account = account_fixture()
+      now = DateTime.utc_now()
+
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_120))
+      :ok = WorkflowJobs.upsert_queued(attrs(account, 910_121))
+
+      Repo.update_all(
+        from(j in WorkflowJob, where: j.workflow_job_id == ^910_120),
+        set: [updated_at: now |> DateTime.add(-120, :second) |> DateTime.truncate(:second)]
+      )
+
+      rows = WorkflowJobs.list_recently_updated(DateTime.add(now, -3_600, :second), DateTime.add(now, -60, :second), 100)
+
+      assert Enum.map(rows, & &1.workflow_job_id) == [910_120]
+      assert [%{status: "queued", enqueued_at: %DateTime{}}] = rows
     end
   end
 end

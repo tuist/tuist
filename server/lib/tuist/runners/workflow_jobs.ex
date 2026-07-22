@@ -28,6 +28,12 @@ defmodule Tuist.Runners.WorkflowJobs do
       (same transaction as the claim delete) → `requeue/1`
     * `Tuist.Runners.Jobs` completion choke point (webhook `completed`
       plus the recovery workers' force-completes) → `record_completed/3`
+
+  When the `:runner_job_transition_outbox` flag is enabled, each
+  applied transition also inserts a
+  `Tuist.Runners.WorkflowJobTransitionEvent` row in the same
+  transaction, carrying the ClickHouse `runner_jobs` insert shape for
+  the batch flusher to replay.
   """
 
   import Ecto.Query
@@ -36,8 +42,12 @@ defmodule Tuist.Runners.WorkflowJobs do
   alias Tuist.Runners.JobCompletion
   alias Tuist.Runners.Telemetry
   alias Tuist.Runners.WorkflowJob
+  alias Tuist.Runners.WorkflowJobTransitionEvent
 
   @terminal_statuses ~w(completed cancelled)
+  @outbox_flag :runner_job_transition_outbox
+
+  def outbox_flag, do: @outbox_flag
 
   @doc """
   Inserts a `queued` row for the workflow_job when none exists.
@@ -65,7 +75,12 @@ defmodule Tuist.Runners.WorkflowJobs do
           updated_at: DateTime.truncate(now, :second)
         })
 
-      Repo.insert_all(WorkflowJob, [row], on_conflict: :nothing)
+      {:ok, _} =
+        Repo.transaction(fn ->
+          {count, rows} = Repo.insert_all(WorkflowJob, [row], on_conflict: :nothing, returning: true)
+
+          if count == 1, do: emit_transition_event(hd(rows), now)
+        end)
 
       :ok
     end
@@ -114,7 +129,8 @@ defmodule Tuist.Runners.WorkflowJobs do
   before queued, or the job predates this table) is inserted terminal
   so late `queued` redeliveries hit the `ON CONFLICT DO NOTHING`
   guard in `upsert_queued/1`. Already-terminal rows are left alone,
-  so redeliveries cannot flip `completed ↔ cancelled`.
+  so redeliveries cannot flip `completed ↔ cancelled` or re-emit
+  outbox events.
 
   A `"cancelled"` conclusion maps to status `"cancelled"`; everything
   else lands as `"completed"` with the conclusion recorded alongside.
@@ -148,16 +164,24 @@ defmodule Tuist.Runners.WorkflowJobs do
         ]
       )
 
-    {count, _} =
-      Repo.insert_all(WorkflowJob, [row],
-        on_conflict: on_conflict,
-        conflict_target: [:workflow_job_id]
-      )
+    {:ok, _} =
+      Repo.transaction(fn ->
+        {count, rows} =
+          Repo.insert_all(WorkflowJob, [row],
+            on_conflict: on_conflict,
+            conflict_target: [:workflow_job_id],
+            returning: true
+          )
 
-    case count do
-      1 -> emit_transition_telemetry(status, "applied")
-      0 -> emit_transition_telemetry(status, "miss")
-    end
+        case {count, rows} do
+          {1, [applied]} ->
+            emit_transition_event(applied, now)
+            emit_transition_telemetry(status, "applied")
+
+          {0, _} ->
+            emit_transition_telemetry(status, "miss")
+        end
+      end)
 
     :ok
   end
@@ -168,8 +192,8 @@ defmodule Tuist.Runners.WorkflowJobs do
   executed job's own row, and `executed_workflow_job_id` on the
   row(s) whose claim minted that runner (matched by `runner_name`,
   mirroring `Tuist.Runners.Claims.record_execution/3`). Not a status
-  transition. Scoped to the webhook's account, and idempotent under
-  redelivery.
+  transition — no outbox event. Scoped to the webhook's account, and
+  idempotent under redelivery.
   """
   def record_execution(runner_name, executed_workflow_job_id, account_id)
       when is_binary(runner_name) and runner_name != "" and is_integer(executed_workflow_job_id) and
@@ -280,29 +304,70 @@ defmodule Tuist.Runners.WorkflowJobs do
     )
   end
 
+  @doc """
+  Decodes a transition event's JSONB payload back into the ClickHouse
+  `runner_jobs` insert row: string keys to atoms, ISO-8601 datetimes
+  to `DateTime` promoted to microsecond precision for
+  `DateTime64(6)` binding.
+  """
+  def decode_transition_payload(payload) when is_map(payload) do
+    %{
+      workflow_job_id: payload["workflow_job_id"],
+      account_id: payload["account_id"],
+      fleet_name: payload["fleet_name"],
+      repository: payload["repository"],
+      platform: payload["platform"],
+      vcpus: payload["vcpus"],
+      memory_gb: payload["memory_gb"],
+      workflow_run_id: payload["workflow_run_id"],
+      workflow_name: payload["workflow_name"],
+      run_attempt: payload["run_attempt"],
+      job_name: payload["job_name"],
+      head_branch: payload["head_branch"],
+      head_sha: payload["head_sha"],
+      status: payload["status"],
+      conclusion: payload["conclusion"],
+      enqueued_at: parse_datetime(payload["enqueued_at"]),
+      claimed_at: parse_datetime(payload["claimed_at"]),
+      started_at: parse_datetime(payload["started_at"]),
+      completed_at: parse_datetime(payload["completed_at"]),
+      pod_name: payload["pod_name"],
+      runner_name: payload["runner_name"],
+      requested_dispatch_label: payload["requested_dispatch_label"],
+      updated_at: parse_datetime(payload["updated_at"])
+    }
+  end
+
   # ----- internal -----
 
   defp transition(workflow_job_id, expected_statuses, new_status, set_fields) do
     now = DateTime.utc_now()
     set_fields = Keyword.merge(set_fields, status: new_status, updated_at: DateTime.truncate(now, :second))
 
-    {count, _} =
-      Repo.update_all(
-        from(j in WorkflowJob,
-          where: j.workflow_job_id == ^workflow_job_id and j.status in ^expected_statuses
-        ),
-        set: set_fields
-      )
+    {:ok, outcome} =
+      Repo.transaction(fn ->
+        {count, rows} =
+          Repo.update_all(
+            from(j in WorkflowJob,
+              where: j.workflow_job_id == ^workflow_job_id and j.status in ^expected_statuses,
+              select: j
+            ),
+            set: set_fields
+          )
 
-    case count do
-      1 ->
-        emit_transition_telemetry(new_status, "applied")
-        :ok
+        case {count, rows} do
+          {1, [row]} ->
+            emit_transition_event(row, now)
+            emit_transition_telemetry(new_status, "applied")
+            :ok
 
-      0 ->
-        emit_transition_telemetry(new_status, "miss")
-        :noop
-    end
+          {0, _} ->
+            emit_transition_telemetry(new_status, "miss")
+            :noop
+        end
+      end)
+
+    outcome
   end
 
   defp emit_transition_telemetry(to_status, outcome) do
@@ -311,6 +376,66 @@ defmodule Tuist.Runners.WorkflowJobs do
       %{count: 1},
       %{to: to_status, outcome: outcome}
     )
+  end
+
+  defp emit_transition_event(%WorkflowJob{} = row, %DateTime{} = transition_at) do
+    if FunWithFlags.enabled?(@outbox_flag) do
+      Repo.insert_all(WorkflowJobTransitionEvent, [
+        %{
+          workflow_job_id: row.workflow_job_id,
+          account_id: row.account_id,
+          payload: ch_row(row, transition_at),
+          inserted_at: DateTime.truncate(transition_at, :second)
+        }
+      ])
+    end
+
+    :ok
+  end
+
+  # The ClickHouse `runner_jobs` insert shape for this row's current
+  # state. `updated_at` is the transition timestamp at microsecond
+  # precision (the RMT version column is DateTime64(6); the row's own
+  # `updated_at` is second-truncated), so replayed rows sort correctly
+  # against the direct CH writes that remain on during rollout. Status
+  # `cancelled` maps back to CH's `completed` + conclusion convention.
+  defp ch_row(%WorkflowJob{} = row, %DateTime{} = transition_at) do
+    %{
+      workflow_job_id: row.workflow_job_id,
+      account_id: row.account_id,
+      fleet_name: row.fleet_name,
+      repository: row.repository,
+      platform: row.platform,
+      vcpus: row.vcpus,
+      memory_gb: row.memory_gb,
+      workflow_run_id: row.workflow_run_id,
+      workflow_name: row.workflow_name,
+      run_attempt: row.run_attempt,
+      job_name: row.job_name,
+      head_branch: row.head_branch,
+      head_sha: row.head_sha,
+      status: ch_status(row.status),
+      conclusion: row.conclusion || "",
+      enqueued_at: row.enqueued_at,
+      claimed_at: row.claimed_at,
+      started_at: row.started_at,
+      completed_at: row.completed_at,
+      pod_name: row.pod_name || "",
+      runner_name: row.runner_name || "",
+      requested_dispatch_label: row.requested_dispatch_label,
+      updated_at: transition_at
+    }
+  end
+
+  defp ch_status("cancelled"), do: "completed"
+  defp ch_status(status), do: status
+
+  defp parse_datetime(nil), do: nil
+  defp parse_datetime(%DateTime{} = datetime), do: datetime
+
+  defp parse_datetime(value) when is_binary(value) do
+    {:ok, %DateTime{microsecond: {us, _}} = datetime, _offset} = DateTime.from_iso8601(value)
+    %{datetime | microsecond: {us, 6}}
   end
 
   @candidate_defaults [
