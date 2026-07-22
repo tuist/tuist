@@ -30,3 +30,19 @@ func TestGuestDiskUsageGauge(t *testing.T) {
 		t.Fatalf("vm-a gauge after reset = %v, want 95", got)
 	}
 }
+
+func TestRecordVolumePromote(t *testing.T) {
+	acceptedBefore := testutil.ToFloat64(cacheVolumePromoteTotal.WithLabelValues("accepted"))
+	rejectedBefore := testutil.ToFloat64(cacheVolumePromoteTotal.WithLabelValues("rejected"))
+
+	RecordVolumePromote(true)
+	RecordVolumePromote(false)
+	RecordVolumePromote(false)
+
+	if got := testutil.ToFloat64(cacheVolumePromoteTotal.WithLabelValues("accepted")); got != acceptedBefore+1 {
+		t.Fatalf("accepted = %v, want %v", got, acceptedBefore+1)
+	}
+	if got := testutil.ToFloat64(cacheVolumePromoteTotal.WithLabelValues("rejected")); got != rejectedBefore+2 {
+		t.Fatalf("rejected = %v, want %v", got, rejectedBefore+2)
+	}
+}

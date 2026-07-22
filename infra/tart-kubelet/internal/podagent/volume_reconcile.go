@@ -394,6 +394,14 @@ func (r *Reconciler) finalizeVolume(entry *Entry, actualAccount string, cleanExi
 	// discards the branch rather than moving the local master off the lineage.
 	entry.Volume.PromotedGeneration = readPromotedGeneration(entry.VolumeStatusDir)
 
+	// For a promote-eligible job (it did cache-changing work for its own account),
+	// record whether the server accepted the fast-forward — the reject-rate signal.
+	// Read-only, failed, and account-mismatched jobs never promote, so they are
+	// excluded to keep the ratio meaningful.
+	if succeeded && dirty && actualAccount != "" && entry.Volume.SourceAccount == actualAccount {
+		RecordVolumePromote(entry.Volume.PromotedGeneration > 0)
+	}
+
 	outcome, err := r.Volumes.Finalize(entry.Volume, actualAccount, succeeded, dirty)
 	if err != nil {
 		log.Log.WithName("volume").Error(err, "finalize cache volume", "vm", entry.VMName, "account", actualAccount)
