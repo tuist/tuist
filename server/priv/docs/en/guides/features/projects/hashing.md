@@ -29,7 +29,7 @@ We hash the Swift version obtained from running the command `/usr/bin/xcrun swif
 
 #### Configuration {#configuration}
 
-When calculating cache hashes, `--configuration` scopes each project's and target's settings to the selected build configuration. Tuist hashes that configuration's name, variant, build settings, and configuration file contents together with the shared base settings that apply to it. Adding, removing, or changing another configuration does not affect the selected configuration's cache hashes.
+When calculating cache hashes, `--configuration` or the project's default configuration scopes each project's and target's settings to the selected build configuration. Tuist hashes that configuration's name, variant, build settings, and configuration file contents together with the shared base settings that apply to it. Adding, removing, or changing another configuration does not affect the selected configuration's cache hashes. When neither is set, Tuist continues to hash all configurations.
 
 ## Debugging {#debugging}
 

@@ -284,7 +284,7 @@ struct ContentHashingIntegrationTests {
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController
-    ) func contentHashes_removingUnselectedConfigurationDoesNotChangeHash() async throws {
+    ) func contentHashes_scopesOnlyWhenConfigurationIsSelected() async throws {
         // Given
         let temporaryPath = try #require(FileSystem.temporaryTestDirectory)
         let selectedConfiguration = BuildConfiguration.debug("Debug-SharedCache")
@@ -351,11 +351,29 @@ struct ContentHashingIntegrationTests {
             excludedTargets: [],
             destination: nil
         )
+        let implicitHashesWithUnrelatedConfiguration = try await subject.contentHashes(
+            for: graphWithUnrelatedConfiguration,
+            configuration: nil,
+            defaultConfiguration: nil,
+            excludedTargets: [],
+            destination: nil
+        )
+        let implicitHashesWithoutUnrelatedConfiguration = try await subject.contentHashes(
+            for: graphWithoutUnrelatedConfiguration,
+            configuration: nil,
+            defaultConfiguration: nil,
+            excludedTargets: [],
+            destination: nil
+        )
 
         // Then
         #expect(
             hashesWithUnrelatedConfiguration[graphTargetWithUnrelatedConfiguration]?.hash
                 == hashesWithoutUnrelatedConfiguration[graphTargetWithoutUnrelatedConfiguration]?.hash
+        )
+        #expect(
+            implicitHashesWithUnrelatedConfiguration[graphTargetWithUnrelatedConfiguration]?.hash
+                != implicitHashesWithoutUnrelatedConfiguration[graphTargetWithoutUnrelatedConfiguration]?.hash
         )
     }
 

@@ -104,6 +104,129 @@ struct CacheGraphContentHasherTests {
 
     @Test(
         .withMockedSwiftVersionProvider
+    ) func contentHashes_scopesSettingsToDefaultConfiguration() async throws {
+        // Given
+        let defaultConfigurationName = "Debug-SharedCache"
+        let selectedConfiguration = BuildConfiguration.debug(defaultConfigurationName)
+        let unrelatedConfiguration = BuildConfiguration.debug("Debug-AppVariant-B")
+        let settings = Settings(
+            configurations: [
+                selectedConfiguration: Configuration(settings: ["SELECTED": "YES"]),
+                unrelatedConfiguration: Configuration(settings: ["UNRELATED": "YES"]),
+            ]
+        )
+        let target = Target.test(name: "Framework", product: .framework, settings: settings)
+        let project = Project.test(path: "/Project/Path", settings: settings, targets: [target])
+        let projectPath = project.path
+        let graph = Graph.test(path: projectPath, projects: [projectPath: project])
+        given(graphContentHasher)
+            .contentHashes(
+                for: .any,
+                include: .any,
+                destination: .any,
+                additionalStrings: .any
+            )
+            .willReturn([:])
+        given(defaultConfigurationFetcher)
+            .fetch(configuration: .any, defaultConfiguration: .any, graph: .any)
+            .willReturn(defaultConfigurationName)
+        let swiftVersionProviderMock = try #require(SwiftVersionProvider.mocked)
+        given(swiftVersionProviderMock).swiftlangVersion().willReturn("5.10.0")
+
+        // When
+        _ = try await subject.contentHashes(
+            for: graph,
+            configuration: nil,
+            defaultConfiguration: defaultConfigurationName,
+            excludedTargets: [],
+            destination: nil
+        )
+
+        // Then
+        verify(graphContentHasher)
+            .contentHashes(
+                for: .matching { graph in
+                    guard let scopedProject = graph.projects[projectPath],
+                          let targetSettings = scopedProject.targets[target.name]?.settings
+                    else {
+                        return false
+                    }
+                    return Set(scopedProject.settings.configurations.keys) == [selectedConfiguration]
+                        && Set(targetSettings.configurations.keys) == [selectedConfiguration]
+                },
+                include: .any,
+                destination: .any,
+                additionalStrings: .any
+            )
+            .called(1)
+    }
+
+    @Test(
+        .withMockedSwiftVersionProvider
+    ) func contentHashes_preservesAllSettingsWhenConfigurationIsImplicit() async throws {
+        // Given
+        let selectedConfiguration = BuildConfiguration.debug("Debug-SharedCache")
+        let unrelatedConfiguration = BuildConfiguration.debug("Debug-AppVariant-B")
+        let settings = Settings(
+            configurations: [
+                selectedConfiguration: Configuration(settings: ["SELECTED": "YES"]),
+                unrelatedConfiguration: Configuration(settings: ["UNRELATED": "YES"]),
+            ]
+        )
+        let target = Target.test(name: "Framework", product: .framework, settings: settings)
+        let project = Project.test(path: "/Project/Path", settings: settings, targets: [target])
+        let projectPath = project.path
+        let graph = Graph.test(path: projectPath, projects: [projectPath: project])
+        given(graphContentHasher)
+            .contentHashes(
+                for: .any,
+                include: .any,
+                destination: .any,
+                additionalStrings: .any
+            )
+            .willReturn([:])
+        given(defaultConfigurationFetcher)
+            .fetch(configuration: .any, defaultConfiguration: .any, graph: .any)
+            .willReturn(selectedConfiguration.name)
+        let swiftVersionProviderMock = try #require(SwiftVersionProvider.mocked)
+        given(swiftVersionProviderMock).swiftlangVersion().willReturn("5.10.0")
+
+        // When
+        _ = try await subject.contentHashes(
+            for: graph,
+            configuration: nil,
+            defaultConfiguration: nil,
+            excludedTargets: [],
+            destination: nil
+        )
+
+        // Then
+        verify(graphContentHasher)
+            .contentHashes(
+                for: .matching { graph in
+                    guard let unscopedProject = graph.projects[projectPath],
+                          let targetSettings = unscopedProject.targets[target.name]?.settings
+                    else {
+                        return false
+                    }
+                    return Set(unscopedProject.settings.configurations.keys) == [
+                        selectedConfiguration,
+                        unrelatedConfiguration,
+                    ]
+                        && Set(targetSettings.configurations.keys) == [
+                            selectedConfiguration,
+                            unrelatedConfiguration,
+                        ]
+                },
+                include: .any,
+                destination: .any,
+                additionalStrings: .any
+            )
+            .called(1)
+    }
+
+    @Test(
+        .withMockedSwiftVersionProvider
     ) func contentHashes_when_no_excluded_targets_all_hashes_are_computed() async throws {
         // Given
         let includedTarget = GraphTarget(

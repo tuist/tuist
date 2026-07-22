@@ -68,12 +68,15 @@ public struct CacheGraphContentHasher: CacheGraphContentHashing {
         excludedTargets: Set<String>,
         destination: SimulatorDeviceAndRuntime?
     ) async throws -> [GraphTarget: TargetContentHash] {
-        let configuration = try defaultConfigurationFetcher.fetch(
+        let scopesSettingsToConfiguration = configuration != nil || defaultConfiguration != nil
+        let resolvedConfiguration = try defaultConfigurationFetcher.fetch(
             configuration: configuration,
             defaultConfiguration: defaultConfiguration,
             graph: graph
         )
-        let hashingGraph = graphByScopingSettings(in: graph, to: configuration)
+        let hashingGraph = scopesSettingsToConfiguration
+            ? graphByScopingSettings(in: graph, to: resolvedConfiguration)
+            : graph
 
         if let exportHashedGraphPath = Environment.current.variables["TUIST_EXPORT_HASHED_GRAPH_PATH"],
            let exportPath = try? AbsolutePath(validating: exportHashedGraphPath)
@@ -93,7 +96,7 @@ public struct CacheGraphContentHasher: CacheGraphContentHashing {
             },
             destination: destination,
             additionalStrings: [
-                configuration,
+                resolvedConfiguration,
                 try await SwiftVersionProvider.current.swiftlangVersion(),
                 version.rawValue,
             ]
