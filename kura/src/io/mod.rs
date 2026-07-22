@@ -560,14 +560,12 @@ impl PersistentFile {
     }
 
     pub fn drop_cached_pages(&self, offset: u64, length: u64) -> Result<(), io::Error> {
-        #[cfg(unix)]
+        #[cfg(target_os = "linux")]
         {
-            use std::os::fd::AsRawFd;
-
-            drop_descriptor_cached_pages(self.file.as_raw_fd(), offset, length)
+            drop_file_cached_pages(&self.file, offset, length)
         }
 
-        #[cfg(not(unix))]
+        #[cfg(not(target_os = "linux"))]
         {
             let _ = (offset, length);
             Ok(())
@@ -582,33 +580,35 @@ impl TrackedFile {
 }
 
 #[cfg(target_os = "linux")]
-pub fn drop_descriptor_cached_pages(
-    descriptor: i32,
-    offset: u64,
-    length: u64,
-) -> Result<(), io::Error> {
-    let result = unsafe {
-        libc::posix_fadvise(
-            descriptor,
-            offset as libc::off_t,
-            length as libc::off_t,
-            libc::POSIX_FADV_DONTNEED,
-        )
+fn drop_file_cached_pages(file: &std::fs::File, offset: u64, length: u64) -> Result<(), io::Error> {
+    let Some((aligned_offset, aligned_length)) =
+        aligned_advice_range(offset, length, rustix::param::page_size() as u64)
+    else {
+        return Ok(());
     };
-    if result == 0 {
-        Ok(())
-    } else {
-        Err(io::Error::from_raw_os_error(result))
-    }
+    rustix::fs::fadvise(
+        file,
+        aligned_offset,
+        Some(aligned_length),
+        rustix::fs::Advice::DontNeed,
+    )
+    .map_err(io::Error::from)
 }
 
-#[cfg(not(target_os = "linux"))]
-pub fn drop_descriptor_cached_pages(
-    _descriptor: i32,
-    _offset: u64,
-    _length: u64,
-) -> Result<(), io::Error> {
-    Ok(())
+#[cfg(any(target_os = "linux", test))]
+fn aligned_advice_range(
+    offset: u64,
+    length: u64,
+    page_size: u64,
+) -> Option<(u64, std::num::NonZeroU64)> {
+    if length == 0 || page_size == 0 {
+        return None;
+    }
+    let aligned_offset = offset / page_size * page_size;
+    let end = offset.saturating_add(length);
+    let aligned_end = end.div_ceil(page_size).saturating_mul(page_size);
+    std::num::NonZeroU64::new(aligned_end.saturating_sub(aligned_offset))
+        .map(|aligned_length| (aligned_offset, aligned_length))
 }
 
 impl IoController {
@@ -767,5 +767,15 @@ mod tests {
         };
 
         assert!(error.contains("parent traversal component"));
+    }
+
+    #[test]
+    fn file_cache_advice_expands_to_complete_pages() {
+        let (offset, length) = aligned_advice_range(4_095, 4_098, 4_096)
+            .expect("a non-empty range should produce advice");
+
+        assert_eq!(offset, 0);
+        assert_eq!(length.get(), 12_288);
+        assert_eq!(aligned_advice_range(0, 0, 4_096), None);
     }
 }

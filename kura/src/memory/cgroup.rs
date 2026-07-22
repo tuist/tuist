@@ -10,16 +10,33 @@ pub struct ContainerMemorySnapshot {
     pub oom_kill_events: Option<u64>,
 }
 
-pub fn container_memory_current_bytes() -> Option<u64> {
+pub fn container_memory_working_set_bytes() -> Option<u64> {
     #[cfg(target_os = "linux")]
     {
-        read_u64_file("/sys/fs/cgroup/memory.current")
-            .or_else(|| read_u64_file("/sys/fs/cgroup/memory/memory.usage_in_bytes"))
+        if let Some(current_bytes) = read_u64_file("/sys/fs/cgroup/memory.current") {
+            let inactive_file_bytes = std::fs::read_to_string("/sys/fs/cgroup/memory.stat")
+                .ok()
+                .and_then(|value| named_value(&value, "inactive_file"))
+                .unwrap_or(0);
+            return Some(working_set_bytes(current_bytes, Some(inactive_file_bytes)));
+        }
+
+        let current_bytes = read_u64_file("/sys/fs/cgroup/memory/memory.usage_in_bytes")?;
+        let inactive_file_bytes = std::fs::read_to_string("/sys/fs/cgroup/memory/memory.stat")
+            .ok()
+            .and_then(|value| named_value(&value, "total_inactive_file"))
+            .unwrap_or(0);
+        Some(working_set_bytes(current_bytes, Some(inactive_file_bytes)))
     }
     #[cfg(not(target_os = "linux"))]
     {
         None
     }
+}
+
+#[cfg(any(target_os = "linux", test))]
+fn working_set_bytes(current_bytes: u64, inactive_file_bytes: Option<u64>) -> u64 {
+    current_bytes.saturating_sub(inactive_file_bytes.unwrap_or(0))
 }
 
 pub fn container_memory_snapshot() -> Option<ContainerMemorySnapshot> {
@@ -113,5 +130,11 @@ mod tests {
         assert_eq!(named_value(stat, "file"), Some(456));
         assert_eq!(named_value(stat, "inactive_file"), Some(78));
         assert_eq!(named_value(stat, "missing"), None);
+    }
+
+    #[test]
+    fn working_set_excludes_reclaimable_inactive_file_pages() {
+        assert_eq!(working_set_bytes(100, Some(30)), 70);
+        assert_eq!(working_set_bytes(100, None), 100);
     }
 }

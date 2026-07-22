@@ -483,7 +483,7 @@ mod tests {
         let memory = MemoryController::with_runtime_limit(
             metrics.clone(),
             256 * mebibyte,
-            180 * mebibyte,
+            32 * mebibyte,
             200 * mebibyte,
         );
         memory.observe(32 * mebibyte);

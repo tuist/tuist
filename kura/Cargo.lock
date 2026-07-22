@@ -1389,6 +1389,7 @@ dependencies = [
  "rcgen",
  "reqwest 0.12.28",
  "rocksdb",
+ "rustix",
  "rustls",
  "rustls-pemfile",
  "sentry",

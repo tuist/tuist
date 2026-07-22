@@ -149,7 +149,7 @@ async fn run_with_config(
     // unknown baseline as zero would let a startup burst reserve the whole hard
     // limit on top of RocksDB and allocator memory already charged to the
     // container.
-    if let Some(accounted_bytes) = crate::memory::container_memory_current_bytes()
+    if let Some(accounted_bytes) = crate::memory::container_memory_working_set_bytes()
         .or_else(|| process_memory_snapshot().map(|snapshot| snapshot.resident_bytes))
     {
         memory.observe(accounted_bytes);
@@ -597,7 +597,7 @@ fn spawn_memory_pressure_tasks(state: Arc<AppState>) {
     tokio::spawn(
         async move {
             loop {
-                let accounted_bytes = crate::memory::container_memory_current_bytes()
+                let accounted_bytes = crate::memory::container_memory_working_set_bytes()
                     .or_else(|| process_memory_snapshot().map(|snapshot| snapshot.resident_bytes));
                 if let Some(accounted_bytes) = accounted_bytes {
                     let previous = sensor_state.memory.pressure();
