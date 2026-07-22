@@ -2228,8 +2228,7 @@ fn validate_digest_bytes(digest: &reapi::Digest, bytes: &[u8]) -> Result<(), Str
 /// zero-byte blob was ever uploaded — otherwise a result referencing an empty
 /// file, empty stdout, or empty stderr would be treated as evicted even though
 /// a replay succeeds.
-const EMPTY_BLOB_SHA256: &str =
-    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+const EMPTY_BLOB_SHA256: &str = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
 
 fn is_empty_blob(digest: &reapi::Digest) -> bool {
     digest.size_bytes == 0 && digest.hash == EMPTY_BLOB_SHA256
