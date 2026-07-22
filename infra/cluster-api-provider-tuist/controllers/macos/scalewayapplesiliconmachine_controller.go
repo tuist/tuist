@@ -1058,6 +1058,11 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileTailscaleEgressService(
 		svc.Labels["app.kubernetes.io/component"] = "macmini-egress"
 		svc.Labels["tuist.dev/macmini-egress"] = "true"
 		svc.Labels["tuist.dev/macmini-machine"] = machine.Name
+		if machine.Spec.FleetName != "" {
+			svc.Labels["tuist.dev/fleet"] = machine.Spec.FleetName
+		} else {
+			delete(svc.Labels, "tuist.dev/fleet")
+		}
 
 		if svc.Annotations == nil {
 			svc.Annotations = map[string]string{}
@@ -1084,9 +1089,18 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileTailscaleEgressService(
 		// mini's public :22 is filtered (see the update path above). The
 		// tailnet ACL must also grant tcp:22 from tag:tuist-k8s-<env> to
 		// tag:tuist-macmini-<env> (infra/tailscale/acls.json).
+		// pod-metrics (:9091) reaches tart-kubelet's host-side metrics
+		// forwarder, which proxies to the Tart guest's PromEx endpoint.
+		// It has to come through this egress like every other mini port:
+		// the cluster CNI installs no route for 100.64.0.0/10, so a
+		// generic Pod cannot dial a mini's tailnet IPv4 directly. Alloy
+		// was discovering the xcresult-processor Pods by annotation and
+		// scraping their CGNAT address, which fails on every attempt
+		// (`up == 0` on every Tart node, in all three environments).
 		svc.Spec.Ports = []corev1.ServicePort{
 			{Name: "node-exporter", Port: 9100, Protocol: corev1.ProtocolTCP},
 			{Name: "tart-kubelet", Port: 8080, Protocol: corev1.ProtocolTCP},
+			{Name: "pod-metrics", Port: 9091, Protocol: corev1.ProtocolTCP},
 			{Name: "vnc-relay", Port: DashboardVNCRelayPort, Protocol: corev1.ProtocolTCP},
 			{Name: "ssh", Port: 22, Protocol: corev1.ProtocolTCP},
 		}
