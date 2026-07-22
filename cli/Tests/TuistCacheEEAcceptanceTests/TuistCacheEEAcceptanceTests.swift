@@ -592,12 +592,10 @@ struct TuistCacheEEAcceptanceTests {
         .withMockedEnvironment(inheritingVariables: ["PATH"]),
         .withMockedNoora,
         .withMockedLogger(forwardLogs: true),
-        .withTestingSimulator("iPhone 17"),
         .withFixture("generated_static_framework_with_bundle_macro")
     ) func generated_static_framework_with_bundle_macro_from_cached_binaries() async throws {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-        let simulator = try #require(Simulator.testing)
         let xcodeprojPath = fixtureDirectory.appending(component: "BundleMacro.xcodeproj")
 
         try await TuistTest.run(
@@ -613,8 +611,6 @@ struct TuistCacheEEAcceptanceTests {
                 fixtureDirectory.pathString,
                 "--derived-data-path",
                 temporaryDirectory.pathString,
-                "--device",
-                simulator.name,
                 "--",
                 "CODE_SIGN_IDENTITY=",
                 "CODE_SIGNING_REQUIRED=NO",

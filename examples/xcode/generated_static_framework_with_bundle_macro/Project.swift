@@ -5,18 +5,18 @@ let project = Project(
     targets: [
         .target(
             name: "ResourceLoader",
-            destinations: .iOS,
+            destinations: .macOS,
             product: .staticFramework,
             bundleId: "dev.tuist.ResourceLoader",
-            deploymentTargets: .iOS("16.0"),
+            deploymentTargets: .macOS("14.0"),
             sources: "ResourceLoader/Sources/**"
         ),
         .target(
             name: "StaticFramework",
-            destinations: .iOS,
+            destinations: .macOS,
             product: .staticFramework,
             bundleId: "dev.tuist.StaticFramework",
-            deploymentTargets: .iOS("16.0"),
+            deploymentTargets: .macOS("14.0"),
             sources: "StaticFramework/Sources/**",
             resources: ["StaticFramework/Resources/**"],
             dependencies: [
@@ -25,10 +25,10 @@ let project = Project(
         ),
         .target(
             name: "StaticFrameworkTests",
-            destinations: .iOS,
+            destinations: .macOS,
             product: .unitTests,
             bundleId: "dev.tuist.StaticFrameworkTests",
-            deploymentTargets: .iOS("16.0"),
+            deploymentTargets: .macOS("14.0"),
             sources: "StaticFrameworkTests/Sources/**",
             dependencies: [
                 .target(name: "StaticFramework"),
@@ -36,10 +36,10 @@ let project = Project(
         ),
         .target(
             name: "App",
-            destinations: .iOS,
+            destinations: .macOS,
             product: .app,
             bundleId: "dev.tuist.App",
-            deploymentTargets: .iOS("16.0"),
+            deploymentTargets: .macOS("14.0"),
             sources: "App/Sources/**",
             dependencies: [
                 .target(name: "StaticFramework"),
@@ -47,10 +47,10 @@ let project = Project(
         ),
         .target(
             name: "AppTests",
-            destinations: .iOS,
+            destinations: .macOS,
             product: .unitTests,
             bundleId: "dev.tuist.AppTests",
-            deploymentTargets: .iOS("16.0"),
+            deploymentTargets: .macOS("14.0"),
             sources: "AppTests/Sources/**",
             dependencies: [
                 .target(name: "App"),

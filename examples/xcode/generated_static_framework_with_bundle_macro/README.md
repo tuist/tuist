@@ -11,14 +11,17 @@ linked code, where resources living in the companion `.bundle` are invisible.
 
 ```
 Project:
-  - ResourceLoader (static iOS framework, no resources, exposes an API with a #bundle default argument)
-  - StaticFramework (static iOS framework with resources)
-  - BundleMacro_StaticFramework (iOS bundle, synthesized)
+  - ResourceLoader (static macOS framework, no resources, exposes an API with a #bundle default argument)
+  - StaticFramework (static macOS framework with resources)
+  - BundleMacro_StaticFramework (macOS bundle, synthesized)
   - StaticFrameworkTests (unit tests asserting the resource resolves at runtime)
-  - App (iOS app linking StaticFramework)
+  - App (macOS app linking StaticFramework)
   - AppTests (unit tests hosted in App exercising StaticFramework's expansions from a consumer,
     so cache acceptance tests can consume StaticFramework as a binary while these run from source)
 ```
+
+The targets are macOS so acceptance tests run without booting a simulator and cache warms
+produce single-slice binaries.
 
 Dependencies:
 
