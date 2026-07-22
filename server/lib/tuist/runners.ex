@@ -238,11 +238,16 @@ defmodule Tuist.Runners do
           {:ok, generation}
 
         :conflict ->
-          # The runner already uploaded its image to the content-addressed key, but
-          # the fast-forward was rejected, so that object never becomes a HEAD —
-          # it is orphaned. Schedule its deletion (the pruner skips it if it is, or
-          # later becomes, the live HEAD), so a losing promote does not leak storage.
-          schedule_superseded_master_prune(account_id, %{tree_digest: tree_digest}, nil)
+          # Do NOT schedule a prune of the losing upload here. Content-addressed
+          # keys mean a rejected digest can be, or later become, the live HEAD (a
+          # concurrent or subsequent accepted promote of the same inventory reuses
+          # the exact object), and download URLs are minted only for the current
+          # HEAD's digest — so a conflict-clocked prune could delete an object that
+          # is HEAD or whose in-flight converge URLs are still valid, or race an
+          # upload→bump. Cleanup stays tied to an observed supersession (the
+          # accepted branch above): a losing digest that never becomes HEAD is a
+          # true orphan, reclaimed by the account-deletion sweep rather than on a
+          # guess made at conflict time.
           :conflict
       end
     else

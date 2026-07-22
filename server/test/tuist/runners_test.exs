@@ -967,19 +967,18 @@ defmodule Tuist.RunnersTest do
       )
     end
 
-    test "schedules a prune of a rejected promote's orphaned object" do
+    test "does NOT schedule a prune for a rejected promote's upload" do
       account = account_fixture()
       Runners.report_volume_head(account.id, "node-1", String.duplicate("a", 40), 0)
 
-      # A losing promote uploaded its object but the fast-forward is rejected, so
-      # that object never becomes a HEAD — schedule its cleanup.
+      # A losing promote's digest can be, or later become, the live HEAD
+      # (content-addressed dedup) and its converge download URLs may still be
+      # valid, so cleanup must NOT be scheduled off the conflict — only off a real
+      # supersession. Deleting on conflict could drop a valid master.
       rejected = String.duplicate("c", 40)
       assert :conflict = Runners.report_volume_head(account.id, "node-2", rejected, 0)
 
-      assert_enqueued(
-        worker: PruneVolumeMasterWorker,
-        args: %{account_id: account.id, tree_digest: rejected}
-      )
+      refute_enqueued(worker: PruneVolumeMasterWorker, args: %{tree_digest: rejected})
     end
   end
 
