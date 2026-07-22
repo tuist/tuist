@@ -19,11 +19,17 @@ import (
 )
 
 const (
-	poolLabel  = "pool"
-	phaseLabel = "phase"
+	poolLabel            = "pool"
+	phaseLabel           = "phase"
+	reasonLabel          = "reason"
+	fleetSelectorLabel   = "fleet_selector"
+	operatingSystemLabel = "operating_system"
 )
 
 var podPhaseLabels = []string{"Pending", "Running", "Unknown"}
+var admissionBlockReasons = []string{"fleet_cap", "no_healthy_node", "fleet_view_error"}
+var fleetNodeFilterReasons = []string{"unschedulable", "not_ready", "memory_pressure", "disk_pressure", "pid_pressure"}
+var podStartTimeoutReasons = []string{"poller_not_started"}
 
 var (
 	// target is the per-pool replica count the autoscaler policy wants
@@ -155,10 +161,35 @@ var (
 		Name: "tuist_runners_pool_idle_replicas",
 		Help: "Alive current-image runner Pods with no claim (warm capacity available to take work).",
 	}, []string{poolLabel})
+
+	pendingProvisioningPods = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "tuist_runners_pool_pending_provisioning_pods",
+		Help: "Linux Kata runner Pods waiting for their dispatch poller to start, including local create reservations not yet observed by the cache.",
+	}, []string{poolLabel})
+
+	admissionBlockedTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "tuist_runners_pool_admission_blocked_total",
+		Help: "Runner reconciliations that left a replica gap because Linux Kata provisioning admission was blocked.",
+	}, []string{poolLabel, reasonLabel})
+
+	fleetReadyNodes = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "tuist_runners_fleet_ready_nodes",
+		Help: "Ready, schedulable, pressure-free nodes contributing capacity to a runner fleet.",
+	}, []string{fleetSelectorLabel, operatingSystemLabel})
+
+	fleetFilteredNodes = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "tuist_runners_fleet_filtered_nodes",
+		Help: "Runner-fleet nodes excluded from capacity or provisioning admission, grouped by reason.",
+	}, []string{fleetSelectorLabel, operatingSystemLabel, reasonLabel})
+
+	podStartTimeoutsTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "tuist_runners_pool_pod_start_timeouts_total",
+		Help: "Bound Linux runner Pods reaped after failing to start their dispatch poller within the configured timeout.",
+	}, []string{poolLabel, reasonLabel})
 )
 
 func init() {
-	ctrlmetrics.Registry.MustRegister(target, allocated, warmDeficitReplicas, minWarmFloor, rollingPods, stalePods, rollCap, phaseReplicas, oldestPendingPodAge, claimedJobs, queuedJobs, idleReplicas)
+	ctrlmetrics.Registry.MustRegister(target, allocated, warmDeficitReplicas, minWarmFloor, rollingPods, stalePods, rollCap, phaseReplicas, oldestPendingPodAge, claimedJobs, queuedJobs, idleReplicas, pendingProvisioningPods, admissionBlockedTotal, fleetReadyNodes, fleetFilteredNodes, podStartTimeoutsTotal)
 }
 
 // RecordAllocation publishes one pool's allocation outcome for this
@@ -190,6 +221,31 @@ func RecordIdleReplicas(pool string, idle int) {
 		idle = 0
 	}
 	idleReplicas.WithLabelValues(pool).Set(float64(idle))
+}
+
+func RecordPendingProvisioningPods(pool string, pending int) {
+	if pending < 0 {
+		pending = 0
+	}
+	pendingProvisioningPods.WithLabelValues(pool).Set(float64(pending))
+}
+
+func RecordAdmissionBlocked(pool, reason string) {
+	admissionBlockedTotal.WithLabelValues(pool, reason).Inc()
+}
+
+func RecordFleetNodes(fleetSelector, operatingSystem string, ready int, filtered map[string]int) {
+	if ready < 0 {
+		ready = 0
+	}
+	fleetReadyNodes.WithLabelValues(fleetSelector, operatingSystem).Set(float64(ready))
+	for _, reason := range fleetNodeFilterReasons {
+		fleetFilteredNodes.WithLabelValues(fleetSelector, operatingSystem, reason).Set(float64(filtered[reason]))
+	}
+}
+
+func RecordPodStartTimeout(pool, reason string) {
+	podStartTimeoutsTotal.WithLabelValues(pool, reason).Inc()
 }
 
 // RecordRoll publishes a pool's image-roll progress for this reconcile
@@ -242,6 +298,13 @@ func ClearRunnerPool(pool string) {
 	rollCap.DeleteLabelValues(pool)
 	oldestPendingPodAge.DeleteLabelValues(pool)
 	idleReplicas.DeleteLabelValues(pool)
+	pendingProvisioningPods.DeleteLabelValues(pool)
+	for _, reason := range admissionBlockReasons {
+		admissionBlockedTotal.DeleteLabelValues(pool, reason)
+	}
+	for _, reason := range podStartTimeoutReasons {
+		podStartTimeoutsTotal.DeleteLabelValues(pool, reason)
+	}
 	for _, phase := range podPhaseLabels {
 		phaseReplicas.DeleteLabelValues(pool, phase)
 	}
