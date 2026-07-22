@@ -3065,6 +3065,42 @@ final class GraphTraverserTests: TuistUnitTestCase {
         XCTAssertFalse(featureBDependencies.contains(.packageProduct(product: "SwiftProtobuf")))
     }
 
+    func test_packageProductsLinkedThroughStaticTargets_includesDirectAndTransitiveProducts() {
+        // Given
+        let feature = Target.test(name: "Feature", product: .staticFramework)
+        let featureCore = Target.test(name: "FeatureCore", product: .staticFramework)
+        let project = Project.test(path: "/path/project", targets: [feature, featureCore])
+        let featureDependency = GraphDependency.target(name: feature.name, path: project.path)
+        let featureCoreDependency = GraphDependency.target(name: featureCore.name, path: project.path)
+        let packageProduct = GraphDependency.packageProduct(
+            path: "/path/package",
+            product: "SwiftProtobuf",
+            type: .runtime
+        )
+        let graph = Graph.test(
+            projects: [project.path: project],
+            dependencies: [
+                featureDependency: [featureCoreDependency],
+                featureCoreDependency: [packageProduct],
+            ]
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let packageProducts = subject.packageProductsLinkedThroughStaticTargets(
+            path: project.path,
+            name: feature.name
+        )
+        let directPackageProducts = subject.packageProductsLinkedThroughStaticTargets(
+            path: project.path,
+            name: featureCore.name
+        )
+
+        // Then
+        XCTAssertEqual(packageProducts, [.packageProduct(product: "SwiftProtobuf")])
+        XCTAssertEqual(directPackageProducts, [.packageProduct(product: "SwiftProtobuf")])
+    }
+
     func test_linkableDependencies_excludesPackageProductsLinkedByHostedTestApplication() throws {
         // Given
         let app = Target.test(name: "App", product: .app)
