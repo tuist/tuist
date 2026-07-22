@@ -63,13 +63,18 @@ runtime — no service, sudo entry, or auto-login targets it.
   that never reaches a clean detach). Promotion is a **fast-forward
   compare-and-swap**, not a direct host clone: the guest uploads the detached
   image to a content-addressed key and reports the HEAD with `base_generation`,
-  and the server advances the HEAD only if it is still at that base, returning the
-  accepted generation. The guest relays that back into the `status` share as
-  `cache-promoted-generation`, and the host's `Finalize` installs the branch as
-  the account's local master (a whole-image replace) ONLY on an accepted
-  fast-forward — so the local master and the HEAD advance together. A rejected
-  fast-forward (a stale base another host advanced past) leaves the marker
-  unwritten, and the host discards the branch and lets convergence re-warm it. The
+  and the server advances the HEAD only if it is still at that base (200,
+  returning the accepted generation) or rejects a stale base (409). The guest
+  captures the HTTP status EXPLICITLY (no `curl -f`, which would collapse a 409
+  and a transport error into one failure) and relays the outcome into the
+  `status` share as `cache-promote-result`: `accepted <generation>`, `conflict`,
+  or `error`. The host's `Finalize` installs the branch as the account's local
+  master (a whole-image replace) ONLY on `accepted` — so the local master and the
+  HEAD advance together. A `conflict` (a stale base another host advanced past) or
+  an `error` (upload/network/control-plane failure — kept distinct so an outage
+  is not mistaken for cross-host contention) discards the branch and lets
+  convergence re-warm it. A rejected promote still uploaded its object, so the
+  server records it as an orphan and reclaims it after the URL-TTL grace. The
   host clones the promoted image and cannot tell a torn snapshot from a good one,
   so a mount torn down by the VM halting would poison the account's master; if the
   detach fails even with `-force`, the guest withdraws the image from both

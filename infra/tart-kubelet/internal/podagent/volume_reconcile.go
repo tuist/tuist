@@ -202,28 +202,51 @@ func writeBaseGeneration(statusDir string, generation int) {
 	_ = os.WriteFile(filepath.Join(statusDir, baseGenerationFile), []byte(strconv.Itoa(generation)), 0o644)
 }
 
-// promotedGenerationFile carries the HEAD generation the server ACCEPTED for this
-// job's fast-forward, written by the guest after a successful bump. The host
-// reads it at Finalize: present-and-positive means install the branch as the
-// local master at that generation; absent means the guest did not promote or the
-// server rejected the bump, so the branch is discarded.
-const promotedGenerationFile = "cache-promoted-generation"
+// promoteResultFile carries the outcome of this job's HEAD fast-forward, written
+// by the guest after the bump. It distinguishes the three cases the host must not
+// conflate: "accepted <generation>" (200 — install the branch as the local master
+// at that generation), "conflict" (409 — a stale base another host advanced past,
+// genuine cross-host contention), and "error" (an upload/network/control-plane
+// failure). Absent means the guest never reached the bump (also treated as an
+// error for an otherwise promote-eligible job). Only "accepted" installs; the
+// rest discard and re-converge.
+const promoteResultFile = "cache-promote-result"
 
-// readPromotedGeneration reads the server-accepted generation the guest relayed,
-// or 0 when the guest never promoted or the bump was rejected.
-func readPromotedGeneration(statusDir string) int {
+// promoteResult is the parsed guest outcome. Result is "accepted", "conflict",
+// "error", or "" (absent). Generation is the accepted HEAD generation, non-zero
+// only when Result == "accepted".
+type promoteResult struct {
+	Result     string
+	Generation int
+}
+
+// readPromoteResult parses the guest-relayed promote outcome.
+func readPromoteResult(statusDir string) promoteResult {
 	if statusDir == "" {
-		return 0
+		return promoteResult{}
 	}
-	b, err := os.ReadFile(filepath.Join(statusDir, promotedGenerationFile))
+	b, err := os.ReadFile(filepath.Join(statusDir, promoteResultFile))
 	if err != nil {
-		return 0
+		return promoteResult{}
 	}
-	gen, err := strconv.Atoi(strings.TrimSpace(string(b)))
-	if err != nil || gen < 0 {
-		return 0
+	fields := strings.Fields(string(b))
+	if len(fields) == 0 {
+		return promoteResult{}
 	}
-	return gen
+	switch fields[0] {
+	case "accepted":
+		gen := 0
+		if len(fields) > 1 {
+			if g, err := strconv.Atoi(fields[1]); err == nil && g > 0 {
+				gen = g
+			}
+		}
+		return promoteResult{Result: "accepted", Generation: gen}
+	case "conflict":
+		return promoteResult{Result: "conflict"}
+	default:
+		return promoteResult{Result: "error"}
+	}
 }
 
 // volumeHeadFile carries the account's cache-volume HEAD (generation, inventory
@@ -389,17 +412,27 @@ func (r *Reconciler) finalizeVolume(entry *Entry, actualAccount string, cleanExi
 	}
 	present, dirty := readDirtyMarker(entry.VolumeStatusDir)
 	succeeded := cleanExit && present
-	// The generation the server ACCEPTED for this job's HEAD fast-forward, relayed
-	// by the guest. Zero means no promote or a rejected bump — Finalize then
-	// discards the branch rather than moving the local master off the lineage.
-	entry.Volume.PromotedGeneration = readPromotedGeneration(entry.VolumeStatusDir)
+	// The guest-relayed outcome of the HEAD fast-forward. Only "accepted" carries a
+	// generation to install the branch at; "conflict"/"error"/absent discard the
+	// branch rather than moving the local master off the accepted lineage.
+	promote := readPromoteResult(entry.VolumeStatusDir)
+	entry.Volume.PromotedGeneration = promote.Generation
 
 	// For a promote-eligible job (it did cache-changing work for its own account),
-	// record whether the server accepted the fast-forward — the reject-rate signal.
-	// Read-only, failed, and account-mismatched jobs never promote, so they are
-	// excluded to keep the ratio meaningful.
+	// record the server's decision. "rejected" is reserved for an actual 409
+	// (stale-base contention); an upload/network/control-plane failure — or an
+	// absent result for an otherwise-eligible job — is "error", so a storage
+	// outage does not masquerade as cache races. Read-only, failed, and
+	// account-mismatched jobs never promote and are excluded from the ratio.
 	if succeeded && dirty && actualAccount != "" && entry.Volume.SourceAccount == actualAccount {
-		RecordVolumePromote(entry.Volume.PromotedGeneration > 0)
+		switch promote.Result {
+		case "accepted":
+			RecordVolumePromote("accepted")
+		case "conflict":
+			RecordVolumePromote("rejected")
+		default:
+			RecordVolumePromote("error")
+		}
 	}
 
 	outcome, err := r.Volumes.Finalize(entry.Volume, actualAccount, succeeded, dirty)

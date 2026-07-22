@@ -625,9 +625,10 @@ func (m *VolumeManager) masterGenerationLocked(account, volume string) (int, err
 // reservation. Promotion is a whole-image replace and happens only when the job
 // succeeded, the guest reported the cache actually changed (dirty), the account
 // is known, that account matches the one the branch was materialized from, AND
-// the server ACCEPTED the HEAD fast-forward (promotedGeneration > 0, relayed by
-// the guest). A read-only, failed, crashed (no marker), never-dispatched, or
-// server-rejected branch discards.
+// the server ACCEPTED the HEAD fast-forward (PromotedGeneration > 0, parsed from
+// the guest-relayed "accepted <generation>" result). A read-only, failed,
+// crashed (no marker), never-dispatched, conflicted (409), or errored branch
+// discards.
 //
 // The SourceAccount == account guard is the defense-in-depth half of the
 // cross-account fix: the server only stamps the materialize-trigger label after
