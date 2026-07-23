@@ -1,8 +1,7 @@
 defmodule TuistWeb.RateLimit.AgentAuth do
   @moduledoc false
 
-  alias TuistWeb.RateLimit.InMemory
-  alias TuistWeb.RateLimit.PersistentTokenBucket
+  alias TuistWeb.RateLimit
 
   @ip_limit 60
   @subject_limit 20
@@ -40,19 +39,12 @@ defmodule TuistWeb.RateLimit.AgentAuth do
   defp maybe_hit(nil, _limit), do: {:allow, 1}
 
   defp maybe_hit(key, limit) do
-    if is_nil(Tuist.Environment.redis_url()) do
-      InMemory.hit(key, to_timeout(hour: 1), limit)
-    else
-      fill_rate = limit / @window_seconds
-
-      PersistentTokenBucket.hit_with_fallback(
-        key,
-        fill_rate,
-        limit,
-        1,
-        fn -> InMemory.hit(key, to_timeout(hour: 1), limit) end
-      )
-    end
+    RateLimit.hit(
+      key,
+      algorithm: :token_bucket,
+      refill_rate: limit / @window_seconds,
+      capacity: limit
+    )
   end
 
   defp registration_ip_key(conn, registration_type) do
