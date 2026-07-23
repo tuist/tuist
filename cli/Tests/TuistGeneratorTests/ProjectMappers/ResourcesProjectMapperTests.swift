@@ -1338,6 +1338,96 @@ struct ResourcesProjectMapperTests {
     }
 
     @Test
+    func mapWhenConfigurationDefinesConditionsAppendsModuleResourceBundleAvailable() async throws {
+        // Given
+        let target = Target.test(
+            product: .staticFramework,
+            settings: Settings(
+                base: [:],
+                configurations: [
+                    .debug: Configuration(settings: ["SWIFT_ACTIVE_COMPILATION_CONDITIONS": .string("CUSTOM_DEBUG")]),
+                    .release: Configuration(settings: [:]),
+                ]
+            ),
+            sources: ["/Absolute/File.swift"],
+            resources: .init([.file(path: "/image.png")])
+        )
+        let project = Project.test(targets: [target])
+        given(buildableFolderChecker).containsResources(.value([])).willReturn(false)
+        given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
+
+        // When
+        let (gotProject, _) = try await subject.map(project: project)
+
+        // Then
+        let gotTarget = try #require(gotProject.targets.values.sorted().last)
+        let settings = try #require(gotTarget.settings)
+        #expect(
+            settings.configurations[.debug]??.settings["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] ==
+                .string("CUSTOM_DEBUG SWIFT_MODULE_RESOURCE_BUNDLE_AVAILABLE")
+        )
+        #expect(settings.configurations[.release]??.settings["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] == nil)
+        #expect(
+            settings.base["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] ==
+                .array(["$(inherited)", "SWIFT_MODULE_RESOURCE_BUNDLE_AVAILABLE"])
+        )
+    }
+
+    @Test
+    func mapWhenConditionsContainLookalikeTokenStillAppendsModuleResourceBundleAvailable() async throws {
+        // Given
+        let target = Target.test(
+            product: .staticFramework,
+            settings: Settings(
+                base: ["SWIFT_ACTIVE_COMPILATION_CONDITIONS": .string("NOT_SWIFT_MODULE_RESOURCE_BUNDLE_AVAILABLE")],
+                configurations: [:]
+            ),
+            sources: ["/Absolute/File.swift"],
+            resources: .init([.file(path: "/image.png")])
+        )
+        let project = Project.test(targets: [target])
+        given(buildableFolderChecker).containsResources(.value([])).willReturn(false)
+        given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
+
+        // When
+        let (gotProject, _) = try await subject.map(project: project)
+
+        // Then
+        let gotTarget = try #require(gotProject.targets.values.sorted().last)
+        #expect(
+            gotTarget.settings?.base["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] ==
+                .string("NOT_SWIFT_MODULE_RESOURCE_BUNDLE_AVAILABLE SWIFT_MODULE_RESOURCE_BUNDLE_AVAILABLE")
+        )
+    }
+
+    @Test
+    func mapWhenConditionAlreadyPresentInStringDoesNotDuplicateIt() async throws {
+        // Given
+        let target = Target.test(
+            product: .staticFramework,
+            settings: Settings(
+                base: ["SWIFT_ACTIVE_COMPILATION_CONDITIONS": .string("SWIFT_MODULE_RESOURCE_BUNDLE_AVAILABLE CUSTOM")],
+                configurations: [:]
+            ),
+            sources: ["/Absolute/File.swift"],
+            resources: .init([.file(path: "/image.png")])
+        )
+        let project = Project.test(targets: [target])
+        given(buildableFolderChecker).containsResources(.value([])).willReturn(false)
+        given(buildableFolderChecker).containsSources(.value([])).willReturn(false)
+
+        // When
+        let (gotProject, _) = try await subject.map(project: project)
+
+        // Then
+        let gotTarget = try #require(gotProject.targets.values.sorted().last)
+        #expect(
+            gotTarget.settings?.base["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] ==
+                .string("SWIFT_MODULE_RESOURCE_BUNDLE_AVAILABLE CUSTOM")
+        )
+    }
+
+    @Test
     func mapWhenDynamicFrameworkHasResourcesDoesNotSetModuleResourceBundleAvailableCondition() async throws {
         // Given
         let target = Target.test(

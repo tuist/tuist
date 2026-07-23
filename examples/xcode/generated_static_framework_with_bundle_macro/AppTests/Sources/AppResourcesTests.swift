@@ -1,19 +1,19 @@
 import StaticFramework
-import XCTest
+import Testing
 
 /// Exercises StaticFramework's #bundle expansions from a consumer that links the framework
 /// as a product, so when StaticFramework is consumed as a cached binary the expansion frozen
 /// into the artifact is what resolves at runtime.
-final class AppResourcesTests: XCTestCase {
-    func test_implicitBundleDefaultArgument_resolvesResource() {
-        XCTAssertNotNil(StaticFrameworkAssets.implicitBundleResourceURL())
+struct AppResourcesTests {
+    @Test func implicitBundleDefaultArgument_resolvesResource() {
+        #expect(StaticFrameworkAssets.implicitBundleResourceURL() != nil)
     }
 
-    func test_directBundleMacro_resolvesResource() {
-        XCTAssertNotNil(StaticFrameworkAssets.directBundleMacroResourceURL())
+    @Test func directBundleMacro_resolvesResource() {
+        #expect(StaticFrameworkAssets.directBundleMacroResourceURL() != nil)
     }
 
-    func test_explicitModule_resolvesResource() {
-        XCTAssertNotNil(StaticFrameworkAssets.explicitModuleResourceURL())
+    @Test func explicitModule_resolvesResource() {
+        #expect(StaticFrameworkAssets.explicitModuleResourceURL() != nil)
     }
 }

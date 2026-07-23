@@ -1,16 +1,16 @@
 import StaticFramework
-import XCTest
+import Testing
 
-final class StaticFrameworkResourcesTests: XCTestCase {
-    func test_implicitBundleDefaultArgument_resolvesResource() {
-        XCTAssertNotNil(StaticFrameworkAssets.implicitBundleResourceURL())
+struct StaticFrameworkResourcesTests {
+    @Test func implicitBundleDefaultArgument_resolvesResource() {
+        #expect(StaticFrameworkAssets.implicitBundleResourceURL() != nil)
     }
 
-    func test_directBundleMacro_resolvesResource() {
-        XCTAssertNotNil(StaticFrameworkAssets.directBundleMacroResourceURL())
+    @Test func directBundleMacro_resolvesResource() {
+        #expect(StaticFrameworkAssets.directBundleMacroResourceURL() != nil)
     }
 
-    func test_explicitModule_resolvesResource() {
-        XCTAssertNotNil(StaticFrameworkAssets.explicitModuleResourceURL())
+    @Test func explicitModule_resolvesResource() {
+        #expect(StaticFrameworkAssets.explicitModuleResourceURL() != nil)
     }
 }

@@ -287,19 +287,44 @@ public struct ResourcesProjectMapper: ProjectMapping {
     ///   - https://github.com/swiftlang/swift-package-manager/blob/main/Sources/SwiftBuildSupport/PackagePIFProjectBuilder%2BModules.swift
     private func addingModuleResourceBundleAvailableCondition(to target: Target) -> Target {
         let condition = "SWIFT_MODULE_RESOURCE_BUNDLE_AVAILABLE"
-        var base = target.settings?.base ?? SettingsDictionary()
-        switch base["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] {
-        case let .array(values):
-            guard !values.contains(condition) else { return target }
-            base["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] = .array(values + [condition])
-        case let .string(value):
-            guard !value.contains(condition) else { return target }
-            base["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] = .string("\(value) \(condition)")
-        case nil:
-            base["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] = .array(["$(inherited)", condition])
+        let key = "SWIFT_ACTIVE_COMPILATION_CONDITIONS"
+
+        func appending(to value: SettingValue?) -> SettingValue {
+            switch value {
+            case let .array(values):
+                guard !values.contains(condition) else { return .array(values) }
+                return .array(values + [condition])
+            case let .string(value):
+                let tokens = value.split(whereSeparator: \.isWhitespace)
+                guard !tokens.contains(Substring(condition)) else { return .string(value) }
+                return .string("\(value) \(condition)")
+            case nil:
+                return .array(["$(inherited)", condition])
+            }
         }
+
+        var base = target.settings?.base ?? SettingsDictionary()
+        base[key] = appending(to: base[key])
+
+        // Configuration-specific values override the base wholesale unless they include
+        // $(inherited), so any configuration that defines the setting needs the condition too.
+        var configurations = target.settings?.configurations ?? [:]
+        for (buildConfiguration, configuration) in configurations {
+            guard var configuration, configuration.settings[key] != nil else { continue }
+            configuration.settings[key] = appending(to: configuration.settings[key])
+            configurations[buildConfiguration] = configuration
+        }
+
         var target = target
-        target.settings = target.settings?.with(base: base) ?? Settings(base: base, configurations: [:])
+        target.settings = target.settings.map {
+            Settings(
+                base: base,
+                baseDebug: $0.baseDebug,
+                configurations: configurations,
+                defaultSettings: $0.defaultSettings,
+                defaultConfiguration: $0.defaultConfiguration
+            )
+        } ?? Settings(base: base, configurations: [:])
         return target
     }
 
