@@ -4,6 +4,7 @@ import android.app.Activity
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dev.tuist.app.data.EnvironmentConfig
 import dev.tuist.app.data.auth.AuthEvent
 import dev.tuist.app.data.auth.AuthEventBus
 import dev.tuist.app.data.auth.AuthRepository
@@ -16,6 +17,7 @@ import javax.inject.Inject
 class LoginViewModel @Inject constructor(
     private val authRepository: AuthRepository,
     private val authEventBus: AuthEventBus,
+    private val environmentConfig: EnvironmentConfig,
 ) : ViewModel() {
 
     private val _messages = Channel<String>(Channel.BUFFERED)
@@ -46,5 +48,21 @@ class LoginViewModel @Inject constructor(
 
     fun signInWithGitHub(activity: Activity) {
         authRepository.startOAuthFlow(activity, "/oauth2/github")
+    }
+
+    val serverUrl: String
+        get() = environmentConfig.serverUrl
+
+    val isUsingCustomServerUrl: Boolean
+        get() = environmentConfig.isUsingCustomServerUrl
+
+    fun updateServerUrl(value: String): Result<Boolean> = runCatching {
+        environmentConfig.setCustomServerUrl(value).also { changed ->
+            if (changed) authRepository.signOut()
+        }
+    }
+
+    fun resetServerUrl(): Boolean = environmentConfig.resetServerUrl().also { changed ->
+        if (changed) authRepository.signOut()
     }
 }

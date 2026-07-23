@@ -6,8 +6,18 @@ import TuistServer
 import TuistSimulator
 import TuistSupport
 
+struct AppPreviewsCache: Codable, Equatable {
+    let serverURL: URL
+    let appPreviews: [AppPreview]
+}
+
 struct AppPreviewsKey: AppStorageKey {
     static let key = "appPreviews"
+    static let defaultValue: AppPreviewsCache? = nil
+}
+
+struct LegacyAppPreviewsKey: AppStorageKey {
+    static let key = AppPreviewsKey.key
     static let defaultValue: [AppPreview] = []
 }
 
@@ -34,13 +44,17 @@ enum AppPreviewsModelError: FatalError, Equatable {
 final class AppPreviewsViewModel: Sendable {
     private(set) var appPreviews: [AppPreview] = [] {
         didSet {
-            try? appStorage.set(AppPreviewsKey.self, value: appPreviews)
+            try? appStorage.set(
+                AppPreviewsKey.self,
+                value: AppPreviewsCache(serverURL: serverURL, appPreviews: appPreviews)
+            )
         }
     }
 
     private let listProjectsService: ListProjectsServicing
     private let listPreviewsService: ListPreviewsServicing
-    private let serverEnvironmentService: ServerEnvironmentServicing
+    private let serverURL: URL
+    private let isDefaultServerURL: Bool
     private let deviceService: any DeviceServicing
     private let appStorage: AppStoring
 
@@ -48,18 +62,36 @@ final class AppPreviewsViewModel: Sendable {
         deviceService: any DeviceServicing,
         listProjectsService: ListProjectsServicing = ListProjectsService(),
         listPreviewsService: ListPreviewsServicing = ListPreviewsService(),
-        serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
+        serverEnvironmentService: ServerEnvironmentServicing = AppServerEnvironmentService(),
         appStorage: AppStoring = AppStorage()
     ) {
         self.deviceService = deviceService
         self.listProjectsService = listProjectsService
         self.listPreviewsService = listPreviewsService
-        self.serverEnvironmentService = serverEnvironmentService
+        serverURL = serverEnvironmentService.url()
+        let defaultServerURL = (serverEnvironmentService as? AppServerEnvironmentConfiguring)?.defaultURL() ??
+            ServerEnvironmentService().url()
+        isDefaultServerURL = Self.normalizedURLString(serverURL) == Self.normalizedURLString(defaultServerURL)
         self.appStorage = appStorage
     }
 
     func loadAppPreviewsFromCache() {
-        appPreviews = (try? appStorage.get(AppPreviewsKey.self)) ?? []
+        do {
+            let cache = try appStorage.get(AppPreviewsKey.self)
+            guard let cache,
+                  Self.normalizedURLString(cache.serverURL) == Self.normalizedURLString(serverURL)
+            else {
+                appPreviews = []
+                return
+            }
+            appPreviews = cache.appPreviews
+        } catch {
+            guard isDefaultServerURL else {
+                appPreviews = []
+                return
+            }
+            appPreviews = (try? appStorage.get(LegacyAppPreviewsKey.self)) ?? []
+        }
     }
 
     func onAppear() async throws {
@@ -67,7 +99,6 @@ final class AppPreviewsViewModel: Sendable {
     }
 
     private func updatePreviews() async throws {
-        let serverURL = serverEnvironmentService.url()
         let projects = try await listProjectsService.listProjects(serverURL: serverURL)
         let listPreviewsService = listPreviewsService
         appPreviews = try await projects.concurrentMap { project in
@@ -79,7 +110,7 @@ final class AppPreviewsViewModel: Sendable {
                 pageSize: nil,
                 distinctField: .bundleIdentifier,
                 fullHandle: project.fullName,
-                serverURL: serverURL
+                serverURL: self.serverURL
             )
             .previews
             .compactMap { preview in
@@ -98,6 +129,11 @@ final class AppPreviewsViewModel: Sendable {
         .sorted(by: { $0.displayName < $1.displayName })
     }
 
+    private static func normalizedURLString(_ url: URL) -> String {
+        return (try? AppServerEnvironmentService.normalizedURL(from: url.absoluteString).absoluteString) ??
+            url.absoluteString
+    }
+
     private static func preferredPlatformName(from platforms: [DestinationType]) -> String? {
         for platform in platforms {
             switch platform {
@@ -111,8 +147,6 @@ final class AppPreviewsViewModel: Sendable {
     }
 
     func launchAppPreview(_ appPreview: AppPreview) async throws {
-        let serverURL = serverEnvironmentService.url()
-
         let previews = try await listPreviewsService.listPreviews(
             displayName: nil,
             specifier: "latest",

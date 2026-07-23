@@ -9,6 +9,7 @@ public struct LogInView: View {
     @EnvironmentObject private var authenticationService: AuthenticationService
     @Environment(\.colorScheme) private var colorScheme
     @State private var appleSignInDelegate: AppleSignInDelegate?
+    @State private var isServerSettingsPresented = false
 
     public init() {}
 
@@ -35,6 +36,38 @@ public struct LogInView: View {
             Spacer()
 
             VStack(spacing: Noora.Spacing.spacing5) {
+                Button {
+                    isServerSettingsPresented = true
+                } label: {
+                    HStack(spacing: Noora.Spacing.spacing3) {
+                        Image(systemName: "server.rack")
+                            .font(.body)
+                            .foregroundColor(Noora.Colors.surfaceLabelSecondary)
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Server")
+                                .font(.caption.weight(.medium))
+                                .foregroundColor(Noora.Colors.surfaceLabelPrimary)
+                            Text(authenticationService.serverURL.absoluteString)
+                                .font(.caption)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                                .foregroundColor(Noora.Colors.surfaceLabelSecondary)
+                        }
+
+                        Spacer()
+
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.semibold))
+                            .foregroundColor(Noora.Colors.surfaceLabelSecondary)
+                    }
+                    .padding(.vertical, Noora.Spacing.spacing4)
+                    .padding(.horizontal, Noora.Spacing.spacing5)
+                    .background(Color(light: .white.opacity(0.7), dark: Color(hex: 0x181818)))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                }
+                .buttonStyle(.plain)
+
                 SocialButton(
                     title: "Sign in with Tuist",
                     style: .primary,
@@ -107,6 +140,9 @@ public struct LogInView: View {
                 .aspectRatio(contentMode: .fill)
                 .ignoresSafeArea()
         )
+        .sheet(isPresented: $isServerSettingsPresented) {
+            ServerSettingsView(authenticationService: authenticationService)
+        }
     }
 }
 

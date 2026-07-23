@@ -27,7 +27,9 @@ This node covers the Tuist Android companion app under `android/`. The app provi
 
 ## Running on Emulator
 
-The debug build defaults to production (`https://tuist.dev`). In debug builds you can override the environment at launch time via an intent extra:
+The app defaults to production (`https://tuist.dev`). Users can enter a custom server address from the login screen. The normalized address is persisted and used as the origin for authentication and app requests until the user selects **Use default server**. Changing or resetting the address signs out the current user and restarts the app process so Hilt network singletons are recreated with the selected origin.
+
+In debug builds you can also override the environment at launch time via an intent extra:
 
 ```bash
 # Force-stop and launch with a specific environment
@@ -42,9 +44,9 @@ Valid environments:
 | `canary` | `https://canary.tuist.dev` | `ca49d1d6-acaf-4eaa-b866-774b799044db` |
 | `production` | `https://tuist.dev` | (from BuildConfig) |
 
-The selected environment persists in SharedPreferences across launches until explicitly changed. Switching environments signs out the current user and restarts the app process so Hilt singletons are recreated.
+The selected named environment persists in SharedPreferences across launches until explicitly changed. Switching named environments clears any custom server address, signs out the current user, and restarts the app process.
 
-For release builds, the environment is always `production`.
+For release builds, the default named environment is always `production`, but a custom server address entered by the user still takes precedence.
 
 ## Icons
 
