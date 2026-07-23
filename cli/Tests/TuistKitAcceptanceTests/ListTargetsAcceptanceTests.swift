@@ -8,7 +8,6 @@ import TuistTesting
 
 struct ListTargetsAcceptanceTests {
     @Test(
-        .disabled(),
         .withFixture("generated_ios_workspace_with_microfeature_architecture"),
         .withMockedDependencies()
     )

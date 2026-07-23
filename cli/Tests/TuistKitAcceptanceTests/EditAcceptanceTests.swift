@@ -16,7 +16,7 @@ struct EditAcceptanceTests {
         try await build(scheme: "Manifests", workspacePath: workspacePath)
     }
 
-    @Test(.disabled(), .withFixture("generated_plugin"))
+    @Test(.withFixture("generated_plugin"))
     func plugin() async throws {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         try await TuistTest.run(EditCommand.self, ["--path", fixtureDirectory.pathString, "--permanent"])
@@ -24,7 +24,7 @@ struct EditAcceptanceTests {
         try await build(scheme: "Plugins", workspacePath: workspacePath)
     }
 
-    @Test(.disabled(), .withFixture("generated_app_with_plugins"))
+    @Test(.withFixture("generated_app_with_plugins"))
     func app_with_plugins() async throws {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         try await TuistTest.run(InstallCommand.self, ["--path", fixtureDirectory.pathString])
@@ -35,7 +35,7 @@ struct EditAcceptanceTests {
         try await build(scheme: "LocalPlugin", workspacePath: workspacePath)
     }
 
-    @Test(.disabled(), .withFixture("generated_app_with_spm_dependencies"))
+    @Test(.withFixture("generated_app_with_spm_dependencies"))
     func app_with_spm_dependencies() async throws {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         try await TuistTest.run(EditCommand.self, ["--path", fixtureDirectory.pathString, "--permanent"])
@@ -43,7 +43,7 @@ struct EditAcceptanceTests {
         try await build(scheme: "Manifests", workspacePath: workspacePath)
     }
 
-    @Test(.disabled(), .withFixture("generated_spm_package"))
+    @Test(.withFixture("generated_spm_package"))
     func spm_package() async throws {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         try await TuistTest.run(EditCommand.self, ["--path", fixtureDirectory.pathString, "--permanent"])
