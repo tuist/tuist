@@ -367,7 +367,7 @@ previewJanitor:
     name: preview-janitor
   image:
     repository: alpine/k8s
-    tag: "1.36.1"
+    tag: "1.36.2"
     pullPolicy: IfNotPresent
   nodeSelector: {}
   tolerations: []
