@@ -41,3 +41,9 @@ rules:
   - apiGroups: [""]
     resources: [persistentvolumeclaims]
     verbs: [get, list, watch, delete]
+  # On macOS Machine delete, strip tart-kubelet's vm-cleanup finalizer from Pods
+  # bound to the departing node (the host is gone, so its tart-kubelet can't) so
+  # PodGC-force-deleted Pods don't wedge in Terminating.
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [get, list, watch, patch]

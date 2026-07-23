@@ -99,9 +99,12 @@ rules:
     verbs: [get, list, watch, delete]
   - apiGroups: [""]
     # The failover-IP controller reads peer-demux pod readiness to drain the IP
-    # off a box whose demux is rolling.
+    # off a box whose demux is rolling. On macOS Machine delete, the reconciler
+    # also patches Pods bound to the departing node to strip tart-kubelet's
+    # vm-cleanup finalizer — the host (and its tart-kubelet) is gone, so nothing
+    # else can remove it and PodGC-force-deleted Pods would wedge in Terminating.
     resources: [pods]
-    verbs: [get, list, watch]
+    verbs: [get, list, watch, patch]
   - apiGroups: [""]
     # The operator owns four Secret families in its own namespace:
     #   - <fleet>-ssh: per-fleet Ed25519 keypair, generated once

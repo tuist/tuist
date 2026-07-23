@@ -43,6 +43,22 @@ const (
 	// 24h floor means leaks cost money — this matters).
 	MachineFinalizer = "scalewayapplesilicon.cluster.x-k8s.io/finalizer"
 
+	// PodVMCleanupFinalizer is the finalizer tart-kubelet stamps on every
+	// Pod it runs so it can tear the backing Tart VM down before the Pod
+	// object disappears. The tart-kubelet on the Pod's host is the *only*
+	// actor that removes it. When a Mac mini is deleted the host — and its
+	// tart-kubelet — is gone, so nothing strips the finalizer: PodGC marks
+	// the orphaned Pods Failed and issues a grace-period-0 delete that then
+	// hangs on the finalizer forever. reconcileDelete strips it (Stage 4.5)
+	// once the host has been released, by which point there is no VM left
+	// to orphan.
+	//
+	// Duplicated from podagent.PodFinalizer in infra/tart-kubelet: capt is a
+	// separate Go module, and importing tart-kubelet only for this string
+	// would drag its whole dependency graph into this build. Keep the two
+	// values in sync.
+	PodVMCleanupFinalizer = "tart-kubelet.tuist.dev/vm-cleanup"
+
 	// BootstrappedCondition is macOS-specific (the tart-kubelet SSH bootstrap
 	// step); the cross-cutting shared.ProvisionedCondition lives in the shared package.
 	BootstrappedCondition clusterv1.ConditionType = "Bootstrapped"
@@ -51,12 +67,30 @@ const (
 	// advertises for dashboard VNC sessions through the per-Mac Tailscale
 	// egress Service.
 	DashboardVNCRelayPort = 5900
+
+	// podFinalizerCleanupRetryBudget bounds how long reconcileDelete keeps
+	// retrying the Stage 4.5 stranded-Pod finalizer strip before it gives up
+	// and lets the machine delete proceed anyway. It exists so a transient API
+	// error — or a `pods … patch` RBAC grant that lands after the operator
+	// image rolls — gets several shots, without ever wedging the machine's
+	// deletion (and the owning MachineDeployment's rollout) forever. See
+	// stripStrandedPodFinalizers for why proceeding is safe.
+	podFinalizerCleanupRetryBudget = 5 * time.Minute
 )
 
 // ScalewayAppleSiliconMachineReconciler reconciles ScalewayAppleSiliconMachine objects.
 type ScalewayAppleSiliconMachineReconciler struct {
 	client.Client
-	Scheme             *runtime.Scheme
+	Scheme *runtime.Scheme
+
+	// APIReader is an uncached reader wired to mgr.GetAPIReader(). Used by
+	// reconcileDelete's stranded-Pod sweep to list Pods by spec.nodeName
+	// straight from the API server: the field selector is served natively
+	// there, so we avoid standing up a cluster-wide Pods informer just to
+	// clean up on delete. Falls back to the cached Client in tests where
+	// it's left unset.
+	APIReader client.Reader
+
 	ScalewayClient     *scaleway.Client
 	CredentialsManager *credentials.Manager
 
@@ -258,6 +292,7 @@ type ScalewayAppleSiliconMachineReconciler struct {
 // +kubebuilder:rbac:groups=cluster.x-k8s.io,resources=clusters,verbs=get;list;watch
 // +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;update;delete
 // +kubebuilder:rbac:groups="",resources=nodes,verbs=get;list;watch;delete
+// +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch;patch
 // +kubebuilder:rbac:groups="",resources=serviceaccounts,verbs=get;list;watch;create;update;delete
 // +kubebuilder:rbac:groups="",resources=configmaps,resourceNames=cluster-info,verbs=get
 // +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;create;update;patch;delete
@@ -989,6 +1024,45 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileDelete(
 		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 	}
 
+	// Stage 4.5: strip the tart-kubelet vm-cleanup finalizer from any Pods
+	// still bound to the Node we just deleted. Same reasoning that justifies
+	// Stage 4: the host is gone, so its tart-kubelet can neither deregister
+	// its Node nor clear the finalizer it stamped on every Pod it ran.
+	// Without this, PodGC marks those Pods Failed and force-deletes them, but
+	// the delete blocks on the finalizer forever and they wedge in
+	// Terminating (see podagent.PodFinalizer). Stage 1 already released and
+	// reinstalled the host, so there is no VM left for the finalizer to
+	// protect. Do it after the Node delete so we only ever strip Pods whose
+	// host we've confirmed gone.
+	//
+	// Best-effort, deliberately NOT fail-closed: while we're still within
+	// podFinalizerCleanupRetryBudget of the deletion, requeue on error so a
+	// transient API failure or a lagging `pods … patch` RBAC grant (the
+	// operator image can roll before the ClusterRole update lands) gets
+	// another shot. Once that budget is spent, event + log and PROCEED to drop
+	// the machine finalizer instead of retrying forever. Blocking here
+	// indefinitely would let a single un-patchable Pod wedge the machine's
+	// deletion — and with it the owning MachineDeployment's scale-down /
+	// rollout — which is a strictly worse failure than the bug this stage
+	// fixes. Proceeding leaks nothing (Stage 1 already released the host); the
+	// worst case degrades back to the original symptom, a Pod left in
+	// Terminating, now loudly evented for an operator / the periodic reclaim.
+	if err := r.stripStrandedPodFinalizers(ctx, machine.Name); err != nil {
+		withinBudget := !machine.DeletionTimestamp.IsZero() &&
+			time.Since(machine.DeletionTimestamp.Time) < podFinalizerCleanupRetryBudget
+		if withinBudget {
+			logger.Error(err, "strip stranded pod finalizers; will retry")
+			r.Recorder.Eventf(machine, corev1.EventTypeWarning, "PodFinalizerCleanupFailed",
+				"strip vm-cleanup finalizer from stranded pods on node %s: %v (will retry)", machine.Name, err)
+			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+		}
+		logger.Error(err, "strip stranded pod finalizers exhausted retry budget; proceeding with machine deletion",
+			"budget", podFinalizerCleanupRetryBudget)
+		r.Recorder.Eventf(machine, corev1.EventTypeWarning, "PodFinalizerCleanupGaveUp",
+			"strip vm-cleanup finalizer from stranded pods on node %s still failing after %s; proceeding with machine deletion, pods may remain Terminating: %v",
+			machine.Name, podFinalizerCleanupRetryBudget, err)
+	}
+
 	// Stage 5: drop the per-machine Tailscale egress Service if the
 	// chart wired it up. Cross-namespace OwnerRef isn't allowed
 	// (Service lives in the tailscale-operator namespace, this CR
@@ -1008,6 +1082,67 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileDelete(
 
 	controllerutil.RemoveFinalizer(machine, MachineFinalizer)
 	return ctrl.Result{}, nil
+}
+
+// stripStrandedPodFinalizers removes the tart-kubelet vm-cleanup finalizer
+// from every Pod bound to the given (now-deleted) Node. The host that ran
+// them is gone, so its tart-kubelet will never remove the finalizer itself
+// and the Pods would otherwise wedge in Terminating forever once PodGC
+// force-deletes them.
+//
+// The list goes through the uncached APIReader with a spec.nodeName field
+// selector, which the API server serves natively — a single scoped read that
+// returns only the doomed Pods, no cluster-wide Pods informer required. Each
+// match is patched (not Updated) to drop the finalizer. The JSON merge patch
+// MergeFrom emits replaces the whole metadata.finalizers array, so this is
+// safe only because there is no concurrent finalizer writer — tart-kubelet,
+// the sole other actor that touches this Pod's finalizers, is gone with the
+// host. PodGC still races us, but only on the Pod's status/deletion, which the
+// merge patch doesn't carry, so it can't clobber or be clobbered here.
+//
+// Every match is attempted even if one fails; the per-Pod errors are joined so
+// a single un-patchable Pod can't hide progress on (or failures of) the rest.
+func (r *ScalewayAppleSiliconMachineReconciler) stripStrandedPodFinalizers(
+	ctx context.Context,
+	nodeName string,
+) error {
+	logger := log.FromContext(ctx)
+
+	var pods corev1.PodList
+	if err := r.reader().List(ctx, &pods, client.MatchingFields{"spec.nodeName": nodeName}); err != nil {
+		return fmt.Errorf("list pods on node %q: %w", nodeName, err)
+	}
+
+	var errs []error
+	for i := range pods.Items {
+		pod := &pods.Items[i]
+		if !controllerutil.ContainsFinalizer(pod, PodVMCleanupFinalizer) {
+			continue
+		}
+		patch := client.MergeFrom(pod.DeepCopy())
+		controllerutil.RemoveFinalizer(pod, PodVMCleanupFinalizer)
+		if err := r.Client.Patch(ctx, pod, patch); err != nil {
+			if apierrors.IsNotFound(err) {
+				continue
+			}
+			errs = append(errs, fmt.Errorf("strip vm-cleanup finalizer from pod %s/%s: %w", pod.Namespace, pod.Name, err))
+			continue
+		}
+		logger.Info("stripped stranded vm-cleanup finalizer",
+			"pod", pod.Namespace+"/"+pod.Name, "node", nodeName)
+	}
+	return errors.Join(errs...)
+}
+
+// reader returns the uncached APIReader when wired, else the cached client.
+// The stranded-Pod sweep uses it so a spec.nodeName field selector hits the
+// API server directly in production; tests leave APIReader unset and fall
+// back to the fake client (which registers the same field index).
+func (r *ScalewayAppleSiliconMachineReconciler) reader() client.Reader {
+	if r.APIReader != nil {
+		return r.APIReader
+	}
+	return r.Client
 }
 
 // === helpers ================================================================
