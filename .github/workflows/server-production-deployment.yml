@@ -2013,6 +2013,7 @@ jobs:
       environment: canary
       commit_sha: ${{ github.sha }}
       image_tag: ${{ needs.build.outputs.image_tag }}
+      kura_controller_image_tag: ${{ needs.build.outputs.image_tag }}
       codebase_search_image_tag: ${{ needs.build.outputs.codebase_search_image_tag }}
       registry_image_tag: ${{ needs.build.outputs.registry_image_tag }}
     secrets: inherit
@@ -2185,6 +2186,7 @@ jobs:
       environment: production
       commit_sha: ${{ github.sha }}
       image_tag: ${{ needs.build.outputs.image_tag }}
+      kura_controller_image_tag: ${{ needs.build.outputs.image_tag }}
       codebase_search_image_tag: ${{ needs.build.outputs.codebase_search_image_tag }}
       registry_image_tag: ${{ needs.build.outputs.registry_image_tag }}
     secrets: inherit
@@ -2208,6 +2210,7 @@ jobs:
       environment: production
       commit_sha: ${{ github.sha }}
       image_tag: ${{ needs.build.outputs.image_tag }}
+      kura_controller_image_tag: ${{ needs.build.outputs.image_tag }}
       codebase_search_image_tag: ${{ needs.build.outputs.codebase_search_image_tag }}
       registry_image_tag: ${{ needs.build.outputs.registry_image_tag }}
     secrets: inherit
