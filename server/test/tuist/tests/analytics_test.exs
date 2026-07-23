@@ -1074,6 +1074,39 @@ defmodule Tuist.Tests.AnalyticsTest do
     end
   end
 
+  describe "test_run_average_duration_analytics/2" do
+    test "returns the current average and trend without percentile data" do
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        duration: 1000,
+        ran_at: ~N[2024-04-28 12:00:00]
+      )
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        duration: 1000,
+        ran_at: ~N[2024-04-29 12:00:00]
+      )
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        duration: 3000,
+        ran_at: ~N[2024-04-30 09:00:00]
+      )
+
+      got =
+        Analytics.test_run_average_duration_analytics(
+          project.id,
+          start_datetime: ~U[2024-04-29 10:20:30Z]
+        )
+
+      assert got == %{total_average_duration: 2000.0, trend: 100.0}
+    end
+  end
+
   describe "test_case_reliability_by_id/3" do
     test "returns reliability percentage for test case runs on default branch" do
       # Given

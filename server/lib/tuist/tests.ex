@@ -294,6 +294,23 @@ defmodule Tuist.Tests do
     {results, meta}
   end
 
+  def latest_completed_test_runs(project_id, limit \\ 40) do
+    from(t in Test,
+      where: t.project_id == ^project_id,
+      where: t.status in ["success", "failure", "skipped"],
+      order_by: [desc: t.ran_at],
+      limit: ^limit,
+      select: %{
+        id: t.id,
+        duration: t.duration,
+        status: t.status,
+        ran_at: t.ran_at
+      }
+    )
+    |> ClickHouseRepo.all()
+    |> Enum.reverse()
+  end
+
   def list_sharded_test_runs(attrs) do
     base_query = from(t in Test, where: not is_nil(t.shard_plan_id))
 
