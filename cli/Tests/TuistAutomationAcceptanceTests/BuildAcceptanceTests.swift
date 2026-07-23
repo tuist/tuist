@@ -278,6 +278,29 @@ struct BuildAcceptanceTestAppWithPreviews {
     }
 }
 
+struct BuildAcceptanceTestAppWithSPMModuleMap {
+    @Test(
+        .withFixture("generated_app_with_spm_module_map"),
+        .inTemporaryDirectory,
+        .withMockedEnvironment()
+    )
+    func app_with_spm_module_map() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let derivedDataPath = try #require(FileSystem.temporaryTestDirectory)
+        try await TuistTest.run(InstallCommand.self, ["--path", fixtureDirectory.pathString])
+        try await TuistTest.run(GenerateCommand.self, ["--no-open", "--path", fixtureDirectory.pathString])
+        try await TuistTest.run(
+            BuildCommand.self,
+            [
+                "App Target",
+                "--platform", "macos",
+                "--path", fixtureDirectory.pathString,
+                "--derived-data-path", derivedDataPath.pathString,
+            ]
+        )
+    }
+}
+
 struct BuildAcceptanceTestAppWithFrameworkAndTests {
     @Test(.withFixture("generated_app_with_framework_and_tests"), .inTemporaryDirectory)
     func with_framework_and_tests() async throws {
