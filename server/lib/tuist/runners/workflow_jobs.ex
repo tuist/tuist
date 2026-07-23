@@ -13,10 +13,9 @@ defmodule Tuist.Runners.WorkflowJobs do
   redeliveries and claim races cannot regress a row: a late `queued`
   cannot resurrect a terminal job, a stale `claimed → running` cannot
   overwrite a re-queued one. A transition whose guard doesn't match is
-  a `:noop`, surfaced via telemetry rather than an error — a miss
-  means another path already won (a completion raced a claim, a
-  release raced a completion) and the row is already where it should
-  be.
+  a `:noop`, not an error — a miss means another path already won (a
+  completion raced a claim, a release raced a completion) and the row
+  is already where it should be.
 
   Callers and their transitions:
 
@@ -40,7 +39,6 @@ defmodule Tuist.Runners.WorkflowJobs do
 
   alias Tuist.Repo
   alias Tuist.Runners.JobCompletion
-  alias Tuist.Runners.Telemetry
   alias Tuist.Runners.WorkflowJob
   alias Tuist.Runners.WorkflowJobTransitionEvent
 
@@ -171,12 +169,8 @@ defmodule Tuist.Runners.WorkflowJobs do
           )
 
         case {count, rows} do
-          {1, [applied]} ->
-            emit_transition_event(applied, now)
-            emit_transition_telemetry(status, "applied")
-
-          {0, _} ->
-            emit_transition_telemetry(status, "miss")
+          {1, [applied]} -> emit_transition_event(applied, now)
+          {0, _} -> :ok
         end
       end)
 
@@ -438,24 +432,14 @@ defmodule Tuist.Runners.WorkflowJobs do
         case {count, rows} do
           {1, [row]} ->
             emit_transition_event(row, now)
-            emit_transition_telemetry(new_status, "applied")
             :ok
 
           {0, _} ->
-            emit_transition_telemetry(new_status, "miss")
             :noop
         end
       end)
 
     outcome
-  end
-
-  defp emit_transition_telemetry(to_status, outcome) do
-    :telemetry.execute(
-      Telemetry.event_name_workflow_job_transition(),
-      %{count: 1},
-      %{to: to_status, outcome: outcome}
-    )
   end
 
   defp emit_transition_event(%WorkflowJob{} = row, %DateTime{} = transition_at) do

@@ -24,12 +24,6 @@ defmodule Tuist.Runners.Telemetry do
   def event_name_recovery, do: [:tuist, :runners, :recovery]
   def event_name_webhook, do: [:tuist, :runners, :webhook]
 
-  # Postgres lifecycle-row transitions (`Tuist.Runners.WorkflowJobs`).
-  # `outcome="miss"` is a compare-and-set whose guard didn't match —
-  # expected for rows predating the table, a signal worth watching
-  # otherwise.
-  def event_name_workflow_job_transition, do: [:tuist, :runners, :workflow_job, :transition]
-
   # Postgres-vs-ClickHouse status drift found by
   # `Tuist.Runners.Workers.JobStateDriftWorker` — the confidence
   # signal that the outbox-replicated ClickHouse view matches the
