@@ -1043,47 +1043,42 @@ jobs:
             xcresult-processor.pkr.hcl
 
       - name: Push image to GHCR
+        timeout-minutes: 55
         env:
           TART_REGISTRY_HOSTNAME: ghcr.io
           TART_REGISTRY_USERNAME: tuist-bot
           TART_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
-        # Direct tart push, 5 attempts per tag with growing backoff.
-        # Blob uploads are content-addressed, so attempts are the unit
-        # of forward progress: each retry skips layers that already
-        # landed and uploads the next chunk. Pushes stall when upload
-        # flows to GitHub's edge die mid-request (host/IP-path
-        # dependent, can persist for tens of minutes), so the backoff
-        # spreads attempts past a degradation window instead of
-        # burning them all inside one. Earlier attempts here layered
-        # on TART_NO_AUTO_PRUNE and a clone-the-base "restore
-        # nvram.bin" step; both failed to fix the intermittent
-        # `Error: The file "nvram.bin" doesn't exist` and the
-        # disk-heavy restore made it worse (the whole VM bundle
-        # vanished mid-push).
+        # Tart otherwise sends each compressed disk layer as one request.
+        # A layer can exceed 500 megabytes, while Tart's URLSession uses
+        # the default 60-second idle timeout. Use 3-megabyte chunks, below
+        # GitHub Container Registry's 4-megabyte limit, so slow uploads
+        # keep making observable request progress. Send both tags in one
+        # invocation so Tart compresses and uploads the disk only once.
         run: |
           set -euo pipefail
           VERSION="${{ needs.check-releases.outputs.xcresult-processor-image-next-version-number }}"
-          for dest_tag in "${VERSION}" "latest"; do
-            DST="ghcr.io/tuist/tuist-xcresult-processor:${dest_tag}"
-            for attempt in 1 2 3 4 5; do
-              echo "tart push -> ${dest_tag} attempt ${attempt} at $(date -u +%H:%M:%SZ)" >&2
-              if tart push tuist-xcresult-processor "$DST"; then
-                echo "Pushed ${DST} on attempt ${attempt}"
-                break
-              fi
-              if [ "$attempt" = 5 ]; then
-                echo "tart push failed five times for ${dest_tag}" >&2
-                exit 1
-              fi
-              case "$attempt" in
-                1) delay=60 ;;
-                2) delay=120 ;;
-                3) delay=300 ;;
-                *) delay=600 ;;
-              esac
-              echo "tart push attempt ${attempt} failed; sleeping ${delay}s before retry" >&2
-              sleep "$delay"
-            done
+          DESTINATIONS=(
+            "ghcr.io/tuist/tuist-xcresult-processor:${VERSION}"
+            "ghcr.io/tuist/tuist-xcresult-processor:latest"
+          )
+          for attempt in 1 2 3 4 5; do
+            echo "tart push attempt ${attempt} at $(date -u +%H:%M:%SZ)" >&2
+            if tart push --chunk-size 3 tuist-xcresult-processor "${DESTINATIONS[@]}"; then
+              echo "Pushed ${DESTINATIONS[*]} on attempt ${attempt}"
+              exit 0
+            fi
+            if [ "$attempt" = 5 ]; then
+              echo "tart push failed five times" >&2
+              exit 1
+            fi
+            case "$attempt" in
+              1) delay=60 ;;
+              2) delay=120 ;;
+              3) delay=300 ;;
+              *) delay=600 ;;
+            esac
+            echo "tart push attempt ${attempt} failed; sleeping ${delay}s before retry" >&2
+            sleep "$delay"
           done
 
       - name: Upload xcresult-processor-image artifacts
