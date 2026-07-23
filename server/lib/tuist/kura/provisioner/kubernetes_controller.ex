@@ -284,7 +284,6 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
         }
         |> Enum.reject(fn {_key, value} -> value in [nil, "", false] end)
         |> Map.new()
-        |> put_mesh_public_peer_publication(region, server)
     }
   end
 
@@ -385,19 +384,6 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
   defp mesh_public_peer_host(handle, region) do
     if mesh_enabled?(region), do: Regions.peer_public_host(handle, region)
-  end
-
-  # Keep the public peer hostname on every move phase because it is also part of
-  # the instance certificate identity. Publication is a separate boolean so a
-  # warming or draining instance does not claim the regional public route. The
-  # controller treats a missing field as the legacy publish-by-host behavior,
-  # which keeps the controller-first rollout backward compatible.
-  defp put_mesh_public_peer_publication(spec, region, server) do
-    if mesh_enabled?(region) do
-      Map.put(spec, "meshPublicPeerPublished", owns_public_endpoints?(server))
-    else
-      spec
-    end
   end
 
   defp mesh_external_peers(region, external_peers) do
