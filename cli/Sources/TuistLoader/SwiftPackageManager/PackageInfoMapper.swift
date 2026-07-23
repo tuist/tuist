@@ -744,8 +744,8 @@ public struct PackageInfoMapper: PackageInfoMapping {
            case .external(origin: .local, artifactPaths: _, packagePrebuilts: _) = packageType,
            let productName = target.dependencies.compactMap({ dependency -> String? in
                switch dependency {
-               case let .product(name, package: _, moduleAliases: _, condition: _):
-                   return name
+               case let .product(name, package, moduleAliases: _, condition: _):
+                   return packageType.prebuilt(targetPackage: package, product: name) == nil ? name : nil
                case let .byName(name, condition: _) where targetsByName[name] == nil:
                    return name
                case .target, .byName:
