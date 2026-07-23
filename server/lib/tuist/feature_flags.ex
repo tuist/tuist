@@ -9,9 +9,18 @@ defmodule Tuist.FeatureFlags do
   environment (dev / test / staging / canary) so contributors and
   internal testers see it without the flag flipped; in production it
   requires an explicit `:runners` FunWithFlags toggle for the actor.
+
+  This is also the source of truth for co-located private Kura cache
+  infrastructure, so enabling runners provides the cache without a second
+  operator-managed switch.
   """
   def runners_enabled?(account) do
     not Environment.prod?() or FunWithFlags.enabled?(:runners, for: account)
+  end
+
+  @doc false
+  def runners_enabled?(account, %FunWithFlags.Flag{} = flag) do
+    not Environment.prod?() or FunWithFlags.Flag.enabled?(flag, for: account)
   end
 
   @doc """

@@ -3,6 +3,7 @@ defmodule Tuist.Kura.RunnerCacheTest do
   use Mimic
 
   alias Tuist.Accounts
+  alias Tuist.FeatureFlags
   alias Tuist.Kura
   alias Tuist.Kura.Deployment
   alias Tuist.Kura.RunnerCache
@@ -22,7 +23,7 @@ defmodule Tuist.Kura.RunnerCacheTest do
   setup do
     stub(Tuist.Environment, :dev?, fn -> false end)
     stub(Tuist.Environment, :test?, fn -> false end)
-    stub(Sentry, :capture_message, fn _message, _opts -> :ignored end)
+    stub(Tuist.Environment, :prod?, fn -> true end)
 
     stub(Tuist.Environment, :kura_available_region_ids, fn ->
       ["scw-fr-par-runners"]
@@ -55,7 +56,7 @@ defmodule Tuist.Kura.RunnerCacheTest do
     account
   end
 
-  defp enable_runners_for(account_ids) do
+  defp set_runner_availability(account_ids) do
     gates =
       Enum.map(account_ids, fn account_id ->
         %FunWithFlags.Gate{type: :actor, for: "account:#{account_id}", enabled: true}
@@ -79,7 +80,7 @@ defmodule Tuist.Kura.RunnerCacheTest do
   test "provisions per region by served platform" do
     linux_only = account_with_profiles([:linux])
     macos_too = account_with_profiles([:linux, :macos])
-    enable_runners_for([linux_only.id, macos_too.id])
+    set_runner_availability([linux_only.id, macos_too.id])
 
     assert :ok = RunnerCache.reconcile()
 
@@ -91,18 +92,57 @@ defmodule Tuist.Kura.RunnerCacheTest do
     assert server_regions(macos_too) == ["scw-fr-par-runners"]
   end
 
-  test "accounts without the runners flag get no nodes" do
+  test "is inert without a private runner-cache region" do
+    stub(Tuist.Environment, :kura_available_region_ids, fn -> [] end)
+    reject(FunWithFlags, :get_flag, 1)
+
+    assert :ok = RunnerCache.reconcile()
+  end
+
+  test "accounts without runner access get no nodes" do
     account = account_with_profiles([:linux, :macos])
-    enable_runners_for([])
+    set_runner_availability([])
 
     assert :ok = RunnerCache.reconcile()
 
     assert server_regions(account) == []
   end
 
+  test "does not modify nodes when runner availability cannot be evaluated" do
+    existing = account_with_profiles([:macos])
+    set_runner_availability([existing.id])
+
+    assert :ok = RunnerCache.reconcile()
+    assert server_regions(existing) == ["scw-fr-par-runners"]
+
+    candidate = account_with_profiles([:macos])
+    stub(FunWithFlags, :get_flag, fn :runners -> {:error, :unavailable} end)
+    reject(FeatureFlags, :runners_enabled?, 2)
+
+    assert_raise RuntimeError, "could not load runner availability: :unavailable", fn ->
+      RunnerCache.reconcile()
+    end
+
+    assert server_regions(existing) == ["scw-fr-par-runners"]
+    assert server_regions(candidate) == []
+  end
+
+  test "tears down an account's node when runner access is removed" do
+    account = account_with_profiles([:macos])
+    set_runner_availability([account.id])
+
+    assert :ok = RunnerCache.reconcile()
+    assert server_regions(account) == ["scw-fr-par-runners"]
+
+    set_runner_availability([])
+
+    assert :ok = RunnerCache.reconcile()
+    assert server_regions(account) == []
+  end
+
   test "tears down a region's node when its served platforms lose their profiles" do
     account = account_with_profiles([:linux, :macos])
-    enable_runners_for([account.id])
+    set_runner_availability([account.id])
 
     assert :ok = RunnerCache.reconcile()
     assert server_regions(account) == ["scw-fr-par-runners"]
@@ -116,51 +156,43 @@ defmodule Tuist.Kura.RunnerCacheTest do
     assert server_regions(account) == []
   end
 
-  test "provisions an explicit actor without scanning preceding accounts" do
-    # Default profiles are auto-created for every account. The explicit actor
-    # cohort lets this account provision directly even when many non-enabled
-    # accounts sort before it.
-    now = NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
-    now_utc = DateTime.truncate(DateTime.utc_now(), :second)
-
-    filler_rows =
-      for i <- 1..110 do
-        %{
-          name: "starved-filler-#{i}-#{System.unique_integer([:positive])}",
-          billing_email: "starved-filler-#{i}@tuist.dev",
-          created_at: now,
-          updated_at: now
-        }
-      end
-
-    {110, filler_accounts} = Repo.insert_all(Tuist.Accounts.Account, filler_rows, returning: [:id])
-
-    profile_rows =
-      for %{id: account_id} <- filler_accounts do
-        %{
-          account_id: account_id,
-          name: "macos",
-          platform: :macos,
-          vcpus: 4,
-          memory_gb: 16,
-          inserted_at: now_utc,
-          updated_at: now_utc
-        }
-      end
-
-    Repo.insert_all(Profile, profile_rows)
-
+  test "uses runner availability rather than profile existence as the entitlement" do
+    unavailable = account_with_profiles([:macos])
     enabled = account_with_profiles([:macos])
-    enable_runners_for([enabled.id])
+    set_runner_availability([enabled.id])
 
     assert :ok = RunnerCache.reconcile()
 
+    assert server_regions(unavailable) == []
+    assert server_regions(enabled) == ["scw-fr-par-runners"]
+  end
+
+  test "narrows actor-only production availability before evaluating accounts" do
+    unavailable = account_with_profiles([:macos])
+    enabled = account_with_profiles([:macos])
+    stub(Tuist.Environment, :prod?, fn -> true end)
+
+    stub(FunWithFlags, :get_flag, fn :runners ->
+      %FunWithFlags.Flag{
+        name: :runners,
+        gates: [%FunWithFlags.Gate{type: :actor, for: "account:#{enabled.id}", enabled: true}]
+      }
+    end)
+
+    expect(FeatureFlags, :runners_enabled?, fn account, _flag ->
+      assert account.id == enabled.id
+      true
+    end)
+
+    assert :ok = RunnerCache.reconcile()
+
+    assert server_regions(unavailable) == []
     assert server_regions(enabled) == ["scw-fr-par-runners"]
   end
 
   test "macOS-only accounts get a node in the macOS-serving region" do
     account = account_with_profiles([:macos])
-    enable_runners_for([account.id])
+    set_runner_availability([account.id])
 
     assert :ok = RunnerCache.reconcile()
 
@@ -169,13 +201,13 @@ defmodule Tuist.Kura.RunnerCacheTest do
 
   test "is inert without a runtime image tag except for tear-downs" do
     account = account_with_profiles([:linux, :macos])
-    enable_runners_for([account.id])
+    set_runner_availability([account.id])
     assert :ok = RunnerCache.reconcile()
 
     stub(Tuist.Environment, :kura_runtime_image_tag, fn -> nil end)
     Repo.delete_all(from(p in Profile, where: p.account_id == ^account.id))
     fresh = account_with_profiles([:linux])
-    enable_runners_for([account.id, fresh.id])
+    set_runner_availability([account.id, fresh.id])
 
     assert :ok = RunnerCache.reconcile()
 
@@ -185,70 +217,24 @@ defmodule Tuist.Kura.RunnerCacheTest do
     assert server_regions(account) == []
   end
 
-  test "preserves existing nodes and provisions nothing for an unsafe global gate" do
-    existing = account_with_profiles([:macos])
-    candidate = account_with_profiles([:macos])
-    enable_runners_for([existing.id])
-
-    assert :ok = RunnerCache.reconcile()
-    assert server_regions(existing) == ["scw-fr-par-runners"]
-
-    stub(FunWithFlags, :get_flag, fn :runners ->
-      %FunWithFlags.Flag{
-        name: :runners,
-        gates: [%FunWithFlags.Gate{type: :boolean, for: nil, enabled: true}]
-      }
-    end)
-
-    expect(Sentry, :capture_message, fn "Kura runner-cache reconciliation paused", opts ->
-      assert opts[:level] == :error
-      assert opts[:tags] == %{failure_kind: "non_actor_runner_gate"}
-      assert opts[:extra] == %{failure_detail: ":non_actor_runner_gate"}
-      :ignored
-    end)
-
-    assert :ok = RunnerCache.reconcile()
-    assert server_regions(existing) == ["scw-fr-par-runners"]
-    assert server_regions(candidate) == []
-  end
-
-  test "preserves existing nodes for a percentage-of-time gate" do
-    account = account_with_profiles([:macos])
-    enable_runners_for([account.id])
+  test "provisions every eligible account when runners are available outside production" do
+    first = account_with_profiles([:macos])
+    second = account_with_profiles([:macos])
+    stub(Tuist.Environment, :prod?, fn -> false end)
+    reject(FunWithFlags, :get_flag, 1)
+    reject(FunWithFlags, :enabled?, 2)
+    reject(FeatureFlags, :runners_enabled?, 2)
+    reject(Sentry, :capture_message, 2)
 
     assert :ok = RunnerCache.reconcile()
 
-    stub(FunWithFlags, :get_flag, fn :runners ->
-      %FunWithFlags.Flag{
-        name: :runners,
-        gates: [%FunWithFlags.Gate{type: :percentage_of_time, for: 0.5, enabled: true}]
-      }
-    end)
-
-    assert :ok = RunnerCache.reconcile()
-    assert server_regions(account) == ["scw-fr-par-runners"]
-  end
-
-  test "preserves existing nodes for an unsupported actor gate" do
-    account = account_with_profiles([:macos])
-    enable_runners_for([account.id])
-
-    assert :ok = RunnerCache.reconcile()
-
-    stub(FunWithFlags, :get_flag, fn :runners ->
-      %FunWithFlags.Flag{
-        name: :runners,
-        gates: [%FunWithFlags.Gate{type: :actor, for: "user:123", enabled: true}]
-      }
-    end)
-
-    assert :ok = RunnerCache.reconcile()
-    assert server_regions(account) == ["scw-fr-par-runners"]
+    assert server_regions(first) == ["scw-fr-par-runners"]
+    assert server_regions(second) == ["scw-fr-par-runners"]
   end
 
   test "waits for the retry backoff before retrying the same image" do
     account = account_with_profiles([:macos])
-    enable_runners_for([account.id])
+    set_runner_availability([account.id])
     assert :ok = RunnerCache.reconcile()
 
     server = Repo.get_by!(Server, account_id: account.id, region: "scw-fr-par-runners")
@@ -269,7 +255,7 @@ defmodule Tuist.Kura.RunnerCacheTest do
 
   test "caps repeated same-image retries at one hour" do
     account = account_with_profiles([:macos])
-    enable_runners_for([account.id])
+    set_runner_availability([account.id])
     assert :ok = RunnerCache.reconcile()
 
     server = Repo.get_by!(Server, account_id: account.id, region: "scw-fr-par-runners")
@@ -314,7 +300,7 @@ defmodule Tuist.Kura.RunnerCacheTest do
 
   test "retries immediately when the configured image changes" do
     account = account_with_profiles([:macos])
-    enable_runners_for([account.id])
+    set_runner_availability([account.id])
     assert :ok = RunnerCache.reconcile()
 
     server = Repo.get_by!(Server, account_id: account.id, region: "scw-fr-par-runners")
