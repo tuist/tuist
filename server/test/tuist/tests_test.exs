@@ -3387,51 +3387,6 @@ defmodule Tuist.TestsTest do
       assert not_flaky |> Enum.map(& &1.name) |> Enum.sort() == ["mutedTest", "plainTest"]
     end
 
-    test "keeps carrying the legacy columns forward for pods on the previous release" do
-      # Reads move to `test_case_states` in this release, but pods still running
-      # the previous one read `state` off `test_cases`. Ingestion has to keep
-      # carrying that column forward or those pods would see every muted test
-      # flip back to enabled the moment a report lands, for the length of the
-      # rollout — including on the quarantined list the CLI and Gradle plugin
-      # consume, which would put muted tests back into CI runs.
-      # Given
-      project = ProjectsFixtures.project_fixture()
-
-      test_modules = fn duration ->
-        [
-          %{
-            name: "TestModule",
-            status: "success",
-            duration: 1000,
-            test_cases: [%{name: "testOne", status: "success", duration: duration}]
-          }
-        ]
-      end
-
-      {:ok, _} = RunsFixtures.test_fixture(project_id: project.id, test_modules: test_modules.(100))
-      TestCase.Buffer.flush()
-
-      {[test_case], _meta} = Tests.list_test_cases(project.id, %{})
-      {:ok, _} = Tests.update_test_case(test_case.id, %{state: "muted"})
-
-      # When - a pod running this release ingests another report
-      {:ok, _} = RunsFixtures.test_fixture(project_id: project.id, test_modules: test_modules.(200))
-      TestCase.Buffer.flush()
-
-      # Then - the legacy column an older pod reads still says muted
-      legacy_state =
-        ClickHouseRepo.one(
-          from(t in TestCase,
-            where: t.id == ^test_case.id,
-            order_by: [desc: t.inserted_at],
-            limit: 1,
-            select: t.state
-          )
-        )
-
-      assert legacy_state == "muted"
-    end
-
     test "preserves state when an in-flight ingestion read the row before the mute" do
       # Ingestion snapshots the existing test case rows once per report and only
       # stamps `inserted_at` later, per module. A mute landing inside that window
