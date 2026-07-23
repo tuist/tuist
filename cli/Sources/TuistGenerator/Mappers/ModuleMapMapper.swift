@@ -19,6 +19,7 @@ import XcodeGraph
 /// https://github.com/swiftlang/swift-package-manager/blob/ff05594c1267137ed5ee2c0076dfaf78f0289877/Sources/SwiftBuildSupport/PackagePIFProjectBuilder%2BModules.swift#L440-L459
 public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_body_length
     private static let modulemapFileSetting = "MODULEMAP_FILE"
+    private static let modulemapPathSetting = "MODULEMAP_PATH"
     private static let otherCFlagsSetting = "OTHER_CFLAGS"
     private static let otherSwiftFlagsSetting = "OTHER_SWIFT_FLAGS"
     private static let headerSearchPaths = "HEADER_SEARCH_PATHS"
@@ -80,39 +81,21 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
                 guard hasModuleMap || !(targetToDependenciesMetadata[targetID]?.isEmpty ?? true)
                 else { return (targetName, target) }
 
-                if hasModuleMap {
+                if hasModuleMap, target.product.isFramework {
+                    // ExtractAPI consumes MODULEMAP_PATH as an explicit -fmodule-map-file dependency.
+                    // Pointing it at the source map keeps the map out of the framework product, which
+                    // avoids both duplicate module-map discovery and the static-framework copy fixed in #11588.
+                    // https://github.com/tuist/tuist/pull/11588
                     if let moduleMapPath = Self.moduleMapPath(
                         from: mappedSettingsDictionary[Self.modulemapFileSetting],
                         projectPath: project.path
-                    ),
-                        target.product == .framework
-                    {
-                        // swift-build gives ExtractAPI dependency module maps explicitly and models framework module maps
-                        // at `Modules/module.modulemap`. Generated Xcode projects need the same canonical framework path.
-                        // https://github.com/swiftlang/swift-build/blob/af813e185ed298ea7bdb633047f27d15253cdac7/Sources/SWBTaskConstruction/TaskProducers/OtherTaskProducers/TAPISymbolExtractorTaskProducer.swift#L76-L108
-                        // https://github.com/swiftlang/swift-build/blob/af813e185ed298ea7bdb633047f27d15253cdac7/Sources/SWBTaskConstruction/ProductPlanning/ProductPlan.swift#L1197-L1200
-                        let escapedModuleMapPath = Self.shellEscaped(moduleMapPath.pathString)
-                        target.scripts.append(
-                            TargetScript(
-                                name: "Copy Module Map",
-                                order: .post,
-                                script: .embedded(
-                                    // -f: with Xcode compilation caching enabled, the destination can
-                                    // pre-exist as a read-only CAS-materialized file that plain cp
-                                    // refuses to overwrite (Permission denied).
-                                    """
-                                    set -eu
-                                    mkdir -p "$TARGET_BUILD_DIR/$WRAPPER_NAME/Modules"
-                                    cp -f '\(escapedModuleMapPath)' "$TARGET_BUILD_DIR/$WRAPPER_NAME/Modules/module.modulemap"
-                                    """
-                                ),
-                                inputPaths: [moduleMapPath.pathString],
-                                outputPaths: ["$(TARGET_BUILD_DIR)/$(WRAPPER_NAME)/Modules/module.modulemap"],
-                                showEnvVarsInLog: false,
-                                basedOnDependencyAnalysis: true
-                            )
-                        )
+                    ) {
+                        mappedSettingsDictionary[Self.modulemapPathSetting] = .string(moduleMapPath.pathString)
                     }
+                    mappedSettingsDictionary[Self.modulemapFileSetting] = nil
+                } else if hasModuleMap {
+                    // Non-framework products have no Modules/module.modulemap location for ExtractAPI.
+                    // Their dependents receive this map through the combined -fmodule-map-file flags below.
                     mappedSettingsDictionary[Self.modulemapFileSetting] = nil
                 }
 
@@ -195,6 +178,11 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
         return (graph, sideEffects, environment)
     } // swiftlint:enable function_body_length
 
+    /// Resolves a module-map setting to the absolute path required by `ExtractAPI`'s `MODULEMAP_PATH` input.
+    /// swift-build passes this setting directly as `-fmodule-map-file` for dependencies without module info:
+    /// https://github.com/swiftlang/swift-build/blob/5a49bfa5d4d7c4fbf1bea6e140481ba0818d676a/Sources/SWBTaskConstruction/TaskProducers/OtherTaskProducers/TAPISymbolExtractorTaskProducer.swift#L76-L108
+    /// Keeping that source map out of framework products prevents clang from discovering both copies and
+    /// avoids a Copy Module Map phase becoming a cycle with Compile Sources.
     private static func moduleMapPath(
         from value: SettingsDictionary.Value?,
         projectPath: AbsolutePath
@@ -207,10 +195,6 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
                 .replacingOccurrences(of: "$(SRCROOT)", with: projectPath.pathString)
                 .replacingOccurrences(of: "$(SOURCE_ROOT)", with: projectPath.pathString)
         )
-    }
-
-    private static func shellEscaped(_ value: String) -> String {
-        value.replacingOccurrences(of: "'", with: "'\\''")
     }
 
     private func dependenciesModuleMapDirectory(for project: Project) -> AbsolutePath {

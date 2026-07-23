@@ -387,7 +387,7 @@ struct ModuleMapMapperTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func maps_framework_modulemap_to_modulemap_copy_script() throws {
+    func maps_framework_modulemap_to_extractapi_modulemap_path() throws {
         // Given
         let workspace = Workspace.test()
         let projectPath = try temporaryPath().appending(component: "A")
@@ -419,29 +419,81 @@ struct ModuleMapMapperTests {
         // Then
         let gotTarget = try #require(gotGraph.projects[projectPath]?.targets["A"])
         #expect(gotTarget.settings?.base["MODULEMAP_FILE"] == nil)
-        #expect(gotTarget.scripts ==
-            [
-                TargetScript(
-                    name: "Copy Module Map",
-                    order: .post,
-                    script: .embedded(
-                        """
-                        set -eu
-                        mkdir -p "$TARGET_BUILD_DIR/$WRAPPER_NAME/Modules"
-                        cp -f '\(moduleMapPath.pathString)' "$TARGET_BUILD_DIR/$WRAPPER_NAME/Modules/module.modulemap"
-                        """
-                    ),
-                    inputPaths: [moduleMapPath.pathString],
-                    outputPaths: ["$(TARGET_BUILD_DIR)/$(WRAPPER_NAME)/Modules/module.modulemap"],
-                    showEnvVarsInLog: false,
-                    basedOnDependencyAnalysis: true
-                ),
-            ]
-        )
+        #expect(gotTarget.settings?.base["MODULEMAP_PATH"] == .string(moduleMapPath.pathString))
+        #expect(gotTarget.scripts.isEmpty)
     }
 
     @Test(.inTemporaryDirectory)
-    func removes_static_framework_modulemap_without_copy_script() throws {
+    func maps_modulemap_discoverable_through_header_search_paths() throws {
+        // Given
+        let workspace = Workspace.test()
+        let projectPath = try temporaryPath().appending(component: "A")
+        let moduleMapPath = projectPath.appending(components: "A", "include", "module.modulemap")
+        let target = Target.test(
+            name: "A",
+            product: .framework,
+            settings: .test(base: [
+                "MODULEMAP_FILE": .string(moduleMapPath.pathString),
+                "HEADER_SEARCH_PATHS": .array(["$(SRCROOT)/A/include"]),
+            ])
+        )
+        let project = Project.test(
+            path: projectPath,
+            name: "A",
+            targets: [target]
+        )
+
+        // When
+        let (gotGraph, _, _) = try subject.map(
+            graph: .test(
+                workspace: workspace,
+                projects: [
+                    projectPath: project,
+                ]
+            ),
+            environment: MapperEnvironment()
+        )
+
+        // Then
+        let gotTarget = try #require(gotGraph.projects[projectPath]?.targets["A"])
+        #expect(gotTarget.settings?.base["MODULEMAP_FILE"] == nil)
+        #expect(gotTarget.settings?.base["MODULEMAP_PATH"] == .string(moduleMapPath.pathString))
+        #expect(gotTarget.scripts.isEmpty)
+    }
+
+    @Test(.inTemporaryDirectory)
+    func resolves_framework_modulemap_path_relative_to_source_root() throws {
+        // Given
+        let workspace = Workspace.test()
+        let projectPath = try temporaryPath().appending(component: "A")
+        let moduleMapPath = projectPath.appending(components: "Derived", "ModuleMaps", "A.modulemap")
+        let target = Target.test(
+            name: "A",
+            product: .framework,
+            settings: .test(base: [
+                "MODULEMAP_FILE": .string("$(SRCROOT)/Derived/ModuleMaps/A.modulemap"),
+            ])
+        )
+        let project = Project.test(
+            path: projectPath,
+            name: "A",
+            targets: [target]
+        )
+
+        // When
+        let (gotGraph, _, _) = try subject.map(
+            graph: .test(workspace: workspace, projects: [projectPath: project]),
+            environment: MapperEnvironment()
+        )
+
+        // Then
+        let gotTarget = try #require(gotGraph.projects[projectPath]?.targets["A"])
+        #expect(gotTarget.settings?.base["MODULEMAP_FILE"] == nil)
+        #expect(gotTarget.settings?.base["MODULEMAP_PATH"] == .string(moduleMapPath.pathString))
+    }
+
+    @Test(.inTemporaryDirectory)
+    func maps_static_framework_modulemap_to_extractapi_modulemap_path() throws {
         // Given
         let workspace = Workspace.test()
         let projectPath = try temporaryPath().appending(component: "A")
@@ -473,6 +525,7 @@ struct ModuleMapMapperTests {
         // Then
         let gotTarget = try #require(gotGraph.projects[projectPath]?.targets["A"])
         #expect(gotTarget.settings?.base["MODULEMAP_FILE"] == nil)
+        #expect(gotTarget.settings?.base["MODULEMAP_PATH"] == .string(moduleMapPath.pathString))
         #expect(gotTarget.scripts.isEmpty)
     }
 
