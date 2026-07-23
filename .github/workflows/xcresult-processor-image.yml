@@ -135,20 +135,14 @@ jobs:
             xcresult-processor.pkr.hcl
 
       - name: Push image to GHCR
+        timeout-minutes: 55
         env:
           TART_REGISTRY_HOSTNAME: ghcr.io
           TART_REGISTRY_USERNAME: tuist-bot
           TART_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
-        # Direct tart push, 5 attempts with growing backoff — blob
-        # uploads are content-addressed so each retry only re-uploads
-        # layers that didn't land on the previous attempt, and the
-        # backoff spreads attempts past upload-path degradation windows
-        # (see server-production-deployment.yml's
-        # release-xcresult-processor-image push step). Earlier attempts
-        # here layered on TART_NO_AUTO_PRUNE and a clone-the-base
-        # "restore nvram.bin" step; both failed to fix the intermittent
-        # `Error: The file "nvram.bin" doesn't exist` and the disk-heavy
-        # restore made it worse (the whole VM bundle vanished mid-push).
+        # Match the production release workflow's chunked upload path.
+        # Tart's default monolithic uploads can exceed its 60-second
+        # URLSession idle timeout when registry throughput drops.
         run: |
           # SHA-tagged builds for ad-hoc deploys; semver tags + `:latest`
           # are owned by server-production-deployment.yml's release-xcresult-processor job.
@@ -157,7 +151,7 @@ jobs:
           DST="ghcr.io/tuist/tuist-xcresult-processor:${GIT_SHA}"
           for attempt in 1 2 3 4 5; do
             echo "tart push attempt ${attempt} starting at $(date -u +%H:%M:%SZ)" >&2
-            if tart push tuist-xcresult-processor "$DST"; then
+            if tart push --chunk-size 3 tuist-xcresult-processor "$DST"; then
               echo "Pushed ${DST} on attempt ${attempt}"
               exit 0
             fi
