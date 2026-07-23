@@ -5,8 +5,12 @@ defmodule TuistWeb.KuraRolloutStatusController do
   environment's rollout of the target tag to complete, and fails when it
   is paused, aborted, or superseded.
 
-  Discloses only the rollout's tag and lifecycle state — no fleet,
-  account, or health detail — the same sensitivity class as `/ready`.
+  Discloses only the rollout's tag, lifecycle state, pause signal, and
+  aggregate wave progress counts — no account, server, or health detail —
+  the same sensitivity class as `/ready`. The pause signal is included so
+  a blocked promotion's CI log says why (an operator otherwise has to
+  open the ops view before knowing whether the gate or an infrastructure
+  failure paused the rollout).
   """
   use TuistWeb, :controller
 
@@ -37,7 +41,13 @@ defmodule TuistWeb.KuraRolloutStatusController do
           image_tag: rollout.image_tag,
           status: rollout.status,
           mode: rollout.mode,
-          current_wave: rollout.current_wave
+          current_wave: rollout.current_wave,
+          pause_reason: rollout.pause_reason,
+          waves:
+            Enum.map(
+              Rollouts.wave_summary(rollout),
+              &%{wave: &1.wave, servers: &1.servers, converged: &1.converged}
+            )
         }
     end
   end

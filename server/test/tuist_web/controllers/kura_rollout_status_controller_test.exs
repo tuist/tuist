@@ -43,7 +43,9 @@ defmodule TuistWeb.KuraRolloutStatusControllerTest do
                  "image_tag" => "0.6.0",
                  "status" => "completed",
                  "mode" => "expedited",
-                 "current_wave" => 0
+                 "current_wave" => 0,
+                 "pause_reason" => nil,
+                 "waves" => []
                }
              } = json_response(conn, 200)
     end

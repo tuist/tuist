@@ -1011,6 +1011,11 @@ defmodule Tuist.Kura.Rollouts do
       |> Repo.update!()
 
     metadata = Map.merge(%{wave: rollout.current_wave, signal: reason}, details)
+
+    Logger.warning(
+      "[Kura.Rollouts] paused rollout of #{rollout.image_tag} at wave #{rollout.current_wave}: #{reason} #{inspect(details)}"
+    )
+
     record_event(rollout, "paused", "gate", nil, metadata)
     Notifier.notify(:paused, rollout, metadata)
     :ok

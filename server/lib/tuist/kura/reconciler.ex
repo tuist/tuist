@@ -618,6 +618,12 @@ defmodule Tuist.Kura.Reconciler do
   defp fail(deployment, server, reason) do
     message = if is_binary(reason), do: reason, else: inspect(reason)
 
+    # Logged as well as Sentry-captured: environments without a DSN
+    # would otherwise fail deployments with no trace outside the DB.
+    Logger.error(
+      "[Kura.Reconciler] deployment #{deployment.id} (#{deployment.image_tag}) failed for server #{(server && server.id) || "unknown"}: #{message}"
+    )
+
     capture_deploy_failure(deployment, server, reason, message)
 
     {:ok, _} = Kura.mark_failed(deployment, message)
