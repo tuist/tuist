@@ -79,8 +79,10 @@ observeThemeChanges();
 Hooks.ThemeSwitcher = ThemeSwitcher;
 Hooks.ThemeToggle = ThemeToggle;
 
-// Keep this aligned with nginx.ingress.kubernetes.io/proxy-connect-timeout.
-const liveSocketFallbackMs = 10000;
+// Give WebSocket connections enough time to outlive the ingress timeout and
+// retry before falling back. Matching the two timeouts creates a race where a
+// slow connection gets permanently pinned to long polling.
+const liveSocketFallbackMs = 30000;
 
 // On localhost, the WebSocket drops every time the dev server restarts or the
 // live reloader fires. With longpoll fallback enabled, the client gives

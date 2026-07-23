@@ -46,10 +46,13 @@ on:
           - canary
           - production
       commit_sha:
-        description: Commit SHA to deploy (defaults to the event's SHA)
+        description: Chart commit to deploy (defaults to the event's SHA). Keep this current and set image_tag to roll back only the server image.
         required: false
       image_tag:
         description: Pre-built image tag to deploy instead of building
+        required: false
+      kura_controller_image_tag:
+        description: Pre-built Kura controller image tag; omit to preserve the live controller during a server-only re-promotion
         required: false
       codebase_search_image_tag:
         description: Pre-built codebase search image tag to deploy
@@ -84,7 +87,7 @@ on:
         required: true
         type: string
       commit_sha:
-        description: Commit SHA to deploy (defaults to github.sha)
+        description: Chart commit to deploy (defaults to github.sha)
         required: false
         type: string
       image_tag:
@@ -92,6 +95,13 @@ on:
           Pre-built image tag to deploy. When set, the build job is
           skipped and the deploy job uses this tag directly. When unset,
           the workflow builds + pushes an image tagged sha-<commit_sha>.
+        required: false
+        type: string
+      kura_controller_image_tag:
+        description: >-
+          Pre-built Kura controller image tag. When a pre-built server image
+          is supplied without this input, the deploy preserves the currently
+          running controller during a server-only re-promotion.
         required: false
         type: string
       codebase_search_image_tag:
@@ -103,9 +113,9 @@ on:
         type: string
       registry_image_tag:
         description: >-
-          Pre-built Swift registry image tag to deploy. When unset, the
-          workflow uses image_tag if provided, otherwise it builds and
-          pushes a registry image tagged sha-<commit_sha>.
+          Pre-built Swift registry image tag to deploy. A normal build uses
+          its built registry tag. A pre-built server deployment preserves the
+          live registry image when this is unset.
         required: false
         type: string
       kura_runtime_image_tag:
@@ -671,13 +681,16 @@ jobs:
       KUBECONFIG: ${{ github.workspace }}/.kube/config
       NAMESPACE: ${{ inputs.environment == 'production' && 'tuist' || format('tuist-{0}', inputs.environment) }}
       IMAGE_TAG: ${{ inputs.image_tag != '' && inputs.image_tag || needs.build.outputs.image_tag }}
+      SERVER_IMAGE_TAG_INPUT: ${{ inputs.image_tag }}
       CODEBASE_SEARCH_IMAGE_TAG: ${{ inputs.codebase_search_image_tag != '' && inputs.codebase_search_image_tag || needs.build.outputs.codebase_search_image_tag }}
-      REGISTRY_IMAGE_TAG: ${{ inputs.registry_image_tag != '' && inputs.registry_image_tag || inputs.image_tag != '' && inputs.image_tag || needs.build.outputs.registry_image_tag }}
+      REGISTRY_IMAGE_TAG: ${{ inputs.registry_image_tag != '' && inputs.registry_image_tag || needs.build.outputs.registry_image_tag }}
       KURA_RUNTIME_IMAGE_TAG: ${{ inputs.kura_runtime_image_tag }}
+      KURA_CONTROLLER_IMAGE_TAG_INPUT: ${{ inputs.kura_controller_image_tag }}
       LINUX_RUNNER_IMAGE_TAG_INPUT: ${{ inputs.linux_runner_image_tag }}
       MACOS_RUNNER_IMAGE_TAG_INPUT: ${{ inputs.macos_runner_image_tag }}
       CAPI_IMAGE_TAG_INPUT: ${{ inputs.capi_image_tag }}
       RUNNERS_CONTROLLER_IMAGE_TAG_INPUT: ${{ inputs.runners_controller_image_tag }}
+      KURA_CONTROLLER_NAMESPACE: kura
     steps:
       - uses: actions/checkout@v4
         with:
@@ -733,6 +746,34 @@ jobs:
           API="$(kubectl config view --minify --raw -o jsonpath='{.clusters[0].cluster.server}')"
           echo "Reaching apiserver at $API"
           kubectl --request-timeout=10s get --raw /version >/dev/null
+      - name: Resolve Kura controller image tag
+        run: |
+          set -euo pipefail
+
+          if [ -n "$KURA_CONTROLLER_IMAGE_TAG_INPUT" ]; then
+            controller_tag="$KURA_CONTROLLER_IMAGE_TAG_INPUT"
+            controller_source="explicit"
+          elif [ -z "$SERVER_IMAGE_TAG_INPUT" ]; then
+            controller_tag="$IMAGE_TAG"
+            controller_source="built"
+          else
+            current_image="$(
+              kubectl -n "$KURA_CONTROLLER_NAMESPACE" get deployments \
+                -l app.kubernetes.io/component=kura-controller \
+                -o jsonpath='{.items[0].spec.template.spec.containers[?(@.name=="manager")].image}' \
+                2>/dev/null || true
+            )"
+            image_prefix="${REGISTRY}/${KURA_CONTROLLER_IMAGE_NAME}:"
+            if [[ "$current_image" != "$image_prefix"* ]]; then
+              echo "No current Kura controller image was found. Provide kura_controller_image_tag for this pre-built server deployment."
+              exit 1
+            fi
+            controller_tag="${current_image#"$image_prefix"}"
+            controller_source="preserved"
+          fi
+
+          echo "KURA_CONTROLLER_IMAGE_TAG=$controller_tag" >> "$GITHUB_ENV"
+          echo "Kura controller: ${controller_source} image tag ${controller_tag}"
       - name: Resolve codebase search image tag
         run: |
           set -euo pipefail
@@ -933,7 +974,7 @@ jobs:
           kura_runtime_tag="${KURA_RUNTIME_IMAGE_TAG:-}"
           if [ -n "$kura_runtime_tag" ]; then
             echo "Kura runtime: using explicit input tag ${kura_runtime_tag}"
-          elif [ "${{ inputs.environment }}" = "staging" ] && [ -z "${{ inputs.image_tag }}" ]; then
+          elif [ "${{ inputs.environment }}" = "staging" ] && [ -z "$SERVER_IMAGE_TAG_INPUT" ]; then
             kura_runtime_tag="$IMAGE_TAG"
             echo "Kura runtime: staging tracks per-commit image ${kura_runtime_tag}"
           else
@@ -976,7 +1017,7 @@ jobs:
             --set server.image.tag="$IMAGE_TAG" \
             --set codebaseSearch.image.tag="$CODEBASE_SEARCH_IMAGE_TAG" \
             --set registry.image.tag="$registry_probe_tag" \
-            --set kuraController.image.tag="$IMAGE_TAG" \
+            --set kuraController.image.tag="$KURA_CONTROLLER_IMAGE_TAG" \
             "${image_sets[@]}" \
             > "$registry_render"
 
@@ -989,11 +1030,26 @@ jobs:
           echo "REGISTRY_ENABLED=$registry_enabled" >> "$GITHUB_ENV"
           echo "Swift registry component enabled: $registry_enabled"
 
-          if [ "$registry_enabled" = "true" ] && [ -z "$REGISTRY_IMAGE_TAG" ]; then
-            echo "No Swift registry image tag available to deploy."
-            exit 1
+          registry_image_tag="$REGISTRY_IMAGE_TAG"
+          if [ "$registry_enabled" = "true" ] && [ -z "$registry_image_tag" ]; then
+            current_registry_image="$(
+              kubectl -n "$NAMESPACE" get deployments \
+                -l app.kubernetes.io/instance="$HELM_RELEASE_NAME",app.kubernetes.io/component=registry \
+                -o jsonpath='{.items[0].spec.template.spec.containers[?(@.name=="registry")].image}' \
+                2>/dev/null || true
+            )"
+            image_prefix="${REGISTRY}/${REGISTRY_IMAGE_NAME}:"
+            if [[ "$current_registry_image" != "$image_prefix"* ]]; then
+              echo "No current Swift registry image was found. Provide registry_image_tag when deploying a pre-built server image."
+              exit 1
+            fi
+            registry_image_tag="${current_registry_image#"$image_prefix"}"
+            echo "Swift registry: preserving deployed image tag ${registry_image_tag}"
+          elif [ "$registry_enabled" = "true" ]; then
+            echo "Swift registry: using requested image tag ${registry_image_tag}"
+          else
+            registry_image_tag="registry-disabled"
           fi
-          registry_image_tag="${REGISTRY_IMAGE_TAG:-registry-disabled}"
 
           helm upgrade --install "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
             --namespace "$NAMESPACE" --create-namespace \
@@ -1001,7 +1057,7 @@ jobs:
             --set server.image.tag="$IMAGE_TAG" \
             --set codebaseSearch.image.tag="$CODEBASE_SEARCH_IMAGE_TAG" \
             --set registry.image.tag="$registry_image_tag" \
-            --set kuraController.image.tag="$IMAGE_TAG" \
+            --set kuraController.image.tag="$KURA_CONTROLLER_IMAGE_TAG" \
             "${image_sets[@]}" \
             --atomic --timeout 60m --wait
       - name: Diagnostics on failure

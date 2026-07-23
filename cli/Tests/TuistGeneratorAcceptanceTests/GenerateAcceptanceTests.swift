@@ -691,6 +691,58 @@ struct GenerateAcceptanceTestAppWithSPMCTargetDuplicatePublicHeaders {
     }
 }
 
+struct GenerateAcceptanceTestAppWithNativePackageStaticChain {
+    /// Pins package compiler-setting propagation through static target chains while ensuring
+    /// package object files are linked only by the final binary.
+    @Test(.withFixture("generated_app_with_native_package_static_chain"), .inTemporaryDirectory)
+    func app_with_native_package_static_chain() async throws {
+        let fixturePath = try fixtureDirectory()
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let derivedDataPath = temporaryDirectory.appending(component: "DerivedData")
+
+        try await run(GenerateCommand.self)
+        try await CommandRunner().runAndWait(arguments: [
+            "/usr/bin/xcodebuild",
+            "build",
+            "-workspace",
+            fixturePath.appending(component: "App.xcworkspace").pathString,
+            "-scheme",
+            "App",
+            "-destination",
+            "platform=macOS",
+            "-derivedDataPath",
+            derivedDataPath.pathString,
+            "CODE_SIGNING_ALLOWED=NO",
+            "CODE_SIGNING_REQUIRED=NO",
+            "CODE_SIGN_IDENTITY=",
+        ])
+
+        let productsPath = derivedDataPath.appending(components: "Build", "Products", "Debug")
+        for targetName in ["FeatureA", "FeatureB", "FeatureCore", "PackageLeaf"] {
+            let archivePath = productsPath.appending(
+                components: "\(targetName).framework", "Versions", "A", targetName
+            )
+            let archiveMembers = try await CommandRunner().capture(arguments: [
+                "/usr/bin/ar",
+                "-t",
+                archivePath.pathString,
+            ])
+
+            #expect(archiveMembers.contains("\(targetName).o"))
+            #expect(!archiveMembers.contains("PackageFeature.o"))
+            #expect(!archiveMembers.contains("CModule.o"))
+        }
+
+        let appBinaryPath = productsPath.appending(component: "App")
+        let appSymbols = try await CommandRunner().capture(arguments: [
+            "/usr/bin/nm",
+            "-gj",
+            appBinaryPath.pathString,
+        ])
+        #expect(appSymbols.split(separator: "\n").count { $0 == "_package_value" } == 1)
+    }
+}
+
 struct GenerateAcceptanceTestiOSAppWithMultiConfigs {
     @Test(.disabled(), .withFixture("generated_ios_app_with_multi_configs"), .inTemporaryDirectory)
     func ios_app_with_multi_configs() async throws {
