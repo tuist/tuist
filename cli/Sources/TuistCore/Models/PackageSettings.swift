@@ -24,6 +24,9 @@ public struct PackageSettings: Equatable, Codable {
     /// The custom project options for each project generated from a swift package.
     public let projectOptions: [String: XcodeGraph.Project.Options]
 
+    /// Whether test targets from local path package dependencies are included in generated projects.
+    public let includeLocalPackageTestTargets: Bool
+
     /// Initializes a new `PackageSettings` instance.
     /// - Parameters:
     ///    - productTypes: The custom `Product` types to be used for SPM targets.
@@ -38,7 +41,8 @@ public struct PackageSettings: Equatable, Codable {
         baseSettings: Settings,
         expectedSignatures: [String: XCFrameworkSignature],
         targetSettings: [String: Settings],
-        projectOptions: [String: XcodeGraph.Project.Options] = [:]
+        projectOptions: [String: XcodeGraph.Project.Options] = [:],
+        includeLocalPackageTestTargets: Bool = true
     ) {
         self.productTypes = productTypes
         self.baseProductType = baseProductType
@@ -47,6 +51,7 @@ public struct PackageSettings: Equatable, Codable {
         self.expectedSignatures = expectedSignatures
         self.targetSettings = targetSettings
         self.projectOptions = projectOptions
+        self.includeLocalPackageTestTargets = includeLocalPackageTestTargets
     }
 
     #if DEBUG
@@ -57,7 +62,8 @@ public struct PackageSettings: Equatable, Codable {
             baseSettings: Settings = Settings.default,
             expectedSignatures: [String: XCFrameworkSignature] = [:],
             targetSettings: [String: Settings] = [:],
-            projectOptions: [String: XcodeGraph.Project.Options] = [:]
+            projectOptions: [String: XcodeGraph.Project.Options] = [:],
+            includeLocalPackageTestTargets: Bool = true
         ) -> PackageSettings {
             PackageSettings(
                 productTypes: productTypes,
@@ -66,7 +72,8 @@ public struct PackageSettings: Equatable, Codable {
                 baseSettings: baseSettings,
                 expectedSignatures: expectedSignatures,
                 targetSettings: targetSettings,
-                projectOptions: projectOptions
+                projectOptions: projectOptions,
+                includeLocalPackageTestTargets: includeLocalPackageTestTargets
             )
         }
     #endif

@@ -255,6 +255,10 @@ struct DependenciesAcceptanceTestIosAppWithLocalSPMPackageGenerate {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         try await TuistTest.run(InstallCommand.self, ["--path", fixtureDirectory.pathString])
         try await TuistTest.run(GenerateCommand.self, ["--no-open", "--path", fixtureDirectory.pathString])
+        try TuistTest.expectContainsTarget(
+            "LocalLibTests",
+            inXcodeProj: fixtureDirectory.appending(components: "LocalPackage", "LocalPackage.xcodeproj")
+        )
     }
 }
 
