@@ -206,7 +206,8 @@ public enum Product: String, CustomStringConvertible, CaseIterable, Codable, Sen
 
         if platform == .macOS ||
             platform == .tvOS ||
-            platform == .iOS
+            platform == .iOS ||
+            platform == .visionOS
         {
             base.append(.uiTests)
         }
