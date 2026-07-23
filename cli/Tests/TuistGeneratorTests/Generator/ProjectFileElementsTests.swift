@@ -477,6 +477,80 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         ]))
     }
 
+    func test_targetFiles_whenBuildSettingSupportFilesAreOutsideBuildableFolder() throws {
+        // Given
+        let debugInfoPlist = try AbsolutePath(validating: "/project/Supporting Files/App-Debug.plist")
+        let releaseInfoPlist = try AbsolutePath(validating: "/project/Supporting Files/App-Release.plist")
+        let entitlements = try AbsolutePath(validating: "/project/Supporting Files/App.entitlements")
+        let target = Target.test(
+            settings: Settings(
+                base: [
+                    "CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*]": "$(SRCROOT)/Supporting Files/App.entitlements",
+                ],
+                configurations: [
+                    .debug: Configuration(settings: ["INFOPLIST_FILE": "Supporting Files/App-Debug.plist"]),
+                    .release: Configuration(settings: ["INFOPLIST_FILE": "$(PROJECT_DIR)/Supporting Files/App-Release.plist"]),
+                ]
+            )
+        )
+        let project = Project.test(
+            path: "/project",
+            sourceRootPath: "/project",
+            xcodeProjPath: "/project/Project.xcodeproj",
+            targets: [target]
+        )
+
+        // When
+        let files = try subject.targetFiles(target: target, project: project)
+
+        // Then
+        XCTAssertTrue(files.isSuperset(of: [
+            GroupFileElement.file(path: debugInfoPlist, group: target.filesGroup),
+            GroupFileElement.file(path: releaseInfoPlist, group: target.filesGroup),
+            GroupFileElement.file(path: entitlements, group: target.filesGroup),
+        ]))
+    }
+
+    func test_targetFiles_whenBuildSettingSupportFilesAreInsideBuildableFolder() throws {
+        // Given
+        let debugInfoPlist = try AbsolutePath(validating: "/project/App/Supporting Files/App-Debug.plist")
+        let releaseInfoPlist = try AbsolutePath(validating: "/project/App/Supporting Files/App-Release.plist")
+        let entitlements = try AbsolutePath(validating: "/project/App/Supporting Files/App.entitlements")
+        let target = Target.test(
+            settings: Settings(
+                base: [
+                    "CODE_SIGN_ENTITLEMENTS": "App/Supporting Files/App.entitlements",
+                ],
+                configurations: [
+                    .debug: Configuration(settings: ["INFOPLIST_FILE": "App/Supporting Files/App-Debug.plist"]),
+                    .release: Configuration(settings: ["INFOPLIST_FILE": "App/Supporting Files/App-Release.plist"]),
+                ]
+            ),
+            buildableFolders: [
+                BuildableFolder(
+                    path: "/project/App",
+                    exceptions: BuildableFolderExceptions(exceptions: []),
+                    resolvedFiles: []
+                ),
+            ]
+        )
+        let project = Project.test(
+            path: "/project",
+            sourceRootPath: "/project",
+            xcodeProjPath: "/project/Project.xcodeproj",
+            targets: [target]
+        )
+
+        // When
+        let files = try subject.targetFiles(target: target, project: project)
+
+        // Then
+        XCTAssertFalse(files.contains(GroupFileElement.file(path: debugInfoPlist, group: target.filesGroup)))
+        XCTAssertFalse(files.contains(GroupFileElement.file(path: releaseInfoPlist, group: target.filesGroup)))
+        XCTAssertFalse(files.contains(GroupFileElement.file(path: entitlements, group: target.filesGroup)))
+        XCTAssertTrue(files.contains(GroupFileElement.synchronizedFolder(path: "/project/App", group: target.filesGroup)))
+    }
+
     func test_generateProduct() throws {
         // Given
         let pbxproj = PBXProj()
