@@ -42,4 +42,29 @@ final class UpdateWorkspaceProjectsGraphMapperTests: TuistUnitTestCase {
         XCTAssertEmpty(gotSideEffects)
         XCTAssertEqual(gotGraph.workspace.projects, [secondProjectPath])
     }
+
+    func test_map_preservesManifestProjectPaths() throws {
+        // Given
+        let firstProjectPath: AbsolutePath = "/first-project"
+        let secondProjectPath: AbsolutePath = "/second-project"
+        let thirdProjectPath: AbsolutePath = "/third-project"
+        let workspace = Workspace.test(
+            projects: [firstProjectPath, secondProjectPath],
+            manifestProjectPaths: [secondProjectPath, firstProjectPath]
+        )
+        let graph = Graph.test(
+            workspace: workspace,
+            projects: [
+                secondProjectPath: Project.test(path: secondProjectPath),
+                thirdProjectPath: Project.test(path: thirdProjectPath),
+            ]
+        )
+
+        // When
+        let (gotGraph, _, _) = try subject.map(graph: graph, environment: MapperEnvironment())
+
+        // Then
+        XCTAssertEqual(Set(gotGraph.workspace.projects), Set([secondProjectPath, thirdProjectPath]))
+        XCTAssertEqual(gotGraph.workspace.manifestProjectPaths, [secondProjectPath, firstProjectPath])
+    }
 }
