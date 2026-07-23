@@ -616,6 +616,34 @@ defmodule Tuist.Kura.ReconcilerTest do
     {account, source}
   end
 
+  test "schedules destruction for servers stranded in a retired region" do
+    {_account, server, _deployment} = create_server()
+
+    {:ok, server} =
+      server
+      |> Ecto.Changeset.change(region: "hetzner-staging-runners")
+      |> Repo.update()
+
+    stub(Provisioner, :current_image_tag, fn _server -> {:error, :not_found} end)
+
+    Reconciler.reconcile()
+
+    # A retired region only stays in the catalog so its leftovers can be torn
+    # down. Without this the row keeps its status forever and its pod sits
+    # unschedulable against a node pool that was deleted with the region.
+    assert %Server{status: :destroyed} = Repo.reload!(server)
+  end
+
+  test "leaves servers in live regions alone" do
+    {_account, server, _deployment} = create_server()
+
+    stub(Provisioner, :current_image_tag, fn _server -> {:ok, "0.5.2"} end)
+
+    Reconciler.reconcile()
+
+    refute Repo.reload!(server).status in [:destroying, :destroyed]
+  end
+
   defp create_server do
     user = AccountsFixtures.user_fixture()
     account = Accounts.get_account_from_user(user)
