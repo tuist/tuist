@@ -80,6 +80,22 @@ struct XCResultParserTests {
     }
 
     @Test
+    func timeoutErrorDescriptionDoesNotIncludeThePerRunTemporaryDirectory() throws {
+        let path = try AbsolutePath(validating: "/tmp/tuist_xcresult_processor_1234/AppTests.xcresult")
+        let error = XCResultParserError.timedOut(path, seconds: 600)
+
+        #expect(error.localizedDescription == "xcresult parsing timed out after 600s")
+    }
+
+    @Test
+    func timeoutErrorDescriptionCanIncludeStableParserStage() throws {
+        let path = try AbsolutePath(validating: "/tmp/tuist_xcresult_processor_1234/AppTests.xcresult")
+        let error = XCResultParserError.timedOut(path, seconds: 600, stage: "exporting attachments")
+
+        #expect(error.localizedDescription == "xcresult parsing timed out after 600s while exporting attachments")
+    }
+
+    @Test
     func parse_populatesRunDestinationsFromTheXcresultDevicesArray() async throws {
         let zipPath = try fixtureZipPath("test-with-arguments.xcresult")
 
