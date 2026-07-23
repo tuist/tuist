@@ -78,6 +78,7 @@ struct XcodeBuildTestCommandService {
         skipQuarantine: Bool = false,
         shardIndex: Int? = nil,
         shardReference: String? = nil,
+        shardPlanId: String? = nil,
         shardArchivePath: AbsolutePath? = nil,
         mode: TestProcessingMode? = nil
     ) async throws {
@@ -92,7 +93,7 @@ struct XcodeBuildTestCommandService {
         let config = try await configLoader.loadConfig(path: path)
         let mode = mode ?? TestProcessingMode.default(for: config.url)
 
-        var shardPlanId: String?
+        var resolvedShardPlanId: String?
         var shardTestProductsPath: AbsolutePath?
         if let shardIndex, let fullHandle = config.fullHandle {
             let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
@@ -110,10 +111,11 @@ struct XcodeBuildTestCommandService {
                 fullHandle: fullHandle,
                 serverURL: serverURL,
                 reference: shardReference,
+                shardPlanId: shardPlanId,
                 testProductsPath: testProductsPath,
                 testProductsArchivePath: shardArchivePath
             )
-            shardPlanId = shard.shardPlanId
+            resolvedShardPlanId = shard.shardPlanId
 
             passthroughXcodebuildArguments = removeOption("-workspace", from: passthroughXcodebuildArguments)
             passthroughXcodebuildArguments = removeOption("-scheme", from: passthroughXcodebuildArguments)
@@ -180,7 +182,7 @@ struct XcodeBuildTestCommandService {
                 projectDerivedDataDirectory: derivedDataPath,
                 config: config,
                 quarantinedTests: allQuarantinedTests,
-                shardPlanId: shardPlanId,
+                shardPlanId: resolvedShardPlanId,
                 shardIndex: shardIndex,
                 scheme: passedValue(for: "-scheme", arguments: passthroughXcodebuildArguments),
                 mode: mode
@@ -235,7 +237,7 @@ struct XcodeBuildTestCommandService {
             projectDerivedDataDirectory: derivedDataPath,
             config: config,
             quarantinedTests: allQuarantinedTests,
-            shardPlanId: shardPlanId,
+            shardPlanId: resolvedShardPlanId,
             shardIndex: shardIndex,
             scheme: passedValue(for: "-scheme", arguments: passthroughXcodebuildArguments),
             mode: mode

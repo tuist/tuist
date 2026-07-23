@@ -7,6 +7,7 @@ import Testing
 import TuistCI
 import TuistEnvironment
 import TuistEnvironmentTesting
+import TuistEnvKey
 import TuistServer
 @testable import TuistKit
 
@@ -24,7 +25,13 @@ struct ShardMatrixOutputServiceTests {
         try await fixture.subject.output(.test(shardCount: 3))
 
         let content = try await fixture.fileSystem.readTextFile(at: githubOutputPath)
-        #expect(content == "matrix={\"shard\":[0, 1, 2]}\n")
+        let matrixValue = try #require(content.split(separator: "=", maxSplits: 1).last.map(String.init))
+        let json = try JSON(data: Data(matrixValue.utf8))
+        #expect(json["shard"].arrayValue.map(\.intValue) == [0, 1, 2])
+        #expect(json["include"].arrayValue.map { $0["shard"].intValue } == [0, 1, 2])
+        #expect(json["include"].arrayValue.map { $0["shard_plan_id"].stringValue } == [
+            "test-id", "test-id", "test-id",
+        ])
     }
 
     @Test(.withMockedEnvironment())
@@ -43,6 +50,7 @@ struct ShardMatrixOutputServiceTests {
         let matrixValue = try #require(content.split(separator: "=", maxSplits: 1).last.map(String.init))
         let json = try JSON(data: Data(matrixValue.utf8))
         #expect(json["shard"].arrayValue.isEmpty)
+        #expect(json["include"].arrayValue.isEmpty)
     }
 
     @Test(.withMockedEnvironment())
@@ -60,11 +68,13 @@ struct ShardMatrixOutputServiceTests {
           extends: .tuist-shard
           variables:
             TUIST_SHARD_INDEX: "0"
+            TUIST_SHARD_PLAN_ID: "test-id"
 
         shard-1:
           extends: .tuist-shard
           variables:
             TUIST_SHARD_INDEX: "1"
+            TUIST_SHARD_PLAN_ID: "test-id"
 
 
         """)
@@ -89,6 +99,26 @@ struct ShardMatrixOutputServiceTests {
     }
 
     @Test(.withMockedEnvironment())
+    func output_circleci_writesPlanIdWhenEnabled() async throws {
+        let fixture = makeSubject()
+        let cwd = try await Environment.current.currentWorkingDirectory()
+
+        given(fixture.ciController).ciInfo().willReturn(.test(provider: .circleci))
+        Environment.mocked?.variables[EnvKey.testShardCircleCIPlanIdEnabled.rawValue] = "true"
+
+        try await fixture.subject.output(.test(shardCount: 2))
+
+        let content = try await fixture.fileSystem.readTextFile(at: cwd.appending(component: ".tuist-shard-continuation.json"))
+        #expect(content == """
+        {
+          "shard-count" : 2,
+          "shard-indices" : "0,1",
+          "shard-plan-id" : "test-id"
+        }
+        """)
+    }
+
+    @Test(.withMockedEnvironment())
     func output_buildkite_writesPipelineYML() async throws {
         let fixture = makeSubject()
         let cwd = try await Environment.current.currentWorkingDirectory()
@@ -103,10 +133,12 @@ struct ShardMatrixOutputServiceTests {
           - label: "Shard #0"
             env:
               TUIST_SHARD_INDEX: "0"
+              TUIST_SHARD_PLAN_ID: "test-id"
 
           - label: "Shard #1"
             env:
               TUIST_SHARD_INDEX: "1"
+              TUIST_SHARD_PLAN_ID: "test-id"
 
 
         """)
@@ -125,7 +157,10 @@ struct ShardMatrixOutputServiceTests {
         try await fixture.subject.output(.test(shardCount: 2))
 
         let content = try await fixture.fileSystem.readTextFile(at: cmEnvPath)
-        #expect(content == "TUIST_SHARD_MATRIX={\"shard\":[0, 1]}\nTUIST_SHARD_COUNT=2\n")
+        #expect(
+            content ==
+                "TUIST_SHARD_MATRIX={\"shard\":[0, 1]}\nTUIST_SHARD_COUNT=2\nTUIST_SHARD_PLAN_ID=test-id\n"
+        )
     }
 
     @Test(.withMockedEnvironment())
@@ -141,7 +176,7 @@ struct ShardMatrixOutputServiceTests {
         try await fixture.subject.output(.test(shardCount: 2))
 
         let content = try await fixture.fileSystem.readTextFile(at: deployDir.appending(component: ".tuist-shard-matrix.json"))
-        #expect(content == "{\"shard\":[0, 1],\"shard_count\":2}")
+        #expect(content == "{\"shard\":[0, 1],\"shard_count\":2,\"shard_plan_id\":\"test-id\"}")
     }
 
     @Test(.withMockedEnvironment())

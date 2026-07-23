@@ -1808,10 +1808,12 @@ extension APIProtocol {
     /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/shards/{reference}/{shard_index}/get(getShard)`.
     public func getShard(
         path: Operations.getShard.Input.Path,
+        query: Operations.getShard.Input.Query = .init(),
         headers: Operations.getShard.Input.Headers = .init()
     ) async throws -> Operations.getShard.Output {
         try await getShard(Operations.getShard.Input(
             path: path,
+            query: query,
             headers: headers
         ))
     }
@@ -39955,6 +39957,21 @@ public enum Operations {
                 }
             }
             public var path: Operations.getShard.Input.Path
+            /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/{reference}/{shard_index}/GET/query`.
+            public struct Query: Sendable, Hashable {
+                /// The exact shard plan identifier. When present, it takes precedence over the reference.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/{reference}/{shard_index}/GET/query/shard_plan_id`.
+                public var shard_plan_id: Swift.String?
+                /// Creates a new `Query`.
+                ///
+                /// - Parameters:
+                ///   - shard_plan_id: The exact shard plan identifier. When present, it takes precedence over the reference.
+                public init(shard_plan_id: Swift.String? = nil) {
+                    self.shard_plan_id = shard_plan_id
+                }
+            }
+            public var query: Operations.getShard.Input.Query
             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/{reference}/{shard_index}/GET/header`.
             public struct Headers: Sendable, Hashable {
                 public var accept: [OpenAPIRuntime.AcceptHeaderContentType<Operations.getShard.AcceptableContentType>]
@@ -39971,12 +39988,15 @@ public enum Operations {
             ///
             /// - Parameters:
             ///   - path:
+            ///   - query:
             ///   - headers:
             public init(
                 path: Operations.getShard.Input.Path,
+                query: Operations.getShard.Input.Query = .init(),
                 headers: Operations.getShard.Input.Headers = .init()
             ) {
                 self.path = path
+                self.query = query
                 self.headers = headers
             }
         }
@@ -40027,6 +40047,57 @@ public enum Operations {
                     default:
                         try throwUnexpectedResponseStatus(
                             expectedStatus: "ok",
+                            response: self
+                        )
+                    }
+                }
+            }
+            public struct BadRequest: Sendable, Hashable {
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/{reference}/{shard_index}/GET/responses/400/content`.
+                @frozen public enum Body: Sendable, Hashable {
+                    /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/tests/shards/{reference}/{shard_index}/GET/responses/400/content/application\/json`.
+                    case json(Components.Schemas._Error)
+                    /// The associated value of the enum case if `self` is `.json`.
+                    ///
+                    /// - Throws: An error if `self` is not `.json`.
+                    /// - SeeAlso: `.json`.
+                    public var json: Components.Schemas._Error {
+                        get throws {
+                            switch self {
+                            case let .json(body):
+                                return body
+                            }
+                        }
+                    }
+                }
+                /// Received HTTP response body
+                public var body: Operations.getShard.Output.BadRequest.Body
+                /// Creates a new `BadRequest`.
+                ///
+                /// - Parameters:
+                ///   - body: Received HTTP response body
+                public init(body: Operations.getShard.Output.BadRequest.Body) {
+                    self.body = body
+                }
+            }
+            /// The request parameters are invalid
+            ///
+            /// - Remark: Generated from `#/paths//api/projects/{account_handle}/{project_handle}/tests/shards/{reference}/{shard_index}/get(getShard)/responses/400`.
+            ///
+            /// HTTP response code: `400 badRequest`.
+            case badRequest(Operations.getShard.Output.BadRequest)
+            /// The associated value of the enum case if `self` is `.badRequest`.
+            ///
+            /// - Throws: An error if `self` is not `.badRequest`.
+            /// - SeeAlso: `.badRequest`.
+            public var badRequest: Operations.getShard.Output.BadRequest {
+                get throws {
+                    switch self {
+                    case let .badRequest(response):
+                        return response
+                    default:
+                        try throwUnexpectedResponseStatus(
+                            expectedStatus: "badRequest",
                             response: self
                         )
                     }

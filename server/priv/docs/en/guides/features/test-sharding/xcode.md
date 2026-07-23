@@ -21,7 +21,7 @@ Test sharding for Xcode projects uses `tuist xcodebuild build-for-testing` to cr
 Test sharding follows a two-phase workflow:
 
 1. **Build phase:** Tuist reads the test modules from the built `.xctestrun` file and creates a **shard plan** on the server. The server uses historical test timing data from the last 30 days to distribute tests across shards so each shard takes roughly the same amount of time. The build phase outputs a **shard matrix** that your CI system uses to spawn parallel runners.
-2. **Test phase:** Each CI runner receives a **shard index** and executes that shard's test selection.
+2. **Test phase:** Each continuous integration runner receives a **shard index** and the exact **shard plan identifier**, then executes that plan's test selection.
 
 With suite granularity, the server chooses known suites per module: for each module in the current `.xctestrun`, it uses the latest CI run on the build branch that included that module, falling back to the project's default branch for modules without branch history. This keeps selective testing runs from hiding modules that were skipped in the latest branch run.
 
@@ -71,6 +71,7 @@ tuist xcodebuild test \
 | Flag | Environment variable | Description |
 |------|---------------------|-------------|
 | `--shard-index <N>` | `TUIST_SHARD_INDEX` | Zero-based index of the shard to execute |
+| `--shard-plan-id <IDENTIFIER>` | `TUIST_SHARD_PLAN_ID` | Exact shard plan identifier emitted by the build phase. Generated provider outputs include this value; CircleCI requires the opt-in described below |
 | `--shard-reference <REF>` | `TUIST_SHARD_REFERENCE` | Unique identifier for the shard plan (auto-derived on supported CI providers) |
 | `--shard-archive-path <PATH>` | `TUIST_TEST_SHARD_ARCHIVE_PATH` | Path to a locally managed shard archive; Tuist extracts it instead of downloading test products from remote storage |
 
@@ -120,10 +121,10 @@ jobs:
     runs-on: macos-latest
     strategy:
       fail-fast: false
-      matrix:
-        shard: ${{ fromJson(needs.build.outputs.matrix).shard }}
+      matrix: ${{ fromJson(needs.build.outputs.matrix) }}
     env:
       TUIST_SHARD_INDEX: ${{ matrix.shard }}
+      TUIST_SHARD_PLAN_ID: ${{ matrix.shard_plan_id }}
     steps:
       - uses: actions/checkout@v4
       - uses: jdx/mise-action@v2
@@ -182,7 +183,9 @@ test-shards:
 
 ### CircleCI {#circleci}
 
-Tuist generates a `.tuist-shard-continuation.json` with parameters for the [continuation orb](https://circleci.com/developer/orbs/orb/circleci/continuation):
+Tuist generates a `.tuist-shard-continuation.json` with parameters for the [continuation orb](https://circleci.com/developer/orbs/orb/circleci/continuation).
+
+To avoid sending a parameter that existing continued configurations do not declare, Tuist only includes the exact shard plan identifier when `TUIST_CIRCLECI_SHARD_PLAN_ID_ENABLED` is `true`. Set it after declaring the `shard-plan-id` parameter in the continued configuration, as shown below:
 
 ```yaml
 # .circleci/config.yml
@@ -196,6 +199,8 @@ jobs:
   build-shards:
     macos:
       xcode: "16.0"
+    environment:
+      TUIST_CIRCLECI_SHARD_PLAN_ID_ENABLED: "true"
     steps:
       - checkout
       - run:
@@ -227,6 +232,9 @@ parameters:
   shard-count:
     type: integer
     default: 0
+  shard-plan-id:
+    type: string
+    default: ""
 
 jobs:
   test-shard:
@@ -241,6 +249,7 @@ jobs:
           name: Run shard
           command: |
             export TUIST_SHARD_INDEX=<< parameters.shard-index >>
+            export TUIST_SHARD_PLAN_ID=<< pipeline.parameters.shard-plan-id >>
             tuist auth login
             tuist xcodebuild test \
               -scheme MyScheme \
@@ -274,7 +283,7 @@ steps:
       queue: macos
 ```
 
-Each generated step has `TUIST_SHARD_INDEX` set in its environment. Add the test command to each shard step using a shared script:
+Each generated step has `TUIST_SHARD_INDEX` and `TUIST_SHARD_PLAN_ID` set in its environment. Add the test command to each shard step using a shared script:
 
 ```bash
 # .buildkite/shard-step.sh
@@ -526,10 +535,10 @@ jobs:
     runs-on: namespace-profile-default-macos
     strategy:
       fail-fast: false
-      matrix:
-        shard: ${{ fromJson(needs.build.outputs.matrix).shard }}
+      matrix: ${{ fromJson(needs.build.outputs.matrix) }}
     env:
       TUIST_SHARD_INDEX: ${{ matrix.shard }}
+      TUIST_SHARD_PLAN_ID: ${{ matrix.shard_plan_id }}
     steps:
       - uses: actions/checkout@v4
       - uses: jdx/mise-action@v2

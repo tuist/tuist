@@ -4715,6 +4715,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 fullHandle: .any,
                 serverURL: .any,
                 reference: .any,
+                shardPlanId: .any,
                 testProductsPath: .any,
                 testProductsArchivePath: .any
             )
@@ -4882,6 +4883,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 fullHandle: .any,
                 serverURL: .any,
                 reference: .any,
+                shardPlanId: .any,
                 testProductsPath: .any,
                 testProductsArchivePath: .any
             )
@@ -5650,6 +5652,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 fullHandle: .any,
                 serverURL: .any,
                 reference: .any,
+                shardPlanId: .any,
                 testProductsPath: .any,
                 testProductsArchivePath: .any
             )
@@ -5693,65 +5696,6 @@ final class TestServiceTests: TuistUnitTestCase {
             .run(arguments: .matching { args in
                 args.containsConsecutive("-only-testing", "AppTests")
             })
-            .called(1)
-    }
-
-    func test_run_testWithoutBuilding_passesShardArchivePathToShardService() async throws {
-        // Given
-        let path = try temporaryPath()
-        let shardArchivePath = path.appending(component: "bundle.aar")
-        let extractedTestProductsPath = path.appending(component: "Extracted.xctestproducts")
-        try await fileSystem.makeDirectory(at: extractedTestProductsPath)
-
-        given(configLoader)
-            .loadConfig(path: .any)
-            .willReturn(.test(project: .testGeneratedProject(), fullHandle: "tuist/tuist"))
-
-        given(shardService)
-            .shard(
-                shardIndex: .any,
-                fullHandle: .any,
-                serverURL: .any,
-                reference: .any,
-                testProductsPath: .any,
-                testProductsArchivePath: .any
-            )
-            .willReturn(
-                Shard(
-                    reference: "ref",
-                    shardPlanId: "plan-123",
-                    testProductsPath: extractedTestProductsPath,
-                    testIdentifiers: ["AppTests"],
-                    skipTestIdentifiers: [],
-                    modules: ["AppTests"],
-                    selectiveTestingGraph: nil
-                )
-            )
-
-        given(xcodebuildController)
-            .run(arguments: .any)
-            .willReturn()
-
-        // When
-        try await AlertController.$current.withValue(AlertController()) {
-            try await testRun(
-                path: path,
-                action: .testWithoutBuilding,
-                shardIndex: 1,
-                shardArchivePath: shardArchivePath
-            )
-        }
-
-        // Then
-        verify(shardService)
-            .shard(
-                shardIndex: .value(1),
-                fullHandle: .value("tuist/tuist"),
-                serverURL: .any,
-                reference: .any,
-                testProductsPath: .value(nil),
-                testProductsArchivePath: .value(shardArchivePath)
-            )
             .called(1)
     }
 
@@ -6022,6 +5966,7 @@ final class TestServiceTests: TuistUnitTestCase {
         passthroughXcodeBuildArguments: [String] = [],
         skipQuarantine: Bool = false,
         shardReference: String? = nil,
+        shardPlanId: String? = nil,
         shardGranularity: ShardGranularity = .module,
         shardMin: Int? = nil,
         shardMax: Int? = nil,
@@ -6059,6 +6004,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 passthroughXcodeBuildArguments: passthroughXcodeBuildArguments,
                 skipQuarantine: skipQuarantine,
                 shardReference: shardReference,
+                shardPlanId: shardPlanId,
                 shardGranularity: shardGranularity,
                 shardMin: shardMin,
                 shardMax: shardMax,
@@ -6077,6 +6023,148 @@ final class TestServiceTests: TuistUnitTestCase {
     func test_inferPlatformDestination_returns_nil_for_empty_schemes() {
         let graphTraverser = MockGraphTraversing()
         XCTAssertNil(subject.inferPlatformDestination(schemes: [], graphTraverser: graphTraverser))
+    }
+}
+
+@Suite
+struct TestServiceShardingTests {
+    @Test(.inTemporaryDirectory, .withMockedDependencies())
+    func without_building_passes_shard_plan_and_archive_path_to_shard_service() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let fixture = TestServiceShardingFixture(rootDirectory: temporaryDirectory)
+        let shardArchivePath = temporaryDirectory.appending(component: "bundle.aar")
+        let extractedTestProductsPath = temporaryDirectory.appending(component: "Extracted.xctestproducts")
+        try await FileSystem().makeDirectory(at: extractedTestProductsPath)
+
+        given(fixture.shardService)
+            .shard(
+                shardIndex: .any,
+                fullHandle: .any,
+                serverURL: .any,
+                reference: .any,
+                shardPlanId: .any,
+                testProductsPath: .any,
+                testProductsArchivePath: .any
+            )
+            .willReturn(
+                Shard(
+                    reference: "ref",
+                    shardPlanId: "plan-123",
+                    testProductsPath: extractedTestProductsPath,
+                    testIdentifiers: ["AppTests"],
+                    skipTestIdentifiers: [],
+                    modules: ["AppTests"],
+                    selectiveTestingGraph: nil
+                )
+            )
+
+        try await AlertController.$current.withValue(AlertController()) {
+            try await fixture.run(
+                path: temporaryDirectory,
+                shardPlanId: "plan-123",
+                shardIndex: 1,
+                shardArchivePath: shardArchivePath
+            )
+        }
+
+        verify(fixture.shardService)
+            .shard(
+                shardIndex: .value(1),
+                fullHandle: .value("tuist/tuist"),
+                serverURL: .any,
+                reference: .any,
+                shardPlanId: .value("plan-123"),
+                testProductsPath: .value(nil),
+                testProductsArchivePath: .value(shardArchivePath)
+            )
+            .called(1)
+    }
+}
+
+private struct TestServiceShardingFixture {
+    let shardService = MockShardServicing()
+
+    private let runMetadataStorage = RunMetadataStorage()
+    private let subject: TestService
+
+    init(rootDirectory: AbsolutePath) {
+        let cacheStorage = MockCacheStoring()
+        let cacheStorageFactory = MockCacheStorageFactorying()
+        let xcodebuildController = MockXcodeBuildControlling()
+        let cacheDirectoriesProvider = MockCacheDirectoriesProviding()
+        let configLoader = MockConfigLoading()
+        let xcodeBuildArgumentParser = MockXcodeBuildArgumentParsing()
+        let serverEnvironmentService = MockServerEnvironmentServicing()
+
+        given(cacheStorageFactory)
+            .cacheLocalStorage()
+            .willReturn(cacheStorage)
+        given(cacheDirectoriesProvider)
+            .cacheDirectory(for: .value(.runs))
+            .willReturn(rootDirectory)
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject(), fullHandle: "tuist/tuist"))
+        given(xcodeBuildArgumentParser)
+            .parse(.any)
+            .willReturn(.test(destination: nil))
+        given(serverEnvironmentService)
+            .url(configServerURL: .any)
+            .willReturn(URL(string: "https://tuist.dev")!)
+        given(xcodebuildController)
+            .run(arguments: .any)
+            .willReturn()
+
+        subject = TestService(
+            cacheStorageFactory: cacheStorageFactory,
+            xcodebuildController: xcodebuildController,
+            cacheDirectoriesProvider: cacheDirectoriesProvider,
+            configLoader: configLoader,
+            xcodeBuildArgumentParser: xcodeBuildArgumentParser,
+            serverEnvironmentService: serverEnvironmentService,
+            shardService: shardService,
+            uploadBuildRunService: nil
+        )
+    }
+
+    func run(
+        path: AbsolutePath,
+        shardPlanId: String,
+        shardIndex: Int,
+        shardArchivePath: AbsolutePath
+    ) async throws {
+        try await RunMetadataStorage.$current.withValue(runMetadataStorage) {
+            try await subject.run(
+                runId: "run-id",
+                schemeName: nil,
+                clean: false,
+                noUpload: true,
+                configuration: nil,
+                path: path,
+                deviceName: nil,
+                platform: nil,
+                osVersion: nil,
+                action: .testWithoutBuilding,
+                rosetta: false,
+                skipUITests: false,
+                skipUnitTests: false,
+                resultBundlePath: nil,
+                derivedDataPath: nil,
+                retryCount: 0,
+                testTargets: [],
+                skipTestTargets: [],
+                testPlanConfiguration: nil,
+                ignoreBinaryCache: false,
+                ignoreSelectiveTesting: false,
+                generateOnly: false,
+                passthroughXcodeBuildArguments: [],
+                skipQuarantine: true,
+                shardPlanId: shardPlanId,
+                shardIndex: shardIndex,
+                shardArchivePath: shardArchivePath,
+                mode: .off
+            )
+        }
     }
 }
 

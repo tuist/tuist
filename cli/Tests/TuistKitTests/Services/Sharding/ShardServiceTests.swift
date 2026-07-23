@@ -105,6 +105,7 @@ struct ShardServiceTests {
             fullHandle: .any,
             serverURL: .any,
             reference: .any,
+            shardPlanId: .any,
             shardIndex: .any
         ).willReturn(
             Components.Schemas.Shard(
@@ -160,6 +161,7 @@ struct ShardServiceTests {
             fullHandle: .any,
             serverURL: .any,
             reference: .any,
+            shardPlanId: .any,
             shardIndex: .any
         ).willReturn(
             Components.Schemas.Shard(
@@ -219,6 +221,7 @@ struct ShardServiceTests {
             fullHandle: .any,
             serverURL: .any,
             reference: .value("explicit-ref"),
+            shardPlanId: .any,
             shardIndex: .any
         ).willReturn(
             Components.Schemas.Shard(
@@ -247,6 +250,53 @@ struct ShardServiceTests {
         )
 
         #expect(shard.reference == "explicit-ref")
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedDependencies())
+    func shard_exactPlanId_isForwardedToGetShard() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let fileSystem = FileSystem()
+        let testProductsPath = temporaryDirectory.appending(component: "MyApp.xctestproducts")
+        try await fileSystem.makeDirectory(at: testProductsPath)
+
+        let ciController = MockCIControlling()
+        given(ciController).ciInfo().willReturn(nil)
+
+        let getShardService = MockGetShardServicing()
+        given(getShardService).getShard(
+            fullHandle: .any,
+            serverURL: .any,
+            reference: .value("plan-123"),
+            shardPlanId: .value("plan-123"),
+            shardIndex: .value(0)
+        ).willReturn(
+            Components.Schemas.Shard(
+                download_url: "https://example.com/unused",
+                download_urls: [],
+                modules: ["AppTests"],
+                shard_plan_id: "plan-123",
+                skip: [],
+                suites: .init()
+            )
+        )
+
+        let subject = ShardService(
+            getShardService: getShardService,
+            ciController: ciController,
+            fileSystem: fileSystem
+        )
+
+        let shard = try await subject.shard(
+            shardIndex: 0,
+            fullHandle: "org/project",
+            serverURL: URL(string: "https://tuist.dev")!,
+            reference: nil,
+            shardPlanId: "plan-123",
+            testProductsPath: testProductsPath,
+            testProductsArchivePath: nil
+        )
+
+        #expect(shard.shardPlanId == "plan-123")
     }
 
     @Test(.inTemporaryDirectory, .withMockedDependencies())
@@ -289,6 +339,7 @@ struct ShardServiceTests {
             fullHandle: .any,
             serverURL: .any,
             reference: .any,
+            shardPlanId: .any,
             shardIndex: .any
         ).willReturn(
             Components.Schemas.Shard(
@@ -394,6 +445,7 @@ struct ShardServiceTests {
             fullHandle: .any,
             serverURL: .any,
             reference: .any,
+            shardPlanId: .any,
             shardIndex: .any
         ).willReturn(
             Components.Schemas.Shard(
@@ -462,6 +514,7 @@ struct ShardServiceTests {
             fullHandle: .any,
             serverURL: .any,
             reference: .any,
+            shardPlanId: .any,
             shardIndex: .any
         ).willReturn(
             Components.Schemas.Shard(

@@ -875,6 +875,49 @@ defmodule Tuist.ShardsTest do
   end
 
   describe "get_shard/4" do
+    test "returns the requested plan when multiple plans share a reference" do
+      project = ProjectsFixtures.project_fixture()
+      account = project.account
+
+      requested_plan =
+        ShardsFixtures.shard_plan_fixture(project_id: project.id, reference: "reused-reference", granularity: "module")
+
+      latest_plan =
+        ShardsFixtures.shard_plan_fixture(project_id: project.id, reference: "reused-reference", granularity: "module")
+
+      ShardsFixtures.shard_plan_module_fixture(
+        shard_plan_id: requested_plan.id,
+        project_id: project.id,
+        shard_index: 0,
+        module_name: "RequestedTests"
+      )
+
+      ShardsFixtures.shard_plan_module_fixture(
+        shard_plan_id: latest_plan.id,
+        project_id: project.id,
+        shard_index: 0,
+        module_name: "LatestTests"
+      )
+
+      stub(Tuist.Storage, :object_exists?, fn _key, _account -> false end)
+      stub(Tuist.Storage, :generate_download_url, fn key, _account -> key end)
+
+      assert {:ok, result} = Shards.get_shard_for_plan_id(project, account, requested_plan.id, 0)
+      assert result.shard_plan_id == requested_plan.id
+      assert result.modules == ["RequestedTests"]
+      assert String.contains?(result.download_url, requested_plan.id)
+    end
+
+    test "does not return a plan from another project by id" do
+      project = ProjectsFixtures.project_fixture()
+      other_project = ProjectsFixtures.project_fixture()
+
+      plan = ShardsFixtures.shard_plan_fixture(project_id: other_project.id, reference: "other-project")
+
+      assert {:error, :not_found} =
+               Shards.get_shard_for_plan_id(project, project.account, plan.id, 0)
+    end
+
     test "returns modules for module granularity" do
       project = ProjectsFixtures.project_fixture()
       account = project.account

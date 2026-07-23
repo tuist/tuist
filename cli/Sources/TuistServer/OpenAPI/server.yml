@@ -15643,6 +15643,15 @@ paths:
             type: string
             x-struct:
             x-validate:
+        - description: The exact shard plan identifier. When present, it takes precedence over the reference.
+          in: query
+          name: shard_plan_id
+          required: false
+          schema:
+            format: uuid
+            type: string
+            x-struct:
+            x-validate:
         - description: The zero-based shard index.
           in: path
           name: shard_index
@@ -15658,6 +15667,12 @@ paths:
               schema:
                 $ref: '#/components/schemas/Shard'
           description: The shard
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: The request parameters are invalid
         '401':
           content:
             application/json:
