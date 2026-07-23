@@ -35,6 +35,11 @@ import XcodeGraph
         /// oversubscribing disk on very-high-core hosts.
         private static let maxConcurrentXCFrameworkCreations = max(1, min(ProcessInfo.processInfo.activeProcessorCount, 8))
 
+        /// Basename of the per-target artifacts directory that holds the Mac Catalyst slice. Mac Catalyst
+        /// slices are optional — not every iOS target is Catalyst-compatible — so they are excluded from
+        /// the required-slice integrity check in `buildXCFrameworks`.
+        static let macCatalystArtifactsDirectoryName = "mac-catalyst"
+
         private let configLoader: ConfigLoading
         private let manifestLoader: ManifestLoading
         private let pluginService: PluginServicing
@@ -517,13 +522,15 @@ import XcodeGraph
             // target-specific output path, so the operations are independent. We run them with
             // bounded concurrency to cut the wall-clock time of this phase on projects with many
             // cacheable targets, while keeping the input order so artifact storage stays deterministic.
-            return try await cacheableTargets.concurrentMap(
+            // Targets whose per-platform build came out incomplete are skipped (see below) rather than
+            // stored, so `concurrentCompactMap` drops them from the result.
+            return try await cacheableTargets.concurrentCompactMap(
                 maxConcurrentTasks: Self.maxConcurrentXCFrameworkCreations
-            ) { cacheableTarget in
+            ) { cacheableTarget -> CacheGraphTargetBuiltArtifact? in
                 let platforms = Array(cacheableTarget.0.target.supportedPlatforms)
                 let platformBinaryArtifacts = platforms.flatMap { Array(binaryArtifactDirectories[$0, default: Set()]) }
                 let artifactsIncludingTarget = try await platformBinaryArtifacts.concurrentCompactMap {
-                    artifactDirectory -> (artifactPath: AbsolutePath, publicHeadersPath: AbsolutePath?)? in
+                    artifactDirectory -> ResolvedXCFrameworkSlice? in
                     let artifactPath = artifactDirectory.appending(
                         components: [cacheableTarget.0.target.productNameWithExtension]
                     )
@@ -532,7 +539,32 @@ import XcodeGraph
                         for: cacheableTarget.0.target,
                         artifactDirectory: artifactDirectory
                     )
-                    return (artifactPath: artifactPath, publicHeadersPath: publicHeadersPath)
+                    return ResolvedXCFrameworkSlice(
+                        directory: artifactDirectory,
+                        artifactPath: artifactPath,
+                        publicHeadersPath: publicHeadersPath
+                    )
+                }
+
+                // A per-platform build that silently dropped a slice (e.g. a flaky simulator or device
+                // build) would otherwise yield an xcframework missing that slice, which we'd happily
+                // store — poisoning the shared, content-addressed cache with a binary that fails module
+                // resolution for every consumer until it's evicted. Skip caching such a target rather than
+                // storing a structurally incomplete xcframework: it will be built from source by consumers
+                // until a later warm produces a complete set of slices, which is safe. Warming the other
+                // targets still succeeds.
+                let missingRequiredSlices = Self.missingRequiredXCFrameworkSlices(
+                    expectedSliceDirectories: platformBinaryArtifacts,
+                    resolvedSliceDirectories: Set(artifactsIncludingTarget.map(\.directory))
+                )
+                guard missingRequiredSlices.isEmpty else {
+                    let missing = missingRequiredSlices.map(\.basename).sorted().joined(separator: ", ")
+                    Logger.current.warning("""
+                    Skipping caching of \(cacheableTarget.0.target.name): its xcframework is missing the \
+                    required \(missing) slice(s). This usually means a per-platform build was incomplete; \
+                    the target will be built from source by consumers until the next successful warm.
+                    """)
+                    return nil
                 }
 
                 let xcframeworkPath = temporaryDirectory.appending(components: [
@@ -541,13 +573,13 @@ import XcodeGraph
                 ])
 
                 let xcodebuildArguments: [String] = artifactsIncludingTarget
-                    .flatMap { artifactPath -> [String] in
+                    .flatMap { slice -> [String] in
                         switch cacheableTarget.0.target.product {
                         case .framework, .staticFramework:
-                            return ["-framework", artifactPath.artifactPath.pathString]
+                            return ["-framework", slice.artifactPath.pathString]
                         case .staticLibrary, .dynamicLibrary:
-                            var arguments = ["-library", artifactPath.artifactPath.pathString]
-                            if let publicHeadersPath = artifactPath.publicHeadersPath {
+                            var arguments = ["-library", slice.artifactPath.pathString]
+                            if let publicHeadersPath = slice.publicHeadersPath {
                                 arguments.append(contentsOf: ["-headers", publicHeadersPath.pathString])
                             }
                             return arguments
@@ -599,6 +631,28 @@ import XcodeGraph
                     path: xcframeworkPath,
                     metadata: .init()
                 )
+            }
+        }
+
+        /// A built per-platform/destination slice resolved for a cacheable target: the artifacts directory
+        /// it was found in, the artifact itself, and its public headers (libraries only).
+        private struct ResolvedXCFrameworkSlice {
+            let directory: AbsolutePath
+            let artifactPath: AbsolutePath
+            let publicHeadersPath: AbsolutePath?
+        }
+
+        /// Returns the primary (simulator/device) slice directories that were expected for a target but
+        /// where its built product is missing. Mac Catalyst slices are treated as optional. A non-empty
+        /// result means the per-platform build was incomplete, so assembling an xcframework would silently
+        /// produce a structurally broken binary.
+        static func missingRequiredXCFrameworkSlices(
+            expectedSliceDirectories: [AbsolutePath],
+            resolvedSliceDirectories: Set<AbsolutePath>
+        ) -> [AbsolutePath] {
+            expectedSliceDirectories.filter { directory in
+                directory.basename != macCatalystArtifactsDirectoryName
+                    && !resolvedSliceDirectories.contains(directory)
             }
         }
 
@@ -804,7 +858,8 @@ import XcodeGraph
 
             Logger.current.info("Building scheme \(scheme.name) for Mac Catalyst", metadata: .section)
 
-            let macCatalystArtifactsDirectory = platformArtifactsDirectory.appending(component: "mac-catalyst")
+            let macCatalystArtifactsDirectory = platformArtifactsDirectory
+                .appending(component: Self.macCatalystArtifactsDirectoryName)
             try await fileSystem.makeDirectory(at: macCatalystArtifactsDirectory)
 
             try await xcodeBuildController.build(
