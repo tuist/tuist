@@ -239,11 +239,14 @@ struct PersistArtifactSpec<'a> {
 // (incoming strictly older — a real LWW rejection, the peer is behind) so
 // anti-entropy diagnosis can tell a re-walk churning already-converged data
 // from genuine one-directional version skew. The apply decision is the same
-// for both: local wins.
+// for both: local wins. `IgnoredMissing` covers a bootstrap body fetch the
+// peer 404s (advertised in a manifest page but no longer served, e.g. evicted
+// in between) — no version comparison happened, so it must not count as skew.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ArtifactApplyOutcome {
     Applied,
     IgnoredEqual,
+    IgnoredMissing,
     IgnoredStale,
     IgnoredTombstone,
 }
@@ -253,6 +256,7 @@ impl ArtifactApplyOutcome {
         match self {
             Self::Applied => "applied",
             Self::IgnoredEqual => "ignored_equal",
+            Self::IgnoredMissing => "ignored_missing",
             Self::IgnoredStale => "ignored_stale",
             Self::IgnoredTombstone => "ignored_tombstone",
         }
@@ -295,7 +299,7 @@ enum PersistArtifactOutcome {
 // evaluated under the per-artifact write lock — so concurrent persists of the
 // same key resolve it consistently: exactly one observes `false`. Billing uses
 // it to charge only newly-stored bytes; it is deliberately not derived from the
-// Applied/IgnoredStale version outcome, because a re-upload with a newer
+// Applied-vs-ignored version outcome, because a re-upload with a newer
 // version still applies over an already-present artifact.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PersistedArtifact {
@@ -305,9 +309,10 @@ pub struct PersistedArtifact {
 
 impl PersistArtifactOutcome {
     fn ignored(existing: ArtifactManifest, incoming_version_ms: u64) -> Self {
-        match ignored_apply_outcome(manifest_version_ms(&existing), incoming_version_ms) {
-            ArtifactApplyOutcome::IgnoredEqual => Self::IgnoredEqual(existing),
-            _ => Self::IgnoredStale(existing),
+        if versions_converged(manifest_version_ms(&existing), incoming_version_ms) {
+            Self::IgnoredEqual(existing)
+        } else {
+            Self::IgnoredStale(existing)
         }
     }
 
@@ -724,7 +729,7 @@ impl Store {
         // only the last manifest write wins — leaving the rest as orphaned bytes
         // that accumulate to N x on disk (the bootstrap-from-many-peers ENOSPC).
         // Whoever wins the lock commits the manifest; the rest re-read it here and
-        // short-circuit to IgnoredStale without appending.
+        // short-circuit to IgnoredEqual without appending.
         let _write_guard = self.artifact_write_lock_for(&artifact_id).lock().await;
         let size = self.io.metadata_len(source_path).await?;
 
@@ -1102,7 +1107,7 @@ impl Store {
             // declared Content-Length — peers see an undecodable response and
             // bootstrap silently wedges. Surface a truncated artifact as missing
             // so the serve 404s it; the bootstrap client then skips it
-            // (IgnoredStale) and the lost entry re-populates on cache miss.
+            // (IgnoredMissing) and the lost entry re-populates on cache miss.
             let needed = offset.saturating_add(read_offset).saturating_add(limit);
             let have = handle
                 .as_std()
@@ -3264,8 +3269,10 @@ impl Store {
                 let existing_version_ms = manifest_version_ms(&manifest);
                 if existing_version_ms < version_ms {
                     ArtifactApplyOutcome::Applied
+                } else if versions_converged(existing_version_ms, version_ms) {
+                    ArtifactApplyOutcome::IgnoredEqual
                 } else {
-                    ignored_apply_outcome(existing_version_ms, version_ms)
+                    ArtifactApplyOutcome::IgnoredStale
                 }
             })
             .unwrap_or(ArtifactApplyOutcome::Applied))
@@ -4128,18 +4135,12 @@ fn manifest_version_ms(manifest: &ArtifactManifest) -> u64 {
     }
 }
 
-// Classifies a rejected (local-wins) apply. An incoming version of 0 carries
-// no ordering information (the persist path re-stamps it with now_ms()), so
-// it can never attest convergence and folds into the stale side.
-fn ignored_apply_outcome(
-    existing_version_ms: u64,
-    incoming_version_ms: u64,
-) -> ArtifactApplyOutcome {
-    if incoming_version_ms != 0 && existing_version_ms == incoming_version_ms {
-        ArtifactApplyOutcome::IgnoredEqual
-    } else {
-        ArtifactApplyOutcome::IgnoredStale
-    }
+// True when a rejected (local-wins) apply carries the version we already
+// store, i.e. both sides hold the identical entry. An incoming version of 0
+// carries no ordering information (the persist path re-stamps it with
+// now_ms()), so it can never attest convergence and classifies as stale.
+fn versions_converged(existing_version_ms: u64, incoming_version_ms: u64) -> bool {
+    incoming_version_ms != 0 && existing_version_ms == incoming_version_ms
 }
 
 fn read_bytes_at(file: &std::fs::File, offset: u64, size: u64) -> Result<Vec<u8>, String> {
@@ -4455,7 +4456,7 @@ mod tests {
         // Several peers replicating the same artifact concurrently (same key,
         // same version) must not each append their own copy to a segment. The
         // per-key apply lock serializes them: the first writer commits the
-        // manifest and the rest re-read it and short-circuit to IgnoredStale. A
+        // manifest and the rest re-read it and short-circuit to IgnoredEqual. A
         // sleep failpoint between the durable append and the metadata commit
         // forces the writers to overlap, so without the lock every copy would be
         // appended (writer_count x on disk). This guards the store invariant
@@ -4490,14 +4491,23 @@ mod tests {
         });
         let outcomes = futures_util::future::join_all(applies).await;
 
-        let applied = outcomes
+        let outcomes: Vec<ArtifactApplyOutcome> = outcomes
             .into_iter()
             .map(|outcome| outcome.expect("apply should succeed"))
-            .filter(|outcome| outcome.applied())
-            .count();
+            .collect();
+        let applied = outcomes.iter().filter(|outcome| outcome.applied()).count();
         assert_eq!(
             applied, 1,
-            "exactly one concurrent same-key apply should write; the rest are stale"
+            "exactly one concurrent same-key apply should write"
+        );
+        let equal = outcomes
+            .iter()
+            .filter(|outcome| **outcome == ArtifactApplyOutcome::IgnoredEqual)
+            .count();
+        assert_eq!(
+            equal,
+            writer_count - 1,
+            "the losers re-read the committed manifest and report the converged duplicate"
         );
 
         let segments_bytes = crate::utils::directory_size_bytes(&config.data_dir.join("segments"));
@@ -5399,7 +5409,7 @@ mod tests {
 
     #[tokio::test]
     async fn persist_reports_already_present_across_re_uploads() {
-        // `already_present` must reflect presence, not the Applied/IgnoredStale
+        // `already_present` must reflect presence, not the Applied-vs-ignored
         // version outcome: a re-upload takes a newer version and still applies,
         // yet billing must see it as already present.
         let (_temp_dir, _config, store) = temp_store();
@@ -6825,6 +6835,16 @@ mod tests {
             .expect("artifact should remain");
         assert_eq!(manifest.version_ms, 200);
         assert_eq!(read_manifest_bytes(&store, &manifest).await, b"v2");
+    }
+
+    #[test]
+    fn versions_converged_requires_a_non_zero_matching_incoming_version() {
+        assert!(versions_converged(100, 100));
+        assert!(!versions_converged(100, 50));
+        assert!(!versions_converged(100, 0));
+        // Both sides zero: only this pair exercises the non-zero guard, and a
+        // zero incoming version still attests nothing.
+        assert!(!versions_converged(0, 0));
     }
 
     #[tokio::test]
