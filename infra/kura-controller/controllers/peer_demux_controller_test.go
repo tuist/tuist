@@ -304,6 +304,14 @@ func TestLegacyAccountPublicPeerServiceRetiresAfterReadyCutover(t *testing.T) {
 		"peer.acme-eu-central-1.kura.tuist.dev",
 	)
 	instance.Spec.AccountHandle = "acme"
+	instance.CreationTimestamp = metav1.NewTime(time.Date(2026, time.July, 1, 0, 0, 0, 0, time.UTC))
+	sibling := hostNetworkPeerInstance(
+		"kura-acme-eu-central-1-m",
+		instance.Spec.Region,
+		instance.Spec.MeshPublicPeerHost,
+	)
+	sibling.Spec.AccountHandle = instance.Spec.AccountHandle
+	sibling.CreationTimestamp = metav1.NewTime(time.Date(2026, time.July, 2, 0, 0, 0, 0, time.UTC))
 	oldAddress := "198.51.100.20"
 	targetAddress := instance.Spec.MeshPeerFailoverIP
 	legacy := &corev1.Service{
@@ -402,7 +410,7 @@ func TestLegacyAccountPublicPeerServiceRetiresAfterReadyCutover(t *testing.T) {
 	client := fake.NewClientBuilder().
 		WithScheme(scheme).
 		WithRESTMapper(mapper).
-		WithObjects(instance, legacy, peerService, peerEndpoints, dnsEndpoint, configMap, demux, peerSecret).
+		WithObjects(instance, sibling, legacy, peerService, peerEndpoints, dnsEndpoint, configMap, demux, peerSecret).
 		Build()
 	resolver := &fakePeerDNSResolver{addresses: []string{oldAddress}}
 	prober := &fakePeerPathProber{}
@@ -452,6 +460,18 @@ func TestLegacyAccountPublicPeerServiceRetiresAfterReadyCutover(t *testing.T) {
 	}
 	if got.Spec.ExternalTrafficPolicy != corev1.ServiceExternalTrafficPolicyTypeCluster || got.Spec.HealthCheckNodePort != 0 {
 		t.Fatalf("expected a Cluster-routed fallback, got policy=%q healthPort=%d", got.Spec.ExternalTrafficPolicy, got.Spec.HealthCheckNodePort)
+	}
+	if !stringMapEqual(got.Spec.Selector, selectorLabels(instance)) {
+		t.Fatalf("expected the fallback to select the demultiplexer route owner, got %v", got.Spec.Selector)
+	}
+	if err := reconciler.retireLegacyAccountPublicPeerService(ctx, sibling, cutoverStartedAt); err != nil {
+		t.Fatal(err)
+	}
+	if err := client.Get(ctx, types.NamespacedName{Name: legacy.Name, Namespace: legacy.Namespace}, got); err != nil {
+		t.Fatal(err)
+	}
+	if !stringMapEqual(got.Spec.Selector, selectorLabels(instance)) {
+		t.Fatalf("expected the non-owner sibling to leave the fallback selector unchanged, got %v", got.Spec.Selector)
 	}
 	// Recreate the reconciler to prove that no in-memory state is needed to
 	// resume after a controller restart.
@@ -562,6 +582,46 @@ func TestLegacyAccountPublicPeerServiceRetiresAfterReadyCutover(t *testing.T) {
 		t.Fatalf("expected a post-observation drain until %s, got %v", wantRetireAfter, got.Annotations)
 	}
 
+	// An unrelated demultiplexer rollout pauses only the retirement timer while
+	// the replacement path and public DNS remain healthy. It must not republish
+	// the legacy fallback or restart the full cutover.
+	if err := client.Get(ctx, types.NamespacedName{Name: demux.Name, Namespace: demux.Namespace}, demux); err != nil {
+		t.Fatal(err)
+	}
+	demux.Spec.Template.Annotations[peerDemuxConfigHashAnnotation] = "stale"
+	if err := client.Update(ctx, demux); err != nil {
+		t.Fatal(err)
+	}
+	staleAt := dnsObservedAt.Add(legacyPeerRetirementDelay)
+	if err := reconciler.retireLegacyAccountPublicPeerService(ctx, instance, staleAt); err != nil {
+		t.Fatal(err)
+	}
+	if err := client.Get(ctx, types.NamespacedName{Name: legacy.Name, Namespace: legacy.Namespace}, got); err != nil {
+		t.Fatalf("expected the fallback to remain while the demultiplexer rolls: %v", err)
+	}
+	if got.Annotations[legacyPeerMigrationAnnotation] != legacyPeerPhaseDraining ||
+		got.Annotations[externalDNSHostnameAnnotation] != "" ||
+		got.Annotations[legacyPeerRetireAfterAnnotation] != "" {
+		t.Fatalf("expected the drain timer to pause without republishing the fallback, got %v", got.Annotations)
+	}
+
+	demux.Spec.Template.Annotations[peerDemuxConfigHashAnnotation] = configHash
+	if err := client.Update(ctx, demux); err != nil {
+		t.Fatal(err)
+	}
+	resumedAt := staleAt.Add(time.Minute)
+	if err := reconciler.retireLegacyAccountPublicPeerService(ctx, instance, resumedAt); err != nil {
+		t.Fatal(err)
+	}
+	if err := client.Get(ctx, types.NamespacedName{Name: legacy.Name, Namespace: legacy.Namespace}, got); err != nil {
+		t.Fatal(err)
+	}
+	wantResumedRetireAfter := resumedAt.Add(legacyPeerRetirementDelay).Format(time.RFC3339)
+	if got.Annotations[legacyPeerMigrationAnnotation] != legacyPeerPhaseDraining ||
+		got.Annotations[legacyPeerRetireAfterAnnotation] != wantResumedRetireAfter {
+		t.Fatalf("expected a fresh drain deadline at %s, got %v", wantResumedRetireAfter, got.Annotations)
+	}
+
 	// A DNS regression cancels the deadline and keeps the fallback. A malformed
 	// stored old-address list is rebuilt from the retained LoadBalancer status.
 	resolver.addresses = []string{oldAddress}
@@ -569,7 +629,7 @@ func TestLegacyAccountPublicPeerServiceRetiresAfterReadyCutover(t *testing.T) {
 	if err := client.Update(ctx, got); err != nil {
 		t.Fatal(err)
 	}
-	regressedAt := dnsObservedAt.Add(legacyPeerRetirementDelay)
+	regressedAt := resumedAt.Add(legacyPeerRetirementDelay)
 	if err := reconciler.retireLegacyAccountPublicPeerService(ctx, instance, regressedAt); err != nil {
 		t.Fatal(err)
 	}

@@ -666,6 +666,7 @@ jobs:
       KUBECONFIG: ${{ github.workspace }}/.kube/config
       NAMESPACE: ${{ inputs.environment == 'production' && 'tuist' || format('tuist-{0}', inputs.environment) }}
       IMAGE_TAG: ${{ inputs.image_tag != '' && inputs.image_tag || needs.build.outputs.image_tag }}
+      SERVER_IMAGE_TAG_INPUT: ${{ inputs.image_tag }}
       CODEBASE_SEARCH_IMAGE_TAG: ${{ inputs.codebase_search_image_tag != '' && inputs.codebase_search_image_tag || needs.build.outputs.codebase_search_image_tag }}
       REGISTRY_IMAGE_TAG: ${{ inputs.registry_image_tag != '' && inputs.registry_image_tag || needs.build.outputs.registry_image_tag }}
       KURA_RUNTIME_IMAGE_TAG: ${{ inputs.kura_runtime_image_tag }}
@@ -737,7 +738,7 @@ jobs:
           if [ -n "$KURA_CONTROLLER_IMAGE_TAG_INPUT" ]; then
             controller_tag="$KURA_CONTROLLER_IMAGE_TAG_INPUT"
             controller_source="explicit"
-          elif [ -z "${{ inputs.image_tag }}" ]; then
+          elif [ -z "$SERVER_IMAGE_TAG_INPUT" ]; then
             controller_tag="$IMAGE_TAG"
             controller_source="built"
           else
@@ -958,7 +959,7 @@ jobs:
           kura_runtime_tag="${KURA_RUNTIME_IMAGE_TAG:-}"
           if [ -n "$kura_runtime_tag" ]; then
             echo "Kura runtime: using explicit input tag ${kura_runtime_tag}"
-          elif [ "${{ inputs.environment }}" = "staging" ] && [ -z "${{ inputs.image_tag }}" ]; then
+          elif [ "${{ inputs.environment }}" = "staging" ] && [ -z "$SERVER_IMAGE_TAG_INPUT" ]; then
             kura_runtime_tag="$IMAGE_TAG"
             echo "Kura runtime: staging tracks per-commit image ${kura_runtime_tag}"
           else

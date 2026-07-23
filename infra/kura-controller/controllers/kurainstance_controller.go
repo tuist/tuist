@@ -629,6 +629,14 @@ func (r *KuraInstanceReconciler) retireLegacyAccountPublicPeerService(
 		return nil
 	}
 
+	ownsRoute, err := r.ownsPeerDemuxRoute(ctx, instance)
+	if err != nil {
+		return err
+	}
+	if !ownsRoute {
+		return nil
+	}
+
 	service := &corev1.Service{}
 	if err := r.Get(ctx, types.NamespacedName{Name: legacyName, Namespace: instance.Namespace}, service); err != nil {
 		if apierrors.IsNotFound(err) {
@@ -760,7 +768,7 @@ func (r *KuraInstanceReconciler) retireLegacyAccountPublicPeerService(
 		return r.Update(ctx, service)
 
 	case legacyPeerPhaseDraining:
-		if !ready || targetChanged {
+		if targetChanged {
 			return r.restartLegacyPeerCutover(ctx, service, instance, annotations, state.targetAddresses, now)
 		}
 		oldAddresses, targetAddresses, valid := legacyPeerMigrationAddresses(annotations, state.targetAddresses)
@@ -773,6 +781,19 @@ func (r *KuraInstanceReconciler) retireLegacyAccountPublicPeerService(
 		}
 		if !pathReady || !r.peerPublicDNSCutoverObserved(ctx, instance.Spec.MeshPublicPeerHost, oldAddresses, targetAddresses) {
 			return r.restartLegacyPeerCutover(ctx, service, instance, annotations, state.targetAddresses, now)
+		}
+		if !ready {
+			if annotations[legacyPeerRetireAfterAnnotation] == "" {
+				return nil
+			}
+			delete(annotations, legacyPeerRetireAfterAnnotation)
+			service.SetAnnotations(annotations)
+			return r.Update(ctx, service)
+		}
+		if annotations[legacyPeerRetireAfterAnnotation] == "" {
+			annotations[legacyPeerRetireAfterAnnotation] = now.Add(legacyPeerRetirementDelay).Format(time.RFC3339)
+			service.SetAnnotations(annotations)
+			return r.Update(ctx, service)
 		}
 
 		retireAfter, err := time.Parse(time.RFC3339, annotations[legacyPeerRetireAfterAnnotation])
@@ -787,6 +808,30 @@ func (r *KuraInstanceReconciler) retireLegacyAccountPublicPeerService(
 	default:
 		return nil
 	}
+}
+
+func (r *KuraInstanceReconciler) ownsPeerDemuxRoute(
+	ctx context.Context,
+	instance *kurav1alpha1.KuraInstance,
+) (bool, error) {
+	instances := &kurav1alpha1.KuraInstanceList{}
+	if err := r.List(ctx, instances, client.InNamespace(instance.Namespace)); err != nil {
+		return false, err
+	}
+
+	routes, _, _, _ := peerDemuxDesiredState(instance.Spec.Region, instance.Namespace, instances.Items)
+	wantBackend := fmt.Sprintf(
+		"%s.%s.svc.cluster.local:%d",
+		instancePublicPeerServiceName(instance),
+		instance.Namespace,
+		peerPort,
+	)
+	for _, route := range routes {
+		if route.host == instance.Spec.MeshPublicPeerHost {
+			return route.backend == wantBackend, nil
+		}
+	}
+	return false, nil
 }
 
 func (r *KuraInstanceReconciler) restartLegacyPeerCutover(
