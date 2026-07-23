@@ -97,6 +97,14 @@ bundle_swift_runtime_libraries() {
     fi
 }
 
+strip_release_binaries() {
+    strip -rSTx \
+        "$BUILD_DIRECTORY/tuist" \
+        "$BUILD_DIRECTORY/ProjectDescription.framework/ProjectDescription" \
+        "$BUILD_DIRECTORY/libtuist_cas_plugin.dylib" \
+        "$BUILD_DIRECTORY/tuist-cas-proxy"
+}
+
 # Builds the cas-plugin (Xcode compilation-cache CAS plugin) as a universal
 # dylib, plus the per-machine proxy binary, both bundled next to `tuist`. The
 # CLI points Xcode's compilation caching at the dylib via
@@ -142,6 +150,9 @@ build_cas_plugin
 
 echo "$(format_subsection "Bundling Swift runtime libraries")"
 bundle_swift_runtime_libraries
+
+echo "$(format_subsection "Stripping release binaries")"
+strip_release_binaries
 
 echo "$(format_section "Copying assets")"
 
