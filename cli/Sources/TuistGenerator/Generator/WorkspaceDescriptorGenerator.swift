@@ -125,7 +125,11 @@ struct WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
         )
 
         Logger.current.debug("Creating generated projects dictionary")
-        let generatedProjects: [AbsolutePath: GeneratedProject] = Dictionary(uniqueKeysWithValues: projects.map { project in
+        // Multiple graph nodes can resolve to the same derived `xcodeprojPath` (e.g. an
+        // external SPM package reached via more than one graph edge). `uniqueKeysWithValues`
+        // crashes fatally on that duplicate instead of merging it, so we dedupe defensively
+        // here the same way `targets` already does a few lines below.
+        let generatedProjects: [AbsolutePath: GeneratedProject] = Dictionary(projects.map { project in
             let pbxproj = project.xcodeProj.pbxproj
             let targets = pbxproj.nativeTargets.map {
                 ($0.name, $0)
@@ -139,7 +143,7 @@ struct WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
                     name: project.xcodeprojPath.basename
                 )
             )
-        })
+        }, uniquingKeysWith: { $1 })
 
         // Workspace structure
         Logger.current.debug("Generating workspace structure")
