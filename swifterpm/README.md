@@ -8,7 +8,7 @@ Concurrent package installation is becoming the default in a world of coding age
 
 Other package managers have already iterated on this problem. Tools like pnpm and aube show that a global cache plus cheap project-local links can make installs both faster and much more disk efficient. Tuist users reported SwiftPM resolution and checkout restoration as a bottleneck, so we felt compelled to solve it for them.
 
-Tuist generated projects gave us a clean contract to replace: package resolution is decoupled from project integration, so `tuist install` can use a faster resolver/restorer before Tuist generates or updates the Xcode project.
+Tuist generated projects gave us a clean contract to replace: package resolution is decoupled from project integration, so `tuist install` can use a faster resolver/restorer before Tuist generates or updates the Xcode project. `tuist install` uses `swifterpm` by default; set `TUIST_USE_SWIFTERPM=0` to fall back to SwiftPM.
 
 > [!NOTE]
 > [`aube`](https://github.com/endevco/aube) is useful prior art for package-manager acceleration in concurrent worktrees. `swifterpm` applies the same broad caching motivation to SwiftPM and Tuist workflows.
@@ -18,6 +18,7 @@ Tuist generated projects gave us a clean contract to replace: package resolution
 
 ## How it works
 
+- **Resolution delegated to SwiftPM**: `swifterpm` does not reimplement the resolver. It shells out to `swift package resolve`, lets SwiftPM solve the graph and apply any source-control-to-registry transformation, then reads back and normalizes `Package.resolved` so the lockfile is byte-for-byte aligned with what SwiftPM would have written. The speedups all live in restoration and caching, not in the dependency solving.
 - **Swift + Bazel implementation**: The CLI is written in Swift, uses structured concurrency for parallel restoration and async HTTP downloads, and is built with Bazel through `rules_swift` plus the `rules_apple` macOS command-line application wrapper.
 - **Lockfile fast path**: When `Package.resolved` is available, `swifterpm` can use `--force-resolved-versions` to skip dependency solving and restore exactly the pinned revisions.
 - **GitHub archives first**: For GitHub dependencies, it downloads source tarballs for pinned revisions instead of cloning full repositories. A shallow Git fetch is kept as a fallback.
@@ -59,6 +60,25 @@ By default, `swifterpm` copies cached directories into the project scratch direc
 
 > [!NOTE]
 > `swifterpm resolve` writes `Package.resolved` with an `originHash` derived from `Package.swift`, while SwiftPM derives its hash from the dependency graph. Running `swift package resolve` after `swifterpm resolve` in the same checkout may treat the lockfile as stale and resolve again.
+
+## Continuous integration
+
+> [!IMPORTANT]
+> Cache `~/.cache/swifterpm` (or `$XDG_CACHE_HOME/swifterpm`). Without it, every CI run is a cold run.
+
+The order-of-magnitude numbers in [Benchmarks](#benchmarks-) all come from the warm global cache, not from resolution itself, which is still delegated to SwiftPM. Warm runs range from 8.96x to 201x faster than SwiftPM; cold runs range from 9.15x faster to 0.78x *slower*, depending on the graph. A pipeline that caches SwiftPM's directories but not this one therefore gives up the large wins and lands back in that cold range.
+
+The scratch directory (`.build`) is cold on every CI run regardless, since it lives in the freshly checked out workspace. The global cache is the only part that can carry over, and it is a new path that no pre-existing configuration knows about, so this bites hardest when switching an existing pipeline over:
+
+```yaml
+- uses: actions/cache@v4
+  with:
+    path: ~/.cache/swifterpm
+    key: swifterpm-${{ runner.os }}-${{ hashFiles('**/Package.resolved') }}
+    restore-keys: swifterpm-${{ runner.os }}-
+```
+
+The cache is content-addressed by package identity, version, and revision, so a stale restore is safe: entries that no longer match are simply unused, and `restore-keys` lets a run start from the closest previous cache instead of from nothing.
 
 ## Bazel Swift package resolver
 

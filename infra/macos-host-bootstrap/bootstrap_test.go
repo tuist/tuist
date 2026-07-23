@@ -12,6 +12,37 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
+// renderSSHReachabilityScript must install a minute-interval probe that reloads
+// the ssh socket when loopback :22 stops accepting — draining the exhausted
+// accept backlog that wedges the operator's SSH management channel.
+func TestRenderSSHReachabilityScript(t *testing.T) {
+	s := renderSSHReachabilityScript()
+	for _, want := range []string{
+		// Must create /usr/local/bin before the tee: on the first-boot path this
+		// runs before installTart (which otherwise makes the dir), so a fresh
+		// host has no /usr/local/bin and the tee would fail the whole bootstrap.
+		"mkdir -p /usr/local/bin",
+		"nc -z -G 3 127.0.0.1 22",
+		"bootout system/com.openssh.sshd",
+		"bootstrap system /System/Library/LaunchDaemons/ssh.plist",
+		"dev.tuist.ssh-reachability",
+		"<key>StartInterval</key>",
+		"<key>RunAtLoad</key>",
+	} {
+		if !strings.Contains(s, want) {
+			t.Errorf("renderSSHReachabilityScript missing %q", want)
+		}
+	}
+	// Dead ends from earlier wrong hypotheses: the app firewall was OFF, and
+	// UseDNS was already `no` (the drop-in was a no-op). Make sure neither
+	// crept back in.
+	for _, forbidden := range []string{"socketfilterfw", "systemsetup -setremotelogin", "UseDNS", "sshd_config.d", "pfctl -d"} {
+		if strings.Contains(s, forbidden) {
+			t.Errorf("renderSSHReachabilityScript should not include the abandoned %q approach", forbidden)
+		}
+	}
+}
+
 // installTailscale must short-circuit on SkipTailscaleInstall before it
 // touches the SSH client — the tailnet-fallback caller relies on this so it
 // never stops tailscaled over the session that rides it. A nil client proves

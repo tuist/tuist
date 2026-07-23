@@ -44,9 +44,13 @@ permissions:
 jobs:
   build:
     runs-on: [self-hosted, macos, bare-metal, vm-image-builder]
-    timeout-minutes: 60
+    timeout-minutes: 100
     steps:
       - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: infra/runner-image/go.mod
 
       # Log in BEFORE Packer build so Tart's clone of the
       # macos-tahoe-xcode base (a private ghcr.io/tuist/* image)
@@ -68,6 +72,13 @@ jobs:
         run: packer init -upgrade runner.pkr.hcl
 
       - uses: ./.github/actions/reclaim-tart-disk
+
+      - name: Build runner shell agent
+        working-directory: infra/runner-image
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          go build -trimpath -ldflags="-s -w" -o build/runner-shell-agent ./cmd/runner-shell-agent
 
       - name: Build image
         id: build
@@ -135,27 +146,37 @@ jobs:
         # Direct tart push. Cirrus uses the same path to publish
         # macos-tahoe-xcode at the same size; the prior bridge through
         # a local registry was an unsuccessful workaround on a
-        # different host's structurally bad network. Outer 3× retry
-        # stays as belt-and-braces; blob uploads are content-
-        # addressed so a re-push only re-uploads layers that didn't
-        # make it on the previous attempt.
+        # different host's structurally bad network. 5 attempts with
+        # growing backoff — blob uploads are content-addressed so each
+        # retry only re-uploads layers that didn't land on the previous
+        # attempt, and the backoff spreads attempts past upload-path
+        # degradation windows (see server-production-deployment.yml's
+        # release-xcresult-processor-image push step).
         run: |
           set -euo pipefail
           GIT_SHA="${GITHUB_SHA::8}"
           PROFILE="${{ steps.build.outputs.profile }}"
           TAG="${PROFILE}-${GIT_SHA}"
-          for attempt in 1 2 3; do
+          for attempt in 1 2 3 4 5; do
             echo "tart push attempt ${attempt} starting at $(date -u +%H:%M:%SZ)" >&2
             if tart push tuist-runner "ghcr.io/tuist/tuist-runner:${TAG}"; then
               echo "Pushed ghcr.io/tuist/tuist-runner:${TAG} on attempt ${attempt}"
               echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
               exit 0
             fi
-            echo "tart push attempt ${attempt} failed; sleeping 60s before retry" >&2
-            sleep 60
+            if [ "$attempt" = 5 ]; then
+              echo "tart push failed five times in a row" >&2
+              exit 1
+            fi
+            case "$attempt" in
+              1) delay=60 ;;
+              2) delay=120 ;;
+              3) delay=300 ;;
+              *) delay=600 ;;
+            esac
+            echo "tart push attempt ${attempt} failed; sleeping ${delay}s before retry" >&2
+            sleep "$delay"
           done
-          echo "tart push failed three times in a row" >&2
-          exit 1
 
       - name: Cleanup
         if: always()

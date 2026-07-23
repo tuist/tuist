@@ -6,8 +6,8 @@ defmodule TuistWeb.RunnerJobMetricsControllerTest do
 
   alias Tuist.Environment
   alias Tuist.Kubernetes.Client, as: K8sClient
-  alias Tuist.Runners.Claims
   alias Tuist.Runners.JobMetrics
+  alias Tuist.Runners.RunnerSessions
 
   # The runner presents its own per-pod SA token (audience
   # tuist-runners-dispatch); the SA name equals the Pod name. Stub the
@@ -18,13 +18,27 @@ defmodule TuistWeb.RunnerJobMetricsControllerTest do
     end)
   end
 
-  defp claim(account, workflow_job_id, pod_name) do
-    {:ok, _claim} =
-      Claims.attempt(workflow_job_id, account.id, "linux-amd64", pod_name, %{
-        platform: :linux,
-        vcpus: 2,
-        memory_gb: 8
+  # An open session for `pod_name`, as dispatch opens it at claim-win.
+  # `claimed_job_id` is the job the Pod was minted for — which is NOT
+  # necessarily the one GitHub runs on it.
+  defp session(account, claimed_job_id, pod_name, runner_name) do
+    {:ok, session} =
+      RunnerSessions.open(%{
+        workflow_job_id: claimed_job_id,
+        account_id: account.id,
+        fleet_name: "linux-amd64",
+        pod_name: pod_name,
+        runner_name: runner_name,
+        started_at: DateTime.utc_now()
       })
+
+    session
+  end
+
+  # GitHub proves, via workflow_job.in_progress, that `runner_name` is
+  # running `executed_job_id`.
+  defp prove_execution(account, runner_name, executed_job_id) do
+    RunnerSessions.record_execution(runner_name, executed_job_id, account.id)
   end
 
   defp sample(timestamp, attrs \\ %{}) do
@@ -49,9 +63,10 @@ defmodule TuistWeb.RunnerJobMetricsControllerTest do
   end
 
   describe "POST /api/internal/runners/pods/:pod_name/metrics" do
-    test "records the batch under the Pod's claimed job and returns 204", %{conn: conn} do
+    test "records the batch under the job GitHub proved the Pod is running", %{conn: conn} do
       account = account_fixture()
-      claim(account, 33_001, "runner-pod-1")
+      session(account, 33_001, "runner-pod-1", "runner-1")
+      prove_execution(account, "runner-1", 33_001)
       runner_token_stub("runner-pod-1")
 
       conn =
@@ -67,9 +82,48 @@ defmodule TuistWeb.RunnerJobMetricsControllerTest do
       assert_in_delta cpu, 88.0, 0.01
     end
 
+    test "records under the executed job, not the job the Pod was minted for", %{conn: conn} do
+      # GitHub ran a different job on this runner than the one its
+      # claim was minted for. Samples must follow execution, or the
+      # claimed job's chart shows another Pod's run.
+      account = account_fixture()
+      session(account, 33_010, "runner-pod-x", "runner-x")
+      prove_execution(account, "runner-x", 33_099)
+      runner_token_stub("runner-pod-x")
+
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer valid-token")
+        |> post_metrics("runner-pod-x", %{"samples" => [sample(1_750_000_000.0)]})
+
+      assert response(conn, 204)
+      assert JobMetrics.list_for_job(33_099) != []
+      assert JobMetrics.list_for_job(33_010) == []
+    end
+
+    test "records for a Pod executing a job it never claimed and holds no claim for", %{conn: conn} do
+      # The issue's J2-cancellation scenario: B claimed J2, J2 was
+      # cancelled, and GitHub handed B the job J1 that A claimed. B has
+      # no live claim of its own, but its samples are real and must land
+      # on J1.
+      account = account_fixture()
+      session(account, 33_020, "runner-pod-b", "runner-b")
+      prove_execution(account, "runner-b", 33_021)
+      runner_token_stub("runner-pod-b")
+
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer valid-token")
+        |> post_metrics("runner-pod-b", %{"samples" => [sample(1_750_000_000.0)]})
+
+      assert response(conn, 204)
+      assert JobMetrics.list_for_job(33_021) != []
+    end
+
     test "returns 204 on an empty sample batch", %{conn: conn} do
       account = account_fixture()
-      claim(account, 33_002, "runner-pod-2")
+      session(account, 33_002, "runner-pod-2", "runner-2")
+      prove_execution(account, "runner-2", 33_002)
       runner_token_stub("runner-pod-2")
 
       conn =
@@ -81,7 +135,7 @@ defmodule TuistWeb.RunnerJobMetricsControllerTest do
       assert JobMetrics.list_for_job(33_002) == []
     end
 
-    test "returns 204 without recording when the Pod holds no live claim", %{conn: conn} do
+    test "returns 204 without recording when the Pod has no session", %{conn: conn} do
       runner_token_stub("unclaimed-pod")
       reject(&JobMetrics.record/3)
 
@@ -93,9 +147,26 @@ defmodule TuistWeb.RunnerJobMetricsControllerTest do
       assert response(conn, 204)
     end
 
+    test "does not attribute an idle runner's samples before GitHub proves execution", %{conn: conn} do
+      # The Pod registered and is waiting for an assignment that may
+      # never come. Falling back to its claimed job would chart this
+      # idle CPU on a job running on a different Pod entirely.
+      account = account_fixture()
+      session(account, 33_030, "runner-pod-idle", "runner-idle")
+      runner_token_stub("runner-pod-idle")
+      reject(&JobMetrics.record/3)
+
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer valid-token")
+        |> post_metrics("runner-pod-idle", %{"samples" => [sample(1_750_000_000.0)]})
+
+      assert response(conn, 204)
+    end
+
     test "returns 400 when a sample is missing its timestamp", %{conn: conn} do
       account = account_fixture()
-      claim(account, 33_003, "runner-pod-3")
+      session(account, 33_003, "runner-pod-3", "runner-3")
       runner_token_stub("runner-pod-3")
 
       conn =
@@ -108,7 +179,7 @@ defmodule TuistWeb.RunnerJobMetricsControllerTest do
 
     test "returns 400 when samples is not a list", %{conn: conn} do
       account = account_fixture()
-      claim(account, 33_004, "runner-pod-4")
+      session(account, 33_004, "runner-pod-4", "runner-4")
       runner_token_stub("runner-pod-4")
 
       conn =

@@ -142,8 +142,13 @@
             #expect(got == [macOSDevice])
         }
 
-        private func run(noUpload: Bool) async throws {
+        @Test(.inTemporaryDirectory) func run_passesRequestedConfigurationToContentHasher() async throws {
+            try await run(noUpload: false, configuration: "Release")
+        }
+
+        private func run(noUpload: Bool, configuration: String? = nil) async throws {
             let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+            let resolvedConfiguration = configuration ?? "Debug"
             let target = Target.test(name: "Fixtures", product: .bundle)
             let project = Project.test(path: temporaryDirectory, targets: [target], schemes: [])
             let graphTarget = GraphTarget(path: temporaryDirectory, target: target, project: project)
@@ -172,15 +177,15 @@
                 .willReturn(graph)
             given(defaultConfigurationFetcher)
                 .fetch(
-                    configuration: .value(nil),
+                    configuration: .value(configuration),
                     defaultConfiguration: .value(config.project.generatedProject?.generationOptions.defaultConfiguration),
                     graph: .value(graph)
                 )
-                .willReturn("Debug")
+                .willReturn(resolvedConfiguration)
             given(cacheGraphContentHasher)
                 .contentHashes(
                     for: .value(graph),
-                    configuration: .value("Debug"),
+                    configuration: .value(configuration),
                     defaultConfiguration: .value(config.project.generatedProject?.generationOptions.defaultConfiguration),
                     excludedTargets: .value([]),
                     destination: .value(nil)
@@ -193,7 +198,7 @@
                 .binaryCacheWarming(
                     config: .value(config),
                     targetsToBinaryCache: .any,
-                    configuration: .value("Debug"),
+                    configuration: .value(resolvedConfiguration),
                     cacheStorage: .any
                 )
                 .willReturn(generator)
@@ -212,7 +217,7 @@
 
             try await subject.run(
                 path: temporaryDirectory.pathString,
-                configuration: nil,
+                configuration: configuration,
                 targetsToBinaryCache: [],
                 externalOnly: false,
                 generateOnly: false,

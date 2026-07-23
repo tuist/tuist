@@ -294,7 +294,30 @@ organization =
 
 organization_account = Repo.preload(organization, :account).account
 {:ok, true} = FunWithFlags.enable(:kura, for_actor: organization_account)
-{:ok, true} = FunWithFlags.enable(:kura_cache, for_actor: organization_account)
+
+seed_account_token = fn account, name, opts ->
+  case Accounts.get_account_token_by_name(account, name) do
+    {:ok, _token} ->
+      :ok
+
+    {:error, :not_found} ->
+      {:ok, {_token, _plaintext}} =
+        Accounts.create_account_token(%{
+          account: account,
+          scopes: Keyword.get(opts, :scopes, ["ci"]),
+          created_by_account: user.account,
+          name: name,
+          expires_at: Keyword.get(opts, :expires_at),
+          all_projects: Keyword.get(opts, :all_projects, true),
+          project_ids: Keyword.get(opts, :project_ids, [])
+        })
+
+      :ok
+  end
+end
+
+seed_account_token.(user.account, "personal-ci", [])
+seed_account_token.(organization_account, "organization-ci", [])
 
 # Create additional organization member
 member_email = "member@tuist.dev"
@@ -448,6 +471,11 @@ android_project =
         build_system: :gradle
       )
   end
+
+seed_account_token.(organization_account, "organization-projects-ci",
+  all_projects: false,
+  project_ids: [tuist_project.id, android_project.id]
+)
 
 IO.puts("Generating #{seed_config.build_runs} build runs in parallel...")
 
@@ -4718,6 +4746,17 @@ running_jobs = [
     job_name: "esbuild",
     run_attempt: 1,
     started_seconds_ago: 39,
+    repo_idx: 0,
+    fleet: "tuist-runner-pool-linux-4vcpu-8gb",
+    platform: "linux",
+    vcpus: 4,
+    memory_gb: 8
+  },
+  %{
+    workflow: "Build and Test",
+    job_name: "Linux Unit Tests",
+    run_attempt: 1,
+    started_seconds_ago: 18,
     repo_idx: 0,
     fleet: "tuist-runner-pool-linux-4vcpu-8gb",
     platform: "linux",

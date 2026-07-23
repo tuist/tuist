@@ -56,6 +56,7 @@ env:
   REGISTRY: ghcr.io
   IMAGE_NAME: tuist/tuist
   REGISTRY_IMAGE_NAME: tuist/registry
+  CODEBASE_SEARCH_IMAGE_NAME: tuist/codebase-search
   KURA_CONTROLLER_IMAGE_NAME: tuist/kura-controller
 
 jobs:
@@ -156,7 +157,7 @@ jobs:
             exit 0
           fi
           if git diff --name-only "$base" "${{ github.sha }}" \
-            | grep -qE '^(server/|registry/|tuist_common/|noora/|infra/kura-controller/|infra/helm/tuist/|infra/helm/platform/|infra/helm/k8s-monitoring/|\.github/workflows/(server-deployment|server-production-deployment)\.yml)'; then
+            | grep -qE '^(server/|codebase-search/|registry/|tuist_common/|noora/|infra/kura-controller/|infra/helm/tuist/|infra/helm/platform/|infra/helm/k8s-monitoring/|\.github/workflows/(server-deployment|server-production-deployment)\.yml)'; then
             echo "deployable-changed=true" >> "$GITHUB_OUTPUT"
           else
             echo "deployable-changed=false" >> "$GITHUB_OUTPUT"
@@ -928,7 +929,7 @@ jobs:
     needs: check-releases
     if: needs.check-releases.outputs.xcresult-processor-image-should-release == 'true'
     runs-on: [self-hosted, macos, bare-metal, vm-image-builder]
-    timeout-minutes: 60
+    timeout-minutes: 100
     env:
       PATH: /opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
       MISE_GITHUB_TOKEN: ${{ github.token }}
@@ -1042,37 +1043,42 @@ jobs:
             xcresult-processor.pkr.hcl
 
       - name: Push image to GHCR
+        timeout-minutes: 55
         env:
           TART_REGISTRY_HOSTNAME: ghcr.io
           TART_REGISTRY_USERNAME: tuist-bot
           TART_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
-        # Direct tart push with a 3x retry — identical shape to
-        # macos-xcode-image.yml, which publishes the same-size image via
-        # the same path and is the only large tart push that pushes
-        # reliably. Earlier attempts here layered on TART_NO_AUTO_PRUNE
-        # and a clone-the-base "restore nvram.bin" step; both failed to
-        # fix the intermittent `Error: The file "nvram.bin" doesn't exist`
-        # and the disk-heavy restore made it worse (the whole VM bundle
-        # vanished mid-push). Blob uploads are content-addressed, so a
-        # re-push only re-uploads layers that didn't land last time.
+        # Tart otherwise sends each compressed disk layer as one request.
+        # A layer can exceed 500 megabytes, while Tart's URLSession uses
+        # the default 60-second idle timeout. Use 3-megabyte chunks, below
+        # GitHub Container Registry's 4-megabyte limit, so slow uploads
+        # keep making observable request progress. Send both tags in one
+        # invocation so Tart compresses and uploads the disk only once.
         run: |
           set -euo pipefail
           VERSION="${{ needs.check-releases.outputs.xcresult-processor-image-next-version-number }}"
-          for dest_tag in "${VERSION}" "latest"; do
-            DST="ghcr.io/tuist/tuist-xcresult-processor:${dest_tag}"
-            for attempt in 1 2 3; do
-              echo "tart push -> ${dest_tag} attempt ${attempt} at $(date -u +%H:%M:%SZ)" >&2
-              if tart push tuist-xcresult-processor "$DST"; then
-                echo "Pushed ${DST} on attempt ${attempt}"
-                break
-              fi
-              if [ "$attempt" = 3 ]; then
-                echo "tart push failed three times for ${dest_tag}" >&2
-                exit 1
-              fi
-              echo "tart push attempt ${attempt} failed; sleeping 60s before retry" >&2
-              sleep 60
-            done
+          DESTINATIONS=(
+            "ghcr.io/tuist/tuist-xcresult-processor:${VERSION}"
+            "ghcr.io/tuist/tuist-xcresult-processor:latest"
+          )
+          for attempt in 1 2 3 4 5; do
+            echo "tart push attempt ${attempt} at $(date -u +%H:%M:%SZ)" >&2
+            if tart push --chunk-size 3 tuist-xcresult-processor "${DESTINATIONS[@]}"; then
+              echo "Pushed ${DESTINATIONS[*]} on attempt ${attempt}"
+              exit 0
+            fi
+            if [ "$attempt" = 5 ]; then
+              echo "tart push failed five times" >&2
+              exit 1
+            fi
+            case "$attempt" in
+              1) delay=60 ;;
+              2) delay=120 ;;
+              3) delay=300 ;;
+              *) delay=600 ;;
+            esac
+            echo "tart push attempt ${attempt} failed; sleeping ${delay}s before retry" >&2
+            sleep "$delay"
           done
 
       - name: Upload xcresult-processor-image artifacts
@@ -1116,7 +1122,7 @@ jobs:
     needs: check-releases
     if: needs.check-releases.outputs.runner-image-should-release == 'true'
     runs-on: [self-hosted, macos, bare-metal, vm-image-builder]
-    timeout-minutes: 60
+    timeout-minutes: 100
     strategy:
       # If any profile build fails, abort sibling builds so the chart
       # pin doesn't move to a partially-published set.
@@ -1130,6 +1136,10 @@ jobs:
       TART_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: infra/runner-image/go.mod
 
       # Log in BEFORE Packer build so Tart's clone of the
       # macos-tahoe-xcode base (a private ghcr.io/tuist/* image)
@@ -1148,6 +1158,13 @@ jobs:
         run: packer init -upgrade runner.pkr.hcl
 
       - uses: ./.github/actions/reclaim-tart-disk
+
+      - name: Build runner shell agent
+        working-directory: infra/runner-image
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          go build -trimpath -ldflags="-s -w" -o build/runner-shell-agent ./cmd/runner-shell-agent
 
       - name: Build profile
         id: build
@@ -1200,28 +1217,36 @@ jobs:
         # Push both the immutable per-version tag and the rolling
         # `:<profile>` tag so the chart's tag template stays valid
         # without overrides while operators can still pin to a
-        # specific version when they need to roll back. 3× retry per
-        # tag — blob uploads are content-addressed so a re-push only
-        # re-uploads layers that didn't make it on the previous
-        # attempt.
+        # specific version when they need to roll back. 5 attempts
+        # per tag with growing backoff — blob uploads are content-
+        # addressed so each retry only re-uploads layers that didn't
+        # land on the previous attempt, and the backoff spreads
+        # attempts past upload-path degradation windows (see the
+        # release-xcresult-processor-image push step).
         run: |
           set -euo pipefail
           VERSION="${{ needs.check-releases.outputs.runner-image-next-version-number }}"
           PROFILE="${{ steps.build.outputs.profile }}"
           for dest_tag in "${PROFILE}-${VERSION}" "${PROFILE}"; do
             DST="ghcr.io/tuist/tuist-runner:${dest_tag}"
-            for attempt in 1 2 3; do
+            for attempt in 1 2 3 4 5; do
               echo "tart push -> ${dest_tag} attempt ${attempt} at $(date -u +%H:%M:%SZ)" >&2
               if tart push tuist-runner "$DST"; then
                 echo "Pushed ${DST} on attempt ${attempt}"
                 break
               fi
-              if [ "$attempt" = 3 ]; then
-                echo "tart push failed three times for ${dest_tag}" >&2
+              if [ "$attempt" = 5 ]; then
+                echo "tart push failed five times for ${dest_tag}" >&2
                 exit 1
               fi
-              echo "tart push attempt ${attempt} failed; sleeping 60s before retry" >&2
-              sleep 60
+              case "$attempt" in
+                1) delay=60 ;;
+                2) delay=120 ;;
+                3) delay=300 ;;
+                *) delay=600 ;;
+              esac
+              echo "tart push attempt ${attempt} failed; sleeping ${delay}s before retry" >&2
+              sleep "$delay"
             done
           done
 
@@ -1864,6 +1889,7 @@ jobs:
     timeout-minutes: 75
     outputs:
       image_tag: ${{ steps.tag.outputs.image_tag }}
+      codebase_search_image_tag: ${{ steps.tag.outputs.image_tag }}
       registry_image_tag: ${{ steps.tag.outputs.image_tag }}
     steps:
       - uses: actions/checkout@v4
@@ -1930,6 +1956,18 @@ jobs:
             MIX_ENV=prod
             APT_CACHE_BUST=${{ github.sha }}
       - uses: docker/build-push-action@v6
+        name: Build and push codebase search image
+        with:
+          context: ./codebase-search
+          file: ./codebase-search/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.CODEBASE_SEARCH_IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
+          build-args: |
+            TUIST_REVISION=${{ github.sha }}
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.CODEBASE_SEARCH_IMAGE_NAME }}-buildcache:main
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.CODEBASE_SEARCH_IMAGE_NAME }}-buildcache:main,mode=max
+      - uses: docker/build-push-action@v6
         name: Build and push Kura controller image
         with:
           context: .
@@ -1970,6 +2008,8 @@ jobs:
       environment: canary
       commit_sha: ${{ github.sha }}
       image_tag: ${{ needs.build.outputs.image_tag }}
+      kura_controller_image_tag: ${{ needs.build.outputs.image_tag }}
+      codebase_search_image_tag: ${{ needs.build.outputs.codebase_search_image_tag }}
       registry_image_tag: ${{ needs.build.outputs.registry_image_tag }}
     secrets: inherit
 
@@ -2141,6 +2181,8 @@ jobs:
       environment: production
       commit_sha: ${{ github.sha }}
       image_tag: ${{ needs.build.outputs.image_tag }}
+      kura_controller_image_tag: ${{ needs.build.outputs.image_tag }}
+      codebase_search_image_tag: ${{ needs.build.outputs.codebase_search_image_tag }}
       registry_image_tag: ${{ needs.build.outputs.registry_image_tag }}
     secrets: inherit
 
@@ -2163,5 +2205,7 @@ jobs:
       environment: production
       commit_sha: ${{ github.sha }}
       image_tag: ${{ needs.build.outputs.image_tag }}
+      kura_controller_image_tag: ${{ needs.build.outputs.image_tag }}
+      codebase_search_image_tag: ${{ needs.build.outputs.codebase_search_image_tag }}
       registry_image_tag: ${{ needs.build.outputs.registry_image_tag }}
     secrets: inherit

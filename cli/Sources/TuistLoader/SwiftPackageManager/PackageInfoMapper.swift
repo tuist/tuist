@@ -40,6 +40,12 @@ enum PackageInfoMapperError: LocalizedError, Equatable {
     /// Thrown when a target defined in a product is not present in the package
     case unknownProductTarget(package: String, product: String, target: String)
 
+    /// Thrown when an included local package test target depends on a product from another package.
+    case unsupportedExternalProductInLocalPackageTest(package: String, target: String, product: String)
+
+    /// Thrown when an included local package test target depends on an executable target that is not mapped.
+    case unsupportedExecutableTargetInLocalPackageTest(package: String, target: String, executable: String)
+
     /// Thrown when unsupported `PackageInfo.Target.TargetBuildSettingDescription` `Tool`/`SettingName` pair is found.
     case unsupportedSetting(
         PackageInfo.Target.TargetBuildSettingDescription.Tool,
@@ -67,6 +73,18 @@ enum PackageInfoMapperError: LocalizedError, Equatable {
             return "The product \(name) of package \(package) cannot be found."
         case let .unknownProductTarget(package, product, target):
             return "The target \(target) of product \(product) cannot be found in package \(package)."
+        case let .unsupportedExternalProductInLocalPackageTest(package, target, product):
+            return """
+            The test target `\(target)` in the local package `\(package)` depends on the external product `\(product)`. \
+            Tuist can include local package test targets only when all their dependencies belong to the same package. Remove \
+            the external product dependency, or set `includeLocalPackageTestTargets` to `false` in `PackageSettings`.
+            """
+        case let .unsupportedExecutableTargetInLocalPackageTest(package, target, executable):
+            return """
+            The test target `\(target)` in the local package `\(package)` depends on the executable target `\(executable)`, \
+            which Tuist omits when mapping local package dependencies. Remove the executable target dependency, or set \
+            `includeLocalPackageTestTargets` to `false` in `PackageSettings`.
+            """
         case let .unsupportedSetting(tool, setting):
             return "The \(tool) and \(setting) pair is not a supported setting."
         case let .modulemapMissing(moduleMapPath, package, target):
@@ -89,11 +107,13 @@ public enum PackageType {
         derivedXCFrameworksPath: AbsolutePath? = nil
     )
 
-    fileprivate var includesTestTargets: Bool {
+    fileprivate func includesTestTargets(includeLocalPackageTestTargets: Bool) -> Bool {
         switch self {
         case .local:
             return true
-        case .external:
+        case .external(origin: .local, artifactPaths: _, packagePrebuilts: _, derivedXCFrameworksPath: _):
+            return includeLocalPackageTestTargets
+        case .external(origin: .remote, artifactPaths: _, packagePrebuilts: _, derivedXCFrameworksPath: _):
             return false
         }
     }
@@ -182,9 +202,9 @@ public struct PackageInfoMapper: PackageInfoMapping {
 
     /// Resolves all SwiftPackageManager dependencies.
     /// - Parameters:
-    ///   - packageInfos: All available `PackageInfo`s
-    ///   - packageToFolder: Mapping from a package name to its local folder
-    ///   - packageToTargetsToArtifactPaths: Mapping from a package name its targets' names to artifacts' paths
+    ///   - packageInfos: All available `PackageInfo`s, keyed by package identity
+    ///   - packageToFolder: Mapping from a package identity to its local folder
+    ///   - packageToTargetsToArtifactPaths: Mapping from a package identity to its targets' names to artifacts' paths
     /// - Returns: Mapped project
     public func resolveExternalDependencies(
         path: AbsolutePath,
@@ -719,7 +739,9 @@ public struct PackageInfoMapper: PackageInfoMapping {
         // Ignores or passes a target based on the `type` and the `packageType`.
         // After that, it assumes that no target is ignored.
         switch target.type {
-        case .test where !packageType.includesTestTargets:
+        case .test where !packageType.includesTestTargets(
+            includeLocalPackageTestTargets: packageSettings.includeLocalPackageTestTargets
+        ):
             Logger.current.debug("Target \(target.name) of type \(target.type) ignored")
             return nil
         case .regular, .system, .macro, .test:
@@ -735,6 +757,44 @@ public struct PackageInfoMapper: PackageInfoMapping {
         default:
             Logger.current.debug("Target \(target.name) of type \(target.type) ignored")
             return nil
+        }
+
+        if target.type == .test,
+           case .external(origin: .local, artifactPaths: _, packagePrebuilts: _, derivedXCFrameworksPath: _) = packageType,
+           let productName = target.dependencies.compactMap({ dependency -> String? in
+               switch dependency {
+               case let .product(name, package: _, moduleAliases: _, condition: _):
+                   return name
+               case let .byName(name, condition: _) where targetsByName[name] == nil:
+                   return name
+               case .target, .byName:
+                   return nil
+               }
+           }).first
+        {
+            throw PackageInfoMapperError.unsupportedExternalProductInLocalPackageTest(
+                package: packageInfo.name,
+                target: target.name,
+                product: productName
+            )
+        }
+
+        if target.type == .test,
+           case .external(origin: .local, artifactPaths: _, packagePrebuilts: _, derivedXCFrameworksPath: _) = packageType,
+           let executableName = target.dependencies.compactMap({ dependency -> String? in
+               switch dependency {
+               case let .target(name, _), let .byName(name, _):
+                   return targetsByName[name]?.type == .executable ? name : nil
+               case .product:
+                   return nil
+               }
+           }).first
+        {
+            throw PackageInfoMapperError.unsupportedExecutableTargetInLocalPackageTest(
+                package: packageInfo.name,
+                target: target.name,
+                executable: executableName
+            )
         }
 
         let products = targetToProducts[target.name] ?? Set()

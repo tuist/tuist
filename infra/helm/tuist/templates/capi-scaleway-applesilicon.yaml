@@ -315,6 +315,15 @@ spec:
       {{- include "tuist.componentLabels" (dict "root" . "component" "capi-scaleway-applesilicon") | nindent 6 }}
   template:
     metadata:
+      annotations:
+        # Scrape the operator's controller-runtime + custom metrics
+        # (capt_scaleway_applesilicon_machine_phase) into Grafana Cloud via
+        # the k8s-monitoring chart's annotation autodiscovery. Without this
+        # the :8080 endpoint is served but never scraped, so the
+        # machine-stuck-Failed alert has no metric to fire on.
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: /metrics
       labels:
         {{- include "tuist.componentLabels" (dict "root" . "component" "capi-scaleway-applesilicon") | nindent 8 }}
     spec:

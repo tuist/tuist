@@ -13,6 +13,7 @@ node_modules_path = Path.expand("../node_modules", __DIR__)
 
 config :boruta, Boruta.Oauth,
   repo: Tuist.Repo,
+  max_ttl: [authorization_code: 300],
   contexts: [
     resource_owners: Tuist.OAuth.ResourceOwners,
     clients: Tuist.OAuth.Clients,
@@ -107,6 +108,7 @@ config :fun_with_flags, :persistence,
   ecto_primary_key_type: :binary_id
 
 config :guardian, Guardian.DB,
+  adapter: Tuist.GuardianDatabaseAdapter,
   repo: Tuist.Repo,
   schema_name: "guardian_tokens",
   token_types: ["refresh"]
@@ -123,6 +125,8 @@ config :logger, :console,
     # Operator project-access grant (forensic join key for the audit trail)
     :operator_grant_jti,
     :operator_grant_sub,
+    :session_payload_bytes,
+    :warning_threshold_bytes,
     # Tuist.Runners structured fields
     :pod_uid,
     :pod_name,
@@ -144,6 +148,12 @@ config :logger, :console,
     :pod_image,
     :pool_image,
     :fleet,
+    :state,
+    :connection_id,
+    :reported_pod,
+    :reported_pool,
+    :binding,
+    :open_sessions,
     :reason,
     :changeset_errors,
     :account,
@@ -160,10 +170,21 @@ config :logger, :console,
     :stale_after_seconds,
     :verify_after_seconds,
     :reap_after_seconds,
+    :confirmed_absent_seconds,
+    :observed_pods,
+    :claims,
+    :missing,
+    :newly_marked,
+    :recovered,
+    :released,
+    :eligible,
+    :cap,
+    :workflow_job_ids,
     :enqueued_at,
     :grace_seconds,
     :delivery_id,
     :workflow_job_id,
+    :repository,
     :conclusion,
     :ours,
     :winner,
@@ -182,6 +203,8 @@ config :logger, :console,
     :configured,
     :reconciling
   ]
+
+config :mdex_native, syntax_highlighter: :lumis
 
 config :mime, :types, %{
   "application/linkset+json" => ["linkset"],
@@ -203,10 +226,16 @@ config :phoenix, :json_library, Jason
 # as a reference
 config :prom_ex, :storage_adapter, Tuist.PromEx.StripedPeep
 
+# Stripity Stripe adds a Connection header, which is forbidden by Hypertext Transfer
+# Protocol version 2 and causes Hackney protocol errors after negotiating version 2.
+config :stripity_stripe,
+  hackney_opts: [protocols: [:http1]]
+
 config :tower, reporters: [TowerOpentelemetry]
 
 # Oban
 config :tuist, Oban,
+  engine: Tuist.Oban.Engine,
   repo: Tuist.Repo,
   notifier: Oban.Notifiers.PG
 
@@ -413,6 +442,8 @@ config :tuist, :urls,
   shop: "https://shop.tuist.dev"
 
 config :tuist_common, finch_name: Tuist.Finch
+
+config :tzdata, :http_client, Tuist.Tzdata.HTTPClient
 
 config :ueberauth, Ueberauth,
   base_path: "/users/auth",

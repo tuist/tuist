@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Starts the trusted interactive shell bridge independently from the
+  GUI LaunchAgent. The supervisor waits for inject-env.sh to materialize
+  /etc/tuist.env and /etc/tuist-sa-token before it connects to Tuist, so
+  booting this early is safe. Running as a LaunchDaemon keeps terminal
+  access available even when the macOS desktop is locked or loginwindow
+  has not loaded the runner user's LaunchAgents yet.
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>dev.tuist.runner-shell-agent</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/opt/tuist/runner-shell-agent-supervisor.sh</string>
+    </array>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>/var/log/tuist-runner/shell-agent-launchd.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/var/log/tuist-runner/shell-agent-launchd.log</string>
+
+    <key>ProcessType</key>
+    <string>Background</string>
+</dict>
+</plist>

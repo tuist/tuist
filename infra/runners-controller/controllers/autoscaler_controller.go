@@ -137,7 +137,7 @@ func (r *AutoscalerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	}
 
 	knobs := scaling.PolicyKnobs{
-		MinWarmPoolFloor: pool.Spec.Autoscaling.MinWarmPoolFloor,
+		MinWarmPoolFloor: pool.Spec.Autoscaling.MinWarmPoolFloorOrDefault(),
 		MaxReplicas:      pool.Spec.Autoscaling.MaxReplicas,
 	}
 	desired := r.desiredForPool(ctx, pool, *signals, knobs, logger)
@@ -160,7 +160,7 @@ func (r *AutoscalerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		// desired < current — scale down candidate. Cooldown gate
 		// stops us from oscillating: a single brief idle window
 		// shouldn't drop warm capacity that's about to be reused.
-		cooldown := time.Duration(pool.Spec.Autoscaling.ScaleDownCooldownSeconds) * time.Second
+		cooldown := time.Duration(pool.Spec.Autoscaling.ScaleDownCooldownSecondsOrDefault()) * time.Second
 		if cooldown < 0 {
 			cooldown = 0
 		}
@@ -229,6 +229,12 @@ func (r *AutoscalerReconciler) desiredForPool(
 	// reaped down to `allocated` under fleet contention) is observable
 	// on its own series, not inferred from alive-vs-desired.
 	metrics.RecordAllocation(pool.Name, signals.Claimed+signals.Queued, knobs.MinWarmPoolFloor, perPool, allocated)
+
+	// Publish the demand signals unsummed as well. The allocator only
+	// needs claimed+queued, but that sum is flat while work drains
+	// normally (queued -> claimed), so it cannot distinguish a pool
+	// serving its backlog from one wedged with the same backlog.
+	metrics.RecordDemand(pool.Name, signals.Claimed, signals.Queued)
 
 	return allocated
 }
@@ -342,7 +348,7 @@ func (r *AutoscalerReconciler) gatherFleetDemands(
 			}
 			sig = *fetched
 			k = scaling.PolicyKnobs{
-				MinWarmPoolFloor: p.Spec.Autoscaling.MinWarmPoolFloor,
+				MinWarmPoolFloor: p.Spec.Autoscaling.MinWarmPoolFloorOrDefault(),
 				MaxReplicas:      p.Spec.Autoscaling.MaxReplicas,
 			}
 		}
@@ -368,7 +374,12 @@ func (r *AutoscalerReconciler) fleetAllocatableMemory(ctx context.Context, fleet
 	}
 
 	var total int64
+	ready, filtered := summarizeFleetNodes(nodes.Items)
+	metrics.RecordFleetNodes(fleetSelector, "linux", ready, filtered)
 	for i := range nodes.Items {
+		if nodeFilterReason(&nodes.Items[i]) != "" {
+			continue
+		}
 		if mem := nodes.Items[i].Status.Allocatable.Memory(); mem != nil {
 			total += mem.Value()
 		}
@@ -395,7 +406,9 @@ func (r *AutoscalerReconciler) fleetHostCount(ctx context.Context, fleetSelector
 	}); err != nil {
 		return 0, fmt.Errorf("list macOS fleet nodes: %w", err)
 	}
-	return int64(len(nodes.Items)), nil
+	ready, filtered := summarizeFleetNodes(nodes.Items)
+	metrics.RecordFleetNodes(fleetSelector, "darwin", ready, filtered)
+	return int64(ready), nil
 }
 
 func (r *AutoscalerReconciler) applyReplicas(ctx context.Context, pool *tuistv1.RunnerPool, desired int32) error {

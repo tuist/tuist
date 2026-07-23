@@ -18,6 +18,7 @@ final class RetryProviderTests: TuistUnitTestCase {
             .willReturn(1)
 
         subject = RetryProvider(
+            maximumRetryCount: 3,
             delayProvider: delayProvider
         )
     }
@@ -66,6 +67,24 @@ final class RetryProviderTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(operationCalls, 4)
+    }
+
+    func test_runWithRetries_whenMaximumRetryCountIsZero_doesNotRetry() async throws {
+        // Given
+        let error = TestError("exists failed")
+        let subject = RetryProvider(maximumRetryCount: 0)
+
+        // When
+        await XCTAssertThrowsSpecific(
+            try await subject.runWithRetries { [self] in
+                operationCalls += 1
+                throw error
+            },
+            error
+        )
+
+        // Then
+        XCTAssertEqual(operationCalls, 1)
     }
 
     func test_runWithRetries_whenOperationIsCancelled_doesNotRetry() async throws {

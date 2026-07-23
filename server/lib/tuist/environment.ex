@@ -217,6 +217,17 @@ defmodule Tuist.Environment do
     end
   end
 
+  @doc """
+  Role backing the Grafana Product Usage dashboard. Set only for managed CNPG
+  migration Jobs; unset leaves the role's grants untouched.
+  """
+  def database_grafana_role do
+    case System.get_env("TUIST_DATABASE_GRAFANA_ROLE") do
+      role when is_binary(role) and role != "" -> role
+      _ -> nil
+    end
+  end
+
   def database_config_from_url(url) do
     parsed_url = URI.parse(url)
 
@@ -973,7 +984,8 @@ defmodule Tuist.Environment do
   end
 
   def mailing_from_address(secrets \\ secrets()) do
-    get([:mailing, :from_address], secrets) || get([:smtp_settings, :user_name], secrets)
+    get([:mailing, :from_address], secrets) || get([:smtp_settings, :user_name], secrets) ||
+      if(dev?(), do: "noreply@tuist.dev")
   end
 
   def mailing_reply_to_address(secrets \\ secrets()) do
@@ -1195,6 +1207,20 @@ defmodule Tuist.Environment do
   end
 
   @doc """
+  Returns the bucket size for the dashboard route rate limiter.
+
+  The default values are:
+  - 300 requests per route for canary environments
+  - 60 requests per route for other environments (production, staging, dev)
+  """
+  def dashboard_rate_limit_bucket_size(secrets \\ secrets()) do
+    case get([:dashboard_rate_limit, :bucket_size], secrets) do
+      bucket_size when is_binary(bucket_size) -> String.to_integer(bucket_size)
+      _ -> if can?(), do: 300, else: 60
+    end
+  end
+
+  @doc """
   Returns the bucket size for the MCP rate limiter.
 
   The default values are:
@@ -1332,6 +1358,23 @@ defmodule Tuist.Environment do
 
   def typesense_host do
     get([:typesense, :host], secrets(), default_value: "https://search.tuist.dev")
+  end
+
+  def codebase_search_url(environment \\ System.get_env()) when is_map(environment) do
+    case Map.get(environment, "TUIST_CODEBASE_SEARCH_URL") do
+      value when is_binary(value) ->
+        case value |> String.trim() |> String.trim_trailing("/") do
+          "" -> nil
+          url -> url
+        end
+
+      _ ->
+        nil
+    end
+  end
+
+  def codebase_search_enabled?(environment \\ System.get_env()) when is_map(environment) do
+    codebase_search_url(environment) != nil
   end
 
   @doc """

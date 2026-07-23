@@ -15,6 +15,22 @@ global:
     tuist.dev/service: server
     tuist.dev/stack: managed
 
+# Grafana Cloud PDC agent. `cluster` + `hostedGrafanaId` identify our Grafana
+# Cloud stack (stacks-1028740) and are the same for every managed env, so they
+# live here; only the per-env signing token differs and comes from that env's
+# 1Password vault (PDC_AGENT/password) via ESO.
+#
+# Still `enabled: false` everywhere: the agent CrashLoops without a real token,
+# so each env flips this on in its own overlay once PDC_AGENT exists in its vault.
+pdcAgent:
+  image:
+    # No `v` prefix: upstream's GitHub release is tagged `v0.0.61` but the
+    # published Docker Hub tag is `0.0.61`. Check hub.docker.com/r/grafana/
+    # pdc-agent/tags — not the GitHub releases page — when bumping this.
+    tag: "0.0.61"
+  cluster: prod-eu-west-2
+  hostedGrafanaId: "1028740"
+
 kuraController:
   enabled: true
   namespace: kura
@@ -35,6 +51,13 @@ kuraController:
       fields:
         introspectionClientId: KURA_CONTROL_PLANE_CLIENT_ID
         introspectionClientSecret: KURA_CONTROL_PLANE_CLIENT_SECRET
+
+codebaseSearch:
+  enabled: true
+  image:
+    tag: ""  # Set by the deployment workflow to the same commit as the server image.
+  networkPolicy:
+    enabled: true
 
 server:
   serviceAccount:
@@ -67,6 +90,9 @@ server:
   # any POST endpoint with a non-trivial body (cache, runs, webhooks).
   ingress:
     annotations:
+      # Authorization redirects combine a signed session cookie with a long
+      # Location header. Keep enough response-header headroom for both.
+      nginx.ingress.kubernetes.io/proxy-buffer-size: "16k"
       nginx.ingress.kubernetes.io/proxy-body-size: "50m"
       nginx.ingress.kubernetes.io/proxy-request-buffering: "off"
 

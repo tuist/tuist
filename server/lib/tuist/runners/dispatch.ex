@@ -4,13 +4,11 @@ defmodule Tuist.Runners.Dispatch do
 
   Handles three action values:
 
-    * `queued` — INSERTs a `runner_jobs` row (status='queued') in
-      ClickHouse. A polling Pod's next dispatch claim will pick
-      it up.
-    * `waiting` — INSERTs the same queued row only if the job is
-      missing. GitHub can emit this state when a self-hosted job is
-      waiting for capacity; a late duplicate must not regress an
-      already claimed/running job.
+    * `queued` / `waiting` — INSERTs a `runner_jobs` row
+      (status='queued') in ClickHouse only when the job is missing.
+      A polling Pod's next dispatch claim will pick it up. GitHub can
+      redeliver these states after cancellation, so a late duplicate
+      must not regress an already claimed/running/completed job.
     * `completed` — UPDATEs the matching row via RMT (status='completed',
       conclusion, completed_at).
 
@@ -50,6 +48,7 @@ defmodule Tuist.Runners.Dispatch do
   alias Tuist.Runners.JobSteps
   alias Tuist.Runners.Profile
   alias Tuist.Runners.Profiles
+  alias Tuist.Runners.RunnerSessions
   alias Tuist.Runners.Telemetry
   alias Tuist.Runners.Workers.FetchLogsWorker
   alias Tuist.VCS
@@ -81,6 +80,12 @@ defmodule Tuist.Runners.Dispatch do
   def handle_webhook(%{"action" => "waiting"} = payload, installation_id) when is_integer(installation_id) do
     result = handle_waiting(payload, installation_id)
     emit_webhook_telemetry("waiting", result)
+    result
+  end
+
+  def handle_webhook(%{"action" => "in_progress"} = payload, installation_id) when is_integer(installation_id) do
+    result = handle_in_progress(payload, installation_id)
+    emit_webhook_telemetry("in_progress", result)
     result
   end
 
@@ -123,7 +128,7 @@ defmodule Tuist.Runners.Dispatch do
   defp webhook_outcome(_), do: "unknown"
 
   defp handle_queued(payload, installation_id) do
-    handle_queueable(payload, installation_id, &Jobs.enqueue/1)
+    handle_queueable(payload, installation_id, &Jobs.enqueue_if_missing/1)
   end
 
   defp handle_waiting(payload, installation_id) do
@@ -196,67 +201,235 @@ defmodule Tuist.Runners.Dispatch do
     end
   end
 
+  # `workflow_job.in_progress` is the first event that carries the
+  # `runner_name` GitHub actually placed the job on. GitHub assigns
+  # queued jobs to any label-eligible runner independently of the
+  # server's claim, so this is the only real-time proof of the
+  # runner↔job binding. We record it (fixing metrics attribution and
+  # measuring how often the claim was wrong) but never re-enqueue or
+  # re-claim off it — the job is already executing.
+  defp handle_in_progress(payload, installation_id) do
+    job = Map.get(payload, "workflow_job", %{})
+    workflow_job_id = Map.get(job, "id")
+    runner_name = Map.get(job, "runner_name", "") || ""
+
+    with true <- is_integer(workflow_job_id) and runner_name != "",
+         {:ok, account} <- webhook_account(payload, installation_id) do
+      record_execution(runner_name, workflow_job_id, account.id)
+    else
+      _ -> :ignored
+    end
+  end
+
+  # The account that owns the runners this webhook can speak for. A
+  # `runner_name` is only meaningful within the account that minted it —
+  # every other account controls the names of its own self-hosted
+  # runners — so attribution and release must be scoped to the account
+  # the delivery authenticates as, never matched globally by name.
+  defp webhook_account(payload, installation_id) do
+    owner =
+      payload
+      |> Map.get("repository", %{})
+      |> Map.get("full_name", "")
+      |> parse_full_name()
+      |> elem(0)
+
+    case resolve_account(installation_id, owner) do
+      nil -> {:error, :no_account}
+      account -> {:ok, account}
+    end
+  end
+
+  # Binds the runner→job proof onto the live claim (drives metrics
+  # attribution while the job runs) and the durable session (the
+  # backstop that outlives the pod). The claim and session agree in
+  # the common case; when they disagree — or when only one is still
+  # present — we surface `:mismatch` so it's never silently the
+  # weaker `:matched`.
+  defp record_execution(runner_name, executed_workflow_job_id, account_id) do
+    claim_outcome = Claims.record_execution(runner_name, executed_workflow_job_id, account_id)
+    session_outcome = RunnerSessions.record_execution(runner_name, executed_workflow_job_id, account_id)
+    outcome = combine_attribution(claim_outcome, session_outcome)
+
+    case outcome do
+      :mismatch ->
+        Logger.info("runners: claim/execution mismatch",
+          runner_name: runner_name,
+          workflow_job_id: executed_workflow_job_id
+        )
+
+        {:ok, :mismatch}
+
+      :matched ->
+        {:ok, :matched}
+
+      :unknown_runner ->
+        # Neither a live claim nor a session carries this runner_name.
+        # Expected for a runner minted by another provider, or a
+        # dropped/very-late webhook whose rows are long gone.
+        {:ignored, :unknown_runner}
+    end
+  end
+
+  # A real `:matched`/`:mismatch` from either store beats
+  # `:unknown_runner`; a `:mismatch` anywhere wins over `:matched`
+  # (the claim can be gone while the durable session still proves the
+  # divergence, or vice-versa).
+  defp combine_attribution(:mismatch, _), do: :mismatch
+  defp combine_attribution(_, :mismatch), do: :mismatch
+  defp combine_attribution(:matched, _), do: :matched
+  defp combine_attribution(_, :matched), do: :matched
+  defp combine_attribution(_, _), do: :unknown_runner
+
   defp handle_completed(payload, installation_id) do
     job = Map.get(payload, "workflow_job", %{})
     workflow_job_id = Map.get(job, "id")
     conclusion = Map.get(job, "conclusion", "") || ""
+    runner_name = Map.get(job, "runner_name", "") || ""
     repository = payload |> Map.get("repository", %{}) |> Map.get("full_name", "")
 
     if is_integer(workflow_job_id) do
-      mark_completed(workflow_job_id, conclusion, raw_steps(job), installation_id, repository)
+      # Attribution and claim release are scoped to the account this
+      # delivery authenticates as; a runner name is only ours to act on
+      # within the account that minted it. Without an account we can
+      # still transition the customer-facing job row, but must touch no
+      # runner state.
+      account_id =
+        case webhook_account(payload, installation_id) do
+          {:ok, account} -> account.id
+          {:error, _} -> nil
+        end
+
+      # Backstop attribution before we free the claim: a dropped
+      # `in_progress` still gets the runner→job binding recorded on
+      # the durable session here. `runner_name` is null for a job
+      # cancelled while still queued (no runner ever ran it), so this
+      # is a no-op for that class.
+      if runner_name != "" and account_id,
+        do: RunnerSessions.record_execution(runner_name, workflow_job_id, account_id)
+
+      mark_completed(payload, workflow_job_id, conclusion, account_id, raw_steps(job), installation_id, repository)
     else
       :ignored
     end
   end
 
-  defp mark_completed(workflow_job_id, conclusion, raw_steps, installation_id, repository) do
-    # Free the PG cap slot FIRST. The customer's next dispatch
-    # poll (potentially seconds away) sees the freed inflight
-    # count immediately rather than waiting on the stale-claims
-    # worker. CH state transition is fire-and-forget — if it
-    # raises, the next dispatch is unaffected because cap
-    # accounting reads PG.
-    :ok = Claims.complete(workflow_job_id)
+  defp mark_completed(payload, workflow_job_id, conclusion, account_id, raw_steps, installation_id, repository) do
+    runner_name = payload |> Map.get("workflow_job", %{}) |> Map.get("runner_name", "") || ""
 
-    case Jobs.complete(workflow_job_id, conclusion) do
-      {:ok, %{account_id: account_id}} ->
-        # Persist steps after marking the job complete: the row's
-        # `account_id` is the denormalisation key on the step row, and
-        # an empty list (cancelled jobs sometimes ship no steps) is a
-        # safe no-op. Webhook retries collapse on the RMT key.
-        :ok = JobSteps.record(build_step_rows(workflow_job_id, account_id, raw_steps))
+    Jobs.with_workflow_job_ordering_lock(workflow_job_id, fn ->
+      # Free the PG cap slot FIRST. The customer's next dispatch
+      # poll (potentially seconds away) sees the freed inflight
+      # count immediately rather than waiting on the stale-claims
+      # worker. The ordering lock below only serializes webhook
+      # transitions for this workflow_job so a concurrent queued
+      # redelivery cannot resurrect the completion row.
+      #
+      # Release by EXECUTOR, not by the completed job's id: the Pod that
+      # claimed this job is not necessarily the one that ran it. Freeing
+      # by job id would release a slot still held by a runner executing
+      # someone else's claim, under-counting the account's live runners.
+      # A job cancelled while queued has no runner_name — nothing ran, so
+      # nothing is released; the claiming Pod keeps its slot until it stops
+      # (idle timeout → pod-stop → `Claims.release_by_pod_name/1`). Note
+      # `OrphanedRunnersWorker` cannot reach this class: `Jobs.complete/2`
+      # below flips the ClickHouse row to `completed`, and the worker only
+      # lists rows still `running` — so the watchdog is what frees it.
+      if account_id, do: Claims.complete_by_runner_name(runner_name, account_id)
 
-        # Fetch the full job log from GitHub's Actions Logs API and
-        # ingest it into `runner_job_logs`. The Logs API is the only
-        # stable source of step output — the runner Pod's stdout
-        # carries only Listener lifecycle, the Worker diag log only
-        # framework noise, and step content streams directly from the
-        # .NET Worker to GitHub's `ResultsLog`. See
-        # `Tuist.Runners.Workers.FetchLogsWorker`.
-        enqueue_log_fetch(workflow_job_id, account_id, installation_id, repository)
+      case Jobs.complete(workflow_job_id, conclusion) do
+        {:ok, %{account_id: account_id}} ->
+          record_completed_steps_and_logs(
+            workflow_job_id,
+            account_id,
+            raw_steps,
+            installation_id,
+            repository,
+            conclusion
+          )
 
-        Logger.info("runners: completed",
-          workflow_job_id: workflow_job_id,
-          conclusion: conclusion
-        )
+        {:error, :not_found} ->
+          # The completed delivery can arrive before the queued delivery.
+          # If this job targets one of our pools, write a completion row now
+          # so a late queued redelivery cannot resurrect canceled work.
+          case record_completed_without_queued(payload, conclusion, installation_id) do
+            {:ok, account_id} ->
+              record_completed_steps_and_logs(
+                workflow_job_id,
+                account_id,
+                raw_steps,
+                installation_id,
+                repository,
+                conclusion
+              )
 
-        {:ok, :completed}
+            ignored ->
+              ignored
+          end
+      end
+    end)
+  end
 
-      {:error, :not_found} ->
-        # We didn't accept this workflow_job at queue time
-        # (a different provider's job, or a delivery race).
-        # Nothing to mark complete; not our concern.
-        :ignored
+  defp record_completed_steps_and_logs(workflow_job_id, account_id, raw_steps, installation_id, repository, conclusion) do
+    # Persist steps after marking the job complete: the row's
+    # `account_id` is the denormalisation key on the step row, and
+    # an empty list (cancelled jobs sometimes ship no steps) is a
+    # safe no-op. Webhook retries collapse on the RMT key.
+    :ok = JobSteps.record(build_step_rows(workflow_job_id, account_id, raw_steps))
+
+    # Fetch the full job log from GitHub's Actions Logs API and
+    # ingest it into `runner_job_logs`. The Logs API is the only
+    # stable source of step output — the runner Pod's stdout
+    # carries only Listener lifecycle, the Worker diag log only
+    # framework noise, and step content streams directly from the
+    # .NET Worker to GitHub's `ResultsLog`. See
+    # `Tuist.Runners.Workers.FetchLogsWorker`.
+    enqueue_log_fetch(workflow_job_id, account_id, installation_id, repository, raw_steps)
+
+    Logger.info("runners: completed",
+      workflow_job_id: workflow_job_id,
+      conclusion: conclusion
+    )
+
+    {:ok, :completed}
+  end
+
+  defp record_completed_without_queued(payload, conclusion, installation_id) do
+    job = Map.get(payload, "workflow_job", %{})
+    repo = Map.get(payload, "repository", %{})
+    full_name = Map.get(repo, "full_name", "")
+    {owner, _repo_name} = parse_full_name(full_name)
+    requested = Map.get(job, "labels", [])
+
+    with {:ok, account} <- fetch_enabled_account(installation_id, owner),
+         {:ok, target} <- resolve_dispatch_target(account, requested),
+         :ok <- Jobs.record_completed(enqueue_attrs(account, target, full_name, job), conclusion) do
+      {:ok, account.id}
+    else
+      {:error, reason} when reason in [:no_account, :runners_disabled, :no_matching_pool, :no_pools, :ambiguous_pool] ->
+        {:ignored, reason}
     end
   end
 
-  defp enqueue_log_fetch(_workflow_job_id, _account_id, _installation_id, "") do
+  defp enqueue_log_fetch(_workflow_job_id, _account_id, _installation_id, "", _raw_steps) do
     # Cancelled / synthetic workflow_jobs sometimes ship without a
     # repository field. Without it we can't address the Logs API.
     :ok
   end
 
-  defp enqueue_log_fetch(workflow_job_id, account_id, installation_id, repository) do
+  defp enqueue_log_fetch(_workflow_job_id, _account_id, _installation_id, _repository, []) do
+    # A completed job that reports no steps never executed: either it
+    # was `skipped` by an `if:` gate, or `cancelled` while still queued
+    # so no runner ever picked it up. GitHub uploads no log archive for
+    # that class, and its Logs API answers 404 forever — not the
+    # ~30 s finalisation window the fetch worker retries through. Left
+    # unfiltered, every one of these burns all five attempts before
+    # discarding. A job cancelled mid-run does report its steps and
+    # does have a (partial) log, so it still goes through.
+    :ok
+  end
+
+  defp enqueue_log_fetch(workflow_job_id, account_id, installation_id, repository, _raw_steps) do
     %{
       workflow_job_id: workflow_job_id,
       account_id: account_id,

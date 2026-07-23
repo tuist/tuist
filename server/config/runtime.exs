@@ -573,7 +573,9 @@ otel_endpoint = Tuist.Environment.get([:otel, :exporter, :otlp, :endpoint])
 # can't starve unrelated work — each job can block for up to 10s and
 # retries six times, and a single `test_case.created` event fans out
 # to one job per subscribed endpoint.
-base_queues = [default: 10, vcs_comments: 20, webhooks: 20, storage_retention: 1]
+# Alert evaluations are isolated at one worker per server Pod because their
+# rolling ClickHouse aggregates are memory-heavy even after query-level limits.
+base_queues = [default: 10, alert_evaluations: 1, vcs_comments: 20, webhooks: 20, storage_retention: 1]
 process_build_queue = {:process_build, Tuist.Environment.process_build_queue_concurrency()}
 process_xcresult_queue = {:process_xcresult, Tuist.Environment.process_xcresult_queue_concurrency()}
 # Swift registry sync queues. Consumed only by
@@ -601,16 +603,15 @@ oban_queues =
       if Tuist.Environment.delegate_process_xcresult?(), do: base, else: base ++ [process_xcresult_queue]
   end
 
-# Leader-only Oban work (Cron, Pruner, Lifeline, Oban.Met.Reporter) runs
-# on whichever node wins the peer election. Web pods are the only leader-
-# eligible nodes; every other role gets `peer: false` (Oban normalises
-# that to the Isolated peer with `leader?: false`, so leader-only plugins
-# start there but stay idle). The crontab and the peer rule are derived
-# by `Tuist.Oban.RuntimeConfig`, which is unit-tested against every value
-# of `Tuist.Environment.modes/0` so a future denylist regression — like
-# the one where `:xcresult_processor` shipped leader-eligible with an
-# empty crontab and silently halted every cron job — fails CI before it
-# lands in prod.
+# Leader-only Oban work (Cron, Pruner, Lifeline) runs on whichever node wins
+# the peer election. Web pods are the only leader-eligible nodes; every other
+# role gets `peer: false`. Oban Met is also limited to the web tier, and its
+# estimate function is installed by a regular migration rather than created at
+# runtime by least-privilege app roles. The crontab, peer rule, and Met gate are
+# derived by `Tuist.Oban.RuntimeConfig`, which is unit-tested against every
+# value of `Tuist.Environment.modes/0` so a future denylist regression — like
+# the one where `:xcresult_processor` shipped leader-eligible with an empty
+# crontab and silently halted every cron job — fails CI before it lands in prod.
 mode = Tuist.Environment.mode()
 
 swift_registry_sync_enabled =
@@ -627,6 +628,10 @@ crontab =
     swift_registry_sync_enabled?: swift_registry_sync_enabled,
     artifact_retention_days: Tuist.Environment.artifact_retention_days()
   )
+
+config :oban_met,
+  auto_start: RuntimeConfig.met_auto_start?(mode),
+  reporter: [auto_migrate: false]
 
 config :tuist, Oban,
   queues: oban_queues,

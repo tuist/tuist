@@ -38,6 +38,7 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/envresolver"
+	"github.com/tuist/tuist/infra/tart-kubelet/internal/hostdisk"
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/nodeagent"
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/podagent"
 	"github.com/tuist/tuist/infra/tart-kubelet/internal/satoken"
@@ -288,6 +289,13 @@ func main() {
 	volumes := podagent.NewVolumeManager(runnerCacheRoot, cacheVolumeCapGiB, nil)
 	if volumes.Enabled() {
 		setupLog.Info("per-account cache volumes enabled", "root", runnerCacheRoot, "cap-gib", cacheVolumeCapGiB)
+		// Wait for the runner-cache volume to actually mount BEFORE recoverState
+		// runs. recoverState reattaches the branches of VMs that survived a kubelet
+		// restart and populates the retained set the startup sweep trusts; if the
+		// volume were still unmounted during recovery but appeared afterward, the
+		// sweep would delete branches those surviving VMs still have mounted. On a
+		// normally-mounted host this returns immediately.
+		volumes.AwaitMountedRoot(context.Background())
 		if err := mgr.Add(volumes); err != nil {
 			setupLog.Error(err, "add cache-volume manager")
 			os.Exit(1)
@@ -379,6 +387,14 @@ func main() {
 		MaxPods:    maxPods,
 		Heartbeat:  30 * time.Second,
 		DiskPressure: func(ctx context.Context) (bool, string, error) {
+			// Host root volume first: it holds every Tart golden + clone,
+			// and a fill there silently breaks the operator's SSH config
+			// updates while the guest volumes still look fine — which the
+			// guest-only probe below can't see. A statvfs error falls
+			// through to the guest check rather than failing the probe.
+			if st, err := hostdisk.Root("/"); err == nil && st.FreePercent() < hostDiskPressureFreePercent {
+				return true, fmt.Sprintf("host root volume %.1f%% free (below %g%% floor)", st.FreePercent(), hostDiskPressureFreePercent), nil
+			}
 			return diskPressureFromGuests(ctx, tartClient, diskPressureThresholdPercent)
 		},
 		DynamicLabels: goldenLabelProvider,
@@ -606,6 +622,15 @@ func pickThisNode(nodeName string) fields.Selector {
 // condition fires (stopping new scheduling and triggering alerts) before
 // the guest actually starts failing writes with ENOSPC.
 const diskPressureThresholdPercent = 90
+
+// hostDiskPressureFreePercent is the host root-volume free-space floor
+// below which the Node reports DiskPressure. The Tart golden bases + clones
+// live here, and a full host disk silently breaks the operator's SSH config
+// updates while guests still look fine — so this is checked in addition to
+// the guest-volume probe. Kept at 10% to match the disk-buffer alert; the
+// golden GC reclaims at 15% (defaultGoldenReclaimFreeFloor), so pressure
+// only trips if reclaim can't keep up (all bases live-backed).
+const hostDiskPressureFreePercent = 10.0
 
 // diskPressureFromGuests reports DiskPressure=True when any running VM's
 // guest root volume is at or above the threshold. Each probe is bounded

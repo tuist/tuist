@@ -122,6 +122,7 @@ import XcodeGraph
             // Because we only need to pull the binaries, we don't generate a project in this step.
             let graph = try await generator.load(path: path, options: config.project.generatedProject?.generationOptions)
 
+            let requestedConfiguration = configuration
             let configuration = try defaultConfigurationFetcher.fetch(
                 configuration: configuration,
                 defaultConfiguration: config.project.generatedProject?.generationOptions.defaultConfiguration,
@@ -159,7 +160,7 @@ import XcodeGraph
 
             let cacheableTargets = try await cacheableTargets(
                 for: graph,
-                configuration: configuration,
+                configuration: requestedConfiguration,
                 config: config,
                 requestedTargetsToBinaryCache: requestedTargetsToBinaryCache,
                 cacheProfile: profile,
@@ -954,7 +955,7 @@ import XcodeGraph
 
         private func cacheableTargets(
             for graph: Graph,
-            configuration: String,
+            configuration: String?,
             config: Tuist,
             requestedTargetsToBinaryCache: Set<TargetQuery>,
             cacheProfile: CacheProfile,

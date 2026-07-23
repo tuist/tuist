@@ -8,6 +8,7 @@ defmodule Tuist.Runners.ClaimsTest do
   alias Tuist.Runners.Claim
   alias Tuist.Runners.Claims
   alias Tuist.Runners.ConcurrencyLimit
+  alias Tuist.Runners.JobCompletion
 
   @linux_resources %{platform: :linux, vcpus: 1, memory_gb: 1}
 
@@ -318,18 +319,347 @@ defmodule Tuist.Runners.ClaimsTest do
     end
   end
 
-  describe "by_pod_name/1" do
-    test "resolves a live claim's workflow_job_id and account_id" do
+  describe "complete_by_runner_name/1" do
+    test "releases the claim held by the runner that actually ran the job" do
       account = account_fixture()
       {:ok, _} = Claims.attempt(6001, account.id, "fleet-a", "pod-1", @linux_resources)
       :ok = Claims.mark_running(6001, "runner-x")
 
-      assert {:ok, %{workflow_job_id: 6001, account_id: account_id}} = Claims.by_pod_name("pod-1")
+      assert 1 == Claims.complete_by_runner_name("runner-x", account.id)
+      assert Claims.counts_per_account() == %{}
+    end
+
+    test "does not free a runner still executing a job it did not claim" do
+      # The issue's scenario: A claims J1, B claims J2, GitHub runs J1
+      # on B. J2's completion must NOT release B's slot — B is live and
+      # executing J1. Releasing by the completed job's id would.
+      account = account_fixture()
+      {:ok, _} = Claims.attempt(6200, account.id, "fleet-a", "pod-a", @linux_resources)
+      :ok = Claims.mark_running(6200, "runner-a")
+      {:ok, _} = Claims.attempt(6201, account.id, "fleet-a", "pod-b", @linux_resources)
+      :ok = Claims.mark_running(6201, "runner-b")
+
+      # J2 (6201) was cancelled while queued: no runner ever ran it, so
+      # the payload carries no runner_name and nothing is released.
+      assert 0 == Claims.complete_by_runner_name("", account.id)
+
+      # Both runners still counted: both Pods are alive, and B is
+      # executing J1.
+      assert Claims.counts_per_account() == %{account.id => 2}
+
+      # J1 completes on runner-b — the executor's slot is the one freed.
+      assert 1 == Claims.complete_by_runner_name("runner-b", account.id)
+      assert Claims.counts_per_account() == %{account.id => 1}
+    end
+
+    test "is idempotent when the runner's claim is already gone" do
+      account = account_fixture()
+      assert 0 == Claims.complete_by_runner_name("ghost-runner", account.id)
+    end
+
+    test "never releases a colliding runner_name belonging to another account" do
+      # Runner names are only unique within an account: any org can name
+      # its own self-hosted runners whatever it likes, and its webhooks
+      # authenticate as its own installation. A collision must not let
+      # one account's delivery free another account's live claim.
+      victim = account_fixture()
+      attacker = account_fixture()
+      {:ok, _} = Claims.attempt(9100, victim.id, "fleet-a", "victim-pod", @linux_resources)
+      :ok = Claims.mark_running(9100, "shared-name")
+
+      assert 0 == Claims.complete_by_runner_name("shared-name", attacker.id)
+      assert Claims.counts_per_account() == %{victim.id => 1}
+
+      assert 1 == Claims.complete_by_runner_name("shared-name", victim.id)
+      assert Claims.counts_per_account() == %{}
+    end
+  end
+
+  describe "release_by_pod_name/1" do
+    test "deletes the claim held by the pod and returns the count freed" do
+      account = account_fixture()
+      {:ok, _} = Claims.attempt(9001, account.id, "fleet-a", "pod-1", @linux_resources)
+      :ok = Claims.mark_running(9001, "runner-x")
+
+      assert 1 == Claims.release_by_pod_name("pod-1")
+      assert Claims.counts_per_account() == %{}
+    end
+
+    test "frees a stranded running claim regardless of lifecycle state" do
+      account = account_fixture()
+      {:ok, _} = Claims.attempt(9002, account.id, "fleet-a", "pod-2", @linux_resources)
+      # never minted — still `claimed`; a Pod that stopped pre-mint.
+      assert 1 == Claims.release_by_pod_name("pod-2")
+    end
+
+    test "returns 0 when the pod holds no claim (already completed before stop)" do
+      assert 0 == Claims.release_by_pod_name("idle-pod")
+    end
+
+    test "is a no-op for an empty pod_name" do
+      assert 0 == Claims.release_by_pod_name("")
+    end
+  end
+
+  describe "executing?/1" do
+    test "is true once GitHub proved the runner took some job" do
+      account = account_fixture()
+      {:ok, _} = Claims.attempt(7300, account.id, "fleet-a", "pod-1", @linux_resources)
+      :ok = Claims.mark_running(7300, "runner-a")
+
+      refute Claims.executing?(7300)
+
+      # GitHub handed this runner a sibling's job, not the one it claimed.
+      assert :mismatch = Claims.record_execution("runner-a", 7399, account.id)
+      assert Claims.executing?(7300)
+    end
+
+    test "is false for a claim with no proven execution, or no claim at all" do
+      account = account_fixture()
+      {:ok, _} = Claims.attempt(7301, account.id, "fleet-a", "pod-2", @linux_resources)
+
+      refute Claims.executing?(7301)
+      refute Claims.executing?(999_999)
+    end
+  end
+
+  describe "record_execution/2" do
+    test "binds the executed job and reports :matched when it equals the claim" do
+      account = account_fixture()
+      {:ok, _} = Claims.attempt(7001, account.id, "fleet-a", "pod-1", @linux_resources)
+      :ok = Claims.mark_running(7001, "runner-a")
+
+      assert :matched = Claims.record_execution("runner-a", 7001, account.id)
+
+      row = Repo.one(from(c in Claim, where: c.workflow_job_id == ^7001))
+      assert row.executed_workflow_job_id == 7001
+    end
+
+    test "reports :mismatch and binds the real job when GitHub ran a different one" do
+      account = account_fixture()
+      {:ok, _} = Claims.attempt(7002, account.id, "fleet-a", "pod-1", @linux_resources)
+      :ok = Claims.mark_running(7002, "runner-b")
+
+      assert :mismatch = Claims.record_execution("runner-b", 7099, account.id)
+
+      row = Repo.one(from(c in Claim, where: c.workflow_job_id == ^7002))
+      assert row.executed_workflow_job_id == 7099
+    end
+
+    test "reports :unknown_runner when no live claim carries the runner_name" do
+      account = account_fixture()
+      assert :unknown_runner = Claims.record_execution("ghost-runner", 7100, account.id)
+    end
+
+    test "is a no-op for an empty runner_name" do
+      account = account_fixture()
+      assert :unknown_runner = Claims.record_execution("", 7101, account.id)
+    end
+
+    test "never binds a colliding runner_name belonging to another account" do
+      victim = account_fixture()
+      attacker = account_fixture()
+      {:ok, _} = Claims.attempt(7200, victim.id, "fleet-a", "victim-pod", @linux_resources)
+      :ok = Claims.mark_running(7200, "shared-name")
+
+      assert :unknown_runner = Claims.record_execution("shared-name", 7299, attacker.id)
+      assert Repo.one(from(c in Claim, where: c.workflow_job_id == ^7200)).executed_workflow_job_id == nil
+    end
+  end
+
+  describe "by_workflow_job_id/1" do
+    test "resolves the live claim for a workflow_job_id" do
+      account = account_fixture()
+
+      {:ok, _} =
+        Claims.attempt(6201, account.id, "fleet-a", "pod-1", %{
+          platform: :linux,
+          vcpus: 4,
+          memory_gb: 8
+        })
+
+      :ok = Claims.mark_running(6201, "runner-x")
+
+      assert {:ok,
+              %{
+                workflow_job_id: 6201,
+                account_id: account_id,
+                fleet_name: "fleet-a",
+                pod_name: "pod-1"
+              }} = Claims.by_workflow_job_id(6201)
+
       assert account_id == account.id
     end
 
-    test "returns :error when the pod holds no live claim" do
-      assert Claims.by_pod_name("unknown-pod") == :error
+    test "returns :error when no live claim exists for the workflow_job_id" do
+      assert Claims.by_workflow_job_id(9_999_999) == :error
+    end
+  end
+
+  describe "release_completed/1" do
+    defp completion_fixture(workflow_job_id, account) do
+      Repo.insert_all(JobCompletion, [
+        %{
+          workflow_job_id: workflow_job_id,
+          account_id: account.id,
+          conclusion: "success",
+          completed_at: DateTime.truncate(DateTime.utc_now(), :second),
+          inserted_at: DateTime.truncate(DateTime.utc_now(), :second),
+          updated_at: DateTime.truncate(DateTime.utc_now(), :second)
+        }
+      ])
+    end
+
+    defp backdate_claim(workflow_job_id, seconds) do
+      Repo.update_all(
+        from(c in Claim, where: c.workflow_job_id == ^workflow_job_id),
+        set: [claimed_at: DateTime.add(DateTime.utc_now(), -seconds, :second)]
+      )
+    end
+
+    # The leak this exists for: the completion webhook recorded the job as
+    # finished but the claim survived, so the slot stayed consumed. It sits
+    # in `running`, which the time-based sweep must never touch, and its
+    # ClickHouse row has already left `status = 'running'`, so the orphan
+    # worker's scan cannot see it either.
+    test "releases a running claim whose job has a recorded completion" do
+      account = account_fixture()
+
+      assert {:ok, _} = Claims.attempt(7001, account.id, "fleet-a", "pod-1", @linux_resources)
+      assert :ok = Claims.mark_running(7001, "runner-1")
+      completion_fixture(7001, account)
+      backdate_claim(7001, 600)
+
+      assert Claims.release_completed(DateTime.add(DateTime.utc_now(), -300, :second)) == 1
+      refute Repo.exists?(from(c in Claim, where: c.workflow_job_id == 7001))
+    end
+
+    # The discriminator has to be the completion row, not age. A long build
+    # legitimately holds its slot for hours, and reaping it would push the
+    # account over its cap while a runner is still working.
+    test "leaves a running claim with no recorded completion" do
+      account = account_fixture()
+
+      assert {:ok, _} = Claims.attempt(7002, account.id, "fleet-a", "pod-1", @linux_resources)
+      assert :ok = Claims.mark_running(7002, "runner-1")
+      backdate_claim(7002, 86_400)
+
+      assert Claims.release_completed(DateTime.add(DateTime.utc_now(), -300, :second)) == 0
+      assert Repo.exists?(from(c in Claim, where: c.workflow_job_id == 7002))
+    end
+
+    # The threshold only avoids racing the webhook's own release between
+    # the completion insert and the delete. It is not the staleness signal.
+    test "leaves a freshly claimed row inside the grace window" do
+      account = account_fixture()
+
+      assert {:ok, _} = Claims.attempt(7003, account.id, "fleet-a", "pod-1", @linux_resources)
+      completion_fixture(7003, account)
+
+      assert Claims.release_completed(DateTime.add(DateTime.utc_now(), -300, :second)) == 0
+      assert Repo.exists?(from(c in Claim, where: c.workflow_job_id == 7003))
+    end
+
+    test "releases every stale claim and frees the account's capacity" do
+      account = account_fixture()
+
+      for id <- [7101, 7102, 7103] do
+        assert {:ok, _} = Claims.attempt(id, account.id, "fleet-a", "pod-#{id}", @linux_resources)
+        assert :ok = Claims.mark_running(id, "runner-#{id}")
+        completion_fixture(id, account)
+        backdate_claim(id, 600)
+      end
+
+      assert {:ok, _} = Claims.attempt(7104, account.id, "fleet-a", "pod-live", @linux_resources)
+
+      assert Claims.release_completed(DateTime.add(DateTime.utc_now(), -300, :second)) == 3
+
+      remaining = Repo.all(from(c in Claim, select: c.workflow_job_id))
+      assert remaining == [7104]
+    end
+
+    # The trap this nearly walked into. GitHub hands a queued job to any
+    # label-eligible runner, so the Pod that claimed job A is frequently
+    # executing job B. Releasing on A's completion alone would delete a
+    # live runner's reservation mid-job and push the account over cap.
+    # Production had two claims in exactly this shape.
+    test "leaves a claim whose runner is executing an unfinished job" do
+      account = account_fixture()
+
+      assert {:ok, _} = Claims.attempt(7201, account.id, "fleet-a", "pod-1", @linux_resources)
+      assert :ok = Claims.mark_running(7201, "runner-busy")
+      assert :mismatch = Claims.record_execution("runner-busy", 7299, account.id)
+
+      # The CLAIMED job finished; the job the runner actually took has not.
+      completion_fixture(7201, account)
+      backdate_claim(7201, 86_400)
+
+      assert Claims.release_completed(DateTime.add(DateTime.utc_now(), -300, :second)) == 0
+      assert Repo.exists?(from(c in Claim, where: c.workflow_job_id == 7201))
+    end
+
+    # Once the executed job finishes too, the runner has nothing left and
+    # the slot is genuinely leaked, so it must be reclaimed.
+    test "releases once both the claimed and executed jobs are complete" do
+      account = account_fixture()
+
+      assert {:ok, _} = Claims.attempt(7202, account.id, "fleet-a", "pod-1", @linux_resources)
+      assert :ok = Claims.mark_running(7202, "runner-done")
+      assert :mismatch = Claims.record_execution("runner-done", 7298, account.id)
+
+      completion_fixture(7202, account)
+      completion_fixture(7298, account)
+      backdate_claim(7202, 600)
+
+      assert Claims.release_completed(DateTime.add(DateTime.utc_now(), -300, :second)) == 1
+      refute Repo.exists?(from(c in Claim, where: c.workflow_job_id == 7202))
+    end
+
+    test "is a no-op when nothing is held past a completion" do
+      assert Claims.release_completed(DateTime.utc_now()) == 0
+    end
+  end
+
+  describe "release_pod_missing/2" do
+    # The stale-delete race Codex flagged: between selection and delete,
+    # another path can release the row and the same workflow_job be
+    # re-claimed by a live Pod. Deleting by id alone would drop that
+    # fresh claim and free capacity a running job is using.
+    test "does not delete a claim that was re-claimed after selection" do
+      account = account_fixture()
+      handle = DateTime.add(DateTime.utc_now(), -600, :second)
+
+      assert {:ok, _} = Claims.attempt(7401, account.id, "fleet-a", "pod-1", @linux_resources)
+
+      Repo.update_all(
+        from(c in Claim, where: c.workflow_job_id == 7401),
+        set: [pod_missing_since: handle]
+      )
+
+      # Simulate the row being released and the job re-claimed by a live
+      # Pod, which clears the absence stamp.
+      Repo.update_all(
+        from(c in Claim, where: c.workflow_job_id == 7401),
+        set: [pod_missing_since: nil]
+      )
+
+      assert {:error, :stale_claim} = Claims.release_pod_missing(7401, handle)
+      assert Repo.exists?(from(c in Claim, where: c.workflow_job_id == 7401))
+    end
+
+    test "deletes when the handle still matches" do
+      account = account_fixture()
+      handle = DateTime.add(DateTime.utc_now(), -600, :second)
+
+      assert {:ok, _} = Claims.attempt(7402, account.id, "fleet-a", "pod-1", @linux_resources)
+
+      Repo.update_all(
+        from(c in Claim, where: c.workflow_job_id == 7402),
+        set: [pod_missing_since: handle]
+      )
+
+      assert :ok = Claims.release_pod_missing(7402, handle)
+      refute Repo.exists?(from(c in Claim, where: c.workflow_job_id == 7402))
     end
   end
 end

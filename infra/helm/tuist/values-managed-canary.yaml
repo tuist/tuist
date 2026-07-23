@@ -161,6 +161,21 @@ registryCache:
     bucket: tuist-can-storage
     rootDirectory: docker-mirror
 
+# Grafana Cloud PDC agent. The signing token lives in this env's vault as
+# PDC_AGENT/password; cluster + hostedGrafanaId come from
+# values-managed-common.yaml. Each environment gets its own PDC network (and so
+# its own token): Grafana treats every agent on a network as interchangeable, so
+# sharing one across clusters would let a query resolve an in-cluster hostname in
+# the wrong cluster.
+pdcAgent:
+  enabled: true
+  # Canary mirrors staging's sizing; production is the env that needs HA.
+  replicas: 1
+  # Pin the tunnel to the CNPG read-only service. Without this the agent
+  # permits any destination reachable from its pod, not just Postgres.
+  permitRemoteOpen:
+    - tuist-tuist-pg-ro.tuist-canary.svc.cluster.local:5432
+
 kuraController:
   sharedSecrets:
     externalSecret:
@@ -383,8 +398,17 @@ macosFleet:
   # path rather than risking ENOSPC. A real Tuist cache master is ~2.4 GB
   # (the 20 GiB masterCapGib is a sparse per-master ceiling), so 40 GiB
   # holds ~16 masters — ample for canary's single replica.
+  # DISABLED (2026-07-16): rolling this to the prod fleet broke every
+  # macOS CI job — the guest mounts the virtio-fs cache share and exports
+  # TUIST_XDG_CACHE_HOME at it, but `mkdir -p $CACHE_MOUNT/tuist` in
+  # dispatch-poll.sh fails silently (`2>/dev/null || true`) while the env
+  # var is exported regardless, so the CLI dies with "Couldn't create the
+  # directory at /Volumes/My Shared Files/cache/tuist/... because its
+  # parent directory doesn't exists". Re-enable only once a real CI job
+  # is verified green on a cache-volume host (host-side provisioning
+  # checks are NOT sufficient — that gap is what let this reach prod).
   runnerCacheVolume:
-    gib: 40
+    gib: 0
   # Canary runs on the production tailnet (single shared tailnet
   # across canary + production — same Grafana, same admin console).
   # Staging has its own tailnet so a leaked staging key can't add

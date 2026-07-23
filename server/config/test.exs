@@ -68,7 +68,11 @@ config :tuist, Tuist.Repo,
   pool: Sandbox,
   pool_size: System.schedulers_online() * 2,
   queue_target: 5000,
-  queue_interval: 1000
+  queue_interval: 1000,
+  # Tolerate transient statement stalls on oversubscribed CI runners where a
+  # single round-trip can block on the socket well past the 15s DBConnection
+  # default; a genuinely hung query still fails within this bound.
+  timeout: 60_000
 
 config :tuist, Tuist.Tasks, sync: true
 
@@ -78,6 +82,11 @@ config :tuist, TuistWeb.Endpoint,
   http: [ip: {127, 0, 0, 1}, port: 4002],
   secret_key_base: "pbaHQK0N946e06chs5G1/RUJnkI//2QshGgUvJQkADTV3AiQHV/dXlLdjnaQxtxx",
   server: false
+
+# Production builds keep warm handoffs disabled until the public customer
+# endpoint is owned by a stable account-region binding. Tests enable the
+# transition machinery so its invariants remain covered while that work lands.
+config :tuist, :kura_warm_handoffs_enabled, true
 
 config :tuist,
   api_pipeline_producer_module: Broadway.DummyProducer,

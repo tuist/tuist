@@ -100,6 +100,19 @@ defmodule Tuist.Authorization do
       allow([:authenticated_as_account, scopes_permit: "project:bundles:read"])
       allow([:authenticated_as_account, scopes_permit: "project:bundles:write"])
     end
+
+    action :delete do
+      desc("Bundle deletion is dashboard-only and is not available to project or account tokens.")
+
+      desc("Allows users of a project to delete a bundle.")
+      allow([:authenticated_as_user, user_role: :user])
+
+      desc("Allows the admin of a project to delete a bundle.")
+      allow([:authenticated_as_user, user_role: :admin])
+
+      desc("Allows users with ops write access to delete any bundle.")
+      allow([:authenticated_as_user, :ops_write_access])
+    end
   end
 
   object :account do
@@ -122,8 +135,26 @@ defmodule Tuist.Authorization do
       allow([:authenticated_as_user, user_role: :admin])
 
       desc("Allows an account token with account:cache:read or account:cache:write scope to read account cache.")
-      allow([:authenticated_as_account, scopes_permit: "account:cache:read"])
-      allow([:authenticated_as_account, scopes_permit: "account:cache:write"])
+      allow([:authenticated_as_account, :accounts_match, scopes_permit: "account:cache:read"])
+      allow([:authenticated_as_account, :accounts_match, scopes_permit: "account:cache:write"])
+    end
+
+    action :cache_endpoint_read do
+      desc("Allows users of an account to discover its cache endpoints.")
+      allow([:authenticated_as_user, user_role: :user])
+
+      desc("Allows the admin of an account to discover its cache endpoints.")
+      allow([:authenticated_as_user, user_role: :admin])
+
+      desc("Allows an authenticated project to discover cache endpoints for its own account.")
+      allow([:authenticated_as_project, :accounts_match])
+
+      desc("Allows an account token with account cache access to discover its account's cache endpoints.")
+      allow([:authenticated_as_account, :accounts_match, scopes_permit: "account:cache:read"])
+      allow([:authenticated_as_account, :accounts_match, scopes_permit: "account:cache:write"])
+
+      desc("Allows an account token with project cache access to discover its account's cache endpoints.")
+      allow([:authenticated_as_account, :accounts_match, :project_cache_scope_permits_account])
     end
 
     action :update do

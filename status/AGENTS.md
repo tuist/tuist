@@ -13,7 +13,7 @@ status/
 │   │   └── fake-status.ts  # Runtime dev/demo fixture used when USE_FAKE_DATA=true
 │   ├── types.ts
 │   └── views/
-│       ├── page.ts        # HTML rendering with hono/html (uses real Noora class names + data-* parts)
+│       ├── page.ts        # HTML rendering with hono/html; incident update bodies are rendered as safe Markdown
 │       ├── feed.ts        # RSS 2.0 + Atom 1.0 renderers
 │       ├── logo.ts        # Inlined Tuist mark (verbatim copy of noora/lib/noora/icons/brand-tuist.svg)
 │       ├── icons.ts       # Inlined Tabler/Noora status icons used by noora-banner and noora-status-badge
@@ -140,6 +140,8 @@ It calls `IncidentsService.QueryIncidents` twice on every page load:
 - recent list: `queryString: "isdrill:false status:resolved created:>YYYY-MM-DD"` (last 14 days)
 
 The response shape is `{ error, incidents: [...], cursor: { hasMore, nextValue } }`. The client follows the cursor up to 5 pages defensively.
+
+After filtering resolved incidents to the last 14 days, the client calls `KeyUpdatesService.QueryKeyUpdates` for every active and recent incident. These key updates supply the timestamped status-update timeline shown on the page and republished in the feeds. The incident summary remains a fallback for incidents without key updates. Key-update queries follow the same cursor limit as incident queries and are hydrated with at most five concurrent requests.
 
 ## Severity Mapping
 

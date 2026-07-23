@@ -7,11 +7,11 @@
 #     --set server.image.tag=$GIT_SHA
 
 registry:
-  # The public host stays behind the registry-router Worker. The ingress keeps
-  # the canonical host for routing and certificate identity, while external-dns
-  # publishes a separate resolution-only record for the Worker's origin lookup.
+  # Clients stay on tuist.dev/api/registry while the Worker forwards requests
+  # to this dedicated ingress host. The ingress hostname is not advertised as
+  # a separate registry endpoint.
   enabled: true
-  publicHost: registry.tuist.dev
+  publicHost: tuist.dev
   serverUrl: https://tuist.dev
   deployEnv: production
   sentryEnv: prod
@@ -20,8 +20,7 @@ registry:
     host: registry.tuist.dev
     tlsSecretName: registry-tls
     annotations:
-      external-dns.alpha.kubernetes.io/hostname: registry-origin.tuist.dev
-      external-dns.alpha.kubernetes.io/ingress-hostname-source: annotation-only
+      external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
   resources:
     requests:
       cpu: "500m"
@@ -77,11 +76,10 @@ server:
     # env's config the release runs as.
     - name: TUIST_DEPLOY_ENV
       value: prod
-    # Keep advertising the legacy path until the Worker cutover is live. The
-    # cache origins only serve this prefix, and the standalone frontend keeps
-    # it as a compatibility route, so it works throughout the rollout.
+    # Keep clients on the existing registry base address while the Worker
+    # moves its origin from the cache nodes to the standalone frontend.
     - name: TUIST_REGISTRY_URL
-      value: https://registry.tuist.dev/api/registry/swift
+      value: https://tuist.dev/api/registry/swift
     # Enables the server-owned registry sync writer. Cache still writes
     # too until it is turned off as a separate step; the two coordinate
     # through the shared S3 sync lock, so dual-writing is safe.
@@ -200,6 +198,23 @@ server:
   # workload-cluster-production.yaml carries the matching pool label.
   nodeSelector:
     node.cluster.x-k8s.io/pool: general
+
+# Grafana Cloud PDC agent. The signing token lives in this env's vault as
+# PDC_AGENT/password; cluster + hostedGrafanaId come from
+# values-managed-common.yaml. Each environment gets its own PDC network (and so
+# its own token): Grafana treats every agent on a network as interchangeable, so
+# sharing one across clusters would let a query resolve an in-cluster hostname in
+# the wrong cluster.
+pdcAgent:
+  enabled: true
+  # Grafana load-balances across agents and fails over when one drops, so a
+  # single replica would make a node drain take every PDC-routed panel down.
+  # Three is Grafana's production recommendation.
+  replicas: 3
+  # Pin the tunnel to the CNPG read-only service. Without this the agent
+  # permits any destination reachable from its pod, not just Postgres.
+  permitRemoteOpen:
+    - tuist-tuist-pg-ro.tuist.svc.cluster.local:5432
 
 kuraController:
   sharedSecrets:
@@ -426,8 +441,23 @@ xcresultProcessor:
   extraEnv:
     - name: TUIST_DEPLOY_ENV
       value: prod
+    # Deliberately NOT the in-cluster receiver address the Linux deployments
+    # use. These pods are macOS Tart VMs whose only interface is Tailscale, so
+    # `*.svc.cluster.local` does not resolve inside the guest and every span
+    # was being dropped before it left the VM. This is the tailnet hostname of
+    # the Tailscale-operator proxy in front of the same receiver Service, set
+    # up in the k8s-monitoring chart's production values.
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
-      value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
+      value: http://tuist-alloy-receiver-production:4317
+    # Push logs to the same tailnet-fronted Alloy. Setting this attaches the
+    # in-process handler in Tuist.Application.start_loki_logger/0, which is
+    # the only way these pods can ship logs: Alloy cannot tail a Tart guest
+    # and `kubectl logs` cannot resolve their kubelet hostnames. The handler
+    # appends /loki/api/v1/push, matching the loki.source.api endpoint the
+    # k8s-monitoring chart exposes on 3100. No credentials here: Alloy
+    # forwards to Grafana Cloud with the ones it already holds.
+    - name: TUIST_LOKI_URL
+      value: http://tuist-alloy-receiver-production:3100
 
 # Declarative Scaleway Elastic Metal kura runner-cache node, co-located with the
 # Mac fleet in fr-par. The provider orders the bare-metal server, attaches it to
@@ -546,6 +576,14 @@ macosFleet:
   # a single host keeps hot once affinity spreads them across the fleet.
   # Kept well under the 512 GB disk, which is dominated by the ~85 GB
   # golden VM image(s) (two during a digest roll) + per-job DerivedData.
+  # Enabled after the disk-image redesign (#11908): the cache is now a
+  # sparse APFS disk image on the share, not files on it, because virtio-fs
+  # cannot carry a macOS cache faithfully (no xattrs on the symlinks in
+  # versioned framework bundles → the ELOOP that broke every macOS job on
+  # 2026-07-16). Validated end-to-end on a real staging runner (gib: 40):
+  # the framework-with-xattr copy that failed on the old share succeeds
+  # inside the image, and a promoted master clones back warm with symlinks
+  # and xattrs intact.
   runnerCacheVolume:
     gib: 80
   # Production tailnet — alloy-metrics scrapes PromEx (xcresult VM)
@@ -620,17 +658,23 @@ runnersFleet:
   # fleet under skewed demand and the allocator caps the joint sum
   # so the pools don't double-book.
   #
-  # Floors sum to 3 of the 9-slot budget; the remaining 6 slots are
-  # dynamically apportioned by queue depth across the pools.
-  # The default (26.6) keeps the warm baseline since most traffic
-  # lands there; older Xcodes sit cold (floor 0) so an unused runner
-  # doesn't tie up a host. Revisit once we open the runners to
-  # general signups where the pool mix is unpredictable in advance.
+  # Floors sum to 1 of the 9-slot budget; the remaining 8 slots are
+  # dynamically apportioned by queue depth across the pools. Older
+  # Xcodes sit cold (floor 0) so an unused runner doesn't tie up a host.
+  #
+  # The default (26.6) carries the warm floor, since `tuist-macos`
+  # resolves there. That resolution goes through each account's
+  # protected `macos` profile, which stores `xcode_version` at account
+  # creation — so bumping the catalog default only redirects new
+  # accounts. Move existing accounts' profile in the same change, or
+  # their traffic stays on the old pool while the floor warms an idle
+  # one. Revisit once we open the runners to general signups where the
+  # pool mix is unpredictable in advance.
   xcodeOverrides:
     "26.6":
       autoscaling:
         enabled: true
-        minWarmPoolFloor: 3
+        minWarmPoolFloor: 1
         maxReplicas: 9
     "26.5":
       autoscaling:

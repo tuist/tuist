@@ -27,7 +27,8 @@ use crate::{
     bandwidth::BandwidthLimiter,
     constants::{
         BOOTSTRAP_DIGEST_DEFAULT_PREFIX_LEN, BOOTSTRAP_DIGEST_MAX_PREFIX_LEN, MAX_GRADLE_BYTES,
-        MAX_MODULE_PART_BYTES, MAX_MODULE_TOTAL_BYTES, MAX_REPLICATION_BODY_BYTES, MAX_XCODE_BYTES,
+        MAX_INLINE_REPLICATION_BODY_BYTES, MAX_MODULE_PART_BYTES, MAX_MODULE_TOTAL_BYTES,
+        MAX_REPLICATION_BODY_BYTES, MAX_XCODE_BYTES,
     },
     extension::{AccessDecision, ExtensionContext},
     io::is_fd_pool_exhausted_error,
@@ -333,6 +334,12 @@ struct ReplicateArtifactQuery {
     key: String,
     content_type: String,
     version_ms: u64,
+    /// The origin's branch tag and the publishing build's trunk. Both optional:
+    /// a peer that predates them (or any untagged publish) omits them and the
+    /// entry applies untagged, which is what this node did for every replicated
+    /// entry before.
+    branch: Option<String>,
+    trunk: Option<String>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -412,6 +419,8 @@ impl ReplicateArtifactQuery {
             key: required_param(params, "key")?,
             content_type: required_param(params, "content_type")?,
             version_ms: optional_u64_param(params, "version_ms")?.unwrap_or_default(),
+            branch: param_value(params, "branch").cloned(),
+            trunk: param_value(params, "trunk").cloned(),
         })
     }
 }
@@ -1295,6 +1304,8 @@ async fn put_keyvalue(
             "application/json",
             &payload_bytes,
             &targets,
+            None,
+            None,
         )
         .await
     {
@@ -1880,7 +1891,18 @@ async fn internal_replicate_artifact(
     }
 
     if query.inline {
-        let bytes = match to_bytes(request.into_body(), state.config.max_keyvalue_bytes).await {
+        // Bound the inline body by the same ceiling the sender and the
+        // bootstrap-pull path use (MAX_INLINE_REPLICATION_BODY_BYTES), not by
+        // the client-facing key-value limit. The latter defaults to 1 MiB
+        // while inline artifacts (notably large REAPI action results) may be
+        // up to 4 MiB, so keying off it here rejected every 1–4 MiB entry with
+        // a 413 and left it replicating forever from a poison outbox message.
+        let bytes = match to_bytes(
+            request.into_body(),
+            MAX_INLINE_REPLICATION_BODY_BYTES as usize,
+        )
+        .await
+        {
             Ok(bytes) => bytes,
             Err(error) => {
                 state
@@ -1905,6 +1927,8 @@ async fn internal_replicate_artifact(
                 &query.content_type,
                 &bytes,
                 query.version_ms,
+                query.branch.as_deref(),
+                query.trunk.as_deref(),
             )
             .await
         {
@@ -2705,6 +2729,87 @@ mod tests {
         assert!(!metrics.contains("artifact-one"));
         assert!(!metrics.contains("artifact-two"));
         assert!(!metrics.contains("route=\"/api/cache/cas/artifact-"));
+    }
+
+    // Regression test: inline artifact replication used to bound the body by
+    // the client-facing key-value limit (1 MiB), which 413'd every 1–4 MiB
+    // action result the sender pushed inline. The receive limit must track the
+    // inline replication ceiling instead, so a body in that range applies.
+    #[tokio::test]
+    async fn inline_artifact_replication_accepts_bodies_above_the_keyvalue_limit() {
+        let context = test_context(|_| {}).await;
+        let body_len = MAX_INLINE_REPLICATION_BODY_BYTES as usize / 2;
+        assert!(
+            body_len > context.state.config.max_keyvalue_bytes,
+            "fixture must exceed the key-value limit to exercise the regression"
+        );
+
+        let response = internal_router(context.state.clone())
+            .oneshot(
+                Request::builder()
+                    .method("PUT")
+                    .uri(
+                        "/_internal/replicate/artifact?producer=reapi&inline=true\
+                         &namespace_id=tuist&key=action_cache%2Fdeadbeef%2F65\
+                         &content_type=application%2Fx-protobuf&version_ms=1000",
+                    )
+                    .body(Body::from(vec![0u8; body_len]))
+                    .expect("failed to build request"),
+            )
+            .await
+            .expect("request failed");
+
+        assert_eq!(response.status(), StatusCode::NO_CONTENT);
+
+        let stored = context
+            .state
+            .store
+            .fetch_inline_artifact_bytes(
+                ArtifactProducer::Reapi,
+                "tuist",
+                "action_cache/deadbeef/65",
+            )
+            .expect("inline fetch should succeed")
+            .expect("replicated artifact should be persisted");
+        assert_eq!(stored.len(), body_len);
+    }
+
+    // Pins the exact inline replication ceiling so a future limit or comparison
+    // tweak can't silently reintroduce an off-by-one strand: a body of exactly
+    // MAX_INLINE_REPLICATION_BODY_BYTES applies, one byte more is rejected.
+    #[tokio::test]
+    async fn inline_artifact_replication_enforces_the_inline_ceiling_boundary() {
+        let context = test_context(|_| {}).await;
+
+        let put = |key: &'static str, len: usize| {
+            internal_router(context.state.clone()).oneshot(
+                Request::builder()
+                    .method("PUT")
+                    .uri(format!(
+                        "/_internal/replicate/artifact?producer=reapi&inline=true\
+                         &namespace_id=tuist&key={key}\
+                         &content_type=application%2Fx-protobuf&version_ms=1000"
+                    ))
+                    .body(Body::from(vec![0u8; len]))
+                    .expect("failed to build request"),
+            )
+        };
+
+        let at_limit = put(
+            "action_cache%2Faaaa%2F1",
+            MAX_INLINE_REPLICATION_BODY_BYTES as usize,
+        )
+        .await
+        .expect("request failed");
+        assert_eq!(at_limit.status(), StatusCode::NO_CONTENT);
+
+        let over_limit = put(
+            "action_cache%2Fbbbb%2F1",
+            MAX_INLINE_REPLICATION_BODY_BYTES as usize + 1,
+        )
+        .await
+        .expect("request failed");
+        assert_eq!(over_limit.status(), StatusCode::PAYLOAD_TOO_LARGE);
     }
 
     #[tokio::test]

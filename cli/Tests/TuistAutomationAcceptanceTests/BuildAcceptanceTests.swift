@@ -438,7 +438,9 @@ struct BuildAcceptanceTestSwiftPMPrebuiltMacro {
             directory: prebuiltsDirectory,
             include: ["**/*-MacroSupport/**/*-apple-macos.*"]
         ).collect()
-        guard !extractedPrebuiltModules.isEmpty else { return }
+        guard !extractedPrebuiltModules.isEmpty else {
+            try Test.cancel("Prebuilt SwiftSyntax libraries are unavailable because the signed manifest could not be validated.")
+        }
 
         try await TuistTest.run(GenerateCommand.self, ["--no-open", "--path", fixtureDirectory.pathString])
 

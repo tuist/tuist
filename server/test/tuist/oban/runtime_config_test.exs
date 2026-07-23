@@ -45,6 +45,20 @@ defmodule Tuist.Oban.RuntimeConfigTest do
     end
   end
 
+  describe "met_auto_start?/1" do
+    test ":web starts Oban Met" do
+      assert RuntimeConfig.met_auto_start?(:web)
+    end
+
+    test "every non-web mode skips Oban Met" do
+      for mode <- Environment.modes(), mode != :web do
+        refute RuntimeConfig.met_auto_start?(mode),
+               "expected #{inspect(mode)} to skip Oban Met because non-web pods run with " <>
+                 "least-privilege database roles and do not serve Oban Web metrics"
+      end
+    end
+  end
+
   describe "crontab/4" do
     test "empty for every non-web mode in every prod-like env, regardless of hosted state" do
       for mode <- Environment.modes(),

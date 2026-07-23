@@ -27,6 +27,17 @@ defmodule Tuist.Runners.Claim do
     # and must not be reaped at the 5-min threshold.
     field :lifecycle_state, :string, default: "claimed"
     field :runner_name, :string, default: ""
+    # The workflow_job GitHub actually ran on this runner, learned
+    # from the `in_progress` / `completed` webhook's `runner_name`.
+    # NULL until GitHub proves the runner ran something; may differ
+    # from `workflow_job_id` (the claim-time guess) or stay NULL for
+    # a runner GitHub never assigned work to.
+    field :executed_workflow_job_id, :integer
+    # First tick the reconciler saw this claim's Pod missing from a
+    # complete cluster read. NULL means last observed present. Release
+    # requires the absence to persist, so one bad read cannot free a
+    # live runner's slot.
+    field :pod_missing_since, :utc_datetime_usec
 
     belongs_to :account, Account
   end

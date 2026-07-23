@@ -21,7 +21,6 @@ defmodule Tuist.AccountsTest do
   alias Tuist.Base64
   alias Tuist.Billing
   alias Tuist.Environment
-  alias Tuist.FeatureFlags
   alias Tuist.Kura.Registrations
   alias Tuist.Projects
   alias Tuist.Runners.Profiles, as: RunnerProfiles
@@ -3246,6 +3245,57 @@ defmodule Tuist.AccountsTest do
     end
   end
 
+  describe "get_account_token/3" do
+    test "returns token when found" do
+      # Given
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      token = AccountsFixtures.account_token_fixture(account: account, name: "my-token")
+
+      # When
+      {:ok, found_token} = Accounts.get_account_token(account, token.id)
+
+      # Then
+      assert found_token.id == token.id
+      assert found_token.name == "my-token"
+    end
+
+    test "returns error when token ID is invalid" do
+      # Given
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+
+      # When
+      result = Accounts.get_account_token(account, "not-a-token-id")
+
+      # Then
+      assert {:error, :not_found} == result
+    end
+
+    test "does not return token from different account" do
+      # Given
+      account1 = AccountsFixtures.user_fixture(preload: [:account]).account
+      account2 = AccountsFixtures.user_fixture(preload: [:account]).account
+      token = AccountsFixtures.account_token_fixture(account: account1, name: "my-token")
+
+      # When
+      result = Accounts.get_account_token(account2, token.id)
+
+      # Then
+      assert {:error, :not_found} == result
+    end
+
+    test "preloads specified associations" do
+      # Given
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      token = AccountsFixtures.account_token_fixture(account: account, name: "my-token")
+
+      # When
+      {:ok, found_token} = Accounts.get_account_token(account, token.id, preload: [:projects])
+
+      # Then
+      assert Ecto.assoc_loaded?(found_token.projects)
+    end
+  end
+
   describe "get_account_token_by_name/3" do
     test "returns token when found" do
       # Given
@@ -4173,7 +4223,7 @@ defmodule Tuist.AccountsTest do
       assert Enum.sort(endpoints) == Enum.sort(["https://cache1.example.com", "https://cache2.example.com"])
     end
 
-    test "returns account Kura endpoints when the client requests Kura and the account is opted in" do
+    test "returns account Kura endpoints when the client requests Kura and the account has Kura endpoints" do
       # Given
       stub(Environment, :tuist_hosted?, fn -> true end)
       user = AccountsFixtures.user_fixture()
@@ -4191,7 +4241,6 @@ defmodule Tuist.AccountsTest do
 
       default_endpoints = ["https://default.tuist.dev"]
       stub(Environment, :cache_endpoints, fn -> default_endpoints end)
-      stub(FeatureFlags, :kura_cache_enabled?, fn %{id: account_id} -> account_id == account.id end)
 
       # When
       endpoints = Accounts.get_cache_endpoints_for_handle(account.name, :kura)
@@ -4206,7 +4255,6 @@ defmodule Tuist.AccountsTest do
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
       BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
-      stub(FeatureFlags, :kura_cache_enabled?, fn %{id: account_id} -> account_id == account.id end)
       stub(Registrations, :active_advertised_urls, fn _ -> ["https://node.acme.example:8080"] end)
 
       # When
@@ -4222,7 +4270,6 @@ defmodule Tuist.AccountsTest do
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
       BillingFixtures.subscription_fixture(account_id: account.id, plan: :pro)
-      stub(FeatureFlags, :kura_cache_enabled?, fn %{id: account_id} -> account_id == account.id end)
       reject(&Registrations.active_advertised_urls/1)
       default_endpoints = ["https://default.tuist.dev"]
       stub(Environment, :cache_endpoints, fn -> default_endpoints end)
@@ -4234,7 +4281,7 @@ defmodule Tuist.AccountsTest do
       assert endpoints == default_endpoints
     end
 
-    test "returns custom endpoints when the client requests Kura but the account is not opted in" do
+    test "returns custom endpoints when the client requests Kura but the account has no Kura endpoints" do
       # Given
       stub(Environment, :tuist_hosted?, fn -> true end)
       user = AccountsFixtures.user_fixture()
@@ -4243,12 +4290,6 @@ defmodule Tuist.AccountsTest do
       {:ok, account} = Accounts.update_account(account, %{custom_cache_endpoints_enabled: true})
 
       {:ok, _} = Accounts.create_account_cache_endpoint(account, %{url: "https://custom-cache.example.com"})
-
-      {:ok, _} =
-        Accounts.create_account_cache_endpoint(account, %{
-          url: "https://kura-cache.example.com",
-          technology: :kura
-        })
 
       # When
       endpoints = Accounts.get_cache_endpoints_for_handle(account.name, :kura)
@@ -4257,7 +4298,7 @@ defmodule Tuist.AccountsTest do
       assert endpoints == ["https://custom-cache.example.com"]
     end
 
-    test "returns custom endpoints when the client does not request Kura even if the account is opted in" do
+    test "returns custom endpoints when the client does not request Kura even if the account has Kura endpoints" do
       # Given
       stub(Environment, :tuist_hosted?, fn -> true end)
       user = AccountsFixtures.user_fixture()
@@ -4273,8 +4314,6 @@ defmodule Tuist.AccountsTest do
           technology: :kura
         })
 
-      stub(FeatureFlags, :kura_cache_enabled?, fn %{id: account_id} -> account_id == account.id end)
-
       # When
       endpoints = Accounts.get_cache_endpoints_for_handle(account.name)
 
@@ -4282,19 +4321,13 @@ defmodule Tuist.AccountsTest do
       assert endpoints == ["https://custom-cache.example.com"]
     end
 
-    test "returns default endpoints when the account is not opted in to Kura and has no custom endpoints" do
+    test "returns default endpoints when the client requests Kura but the account has no Kura or custom endpoints" do
       # Given
       stub(Environment, :tuist_hosted?, fn -> true end)
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
       default_endpoints = ["https://default.tuist.dev"]
       stub(Environment, :cache_endpoints, fn -> default_endpoints end)
-
-      {:ok, _} =
-        Accounts.create_account_cache_endpoint(account, %{
-          url: "https://kura-cache.example.com",
-          technology: :kura
-        })
 
       # When
       endpoints = Accounts.get_cache_endpoints_for_handle(account.name, :kura)

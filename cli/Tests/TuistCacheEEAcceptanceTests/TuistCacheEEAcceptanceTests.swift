@@ -369,6 +369,60 @@ struct TuistCacheEEAcceptanceTests {
         )
     }
 
+    /// Same nested-header xcframeworks as above, but `ToolLinkingXCFrameworksDirectly` also links
+    /// them directly, so they stay referenced once `Library` is replaced by its cached xcframework.
+    /// Xcode then runs `ProcessXCFramework` and copies each slice's headers into
+    /// `$(BUILT_PRODUCTS_DIR)/include/<Module>/`, which is searched ahead of `HEADER_SEARCH_PATHS`.
+    /// Pointing the module map at the xcframework's own headers therefore defined the module over
+    /// one copy of the headers while `#import <NestedObjC/Anchor.h>` resolved to another, which
+    /// clang reports as `umbrella header for module 'NestedObjC' does not include header ...` and,
+    /// once a second module map became reachable through that copy, `import of shadowed module
+    /// 'Anchor'`. The module map and the search path must name the same headers, so the mapper
+    /// consumes these through `$(BUILT_PRODUCTS_DIR)/include`, which is where the prefixed imports
+    /// resolve.
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment(inheritingVariables: ["PATH"]),
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true),
+        .withFixture("generated_macos_tool_with_cached_nested_header_xcframework")
+    ) func generated_macos_tool_linking_cached_nested_header_xcframework_directly() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let xcodeprojPath = fixtureDirectory.appending(component: "NestedHeaderXCFramework.xcodeproj")
+
+        try await TuistTest.run(
+            CacheCommand.self,
+            ["Library", "--path", fixtureDirectory.pathString]
+        )
+
+        try await TuistTest.run(
+            GenerateCommand.self,
+            ["--no-open", "--path", fixtureDirectory.pathString, "ToolLinkingXCFrameworksDirectly"]
+        )
+
+        try TuistAcceptanceTest.expectXCFrameworkLinked(
+            "Library",
+            by: "ToolLinkingXCFrameworksDirectly",
+            xcodeprojPath: xcodeprojPath
+        )
+
+        try await TuistTest.run(
+            XcodeBuildBuildCommand.self,
+            [
+                "-project",
+                xcodeprojPath.pathString,
+                "-scheme",
+                "ToolLinkingXCFrameworksDirectly",
+                "-derivedDataPath",
+                temporaryDirectory.pathString,
+                "CODE_SIGN_IDENTITY=",
+                "CODE_SIGNING_REQUIRED=NO",
+                "CODE_SIGNING_ALLOWED=NO",
+            ]
+        )
+    }
+
     @Test(
         .inTemporaryDirectory,
         .withMockedEnvironment(inheritingVariables: ["PATH"]),
@@ -524,5 +578,55 @@ struct TuistCacheEEAcceptanceTests {
 
         TuistTest.expectLogs("Targets to be cached: ExpensiveModule, NonCacheableModule")
         TuistTest.doesntExpectLogs("All cacheable targets are already cached")
+    }
+
+    /// Foundation's #bundle macro expands to Bundle.module only when
+    /// SWIFT_MODULE_RESOURCE_BUNDLE_AVAILABLE is set at compile time, and the expansion is baked
+    /// into cached binaries. StaticFramework uses #bundle directly and through an SE-0422
+    /// caller-side default argument declared in ResourceLoader, so testing App while both
+    /// frameworks are consumed as cached xcframeworks exercises the expansion that warming froze
+    /// into the artifacts. The fixture's tests resolve a bundled resource at runtime and fail if
+    /// the macro fell back to the DSO-handle lookup.
+    @Test(
+        .inTemporaryDirectory,
+        .withMockedEnvironment(inheritingVariables: ["PATH"]),
+        .withMockedNoora,
+        .withMockedLogger(forwardLogs: true),
+        .withFixture("generated_static_framework_with_bundle_macro")
+    ) func generated_static_framework_with_bundle_macro_from_cached_binaries() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let xcodeprojPath = fixtureDirectory.appending(component: "BundleMacro.xcodeproj")
+
+        try await TuistTest.run(
+            CacheCommand.self,
+            ["--path", fixtureDirectory.pathString]
+        )
+
+        try await TuistTest.run(
+            TestCommand.self,
+            [
+                "App",
+                "--path",
+                fixtureDirectory.pathString,
+                "--derived-data-path",
+                temporaryDirectory.pathString,
+                "--",
+                "CODE_SIGN_IDENTITY=",
+                "CODE_SIGNING_REQUIRED=NO",
+                "CODE_SIGNING_ALLOWED=NO",
+            ]
+        )
+
+        try TuistAcceptanceTest.expectXCFrameworkLinked(
+            "StaticFramework",
+            by: "App",
+            xcodeprojPath: xcodeprojPath
+        )
+        try TuistAcceptanceTest.expectXCFrameworkLinked(
+            "ResourceLoader",
+            by: "App",
+            xcodeprojPath: xcodeprojPath
+        )
     }
 }

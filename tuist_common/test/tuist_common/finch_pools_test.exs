@@ -3,6 +3,21 @@ defmodule TuistCommon.FinchPoolsTest do
 
   alias TuistCommon.FinchPools
 
+  describe "download_pool_size/1" do
+    test "covers the queue's range requests with one batch of headroom" do
+      assert FinchPools.download_pool_size(4) == 64
+    end
+
+    test "combines every active download queue" do
+      assert FinchPools.download_pool_size([2, 2]) == 64
+      assert FinchPools.download_pool_size([5]) == 80
+    end
+
+    test "preserves the minimum pool when no download queue is active" do
+      assert FinchPools.download_pool_size([]) == 10
+    end
+  end
+
   describe "s3_pool/1" do
     test "returns {endpoint, opts} with production defaults" do
       {endpoint, opts} = FinchPools.s3_pool(endpoint: "https://s3.example.com")

@@ -59,6 +59,7 @@ defmodule TuistWeb.Router do
     plug :accepts, ["html"]
     plug :disable_robot_indexing
     plug :fetch_session
+    plug :prune_operator_grants
     plug LocalePlug
     plug TuistWeb.Plugs.TimezonePlug
     plug :fetch_live_flash
@@ -95,6 +96,7 @@ defmodule TuistWeb.Router do
     plug :accepts, ["html"]
     plug :disable_robot_indexing
     plug :fetch_session
+    plug :prune_operator_grants
     plug LocalePlug
     plug :fetch_live_flash
     plug :protect_from_forgery
@@ -110,6 +112,7 @@ defmodule TuistWeb.Router do
     plug :accepts, ["html"]
     plug :disable_robot_indexing
     plug :fetch_session
+    plug :prune_operator_grants
     plug LocalePlug
     plug :fetch_live_flash
     plug :put_root_layout, html: {TuistWeb.Layouts, :app}
@@ -424,10 +427,18 @@ defmodule TuistWeb.Router do
   end
 
   scope "/", TuistWeb do
+    pipe_through [:open_api, :browser_app, :require_authenticated_user]
+
+    get "/agent/identity/claim", AgentAuthController, :protocol_claim_page
+    post "/agent/identity/claim/complete", AgentAuthController, :confirm_protocol_claim
+  end
+
+  scope "/", TuistWeb do
     pipe_through [:open_api]
 
     get "/auth.md", AgentAuthController, :auth_md
     post "/agent/auth/revoke", AgentAuthController, :revoke
+    post "/agent/event/notify", AgentAuthController, :protocol_event
   end
 
   scope "/", TuistWeb do
@@ -436,6 +447,8 @@ defmodule TuistWeb.Router do
     post "/agent/auth", AgentAuthController, :register
     post "/agent/auth/claim", AgentAuthController, :claim
     post "/agent/auth/claim/complete", AgentAuthController, :complete_claim
+    post "/agent/identity", AgentAuthController, :identity
+    post "/agent/identity/claim", AgentAuthController, :protocol_claim
   end
 
   scope "/integrations", TuistWeb do
@@ -460,6 +473,7 @@ defmodule TuistWeb.Router do
     get "/oauth-authorization-server", WellKnownController, :oauth_authorization_server
     get "/oauth-protected-resource", WellKnownController, :oauth_protected_resource
     get "/oauth-protected-resource/*resource_path", WellKnownController, :oauth_protected_resource
+    get "/jwks.json", WellKnownController, :jwks
     get "/mcp/server-card.json", WellKnownController, :mcp_server_card
     get "/registry.json", WellKnownController, :registry_discovery, metadata: %{robots_txt: false}
     get "/apple-app-site-association", WellKnownController, :apple_app_site_association
@@ -515,6 +529,8 @@ defmodule TuistWeb.Router do
     end
 
     post "/analytics", AnalyticsController, :create
+    post "/runners/interactive/shell", RunnerInteractiveShellSessionController, :create
+    get "/runners/interactive/shell/connect", RunnerInteractiveShellController, :connect
     post "/runs/:run_id/start", AnalyticsController, :multipart_start
 
     post "/runs/:run_id/generate-url",
@@ -746,7 +762,10 @@ defmodule TuistWeb.Router do
 
     post "/runners/dispatch", RunnersController, :dispatch
     post "/runners/volume-head", RunnersController, :report_volume_head
+    post "/runners/volume-head/upload-url", RunnersController, :volume_head_upload_url
     get "/runners/desired_replicas", RunnersController, :desired_replicas
+    get "/runners/interactive/shell/sessions", RunnerInteractiveShellAgentController, :show
+    get "/runners/interactive/shell/:session_id/tunnel", RunnerInteractiveShellAgentController, :connect
     post "/runners/pods/stopped", RunnerPodsController, :stopped
     post "/runners/pods/:pod_name/metrics", RunnerJobMetricsController, :create
   end
@@ -785,6 +804,7 @@ defmodule TuistWeb.Router do
 
     post "/introspect", IntrospectController, :introspect
     post "/token", TokenController, :token
+    post "/revoke", TokenController, :revoke
     post "/register", RegistrationController, :register
   end
 
@@ -1025,6 +1045,10 @@ defmodule TuistWeb.Router do
         RunnerInteractiveVNCController,
         :connect
 
+    get "/runners/interactive/shell",
+        RunnerInteractiveShellController,
+        :connect
+
     get "/runners/runs/:workflow_run_id/jobs/:workflow_job_id/logs/download",
         RunnerJobLogsController,
         :download
@@ -1053,6 +1077,8 @@ defmodule TuistWeb.Router do
       live "/billing", BillingLive
       live "/usage", UsageLive
       live "/settings", AccountSettingsLive
+      live "/settings/tokens", AccountTokensLive
+      live "/settings/tokens/:token_id", AccountTokenLive
       live "/settings/integrations", IntegrationsLive
       live "/settings/authentication", AuthenticationSettingsLive
     end

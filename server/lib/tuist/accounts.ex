@@ -26,7 +26,6 @@ defmodule Tuist.Accounts do
   alias Tuist.CommandEvents
   alias Tuist.Ecto.Utils
   alias Tuist.Environment
-  alias Tuist.FeatureFlags
   alias Tuist.Repo
   alias Tuist.Runners.Concurrency, as: RunnerConcurrency
   alias Tuist.Runners.Profiles, as: RunnerProfiles
@@ -38,7 +37,24 @@ defmodule Tuist.Accounts do
   # auth.md agent registration workflow lives in `Tuist.Accounts.AgentAuth`.
   # These delegators keep `Tuist.Accounts` as the single context facade.
   defdelegate agent_registration_scopes(), to: AgentAuth, as: :scopes
+  defdelegate agent_auth_poll_interval_seconds(), to: AgentAuth, as: :protocol_poll_interval_seconds
+  defdelegate agent_auth_id_jag_max_auth_age_seconds(), to: AgentAuth, as: :id_jag_max_auth_age_seconds
+  defdelegate agent_auth_service_jwks(), to: AgentAuth, as: :service_jwks
+  defdelegate claimed_agent_registration_user(account_token_id), to: AgentAuth, as: :claimed_user_for_account_token
+  defdelegate claimed_protocol_agent_user(registration_id), to: AgentAuth, as: :claimed_user_for_registration
   defdelegate create_agent_registration(attrs), to: AgentAuth, as: :create_registration
+  defdelegate create_protocol_agent_registration(attrs), to: AgentAuth, as: :create_protocol_registration
+  defdelegate initiate_protocol_agent_claim(attrs), to: AgentAuth, as: :initiate_protocol_claim
+  defdelegate protocol_agent_claim_view(claim_view_token, user), to: AgentAuth, as: :get_protocol_claim_view
+  defdelegate confirm_protocol_agent_claim(attrs), to: AgentAuth, as: :confirm_protocol_claim
+
+  defdelegate exchange_protocol_agent_assertion(assertion, audience, resource),
+    to: AgentAuth,
+    as: :exchange_protocol_assertion
+
+  defdelegate poll_protocol_agent_claim(claim_token, audience), to: AgentAuth, as: :poll_protocol_claim
+  defdelegate revoke_protocol_agent_access_token(token), to: AgentAuth, as: :revoke_protocol_access_token
+  defdelegate receive_protocol_agent_event(token, audience), to: AgentAuth, as: :receive_protocol_event
 
   defdelegate revoke_agent_registrations(logout_token, audience),
     to: AgentAuth,
@@ -1867,6 +1883,29 @@ defmodule Tuist.Accounts do
   end
 
   @doc """
+  Gets a specific account token by ID for a given account.
+  """
+  def get_account_token(%Account{} = account, token_id, opts \\ []) do
+    preload = Keyword.get(opts, :preload, [:projects, :created_by_account])
+
+    case UUIDv7.cast(token_id) do
+      {:ok, token_id} ->
+        case Repo.one(
+               from(t in AccountToken,
+                 where: t.id == ^token_id and t.account_id == ^account.id,
+                 preload: ^preload
+               )
+             ) do
+          nil -> {:error, :not_found}
+          token -> {:ok, token}
+        end
+
+      _ ->
+        {:error, :not_found}
+    end
+  end
+
+  @doc """
   Gets a specific account token by name for a given account.
   """
   def get_account_token_by_name(%Account{} = account, token_name, opts \\ []) do
@@ -2065,10 +2104,10 @@ defmodule Tuist.Accounts do
   Returns cache endpoint URLs for the given account handle and cache technology.
 
   The `technology` argument is driven by the `kura` client feature flag header.
-  When `:kura`, ready account Kura endpoints are returned only if the account
-  has the `:kura_cache` flag enabled. In every other case (technology is
-  `:default`, no opt-in, or no ready Kura endpoint), the custom and default
-  endpoint fallback behavior is preserved.
+  When `:kura`, the account's provisioned Kura endpoints are returned if it has
+  any, so routing to Kura is opt-in from the CLI alone. In every other case
+  (technology is `:default`, or the account has no Kura endpoint), the custom
+  and default endpoint fallback behavior is preserved.
 
   Custom endpoints are only returned when:
   - The account exists
@@ -2133,14 +2172,12 @@ defmodule Tuist.Accounts do
   defp custom_cache_endpoints(_), do: []
 
   defp kura_cache_endpoints(%Account{} = account) do
-    if FeatureFlags.kura_cache_enabled?(account) do
-      # Tuist-managed Kura endpoints, mirrored from `kura_servers`. Self-hosted
-      # nodes are not static rows: each one self-registers its advertised URL via
-      # heartbeats, surfaced through `registered_kura_endpoint_urls/1`.
-      Repo.all(from(e in AccountCacheEndpoint, where: e.account_id == ^account.id and e.technology == :kura))
-    else
-      []
-    end
+    # Tuist-managed Kura endpoints, mirrored from `kura_servers`. Self-hosted
+    # nodes are not static rows: each one self-registers its advertised URL via
+    # heartbeats, surfaced through `registered_kura_endpoint_urls/1`. Whether
+    # these are handed to the CLI is decided upstream by the `kura` client
+    # feature flag, so provisioning is the only server-side gate.
+    Repo.all(from(e in AccountCacheEndpoint, where: e.account_id == ^account.id and e.technology == :kura))
   end
 
   @doc """
@@ -2158,12 +2195,11 @@ defmodule Tuist.Accounts do
 
   # Client-facing URLs from registration heartbeats: customer-owned nodes that
   # report a live, ready advertised endpoint. Lease-gated, so a node that stops
-  # heartbeating drops out. Gated on `:kura_cache` like the static endpoints.
+  # heartbeating drops out.
   defp registered_kura_endpoint_urls(%Account{} = account) do
     # Self-hosting is Enterprise-only, so do not surface a downgraded account's
     # registered node addresses to the CLI even while their leases are still live.
-    if FeatureFlags.kura_cache_enabled?(account) and
-         Billing.Entitlements.allows?(account, :self_hosted_cache) do
+    if Billing.Entitlements.allows?(account, :self_hosted_cache) do
       Tuist.Kura.Registrations.active_advertised_urls(account)
     else
       []

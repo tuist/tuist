@@ -61,7 +61,7 @@ defmodule Tuist.Docs.Loader do
 
   @mdex_options [
                   extension: [
-                    header_ids: "",
+                    header_id_prefix: "",
                     autolink: true,
                     table: true,
                     strikethrough: true,
@@ -81,37 +81,32 @@ defmodule Tuist.Docs.Loader do
   end
 
   def load_slugs! do
-    docs_slugs =
-      Enum.map(source_paths(), fn source_path ->
-        source_path
-        |> Path.relative_to(docs_root())
-        |> source_to_slug()
-      end)
-
-    example_slugs = Enum.map(example_readmes(), &example_slug/1)
-
-    Enum.sort(docs_slugs ++ example_slugs)
+    load_page_sources!()
+    |> Map.keys()
+    |> Enum.sort()
   end
 
-  def load_page!(slug) do
-    source_path =
-      Enum.find(source_paths(), fn source_path ->
-        source_path
-        |> Path.relative_to(docs_root())
-        |> source_to_slug() == slug
+  def load_page_sources! do
+    page_sources =
+      Enum.reduce(source_paths(), %{}, fn source_path, page_sources ->
+        slug = source_path |> Path.relative_to(docs_root()) |> source_to_slug()
+        Map.put_new(page_sources, slug, {:page, source_path})
       end)
 
-    cond do
-      source_path != nil ->
-        build_page!(source_path)
-
-      readme_path = Enum.find(example_readmes(), &(example_slug(&1) == slug)) ->
-        build_example_page!(readme_path)
-
-      true ->
-        nil
-    end
+    Enum.reduce(example_readmes(), page_sources, fn readme_path, page_sources ->
+      Map.put_new(page_sources, example_slug(readme_path), {:example, readme_path})
+    end)
   end
+
+  def load_page!(slug, page_sources \\ load_page_sources!()) do
+    page_sources
+    |> Map.get(slug)
+    |> load_page_source!()
+  end
+
+  def load_page_source!({:page, source_path}), do: build_page!(source_path)
+  def load_page_source!({:example, readme_path}), do: build_example_page!(readme_path)
+  def load_page_source!(nil), do: nil
 
   def load_example_items! do
     Enum.map(example_readmes(), fn readme_path ->
@@ -337,6 +332,7 @@ defmodule Tuist.Docs.Loader do
 
     html =
       [markdown: processed_markdown]
+      |> Keyword.merge(@mdex_options)
       |> MDEx.new()
       |> MDExMermaid.attach(
         mermaid_init: "",
@@ -344,7 +340,6 @@ defmodule Tuist.Docs.Loader do
           ~s(id="mermaid-#{seq}" class="mermaid" phx-hook="MermaidDiagram" phx-update="ignore")
         end
       )
-      |> MDEx.Document.put_options(@mdex_options)
       |> MDEx.to_html!()
       |> convert_github_alerts()
       |> HTML.wrap_code_blocks()

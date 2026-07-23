@@ -19,6 +19,11 @@ defmodule TuistWeb.RunnersLive do
 
   @table_limit 5
   @chart_limit 30
+  # Only runs that reached a success/failure conclusion carry a real
+  # duration. Running, cancelled and skipped runs would draw as
+  # zero-height bars that scatter the real ones, so they are kept out of
+  # the chart trail (and are not counted by the success/failure legends).
+  @chart_conclusions ["success", "failure"]
 
   @impl true
   def mount(_params, _session, %{assigns: %{selected_account: selected_account, current_user: current_user}} = socket) do
@@ -207,13 +212,14 @@ defmodule TuistWeb.RunnersLive do
     )
   end
 
-  # Workflow-run bars mirror the recent-jobs chart: one bar per run,
-  # height in seconds, colour from the run-level conclusion. We URL
-  # the bar to the workflow detail page when the slug fully resolves
-  # so clicking drills down naturally; partial-info rows just don't
-  # carry a navigate target.
+  # Workflow-run bars mirror the recent-jobs chart: one bar per
+  # succeeded/failed run, height in seconds, colour from the run-level
+  # conclusion. We URL the bar to the workflow detail page when the slug
+  # fully resolves so clicking drills down naturally; partial-info rows
+  # just don't carry a navigate target.
   defp recent_workflow_runs_chart_data(recent_workflow_runs, account_name) do
     recent_workflow_runs
+    |> Enum.filter(&(&1.conclusion in @chart_conclusions))
     |> Enum.reverse()
     |> Enum.map(fn run ->
       %{
@@ -246,11 +252,12 @@ defmodule TuistWeb.RunnersLive do
 
   defp workflow_run_detail_url(_account_name, _row), do: nil
 
-  # Bars represent each recent job. Y is the duration in seconds (or
-  # zero for not-yet-started states), the bar colour mirrors the row's
-  # status badge so the chart reads at the same glance as the table.
+  # Bars represent each succeeded/failed job. Y is the duration in
+  # seconds, the bar colour mirrors the row's status badge so the chart
+  # reads at the same glance as the table.
   defp recent_jobs_chart_data(recent_jobs, account_name) do
     recent_jobs
+    |> Enum.filter(&(&1.conclusion in @chart_conclusions))
     |> Enum.reverse()
     |> Enum.map(fn job ->
       seconds = duration_seconds(job)
@@ -498,24 +505,12 @@ defmodule TuistWeb.RunnersLive do
   limit as a dashed line.
   """
   def concurrency_chart_series(values, limit, usage_label) do
-    admitted_usage = Enum.map(values, &if(&1 < limit, do: &1))
-    at_limit = Enum.map(values, &if(&1 >= limit, do: &1))
-
     [
       %{
-        data: admitted_usage,
+        data: Enum.map(values, &concurrency_bar(&1, limit)),
         itemStyle: %{color: "var:noora-chart-primary"},
         name: usage_label,
         type: "bar",
-        stack: "admitted-usage",
-        barMaxWidth: 18
-      },
-      %{
-        data: at_limit,
-        itemStyle: %{color: "var:noora-chart-destructive"},
-        name: dgettext("dashboard_runners", "Limit reached"),
-        type: "bar",
-        stack: "admitted-usage",
         barMaxWidth: 18
       },
       %{
@@ -533,6 +528,12 @@ defmodule TuistWeb.RunnersLive do
       }
     ]
   end
+
+  defp concurrency_bar(value, limit) when value >= limit do
+    %{value: value, itemStyle: %{color: "var:noora-chart-destructive"}}
+  end
+
+  defp concurrency_bar(value, _limit), do: value
 
   @doc """
   Shared ECharts options for concurrency resource charts.
