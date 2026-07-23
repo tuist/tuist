@@ -5,6 +5,7 @@ import Testing
 import TSCUtility
 import TuistEnvironment
 import TuistEnvKey
+import TuistConfig
 import TuistVersionCommand
 @testable import TuistAuthCommand
 @testable import TuistBuildCommand
@@ -479,6 +480,7 @@ struct CommandEnvironmentVariableTests {
         setVariable(.testRetryCount, value: "2")
         setVariable(.testTestPlan, value: "MyTestPlan")
         setVariable(.testSkipTestTargets, value: "SkipTarget1,SkipTarget2")
+        setVariable(.testFocusedTargets, value: "FocusTarget1,tag:coverage")
         setVariable(.testConfigurations, value: "Config1,Config2")
         setVariable(.testSkipConfigurations, value: "SkipConfig1,SkipConfig2")
         setVariable(.testGenerateOnly, value: "true")
@@ -511,6 +513,7 @@ struct CommandEnvironmentVariableTests {
             try TestIdentifier(string: "SkipTarget1"),
             try TestIdentifier(string: "SkipTarget2"),
         ])
+        #expect(testCommandWithEnvVars.focusedTargets == [.named("FocusTarget1"), .tagged("coverage")])
         #expect(testCommandWithEnvVars.configurations == ["Config1", "Config2"])
         #expect(testCommandWithEnvVars.skipConfigurations == ["SkipConfig1", "SkipConfig2"])
         #expect(testCommandWithEnvVars.generateOnly == true)
@@ -537,6 +540,7 @@ struct CommandEnvironmentVariableTests {
             "--retry-count", "3",
             "--test-plan", "NewTestPlan",
             "--skip-test-targets", "NewSkipTarget1", "NewSkipTarget2",
+            "--focused-targets", "NewFocusTarget1", "tag:new-coverage",
             "--filter-configurations", "NewConfig1", "NewConfig2",
             "--skip-configurations", "NewSkipConfig1", "NewSkipConfig2",
             "--no-generate-only",
@@ -565,6 +569,7 @@ struct CommandEnvironmentVariableTests {
             try TestIdentifier(string: "NewSkipTarget1"),
             try TestIdentifier(string: "NewSkipTarget2"),
         ])
+        #expect(testCommandWithArgs.focusedTargets == [.named("NewFocusTarget1"), .tagged("new-coverage")])
         #expect(testCommandWithArgs.configurations == ["NewConfig1", "NewConfig2"])
         #expect(testCommandWithArgs.skipConfigurations == ["NewSkipConfig1", "NewSkipConfig2"])
         #expect(testCommandWithArgs.generateOnly == false)
