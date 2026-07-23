@@ -1,14 +1,14 @@
 defmodule Tuist.Kura.RunnerCache do
   @moduledoc """
   Keeps a private runner-cache Kura node provisioned for exactly the
-  accounts that have runners-as-a-service turned on.
+  accounts that have co-located runner caching turned on.
 
   The identity rule converges both directions every tick, per private
   region:
 
     * an account with at least one Runner Profile whose platform the
       region serves (`Regions.runner_platforms`) AND an explicit enabled
-      account-actor gate on the `:runners` flag should have exactly one
+      account-actor gate on the `:runner_cache` flag should have exactly one
       non-destroyed Kura server in that region, and
     * an account with no such profiles — or without the flag — should
       have none there.
@@ -22,21 +22,28 @@ defmodule Tuist.Kura.RunnerCache do
   node even while its Linux profiles keep a node in a Linux-serving
   region.
 
-  Runner Profiles are auto-created for every account, so the candidate
-  query starts from the flag's explicit account actors instead of scanning
-  the full accounts table and evaluating the flag one row at a time. Global,
-  group, and percentage gates are intentionally rejected: they are suitable
-  for choosing request-time code paths, but they must not create or destroy
-  durable infrastructure for a broad or unstable cohort. When an unsafe gate
-  is present the reconciler preserves existing nodes and provisions nothing.
+  `:runner_cache` is deliberately separate from the customer-facing `:runners`
+  flag. Runner availability is a request-time product decision, while this
+  flag allocates durable infrastructure. Runner Profiles are auto-created for
+  every account, so the candidate query starts from the dedicated flag's
+  explicit account actors instead of scanning the full accounts table and
+  evaluating the flag one row at a time. Global, group, and percentage gates
+  are intentionally rejected because they must not create or destroy
+  infrastructure for a broad or unstable cohort.
+
+  An absent or unsafe `:runner_cache` flag preserves every existing node and
+  provisions nothing. This makes first deployment safe before operators add
+  the explicit account actors. To intentionally remove the entire cohort,
+  operators disable the flag globally; a disabled boolean gate is a valid
+  empty cohort and tears nodes down through normal reconciliation.
 
   This runs inside `Tuist.Kura.Reconciler`'s tick rather than on its own
   cron, so it shares the same cadence and self-heals after a BEAM
-  restart: enabling runners provisions the node on the next tick;
-  disabling them tears it down. It is a no-op unless a private region is
-  available in this runtime (via `TUIST_KURA_AVAILABLE_REGIONS`) and a
-  Kura runtime image tag is configured, so non-managed and not-yet-wired
-  environments stay inert.
+  restart: enabling the runner cache for an account provisions the node on
+  the next tick; disabling it tears the node down. It is a no-op unless a
+  private region is available in this runtime (via
+  `TUIST_KURA_AVAILABLE_REGIONS`) and a Kura runtime image tag is configured,
+  so non-managed and not-yet-wired environments stay inert.
 
   Provisioning the node does not, by itself, route any traffic to it —
   `Tuist.Kura.runner_cache_endpoint_url/2` only returns a URL once the
@@ -59,20 +66,26 @@ defmodule Tuist.Kura.RunnerCache do
   @retry_backoff_seconds [60, 300, 900, 3600]
 
   @doc """
-  Converges runner-cache nodes with runner enablement. Safe to call on
+  Converges runner-cache nodes with the dedicated cache cohort. Safe to call on
   every reconciler tick; returns `:ok`.
   """
   def reconcile do
+    case runner_cache_regions() do
+      [] -> :ok
+      regions -> reconcile_regions(regions)
+    end
+  end
+
+  defp reconcile_regions(regions) do
     case runner_cache_cohort() do
       {:ok, account_ids} ->
         Telemetry.runner_cache_reconciliation(false)
-        Enum.each(runner_cache_regions(), &reconcile_region(&1, account_ids))
+        Enum.each(regions, &reconcile_region(&1, account_ids))
 
       {:error, reason} ->
-        # The runner feature flag can control request paths with global or
-        # percentage gates, but those gates are unsafe for durable, per-account
+        # The dedicated runner-cache flag represents durable, per-account
         # infrastructure. Preserve every existing node and provision nothing
-        # until the flag returns to an explicit actor-only shape.
+        # until it is configured with an explicit actor-only cohort.
         detail = inspect(reason)
 
         Logger.warning("kura.runner_cache: refusing to reconcile an unsafe runner-cache cohort",
@@ -212,16 +225,16 @@ defmodule Tuist.Kura.RunnerCache do
   end
 
   defp runner_cache_cohort do
-    case FunWithFlags.get_flag(:runners) do
+    case FunWithFlags.get_flag(:runner_cache) do
       nil ->
-        {:ok, MapSet.new()}
+        {:error, :runner_cache_flag_unconfigured}
 
       {:error, reason} ->
         {:error, {:feature_flag_unavailable, reason}}
 
       %FunWithFlags.Flag{gates: gates} ->
         if Enum.any?(gates, &unsafe_infrastructure_gate?/1) do
-          {:error, :non_actor_runner_gate}
+          {:error, :non_actor_runner_cache_gate}
         else
           actor_account_ids(gates)
         end
@@ -239,7 +252,7 @@ defmodule Tuist.Kura.RunnerCache do
   defp collect_actor_account_ids([gate | gates], account_ids) do
     case parse_account_actor(gate.for) do
       {:ok, account_id} -> collect_actor_account_ids(gates, MapSet.put(account_ids, account_id))
-      :error -> {:error, {:unsupported_runner_actor, gate.for}}
+      :error -> {:error, {:unsupported_runner_cache_actor, gate.for}}
     end
   end
 
@@ -250,8 +263,9 @@ defmodule Tuist.Kura.RunnerCache do
   defp unsafe_infrastructure_gate?(_gate), do: false
 
   defp cohort_failure_kind({:feature_flag_unavailable, _reason}), do: "feature_flag_unavailable"
-  defp cohort_failure_kind({:unsupported_runner_actor, _actor}), do: "unsupported_runner_actor"
-  defp cohort_failure_kind(:non_actor_runner_gate), do: "non_actor_runner_gate"
+  defp cohort_failure_kind({:unsupported_runner_cache_actor, _actor}), do: "unsupported_runner_cache_actor"
+  defp cohort_failure_kind(:non_actor_runner_cache_gate), do: "non_actor_runner_cache_gate"
+  defp cohort_failure_kind(:runner_cache_flag_unconfigured), do: "runner_cache_flag_unconfigured"
 
   defp parse_account_actor("account:" <> id) do
     case Integer.parse(id) do

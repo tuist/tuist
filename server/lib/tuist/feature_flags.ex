@@ -9,6 +9,10 @@ defmodule Tuist.FeatureFlags do
   environment (dev / test / staging / canary) so contributors and
   internal testers see it without the flag flipped; in production it
   requires an explicit `:runners` FunWithFlags toggle for the actor.
+
+  This controls product access only. Co-located private Kura cache
+  infrastructure has its own explicit `:runner_cache` account cohort,
+  reconciled by `Tuist.Kura.RunnerCache`.
   """
   def runners_enabled?(account) do
     not Environment.prod?() or FunWithFlags.enabled?(:runners, for: account)

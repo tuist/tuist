@@ -72,14 +72,14 @@ defmodule Tuist.Kura.RunnerCacheTest do
     account
   end
 
-  defp enable_runners_for(account_ids) do
+  defp enable_runner_cache_for(account_ids) do
     gates =
       Enum.map(account_ids, fn account_id ->
         %FunWithFlags.Gate{type: :actor, for: "account:#{account_id}", enabled: true}
       end)
 
-    stub(FunWithFlags, :get_flag, fn :runners ->
-      %FunWithFlags.Flag{name: :runners, gates: gates}
+    stub(FunWithFlags, :get_flag, fn :runner_cache ->
+      %FunWithFlags.Flag{name: :runner_cache, gates: gates}
     end)
   end
 
@@ -96,7 +96,7 @@ defmodule Tuist.Kura.RunnerCacheTest do
   test "provisions per region by served platform" do
     linux_only = account_with_profiles([:linux])
     macos_too = account_with_profiles([:linux, :macos])
-    enable_runners_for([linux_only.id, macos_too.id])
+    enable_runner_cache_for([linux_only.id, macos_too.id])
 
     assert :ok = RunnerCache.reconcile()
 
@@ -108,28 +108,80 @@ defmodule Tuist.Kura.RunnerCacheTest do
     assert server_regions(macos_too) == ["scw-fr-par-runners"]
   end
 
+  test "is inert without a private runner-cache region" do
+    stub(Tuist.Environment, :kura_available_region_ids, fn -> [] end)
+    reject(FunWithFlags, :get_flag, 1)
+
+    assert :ok = RunnerCache.reconcile()
+  end
+
   test "reports that reconciliation is healthy for an actor-only cohort" do
     attach_reconciliation_telemetry()
     account = account_with_profiles([:macos])
-    enable_runners_for([account.id])
+    enable_runner_cache_for([account.id])
 
     assert :ok = RunnerCache.reconcile()
 
     assert_receive {:reconciliation_telemetry, [:tuist, :kura, :runner_cache, :reconciliation], %{paused: 0}, %{}}
   end
 
-  test "accounts without the runners flag get no nodes" do
+  test "accounts outside the runner-cache cohort get no nodes" do
     account = account_with_profiles([:linux, :macos])
-    enable_runners_for([])
+    enable_runner_cache_for([])
 
     assert :ok = RunnerCache.reconcile()
 
     assert server_regions(account) == []
   end
 
+  test "preserves existing nodes and provisions nothing while the runner-cache flag is unconfigured" do
+    existing = account_with_profiles([:macos])
+    candidate = account_with_profiles([:macos])
+    enable_runner_cache_for([existing.id])
+
+    assert :ok = RunnerCache.reconcile()
+    assert server_regions(existing) == ["scw-fr-par-runners"]
+
+    attach_reconciliation_telemetry()
+    stub(FunWithFlags, :get_flag, fn :runner_cache -> nil end)
+    reject(Sentry, :capture_message, 2)
+
+    assert :ok = RunnerCache.reconcile()
+    assert server_regions(existing) == ["scw-fr-par-runners"]
+    assert server_regions(candidate) == []
+
+    assert_receive {:reconciliation_telemetry, [:tuist, :kura, :runner_cache, :reconciliation], %{paused: 1},
+                    %{
+                      failure_kind: "runner_cache_flag_unconfigured",
+                      failure_detail: ":runner_cache_flag_unconfigured"
+                    }}
+  end
+
+  test "tears down the cohort when the runner-cache flag is explicitly disabled" do
+    account = account_with_profiles([:macos])
+    enable_runner_cache_for([account.id])
+
+    assert :ok = RunnerCache.reconcile()
+    assert server_regions(account) == ["scw-fr-par-runners"]
+
+    attach_reconciliation_telemetry()
+
+    stub(FunWithFlags, :get_flag, fn :runner_cache ->
+      %FunWithFlags.Flag{
+        name: :runner_cache,
+        gates: [%FunWithFlags.Gate{type: :boolean, for: nil, enabled: false}]
+      }
+    end)
+
+    assert :ok = RunnerCache.reconcile()
+    assert server_regions(account) == []
+
+    assert_receive {:reconciliation_telemetry, [:tuist, :kura, :runner_cache, :reconciliation], %{paused: 0}, %{}}
+  end
+
   test "tears down a region's node when its served platforms lose their profiles" do
     account = account_with_profiles([:linux, :macos])
-    enable_runners_for([account.id])
+    enable_runner_cache_for([account.id])
 
     assert :ok = RunnerCache.reconcile()
     assert server_regions(account) == ["scw-fr-par-runners"]
@@ -178,7 +230,7 @@ defmodule Tuist.Kura.RunnerCacheTest do
     Repo.insert_all(Profile, profile_rows)
 
     enabled = account_with_profiles([:macos])
-    enable_runners_for([enabled.id])
+    enable_runner_cache_for([enabled.id])
 
     assert :ok = RunnerCache.reconcile()
 
@@ -187,7 +239,7 @@ defmodule Tuist.Kura.RunnerCacheTest do
 
   test "macOS-only accounts get a node in the macOS-serving region" do
     account = account_with_profiles([:macos])
-    enable_runners_for([account.id])
+    enable_runner_cache_for([account.id])
 
     assert :ok = RunnerCache.reconcile()
 
@@ -196,13 +248,13 @@ defmodule Tuist.Kura.RunnerCacheTest do
 
   test "is inert without a runtime image tag except for tear-downs" do
     account = account_with_profiles([:linux, :macos])
-    enable_runners_for([account.id])
+    enable_runner_cache_for([account.id])
     assert :ok = RunnerCache.reconcile()
 
     stub(Tuist.Environment, :kura_runtime_image_tag, fn -> nil end)
     Repo.delete_all(from(p in Profile, where: p.account_id == ^account.id))
     fresh = account_with_profiles([:linux])
-    enable_runners_for([account.id, fresh.id])
+    enable_runner_cache_for([account.id, fresh.id])
 
     assert :ok = RunnerCache.reconcile()
 
@@ -216,14 +268,14 @@ defmodule Tuist.Kura.RunnerCacheTest do
     attach_reconciliation_telemetry()
     existing = account_with_profiles([:macos])
     candidate = account_with_profiles([:macos])
-    enable_runners_for([existing.id])
+    enable_runner_cache_for([existing.id])
 
     assert :ok = RunnerCache.reconcile()
     assert server_regions(existing) == ["scw-fr-par-runners"]
 
-    stub(FunWithFlags, :get_flag, fn :runners ->
+    stub(FunWithFlags, :get_flag, fn :runner_cache ->
       %FunWithFlags.Flag{
-        name: :runners,
+        name: :runner_cache,
         gates: [%FunWithFlags.Gate{type: :boolean, for: nil, enabled: true}]
       }
     end)
@@ -235,18 +287,21 @@ defmodule Tuist.Kura.RunnerCacheTest do
     assert server_regions(candidate) == []
 
     assert_receive {:reconciliation_telemetry, [:tuist, :kura, :runner_cache, :reconciliation], %{paused: 1},
-                    %{failure_kind: "non_actor_runner_gate", failure_detail: ":non_actor_runner_gate"}}
+                    %{
+                      failure_kind: "non_actor_runner_cache_gate",
+                      failure_detail: ":non_actor_runner_cache_gate"
+                    }}
   end
 
   test "preserves existing nodes for a percentage-of-time gate" do
     account = account_with_profiles([:macos])
-    enable_runners_for([account.id])
+    enable_runner_cache_for([account.id])
 
     assert :ok = RunnerCache.reconcile()
 
-    stub(FunWithFlags, :get_flag, fn :runners ->
+    stub(FunWithFlags, :get_flag, fn :runner_cache ->
       %FunWithFlags.Flag{
-        name: :runners,
+        name: :runner_cache,
         gates: [%FunWithFlags.Gate{type: :percentage_of_time, for: 0.5, enabled: true}]
       }
     end)
@@ -257,13 +312,13 @@ defmodule Tuist.Kura.RunnerCacheTest do
 
   test "preserves existing nodes for an unsupported actor gate" do
     account = account_with_profiles([:macos])
-    enable_runners_for([account.id])
+    enable_runner_cache_for([account.id])
 
     assert :ok = RunnerCache.reconcile()
 
-    stub(FunWithFlags, :get_flag, fn :runners ->
+    stub(FunWithFlags, :get_flag, fn :runner_cache ->
       %FunWithFlags.Flag{
-        name: :runners,
+        name: :runner_cache,
         gates: [%FunWithFlags.Gate{type: :actor, for: "user:123", enabled: true}]
       }
     end)
@@ -274,7 +329,7 @@ defmodule Tuist.Kura.RunnerCacheTest do
 
   test "waits for the retry backoff before retrying the same image" do
     account = account_with_profiles([:macos])
-    enable_runners_for([account.id])
+    enable_runner_cache_for([account.id])
     assert :ok = RunnerCache.reconcile()
 
     server = Repo.get_by!(Server, account_id: account.id, region: "scw-fr-par-runners")
@@ -295,7 +350,7 @@ defmodule Tuist.Kura.RunnerCacheTest do
 
   test "caps repeated same-image retries at one hour" do
     account = account_with_profiles([:macos])
-    enable_runners_for([account.id])
+    enable_runner_cache_for([account.id])
     assert :ok = RunnerCache.reconcile()
 
     server = Repo.get_by!(Server, account_id: account.id, region: "scw-fr-par-runners")
@@ -340,7 +395,7 @@ defmodule Tuist.Kura.RunnerCacheTest do
 
   test "retries immediately when the configured image changes" do
     account = account_with_profiles([:macos])
-    enable_runners_for([account.id])
+    enable_runner_cache_for([account.id])
     assert :ok = RunnerCache.reconcile()
 
     server = Repo.get_by!(Server, account_id: account.id, region: "scw-fr-par-runners")
