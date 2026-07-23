@@ -6,6 +6,8 @@ defmodule TuistWeb.RunnerWorkflowLiveTest do
   import Phoenix.LiveViewTest
 
   alias Tuist.Runners.Jobs
+  alias Tuist.Runners.Workers.FlushJobTransitionEventsWorker
+  alias Tuist.Runners.WorkflowJobs
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
   setup %{conn: conn} do
@@ -45,9 +47,11 @@ defmodule TuistWeb.RunnerWorkflowLiveTest do
     # real value (otherwise the success_rate query returns nil and the
     # widget would just say '–').
     {:ok, candidate} = Jobs.pick_queued("fleet-w", [])
-    :ok = Jobs.record_claimed(candidate, "pod-w", DateTime.utc_now())
-    :ok = Jobs.record_running(90_001, "runner-w")
+    :ok = WorkflowJobs.transition_claimed(candidate.workflow_job_id, "pod-w", DateTime.utc_now())
+    :ok = WorkflowJobs.transition_running(90_001, "runner-w")
     {:ok, _} = Jobs.complete(90_001, "success")
+
+    flush_outbox!()
 
     {:ok, _lv, html} = live(conn, ~p"/#{account.name}/runners/workflows/tuist/tuist/Server")
 
@@ -90,6 +94,8 @@ defmodule TuistWeb.RunnerWorkflowLiveTest do
         head_sha: "def4567"
       })
 
+    flush_outbox!()
+
     {:ok, _lv, html} = live(conn, ~p"/#{account.name}/runners/workflows/tuist/tuist/Server")
 
     assert html =~ "Format"
@@ -128,6 +134,8 @@ defmodule TuistWeb.RunnerWorkflowLiveTest do
         head_sha: "bbb"
       })
 
+    flush_outbox!()
+
     {:ok, _lv, html} =
       live(conn, ~p"/#{account.name}/runners/workflows/tuist/tuist/Server?search=Docker")
 
@@ -157,7 +165,11 @@ defmodule TuistWeb.RunnerWorkflowLiveTest do
         })
     end)
 
+    flush_outbox!()
+
     {:ok, _lv, page_1} = live(conn, ~p"/#{account.name}/runners/workflows/tuist/tuist/Server")
+
+    flush_outbox!()
 
     {:ok, _lv, page_2} =
       live(conn, ~p"/#{account.name}/runners/workflows/tuist/tuist/Server?page=2")
@@ -188,6 +200,8 @@ defmodule TuistWeb.RunnerWorkflowLiveTest do
       end
     )
 
+    flush_outbox!()
+
     {:ok, _lv, html} =
       live(
         conn,
@@ -212,5 +226,9 @@ defmodule TuistWeb.RunnerWorkflowLiveTest do
     assert_raise TuistWeb.Errors.NotFoundError, fn ->
       live(conn, ~p"/#{other_account.name}/runners/workflows/tuist/tuist/Server")
     end
+  end
+
+  defp flush_outbox! do
+    :ok = FlushJobTransitionEventsWorker.perform(%Oban.Job{})
   end
 end

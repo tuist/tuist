@@ -39,6 +39,8 @@ defmodule Tuist.Runners.WorkflowJobs do
 
   alias Tuist.Repo
   alias Tuist.Runners.JobCompletion
+  alias Tuist.Runners.Jobs
+  alias Tuist.Runners.Telemetry
   alias Tuist.Runners.WorkflowJob
   alias Tuist.Runners.WorkflowJobTransitionEvent
 
@@ -90,14 +92,20 @@ defmodule Tuist.Runners.WorkflowJobs do
   """
   def transition_claimed(workflow_job_id, pod_name, %DateTime{} = claimed_at)
       when is_integer(workflow_job_id) and is_binary(pod_name) do
-    transition(workflow_job_id, ["queued"], "claimed", pod_name: pod_name, claimed_at: claimed_at)
+    case transition(workflow_job_id, ["queued"], "claimed", pod_name: pod_name, claimed_at: claimed_at) do
+      {:applied, _row} -> :ok
+      :noop -> :noop
+    end
   end
 
   @doc """
   CAS `claimed → running`, stamping the mint-chosen `runner_name`.
   """
   def transition_running(workflow_job_id, runner_name) when is_integer(workflow_job_id) and is_binary(runner_name) do
-    transition(workflow_job_id, ["claimed"], "running", runner_name: runner_name, started_at: DateTime.utc_now())
+    case transition(workflow_job_id, ["claimed"], "running", runner_name: runner_name, started_at: DateTime.utc_now()) do
+      {:applied, _row} -> :ok
+      :noop -> :noop
+    end
   end
 
   @doc """
@@ -105,9 +113,16 @@ defmodule Tuist.Runners.WorkflowJobs do
   Clears the claim/runner binding so the row is a clean dispatch
   candidate again. Terminal rows never match the guard, so a release
   racing a completion leaves the completed state alone.
+
+  An applied requeue emits the requeued telemetry event and the
+  account's lifecycle broadcast — this is the only place the
+  transition happens (`Tuist.Runners.Claims.release/2` and
+  `release_pod_missing/2` both funnel here inside their claim-delete
+  transactions).
   """
   def requeue(workflow_job_id) when is_integer(workflow_job_id) do
-    transition(workflow_job_id, ["claimed", "running"], "queued",
+    workflow_job_id
+    |> transition(["claimed", "running"], "queued",
       conclusion: nil,
       pod_name: nil,
       runner_name: nil,
@@ -116,6 +131,32 @@ defmodule Tuist.Runners.WorkflowJobs do
       completed_at: nil,
       executed_workflow_job_id: nil
     )
+    |> case do
+      {:applied, row} ->
+        :telemetry.execute(Telemetry.event_name_job_requeued(), %{count: 1}, %{fleet: row.fleet_name})
+        Tuist.PubSub.broadcast(%{status: "queued"}, Jobs.topic(row.account_id), :runner_jobs_status_changed)
+        :ok
+
+      :noop ->
+        :noop
+    end
+  end
+
+  @doc """
+  The terminal status a conclusion maps to: `"cancelled"` for a
+  cancelled conclusion, `"completed"` for everything else.
+  """
+  def terminal_status("cancelled"), do: "cancelled"
+  def terminal_status(_conclusion), do: "completed"
+
+  @doc """
+  Whether a lifecycle row exists for `workflow_job_id`, whatever its
+  status. The webhook enqueue path checks it under the per-job
+  ordering lock so a late `queued`/`waiting` redelivery is a no-op
+  instead of re-emitting enqueue telemetry.
+  """
+  def exists?(workflow_job_id) when is_integer(workflow_job_id) do
+    Repo.exists?(from(j in WorkflowJob, where: j.workflow_job_id == ^workflow_job_id))
   end
 
   @doc """
@@ -133,7 +174,7 @@ defmodule Tuist.Runners.WorkflowJobs do
   def record_completed(attrs, conclusion, %DateTime{} = completed_at) when is_map(attrs) and is_binary(conclusion) do
     now = DateTime.utc_now()
     truncated_now = DateTime.truncate(now, :second)
-    status = if conclusion == "cancelled", do: "cancelled", else: "completed"
+    status = terminal_status(conclusion)
 
     row =
       attrs
@@ -322,45 +363,6 @@ defmodule Tuist.Runners.WorkflowJobs do
   end
 
   @doc """
-  Adopts lifecycle rows for jobs that exist only in ClickHouse —
-  enqueued by code that predates this table. Inserts each row in its
-  current ClickHouse status (`ON CONFLICT DO NOTHING`, completion
-  guard included), so redeliveries and races with live transitions
-  are safe. Adopted rows emit no outbox event: ClickHouse is the
-  source here, so there is nothing to replicate back.
-
-  Transitional, used only by
-  `Tuist.Runners.Workers.BackfillWorkflowJobsWorker`; deleted with it.
-  """
-  def adopt_missing(ch_rows) when is_list(ch_rows) do
-    now = DateTime.utc_now()
-    truncated_now = DateTime.truncate(now, :second)
-
-    rows =
-      for ch_row <- ch_rows,
-          not completion_recorded?(ch_row.workflow_job_id) do
-        ch_row
-        |> base_row()
-        |> Map.merge(%{
-          status: adopt_status(ch_row),
-          enqueued_at: ch_row.enqueued_at,
-          claimed_at: Map.get(ch_row, :claimed_at),
-          started_at: Map.get(ch_row, :started_at),
-          pod_name: blank_to_nil(Map.get(ch_row, :pod_name)),
-          runner_name: blank_to_nil(Map.get(ch_row, :runner_name)),
-          inserted_at: truncated_now,
-          updated_at: truncated_now
-        })
-      end
-
-    {count, _} = Repo.insert_all(WorkflowJob, rows, on_conflict: :nothing)
-    count
-  end
-
-  defp adopt_status(%{status: "completed", conclusion: "cancelled"}), do: "cancelled"
-  defp adopt_status(%{status: status}), do: status
-
-  @doc """
   Rows whose `updated_at` falls in `(updated_after, updated_before)`,
   newest first, capped at `limit`. Feeds the drift comparator: the
   upper bound keeps rows mid-transition (Postgres committed, the
@@ -432,7 +434,7 @@ defmodule Tuist.Runners.WorkflowJobs do
         case {count, rows} do
           {1, [row]} ->
             emit_transition_event(row, now)
-            :ok
+            {:applied, row}
 
           {0, _} ->
             :noop

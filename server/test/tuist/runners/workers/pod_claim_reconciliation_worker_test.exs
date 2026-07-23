@@ -9,14 +9,14 @@ defmodule Tuist.Runners.Workers.PodClaimReconciliationWorkerTest do
   alias Tuist.Repo
   alias Tuist.Runners.Claim
   alias Tuist.Runners.Claims
-  alias Tuist.Runners.Jobs
   alias Tuist.Runners.Workers.PodClaimReconciliationWorker
+  alias Tuist.Runners.WorkflowJob
+  alias Tuist.Runners.WorkflowJobs
 
   setup :verify_on_exit!
 
   setup do
     stub(FunWithFlags, :enabled?, fn :runner_pod_reconciliation_paused -> false end)
-    stub(Jobs, :record_queued, fn _workflow_job_id -> :ok end)
     :ok
   end
 
@@ -161,40 +161,27 @@ defmodule Tuist.Runners.Workers.PodClaimReconciliationWorkerTest do
       assert claim(9103)
     end
 
-    # CH before PG. A Pod can vanish while ClickHouse still reads
-    # `claimed`, and deleting the claim first would free the slot while
-    # stranding the workflow_job for good, since `pick_queued` only
-    # selects `queued` and no claim would remain to recover from.
-    test "writes the queued state to ClickHouse before dropping the claim" do
+    # Freeing the slot is only half the job — the lifecycle row must be
+    # queued again in the same transaction, or the workflow_job would be
+    # stranded (`pick_queued` only selects `queued`).
+    test "re-queues the lifecycle row with the claim delete" do
       account = account_fixture()
+
+      :ok =
+        WorkflowJobs.upsert_queued(%{
+          workflow_job_id: 9301,
+          account_id: account.id,
+          fleet_name: "fleet-a"
+        })
+
       claim_fixture(account, 9301, "pod-dead", missing_for_seconds: 600)
 
-      test_pid = self()
-
-      expect(Jobs, :record_queued, fn 9301 ->
-        send(test_pid, {:recorded_queued, 9301})
-        :ok
-      end)
-
       expect(K8sClient, :list_pods, fn _ns, @selector -> {:ok, [pod("pod-live")]} end)
 
       assert :ok = PodClaimReconciliationWorker.perform(%Oban.Job{})
 
-      assert_received {:recorded_queued, 9301}
       assert claim(9301) == nil
-    end
-
-    # If ClickHouse is unavailable we must keep the claim, so the pair is
-    # retried intact rather than half-applied.
-    test "keeps the claim when the ClickHouse write fails" do
-      account = account_fixture()
-      claim_fixture(account, 9302, "pod-dead", missing_for_seconds: 600)
-
-      expect(Jobs, :record_queued, fn 9302 -> raise "clickhouse down" end)
-      expect(K8sClient, :list_pods, fn _ns, @selector -> {:ok, [pod("pod-live")]} end)
-
-      assert :ok = PodClaimReconciliationWorker.perform(%Oban.Job{})
-      assert claim(9302)
+      assert Repo.get!(WorkflowJob, 9301).status == "queued"
     end
 
     # Guard 5. A wrong-but-plausible read that survives every other

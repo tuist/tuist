@@ -1,9 +1,10 @@
 defmodule Tuist.Runners.Workers.StaleClaimsWorker do
   @moduledoc """
   Recovers Postgres `runner_claims` rows **in `lifecycle_state =
-  'claimed'`** stuck past the recovery threshold by re-INSERTing
-  a `queued` state row into ClickHouse `runner_jobs` and then
-  DELETEing the matching PG row.
+  'claimed'`** stuck past the recovery threshold. `Claims.release/2`
+  deletes the claim and moves the workflow_job's lifecycle row back
+  to `queued` in one transaction, so the job is immediately
+  claimable again.
 
   `running` claims are explicitly NOT in scope: a build that has
   successfully minted a JIT and registered with GitHub holds its
@@ -23,29 +24,10 @@ defmodule Tuist.Runners.Workers.StaleClaimsWorker do
 
   This pass exists because such a claim is invisible to every other
   recovery path: the sweep above only sees `claimed`, and
-  `OrphanedRunnersWorker` drives off ClickHouse rows still in
+  `OrphanedRunnersWorker` drives off lifecycle rows still in
   `status = 'running'` — recording the completion already moved the row
   out of that state, so its scan never returns it. The slot would be
   held until the account is deleted.
-
-  ## Why CH first
-
-  Order matters. If we DELETEd the PG row first and then crashed
-  before the CH transition, the row would stay `claimed` in CH —
-  `pick_queued` would skip it — with no PG claim left for the
-  next worker run to find. The workflow_job would be stranded.
-
-  With CH first:
-
-    * Both succeed → row is back in the queued pool, cap slot
-      freed.
-    * CH succeeds, PG delete fails / crash → CH says queued, PG
-      still claimed. Dispatch skips rows already claimed in PG
-      before selecting queued work, so later workflow_jobs can
-      keep moving. The next worker run sees the same stale PG row
-      and retries.
-    * CH fails → leave PG alone; next worker run retries the
-      whole sequence.
 
   A successful `claimed → running` transition normally happens
   within a few seconds — claim → mint → mark_running. If the
@@ -60,7 +42,6 @@ defmodule Tuist.Runners.Workers.StaleClaimsWorker do
   use Oban.Worker, queue: :default, max_attempts: 1
 
   alias Tuist.Runners.Claims
-  alias Tuist.Runners.Jobs
   alias Tuist.Runners.Telemetry
   alias Tuist.Runners.VolumeAffinities
 
@@ -107,13 +88,13 @@ defmodule Tuist.Runners.Workers.StaleClaimsWorker do
   # row is independent proof the job is over, not a timeout guess.
   #
   # Nothing else reclaims them. `list_stale/1` only sees `claimed`, and
-  # `OrphanedRunnersWorker` scans ClickHouse rows still in
+  # `OrphanedRunnersWorker` scans lifecycle rows still in
   # `status = 'running'` — the completion already moved the row out of
   # that state, so it never appears there. The slot would otherwise be
   # held for the account's lifetime.
   #
-  # No ClickHouse write and no GitHub call: the job is already recorded
-  # complete on both sides, so there is nothing to requeue or confirm.
+  # No lifecycle transition and no GitHub call: the job is already
+  # recorded complete, so there is nothing to requeue or confirm.
   defp release_completed_claims(threshold) do
     case Claims.release_completed(threshold) do
       0 ->
@@ -135,38 +116,14 @@ defmodule Tuist.Runners.Workers.StaleClaimsWorker do
   end
 
   defp recover_one(%{workflow_job_id: id, claimed_at: handle}) do
-    with :ok <- safe_record_queued(id),
-         :ok <- safe_release(id, handle) do
-      true
-    else
-      _ -> false
-    end
-  end
-
-  # CH first — see moduledoc. Treat a CH failure as "skip this row,
-  # retry next tick" — the PG claim stays put so we re-see it.
-  defp safe_record_queued(workflow_job_id) do
-    Jobs.record_queued(workflow_job_id)
-  rescue
-    e ->
-      Logger.warning("runners: record_queued failed in stale-worker; will retry next tick",
-        workflow_job_id: workflow_job_id,
-        ch_error: Exception.message(e)
-      )
-
-      :error
-  end
-
-  defp safe_release(workflow_job_id, handle) do
-    case Claims.release(workflow_job_id, handle) do
+    case Claims.release(id, handle) do
       :ok ->
-        :ok
+        true
 
       {:error, :stale_claim} ->
         # Someone else released + re-claimed between our list_stale
-        # and our release. The new claim has a newer claimed_at and
-        # our CH record_queued didn't touch it; fine.
-        :error
+        # and our release; the new claim has a newer claimed_at.
+        false
     end
   end
 end

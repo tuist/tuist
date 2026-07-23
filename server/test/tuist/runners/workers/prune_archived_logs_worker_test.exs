@@ -6,6 +6,7 @@ defmodule Tuist.Runners.Workers.PruneArchivedLogsWorkerTest do
 
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.Workers.ArchiveLogsWorker
+  alias Tuist.Runners.Workers.FlushJobTransitionEventsWorker
   alias Tuist.Runners.Workers.PruneArchivedLogsWorker
   alias Tuist.Storage
 
@@ -25,10 +26,8 @@ defmodule Tuist.Runners.Workers.PruneArchivedLogsWorkerTest do
         head_sha: "deadbeef"
       })
 
-    {:ok, candidate} = Jobs.pick_queued("linux-amd64", [])
-    :ok = Jobs.record_claimed(candidate, "pod-1", DateTime.utc_now())
-    :ok = Jobs.record_running(workflow_job_id, "runner-x")
     {:ok, _} = Jobs.complete(workflow_job_id, "success")
+    :ok = perform_job(FlushJobTransitionEventsWorker, %{})
     :ok = Jobs.set_log_archived_at(workflow_job_id, archived_at)
   end
 
