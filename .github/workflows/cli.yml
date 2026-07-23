@@ -226,7 +226,7 @@ jobs:
 
   cli-acceptance-tests-build:
     name: Build Acceptance Tests
-    runs-on: tuist-macos
+    runs-on: tuist-macos-26-5
     timeout-minutes: 60
     permissions:
       contents: read
@@ -274,7 +274,7 @@ jobs:
 
   cli-acceptance-tests:
     name: Acceptance Tests
-    runs-on: tuist-macos
+    runs-on: tuist-macos-26-5
     timeout-minutes: 60
     needs: cli-acceptance-tests-build
     permissions:
@@ -332,7 +332,7 @@ jobs:
 
   cli-acceptance-tests-fork:
     name: Acceptance Tests (Fork)
-    runs-on: tuist-macos
+    runs-on: tuist-macos-26-5
     timeout-minutes: 60
     if: (github.event.pull_request.draft == false || github.event_name != 'pull_request') && github.event.pull_request.head.repo.fork == true
     steps:
