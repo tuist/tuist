@@ -45,6 +45,7 @@ let project = Project(
                 .target(name: "Framework"),
                 .target(name: "StaticFramework"),
                 .target(name: "AppClip1Widgets"),
+                .target(name: "Bundle"),
             ]
         ),
         .target(
@@ -86,6 +87,13 @@ let project = Project(
             dependencies: [
                 .target(name: "StaticFramework"),
             ]
+        ),
+        .target(
+            name: "Bundle",
+            destinations: .iOS,
+            product: .bundle,
+            bundleId: "dev.tuist.App.Bundle",
+            resources: "Bundle/**"
         ),
     ]
 )
