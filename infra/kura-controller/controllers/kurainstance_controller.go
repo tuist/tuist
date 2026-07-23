@@ -1115,8 +1115,8 @@ func (r *KuraInstanceReconciler) aggregateRolloutHealth(
 
 	health := &kurav1alpha1.KuraInstanceRolloutHealth{ExpectedPods: expected}
 	var oldest time.Time
-	var generation uint64
-	generationConsistent := true
+	var ringMembers int
+	ringConsistent := true
 	allReady := true
 	allServing := true
 	for i := range pods {
@@ -1124,10 +1124,13 @@ func (r *KuraInstanceReconciler) aggregateRolloutHealth(
 		if sample == nil {
 			continue
 		}
+		// The runtime's generation is a process-local change counter, so
+		// absolute values never agree across pods; the ring size the pods
+		// have converged on is the comparable mesh-view signal.
 		if health.SampledPods == 0 {
-			generation = sample.status.Generation
-		} else if sample.status.Generation != generation {
-			generationConsistent = false
+			ringMembers = sample.status.RingMembers
+		} else if sample.status.RingMembers != ringMembers {
+			ringConsistent = false
 		}
 		health.SampledPods++
 		allReady = allReady && sample.status.Ready
@@ -1150,7 +1153,7 @@ func (r *KuraInstanceReconciler) aggregateRolloutHealth(
 	sampledAll := health.SampledPods == expected && int32(len(pods)) >= expected
 	health.Ready = sampledAll && allReady
 	health.Serving = sampledAll && allServing
-	health.GenerationConsistent = sampledAll && generationConsistent
+	health.RingConsistent = sampledAll && ringConsistent
 	if !oldest.IsZero() {
 		t := metav1.NewTime(oldest.UTC())
 		health.SampledAt = &t

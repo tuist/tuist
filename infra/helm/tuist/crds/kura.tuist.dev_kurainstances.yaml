@@ -208,7 +208,7 @@ spec:
                       type: boolean
                     serving:
                       type: boolean
-                    generationConsistent:
+                    ringConsistent:
                       type: boolean
                     bootstrapInflightPeers:
                       type: integer

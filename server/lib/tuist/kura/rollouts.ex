@@ -15,7 +15,7 @@ defmodule Tuist.Kura.Rollouts do
   (outbox depth, file-descriptor wait timeouts, peer-connection failures)
   are compared against a baseline captured just before the server's wave
   scheduled, on top of the absolute conditions the standalone chart gate
-  already proved (ready, serving, generation-consistent, no bootstrap in
+  already proved (ready, serving, ring-consistent, no bootstrap in
   flight, no critical memory pressure, fresh sample). The health authority
   is the `KuraInstance` status aggregate the Go controller publishes from
   the per-pod `/status/rollout` reports; it never crosses the public
@@ -419,18 +419,28 @@ defmodule Tuist.Kura.Rollouts do
   defp fraction_count(count, fraction), do: max(ceil(count * fraction), 1)
 
   defp accounts_with_rollout_servers do
-    Server
-    |> where([s], s.status in ^@rollout_server_statuses and s.move_phase == :none)
+    rollout_eligible_servers_query()
     |> join(:inner, [s], a in assoc(s, :account))
     |> distinct([_s, a], a.id)
     |> select([_s, a], {a.id, a.name})
     |> Repo.all()
   end
 
-  defp accounts_on_oldest_image(%Rollout{status: status, baseline_image_tag: oldest})
-       when status in [:running, :paused] and is_binary(oldest) do
+  # Rollout scope is servers the control plane can actually act on. Rows
+  # in regions no longer in the region catalog (a retired region's
+  # leftovers) can never receive a deployment — Regions.fetch fails — so
+  # scoping them would hold every wave open until the deadline for
+  # servers no fix can reach. They stay operator-cleanup concerns, not
+  # rollout members.
+  defp rollout_eligible_servers_query do
     Server
     |> where([s], s.status in ^@rollout_server_statuses and s.move_phase == :none)
+    |> where([s], s.region in ^Environment.kura_available_region_ids())
+  end
+
+  defp accounts_on_oldest_image(%Rollout{status: status, baseline_image_tag: oldest})
+       when status in [:running, :paused] and is_binary(oldest) do
+    rollout_eligible_servers_query()
     |> where([s], s.current_image_tag == ^oldest)
     |> select([s], s.account_id)
     |> Repo.all()
@@ -560,8 +570,7 @@ defmodule Tuist.Kura.Rollouts do
       |> select([w], w.account_id)
 
     missing =
-      Server
-      |> where([s], s.status in ^@rollout_server_statuses and s.move_phase == :none)
+      rollout_eligible_servers_query()
       |> where([s], s.account_id not in subquery(assigned))
       |> distinct([s], s.account_id)
       |> select([s], s.account_id)
@@ -585,8 +594,7 @@ defmodule Tuist.Kura.Rollouts do
       |> where([rs], rs.kura_rollout_id == ^rollout.id)
       |> select([rs], rs.kura_server_id)
 
-    Server
-    |> where([s], s.status in ^@rollout_server_statuses and s.move_phase == :none)
+    rollout_eligible_servers_query()
     |> where([s], s.id not in subquery(scoped))
     |> join(:inner, [s], w in RolloutWaveAssignment,
       on: w.account_id == s.account_id and w.kura_rollout_id == ^rollout.id and w.wave <= ^max_open_wave
@@ -940,7 +948,7 @@ defmodule Tuist.Kura.Rollouts do
       {health.sampled_pods < health.expected_pods, {:unhealthy, :pods_unsampled}},
       {not health.ready, {:unhealthy, :not_ready}},
       {not health.serving, {:unhealthy, :not_serving}},
-      {not health.generation_consistent, {:unhealthy, :generation_skew}},
+      {not health.ring_consistent, {:unhealthy, :ring_skew}},
       {health.bootstrap_inflight_peers > 0, {:unhealthy, :bootstrap_in_flight}},
       {counter_regressed?(health.outbox_messages, outbox_threshold), {:unhealthy, :outbox_regressed}},
       {counter_grew?(health.fd_timeout_count, rollout_server.baseline_fd_timeout_count),

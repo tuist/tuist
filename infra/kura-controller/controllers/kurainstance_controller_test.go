@@ -2396,12 +2396,12 @@ func TestAggregateRolloutHealthAppliesPerFieldSemantics(t *testing.T) {
 		RuntimeStatusClient: fakeRuntimeStatusClient{
 			statuses: map[string]runtimeStatus{
 				name + "-0": {
-					Ready: true, State: "serving", WriterLockOwned: true, Generation: 4,
+					Ready: true, State: "serving", WriterLockOwned: true, RingMembers: 2,
 					BootstrapInflightPeers: 0, OutboxMessages: 10, MemoryPressureState: 0,
 					FDTimeoutCount: 2, PeerConnectionFailureCount: 1,
 				},
 				name + "-1": {
-					Ready: false, State: "bootstrapping", Generation: 3,
+					Ready: false, State: "bootstrapping", RingMembers: 1,
 					BootstrapInflightPeers: 1, OutboxMessages: 5, MemoryPressureState: 2,
 					FDTimeoutCount: 1, PeerConnectionFailureCount: 4,
 				},
@@ -2418,8 +2418,8 @@ func TestAggregateRolloutHealthAppliesPerFieldSemantics(t *testing.T) {
 	if health.Serving {
 		t.Fatal("expected the sick standby to drag Serving down (conjunction)")
 	}
-	if health.GenerationConsistent {
-		t.Fatal("expected mismatched generations to clear GenerationConsistent")
+	if health.RingConsistent {
+		t.Fatal("expected mismatched ring-member counts to clear RingConsistent")
 	}
 	if health.BootstrapInflightPeers != 1 {
 		t.Fatalf("expected summed bootstrap inflight peers, got %d", health.BootstrapInflightPeers)
@@ -2457,8 +2457,11 @@ func TestAggregateRolloutHealthHealthyConjunctions(t *testing.T) {
 	reconciler := &KuraInstanceReconciler{
 		RuntimeStatusClient: fakeRuntimeStatusClient{
 			statuses: map[string]runtimeStatus{
-				name + "-0": {Ready: true, State: "serving", WriterLockOwned: true, Generation: 4},
-				name + "-1": {Ready: true, State: "serving", Generation: 4},
+				// Different process-local generations are irrelevant: the
+				// pods agree on the ring size, which is the comparable
+				// mesh-view signal.
+				name + "-0": {Ready: true, State: "serving", WriterLockOwned: true, Generation: 4, RingMembers: 2},
+				name + "-1": {Ready: true, State: "serving", Generation: 9, RingMembers: 2},
 			},
 		},
 	}
@@ -2466,7 +2469,7 @@ func TestAggregateRolloutHealthHealthyConjunctions(t *testing.T) {
 	reconciler.sampleRuntimeStatuses(context.Background(), instance, pods)
 	health := reconciler.aggregateRolloutHealth(instance, pods)
 
-	if !health.Ready || !health.Serving || !health.GenerationConsistent {
+	if !health.Ready || !health.Serving || !health.RingConsistent {
 		t.Fatalf("expected healthy conjunctions, got %+v", health)
 	}
 }
@@ -2566,7 +2569,7 @@ func TestAggregateRolloutHealthUnsampledExpectedPodBlocksConjunctions(t *testing
 	reconciler.sampleRuntimeStatuses(context.Background(), instance, pods)
 	health := reconciler.aggregateRolloutHealth(instance, pods)
 
-	if health.Ready || health.Serving || health.GenerationConsistent {
+	if health.Ready || health.Serving || health.RingConsistent {
 		t.Fatalf("expected a missing expected pod to fail the conjunctions, got %+v", health)
 	}
 	if health.SampledPods != 1 || health.ExpectedPods != 2 {

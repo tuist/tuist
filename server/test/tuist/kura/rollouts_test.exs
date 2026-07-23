@@ -26,6 +26,7 @@ defmodule Tuist.Kura.RolloutsTest do
     stub(Tuist.Kura.Rollouts.Notifier, :notify, fn _event, _rollout, _metadata -> :ok end)
     stub(Usage, :recent_request_counts_by_account, fn _account_ids, _days -> %{} end)
     stub(Tuist.Environment, :kura_runtime_image_tag, fn -> @target_tag end)
+    stub(Tuist.Environment, :kura_available_region_ids, fn -> ["local-controller"] end)
     stub(Tuist.Environment, :kura_canary_account_handles, fn -> [] end)
     stub(Tuist.Environment, :kura_rollout_expedite_tag, fn -> nil end)
     stub(Tuist.Environment, :kura_rollout_pacing, fn -> nil end)
@@ -38,7 +39,7 @@ defmodule Tuist.Kura.RolloutsTest do
       %{
         ready: true,
         serving: true,
-        generation_consistent: true,
+        ring_consistent: true,
         bootstrap_inflight_peers: 0,
         outbox_messages: 10,
         fd_timeout_count: 0,
@@ -153,6 +154,22 @@ defmodule Tuist.Kura.RolloutsTest do
 
       second = Rollouts.active_rollout()
       assert second.image_tag == "0.7.0"
+    end
+
+    test "servers in retired regions are not scoped into the rollout" do
+      %{server: server} = create_active_server()
+
+      # The region catalog no longer lists the server's region: the
+      # control plane cannot deploy to it, so it must not hold waves open.
+      stub(Tuist.Environment, :kura_available_region_ids, fn -> ["some-other-region"] end)
+
+      assert :ok = Rollouts.sync()
+
+      # Nothing is in scope, so the rollout completes immediately — and
+      # the retired-region server was never scoped.
+      rollout = Rollouts.latest_rollout()
+      assert rollout.status == :completed
+      refute rollout_server(rollout, server)
     end
 
     test "abort cancels adopted deployments, not only rollout-minted ones" do

@@ -146,8 +146,11 @@ type KuraInstanceSpec struct {
 // reproduces the standalone rollout gate:
 //   - Ready and Serving are conjunctions across the expected pods, so a sick
 //     or unsampled standby drags the aggregate down,
-//   - GenerationConsistent is an explicit all-pods-agree flag over the
-//     membership generation,
+//   - RingConsistent is an explicit all-pods-agree flag over the ring-member
+//     count. The runtime's `generation` is a process-local change counter
+//     (each pod increments its own and resets on restart), so absolute
+//     values are never comparable across pods; the ring size the pods have
+//     converged on is,
 //   - BootstrapInflightPeers and OutboxMessages are sums,
 //   - FDTimeoutCount and PeerConnectionFailures are sums with per-pod reset
 //     clamping, so a pod restart never makes the published counter go
@@ -158,7 +161,7 @@ type KuraInstanceSpec struct {
 type KuraInstanceRolloutHealth struct {
 	Ready                  bool         `json:"ready"`
 	Serving                bool         `json:"serving"`
-	GenerationConsistent   bool         `json:"generationConsistent"`
+	RingConsistent         bool         `json:"ringConsistent"`
 	BootstrapInflightPeers int64        `json:"bootstrapInflightPeers"`
 	OutboxMessages         int64        `json:"outboxMessages"`
 	FDTimeoutCount         int64        `json:"fdTimeoutCount"`
