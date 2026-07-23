@@ -95,9 +95,9 @@ runtime — no service, sudo entry, or auto-login targets it.
   exports **`XCODE_XCCONFIG_FILE`**. There is no separate detach or CAS success
   gate: the cache image's own quiesced detach (and not-promotable-on-failed-detach
   guard) covers it. A compile-only job still persists its CAS because the
-  inventory digest includes the store's total logical size (the `~cas.bytes`
-  line, computed identically host- and guest-side), so CAS growth flips the digest
-  → dirty → the whole image promotes. The `.noindex` name keeps Spotlight (`mds`)
+  inventory digest includes one `~cas/<relpath>\t<size>` line per store file (a
+  content identity, computed identically host- and guest-side), so CAS growth
+  flips the digest → dirty → the whole image promotes. The `.noindex` name keeps Spotlight (`mds`)
   out of the multi-GB store. Absent marker ⇒ the compilation cache runs VM-local
   (cold), unchanged. The CAS shares the volume cap with the binary cache, so size
   `--cache-volume-cap-gib` for both and keep HEAD uploads fast

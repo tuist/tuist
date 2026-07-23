@@ -937,10 +937,10 @@ func TestInventoryDigestMatchesGuestScript(t *testing.T) {
 	root := t.TempDir() // the image MOUNT root (parent of tuist/ and the CAS store)
 
 	// wantDigest builds the digest exactly as the guest's cache_inventory does:
-	// the binary entry-name lines plus one `~cas.bytes/N` line, LC_ALL=C sorted
-	// (`~` sorts last), newline-joined, sha1'd.
-	wantDigest := func(entries []string, casBytes uint64) string {
-		lines := append(append([]string{}, entries...), fmt.Sprintf("%s/%d", casSizeSentinel, casBytes))
+	// the binary entry-name lines plus one `~cas/<relpath>\t<size>` line per CAS
+	// file, LC_ALL=C sorted (`~` sorts last), newline-joined, sha1'd.
+	wantDigest := func(entries, casLines []string) string {
+		lines := append(append([]string{}, entries...), casLines...)
 		sort.Strings(lines)
 		h := sha1.New()
 		for _, l := range lines {
@@ -950,14 +950,14 @@ func TestInventoryDigestMatchesGuestScript(t *testing.T) {
 		return hex.EncodeToString(h.Sum(nil))
 	}
 
-	// Empty binary inventory + absent CAS store: just the ~cas.bytes/0 line (NOT
-	// sha1("") — the CAS size line is always present).
+	// Empty binary inventory + absent CAS store: no lines at all → sha1 of the
+	// empty stream (a binary-only master's digest is unchanged by the CAS fold).
 	d0, err := inventoryDigest(root)
 	if err != nil {
 		t.Fatalf("inventoryDigest: %v", err)
 	}
-	if want := wantDigest(nil, 0); d0 != want {
-		t.Fatalf("empty digest = %q; want %q (must include %s/0)", d0, want, casSizeSentinel)
+	if want := wantDigest(nil, nil); d0 != want {
+		t.Fatalf("empty digest = %q; want %q", d0, want)
 	}
 
 	// Two Binaries entries, still no CAS — order-independent.
@@ -972,7 +972,7 @@ func TestInventoryDigestMatchesGuestScript(t *testing.T) {
 	if err != nil {
 		t.Fatalf("inventoryDigest: %v", err)
 	}
-	if want := wantDigest([]string{"Binaries/hashA", "Binaries/hashB"}, 0); got != want {
+	if want := wantDigest([]string{"Binaries/hashA", "Binaries/hashB"}, nil); got != want {
 		t.Fatalf("digest = %q; want %q", got, want)
 	}
 
@@ -984,11 +984,11 @@ func TestInventoryDigestMatchesGuestScript(t *testing.T) {
 		t.Fatalf("dotfile changed the digest: %q != %q (must be skipped to match the guest)", withDotfile, got)
 	}
 
-	// The folded CAS store's total logical size enters the digest: a compile-only
-	// job (binary subtree unchanged) that only grew the CAS still changes the
-	// digest → promotes. The sum matches the guest's `find -type f -exec stat -f
-	// %z` — regular files only, logical bytes, recursive; dotfiles counted (llcas
-	// locks/tmp are stable at teardown), unlike the binary entry-name filter.
+	// The folded CAS store's per-file (relpath, size) inventory enters the digest:
+	// a compile-only job (binary subtree unchanged) that only grew the CAS still
+	// changes the digest → promotes. Lines match the guest's find/stat pipeline —
+	// regular files only, dot-paths excluded, relpath + real TAB + logical bytes
+	// (the real bash pipeline is cross-checked in TestInventoryDigestMatchesGuestPipeline).
 	casDir := filepath.Join(root, casStoreDir)
 	if err := os.MkdirAll(filepath.Join(casDir, "v1"), 0o755); err != nil {
 		t.Fatal(err)
@@ -999,6 +999,11 @@ func TestInventoryDigestMatchesGuestScript(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(casDir, "data"), make([]byte, 40), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	// A dot-path in the CAS store (the .writable probe, .DS_Store, in-flight .tmp)
+	// is excluded on both sides, so it must not move the digest.
+	if err := os.WriteFile(filepath.Join(casDir, ".writable"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	withCAS, err := inventoryDigest(root)
 	if err != nil {
 		t.Fatalf("inventoryDigest: %v", err)
@@ -1006,8 +1011,25 @@ func TestInventoryDigestMatchesGuestScript(t *testing.T) {
 	if withCAS == got {
 		t.Fatal("CAS growth must change the digest so a compile-only job promotes")
 	}
-	if want := wantDigest([]string{"Binaries/hashA", "Binaries/hashB"}, 140); withCAS != want {
-		t.Fatalf("digest with CAS = %q; want %q (140 = 100 + 40 logical bytes)", withCAS, want)
+	casLines := []string{
+		fmt.Sprintf("%s/data\t%d", casLinePrefix, 40),
+		fmt.Sprintf("%s/v1/records\t%d", casLinePrefix, 100),
+	}
+	if want := wantDigest([]string{"Binaries/hashA", "Binaries/hashB"}, casLines); withCAS != want {
+		t.Fatalf("digest with CAS = %q; want %q", withCAS, want)
+	}
+
+	// Collision resistance: two stores with the SAME total size but different file
+	// layouts must produce DIFFERENT digests, or the (immutable) object key would
+	// clobber. Swap the 100/40 split for 40/100 — same 140 total, different names.
+	if err := os.WriteFile(filepath.Join(casDir, "v1", "records"), make([]byte, 40), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(casDir, "data"), make([]byte, 100), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if swapped, _ := inventoryDigest(root); swapped == withCAS {
+		t.Fatal("equal-total but different-layout stores collided; the object key would clobber")
 	}
 }
 
@@ -1108,21 +1130,21 @@ func TestReadPromoteResult(t *testing.T) {
 func TestCacheImageSplit(t *testing.T) {
 	const gib = uint64(1024 * 1024 * 1024)
 
-	// CAS off: the binary cache gets ~80% of a mid cap; no CAS share.
-	if b, p := cacheImageSplit(20, 0); b != 20*gib*80/100 || p != 0 {
-		t.Fatalf("cap20 cas0 = %d,%d; want %d,0", b, p, 20*gib*80/100)
+	// CAS off: the binary cache gets ~80% of a mid cap; no CAS budget.
+	if b, cas := cacheImageSplit(20, 0); b != 20*gib*80/100 || cas != 0 {
+		t.Fatalf("cap20 cas0 = %d,%d; want %d,0", b, cas, 20*gib*80/100)
 	}
 
 	// CAS on, mid cap (8 of 20): reserve = max(2 GiB, 5%=1 GiB) = 2 GiB (the FLOOR
-	// binds); binary 10 GiB (50%), CAS 40%, and binary+CAS+reserve == cap exactly.
-	if b, p := cacheImageSplit(20, 8); b != 10*gib || p != 40 || b+8*gib+2*gib != 20*gib {
-		t.Fatalf("cap20 cas8 = %d,%d; want 10GiB,40%% summing to cap", b, p)
+	// binds); binary 10 GiB, CAS the requested 8 GiB exactly, summing to cap.
+	if b, cas := cacheImageSplit(20, 8); b != 10*gib || cas != 8*gib || b+cas+2*gib != 20*gib {
+		t.Fatalf("cap20 cas8 = %d,%d; want 10GiB,8GiB summing to cap", b, cas)
 	}
 
-	// Large cap: the PERCENT binds, not the floor (5% of 100 = 5 GiB > 2). CAS 20
-	// of 100 → binary = 100 - 5(reserve) - 20 = 75 GiB, CAS 20%.
-	if b, p := cacheImageSplit(100, 20); b != 75*gib || p != 20 {
-		t.Fatalf("cap100 cas20 = %d,%d; want 75GiB,20%%", b, p)
+	// Large cap: the PERCENT reserve binds, not the floor (5% of 100 = 5 GiB > 2).
+	// CAS 20 of 100 → binary = 100 - 5(reserve) - 20 = 75 GiB, CAS the requested 20.
+	if b, cas := cacheImageSplit(100, 20); b != 75*gib || cas != 20*gib {
+		t.Fatalf("cap100 cas20 = %d,%d; want 75GiB,20GiB", b, cas)
 	}
 
 	// Small cap: the floor binds — reserve stays 2 GiB on a 10 GiB cap (20%), where
@@ -1133,12 +1155,12 @@ func TestCacheImageSplit(t *testing.T) {
 
 	// Oversized CASGiB: clamped so the binary cache keeps a slice and the
 	// invariant binary + CAS + reserve <= cap still holds (the ENOSPC guard).
-	b, p := cacheImageSplit(20, 25)
+	b, cas := cacheImageSplit(20, 25)
 	if b == 0 {
 		t.Fatal("oversized cas-gib starved the binary cache to 0")
 	}
-	if casBytes := 20 * gib * uint64(p) / 100; b+casBytes+2*gib > 20*gib {
-		t.Fatalf("oversized: binary(%d)+cas(%d)+reserve exceeds cap", b, casBytes)
+	if b+cas+2*gib > 20*gib {
+		t.Fatalf("oversized: binary(%d)+cas(%d)+reserve exceeds cap", b, cas)
 	}
 
 	// writeCacheBudget stages exactly the binary half.

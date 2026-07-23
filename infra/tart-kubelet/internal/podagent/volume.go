@@ -100,15 +100,28 @@ const branchImageName = "cache.sparseimage"
 // store.
 const casStoreDir = "CompilationCache.noindex"
 
-// casSizeSentinel is the inventory line carrying the CAS store's total logical
-// byte count. llcas grows partly by APPENDING to fixed files, so its entry NAMES
-// do not reliably change on growth — the total size does. Including it lets a
-// compile-only job (binary cache clean, CAS grown) register as a real change and
-// promote. It is a coarse content proxy: two different CAS states of equal total
-// size collide, which for a cache is at worst an occasional miss. The `~` prefix
-// (0x7E) sorts it AFTER the alphanumeric entry names under LC_ALL=C, matching the
-// guest, and it must be computed identically to the guest's `find … -exec stat`.
-const casSizeSentinel = "~cas.bytes"
+// casLinePrefix namespaces the CAS store's per-file inventory lines. Each regular
+// file under the store contributes one `~cas/<relpath>\t<size>` line, so the
+// digest is a real content identity for the store, not a proxy. Two properties
+// matter, and a total-byte proxy delivered neither:
+//   - Change detection: llcas grows partly by APPENDING to fixed files, so entry
+//     NAMES alone miss growth; the per-file SIZE catches it, so a compile-only
+//     job (binary cache clean, CAS grown) still registers as dirty and promotes.
+//   - Collision resistance: this digest is also the immutable object KEY a
+//     promote uploads under and a converging host verifies against. A total-size
+//     proxy let two branches with different contents but the same total collide
+//     on one key — the rejected writer could overwrite the accepted image and the
+//     size-only host check could not detect it. Per-file (name, size) closes that:
+//     llcas record files are content-addressed (name IS a hash) and the append
+//     files are distinguished by size, so distinct stores yield distinct digests.
+//
+// The `~` prefix (0x7E) sorts these lines AFTER the alphanumeric binary entry
+// names under LC_ALL=C, matching the guest, and each line must be byte-identical
+// to the guest's `find … -exec stat` output — including a REAL tab between the
+// relpath and the size. BSD stat does NOT expand `\t` in its format string, so
+// the guest builds the separator with $(printf '\t'); TestInventoryDigestMatchesGuestPipeline
+// runs the real shell pipeline to guard this byte-for-byte.
+const casLinePrefix = "~cas"
 
 // materializedMarker is a host-written sentinel dropped in the branch once the
 // host has materialized (or decided cold-path) for a VM. It is the ONLY signal
@@ -202,9 +215,9 @@ type VolumeManager struct {
 
 	// CASGiB is the CAS's byte budget WITHIN the shared cache image (the CAS is
 	// folded in as a subdir, not its own image). It sets the CAS's share of the
-	// CapGiB cap — COMPILATION_CACHE_LIMIT_PERCENT ≈ CASGiB/CapGiB — and the binary
-	// cache gets the rest minus a filesystem reserve, so the two pruners never
-	// over-commit the one image. Zero disables the CAS entirely: the compilation
+	// CapGiB cap — staged to the guest as COMPILATION_CACHE_LIMIT_SIZE in bytes —
+	// and the binary cache gets the rest minus a filesystem reserve, so the two
+	// pruners never over-commit the one image. Zero disables the CAS entirely: the compilation
 	// cache is not persisted across VMs (it stays VM-local, dying with the VM), and
 	// the binary cache gets the full budget.
 	CASGiB int
@@ -552,10 +565,11 @@ var cacheInventorySubdirs = []string{"Binaries", "Manifests", "ProjectDescriptio
 // `tuist` cache home AND the folded CAS store.
 //
 // It mirrors dispatch-poll.sh's cache_inventory EXACTLY: the sorted, dotfile-
-// filtered entry names under the binary subtrees, plus one casSizeSentinel line
-// carrying the CAS store's total logical bytes. Any drift between the two makes
-// every convergence digest-mismatch, so a change here must land in both (guarded
-// by TestInventoryDigestMatchesGuestScript).
+// filtered entry names under the binary subtrees, plus one casLinePrefix line per
+// regular file in the folded CAS store (its content identity). Any drift between
+// the two makes every convergence digest-mismatch, so a change here must land in
+// both (guarded byte-for-byte by TestInventoryDigestMatchesGuestPipeline, which
+// runs the real shell pipeline).
 func inventoryDigest(mountRoot string) (string, error) {
 	var lines []string
 	cacheRoot := filepath.Join(mountRoot, cacheHomeSubdir)
@@ -575,12 +589,14 @@ func inventoryDigest(mountRoot string) (string, error) {
 			lines = append(lines, sub+"/"+e.Name())
 		}
 	}
-	// One line for the folded CAS store's total logical size (see casSizeSentinel).
-	casBytes, err := dirLogicalSize(filepath.Join(mountRoot, casStoreDir))
+	// One line per regular file in the folded CAS store (see casLinePrefix): a
+	// content identity, not a size proxy, so the digest doubles as a safe
+	// immutable object key.
+	casLines, err := casInventoryLines(filepath.Join(mountRoot, casStoreDir))
 	if err != nil {
 		return "", err
 	}
-	lines = append(lines, fmt.Sprintf("%s/%d", casSizeSentinel, casBytes))
+	lines = append(lines, casLines...)
 	// Byte order, matching the guest's `LC_ALL=C sort`. Go's sort.Strings is
 	// already byte-wise; the guest is the side that has to pin the locale.
 	sort.Strings(lines)
@@ -592,25 +608,42 @@ func inventoryDigest(mountRoot string) (string, error) {
 	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
-// dirLogicalSize sums the logical byte sizes (st_size) of every regular file
-// under root, recursively; 0 when root is absent. It must match the guest's
-// `find <dir> -type f -exec stat -f %z {} +` sum exactly: regular files only (no
-// symlinks, no directories), logical size (not on-disk blocks).
-func dirLogicalSize(root string) (uint64, error) {
-	var total uint64
-	err := filepath.Walk(root, func(_ string, info os.FileInfo, err error) error {
+// casInventoryLines emits one `~cas/<relpath>\t<size>` line per regular file
+// under root (nil when root is absent), the CAS store's content identity for the
+// inventory digest. It must match the guest's `find <dir> -type f -not -path
+// '*/.*' -exec stat -f "%N<tab>%z"` output exactly: regular files only (no
+// symlinks, no directories), dot-paths excluded, logical st_size, a REAL tab
+// before the size.
+func casInventoryLines(root string) ([]string, error) {
+	var lines []string
+	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
-		if info.Mode().IsRegular() {
-			total += uint64(info.Size())
+		// Skip dotfiles by basename (.DS_Store, the .writable probe, in-flight
+		// .tmp), matching the guest's `find … ! -name '.*'`: they are asymmetric
+		// between the guest teardown and the host's read-only attach and would
+		// abort convergence. llcas's real store files are not dotfiles.
+		if strings.HasPrefix(filepath.Base(path), ".") {
+			if info.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
 		}
+		if !info.Mode().IsRegular() {
+			return nil
+		}
+		rel, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+		lines = append(lines, fmt.Sprintf("%s/%s\t%d", casLinePrefix, filepath.ToSlash(rel), info.Size()))
 		return nil
 	})
 	if errors.Is(err, os.ErrNotExist) {
-		return 0, nil
+		return nil, nil
 	}
-	return total, err
+	return lines, err
 }
 
 // InstallMaster replaces an account's local master with the whole image at src,

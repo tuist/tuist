@@ -197,12 +197,12 @@ const (
 
 // cacheImageSplit computes the coordinated budget split for a capGiB cache image
 // shared by the binary cache and the folded CAS. It returns the binary cache's
-// byte budget (TUIST_CACHE_MAX_BYTES) and the CAS's share percent
-// (COMPILATION_CACHE_LIMIT_PERCENT, 0 when the CAS is off). binary + CAS never
+// byte budget (TUIST_CACHE_MAX_BYTES) and the CAS's byte budget
+// (COMPILATION_CACHE_LIMIT_SIZE, 0 when the CAS is off). binary + CAS never
 // exceed cap−reserve, so the two independent pruners cannot over-commit the one
 // image to ENOSPC. A CASGiB set larger than the usable space is clamped so the
 // binary cache always keeps a slice.
-func cacheImageSplit(capGiB, casGiB int) (binaryBytes uint64, casPercent int) {
+func cacheImageSplit(capGiB, casGiB int) (binaryBytes, casBytes uint64) {
 	if capGiB <= 0 {
 		return 0, 0
 	}
@@ -223,16 +223,12 @@ func cacheImageSplit(capGiB, casGiB int) (binaryBytes uint64, casPercent int) {
 		}
 		return b, 0
 	}
-	casBytes := uint64(casGiB) * gib
+	casBytes = uint64(casGiB) * gib
 	if maxCAS := usable * 90 / 100; casBytes > maxCAS {
 		casBytes = maxCAS // oversized CASGiB: keep the binary cache a ≥10% slice
 	}
 	binaryBytes = usable - casBytes
-	casPercent = int(casBytes * 100 / capBytes)
-	if casPercent < 1 {
-		casPercent = 1
-	}
-	return binaryBytes, casPercent
+	return binaryBytes, casBytes
 }
 
 // writeCacheBudget stages the binary cache's byte budget (TUIST_CACHE_MAX_BYTES).
@@ -254,11 +250,13 @@ func (r *Reconciler) writeCASEnabled(statusDir string) {
 	if statusDir == "" || r.Volumes == nil || !r.Volumes.casEnabled() {
 		return
 	}
-	// The marker carries the CAS's share percent (the coordinated other half of
+	// The marker carries the CAS's exact byte budget (the coordinated other half of
 	// writeCacheBudget's split, from the same cacheImageSplit so the two can't
-	// drift), which the guest uses for COMPILATION_CACHE_LIMIT_PERCENT.
-	_, casPct := cacheImageSplit(r.Volumes.CapGiB, r.Volumes.CASGiB)
-	_ = os.WriteFile(filepath.Join(statusDir, casEnabledFile), []byte(strconv.Itoa(casPct)), 0o644)
+	// drift), which the guest emits as COMPILATION_CACHE_LIMIT_SIZE — an absolute
+	// bound, not a percent, because Swift Build's LIMIT_PERCENT is against the
+	// cache-db size plus free space, which shrinks as the binary cache fills.
+	_, casBytes := cacheImageSplit(r.Volumes.CapGiB, r.Volumes.CASGiB)
+	_ = os.WriteFile(filepath.Join(statusDir, casEnabledFile), []byte(strconv.FormatUint(casBytes, 10)), 0o644)
 }
 
 // uploadMillisFile carries the wall-clock ms the guest teardown spent uploading

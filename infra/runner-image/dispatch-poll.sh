@@ -205,21 +205,23 @@ cache_inventory() {
   [ -n "${CACHE_MOUNT}" ] || { echo "none"; return 0; }
   local root="${CACHE_MOUNT}/tuist"
   local cas="${CACHE_MOUNT}/${CAS_STORE_DIR}"
-  # Total logical bytes of the folded CAS store. llcas grows by APPENDING to fixed
-  # files, so its entry names don't reliably change on growth — the size does — so
-  # a compile-only job (binary cache clean, CAS grown) still flips the digest and
-  # promotes. MUST match the host's inventoryDigest/dirLogicalSize EXACTLY: regular
-  # files only, logical st_size (stat -f %z), summed.
-  local cas_bytes
-  cas_bytes=$( { find "${cas}" -type f -exec stat -f %z {} + 2>/dev/null || true; } | awk '{s += $1} END {printf "%d", s + 0}' )
+  # One `~cas/<relpath>\t<size>` line per regular file in the folded CAS store — a
+  # content identity, not a size proxy. It catches growth (llcas appends to fixed
+  # files, so a compile-only job that only grew the CAS still flips the digest and
+  # promotes) AND stays collision-safe: this digest is also the immutable object
+  # KEY a promote uploads under, so two branches with different contents must never
+  # produce the same digest. MUST match the host's inventoryDigest/casInventoryLines
+  # EXACTLY: regular files, dot-paths excluded (`-not -path '*/.*'` ⇔ the host's
+  # SkipDir), relpath, a TAB, logical st_size (stat -f %z).
   # LC_ALL=C: byte-order sort, so this agrees with the host's inventoryDigest
-  # (Go sort.Strings is byte-wise). The `~cas.bytes/` line sorts LAST (0x7E > the
-  # alphanumeric subdir names), matching the host's casSizeSentinel placement.
+  # (Go sort.Strings is byte-wise). The `~cas/` lines sort LAST (0x7E > the
+  # alphanumeric subdir names), matching the host's casLinePrefix placement.
   {
     for d in Binaries Manifests ProjectDescriptionHelpers Plugins; do
       /bin/ls -1 "${root}/${d}" 2>/dev/null | sed "s|^|${d}/|"
     done
-    printf '~cas.bytes/%s\n' "${cas_bytes}"
+    ( cd "${cas}" 2>/dev/null && find . -type f -not -path '*/.*' -exec stat -f "%N$(printf '\t')%z" {} + 2>/dev/null ) \
+      | sed 's|^\./|~cas/|'
   } | LC_ALL=C sort | shasum | awk '{print $1}'
 }
 
@@ -397,16 +399,22 @@ probe_cache_share() {
 # it sets (the CAS path included) wins over these defaults.
 setup_cas_store() {
   [ -n "${CACHE_MOUNT}" ] || return 0
-  # The marker carries the CAS's coordinated share percent (empty/absent = the
-  # host disabled the feature). Reclaim of a stale store left by a previously
-  # enabled run happens at teardown, not here — see reclaim_cas_if_disabled.
-  local cas_pct
-  cas_pct=$(cat "${STATUS_SHARE}/${CAS_ENABLED_MARKER}" 2>/dev/null)
-  if [ -z "${cas_pct}" ]; then
+  # The marker carries the CAS's coordinated byte budget (empty/absent = the host
+  # disabled the feature). Reclaim of a stale store left by a previously enabled
+  # run happens at teardown, not here — see reclaim_cas_if_disabled.
+  local cas_limit_bytes
+  cas_limit_bytes=$(cat "${STATUS_SHARE}/${CAS_ENABLED_MARKER}" 2>/dev/null)
+  if [ -z "${cas_limit_bytes}" ]; then
     echo "$(date -u +%FT%TZ) dispatch-poll: CAS not enabled; compilation cache runs VM-local"
     return 0
   fi
-  case "${cas_pct}" in ''|*[!0-9]*) cas_pct=45 ;; esac
+  # A non-numeric budget is a staging bug; without a trustworthy bound we would
+  # point the compiler at the shared image with an UNBOUNDED store that could
+  # prune the binary cache to ENOSPC, so fall back to VM-local rather than guess.
+  case "${cas_limit_bytes}" in ''|*[!0-9]*)
+    echo "$(date -u +%FT%TZ) dispatch-poll: WARNING CAS budget marker not numeric (${cas_limit_bytes}); compilation cache runs VM-local"
+    return 0 ;;
+  esac
   local store="${CACHE_MOUNT}/${CAS_STORE_DIR}"
   mkdir -p "${store}" 2>/dev/null || true
   # Never export a store the build can't write. `mkdir -p` says nothing about an
@@ -419,11 +427,15 @@ setup_cas_store() {
   {
     printf 'COMPILATION_CACHE_CAS_PATH = %s\n' "${store}"
     printf 'COMPILATION_CACHE_KEEP_CAS_DIRECTORY = YES\n'
-    # Bound the store to the host-computed share of the image so llcas prunes
-    # before the image can hit ENOSPC. This is coordinated with the binary cache's
-    # TUIST_CACHE_MAX_BYTES (each gets the same percent, the rest is reserve) so
-    # the two pruners cannot both fill the one shared image.
-    printf 'COMPILATION_CACHE_LIMIT_PERCENT = %s\n' "${cas_pct}"
+    # Bound the store to the host-computed byte budget so llcas prunes before the
+    # image can hit ENOSPC. LIMIT_SIZE (not LIMIT_PERCENT): Swift Build's percent
+    # is against the current cache-db size plus free space, so as the binary cache
+    # fills the shared image the percent's denominator shrinks and the CAS prunes
+    # toward far less than intended. An absolute byte budget is invariant to the
+    # binary cache's fill; it is the coordinated other half of TUIST_CACHE_MAX_BYTES
+    # (both from the host's cacheImageSplit) so the two pruners cannot over-commit
+    # the one shared image.
+    printf 'COMPILATION_CACHE_LIMIT_SIZE = %s\n' "${cas_limit_bytes}"
     # A pre-existing user xcconfig is chained LAST: the variable is a single slot,
     # so carry theirs rather than clobber it, and including it after our defaults
     # means anything they set explicitly (the CAS path included) wins.
@@ -439,8 +451,9 @@ setup_cas_store() {
 # feature is OFF (no marker), so masters that were promoted while it was on stop
 # cloning and uploading dead CAS bytes (which also eat binary-cache capacity).
 # Runs at TEARDOWN, after the pre-job inventory was snapshotted WITH the store
-# present, so the removal registers as an inventory change (~cas.bytes → 0) →
-# dirty → the cleaned image promotes and other hosts converge to it. A no-op when
+# present, so the removal registers as an inventory change (the store's ~cas/
+# lines drop out) → dirty → the cleaned image promotes and other hosts converge
+# to it. A no-op when
 # the feature is on or no store is present. Best-effort; never blocks teardown.
 reclaim_cas_if_disabled() {
   [ -n "${CACHE_MOUNT}" ] || return 0

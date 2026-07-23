@@ -174,6 +174,7 @@ type ScalewayAppleSiliconMachineReconciler struct {
 	// names.
 	RunnerCacheVolumeGiB    int
 	CacheVolumeMasterCapGiB int
+	CacheVolumeCASGiB       int
 
 	// TartKubeletMaxUpdateAttempts caps how many times the drift loop
 	// retries a failing UpdateTartKubelet before transitioning the CR
@@ -639,6 +640,7 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			MaxPods:                 r.TartKubeletMaxPods,
 			RunnerCacheVolumeGiB:    r.RunnerCacheVolumeGiB,
 			CacheVolumeMasterCapGiB: r.CacheVolumeMasterCapGiB,
+			CacheVolumeCASGiB:       r.CacheVolumeCASGiB,
 			VNCRelayHost:            vncRelayHost,
 			VNCRelayPort:            vncRelayPort,
 			NodeLabels:              machineNodeLabels(machine),
@@ -808,6 +810,7 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			// config — so the roll looked applied but the feature was off.
 			RunnerCacheVolumeGiB:    r.RunnerCacheVolumeGiB,
 			CacheVolumeMasterCapGiB: r.CacheVolumeMasterCapGiB,
+			CacheVolumeCASGiB:       r.CacheVolumeCASGiB,
 			VNCRelayHost:            vncRelayHost,
 			VNCRelayPort:            vncRelayPort,
 			NodeLabels:              machineNodeLabels(machine),
