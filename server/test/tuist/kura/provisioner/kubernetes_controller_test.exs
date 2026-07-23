@@ -317,7 +317,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
         )
 
       assert bridged["spec"]["meshPublicPeerHost"] == "peer.tuist-eu-central-1.kura.tuist.dev"
-      assert bridged["spec"]["meshPublicPeerPublished"] == true
+      refute Map.has_key?(bridged["spec"], "meshPublicPeerPublished")
       assert bridged["spec"]["meshExternalPeers"] == ["https://kura.acme.example:7443"]
 
       assert bridged["spec"]["meshPublicPeerLoadBalancerAnnotations"] == %{
@@ -407,7 +407,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
       refute Map.has_key?(moving_in["spec"], "publicHost")
       refute Map.has_key?(moving_in["spec"], "grpcPublicHost")
       assert moving_in["spec"]["meshPublicPeerHost"] == "peer.tuist-eu-central-1.kura.tuist.dev"
-      assert moving_in["spec"]["meshPublicPeerPublished"] == false
+      refute Map.has_key?(moving_in["spec"], "meshPublicPeerPublished")
       # And it is pinned to the destination box.
       assert moving_in["spec"]["nodeSelector"]["kubernetes.io/hostname"] == "box-2"
 
@@ -423,7 +423,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
 
       # The steady-state (:none) server owns the customer host.
       assert is_binary(steady_state["spec"]["publicHost"])
-      assert steady_state["spec"]["meshPublicPeerPublished"] == true
+      refute Map.has_key?(steady_state["spec"], "meshPublicPeerPublished")
       refute Map.get(steady_state["spec"]["nodeSelector"] || %{}, "kubernetes.io/hostname")
 
       moving_out =
@@ -437,7 +437,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesControllerTest do
         )
 
       assert moving_out["spec"]["meshPublicPeerHost"] == "peer.tuist-eu-central-1.kura.tuist.dev"
-      assert moving_out["spec"]["meshPublicPeerPublished"] == false
+      refute Map.has_key?(moving_out["spec"], "meshPublicPeerPublished")
     end
 
     test "omits external peers for a meshed region with no self-hosted nodes" do
