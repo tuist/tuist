@@ -929,7 +929,7 @@ jobs:
     needs: check-releases
     if: needs.check-releases.outputs.xcresult-processor-image-should-release == 'true'
     runs-on: [self-hosted, macos, bare-metal, vm-image-builder]
-    timeout-minutes: 60
+    timeout-minutes: 100
     env:
       PATH: /opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
       MISE_GITHUB_TOKEN: ${{ github.token }}
@@ -1047,32 +1047,42 @@ jobs:
           TART_REGISTRY_HOSTNAME: ghcr.io
           TART_REGISTRY_USERNAME: tuist-bot
           TART_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
-        # Direct tart push with a 3x retry — identical shape to
-        # macos-xcode-image.yml, which publishes the same-size image via
-        # the same path and is the only large tart push that pushes
-        # reliably. Earlier attempts here layered on TART_NO_AUTO_PRUNE
-        # and a clone-the-base "restore nvram.bin" step; both failed to
-        # fix the intermittent `Error: The file "nvram.bin" doesn't exist`
-        # and the disk-heavy restore made it worse (the whole VM bundle
-        # vanished mid-push). Blob uploads are content-addressed, so a
-        # re-push only re-uploads layers that didn't land last time.
+        # Direct tart push, 5 attempts per tag with growing backoff.
+        # Blob uploads are content-addressed, so attempts are the unit
+        # of forward progress: each retry skips layers that already
+        # landed and uploads the next chunk. Pushes stall when upload
+        # flows to GitHub's edge die mid-request (host/IP-path
+        # dependent, can persist for tens of minutes), so the backoff
+        # spreads attempts past a degradation window instead of
+        # burning them all inside one. Earlier attempts here layered
+        # on TART_NO_AUTO_PRUNE and a clone-the-base "restore
+        # nvram.bin" step; both failed to fix the intermittent
+        # `Error: The file "nvram.bin" doesn't exist` and the
+        # disk-heavy restore made it worse (the whole VM bundle
+        # vanished mid-push).
         run: |
           set -euo pipefail
           VERSION="${{ needs.check-releases.outputs.xcresult-processor-image-next-version-number }}"
           for dest_tag in "${VERSION}" "latest"; do
             DST="ghcr.io/tuist/tuist-xcresult-processor:${dest_tag}"
-            for attempt in 1 2 3; do
+            for attempt in 1 2 3 4 5; do
               echo "tart push -> ${dest_tag} attempt ${attempt} at $(date -u +%H:%M:%SZ)" >&2
               if tart push tuist-xcresult-processor "$DST"; then
                 echo "Pushed ${DST} on attempt ${attempt}"
                 break
               fi
-              if [ "$attempt" = 3 ]; then
-                echo "tart push failed three times for ${dest_tag}" >&2
+              if [ "$attempt" = 5 ]; then
+                echo "tart push failed five times for ${dest_tag}" >&2
                 exit 1
               fi
-              echo "tart push attempt ${attempt} failed; sleeping 60s before retry" >&2
-              sleep 60
+              case "$attempt" in
+                1) delay=60 ;;
+                2) delay=120 ;;
+                3) delay=300 ;;
+                *) delay=600 ;;
+              esac
+              echo "tart push attempt ${attempt} failed; sleeping ${delay}s before retry" >&2
+              sleep "$delay"
             done
           done
 
@@ -1117,7 +1127,7 @@ jobs:
     needs: check-releases
     if: needs.check-releases.outputs.runner-image-should-release == 'true'
     runs-on: [self-hosted, macos, bare-metal, vm-image-builder]
-    timeout-minutes: 60
+    timeout-minutes: 100
     strategy:
       # If any profile build fails, abort sibling builds so the chart
       # pin doesn't move to a partially-published set.
@@ -1212,28 +1222,36 @@ jobs:
         # Push both the immutable per-version tag and the rolling
         # `:<profile>` tag so the chart's tag template stays valid
         # without overrides while operators can still pin to a
-        # specific version when they need to roll back. 3× retry per
-        # tag — blob uploads are content-addressed so a re-push only
-        # re-uploads layers that didn't make it on the previous
-        # attempt.
+        # specific version when they need to roll back. 5 attempts
+        # per tag with growing backoff — blob uploads are content-
+        # addressed so each retry only re-uploads layers that didn't
+        # land on the previous attempt, and the backoff spreads
+        # attempts past upload-path degradation windows (see the
+        # release-xcresult-processor-image push step).
         run: |
           set -euo pipefail
           VERSION="${{ needs.check-releases.outputs.runner-image-next-version-number }}"
           PROFILE="${{ steps.build.outputs.profile }}"
           for dest_tag in "${PROFILE}-${VERSION}" "${PROFILE}"; do
             DST="ghcr.io/tuist/tuist-runner:${dest_tag}"
-            for attempt in 1 2 3; do
+            for attempt in 1 2 3 4 5; do
               echo "tart push -> ${dest_tag} attempt ${attempt} at $(date -u +%H:%M:%SZ)" >&2
               if tart push tuist-runner "$DST"; then
                 echo "Pushed ${DST} on attempt ${attempt}"
                 break
               fi
-              if [ "$attempt" = 3 ]; then
-                echo "tart push failed three times for ${dest_tag}" >&2
+              if [ "$attempt" = 5 ]; then
+                echo "tart push failed five times for ${dest_tag}" >&2
                 exit 1
               fi
-              echo "tart push attempt ${attempt} failed; sleeping 60s before retry" >&2
-              sleep 60
+              case "$attempt" in
+                1) delay=60 ;;
+                2) delay=120 ;;
+                3) delay=300 ;;
+                *) delay=600 ;;
+              esac
+              echo "tart push attempt ${attempt} failed; sleeping ${delay}s before retry" >&2
+              sleep "$delay"
             done
           done
 
