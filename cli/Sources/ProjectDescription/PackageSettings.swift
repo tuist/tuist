@@ -54,7 +54,8 @@ public struct PackageSettings: Codable, Equatable, Sendable {
     /// Whether test targets from local path packages declared as external dependencies are included in generated projects.
     ///
     /// Packages loaded directly as local projects always include their test targets. Remote package test targets are never
-    /// included. An included test target must depend only on targets from the same package. The default value is `false`.
+    /// included. An included test target must depend only on targets from the same package. The default value is `true` on
+    /// the 4.197 release line to preserve its existing behavior.
     public var includeLocalPackageTestTargets: Bool
 
     /// Creates `PackageSettings` instance for custom Swift Package Manager configuration.
@@ -75,7 +76,7 @@ public struct PackageSettings: Codable, Equatable, Sendable {
         expectedSignatures: [String: XCFrameworkSignature] = [:],
         targetSettings: [String: Settings] = [:],
         projectOptions: [String: Project.Options] = [:],
-        includeLocalPackageTestTargets: Bool = false
+        includeLocalPackageTestTargets: Bool = true
     ) {
         self.productTypes = productTypes
         self.baseProductType = baseProductType
@@ -114,7 +115,7 @@ public struct PackageSettings: Codable, Equatable, Sendable {
         expectedSignatures: [String: XCFrameworkSignature] = [:],
         targetSettings: [String: SettingsDictionary],
         projectOptions: [String: Project.Options] = [:],
-        includeLocalPackageTestTargets: Bool = false
+        includeLocalPackageTestTargets: Bool = true
     ) {
         self.productTypes = productTypes
         self.baseProductType = baseProductType

@@ -4958,7 +4958,7 @@ struct PackageInfoMapperTests {
     @Test(
         .inTemporaryDirectory,
         .withMockedSwiftVersionProvider
-    ) func map_whenExternalLocalSwiftPackageHasTestTarget_andTestsAreEnabled_includesTestTarget() async throws {
+    ) func map_whenExternalLocalSwiftPackageHasTestTarget_andTestsAreDisabled_ignoresTestTarget() async throws {
         // Given
         let basePath = try #require(FileSystem.temporaryTestDirectory)
         let sourcesPath = basePath.appending(components: ["Package", "Sources", "Target"])
@@ -4990,16 +4990,13 @@ struct PackageInfoMapperTests {
             ],
             packageSettings: .test(
                 baseSettings: .default,
-                includeLocalPackageTestTargets: true
+                includeLocalPackageTestTargets: false
             )
         )
 
         // Then
         #expect(project != nil)
-        #expect(Set(project?.targets.map(\.name) ?? []) == Set(["Target", "TargetTests"]))
-        let testTarget = project?.targets.first(where: { $0.name == "TargetTests" })
-        #expect(testTarget?.product == .unitTests)
-        #expect(testTarget?.metadata.tags.contains(TargetTags.localSwiftPackageTest) == true)
+        #expect(Set(project?.targets.map(\.name) ?? []) == Set(["Target"]))
     }
 
     @Test(

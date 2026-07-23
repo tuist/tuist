@@ -42,7 +42,7 @@ public struct PackageSettings: Equatable, Codable {
         expectedSignatures: [String: XCFrameworkSignature],
         targetSettings: [String: Settings],
         projectOptions: [String: XcodeGraph.Project.Options] = [:],
-        includeLocalPackageTestTargets: Bool = false
+        includeLocalPackageTestTargets: Bool = true
     ) {
         self.productTypes = productTypes
         self.baseProductType = baseProductType
@@ -63,7 +63,7 @@ public struct PackageSettings: Equatable, Codable {
             expectedSignatures: [String: XCFrameworkSignature] = [:],
             targetSettings: [String: Settings] = [:],
             projectOptions: [String: XcodeGraph.Project.Options] = [:],
-            includeLocalPackageTestTargets: Bool = false
+            includeLocalPackageTestTargets: Bool = true
         ) -> PackageSettings {
             PackageSettings(
                 productTypes: productTypes,

@@ -107,11 +107,11 @@ public enum PackageType {
 
     fileprivate func includesTestTargets(includeLocalPackageTestTargets: Bool) -> Bool {
         switch self {
-        case .local, .external(origin: .local, artifactPaths: _, packagePrebuilts: _):
+        case .local:
             return true
-        case .external(origin: .local, artifactPaths: _, packagePrebuilts: _, derivedXCFrameworksPath: _):
+        case .external(origin: .local, artifactPaths: _, packagePrebuilts: _):
             return includeLocalPackageTestTargets
-        case .external(origin: .remote, artifactPaths: _, packagePrebuilts: _, derivedXCFrameworksPath: _):
+        case .external(origin: .remote, artifactPaths: _, packagePrebuilts: _):
             return false
         }
     }
@@ -738,8 +738,10 @@ public struct PackageInfoMapper: PackageInfoMapping {
             return nil
         }
 
+        let targetsByName = Dictionary(uniqueKeysWithValues: packageInfo.targets.map { ($0.name, $0) })
+
         if target.type == .test,
-           case .external(origin: .local, artifactPaths: _, packagePrebuilts: _, derivedXCFrameworksPath: _) = packageType,
+           case .external(origin: .local, artifactPaths: _, packagePrebuilts: _) = packageType,
            let productName = target.dependencies.compactMap({ dependency -> String? in
                switch dependency {
                case let .product(name, package: _, moduleAliases: _, condition: _):
@@ -759,7 +761,7 @@ public struct PackageInfoMapper: PackageInfoMapping {
         }
 
         if target.type == .test,
-           case .external(origin: .local, artifactPaths: _, packagePrebuilts: _, derivedXCFrameworksPath: _) = packageType,
+           case .external(origin: .local, artifactPaths: _, packagePrebuilts: _) = packageType,
            let executableName = target.dependencies.compactMap({ dependency -> String? in
                switch dependency {
                case let .target(name, _), let .byName(name, _):
