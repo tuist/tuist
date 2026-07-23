@@ -7,11 +7,10 @@ use crate::constants::{
     DEFAULT_MULTIPART_JANITOR_INTERVAL_MS, DEFAULT_MULTIPART_UPLOAD_TTL_MS,
     DEFAULT_OUTBOX_MAX_DEPTH, DEFAULT_TMP_DIR_MAX_BYTES, DEFAULT_USAGE_BATCH_SIZE,
     DEFAULT_USAGE_DELIVERY_INTERVAL_MS, DEFAULT_USAGE_FLUSH_INTERVAL_MS, DEFAULT_USAGE_MAX_BUCKETS,
-    DEFAULT_USAGE_OUTBOX_MAX_DEPTH, DEFAULT_USAGE_WINDOW_SECS,
+    DEFAULT_USAGE_OUTBOX_MAX_DEPTH, DEFAULT_USAGE_WINDOW_SECS, MAX_INLINE_REPLICATION_BODY_BYTES,
 };
 
 const KURA_PORT: &str = "KURA_PORT";
-const KURA_GRPC_PORT: &str = "KURA_GRPC_PORT";
 const KURA_TENANT_ID: &str = "KURA_TENANT_ID";
 const KURA_REGION: &str = "KURA_REGION";
 const KURA_TMP_DIR: &str = "KURA_TMP_DIR";
@@ -27,8 +26,6 @@ const KURA_INTERNAL_PORT: &str = "KURA_INTERNAL_PORT";
 const KURA_INTERNAL_TLS_CA_CERT_PATH: &str = "KURA_INTERNAL_TLS_CA_CERT_PATH";
 const KURA_INTERNAL_TLS_CERT_PATH: &str = "KURA_INTERNAL_TLS_CERT_PATH";
 const KURA_INTERNAL_TLS_KEY_PATH: &str = "KURA_INTERNAL_TLS_KEY_PATH";
-const KURA_GRPC_TLS_CERT_PATH: &str = "KURA_GRPC_TLS_CERT_PATH";
-const KURA_GRPC_TLS_KEY_PATH: &str = "KURA_GRPC_TLS_KEY_PATH";
 const KURA_PUBLIC_TLS_CERT_PATH: &str = "KURA_PUBLIC_TLS_CERT_PATH";
 const KURA_PUBLIC_TLS_KEY_PATH: &str = "KURA_PUBLIC_TLS_KEY_PATH";
 const KURA_HTTPS_PORT: &str = "KURA_HTTPS_PORT";
@@ -105,8 +102,10 @@ const FALLBACK_HOST_CPU_COUNT: usize = 4;
 
 #[derive(Clone, Debug)]
 pub struct Config {
+    /// Plaintext port for the co-hosted HTTP cache API + h2c REAPI gRPC service,
+    /// dispatching each request to the right subsystem by path. When `public_tls`
+    /// is set the same surface is also served over TLS on `https_port`.
     pub port: u16,
-    pub grpc_port: u16,
     pub internal_port: u16,
     pub tenant_id: String,
     pub region: String,
@@ -122,8 +121,8 @@ pub struct Config {
     pub discovery_dns_name: Option<String>,
     pub global_discovery_dns_name: Option<String>,
     pub peer_tls: Option<PeerTlsConfig>,
-    pub grpc_tls: Option<GrpcTlsConfig>,
     pub public_tls: Option<PublicTlsConfig>,
+    /// TLS port for the co-hosted HTTP+gRPC surface, active when `public_tls` is set.
     pub https_port: u16,
     pub accelerated_file_serving: AcceleratedFileServingConfig,
     pub file_descriptor_pool_size: usize,
@@ -170,12 +169,6 @@ pub struct Config {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PeerTlsConfig {
     pub ca_cert_path: PathBuf,
-    pub cert_path: PathBuf,
-    pub key_path: PathBuf,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct GrpcTlsConfig {
     pub cert_path: PathBuf,
     pub key_path: PathBuf,
 }
@@ -364,16 +357,6 @@ impl Config {
                     }
                 }
             });
-        let grpc_port =
-            required_value(&mut lookup, KURA_GRPC_PORT, &mut missing).and_then(|value| match value
-                .parse::<u16>(
-            ) {
-                Ok(port) => Some(port),
-                Err(_) => {
-                    invalid.push(format!("{KURA_GRPC_PORT} must be a valid u16"));
-                    None
-                }
-            });
         let internal_port =
             required_value(&mut lookup, KURA_INTERNAL_PORT, &mut missing).and_then(|value| {
                 value
@@ -416,7 +399,7 @@ impl Config {
         let peer_gateway_url = lookup(KURA_PEER_GATEWAY_URL)
             .map(|value| value.trim().to_owned())
             .filter(|value| !value.is_empty());
-        let peers = lookup(KURA_PEERS)
+        let peers: Vec<String> = lookup(KURA_PEERS)
             .map(|value| {
                 value
                     .split(',')
@@ -425,7 +408,7 @@ impl Config {
                     .map(ToOwned::to_owned)
                     .collect()
             })
-            .or_else(|| node_url.as_ref().map(|value| vec![value.clone()]));
+            .unwrap_or_default();
         let discovery_dns_name = lookup(KURA_DISCOVERY_DNS_NAME)
             .map(|value| value.trim().to_owned())
             .filter(|value| !value.is_empty());
@@ -517,25 +500,6 @@ impl Config {
             _ => {
                 invalid.push(format!(
                     "{KURA_INTERNAL_TLS_CA_CERT_PATH}, {KURA_INTERNAL_TLS_CERT_PATH}, and {KURA_INTERNAL_TLS_KEY_PATH} must either all be set or all be unset"
-                ));
-                None
-            }
-        };
-        let grpc_tls_cert_path = lookup(KURA_GRPC_TLS_CERT_PATH)
-            .map(PathBuf::from)
-            .filter(|value| !value.as_os_str().is_empty());
-        let grpc_tls_key_path = lookup(KURA_GRPC_TLS_KEY_PATH)
-            .map(PathBuf::from)
-            .filter(|value| !value.as_os_str().is_empty());
-        let grpc_tls = match (grpc_tls_cert_path, grpc_tls_key_path) {
-            (None, None) => None,
-            (Some(cert_path), Some(key_path)) => Some(GrpcTlsConfig {
-                cert_path,
-                key_path,
-            }),
-            _ => {
-                invalid.push(format!(
-                    "{KURA_GRPC_TLS_CERT_PATH} and {KURA_GRPC_TLS_KEY_PATH} must either both be set or both be unset"
                 ));
                 None
             }
@@ -708,6 +672,15 @@ impl Config {
         .unwrap_or(derived_defaults.max_keyvalue_bytes);
         if max_keyvalue_bytes == 0 {
             invalid.push(format!("{KURA_MAX_KEYVALUE_BYTES} must be greater than 0"));
+        } else if max_keyvalue_bytes as u64 > MAX_INLINE_REPLICATION_BODY_BYTES {
+            // Key-value entries are stored inline and replicated inline, and the
+            // inline replication receive path is bounded by
+            // MAX_INLINE_REPLICATION_BODY_BYTES. A larger key-value limit would
+            // let an entry be accepted locally but 413'd by every peer — the
+            // poison-outbox loop this ceiling exists to prevent.
+            invalid.push(format!(
+                "{KURA_MAX_KEYVALUE_BYTES} must be at most {MAX_INLINE_REPLICATION_BODY_BYTES} so inline entries stay replicable"
+            ));
         }
         let rocksdb_max_open_files = optional_parsed_value(
             &mut lookup,
@@ -1196,24 +1169,15 @@ impl Config {
             ));
         }
 
-        if let (Some(port), Some(grpc_port), Some(internal_port)) = (port, grpc_port, internal_port)
-        {
+        if let (Some(port), Some(internal_port)) = (port, internal_port) {
             if internal_port == port {
                 invalid.push(format!("{KURA_INTERNAL_PORT} must differ from {KURA_PORT}"));
             }
-            if internal_port == grpc_port {
-                invalid.push(format!(
-                    "{KURA_INTERNAL_PORT} must differ from {KURA_GRPC_PORT}"
-                ));
-            }
+            // https_port carries the co-hosted surface over TLS, so it must not
+            // collide with the plaintext port or the internal port.
             if public_tls.is_some() {
                 if https_port == port {
                     invalid.push(format!("{KURA_HTTPS_PORT} must differ from {KURA_PORT}"));
-                }
-                if https_port == grpc_port {
-                    invalid.push(format!(
-                        "{KURA_HTTPS_PORT} must differ from {KURA_GRPC_PORT}"
-                    ));
                 }
                 if https_port == internal_port {
                     invalid.push(format!(
@@ -1223,9 +1187,7 @@ impl Config {
             }
         }
 
-        if let (Some(node_url), Some(peers), Some(internal_port)) =
-            (node_url.as_ref(), peers.as_ref(), internal_port)
-        {
+        if let (Some(node_url), Some(internal_port)) = (node_url.as_ref(), internal_port) {
             let expected_scheme = if peer_tls.is_some() { "https" } else { "http" };
             let scheme_error = if peer_tls.is_some() {
                 format!("{KURA_NODE_URL} must use https when peer mTLS is enabled")
@@ -1299,7 +1261,6 @@ impl Config {
 
         Ok(Self {
             port: port.expect("port should be present when configuration is valid"),
-            grpc_port: grpc_port.expect("grpc_port should be present when configuration is valid"),
             internal_port: internal_port
                 .expect("internal_port should be present when configuration is valid"),
             tenant_id: tenant_id.expect("tenant_id should be present when configuration is valid"),
@@ -1310,11 +1271,10 @@ impl Config {
             cas_capacity_bytes,
             node_url: node_url.expect("node_url should be present when configuration is valid"),
             peer_gateway_url,
-            peers: peers.expect("peers should be present when configuration is valid"),
+            peers,
             discovery_dns_name,
             global_discovery_dns_name,
             peer_tls,
-            grpc_tls,
             public_tls,
             https_port,
             accelerated_file_serving: accelerated_file_serving
@@ -1534,7 +1494,6 @@ mod tests {
     fn base_values() -> BTreeMap<String, String> {
         [
             (KURA_PORT, "4500"),
-            (KURA_GRPC_PORT, "5500"),
             (KURA_INTERNAL_PORT, "7443"),
             (KURA_TENANT_ID, "acme"),
             (KURA_REGION, "eu_west"),
@@ -1562,12 +1521,27 @@ mod tests {
     }
 
     #[test]
+    fn keyvalue_limit_is_bounded_by_the_inline_replication_ceiling() {
+        let at_limit = MAX_INLINE_REPLICATION_BODY_BYTES.to_string();
+        let config = config_from(&[(KURA_MAX_KEYVALUE_BYTES, at_limit.as_str())])
+            .expect("a key-value limit at the inline ceiling is allowed");
+        assert_eq!(
+            config.max_keyvalue_bytes as u64,
+            MAX_INLINE_REPLICATION_BODY_BYTES
+        );
+
+        let over_limit = (MAX_INLINE_REPLICATION_BODY_BYTES + 1).to_string();
+        let error = config_from(&[(KURA_MAX_KEYVALUE_BYTES, over_limit.as_str())])
+            .expect_err("a key-value limit above the inline ceiling must fail");
+        assert!(error.contains(KURA_MAX_KEYVALUE_BYTES));
+    }
+
+    #[test]
     fn from_lookup_reports_all_missing_variables() {
         let error = Config::from_lookup_with_resources(|_| None, TEST_HOST_RESOURCES)
             .expect_err("expected missing config to fail");
 
         assert!(error.contains(KURA_PORT));
-        assert!(error.contains(KURA_GRPC_PORT));
         assert!(error.contains(KURA_INTERNAL_PORT));
         assert!(error.contains(KURA_TENANT_ID));
         assert!(error.contains(KURA_REGION));
@@ -1586,10 +1560,7 @@ mod tests {
             config_from(&[]).expect("expected config defaults to derive from host resources");
 
         assert_eq!(config.internal_port, 7443);
-        assert_eq!(
-            config.peers,
-            vec!["http://kura.example.com:7443".to_owned()]
-        );
+        assert!(config.peers.is_empty());
         assert_eq!(config.file_descriptor_pool_size, 1792);
         assert_eq!(config.file_descriptor_acquire_timeout_ms, 5_000);
         assert_eq!(config.drain_completion_timeout_ms, 240_000);
@@ -1651,7 +1622,6 @@ mod tests {
     fn from_lookup_parses_overrides() {
         let config = config_from(&[
             (KURA_PORT, "4500"),
-            (KURA_GRPC_PORT, "5500"),
             (KURA_TENANT_ID, "acme"),
             (KURA_REGION, "eu_west"),
             (KURA_TMP_DIR, "/tmp/kura"),
@@ -1691,7 +1661,6 @@ mod tests {
         .expect("expected config overrides to parse");
 
         assert_eq!(config.port, 4500);
-        assert_eq!(config.grpc_port, 5500);
         assert_eq!(config.internal_port, 7443);
         assert_eq!(config.tenant_id, "acme");
         assert_eq!(config.region, "eu_west");
@@ -1707,7 +1676,6 @@ mod tests {
         );
         assert_eq!(config.discovery_dns_name, None);
         assert_eq!(config.peer_tls, None);
-        assert_eq!(config.grpc_tls, None);
         assert_eq!(config.file_descriptor_pool_size, 64);
         assert_eq!(config.file_descriptor_acquire_timeout_ms, 5000);
         assert_eq!(config.drain_completion_timeout_ms, 120000);
@@ -1755,7 +1723,6 @@ mod tests {
     fn from_lookup_parses_geoip_refresh_interval_override() {
         let config = config_from(&[
             (KURA_PORT, "4500"),
-            (KURA_GRPC_PORT, "5500"),
             (KURA_TENANT_ID, "acme"),
             (KURA_REGION, "eu_west"),
             (KURA_TMP_DIR, "/tmp/kura"),
@@ -1805,7 +1772,6 @@ mod tests {
     fn from_lookup_parses_node_location_overrides() {
         let config = config_from(&[
             (KURA_PORT, "4500"),
-            (KURA_GRPC_PORT, "5500"),
             (KURA_TENANT_ID, "acme"),
             (KURA_REGION, "eu_west"),
             (KURA_TMP_DIR, "/tmp/kura"),
@@ -1831,7 +1797,6 @@ mod tests {
     fn from_lookup_reports_invalid_port() {
         let error = config_from(&[
             (KURA_PORT, "invalid"),
-            (KURA_GRPC_PORT, "invalid"),
             (KURA_TENANT_ID, "acme"),
             (KURA_REGION, "eu_west"),
             (KURA_TMP_DIR, "/tmp/kura"),
@@ -1869,7 +1834,6 @@ mod tests {
         .expect_err("expected invalid port to fail");
 
         assert!(error.contains(KURA_PORT));
-        assert!(error.contains(KURA_GRPC_PORT));
         assert!(error.contains("valid u16"));
         assert!(error.contains(KURA_FILE_DESCRIPTOR_POOL_SIZE));
         assert!(error.contains(KURA_FILE_DESCRIPTOR_ACQUIRE_TIMEOUT_MS));
@@ -1919,7 +1883,6 @@ mod tests {
     fn from_lookup_parses_optional_discovery_dns_name() {
         let config = config_from(&[
             (KURA_PORT, "4500"),
-            (KURA_GRPC_PORT, "5500"),
             (KURA_TENANT_ID, "acme"),
             (KURA_REGION, "eu_west"),
             (KURA_TMP_DIR, "/tmp/kura"),
@@ -1965,7 +1928,6 @@ mod tests {
     fn from_lookup_parses_optional_analytics_config() {
         let config = config_from(&[
             (KURA_PORT, "4500"),
-            (KURA_GRPC_PORT, "5500"),
             (KURA_TENANT_ID, "acme"),
             (KURA_REGION, "eu_west"),
             (KURA_TMP_DIR, "/tmp/kura"),
@@ -2048,7 +2010,6 @@ mod tests {
     fn from_lookup_requires_complete_analytics_config() {
         let error = config_from(&[
             (KURA_PORT, "4500"),
-            (KURA_GRPC_PORT, "5500"),
             (KURA_TENANT_ID, "acme"),
             (KURA_REGION, "eu_west"),
             (KURA_TMP_DIR, "/tmp/kura"),
@@ -2082,7 +2043,6 @@ mod tests {
     fn from_lookup_requires_segment_handle_cache_headroom() {
         let error = config_from(&[
             (KURA_PORT, "4000"),
-            (KURA_GRPC_PORT, "5000"),
             (KURA_TENANT_ID, "acme"),
             (KURA_REGION, "eu_west"),
             (KURA_TMP_DIR, "/tmp/kura"),
@@ -2115,7 +2075,6 @@ mod tests {
     fn from_lookup_requires_manifest_cache_to_leave_memory_headroom() {
         let error = config_from(&[
             (KURA_PORT, "4000"),
-            (KURA_GRPC_PORT, "5000"),
             (KURA_TENANT_ID, "acme"),
             (KURA_REGION, "eu_west"),
             (KURA_TMP_DIR, "/tmp/kura"),
@@ -2148,7 +2107,6 @@ mod tests {
     fn from_lookup_parses_peer_tls_config() {
         let config = config_from(&[
             (KURA_PORT, "4500"),
-            (KURA_GRPC_PORT, "5500"),
             (KURA_TENANT_ID, "acme"),
             (KURA_REGION, "eu_west"),
             (KURA_TMP_DIR, "/tmp/kura"),
@@ -2192,51 +2150,9 @@ mod tests {
     }
 
     #[test]
-    fn from_lookup_parses_grpc_tls_config() {
-        let config = config_from(&[
-            (KURA_PORT, "4500"),
-            (KURA_GRPC_PORT, "5500"),
-            (KURA_TENANT_ID, "acme"),
-            (KURA_REGION, "eu_west"),
-            (KURA_TMP_DIR, "/tmp/kura"),
-            (KURA_DATA_DIR, "/tmp/kura-data"),
-            (KURA_NODE_URL, "http://kura.example.com:7443"),
-            (KURA_PEERS, "http://kura-a.example.com:7443"),
-            (KURA_INTERNAL_PORT, "7443"),
-            (KURA_GRPC_TLS_CERT_PATH, "/etc/kura/grpc-tls/tls.crt"),
-            (KURA_GRPC_TLS_KEY_PATH, "/etc/kura/grpc-tls/tls.key"),
-            (KURA_FILE_DESCRIPTOR_POOL_SIZE, "64"),
-            (KURA_FILE_DESCRIPTOR_ACQUIRE_TIMEOUT_MS, "5000"),
-            (KURA_SEGMENT_HANDLE_CACHE_SIZE, "16"),
-            (KURA_MEMORY_SOFT_LIMIT_BYTES, "268435456"),
-            (KURA_MEMORY_HARD_LIMIT_BYTES, "536870912"),
-            (KURA_MANIFEST_CACHE_MAX_BYTES, "16777216"),
-            (KURA_MAX_KEYVALUE_BYTES, "1048576"),
-            (KURA_METADATA_STORE_MAX_OPEN_FILES, "1024"),
-            (KURA_METADATA_STORE_MAX_BACKGROUND_JOBS, "4"),
-            (
-                KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT,
-                "https://otel.example.com/v1/traces",
-            ),
-            (KURA_OTEL_SERVICE_NAME, "kura-eu"),
-            (KURA_OTEL_DEPLOYMENT_ENVIRONMENT, "staging"),
-        ])
-        .expect("expected gRPC tls config to parse");
-
-        assert_eq!(
-            config.grpc_tls,
-            Some(GrpcTlsConfig {
-                cert_path: PathBuf::from("/etc/kura/grpc-tls/tls.crt"),
-                key_path: PathBuf::from("/etc/kura/grpc-tls/tls.key"),
-            })
-        );
-    }
-
-    #[test]
     fn from_lookup_parses_public_tls_config() {
         let config = config_from(&[
             (KURA_PORT, "4500"),
-            (KURA_GRPC_PORT, "5500"),
             (KURA_TENANT_ID, "acme"),
             (KURA_REGION, "eu_west"),
             (KURA_TMP_DIR, "/tmp/kura"),
@@ -2279,7 +2195,6 @@ mod tests {
     fn from_lookup_defaults_https_port_when_unset() {
         let config = config_from(&[
             (KURA_PORT, "4500"),
-            (KURA_GRPC_PORT, "5500"),
             (KURA_TENANT_ID, "acme"),
             (KURA_REGION, "eu_west"),
             (KURA_TMP_DIR, "/tmp/kura"),
@@ -2309,7 +2224,6 @@ mod tests {
     fn from_lookup_requires_complete_public_tls_config() {
         let error = config_from(&[
             (KURA_PORT, "4500"),
-            (KURA_GRPC_PORT, "5500"),
             (KURA_TENANT_ID, "acme"),
             (KURA_REGION, "eu_west"),
             (KURA_TMP_DIR, "/tmp/kura"),
@@ -2340,7 +2254,6 @@ mod tests {
     fn from_lookup_rejects_https_port_colliding_with_other_ports() {
         let error = config_from(&[
             (KURA_PORT, "4500"),
-            (KURA_GRPC_PORT, "5500"),
             (KURA_TENANT_ID, "acme"),
             (KURA_REGION, "eu_west"),
             (KURA_TMP_DIR, "/tmp/kura"),
@@ -2370,45 +2283,9 @@ mod tests {
     }
 
     #[test]
-    fn from_lookup_requires_complete_grpc_tls_config() {
-        let error = config_from(&[
-            (KURA_PORT, "4500"),
-            (KURA_GRPC_PORT, "5500"),
-            (KURA_TENANT_ID, "acme"),
-            (KURA_REGION, "eu_west"),
-            (KURA_TMP_DIR, "/tmp/kura"),
-            (KURA_DATA_DIR, "/tmp/kura-data"),
-            (KURA_NODE_URL, "http://kura.example.com:7443"),
-            (KURA_PEERS, "http://kura-a.example.com:7443"),
-            (KURA_INTERNAL_PORT, "7443"),
-            (KURA_GRPC_TLS_CERT_PATH, "/etc/kura/grpc-tls/tls.crt"),
-            (KURA_FILE_DESCRIPTOR_POOL_SIZE, "64"),
-            (KURA_FILE_DESCRIPTOR_ACQUIRE_TIMEOUT_MS, "5000"),
-            (KURA_SEGMENT_HANDLE_CACHE_SIZE, "16"),
-            (KURA_MEMORY_SOFT_LIMIT_BYTES, "268435456"),
-            (KURA_MEMORY_HARD_LIMIT_BYTES, "536870912"),
-            (KURA_MANIFEST_CACHE_MAX_BYTES, "16777216"),
-            (KURA_MAX_KEYVALUE_BYTES, "1048576"),
-            (KURA_METADATA_STORE_MAX_OPEN_FILES, "1024"),
-            (KURA_METADATA_STORE_MAX_BACKGROUND_JOBS, "4"),
-            (
-                KURA_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT,
-                "https://otel.example.com/v1/traces",
-            ),
-            (KURA_OTEL_SERVICE_NAME, "kura-eu"),
-            (KURA_OTEL_DEPLOYMENT_ENVIRONMENT, "staging"),
-        ])
-        .expect_err("expected incomplete grpc tls config to fail");
-
-        assert!(error.contains(KURA_GRPC_TLS_CERT_PATH));
-        assert!(error.contains(KURA_GRPC_TLS_KEY_PATH));
-    }
-
-    #[test]
     fn from_lookup_requires_complete_peer_tls_config() {
         let error = config_from(&[
             (KURA_PORT, "4500"),
-            (KURA_GRPC_PORT, "5500"),
             (KURA_TENANT_ID, "acme"),
             (KURA_REGION, "eu_west"),
             (KURA_TMP_DIR, "/tmp/kura"),
@@ -2444,7 +2321,6 @@ mod tests {
     fn from_lookup_requires_https_peer_urls_when_peer_tls_enabled() {
         let error = config_from(&[
             (KURA_PORT, "4500"),
-            (KURA_GRPC_PORT, "5500"),
             (KURA_TENANT_ID, "acme"),
             (KURA_REGION, "eu_west"),
             (KURA_TMP_DIR, "/tmp/kura"),
@@ -2483,7 +2359,6 @@ mod tests {
         let temp_dir = tempdir().expect("failed to create temp dir");
         let mut config = config_from(&[
             (KURA_PORT, "4000"),
-            (KURA_GRPC_PORT, "5000"),
             (KURA_TENANT_ID, "acme"),
             (KURA_REGION, "local"),
             (KURA_TMP_DIR, "/tmp/kura"),

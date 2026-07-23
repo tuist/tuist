@@ -123,6 +123,8 @@ type ScalewayElasticMetalMachineReconciler struct {
 // +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=scalewayelasticmetalmachines,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=scalewayelasticmetalmachines/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=infrastructure.cluster.x-k8s.io,resources=scalewayelasticmetalmachines/finalizers,verbs=update
+// +kubebuilder:rbac:groups="",resources=persistentvolumes,verbs=get;list;watch
+// +kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=get;list;watch;delete
 
 func (r *ScalewayElasticMetalMachineReconciler) Reconcile(ctx context.Context, req ctrl.Request) (result ctrl.Result, err error) {
 	machine := &infrav1.ScalewayElasticMetalMachine{}
@@ -306,6 +308,7 @@ func (r *ScalewayElasticMetalMachineReconciler) reconcileNormal(
 		bootstrapScript := renderLinuxBootstrapScript(linuxCloudInitOptions{
 			NodeName:           machine.Name,
 			KubeconfigYAML:     kubeconfigYAML,
+			ClusterCAPEM:       identity.CA,
 			K8sMinor:           firstNonEmpty(r.KubernetesMinor, "v1.34"),
 			Taints:             machine.Spec.NodeTaints,
 			BootstrapUser:      elasticMetalBootstrapUser,
@@ -380,10 +383,19 @@ func (r *ScalewayElasticMetalMachineReconciler) reconcileNormal(
 		machine.Status.Ready = true
 		machine.Status.Phase = "Ready"
 		conditions.MarkTrue(machine, NodeReadyCondition)
+		if machine.Status.FailureReason == nil {
+			fleet := firstNonEmpty(machine.Spec.FleetName, machine.Namespace+"-"+machine.Name)
+			if requeue, driftErr := reconcileLinuxKubeletConfigDrift(ctx, r.Client, r.APIReader, r.CredentialsManager, machine.Name, fleet, elasticMetalBootstrapUser, node); driftErr != nil {
+				logger.Error(driftErr, "kubelet config re-push failed; will retry")
+				return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
+			} else if requeue {
+				return ctrl.Result{RequeueAfter: 20 * time.Second}, nil
+			}
+		}
 		if pnLabelPending {
 			return ctrl.Result{RequeueAfter: 20 * time.Second}, nil
 		}
-		return ctrl.Result{}, nil
+		return ctrl.Result{RequeueAfter: KubeletConfigDriftResyncInterval}, nil
 	}
 	machine.Status.Phase = "Bootstrapping"
 	return ctrl.Result{RequeueAfter: 20 * time.Second}, nil
@@ -518,6 +530,15 @@ func (r *ScalewayElasticMetalMachineReconciler) reconcileDelete(ctx context.Cont
 	node.SetName(machine.Name)
 	if err := r.Delete(ctx, node); err != nil && !apierrors.IsNotFound(err) {
 		r.event(machine, "DeleteNodeFailed", "delete Node: %v (will retry)", err)
+		return ctrl.Result{}, err
+	}
+
+	// The reprovisioned box is wiped, so any node-local volume (local-path /
+	// scw-local-nvme) it hosted is gone. Delete the PVCs still bound to those
+	// dead-node PVs so their StatefulSets reprovision fresh volumes on the
+	// replacement node instead of wedging Pending forever on an unbindable PV.
+	if err := deleteNodeLocalPVCs(ctx, r.Client, machine.Name); err != nil {
+		r.event(machine, "DeletePVCsFailed", "delete node-local PVCs orphaned by reprovision: %v (will retry)", err)
 		return ctrl.Result{}, err
 	}
 

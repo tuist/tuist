@@ -3,6 +3,8 @@ defmodule Tuist.Docs.HTML do
   Shared HTML post-processing helpers for documentation rendering.
   """
 
+  alias Tuist.Markdown
+
   @noora_icons_path Path.expand("../noora/lib/noora/icons", File.cwd!())
   @copy_icon @noora_icons_path |> Path.join("copy.svg") |> File.read!() |> String.trim()
   @copy_check_icon @noora_icons_path
@@ -20,6 +22,7 @@ defmodule Tuist.Docs.HTML do
   <div data-part="language"><%= language %></div>\
   <div data-part="copy"><span data-part="copy-icon"><%= copy_icon %></span><span data-part="copy-check-icon"><%= copy_check_icon %></span></div>\
   </div>\
+  <template data-part="copy-source"><%= copy_source %></template>\
   <div data-part="code"><code><%= code %></code>\
   </div>\
   </div>\
@@ -39,6 +42,7 @@ defmodule Tuist.Docs.HTML do
       EEx.eval_string(@code_block_template,
         language: language,
         code: code,
+        copy_source: copy_source(code),
         copy_icon: @copy_icon,
         copy_check_icon: @copy_check_icon
       )
@@ -78,6 +82,23 @@ defmodule Tuist.Docs.HTML do
 
   defp strip_links(html) do
     Regex.replace(~r/<a[^>]*>(.*?)<\/a>/s, html, "\\1")
+  end
+
+  defp copy_source(code) do
+    code
+    |> then(&Regex.replace(~r/<[^>]*>/, &1, ""))
+    |> decode_html_entities()
+    |> String.trim()
+    |> Markdown.html_escape()
+  end
+
+  defp decode_html_entities(text) do
+    Regex.replace(~r/&(?:#x?[0-9A-Fa-f]+|[A-Za-z][A-Za-z0-9]+);/, text, fn entity ->
+      case Floki.Entities.decode(entity) do
+        {:ok, decoded} -> decoded
+        {:error, _reason} -> entity
+      end
+    end)
   end
 
   defp protect_code_contents(html) do

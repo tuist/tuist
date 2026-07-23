@@ -63,6 +63,25 @@ defmodule Tuist.OAuth.TokenGeneratorTest do
       assert project_handle in claims["cache_grants"]["project"]["write"]
     end
 
+    test "embeds read-only cache grants for user-issued OAuth tokens on restricted accounts", %{user: user} do
+      organization = AccountsFixtures.organization_fixture(creator: user)
+      {:ok, account} = Accounts.update_account(organization.account, %{cache_write_policy: :tokens_only})
+      project = ProjectsFixtures.project_fixture(account: account)
+
+      token = %Token{
+        sub: Integer.to_string(user.id),
+        client_id: "test-client-id"
+      }
+
+      jwt_token = TokenGenerator.generate(:access_token, token)
+
+      {:ok, claims} = Tuist.Guardian.decode_and_verify(jwt_token)
+      project_handle = "#{account.name}/#{project.name}"
+
+      assert project_handle in claims["cache_grants"]["project"]["read"]
+      refute project_handle in claims["cache_grants"]["project"]["write"]
+    end
+
     test "keeps OAuth token size independent from accessible account count", %{user: user} do
       for _ <- 1..20 do
         organization = AccountsFixtures.organization_fixture()

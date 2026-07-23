@@ -343,7 +343,7 @@
       },
       {
         "datasource": "$datasource",
-        "description": "Mac minis where tart-kubelet's controller-runtime metrics endpoint is reachable. Bound to the tailnet IP when --node-ip-source=tailscale, scraped through the Tailscale operator's egress ProxyGroup. A drop here is a routing failure (ProxyGroup pod down, ACL drift, missing egress Service) before it's a host failure; the node_exporter scrape on :9100 is the second sanity check.",
+        "description": "Mac minis where tart-kubelet's controller-runtime metrics endpoint is reachable, scoped to the selected environment (each cluster's Alloy stamps env on the scrape). Bound to the tailnet IP when --node-ip-source=tailscale, scraped through the Tailscale operator's egress ProxyGroup. A drop here is a routing failure (ProxyGroup pod down, ACL drift, missing egress Service) before it's a host failure; the node_exporter scrape on :9100 is the second sanity check. This same count is the live capacity denominator of the Pool utilisation panel for macOS.",
         "fieldConfig": {
           "defaults": {
             "color": {
@@ -394,7 +394,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "count(up{job=\"tuist-macos-tart-kubelet\"} == 1)",
+            "expr": "count(up{job=\"tuist-macos-tart-kubelet\", env=\"$env\"} == 1)",
             "instant": true,
             "refId": "A"
           }
@@ -694,6 +694,67 @@
         "type": "timeseries"
       },
       {
+        "datasource": "$datasource",
+        "description": "Age of the oldest still-queued job per fleet, polled from ClickHouse `runner_jobs` every 30s (0 when nothing is queued). Read it against \"Queue time\" above: that histogram is recorded on claim, so a job that is never claimed never appears in it, and its top bucket is 300s \u2014 a 4h wait and a 6m wait plot identically. This gauge is what moves while a job is stuck. A fleet climbing here while its Pods sit idle points at allocation or boot rather than capacity. Backs the `Runner queue age` alert, which fires past 30m.",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "lineInterpolation": "linear",
+              "lineWidth": 2,
+              "pointSize": 5,
+              "showPoints": "never",
+              "spanNulls": false,
+              "stacking": {
+                "group": "A",
+                "mode": "none"
+              }
+            },
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "color": "green", "value": null },
+                { "color": "red", "value": 1800 }
+              ]
+            },
+            "unit": "s"
+          }
+        },
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 40
+        },
+        "id": 313,
+        "options": {
+          "legend": {
+            "calcs": ["max"],
+            "displayMode": "list",
+            "placement": "bottom"
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "max by (fleet) (tuist_runners_queue_oldest_age_seconds{fleet=~\".*$platform.*\", env=\"$env\"})",
+            "legendFormat": "{{fleet}}",
+            "refId": "A"
+          }
+        ],
+        "title": "Oldest queued job age by fleet",
+        "type": "timeseries"
+      },
+      {
         "collapsed": false,
         "gridPos": {
           "h": 1,
@@ -859,7 +920,7 @@
       },
       {
         "datasource": "$datasource",
-        "description": "Running claims as a fraction of the platform's concurrency ceiling. macOS pools (one per Xcode version) share a single bare-metal host budget (hostCount, 1 VM/host) and the controller's allocator caps their joint replica sum to it, so the ceiling is max(maxReplicas) across the platform's pools, NOT the sum: each macOS pool reports maxReplicas = hostCount, so summing triple-counts the shared budget and pins utilisation near 33% even at full saturation. 100% means the platform is at its host budget and further queued work can't be served until hosts are added (raising maxReplicas does not help a host-bound macOS fleet). The denominator is the fixed ceiling, not the live target, so this reads as true saturation. Caveat: the numerator is PG running claims, which can briefly include claims whose Pods just finished before the recovery sweep, so small transient overshoots above 100% are possible.",
+        "description": "Running claims as a fraction of live capacity, per platform, scoped to the selected environment. For macOS the denominator is the count of Mac minis whose tart-kubelet endpoint is currently reachable (count(up{job=\"tuist-macos-tart-kubelet\"} == 1)) — 1 VM per host today, so reachable hosts == VM slots, and this is the same number shown in the Mac minis reporting stat. This tracks REAL capacity: if a mini drops off the tailnet the ceiling falls with it, unlike the static RunnerPool maxReplicas (which the four per-Xcode macOS pools all report as the shared hostCount, so it can't be summed). 100% means every reachable host is running a build and further queued work waits for a host to free up or for more hosts to come online. Caveat: small transient overshoots above 100% are possible because the numerator is PG running claims, which can briefly include claims whose Pods just finished before the recovery sweep, and because a host can leave the reachable set while its claim is still counted. Linux has no per-host reachability signal (runners are Kata microVMs on a shared, memory-contended bare-metal pool), so its denominator stays the pool capacity ceiling max(maxReplicas).",
         "fieldConfig": {
           "defaults": {
             "color": {
@@ -949,7 +1010,7 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum by (platform) (label_replace(max by (fleet) (tuist_runners_claims_count{fleet=~\".*$platform.*\", lifecycle_state=\"running\", env=\"$env\"}), \"platform\", \"$1\", \"fleet\", \".*runner-pool-(linux|macos).*\")) / clamp_min(max by (platform) (label_replace(max by (fleet) (tuist_runners_pool_replicas_max{fleet=~\".*$platform.*\", env=\"$env\"}), \"platform\", \"$1\", \"fleet\", \".*runner-pool-(linux|macos).*\")), 1)",
+            "expr": "sum by (platform) (label_replace(max by (fleet) (tuist_runners_claims_count{fleet=~\".*$platform.*\", lifecycle_state=\"running\", env=\"$env\"}), \"platform\", \"$1\", \"fleet\", \".*runner-pool-(linux|macos).*\")) / clamp_min(label_replace(count(up{job=\"tuist-macos-tart-kubelet\", env=\"$env\"} == 1), \"platform\", \"macos\", \"__name__\", \".*\") or max by (platform) (label_replace(max by (fleet) (tuist_runners_pool_replicas_max{fleet=~\".*linux.*\", env=\"$env\"}), \"platform\", \"$1\", \"fleet\", \".*runner-pool-(linux|macos).*\")), 1)",
             "legendFormat": "{{platform}}",
             "refId": "A"
           }
@@ -1437,6 +1498,678 @@
         ],
         "title": "Autoscaler target vs allocated by platform",
         "type": "timeseries"
+      },
+      {
+        "datasource": "$datasource",
+        "description": "How long each macOS pool's oldest un-booted Pod has been waiting. On a Tart pool a Pod is Pending from creation until tart-kubelet has its VM up, so this is the boot path's queue age: normally tens of seconds, unbounded when a host stalls mid image-pull. Neither neighbouring signal sees that. The Pending count reads the same whether a pool is steadily replacing single-shot runners or has one Pod wedged for hours, and tart-kubelet's provision histogram is observed only when a VM finally starts, so a Pod that never boots is absent from it entirely. The node stays Ready throughout and `kube_pod_status_unschedulable` stays 0 \u2014 these Pods are scheduled, just not booted. macOS only, and not filtered by $platform: on Linux, Pending is the healthy steady state (the dispatch poller is an init container), so an idle Linux pool would sit at its warm-pool age here and read as wedged.",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "lineInterpolation": "linear",
+              "lineWidth": 2,
+              "pointSize": 5,
+              "showPoints": "never",
+              "spanNulls": false,
+              "stacking": {
+                "group": "A",
+                "mode": "none"
+              }
+            },
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "color": "green", "value": null },
+                { "color": "red", "value": 1800 }
+              ]
+            },
+            "unit": "s"
+          }
+        },
+        "gridPos": {
+          "h": 9,
+          "w": 12,
+          "x": 0,
+          "y": 58
+        },
+        "id": 133,
+        "options": {
+          "legend": {
+            "calcs": ["max"],
+            "displayMode": "list",
+            "placement": "bottom"
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "max by (pool) (tuist_runners_pool_oldest_pending_pod_age_seconds{pool=~\".*runner-pool-macos.*\", env=\"$env\"})",
+            "legendFormat": "{{pool}}",
+            "refId": "A"
+          }
+        ],
+        "title": "Oldest un-booted Pod age by pool",
+        "type": "timeseries"
+      },
+      {
+        "datasource": "$datasource",
+        "description": "Warm Pods sitting idle while jobs wait for one, per pool: min(queued jobs, unclaimed warm Pods). In a healthy fleet this is 0 by construction \u2014 an idle warm Pod polls dispatch continuously, so queued work reaches it within a poll interval. A sustained non-zero value means dispatch is not serving this pool even though capacity is free: starvation, not saturation, and it needs a server-side fix rather than more hosts. Read it against `Oldest queued job age by fleet`, which backs the `Runner queue age` alert: that gauge fires for a starved pool and a merely saturated one alike, and this panel is what separates them \u2014 saturated reads queued high with idle 0, starved reads both non-zero at once. No other series expresses it: the pool phase counts a warm idle Pod and a Pod running a customer job identically (both Running), the autoscaler's claimed+queued sum stays flat while work drains normally, and the oldest un-booted Pod age only sees Pods that never booted \u2014 not booted Pods that never received work. Caveat: this reads as a fault only while `queued` counts DISPATCHABLE work. An account parked at its concurrency limit keeps jobs queued that dispatch will never hand out, which would make the overlap a valid steady state. The server caps each account's contribution at its remaining concurrency headroom before exporting the count (tuist/tuist#11981), which is what this panel relies on.",
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "lineInterpolation": "linear",
+              "lineWidth": 2,
+              "pointSize": 5,
+              "showPoints": "never",
+              "spanNulls": false,
+              "stacking": {
+                "group": "A",
+                "mode": "none"
+              }
+            },
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "color": "green", "value": null },
+                { "color": "red", "value": 1 }
+              ]
+            },
+            "unit": "none"
+          }
+        },
+        "gridPos": {
+          "h": 9,
+          "w": 12,
+          "x": 12,
+          "y": 58
+        },
+        "id": 134,
+        "options": {
+          "legend": {
+            "calcs": ["max"],
+            "displayMode": "list",
+            "placement": "bottom"
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "min by (pool) (\n  label_replace(max by (pool) (tuist_runners_autoscaler_queued_jobs{pool=~\".*$platform.*\", env=\"$env\"}), \"signal\", \"queued\", \"\", \"\")\n  or\n  label_replace(max by (pool) (tuist_runners_pool_idle_replicas{pool=~\".*$platform.*\", env=\"$env\"}), \"signal\", \"idle\", \"\", \"\")\n)\n# Both operands must exist. `or` keeps a lone series, and `min` would\n# then chart it alone: a static or autoscaling-disabled pool clears the\n# demand series while idle capacity keeps publishing, so idle=5 with no\n# queued series would read as 5 starved replicas.\nand on (pool) (max by (pool) (tuist_runners_autoscaler_queued_jobs{pool=~\".*$platform.*\", env=\"$env\"}))\nand on (pool) (max by (pool) (tuist_runners_pool_idle_replicas{pool=~\".*$platform.*\", env=\"$env\"}))",
+            "legendFormat": "{{pool}}",
+            "refId": "A"
+          }
+        ],
+        "title": "Starved warm capacity (queued jobs with idle Pods) by pool",
+        "type": "timeseries"
+      },
+      {
+        "id": 520,
+        "type": "row",
+        "title": "Cache volumes (fast-forward last-writer-wins)",
+        "collapsed": false,
+        "gridPos": {
+          "h": 1,
+          "w": 24,
+          "x": 0,
+          "y": 68
+        },
+        "panels": []
+      },
+      {
+        "id": 521,
+        "type": "stat",
+        "title": "Fast-forward reject rate",
+        "description": "Share of cache-changing promotes the server REJECTED with a 409 because the job built on a stale base (another host advanced the HEAD first): rejected/(accepted+rejected). The headline health signal for the last-writer-wins model — a sustained climb means jobs for an account are racing across hosts, or convergence is lagging so hosts keep building on stale bases. Upload/network/control-plane failures are counted as 'error' (see the Promote decisions panel), NOT as rejections, so a storage outage does not inflate this. Reads 0% during healthy zero-rejection activity (the series are pre-initialized); 'No data' only when there are no accepted-or-rejected promotes at all.",
+        "datasource": "$datasource",
+        "gridPos": {
+          "h": 5,
+          "w": 6,
+          "x": 0,
+          "y": 69
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "yellow",
+                  "value": 15
+                },
+                {
+                  "color": "red",
+                  "value": 35
+                }
+              ]
+            },
+            "unit": "percent"
+          }
+        },
+        "options": {
+          "colorMode": "background",
+          "graphMode": "area",
+          "justifyMode": "center",
+          "orientation": "horizontal",
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "fields": "",
+            "values": false
+          },
+          "textMode": "auto"
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "100 * (sum(rate(tart_kubelet_cache_volume_promote_total{result=\"rejected\",env=\"$env\"}[$__rate_interval])) or vector(0)) / sum(rate(tart_kubelet_cache_volume_promote_total{result=~\"accepted|rejected\",env=\"$env\"}[$__rate_interval]))",
+            "instant": false,
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 522,
+        "type": "stat",
+        "title": "Local warmth delivered",
+        "description": "Share of dispatched jobs whose account master already existed on the host and was clonefiled into the branch (warm), vs a cold first job. Higher is better \u2014 it is the payoff of the volume: affinity routing jobs to hosts that hold their master. The Prometheus-side proxy for local-cache-hit share (the per-artifact command_events local_cache_hits share is tracked in ClickHouse).",
+        "datasource": "$datasource",
+        "gridPos": {
+          "h": 5,
+          "w": 6,
+          "x": 6,
+          "y": 69
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "red",
+                  "value": null
+                },
+                {
+                  "color": "yellow",
+                  "value": 40
+                },
+                {
+                  "color": "green",
+                  "value": 70
+                }
+              ]
+            },
+            "unit": "percent"
+          }
+        },
+        "options": {
+          "colorMode": "background",
+          "graphMode": "area",
+          "justifyMode": "center",
+          "orientation": "horizontal",
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "fields": "",
+            "values": false
+          },
+          "textMode": "auto"
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "100 * sum(rate(tart_kubelet_cache_volume_materialize_total{result=\"warm\",env=\"$env\"}[$__rate_interval])) / sum(rate(tart_kubelet_cache_volume_materialize_total{env=\"$env\"}[$__rate_interval]))",
+            "instant": false,
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 523,
+        "type": "stat",
+        "title": "Resident masters (fleet)",
+        "description": "Total resident per-account cache master images across all hosts. Divided by the fleet size it is the 'how many accounts does each host keep hot' signal.",
+        "datasource": "$datasource",
+        "gridPos": {
+          "h": 5,
+          "w": 6,
+          "x": 12,
+          "y": 69
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            },
+            "unit": "short"
+          }
+        },
+        "options": {
+          "colorMode": "background",
+          "graphMode": "area",
+          "justifyMode": "center",
+          "orientation": "horizontal",
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "fields": "",
+            "values": false
+          },
+          "textMode": "auto"
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum(tart_kubelet_cache_volume_resident_count{env=\"$env\"})",
+            "instant": true,
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 524,
+        "type": "stat",
+        "title": "Enabled hosts not mounted",
+        "description": "Hosts where the cache-volume feature is enabled but the runner-cache root is NOT a mounted volume \u2014 every job on them silently runs cold. Should be 0; any nonzero value is a host whose quota volume did not (re)mount.",
+        "datasource": "$datasource",
+        "gridPos": {
+          "h": 5,
+          "w": 6,
+          "x": 18,
+          "y": 69
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "red",
+                  "value": 1
+                }
+              ]
+            },
+            "unit": "short"
+          }
+        },
+        "options": {
+          "colorMode": "background",
+          "graphMode": "area",
+          "justifyMode": "center",
+          "orientation": "horizontal",
+          "reduceOptions": {
+            "calcs": [
+              "lastNotNull"
+            ],
+            "fields": "",
+            "values": false
+          },
+          "textMode": "auto"
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum(tart_kubelet_cache_volume_enabled{env=\"$env\"}) - sum(tart_kubelet_cache_volume_root_mounted{env=\"$env\"})",
+            "instant": true,
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 525,
+        "type": "timeseries",
+        "title": "Promote decisions / sec",
+        "description": "Outcome of cache-changing jobs' HEAD fast-forward: accepted (the branch became this host's master), rejected (409 — built on a stale base, genuine cross-host contention, discarded and re-converged), and error (an upload/network/control-plane failure, kept distinct so an outage is not mistaken for cache races). The absolute companion to the reject-rate stat.",
+        "datasource": "$datasource",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 74
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "lineInterpolation": "linear",
+              "lineWidth": 2,
+              "pointSize": 5,
+              "showPoints": "never",
+              "spanNulls": false,
+              "stacking": {
+                "group": "A",
+                "mode": "none"
+              }
+            },
+            "unit": "ops"
+          }
+        },
+        "options": {
+          "legend": {
+            "calcs": [],
+            "displayMode": "list",
+            "placement": "bottom"
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum(rate(tart_kubelet_cache_volume_promote_total{result=\"accepted\",env=\"$env\"}[$__rate_interval]))",
+            "legendFormat": "accepted",
+            "refId": "A"
+          },
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum(rate(tart_kubelet_cache_volume_promote_total{result=\"rejected\",env=\"$env\"}[$__rate_interval]))",
+            "legendFormat": "rejected (stale base)",
+            "refId": "B"
+          },
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum(rate(tart_kubelet_cache_volume_promote_total{result=\"error\",env=\"$env\"}[$__rate_interval]))",
+            "legendFormat": "error (upload/network)",
+            "refId": "C"
+          }
+        ]
+      },
+      {
+        "id": 526,
+        "type": "timeseries",
+        "title": "Materialize warm vs cold / sec",
+        "description": "Post-dispatch materializations by whether the dispatched account's master already existed on the host (warm) or not (cold first job). warm/(warm+cold) is the 'Local warmth delivered' stat.",
+        "datasource": "$datasource",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 74
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "lineInterpolation": "linear",
+              "lineWidth": 2,
+              "pointSize": 5,
+              "showPoints": "never",
+              "spanNulls": false,
+              "stacking": {
+                "group": "A",
+                "mode": "none"
+              }
+            },
+            "unit": "ops"
+          }
+        },
+        "options": {
+          "legend": {
+            "calcs": [],
+            "displayMode": "list",
+            "placement": "bottom"
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum(rate(tart_kubelet_cache_volume_materialize_total{result=\"warm\",env=\"$env\"}[$__rate_interval]))",
+            "legendFormat": "warm",
+            "refId": "A"
+          },
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum(rate(tart_kubelet_cache_volume_materialize_total{result=\"cold\",env=\"$env\"}[$__rate_interval]))",
+            "legendFormat": "cold",
+            "refId": "B"
+          }
+        ]
+      },
+      {
+        "id": 527,
+        "type": "timeseries",
+        "title": "Promote outcomes / sec",
+        "description": "Terminal disposition of finalized cache-volume branches: promoted (became a master) vs discarded (read-only, failed, never-dispatched, or a rejected fast-forward).",
+        "datasource": "$datasource",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 82
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "lineInterpolation": "linear",
+              "lineWidth": 2,
+              "pointSize": 5,
+              "showPoints": "never",
+              "spanNulls": false,
+              "stacking": {
+                "group": "A",
+                "mode": "none"
+              }
+            },
+            "unit": "ops"
+          }
+        },
+        "options": {
+          "legend": {
+            "calcs": [],
+            "displayMode": "list",
+            "placement": "bottom"
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum(rate(tart_kubelet_cache_volume_outcome_total{outcome=\"promoted\",env=\"$env\"}[$__rate_interval]))",
+            "legendFormat": "promoted",
+            "refId": "A"
+          },
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum(rate(tart_kubelet_cache_volume_outcome_total{outcome=\"discarded\",env=\"$env\"}[$__rate_interval]))",
+            "legendFormat": "discarded",
+            "refId": "B"
+          }
+        ]
+      },
+      {
+        "id": 528,
+        "type": "timeseries",
+        "title": "Convergence & admission / sec",
+        "description": "Background master fast-forwards to the account's HEAD (converged \u2014 a behind host adopting the latest master), and admissions declined for lack of room even after LRU eviction (the VM ran cold). A high converge rate relative to materialize means hosts are frequently stale; a nonzero admission-declined means the quota volume is full.",
+        "datasource": "$datasource",
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 82
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "lineInterpolation": "linear",
+              "lineWidth": 2,
+              "pointSize": 5,
+              "showPoints": "never",
+              "spanNulls": false,
+              "stacking": {
+                "group": "A",
+                "mode": "none"
+              }
+            },
+            "unit": "ops"
+          }
+        },
+        "options": {
+          "legend": {
+            "calcs": [],
+            "displayMode": "list",
+            "placement": "bottom"
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum(rate(tart_kubelet_cache_volume_converged_total{env=\"$env\"}[$__rate_interval]))",
+            "legendFormat": "converged",
+            "refId": "A"
+          },
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "sum(rate(tart_kubelet_cache_volume_admission_declined_total{env=\"$env\"}[$__rate_interval]))",
+            "legendFormat": "admission-declined",
+            "refId": "B"
+          }
+        ]
+      },
+      {
+        "id": 529,
+        "type": "timeseries",
+        "title": "Runner-cache root free bytes (tightest host)",
+        "description": "statfs free space on the quota-bounded runner-cache volume, taken as the minimum across hosts \u2014 the ground truth behind admission and watermark eviction. A sustained decline toward the low watermark is eviction pressure; under fast-forward LWW masters are bounded (the CLI's own prune shapes each promote), so this should plateau rather than climb.",
+        "datasource": "$datasource",
+        "gridPos": {
+          "h": 8,
+          "w": 24,
+          "x": 0,
+          "y": 90
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "custom": {
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "lineInterpolation": "linear",
+              "lineWidth": 2,
+              "pointSize": 5,
+              "showPoints": "never",
+              "spanNulls": false,
+              "stacking": {
+                "group": "A",
+                "mode": "none"
+              }
+            },
+            "unit": "bytes"
+          }
+        },
+        "options": {
+          "legend": {
+            "calcs": [],
+            "displayMode": "list",
+            "placement": "bottom"
+          },
+          "tooltip": {
+            "mode": "multi",
+            "sort": "desc"
+          }
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "min(tart_kubelet_cache_volume_root_free_bytes{env=\"$env\"})",
+            "legendFormat": "tightest host",
+            "refId": "A"
+          }
+        ]
       }
     ]
   }

@@ -156,7 +156,7 @@
       },
       {
         "datasource": "$datasource",
-        "description": "Jobs the ProcessXcresultWorker discarded in the last 30 minutes. A non-zero value means at least one xcresult parse exhausted its retries — investigate the failures panel below.",
+        "description": "Jobs that finalized as failed or exhausted recovery in the last 30 minutes. A cancellation means the customer-visible status was finalized as failed_processing; a discard means Oban exhausted recovery before finalization completed.",
         "fieldConfig": {
           "defaults": {
             "color": {"mode": "thresholds"},
@@ -186,12 +186,12 @@
           {
             "datasource": "$datasource",
             "editorMode": "code",
-            "expr": "sum(increase(tuist_oban_job_processing_duration_milliseconds_count{worker=\"Tuist.Tests.Workers.ProcessXcresultWorker\", state=\"discarded\"}[30m]))",
+            "expr": "sum(increase(tuist_oban_job_processing_duration_milliseconds_count{worker=\"Tuist.Tests.Workers.ProcessXcresultWorker\", state=~\"cancelled|discarded\"}[30m]))",
             "instant": false,
             "refId": "A"
           }
         ],
-        "title": "Discarded (last 30m)",
+        "title": "Terminal failures (last 30m)",
         "type": "stat"
       },
       {
@@ -377,7 +377,7 @@
       },
       {
         "datasource": "$datasource",
-        "description": "Distribution of how many attempts a job needed before completing successfully. The Oban max_attempts on this worker is 3; anything in the 2-3 range means the parser eventually succeeded but only after a retry. A floor that's drifting up usually points at flaky upstream behaviour.",
+        "description": "Distribution of how many attempts a job needed before reaching a terminal state. The first five attempts may process the archive; later attempts only finalize failed_processing. Successful jobs above attempt one indicate transient storage, parser, or ClickHouse failures.",
         "fieldConfig": {
           "defaults": {
             "custom": {
@@ -423,7 +423,7 @@
       },
       {
         "datasource": "$datasource",
-        "description": "Discards (job exhausted retries → moved to discarded) and cancellations (cancelled mid-flight) over time, per state. Both are terminal: the parse won't be tried again automatically. Sustained discards are usually correlated with a specific bundle pattern; spot-check via the Logs section in Loki.",
+        "description": "Terminal outcomes over time. Cancellations mean the worker persisted failed_processing and intentionally stopped. Discards mean Oban exhausted recovery without completing finalization and require investigation.",
         "fieldConfig": {
           "defaults": {
             "custom": {
@@ -450,7 +450,7 @@
             "refId": "A"
           }
         ],
-        "title": "Discards & Cancellations Rate",
+        "title": "Terminal Failure Rate",
         "type": "timeseries"
       },
       {
@@ -503,6 +503,50 @@
           }
         ],
         "title": "Guest Disk Usage",
+        "type": "timeseries"
+      },
+      {
+        "datasource": "$datasource",
+        "description": "Utilization of Finch's fallback connection pool on each Xcode result processor. Virtual-hosted buckets and customer-provided storage origins use this pool. Sustained utilization above 75 percent indicates that download concurrency is approaching capacity before excess queuing reaches customers.",
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "thresholds"},
+            "custom": {
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "lineWidth": 1,
+              "showPoints": "never",
+              "thresholdsStyle": {"mode": "line"}
+            },
+            "max": 100,
+            "min": 0,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"color": "green", "value": null},
+                {"color": "yellow", "value": 75},
+                {"color": "red", "value": 90}
+              ]
+            },
+            "unit": "percent"
+          }
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 33},
+        "id": 12,
+        "options": {
+          "legend": {"calcs": ["lastNotNull", "max"], "displayMode": "table", "placement": "bottom", "showLegend": true},
+          "tooltip": {"mode": "multi", "sort": "desc"}
+        },
+        "targets": [
+          {
+            "datasource": "$datasource",
+            "editorMode": "code",
+            "expr": "100 * sum by (instance) (tuist_http_queue_in_use_connections{url=\"default\"}) / clamp_min(sum by (instance) (tuist_http_queue_in_use_connections{url=\"default\"}) + sum by (instance) (tuist_http_queue_available_connections{url=\"default\"}), 1)",
+            "legendFormat": "{{instance}}",
+            "refId": "A"
+          }
+        ],
+        "title": "Fallback Pool Utilization",
         "type": "timeseries"
       }
     ],

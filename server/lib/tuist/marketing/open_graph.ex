@@ -71,7 +71,7 @@ defmodule Tuist.Marketing.OpenGraph do
       end
 
     # Save as JPEG with high quality and proper color space
-    Image.write!(image, final_path, quality: 95, strip_metadata: false)
+    Image.write!(image, final_path, write_options(final_path))
   end
 
   defp apply_locale_to_path(path, nil), do: path
@@ -81,6 +81,16 @@ defmodule Tuist.Marketing.OpenGraph do
     dirname = Path.dirname(path)
     basename = Path.basename(path)
     Path.join([dirname, locale, basename])
+  end
+
+  defp write_options(path) do
+    options = [quality: 95, strip_metadata: false]
+
+    if Path.extname(path) == "" do
+      Keyword.put(options, :suffix, ".jpg")
+    else
+      options
+    end
   end
 
   # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity

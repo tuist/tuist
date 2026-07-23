@@ -519,6 +519,42 @@ struct GenerateAcceptanceTestiOSAppWithLocalSwiftPackage {
         try await run(GenerateCommand.self)
         try await run(BuildCommand.self)
     }
+
+    @Test(.withFixture("generated_ios_app_with_local_swift_package"), .inTemporaryDirectory)
+    func ios_app_with_local_swift_package_product_code_coverage() async throws {
+        // Given
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        let xcodeprojPath = fixtureDirectory.appending(component: "App.xcodeproj")
+
+        // When
+        try await run(GenerateCommand.self)
+
+        // Then
+        let xcodeproj = try XcodeProj(pathString: xcodeprojPath.pathString)
+        let scheme = try #require(
+            xcodeproj.sharedData?.schemes.first { $0.name == "AppWithPackageCoverage" }
+        )
+        #expect(scheme.testAction?.onlyGenerateCoverageForSpecifiedTargets == true)
+        let coverageBuildables = try #require(scheme.testAction?.codeCoverageTargets)
+
+        // The product name is a valid coverage buildable and is kept. The name of the
+        // package target backing it and a product of another package referenced through
+        // this package's path are not, so they are dropped.
+        #expect(coverageBuildables.count == 1)
+        let reference = try #require(coverageBuildables.first)
+        #expect(reference.blueprintName == "LibraryC")
+        #expect(reference.buildableName == "LibraryC")
+        #expect(reference.blueprintIdentifier == "LibraryC")
+        #expect(reference.referencedContainer == "container:Packages/PackageA")
+    }
+}
+
+struct GenerateAcceptanceTestCommandLineToolWithNativePackageTraits {
+    @Test(.withFixture("generated_command_line_tool_with_native_package_traits"), .inTemporaryDirectory)
+    func command_line_tool_with_native_package_traits() async throws {
+        try await run(GenerateCommand.self)
+        try await run(BuildCommand.self)
+    }
 }
 
 struct GenerateAcceptanceTestiOSAppWithObjCStaticFrameworkPackage {
@@ -652,6 +688,58 @@ struct GenerateAcceptanceTestAppWithSPMCTargetDuplicatePublicHeaders {
             "-derivedDataPath",
             derivedDataPath.pathString,
         ])
+    }
+}
+
+struct GenerateAcceptanceTestAppWithNativePackageStaticChain {
+    /// Pins package compiler-setting propagation through static target chains while ensuring
+    /// package object files are linked only by the final binary.
+    @Test(.withFixture("generated_app_with_native_package_static_chain"), .inTemporaryDirectory)
+    func app_with_native_package_static_chain() async throws {
+        let fixturePath = try fixtureDirectory()
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let derivedDataPath = temporaryDirectory.appending(component: "DerivedData")
+
+        try await run(GenerateCommand.self)
+        try await CommandRunner().runAndWait(arguments: [
+            "/usr/bin/xcodebuild",
+            "build",
+            "-workspace",
+            fixturePath.appending(component: "App.xcworkspace").pathString,
+            "-scheme",
+            "App",
+            "-destination",
+            "platform=macOS",
+            "-derivedDataPath",
+            derivedDataPath.pathString,
+            "CODE_SIGNING_ALLOWED=NO",
+            "CODE_SIGNING_REQUIRED=NO",
+            "CODE_SIGN_IDENTITY=",
+        ])
+
+        let productsPath = derivedDataPath.appending(components: "Build", "Products", "Debug")
+        for targetName in ["FeatureA", "FeatureB", "FeatureCore", "PackageLeaf"] {
+            let archivePath = productsPath.appending(
+                components: "\(targetName).framework", "Versions", "A", targetName
+            )
+            let archiveMembers = try await CommandRunner().capture(arguments: [
+                "/usr/bin/ar",
+                "-t",
+                archivePath.pathString,
+            ])
+
+            #expect(archiveMembers.contains("\(targetName).o"))
+            #expect(!archiveMembers.contains("PackageFeature.o"))
+            #expect(!archiveMembers.contains("CModule.o"))
+        }
+
+        let appBinaryPath = productsPath.appending(component: "App")
+        let appSymbols = try await CommandRunner().capture(arguments: [
+            "/usr/bin/nm",
+            "-gj",
+            appBinaryPath.pathString,
+        ])
+        #expect(appSymbols.split(separator: "\n").count { $0 == "_package_value" } == 1)
     }
 }
 

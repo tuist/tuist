@@ -855,27 +855,33 @@ defmodule TuistWeb.API.BuildsController do
       |> Map.put(:project, selected_project)
       |> Map.put(:ran_by_account, Authentication.authenticated_subject_account(conn))
 
-    {:ok, build} = get_or_create_build(run_params)
+    case get_or_create_build(run_params) do
+      {:ok, build} ->
+        if build.status not in ["processing", "failed_processing"] do
+          Tuist.VCS.enqueue_vcs_pull_request_comment(%{
+            git_commit_sha: build.git_commit_sha,
+            git_ref: build.git_ref,
+            git_remote_url_origin: Map.get(body_params, :git_remote_url_origin),
+            project_id: selected_project.id
+          })
+        end
 
-    if build.status not in ["processing", "failed_processing"] do
-      Tuist.VCS.enqueue_vcs_pull_request_comment(%{
-        git_commit_sha: build.git_commit_sha,
-        git_ref: build.git_ref,
-        git_remote_url_origin: Map.get(body_params, :git_remote_url_origin),
-        project_id: selected_project.id
-      })
+        conn
+        |> put_status(:ok)
+        |> json(%{
+          type: "build",
+          id: build.id,
+          status: build.status,
+          duration: build.duration,
+          project_id: build.project_id,
+          url: url(~p"/#{selected_project.account.name}/#{selected_project.name}/builds/build-runs/#{build.id}")
+        })
+
+      {:error, _reason} ->
+        conn
+        |> put_status(:bad_request)
+        |> json(%{message: "The request parameters are invalid"})
     end
-
-    conn
-    |> put_status(:ok)
-    |> json(%{
-      type: "build",
-      id: build.id,
-      status: build.status,
-      duration: build.duration,
-      project_id: build.project_id,
-      url: url(~p"/#{selected_project.account.name}/#{selected_project.name}/builds/build-runs/#{build.id}")
-    })
   end
 
   defp get_or_create_build(params) do
@@ -918,56 +924,61 @@ defmodule TuistWeb.API.BuildsController do
           machine_metrics: Map.get(params, :machine_metrics, [])
         }
 
-        {:ok, build} = build_attrs |> Builds.create_build() |> handle_build_creation_result(params.id)
+        result =
+          build_attrs
+          |> Builds.create_build()
+          |> handle_build_creation_result(params.id, params.project.id)
 
-        if build.status == "processing" do
-          storage_key = Builds.build_storage_key(params.project.account.name, params.project.name, params.id)
+        with {:ok, build} <- result do
+          if build.status == "processing" do
+            storage_key = Builds.build_storage_key(params.project.account.name, params.project.name, params.id)
 
-          %{
-            build_id: build.id,
-            storage_key: storage_key,
-            account_id: params.ran_by_account.id,
-            project_id: params.project.id,
-            xcode_cache_upload_enabled: Map.get(params, :xcode_cache_upload_enabled, false),
-            build_metadata: %{
-              macos_version: Map.get(params, :macos_version),
-              xcode_version: Map.get(params, :xcode_version),
-              is_ci: Map.get(params, :is_ci),
-              model_identifier: Map.get(params, :model_identifier),
-              scheme: Map.get(params, :scheme),
-              configuration: Map.get(params, :configuration),
-              git_branch: Map.get(params, :git_branch),
-              git_commit_sha: Map.get(params, :git_commit_sha),
-              git_ref: Map.get(params, :git_ref),
-              ci_run_id: Map.get(params, :ci_run_id),
-              ci_project_handle: Map.get(params, :ci_project_handle),
-              ci_host: Map.get(params, :ci_host),
-              ci_provider: Map.get(params, :ci_provider),
-              git_remote_url_origin: Map.get(params, :git_remote_url_origin),
-              generation_id: Map.get(params, :generation_id),
-              custom_tags: Map.get(custom_metadata, :tags, []),
-              custom_values: Map.get(custom_metadata, :values, %{})
-            },
-            vcs_comment_params: %{
-              git_commit_sha: Map.get(params, :git_commit_sha),
-              git_ref: Map.get(params, :git_ref),
-              git_remote_url_origin: Map.get(params, :git_remote_url_origin),
-              project_id: params.project.id
+            %{
+              build_id: build.id,
+              storage_key: storage_key,
+              account_id: params.ran_by_account.id,
+              project_id: params.project.id,
+              xcode_cache_upload_enabled: Map.get(params, :xcode_cache_upload_enabled, false),
+              build_metadata: %{
+                macos_version: Map.get(params, :macos_version),
+                xcode_version: Map.get(params, :xcode_version),
+                is_ci: Map.get(params, :is_ci),
+                model_identifier: Map.get(params, :model_identifier),
+                scheme: Map.get(params, :scheme),
+                configuration: Map.get(params, :configuration),
+                git_branch: Map.get(params, :git_branch),
+                git_commit_sha: Map.get(params, :git_commit_sha),
+                git_ref: Map.get(params, :git_ref),
+                ci_run_id: Map.get(params, :ci_run_id),
+                ci_project_handle: Map.get(params, :ci_project_handle),
+                ci_host: Map.get(params, :ci_host),
+                ci_provider: Map.get(params, :ci_provider),
+                git_remote_url_origin: Map.get(params, :git_remote_url_origin),
+                generation_id: Map.get(params, :generation_id),
+                custom_tags: Map.get(custom_metadata, :tags, []),
+                custom_values: Map.get(custom_metadata, :values, %{})
+              },
+              vcs_comment_params: %{
+                git_commit_sha: Map.get(params, :git_commit_sha),
+                git_ref: Map.get(params, :git_ref),
+                git_remote_url_origin: Map.get(params, :git_remote_url_origin),
+                project_id: params.project.id
+              }
             }
-          }
-          |> Tuist.Builds.Workers.ProcessBuildWorker.new()
-          |> Oban.insert!()
-        end
+            |> Tuist.Builds.Workers.ProcessBuildWorker.new()
+            |> Oban.insert!()
+          end
 
-        {:ok, build}
+          {:ok, build}
+        end
     end
   end
 
-  defp handle_build_creation_result({:ok, build}, _build_id), do: {:ok, build}
+  defp handle_build_creation_result({:ok, build}, _build_id, _project_id), do: {:ok, build}
 
-  defp handle_build_creation_result({:error, changeset}, build_id) do
+  defp handle_build_creation_result({:error, changeset}, build_id, project_id) do
     if Keyword.has_key?(changeset.errors, :id) do
-      case Builds.get_build(build_id) do
+      case Builds.get_build(build_id, project_id: project_id) do
         {:ok, build} -> {:ok, build}
         {:error, :not_found} -> {:error, :creation_failed}
       end

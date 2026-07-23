@@ -111,7 +111,12 @@ resources_items = [
 <header id="marketing-navbar" phx-update="ignore">
   <div data-part="bar">
     <.link href={TuistWeb.Marketing.MarketingHTML.localized_href("/")} data-part="tuist">
-      <img data-part="logo" src={~p"/marketing/images/components/navbar/logo.webp"} alt="Tuist" />
+      <img
+        data-part="logo"
+        src={~p"/marketing/images/components/navbar/logo.webp"}
+        alt="Tuist"
+        decoding="async"
+      />
       <h3 data-part="title">Tuist</h3>
     </.link>
     <nav data-part="menus" id="marketing-navbar-menus" aria-label="Main navigation">
@@ -166,6 +171,8 @@ resources_items = [
             <img
               src={~p"/marketing/images/components/navbar/developers-background.webp"}
               alt=""
+              loading="lazy"
+              decoding="async"
             />
           </div>
 
@@ -405,6 +412,8 @@ resources_items = [
             <img
               src={~p"/marketing/images/components/navbar/developers-background.webp"}
               alt=""
+              loading="lazy"
+              decoding="async"
             />
           </div>
           <header data-part="header">

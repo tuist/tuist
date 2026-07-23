@@ -16,6 +16,8 @@ defmodule Tuist.GitHub.Client do
   alias Tuist.VCS.Repositories.Content
   alias Tuist.VCS.Repositories.Tag
 
+  require Logger
+
   @doc """
   Lists repositories for a GitHub app installation with pagination support.
   Returns {:ok, %{meta: %{next_url: ...}, repositories: [...]}} format similar to Flop.
@@ -274,6 +276,23 @@ defmodule Tuist.GitHub.Client do
     )
   end
 
+  @doc """
+  Fetches a workflow run. The response carries `head_repository` (where the run's
+  head commit lives) and `repository` (the base) — comparing them tells whether
+  the run originates from a fork, which the runner dispatch uses to decide
+  whether a job may touch the shared per-account cache.
+  """
+  def get_workflow_run(%{repository_full_handle: repository_full_handle, installation: installation, run_id: run_id}) do
+    api_url = installation_api_url(installation)
+    url = "#{api_url}/repos/#{repository_full_handle}/actions/runs/#{run_id}"
+
+    github_request(&Req.get/1,
+      url: url,
+      installation: installation,
+      api_url: api_url
+    )
+  end
+
   def create_check_run(%{repository_full_handle: repository_full_handle, installation: installation} = params) do
     api_url = installation_api_url(installation)
     url = "#{api_url}/repos/#{repository_full_handle}/check-runs"
@@ -335,18 +354,17 @@ defmodule Tuist.GitHub.Client do
 
   @doc """
   Generates a just-in-time runner configuration for an ephemeral
-  GitHub Actions self-hosted runner registered at the org level.
+  GitHub Actions self-hosted runner.
   The returned `encoded_jit_config` is what the in-VM
   `./run.sh --jitconfig` consumes; runners registered this way
   are single-shot and auto-cleaned by GitHub after they exit.
 
-  Org-scoped (vs. repo-scoped) intentionally — the repo-scoped
-  endpoint requires the GH App to hold `administration: write`
-  on the repo, which grants access to settings, secrets,
-  collaborators, and many other unrelated capabilities. The
-  org-scoped endpoint requires only
-  `organization_self_hosted_runners: write`, a targeted scope
-  that does only what the name implies.
+  The organization-scoped endpoint remains the preferred path because it
+  only requires the targeted `organization_self_hosted_runners: write`
+  permission. Personal GitHub accounts cannot use that endpoint, so a 404
+  falls back to the repository-scoped endpoint when
+  `:repository_full_handle` is present. That endpoint requires the GitHub
+  App installation to have accepted `administration: write`.
 
   Runners registered at the org level are usable by any repo in
   the org subject to the runner-group's repo allowlist. The
@@ -354,10 +372,11 @@ defmodule Tuist.GitHub.Client do
   `attrs` to register the runner into a restricted group.
 
   See: https://docs.github.com/en/rest/actions/self-hosted-runners#create-configuration-for-a-just-in-time-runner-for-an-organization
+  See: https://docs.github.com/en/rest/actions/self-hosted-runners#create-configuration-for-a-just-in-time-runner-for-a-repository
   """
   def generate_jit_config(installation, org, attrs) do
     api_url = installation_api_url(installation)
-    url = "#{api_url}/orgs/#{org}/actions/runners/generate-jitconfig"
+    org_url = "#{api_url}/orgs/#{org}/actions/runners/generate-jitconfig"
 
     body = %{
       "name" => Map.fetch!(attrs, :name),
@@ -366,8 +385,51 @@ defmodule Tuist.GitHub.Client do
       "work_folder" => Map.get(attrs, :work_folder, "_work")
     }
 
-    with {:ok, %{token: token}} <- App.get_installation_token(installation, api_url: api_url),
-         {:ok, request_url, ssrf_opts} <- pin_ghes_url(url, api_url) do
+    with {:ok, %{token: token}} <- App.get_installation_token(installation, api_url: api_url) do
+      case post_jit_config(org_url, body, token, api_url) do
+        {:error, {:http, 404, _body}} = org_error ->
+          case Map.get(attrs, :repository_full_handle) do
+            repository_full_handle when is_binary(repository_full_handle) ->
+              Logger.info("github: organization runner endpoint unavailable; trying repository endpoint",
+                org: org,
+                repo: repository_full_handle
+              )
+
+              generate_repository_jit_config(repository_full_handle, body, token, api_url)
+
+            _ ->
+              org_error
+          end
+
+        response ->
+          response
+      end
+    end
+  end
+
+  defp generate_repository_jit_config(repository_full_handle, body, token, api_url) do
+    case String.split(repository_full_handle, "/", parts: 2) do
+      [owner, repository] when owner != "" and repository != "" ->
+        repository_url = "#{api_url}/repos/#{owner}/#{repository}/actions/runners/generate-jitconfig"
+
+        case post_jit_config(repository_url, body, token, api_url) do
+          {:error, {:http, 403, response_body}} ->
+            {:error, {:repository_administration_permission_required, 403, response_body}}
+
+          {:error, {:http, 404, response_body}} ->
+            {:error, {:repository_jit_config_not_found, 404, response_body}}
+
+          response ->
+            response
+        end
+
+      _ ->
+        {:error, {:invalid_repository_full_handle, repository_full_handle}}
+    end
+  end
+
+  defp post_jit_config(url, body, token, api_url) do
+    with {:ok, request_url, ssrf_opts} <- pin_ghes_url(url, api_url) do
       req_opts =
         [
           url: request_url,
@@ -379,8 +441,8 @@ defmodule Tuist.GitHub.Client do
         {:ok, %{status: 201, body: %{"encoded_jit_config" => jit, "runner" => runner}}} ->
           {:ok, %{encoded_jit_config: jit, runner_id: runner["id"], runner_name: runner["name"]}}
 
-        {:ok, %{status: status, body: body}} ->
-          {:error, {:http, status, body}}
+        {:ok, %{status: status, body: response_body}} ->
+          {:error, {:http, status, response_body}}
 
         {:error, reason} ->
           {:error, {:transport, reason}}

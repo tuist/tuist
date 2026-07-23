@@ -122,6 +122,12 @@
     width: 100%;
   }
 
+  &[data-positioning-strategy="fixed"]
+    > [data-state="open"]
+    + [data-part="positioner"] {
+    width: max-content;
+  }
+
   & [data-part="indicator"] {
     display: inline-flex;
     color: var(--noora-surface-label-secondary);

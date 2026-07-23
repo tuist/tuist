@@ -333,6 +333,42 @@ class TuistPluginTest {
     }
 
     @Test
+    fun `plugin resolves the server URL from tuist toml before publishing shared configuration`() {
+        File(testProjectDir, "tuist.toml").writeText("""
+            project = "test-account/test-project"
+            url = "http://localhost:8080"
+        """.trimIndent())
+
+        settingsFile.writeText("""
+            plugins {
+                id("dev.tuist")
+            }
+
+            rootProject.name = "test-project"
+        """.trimIndent())
+
+        buildFile.writeText("""
+            import dev.tuist.gradle.TuistGradleConfig
+
+            tasks.register("printServerUrl") {
+                doLast {
+                    val config = project.extensions.extraProperties["tuist.config"] as TuistGradleConfig
+                    println("url=${'$'}{config.url}")
+                }
+            }
+        """.trimIndent())
+
+        val result = GradleRunner.create()
+            .withProjectDir(testProjectDir)
+            .withArguments("printServerUrl")
+            .withPluginClasspath()
+            .build()
+
+        assertEquals(TaskOutcome.SUCCESS, result.task(":printServerUrl")?.outcome)
+        assertTrue(result.output.contains("url=http://localhost:8080"))
+    }
+
+    @Test
     fun `build insights logs message when configured`() {
         settingsFile.writeText("""
             plugins {

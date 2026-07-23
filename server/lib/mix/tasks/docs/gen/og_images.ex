@@ -1,6 +1,6 @@
 defmodule Mix.Tasks.Docs.Gen.OgImages do
   @moduledoc """
-  Generates open graph images for all documentation pages using Carta and BrowseChrome.
+  Generates open graph images for all documentation pages.
   """
   use Mix.Task
   use Boundary, classify_to: Tuist.Mix
@@ -9,6 +9,7 @@ defmodule Mix.Tasks.Docs.Gen.OgImages do
   alias Tuist.Docs.OgImage
   alias Tuist.Docs.Sidebar
   alias Tuist.Marketing.OgImageCache
+  alias Tuist.Mix.OgImageRenderer
 
   @pool Tuist.Docs.OgImagePool
 
@@ -26,9 +27,8 @@ defmodule Mix.Tasks.Docs.Gen.OgImages do
     logo_path =
       :tuist |> Application.app_dir("priv") |> Path.join("docs/images/logo.webp")
 
-    pool_size = max(System.schedulers_online(), 4)
-
-    {:ok, _} = Browse.start_link(@pool, implementation: BrowseChrome.Browser, pool_size: pool_size)
+    renderer = OgImageRenderer.start_carta(@pool)
+    pool_size = renderer.pool_size
 
     category_map = build_category_map()
 
@@ -51,7 +51,6 @@ defmodule Mix.Tasks.Docs.Gen.OgImages do
         filename = OgImage.slug_to_filename(slug)
         image_path = Path.join(output_dir, filename)
 
-        locale = slug |> String.split("/", trim: true) |> List.first()
         en_slug = String.replace(slug, ~r{^/[^/]+/}, "/en/")
         category = Map.get(category_map, en_slug, "Docs")
 
@@ -76,24 +75,13 @@ defmodule Mix.Tasks.Docs.Gen.OgImages do
             asset_hash
           ])
 
-        if OgImageCache.hit?(image_path, key) do
-          IO.puts("  [#{locale}] Cached: #{Path.relative_to(image_path, File.cwd!())}")
-        else
-          case Carta.render(@pool, html, width: 1920, height: 1080, quality: 95) do
-            {:ok, jpeg_binary} ->
-              File.write!(image_path, jpeg_binary)
-              OgImageCache.put(image_path, key)
-              IO.puts("  [#{locale}] Generated: #{Path.relative_to(image_path, File.cwd!())}")
-
-            {:error, reason} ->
-              IO.warn("Failed to generate OG image for #{slug}: #{inspect(reason)}")
-          end
-        end
+        OgImageRenderer.render(renderer, html, image_path, key, slug, page.title || category || "Tuist")
       end,
       max_concurrency: pool_size,
-      timeout: 30_000
+      on_timeout: :kill_task,
+      timeout: OgImageRenderer.render_timeout()
     )
-    |> Stream.run()
+    |> Enum.each(&OgImageRenderer.warn_on_task_exit(&1, "docs OG image"))
   end
 
   # This task runs without the full application supervisor (e.g. during Docker builds

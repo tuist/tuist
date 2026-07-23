@@ -71,7 +71,7 @@ func TestHostConfigDrift(t *testing.T) {
 
 func TestRecordUpdateFailure_IncrementsAttempts(t *testing.T) {
 	machine := &infrav1.ScalewayAppleSiliconMachine{}
-	recordUpdateFailure(machine, errors.New("boom"), 5, logr.Discard(), fakeRecorder())
+	recordUpdateFailure(machine, errors.New("boom"), 5, "broken-hash", logr.Discard(), fakeRecorder())
 	if machine.Status.TartKubeletUpdateAttempts != 1 {
 		t.Fatalf("attempts: got %d, want 1", machine.Status.TartKubeletUpdateAttempts)
 	}
@@ -83,7 +83,7 @@ func TestRecordUpdateFailure_IncrementsAttempts(t *testing.T) {
 func TestRecordUpdateFailure_TransitionsToFailedAtCap(t *testing.T) {
 	machine := &infrav1.ScalewayAppleSiliconMachine{}
 	for i := 0; i < 5; i++ {
-		recordUpdateFailure(machine, errors.New("boom"), 5, logr.Discard(), fakeRecorder())
+		recordUpdateFailure(machine, errors.New("boom"), 5, "broken-hash", logr.Discard(), fakeRecorder())
 	}
 	if machine.Status.TartKubeletUpdateAttempts != 5 {
 		t.Fatalf("attempts: got %d, want 5", machine.Status.TartKubeletUpdateAttempts)
@@ -100,12 +100,79 @@ func TestRecordUpdateFailure_TransitionsToFailedAtCap(t *testing.T) {
 	if machine.Status.FailureMessage == nil {
 		t.Fatal("expected FailureMessage to be set")
 	}
+	if got, want := machine.Status.FailedHostConfigHash, "broken-hash"; got != want {
+		t.Fatalf("FailedHostConfigHash: got %q, want %q", got, want)
+	}
+}
+
+// Regression for the retry-cap defeat: a broken config never updates
+// Status.HostConfigHash, so the self-heal must key on the FAILED hash — else
+// every reconcile sees drift-vs-applied and clears the cap forever.
+func TestShouldClearTerminalFailure(t *testing.T) {
+	cases := []struct {
+		name      string
+		desired   string
+		failed    string
+		terminal  bool
+		wantClear bool
+	}{
+		{"same broken config stays terminal (cap preserved)", "broken", "broken", true, false},
+		{"a new config clears and retries", "fixed", "broken", true, true},
+		{"not terminal never clears", "fixed", "broken", false, false},
+		{"empty desired hash never clears", "", "broken", true, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := shouldClearTerminalFailure(tc.desired, tc.failed, tc.terminal); got != tc.wantClear {
+				t.Fatalf("shouldClearTerminalFailure(%q,%q,%v) = %v; want %v", tc.desired, tc.failed, tc.terminal, got, tc.wantClear)
+			}
+		})
+	}
+}
+
+func TestClearUpdateFailure_ResetsTerminalState(t *testing.T) {
+	machine := &infrav1.ScalewayAppleSiliconMachine{}
+	for i := 0; i < 5; i++ {
+		recordUpdateFailure(machine, errors.New("boom"), 5, "broken-hash", logr.Discard(), fakeRecorder())
+	}
+	if machine.Status.FailureReason == nil {
+		t.Fatal("precondition: expected terminal failure before clearing")
+	}
+
+	clearUpdateFailure(machine, logr.Discard(), fakeRecorder())
+
+	if machine.Status.FailureReason != nil {
+		t.Fatalf("FailureReason: got %q, want nil", *machine.Status.FailureReason)
+	}
+	if machine.Status.FailureMessage != nil {
+		t.Fatalf("FailureMessage: got %q, want nil", *machine.Status.FailureMessage)
+	}
+	if machine.Status.TartKubeletUpdateAttempts != 0 {
+		t.Fatalf("attempts: got %d, want 0", machine.Status.TartKubeletUpdateAttempts)
+	}
+	if machine.Status.Phase == "Failed" {
+		t.Fatal("Phase: still Failed after clear")
+	}
+}
+
+func TestClearUpdateFailure_NoOpWhenClean(t *testing.T) {
+	machine := &infrav1.ScalewayAppleSiliconMachine{}
+	rec := record.NewFakeRecorder(10)
+	clearUpdateFailure(machine, logr.Discard(), rec)
+	select {
+	case ev := <-rec.Events:
+		t.Fatalf("expected no event on a clean machine; got %q", ev)
+	default:
+	}
+	if machine.Status.TartKubeletUpdateAttempts != 0 || machine.Status.FailureReason != nil {
+		t.Fatal("clean machine mutated by clearUpdateFailure")
+	}
 }
 
 func TestRecordUpdateFailure_DoesNotTransitionBeforeCap(t *testing.T) {
 	machine := &infrav1.ScalewayAppleSiliconMachine{}
 	for i := 0; i < 4; i++ {
-		recordUpdateFailure(machine, errors.New("boom"), 5, logr.Discard(), fakeRecorder())
+		recordUpdateFailure(machine, errors.New("boom"), 5, "broken-hash", logr.Discard(), fakeRecorder())
 	}
 	if machine.Status.FailureReason != nil {
 		t.Fatalf("did not expect terminal failure on attempt 4; got %q", *machine.Status.FailureReason)
@@ -115,7 +182,7 @@ func TestRecordUpdateFailure_DoesNotTransitionBeforeCap(t *testing.T) {
 func TestRecordUpdateFailure_DisabledCap(t *testing.T) {
 	machine := &infrav1.ScalewayAppleSiliconMachine{}
 	for i := 0; i < 100; i++ {
-		recordUpdateFailure(machine, errors.New("boom"), 0, logr.Discard(), fakeRecorder())
+		recordUpdateFailure(machine, errors.New("boom"), 0, "broken-hash", logr.Discard(), fakeRecorder())
 	}
 	if machine.Status.TartKubeletUpdateAttempts != 100 {
 		t.Fatalf("attempts: got %d, want 100", machine.Status.TartKubeletUpdateAttempts)
@@ -431,7 +498,10 @@ func TestReconcileTailscaleEgressService_Create(t *testing.T) {
 	r.EgressProxyGroup = "macmini-egress"
 	r.EgressNamespace = "tailscale-operator"
 	r.EgressMagicDNSSuffix = "taild6d7bb.ts.net"
-	machine := &infrav1.ScalewayAppleSiliconMachine{ObjectMeta: metav1.ObjectMeta{Name: "macmini-1"}}
+	machine := &infrav1.ScalewayAppleSiliconMachine{
+		ObjectMeta: metav1.ObjectMeta{Name: "macmini-1"},
+		Spec:       infrav1.ScalewayAppleSiliconMachineSpec{FleetName: "tuist-macos-fleet"},
+	}
 	if err := r.reconcileTailscaleEgressService(context.Background(), machine); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -454,11 +524,16 @@ func TestReconcileTailscaleEgressService_Create(t *testing.T) {
 	if got.Labels["tuist.dev/macmini-egress"] != "true" {
 		t.Errorf("macmini-egress label = %q, want true", got.Labels["tuist.dev/macmini-egress"])
 	}
-	if len(got.Spec.Ports) != 2 {
-		t.Fatalf("Spec.Ports len = %d, want 2", len(got.Spec.Ports))
+	if got.Labels["tuist.dev/fleet"] != "tuist-macos-fleet" {
+		t.Errorf("fleet label = %q, want tuist-macos-fleet", got.Labels["tuist.dev/fleet"])
 	}
-	// Ports must include node-exporter:9100 and tart-kubelet:8080 —
-	// the named ports alloy-metrics filters on.
+	if len(got.Spec.Ports) != 5 {
+		t.Fatalf("Spec.Ports len = %d, want 5", len(got.Spec.Ports))
+	}
+	// Ports must include the metrics scrape endpoints, pod-metrics:9091 for
+	// the Tart guests' own telemetry, vnc-relay:5900 for dashboard
+	// interactive access, and ssh:22 for the tart-kubelet drift update — all
+	// through the Tailscale egress Service.
 	portByName := map[string]int32{}
 	for _, p := range got.Spec.Ports {
 		portByName[p.Name] = p.Port
@@ -468,6 +543,38 @@ func TestReconcileTailscaleEgressService_Create(t *testing.T) {
 	}
 	if portByName["tart-kubelet"] != 8080 {
 		t.Errorf("tart-kubelet port = %d, want 8080", portByName["tart-kubelet"])
+	}
+	// Without this the guests' PromEx endpoint has no reachable route: the
+	// cluster CNI installs no route to a mini's CGNAT address, so scraping
+	// the Pod directly fails on every attempt.
+	if portByName["pod-metrics"] != 9091 {
+		t.Errorf("pod-metrics port = %d, want 9091", portByName["pod-metrics"])
+	}
+	if portByName["vnc-relay"] != DashboardVNCRelayPort {
+		t.Errorf("vnc-relay port = %d, want %d", portByName["vnc-relay"], DashboardVNCRelayPort)
+	}
+	if portByName["ssh"] != 22 {
+		t.Errorf("ssh port = %d, want 22 (tart-kubelet drift update over the tailnet)", portByName["ssh"])
+	}
+}
+
+// egressHost returns the tailnet egress DNS name the drift update dials
+// (in place of the mini's public IP, whose inbound :22 a running runner
+// filters). Empty when the tailnet egress is disabled, so the update
+// falls back to the public IP on OSS / self-hosted clusters.
+func TestEgressHost(t *testing.T) {
+	r := newReconciler(t)
+
+	if got := r.egressHost("macmini-1"); got != "" {
+		t.Errorf("egressHost with egress disabled = %q, want empty (public-IP fallback)", got)
+	}
+
+	r.EgressProxyGroup = "macmini-egress"
+	r.EgressNamespace = "tailscale-operator"
+	r.EgressMagicDNSSuffix = "taild6d7bb.ts.net"
+	want := "macmini-1.tailscale-operator.svc.cluster.local"
+	if got := r.egressHost("macmini-1"); got != want {
+		t.Errorf("egressHost = %q, want %q", got, want)
 	}
 }
 

@@ -255,6 +255,81 @@ struct DependenciesAcceptanceTestIosAppWithLocalSPMPackageGenerate {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         try await TuistTest.run(InstallCommand.self, ["--path", fixtureDirectory.pathString])
         try await TuistTest.run(GenerateCommand.self, ["--no-open", "--path", fixtureDirectory.pathString])
+        try TuistTest.expectContainsTarget(
+            "LocalLibTests",
+            inXcodeProj: fixtureDirectory.appending(components: "LocalPackage", "LocalPackage.xcodeproj")
+        )
+    }
+}
+
+struct DependenciesAcceptanceTestCommandLineToolWithLocalSPMTestOnlyDependencies {
+    @Test(
+        .withFixture("generated_command_line_tool_with_local_spm_test_only_dependencies"),
+        .inTemporaryDirectory,
+        .timeLimit(.minutes(1))
+    )
+    func install_then_generate_ignores_local_package_test_only_dependencies() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        try await TuistTest.run(
+            InstallCommand.self,
+            ["--path", fixtureDirectory.pathString, "--force-resolved-versions"]
+        )
+        try await TuistTest.run(GenerateCommand.self, ["--no-open", "--path", fixtureDirectory.pathString])
+    }
+
+    @Test(
+        .withFixture("generated_command_line_tool_with_local_spm_test_only_dependencies"),
+        .inTemporaryDirectory,
+        .timeLimit(.minutes(1))
+    )
+    func install_then_generate_whenLocalPackageTestsAreEnabled_failsForExternalProductDependency() async throws {
+        let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
+        try await FileSystem().writeText(
+            """
+            // swift-tools-version: 5.10
+            import PackageDescription
+
+            #if TUIST
+                import struct ProjectDescription.PackageSettings
+
+                let packageSettings = PackageSettings(
+                    productTypes: [
+                        "RuntimeLib": .staticFramework,
+                    ],
+                    includeLocalPackageTestTargets: true
+                )
+            #endif
+
+            let package = Package(
+                name: "CommandLineToolDependencies",
+                dependencies: [
+                    .package(path: "../RuntimePackage"),
+                ]
+            )
+            """,
+            at: fixtureDirectory.appending(components: "Tuist", "Package.swift"),
+            options: [.overwrite]
+        )
+        try await TuistTest.run(
+            InstallCommand.self,
+            ["--path", fixtureDirectory.pathString, "--force-resolved-versions"]
+        )
+
+        do {
+            try await TuistTest.run(GenerateCommand.self, ["--no-open", "--path", fixtureDirectory.pathString])
+        } catch {
+            #expect(
+                error.localizedDescription
+                    == """
+                    The test target `RuntimeLibTests` in the local package `RuntimePackage` depends on the external product \
+                    `TestSupport`. Tuist can include local package test targets only when all their dependencies belong to the \
+                    same package. Remove the external product dependency, or set `includeLocalPackageTestTargets` to `false` \
+                    in `PackageSettings`.
+                    """
+            )
+            return
+        }
+        Issue.record("Generate should have failed.")
     }
 }
 

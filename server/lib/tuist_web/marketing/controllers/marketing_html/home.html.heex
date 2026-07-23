@@ -4,7 +4,11 @@
 
     <div data-part="container">
       <div data-part="background" aria-hidden="true">
-        <img src={~p"/marketing/images/background.webp"} alt="Background decoration" />
+        <img
+          src={~p"/marketing/images/background.webp"}
+          alt="Background decoration"
+          decoding="async"
+        />
       </div>
     </div>
 
@@ -47,12 +51,16 @@
     <section data-part="graphic" aria-labelledby="metrics-heading">
       <div data-part="left-column">
         <div data-part="build-card">
-          <img data-part="graphic" src={~p"/marketing/images/home/cards/line-chart.webp"} />
+          <img
+            data-part="graphic"
+            src={~p"/marketing/images/home/cards/line-chart.webp"}
+            decoding="async"
+          />
           <span data-part="title">{dgettext("marketing", "Build times reduced by 80%")}</span>
         </div>
         <div data-part="selective-tests-card">
           <div data-part="graphic">
-            <img src={~p"/marketing/images/home/cards/selective-tests.webp"} />
+            <img src={~p"/marketing/images/home/cards/selective-tests.webp"} decoding="async" />
           </div>
           <span data-part="title">{dgettext("marketing", "Skipped repetitive tests")}</span>
         </div>
@@ -60,6 +68,7 @@
           <img
             data-part="graphic"
             src={~p"/marketing/images/home/cards/optimized-app-bundles.webp"}
+            decoding="async"
           />
           <span data-part="title">{dgettext("marketing", "Optimized app bundles")}</span>
         </div>
@@ -69,21 +78,32 @@
           <span data-part="title">
             {dgettext("marketing", "Shared app preview with the team")}
           </span>
-          <img data-part="graphic" src={~p"/marketing/images/home/cards/qrcode.webp"} />
+          <img
+            data-part="graphic"
+            src={~p"/marketing/images/home/cards/qrcode.webp"}
+            decoding="async"
+          />
         </div>
         <div data-part="remote-binaries-card">
           <span data-part="title">{dgettext("marketing", "105 remote binaries pulled")}</span>
           <img
             data-part="graphic"
             src={~p"/marketing/images/home/cards/remote-binaries.webp"}
+            decoding="async"
           />
         </div>
       </div>
-      <img data-part="background" src={~p"/marketing/images/home/hero/background.webp"} />
-      <img
-        data-part="background-mobile"
-        src={~p"/marketing/images/home/hero/background-mobile.webp"}
-      />
+      <picture data-part="background">
+        <source
+          media="(max-width: 1023px)"
+          srcset={~p"/marketing/images/home/hero/background-mobile.webp"}
+        />
+        <img
+          src={~p"/marketing/images/home/hero/background.webp"}
+          decoding="async"
+          fetchpriority="high"
+        />
+      </picture>
     </section>
 
     <section data-part="supporters">
@@ -186,6 +206,8 @@
                   "Cache hit rate dashboard showing 90% hit rate and 14.2 hours saved this week"
                 )
               }
+              loading="lazy"
+              decoding="async"
             />
           </div>
           <div data-part="feature-info">
@@ -220,6 +242,8 @@
                   "Build insights chart showing build duration metrics with p90, p99, and average percentiles"
                 )
               }
+              loading="lazy"
+              decoding="async"
             />
           </div>
           <div data-part="feature-info">
@@ -270,6 +294,8 @@
                   "Selective testing dashboard showing tests skipped with 134/196 tests skipped and 15.8h saved this week"
                 )
               }
+              loading="lazy"
+              decoding="async"
             />
           </div>
           <div data-part="feature-info">
@@ -307,6 +333,8 @@
                     "Flaky tests dashboard showing test history and automation creation modal"
                   )
                 }
+                loading="lazy"
+                decoding="async"
               />
             </div>
             <div data-part="feature-info">
@@ -343,6 +371,8 @@
                     "Test insights showing test runs, flaky tests, failed test runs, and p90 test run duration metrics"
                   )
                 }
+                loading="lazy"
+                decoding="async"
               />
             </div>
             <div data-part="feature-info">
@@ -398,6 +428,8 @@
                   "App preview interface showing share preview button and platform options"
                 )
               }
+              loading="lazy"
+              decoding="async"
             />
           </div>
           <div data-part="feature-info">
@@ -496,12 +528,29 @@
           aria-label={dgettext("marketing", "Explore Tuist's features")}
         >
         </a>
-        <img data-part="default" src={~p"/marketing/images/home/dashboard.webp"} />
-        <img data-part="hover" src={~p"/marketing/images/home/dashboard-hover.webp"} />
-        <img data-part="default-mobile" src={~p"/marketing/images/home/dashboard-mobile.webp"} />
+        <img
+          data-part="default"
+          src={~p"/marketing/images/home/dashboard.webp"}
+          loading="lazy"
+          decoding="async"
+        />
+        <img
+          data-part="hover"
+          src={~p"/marketing/images/home/dashboard-hover.webp"}
+          loading="lazy"
+          decoding="async"
+        />
+        <img
+          data-part="default-mobile"
+          src={~p"/marketing/images/home/dashboard-mobile.webp"}
+          loading="lazy"
+          decoding="async"
+        />
         <img
           data-part="hover-mobile"
           src={~p"/marketing/images/home/dashboard-hover-mobile.webp"}
+          loading="lazy"
+          decoding="async"
         />
         <.button
           href="/tuist/tuist"
@@ -526,6 +575,7 @@
           id="avatar-basic-with-image"
           name={@featured_testimonials.author_name}
           image_href={@featured_testimonials.author_avatar}
+          image_loading="lazy"
           size="small"
         />
         <p>{@featured_testimonials.author_name}</p>
@@ -544,6 +594,8 @@
           <img
             src={~p"/marketing/images/testimonials/trendyol/background.webp"}
             alt=""
+            loading="lazy"
+            decoding="async"
           />
         </div>
         <header data-part="content">
@@ -564,6 +616,8 @@
           <img
             src={~p"/marketing/images/testimonials/trendyol/graphic.webp"}
             alt="Trendyol graph"
+            loading="lazy"
+            decoding="async"
           />
         </div>
       </article>
@@ -579,6 +633,8 @@
           <img
             src={~p"/marketing/images/testimonials/bumble/background.webp"}
             alt=""
+            loading="lazy"
+            decoding="async"
           />
         </div>
         <header data-part="content">
@@ -601,7 +657,12 @@
           </h3>
         </header>
         <div data-part="graphic">
-          <img src={~p"/marketing/images/testimonials/bumble/graphic.webp"} alt="Bumble graphic" />
+          <img
+            src={~p"/marketing/images/testimonials/bumble/graphic.webp"}
+            alt="Bumble graphic"
+            loading="lazy"
+            decoding="async"
+          />
         </div>
       </article>
     </section>
@@ -615,7 +676,12 @@
       <div data-part="column">
         <article data-part="github-card">
           <div data-part="background">
-            <img src={~p"/marketing/images/stats/github.webp"} alt="" />
+            <img
+              src={~p"/marketing/images/stats/github.webp"}
+              alt=""
+              loading="lazy"
+              decoding="async"
+            />
           </div>
           <div data-part="content">
             <h1>{dgettext("marketing", "5K+")}</h1>
@@ -625,7 +691,12 @@
 
         <article data-part="oss-card">
           <div data-part="background">
-            <img src={~p"/marketing/images/stats/oss.webp"} alt="" />
+            <img
+              src={~p"/marketing/images/stats/oss.webp"}
+              alt=""
+              loading="lazy"
+              decoding="async"
+            />
           </div>
           <div data-part="content">
             <h1>{dgettext("marketing", "9+")}</h1>
@@ -637,7 +708,12 @@
       <div data-part="column">
         <article data-part="minutes-card">
           <div data-part="background">
-            <img src={~p"/marketing/images/stats/minutes.webp"} alt="" />
+            <img
+              src={~p"/marketing/images/stats/minutes.webp"}
+              alt=""
+              loading="lazy"
+              decoding="async"
+            />
           </div>
           <div data-part="content">
             <h1>{dgettext("marketing", "8300+")}</h1>
@@ -647,7 +723,12 @@
 
         <article data-part="slack-card">
           <div data-part="background">
-            <img src={~p"/marketing/images/stats/slack.webp"} alt="" />
+            <img
+              src={~p"/marketing/images/stats/slack.webp"}
+              alt=""
+              loading="lazy"
+              decoding="async"
+            />
           </div>
           <div data-part="content">
             <h1>{dgettext("marketing", "1400+")}</h1>
@@ -659,7 +740,12 @@
       <div data-part="column">
         <article data-part="teams-card">
           <div data-part="background">
-            <img src={~p"/marketing/images/stats/teams.webp"} alt="" />
+            <img
+              src={~p"/marketing/images/stats/teams.webp"}
+              alt=""
+              loading="lazy"
+              decoding="async"
+            />
           </div>
           <div data-part="content">
             <h1>{dgettext("marketing", "10K+")}</h1>
@@ -669,7 +755,12 @@
 
         <article data-part="contributors-card">
           <div data-part="background">
-            <img src={~p"/marketing/images/stats/contributors.webp"} alt="" />
+            <img
+              src={~p"/marketing/images/stats/contributors.webp"}
+              alt=""
+              loading="lazy"
+              decoding="async"
+            />
           </div>
           <div data-part="content">
             <h1>{dgettext("marketing", "300+")}</h1>
@@ -681,7 +772,12 @@
 
     <section data-part="testimonials" aria-labelledby="testimonials-title">
       <div data-part="background" aria-hidden="true">
-        <img src={~p"/marketing/images/home/testimonials/background.webp"} alt="" />
+        <img
+          src={~p"/marketing/images/home/testimonials/background.webp"}
+          alt=""
+          loading="lazy"
+          decoding="async"
+        />
       </div>
       <header data-part="header">
         <h2 id="testimonials-title" data-part="title">

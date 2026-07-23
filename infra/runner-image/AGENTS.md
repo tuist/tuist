@@ -33,12 +33,80 @@ runtime — no service, sudo entry, or auto-login targets it.
   `tart run` returns and tart-kubelet flips the Pod to
   Succeeded — the watcher's GC + warm-pool refill are gated on
   that transition.
+  `dispatch-poll.sh` also drives the **per-account cache-volume** flow,
+  materialized after dispatch. tart-kubelet attaches
+  an *empty* per-VM branch directory as a writable virtio-fs share at
+  `/Volumes/My Shared Files/cache`. The cache itself is a **sparse APFS disk
+  image** (`cache.sparseimage`) inside that share, not files on it: virtio-fs
+  cannot set xattrs on symlinks, and macOS frameworks are versioned bundles
+  whose symlinks carry the CLI's signature xattrs, so caching any macOS slice
+  onto the share fails (ELOOP). Inside an image the filesystem is real APFS and
+  only one regular file crosses virtio-fs.
+  The share is empty until dispatch: once the server stamps the pod's account
+  label, the host clonefiles that account's master image into the branch and
+  writes a `cache-ready` marker. After receiving the JIT and before `./run.sh`,
+  the guest calls `wait_for_cache_ready` — a bounded (~60s) wait on that marker
+  — then `attach_cache_image` (`hdiutil attach … -owners off`, which maps the
+  contents to the guest user and so retires any host/guest uid reconciliation),
+  points `TUIST_XDG_CACHE_HOME` at the **mountpoint**
+  (`/Users/runner/.tuist-cache-volume`), reads the host-staged per-branch byte
+  budget (`cache-max-bytes` in the `status` share) into `TUIST_CACHE_MAX_BYTES`
+  for the CLI's LRU self-prune, reads the host-staged base generation
+  (`cache-base-generation`) — the HEAD generation the branch was clonefiled from,
+  used as the fast-forward base at promote — and snapshots the pre-job inventory.
+  Timeout / absent share / failed attach ⇒ cold path, unchanged. A cold first job
+  still gets an *empty* image — the guest can only attach what is there, and no
+  image would kill the job rather than cost it warmth.
+  Teardown order is load-bearing: snapshot the post-job inventory while still
+  MOUNTED, then **detach**, then write `cache-dirty` (only after a clean detach —
+  its absence is what tells the host to discard, the safe default for any teardown
+  that never reaches a clean detach). Promotion is a **fast-forward
+  compare-and-swap**, not a direct host clone: the guest uploads the detached
+  image to a content-addressed key and reports the HEAD with `base_generation`,
+  and the server advances the HEAD only if it is still at that base (200,
+  returning the accepted generation) or rejects a stale base (409). The guest
+  captures the HTTP status EXPLICITLY (no `curl -f`, which would collapse a 409
+  and a transport error into one failure) and relays the outcome into the
+  `status` share as `cache-promote-result`: `accepted <generation>`, `conflict`,
+  or `error`. The host's `Finalize` installs the branch as the account's local
+  master (a whole-image replace) ONLY on `accepted` — so the local master and the
+  HEAD advance together. A `conflict` (a stale base another host advanced past) or
+  an `error` (upload/network/control-plane failure — kept distinct so an outage
+  is not mistaken for cross-host contention) discards the branch and lets
+  convergence re-warm it. A rejected promote still uploaded its object, so the
+  server records it as an orphan and reclaims it after the URL-TTL grace. The
+  host clones the promoted image and cannot tell a torn snapshot from a good one,
+  so a mount torn down by the VM halting would poison the account's master; if the
+  detach fails even with `-force`, the guest withdraws the image from both
+  promotion and publication.
+  The server also delivers a `cache_signing_grant` in
+  the dispatch 200, exported as `TUIST_CACHE_SIGNING_GRANT` so the EE CLI signs
+  artifacts with the account scope instead of the machine MAC — which is what
+  lets a clonefiled master validate across the account's VMs.
 - `/opt/tuist/metrics-poll.sh` — the machine-metrics sampler.
   `dispatch-poll.sh` forks it into the background right before it
   starts `./run.sh`, so it samples whole-VM CPU/memory/network/disk
   (`top`/`vm_stat`/`netstat`/`df`) for the job's duration and POSTs to
   `…/pods/<pod>/metrics` with the same SA token, dying with the VM when
   the job ends. Best-effort; never blocks the job.
+- `/opt/tuist/runner-shell-agent` — interactive shell bridge.
+  `dev.tuist.runner-shell-agent` starts `runner-shell-agent-supervisor.sh`
+  at boot and waits until `/etc/tuist.env` and `/etc/tuist-sa-token` are
+  materialized, then blocks on `/tmp/tuist-runner-shell-claimed` until
+  `dispatch-poll.sh` receives a JIT claim. It polls the server for authorized
+  shell sessions and forwards a PTY in the runner VM over the server-owned
+  WebSocket tunnel. The binary is built from the Go source in
+  `cmd/runner-shell-agent/`, so dashboard terminal access and
+  `tuist runner ssh` attach to the same ephemeral job environment without a
+  Python runtime dependency.
+- `/opt/tuist/runner-shell-agent-supervisor.sh` — restarts the trusted
+  shell bridge while the single-shot runner VM is alive. It runs as root
+  from a LaunchDaemon so terminal access does not depend on an unlocked
+  Aqua session, then drops PTY child shells to the `runner` user.
+- `/Library/LaunchDaemons/dev.tuist.runner-shell-agent.plist` — the
+  boot-time LaunchDaemon for the shell supervisor. `dispatch-poll.sh`
+  still has a singleton-lock guarded fallback start path for older or
+  partially-built images.
 - `/Users/runner/Library/LaunchAgents/dev.tuist.runner.plist` —
   the LaunchAgent that auto-runs `inject-env.sh` then
   `dispatch-poll.sh` once runner's user session starts at boot.
@@ -51,6 +119,13 @@ runtime — no service, sudo entry, or auto-login targets it.
   config so the desktop session exists at boot and loginwindow
   loads the LaunchAgent. Without this the VM boots to a login
   screen and the agent never starts.
+- `SetupAssistant` and `SetupAssistant.managed` defaults — skip
+  first-run panes such as Apple Account, Privacy, Siri, Screen Time,
+  and automatic software update so VNC opens on the runner desktop
+  instead of Setup Assistant.
+- `pmset`, `com.apple.screensaver`, and `com.apple.autologout`
+  defaults — keep the ephemeral runner desktop from sleeping, locking,
+  or auto-logging-out during interactive VNC sessions.
 - `/etc/sudoers.d/runner-nopasswd` — passwordless sudo for the
   agent's privileged ops (installing /etc/tuist.env, halting the
   VM at job exit). Single-tenant ephemeral VM — the entire OS is
@@ -60,6 +135,8 @@ runtime — no service, sudo entry, or auto-login targets it.
 
 ```bash
 cd infra/runner-image
+mkdir -p build
+go build -trimpath -ldflags="-s -w" -o build/runner-shell-agent ./cmd/runner-shell-agent
 packer init runner.pkr.hcl
 packer build runner.pkr.hcl
 ```
@@ -121,7 +198,7 @@ Active profiles are the single source of truth in
 
 ```json
 // infra/runner-image/profiles.json
-["26.5", "26.4.1", "26.3", "26.0.1"]   // first entry = newest / default profile
+["26.6", "26.5", "26.4.1", "26.3", "26.0.1"]   // first entry = newest / default profile
 ```
 
 `check-releases` reads this into the `runner-image-matrix` output and

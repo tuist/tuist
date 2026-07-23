@@ -69,12 +69,22 @@ public struct GraphLinter: GraphLinting {
 
     private func lintSchemesUnknownTargets(graphTraverser: GraphTraversing) -> [LintingIssue] {
         let targets = graphTraverser.targets()
+        let localPackageProducts = graphTraverser.consumedLocalPackageProducts()
         return graphTraverser.schemes().compactMap { scheme in
+            let nonCodeCoverageDependencies = Set(scheme.nonCodeCoverageTargetDependencies())
             let unknownTargets = scheme
                 .targetDependencies()
                 .filter { targetReference in
                     if let target = targets[targetReference.projectPath],
                        target.keys.contains(targetReference.name)
+                    {
+                        return false
+                    }
+                    // References used exclusively as code coverage targets can point to
+                    // products of local Swift packages, which are not part of the graph
+                    // but are resolvable by Xcode.
+                    if localPackageProducts[targetReference.projectPath]?.contains(targetReference.name) == true,
+                       !nonCodeCoverageDependencies.contains(targetReference)
                     {
                         return false
                     }

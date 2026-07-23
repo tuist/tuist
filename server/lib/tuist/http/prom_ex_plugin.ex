@@ -245,25 +245,60 @@ defmodule Tuist.HTTP.PromExPlugin do
   def execute_http_queue_status_telemetry_event do
     url = Tuist.Environment.s3_endpoint()
 
+    emit_configured_pool_status(url)
+    emit_default_pool_status()
+  end
+
+  defp emit_configured_pool_status(url) do
     case Finch.get_pool_status(Tuist.Finch, url) do
       {:ok, pools} ->
         Enum.each(pools, fn pool ->
-          :telemetry.execute(
-            Tuist.Telemetry.event_name_http_queue_status(),
-            %{
-              available_connections: pool.available_connections,
-              in_use_connections: pool.in_use_connections
-            },
-            %{
-              url: url,
-              size: pool.pool_size,
-              index: pool.pool_index
-            }
-          )
+          emit_pool_status(url, pool.pool_size, pool.pool_index, pool)
         end)
 
       {:error, _} ->
         :ok
     end
+  end
+
+  # Virtual-hosted buckets and customer-provided storage origins are created
+  # from Finch's fallback pool. Aggregate them under one bounded label so pool
+  # saturation is visible without exposing customer hostnames or creating an
+  # unbounded metric series per origin.
+  defp emit_default_pool_status do
+    case Finch.get_pool_status(Tuist.Finch, :default) do
+      {:ok, pools_by_origin} ->
+        totals =
+          pools_by_origin
+          |> Map.values()
+          |> List.flatten()
+          |> Enum.reduce(%{available_connections: 0, in_use_connections: 0, pool_size: 0}, fn pool, acc ->
+            %{
+              available_connections: acc.available_connections + pool.available_connections,
+              in_use_connections: acc.in_use_connections + pool.in_use_connections,
+              pool_size: acc.pool_size + pool.pool_size
+            }
+          end)
+
+        emit_pool_status("default", totals.pool_size, 0, totals)
+
+      {:error, _} ->
+        :ok
+    end
+  end
+
+  defp emit_pool_status(url, size, index, pool) do
+    :telemetry.execute(
+      Tuist.Telemetry.event_name_http_queue_status(),
+      %{
+        available_connections: pool.available_connections,
+        in_use_connections: pool.in_use_connections
+      },
+      %{
+        url: url,
+        size: size,
+        index: index
+      }
+    )
   end
 end

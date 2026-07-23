@@ -101,6 +101,49 @@ defmodule TuistWeb.ShardsLiveTest do
     assert has_element?(lv, "[data-part='empty-sharded-runs']")
   end
 
+  test "ignores a stale pagination cursor on initial load", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    stub(Tests, :list_sharded_test_runs, fn options ->
+      refute Map.has_key?(options, :before)
+      refute Map.has_key?(options, :after)
+      {[], empty_flop_meta()}
+    end)
+
+    stale_cursor = Flop.Cursor.encode(%{inserted_at_naive: ~N[2025-04-14 12:30:17]})
+
+    {:ok, lv, _html} =
+      live(
+        conn,
+        ~p"/#{organization.account.name}/#{project.name}/tests/shards?before=#{stale_cursor}"
+      )
+
+    assert has_element?(lv, "[data-part='empty-sharded-runs']")
+  end
+
+  test "preserves a matching pagination cursor on initial load", %{
+    conn: conn,
+    organization: organization,
+    project: project
+  } do
+    matching_cursor = Flop.Cursor.encode(%{ran_at: ~N[2025-04-14 12:30:17]})
+
+    stub(Tests, :list_sharded_test_runs, fn options ->
+      assert Map.get(options, :before) == matching_cursor
+      {[], empty_flop_meta()}
+    end)
+
+    {:ok, lv, _html} =
+      live(
+        conn,
+        ~p"/#{organization.account.name}/#{project.name}/tests/shards?before=#{matching_cursor}"
+      )
+
+    assert has_element?(lv, "[data-part='empty-sharded-runs']")
+  end
+
   test "displays sharded runs table", %{
     conn: conn,
     organization: organization,

@@ -72,6 +72,18 @@ jobs:
           install_args: "--locked tuist git-cliff 1password-cli jq"
           cache: "false"
           github_token: ${{ env.MISE_GITHUB_TOKEN }}
+      # Install the Rust toolchain the cas-plugin bundle needs, resolving its
+      # version from cas-plugin/mise.toml rather than pinning it here (single
+      # source of truth, matching how kura pins its toolchain). Older release
+      # branches that predate cas-plugin do not need this toolchain.
+      - uses: jdx/mise-action@v4.0.1
+        if: ${{ hashFiles('cas-plugin/mise.toml') != '' }}
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install_args: rust
+          working_directory: cas-plugin
+          cache: "false"
+          github_token: ${{ env.MISE_GITHUB_TOKEN }}
       - name: Authenticate with Tuist
         run: tuist auth login
       - name: Setup Tuist
@@ -94,6 +106,7 @@ jobs:
           fi
           INCLUDE_PATHS=(
             --include-path "cli/**/*"
+            --include-path "cas-plugin/**/*"
             --include-path "mise/tasks/cli/**/*"
             --include-path "mise/tasks/release/components.json"
             --include-path ".github/workflows/cli-release.yml"
@@ -121,6 +134,7 @@ jobs:
         run: |
           INCLUDE_PATHS=(
             --include-path "cli/**/*"
+            --include-path "cas-plugin/**/*"
             --include-path "mise/tasks/cli/**/*"
             --include-path "mise/tasks/release/components.json"
             --include-path ".github/workflows/cli-release.yml"
@@ -178,7 +192,33 @@ jobs:
           sed -i "s/@TaskLocal public static var version: String! = \".*\"/@TaskLocal public static var version: String! = \"${{ inputs.version }}\"/" "cli/Sources/TuistConstants/Constants.swift"
 
       - name: Bundle CLI
-        run: ./mise/tasks/cli/bundle-linux.sh
+        run: |
+          for attempt in 1 2 3; do
+            if ./mise/tasks/cli/bundle-linux.sh; then
+              exit 0
+            fi
+
+            if [ "$attempt" -eq 3 ]; then
+              echo "::error::Linux CLI bundle failed after ${attempt} attempts."
+              exit 1
+            fi
+
+            echo "::warning::Linux CLI bundle attempt ${attempt} failed; clearing SwiftPM state before retrying."
+            ACCOUNT_HOME="$(getent passwd "$(id -u)" | cut -d: -f6)"
+            rm -rf \
+              "${BUILD_PATH:-.build}" \
+              build \
+              "$HOME/.cache/org.swift.swiftpm" \
+              "$HOME/.swiftpm" \
+              "$ACCOUNT_HOME/.cache/org.swift.swiftpm" \
+              "$ACCOUNT_HOME/.swiftpm"
+            sleep $((attempt * 10))
+          done
+        env:
+          # Swift 6.2.4's registry client otherwise downloads up to one package
+          # per CPU concurrently, which can trigger FoundationNetworking's
+          # redirect handling crash before the CLI starts compiling.
+          SWIFTPM_MAX_CONCURRENT_OPERATIONS: 1
 
       - name: Upload CLI Linux artifacts
         id: upload
@@ -264,8 +304,10 @@ jobs:
             build/ProjectDescription.xcframework.zip
             build/tuist.spec.json
       - name: Trigger Homebrew Formula Update
-        # Skipped for backports: brew install tuist must keep pointing at the
-        # true latest version, never an older patched line.
+        # Skipped only for canary/RC prereleases (update_homebrew=false). Stable
+        # releases and backports both publish the per-version formula; the
+        # homebrew-tuist aliases task is semver-aware, so brew install tuist
+        # always resolves to the highest stable version regardless of order.
         if: ${{ inputs.update_homebrew }}
         run: |
           SHA256=$(cat build/SHASUMS256.txt | grep tuist.zip | awk '{print $1}')

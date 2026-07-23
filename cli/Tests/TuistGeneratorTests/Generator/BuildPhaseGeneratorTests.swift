@@ -1803,6 +1803,12 @@ struct BuildPhaseGeneratorTests {
                     name: "post",
                     order: .post,
                     script: .scriptPath(path: path.appending(component: "script.sh"), args: ["arg"]),
+                    inputFileListPaths: [
+                        .generated(path.appending(components: "Generated", "Inputs.xcfilelist")),
+                    ],
+                    outputFileListPaths: [
+                        .generated(path.appending(components: "Generated", "Outputs.xcfilelist")),
+                    ],
                     showEnvVarsInLog: false,
                     basedOnDependencyAnalysis: false,
                     runForInstallBuildsOnly: true
@@ -1856,6 +1862,8 @@ struct BuildPhaseGeneratorTests {
         #expect(postBuildPhase.name == "post")
         #expect(postBuildPhase.shellPath == "/bin/sh")
         #expect(postBuildPhase.shellScript == "\"$SRCROOT\"/script.sh arg")
+        #expect(postBuildPhase.inputFileListPaths == ["Generated/Inputs.xcfilelist"])
+        #expect(postBuildPhase.outputFileListPaths == ["Generated/Outputs.xcfilelist"])
         #expect(postBuildPhase.showEnvVarsInLog == false)
         #expect(postBuildPhase.alwaysOutOfDate == true)
         #expect(postBuildPhase.runOnlyForDeploymentPostprocessing == true)
@@ -2156,7 +2164,7 @@ struct BuildPhaseGeneratorTests {
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,
         .inTemporaryDirectory
-    ) func generateLinks_generatesAShellScriptBuildPhase_when_targetIsAMacroFramework() async throws {
+    ) func generateBuildPhases_doesntGenerateACopyScript_when_targetDependsOnAMacro() async throws {
         // Given
         let app = Target.test(name: "app", platform: .iOS, product: .app)
         let macroFramework = Target.test(name: "framework", platform: .iOS, product: .staticFramework)
@@ -2192,33 +2200,14 @@ struct BuildPhaseGeneratorTests {
             .compactMap { $0 as? PBXShellScriptBuildPhase }
             .first(where: { $0.name() == "Copy Swift Macro executable into $BUILT_PRODUCT_DIR" })
 
-        #expect(buildPhase != nil)
-
-        let expectedScript =
-            "if [[ -f \"$BUILD_DIR/$CONFIGURATION/macro\" ]]; then\n    mkdir -p \"$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/\"\n    if [[ \"$BUILD_DIR/$CONFIGURATION/macro\" != \"$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/macro\" ]]; then\n        cp -f \"$BUILD_DIR/$CONFIGURATION/macro\" \"$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/macro\"\n    fi\nfi"
-        #expect(buildPhase?.shellScript?.contains(expectedScript) == true)
-        #expect(
-            buildPhase?.inputPaths ==
-                [
-                    "$BUILD_DIR/$CONFIGURATION/\(macroExecutable.productName)",
-                    "$(OBJROOT)/UninstalledProducts/macosx/\(macroExecutable.productName)",
-                ]
-        )
-        #expect(
-            buildPhase?.outputPaths ==
-                [
-                    "$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/\(macroExecutable.productName)",
-                    "$BUILD_DIR/Debug-$EFFECTIVE_PLATFORM_NAME/\(macroExecutable.productName)",
-                ]
-        )
-        #expect(buildPhase?.alwaysOutOfDate == false)
+        #expect(buildPhase == nil)
     }
 
     @Test(
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,
         .inTemporaryDirectory
-    ) func generateLinks_generatesStampFileShellScriptBuildPhase_when_macroFrameworkIsExclusiveToMacOS() async throws {
+    ) func generateBuildPhases_doesntGenerateACopyScript_when_macroFrameworkIsExclusiveToMacOS() async throws {
         // Given
         let app = Target.test(name: "app", platform: .macOS, product: .app)
         let macroFramework = Target.test(name: "framework", platform: .macOS, product: .staticFramework)
@@ -2254,16 +2243,14 @@ struct BuildPhaseGeneratorTests {
             .compactMap { $0 as? PBXShellScriptBuildPhase }
             .first(where: { $0.name() == "Copy Swift Macro executable into $BUILT_PRODUCT_DIR" })
 
-        #expect(buildPhase?.outputPaths == ["$(DERIVED_FILE_DIR)/copy-swift-macro.stamp"])
-        #expect(buildPhase?.alwaysOutOfDate == false)
-        #expect(buildPhase?.shellScript?.contains("touch \"$DERIVED_FILE_DIR/copy-swift-macro.stamp\"") == true)
+        #expect(buildPhase == nil)
     }
 
     @Test(
         .withMockedSwiftVersionProvider,
         .withMockedXcodeController,
         .inTemporaryDirectory
-    ) func generateLinks_generatesStampFileShellScriptBuildPhase_when_macroFrameworkIsMixedDestination() async throws {
+    ) func generateBuildPhases_doesntGenerateACopyScript_when_macroFrameworkHasMixedDestinations() async throws {
         // Given
         let app = Target.test(name: "app", destinations: [.iPhone, .mac], product: .app)
         let macroFramework = Target.test(name: "framework", destinations: [.iPhone, .mac], product: .staticFramework)
@@ -2299,9 +2286,7 @@ struct BuildPhaseGeneratorTests {
             .compactMap { $0 as? PBXShellScriptBuildPhase }
             .first(where: { $0.name() == "Copy Swift Macro executable into $BUILT_PRODUCT_DIR" })
 
-        #expect(buildPhase?.outputPaths == ["$(DERIVED_FILE_DIR)/copy-swift-macro.stamp"])
-        #expect(buildPhase?.alwaysOutOfDate == false)
-        #expect(buildPhase?.shellScript?.contains("touch \"$DERIVED_FILE_DIR/copy-swift-macro.stamp\"") == true)
+        #expect(buildPhase == nil)
     }
 
     // MARK: - Helpers

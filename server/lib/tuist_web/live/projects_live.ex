@@ -35,16 +35,21 @@ defmodule TuistWeb.ProjectsLive do
   end
 
   @impl true
-  def handle_params(params, uri, socket) do
+  def handle_params(_params, uri, socket) do
+    params = uri |> Query.query_params() |> Query.clear_cursors_on_initial_load(socket.assigns)
+    uri = URI.parse(uri)
+    uri = %{uri | query: URI.encode_query(params)}
+
     selected_account = socket.assigns[:selected_account]
     total_project_count = Projects.get_project_count_for_account(selected_account)
 
     {:noreply,
      socket
+     |> assign(:current_params, params)
      |> assign(:total_project_count, total_project_count)
      |> assign_projects(params, total_project_count)
      |> assign(:search_term, Map.get(params, "search", ""))
-     |> assign(:uri, URI.parse(uri))}
+     |> assign(:uri, uri)}
   end
 
   defp assign_projects(socket, _params, total_project_count) when total_project_count <= @pagination_threshold do
@@ -331,7 +336,7 @@ defmodule TuistWeb.ProjectsLive do
 
   defp create_project_form(assigns) do
     ~H"""
-    <.form id={@id} for={@form} phx-submit="create-project">
+    <.form id={@id} for={@form} phx-change="validate-project" phx-submit="create-project">
       <.modal
         id={"#{@id}-modal"}
         title={dgettext("dashboard_projects", "Create project")}
@@ -360,6 +365,8 @@ defmodule TuistWeb.ProjectsLive do
             id={"#{@id}-input"}
             field={@form[:name]}
             label={dgettext("dashboard_projects", "Name")}
+            show_required
+            required
           />
           <div style="display: flex; flex-direction: column; gap: var(--noora-spacing-2);">
             <.label
@@ -390,7 +397,11 @@ defmodule TuistWeb.ProjectsLive do
               />
             </:action>
             <:action>
-              <.button label={dgettext("dashboard_projects", "Create")} type="submit" />
+              <.button
+                label={dgettext("dashboard_projects", "Create")}
+                type="submit"
+                form={@id}
+              />
             </:action>
           </.modal_footer>
         </:footer>
@@ -423,6 +434,16 @@ defmodule TuistWeb.ProjectsLive do
 
   def handle_event("select_build_system", %{"value" => [value]}, socket) do
     {:noreply, assign(socket, selected_build_system: value)}
+  end
+
+  def handle_event("validate-project", %{"project" => params}, socket) do
+    form =
+      params
+      |> Project.create_changeset()
+      |> Map.put(:action, :validate)
+      |> to_form()
+
+    {:noreply, assign(socket, form: form)}
   end
 
   def handle_event("create-project", %{"project" => %{"name" => name}}, socket) do

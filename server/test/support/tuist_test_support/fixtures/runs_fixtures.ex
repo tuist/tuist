@@ -13,6 +13,7 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
   alias Tuist.Tests.TestCaseRun
   alias Tuist.Tests.TestCaseRunAttachment
   alias Tuist.Tests.TestCaseRunRepetition
+  alias Tuist.Tests.TestCaseState
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
 
@@ -131,6 +132,7 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
         git_ref: Keyword.get(attrs, :git_ref),
         git_commit_sha: Keyword.get(attrs, :git_commit_sha, "abc123"),
         ran_at: Keyword.get(attrs, :ran_at, NaiveDateTime.utc_now()),
+        inserted_at: Keyword.get(attrs, :inserted_at),
         is_ci: Keyword.get(attrs, :is_ci, false),
         build_run_id: Keyword.get(attrs, :build_run_id),
         gradle_build_id: Keyword.get(attrs, :gradle_build_id),
@@ -195,8 +197,31 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
         true -> "enabled"
       end
 
+    id = Keyword.get_lazy(attrs, :id, fn -> UUIDv7.generate() end)
+    is_flaky = Keyword.get(attrs, :is_flaky, false)
+    inserted_at = Keyword.get(attrs, :inserted_at, NaiveDateTime.utc_now())
+
+    # Seeds `test_case_states` directly, the same shape the seed migration
+    # writes: one row carrying both columns, standing in for history the
+    # materialized view never saw. Fixtures build a test case in a given state
+    # rather than replaying the events that would have got it there, so there
+    # are no events for the view to project. Callers that explicitly ask for
+    # the default values get a row too, since that's how a fixture expresses an
+    # unmute, which has to out-version the earlier row.
+    if Enum.any?([:state, :is_flaky, :is_quarantined], &Keyword.has_key?(attrs, &1)) do
+      IngestRepo.insert_all(TestCaseState, [
+        %{
+          project_id: project_id,
+          test_case_id: id,
+          state: state,
+          is_flaky: is_flaky,
+          inserted_at: inserted_at
+        }
+      ])
+    end
+
     %TestCase{
-      id: Keyword.get_lazy(attrs, :id, fn -> UUIDv7.generate() end),
+      id: id,
       name: Keyword.get(attrs, :name, "testExample"),
       module_name: Keyword.get(attrs, :module_name, "MyTests"),
       suite_name: Keyword.get(attrs, :suite_name, "TestSuite"),
@@ -204,9 +229,9 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
       last_status: Keyword.get(attrs, :last_status, "success"),
       last_duration: Keyword.get(attrs, :last_duration, 100),
       last_ran_at: Keyword.get(attrs, :last_ran_at, NaiveDateTime.utc_now()),
-      is_flaky: Keyword.get(attrs, :is_flaky, false),
+      is_flaky: is_flaky,
       state: state,
-      inserted_at: Keyword.get(attrs, :inserted_at, NaiveDateTime.utc_now()),
+      inserted_at: inserted_at,
       avg_duration: Keyword.get(attrs, :avg_duration, 100)
     }
   end
@@ -320,12 +345,21 @@ defmodule TuistTestSupport.Fixtures.RunsFixtures do
     test_case_event = %{
       id: Keyword.get_lazy(attrs, :id, fn -> UUIDv7.generate() end),
       test_case_id: Keyword.fetch!(attrs, :test_case_id),
+      # Pass `project_id` whenever the test asserts on resolved state. Reads of
+      # `test_case_states` are project-scoped, so a state or flaky event left at
+      # 0 projects a row that `list_test_cases(project.id, ...)` will never
+      # find, and the test case reads back as `enabled` with nothing to debug.
+      # Audit-log-only events (`first_run`) don't project and don't need it.
+      project_id: Keyword.get(attrs, :project_id, 0),
       event_type: Keyword.get(attrs, :event_type, "muted"),
       actor_id: Keyword.get(attrs, :actor_id, nil),
       inserted_at: Keyword.get(attrs, :inserted_at, NaiveDateTime.utc_now())
     }
 
-    {1, _} = IngestRepo.insert_all(TestCaseEvent, [test_case_event])
+    # Not asserted as a single row: state and flaky events also fan out through
+    # `test_case_states_mv` into `test_case_states`, so the write count depends
+    # on the event type.
+    IngestRepo.insert_all(TestCaseEvent, [test_case_event])
 
     test_case_event
   end

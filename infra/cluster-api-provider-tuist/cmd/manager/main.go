@@ -86,6 +86,8 @@ func main() {
 		tartKubeletHostCPU           int
 		tartKubeletHostMemory        int
 		tartKubeletMaxPods           int
+		runnerCacheVolumeGiB         int
+		cacheVolumeMasterCapGiB      int
 		tartKubeletMaxUpdateAttempts int
 		bootstrapRebootAfter         int
 		bootstrapMaxAttempts         int
@@ -171,8 +173,9 @@ func main() {
 	flag.StringVar(&vmKuraEgressCIDR, "vm-kura-egress-cidr",
 		envOrDefault("CAPI_VM_KURA_EGRESS_CIDR", ""),
 		"IPv4 CIDR (the cluster's Service CIDR, e.g. 10.128.0.0/12) the VM "+
-			"egress firewall lets Tart VMs reach on the Kura cache ports "+
-			"4000/50051. Empty keeps the firewall a pure RFC1918 blocklist. "+
+			"egress firewall lets Tart VMs reach on the Kura cache port "+
+			"4000 (co-hosted HTTP + gRPC). Empty keeps the firewall a pure "+
+			"RFC1918 blocklist. "+
 			"Pairs with --tailscale-accept-routes; flows from the chart's "+
 			"macosFleet.vmClusterEgress.kuraServiceCIDR.")
 	flag.StringVar(&vmClusterDNSIP, "vm-cluster-dns-ip",
@@ -198,6 +201,16 @@ func main() {
 			"firewall also lets Tart VMs reach it on the Kubernetes NodePort "+
 			"range only. Flows from the chart's "+
 			"macosFleet.vmCachePrivateNetwork.cidr.")
+	flag.IntVar(&runnerCacheVolumeGiB, "runner-cache-volume-gib", 0,
+		"When > 0, bootstrap provisions a quota-bounded APFS volume of this many GiB on each Mac mini "+
+			"to hold per-account cache-volume images and turns the feature on in tart-kubelet. "+
+			"This quota is the aggregate ceiling for all cache volumes on the host — the filesystem bound "+
+			"that keeps cache volumes from ever starving the VM image path. 0 (default) leaves the feature "+
+			"off. Flows from the chart's macosFleet.runnerCacheVolume.gib.")
+	flag.IntVar(&cacheVolumeMasterCapGiB, "cache-volume-master-cap-gib", 0,
+		"Per-account cache master image cap (GiB) passed to tart-kubelet's --cache-volume-cap-gib. The "+
+			"image is sparse so this is a ceiling, not an allocation. 0 uses tart-kubelet's default (20 GiB). "+
+			"Only meaningful with --runner-cache-volume-gib > 0. Flows from macosFleet.runnerCacheVolume.masterCapGib.")
 	flag.IntVar(&tartKubeletHostCPU, "tartkubelet-host-cpu", 8, "CPU cores tart-kubelet advertises on its Node")
 	flag.IntVar(&tartKubeletHostMemory, "tartkubelet-host-memory-mb", 16384, "Memory MB tart-kubelet advertises on its Node")
 	flag.IntVar(&tartKubeletMaxPods, "tartkubelet-max-pods", 2,
@@ -353,18 +366,25 @@ func main() {
 	// left empty so the hash is identical across the fleet and drift is a
 	// config change, not a host identity. The reconciler stamps it on
 	// each Machine and re-pushes the host config when it moves.
+	vncRelayPort := 0
+	if egressProxyGroup != "" && egressNamespace != "" {
+		vncRelayPort = macos.DashboardVNCRelayPort
+	}
 	hostConfigHash := bootstrap.HostConfigHash(bootstrap.Config{
-		TartKubeletBinary:     tartKubeletBinary,
-		TailscaleBinaries:     tailscaleBinaries,
-		NodeExporterBinary:    nodeExporterBinary,
-		TailscaleTags:         parseCommaList(tailscaleTagsRaw),
-		TailscaleAcceptRoutes: tailscaleAcceptRoutes,
-		VMKuraEgressCIDR:      vmKuraEgressCIDR,
-		VMClusterDNSIP:        vmClusterDNSIP,
-		VMCachePNCIDR:         vmCachePNCIDR,
-		HostCPU:               tartKubeletHostCPU,
-		HostMemoryMB:          tartKubeletHostMemory,
-		MaxPods:               tartKubeletMaxPods,
+		TartKubeletBinary:       tartKubeletBinary,
+		TailscaleBinaries:       tailscaleBinaries,
+		NodeExporterBinary:      nodeExporterBinary,
+		TailscaleTags:           parseCommaList(tailscaleTagsRaw),
+		TailscaleAcceptRoutes:   tailscaleAcceptRoutes,
+		VMKuraEgressCIDR:        vmKuraEgressCIDR,
+		VMClusterDNSIP:          vmClusterDNSIP,
+		VMCachePNCIDR:           vmCachePNCIDR,
+		HostCPU:                 tartKubeletHostCPU,
+		HostMemoryMB:            tartKubeletHostMemory,
+		MaxPods:                 tartKubeletMaxPods,
+		RunnerCacheVolumeGiB:    runnerCacheVolumeGiB,
+		CacheVolumeMasterCapGiB: cacheVolumeMasterCapGiB,
+		VNCRelayPort:            vncRelayPort,
 	})
 	setupLog.Info("computed host config hash", "hash", hostConfigHash)
 
@@ -480,6 +500,8 @@ func main() {
 		TartKubeletHostCPU:           tartKubeletHostCPU,
 		TartKubeletHostMemoryMB:      tartKubeletHostMemory,
 		TartKubeletMaxPods:           tartKubeletMaxPods,
+		RunnerCacheVolumeGiB:         runnerCacheVolumeGiB,
+		CacheVolumeMasterCapGiB:      cacheVolumeMasterCapGiB,
 		TartKubeletMaxUpdateAttempts: int32(tartKubeletMaxUpdateAttempts),
 		BootstrapRebootAfter:         int32(bootstrapRebootAfter),
 		BootstrapMaxAttempts:         int32(bootstrapMaxAttempts),

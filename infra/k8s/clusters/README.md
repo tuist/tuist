@@ -31,10 +31,17 @@ clusters/
 
 | Cluster | CP | Workers |
 |---|---|---|
-| `tuist-staging` | 3× cpx22 | md-0: 2× cpx31 |
-| `tuist-canary` | 3× cpx22 | md-0: 2× cpx32; kura: 3× ccx13 (`pool=kura`) |
-| `tuist` (production) | 3× cpx22 | md-0: 3× ccx23 (`pool=general`); md-processor: 2× cpx62 (`pool=processor`, autoscaled 2→6); kura: 3× ccx13 (`pool=kura`, autoscaled 3→12); kura-us-east: 3× ccx13 in `ash` (`pool=kura-us-east`, autoscaled 3→32); kura-us-west: 3× ccx13 in `hil` (`pool=kura-us-west`, autoscaled 3→12) |
+| `tuist-staging` | 3× cpx22 | md-0: 2× cpx32; md-egress: 2× cpx22 (`pool=egress`, HA stable-egress gateway); kura: 3× ccx13 (`pool=kura`, autoscaled 3→12); runners-linux: bare-metal Robot (`pool=runners-linux`) |
+| `tuist-canary` | 3× cpx22 | md-0: 2× cpx32; md-egress: 2× cpx22 (`pool=egress`, HA stable-egress gateway); kura: 3× ccx13 (`pool=kura`); runners-linux: bare-metal Robot (`pool=runners-linux`) |
+| `tuist` (production) | 3× cpx22 | md-0: 3× ccx23 (`pool=general`); md-egress: 2× cpx22 (`pool=egress`, HA stable-egress gateway); md-processor: 2× cpx62 (`pool=processor`, autoscaled 2→6); kura: 3× ccx13 (`pool=kura`, autoscaled 3→12); kura-us-east: 3× ccx13 in `ash` (`pool=kura-us-east`, autoscaled 3→32); kura-us-west: 3× ccx13 in `hil` (`pool=kura-us-west`, autoscaled 3→12); runners-linux: 2× AX162-R bare-metal Robot in `fsn1` (`pool=runners-linux`) |
 | `tuist-preview` | 1× cpx22 | md-0: 1× cpx42 |
+
+The `md-egress` pool is the HA (≥2 node) stable-egress gateway: the
+production Phoenix server's public egress is SNAT'd through the active
+node's Hetzner Floating IP, with the failover controller keeping the IP +
+active label on one Ready candidate. It exists on staging/canary too so
+the failover path is exercised down the deployment cascade before
+production. See the pool comment in `cluster-production.yaml`.
 
 Variables exposed by the ClusterClass: control plane replicas + machine
 type, per-pool machine type, region (default `fsn1`), SSH key name,

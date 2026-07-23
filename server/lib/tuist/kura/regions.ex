@@ -24,7 +24,7 @@ defmodule Tuist.Kura.Regions do
 
   alias Tuist.Kura.Provisioner.KubernetesController
 
-  defstruct [:id, :display_name, :provisioner, :provisioner_config, :runner_platforms]
+  defstruct [:id, :display_name, :provisioner, :provisioner_config, :runner_platforms, retired: false]
 
   # The local controller region's kind cluster + forwarded port are derived from
   # `TUIST_DEV_INSTANCE` so each worktree is isolated. Worktree
@@ -51,6 +51,11 @@ defmodule Tuist.Kura.Regions do
   # controller's peerPort). Self-hosted nodes dial the public peer host here.
   @peer_port 7443
   @managed_region_storage_class "hcloud-volumes"
+  # In-cluster Service DNS form of a region's per-account instance.
+  # Port 4000 co-hosts the HTTP cache API and REAPI gRPC (h2c) on one
+  # listener. Never CLI-facing — only runner dispatch hands it out
+  # (`Tuist.Kura.runner_cache_endpoint_url/2`).
+  @in_cluster_url_template "http://{instance}.kura.svc.cluster.local:4000"
   # The guaranteed egress floor an enterprise tenant reserves on a shared
   # bare-metal box, requested as the tuist.dev/egress-mbps extended resource the
   # scheduler bin-packs against the node's budget. Uniform across regions — a
@@ -170,16 +175,18 @@ defmodule Tuist.Kura.Regions do
   #
   #   * `scw-fr-par-runners` is pinned to Scaleway fr-par capacity next
   #     to the Apple-Silicon Mac mini fleet, so it serves `:macos` only —
-  #     handing its URL to a Hetzner Linux runner would route cache
-  #     traffic across the WAN, which is worse than the public ingress
-  #     it's meant to replace.
-  #   * `hetzner-staging-runners` lives in the staging umbrella
-  #     cluster's Hetzner (Falkenstein) node pool next to the Linux
-  #     kata Pods, so it serves `:linux` only. The staging Mac minis
-  #     CAN reach it over the tailnet, but they sit in Scaleway fr-par
-  #     — their cache lives in `scw-fr-par-runners`, the same region
-  #     spec production uses, so staging exercises the co-located
-  #     topology rather than a WAN-crossing one.
+  #     handing its URL to a Linux runner would route cache traffic
+  #     across the WAN, which is worse than the public ingress it's
+  #     meant to replace.
+  #
+  # Linux runners have no private cache region. `hetzner-staging-runners`
+  # was one, on the staging cluster's Hetzner node pool, but that pool is
+  # gone: the Kura fleet is bare metal (Dedibox/OVH/Scaleway Elastic
+  # Metal) and staging's Linux runners moved to the `runners-linux` pool.
+  # The spec outlived the pool and kept minting instances that could
+  # never schedule, so it was removed rather than repointed — staging's
+  # Mac minis already exercise the co-located topology through
+  # `scw-fr-par-runners`, the same spec production uses.
   @private_region_specs [
     %{
       id: "scw-fr-par-runners",
@@ -193,6 +200,24 @@ defmodule Tuist.Kura.Regions do
       # installed on the pool out-of-band).
       storage_class: "scw-local-nvme",
       storage_size: "50Gi",
+      # A local-path volume is a directory on the node's shared NVMe, so the claim
+      # above bounds nothing and this pool has been running near 137Gi per account
+      # off Kura's statvfs default. This is the whole per-account disk envelope
+      # (ring + index + upload staging) rather than the ring itself — the ring is
+      # what is left after the reserves, ~137GiB here — so it lands the ring back
+      # on roughly what the pool already holds rather than shrinking a healthy
+      # cache to a claim that never applied. Three accounts leave the ~900G node
+      # about half free;
+      # the box tops out near five, so raising this or adding accounts past that
+      # needs a second box, not a bigger number.
+      #
+      # Kept separate from storage_size because raising the claim is not a no-op:
+      # the controller patches existing PVCs up to spec.storageSize on every
+      # reconcile, and scw-local-nvme sets allowVolumeExpansion: false, so the API
+      # would reject each resize and wedge the instances that already exist. Only
+      # meaningful where the claim is a fiction — leave it unset on a class that
+      # enforces the claim, so the ring stays inside the volume.
+      disk_envelope_size: "150Gi",
       runner_platforms: [:macos],
       # The macOS Tart VMs reach this pool over a Scaleway Private
       # Network, not the cluster's pod network, so cluster Service DNS
@@ -218,14 +243,20 @@ defmodule Tuist.Kura.Regions do
         %{"key" => "tuist.dev/runner-cache", "operator" => "Exists", "effect" => "NoSchedule"}
       ]
     },
+    # A catalog tombstone for runner-cache rows created before the staging
+    # Hetzner runner pool was retired. It is never offered for provisioning,
+    # but keeping the original cluster identity lets the reconciler observe and
+    # delete the old KuraInstance resources instead of failing every tick with
+    # `:not_found` while resolving their stored region.
     %{
       id: "hetzner-staging-runners",
-      display_name: "Hetzner staging (runner cache)",
+      display_name: "Hetzner staging (retired runner cache)",
       cluster_id: "staging",
       node_pool: "kura",
       storage_class: @managed_region_storage_class,
       storage_size: "20Gi",
-      runner_platforms: [:linux]
+      runner_platforms: [:linux],
+      retired: true
     }
   ]
 
@@ -245,7 +276,7 @@ defmodule Tuist.Kura.Regions do
     else
       available_region_ids = MapSet.new(Tuist.Environment.kura_available_region_ids())
 
-      Enum.filter(managed_regions(), &MapSet.member?(available_region_ids, &1.id))
+      Enum.filter(managed_regions(), &(not retired?(&1) and MapSet.member?(available_region_ids, &1.id)))
     end
   end
 
@@ -272,6 +303,22 @@ defmodule Tuist.Kura.Regions do
   """
   def private?(%__MODULE__{provisioner_config: config}), do: config[:private] == true
   def private?(_), do: false
+
+  @doc "True iff the region remains in the catalog only to clean up stored resources."
+  def retired?(%__MODULE__{retired: retired}), do: retired
+  def retired?(_), do: false
+
+  @doc """
+  Ids of regions kept only as catalog tombstones. A tombstone exists so the
+  reconciler can still resolve a stored server's cluster identity long enough
+  to tear its resources down; servers left in one can never schedule, because
+  the node pool the tombstone names is gone.
+  """
+  def retired_ids do
+    all()
+    |> Enum.filter(&retired?/1)
+    |> Enum.map(& &1.id)
+  end
 
   @doc """
   True iff this private region's runner fleet dials a node-published
@@ -320,6 +367,8 @@ defmodule Tuist.Kura.Regions do
   platform, so a region pinned next to one fleet can't leak its
   in-cluster URL to a fleet on the wrong side of a WAN.
   """
+  def serves_runner_platform?(%__MODULE__{retired: true}, _platform), do: false
+
   def serves_runner_platform?(%__MODULE__{runner_platforms: platforms}, platform) when is_list(platforms) do
     platform in platforms
   end
@@ -366,6 +415,7 @@ defmodule Tuist.Kura.Regions do
         cluster_id: spec.cluster_id,
         hetzner_location: Map.get(spec, :hetzner_location),
         public_host_template: String.replace(@managed_region_public_host_template, "{env_suffix}", host_suffix),
+        private_url_template: @in_cluster_url_template,
         grpc_public_host_template: String.replace(@managed_region_grpc_public_host_template, "{env_suffix}", host_suffix),
         peer_public_host_template: String.replace(@managed_region_peer_public_host_template, "{env_suffix}", host_suffix),
         ingress_class_name: spec.ingress_class_name,
@@ -381,6 +431,7 @@ defmodule Tuist.Kura.Regions do
         # + a bounded storage_size.
         replicas: Map.get(spec, :replicas),
         storage_size: Map.get(spec, :storage_size),
+        disk_envelope_size: Map.get(spec, :disk_envelope_size),
         tuist_base_url: Tuist.Environment.kura_tuist_base_url(),
         node_selector: %{@managed_region_node_pool_label => spec.node_pool},
         # Tolerate the customer-facing cache nodes' taint so the cache pod
@@ -388,7 +439,6 @@ defmodule Tuist.Kura.Regions do
         tolerations: [
           %{"key" => "tuist.dev/kura-cache", "operator" => "Exists", "effect" => "NoSchedule"}
         ],
-        dedicated_gateway_account_handles: Tuist.Environment.kura_dedicated_gateway_account_handles(),
         # Per-pod egress governance on the shared bare-metal boxes: every
         # tenant gets the Cilium burst ceiling (a pod annotation); enterprise
         # tenants additionally reserve egress_guaranteed_mbps as a bin-packed
@@ -434,6 +484,7 @@ defmodule Tuist.Kura.Regions do
       id: spec.id,
       display_name: spec.display_name,
       runner_platforms: spec.runner_platforms,
+      retired: Map.get(spec, :retired, false),
       provisioner: KubernetesController,
       provisioner_config: %{
         cluster_id: spec.cluster_id,
@@ -442,7 +493,7 @@ defmodule Tuist.Kura.Regions do
         # interpolates to `instance_name(handle, region)`. Node-port
         # regions don't use it for dispatch but keep it as the
         # in-cluster debugging path.
-        private_url_template: "http://{instance}.kura.svc.cluster.local:4000",
+        private_url_template: @in_cluster_url_template,
         data_plane: Map.get(spec, :data_plane, :cluster_dns),
         client_cidrs: Map.get(spec, :client_cidrs, []),
         pod_annotations: Map.get(spec, :pod_annotations, %{}),
@@ -450,6 +501,7 @@ defmodule Tuist.Kura.Regions do
         node_selector: %{@managed_region_node_pool_label => spec.node_pool},
         storage_class: spec.storage_class,
         storage_size: spec.storage_size,
+        disk_envelope_size: Map.get(spec, :disk_envelope_size),
         replicas: 1,
         tuist_base_url: Tuist.Environment.kura_tuist_base_url(),
         # The runner-cache node replicates with the account's other nodes
@@ -479,7 +531,15 @@ defmodule Tuist.Kura.Regions do
         otlp_traces_endpoint: "http://127.0.0.1:4318/v1/traces",
         public_url: "http://localhost:#{@local_controller_kura_base_port + suffix}",
         replicas: 1,
-        storage_size: "10Gi"
+        storage_size: "10Gi",
+        # kind's local-path volumes bound nothing, so without an envelope Kura
+        # would fall back to statvfs and size the ring at half the developer's
+        # own disk. 10Gi cannot carry one: the reserves plus Kura's ring floor
+        # need ~11GiB, so a budget derived from it would be raised to the floor
+        # and silently overrun the claim. Declare the envelope the dev cache is
+        # actually allowed instead, on the claim rather than in it, since
+        # local-path rejects the expansion a bigger storage_size would trigger.
+        disk_envelope_size: "12Gi"
       }
     }
   end

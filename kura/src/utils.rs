@@ -265,6 +265,76 @@ pub fn segment_artifact_index_prefix(segment_id: &str) -> String {
     format!("{segment_id}\0")
 }
 
+/// Row key in the action-cache index CF. The version is stored bitwise-NOT
+/// big-endian so a forward prefix scan yields entries newest-first and can
+/// stop at the snapshot's entry cap without sorting. The action hash keeps
+/// same-millisecond rows distinct; the row value is the artifact id.
+pub fn action_cache_index_key(
+    namespace_id: &str,
+    version_ms: u64,
+    action_hash: &str,
+    branch: Option<&str>,
+) -> Vec<u8> {
+    let branch = branch.unwrap_or_default();
+    let mut key =
+        Vec::with_capacity(namespace_id.len() + 1 + 8 + action_hash.len() + 1 + branch.len());
+    key.extend_from_slice(namespace_id.as_bytes());
+    key.push(0);
+    key.extend_from_slice(&(!version_ms).to_be_bytes());
+    key.extend_from_slice(action_hash.as_bytes());
+    // Always written, so an untagged row is distinguishable from one written
+    // before the branch was recorded at all.
+    key.push(0);
+    key.extend_from_slice(branch.as_bytes());
+    key
+}
+
+/// What an index row knows about its entry's branch, so a trunk-scoped scan can
+/// answer the filter from the row itself.
+pub enum IndexRowBranch<'a> {
+    /// Written before the branch was recorded in the key. Only the manifest
+    /// knows, and reading it is the cost the tag exists to avoid.
+    Unknown,
+    /// The entry's tag, `None` for an untagged entry.
+    Known(Option<&'a str>),
+}
+
+/// The branch a row carries, read out of its key.
+///
+/// It rides in the KEY rather than the value, which is what makes it invisible to
+/// a node that predates it: that reader takes only `[prefix .. prefix + 8]` (the
+/// version) out of the key and never parses the rest, and reads the artifact id
+/// from the value, which is unchanged. So an older binary reading these rows finds
+/// them intact. Putting it in the value instead would make every row look like a
+/// dangling artifact id to that binary, which retires unreadable rows as stale, so
+/// a rollback would delete the index it was meant to keep working against.
+pub fn action_cache_index_key_branch(index_key: &[u8], prefix_len: usize) -> IndexRowBranch<'_> {
+    let Some(tail) = index_key.get(prefix_len + 8..) else {
+        return IndexRowBranch::Unknown;
+    };
+    // The action hash is hex, so the first NUL after it opens the branch.
+    let Some(split) = tail.iter().position(|byte| *byte == 0) else {
+        return IndexRowBranch::Unknown;
+    };
+    match std::str::from_utf8(&tail[split + 1..]) {
+        Ok(branch) => IndexRowBranch::Known((!branch.is_empty()).then_some(branch)),
+        Err(_) => IndexRowBranch::Unknown,
+    }
+}
+
+pub fn action_cache_index_prefix(namespace_id: &str) -> Vec<u8> {
+    let mut prefix = Vec::with_capacity(namespace_id.len() + 1);
+    prefix.extend_from_slice(namespace_id.as_bytes());
+    prefix.push(0);
+    prefix
+}
+
+/// The action hash of a REAPI action-cache manifest key
+/// (`action_cache/{hash}`), `None` for every other artifact.
+pub fn action_cache_manifest_hash(key: &str) -> Option<&str> {
+    key.strip_prefix("action_cache/")?.split('/').next()
+}
+
 pub fn now_ms() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)

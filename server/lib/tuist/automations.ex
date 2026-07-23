@@ -21,7 +21,12 @@ defmodule Tuist.Automations do
   @max_dispatch_depth 10
   @dispatch_depth_key :tuist_automation_dispatch_depth
   @flaky_monitor_types ~w(flakiness_rate flaky_run_count reliability_rate)
-  @scoped_evaluation_chunk_size 1000
+  # Changed test cases are returned in the rolling aggregate table's primary-key
+  # order. Splitting that ordered list into several bounded ranges lets
+  # ClickHouse prune the granules between ranges instead of treating a sparse
+  # project-wide identifier set as one scan.
+  @max_scoped_evaluation_range_size 2000
+  @minimum_scoped_evaluation_ranges 4
 
   def list_alerts(project_id) do
     Alert
@@ -156,21 +161,35 @@ defmodule Tuist.Automations do
           )
         )
 
-      Enum.each(alerts, &enqueue_scoped_alert_evaluation/1)
+      alerts
+      |> Enum.filter(&Alert.scoped_evaluation?/1)
+      |> Enum.group_by(&Alert.cadence_seconds(&1.cadence))
+      |> Enum.each(fn {_cadence_seconds, [alert | _alerts]} ->
+        enqueue_scoped_alert_evaluation(alert)
+      end)
 
       :ok
     end
   end
 
   def enqueue_scoped_alert_evaluation(%Alert{} = alert, opts \\ []) do
-    schedule_in = Keyword.get(opts, :schedule_in, alert_evaluation_schedule_in())
+    schedule_in =
+      Keyword.get(
+        opts,
+        :schedule_in,
+        max(alert_evaluation_schedule_in(), Alert.cadence_seconds(alert.cadence))
+      )
 
     {:ok, _job} =
-      %{alert_id: alert.id, evaluate_recent_test_case_runs: true}
+      %{
+        project_id: alert.project_id,
+        cadence_seconds: Alert.cadence_seconds(alert.cadence),
+        evaluate_recent_test_case_runs: true
+      }
       |> AlertEvaluationWorker.new(
         schedule_in: schedule_in,
         unique: [
-          keys: [:alert_id, :evaluate_recent_test_case_runs],
+          keys: [:project_id, :cadence_seconds, :evaluate_recent_test_case_runs],
           period: :infinity,
           states: [:available, :scheduled]
         ]
@@ -181,12 +200,23 @@ defmodule Tuist.Automations do
   end
 
   def recent_test_case_run_changes_for_alert(%Alert{} = alert) do
-    since = scoped_evaluation_query_since(alert)
+    recent_test_case_run_changes(alert.project_id, scoped_evaluation_query_since(alert))
+  end
 
+  def recent_test_case_run_changes_for_alerts([%Alert{} = alert | _alerts] = alerts) do
+    since =
+      alerts
+      |> Enum.map(&scoped_evaluation_query_since/1)
+      |> Enum.min(DateTime)
+
+    recent_test_case_run_changes(alert.project_id, since)
+  end
+
+  defp recent_test_case_run_changes(project_id, since) do
     rows =
       ClickHouseRepo.all(
         from(r in {"test_case_runs_by_inserted_at", TestCaseRun},
-          where: r.project_id == ^alert.project_id,
+          where: r.project_id == ^project_id,
           where: not is_nil(r.test_case_id),
           where: r.inserted_at >= ^DateTime.to_naive(since),
           group_by: r.test_case_id,
@@ -216,12 +246,50 @@ defmodule Tuist.Automations do
   end
 
   def update_alert_scoped_evaluation_cursor(%Alert{} = alert, cursor) do
+    cursor = later_cursor(alert.last_scoped_evaluation_inserted_at, cursor)
+
     alert
     |> Ecto.Changeset.change(last_scoped_evaluation_inserted_at: cursor)
     |> Repo.update()
   end
 
-  def scoped_evaluation_chunk_size, do: @scoped_evaluation_chunk_size
+  def advance_alert_scoped_evaluation_cursors(alerts, cursor) do
+    alert_ids = Enum.map(alerts, & &1.id)
+    now = DateTime.utc_now(:second)
+
+    {updated_count, nil} =
+      Alert
+      |> where([alert], alert.id in ^alert_ids)
+      |> update(
+        [alert],
+        set: [
+          last_scoped_evaluation_inserted_at:
+            fragment(
+              "GREATEST(COALESCE(?, ?), ?)",
+              alert.last_scoped_evaluation_inserted_at,
+              ^cursor,
+              ^cursor
+            ),
+          updated_at: ^now
+        ]
+      )
+      |> Repo.update_all([])
+
+    {:ok, updated_count}
+  end
+
+  def scoped_evaluation_ranges([]), do: []
+
+  def scoped_evaluation_ranges(test_case_ids) do
+    range_size =
+      test_case_ids
+      |> length()
+      |> div(@minimum_scoped_evaluation_ranges)
+      |> max(1)
+      |> min(@max_scoped_evaluation_range_size)
+
+    Enum.chunk_every(test_case_ids, range_size)
+  end
 
   defp alert_evaluation_schedule_in do
     div(Environment.clickhouse_flush_interval_ms(), 1000) + 1
@@ -237,6 +305,12 @@ defmodule Tuist.Automations do
 
   defp scoped_evaluation_cursor_lookback_seconds do
     max(alert_evaluation_schedule_in(), 10)
+  end
+
+  defp later_cursor(nil, cursor), do: cursor
+
+  defp later_cursor(current_cursor, cursor) do
+    Enum.max([current_cursor, cursor], DateTime)
   end
 
   defp latest_inserted_at_cursor([]), do: nil

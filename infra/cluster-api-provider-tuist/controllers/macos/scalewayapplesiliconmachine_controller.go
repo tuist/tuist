@@ -46,6 +46,11 @@ const (
 	// BootstrappedCondition is macOS-specific (the tart-kubelet SSH bootstrap
 	// step); the cross-cutting shared.ProvisionedCondition lives in the shared package.
 	BootstrappedCondition clusterv1.ConditionType = "Bootstrapped"
+
+	// DashboardVNCRelayPort is the stable host-side port tart-kubelet
+	// advertises for dashboard VNC sessions through the per-Mac Tailscale
+	// egress Service.
+	DashboardVNCRelayPort = 5900
 )
 
 // ScalewayAppleSiliconMachineReconciler reconciles ScalewayAppleSiliconMachine objects.
@@ -161,6 +166,15 @@ type ScalewayAppleSiliconMachineReconciler struct {
 	TartKubeletHostMemoryMB int
 	TartKubeletMaxPods      int
 
+	// RunnerCacheVolumeGiB / CacheVolumeMasterCapGiB turn on per-account
+	// cache volumes on the Mac fleet: bootstrap provisions a
+	// quota-bounded APFS volume of RunnerCacheVolumeGiB and passes
+	// --runner-cache-root (+ optional per-master cap) to tart-kubelet. 0
+	// leaves the feature off. See the bootstrap.Config fields of the same
+	// names.
+	RunnerCacheVolumeGiB    int
+	CacheVolumeMasterCapGiB int
+
 	// TartKubeletMaxUpdateAttempts caps how many times the drift loop
 	// retries a failing UpdateTartKubelet before transitioning the CR
 	// to a terminal Failed state. Without a cap the operator
@@ -264,6 +278,10 @@ func (r *ScalewayAppleSiliconMachineReconciler) Reconcile(ctx context.Context, r
 	machine := &infrav1.ScalewayAppleSiliconMachine{}
 	if getErr := r.Get(ctx, req.NamespacedName, machine); getErr != nil {
 		if apierrors.IsNotFound(getErr) {
+			// CR is gone; drop its phase series so a deleted machine
+			// stops emitting a phantom phase (and never alerts on a
+			// stale Failed).
+			forgetMachinePhase(req.Name)
 			return ctrl.Result{}, nil
 		}
 		return ctrl.Result{}, getErr
@@ -278,6 +296,13 @@ func (r *ScalewayAppleSiliconMachineReconciler) Reconcile(ctx context.Context, r
 			err = patchErr
 		}
 	}()
+
+	// Publish the phase this reconcile leaves the machine in, so a host
+	// stuck terminal Failed (TartKubeletUpdateExceededRetries) is alertable
+	// instead of only visible via `kubectl get machine`. Deferred so it
+	// reads the final status set below (including the delete path's
+	// Deleting; the NotFound branch above forgets it once fully gone).
+	defer recordMachinePhase(machine)
 
 	// Resolve the parent CAPI Machine, if there is one. The chart
 	// renders MachineDeployment → MachineSet → Machine →
@@ -587,32 +612,38 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 				clusterv1.ConditionSeverityWarning, "%v", err)
 			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 		}
+		vncRelayHost := r.dashboardVNCRelayHost(machine.Name)
+		vncRelayPort := r.dashboardVNCRelayPort()
 
 		fingerprint, err := bootstrap.Run(ctx, bootstrap.Config{
-			IP:                    ip,
-			SSHUser:               bootstrapCreds.SSHUsername,
-			UserPassword:          bootstrapCreds.SudoPassword,
-			SSHPrivateKey:         sshKey,
-			NodeName:              machine.Name,
-			ProviderID:            providerIDOf(machine),
-			Kubeconfig:            kubeconfigYAML,
-			TartKubeletBinary:     r.TartKubeletBinary,
-			TartTarball:           r.TartTarball,
-			TailscaleBinaries:     r.TailscaleBinaries,
-			TailscaleAuthKey:      tailscaleAuthKey,
-			TailscaleTags:         r.TailscaleTags,
-			TailscaleAcceptRoutes: r.TailscaleAcceptRoutes,
-			VMKuraEgressCIDR:      r.VMKuraEgressCIDR,
-			VMClusterDNSIP:        r.VMClusterDNSIP,
-			VMCachePNCIDR:         r.VMCachePNCIDR,
-			VMCachePNVLAN:         vmCachePNVLAN,
-			NodeExporterBinary:    r.NodeExporterBinary,
-			HostCPU:               hostCPUFor(machine, r.TartKubeletHostCPU),
-			HostMemoryMB:          hostMemoryMBFor(machine, r.TartKubeletHostMemoryMB),
-			MaxPods:               r.TartKubeletMaxPods,
-			NodeLabels:            machineNodeLabels(machine),
-			KnownHostFingerprint:  bootstrapCreds.HostFingerprint,
-			GHActionsRunner:       ghRunner,
+			IP:                      ip,
+			SSHUser:                 bootstrapCreds.SSHUsername,
+			UserPassword:            bootstrapCreds.SudoPassword,
+			SSHPrivateKey:           sshKey,
+			NodeName:                machine.Name,
+			ProviderID:              providerIDOf(machine),
+			Kubeconfig:              kubeconfigYAML,
+			TartKubeletBinary:       r.TartKubeletBinary,
+			TartTarball:             r.TartTarball,
+			TailscaleBinaries:       r.TailscaleBinaries,
+			TailscaleAuthKey:        tailscaleAuthKey,
+			TailscaleTags:           r.TailscaleTags,
+			TailscaleAcceptRoutes:   r.TailscaleAcceptRoutes,
+			VMKuraEgressCIDR:        r.VMKuraEgressCIDR,
+			VMClusterDNSIP:          r.VMClusterDNSIP,
+			VMCachePNCIDR:           r.VMCachePNCIDR,
+			VMCachePNVLAN:           vmCachePNVLAN,
+			NodeExporterBinary:      r.NodeExporterBinary,
+			HostCPU:                 hostCPUFor(machine, r.TartKubeletHostCPU),
+			HostMemoryMB:            hostMemoryMBFor(machine, r.TartKubeletHostMemoryMB),
+			MaxPods:                 r.TartKubeletMaxPods,
+			RunnerCacheVolumeGiB:    r.RunnerCacheVolumeGiB,
+			CacheVolumeMasterCapGiB: r.CacheVolumeMasterCapGiB,
+			VNCRelayHost:            vncRelayHost,
+			VNCRelayPort:            vncRelayPort,
+			NodeLabels:              machineNodeLabels(machine),
+			KnownHostFingerprint:    bootstrapCreds.HostFingerprint,
+			GHActionsRunner:         ghRunner,
 		})
 		// Persist whatever fingerprint Run captured even on the error
 		// path, so a transient bootstrap failure doesn't lose the
@@ -664,6 +695,25 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 	// without operator action. Recovery: clear FailureReason +
 	// reset TartKubeletUpdateAttempts to resume the loop.
 	terminalFailure := machine.Status.FailureReason != nil
+	// Self-heal on config change: a terminal failure is a verdict on the
+	// config the operator was trying to push when it exhausted its retries. If
+	// the desired host config differs from the one that failed, a new —
+	// typically fixed — config has landed, and it deserves its own retry budget
+	// rather than inheriting the old config's verdict. Clearing the terminal
+	// state here makes pushing a corrected operator image self-heal every host
+	// a bad rollout bricked, instead of requiring a manual status patch per host.
+	//
+	// Crucially, this compares the desired hash against the recorded FAILED
+	// hash, NOT the last-applied Status.HostConfigHash. A broken config can
+	// never be applied, so Status.HostConfigHash never advances to it and plain
+	// drift stays true forever — comparing against it would reset the retry cap
+	// every reconcile and hammer the same broken config indefinitely, defeating
+	// the cap. Against the failed hash, an unchanged broken config stays
+	// terminal while a genuinely new config retries.
+	if shouldClearTerminalFailure(r.HostConfigHash, machine.Status.FailedHostConfigHash, terminalFailure) {
+		clearUpdateFailure(machine, logger, r.Recorder)
+		terminalFailure = false
+	}
 	if configDrift && !terminalFailure {
 		ip := machineIP(machine)
 		if ip == "" {
@@ -671,7 +721,7 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 		}
 		identity, err := r.CredentialsManager.EnsureNodeIdentity(ctx, machine.Name, "")
 		if err != nil {
-			recordUpdateFailure(machine, fmt.Errorf("ensure node identity: %w", err), r.TartKubeletMaxUpdateAttempts, logger, r.Recorder)
+			recordUpdateFailure(machine, fmt.Errorf("ensure node identity: %w", err), r.TartKubeletMaxUpdateAttempts, r.HostConfigHash, logger, r.Recorder)
 			if machine.Status.FailureReason != nil {
 				return ctrl.Result{}, nil
 			}
@@ -679,7 +729,7 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 		}
 		kubeconfigYAML, err := r.Kubeconfig.Render(ctx, machine.Name, identity.Token, identity.CA)
 		if err != nil {
-			recordUpdateFailure(machine, fmt.Errorf("render kubeconfig: %w", err), r.TartKubeletMaxUpdateAttempts, logger, r.Recorder)
+			recordUpdateFailure(machine, fmt.Errorf("render kubeconfig: %w", err), r.TartKubeletMaxUpdateAttempts, r.HostConfigHash, logger, r.Recorder)
 			if machine.Status.FailureReason != nil {
 				return ctrl.Result{}, nil
 			}
@@ -693,7 +743,7 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 		// way to keep the plist render correct.
 		tailscaleAuthKey, err := r.CredentialsManager.GetTailscaleAuthKey(ctx)
 		if err != nil {
-			recordUpdateFailure(machine, fmt.Errorf("get tailscale auth key: %w", err), r.TartKubeletMaxUpdateAttempts, logger, r.Recorder)
+			recordUpdateFailure(machine, fmt.Errorf("get tailscale auth key: %w", err), r.TartKubeletMaxUpdateAttempts, r.HostConfigHash, logger, r.Recorder)
 			if machine.Status.FailureReason != nil {
 				return ctrl.Result{}, nil
 			}
@@ -708,8 +758,15 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			logger.Error(err, "resolve cache private network VLAN; continuing drift update without interface management")
 			vmCachePNVLAN = 0
 		}
+		vncRelayHost := r.dashboardVNCRelayHost(machine.Name)
+		vncRelayPort := r.dashboardVNCRelayPort()
 
-		fingerprint, err := bootstrap.UpdateTartKubelet(ctx, bootstrap.Config{
+		// The drift update dials the mini's public IP first (see the
+		// tailnet fallback right after this call). cfg.IP is a pure dial
+		// target on the update path — HostConfigHash strips it and nothing
+		// else reads it — so the fallback re-points it without changing
+		// what we push.
+		updateCfg := bootstrap.Config{
 			IP:                ip,
 			SSHUser:           bootstrapCreds.SSHUsername,
 			SSHPrivateKey:     sshKey,
@@ -742,7 +799,18 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			HostCPU:            hostCPUFor(machine, r.TartKubeletHostCPU),
 			HostMemoryMB:       hostMemoryMBFor(machine, r.TartKubeletHostMemoryMB),
 			MaxPods:            r.TartKubeletMaxPods,
-			NodeLabels:         machineNodeLabels(machine),
+			// Per-account cache volumes must ride the drift loop
+			// too: the volume flag + provisioning land on already-bootstrapped
+			// minis via UpdateTartKubelet, not first-boot Run. Omitting these
+			// left the plist without --runner-cache-root (tart-kubelet booted
+			// every VM cold) and skipped installRunnerCacheVolume, while the
+			// operator's canonical HostConfigHash still reflected the enabled
+			// config — so the roll looked applied but the feature was off.
+			RunnerCacheVolumeGiB:    r.RunnerCacheVolumeGiB,
+			CacheVolumeMasterCapGiB: r.CacheVolumeMasterCapGiB,
+			VNCRelayHost:            vncRelayHost,
+			VNCRelayPort:            vncRelayPort,
+			NodeLabels:              machineNodeLabels(machine),
 			// Builder hosts must keep `--disable-vm-gc` across binary
 			// rolls. This path re-renders the plist but doesn't re-resolve
 			// GHActionsRunner (which renderLaunchdPlist otherwise keys the
@@ -751,14 +819,40 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileNormal(
 			// in-flight image-bake VM mid-`tart push`.
 			DisableVMGC:          machine.Spec.GHActionsRunner != nil,
 			KnownHostFingerprint: bootstrapCreds.HostFingerprint,
-		})
+		}
+		fingerprint, err := bootstrap.UpdateTartKubelet(ctx, updateCfg)
+		// Tailnet fallback. A running runner mini filters inbound :22 on
+		// its public interface once Internet Sharing / vmnet reconfigures
+		// the public path (it starts booting Tart VMs), so the public dial
+		// times out and the whole fleet's rolls wedge — while the host
+		// stays reachable on the tailnet (that's how its metrics are
+		// scraped). An empty fingerprint means the SSH handshake never
+		// completed (a pure connect failure, distinct from a mid-session
+		// command error), so retry over the mini's egress-Service DNS,
+		// which routes through the ProxyGroup. Public-first keeps the
+		// common path fast and lets the tailscale reinstall run on a
+		// transport it can safely restart; the fallback sets
+		// SkipTailscaleInstall because stopping tailscaled to swap its
+		// binary would drop the very tunnel this session rides. Fresh /
+		// idle minis (public open) never reach the fallback, so this never
+		// races egress-Service creation (Stage 4) — by the time a mini's
+		// public path is filtered its Service has long existed.
+		if err != nil && fingerprint == "" {
+			if egressHost := r.egressHost(machine.Name); egressHost != "" && egressHost != ip {
+				logger.Info("public-IP tart-kubelet update dial failed; retrying over the tailnet",
+					"machine", machine.Name, "egressHost", egressHost, "cause", err.Error())
+				updateCfg.IP = egressHost
+				updateCfg.SkipTailscaleInstall = true
+				fingerprint, err = bootstrap.UpdateTartKubelet(ctx, updateCfg)
+			}
+		}
 		if fingerprint != "" && fingerprint != bootstrapCreds.HostFingerprint {
 			if perr := r.CredentialsManager.SetMachineHostFingerprint(ctx, machine.Name, fingerprint); perr != nil {
 				logger.Error(perr, "persist host fingerprint on update; will retry")
 			}
 		}
 		if err != nil {
-			recordUpdateFailure(machine, fmt.Errorf("tart-kubelet update: %w", err), r.TartKubeletMaxUpdateAttempts, logger, r.Recorder)
+			recordUpdateFailure(machine, fmt.Errorf("tart-kubelet update: %w", err), r.TartKubeletMaxUpdateAttempts, r.HostConfigHash, logger, r.Recorder)
 			if machine.Status.FailureReason != nil {
 				return ctrl.Result{}, nil
 			}
@@ -964,6 +1058,11 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileTailscaleEgressService(
 		svc.Labels["app.kubernetes.io/component"] = "macmini-egress"
 		svc.Labels["tuist.dev/macmini-egress"] = "true"
 		svc.Labels["tuist.dev/macmini-machine"] = machine.Name
+		if machine.Spec.FleetName != "" {
+			svc.Labels["tuist.dev/fleet"] = machine.Spec.FleetName
+		} else {
+			delete(svc.Labels, "tuist.dev/fleet")
+		}
 
 		if svc.Annotations == nil {
 			svc.Annotations = map[string]string{}
@@ -980,17 +1079,57 @@ func (r *ScalewayAppleSiliconMachineReconciler) reconcileTailscaleEgressService(
 		if svc.Spec.ExternalName == "" {
 			svc.Spec.ExternalName = "placeholder." + r.EgressNamespace + ".svc.cluster.local"
 		}
-		// Two named ports — alloy-metrics filters on port_name to
-		// dispatch each to the right scrape job (see
+		// Named ports the ProxyGroup forwards to the mini over the
+		// tailnet. alloy-metrics filters on port_name to dispatch the
+		// scrape ports (9100/8080) to the right job (see
 		// infra/helm/k8s-monitoring/values.yaml's
-		// collectors.alloy-metrics.extraConfig).
+		// collectors.alloy-metrics.extraConfig); vnc-relay fronts the
+		// dashboard; ssh (:22) carries the tart-kubelet drift update, so
+		// the operator can roll host config over the tailnet when the
+		// mini's public :22 is filtered (see the update path above). The
+		// tailnet ACL must also grant tcp:22 from tag:tuist-k8s-<env> to
+		// tag:tuist-macmini-<env> (infra/tailscale/acls.json).
+		// pod-metrics (:9091) reaches tart-kubelet's host-side metrics
+		// forwarder, which proxies to the Tart guest's PromEx endpoint.
+		// It has to come through this egress like every other mini port:
+		// the cluster CNI installs no route for 100.64.0.0/10, so a
+		// generic Pod cannot dial a mini's tailnet IPv4 directly. Alloy
+		// was discovering the xcresult-processor Pods by annotation and
+		// scraping their CGNAT address, which fails on every attempt
+		// (`up == 0` on every Tart node, in all three environments).
 		svc.Spec.Ports = []corev1.ServicePort{
 			{Name: "node-exporter", Port: 9100, Protocol: corev1.ProtocolTCP},
 			{Name: "tart-kubelet", Port: 8080, Protocol: corev1.ProtocolTCP},
+			{Name: "pod-metrics", Port: 9091, Protocol: corev1.ProtocolTCP},
+			{Name: "vnc-relay", Port: DashboardVNCRelayPort, Protocol: corev1.ProtocolTCP},
+			{Name: "ssh", Port: 22, Protocol: corev1.ProtocolTCP},
 		}
 		return nil
 	})
 	return err
+}
+
+// egressHost is the in-cluster DNS name of a mini's tailnet egress
+// Service (reconcileTailscaleEgressService). Resolving it routes any
+// cluster Pod to the mini over the ProxyGroup's tailnet identity, on the
+// ports the Service declares. Empty when the tailnet egress is disabled
+// (OSS / self-hosted), so callers fall back to the public IP.
+func (r *ScalewayAppleSiliconMachineReconciler) egressHost(machineName string) string {
+	if r.EgressProxyGroup == "" || r.EgressNamespace == "" {
+		return ""
+	}
+	return fmt.Sprintf("%s.%s.svc.cluster.local", machineName, r.EgressNamespace)
+}
+
+func (r *ScalewayAppleSiliconMachineReconciler) dashboardVNCRelayHost(machineName string) string {
+	return r.egressHost(machineName)
+}
+
+func (r *ScalewayAppleSiliconMachineReconciler) dashboardVNCRelayPort() int {
+	if r.EgressProxyGroup == "" || r.EgressNamespace == "" {
+		return 0
+	}
+	return DashboardVNCRelayPort
 }
 
 // hostConfigDrift reports whether the host config the operator would
@@ -1002,15 +1141,30 @@ func hostConfigDrift(operatorHash, machineHash string) bool {
 	return operatorHash != "" && machineHash != operatorHash
 }
 
+// shouldClearTerminalFailure reports whether a terminal tart-kubelet-update
+// failure should be cleared so the drift loop retries. It clears only when the
+// operator's desired config differs from the one that exhausted its retry
+// budget (failedHash) — NOT from the last successfully applied hash. A broken
+// config can never be applied, so the applied hash never advances to it and a
+// desired-vs-applied comparison would report drift forever, resetting the cap
+// on every reconcile and retrying the same broken config indefinitely. Keyed on
+// the failed hash instead, an unchanged broken config keeps its terminal state
+// while a genuinely new (typically fixed) config gets a fresh budget.
+func shouldClearTerminalFailure(desiredHash, failedHash string, terminalFailure bool) bool {
+	return terminalFailure && desiredHash != "" && desiredHash != failedHash
+}
+
 // recordUpdateFailure increments the drift-loop retry counter and,
 // once it crosses maxAttempts, flips the CR into a terminal Failed
 // state. The counter is reset on successful UpdateTartKubelet. We
 // don't try to be clever about which step in the loop failed; from
 // the CR's perspective, any failure that prevents the kubeconfig
-// landing on the host counts the same. Recovery is operator-driven:
-// `kubectl patch` to clear status.failureReason + zero
-// status.tartKubeletUpdateAttempts and the loop resumes.
-func recordUpdateFailure(machine *infrav1.ScalewayAppleSiliconMachine, err error, maxAttempts int32, logger logr.Logger, recorder record.EventRecorder) {
+// landing on the host counts the same. Recovery is automatic once the
+// operator's desired host config drifts (a new/fixed config is pushed —
+// see clearUpdateFailure), or operator-driven before then: `kubectl patch`
+// to clear status.failureReason + zero status.tartKubeletUpdateAttempts and
+// the loop resumes.
+func recordUpdateFailure(machine *infrav1.ScalewayAppleSiliconMachine, err error, maxAttempts int32, operatorHash string, logger logr.Logger, recorder record.EventRecorder) {
 	machine.Status.TartKubeletUpdateAttempts++
 	logger.Error(err, "tart-kubelet update step failed",
 		"attempt", machine.Status.TartKubeletUpdateAttempts,
@@ -1021,6 +1175,11 @@ func recordUpdateFailure(machine *infrav1.ScalewayAppleSiliconMachine, err error
 			machine.Status.TartKubeletUpdateAttempts, err)
 		machine.Status.FailureReason = &reason
 		machine.Status.FailureMessage = &msg
+		// Record the desired config that exhausted its budget so the
+		// self-heal only fires for a genuinely different config, not the same
+		// broken one (whose HostConfigHash never advances because it can't be
+		// applied) on every subsequent reconcile.
+		machine.Status.FailedHostConfigHash = operatorHash
 		machine.Status.Phase = "Failed"
 		recorder.Eventf(machine, corev1.EventTypeWarning, reason, "%s", msg)
 		logger.Error(err, "tart-kubelet update permanently failed; CR transitioned to Failed",
@@ -1030,6 +1189,30 @@ func recordUpdateFailure(machine *infrav1.ScalewayAppleSiliconMachine, err error
 	recorder.Eventf(machine, corev1.EventTypeWarning, "AgentRollFailed",
 		"tart-kubelet update attempt %d/%d: %v",
 		machine.Status.TartKubeletUpdateAttempts, maxAttempts, err)
+}
+
+// clearUpdateFailure resets the drift-loop retry counter and lifts the
+// terminal Failed state so the loop resumes. Called when the operator's
+// desired host config has drifted since the failure was recorded: the new
+// config is a fresh target (typically a fix) that deserves its own retry
+// budget rather than the old config's terminal verdict, so a bad rollout
+// self-heals on the next config push instead of stranding every affected
+// host on a manual `kubectl patch`. No-op when there is nothing to clear.
+func clearUpdateFailure(machine *infrav1.ScalewayAppleSiliconMachine, logger logr.Logger, recorder record.EventRecorder) {
+	if machine.Status.FailureReason == nil && machine.Status.FailureMessage == nil && machine.Status.TartKubeletUpdateAttempts == 0 {
+		return
+	}
+	logger.Info("clearing terminal tart-kubelet-update failure; host config drifted since it was recorded — retrying against the new config",
+		"previousAttempts", machine.Status.TartKubeletUpdateAttempts)
+	machine.Status.FailureReason = nil
+	machine.Status.FailureMessage = nil
+	machine.Status.FailedHostConfigHash = ""
+	machine.Status.TartKubeletUpdateAttempts = 0
+	if machine.Status.Phase == "Failed" {
+		machine.Status.Phase = ""
+	}
+	recorder.Eventf(machine, corev1.EventTypeNormal, "AgentRollRetried",
+		"host config drifted since the terminal tart-kubelet update failure; cleared it and retrying against the new config")
 }
 
 // bootstrapRecoveryClient is the narrow Scaleway surface

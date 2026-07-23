@@ -155,6 +155,119 @@ defmodule Tuist.Runners.RunnerSessions do
     end
   end
 
+  @doc """
+  Resolves `pod_name` to the workflow_job GitHub **proved** is running
+  on it, plus the owning `account_id`. Returns `:error` when execution
+  hasn't been proven for this Pod.
+
+  This is the read side of the attribution binding, and it deliberately
+  refuses to guess. Resolving through the claim instead would attribute
+  samples to the job the Pod was *minted for*, which is wrong twice
+  over:
+
+    * Before GitHub assigns a job (or on a runner it never assigns one
+      to), the Pod's idle CPU/memory would be charted on a job that is
+      running on a different Pod entirely.
+    * A Pod executing a job it didn't claim can have no live claim at
+      all — the claim is released by whichever runner finished — so its
+      real samples would be dropped.
+
+  The session is keyed to the Pod and outlives it, so it answers both
+  cases correctly: samples land only once `in_progress` (or the
+  `completed` backstop) names this Pod's runner, and they land on the
+  job that actually ran.
+
+  Scoped to the open session: a Pod between jobs (warm, or torn down)
+  is not sampling for anyone.
+  """
+  def executed_job_for_pod(pod_name) when is_binary(pod_name) and pod_name != "" do
+    RunnerSession
+    |> where([s], s.pod_name == ^pod_name and is_nil(s.ended_at) and not is_nil(s.executed_workflow_job_id))
+    |> order_by([s], desc: s.started_at)
+    |> select([s], %{workflow_job_id: s.executed_workflow_job_id, account_id: s.account_id})
+    |> limit(1)
+    |> Repo.one()
+    |> case do
+      nil -> :error
+      session -> {:ok, session}
+    end
+  end
+
+  def executed_job_for_pod(_pod_name), do: :error
+
+  @doc """
+  Records the workflow_job GitHub actually ran on the runner named
+  `runner_name`, on the durable session row (which outlives the pod).
+  Called from the `workflow_job.in_progress` / `completed` webhook.
+
+  The session is the attribution backstop for `Claims.record_execution/2`:
+  a fast job whose pod is already gone still has its session row, so a
+  late `completed` webhook can still bind the runner. Prefers the open
+  session, falling back to the most recent closed one.
+
+  Scoped to `account_id` (resolved from the webhook's App installation):
+  a runner name is only ours to trust within the account that minted it,
+  and a customer's own self-hosted runners carry names that account
+  controls, so an unscoped lookup would let one account's webhook bind a
+  colliding runner name belonging to another.
+
+  Idempotent. Returns `:matched` / `:mismatch` / `:unknown_runner`
+  mirroring `Claims.record_execution/3`.
+  """
+  def record_execution(runner_name, executed_workflow_job_id, account_id)
+      when is_binary(runner_name) and runner_name != "" and is_integer(executed_workflow_job_id) and
+             is_integer(account_id) do
+    case session_for_runner(runner_name, account_id) do
+      nil -> :unknown_runner
+      %RunnerSession{} = session -> bind_execution(session, executed_workflow_job_id)
+    end
+  end
+
+  def record_execution(_runner_name, _executed_workflow_job_id, _account_id), do: :unknown_runner
+
+  # Prefer the open session; fall back to the most recent closed one so a
+  # `completed` backstop can still bind after a fast job's pod is gone.
+  # Same policy as `latest_for_pod/1`, expressed once — see
+  # `prefer_open_then_latest/1`.
+  defp session_for_runner(runner_name, account_id) do
+    RunnerSession
+    |> where([s], s.runner_name == ^runner_name and s.account_id == ^account_id)
+    |> prefer_open_then_latest()
+    |> Repo.one()
+  end
+
+  # "Prefer the row still open, else the most recent closed one." Both the
+  # runner_name and pod_name lookups want exactly this ordering.
+  defp prefer_open_then_latest(query) do
+    query
+    |> order_by([s], desc: is_nil(s.ended_at), desc: s.started_at)
+    |> limit(1)
+  end
+
+  defp bind_execution(%RunnerSession{workflow_job_id: claimed_job_id} = session, executed_workflow_job_id) do
+    session
+    |> Ecto.Changeset.cast(
+      %{
+        executed_workflow_job_id: executed_workflow_job_id,
+        updated_at: DateTime.truncate(DateTime.utc_now(), :second)
+      },
+      [:executed_workflow_job_id, :updated_at]
+    )
+    |> Repo.update()
+    |> case do
+      {:ok, _updated} ->
+        :ok
+
+      {:error, changeset} ->
+        Logger.warning("runners: failed to record session execution",
+          runner_name: session.runner_name,
+          changeset_errors: inspect(changeset.errors)
+        )
+    end
+
+    if claimed_job_id == executed_workflow_job_id, do: :matched, else: :mismatch
+  end
+
   defp latest_for_pod(pod_name) do
     # Prefer the open row if one exists; otherwise return whichever
     # closed row is most recent — the close path may need to clamp
@@ -203,5 +316,54 @@ defmodule Tuist.Runners.RunnerSessions do
     |> distinct(true)
     |> Repo.all()
     |> MapSet.new()
+  end
+
+  @doc """
+  Resolves the currently open billing session for `pod_name`.
+
+  Interactive runner access uses this as a fallback live binding when
+  the shorter-lived `runner_claims` row is already gone but the Pod is
+  still running the workflow job.
+  """
+  def live_for_pod(pod_name) when is_binary(pod_name) and pod_name != "" do
+    RunnerSession
+    |> where([s], s.pod_name == ^pod_name and is_nil(s.ended_at))
+    |> order_by([s], desc: s.started_at)
+    |> select([s], %{
+      workflow_job_id: s.workflow_job_id,
+      account_id: s.account_id,
+      fleet_name: s.fleet_name,
+      pod_name: s.pod_name
+    })
+    |> limit(1)
+    |> Repo.one()
+    |> case do
+      nil -> :error
+      session -> {:ok, session}
+    end
+  end
+
+  @doc """
+  Resolves the currently open billing session for a workflow job.
+  """
+  def live_for_workflow_job(workflow_job_id, account_id) when is_integer(workflow_job_id) and is_integer(account_id) do
+    RunnerSession
+    |> where(
+      [s],
+      s.workflow_job_id == ^workflow_job_id and s.account_id == ^account_id and is_nil(s.ended_at)
+    )
+    |> order_by([s], desc: s.started_at)
+    |> select([s], %{
+      workflow_job_id: s.workflow_job_id,
+      account_id: s.account_id,
+      fleet_name: s.fleet_name,
+      pod_name: s.pod_name
+    })
+    |> limit(1)
+    |> Repo.one()
+    |> case do
+      nil -> :error
+      session -> {:ok, session}
+    end
   end
 end

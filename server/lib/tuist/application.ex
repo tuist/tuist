@@ -4,6 +4,7 @@ defmodule Tuist.Application do
   use Application
   use Boundary, top_level?: true, deps: [Tuist, TuistWeb]
 
+  alias EMCP.SessionStore.ETS, as: SessionStore
   alias Tuist.Application.RuntimeChildren
   alias Tuist.Builds.Build
   alias Tuist.Builds.BuildFile
@@ -47,7 +48,7 @@ defmodule Tuist.Application do
     start_telemetry()
     start_sentry_logger()
     start_loki_logger()
-    EMCP.SessionStore.ETS.init()
+    SessionStore.init()
 
     application =
       Supervisor.start_link(get_children(), strategy: :one_for_one, name: Tuist.Supervisor)
@@ -81,7 +82,6 @@ defmodule Tuist.Application do
   defp start_telemetry do
     Oban.Telemetry.attach_default_logger()
     TuistCommon.ObanTelemetry.attach()
-    ReqTelemetry.attach_default_logger(:pipeline)
     TransportLogger.attach(:tuist)
 
     if Application.get_env(:opentelemetry, :traces_exporter) != :none do
@@ -167,6 +167,17 @@ defmodule Tuist.Application do
     end
   end
 
+  # Mirrors the Kubernetes Deployment names so a Loki stream lines up with
+  # the workload an operator is already looking at.
+  defp loki_service_name do
+    case Environment.mode() do
+      :web -> "tuist-server"
+      :processor -> "tuist-processor"
+      :xcresult_processor -> "tuist-xcresult-processor"
+      :swift_registry_sync -> "tuist-swift-registry-sync"
+    end
+  end
+
   @loki_attach_max_attempts 10
   @loki_attach_base_backoff_ms 1_000
   @loki_attach_max_backoff_ms 30_000
@@ -198,9 +209,16 @@ defmodule Tuist.Application do
     handler_config = %{
       loki_url: loki_url,
       storage: :memory,
+      # Identify the pod role rather than hardcoding "tuist-server". The
+      # same release boots as the web tier, the build processor and the
+      # xcresult processor, and filing all three under one service name
+      # makes the logs unusable for exactly the pods that need them most:
+      # the macOS xcresult processors, whose output is unreachable by every
+      # other route (Alloy cannot tail a Tart guest, and `kubectl logs`
+      # cannot resolve the Tailscale-only kubelet hostnames).
       labels: %{
-        app: {:static, "tuist-server"},
-        service_name: {:static, "tuist-server"},
+        app: {:static, loki_service_name()},
+        service_name: {:static, loki_service_name()},
         service_namespace: {:static, "tuist"},
         env: {:static, to_string(Environment.env())},
         level: :level
@@ -309,9 +327,11 @@ defmodule Tuist.Application do
         Supervisor.child_spec(CASEvent.Buffer, id: CASEvent.Buffer),
         Supervisor.child_spec(DeliveryAttempt.Buffer, id: DeliveryAttempt.Buffer),
         Tuist.Vault,
+        # Queued jobs can run as soon as Oban starts, so their connection pool must already be available.
+        {Finch, name: Tuist.Finch, pools: finch_pools()},
         {Oban, Application.fetch_env!(:tuist, Oban)},
         {Cachex, [:tuist, []]},
-        {Finch, name: Tuist.Finch, pools: finch_pools()},
+        Cache,
         {Phoenix.PubSub, name: Tuist.PubSub},
         {TuistWeb.RateLimit.InMemory, [clean_period: to_timeout(hour: 1)]},
         {Tuist.API.Pipeline, []},
@@ -383,7 +403,6 @@ defmodule Tuist.Application do
       ]
 
       [
-        Cache,
         Supervisor.child_spec(
           {Tuist.ContentFileWatcher, name: ContentFileWatcher, dirs: docs_dirs, extensions: [".md"], cache: Cache},
           id: ContentFileWatcher
@@ -425,9 +444,9 @@ defmodule Tuist.Application do
     if Environment.test?() do
       %{:default => [size: 10]}
     else
-      {s3_endpoint, s3_pool_opts} =
+      {object_storage_endpoint, object_storage_pool_opts} =
         TuistCommon.FinchPools.s3_pool(
-          endpoint: Environment.s3_endpoint(),
+          endpoint: object_storage_endpoint(),
           size: Environment.s3_pool_size(),
           count: Environment.s3_pool_count(),
           protocols: Environment.s3_protocols(),
@@ -437,7 +456,10 @@ defmodule Tuist.Application do
 
       base_pools =
         %{
-          :default => [size: 10, start_pool_metrics?: true],
+          :default => [
+            size: TuistCommon.FinchPools.download_pool_size(active_download_queue_concurrencies()),
+            start_pool_metrics?: true
+          ],
           "https://api.github.com" => [
             conn_opts: [
               log: true,
@@ -453,7 +475,7 @@ defmodule Tuist.Application do
             protocols: [:http2, :http1],
             start_pool_metrics?: true
           ],
-          s3_endpoint => s3_pool_opts,
+          object_storage_endpoint => object_storage_pool_opts,
           "https://marketing.tuist.dev" => [
             conn_opts: [
               log: true,
@@ -494,6 +516,28 @@ defmodule Tuist.Application do
         end)
 
       Map.merge(base_pools, additional_pools)
+    end
+  end
+
+  defp active_download_queue_concurrencies do
+    :tuist
+    |> Application.fetch_env!(Oban)
+    |> Keyword.get(:queues, [])
+    |> case do
+      queues when is_list(queues) ->
+        queues
+        |> Keyword.take([:process_build, :process_xcresult])
+        |> Keyword.values()
+
+      _ ->
+        []
+    end
+  end
+
+  defp object_storage_endpoint do
+    case Environment.object_storage_provider() do
+      :azure_blob -> Environment.azure_blob_endpoint()
+      :s3 -> Environment.s3_endpoint()
     end
   end
 

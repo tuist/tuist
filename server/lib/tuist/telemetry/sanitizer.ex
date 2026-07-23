@@ -11,7 +11,6 @@ defmodule Tuist.Telemetry.Sanitizer do
   def sanitize_value(value) when is_atom(value), do: value
   def sanitize_value(value) when is_integer(value), do: value
   def sanitize_value(value) when is_float(value), do: value
-  def sanitize_value(value) when is_boolean(value), do: value
 
   def sanitize_value(value) when is_list(value) do
     # For simplicity and safety, always inspect lists

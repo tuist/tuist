@@ -8,15 +8,26 @@ defmodule Tuist.Storage.LegacyBuildArtifactRetention do
   @uuid_pattern ~r/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
   def delete_expired(opts \\ []) do
+    storage_provider = Environment.object_storage_provider()
+
     BucketArtifactRetention.delete_expired(
       %{
-        bucket_name: Environment.s3_bucket_name(),
+        bucket_name: bucket_name(storage_provider),
         object_matches?: &legacy_build_artifact?/1,
         orphaned_account_plan: @orphaned_account_plan,
-        retention_artifact_type: :build_archive
+        retention_days: Keyword.get(opts, :retention_days),
+        retention_artifact_type: :build_archive,
+        storage_provider: storage_provider
       },
       opts
     )
+  end
+
+  defp bucket_name(storage_provider) do
+    case storage_provider do
+      :azure_blob -> Environment.azure_blob_container_name()
+      :s3 -> Environment.s3_bucket_name()
+    end
   end
 
   defp legacy_build_artifact?(object) do

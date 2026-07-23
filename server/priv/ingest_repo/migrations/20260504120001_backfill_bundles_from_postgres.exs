@@ -90,14 +90,14 @@ defmodule Tuist.IngestRepo.Migrations.BackfillBundlesFromPostgres do
   }
 
   def up do
-    # The PostgreSQL repo is not started during ClickHouse migrations.
-    case Repo.start_link() do
-      {:ok, _} -> :ok
-      {:error, {:already_started, _}} -> :ok
-    end
-
-    Logger.info("Starting bundle backfill to ClickHouse")
-    drain(0)
+    # The PostgreSQL repo is not started during ClickHouse migrations, and Ecto
+    # discards the task each migration runs in, so start it through
+    # `Ecto.Migrator.with_repo/2` instead of linking it to that task.
+    {:ok, _, _} =
+      Ecto.Migrator.with_repo(Repo, fn _repo ->
+        Logger.info("Starting bundle backfill to ClickHouse")
+        drain(0)
+      end)
   end
 
   def down, do: :ok

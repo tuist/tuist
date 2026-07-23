@@ -4,6 +4,7 @@ defmodule Tuist.DocsTest do
 
   alias Tuist.Docs
   alias Tuist.Docs.CLI
+  alias Tuist.Docs.NimblePublisher.Cache
   alias Tuist.Docs.Page
 
   describe "get_page/1" do
@@ -21,6 +22,7 @@ defmodule Tuist.DocsTest do
 
       assert root_page.slug == "/en"
       assert selective_testing_page.slug == "/en/guides/features/selective-testing"
+      assert selective_testing_page.source_path == "en/guides/features/selective-testing.md"
     end
 
     test "loads static CLI documentation pages" do
@@ -50,7 +52,7 @@ defmodule Tuist.DocsTest do
       page = Docs.get_page("/en/guides/install-tuist")
 
       assert is_list(page.headings)
-      assert length(page.headings) > 0
+      assert [_ | _] = page.headings
 
       assert Enum.all?(page.headings, fn h ->
                Map.has_key?(h, :level) and Map.has_key?(h, :text) and Map.has_key?(h, :id)
@@ -77,6 +79,15 @@ defmodule Tuist.DocsTest do
 
       assert page.body =~
                ~s(<div data-part="overlay-scrollbar" aria-hidden="true"><div data-part="overlay-thumb"></div></div>)
+    end
+
+    test "does not cache missing pages" do
+      slug = "/en/guides/does-not-exist-#{System.unique_integer([:positive])}"
+
+      assert Docs.get_page(slug) == nil
+
+      cache_state = :sys.get_state(Cache)
+      refute Map.has_key?(cache_state.values, {:page, slug})
     end
   end
 

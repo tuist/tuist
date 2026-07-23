@@ -14,7 +14,7 @@ defmodule Tuist.Incidents do
         retry with: exponential_backoff() |> randomize() |> cap(1_000) |> expiry(10_000) do
           case Req.get("https://status.tuist.dev/proxy/status.tuist.dev", finch: Tuist.Finch) do
             {:ok, %{body: %{"summary" => %{"ongoing_incidents" => ongoing_incidents}}}} ->
-              length(ongoing_incidents) > 0
+              ongoing_incidents != []
 
             _ ->
               false

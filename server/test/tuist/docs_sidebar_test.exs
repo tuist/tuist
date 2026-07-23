@@ -11,7 +11,7 @@ defmodule Tuist.Docs.SidebarTest do
     stub(CLI, :sidebar_items, fn -> [] end)
 
     tree = Sidebar.tree()
-    assert length(tree) > 0
+    assert [_ | _] = tree
   end
 
   test "all sidebar slugs correspond to actual docs pages" do

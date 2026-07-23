@@ -2,6 +2,7 @@ defmodule Tuist.URLTest do
   use TuistTestSupport.Cases.DataCase, async: true
   use Mimic
 
+  alias Tuist.Environment
   alias Tuist.URL
 
   describe "public_url?/1" do
@@ -15,8 +16,8 @@ defmodule Tuist.URLTest do
     end
 
     test "rejects http URLs outside of dev and test environments" do
-      stub(Tuist.Environment, :dev?, fn -> false end)
-      stub(Tuist.Environment, :test?, fn -> false end)
+      stub(Environment, :dev?, fn -> false end)
+      stub(Environment, :test?, fn -> false end)
 
       refute URL.public_url?("http://sso.company.org/userinfo")
       assert URL.public_url?("https://sso.company.org/userinfo")
@@ -85,6 +86,47 @@ defmodule Tuist.URLTest do
 
     test "rejects unspecified address" do
       refute URL.public_url?("https://0.0.0.0/authorize")
+    end
+  end
+
+  describe "public_host_url?/1" do
+    test "accepts a public host with a presigned-style query string" do
+      assert URL.public_host_url?(
+               "https://bucket.fly.storage.tigris.dev/runner-volume-masters/1/tuist-cache.zip?X-Amz-Signature=abc&X-Amz-Expires=60"
+             )
+    end
+
+    test "rejects private, loopback, and link-local hosts even with a query" do
+      refute URL.public_host_url?("https://localhost/x?sig=1")
+      refute URL.public_host_url?("http://127.0.0.1/x?sig=1")
+      refute URL.public_host_url?("https://10.0.0.5/x?sig=1")
+      refute URL.public_host_url?("https://169.254.169.254/latest/meta-data?sig=1")
+    end
+
+    test "rejects non-https outside dev/test and non-URL values" do
+      stub(Environment, :dev?, fn -> false end)
+      stub(Environment, :test?, fn -> false end)
+
+      refute URL.public_host_url?("http://bucket.example.com/x?sig=1")
+      refute URL.public_host_url?("not-a-url")
+      refute URL.public_host_url?(nil)
+    end
+  end
+
+  describe "sso_url?/1" do
+    test "uses public URL validation on Tuist-hosted installations" do
+      stub(Environment, :tuist_hosted?, fn -> true end)
+
+      assert URL.sso_url?("https://keycloak.example.com/realms/master")
+      refute URL.sso_url?("https://10.0.0.1/realms/master")
+    end
+
+    test "allows private SSO URLs on self-hosted installations" do
+      stub(Environment, :tuist_hosted?, fn -> false end)
+
+      assert URL.sso_url?("https://10.0.0.1/realms/master")
+      refute URL.sso_url?("ftp://10.0.0.1/realms/master")
+      refute URL.sso_url?("https://10.0.0.1/realms/master?tenant=acme")
     end
   end
 end

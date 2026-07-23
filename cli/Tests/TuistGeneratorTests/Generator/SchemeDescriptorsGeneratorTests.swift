@@ -1,5 +1,6 @@
 import Foundation
 import Path
+import Testing
 import TuistCore
 import TuistSupport
 import XcodeGraph
@@ -2578,5 +2579,199 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             runAction: runAction,
             profileAction: profileAction
         )
+    }
+}
+
+struct SchemeDescriptorsGeneratorDebuggerTests {
+    private let subject = SchemeDescriptorsGenerator()
+
+    @Test func schemeTestAction_withCustomLLDBInitFile() throws {
+        let projectPath = try AbsolutePath(validating: "/somepath/Workspace/Project")
+        let lldbInitPath = projectPath.appending(components: "Derived", "TuistCacheDebugging", "test.lldbinit")
+        let testTarget = Target.test(name: "AppTests", product: .unitTests)
+        let project = Project.test(path: projectPath, targets: [testTarget])
+        let testAction = TestAction.test(
+            targets: [TestableTarget(target: TargetReference(projectPath: projectPath, name: "AppTests"))],
+            customLLDBInitFile: lldbInitPath
+        )
+        let scheme = Scheme.test(testAction: testAction)
+        let generatedProject = GeneratedProject(
+            pbxproj: .init(),
+            path: project.xcodeProjPath,
+            targets: [testTarget.name: PBXNativeTarget(name: testTarget.name)],
+            name: project.xcodeProjPath.basename
+        )
+
+        let got = try subject.schemeTestAction(
+            scheme: scheme,
+            graphTraverser: GraphTraverser(graph: Graph.test(projects: [projectPath: project])),
+            rootPath: projectPath,
+            generatedProjects: [project.xcodeProjPath: generatedProject]
+        )
+        let result = try #require(got)
+
+        #expect(result.customLLDBInitFile == "$(SRCROOT)/Derived/TuistCacheDebugging/test.lldbinit")
+    }
+}
+
+struct SchemeDescriptorsGeneratorCodeCoverageTests {
+    private let subject = SchemeDescriptorsGenerator()
+
+    @Test func schemeTestAction_with_codeCoverageTargets_fromLocalPackage() throws {
+        // Given
+        let projectPath = try AbsolutePath(validating: "/somepath/Project")
+        let packagePath = try AbsolutePath(validating: "/somepath/Package")
+
+        let target = Target.test(
+            name: "App",
+            product: .app,
+            dependencies: [.package(product: "PackageProduct", type: .runtime)]
+        )
+        let testTarget = Target.test(name: "AppTests", product: .unitTests)
+
+        let testAction = TestAction.test(
+            targets: [TestableTarget(target: TargetReference(projectPath: projectPath, name: "AppTests"))],
+            coverage: true,
+            codeCoverageTargets: [TargetReference(projectPath: packagePath, name: "PackageProduct")]
+        )
+        let buildAction = BuildAction.test(targets: [TargetReference(projectPath: projectPath, name: "App")])
+
+        let scheme = Scheme.test(name: "AppTests", shared: true, buildAction: buildAction, testAction: testAction)
+
+        let project = Project.test(
+            path: projectPath,
+            targets: [target, testTarget],
+            packages: [.local(path: packagePath)]
+        )
+        let graph = Graph.test(
+            projects: [project.path: project]
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let got = try subject.schemeTestAction(
+            scheme: scheme,
+            graphTraverser: graphTraverser,
+            rootPath: try AbsolutePath(validating: "/somepath/Workspace"),
+            generatedProjects: createGeneratedProjects(projects: [project])
+        )
+
+        // Then
+        let result = try #require(got)
+        #expect(result.onlyGenerateCoverageForSpecifiedTargets == true)
+        let references = try #require(result.codeCoverageTargets)
+        let reference = try #require(references.first)
+        #expect(references.count == 1)
+        #expect(reference.referencedContainer == "container:../Package")
+        #expect(reference.blueprintIdentifier == "PackageProduct")
+        #expect(reference.buildableName == "PackageProduct")
+        #expect(reference.blueprintName == "PackageProduct")
+        #expect(reference.buildableIdentifier == "primary")
+    }
+
+    @Test func schemeTestAction_with_codeCoverageTargets_notMatchingALocalPackageProduct() throws {
+        // Given
+        let projectPath = try AbsolutePath(validating: "/somepath/Project")
+        let packagePath = try AbsolutePath(validating: "/somepath/Package")
+
+        let target = Target.test(
+            name: "App",
+            product: .app,
+            dependencies: [.package(product: "PackageProduct", type: .runtime)]
+        )
+        let testTarget = Target.test(name: "AppTests", product: .unitTests)
+
+        let testAction = TestAction.test(
+            targets: [TestableTarget(target: TargetReference(projectPath: projectPath, name: "AppTests"))],
+            coverage: true,
+            // The name of the package target backing the product, not the product itself.
+            codeCoverageTargets: [TargetReference(projectPath: packagePath, name: "PackageProductCore")]
+        )
+        let buildAction = BuildAction.test(targets: [TargetReference(projectPath: projectPath, name: "App")])
+
+        let scheme = Scheme.test(name: "AppTests", shared: true, buildAction: buildAction, testAction: testAction)
+
+        let project = Project.test(
+            path: projectPath,
+            targets: [target, testTarget],
+            packages: [.local(path: packagePath)]
+        )
+        let graph = Graph.test(
+            projects: [project.path: project]
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let got = try subject.schemeTestAction(
+            scheme: scheme,
+            graphTraverser: graphTraverser,
+            rootPath: try AbsolutePath(validating: "/somepath/Workspace"),
+            generatedProjects: createGeneratedProjects(projects: [project])
+        )
+
+        // Then
+        let result = try #require(got)
+        let references = try #require(result.codeCoverageTargets)
+        #expect(references.isEmpty)
+        #expect(result.onlyGenerateCoverageForSpecifiedTargets == nil)
+    }
+
+    @Test func schemeTestAction_with_codeCoverageTargets_notInGraphNorPackages() throws {
+        // Given
+        let projectPath = try AbsolutePath(validating: "/somepath/Project")
+
+        let target = Target.test(name: "App", product: .app)
+        let testTarget = Target.test(name: "AppTests", product: .unitTests)
+
+        let testAction = TestAction.test(
+            targets: [TestableTarget(target: TargetReference(projectPath: projectPath, name: "AppTests"))],
+            coverage: true,
+            codeCoverageTargets: [
+                TargetReference(
+                    projectPath: try AbsolutePath(validating: "/somepath/Unknown"),
+                    name: "UnknownTarget"
+                ),
+            ]
+        )
+        let buildAction = BuildAction.test(targets: [TargetReference(projectPath: projectPath, name: "App")])
+
+        let scheme = Scheme.test(name: "AppTests", shared: true, buildAction: buildAction, testAction: testAction)
+
+        let project = Project.test(path: projectPath, targets: [target, testTarget])
+        let graph = Graph.test(
+            projects: [project.path: project]
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let got = try subject.schemeTestAction(
+            scheme: scheme,
+            graphTraverser: graphTraverser,
+            rootPath: try AbsolutePath(validating: "/somepath/Workspace"),
+            generatedProjects: createGeneratedProjects(projects: [project])
+        )
+
+        // Then
+        let result = try #require(got)
+        let references = try #require(result.codeCoverageTargets)
+        #expect(references.isEmpty)
+    }
+
+    private func createGeneratedProjects(projects: [Project]) -> [AbsolutePath: GeneratedProject] {
+        Dictionary(uniqueKeysWithValues: projects.map { project in
+            var pbxTargets: [String: PBXTarget] = [:]
+            for target in project.targets.values {
+                pbxTargets[target.name] = PBXNativeTarget(name: target.name)
+            }
+            return (
+                project.xcodeProjPath,
+                GeneratedProject(
+                    pbxproj: .init(),
+                    path: project.xcodeProjPath,
+                    targets: pbxTargets,
+                    name: project.xcodeProjPath.basename
+                )
+            )
+        })
     }
 }

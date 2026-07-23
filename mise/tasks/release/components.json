@@ -9,6 +9,7 @@
       "include_paths": [
         "cli/**/*",
         "swifterpm/**/*",
+        "cas-plugin/**/*",
         "mise/tasks/cli/**/*",
         "mise/tasks/release/components.json",
         ".github/workflows/cli-release.yml",

@@ -21,7 +21,6 @@ defmodule Tuist.AccountsTest do
   alias Tuist.Base64
   alias Tuist.Billing
   alias Tuist.Environment
-  alias Tuist.FeatureFlags
   alias Tuist.Kura.Registrations
   alias Tuist.Projects
   alias Tuist.Runners.Profiles, as: RunnerProfiles
@@ -98,7 +97,7 @@ defmodule Tuist.AccountsTest do
       got = Accounts.create_customer_when_absent(account)
 
       # Then
-      assert got == %{account | customer_id: customer_id}
+      assert %{got | updated_at: account.updated_at} == %{account | customer_id: customer_id}
     end
   end
 
@@ -1014,6 +1013,67 @@ defmodule Tuist.AccountsTest do
       # Then
       assert got == Repo.preload(invitation, inviter: :account)
     end
+
+    test "returns :expired when the invitation is older than the validity window" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(creator: user)
+      invitee = AccountsFixtures.user_fixture(email: "new@tuist.io")
+
+      {:ok, invitation} =
+        Accounts.invite_user_to_organization("new@tuist.io", %{
+          inviter: user,
+          to: organization,
+          url: fn token -> token end
+        })
+
+      expired_at =
+        NaiveDateTime.utc_now()
+        |> NaiveDateTime.add(-(Invitation.validity_days() + 1) * 24 * 60 * 60, :second)
+        |> NaiveDateTime.truncate(:second)
+
+      Tuist.Repo.update_all(
+        from(i in Invitation, where: i.id == ^invitation.id),
+        set: [updated_at: expired_at]
+      )
+
+      # When
+      got = Accounts.get_invitation_by_token(invitation.token, invitee)
+
+      # Then
+      assert got == {:error, :expired}
+    end
+  end
+
+  describe "get_invitation_by_token/1" do
+    test "returns :expired when the invitation is older than the validity window" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(creator: user)
+
+      {:ok, invitation} =
+        Accounts.invite_user_to_organization("new@tuist.io", %{
+          inviter: user,
+          to: organization,
+          url: fn token -> token end
+        })
+
+      expired_at =
+        NaiveDateTime.utc_now()
+        |> NaiveDateTime.add(-(Invitation.validity_days() + 1) * 24 * 60 * 60, :second)
+        |> NaiveDateTime.truncate(:second)
+
+      Tuist.Repo.update_all(
+        from(i in Invitation, where: i.id == ^invitation.id),
+        set: [updated_at: expired_at]
+      )
+
+      # When
+      got = Accounts.get_invitation_by_token(invitation.token)
+
+      # Then
+      assert got == {:error, :expired}
+    end
   end
 
   describe "get_pending_invitations_by_email/1" do
@@ -1098,6 +1158,35 @@ defmodule Tuist.AccountsTest do
       # Then
       assert got == []
     end
+
+    test "does not return expired invitations" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(creator: user)
+
+      {:ok, invitation} =
+        Accounts.invite_user_to_organization("new@tuist.io", %{
+          inviter: user,
+          to: organization,
+          url: fn token -> token end
+        })
+
+      expired_at =
+        NaiveDateTime.utc_now()
+        |> NaiveDateTime.add(-(Invitation.validity_days() + 1) * 24 * 60 * 60, :second)
+        |> NaiveDateTime.truncate(:second)
+
+      Tuist.Repo.update_all(
+        from(i in Invitation, where: i.id == ^invitation.id),
+        set: [updated_at: expired_at]
+      )
+
+      # When
+      got = Accounts.get_pending_invitations_by_email("new@tuist.io")
+
+      # Then
+      assert got == []
+    end
   end
 
   describe "accept_invitation/1" do
@@ -1127,6 +1216,76 @@ defmodule Tuist.AccountsTest do
              ]
 
       assert Accounts.get_invitation_by_id(invitation.id) == nil
+    end
+
+    test "does not accept an expired invitation" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(creator: user)
+      invitee = AccountsFixtures.user_fixture(email: "new@tuist.io")
+
+      {:ok, invitation} =
+        Accounts.invite_user_to_organization("new@tuist.io", %{
+          inviter: user,
+          to: organization,
+          url: fn token -> token end
+        })
+
+      expired_at =
+        NaiveDateTime.utc_now()
+        |> NaiveDateTime.add(-(Invitation.validity_days() + 1) * 24 * 60 * 60, :second)
+        |> NaiveDateTime.truncate(:second)
+
+      Tuist.Repo.update_all(
+        from(i in Invitation, where: i.id == ^invitation.id),
+        set: [updated_at: expired_at]
+      )
+
+      # When
+      got =
+        Accounts.accept_invitation(%{
+          invitation: invitation,
+          invitee: invitee,
+          organization: organization
+        })
+
+      # Then
+      assert got == {:error, :expired}
+      refute Accounts.organization_user?(invitee, organization)
+      assert Accounts.get_invitation_by_id(invitation.id)
+    end
+
+    test "does not accept an invitation whose token was refreshed" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(creator: user)
+      invitee = AccountsFixtures.user_fixture(email: "new@tuist.io")
+
+      {:ok, invitation} =
+        Accounts.invite_user_to_organization(
+          "new@tuist.io",
+          %{inviter: user, to: organization, url: fn token -> token end},
+          token: "old-token"
+        )
+
+      {:ok, _resent_invitation} =
+        Accounts.resend_invitation(
+          invitation,
+          %{url: fn token -> "/auth/invitations/#{token}" end},
+          token: "new-token"
+        )
+
+      # When
+      got =
+        Accounts.accept_invitation(%{
+          invitation: invitation,
+          invitee: invitee,
+          organization: organization
+        })
+
+      # Then
+      assert got == {:error, :not_found}
+      refute Accounts.organization_user?(invitee, organization)
     end
   end
 
@@ -1180,6 +1339,55 @@ defmodule Tuist.AccountsTest do
       # Then
       assert {:error, changeset} = result
       assert "has already been taken" in errors_on(changeset).invitee_email
+    end
+  end
+
+  describe "resend_invitation/2" do
+    test "refreshes the token and delivers the new invitation URL" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      organization = AccountsFixtures.organization_fixture(creator: user)
+
+      {:ok, invitation} =
+        Accounts.invite_user_to_organization(
+          "test@tuist.io",
+          %{inviter: user, to: organization, url: fn token -> token end},
+          token: "old-token"
+        )
+
+      expired_at =
+        NaiveDateTime.utc_now()
+        |> NaiveDateTime.add(-(Invitation.validity_days() + 1) * 24 * 60 * 60, :second)
+        |> NaiveDateTime.truncate(:second)
+
+      Tuist.Repo.update_all(
+        from(i in Invitation, where: i.id == ^invitation.id),
+        set: [updated_at: expired_at]
+      )
+
+      stub(Environment, :mail_configured?, fn -> true end)
+
+      expect(Tuist.Accounts.UserNotifier, :deliver_invitation, fn invitee_email, opts ->
+        assert invitee_email == "test@tuist.io"
+        assert opts.inviter.id == user.id
+        assert opts.to.organization.id == organization.id
+        assert opts.url == "/auth/invitations/new-token"
+        :ok
+      end)
+
+      # When
+      {:ok, got} =
+        Accounts.resend_invitation(
+          invitation,
+          %{url: fn token -> "/auth/invitations/#{token}" end},
+          token: "new-token"
+        )
+
+      # Then
+      assert got.token == "new-token"
+      refute Invitation.expired?(got)
+      assert Accounts.get_invitation_by_token("old-token") == {:error, :not_found}
+      assert {:ok, %{token: "new-token"}} = Accounts.get_invitation_by_token("new-token")
     end
   end
 
@@ -1911,6 +2119,19 @@ defmodule Tuist.AccountsTest do
 
       assert {:ok, reloaded_account} = Accounts.get_account_by_id(account.id)
       assert reloaded_account.custom_cache_endpoints_enabled == true
+    end
+
+    test "persists the cache write policy", %{user: user} do
+      account = Repo.preload(user, :account).account
+      assert account.cache_write_policy == :members_and_tokens
+
+      assert {:ok, account} =
+               Accounts.update_account(account, %{cache_write_policy: :tokens_only})
+
+      assert account.cache_write_policy == :tokens_only
+
+      assert {:ok, reloaded_account} = Accounts.get_account_by_id(account.id)
+      assert reloaded_account.cache_write_policy == :tokens_only
     end
 
     test "validates name format", %{user: user} do
@@ -3024,6 +3245,57 @@ defmodule Tuist.AccountsTest do
     end
   end
 
+  describe "get_account_token/3" do
+    test "returns token when found" do
+      # Given
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      token = AccountsFixtures.account_token_fixture(account: account, name: "my-token")
+
+      # When
+      {:ok, found_token} = Accounts.get_account_token(account, token.id)
+
+      # Then
+      assert found_token.id == token.id
+      assert found_token.name == "my-token"
+    end
+
+    test "returns error when token ID is invalid" do
+      # Given
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+
+      # When
+      result = Accounts.get_account_token(account, "not-a-token-id")
+
+      # Then
+      assert {:error, :not_found} == result
+    end
+
+    test "does not return token from different account" do
+      # Given
+      account1 = AccountsFixtures.user_fixture(preload: [:account]).account
+      account2 = AccountsFixtures.user_fixture(preload: [:account]).account
+      token = AccountsFixtures.account_token_fixture(account: account1, name: "my-token")
+
+      # When
+      result = Accounts.get_account_token(account2, token.id)
+
+      # Then
+      assert {:error, :not_found} == result
+    end
+
+    test "preloads specified associations" do
+      # Given
+      account = AccountsFixtures.user_fixture(preload: [:account]).account
+      token = AccountsFixtures.account_token_fixture(account: account, name: "my-token")
+
+      # When
+      {:ok, found_token} = Accounts.get_account_token(account, token.id, preload: [:projects])
+
+      # Then
+      assert Ecto.assoc_loaded?(found_token.projects)
+    end
+  end
+
   describe "get_account_token_by_name/3" do
     test "returns token when found" do
       # Given
@@ -3239,6 +3511,13 @@ defmodule Tuist.AccountsTest do
   end
 
   describe "delete_account/1" do
+    setup do
+      # Account deletion purges the account's runner cache-volume masters from
+      # object storage; stub it so tests don't reach real storage.
+      stub(Tuist.Storage, :delete_all_objects, fn _prefix, _actor -> {:ok, 0} end)
+      :ok
+    end
+
     test "deletes a user account successfully" do
       # Given
       user = AccountsFixtures.user_fixture()
@@ -3263,6 +3542,36 @@ defmodule Tuist.AccountsTest do
 
       # Then
       assert Accounts.get_organization_by_id(organization.id) == {:error, :not_found}
+      assert Accounts.get_account_by_id(account.id) == {:error, :not_found}
+    end
+
+    test "purges the account's runner cache-volume masters from object storage" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      test_pid = self()
+
+      expect(Tuist.Storage, :delete_all_objects, fn prefix, _actor ->
+        send(test_pid, {:purged, prefix})
+        {:ok, 0}
+      end)
+
+      # When
+      Accounts.delete_account!(account)
+
+      # Then
+      assert_receive {:purged, "runner-volume-masters/" <> rest}
+      assert rest == "#{account.id}/"
+    end
+
+    test "account deletion still succeeds when the cache-master purge fails" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+      stub(Tuist.Storage, :delete_all_objects, fn _prefix, _actor -> raise "storage down" end)
+
+      # When / Then — the best-effort purge is rescued, deletion proceeds.
+      Accounts.delete_account!(account)
       assert Accounts.get_account_by_id(account.id) == {:error, :not_found}
     end
   end
@@ -3914,7 +4223,7 @@ defmodule Tuist.AccountsTest do
       assert Enum.sort(endpoints) == Enum.sort(["https://cache1.example.com", "https://cache2.example.com"])
     end
 
-    test "returns account Kura endpoints when the client requests Kura and the account is opted in" do
+    test "returns account Kura endpoints when the client requests Kura and the account has Kura endpoints" do
       # Given
       stub(Environment, :tuist_hosted?, fn -> true end)
       user = AccountsFixtures.user_fixture()
@@ -3932,7 +4241,6 @@ defmodule Tuist.AccountsTest do
 
       default_endpoints = ["https://default.tuist.dev"]
       stub(Environment, :cache_endpoints, fn -> default_endpoints end)
-      stub(FeatureFlags, :kura_cache_enabled?, fn %{id: account_id} -> account_id == account.id end)
 
       # When
       endpoints = Accounts.get_cache_endpoints_for_handle(account.name, :kura)
@@ -3947,7 +4255,6 @@ defmodule Tuist.AccountsTest do
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
       BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
-      stub(FeatureFlags, :kura_cache_enabled?, fn %{id: account_id} -> account_id == account.id end)
       stub(Registrations, :active_advertised_urls, fn _ -> ["https://node.acme.example:8080"] end)
 
       # When
@@ -3963,7 +4270,6 @@ defmodule Tuist.AccountsTest do
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
       BillingFixtures.subscription_fixture(account_id: account.id, plan: :pro)
-      stub(FeatureFlags, :kura_cache_enabled?, fn %{id: account_id} -> account_id == account.id end)
       reject(&Registrations.active_advertised_urls/1)
       default_endpoints = ["https://default.tuist.dev"]
       stub(Environment, :cache_endpoints, fn -> default_endpoints end)
@@ -3975,7 +4281,7 @@ defmodule Tuist.AccountsTest do
       assert endpoints == default_endpoints
     end
 
-    test "returns custom endpoints when the client requests Kura but the account is not opted in" do
+    test "returns custom endpoints when the client requests Kura but the account has no Kura endpoints" do
       # Given
       stub(Environment, :tuist_hosted?, fn -> true end)
       user = AccountsFixtures.user_fixture()
@@ -3984,12 +4290,6 @@ defmodule Tuist.AccountsTest do
       {:ok, account} = Accounts.update_account(account, %{custom_cache_endpoints_enabled: true})
 
       {:ok, _} = Accounts.create_account_cache_endpoint(account, %{url: "https://custom-cache.example.com"})
-
-      {:ok, _} =
-        Accounts.create_account_cache_endpoint(account, %{
-          url: "https://kura-cache.example.com",
-          technology: :kura
-        })
 
       # When
       endpoints = Accounts.get_cache_endpoints_for_handle(account.name, :kura)
@@ -3998,7 +4298,7 @@ defmodule Tuist.AccountsTest do
       assert endpoints == ["https://custom-cache.example.com"]
     end
 
-    test "returns custom endpoints when the client does not request Kura even if the account is opted in" do
+    test "returns custom endpoints when the client does not request Kura even if the account has Kura endpoints" do
       # Given
       stub(Environment, :tuist_hosted?, fn -> true end)
       user = AccountsFixtures.user_fixture()
@@ -4014,8 +4314,6 @@ defmodule Tuist.AccountsTest do
           technology: :kura
         })
 
-      stub(FeatureFlags, :kura_cache_enabled?, fn %{id: account_id} -> account_id == account.id end)
-
       # When
       endpoints = Accounts.get_cache_endpoints_for_handle(account.name)
 
@@ -4023,19 +4321,13 @@ defmodule Tuist.AccountsTest do
       assert endpoints == ["https://custom-cache.example.com"]
     end
 
-    test "returns default endpoints when the account is not opted in to Kura and has no custom endpoints" do
+    test "returns default endpoints when the client requests Kura but the account has no Kura or custom endpoints" do
       # Given
       stub(Environment, :tuist_hosted?, fn -> true end)
       user = AccountsFixtures.user_fixture()
       account = Accounts.get_account_from_user(user)
       default_endpoints = ["https://default.tuist.dev"]
       stub(Environment, :cache_endpoints, fn -> default_endpoints end)
-
-      {:ok, _} =
-        Accounts.create_account_cache_endpoint(account, %{
-          url: "https://kura-cache.example.com",
-          technology: :kura
-        })
 
       # When
       endpoints = Accounts.get_cache_endpoints_for_handle(account.name, :kura)

@@ -66,7 +66,25 @@ data:
         to: "http://127.0.0.1:{{ .Values.kubeImpersonator.port }}"
         pass_identity_headers: true
         preserve_host_header: true
-        timeout: 90s
+        # exec / attach / port-forward negotiate an HTTP connection
+        # upgrade (SPDY on older clients, WebSocket on newer ones).
+        # Pomerium only auto-enables upgrades for routes it recognises
+        # as Kubernetes (native SA-token routes); this route forwards
+        # to the kube-impersonator sidecar as a plain HTTP upstream, so
+        # both upgrade types must be enabled explicitly or the upgrade
+        # is dropped and kubectl reports "unable to upgrade connection:
+        # empty server response".
+        allow_spdy: true
+        allow_websockets: true
+        # Unbounded route timeout. A finite `timeout` is applied even to
+        # upgraded connections (Envoy's route timeout takes the explicit
+        # value before the websocket auto-unlimited path), so any value
+        # here would sever a long-lived exec/port-forward session and cut
+        # off `logs -f` / `watch` streams at that bound. `0s` disables it,
+        # matching what Pomerium's native Kubernetes support configures.
+        # The idle timeout is disabled automatically once allow_websockets
+        # is set, so an idle interactive shell isn't reaped.
+        timeout: 0s
         # Coarse domain gate. Per-request fine-grained decision
         # (which Impersonate-Group(s) the user gets) lives in
         # tuist-ops's PolicyController, which the sidecar dials.

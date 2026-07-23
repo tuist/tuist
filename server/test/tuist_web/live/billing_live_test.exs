@@ -61,6 +61,22 @@ defmodule TuistWeb.BillingLiveTest do
     assert html =~ "Billing · #{account.name} · Tuist"
   end
 
+  test "links to the Stripe customer portal to update billing details", %{conn: conn, account: account} do
+    {:ok, live_view, _html} = live(conn, ~p"/#{account.name}/billing")
+
+    assert has_element?(
+             live_view,
+             "[data-part='billing-details-card-section'] a[href='/#{account.name}/billing/manage']",
+             "Update billing details"
+           )
+
+    assert has_element?(
+             live_view,
+             "[data-part='billing-details-card-section']",
+             "Update the company name, billing address, tax number, and email shown on your invoices."
+           )
+  end
+
   describe "no active plan" do
     test "renders the correct information", %{conn: conn, account: account} do
       # When

@@ -46,16 +46,28 @@ on:
           - canary
           - production
       commit_sha:
-        description: Commit SHA to deploy (defaults to the event's SHA)
+        description: Chart commit to deploy (defaults to the event's SHA). Keep this current and set image_tag to roll back only the server image.
         required: false
       image_tag:
         description: Pre-built image tag to deploy instead of building
+        required: false
+      kura_controller_image_tag:
+        description: Pre-built Kura controller image tag; omit to preserve the live controller during a server-only re-promotion
+        required: false
+      codebase_search_image_tag:
+        description: Pre-built codebase search image tag to deploy
+        required: false
+      registry_image_tag:
+        description: Pre-built Swift registry image tag to deploy instead of building
         required: false
       kura_runtime_image_tag:
         description: Pre-built Kura runtime image tag to deploy
         required: false
       linux_runner_image_tag:
         description: Pre-built Linux runner image tag to pin (e.g. `sha-7ed4b250bfb5`); wins over the resolved `linux-runner-image@*` semver
+        required: false
+      macos_runner_image_tag:
+        description: Pre-built macOS 26.5 runner image tag to pin (e.g. `macos-26-5-9d343ebe`); wins over the resolved `runner-image@*` semver for that pool
         required: false
       capi_image_tag:
         description: Pre-built CAPI provider image tag to pin (e.g. `05057033`); wins over the resolved `capi-scaleway@*` semver. Use when a chart change adds operator flags before the provider image is released.
@@ -70,7 +82,7 @@ on:
         required: true
         type: string
       commit_sha:
-        description: Commit SHA to deploy (defaults to github.sha)
+        description: Chart commit to deploy (defaults to github.sha)
         required: false
         type: string
       image_tag:
@@ -78,6 +90,27 @@ on:
           Pre-built image tag to deploy. When set, the build job is
           skipped and the deploy job uses this tag directly. When unset,
           the workflow builds + pushes an image tagged sha-<commit_sha>.
+        required: false
+        type: string
+      kura_controller_image_tag:
+        description: >-
+          Pre-built Kura controller image tag. When a pre-built server image
+          is supplied without this input, the deploy preserves the currently
+          running controller during a server-only re-promotion.
+        required: false
+        type: string
+      codebase_search_image_tag:
+        description: >-
+          Pre-built codebase search image tag to deploy. When unset during
+          a pinned server image deployment, the workflow preserves the
+          currently deployed codebase search image.
+        required: false
+        type: string
+      registry_image_tag:
+        description: >-
+          Pre-built Swift registry image tag to deploy. A normal build uses
+          its built registry tag. A pre-built server deployment preserves the
+          live registry image when this is unset.
         required: false
         type: string
       kura_runtime_image_tag:
@@ -94,6 +127,14 @@ on:
           latest `linux-runner-image@*` semver tag. Useful for
           validating an in-flight runner-image change on staging before
           tagging a release.
+        required: false
+        type: string
+      macos_runner_image_tag:
+        description: >-
+          Pre-built macOS 26.5 runner image tag to pin (e.g.
+          `macos-26-5-9d343ebe`). When unset, the deploy job resolves the
+          latest `runner-image@*` semver tag. Useful for validating an
+          in-flight runner-image change on staging before tagging a release.
         required: false
         type: string
       capi_image_tag:
@@ -123,6 +164,8 @@ env:
   MISE_VERSION: "2026.5.15"
   REGISTRY: ghcr.io
   IMAGE_NAME: tuist/tuist
+  REGISTRY_IMAGE_NAME: tuist/registry
+  CODEBASE_SEARCH_IMAGE_NAME: tuist/codebase-search
   KURA_CONTROLLER_IMAGE_NAME: tuist/kura-controller
   KURA_RUNTIME_IMAGE_NAME: tuist/kura
   HELM_CHART_PATH: infra/helm/tuist
@@ -145,9 +188,31 @@ env:
   MISE_GITHUB_SLSA: false
 
 jobs:
+  guard_production_source:
+    name: Guard production source
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require main for production
+        run: |
+          set -euo pipefail
+
+          if [ "${{ inputs.environment }}" != "production" ]; then
+            echo "Non-production deploy; continuing."
+            exit 0
+          fi
+
+          if [ "${{ github.ref }}" != "refs/heads/main" ]; then
+            echo "::error::Production deploys must run from refs/heads/main. Current ref: ${{ github.ref }}"
+            exit 1
+          fi
+
+          echo "Production deploy is running from refs/heads/main."
+
   build:
     name: Build + push
-    if: inputs.image_tag == ''
+    needs: guard_production_source
+    if: needs.guard_production_source.result == 'success' && inputs.image_tag == ''
     # Bigger shape: the server image build (Elixir release compile inside
     # the dind sidecar) OOMs the 2 vCPU / 8 GB default microVM, killing the
     # runner mid-build ("lost communication"). Mirrors server.yml's
@@ -157,6 +222,8 @@ jobs:
     timeout-minutes: 60
     outputs:
       image_tag: ${{ steps.tag.outputs.image_tag }}
+      codebase_search_image_tag: ${{ steps.tag.outputs.image_tag }}
+      registry_image_tag: ${{ steps.tag.outputs.image_tag }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -207,6 +274,8 @@ jobs:
           push: true
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
+          secrets: |
+            github_token=${{ secrets.GITHUB_TOKEN }}
           # Shared `buildcache:server` ref, kept warm by the push-to-main
           # build in server-production-deployment.yml. `mode=max` exports
           # cache for every stage (deps.compile, builder, og-images).
@@ -217,6 +286,18 @@ jobs:
             MIX_ENV=prod
             APT_CACHE_BUST=${{ env.DEPLOY_SHA }}
       - uses: docker/build-push-action@v6
+        name: Build and push codebase search image
+        with:
+          context: ./codebase-search
+          file: ./codebase-search/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.CODEBASE_SEARCH_IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
+          build-args: |
+            TUIST_REVISION=${{ env.DEPLOY_SHA }}
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.CODEBASE_SEARCH_IMAGE_NAME }}-buildcache:main
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.CODEBASE_SEARCH_IMAGE_NAME }}-buildcache:main,mode=max
+      - uses: docker/build-push-action@v6
         name: Build and push Kura controller image
         with:
           context: .
@@ -224,6 +305,17 @@ jobs:
           push: true
           tags: |
             ${{ env.REGISTRY }}/${{ env.KURA_CONTROLLER_IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
+      - uses: docker/build-push-action@v6
+        name: Build and push Swift registry image
+        with:
+          context: .
+          file: ./registry/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.REGISTRY_IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
+          build-args: |
+            MIX_ENV=prod
+
   build-kura-runtime:
     # The kura runtime image (the Rust mesh node, not the controller) is
     # otherwise only published by release.yml on push-to-main. Building the
@@ -327,9 +419,9 @@ jobs:
     # queue at running + 1 waiting and drops the rest, which used to
     # leave only one of the three install jobs running per deploy.
     name: Observability chart (${{ inputs.environment }})
-    needs: build
+    needs: [build, guard_production_source]
     # `build` is skipped when image_tag is supplied - keep running.
-    if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped')
+    if: always() && needs.guard_production_source.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped')
     runs-on: tuist-linux
     environment:
       name: server-k8s-${{ inputs.environment }}
@@ -347,7 +439,9 @@ jobs:
         with:
           install_args: "--locked helm kubectl"
           cache: "false"
-      - uses: 1password/install-cli-action@v2
+      - uses: 1password/install-cli-action@v4
+        with:
+          version: 2.31.1
       - name: Load kubeconfig from 1Password
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
@@ -394,8 +488,8 @@ jobs:
     # observability-install. Serializes this install against its own
     # past runs without sharing a slot with the sibling install jobs.
     name: Tailscale operator chart (${{ inputs.environment }})
-    needs: build
-    if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped')
+    needs: [build, guard_production_source]
+    if: always() && needs.guard_production_source.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped')
     runs-on: tuist-linux
     environment:
       name: server-k8s-${{ inputs.environment }}
@@ -430,7 +524,9 @@ jobs:
           install_args: "--locked helm kubectl"
           cache: "false"
       - if: steps.check-values.outputs.exists == 'true'
-        uses: 1password/install-cli-action@v2
+        uses: 1password/install-cli-action@v4
+        with:
+          version: 2.31.1
       - if: steps.check-values.outputs.exists == 'true'
         name: Load kubeconfig from 1Password
         env:
@@ -471,8 +567,8 @@ jobs:
     # observability-install. Serializes this install against its own
     # past runs without sharing a slot with the sibling install jobs.
     name: Platform chart (${{ inputs.environment }})
-    needs: build
-    if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped')
+    needs: [build, guard_production_source]
+    if: always() && needs.guard_production_source.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped')
     runs-on: tuist-linux
     environment:
       name: server-k8s-${{ inputs.environment }}
@@ -493,7 +589,9 @@ jobs:
         with:
           install_args: "--locked helm kubectl"
           cache: "false"
-      - uses: 1password/install-cli-action@v2
+      - uses: 1password/install-cli-action@v4
+        with:
+          version: 2.31.1
       - name: Load kubeconfig from 1Password
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
@@ -527,7 +625,7 @@ jobs:
 
   deploy:
     name: Deploy to ${{ inputs.environment == 'production' && 'tuist' || format('tuist-{0}', inputs.environment) }}
-    needs: [build, build-kura-runtime, observability-install, tailscale-operator-install, platform-install]
+    needs: [build, build-kura-runtime, guard_production_source, observability-install, tailscale-operator-install, platform-install]
     # `build` may be skipped when image_tag is passed in - keep running.
     # `build-kura-runtime` is skipped on canary/production and on staging
     # re-rolls of a prebuilt image; when it does run (staging fresh build) the
@@ -544,7 +642,7 @@ jobs:
     # external-dns / ESO / metrics-server / cloudnative-pg so app-impacting
     # platform settings (including CNPG CRDs the Tuist chart consumes for
     # the in-cluster Postgres rollout) land before the app chart upgrade.
-    if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped') && (needs.build-kura-runtime.result == 'success' || needs.build-kura-runtime.result == 'skipped') && needs.observability-install.result == 'success' && needs.tailscale-operator-install.result == 'success' && needs.platform-install.result == 'success'
+    if: always() && needs.guard_production_source.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped') && (needs.build-kura-runtime.result == 'success' || needs.build-kura-runtime.result == 'skipped') && needs.observability-install.result == 'success' && needs.tailscale-operator-install.result == 'success' && needs.platform-install.result == 'success'
     runs-on: tuist-linux
     environment:
       name: server-k8s-${{ inputs.environment }}
@@ -568,10 +666,16 @@ jobs:
       KUBECONFIG: ${{ github.workspace }}/.kube/config
       NAMESPACE: ${{ inputs.environment == 'production' && 'tuist' || format('tuist-{0}', inputs.environment) }}
       IMAGE_TAG: ${{ inputs.image_tag != '' && inputs.image_tag || needs.build.outputs.image_tag }}
+      SERVER_IMAGE_TAG_INPUT: ${{ inputs.image_tag }}
+      CODEBASE_SEARCH_IMAGE_TAG: ${{ inputs.codebase_search_image_tag != '' && inputs.codebase_search_image_tag || needs.build.outputs.codebase_search_image_tag }}
+      REGISTRY_IMAGE_TAG: ${{ inputs.registry_image_tag != '' && inputs.registry_image_tag || needs.build.outputs.registry_image_tag }}
       KURA_RUNTIME_IMAGE_TAG: ${{ inputs.kura_runtime_image_tag }}
+      KURA_CONTROLLER_IMAGE_TAG_INPUT: ${{ inputs.kura_controller_image_tag }}
       LINUX_RUNNER_IMAGE_TAG_INPUT: ${{ inputs.linux_runner_image_tag }}
+      MACOS_RUNNER_IMAGE_TAG_INPUT: ${{ inputs.macos_runner_image_tag }}
       CAPI_IMAGE_TAG_INPUT: ${{ inputs.capi_image_tag }}
       RUNNERS_CONTROLLER_IMAGE_TAG_INPUT: ${{ inputs.runners_controller_image_tag }}
+      KURA_CONTROLLER_NAMESPACE: kura
     steps:
       - uses: actions/checkout@v4
         with:
@@ -606,7 +710,9 @@ jobs:
         with:
           install_args: "--locked helm kubectl"
           cache: "false"
-      - uses: 1password/install-cli-action@v2
+      - uses: 1password/install-cli-action@v4
+        with:
+          version: 2.31.1
       - name: Load kubeconfig from 1Password
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
@@ -625,6 +731,58 @@ jobs:
           API="$(kubectl config view --minify --raw -o jsonpath='{.clusters[0].cluster.server}')"
           echo "Reaching apiserver at $API"
           kubectl --request-timeout=10s get --raw /version >/dev/null
+      - name: Resolve Kura controller image tag
+        run: |
+          set -euo pipefail
+
+          if [ -n "$KURA_CONTROLLER_IMAGE_TAG_INPUT" ]; then
+            controller_tag="$KURA_CONTROLLER_IMAGE_TAG_INPUT"
+            controller_source="explicit"
+          elif [ -z "$SERVER_IMAGE_TAG_INPUT" ]; then
+            controller_tag="$IMAGE_TAG"
+            controller_source="built"
+          else
+            current_image="$(
+              kubectl -n "$KURA_CONTROLLER_NAMESPACE" get deployments \
+                -l app.kubernetes.io/component=kura-controller \
+                -o jsonpath='{.items[0].spec.template.spec.containers[?(@.name=="manager")].image}' \
+                2>/dev/null || true
+            )"
+            image_prefix="${REGISTRY}/${KURA_CONTROLLER_IMAGE_NAME}:"
+            if [[ "$current_image" != "$image_prefix"* ]]; then
+              echo "No current Kura controller image was found. Provide kura_controller_image_tag for this pre-built server deployment."
+              exit 1
+            fi
+            controller_tag="${current_image#"$image_prefix"}"
+            controller_source="preserved"
+          fi
+
+          echo "KURA_CONTROLLER_IMAGE_TAG=$controller_tag" >> "$GITHUB_ENV"
+          echo "Kura controller: ${controller_source} image tag ${controller_tag}"
+      - name: Resolve codebase search image tag
+        run: |
+          set -euo pipefail
+
+          if [ -n "$CODEBASE_SEARCH_IMAGE_TAG" ]; then
+            echo "Codebase search: using requested image tag ${CODEBASE_SEARCH_IMAGE_TAG}"
+            exit 0
+          fi
+
+          current_image="$(
+            kubectl -n "$NAMESPACE" get deployments \
+              -l app.kubernetes.io/instance="$HELM_RELEASE_NAME",app.kubernetes.io/component=codebase-search \
+              -o jsonpath='{.items[0].spec.template.spec.containers[?(@.name=="codebase-search")].image}' \
+              2>/dev/null || true
+          )"
+          image_prefix="${REGISTRY}/${CODEBASE_SEARCH_IMAGE_NAME}:"
+          if [[ "$current_image" != "$image_prefix"* ]]; then
+            echo "No current codebase search image was found. Provide codebase_search_image_tag when deploying a pre-built server image."
+            exit 1
+          fi
+
+          codebase_search_image_tag="${current_image#"$image_prefix"}"
+          echo "CODEBASE_SEARCH_IMAGE_TAG=$codebase_search_image_tag" >> "$GITHUB_ENV"
+          echo "Codebase search: preserving deployed image tag ${codebase_search_image_tag}"
       - name: kubectl apply CRDs
         # Helm 3 installs `crds/*.yaml` on `helm install` and skips
         # them on `helm upgrade` (intentional — Helm refuses to manage
@@ -723,6 +881,8 @@ jobs:
         # pending-upgrade.
         timeout-minutes: 70
         run: |
+          set -euo pipefail
+
           # Stream cluster state every 30s while helm waits. helm
           # --atomic --wait produces no stdout during the wait, so
           # without this the action log shows nothing for up to 90 min.
@@ -755,6 +915,15 @@ jobs:
           }
           add_set "xcresultProcessor.image.tag" "${XCRESULT_PROCESSOR_TAG:-}"
           add_set "runnersFleet.runnerImageSemver" "${RUNNER_IMAGE_SEMVER:-}"
+          # The explicit macos_runner_image_tag input wins over the
+          # resolved runner-image@ semver for the default 26.5 pool. Used
+          # to pin staging at an in-flight `:macos-26-5-<git-sha>` build
+          # before the runner image is tagged.
+          macos_runner_image_tag="${MACOS_RUNNER_IMAGE_TAG_INPUT:-}"
+          if [ -n "$macos_runner_image_tag" ]; then
+            image_sets+=(--set-string "runnersFleet.xcodeOverrides.26\\.5.imageTag=$macos_runner_image_tag")
+            echo "Overriding resolved macOS 26.5 runner image tag with input ${macos_runner_image_tag}"
+          fi
           # The explicit linux_runner_image_tag input wins over the
           # resolved linux-runner-image@ semver — same pattern as
           # kura_runtime_image_tag below. Used to pin staging at an
@@ -771,6 +940,11 @@ jobs:
               "ghcr.io/tuist/tuist-linux-runner:${linux_runner_image_version}"
           fi
 
+          helm_values_args=(
+            -f "$HELM_CHART_PATH/values-managed-common.yaml"
+            -f "$HELM_CHART_PATH/values-managed-${{ inputs.environment }}.yaml"
+          )
+
           # Kura runtime image tag precedence:
           #   1. explicit kura_runtime_image_tag input (manual re-roll) wins.
           #   2. staging tracks the per-commit sha-<SHA> image — but only when
@@ -785,7 +959,7 @@ jobs:
           kura_runtime_tag="${KURA_RUNTIME_IMAGE_TAG:-}"
           if [ -n "$kura_runtime_tag" ]; then
             echo "Kura runtime: using explicit input tag ${kura_runtime_tag}"
-          elif [ "${{ inputs.environment }}" = "staging" ] && [ -z "${{ inputs.image_tag }}" ]; then
+          elif [ "${{ inputs.environment }}" = "staging" ] && [ -z "$SERVER_IMAGE_TAG_INPUT" ]; then
             kura_runtime_tag="$IMAGE_TAG"
             echo "Kura runtime: staging tracks per-commit image ${kura_runtime_tag}"
           else
@@ -814,12 +988,54 @@ jobs:
           fi
           add_set "runnersController.image.tag" "$runners_controller_image_tag"
 
+          registry_probe_tag="${REGISTRY_IMAGE_TAG:-registry-render-probe}"
+          registry_render="$(mktemp)"
+          helm template "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
+            "${helm_values_args[@]}" \
+            --set server.image.tag="$IMAGE_TAG" \
+            --set codebaseSearch.image.tag="$CODEBASE_SEARCH_IMAGE_TAG" \
+            --set registry.image.tag="$registry_probe_tag" \
+            --set kuraController.image.tag="$KURA_CONTROLLER_IMAGE_TAG" \
+            "${image_sets[@]}" \
+            > "$registry_render"
+
+          if grep -Eq '^[[:space:]]+app\.kubernetes\.io/component: registry$' "$registry_render"; then
+            registry_enabled=true
+          else
+            registry_enabled=false
+          fi
+          rm -f "$registry_render"
+          echo "REGISTRY_ENABLED=$registry_enabled" >> "$GITHUB_ENV"
+          echo "Swift registry component enabled: $registry_enabled"
+
+          registry_image_tag="$REGISTRY_IMAGE_TAG"
+          if [ "$registry_enabled" = "true" ] && [ -z "$registry_image_tag" ]; then
+            current_registry_image="$(
+              kubectl -n "$NAMESPACE" get deployments \
+                -l app.kubernetes.io/instance="$HELM_RELEASE_NAME",app.kubernetes.io/component=registry \
+                -o jsonpath='{.items[0].spec.template.spec.containers[?(@.name=="registry")].image}' \
+                2>/dev/null || true
+            )"
+            image_prefix="${REGISTRY}/${REGISTRY_IMAGE_NAME}:"
+            if [[ "$current_registry_image" != "$image_prefix"* ]]; then
+              echo "No current Swift registry image was found. Provide registry_image_tag when deploying a pre-built server image."
+              exit 1
+            fi
+            registry_image_tag="${current_registry_image#"$image_prefix"}"
+            echo "Swift registry: preserving deployed image tag ${registry_image_tag}"
+          elif [ "$registry_enabled" = "true" ]; then
+            echo "Swift registry: using requested image tag ${registry_image_tag}"
+          else
+            registry_image_tag="registry-disabled"
+          fi
+
           helm upgrade --install "$HELM_RELEASE_NAME" "$HELM_CHART_PATH" \
             --namespace "$NAMESPACE" --create-namespace \
-            -f "$HELM_CHART_PATH/values-managed-common.yaml" \
-            -f "$HELM_CHART_PATH/values-managed-${{ inputs.environment }}.yaml" \
+            "${helm_values_args[@]}" \
             --set server.image.tag="$IMAGE_TAG" \
-            --set kuraController.image.tag="$IMAGE_TAG" \
+            --set codebaseSearch.image.tag="$CODEBASE_SEARCH_IMAGE_TAG" \
+            --set registry.image.tag="$registry_image_tag" \
+            --set kuraController.image.tag="$KURA_CONTROLLER_IMAGE_TAG" \
             "${image_sets[@]}" \
             --atomic --timeout 60m --wait
       - name: Diagnostics on failure
@@ -862,6 +1078,21 @@ jobs:
             kubectl -n "$NAMESPACE" logs "$pod" --all-containers --previous --tail=500 || true
           done
           echo "::endgroup::"
+          if [ "${REGISTRY_ENABLED:-false}" = "true" ]; then
+            echo "::group::swift registry deployment + pods"
+            kubectl -n "$NAMESPACE" describe deploy/tuist-tuist-registry || true
+            for pod in $(kubectl -n "$NAMESPACE" get pods -l app.kubernetes.io/component=registry -o name 2>/dev/null); do
+              echo "--- describe $pod ---"
+              kubectl -n "$NAMESPACE" describe "$pod" || true
+              echo "--- logs $pod (current) ---"
+              kubectl -n "$NAMESPACE" logs "$pod" --all-containers --tail=500 || true
+              echo "--- logs $pod (previous) ---"
+              kubectl -n "$NAMESPACE" logs "$pod" --all-containers --previous --tail=500 || true
+            done
+            echo "::endgroup::"
+          else
+            echo "Swift registry component disabled; skipping registry diagnostics."
+          fi
           echo "::group::xcresult processor deployment + pods"
           kubectl -n "$NAMESPACE" describe deploy/tuist-tuist-xcresult-processor || true
           for pod in $(kubectl -n "$NAMESPACE" get pods -l app.kubernetes.io/component=xcresult-processor -o name 2>/dev/null); do
@@ -915,3 +1146,11 @@ jobs:
           kubectl -n "$NAMESPACE" rollout status deploy/tuist-tuist-server --timeout=10m
           kubectl -n "$NAMESPACE" run smoke-$RANDOM --rm -i --restart=Never --image=curlimages/curl \
             --command -- curl -fsS "http://tuist-tuist-server/ready"
+          if [ "${REGISTRY_ENABLED:-false}" = "true" ]; then
+            kubectl -n "$NAMESPACE" rollout status deploy/tuist-tuist-registry --timeout=10m
+            kubectl -n "$NAMESPACE" run registry-smoke-$RANDOM --rm -i --restart=Never --image=curlimages/curl \
+              --labels=app.kubernetes.io/name=tuist,app.kubernetes.io/instance=tuist,app.kubernetes.io/component=registry-smoke \
+              --command -- curl -fsS "http://tuist-tuist-registry/up"
+          else
+            echo "Swift registry component disabled; skipping registry smoke test."
+          fi

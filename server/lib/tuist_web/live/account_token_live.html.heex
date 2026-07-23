@@ -1,0 +1,172 @@
+<div id="account-token-detail-settings">
+  <.button
+    navigate={~p"/#{@selected_account.name}/settings/tokens"}
+    variant="secondary"
+    size="medium"
+    label={dgettext("dashboard_account", "Account tokens")}
+    data-part="back-button"
+  >
+    <:icon_left><.arrow_left /></:icon_left>
+  </.button>
+
+  <div data-part="detail-header">
+    <div data-part="title-group">
+      <span data-part="eyebrow">{dgettext("dashboard_account", "Account token")}</span>
+      <h2 data-part="token-name">{@account_token.name}</h2>
+    </div>
+    <div data-part="actions">
+      <.modal
+        :if={@can_delete_tokens?}
+        id="revoke-account-token-modal"
+        title={dgettext("dashboard_account", "Revoke account token?")}
+        header_type="warning"
+        header_size="large"
+        on_dismiss="close_revoke_account_token_modal"
+      >
+        <:trigger :let={attrs}>
+          <.button
+            label={dgettext("dashboard_account", "Revoke")}
+            variant="secondary"
+            size="medium"
+            type="button"
+            {attrs}
+          />
+        </:trigger>
+        <div data-part="revoke-account-token-modal-content">
+          <p data-part="revoke-account-token-message">
+            {dgettext(
+              "dashboard_account",
+              "Revoke %{name}? This action cannot be undone.",
+              name: @account_token.name
+            )}
+          </p>
+        </div>
+        <.line_divider />
+        <:footer>
+          <.modal_footer>
+            <:action>
+              <.button
+                label={dgettext("dashboard_account", "Cancel")}
+                variant="secondary"
+                type="button"
+                phx-click="close_revoke_account_token_modal"
+              />
+            </:action>
+            <:action>
+              <.button
+                label={dgettext("dashboard_account", "Revoke")}
+                variant="destructive"
+                type="button"
+                phx-click="revoke_account_token"
+              />
+            </:action>
+          </.modal_footer>
+        </:footer>
+      </.modal>
+    </div>
+  </div>
+
+  <.card icon="lock" title={dgettext("dashboard_account", "Summary")} data-part="summary-card">
+    <.card_section data-part="summary-card-section">
+      <div data-part="metadata-grid">
+        <div data-part="metadata-row">
+          <div data-part="metadata">
+            <span data-part="label">{dgettext("dashboard_account", "Name")}</span>
+            <span data-part="value">{@account_token.name}</span>
+          </div>
+          <div data-part="metadata">
+            <span data-part="label">{dgettext("dashboard_account", "Token")}</span>
+            <code data-part="value">{account_token_hint(@account_token)}</code>
+          </div>
+          <div data-part="metadata">
+            <span data-part="label">{dgettext("dashboard_account", "Expires")}</span>
+            <span data-part="value">{expires_label(@account_token)}</span>
+          </div>
+        </div>
+        <div data-part="metadata-row">
+          <div data-part="metadata">
+            <span data-part="label">{dgettext("dashboard_account", "Last used")}</span>
+            <span data-part="value">{last_used_label(@account_token)}</span>
+          </div>
+          <div data-part="metadata">
+            <span data-part="label">{dgettext("dashboard_account", "Created")}</span>
+            <span data-part="value">{created_label(@account_token)}</span>
+          </div>
+          <div data-part="metadata">
+            <span data-part="label">{dgettext("dashboard_account", "Created by")}</span>
+            <span data-part="value">{created_by_label(@account_token)}</span>
+          </div>
+        </div>
+      </div>
+    </.card_section>
+  </.card>
+
+  <div data-part="detail-grid">
+    <.card
+      icon="lock_password"
+      title={dgettext("dashboard_account", "Permissions")}
+      data-part="permissions-card"
+    >
+      <.card_section data-part="permissions-card-section">
+        <.table
+          id="account-token-permissions-table"
+          rows={permission_rows(@account_token.scopes)}
+          row_key={fn permission -> permission.scope end}
+        >
+          <:col :let={permission} label={dgettext("dashboard_account", "Permission")}>
+            <.text_and_description_cell
+              label={permission.label}
+              description={permission.description}
+              truncate={false}
+            />
+          </:col>
+          <:col :let={permission} label={dgettext("dashboard_account", "Scope")}>
+            <.text_cell data-part="scope-cell" label={permission.scope} />
+          </:col>
+        </.table>
+      </.card_section>
+    </.card>
+
+    <.card
+      icon="folder"
+      title={dgettext("dashboard_account", "Project access")}
+      data-part="project-access-card"
+    >
+      <.card_section data-part="project-access-card-section">
+        <span :if={@account_token.all_projects} data-part="access-summary">
+          {dgettext(
+            "dashboard_account",
+            "This token has access to all projects in this account."
+          )}
+        </span>
+
+        <%= if not @account_token.all_projects do %>
+          <%= if Enum.empty?(@account_token.projects) do %>
+            <span data-part="access-summary">
+              {dgettext(
+                "dashboard_account",
+                "This token does not have access to any projects."
+              )}
+            </span>
+          <% else %>
+            <.table
+              id="account-token-projects-table"
+              rows={@account_token.projects}
+              row_key={fn project -> "account-token-project-#{project.id}" end}
+            >
+              <:col :let={project} label={dgettext("dashboard_account", "Project")}>
+                <.text_cell label={project.name} />
+              </:col>
+              <:col :let={project} label={dgettext("dashboard_account", "Handle")}>
+                <.text_cell
+                  data-part="project-handle-cell"
+                  label={project_handle(@selected_account, project)}
+                />
+              </:col>
+            </.table>
+          <% end %>
+        <% end %>
+      </.card_section>
+    </.card>
+  </div>
+</div>

@@ -8,9 +8,11 @@ import "./marketing.css";
 
 let csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content");
 let cspNonce = document.querySelector("meta[name='csp-nonce']").getAttribute("content");
+// Keep this aligned with nginx.ingress.kubernetes.io/proxy-connect-timeout.
+const liveSocketFallbackMs = 10000;
 
 let liveSocket = new LiveSocket("/live", Socket, {
-  longPollFallbackMs: 2500,
+  longPollFallbackMs: liveSocketFallbackMs,
   params: { _csrf_token: csrfToken, _csp_nonce: cspNonce },
   hooks: { ...Noora.Hooks, ...Hooks },
 });

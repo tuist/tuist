@@ -35,6 +35,20 @@ app.kubernetes.io/component: {{ .component }}
 {{- end -}}
 
 {{/*
+Name of the server migration Job. Stable when it runs as a Helm hook, and
+scoped to the release revision when it runs as a regular Job, so that Helm
+replaces it on upgrade instead of tripping the immutable `spec.template`.
+*/}}
+{{- define "tuist.serverMigrateJobName" -}}
+{{- $base := include "tuist.componentName" (dict "root" . "component" "server-migrate") -}}
+{{- if and (not .Values.server.migrationJob.asHook) .Values.server.migrationJob.namePerRevision -}}
+{{- printf "%s-r%d" $base (int .Release.Revision) -}}
+{{- else -}}
+{{- $base -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
 Service account name for an application component.
 */}}
 {{- define "tuist.componentServiceAccountName" -}}
@@ -183,6 +197,30 @@ http://{{ include "tuist.componentName" (dict "root" . "component" "object-stora
 {{- else -}}
 {{- .Values.objectStorage.external.buckets.registry -}}
 {{- end -}}
+{{- end -}}
+
+{{- define "tuist.serverObjectStorageEnv" -}}
+- name: TUIST_OBJECT_STORAGE_PROVIDER
+  value: {{ .Values.server.storage.provider | quote }}
+{{- if eq .Values.server.storage.provider "azure_blob" }}
+- name: TUIST_AZURE_STORAGE_ACCOUNT_NAME
+  value: {{ .Values.server.azureBlob.accountName | quote }}
+- name: TUIST_AZURE_BLOB_CONTAINER_NAME
+  value: {{ .Values.server.azureBlob.containerName | quote }}
+{{- with .Values.server.azureBlob.endpoint }}
+- name: TUIST_AZURE_BLOB_ENDPOINT
+  value: {{ . | quote }}
+{{- end }}
+- name: TUIST_AZURE_BLOB_SERVICE_VERSION
+  value: {{ .Values.server.azureBlob.serviceVersion | quote }}
+{{- if .Values.server.azureBlob.accountKey }}
+- name: TUIST_AZURE_STORAGE_ACCOUNT_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
+      key: azure-blob-account-key
+{{- end }}
+{{- end }}
 {{- end -}}
 
 {{/*
@@ -525,6 +563,22 @@ own way).
 {{- if and .Values.server.enabled .Values.server.config.managedSecrets }}
 - secretRef:
     name: {{ include "tuist.componentName" (dict "root" . "component" "server-config-external-secrets") }}
+{{- end }}
+{{- end -}}
+
+{{/*
+ClickHouse repo pool sizes are non-secret operational knobs. Render them from
+chart values so the server, migration, processor, and xcresult-processor pods
+stay aligned without relying on the runtime secret bundle.
+*/}}
+{{- define "tuist.clickhousePoolEnv" -}}
+{{- with .Values.clickhouse.poolSize }}
+- name: TUIST_CLICKHOUSE_POOL_SIZE
+  value: {{ . | quote }}
+{{- end }}
+{{- with .Values.clickhouse.bufferPoolSize }}
+- name: TUIST_CLICKHOUSE_BUFFER_POOL_SIZE
+  value: {{ . | quote }}
 {{- end }}
 {{- end -}}
 

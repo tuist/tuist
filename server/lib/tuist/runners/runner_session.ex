@@ -18,6 +18,10 @@ defmodule Tuist.Runners.RunnerSession do
     field :fleet_name, :string
     field :pod_name, :string, default: ""
     field :runner_name, :string, default: ""
+    # The workflow_job GitHub actually ran on this runner, learned
+    # from the `in_progress` / `completed` webhook. Durable ground
+    # truth that outlives the pod; NULL until GitHub proves it.
+    field :executed_workflow_job_id, :integer
     field :repository, :string, default: ""
     field :workflow_name, :string, default: ""
     field :started_at, :utc_datetime_usec

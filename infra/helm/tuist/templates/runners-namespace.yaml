@@ -269,10 +269,10 @@ spec:
             matchLabels:
               app.kubernetes.io/name: kura
       ports:
+        # 4000 co-hosts the HTTP cache API and REAPI gRPC (h2c) on one
+        # Kura listener.
         - protocol: TCP
           port: 4000
-        - protocol: TCP
-          port: 50051
 ---
 # Dispatch-egress policy: lets a runner Pod reach the in-cluster
 # Tuist server's dispatch endpoint. Split out from the base policy

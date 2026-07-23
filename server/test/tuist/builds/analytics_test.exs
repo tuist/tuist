@@ -802,6 +802,38 @@ defmodule Tuist.Builds.AnalyticsTest do
       assert got.values == [0, 0.5, 0.5]
       assert got.hit_rate == 0.5
     end
+
+    test "excludes command events after the selected period from the summary" do
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "test",
+        test_targets: ["A", "B"],
+        local_test_target_hits: ["A"],
+        remote_test_target_hits: [],
+        created_at: ~N[2024-04-29 09:00:00]
+      )
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "test",
+        test_targets: ["A", "B"],
+        local_test_target_hits: ["A", "B"],
+        remote_test_target_hits: [],
+        created_at: ~N[2024-04-30 09:00:00]
+      )
+
+      got =
+        Analytics.selective_testing_analytics(
+          project_id: project.id,
+          start_datetime: ~U[2024-04-29 00:00:00Z],
+          end_datetime: ~U[2024-04-29 23:59:59Z]
+        )
+
+      assert got.hit_rate == 0.5
+    end
   end
 
   describe "selective_testing_analytics_with_percentiles/1" do

@@ -23,6 +23,42 @@ public struct TargetScript: Equatable, Codable, Sendable {
         case embedded(String)
     }
 
+    /// A script input or output file-list path.
+    public enum FileListPath: Equatable, Codable, Sendable, ExpressibleByStringLiteral {
+        /// File list path passed through as-is.
+        case path(String)
+
+        /// File list Tuist creates as an empty placeholder during generation.
+        case generated(AbsolutePath)
+
+        /// Path used for hashing and import/export boundaries.
+        public var path: String {
+            switch self {
+            case let .path(path):
+                return path
+            case let .generated(path):
+                return path.pathString
+            }
+        }
+
+        public init(path: String) {
+            self = .path(path)
+        }
+
+        public init(stringLiteral value: String) {
+            self = .path(value)
+        }
+
+        public func xcodePath(sourceRootPath: AbsolutePath) -> String {
+            switch self {
+            case let .path(path):
+                return path
+            case let .generated(path):
+                return path.relative(to: sourceRootPath).pathString
+            }
+        }
+    }
+
     /// Name of the build phase when the project gets generated
     public let name: String
 
@@ -74,13 +110,13 @@ public struct TargetScript: Equatable, Codable, Sendable {
     public let inputPaths: [String]
 
     /// List of input filelist paths
-    public let inputFileListPaths: [String]
+    public let inputFileListPaths: [FileListPath]
 
     /// List of output file paths
     public let outputPaths: [String]
 
     /// List of output filelist paths
-    public let outputFileListPaths: [String]
+    public let outputFileListPaths: [FileListPath]
 
     /// Show environment variables in the logs
     public var showEnvVarsInLog: Bool
@@ -117,9 +153,9 @@ public struct TargetScript: Equatable, Codable, Sendable {
         order: Order,
         script: Script = .embedded(""),
         inputPaths: [String] = [],
-        inputFileListPaths: [String] = [],
+        inputFileListPaths: [FileListPath] = [],
         outputPaths: [String] = [],
-        outputFileListPaths: [String] = [],
+        outputFileListPaths: [FileListPath] = [],
         showEnvVarsInLog: Bool = true,
         basedOnDependencyAnalysis: Bool? = nil,
         runForInstallBuildsOnly: Bool = false,

@@ -143,8 +143,8 @@ defmodule TuistWeb.ErrorHTML do
               {@title}
             </h2>
           </div>
-          <img src="/images/error_image_light.png" data-theme="light" />
-          <img src="/images/error_image_dark.png" data-theme="dark" />
+          <img src={~p"/images/error_image_light.png"} data-theme="light" decoding="async" />
+          <img src={~p"/images/error_image_dark.png"} data-theme="dark" decoding="async" />
           <div data-part="background">
             <div data-part="top-right-gradient"></div>
             <div data-part="bottom-left-gradient"></div>

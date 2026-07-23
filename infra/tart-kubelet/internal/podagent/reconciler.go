@@ -8,8 +8,12 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"net"
+	"net/url"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -38,7 +42,16 @@ import (
 // running on the host until GC sweeps it. The standard finalizer
 // pattern lets us guarantee VM teardown completes before the Pod
 // disappears from the API server's perspective.
-const PodFinalizer = "tart-kubelet.tuist.dev/vm-cleanup"
+const (
+	PodFinalizer = "tart-kubelet.tuist.dev/vm-cleanup"
+
+	vncSessionIDAnnotation      = "tuist.dev/vnc-session-id"
+	vncRelayTokenHashAnnotation = "tuist.dev/vnc-relay-token-hash"
+	vncStateAnnotation          = "tuist.dev/vnc-state"
+	vncRelayHostAnnotation      = "tuist.dev/vnc-relay-host"
+	vncRelayPortAnnotation      = "tuist.dev/vnc-relay-port"
+	vncRelayReadyAtAnnotation   = "tuist.dev/vnc-relay-ready-at"
+)
 
 // Reconciler is the controller-runtime reconciler for Pods on this
 // Node. The cached client here is fine: the manager runs a single
@@ -61,11 +74,27 @@ type Reconciler struct {
 	NodeIP string
 
 	// ScrapeAllowedCIDRs restricts which client addresses the
-	// per-Pod metrics forwarder accepts. NodeIP can in practice be
-	// a public IP on Scaleway, so the bind address alone isn't a
-	// security boundary; this allowlist is. Empty defers to
-	// DefaultScrapeAllowedCIDRs at forwarder construction.
+	// per-Pod host-side forwarders (metrics and VNC relays) accept.
+	// NodeIP can in practice be a public IP on Scaleway, so the bind
+	// address alone isn't a security boundary; this allowlist is.
+	// Empty defers to DefaultScrapeAllowedCIDRs at forwarder construction.
 	ScrapeAllowedCIDRs []*net.IPNet
+
+	// VNCControlDir is the host-local control/state directory for
+	// interactive access. Creating a legacy operator request file at
+	// `requests/<namespace>_<pod>` or stamping the server-owned Pod
+	// request annotation opens a relay for that runner Pod; removing both
+	// closes the relay. tart-kubelet writes host-control state under
+	// `state/` with 0600 permissions and reports server-consumable no-auth
+	// relay coordinates through Pod annotations. Empty disables VNC relay
+	// control.
+	VNCControlDir string
+	// VNCRelayHost overrides the host written to server-facing VNC relay
+	// annotations. Empty falls back to NodeIP.
+	VNCRelayHost string
+	// VNCRelayPort pins the host-side VNC relay port. 0 uses an
+	// ephemeral port, matching the per-request relay default.
+	VNCRelayPort int
 
 	Tart     *tart.Client
 	Resolver *envresolver.Resolver
@@ -80,6 +109,12 @@ type Reconciler struct {
 	// GC reclaims disk when a Tart pull errors with no-space. Optional
 	// — when nil, the reconciler just surfaces the error.
 	GC *Collector
+
+	// Volumes manages per-account cache-volume images. Optional
+	// — when nil or disabled (no runner-cache root provisioned on this
+	// host), every VM boots on the status-quo cold path and the volume
+	// lifecycle no-ops.
+	Volumes *VolumeManager
 
 	// Recorder emits Pod Events (e.g. "CreatingVM") so the
 	// Scheduled→Running gap — previously a silent dead zone with no
@@ -235,6 +270,13 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	// Store entry); only the published Phase differs.
 	if entry := r.Store.Get(pod.Namespace, pod.Name); entry != nil && entry.Run != nil {
 		if exitErr, exited := entry.Run.Exited(); exited {
+			// Promote or discard the cache-volume branch before tearing the
+			// VM down. A clean `tart run` exit (exitErr == nil) is the guest
+			// halting after its job flow completed; combined with the guest's
+			// dirty marker it promotes the branch to the account's new
+			// master. A crash (exitErr != nil) or a read-only/clean job
+			// discards it.
+			r.finalizeVolume(entry, pod.Labels[runnerAccountLabel], exitErr == nil)
 			_ = r.deleteByKey(ctx, pod.Namespace, pod.Name)
 
 			status := &corev1.PodStatus{Reason: "TartRunExited"}
@@ -266,6 +308,12 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 		})
 		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 	}
+
+	// The server stamps the runner-account label when it claims a job for this
+	// VM (this reconcile is often triggered by that very label patch). Once the
+	// account is known, clonefile its cache master into the VM's branch and
+	// signal the guest. Idempotent: runs at most once per VM.
+	r.maybeMaterializeVolume(pod)
 
 	status, err := r.podStatus(ctx, pod)
 	if err != nil || status == nil {
@@ -361,6 +409,15 @@ func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
 			_ = r.Tart.Delete(ctx, base)
 			return fmt.Errorf("tart clone from golden: %w", err)
 		}
+		// `tart clone` copies the golden's ECID, so give each clone a fresh
+		// one. Same-identity clones collide at Apple's MobileAsset
+		// personalization under concurrency: the signed asset catalog fails to
+		// verify (mobileassetd CSSMERR_CSP_VERIFY_FAILED) and downloads like
+		// `xcodebuild -downloadComponent MetalToolchain` fail. Best-effort — on
+		// error the VM boots on the shared identity rather than failing the job.
+		if err := r.Tart.RegenerateIdentity(ctx, vmName); err != nil && r.Recorder != nil {
+			r.Recorder.Event(pod, corev1.EventTypeWarning, "IdentityRegenSkipped", fmt.Sprintf("regenerate VM identity: %v", err))
+		}
 		// Split the on-host provisioning segment (golden probe +
 		// pull/clone + runner clone) out from podProvisionDelaySeconds,
 		// which also folds in scheduling/queue wait. `path` separates a
@@ -378,11 +435,26 @@ func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
 	// liveness via IsRunning, exactly like recoverState's recovered
 	// entries. BootObserved is set because we didn't witness this boot.
 	if running, _ := r.Tart.IsRunning(ctx, vmName); running {
-		r.Store.Put(pod.Namespace, pod.Name, &Entry{
+		entry := &Entry{
 			VMName:       vmName,
 			StartTS:      metav1.Now(),
 			BootObserved: true,
-		})
+		}
+		// Same reattach as recoverState (via the shared helper, which preserves
+		// the untrusted decision so an untrusted branch can't be revived as
+		// promotable): this VM survived a restart with its cache branch still
+		// mounted, so rebind it (unless the startup sweep already reaped it
+		// because recovery missed this VM) so Finalize can promote a trusted
+		// warm set instead of losing it.
+		if r.Volumes != nil {
+			if att, ok := ReattachVolumeForPod(r.Volumes, pod, vmName); ok {
+				entry.Volume = att
+				if statusDir, sdErr := r.Tart.StatusDir(vmName); sdErr == nil {
+					entry.VolumeStatusDir = statusDir
+				}
+			}
+		}
+		r.Store.Put(pod.Namespace, pod.Name, entry)
 		return nil
 	}
 
@@ -406,6 +478,44 @@ func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
 	// pull/clone time the boot histogram (which starts at `tart run`) can't.
 	podProvisionDelaySeconds.WithLabelValues(pool).Observe(time.Since(pod.CreationTimestamp.Time).Seconds())
 
+	// Per-account cache volume. Allocate an EMPTY per-VM branch dir
+	// and share it into the guest as a writable virtio-fs mount at the cache
+	// root — no account data, no prediction. The dispatched account's master
+	// is clonefiled into the branch after the server stamps the runner-account
+	// label (maybeMaterializeVolume), so one account's cache can never reach a
+	// VM that runs another account's job. Done here — after the adoption
+	// early-return above — so a restart-adopted VM doesn't get a stray branch.
+	// A declined admission or a disabled feature leaves att.Attached false and
+	// the VM boots on the cold path.
+	sharedDirs := []string{"env:" + envDir + ":ro"}
+	att, err := r.allocateVolumeBranch(vmName)
+	if err != nil {
+		// A volume failure must never fail the job: it is best-effort warm
+		// state. Log via an Event and fall through to the cold path.
+		if r.Recorder != nil {
+			r.Recorder.Event(pod, corev1.EventTypeWarning, "CacheVolumeSkipped", fmt.Sprintf("cache volume not attached: %v", err))
+		}
+		att = VolumeAttachment{}
+	}
+	var statusDir string
+	if att.Attached {
+		// tart's --dir mounts read-write by default and only accepts a `:ro`
+		// modifier; a `:rw` suffix is parsed as part of the path and fails the
+		// VM config. Omit it — the guest needs rw to write the cache and the
+		// dirty marker, which is the default. The guest mounts the cache share
+		// at /Volumes/My Shared Files/cache and points its cache root there.
+		sharedDirs = append(sharedDirs, "cache:"+att.BranchPath)
+		if statusDir, err = r.Tart.StatusDir(vmName); err == nil {
+			sharedDirs = append(sharedDirs, "status:"+statusDir)
+			// Stage the per-branch byte budget for the guest's cache LRU prune
+			// before the VM boots (the whole shared quota volume's free space
+			// would be the wrong, far-too-large budget over a virtio-fs share).
+			writeCacheBudget(statusDir, r.Volumes.CapGiB)
+		} else {
+			statusDir = ""
+		}
+	}
+
 	// Record the Pod ↔ VM mapping before kicking the VM off so the
 	// rest of the system (deletePod, GC, recoverState) can keep
 	// track of it even if `tart run` exits oddly. Without this an
@@ -413,21 +523,31 @@ func (r *Reconciler) createPod(ctx context.Context, pod *corev1.Pod) error {
 	// and the GC loop would happily reap it on the next pass —
 	// exactly the orphan we used to clean up reactively.
 	entry := &Entry{
-		VMName:  vmName,
-		StartTS: metav1.Now(),
+		VMName:          vmName,
+		StartTS:         metav1.Now(),
+		Volume:          att,
+		VolumeStatusDir: statusDir,
 	}
 	r.Store.Put(pod.Namespace, pod.Name, entry)
 
-	handle, err := r.Tart.Run(ctx, vmName, []string{"env:" + envDir + ":ro"})
+	handle, err := r.Tart.RunWithOptions(ctx, vmName, tart.RunOptions{
+		SharedDirs: sharedDirs,
+		VNC:        vncCapableRunnerPod(pod),
+	})
 	if err != nil {
 		// Roll back the Store entry — the VM either never started
 		// (cmd.Start error) or `tart run` exited immediately, so
 		// there is no live VM for podStatus to observe and no
-		// background process for deletePod to tear down.
+		// background process for deletePod to tear down. Discard the
+		// prepared branch so it doesn't leak on the retry.
+		r.finalizeVolume(entry, "", false)
 		r.Store.Delete(pod.Namespace, pod.Name)
 		return fmt.Errorf("tart run: %w", err)
 	}
 	entry.Run = handle
+	if vncCapableRunnerPod(pod) && r.VNCControlDir != "" {
+		go r.captureVNCInfo(ctx, pod.DeepCopy(), entry)
+	}
 
 	// Start the metrics forwarder lazily on first podStatus rather
 	// than here — the VM hasn't booted yet, IP() returns empty, and
@@ -650,6 +770,327 @@ func metricsPortFromPod(pod *corev1.Pod) (int, bool) {
 	return port, true
 }
 
+// syncVNCForwarder opens or closes the VNC relay for a running macOS
+// runner Pod. The switch is server/operator controlled:
+//   - requests/<namespace>_<pod> present: open the legacy operator relay.
+//   - tuist.dev/vnc-session-id present: open the dashboard relay.
+//   - both absent: close the relay and remove state.
+//
+// The Pod, guest, and workflow cannot activate this path.
+func (r *Reconciler) syncVNCForwarder(ctx context.Context, pod *corev1.Pod, entry *Entry) error {
+	if !vncCapableRunnerPod(pod) || r.VNCControlDir == "" {
+		r.stopVNCForwarder(pod.Namespace, pod.Name, entry)
+		return nil
+	}
+
+	requested, err := r.vncRelayRequested(pod)
+	if err != nil {
+		return err
+	}
+	if !requested {
+		r.stopVNCForwarder(pod.Namespace, pod.Name, entry)
+		if err := r.writeVNCRelayAnnotations(ctx, pod, nil); err != nil {
+			return err
+		}
+		return nil
+	}
+	return r.startVNCForwarder(ctx, pod, entry)
+}
+
+func (r *Reconciler) startVNCForwarder(ctx context.Context, pod *corev1.Pod, entry *Entry) error {
+	if r.NodeIP == "" {
+		return fmt.Errorf("node IP is empty")
+	}
+
+	vncInfo, ok, err := r.readVNCEndpointState(pod.Namespace, pod.Name, entry.VMName)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		if entry.Run == nil {
+			return fmt.Errorf("VNC metadata unavailable for recovered VM %s", entry.VMName)
+		}
+
+		vncCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		defer cancel()
+		vncInfo, err = entry.Run.WaitVNCInfo(vncCtx)
+		if err != nil {
+			return fmt.Errorf("wait for Tart VNC endpoint: %w", err)
+		}
+		if err := r.writeVNCEndpointState(pod, entry, vncInfo); err != nil {
+			return err
+		}
+	}
+
+	relayTokenHash := strings.TrimSpace(pod.Annotations[vncRelayTokenHashAnnotation])
+	if entry.VNCForwarder != nil && entry.VNCRelayTokenHash != relayTokenHash {
+		entry.VNCForwarder.Stop()
+		entry.VNCForwarder = nil
+		entry.VNCRelayTokenHash = ""
+	}
+
+	if entry.VNCForwarder == nil {
+		target := net.JoinHostPort(vncInfo.Host, strconv.Itoa(vncInfo.Port))
+		resolve := func() (string, error) { return target, nil }
+		listenPort := "0"
+		if r.VNCRelayPort > 0 {
+			listenPort = strconv.Itoa(r.VNCRelayPort)
+		}
+		listenAddr := net.JoinHostPort(r.NodeIP, listenPort)
+		allowed := r.ScrapeAllowedCIDRs
+		if len(allowed) == 0 {
+			allowed = DefaultScrapeAllowedCIDRs()
+		}
+		fw, err := NewVNCForwarder(listenAddr, resolve, vncInfo.Password, relayTokenHash, TCPForwarderOptions{AllowedCIDRs: allowed})
+		if err != nil {
+			return fmt.Errorf("start VNC forwarder for %s/%s on %s: %w", pod.Namespace, pod.Name, listenAddr, err)
+		}
+		entry.VNCForwarder = fw
+		entry.VNCRelayTokenHash = relayTokenHash
+	}
+
+	return r.writeVNCState(ctx, pod, entry, vncInfo)
+}
+
+func (r *Reconciler) stopVNCForwarder(namespace, name string, entry *Entry) {
+	if entry.VNCForwarder != nil {
+		entry.VNCForwarder.Stop()
+		entry.VNCForwarder = nil
+		entry.VNCRelayTokenHash = ""
+	}
+	if r.VNCControlDir != "" {
+		_ = os.Remove(r.vncStatePath(namespace, name))
+		_ = os.Remove(r.vncEndpointPath(namespace, name))
+	}
+}
+
+func (r *Reconciler) vncRelayRequested(pod *corev1.Pod) (bool, error) {
+	if pod.Annotations[vncSessionIDAnnotation] != "" {
+		return strings.TrimSpace(pod.Annotations[vncRelayTokenHashAnnotation]) != "", nil
+	}
+
+	_, err := os.Stat(r.vncRequestPath(pod.Namespace, pod.Name))
+	if err == nil {
+		return true, nil
+	}
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	return false, fmt.Errorf("stat VNC request file: %w", err)
+}
+
+type vncRelayState struct {
+	Pod       string `json:"pod"`
+	VMName    string `json:"vm_name"`
+	RelayURL  string `json:"relay_url"`
+	RelayHost string `json:"relay_host"`
+	RelayPort int    `json:"relay_port"`
+	UpdatedAt string `json:"updated_at"`
+}
+
+type vncEndpointState struct {
+	Pod       string `json:"pod"`
+	VMName    string `json:"vm_name"`
+	Host      string `json:"host"`
+	Port      int    `json:"port"`
+	Password  string `json:"password"`
+	UpdatedAt string `json:"updated_at"`
+}
+
+func (r *Reconciler) captureVNCInfo(ctx context.Context, pod *corev1.Pod, entry *Entry) {
+	if !vncCapableRunnerPod(pod) || r.VNCControlDir == "" || entry.Run == nil {
+		return
+	}
+
+	vncCtx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	if deadline, ok := ctx.Deadline(); ok {
+		vncCtx, cancel = context.WithDeadline(context.Background(), deadline.Add(2*time.Minute))
+		defer cancel()
+	}
+
+	vncInfo, err := entry.Run.WaitVNCInfo(vncCtx)
+	if err != nil {
+		log.FromContext(ctx).Error(err, "capture VNC endpoint",
+			"pod", pod.Namespace+"/"+pod.Name)
+		return
+	}
+	if err := r.writeVNCEndpointState(pod, entry, vncInfo); err != nil {
+		log.FromContext(ctx).Error(err, "write VNC endpoint state",
+			"pod", pod.Namespace+"/"+pod.Name)
+	}
+}
+
+func (r *Reconciler) writeVNCEndpointState(pod *corev1.Pod, entry *Entry, vncInfo tart.VNCInfo) error {
+	if r.VNCControlDir == "" {
+		return nil
+	}
+	stateDir := filepath.Join(r.VNCControlDir, "state")
+	if err := os.MkdirAll(stateDir, 0o700); err != nil {
+		return fmt.Errorf("mkdir VNC state dir: %w", err)
+	}
+
+	state := vncEndpointState{
+		Pod:       pod.Namespace + "/" + pod.Name,
+		VMName:    entry.VMName,
+		Host:      vncInfo.Host,
+		Port:      vncInfo.Port,
+		Password:  vncInfo.Password,
+		UpdatedAt: time.Now().UTC().Format(time.RFC3339),
+	}
+	body, err := json.MarshalIndent(state, "", "  ")
+	if err != nil {
+		return err
+	}
+	body = append(body, '\n')
+
+	path := r.vncEndpointPath(pod.Namespace, pod.Name)
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, body, 0o600); err != nil {
+		return fmt.Errorf("write VNC endpoint file: %w", err)
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		_ = os.Remove(tmp)
+		return fmt.Errorf("rename VNC endpoint file: %w", err)
+	}
+	return nil
+}
+
+func (r *Reconciler) readVNCEndpointState(namespace, name, vmName string) (tart.VNCInfo, bool, error) {
+	if r.VNCControlDir == "" {
+		return tart.VNCInfo{}, false, nil
+	}
+	body, err := os.ReadFile(r.vncEndpointPath(namespace, name))
+	if os.IsNotExist(err) {
+		return tart.VNCInfo{}, false, nil
+	}
+	if err != nil {
+		return tart.VNCInfo{}, false, fmt.Errorf("read VNC endpoint file: %w", err)
+	}
+
+	var state vncEndpointState
+	if err := json.Unmarshal(body, &state); err != nil {
+		return tart.VNCInfo{}, false, fmt.Errorf("unmarshal VNC endpoint file: %w", err)
+	}
+	if state.VMName != vmName {
+		return tart.VNCInfo{}, false, nil
+	}
+	if state.Host == "" || state.Port <= 0 || state.Port > 65_535 || state.Password == "" {
+		return tart.VNCInfo{}, false, fmt.Errorf("invalid VNC endpoint file for %s/%s", namespace, name)
+	}
+	return tart.VNCInfo{Host: state.Host, Port: state.Port, Password: state.Password}, true, nil
+}
+
+func (r *Reconciler) writeVNCState(ctx context.Context, pod *corev1.Pod, entry *Entry, vncInfo tart.VNCInfo) error {
+	tcpAddr, ok := entry.VNCForwarder.Addr().(*net.TCPAddr)
+	if !ok {
+		return fmt.Errorf("VNC forwarder has non-TCP address %s", entry.VNCForwarder.Addr())
+	}
+
+	stateDir := filepath.Join(r.VNCControlDir, "state")
+	if err := os.MkdirAll(stateDir, 0o700); err != nil {
+		return fmt.Errorf("mkdir VNC state dir: %w", err)
+	}
+
+	relayHost := r.advertisedVNCRelayHost()
+	state := vncRelayState{
+		Pod:       pod.Namespace + "/" + pod.Name,
+		VMName:    entry.VMName,
+		RelayURL:  vncURL(relayHost, tcpAddr.Port, vncInfo.Password),
+		RelayHost: relayHost,
+		RelayPort: tcpAddr.Port,
+		UpdatedAt: time.Now().UTC().Format(time.RFC3339),
+	}
+	body, err := json.MarshalIndent(state, "", "  ")
+	if err != nil {
+		return err
+	}
+	body = append(body, '\n')
+
+	path := r.vncStatePath(pod.Namespace, pod.Name)
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, body, 0o600); err != nil {
+		return fmt.Errorf("write VNC state file: %w", err)
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		_ = os.Remove(tmp)
+		return fmt.Errorf("rename VNC state file: %w", err)
+	}
+
+	return r.writeVNCRelayAnnotations(ctx, pod, &state)
+}
+
+func (r *Reconciler) writeVNCRelayAnnotations(ctx context.Context, pod *corev1.Pod, state *vncRelayState) error {
+	if r.CachedClient == nil {
+		return nil
+	}
+
+	patched := pod.DeepCopy()
+	annotations := patched.GetAnnotations()
+	if annotations == nil {
+		annotations = map[string]string{}
+	}
+
+	if state == nil {
+		delete(annotations, vncStateAnnotation)
+		delete(annotations, vncRelayHostAnnotation)
+		delete(annotations, vncRelayPortAnnotation)
+		delete(annotations, vncRelayReadyAtAnnotation)
+	} else if patched.Annotations[vncSessionIDAnnotation] != "" {
+		annotations[vncStateAnnotation] = "ready"
+		annotations[vncRelayHostAnnotation] = state.RelayHost
+		annotations[vncRelayPortAnnotation] = strconv.Itoa(state.RelayPort)
+		annotations[vncRelayReadyAtAnnotation] = state.UpdatedAt
+	}
+
+	patched.SetAnnotations(annotations)
+	if err := r.CachedClient.Patch(ctx, patched, client.MergeFrom(pod)); err != nil {
+		return fmt.Errorf("patch VNC relay annotations for %s/%s: %w", pod.Namespace, pod.Name, err)
+	}
+	return nil
+}
+
+func (r *Reconciler) vncRequestPath(namespace, name string) string {
+	return filepath.Join(r.VNCControlDir, "requests", vncControlKey(namespace, name))
+}
+
+func (r *Reconciler) vncStatePath(namespace, name string) string {
+	if r.VNCControlDir == "" {
+		return ""
+	}
+	return filepath.Join(r.VNCControlDir, "state", vncControlKey(namespace, name)+".json")
+}
+
+func (r *Reconciler) vncEndpointPath(namespace, name string) string {
+	if r.VNCControlDir == "" {
+		return ""
+	}
+	return filepath.Join(r.VNCControlDir, "state", vncControlKey(namespace, name)+".endpoint.json")
+}
+
+func vncControlKey(namespace, name string) string {
+	return namespace + "_" + name
+}
+
+func vncCapableRunnerPod(pod *corev1.Pod) bool {
+	return pod.Labels["tuist.dev/runner"] == "true"
+}
+
+func vncURL(host string, port int, password string) string {
+	return (&url.URL{
+		Scheme: "vnc",
+		User:   url.UserPassword("", password),
+		Host:   net.JoinHostPort(host, strconv.Itoa(port)),
+	}).String()
+}
+
+func (r *Reconciler) advertisedVNCRelayHost() string {
+	if r.VNCRelayHost != "" {
+		return r.VNCRelayHost
+	}
+	return r.NodeIP
+}
+
 // contextWithTimeout is split out so the production resolver can use
 // context.Background as the parent (the resolver is invoked from a
 // scraper-driven goroutine and must outlive the reconcile that
@@ -659,6 +1100,14 @@ func contextWithTimeout(d time.Duration) (context.Context, context.CancelFunc) {
 }
 
 func (r *Reconciler) deletePod(ctx context.Context, pod *corev1.Pod) error {
+	// A Pod deleted out from under a running job (drain, scale-down,
+	// eviction) means the job was interrupted, so its cache-volume branch is
+	// discarded (cleanExit=false). A Pod deleted after a clean Succeeded
+	// transition already had its branch finalized on the terminal path, so
+	// this is a no-op there (the branch was consumed).
+	if entry := r.Store.Get(pod.Namespace, pod.Name); entry != nil {
+		r.finalizeVolume(entry, pod.Labels[runnerAccountLabel], false)
+	}
 	// VM teardown only. The caller removes the finalizer and force-
 	// completes the API object deletion afterward.
 	return r.deleteByKey(ctx, pod.Namespace, pod.Name)
@@ -688,6 +1137,12 @@ func (r *Reconciler) deleteByKey(ctx context.Context, namespace, name string) er
 		entry.MetricsForwarder.Stop()
 		entry.MetricsForwarder = nil
 	}
+	r.stopVNCForwarder(namespace, name, entry)
+
+	// Safety net: if the branch was not already finalized on a completion
+	// path (e.g. the Pod object vanished before we could observe its
+	// account), discard it so it never leaks. No-op once consumed.
+	r.finalizeVolume(entry, "", false)
 
 	_ = r.Tart.Stop(ctx, entry.VMName, 30*time.Second)
 	if err := r.Tart.Delete(ctx, entry.VMName); err != nil {
@@ -744,9 +1199,18 @@ func (r *Reconciler) podStatus(ctx context.Context, pod *corev1.Pod) (*corev1.Po
 	}
 
 	if !running {
-		// VM exited cleanly. Tear down the Tart clone + Store
-		// entry so the host state mirrors what the API server
-		// will see post-update, then mark the Pod Succeeded so
+		// VM exited cleanly. A recovered VM (Run == nil after a kubelet
+		// restart) never passed through the terminal-phase finalize above, so
+		// promote/discard its cache branch HERE from the account label and the
+		// guest's dirty marker — the marker exists only on a clean job
+		// completion and already encodes job success (rc-gated), so treating the
+		// observed stop as a clean exit is correct. Without this, deleteByKey's
+		// safety-net finalize (empty account, cleanExit=false) would discard a
+		// successfully completed dirty branch instead of promoting it. Idempotent
+		// with the terminal path: finalize no-ops once the branch is consumed.
+		r.finalizeVolume(entry, pod.Labels[runnerAccountLabel], true)
+		// Tear down the Tart clone + Store entry so the host state mirrors what
+		// the API server will see post-update, then mark the Pod Succeeded so
 		// the watcher refills the warm pool.
 		_ = r.deleteByKey(ctx, pod.Namespace, pod.Name)
 		status.Phase = corev1.PodSucceeded
@@ -793,6 +1257,10 @@ func (r *Reconciler) podStatus(ctx context.Context, pod *corev1.Pod) (*corev1.Po
 			} else {
 				status.PodIP = r.NodeIP
 			}
+		}
+		if err := r.syncVNCForwarder(ctx, pod, entry); err != nil {
+			log.FromContext(ctx).Error(err, "sync VNC forwarder",
+				"pod", pod.Namespace+"/"+pod.Name)
 		}
 		status.Conditions = []corev1.PodCondition{
 			{Type: corev1.PodReady, Status: corev1.ConditionTrue},
@@ -951,6 +1419,11 @@ func VMNameForPod(pod *corev1.Pod) string {
 // `prometheus.io/scrape` annotation. nil for Pods without the
 // annotation and for entries materialised by recoverState — the
 // next reconcile-and-restart cycle will set one up.
+//
+// VNCForwarder is the host-side TCP relay (node_ip:ephemeral_port →
+// Tart's host-local VNC endpoint) for requested VNC sessions. Sensitive
+// Tart endpoint state lives under Reconciler.VNCControlDir, while Pod
+// annotations carry only server-consumable relay readiness metadata.
 type Entry struct {
 	VMName  string
 	StartTS metav1.Time
@@ -961,8 +1434,18 @@ type Entry struct {
 	// transition), not per reconcile — observing on every
 	// podStatus would skew the distribution toward `0` for
 	// long-lived VMs that get reconciled hundreds of times.
-	BootObserved     bool
-	MetricsForwarder *Forwarder
+	BootObserved      bool
+	MetricsForwarder  *Forwarder
+	VNCForwarder      *TCPForwarder
+	VNCRelayTokenHash string
+
+	// Volume is the per-account cache-volume branch attached to this VM at
+	// boot. Zero value (Attached false) means the VM booted on
+	// the cold path; the finalize + cleanup steps then no-op.
+	Volume VolumeAttachment
+	// VolumeStatusDir is the host path of the writable share the guest
+	// writes its cache dirty marker into. Empty when no volume was attached.
+	VolumeStatusDir string
 }
 
 // Store is a tiny thread-safe map. Backed by in-memory state — on

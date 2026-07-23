@@ -123,8 +123,8 @@
           <:icon_left><.download /></:icon_left>
         </.button>
         <.button
-          :if={@run.status != "processing" && Tuist.Builds.build_ci_run_url(@run)}
-          href={Tuist.Builds.build_ci_run_url(@run)}
+          :if={@run.status != "processing" && @ci_run_url}
+          href={@ci_run_url}
           label={dgettext("dashboard_builds", "CI Run")}
           variant="secondary"
           size="medium"
@@ -136,8 +136,18 @@
     </div>
     <div :if={@run.status == "processing"} data-part="processing-state">
       <div data-part="image">
-        <img src="/images/processing_build_light.png" data-theme="light" />
-        <img src="/images/processing_build_dark.png" data-theme="dark" />
+        <img
+          src={~p"/images/processing_build_light.png"}
+          data-theme="light"
+          loading="lazy"
+          decoding="async"
+        />
+        <img
+          src={~p"/images/processing_build_dark.png"}
+          data-theme="dark"
+          loading="lazy"
+          decoding="async"
+        />
       </div>
       <div data-part="labels">
         <span data-part="title">
@@ -319,13 +329,13 @@
               </div>
             </div>
           </div>
-          <div :if={map_size(@run.custom_values || %{}) > 0} data-part="custom-metadata-section">
+          <div :if={map_size(@run.custom_values) > 0} data-part="custom-metadata-section">
             <span data-part="custom-metadata-label">
               {dgettext("dashboard_builds", "Custom metadata")}
             </span>
             <.table
               id="custom-metadata-table"
-              rows={Map.to_list(@run.custom_values || %{})}
+              rows={Map.to_list(@run.custom_values)}
               row_key={fn {key, _value} -> key end}
             >
               <:col :let={{key, _value}} label={dgettext("dashboard_builds", "Key")}>
@@ -347,6 +357,10 @@
           </div>
         </.card_section>
       </.card>
+      <.ci_context_card
+        :if={@ci_context}
+        context={@ci_context}
+      />
       <.card
         :if={
           not Enum.empty?(@errors_grouped_by_path) or not Enum.empty?(@warnings_grouped_by_path)
@@ -765,8 +779,18 @@
               <.empty_tab_state_background />
             </div>
             <div data-part="image">
-              <img src="/images/empty_warnings_light.png" data-theme="light" />
-              <img src="/images/empty_warnings_dark.png" data-theme="dark" />
+              <img
+                src={~p"/images/empty_warnings_light.png"}
+                data-theme="light"
+                loading="lazy"
+                decoding="async"
+              />
+              <img
+                src={~p"/images/empty_warnings_dark.png"}
+                data-theme="dark"
+                loading="lazy"
+                decoding="async"
+              />
             </div>
             <span data-part="title">{dgettext("dashboard_builds", "No warnings detected")}</span>
             <span data-part="subtitle">
@@ -808,8 +832,18 @@
               <.empty_tab_state_background />
             </div>
             <div data-part="image">
-              <img src="/images/empty_errors_light.png" data-theme="light" />
-              <img src="/images/empty_errors_dark.png" data-theme="dark" />
+              <img
+                src={~p"/images/empty_errors_light.png"}
+                data-theme="light"
+                loading="lazy"
+                decoding="async"
+              />
+              <img
+                src={~p"/images/empty_errors_dark.png"}
+                data-theme="dark"
+                loading="lazy"
+                decoding="async"
+              />
             </div>
             <span data-part="title">{dgettext("dashboard_builds", "No errors detected")}</span>
             <span data-part="subtitle">

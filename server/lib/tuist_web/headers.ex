@@ -64,12 +64,6 @@ defmodule TuistWeb.Headers do
 
   defp decode_client_feature_flags([]), do: MapSet.new()
 
-  defp decode_client_feature_flags(feature_flags) when is_binary(feature_flags) do
-    feature_flags
-    |> String.split(",", trim: true)
-    |> decode_client_feature_flag_names()
-  end
-
   defp decode_client_feature_flags(feature_flags) when is_list(feature_flags) do
     feature_flags
     |> Enum.flat_map(&String.split(&1, ",", trim: true))

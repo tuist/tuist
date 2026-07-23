@@ -7,6 +7,8 @@ defmodule TuistWeb.RateLimit.InMemory do
   broadcasting mechanism to keep counters in sync across nodes in a cluster.
   """
   alias Tuist.Environment
+  alias TuistWeb.Authentication
+  alias TuistWeb.RemoteIp
 
   defmodule Local do
     @moduledoc false
@@ -31,7 +33,7 @@ defmodule TuistWeb.RateLimit.InMemory do
     def start_link(opts) do
       pubsub = Keyword.fetch!(opts, :pubsub)
       topic = Keyword.fetch!(opts, :topic)
-      GenServer.start_link(__MODULE__, {pubsub, topic})
+      GenServer.start_link(__MODULE__, {pubsub, topic}, name: __MODULE__)
     end
 
     @impl true
@@ -49,12 +51,14 @@ defmodule TuistWeb.RateLimit.InMemory do
     end
   end
 
-  def rate_limit(%Plug.Conn{} = conn, _opts) do
+  def rate_limit(%Plug.Conn{} = conn, opts) do
     if Environment.tuist_hosted?() do
       scale_ms = to_timeout(minute: 1)
-      limit = 1_000
+      limit = opts[:limit] || Environment.dashboard_rate_limit_bucket_size()
+      route = route_pattern(conn)
+      key = "dashboard:#{conn.method}:#{route}:#{requester_key(conn)}"
 
-      case hit(TuistWeb.RemoteIp.get(conn), scale_ms, limit) do
+      case hit(key, scale_ms, limit) do
         {:allow, _count} ->
           conn
 
@@ -67,12 +71,33 @@ defmodule TuistWeb.RateLimit.InMemory do
     end
   end
 
+  defp requester_key(conn) do
+    case Authentication.current_user(conn) do
+      %{id: id} -> "user:#{id}"
+      nil -> "ip:#{RemoteIp.get(conn)}"
+    end
+  end
+
+  defp route_pattern(conn) do
+    case conn.private[:phoenix_router] do
+      nil ->
+        conn.request_path
+
+      router ->
+        case Phoenix.Router.route_info(router, conn.method, conn.path_info, conn.host) do
+          %{route: route} -> route
+          :error -> conn.request_path
+        end
+    end
+  end
+
   @pubsub Tuist.PubSub
   @topic "__ratelimit"
 
   # Sends a message to other nodes in the cluster to synchronize rate-limiting information.
   defp broadcast(message) do
-    Phoenix.PubSub.broadcast(@pubsub, @topic, message)
+    listener = Process.whereis(Listener)
+    Phoenix.PubSub.broadcast_from(@pubsub, listener, @topic, message)
   end
 
   def child_spec(opts) do

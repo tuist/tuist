@@ -26,8 +26,8 @@ defmodule Tuist.Accounts do
   alias Tuist.CommandEvents
   alias Tuist.Ecto.Utils
   alias Tuist.Environment
-  alias Tuist.FeatureFlags
   alias Tuist.Repo
+  alias Tuist.Runners.Concurrency, as: RunnerConcurrency
   alias Tuist.Runners.Profiles, as: RunnerProfiles
 
   require Logger
@@ -37,7 +37,24 @@ defmodule Tuist.Accounts do
   # auth.md agent registration workflow lives in `Tuist.Accounts.AgentAuth`.
   # These delegators keep `Tuist.Accounts` as the single context facade.
   defdelegate agent_registration_scopes(), to: AgentAuth, as: :scopes
+  defdelegate agent_auth_poll_interval_seconds(), to: AgentAuth, as: :protocol_poll_interval_seconds
+  defdelegate agent_auth_id_jag_max_auth_age_seconds(), to: AgentAuth, as: :id_jag_max_auth_age_seconds
+  defdelegate agent_auth_service_jwks(), to: AgentAuth, as: :service_jwks
+  defdelegate claimed_agent_registration_user(account_token_id), to: AgentAuth, as: :claimed_user_for_account_token
+  defdelegate claimed_protocol_agent_user(registration_id), to: AgentAuth, as: :claimed_user_for_registration
   defdelegate create_agent_registration(attrs), to: AgentAuth, as: :create_registration
+  defdelegate create_protocol_agent_registration(attrs), to: AgentAuth, as: :create_protocol_registration
+  defdelegate initiate_protocol_agent_claim(attrs), to: AgentAuth, as: :initiate_protocol_claim
+  defdelegate protocol_agent_claim_view(claim_view_token, user), to: AgentAuth, as: :get_protocol_claim_view
+  defdelegate confirm_protocol_agent_claim(attrs), to: AgentAuth, as: :confirm_protocol_claim
+
+  defdelegate exchange_protocol_agent_assertion(assertion, audience, resource),
+    to: AgentAuth,
+    as: :exchange_protocol_assertion
+
+  defdelegate poll_protocol_agent_claim(claim_token, audience), to: AgentAuth, as: :poll_protocol_claim
+  defdelegate revoke_protocol_agent_access_token(token), to: AgentAuth, as: :revoke_protocol_access_token
+  defdelegate receive_protocol_agent_event(token, audience), to: AgentAuth, as: :receive_protocol_event
 
   defdelegate revoke_agent_registrations(logout_token, audience),
     to: AgentAuth,
@@ -355,7 +372,13 @@ defmodule Tuist.Accounts do
         {:ok, organization}
 
       {:error, part, changeset, _changes}
-      when part in [:organization, :account, :default_runner_profile, :default_macos_runner_profile] ->
+      when part in [
+             :organization,
+             :account,
+             :runner_concurrency_limits,
+             :default_runner_profile,
+             :default_macos_runner_profile
+           ] ->
         {:error, changeset}
 
       {:error, part, changeset, _changes} ->
@@ -405,6 +428,9 @@ defmodule Tuist.Accounts do
             )
         })
       )
+    end)
+    |> Multi.run(:runner_concurrency_limits, fn _repo, %{account: account} ->
+      RunnerConcurrency.create_default_limits(account)
     end)
     |> Multi.run(:default_runner_profile, fn _repo, %{account: account} ->
       RunnerProfiles.create_default_for_account(account)
@@ -695,6 +721,9 @@ defmodule Tuist.Accounts do
           })
         )
       end)
+      |> Multi.run(:runner_concurrency_limits, fn _repo, %{account: account} ->
+        RunnerConcurrency.create_default_limits(account)
+      end)
       |> Multi.run(:default_runner_profile, fn _repo, %{account: account} ->
         RunnerProfiles.create_default_for_account(account)
       end)
@@ -737,8 +766,9 @@ defmodule Tuist.Accounts do
           {:error, changeset}
         end
 
-      {:error, step, reason, _} when step in [:default_runner_profile, :default_macos_runner_profile] ->
-        Logger.error("create_user: default runner profile insert failed (#{step}): #{inspect(reason)}")
+      {:error, step, reason, _}
+      when step in [:runner_concurrency_limits, :default_runner_profile, :default_macos_runner_profile] ->
+        Logger.error("create_user: account bootstrap insert failed (#{step}): #{inspect(reason)}")
         {:error, :internal_server_error}
     end
   end
@@ -866,8 +896,7 @@ defmodule Tuist.Accounts do
         user
 
       error ->
-        # Re-raise any other errors
-        {:ok, _} = error
+        raise "Unexpected result from create_user/2 while creating OAuth2 user: #{inspect(error)}"
     end
   end
 
@@ -1141,6 +1170,29 @@ defmodule Tuist.Accounts do
     invitation
   end
 
+  def resend_invitation(%Invitation{} = invitation, %{url: url_fun}, opts \\ []) when is_function(url_fun, 1) do
+    token = Keyword.get(opts, :token, Tuist.Tokens.generate_token(16))
+    invitation = Repo.preload(invitation, [:inviter, :organization])
+    account = get_account_from_organization(invitation.organization)
+
+    result =
+      invitation
+      |> Invitation.resend_changeset(%{token: token})
+      |> Repo.update()
+
+    if match?({:ok, _invitation}, result) and Environment.mail_configured?() do
+      UserNotifier.deliver_invitation(invitation.invitee_email, %{
+        inviter: invitation.inviter,
+        to: %{organization: invitation.organization, account: account},
+        url: url_fun.(token)
+      })
+    end
+
+    result
+  end
+
+  def invitation_expired?(%Invitation{} = invitation), do: Invitation.expired?(invitation)
+
   def invite_users_to_organization(emails, %{
         inviter: %User{id: user_id} = inviter,
         to: %Organization{id: organization_id} = organization,
@@ -1193,8 +1245,21 @@ defmodule Tuist.Accounts do
         invitee: %User{} = invitee,
         organization: %Organization{} = organization
       }) do
-    add_user_to_organization(invitee, organization)
-    Repo.delete(invitation)
+    case Repo.get(Invitation, invitation.id) do
+      nil ->
+        {:error, :not_found}
+
+      %Invitation{token: token} when token != invitation.token ->
+        {:error, :not_found}
+
+      %Invitation{} = invitation ->
+        if Invitation.expired?(invitation) do
+          {:error, :expired}
+        else
+          add_user_to_organization(invitee, organization)
+          Repo.delete(invitation)
+        end
+    end
   end
 
   def delete_invitation(%{invitation: %Invitation{} = invitation}) do
@@ -1207,13 +1272,7 @@ defmodule Tuist.Accounts do
       |> Repo.get_by(token: token, invitee_email: invitee.email)
       |> Repo.preload(inviter: :account)
 
-    cond do
-      is_nil(invitation) ->
-        {:error, :not_found}
-
-      !is_nil(invitation) ->
-        {:ok, invitation}
-    end
+    invitation_result(invitation)
   end
 
   def get_invitation_by_token(token) do
@@ -1222,9 +1281,16 @@ defmodule Tuist.Accounts do
       |> Repo.get_by(token: token)
       |> Repo.preload(inviter: :account)
 
-    case invitation do
-      nil -> {:error, :not_found}
-      invitation -> {:ok, invitation}
+    invitation_result(invitation)
+  end
+
+  defp invitation_result(nil), do: {:error, :not_found}
+
+  defp invitation_result(%Invitation{} = invitation) do
+    if Invitation.expired?(invitation) do
+      {:error, :expired}
+    else
+      {:ok, invitation}
     end
   end
 
@@ -1399,9 +1465,12 @@ defmodule Tuist.Accounts do
   end
 
   def get_pending_invitations_by_email(invitee_email) do
+    validity_days = Invitation.validity_days()
+
     Repo.all(
       from(i in Invitation,
         where: i.invitee_email == ^invitee_email,
+        where: i.updated_at > ago(^validity_days, "day"),
         order_by: [desc: i.created_at]
       )
     )
@@ -1814,6 +1883,29 @@ defmodule Tuist.Accounts do
   end
 
   @doc """
+  Gets a specific account token by ID for a given account.
+  """
+  def get_account_token(%Account{} = account, token_id, opts \\ []) do
+    preload = Keyword.get(opts, :preload, [:projects, :created_by_account])
+
+    case UUIDv7.cast(token_id) do
+      {:ok, token_id} ->
+        case Repo.one(
+               from(t in AccountToken,
+                 where: t.id == ^token_id and t.account_id == ^account.id,
+                 preload: ^preload
+               )
+             ) do
+          nil -> {:error, :not_found}
+          token -> {:ok, token}
+        end
+
+      _ ->
+        {:error, :not_found}
+    end
+  end
+
+  @doc """
   Gets a specific account token by name for a given account.
   """
   def get_account_token_by_name(%Account{} = account, token_name, opts \\ []) do
@@ -1948,15 +2040,36 @@ defmodule Tuist.Accounts do
   end
 
   def delete_account!(%Account{} = account) do
-    cond do
-      user?(account) ->
-        account_user = get_user_by_id(account.user_id)
-        delete_user(account_user)
+    result =
+      cond do
+        user?(account) ->
+          account_user = get_user_by_id(account.user_id)
+          delete_user(account_user)
 
-      organization?(account) ->
-        {:ok, account_organization} = get_organization_by_id(account.organization_id)
-        delete_organization!(account_organization)
-    end
+        organization?(account) ->
+          {:ok, account_organization} = get_organization_by_id(account.organization_id)
+          delete_organization!(account_organization)
+      end
+
+    purge_account_cache_masters(account)
+    result
+  end
+
+  # The runner cache-volume master archive is customer-derived build cache
+  # stored under an account_id-keyed prefix, outside the account-handle
+  # namespace that handle-based artifact retention sweeps — so nothing else
+  # removes it. Delete it explicitly on account deletion so it doesn't outlive
+  # the account. Best-effort: a storage failure must never fail the deletion.
+  defp purge_account_cache_masters(account) do
+    Tuist.Storage.delete_all_objects(Tuist.Runners.volume_master_object_prefix(account.id), account)
+    :ok
+  rescue
+    e ->
+      Logger.warning(
+        "failed to purge runner cache-volume masters on account deletion (account_id=#{account.id}): #{Exception.message(e)}"
+      )
+
+      :ok
   end
 
   def organization?(account), do: !is_nil(account.organization_id)
@@ -1991,10 +2104,10 @@ defmodule Tuist.Accounts do
   Returns cache endpoint URLs for the given account handle and cache technology.
 
   The `technology` argument is driven by the `kura` client feature flag header.
-  When `:kura`, ready account Kura endpoints are returned only if the account
-  has the `:kura_cache` flag enabled. In every other case (technology is
-  `:default`, no opt-in, or no ready Kura endpoint), the custom and default
-  endpoint fallback behavior is preserved.
+  When `:kura`, the account's provisioned Kura endpoints are returned if it has
+  any, so routing to Kura is opt-in from the CLI alone. In every other case
+  (technology is `:default`, or the account has no Kura endpoint), the custom
+  and default endpoint fallback behavior is preserved.
 
   Custom endpoints are only returned when:
   - The account exists
@@ -2059,19 +2172,21 @@ defmodule Tuist.Accounts do
   defp custom_cache_endpoints(_), do: []
 
   defp kura_cache_endpoints(%Account{} = account) do
-    if FeatureFlags.kura_cache_enabled?(account) do
-      # Tuist-managed Kura endpoints, mirrored from `kura_servers`. Self-hosted
-      # nodes are not static rows: each one self-registers its advertised URL via
-      # heartbeats, surfaced through `registered_kura_endpoint_urls/1`.
-      Repo.all(from(e in AccountCacheEndpoint, where: e.account_id == ^account.id and e.technology == :kura))
-    else
-      []
-    end
+    # Tuist-managed Kura endpoints, mirrored from `kura_servers`. Self-hosted
+    # nodes are not static rows: each one self-registers its advertised URL via
+    # heartbeats, surfaced through `registered_kura_endpoint_urls/1`. Whether
+    # these are handed to the CLI is decided upstream by the `kura` client
+    # feature flag, so provisioning is the only server-side gate.
+    Repo.all(from(e in AccountCacheEndpoint, where: e.account_id == ^account.id and e.technology == :kura))
   end
 
-  defp kura_cache_endpoints(_), do: []
-
-  defp kura_cache_endpoint_urls(%Account{} = account) do
+  @doc """
+  The Kura cache endpoint URLs the CLI resolves for this account.
+  Public so runner dispatch (`Tuist.Kura.runner_cache_endpoint_url/2`)
+  derives its in-cluster fallback from the exact candidate set the CLI
+  sees, rather than a parallel query that could drift.
+  """
+  def kura_cache_endpoint_urls(%Account{} = account) do
     static_urls = account |> kura_cache_endpoints() |> Enum.map(& &1.url)
     registered_urls = registered_kura_endpoint_urls(account)
 
@@ -2080,12 +2195,11 @@ defmodule Tuist.Accounts do
 
   # Client-facing URLs from registration heartbeats: customer-owned nodes that
   # report a live, ready advertised endpoint. Lease-gated, so a node that stops
-  # heartbeating drops out. Gated on `:kura_cache` like the static endpoints.
+  # heartbeating drops out.
   defp registered_kura_endpoint_urls(%Account{} = account) do
     # Self-hosting is Enterprise-only, so do not surface a downgraded account's
     # registered node addresses to the CLI even while their leases are still live.
-    if FeatureFlags.kura_cache_enabled?(account) and
-         Billing.Entitlements.allows?(account, :self_hosted_cache) do
+    if Billing.Entitlements.allows?(account, :self_hosted_cache) do
       Tuist.Kura.Registrations.active_advertised_urls(account)
     else
       []

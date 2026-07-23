@@ -31,18 +31,11 @@ defmodule TuistWeb.GenerateRunsLive do
   end
 
   def handle_params(_params, uri, %{assigns: %{selected_project: _project}} = socket) do
-    params = Query.query_params(uri)
+    params = uri |> Query.query_params() |> Query.clear_cursors_on_initial_load(socket.assigns)
     uri = URI.new!("?" <> URI.encode_query(params))
 
     generate_runs_sort_by = params["generate_runs_sort_by"] || "ran_at"
     generate_runs_sort_order = params["generate_runs_sort_order"] || "desc"
-
-    params =
-      if not Map.has_key?(socket.assigns, :current_params) and Query.has_cursor?(params) do
-        Query.clear_cursors(params)
-      else
-        params
-      end
 
     {
       :noreply,
@@ -165,7 +158,7 @@ defmodule TuistWeb.GenerateRunsLive do
     options = %{
       filters: [
         %{field: :project_id, op: :==, value: project_id},
-        %{field: :name, op: :in, value: ["generate"]}
+        %{field: :name, op: :==, value: "generate"}
         | build_flop_filters(Keyword.get(attrs, :filters, []))
       ],
       order_by: [Keyword.get(attrs, :order_by, :ran_at)],
@@ -197,7 +190,6 @@ defmodule TuistWeb.GenerateRunsLive do
     flop_filters =
       filters
       |> Enum.map(&normalize_command_filter/1)
-      |> Enum.map(&normalize_text_filter_operator/1)
       |> Filter.Operations.convert_filters_to_flop()
 
     ran_by_flop_filters =
@@ -220,10 +212,6 @@ defmodule TuistWeb.GenerateRunsLive do
 
     flop_filters ++ ran_by_flop_filters
   end
-
-  defp normalize_text_filter_operator(%Filter.Filter{operator: :"!=~"} = filter), do: %{filter | operator: :not_ilike}
-
-  defp normalize_text_filter_operator(filter), do: filter
 
   defp normalize_command_filter(%Filter.Filter{id: "name", value: value} = filter) when is_binary(value) do
     %{filter | value: normalize_command_filter_value(value)}

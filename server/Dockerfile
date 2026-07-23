@@ -1,10 +1,10 @@
-ARG ELIXIR_VERSION=1.19.5
-ARG OTP_VERSION=28.4.3
+ARG ELIXIR_VERSION=1.20.2
+ARG OTP_VERSION=29.0.3
 ARG DOCKER_IMAGE_PREFIX=
 ARG DOCKER_OFFICIAL_IMAGE_PREFIX=
 # hexpm/elixir uses date-pinned tags; their specific bookworm tag has both
 # linux/amd64 and linux/arm64/v8 manifests so the builder stage is multi-arch.
-ARG DEBIAN_BUILDER_VERSION=bookworm-20260406-slim
+ARG DEBIAN_BUILDER_VERSION=bookworm-20260623-slim
 # The plain debian:bookworm-20260406-slim tag is amd64-only. Use the unpinned
 # bookworm-slim tag for the runner base so the final image supports both
 # amd64 and arm64. Trading a small amount of reproducibility for multi-arch.
@@ -63,7 +63,7 @@ WORKDIR /app
 # ========================================
 FROM ${BUILDER_IMAGE} AS deps-builder
 
-RUN apt-get update -y && apt-get upgrade -y && apt-get install -y build-essential git \
+RUN apt-get update -y && apt-get upgrade -y && apt-get install -y build-essential ca-certificates curl git \
   && apt-get clean && rm -f /var/lib/apt/lists/*_*
 
 WORKDIR /app
@@ -89,6 +89,7 @@ ENV HEX_HTTP_TIMEOUT=120
 ENV ELIXIR_ERL_OPTIONS="+S 2"
 
 COPY server/mix.exs server/mix.lock ./
+COPY server/mise/tasks/cldr mise/tasks/cldr
 RUN mkdir config
 
 # Copy path dependencies (only mix.exs/mix.lock for dep resolution)
@@ -121,6 +122,16 @@ COPY server/config/config.exs config/
 COPY server/config/prod.exs server/config/can.exs server/config/stag.exs config/
 
 RUN mix deps.compile
+# Prefetch CLDR locale JSON before the full-locale compile so ex_cldr does not
+# fall back to rate-limited raw.githubusercontent.com downloads. Authenticate
+# via a BuildKit secret (never baked into a layer) to lift the unauthenticated
+# rate ceiling; the script stays unauthenticated when no secret is mounted
+# (local builds). The `env=` secret target needs the built-in Dockerfile
+# frontend >= 1.10 (BuildKit 0.16 / Docker Engine 27.3, Sep 2024) — every CI
+# path here provisions a current BuildKit via setup-buildx-action, so no
+# `# syntax=` pin (and its Docker Hub frontend pull) is needed.
+RUN --mount=type=secret,id=github_token,env=GITHUB_TOKEN \
+    mise/tasks/cldr/prefetch-locale-data.sh
 
 # ========================================
 # Stage: OG image generator
@@ -177,8 +188,9 @@ COPY skills/skills priv/static/skills
 COPY server/assets assets
 COPY server/native native
 
-# Xcode example READMEs needed at compile time by Tuist.Docs.Loader
+# Xcode example READMEs needed by Tuist.Docs.Loader in source and release paths
 COPY examples/xcode /examples/xcode
+COPY examples/xcode priv/examples/xcode
 
 COPY server/lib lib
 

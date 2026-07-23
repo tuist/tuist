@@ -21,10 +21,36 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 
 	kurav1alpha1 "github.com/tuist/tuist/infra/kura-controller/api/v1alpha1"
 )
+
+func TestKuraInstanceDesiredStateChangedPredicate(t *testing.T) {
+	p := kuraInstanceDesiredStateChangedPredicate()
+	oldInstance := &kurav1alpha1.KuraInstance{ObjectMeta: metav1.ObjectMeta{Generation: 4}}
+
+	statusOnly := oldInstance.DeepCopy()
+	statusOnly.Status.Phase = "Ready"
+	if p.Update(event.UpdateEvent{ObjectOld: oldInstance, ObjectNew: statusOnly}) {
+		t.Fatal("status-only updates must not trigger an immediate reconcile")
+	}
+
+	specChanged := oldInstance.DeepCopy()
+	specChanged.Generation++
+	if !p.Update(event.UpdateEvent{ObjectOld: oldInstance, ObjectNew: specChanged}) {
+		t.Fatal("specification changes must trigger an immediate reconcile")
+	}
+
+	deleting := oldInstance.DeepCopy()
+	now := metav1.Now()
+	deleting.DeletionTimestamp = &now
+	if !p.Update(event.UpdateEvent{ObjectOld: oldInstance, ObjectNew: deleting}) {
+		t.Fatal("deletion must trigger an immediate reconcile even when generation is unchanged")
+	}
+}
 
 func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 	ctx := context.Background()
@@ -76,16 +102,13 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 	if service.Spec.ExternalTrafficPolicy != "" {
 		t.Fatalf("expected no external traffic policy on ClusterIP backend, got %q", service.Spec.ExternalTrafficPolicy)
 	}
-	if got := len(service.Spec.Ports); got != 3 {
-		t.Fatalf("expected backend service to expose http, grpc, and peer ports, got %d", got)
+	if got := len(service.Spec.Ports); got != 2 {
+		t.Fatalf("expected backend service to expose the co-hosted cache and peer ports, got %d", got)
 	}
 	if got := service.Spec.Ports[0].TargetPort.StrVal; got != "http" {
-		t.Fatalf("expected public ingress backend service to target the plain http port, got %q", got)
+		t.Fatalf("expected public ingress backend service to target the co-hosted cache port, got %q", got)
 	}
-	if got := service.Spec.Ports[1].TargetPort.StrVal; got != "grpc" {
-		t.Fatalf("expected backend service to expose grpc, got %q", got)
-	}
-	if got := service.Spec.Ports[2].TargetPort.StrVal; got != "peer" {
+	if got := service.Spec.Ports[1].TargetPort.StrVal; got != "peer" {
 		t.Fatalf("expected backend service to expose peer, got %q", got)
 	}
 	if len(service.Annotations) != 0 {
@@ -350,189 +373,11 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 	if len(policy.Spec.Ingress[2].From) != 1 || policy.Spec.Ingress[2].From[0].NamespaceSelector == nil {
 		t.Fatalf("expected regional Kura ingress NetworkPolicy rule to allow cluster namespaces, got %v", policy.Spec.Ingress[2].From)
 	}
-	if len(ingressPorts) != 2 {
-		t.Fatalf("expected regional Kura ingress NetworkPolicy rule to expose HTTP and gRPC, got %d ports", len(ingressPorts))
+	if len(ingressPorts) != 1 {
+		t.Fatalf("expected regional Kura ingress NetworkPolicy rule to expose only the co-hosted cache port, got %d ports", len(ingressPorts))
 	}
 	if got := ingressPorts[0].Port.StrVal; got != "http" {
 		t.Fatalf("expected regional Kura ingress NetworkPolicy rule to expose http, got %q", got)
-	}
-	if got := ingressPorts[1].Port.StrVal; got != "grpc" {
-		t.Fatalf("expected regional Kura ingress NetworkPolicy rule to expose grpc, got %q", got)
-	}
-}
-
-func TestKuraGatewayReconcileCreatesDedicatedIngressInfrastructure(t *testing.T) {
-	ctx := context.Background()
-	scheme := runtime.NewScheme()
-	if err := clientgoscheme.AddToScheme(scheme); err != nil {
-		t.Fatal(err)
-	}
-	if err := kurav1alpha1.AddToScheme(scheme); err != nil {
-		t.Fatal(err)
-	}
-
-	gateway := &kurav1alpha1.KuraGateway{
-		ObjectMeta: metav1.ObjectMeta{Name: "kgw-abc123-us-east", Namespace: "kura"},
-		Spec: kurav1alpha1.KuraGatewaySpec{
-			Region:              "us-east",
-			IngressClassName:    "kura-us-east-kgw-abc123",
-			ControllerClassName: "k8s.io/kura-us-east-kgw-abc123-ingress-nginx",
-			ControllerImage:     "registry.k8s.io/ingress-nginx/controller:v1.11.3",
-			Replicas:            ptr(int32(3)),
-			NodeSelector:        map[string]string{"node.cluster.x-k8s.io/pool": "kura-us-east"},
-			LoadBalancerAnnotations: map[string]string{
-				"load-balancer.hetzner.cloud/name":               "tuist-kgw-abc123-us-east-ingress",
-				"load-balancer.hetzner.cloud/location":           "ash",
-				"load-balancer.hetzner.cloud/uses-proxyprotocol": "true",
-			},
-		},
-	}
-	reconciler := &KuraGatewayReconciler{
-		Client:                    fake.NewClientBuilder().WithScheme(scheme).WithObjects(gateway).WithStatusSubresource(gateway).Build(),
-		Scheme:                    scheme,
-		GatewayServiceAccountName: "tuist-kura-controller-gateway-ingress-nginx",
-	}
-
-	if _, err := reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: types.NamespacedName{Name: gateway.Name, Namespace: gateway.Namespace}}); err != nil {
-		t.Fatal(err)
-	}
-
-	service := &corev1.Service{}
-	if err := reconciler.Get(ctx, types.NamespacedName{Name: gatewayWorkloadName(gateway), Namespace: gateway.Namespace}, service); err != nil {
-		t.Fatalf("expected dedicated gateway LoadBalancer Service: %v", err)
-	}
-	if service.Spec.Type != corev1.ServiceTypeLoadBalancer {
-		t.Fatalf("expected LoadBalancer Service, got %q", service.Spec.Type)
-	}
-	if service.Spec.ExternalTrafficPolicy != corev1.ServiceExternalTrafficPolicyLocal {
-		t.Fatalf("expected externalTrafficPolicy Local, got %q", service.Spec.ExternalTrafficPolicy)
-	}
-	if got := service.Annotations["load-balancer.hetzner.cloud/location"]; got != "ash" {
-		t.Fatalf("expected Hetzner location annotation, got %q", got)
-	}
-	if got := service.Annotations["load-balancer.hetzner.cloud/uses-proxyprotocol"]; got != "true" {
-		t.Fatalf("expected proxy protocol annotation, got %q", got)
-	}
-	if got := service.Annotations["load-balancer.hetzner.cloud/node-selector"]; got != "node.cluster.x-k8s.io/pool=kura-us-east" {
-		t.Fatalf("expected Hetzner LB node selector annotation, got %q", got)
-	}
-
-	ingressClass := &networkingv1.IngressClass{}
-	if err := reconciler.Get(ctx, types.NamespacedName{Name: "kura-us-east-kgw-abc123"}, ingressClass); err != nil {
-		t.Fatalf("expected dedicated IngressClass: %v", err)
-	}
-	if got := ingressClass.Spec.Controller; got != "k8s.io/kura-us-east-kgw-abc123-ingress-nginx" {
-		t.Fatalf("expected dedicated controller class, got %q", got)
-	}
-	updatedGateway := &kurav1alpha1.KuraGateway{}
-	if err := reconciler.Get(ctx, types.NamespacedName{Name: gateway.Name, Namespace: gateway.Namespace}, updatedGateway); err != nil {
-		t.Fatal(err)
-	}
-	if got := updatedGateway.Status.IngressClassName; got != "kura-us-east-kgw-abc123" {
-		t.Fatalf("expected reconciled ingress class name to be persisted immediately, got %q", got)
-	}
-
-	configMap := &corev1.ConfigMap{}
-	if err := reconciler.Get(ctx, types.NamespacedName{Name: gatewayWorkloadName(gateway), Namespace: gateway.Namespace}, configMap); err != nil {
-		t.Fatalf("expected dedicated gateway ConfigMap: %v", err)
-	}
-	if got := configMap.Data["use-proxy-protocol"]; got != "true" {
-		t.Fatalf("expected proxy protocol enabled in nginx config, got %q", got)
-	}
-	if got := configMap.Data["proxy-request-buffering"]; got != "off" {
-		t.Fatalf("expected request buffering disabled in nginx config, got %q", got)
-	}
-	if got := configMap.Data["client-body-buffer-size"]; got != "4m" {
-		t.Fatalf("expected raised client body buffer for upload throughput, got %q", got)
-	}
-	if got := configMap.Data["http-snippet"]; got != "http2_body_preread_size 4m;" {
-		t.Fatalf("expected raised HTTP/2 body preread window, got %q", got)
-	}
-	if got := configMap.Data["http2-max-concurrent-streams"]; got != "32" {
-		t.Fatalf("expected bounded HTTP/2 concurrent streams, got %q", got)
-	}
-
-	deployment := &appsv1.Deployment{}
-	if err := reconciler.Get(ctx, types.NamespacedName{Name: gatewayWorkloadName(gateway), Namespace: gateway.Namespace}, deployment); err != nil {
-		t.Fatalf("expected dedicated gateway Deployment: %v", err)
-	}
-	if got := *deployment.Spec.Replicas; got != 3 {
-		t.Fatalf("expected configured replicas, got %d", got)
-	}
-	if got := deployment.Spec.Template.Spec.ServiceAccountName; got != "tuist-kura-controller-gateway-ingress-nginx" {
-		t.Fatalf("expected shared dynamic gateway ServiceAccount, got %q", got)
-	}
-	if got := deployment.Spec.Template.Spec.NodeSelector["node.cluster.x-k8s.io/pool"]; got != "kura-us-east" {
-		t.Fatalf("expected gateway to stay on the regional Kura pool, got %q", got)
-	}
-	container := deployment.Spec.Template.Spec.Containers[0]
-	if got := container.Image; got != "registry.k8s.io/ingress-nginx/controller:v1.11.3" {
-		t.Fatalf("expected configured ingress-nginx image, got %q", got)
-	}
-	if !containsString(container.Args, "--ingress-class=kura-us-east-kgw-abc123") {
-		t.Fatalf("expected dedicated ingress class arg, got %v", container.Args)
-	}
-	if !containsString(container.Args, "--watch-namespace=$(POD_NAMESPACE)") {
-		t.Fatalf("expected namespace-scoped ingress watch, got %v", container.Args)
-	}
-}
-
-func TestKuraGatewayReconcileHostNetworkBindsNodeDirectly(t *testing.T) {
-	ctx := context.Background()
-	scheme := runtime.NewScheme()
-	if err := clientgoscheme.AddToScheme(scheme); err != nil {
-		t.Fatal(err)
-	}
-	if err := kurav1alpha1.AddToScheme(scheme); err != nil {
-		t.Fatal(err)
-	}
-
-	gateway := &kurav1alpha1.KuraGateway{
-		ObjectMeta: metav1.ObjectMeta{Name: "kgw-def456-dedibox-staging", Namespace: "kura"},
-		Spec: kurav1alpha1.KuraGatewaySpec{
-			Region:           "dedibox-staging",
-			IngressClassName: "kura-dedibox-staging-kgw-def456",
-			Replicas:         ptr(int32(1)),
-			NodeSelector:     map[string]string{"node.cluster.x-k8s.io/pool": "kura-dedibox"},
-			HostNetwork:      true,
-		},
-	}
-	reconciler := &KuraGatewayReconciler{
-		Client:                    fake.NewClientBuilder().WithScheme(scheme).WithObjects(gateway).WithStatusSubresource(gateway).Build(),
-		Scheme:                    scheme,
-		GatewayServiceAccountName: "tuist-kura-controller-gateway-ingress-nginx",
-	}
-
-	if _, err := reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: types.NamespacedName{Name: gateway.Name, Namespace: gateway.Namespace}}); err != nil {
-		t.Fatal(err)
-	}
-
-	service := &corev1.Service{}
-	if err := reconciler.Get(ctx, types.NamespacedName{Name: gatewayWorkloadName(gateway), Namespace: gateway.Namespace}, service); err != nil {
-		t.Fatalf("expected gateway Service: %v", err)
-	}
-	if service.Spec.Type != corev1.ServiceTypeClusterIP {
-		t.Fatalf("expected ClusterIP Service on bare metal, got %q", service.Spec.Type)
-	}
-	if service.Spec.ExternalTrafficPolicy != "" {
-		t.Fatalf("expected no externalTrafficPolicy on ClusterIP Service, got %q", service.Spec.ExternalTrafficPolicy)
-	}
-	if len(service.Annotations) != 0 {
-		t.Fatalf("expected no Hetzner LB annotations on host-network gateway, got %v", service.Annotations)
-	}
-
-	deployment := &appsv1.Deployment{}
-	if err := reconciler.Get(ctx, types.NamespacedName{Name: gatewayWorkloadName(gateway), Namespace: gateway.Namespace}, deployment); err != nil {
-		t.Fatalf("expected gateway Deployment: %v", err)
-	}
-	if !deployment.Spec.Template.Spec.HostNetwork {
-		t.Fatalf("expected host-network pod so nginx binds the node public IP")
-	}
-	if got := deployment.Spec.Template.Spec.DNSPolicy; got != corev1.DNSClusterFirstWithHostNet {
-		t.Fatalf("expected ClusterFirstWithHostNet DNS, got %q", got)
-	}
-	if got := deployment.Spec.Template.Spec.NodeSelector["node.cluster.x-k8s.io/pool"]; got != "kura-dedibox" {
-		t.Fatalf("expected gateway pinned to the bare-metal pool, got %q", got)
 	}
 }
 
@@ -938,7 +783,10 @@ func TestKuraInstanceReconcileCrossRegionAccountPeerService(t *testing.T) {
 	if err := reconciler.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, policy); err != nil {
 		t.Fatal(err)
 	}
-	if len(policy.Spec.Ingress) != 3 {
+	// 4 rules: own-pods, same-account peer (podSelector), in-cluster http, and
+	// the open peer port for SNATed cross-region peers (this instance peers
+	// cross-region, so crossRegionRuntimeEnabled adds it).
+	if len(policy.Spec.Ingress) != 4 {
 		t.Fatalf("expected NetworkPolicy to include same-account peer rule, got %d rules", len(policy.Spec.Ingress))
 	}
 	if got := policy.Spec.Ingress[1].Ports[0].Port.StrVal; got != "peer" {
@@ -946,6 +794,9 @@ func TestKuraInstanceReconcileCrossRegionAccountPeerService(t *testing.T) {
 	}
 	if got := policy.Spec.Ingress[1].From[0].PodSelector.MatchLabels["tuist.dev/account"]; got != "tuist" {
 		t.Fatalf("expected same-account NetworkPolicy peer selector, got %q", got)
+	}
+	if !peerPortOpenFromAnyIP(policy) {
+		t.Fatal("expected a cross-region peer instance to allow the peer port from any IP (SNATed peers)")
 	}
 }
 
@@ -1080,6 +931,54 @@ func TestKuraInstanceReconcileMeshPublicPeerExposure(t *testing.T) {
 	}
 	if err := reconciler.Get(ctx, types.NamespacedName{Name: instancePublicPeerServiceName(instance), Namespace: instance.Namespace}, lb); err != nil {
 		t.Fatalf("expected public peer Service to survive a non-mesh sibling's reconcile, got %v", err)
+	}
+}
+
+func peerPortOpenFromAnyIP(policy *networkingv1.NetworkPolicy) bool {
+	for _, rule := range policy.Spec.Ingress {
+		for _, from := range rule.From {
+			if from.IPBlock == nil || from.IPBlock.CIDR != "0.0.0.0/0" {
+				continue
+			}
+			for _, p := range rule.Ports {
+				if p.Port != nil && p.Port.StrVal == "peer" {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+// A mesh region without a public peer host (e.g. a NodePort runner-cache node
+// that peers cross-region purely in-cluster) must still open the peer port to
+// SNATed traffic: a same-account peer in another region reaches it via
+// cross-provider in-cluster pod-to-pod traffic that is SNATed to a node IP, so
+// no pod/namespace selector matches. Regression for the wedge where such a node
+// silently rejected cross-provider peers on :7443 and never finished bootstrap.
+func TestMeshPeerNetworkPolicyOpensPeerPortWithoutPublicHost(t *testing.T) {
+	ctx := context.Background()
+	scheme := meshTestScheme(t)
+
+	instance := meshInstance("kura-tuist-scw-fr-par", "tuist")
+	instance.Spec.MeshPublicPeerHost = "" // NodePort runner-cache node: no public peer LB
+	instance.Spec.ExposeNodePort = true
+	instance.Spec.ClientCIDRs = []string{"172.16.0.0/22"}
+
+	reconciler := &KuraInstanceReconciler{
+		Client: fake.NewClientBuilder().WithScheme(scheme).WithObjects(instance).WithStatusSubresource(instance).Build(),
+		Scheme: scheme,
+	}
+	if _, err := reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}}); err != nil {
+		t.Fatal(err)
+	}
+
+	policy := &networkingv1.NetworkPolicy{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, policy); err != nil {
+		t.Fatal(err)
+	}
+	if !peerPortOpenFromAnyIP(policy) {
+		t.Fatal("expected a mesh region without a public peer host to still allow the peer port from any IP (cross-provider in-cluster peers arrive SNATed)")
 	}
 }
 
@@ -1295,8 +1194,8 @@ func TestKuraInstanceReconcileExposesGRPCWhenHostSet(t *testing.T) {
 			t.Fatalf("expected gRPC ingress paths to be ImplementationSpecific, got %v", p.PathType)
 		}
 		backend := p.Backend.Service
-		if backend == nil || backend.Name != instance.Name || backend.Port.Name != "grpc" {
-			t.Fatalf("expected gRPC ingress path to route to %s:grpc, got %#v", instance.Name, backend)
+		if backend == nil || backend.Name != instance.Name || backend.Port.Name != "http" {
+			t.Fatalf("expected gRPC ingress path to route to the co-hosted cache port %s:http, got %#v", instance.Name, backend)
 		}
 	}
 	wantPaths := []string{`/build\.bazel\.remote\.execution\.v2\.`, `/google\.bytestream\.`}
@@ -1885,6 +1784,264 @@ func TestKuraInstanceReconcileDoesNotShrinkPVCs(t *testing.T) {
 	}
 }
 
+func TestKuraInstanceReconcileDeletionReclaimsDataVolumes(t *testing.T) {
+	ctx := context.Background()
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := kurav1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+
+	replicas := int32(1)
+	now := metav1.Now()
+	instance := &kurav1alpha1.KuraInstance{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:              "kura-tuist-eu-1",
+			Namespace:         "kura",
+			Finalizers:        []string{KuraInstanceFinalizer},
+			DeletionTimestamp: &now,
+		},
+		Spec: kurav1alpha1.KuraInstanceSpec{
+			AccountHandle: "tuist",
+			TenantID:      "tuist",
+			Region:        "eu",
+			Image:         "ghcr.io/tuist/kura:0.5.3",
+			Replicas:      &replicas,
+			StorageSize:   "20Gi",
+		},
+	}
+	pvc := dataPersistentVolumeClaim(instance, 0, "20Gi")
+	pvc.Spec.VolumeName = "pvc-hcloud-retain"
+	pvc.Status.Phase = corev1.ClaimBound
+	pv := &corev1.PersistentVolume{
+		ObjectMeta: metav1.ObjectMeta{Name: "pvc-hcloud-retain"},
+		Spec: corev1.PersistentVolumeSpec{
+			PersistentVolumeReclaimPolicy: corev1.PersistentVolumeReclaimRetain,
+		},
+	}
+
+	reconciler := &KuraInstanceReconciler{
+		Client: fake.NewClientBuilder().
+			WithScheme(scheme).
+			WithObjects(instance, pvc, pv).
+			WithStatusSubresource(instance).
+			Build(),
+		Scheme: scheme,
+	}
+
+	if _, err := reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}}); err != nil {
+		t.Fatal(err)
+	}
+
+	updatedPV := &corev1.PersistentVolume{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: pv.Name}, updatedPV); err != nil {
+		t.Fatal(err)
+	}
+	if got := updatedPV.Spec.PersistentVolumeReclaimPolicy; got != corev1.PersistentVolumeReclaimDelete {
+		t.Fatalf("expected data PV to be reclaimed with Delete on instance deletion, got %q", got)
+	}
+}
+
+func TestKuraInstanceReconcileDeletionRemovesMatchingOwnerlessLegacyPeerService(t *testing.T) {
+	ctx := context.Background()
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := kurav1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+
+	now := metav1.Now()
+	instance := &kurav1alpha1.KuraInstance{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:              "kura-tuist-eu-1",
+			Namespace:         "kura",
+			Finalizers:        []string{KuraInstanceFinalizer},
+			DeletionTimestamp: &now,
+		},
+		Spec: kurav1alpha1.KuraInstanceSpec{
+			AccountHandle:      "tuist",
+			Region:             "eu",
+			MeshPublicPeerHost: "peer.eu.kura.tuist.dev",
+		},
+	}
+	legacy := legacyPeerServiceForTest(instance, "peer.eu.kura.tuist.dev")
+	reconciler := &KuraInstanceReconciler{
+		Client: fake.NewClientBuilder().WithScheme(scheme).WithObjects(instance, legacy).WithStatusSubresource(instance).Build(),
+		Scheme: scheme,
+	}
+
+	if _, err := reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: client.ObjectKeyFromObject(instance)}); err != nil {
+		t.Fatal(err)
+	}
+	if err := reconciler.Get(ctx, client.ObjectKeyFromObject(legacy), &corev1.Service{}); !apierrors.IsNotFound(err) {
+		t.Fatalf("expected matching ownerless legacy peer Service to be deleted, got %v", err)
+	}
+}
+
+func TestKuraInstanceDeletionKeepsLegacyPeerServiceForSurvivingSibling(t *testing.T) {
+	ctx := context.Background()
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := kurav1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+
+	now := metav1.Now()
+	instance := &kurav1alpha1.KuraInstance{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:              "kura-tuist-eu-1",
+			Namespace:         "kura",
+			Finalizers:        []string{KuraInstanceFinalizer},
+			DeletionTimestamp: &now,
+		},
+		Spec: kurav1alpha1.KuraInstanceSpec{
+			AccountHandle:      "tuist",
+			Region:             "eu",
+			MeshPublicPeerHost: "peer.eu.kura.tuist.dev",
+		},
+	}
+	sibling := instance.DeepCopy()
+	sibling.Name = "kura-tuist-eu-1-m"
+	sibling.DeletionTimestamp = nil
+	legacy := legacyPeerServiceForTest(instance, "peer.eu.kura.tuist.dev")
+	reconciler := &KuraInstanceReconciler{
+		Client: fake.NewClientBuilder().WithScheme(scheme).WithObjects(instance, sibling, legacy).Build(),
+		Scheme: scheme,
+	}
+
+	if err := reconciler.cleanupLegacyAccountPublicPeerService(ctx, instance); err != nil {
+		t.Fatal(err)
+	}
+	if err := reconciler.Get(ctx, client.ObjectKeyFromObject(legacy), &corev1.Service{}); err != nil {
+		t.Fatalf("expected surviving sibling to retain the legacy peer Service: %v", err)
+	}
+}
+
+func TestKuraInstanceDeletionDoesNotRemoveLegacyPeerServiceForAnotherHost(t *testing.T) {
+	ctx := context.Background()
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := kurav1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+
+	instance := &kurav1alpha1.KuraInstance{
+		ObjectMeta: metav1.ObjectMeta{Name: "kura-tuist-eu-1", Namespace: "kura"},
+		Spec: kurav1alpha1.KuraInstanceSpec{
+			AccountHandle:      "tuist",
+			Region:             "eu",
+			MeshPublicPeerHost: "peer.eu.kura.tuist.dev",
+		},
+	}
+	legacy := legacyPeerServiceForTest(instance, "peer.us.kura.tuist.dev")
+	reconciler := &KuraInstanceReconciler{
+		Client: fake.NewClientBuilder().WithScheme(scheme).WithObjects(instance, legacy).Build(),
+		Scheme: scheme,
+	}
+
+	if err := reconciler.cleanupLegacyAccountPublicPeerService(ctx, instance); err != nil {
+		t.Fatal(err)
+	}
+	if err := reconciler.Get(ctx, client.ObjectKeyFromObject(legacy), &corev1.Service{}); err != nil {
+		t.Fatalf("expected host mismatch to preserve the legacy peer Service: %v", err)
+	}
+}
+
+func legacyPeerServiceForTest(instance *kurav1alpha1.KuraInstance, host string) *corev1.Service {
+	return &corev1.Service{ObjectMeta: metav1.ObjectMeta{
+		Name:      legacyAccountPublicPeerServiceName(instance),
+		Namespace: instance.Namespace,
+		Labels: map[string]string{
+			"app.kubernetes.io/managed-by": "kura-controller",
+			"tuist.dev/account":            instance.Spec.AccountHandle,
+		},
+		Annotations: map[string]string{externalDNSHostnameAnnotation: host},
+	}}
+}
+
+func TestKuraInstanceReconcileStaleStorageReclaimsOldVolume(t *testing.T) {
+	ctx := context.Background()
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := kurav1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+
+	replicas := int32(1)
+	instance := &kurav1alpha1.KuraInstance{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:       "kura-tuist-eu-1",
+			Namespace:  "kura",
+			Finalizers: []string{KuraInstanceFinalizer},
+		},
+		Spec: kurav1alpha1.KuraInstanceSpec{
+			AccountHandle:    "tuist",
+			TenantID:         "tuist",
+			Region:           "eu",
+			Image:            "ghcr.io/tuist/kura:0.5.3",
+			Replicas:         &replicas,
+			StorageSize:      "20Gi",
+			StorageClassName: "scw-local-nvme",
+		},
+	}
+	sts := &appsv1.StatefulSet{
+		ObjectMeta: metav1.ObjectMeta{Name: instance.Name, Namespace: instance.Namespace},
+		Spec: appsv1.StatefulSetSpec{
+			Replicas:             &replicas,
+			Selector:             &metav1.LabelSelector{MatchLabels: selectorLabels(instance)},
+			Template:             podTemplate(instance, "", "production", ""),
+			VolumeClaimTemplates: []corev1.PersistentVolumeClaim{dataVolumeClaim(instance)},
+		},
+	}
+	oldClass := "hcloud-volumes"
+	pvc := dataPersistentVolumeClaim(instance, 0, "200Gi")
+	pvc.Spec.StorageClassName = &oldClass
+	pvc.Spec.VolumeName = "pvc-hcloud-old"
+	pvc.Status.Phase = corev1.ClaimBound
+	pv := &corev1.PersistentVolume{
+		ObjectMeta: metav1.ObjectMeta{Name: "pvc-hcloud-old"},
+		Spec: corev1.PersistentVolumeSpec{
+			PersistentVolumeReclaimPolicy: corev1.PersistentVolumeReclaimRetain,
+		},
+	}
+
+	reconciler := &KuraInstanceReconciler{
+		Client: fake.NewClientBuilder().
+			WithScheme(scheme).
+			WithObjects(instance, sts, pvc, pv).
+			WithStatusSubresource(instance).
+			Build(),
+		Scheme: scheme,
+	}
+
+	if _, err := reconciler.Reconcile(ctx, ctrl.Request{NamespacedName: types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}}); err != nil {
+		t.Fatal(err)
+	}
+
+	updatedPV := &corev1.PersistentVolume{}
+	if err := reconciler.Get(ctx, types.NamespacedName{Name: pv.Name}, updatedPV); err != nil {
+		t.Fatal(err)
+	}
+	if got := updatedPV.Spec.PersistentVolumeReclaimPolicy; got != corev1.PersistentVolumeReclaimDelete {
+		t.Fatalf("expected stale data PV to be reclaimed with Delete before recreation, got %q", got)
+	}
+	leftover := &corev1.PersistentVolumeClaim{}
+	err := reconciler.Get(ctx, types.NamespacedName{Name: pvc.Name, Namespace: pvc.Namespace}, leftover)
+	if !apierrors.IsNotFound(err) {
+		t.Fatalf("expected stale data PVC to be deleted, got err=%v", err)
+	}
+}
+
 func TestKuraInstanceSpecSupportsLocalWorkloadOverrides(t *testing.T) {
 	replicas := int32(1)
 	instance := &kurav1alpha1.KuraInstance{
@@ -2438,8 +2595,8 @@ func TestKuraInstanceReconcileExposesNodePortDataPlane(t *testing.T) {
 	if service.Spec.ExternalTrafficPolicy != corev1.ServiceExternalTrafficPolicyLocal {
 		t.Fatalf("expected externalTrafficPolicy Local, got %q", service.Spec.ExternalTrafficPolicy)
 	}
-	if len(service.Spec.Ports) != 2 {
-		t.Fatalf("expected http+grpc only on the external service, got %v", service.Spec.Ports)
+	if len(service.Spec.Ports) != 1 {
+		t.Fatalf("expected only the co-hosted cache port on the external service, got %v", service.Spec.Ports)
 	}
 	if got := service.Spec.Selector[podNameLabel]; got != instance.Name+"-0" {
 		t.Fatalf("expected external service pinned to primary pod, got %q", got)
@@ -2448,11 +2605,8 @@ func TestKuraInstanceReconcileExposesNodePortDataPlane(t *testing.T) {
 	// The fake client never allocates NodePorts; simulate the API
 	// server so the second reconcile must preserve them.
 	for i := range service.Spec.Ports {
-		switch service.Spec.Ports[i].Name {
-		case "http":
+		if service.Spec.Ports[i].Name == "http" {
 			service.Spec.Ports[i].NodePort = 30080
-		case "grpc":
-			service.Spec.Ports[i].NodePort = 30051
 		}
 	}
 	if err := reconciler.Update(ctx, service); err != nil {
@@ -2469,8 +2623,8 @@ func TestKuraInstanceReconcileExposesNodePortDataPlane(t *testing.T) {
 	for _, port := range service.Spec.Ports {
 		allocated[port.Name] = port.NodePort
 	}
-	if allocated["http"] != 30080 || allocated["grpc"] != 30051 {
-		t.Fatalf("expected allocated NodePorts preserved across reconciles, got %v", allocated)
+	if allocated["http"] != 30080 {
+		t.Fatalf("expected allocated NodePort preserved across reconciles, got %v", allocated)
 	}
 
 	if err := reconciler.Get(ctx, types.NamespacedName{Name: instance.Name, Namespace: instance.Namespace}, instance); err != nil {
@@ -2479,8 +2633,8 @@ func TestKuraInstanceReconcileExposesNodePortDataPlane(t *testing.T) {
 	if instance.Status.NodeAddress != "172.16.0.2" {
 		t.Fatalf("expected status.nodeAddress from the node's pn-ipv4 label, got %q", instance.Status.NodeAddress)
 	}
-	if instance.Status.NodePortHTTP != 30080 || instance.Status.NodePortGRPC != 30051 {
-		t.Fatalf("expected status NodePorts 30080/30051, got %d/%d", instance.Status.NodePortHTTP, instance.Status.NodePortGRPC)
+	if instance.Status.NodePortCache != 30080 {
+		t.Fatalf("expected status NodePort 30080, got %d", instance.Status.NodePortCache)
 	}
 
 	policy := &networkingv1.NetworkPolicy{}
@@ -2568,4 +2722,155 @@ func TestKuraInstancePodTemplateRendersTolerations(t *testing.T) {
 	if !found {
 		t.Fatalf("expected the runner-cache toleration on the pod template, got %#v", sts.Spec.Template.Spec.Tolerations)
 	}
+}
+
+func TestBaseEnvKeepsTransitionalGRPCPortForPreCohostedImages(t *testing.T) {
+	instance := &kurav1alpha1.KuraInstance{Spec: kurav1alpha1.KuraInstanceSpec{
+		Image: "ghcr.io/tuist/kura:0.10.15",
+	}}
+	for _, env := range baseEnv(instance, "", "production") {
+		if env.Name == "KURA_GRPC_PORT" {
+			if env.Value != "50051" {
+				t.Fatalf("expected the transitional KURA_GRPC_PORT to keep the old default 50051, got %q", env.Value)
+			}
+			return
+		}
+	}
+	t.Fatal("expected KURA_GRPC_PORT in the pod env: pre-cohosted images hard-require it and would crash-loop without it")
+}
+
+func TestReconcileStaleDataStorage(t *testing.T) {
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := kurav1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+
+	const (
+		instanceName = "kura-acme-scw-fr-par"
+		namespace    = "kura"
+	)
+	pvcName := "data-" + instanceName + "-0"
+
+	newInstance := func() *kurav1alpha1.KuraInstance {
+		return &kurav1alpha1.KuraInstance{
+			ObjectMeta: metav1.ObjectMeta{Name: instanceName, Namespace: namespace},
+			Spec: kurav1alpha1.KuraInstanceSpec{
+				Replicas:         ptr(int32(1)),
+				StorageClassName: "scw-local-nvme",
+			},
+		}
+	}
+	newSTS := func() *appsv1.StatefulSet {
+		return &appsv1.StatefulSet{ObjectMeta: metav1.ObjectMeta{Name: instanceName, Namespace: namespace}}
+	}
+	boundPVC := func(storageClass, volumeName string) *corev1.PersistentVolumeClaim {
+		sc := storageClass
+		return &corev1.PersistentVolumeClaim{
+			ObjectMeta: metav1.ObjectMeta{Name: pvcName, Namespace: namespace},
+			Spec:       corev1.PersistentVolumeClaimSpec{StorageClassName: &sc, VolumeName: volumeName},
+			Status:     corev1.PersistentVolumeClaimStatus{Phase: corev1.ClaimBound},
+		}
+	}
+	pvPinnedTo := func(name, hostname string) *corev1.PersistentVolume {
+		return &corev1.PersistentVolume{
+			ObjectMeta: metav1.ObjectMeta{Name: name},
+			Spec: corev1.PersistentVolumeSpec{NodeAffinity: &corev1.VolumeNodeAffinity{Required: &corev1.NodeSelector{
+				NodeSelectorTerms: []corev1.NodeSelectorTerm{{MatchExpressions: []corev1.NodeSelectorRequirement{{
+					Key: corev1.LabelHostname, Operator: corev1.NodeSelectorOpIn, Values: []string{hostname},
+				}}}},
+			}}},
+		}
+	}
+	node := func(name string) *corev1.Node { return &corev1.Node{ObjectMeta: metav1.ObjectMeta{Name: name}} }
+
+	exists := func(t *testing.T, c interface {
+		Get(context.Context, types.NamespacedName, client.Object, ...client.GetOption) error
+	}, obj client.Object) bool {
+		t.Helper()
+		err := c.Get(context.Background(), types.NamespacedName{Name: obj.GetName(), Namespace: obj.GetNamespace()}, obj)
+		if err == nil {
+			return true
+		}
+		if apierrors.IsNotFound(err) {
+			return false
+		}
+		t.Fatalf("unexpected get error: %v", err)
+		return false
+	}
+
+	t.Run("recreates on storage class drift", func(t *testing.T) {
+		c := fake.NewClientBuilder().WithScheme(scheme).
+			WithObjects(newInstance(), newSTS(), boundPVC("scw-bssd", "pv-old")).Build()
+		r := &KuraInstanceReconciler{Client: c, Scheme: scheme}
+		inProgress, err := r.reconcileStaleDataStorage(context.Background(), newInstance())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !inProgress {
+			t.Fatal("expected recreate in progress for storage-class drift")
+		}
+		if exists(t, c, &appsv1.StatefulSet{ObjectMeta: metav1.ObjectMeta{Name: instanceName, Namespace: namespace}}) {
+			t.Fatal("expected StatefulSet deleted")
+		}
+		if exists(t, c, &corev1.PersistentVolumeClaim{ObjectMeta: metav1.ObjectMeta{Name: pvcName, Namespace: namespace}}) {
+			t.Fatal("expected data PVC deleted")
+		}
+	})
+
+	t.Run("recreates on node-orphaned volume", func(t *testing.T) {
+		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(
+			newInstance(), newSTS(), boundPVC("scw-local-nvme", "pv-1"), pvPinnedTo("pv-1", "dead-node"),
+		).Build()
+		r := &KuraInstanceReconciler{Client: c, Scheme: scheme}
+		inProgress, err := r.reconcileStaleDataStorage(context.Background(), newInstance())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !inProgress {
+			t.Fatal("expected recreate in progress for a volume pinned to a missing node")
+		}
+		if exists(t, c, &corev1.PersistentVolumeClaim{ObjectMeta: metav1.ObjectMeta{Name: pvcName, Namespace: namespace}}) {
+			t.Fatal("expected data PVC deleted")
+		}
+	})
+
+	t.Run("leaves a healthy instance untouched", func(t *testing.T) {
+		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(
+			newInstance(), newSTS(), boundPVC("scw-local-nvme", "pv-1"), pvPinnedTo("pv-1", "live-node"), node("live-node"),
+		).Build()
+		r := &KuraInstanceReconciler{Client: c, Scheme: scheme}
+		inProgress, err := r.reconcileStaleDataStorage(context.Background(), newInstance())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if inProgress {
+			t.Fatal("healthy instance should not be recreated")
+		}
+		if !exists(t, c, &corev1.PersistentVolumeClaim{ObjectMeta: metav1.ObjectMeta{Name: pvcName, Namespace: namespace}}) {
+			t.Fatal("healthy data PVC must not be deleted")
+		}
+		if !exists(t, c, &appsv1.StatefulSet{ObjectMeta: metav1.ObjectMeta{Name: instanceName, Namespace: namespace}}) {
+			t.Fatal("healthy StatefulSet must not be deleted")
+		}
+	})
+
+	t.Run("ignores an unbound PVC on the correct storage class", func(t *testing.T) {
+		pending := &corev1.PersistentVolumeClaim{
+			ObjectMeta: metav1.ObjectMeta{Name: pvcName, Namespace: namespace},
+			Spec:       corev1.PersistentVolumeClaimSpec{StorageClassName: ptr("scw-local-nvme")},
+			Status:     corev1.PersistentVolumeClaimStatus{Phase: corev1.ClaimPending},
+		}
+		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(newInstance(), pending).Build()
+		r := &KuraInstanceReconciler{Client: c, Scheme: scheme}
+		reason, err := r.staleDataStorageReason(context.Background(), newInstance())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if reason != "" {
+			t.Fatalf("a pending PVC on the desired storage class is not stale, got reason %q", reason)
+		}
+	})
 }

@@ -49,4 +49,36 @@ defmodule TuistWeb.RateLimit.AgentAuthTest do
       assert AgentAuth.hit(conn) == {:allow, 1}
     end
   end
+
+  describe "hit_registration/2" do
+    test "uses flow-specific source and service limits", %{conn: conn} do
+      timeout = to_timeout(hour: 1)
+
+      stub(TuistWeb.RemoteIp, :get, fn ^conn -> "127.0.0.1" end)
+      stub(Tuist.Environment, :redis_url, fn -> nil end)
+
+      expect(InMemory, :hit, fn "agent_auth:registration:anonymous:ip:127.0.0.1", ^timeout, 5 ->
+        {:allow, 1}
+      end)
+
+      expect(InMemory, :hit, fn "agent_auth:service:anonymous", ^timeout, 100 ->
+        {:allow, 1}
+      end)
+
+      assert AgentAuth.hit_registration(conn, :anonymous) == {:allow, 1}
+    end
+
+    test "skips the source limit when no address is available", %{conn: conn} do
+      timeout = to_timeout(hour: 1)
+
+      stub(TuistWeb.RemoteIp, :get, fn ^conn -> nil end)
+      stub(Tuist.Environment, :redis_url, fn -> nil end)
+
+      expect(InMemory, :hit, fn "agent_auth:service:identity_assertion", ^timeout, 1000 ->
+        {:allow, 1}
+      end)
+
+      assert AgentAuth.hit_registration(conn, :identity_assertion) == {:allow, 1}
+    end
+  end
 end

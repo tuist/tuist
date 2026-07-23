@@ -5,21 +5,20 @@ import Mockable
 import Path
 import Testing
 import TuistCore
-import XCTest
 
 @testable import TuistCacheEE
 @testable import TuistSupport
 @testable import TuistTesting
 
-final class CacheLocalStorageErrorTests: TuistUnitTestCase {
-    func test_type() {
-        XCTAssertEqual(CacheLocalStorageError.compiledArtifactNotFound(hash: "hash").type, .abort)
+struct CacheLocalStorageErrorTests {
+    @Test func type() {
+        #expect(CacheLocalStorageError.compiledArtifactNotFound(hash: "hash").type == .abort)
     }
 
-    func test_description() {
-        XCTAssertEqual(
-            CacheLocalStorageError.compiledArtifactNotFound(hash: "hash").description,
-            "xcframework with hash 'hash' not found in the local cache"
+    @Test func description() {
+        #expect(
+            CacheLocalStorageError.compiledArtifactNotFound(hash: "hash").description
+                == "xcframework with hash 'hash' not found in the local cache"
         )
     }
 }
@@ -289,6 +288,43 @@ struct CacheLocalStorageTests {
     }
 
     @Test(.inTemporaryDirectory)
+    func fetch_whenBundleProductNameReplacesDashWithUnderscore() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+
+        let hash = "123"
+        let cacheDirectory = temporaryDirectory.appending(component: "cache")
+        try await fileSystem.makeDirectory(at: cacheDirectory)
+
+        let cacheDirectoriesProvider = MockCacheDirectoriesProviding()
+        given(cacheDirectoriesProvider)
+            .cacheDirectory(for: .value(.binaries))
+            .willReturn(cacheDirectory)
+
+        let hashDirectory = cacheDirectory.appending(component: hash)
+        let artifactPath = hashDirectory.appending(component: "Dash_NamedBundle.bundle")
+        try await fileSystem.makeDirectory(at: artifactPath)
+
+        let artifactSigner = MockArtifactSigning()
+        given(artifactSigner).isValid(.value(artifactPath)).willReturn(true)
+
+        let subject = CacheLocalStorage(
+            cacheDirectoriesProvider: cacheDirectoriesProvider,
+            artifactSigner: artifactSigner,
+            fileSystem: fileSystem
+        )
+
+        let got = try await subject.fetch(
+            Set([.init(name: "Dash-NamedBundle", hash: hash)]), cacheCategory: .binaries
+        )
+
+        #expect(got.count == 1)
+        let artifact = try #require(got.first)
+        #expect(artifact.key.hash == hash)
+        #expect(artifact.key.name == "Dash-NamedBundle")
+        #expect(artifact.value == artifactPath)
+    }
+
+    @Test(.inTemporaryDirectory)
     func fetch_whenMacroExistsWithInvalidSignature() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
 
@@ -441,6 +477,48 @@ struct CacheLocalStorageTests {
         // Then
         let remaining = try await fileSystem.glob(directory: binariesDirectory, include: ["*"]).collect()
         #expect(remaining.count == 10)
+    }
+
+    @Test(.inTemporaryDirectory)
+    func clean_evictsLeastRecentlyUsedEntriesPastTheByteBudget() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let binariesDirectory = temporaryDirectory.appending(component: "Binaries")
+        try await fileSystem.makeDirectory(at: binariesDirectory)
+
+        let cacheDirectoriesProvider = MockCacheDirectoriesProviding()
+        given(cacheDirectoriesProvider)
+            .cacheDirectory(for: .value(.binaries))
+            .willReturn(binariesDirectory)
+
+        // Three ~1 MB entries, staggered so entry 0 is most recently used.
+        for i in 0 ..< 3 {
+            let entry = binariesDirectory.appending(component: "hash\(i)")
+            let artifact = entry.appending(component: "framework.xcframework")
+            try await fileSystem.makeDirectory(at: artifact)
+            FileManager.default.createFile(
+                atPath: artifact.appending(component: "binary").pathString,
+                contents: Data(repeating: 0x41, count: 1_000_000)
+            )
+            // Set the entry's mtime last, after the file writes bumped it.
+            let date = Calendar.current.date(byAdding: .hour, value: -i, to: Date())!
+            try FileManager.default.setAttributes([.modificationDate: date], ofItemAtPath: entry.pathString)
+        }
+
+        // When: a budget that holds ~2 of the 3 entries. LRU keeps the two
+        // most-recently-used, evicts the oldest.
+        let subject = CacheLocalStorage(
+            cacheDirectoriesProvider: cacheDirectoriesProvider,
+            artifactSigner: MockArtifactSigning(),
+            fileSystem: fileSystem
+        )
+        try await subject.clean(maxBytes: 2_500_000)
+
+        // Then
+        let remaining = try await fileSystem.glob(directory: binariesDirectory, include: ["*"]).collect()
+        #expect(remaining.count == 2)
+        #expect(try await fileSystem.exists(binariesDirectory.appending(component: "hash0")))
+        #expect(try await fileSystem.exists(binariesDirectory.appending(component: "hash1")))
+        #expect(!(try await fileSystem.exists(binariesDirectory.appending(component: "hash2"))))
     }
 
     @Test(.inTemporaryDirectory)

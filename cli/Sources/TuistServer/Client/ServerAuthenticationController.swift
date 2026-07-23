@@ -260,8 +260,8 @@ public struct ServerAuthenticationController: ServerAuthenticationControlling {
         }
 
         // Memoize the resolved token in the shared value store, bounded by the
-        // token's own expiry, so hot callers — chiefly the CAS daemon, which
-        // resolves auth on every artifact request — don't re-resolve (a keychain
+        // token's own expiry, so hot callers — chiefly `tuist auth token`, which
+        // the CAS proxy shells out to for its bearer — don't re-resolve (a keychain
         // read on macOS, which serializes through securityd) on every call. The
         // refresh/rotation flow still runs whenever the memoized entry lapses
         // shortly before the token expires. Keyed distinctly from the refresh

@@ -6,8 +6,8 @@ set -euo pipefail
 
 if [ "${usage_check:-}" = "true" ]; then
   mix format --check-formatted
-  prettier -c priv/static/app
-  prettier -c assets
+  prettier --check priv/static/app
+  prettier --check assets
 else
   mix format
   prettier --write priv/static/app

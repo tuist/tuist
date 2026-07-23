@@ -147,12 +147,25 @@ type Config struct {
 	// one env advertises (see the tailscale-operator chart values).
 	TailscaleAcceptRoutes bool
 
+	// SkipTailscaleInstall skips the installTailscale step in
+	// UpdateTartKubelet. It exists for one caller: a drift update that
+	// SSHes over the tailnet (the fallback when the mini's public :22 is
+	// filtered). installTailscale stops tailscaled to swap its binary, so
+	// running it over a tailnet-transported session would drop the very
+	// tunnel the session rides — stranding the mini off the tailnet
+	// mid-update, before the script re-starts the daemon. First-boot Run
+	// (public transport) and public-IP updates leave this false and
+	// reinstall Tailscale normally. Transport-only: never set in the
+	// canonical config, so it doesn't affect HostConfigHash.
+	SkipTailscaleInstall bool
+
 	// VMKuraEgressCIDR, when non-empty, carves a Kura allowance out
 	// of the VM egress firewall (installVMEgressFirewall): Tart VMs
 	// may reach this CIDR — the cluster's Service CIDR, where the
 	// per-account runner-cache Kura ClusterIPs live — on TCP 4000
-	// (cache HTTP API) + 50051 (gRPC), mirroring the Linux runner
-	// namespace's NetworkPolicy egress carve-out. Everything else in
+	// (the co-hosted HTTP + gRPC cache port), mirroring the Linux
+	// runner namespace's NetworkPolicy egress carve-out.
+	// Everything else in
 	// the RFC1918 blocklist stays blocked; per-account isolation is
 	// the Kura app layer's JWT tenant check, exactly as on Linux.
 	// Must parse as an IPv4 CIDR; bootstrap fails closed otherwise.
@@ -201,6 +214,13 @@ type Config struct {
 	HostCPU      int
 	HostMemoryMB int
 	MaxPods      int
+
+	// VNCRelayHost / VNCRelayPort configure the server-facing runner VNC
+	// relay coordinates that tart-kubelet advertises after a dashboard
+	// session is requested. Managed tailnet clusters set these to the
+	// per-Mac Tailscale egress Service DNS name and port.
+	VNCRelayHost string
+	VNCRelayPort int
 
 	// NodeLabels is the set of labels tart-kubelet stamps on the
 	// Node it registers. The bootstrap layer is generic — fleet
@@ -258,6 +278,27 @@ type Config struct {
 	// reconciler sets it from `machine.Spec.GHActionsRunner != nil` on
 	// both the bootstrap and update paths.
 	DisableVMGC bool
+
+	// RunnerCacheVolumeGiB, when > 0, provisions a dedicated quota-bounded
+	// APFS volume (mounted at /Volumes/tuist-runner-cache) that holds the
+	// per-account cache-volume images, and passes
+	// `--runner-cache-root` to tart-kubelet so the feature turns on. The
+	// quota is the aggregate ceiling for ALL cache volumes on the host: it
+	// is the filesystem-enforced bound that statically encodes the priority
+	// that cache volumes always lose to the VM image path — even a buggy
+	// reconciler can only ENOSPC the cache volume itself, never the disk the
+	// golden clones need. Sized at provisioning as what the disk leaves
+	// after golden images, the max concurrent pod clones, and OS headroom.
+	// 0 (default) leaves cache volumes off: every VM boots on the cold path.
+	RunnerCacheVolumeGiB int
+
+	// CacheVolumeMasterCapGiB is the provisioned cap of each per-account
+	// master image, passed to tart-kubelet's --cache-volume-cap-gib. The
+	// image is sparse so this is a ceiling, not an allocation; the
+	// RunnerCacheVolumeGiB quota above is the real aggregate bound. 0
+	// defaults to tart-kubelet's own default (20 GiB). Only meaningful when
+	// RunnerCacheVolumeGiB > 0.
+	CacheVolumeMasterCapGiB int
 }
 
 // Run executes the bootstrap. Idempotent: re-running on a partially-
@@ -295,6 +336,9 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 	if err := DisableIdleSleep(ctx, client); err != nil {
 		return hk.Observed(), fmt.Errorf("disable idle sleep: %w", err)
 	}
+	if err := installSSHReachability(ctx, client); err != nil {
+		return hk.Observed(), fmt.Errorf("install ssh reachability: %w", err)
+	}
 	if cfg.NodeName != "" {
 		if err := SetHostname(ctx, client, cfg.NodeName); err != nil {
 			return hk.Observed(), fmt.Errorf("set hostname: %w", err)
@@ -302,6 +346,9 @@ func Run(ctx context.Context, cfg Config) (string, error) {
 	}
 	if err := installTart(ctx, client, cfg.TartTarball); err != nil {
 		return hk.Observed(), fmt.Errorf("install tart: %w", err)
+	}
+	if err := installRunnerCacheVolume(ctx, client, cfg); err != nil {
+		return hk.Observed(), fmt.Errorf("install runner cache volume: %w", err)
 	}
 	if err := installVMCachePNInterface(ctx, client, cfg); err != nil {
 		return hk.Observed(), fmt.Errorf("install vm cache pn interface: %w", err)
@@ -384,8 +431,19 @@ func UpdateTartKubelet(ctx context.Context, cfg Config) (string, error) {
 	if err := writeKubeconfig(ctx, client, cfg.Kubeconfig); err != nil {
 		return hk.Observed(), fmt.Errorf("refresh kubeconfig: %w", err)
 	}
+	if err := installSSHReachability(ctx, client); err != nil {
+		return hk.Observed(), fmt.Errorf("refresh ssh reachability: %w", err)
+	}
 	if err := installTartKubelet(ctx, client, cfg.TartKubeletBinary); err != nil {
 		return hk.Observed(), fmt.Errorf("install tart-kubelet: %w", err)
+	}
+	// Re-run on the drift path so an already-bootstrapped host provisions the
+	// runner-cache volume when a fleet-config change first enables it.
+	// Idempotent: the provisioning script skips when the volume is already
+	// mounted, so this never resizes a live volume and no-ops on every
+	// subsequent roll.
+	if err := installRunnerCacheVolume(ctx, client, cfg); err != nil {
+		return hk.Observed(), fmt.Errorf("install runner cache volume: %w", err)
 	}
 	if err := installVMCachePNInterface(ctx, client, cfg); err != nil {
 		return hk.Observed(), fmt.Errorf("refresh vm cache pn interface: %w", err)
@@ -436,6 +494,7 @@ func HostConfigHash(cfg Config) string {
 	cfg.ProviderID = ""
 	cfg.Kubeconfig = ""
 	cfg.TailscaleAuthKey = ""
+	cfg.VNCRelayHost = ""
 	cfg.VMCachePNVLAN = 0
 	cfg.KnownHostFingerprint = ""
 	cfg.GHActionsRunner = nil
@@ -443,6 +502,9 @@ func HostConfigHash(cfg Config) string {
 	// Per-host role signal (builder hosts set it); the launchd plist
 	// renderer keys --disable-vm-gc off it, so neutralize it too.
 	cfg.DisableVMGC = false
+	// Transport-only: gates whether installTailscale runs, changes no
+	// rendered output. Neutralized so it can never perturb the hash.
+	cfg.SkipTailscaleInstall = false
 
 	var b strings.Builder
 
@@ -461,11 +523,13 @@ func HostConfigHash(cfg Config) string {
 		{"firewall", firewall},
 		{"vmnat", renderVMNATScript(cfg)},
 		{"pn-interface", renderVMCachePNInterfaceScript(cfg)},
+		{"runner-cache-volume", renderRunnerCacheVolumeScript(cfg)},
 		{"launchd", renderTartKubeletLaunchdScript(cfg)},
 		{"launchd-plist", renderLaunchdPlist(cfg)},
 		{"tailscale", renderTailscaleScript(cfg)},
 		{"node-exporter", renderNodeExporterScript()},
 		{"tart-kubelet-install", renderTartKubeletInstallScript()},
+		{"ssh-reachability", renderSSHReachabilityScript()},
 	} {
 		b.WriteString(part.name)
 		b.WriteByte('\x00')
@@ -615,9 +679,9 @@ cat >"$NEW"
 # owned by the user with the live GUI console session — see
 # renderLaunchdPlist's UserName field. Hand kubelet-writable paths to
 # that user so it can write VM logs / userdata / read its kubeconfig.
-sudo mkdir -p /var/log/tart-vms /var/lib/tart-userdata /etc/tart-kubelet
+sudo mkdir -p /var/log/tart-vms /var/lib/tart-userdata /var/lib/tart-vnc-control /etc/tart-kubelet
 sudo touch /var/log/tart-kubelet.log
-sudo chown -R %[1]s:staff /var/log/tart-vms /var/lib/tart-userdata /var/log/tart-kubelet.log
+sudo chown -R %[1]s:staff /var/log/tart-vms /var/lib/tart-userdata /var/lib/tart-vnc-control /var/log/tart-kubelet.log
 sudo chown %[1]s:staff /etc/tart-kubelet/kubeconfig
 sudo chmod 0600 /etc/tart-kubelet/kubeconfig
 
@@ -751,6 +815,25 @@ func renderLaunchdPlist(cfg Config) string {
 	if cfg.GHActionsRunner != nil || cfg.DisableVMGC {
 		disableVMGCArg = "\n    <string>--disable-vm-gc</string>"
 	}
+	vncRelayHostArg := ""
+	if cfg.VNCRelayHost != "" {
+		vncRelayHostArg = fmt.Sprintf("\n    <string>--vnc-relay-host=%s</string>", cfg.VNCRelayHost)
+	}
+	vncRelayPortArg := ""
+	if cfg.VNCRelayPort > 0 {
+		vncRelayPortArg = fmt.Sprintf("\n    <string>--vnc-relay-port=%d</string>", cfg.VNCRelayPort)
+	}
+	// Turn on per-account cache volumes when the fleet provisioned
+	// a runner-cache volume. --runner-cache-root points at the auto-mounted
+	// quota volume; --cache-volume-cap-gib carries the per-master cap when
+	// the fleet overrides tart-kubelet's default.
+	runnerCacheArg := ""
+	if cfg.RunnerCacheVolumeGiB > 0 {
+		runnerCacheArg = fmt.Sprintf("\n    <string>--runner-cache-root=%s</string>", runnerCacheMountPoint)
+		if cfg.CacheVolumeMasterCapGiB > 0 {
+			runnerCacheArg += fmt.Sprintf("\n    <string>--cache-volume-cap-gib=%d</string>", cfg.CacheVolumeMasterCapGiB)
+		}
+	}
 	// Run tart-kubelet as the SSH user (m1). Apple's
 	// Virtualization.framework requires the calling process to be the
 	// same user that holds the live GUI console session — Tart's
@@ -773,7 +856,7 @@ func renderLaunchdPlist(cfg Config) string {
     <string>--kubeconfig=/etc/tart-kubelet/kubeconfig</string>
     <string>--host-cpu=%[2]d</string>
     <string>--host-memory-mb=%[3]d</string>
-    <string>--max-pods=%[4]d</string>%[6]s%[7]s%[8]s%[9]s
+    <string>--max-pods=%[4]d</string>%[6]s%[7]s%[8]s%[9]s%[10]s%[11]s%[12]s
   </array>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
@@ -787,7 +870,7 @@ func renderLaunchdPlist(cfg Config) string {
   </dict>
 </dict>
 </plist>
-`, cfg.NodeName, cpu, mem, maxPods, user, nodeLabelsArg, nodeIPSourceArg, providerIDArg, disableVMGCArg)
+`, cfg.NodeName, cpu, mem, maxPods, user, nodeLabelsArg, nodeIPSourceArg, providerIDArg, disableVMGCArg, vncRelayHostArg, vncRelayPortArg, runnerCacheArg)
 }
 
 func shellQuote(s string) string {
@@ -1159,8 +1242,9 @@ sudo chmod 0755 /usr/local/bin/tart
 // One optional carve-out punches through the blocklist: when
 // cfg.VMKuraEgressCIDR is set, VMs may reach that CIDR (the
 // cluster's Service CIDR, advertised to the host over the tailnet
-// by the cluster-side subnet router) on the Kura cache ports
-// 4000/50051, plus — when cfg.VMClusterDNSIP is set — the kube-dns
+// by the cluster-side subnet router) on the Kura cache port
+// (4000, co-hosted HTTP + gRPC),
+// plus — when cfg.VMClusterDNSIP is set — the kube-dns
 // ClusterIP on 53 so `*.svc.cluster.local` names resolve inside the
 // VM. pf is first-match-wins across `quick` rules, so the pass
 // lines render BEFORE the block lines. The inputs are validated as
@@ -1218,13 +1302,13 @@ func renderVMEgressFirewallScript(cfg Config) (string, error) {
 		}
 		carveOut = fmt.Sprintf(`
 # Runner-cache carve-out: VMs may dial the cluster's Kura cache
-# Service ClusterIPs (HTTP 4000 + gRPC 50051) — and, when wired,
+# Service ClusterIPs (4000, co-hosted HTTP + gRPC) — and, when wired,
 # cluster DNS on 53 — through the host's tailnet route. These pass
 # rules are evaluated before the block rules below (first 'quick'
 # match wins). Per-account isolation is Kura's app-layer JWT tenant
 # check, mirroring the Linux runner namespace's NetworkPolicy
 # carve-out.
-pass out quick proto tcp from <vm_sources> to %s port { 4000, 50051 } keep state
+pass out quick proto tcp from <vm_sources> to %s port 4000 keep state
 `, cfg.VMKuraEgressCIDR)
 
 		if cfg.VMClusterDNSIP != "" {
@@ -1502,6 +1586,88 @@ func installVMCachePNInterface(ctx context.Context, client *ssh.Client, cfg Conf
 	return RunCommand(ctx, client, renderVMCachePNInterfaceScript(cfg))
 }
 
+// runnerCacheVolumeName is the APFS volume name (and, via /Volumes/<name>, the
+// mount point) of the quota-bounded runner-cache root. Shared between the
+// provisioning script and the tart-kubelet launchd flag so the two can't
+// drift.
+const runnerCacheVolumeName = "tuist-runner-cache"
+
+// runnerCacheMountPoint is where the provisioned APFS volume auto-mounts and
+// where tart-kubelet's --runner-cache-root points.
+const runnerCacheMountPoint = "/Volumes/" + runnerCacheVolumeName
+
+// installRunnerCacheVolume provisions the quota-bounded APFS volume that holds
+// per-account cache-volume images. No-op when the fleet hasn't
+// opted in (RunnerCacheVolumeGiB == 0). Idempotent: it skips when the volume
+// is already mounted, so re-provisioning never grows/shrinks a live volume.
+//
+// Runs on both the first-boot (Run) and drift-update (UpdateTartKubelet)
+// paths so a fleet that opts into cache volumes after its minis are already
+// bootstrapped gets the volume on the next drift roll rather than only via
+// host replacement. The mounted-check keeps it a one-time host-shaping step:
+// an existing volume is never resized under live jobs (a cap change ships
+// via host replacement).
+func installRunnerCacheVolume(ctx context.Context, client *ssh.Client, cfg Config) error {
+	if cfg.RunnerCacheVolumeGiB <= 0 {
+		return nil
+	}
+	return RunCommand(ctx, client, renderRunnerCacheVolumeScript(cfg))
+}
+
+// renderRunnerCacheVolumeScript adds a dedicated APFS volume to the boot
+// container with a hard quota. The quota is the filesystem ceiling that fences
+// the whole cache subsystem: cache volumes can only ever ENOSPC themselves,
+// never the disk the VM images and golden clones need. Additional APFS volumes
+// in the boot container auto-mount at /Volumes/<name> on every boot.
+func renderRunnerCacheVolumeScript(cfg Config) string {
+	return fmt.Sprintf(`set -euo pipefail
+VOL=%[1]s
+MOUNT=%[2]s
+QUOTA_GIB=%[3]d
+OWNER=%[4]s
+# Provision the volume only if it isn't already mounted. Idempotent: a
+# provisioned volume is never resized under live jobs (a cap change ships via
+# host replacement).
+if ! /usr/sbin/diskutil info "$MOUNT" >/dev/null 2>&1; then
+  # Resolve the APFS container backing the boot volume; the cache volume shares
+  # that container's free space but is capped by its own quota. On modern macOS
+  # "/" is a sealed snapshot whose diskutil info labels the container "APFS
+  # Container:" (not "... Reference:"), so read the machine-readable plist key
+  # off the always-real Data volume; fall back to a text parse for older macOS.
+  CONTAINER=$(/usr/sbin/diskutil info -plist /System/Volumes/Data 2>/dev/null | /usr/bin/plutil -extract APFSContainerReference raw -o - - 2>/dev/null || true)
+  if [ -z "${CONTAINER:-}" ]; then
+    CONTAINER=$(/usr/sbin/diskutil info / | awk -F'[[:space:]]*:[[:space:]]*' '/APFS Container:/{print $2; exit}')
+  fi
+  if [ -z "${CONTAINER:-}" ]; then
+    echo "could not determine APFS container for /System/Volumes/Data" >&2
+    exit 1
+  fi
+  sudo /usr/sbin/diskutil apfs addVolume "$CONTAINER" APFS "$VOL" -quota "${QUOTA_GIB}GiB"
+  # addVolume auto-mounts at /Volumes/<name>; confirm before returning so a
+  # failed mount fails the bootstrap loudly rather than leaving tart-kubelet to
+  # ENOENT on its --runner-cache-root.
+  /usr/sbin/diskutil info "$MOUNT" >/dev/null
+  echo "provisioned runner-cache volume $VOL (${QUOTA_GIB} GiB quota) at $MOUNT"
+fi
+# The volume is created and auto-mounted by root, but tart-kubelet runs as
+# $OWNER and must create per-account and per-branch directories under the root.
+# Without a runner-owned root, the very first branch allocation fails and every
+# job silently falls back to a cold cache. Enforce ownership on EVERY run — not
+# only at first provision — so a volume left root-owned by an earlier bootstrap
+# is repaired rather than skipped by the mounted-volume early return.
+# enableOwnership makes the chown authoritative (auto-mounted data volumes can
+# otherwise ignore on-disk ownership).
+sudo /usr/sbin/diskutil enableOwnership "$MOUNT" >/dev/null 2>&1 || true
+sudo /usr/sbin/chown "$OWNER" "$MOUNT"
+sudo /bin/chmod 0755 "$MOUNT"
+# Verify the runner user can actually write the root before returning, so a
+# botched ownership fixup fails the bootstrap loudly instead of degrading every
+# job to cold at runtime.
+sudo -u "$OWNER" /bin/test -w "$MOUNT"
+echo "runner-cache volume at $MOUNT owned by $OWNER"
+`, runnerCacheVolumeName, runnerCacheMountPoint, cfg.RunnerCacheVolumeGiB, cfg.SSHUser)
+}
+
 // renderVMCachePNInterfaceScript materializes the per-host VLAN
 // interface. VMCachePNVLAN is a per-host Scaleway-assigned value;
 // HostConfigHash zeroes it before rendering, so the host config hash
@@ -1552,6 +1718,12 @@ sudo networksetup -setdhcp "pn Configuration" 2>/dev/null || sudo networksetup -
 // chart's per-env values gate the tailnet end-to-end, and a partial
 // config shouldn't half-bring-up a node.
 func installTailscale(ctx context.Context, client *ssh.Client, cfg Config) error {
+	// SkipTailscaleInstall short-circuits before touching the client: the
+	// caller is updating over the tailnet, where stopping tailscaled to
+	// swap its binary would drop this very session. See the field comment.
+	if cfg.SkipTailscaleInstall {
+		return nil
+	}
 	if len(cfg.TailscaleBinaries) == 0 || cfg.TailscaleAuthKey == "" {
 		return nil
 	}
@@ -1754,6 +1926,89 @@ func installNodeExporter(ctx context.Context, client *ssh.Client, cfg Config) er
 		return nil
 	}
 	return RunCommandWithStdin(ctx, client, renderNodeExporterScript(), bytes.NewReader(cfg.NodeExporterBinary))
+}
+
+// installSSHReachability installs the host-side self-heal that keeps the
+// operator's only management channel (SSH → tart-kubelet updates) from staying
+// wedged. See renderSSHReachabilityScript.
+func installSSHReachability(ctx context.Context, client *ssh.Client) error {
+	return RunCommand(ctx, client, renderSSHReachabilityScript())
+}
+
+// renderSSHReachabilityScript installs a LaunchDaemon that keeps inbound SSH
+// (:22) from staying wedged on a runner mini.
+//
+// Diagnosed from a host shell on a wedged mini: sshd was listening on *:22, the
+// macOS application firewall was OFF, pf had no :22 rule, and UseDNS was already
+// `no` — yet even 127.0.0.1:22 timed out. `netstat` showed the cause: ~128
+// sockets stuck in SYN_RCVD, i.e. the listen backlog is exhausted so the kernel
+// drops every new SYN. The runner's PN networking intermittently degrades the
+// host resolver (`si_destination_compare send failed`), which slows sshd's
+// per-connection name lookups; with the CAPI operator dialing :22 every ~30s
+// and each half-open connection lingering, the backlog fills and stays full
+// (self-perpetuating). Our other listeners (:8080/:9100/:5900) are unaffected
+// because they don't gate on the ssh accept path. It was never a firewall.
+//
+// The fix is the recovery that worked live: reload the ssh socket
+// (bootout+bootstrap) to drain the backlog, made self-healing on the host — a
+// minute-interval probe of loopback :22 that reloads the socket whenever it
+// stops accepting. It acts only when actually wedged, so a healthy host is
+// untouched, and it keeps :22 reachable long enough for the operator to
+// converge — after which the drift retries that fill the backlog stop.
+// Recreating the mini was the only recovery before.
+//
+// (An earlier revision also wrote `UseDNS no` here, on the theory that
+// reverse-DNS was the slow lookup. UseDNS was already `no` on the minis, so
+// that drop-in was a no-op and is dropped; the accept-backlog drain is what
+// actually recovers a wedged host.)
+func renderSSHReachabilityScript() string {
+	return `set -euo pipefail
+# On the first-boot bootstrap this runs before installTart, which is the first
+# step that creates /usr/local/bin, so on a freshly imaged host the directory
+# does not exist yet and the tee below would fail. Create it first (idempotent),
+# like every other script that writes into /usr/local/bin.
+sudo mkdir -p /usr/local/bin
+sudo tee /usr/local/bin/tuist-ssh-reachability >/dev/null <<'SSHREACH'
+#!/bin/sh
+set -u
+# Bounded loopback probe. If sshd's accept path has wedged (backlog full), the
+# connect gets no SYN-ACK and times out; reload the ssh LaunchDaemon to recreate
+# the listening socket and drain the backlog. Only acts when actually wedged, so
+# a healthy host is never disturbed.
+if ! /usr/bin/nc -z -G 3 127.0.0.1 22 >/dev/null 2>&1; then
+  logger "tuist-ssh-reachability: :22 not accepting; reloading ssh socket to drain backlog"
+  launchctl bootout system/com.openssh.sshd 2>/dev/null || true
+  launchctl bootstrap system /System/Library/LaunchDaemons/ssh.plist 2>/dev/null || true
+fi
+SSHREACH
+sudo chmod 0755 /usr/local/bin/tuist-ssh-reachability
+sudo /usr/local/bin/tuist-ssh-reachability
+
+sudo tee /Library/LaunchDaemons/dev.tuist.ssh-reachability.plist >/dev/null <<'PLIST'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>dev.tuist.ssh-reachability</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/local/bin/tuist-ssh-reachability</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>StartInterval</key>
+  <integer>60</integer>
+  <key>StandardErrorPath</key>
+  <string>/var/log/tuist-ssh-reachability.log</string>
+</dict>
+</plist>
+PLIST
+sudo chown root:wheel /Library/LaunchDaemons/dev.tuist.ssh-reachability.plist
+sudo chmod 0644 /Library/LaunchDaemons/dev.tuist.ssh-reachability.plist
+sudo launchctl bootout system/dev.tuist.ssh-reachability 2>/dev/null || true
+sudo launchctl bootstrap system /Library/LaunchDaemons/dev.tuist.ssh-reachability.plist
+`
 }
 
 // renderNodeExporterScript is the static SSH script that installs the

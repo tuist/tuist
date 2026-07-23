@@ -11,6 +11,31 @@ defmodule Tuist.Release do
   @app :tuist
   @processor_write_tables ~w(oban_jobs oban_peers)
   @processor_read_tables ~w(accounts projects automation_alerts webhook_endpoints)
+  @swift_registry_sync_write_tables ~w(oban_jobs oban_peers)
+
+  # Exact column allowlist for the Grafana "Tuist Product Usage" dashboard role.
+  # Column-level rather than table-level because every table below sits next to a
+  # secret in the same row: table-level SELECT would hand the dashboard's
+  # credential — the one we store in Grafana Cloud — `users.encrypted_password`,
+  # `users.token`, `projects.token`, `accounts.s3_secret_access_key`, and
+  # `organizations.oauth2_encrypted_client_secret`. `users` is the clearest case:
+  # the dashboard needs only the signup timestamp.
+  #
+  # Adding a column to a panel is a deliberate change here, not something a
+  # dashboard edit widens silently. Keep in sync with
+  # infra/cnpg/tuist-grafana-ro-grants.sql (a test asserts this).
+  @grafana_read_columns [
+    {"accounts",
+     ~w(id name billing_email organization_id current_month_remote_cache_hits_count current_month_remote_cache_hits_count_updated_at)},
+    {"bundles", ~w(project_id inserted_at git_ref)},
+    {"organizations", ~w(id created_at)},
+    {"previews", ~w(project_id inserted_at)},
+    {"projects", ~w(id name account_id created_at build_system)},
+    {"roles", ~w(id resource_id resource_type)},
+    {"subscriptions", ~w(account_id status)},
+    {"users", ~w(created_at)},
+    {"users_roles", ~w(user_id role_id)}
+  ]
 
   def migrate do
     load_app()
@@ -24,9 +49,29 @@ defmodule Tuist.Release do
         Ecto.Migrator.with_repo(repo, fn repo ->
           ensure_database_schema(repo)
           Ecto.Migrator.run(repo, :up, all: true)
+          assert_all_migrations_up(repo)
           grant_runtime_role(repo)
           grant_processor_role(repo)
+          grant_swift_registry_sync_role(repo)
+          grant_grafana_role(repo)
         end)
+    end
+  end
+
+  # A migration that brings the VM down instead of raising (an exit signal from a
+  # linked process, say) leaves `Ecto.Migrator.run/3` looking like it succeeded,
+  # so the deploy would report success and boot against a half-migrated database.
+  # Fail loudly instead of trusting the run's return value.
+  defp assert_all_migrations_up(repo) do
+    pending =
+      repo
+      |> Ecto.Migrator.migrations()
+      |> Enum.filter(fn {status, _version, _name} -> status == :down end)
+
+    if !Enum.empty?(pending) do
+      versions = Enum.map_join(pending, ", ", fn {_status, version, _name} -> version end)
+
+      raise "Migrations are still pending for #{inspect(repo)} after migrating: #{versions}"
     end
   end
 
@@ -221,6 +266,137 @@ defmodule Tuist.Release do
       "GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE #{write_tables} TO #{role}",
       "GRANT USAGE, SELECT ON SEQUENCE #{quoted_schema}.oban_jobs_id_seq TO #{role}",
       "GRANT SELECT ON TABLE #{read_tables} TO #{role}"
+    ]
+  end
+
+  # The swift_registry_sync worker (TUIST_MODE=swift_registry_sync) only
+  # touches Oban: it consumes :swift_registry_sync and inserts
+  # :swift_registry_release jobs, everything else lives in S3. So its grant
+  # is a strict subset of the processor's — the Oban tables, no
+  # accounts/projects reads. Applied here on every migrate, as the schema
+  # owner, so enabling swiftRegistrySync carries its own grants instead of
+  # the drift-prone manual `infra/cnpg/tuist-swift-registry-sync-grants.sql`
+  # runbook.
+  defp grant_swift_registry_sync_role(repo) when repo == Tuist.Repo do
+    case Environment.database_swift_registry_sync_role() do
+      role when is_binary(role) and role != "" ->
+        do_grant_swift_registry_sync_role(repo, role)
+
+      _ ->
+        :ok
+    end
+  end
+
+  defp grant_swift_registry_sync_role(_repo), do: :ok
+
+  defp do_grant_swift_registry_sync_role(repo, role) do
+    Environment.validate_postgres_identifier!(role, "TUIST_DATABASE_SWIFT_REGISTRY_SYNC_ROLE")
+
+    role = Environment.quote_postgres_identifier(role)
+    database = repo.config() |> Keyword.fetch!(:database) |> Environment.quote_postgres_identifier()
+    quoted_schema = Environment.quote_postgres_identifier(Environment.database_schema())
+
+    {:ok, :ok} =
+      repo.transaction(fn ->
+        Enum.each(
+          swift_registry_sync_role_grant_statements(role, database, quoted_schema),
+          &SQL.query!(repo, &1, [])
+        )
+
+        :ok
+      end)
+  end
+
+  # Column-level SELECTs for the Grafana dashboard role. Gated on
+  # TUIST_DATABASE_GRAFANA_ROLE, which the chart sets only for managed CNPG
+  # migration Jobs, so self-hosted and non-CNPG deployments leave the role
+  # untouched. Applied on every migrate so the allowlist tracks the schema
+  # declaratively rather than drifting behind a manual psql runbook — the
+  # `.sql` file is only a bootstrap/restore fallback.
+  defp grant_grafana_role(repo) when repo == Tuist.Repo do
+    case Environment.database_grafana_role() do
+      role when is_binary(role) and role != "" ->
+        do_grant_grafana_role(repo, role)
+
+      _ ->
+        :ok
+    end
+  end
+
+  defp grant_grafana_role(_repo), do: :ok
+
+  defp do_grant_grafana_role(repo, role) do
+    Environment.validate_postgres_identifier!(role, "TUIST_DATABASE_GRAFANA_ROLE")
+
+    # CloudNativePG creates this role from the Cluster CR, which Helm applies
+    # only after this pre-upgrade migration Job. On the deploy that first
+    # introduces the role it therefore does not exist yet: skip the grants
+    # rather than aborting the migration (which, under --rollback-on-failure,
+    # would roll the release back before CNPG ever creates the role). The next
+    # migrate, once the role exists, applies them.
+    if role_exists?(repo, role) do
+      quoted_role = Environment.quote_postgres_identifier(role)
+      database = repo.config() |> Keyword.fetch!(:database) |> Environment.quote_postgres_identifier()
+      quoted_schema = Environment.quote_postgres_identifier(Environment.database_schema())
+
+      {:ok, :ok} =
+        repo.transaction(fn ->
+          Enum.each(
+            grafana_role_grant_statements(quoted_role, database, quoted_schema),
+            &SQL.query!(repo, &1, [])
+          )
+
+          :ok
+        end)
+    else
+      Logger.info(
+        "Skipping Grafana role grants: role #{inspect(role)} does not exist yet " <>
+          "(CloudNativePG creates it after this migration hook)."
+      )
+
+      :ok
+    end
+  end
+
+  defp role_exists?(repo, role) do
+    %{rows: rows} = SQL.query!(repo, "SELECT 1 FROM pg_roles WHERE rolname = $1", [role])
+    rows != []
+  end
+
+  @doc false
+  def grafana_role_grant_statements(role, database, quoted_schema) do
+    column_grants =
+      Enum.map(@grafana_read_columns, fn {table, columns} ->
+        "GRANT SELECT (#{Enum.join(columns, ", ")}) ON #{quoted_schema}.#{table} TO #{role}"
+      end)
+
+    [
+      # Revoking table privileges also drops the column privileges on that table,
+      # so this resets the role to zero before re-granting. That makes the
+      # allowlist authoritative: dropping a column here actually removes access
+      # on the next migrate instead of leaving a stale grant behind.
+      "REVOKE ALL ON ALL TABLES IN SCHEMA #{quoted_schema} FROM #{role}",
+      "GRANT CONNECT ON DATABASE #{database} TO #{role}",
+      "GRANT USAGE ON SCHEMA #{quoted_schema} TO #{role}"
+    ] ++
+      column_grants ++
+      [
+        # Unlike pg_read_all_data, a table added by a future migration must not
+        # silently become readable by a credential a third party holds.
+        "ALTER DEFAULT PRIVILEGES IN SCHEMA #{quoted_schema} REVOKE ALL ON TABLES FROM #{role}"
+      ]
+  end
+
+  @doc false
+  def swift_registry_sync_role_grant_statements(role, database, quoted_schema) do
+    write_tables = qualify_tables(quoted_schema, @swift_registry_sync_write_tables)
+
+    [
+      "REVOKE ALL ON ALL TABLES IN SCHEMA #{quoted_schema} FROM #{role}",
+      "GRANT CONNECT ON DATABASE #{database} TO #{role}",
+      "GRANT USAGE ON SCHEMA #{quoted_schema} TO #{role}",
+      "GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE #{write_tables} TO #{role}",
+      "GRANT USAGE, SELECT ON SEQUENCE #{quoted_schema}.oban_jobs_id_seq TO #{role}"
     ]
   end
 

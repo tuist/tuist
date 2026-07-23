@@ -90,6 +90,14 @@ kura-eu-central-ingress-nginx:
       type: LoadBalancer
       externalTrafficPolicy: Local
       annotations: {}
+    # ingress-nginx admission webhooks are cluster-wide, not scoped to one
+    # IngressClass. A regional Kura controller can legitimately have zero pods
+    # while its bare-metal fleet is absent or being replaced; if its webhook is
+    # registered, every Ingress update in the cluster blocks on that empty
+    # Service. Keep admission on the main ingress-nginx controller only; it runs
+    # the same validator for the Kura Ingress annotations.
+    admissionWebhooks: &kuraGatewayAdmissionWebhooks
+      enabled: false
     # Anchored so all three regional Kura gateways share ONE nginx config
     # source. The e2e throughput test (kura/test/e2e/grpc-upload-throughput)
     # derives its patched nginx config from the window keys here, and the
@@ -131,6 +139,7 @@ kura-ca-east-ingress-nginx:
       type: LoadBalancer
       externalTrafficPolicy: Local
       annotations: {}
+    admissionWebhooks: *kuraGatewayAdmissionWebhooks
     # Shares the one anchored regional Kura nginx config (defined in the
     # eu-central block above); see TestGatewayNginxConfigMatchesChart on why
     # these cannot drift from the dedicated-gateway ConfigMap.
@@ -153,6 +162,7 @@ kura-us-east-ingress-nginx:
       type: LoadBalancer
       externalTrafficPolicy: Local
       annotations: {}
+    admissionWebhooks: *kuraGatewayAdmissionWebhooks
     config: *kuraGatewayNginxConfig
     metrics:
       enabled: true
@@ -172,6 +182,7 @@ kura-us-west-ingress-nginx:
       type: LoadBalancer
       externalTrafficPolicy: Local
       annotations: {}
+    admissionWebhooks: *kuraGatewayAdmissionWebhooks
     config: *kuraGatewayNginxConfig
     metrics:
       enabled: true

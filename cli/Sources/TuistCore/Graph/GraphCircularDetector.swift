@@ -29,7 +29,15 @@ public final class GraphCircularDetector: GraphCircularDetecting {
 
     func complete() throws {
         var inspectedNodes = Set<Node>([])
-        while let node = nodes.popFirst() {
+        defer {
+            for node in nodes {
+                node.removeAllDependencies()
+            }
+            inspectedNodes.removeAll()
+            nodes.removeAll()
+        }
+
+        for node in nodes {
             try visit(node: node, inspectedNodes: &inspectedNodes)
         }
     }
@@ -107,6 +115,10 @@ public final class GraphCircularDetector: GraphCircularDetecting {
 
         func add(dependency: Node) {
             to.insert(dependency)
+        }
+
+        func removeAllDependencies() {
+            to.removeAll()
         }
 
         func hash(into hasher: inout Hasher) {
