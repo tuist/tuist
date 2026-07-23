@@ -13,7 +13,14 @@ defmodule TuistWeb.RateLimit.Auth do
       # 1 token per minute
       fill_rate = 1 / 60
       tokens_per_hit = 1
-      PersistentTokenBucket.hit(key, fill_rate, bucket_size, tokens_per_hit)
+
+      PersistentTokenBucket.hit_with_fallback(
+        key,
+        fill_rate,
+        bucket_size,
+        tokens_per_hit,
+        fn -> InMemory.hit(key, to_timeout(minute: 1), bucket_size) end
+      )
     end
   end
 end

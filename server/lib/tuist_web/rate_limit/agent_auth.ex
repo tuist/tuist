@@ -44,7 +44,14 @@ defmodule TuistWeb.RateLimit.AgentAuth do
       InMemory.hit(key, to_timeout(hour: 1), limit)
     else
       fill_rate = limit / @window_seconds
-      PersistentTokenBucket.hit(key, fill_rate, limit, 1)
+
+      PersistentTokenBucket.hit_with_fallback(
+        key,
+        fill_rate,
+        limit,
+        1,
+        fn -> InMemory.hit(key, to_timeout(hour: 1), limit) end
+      )
     end
   end
 

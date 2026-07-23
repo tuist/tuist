@@ -7,5 +7,13 @@ defmodule TuistWeb.RateLimit.PersistentTokenBucket do
   of the backend is configured such that the expiration time is determined dynamically based on how long it would take for the
   token bucket to refill completely, plus a 60-second buffer.
   """
-  use Hammer, backend: Hammer.Redis, timeout: :infinity, algorithm: :token_bucket
+  use Hammer, backend: Hammer.Redis, timeout: 500, algorithm: :token_bucket
+
+  def hit_with_fallback(key, fill_rate, bucket_size, tokens_per_hit, fallback) do
+    __MODULE__.hit(key, fill_rate, bucket_size, tokens_per_hit)
+  rescue
+    _error in [MatchError, Redix.ConnectionError, Redix.Error] -> fallback.()
+  catch
+    :exit, _reason -> fallback.()
+  end
 end

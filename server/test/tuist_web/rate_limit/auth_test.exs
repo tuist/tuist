@@ -30,9 +30,14 @@ defmodule TuistWeb.RateLimit.AuthTest do
       hit_key = "auth:#{ip}"
       fill_rate = 1 / 60
 
-      expect(TuistWeb.RateLimit.PersistentTokenBucket, :hit, fn ^hit_key, ^fill_rate, 10, 1 ->
-        {:allow, 10}
-      end)
+      expect(
+        TuistWeb.RateLimit.PersistentTokenBucket,
+        :hit_with_fallback,
+        fn ^hit_key, ^fill_rate, 10, 1, fallback ->
+          assert is_function(fallback, 0)
+          {:allow, 10}
+        end
+      )
 
       # When
       assert Auth.hit(conn) == {:allow, 10}

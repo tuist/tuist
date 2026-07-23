@@ -40,8 +40,9 @@ defmodule TuistWeb.RateLimit.AgentAuthTest do
 
       expect(
         TuistWeb.RateLimit.PersistentTokenBucket,
-        :hit,
-        fn "agent_auth:ip:127.0.0.1", ^fill_rate, 60, 1 ->
+        :hit_with_fallback,
+        fn "agent_auth:ip:127.0.0.1", ^fill_rate, 60, 1, fallback ->
+          assert is_function(fallback, 0)
           {:allow, 1}
         end
       )
