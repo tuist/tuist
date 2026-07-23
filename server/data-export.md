@@ -94,7 +94,7 @@ The following data is stored in ClickHouse for analytics purposes:
 - **Shard plan modules** (`shard_plan_modules` table): Per-shard module assignments with estimated durations
 - **Shard plan test suites** (`shard_plan_test_suites` table): Per-shard test suite assignments with estimated durations
 - **Shard runs** (`shard_runs` table): Per-shard execution results with status and duration
-- **Test runs** (`test_runs` table): Includes `shard_plan_id` linking test results to their shard plan
+- **Test runs** (`test_runs` table): Includes `shard_plan_id` linking test results to their shard plan. The `proj_by_project_ran_at` projection stores `project_id`, run `id`, `duration`, `status`, and `ran_at`, ordered by project and run time for recent-run dashboard queries. It contains no data beyond the source `test_runs` rows and is exported through those source records rather than as a separate dataset.
 - **Test run errors** (`test_run_errors` table): Run/target-level errors where the test runner itself errored (e.g. a target whose `.xctest` bundle could not be loaded), modelled separately from test failures. Columns: `id`, `test_run_id`, `project_id`, `module_name` (the test target, empty for run-level), `message`, and `inserted_at`.
 - **Bundles** (`bundles` table): App bundle metadata (name, app bundle id, version, install/download size, supported platforms, type, git ref/branch/commit).
 - **Bundle artifacts** (`artifacts` table): App bundle artifact tree (paths, sizes, SHA hashes, parent/child hierarchy) per uploaded bundle.
