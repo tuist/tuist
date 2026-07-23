@@ -50,6 +50,7 @@ defmodule Tuist.Kura.RunnerCache do
   alias Tuist.Kura.Deployment
   alias Tuist.Kura.Regions
   alias Tuist.Kura.Server
+  alias Tuist.Kura.Telemetry
   alias Tuist.Repo
   alias Tuist.Runners.Profile
 
@@ -64,6 +65,7 @@ defmodule Tuist.Kura.RunnerCache do
   def reconcile do
     case runner_cache_cohort() do
       {:ok, account_ids} ->
+        Telemetry.runner_cache_reconciliation(false)
         Enum.each(runner_cache_regions(), &reconcile_region(&1, account_ids))
 
       {:error, reason} ->
@@ -73,15 +75,14 @@ defmodule Tuist.Kura.RunnerCache do
         # until the flag returns to an explicit actor-only shape.
         detail = inspect(reason)
 
-        Logger.error("kura.runner_cache: refusing to reconcile an unsafe runner-cache cohort",
+        Logger.warning("kura.runner_cache: refusing to reconcile an unsafe runner-cache cohort",
           reason: detail
         )
 
-        Sentry.capture_message("Kura runner-cache reconciliation paused",
-          level: :error,
-          tags: %{failure_kind: cohort_failure_kind(reason)},
-          extra: %{failure_detail: detail}
-        )
+        Telemetry.runner_cache_reconciliation(true, %{
+          failure_kind: cohort_failure_kind(reason),
+          failure_detail: detail
+        })
     end
 
     :ok

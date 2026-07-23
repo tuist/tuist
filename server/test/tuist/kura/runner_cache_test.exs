@@ -7,6 +7,7 @@ defmodule Tuist.Kura.RunnerCacheTest do
   alias Tuist.Kura.Deployment
   alias Tuist.Kura.RunnerCache
   alias Tuist.Kura.Server
+  alias Tuist.Kura.Telemetry
   alias Tuist.Repo
   alias Tuist.Runners.Profile
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -22,7 +23,6 @@ defmodule Tuist.Kura.RunnerCacheTest do
   setup do
     stub(Tuist.Environment, :dev?, fn -> false end)
     stub(Tuist.Environment, :test?, fn -> false end)
-    stub(Sentry, :capture_message, fn _message, _opts -> :ignored end)
 
     stub(Tuist.Environment, :kura_available_region_ids, fn ->
       ["scw-fr-par-runners"]
@@ -30,6 +30,23 @@ defmodule Tuist.Kura.RunnerCacheTest do
 
     stub(Tuist.Environment, :kura_runtime_image_tag, fn -> "0.5.2" end)
     :ok
+  end
+
+  defp attach_reconciliation_telemetry do
+    handler_id = make_ref()
+    test_pid = self()
+
+    :ok =
+      :telemetry.attach(
+        handler_id,
+        Telemetry.event_name_runner_cache_reconciliation(),
+        fn name, measurements, metadata, _config ->
+          send(test_pid, {:reconciliation_telemetry, name, measurements, metadata})
+        end,
+        nil
+      )
+
+    on_exit(fn -> :telemetry.detach(handler_id) end)
   end
 
   defp account_with_profiles(platforms) do
@@ -89,6 +106,16 @@ defmodule Tuist.Kura.RunnerCacheTest do
     # the macOS region, whose URL would route cache traffic across the WAN.
     assert server_regions(linux_only) == []
     assert server_regions(macos_too) == ["scw-fr-par-runners"]
+  end
+
+  test "reports that reconciliation is healthy for an actor-only cohort" do
+    attach_reconciliation_telemetry()
+    account = account_with_profiles([:macos])
+    enable_runners_for([account.id])
+
+    assert :ok = RunnerCache.reconcile()
+
+    assert_receive {:reconciliation_telemetry, [:tuist, :kura, :runner_cache, :reconciliation], %{paused: 0}, %{}}
   end
 
   test "accounts without the runners flag get no nodes" do
@@ -186,6 +213,7 @@ defmodule Tuist.Kura.RunnerCacheTest do
   end
 
   test "preserves existing nodes and provisions nothing for an unsafe global gate" do
+    attach_reconciliation_telemetry()
     existing = account_with_profiles([:macos])
     candidate = account_with_profiles([:macos])
     enable_runners_for([existing.id])
@@ -200,16 +228,14 @@ defmodule Tuist.Kura.RunnerCacheTest do
       }
     end)
 
-    expect(Sentry, :capture_message, fn "Kura runner-cache reconciliation paused", opts ->
-      assert opts[:level] == :error
-      assert opts[:tags] == %{failure_kind: "non_actor_runner_gate"}
-      assert opts[:extra] == %{failure_detail: ":non_actor_runner_gate"}
-      :ignored
-    end)
+    reject(Sentry, :capture_message, 2)
 
     assert :ok = RunnerCache.reconcile()
     assert server_regions(existing) == ["scw-fr-par-runners"]
     assert server_regions(candidate) == []
+
+    assert_receive {:reconciliation_telemetry, [:tuist, :kura, :runner_cache, :reconciliation], %{paused: 1},
+                    %{failure_kind: "non_actor_runner_gate", failure_detail: ":non_actor_runner_gate"}}
   end
 
   test "preserves existing nodes for a percentage-of-time gate" do
