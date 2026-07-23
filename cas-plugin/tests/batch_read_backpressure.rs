@@ -16,7 +16,6 @@ use std::net::TcpListener as StdTcpListener;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
-use std::time::Duration;
 
 use bazel_remote_apis::build::bazel::remote::execution::v2 as reapi;
 use bazel_remote_apis::google::rpc::Status as RpcStatus;
@@ -108,28 +107,35 @@ impl ContentAddressableStorage for ExhaustedCas {
     }
 }
 
-/// Binds an ephemeral port, serves the exhausted CAS on a dedicated thread, and
-/// returns the address once it has had a moment to start listening.
+/// Binds an ephemeral port and serves the exhausted CAS on a dedicated thread.
+/// The bound listener is handed to tonic directly rather than dropped and
+/// rebound, so the port is held continuously (no window for another process to
+/// claim it) and the OS accepts the client's connection into the listen backlog
+/// the moment `bind` returns -- readiness needs no sleep to guess at.
 fn spawn_server(calls: Arc<AtomicUsize>) -> std::net::SocketAddr {
     let listener = StdTcpListener::bind("127.0.0.1:0").expect("bind ephemeral port");
+    listener
+        .set_nonblocking(true)
+        .expect("nonblocking for tokio adoption");
     let addr = listener.local_addr().expect("local addr");
-    drop(listener); // hand the port to tonic (a small, tolerable race in a test)
     std::thread::spawn(move || {
         let rt = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
             .expect("server runtime");
         rt.block_on(async move {
+            let listener =
+                tokio::net::TcpListener::from_std(listener).expect("adopt bound listener");
+            let incoming = tonic::transport::server::TcpIncoming::from(listener);
             tonic::transport::Server::builder()
                 .add_service(ContentAddressableStorageServer::new(ExhaustedCas {
                     batch_read_calls: calls,
                 }))
-                .serve(addr)
+                .serve_with_incoming(incoming)
                 .await
                 .expect("serve");
         });
     });
-    std::thread::sleep(Duration::from_millis(500));
     addr
 }
 
