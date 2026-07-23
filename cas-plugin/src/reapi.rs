@@ -322,15 +322,16 @@ fn batch_read_retrying(
             break;
         }
         if round == attempts {
-            if !backing_off {
-                pressure_backoff_until_ms.store(now_ms() + PRESSURE_BACKOFF_MS, Ordering::Relaxed);
-                crate::log_line(&format!(
-                    "batch_read: server declining reads under memory pressure \
-                     ({} blob(s) unmaterialized after {round} attempt(s)); \
-                     backing off retries for {}s",
-                    retry.len(),
-                    PRESSURE_BACKOFF_MS / 1000
-                ));
+            // Only the memory-pressure signature -- the node declined the
+            // *entire* set -- arms the node-wide breaker. A budget-zeroed
+            // Critical kura rejects every read; a RESOURCE_EXHAUSTED on one
+            // blob that overran a per-request materialization limit leaves the
+            // rest served, and arming on that would fail-fast unrelated,
+            // genuinely transient declines on the same Remote for 30s.
+            // `contents.is_empty()` is that signature and needs no fragile
+            // parse of the per-blob status message.
+            if contents.is_empty() {
+                arm_pressure_backoff(pressure_backoff_until_ms, retry.len(), round);
             }
             break;
         }
@@ -338,6 +339,37 @@ fn batch_read_retrying(
         pending = retry;
     }
     Ok(contents)
+}
+
+/// Moves `deadline` from healthy/expired to a fresh backoff window, logging the
+/// transition. The compare-exchange makes exactly one caller win: the
+/// prematerializer's worker pool and the compiler threads' demand fetches race
+/// the same `Remote`, so a plain load-then-store would let every racer arm and
+/// log at once. A caller that finds the window already armed returns without
+/// re-logging or extending it, so "back off / log once" holds under concurrency.
+fn arm_pressure_backoff(deadline: &AtomicU64, declined: usize, attempts: usize) {
+    let now = now_ms();
+    let mut current = deadline.load(Ordering::Relaxed);
+    loop {
+        if current > now {
+            return;
+        }
+        match deadline.compare_exchange_weak(
+            current,
+            now + PRESSURE_BACKOFF_MS,
+            Ordering::Relaxed,
+            Ordering::Relaxed,
+        ) {
+            Ok(_) => break,
+            Err(observed) => current = observed,
+        }
+    }
+    crate::log_line(&format!(
+        "batch_read: server declining reads under memory pressure \
+         ({declined} blob(s) unmaterialized after {attempts} attempt(s)); \
+         backing off retries for {}s",
+        PRESSURE_BACKOFF_MS / 1000
+    ));
 }
 
 /// Whether a status was synthesized by the local h2/hyper transport rather
@@ -1022,5 +1054,59 @@ mod tests {
         assert!(served.is_empty(), "an evicted blob is not served");
         assert_eq!(calls, 1, "a genuine miss is not retried");
         assert_eq!(breaker.load(Ordering::Relaxed), 0, "a miss does not arm the backoff");
+    }
+
+    #[test]
+    fn a_partial_decline_does_not_arm_the_node_wide_backoff() {
+        // One blob declined with RESOURCE_EXHAUSTED because it overran a
+        // per-request materialization limit -- not node-wide memory pressure --
+        // leaves the rest of the batch served. Arming the breaker off that would
+        // fail-fast unrelated transient declines on the same Remote for 30s, so
+        // only a decline of the *whole* set (nothing served) counts as pressure.
+        let breaker = AtomicU64::new(0);
+        let pending = [
+            super::Digest { hash: "aa".into(), size_bytes: 3 },
+            super::Digest { hash: "bb".into(), size_bytes: 1 },
+        ];
+        let mut calls = 0;
+        let served = super::batch_read_retrying(&breaker, &pending, |pending| {
+            calls += 1;
+            Ok(pending
+                .iter()
+                .map(|digest| {
+                    if digest.hash == "aa" {
+                        (Some(digest.clone()), 0, vec![1, 2, 3])
+                    } else {
+                        (Some(digest.clone()), tonic::Code::ResourceExhausted as i32, Vec::new())
+                    }
+                })
+                .collect())
+        })
+        .unwrap();
+        assert_eq!(served.get("aa"), Some(&vec![1, 2, 3]), "the served blob is delivered");
+        assert!(!served.contains_key("bb"), "the declined blob falls through to recompile");
+        assert_eq!(calls, super::BLOB_STATUS_ATTEMPTS, "the declined subset is still retried");
+        assert_eq!(
+            breaker.load(Ordering::Relaxed),
+            0,
+            "a partial decline does not arm the node-wide backoff"
+        );
+    }
+
+    #[test]
+    fn arming_is_idempotent_within_the_window() {
+        // Concurrent materializer workers all reach the arm site at once; the
+        // compare-exchange lets exactly one set the deadline, so the window is
+        // not re-extended (nor the transition re-logged) once per racer.
+        let breaker = AtomicU64::new(0);
+        super::arm_pressure_backoff(&breaker, 1, super::BLOB_STATUS_ATTEMPTS);
+        let first = breaker.load(Ordering::Relaxed);
+        assert!(first > 0, "the first arm opens the window");
+        super::arm_pressure_backoff(&breaker, 1, super::BLOB_STATUS_ATTEMPTS);
+        assert_eq!(
+            breaker.load(Ordering::Relaxed),
+            first,
+            "a second arm within the window does not extend it"
+        );
     }
 }
