@@ -8,8 +8,8 @@ defmodule Tuist.Runners.Workers.BackfillWorkflowJobsWorkerTest do
   alias Tuist.Runners.Job
   alias Tuist.Runners.JobCompletion
   alias Tuist.Runners.Jobs
-  alias Tuist.Runners.WorkflowJob
   alias Tuist.Runners.Workers.BackfillWorkflowJobsWorker
+  alias Tuist.Runners.WorkflowJob
 
   # A `runner_jobs` row written by code that predates the Postgres
   # lifecycle table — ClickHouse only, no `runner_workflow_jobs` twin.
