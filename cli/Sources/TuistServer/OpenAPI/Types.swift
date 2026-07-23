@@ -19086,6 +19086,10 @@ public enum Operations {
             public var path: Operations.listBundles.Input.Path
             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query`.
             public struct Query: Sendable, Hashable {
+                /// Filter bundles by git branch.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/git_branch`.
+                public var git_branch: Swift.String?
                 /// Page number for pagination.
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page`.
@@ -19094,24 +19098,20 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page_size`.
                 public var page_size: Swift.Int?
-                /// Filter bundles by git branch.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/git_branch`.
-                public var git_branch: Swift.String?
                 /// Creates a new `Query`.
                 ///
                 /// - Parameters:
+                ///   - git_branch: Filter bundles by git branch.
                 ///   - page: Page number for pagination.
                 ///   - page_size: Number of items per page.
-                ///   - git_branch: Filter bundles by git branch.
                 public init(
+                    git_branch: Swift.String? = nil,
                     page: Swift.Int? = nil,
-                    page_size: Swift.Int? = nil,
-                    git_branch: Swift.String? = nil
+                    page_size: Swift.Int? = nil
                 ) {
+                    self.git_branch = git_branch
                     self.page = page
                     self.page_size = page_size
-                    self.git_branch = git_branch
                 }
             }
             public var query: Operations.listBundles.Input.Query
@@ -21547,6 +21547,10 @@ public enum Operations {
                                 ///
                                 /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/bundle_id`.
                                 public var bundle_id: Swift.String?
+                                /// Names of the targets this target directly depends on (dependency-graph edges). Used to compute downstream blast radius.
+                                ///
+                                /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/dependencies`.
+                                public var dependencies: [Swift.String]?
                                 /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/destinationsPayload`.
                                 @frozen public enum destinationsPayloadPayload: String, Codable, Hashable, Sendable, CaseIterable {
                                     case iphone = "iphone"
@@ -21799,6 +21803,7 @@ public enum Operations {
                                 /// - Parameters:
                                 ///   - binary_cache_metadata: Binary cache metadata
                                 ///   - bundle_id: Bundle ID of the target
+                                ///   - dependencies: Names of the targets this target directly depends on (dependency-graph edges). Used to compute downstream blast radius.
                                 ///   - destinations: Destinations for the target
                                 ///   - name: Name of the target
                                 ///   - product: Product type of the target
@@ -21807,6 +21812,7 @@ public enum Operations {
                                 public init(
                                     binary_cache_metadata: Operations.createCommandEvent.Input.Body.jsonPayload.xcode_graphPayload.projectsPayloadPayload.targetsPayloadPayload.binary_cache_metadataPayload? = nil,
                                     bundle_id: Swift.String? = nil,
+                                    dependencies: [Swift.String]? = nil,
                                     destinations: Operations.createCommandEvent.Input.Body.jsonPayload.xcode_graphPayload.projectsPayloadPayload.targetsPayloadPayload.destinationsPayload? = nil,
                                     name: Swift.String,
                                     product: Operations.createCommandEvent.Input.Body.jsonPayload.xcode_graphPayload.projectsPayloadPayload.targetsPayloadPayload.productPayload? = nil,
@@ -21815,6 +21821,7 @@ public enum Operations {
                                 ) {
                                     self.binary_cache_metadata = binary_cache_metadata
                                     self.bundle_id = bundle_id
+                                    self.dependencies = dependencies
                                     self.destinations = destinations
                                     self.name = name
                                     self.product = product
@@ -21824,6 +21831,7 @@ public enum Operations {
                                 public enum CodingKeys: String, CodingKey {
                                     case binary_cache_metadata
                                     case bundle_id
+                                    case dependencies
                                     case destinations
                                     case name
                                     case product

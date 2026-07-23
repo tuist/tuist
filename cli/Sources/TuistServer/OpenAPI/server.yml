@@ -8747,6 +8747,14 @@ paths:
       callbacks: {}
       operationId: listBundles
       parameters:
+        - description: Filter bundles by git branch.
+          in: query
+          name: git_branch
+          required: false
+          schema:
+            type: string
+            x-struct:
+            x-validate:
         - description: Page number for pagination.
           in: query
           name: page
@@ -8769,14 +8777,6 @@ paths:
           required: false
           schema:
             type: integer
-            x-struct:
-            x-validate:
-        - description: Filter bundles by git branch.
-          in: query
-          name: git_branch
-          required: false
-          schema:
-            type: string
             x-struct:
             x-validate:
         - description: The handle of the project.
@@ -9595,6 +9595,15 @@ paths:
                                 bundle_id:
                                   description: Bundle ID of the target
                                   type: string
+                                  x-struct:
+                                  x-validate:
+                                dependencies:
+                                  description: Names of the targets this target directly depends on (dependency-graph edges). Used to compute downstream blast radius.
+                                  items:
+                                    type: string
+                                    x-struct:
+                                    x-validate:
+                                  type: array
                                   x-struct:
                                   x-validate:
                                 destinations:
