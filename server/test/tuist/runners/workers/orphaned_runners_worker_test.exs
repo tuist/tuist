@@ -46,11 +46,6 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorkerTest do
         {:ok, %{status: "queued", conclusion: nil, runner_name: nil}}
       end)
 
-      expect(Jobs, :record_queued, fn wfid ->
-        assert wfid == orphan.workflow_job_id
-        :ok
-      end)
-
       expect(Claims, :release, fn wfid, handle ->
         assert wfid == orphan.workflow_job_id
         assert handle == orphan.claimed_at
@@ -77,7 +72,6 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorkerTest do
         {:ok, %{status: "in_progress", conclusion: nil, runner_name: "runner-x"}}
       end)
 
-      reject(&Jobs.record_queued/1)
       reject(&Claims.release/2)
 
       assert :ok = OrphanedRunnersWorker.perform(%Oban.Job{})
@@ -114,7 +108,6 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorkerTest do
         {:ok, %{}}
       end)
 
-      reject(&Jobs.record_queued/1)
       reject(&Claims.release/2)
 
       assert :ok = OrphanedRunnersWorker.perform(%Oban.Job{})
@@ -145,7 +138,6 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorkerTest do
 
       expect(Jobs, :complete, fn _wfid, "" -> {:ok, %{}} end)
 
-      reject(&Jobs.record_queued/1)
       reject(&Claims.release/2)
 
       assert :ok = OrphanedRunnersWorker.perform(%Oban.Job{})
@@ -168,7 +160,6 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorkerTest do
         {:error, {:http, 502, "bad gateway"}}
       end)
 
-      reject(&Jobs.record_queued/1)
       reject(&Claims.release/2)
 
       assert :ok = OrphanedRunnersWorker.perform(%Oban.Job{})

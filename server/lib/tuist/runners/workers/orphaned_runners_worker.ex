@@ -1,6 +1,6 @@
 defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
   @moduledoc """
-  Recovers `runner_jobs` rows the server transitioned to
+  Recovers workflow_job lifecycle rows the server transitioned to
   `status = 'running'` but whose GitHub Actions runner never
   actually came up.
 
@@ -45,40 +45,20 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
 
   ## How it works
 
-    1. List `runner_jobs FINAL` rows in `status='running'` with
+    1. List lifecycle rows in `status='running'` with
        `started_at < now - @stale_after_seconds`.
     2. For each, call `GET /repos/{owner}/{repo}/actions/jobs/{id}`
        on the org's GitHub App installation.
     3. If GH returns `status: 'queued'` → runner never came up.
-       Recover: CH `record_queued` (RMT INSERT flipping status back
-       to `queued`), then PG `Claims.release` (delete the row using
-       the original `claimed_at` as the handle).
+       Recover via `Claims.release/2` (with the original
+       `claimed_at` as the handle), which deletes the claim and
+       re-queues the lifecycle row in one transaction.
     4. If GH returns `status: 'in_progress'` → runner is actually
        running; leave the row alone.
     5. If GH returns `status: 'completed'` → GH has a terminal
-       state but we missed the webhook. Out of scope for this
-       worker; the next `workflow_job.completed` redelivery or a
-       separate reconcile path can handle it.
+       state but we missed the webhook; mark the job completed and
+       free the claim.
     6. Any other return / API failure → log and retry next tick.
-
-  ## Recovery order matters (CH-first, same as StaleClaimsWorker)
-
-  Re-INSERT `queued` to CH BEFORE deleting the PG claim. If we
-  deleted PG first and crashed, CH would still say `running` and
-  `pick_queued` would skip the row — but no PG claim would remain
-  for the next worker run to find. The workflow_job would be
-  stranded permanently with the PG slot leak still in effect.
-
-  CH-first guarantees:
-
-    * Both succeed → row in queued pool, PG slot freed.
-    * CH ok, PG delete fails / crash → CH says queued, PG still
-      claimed. Dispatch skips rows already claimed in PG before
-      selecting queued work, so later workflow_jobs can keep moving.
-      The next worker run sees the same stale PG row and retries the
-      release.
-    * CH fails → leave PG alone; next worker tick retries the
-      whole sequence.
 
   ## Threshold
 
@@ -201,9 +181,9 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
     # every minute. The GH lookup already proves the job is not
     # live, so free the cap slot ourselves.
     #
-    # PG-first matches the webhook path (`Tuist.Runners.Dispatch.mark_completed`):
-    # frees the slot the instant we know, CH state is best-effort
-    # customer visibility.
+    # Claim-first matches the webhook path
+    # (`Tuist.Runners.Dispatch.mark_completed`): frees the slot the
+    # instant we know, then records the terminal lifecycle state.
     Logger.warning("runners: orphaned running row — GH completed, freeing claim",
       workflow_job_id: workflow_job_id,
       account: account.name,
@@ -212,7 +192,7 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
     )
 
     safe_complete_pg(workflow_job_id)
-    safe_complete_ch(workflow_job_id, conclusion || "")
+    safe_complete_job(workflow_job_id, conclusion || "")
 
     :telemetry.execute(
       Telemetry.event_name_recovery(),
@@ -242,45 +222,21 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
       pod: pod_name
     )
 
-    with :ok <- safe_record_queued(workflow_job_id),
-         :ok <- safe_release(workflow_job_id, claimed_at) do
-      :telemetry.execute(
-        Telemetry.event_name_recovery(),
-        %{count: 1},
-        %{kind: "orphan_requeued"}
-      )
-
-      true
-    else
-      _ -> false
-    end
-  end
-
-  # CH first — see moduledoc. Treat a CH failure as "skip, retry
-  # next tick" — the PG claim stays put so we re-see the row.
-  defp safe_record_queued(workflow_job_id) do
-    Jobs.record_queued(workflow_job_id)
-    :ok
-  rescue
-    e ->
-      Logger.warning("runners: record_queued failed in orphan worker; will retry next tick",
-        workflow_job_id: workflow_job_id,
-        ch_error: Exception.message(e)
-      )
-
-      :error
-  end
-
-  defp safe_release(workflow_job_id, %DateTime{} = handle) do
-    case Claims.release(workflow_job_id, handle) do
+    case Claims.release(workflow_job_id, claimed_at) do
       :ok ->
-        :ok
+        :telemetry.execute(
+          Telemetry.event_name_recovery(),
+          %{count: 1},
+          %{kind: "orphan_requeued"}
+        )
+
+        true
 
       {:error, :stale_claim} ->
-        # Someone else released + re-claimed between our CH list
-        # and our PG release. The new claim has a newer claimed_at;
-        # our re-queue won't disturb it. Treat as a no-op.
-        :error
+        # Someone else released + re-claimed between our list and our
+        # release; the new claim has a newer claimed_at. Treat as a
+        # no-op.
+        false
     end
   end
 
@@ -300,20 +256,19 @@ defmodule Tuist.Runners.Workers.OrphanedRunnersWorker do
       :error
   end
 
-  # CH state transition for customer visibility. `Jobs.complete`
-  # returns `{:error, :not_found}` when there's no CH row to update
-  # (already merged out, schema migration in flight) — fine, the PG
+  # Terminal lifecycle transition. `Jobs.complete` returns
+  # `{:error, :not_found}` when no lifecycle row exists — fine, the
   # claim is already freed by `safe_complete_pg/1`.
-  defp safe_complete_ch(workflow_job_id, conclusion) do
+  defp safe_complete_job(workflow_job_id, conclusion) do
     case Jobs.complete(workflow_job_id, conclusion) do
       {:ok, _} -> :ok
       {:error, :not_found} -> :ok
     end
   rescue
     e ->
-      Logger.warning("runners: Jobs.complete failed in orphan worker; CH row will resolve on next webhook",
+      Logger.warning("runners: Jobs.complete failed in orphan worker; will resolve on next webhook redelivery",
         workflow_job_id: workflow_job_id,
-        ch_error: Exception.message(e)
+        release_error: Exception.message(e)
       )
 
       :error

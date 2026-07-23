@@ -6,6 +6,8 @@ defmodule TuistWeb.RunnersLiveTest do
   import Phoenix.LiveViewTest
 
   alias Tuist.Runners.Jobs
+  alias Tuist.Runners.Workers.FlushJobTransitionEventsWorker
+  alias Tuist.Runners.WorkflowJobs
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
   # render_async/2 is LiveViewTest's first-party hook for waiting on async assigns.
@@ -49,9 +51,11 @@ defmodule TuistWeb.RunnersLiveTest do
     # Recent jobs card only surfaces completed work, so walk the job
     # through the full state machine before asserting it shows up.
     {:ok, candidate} = Jobs.pick_queued("fleet-x", [])
-    :ok = Jobs.record_claimed(candidate, "pod-1", DateTime.utc_now())
-    :ok = Jobs.record_running(70_001, "runner-x")
+    :ok = WorkflowJobs.transition_claimed(candidate.workflow_job_id, "pod-1", DateTime.utc_now())
+    :ok = WorkflowJobs.transition_running(70_001, "runner-x")
     {:ok, _} = Jobs.complete(70_001, "success")
+
+    flush_outbox!()
 
     {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners")
     html = render_async(lv, @render_async_timeout)
@@ -79,6 +83,8 @@ defmodule TuistWeb.RunnersLiveTest do
     complete_run(account, 70_002, 700_020, "success")
     complete_run(account, 70_003, 700_021, "cancelled")
 
+    flush_outbox!()
+
     {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners")
     html = render_async(lv, @render_async_timeout)
 
@@ -92,6 +98,8 @@ defmodule TuistWeb.RunnersLiveTest do
   end
 
   test "shows empty state when the account has no jobs", %{conn: conn, account: account} do
+    flush_outbox!()
+
     {:ok, lv, _html} = live(conn, ~p"/#{account.name}/runners")
     html = render_async(lv, @render_async_timeout)
 
@@ -102,6 +110,8 @@ defmodule TuistWeb.RunnersLiveTest do
   end
 
   test "shows only the selected concurrency platform", %{conn: conn, account: account} do
+    flush_outbox!()
+
     {:ok, lv, _html} =
       live(conn, ~p"/#{account.name}/runners?concurrency-platform=linux")
 
@@ -164,8 +174,8 @@ defmodule TuistWeb.RunnersLiveTest do
       })
 
     {:ok, candidate} = Jobs.pick_queued("fleet-x", [])
-    :ok = Jobs.record_claimed(candidate, "pod-#{workflow_job_id}", DateTime.utc_now())
-    :ok = Jobs.record_running(workflow_job_id, "runner-#{workflow_job_id}")
+    :ok = WorkflowJobs.transition_claimed(candidate.workflow_job_id, "pod-#{workflow_job_id}", DateTime.utc_now())
+    :ok = WorkflowJobs.transition_running(workflow_job_id, "runner-#{workflow_job_id}")
     {:ok, _} = Jobs.complete(workflow_job_id, conclusion)
   end
 
@@ -187,5 +197,9 @@ defmodule TuistWeb.RunnersLiveTest do
     {analytics_position, _} = :binary.match(html, "data-part=\"analytics\"")
     {concurrency_position, _} = :binary.match(html, "data-part=\"concurrency-card\"")
     concurrency_position > analytics_position
+  end
+
+  defp flush_outbox! do
+    :ok = FlushJobTransitionEventsWorker.perform(%Oban.Job{})
   end
 end

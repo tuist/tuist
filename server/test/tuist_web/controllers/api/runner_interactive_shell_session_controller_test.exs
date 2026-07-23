@@ -4,6 +4,8 @@ defmodule TuistWeb.API.RunnerInteractiveShellSessionControllerTest do
   alias Tuist.Repo
   alias Tuist.Runners.InteractiveSession
   alias Tuist.Runners.Jobs
+  alias Tuist.Runners.WorkflowJobs
+  alias Tuist.Runners.Workers.FlushJobTransitionEventsWorker
   alias TuistTestSupport.Fixtures.AccountsFixtures
 
   defp running_job(account, workflow_job_id, workflow_run_id, pod_name \\ "pod-api-shell") do
@@ -22,8 +24,9 @@ defmodule TuistWeb.API.RunnerInteractiveShellSessionControllerTest do
       })
 
     {:ok, candidate} = Jobs.pick_queued("linux-amd64", [])
-    :ok = Jobs.record_claimed(candidate, pod_name, DateTime.utc_now())
-    :ok = Jobs.record_running(workflow_job_id, "tuist-runner-shell-api")
+    :ok = WorkflowJobs.transition_claimed(candidate.workflow_job_id, pod_name, DateTime.utc_now())
+    :ok = WorkflowJobs.transition_running(workflow_job_id, "tuist-runner-shell-api")
+    :ok = FlushJobTransitionEventsWorker.perform(%Oban.Job{})
   end
 
   test "creates a shell session from a workflow job id", %{conn: conn} do
@@ -119,6 +122,7 @@ defmodule TuistWeb.API.RunnerInteractiveShellSessionControllerTest do
 
     {:ok, completed} = Jobs.complete(72_003, "success")
     assert completed.status == "completed"
+    :ok = FlushJobTransitionEventsWorker.perform(%Oban.Job{})
 
     conn =
       conn
