@@ -20,7 +20,16 @@ defmodule TuistWeb.AuthMdProtocolControllerTest do
 
   setup do
     stub(Tuist.Environment, :agent_auth_trusted_providers, fn -> [] end)
-    stub(Tuist.Environment, :app_url, fn -> "http://www.example.com" end)
+    stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+
+    stub(Tuist.Environment, :app_url, fn options ->
+      if Keyword.get(options, :route_type) == :app do
+        "http://www.example.com"
+      else
+        "https://tuist.dev#{Keyword.get(options, :path, "")}"
+      end
+    end)
+
     stub(AgentAuthRateLimit, :hit, fn _conn -> {:allow, 1} end)
     stub(AgentAuthRateLimit, :hit, fn _conn, _subject -> {:allow, 1} end)
     stub(AgentAuthRateLimit, :hit_registration, fn _conn, _registration_type -> {:allow, 1} end)
@@ -58,7 +67,11 @@ defmodule TuistWeb.AuthMdProtocolControllerTest do
 
     assert claim["status"] == "initiated"
     assert claim["claim_attempt"]["user_code"] =~ ~r/^\d{6}$/
-    assert claim["claim_attempt"]["verification_uri"] =~ "/agent/identity/claim?claim_attempt_token="
+
+    assert String.starts_with?(
+             claim["claim_attempt"]["verification_uri"],
+             "http://www.example.com/agent/identity/claim?claim_attempt_token="
+           )
 
     claim_page_conn =
       build_conn()

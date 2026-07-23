@@ -17,7 +17,11 @@ defmodule TuistWeb.Oauth.TokenController do
   def oauth_module, do: Application.get_env(:tuist, :oauth_module, Boruta.Oauth)
 
   def token(%Plug.Conn{} = conn, %{"grant_type" => @jwt_bearer_grant, "assertion" => assertion} = params) do
-    case Accounts.exchange_protocol_agent_assertion(assertion, Environment.app_url(), Map.get(params, "resource")) do
+    case Accounts.exchange_protocol_agent_assertion(
+           assertion,
+           Environment.app_url(route_type: :app),
+           Map.get(params, "resource")
+         ) do
       {:ok, response} -> oauth_json(conn, response)
       {:error, :invalid_target} -> oauth_error(conn, "invalid_target", "The requested resource is not supported.")
       {:error, _reason} -> oauth_error(conn, "invalid_grant", "The identity assertion is invalid or expired.")
@@ -29,7 +33,7 @@ defmodule TuistWeb.Oauth.TokenController do
   end
 
   def token(%Plug.Conn{} = conn, %{"grant_type" => @claim_grant, "claim_token" => claim_token}) do
-    case Accounts.poll_protocol_agent_claim(claim_token, Environment.app_url()) do
+    case Accounts.poll_protocol_agent_claim(claim_token, Environment.app_url(route_type: :app)) do
       {:ok, response} ->
         oauth_json(conn, response)
 

@@ -22,7 +22,16 @@ defmodule TuistWeb.AgentAuthControllerTest do
     stub(Tuist.Environment, :mailing_from_address, fn -> "noreply@tuist.dev" end)
     stub(Tuist.Environment, :email_icon_url, fn -> "https://tuist.dev/icon.png" end)
     stub(Tuist.Environment, :agent_auth_trusted_providers, fn -> [] end)
-    stub(Tuist.Environment, :app_url, fn -> "http://www.example.com" end)
+    stub(Tuist.Environment, :app_url, fn -> "https://tuist.dev" end)
+
+    stub(Tuist.Environment, :app_url, fn options ->
+      if Keyword.get(options, :route_type) == :app do
+        "http://www.example.com"
+      else
+        "https://tuist.dev#{Keyword.get(options, :path, "")}"
+      end
+    end)
+
     stub(AgentAuth, :hit, fn _conn -> {:allow, 1} end)
     stub(AgentAuth, :hit, fn _conn, _subject -> {:allow, 1} end)
     stub(AgentAuth, :hit_registration, fn _conn, _registration_type -> {:allow, 1} end)
