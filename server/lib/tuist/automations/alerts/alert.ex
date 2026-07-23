@@ -11,6 +11,7 @@ defmodule Tuist.Automations.Alerts.Alert do
   @monitor_types @recovery_ledger_monitor_types ++ @event_driven_monitor_types
   @comparisons ~w(gte gt lt lte)
   @valid_states ~w(enabled muted skipped)
+  @condition_types ~w(test_case_state)
   @test_updated_events ~w(
     marked_flaky
     unmarked_flaky
@@ -39,6 +40,21 @@ defmodule Tuist.Automations.Alerts.Alert do
   can apply the same constraint at the input level.
   """
   def max_rolling_window_size, do: @max_rolling_window_size
+
+  @doc """
+  The states a test case can be in. Also the accepted values for a
+  `change_state` action's target and for a `test_case_state` condition's
+  `states` list.
+  """
+  def valid_states, do: @valid_states
+
+  @doc """
+  Recognised `type` values for entries in a `trigger_config` /
+  `recovery_config` `conditions` list. A condition scopes the automation to the
+  test cases it matches; all conditions must hold (AND). Currently only
+  `test_case_state` (the test's current state is one of a `states` list).
+  """
+  def condition_types, do: @condition_types
 
   @doc """
   Event-driven monitors (`test_updated`) fire from
@@ -224,8 +240,36 @@ defmodule Tuist.Automations.Alerts.Alert do
 
     changeset
     |> validate_comparison(trigger_config)
+    |> validate_conditions(:trigger_config, trigger_config)
     |> validate_recovery_config()
   end
+
+  # Optional list of conditions scoping which test cases the automation acts on.
+  # Absent means "no scoping" (unchanged behaviour); when present it must be a
+  # list of well-formed, known-type conditions. All conditions AND together at
+  # evaluation time.
+  defp validate_conditions(changeset, field, config) do
+    case Map.get(config, "conditions") do
+      nil ->
+        changeset
+
+      conditions when is_list(conditions) ->
+        if Enum.all?(conditions, &valid_condition?/1) do
+          changeset
+        else
+          add_error(changeset, field, "conditions must each be a valid #{Enum.join(@condition_types, "/")} condition")
+        end
+
+      _ ->
+        add_error(changeset, field, "conditions must be a list")
+    end
+  end
+
+  defp valid_condition?(%{"type" => "test_case_state", "states" => states}) do
+    is_list(states) and states != [] and Enum.all?(states, &(&1 in @valid_states))
+  end
+
+  defp valid_condition?(_), do: false
 
   defp validate_test_updated_config(changeset, trigger_config) do
     case Map.get(trigger_config, "events") do
@@ -299,7 +343,7 @@ defmodule Tuist.Automations.Alerts.Alert do
       recovery_config = get_field(changeset, :recovery_config) || %{}
 
       case validate_window_shape(recovery_config) do
-        :ok -> changeset
+        :ok -> validate_conditions(changeset, :recovery_config, recovery_config)
         {:error, message} -> add_error(changeset, :recovery_config, message)
       end
     else

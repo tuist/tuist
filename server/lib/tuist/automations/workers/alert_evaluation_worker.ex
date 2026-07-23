@@ -125,13 +125,19 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
   end
 
   defp execute_evaluation(alert, triggered_ids, test_case_ids) do
-    triggered_ids = reject_unvalidated_test_cases(alert, triggered_ids)
+    triggered_ids = eligible_triggered_ids(alert, triggered_ids)
 
     if alert.baseline_established_at == nil do
       establish_baseline(alert, triggered_ids)
     else
       run_transitions(alert, triggered_ids, test_case_ids)
     end
+  end
+
+  defp eligible_triggered_ids(alert, triggered_ids) do
+    alert
+    |> reject_unvalidated_test_cases(triggered_ids)
+    |> then(&filter_by_conditions(alert, &1, conditions(alert.trigger_config)))
   end
 
   # A test case that has never had a successful, non-flaky run on the project's
@@ -143,7 +149,9 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
   # accrues a passing default-branch run. The check is all-time (not the
   # trigger window) so an established test that passed long ago stays eligible.
   #
-  # Recovery is intentionally not filtered: unmuting is always safe.
+  # Recovery is not subject to this default-branch validation gate; recovery is
+  # instead constrained (when the user opts in) by the `conditions` scope in
+  # `handle_recovery`.
   defp reject_unvalidated_test_cases(_alert, []), do: []
 
   defp reject_unvalidated_test_cases(alert, triggered_ids) do
@@ -154,6 +162,46 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
 
     Enum.filter(triggered_ids, &MapSet.member?(validated, &1))
   end
+
+  # `trigger_config.conditions` / `recovery_config.conditions` are an optional
+  # list of filters scoping which test cases the automation acts on. Absent (the
+  # default) means "no scoping" and keeps the legacy behaviour. Every condition
+  # must hold (they AND together). The only condition type today is
+  # `test_case_state` — the test's CURRENT state is one of a `states` list.
+  # Example: a mute automation scoped to trigger only on `test_case_state`
+  # `["enabled"]` and recover only on `["muted"]` won't re-mute an
+  # already-quarantined test, and won't revert a state (a manual skip, or
+  # another automation's change) it doesn't own.
+  defp conditions(config) when is_map(config) do
+    case Map.get(config, "conditions") do
+      conditions when is_list(conditions) -> conditions
+      _ -> []
+    end
+  end
+
+  defp conditions(_), do: []
+
+  defp filter_by_conditions(_alert, ids, []), do: ids
+  defp filter_by_conditions(_alert, [], _conditions), do: []
+
+  defp filter_by_conditions(alert, ids, conditions) do
+    Enum.reduce(conditions, ids, fn condition, acc ->
+      apply_condition(alert.project_id, acc, condition)
+    end)
+  end
+
+  defp apply_condition(_project_id, [], _condition), do: []
+
+  defp apply_condition(project_id, ids, %{"type" => "test_case_state", "states" => states}) do
+    allowed = MapSet.new(states)
+    current = Tests.test_case_states(project_id, ids)
+    Enum.filter(ids, fn id -> MapSet.member?(allowed, Map.get(current, id)) end)
+  end
+
+  # An unknown condition type is dropped by changeset validation before it can
+  # be persisted, so it should never reach here; treat it as a no-op rather than
+  # silently excluding every candidate.
+  defp apply_condition(_project_id, ids, _condition), do: ids
 
   # First evaluation after the alert was created: every test case currently
   # matching the condition is part of the established state. Record them as
@@ -237,14 +285,29 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
         {candidates, []}
       end
 
+    # A `recovery_config.conditions` scope withholds the recovery ACTIONS from
+    # candidates that no longer match (e.g. a mute automation that only recovers
+    # `muted` tests skips one a human has since skipped or unmuted). Those
+    # candidates still re-arm below — their `recovered` event is appended so the
+    # next rising edge can fire — they just don't get their state/label reverted.
+    # Only consulted when recovery is enabled; the disabled path already runs no
+    # actions.
+    action_eligible_ids =
+      if alert.recovery_enabled do
+        recovery_action_eligible_ids(alert, recovered)
+      else
+        MapSet.new(Enum.map(recovered, & &1.test_case_id))
+      end
+
     Enum.each(recovered, fn event ->
       entity = %{type: :test_case, id: event.test_case_id}
+      actions = if MapSet.member?(action_eligible_ids, event.test_case_id), do: recovery_actions, else: []
 
       # Run recovery actions BEFORE appending the "recovered" event. If we
       # flipped the order, a failure in the Slack ping / label removal /
       # state reset would leave the rule visually resolved while the user's
       # intended side effects never happened.
-      case ActionExecutor.execute_actions(recovery_actions, alert, entity) do
+      case ActionExecutor.execute_actions(actions, alert, entity) do
         :ok ->
           now = NaiveDateTime.utc_now()
 
@@ -262,6 +325,15 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
           )
       end
     end)
+  end
+
+  defp recovery_action_eligible_ids(alert, recovered) do
+    ids = Enum.map(recovered, & &1.test_case_id)
+
+    case conditions(alert.recovery_config) do
+      [] -> MapSet.new(ids)
+      conditions -> MapSet.new(filter_by_conditions(alert, ids, conditions))
+    end
   end
 
   # A scoped evaluation only re-checked `scoped_test_case_ids`, so a triggered

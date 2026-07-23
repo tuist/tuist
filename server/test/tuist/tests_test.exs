@@ -7929,6 +7929,55 @@ defmodule Tuist.TestsTest do
     )
   end
 
+  describe "test_case_states/2" do
+    test "returns the current state per test case id, defaulting untouched ids to enabled" do
+      project = ProjectsFixtures.project_fixture()
+      untouched = RunsFixtures.test_case_fixture(project_id: project.id)
+      muted = RunsFixtures.test_case_fixture(project_id: project.id)
+      skipped = RunsFixtures.test_case_fixture(project_id: project.id)
+
+      IngestRepo.insert_all(
+        TestCase,
+        Enum.map([untouched, muted, skipped], &(&1 |> Map.from_struct() |> Map.delete(:__meta__)))
+      )
+
+      {:ok, _} = Tests.update_test_case(muted.id, %{state: "muted"})
+      {:ok, _} = Tests.update_test_case(skipped.id, %{state: "skipped"})
+
+      assert Tests.test_case_states(project.id, [untouched.id, muted.id, skipped.id]) == %{
+               untouched.id => "enabled",
+               muted.id => "muted",
+               skipped.id => "skipped"
+             }
+    end
+
+    test "reflects the most recent state change" do
+      project = ProjectsFixtures.project_fixture()
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id)
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      {:ok, _} = Tests.update_test_case(test_case.id, %{state: "muted"})
+      {:ok, _} = Tests.update_test_case(test_case.id, %{state: "enabled"})
+
+      assert Tests.test_case_states(project.id, [test_case.id]) == %{test_case.id => "enabled"}
+    end
+
+    test "a flaky flag change alone leaves the state at enabled" do
+      project = ProjectsFixtures.project_fixture()
+      test_case = RunsFixtures.test_case_fixture(project_id: project.id)
+      IngestRepo.insert_all(TestCase, [test_case |> Map.from_struct() |> Map.delete(:__meta__)])
+
+      {:ok, _} = Tests.update_test_case(test_case.id, %{is_flaky: true})
+
+      assert Tests.test_case_states(project.id, [test_case.id]) == %{test_case.id => "enabled"}
+    end
+
+    test "returns an empty map for no ids" do
+      project = ProjectsFixtures.project_fixture()
+      assert Tests.test_case_states(project.id, []) == %{}
+    end
+  end
+
   describe "update_test_case/3 with event creation" do
     test "creates marked_flaky event when is_flaky changes from false to true" do
       # Given
