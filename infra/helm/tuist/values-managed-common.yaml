@@ -90,6 +90,9 @@ server:
   # any POST endpoint with a non-trivial body (cache, runs, webhooks).
   ingress:
     annotations:
+      # Authorization redirects combine a signed session cookie with a long
+      # Location header. Keep enough response-header headroom for both.
+      nginx.ingress.kubernetes.io/proxy-buffer-size: "16k"
       nginx.ingress.kubernetes.io/proxy-body-size: "50m"
       nginx.ingress.kubernetes.io/proxy-request-buffering: "off"
 

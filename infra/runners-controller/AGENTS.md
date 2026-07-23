@@ -60,11 +60,46 @@ independent workqueues:
     mini under the Virtualization.framework SLA). The allocator
     apportions the host budget across competing Xcode pools.
 
+  Only nodes that report `Ready=True`, remain schedulable, and have no
+  memory, disk, or process identifier pressure contribute to either
+  budget. A fleet filtered to zero capacity still takes the existing
+  per-pool fallback, so a transient node roll never triggers a mass
+  scale-down of warm Pods. Pod creation has a separate fail-closed
+  healthy-node gate described below.
+
   The reconciler reads nodes via the cluster-scoped `nodes` verb in
   the ClusterRole. Any failure gathering the fleet view falls back to
   the per-pool target — a node-read blip must never trigger a mass
   scale-down. A pool with an unrecognised `OS` (or without autoscaling
   enabled) skips the allocator entirely.
+
+  **Linux Kata provisioning admission.** Capacity and creation velocity
+  are separate safety boundaries. A queue spike can fit within the
+  fleet's memory budget while still asking kubelet and Kata to start too
+  many sandboxes together. Before filling a Linux Kata pool's replica
+  gap, `RunnerPoolReconciler` counts every alive, unclaimed Pod whose
+  dispatch poller has not started across sibling pools sharing
+  the same operating system and `FleetSelector`. It creates only up to
+  `spec.provisioning.maxConcurrentPerFleetSelector` (default 4), using
+  the lowest sibling value so one mismatched pool cannot weaken the
+  fleet boundary. Excess demand remains a replica gap and is retried
+  every five seconds. macOS pools skip this gate.
+
+  Pod creates are visible to the cached client asynchronously. The
+  reconciler therefore keeps a 30-second in-process reservation for each
+  successful create and counts it until the cache observes the Pod. This
+  prevents an immediate reconcile from admitting a second full batch in
+  the cache-lag window. The controller keeps its default single reconcile
+  worker; raising that concurrency requires revisiting the admission
+  invariant.
+
+  A Linux Pod that is bound to a node but whose poller has not started
+  within `spec.provisioning.startTimeoutSeconds` (default 300, 0 disables)
+  is reaped with a warning event and node-condition log. Unscheduled Pods
+  are not recycled because recreation cannot solve a scheduler capacity
+  wait. Claimed Pods and Pods whose poller has terminated are protected.
+  Terminal cleanup and idle scale-down run before admission and are never
+  blocked by the provisioning ceiling.
 
   **Allocation observability (`internal/metrics`).** Each tick the
   reconciler publishes the squeeze on the controller's existing
@@ -86,6 +121,13 @@ independent workqueues:
   runner dashboard's macOS ready vs cold-booting split without relying
   on pod-scoped kube-state-metrics series.
 
+  Provisioning safety publishes
+  `tuist_runners_pool_pending_provisioning_pods{pool}`,
+  `tuist_runners_pool_admission_blocked_total{pool,reason}`,
+  `tuist_runners_fleet_ready_nodes{fleet_selector,operating_system}`,
+  `tuist_runners_fleet_filtered_nodes{fleet_selector,operating_system,reason}`,
+  and `tuist_runners_pool_pod_start_timeouts_total{pool,reason}`.
+
   Alongside it, `tuist_runners_pool_oldest_pending_pod_age_seconds{pool}`
   is how long the pool's oldest un-`Running` Pod has been waiting (0 when
   none). **darwin pools only.** On a Tart pool a Pod is `Pending` from
@@ -103,6 +145,42 @@ independent workqueues:
   finally starts and so omits Pods that never boot entirely — the failure
   this gauge exists to catch, and one that leaves the Node `Ready` and
   `kube_pod_status_unschedulable` at 0 throughout.
+
+  **Starvation vs saturation.** `..._autoscaler_claimed_jobs{pool}` and
+  `..._autoscaler_queued_jobs{pool}` publish the server's two demand
+  signals unsummed, and `tuist_runners_pool_idle_replicas{pool}` counts
+  alive current-image Pods with no `tuist.dev/runner-pool-owner` that can
+  actually accept a job right now. "Can accept" is OS-dependent, for the
+  same reason the un-booted age above is darwin-only: on a Tart pool only
+  `Running` counts, because a Pod still waiting on a Mac mini has no VM
+  and is not capacity however long it has been alive; on Linux `Pending`
+  counts, because that is where a warm dispatch poller spends its whole
+  idle life. Getting this wrong inverts the reading — a fleet starved of
+  hosts would report idle Pods sitting on queued work, which is the
+  fingerprint of the opposite failure. Together they separate two failures
+  that every other series conflates:
+
+  - **Saturated**: `queued > 0`, `idle == 0`. Real work exceeds hosts.
+    The fix is capacity.
+  - **Starved**: `queued > 0` *and* `idle > 0`, sustained. Warm Pods are
+    polling dispatch and getting nothing while jobs wait. The fix is
+    server-side; adding hosts changes nothing.
+
+  The second state should be impossible — an idle Pod polls continuously,
+  so queued work reaches it within a poll interval — which is what makes
+  the overlap a reliable fingerprint, **provided `queued` counts only
+  dispatchable work**. Raw queue depth includes jobs held back because
+  their account is at its platform concurrency limit; dispatch will never
+  hand those out, so with a raw count the overlap is a valid steady state
+  rather than a fault. The server caps each account's contribution at its
+  remaining concurrency headroom before exporting the count (tuist/tuist#11981),
+  which is what makes `..._queued_jobs` trustworthy here. Nothing else shows it: the phase
+  count reads a warm idle Pod and a Pod running a customer job
+  identically (both `Running`), `claimed+queued` stays flat while work
+  drains normally (`queued` → `claimed`), and the oldest-un-booted-Pod
+  age above only sees Pods that never booted, not booted Pods that never
+  received work. The `Runner queue age` alert fires on either state, so
+  it says something is wrong without saying which lever to pull.
 
   Pod-level autoscaling only — bare-metal Host count is operator-
   managed via the CAPI cluster topology, since Hetzner Robot hosts

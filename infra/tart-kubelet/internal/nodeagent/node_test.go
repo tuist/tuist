@@ -179,6 +179,30 @@ func TestConfigureNodeSeedsDiskPressureFalse(t *testing.T) {
 	}
 }
 
+func TestConfigureNodeReportsEphemeralStorage(t *testing.T) {
+	m := &Maintainer{NodeName: "mac-mini-1"}
+	node := &corev1.Node{}
+
+	m.configureNode(node, nil)
+
+	// configureNode statvfs's the real "/" of the test host, so the value
+	// is environment-dependent but must be present and positive in both
+	// Capacity and Allocatable — the gap that left a full host disk
+	// invisible at the k8s layer.
+	for name, list := range map[string]corev1.ResourceList{
+		"Capacity":    node.Status.Capacity,
+		"Allocatable": node.Status.Allocatable,
+	} {
+		q, ok := list[corev1.ResourceEphemeralStorage]
+		if !ok {
+			t.Fatalf("ephemeral-storage missing from %s", name)
+		}
+		if q.Value() <= 0 {
+			t.Fatalf("ephemeral-storage in %s = %s, want > 0", name, q.String())
+		}
+	}
+}
+
 func TestConfigureNodeMergesDynamicLabels(t *testing.T) {
 	m := &Maintainer{
 		NodeName:   "mac-mini-1",

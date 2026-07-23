@@ -12,14 +12,16 @@ defmodule Tuist.Kura.Reconciler do
   independently-mutated state machine. Each tick:
 
     1. schedule runtime-image drift for active servers,
-    2. finalise destroys after the custom resource disappears,
-    3. apply open deployments (the rollout fast path), and
-    4. project every other present-intent server: observe the backing
+    2. schedule teardown for servers stranded in retired regions,
+    3. finalise destroys after the custom resource disappears,
+    4. drain the source of completed moves,
+    5. apply open deployments (the rollout fast path), and
+    6. project every other present-intent server: observe the backing
        `KuraInstance`, record the observation (`observed_image_tag` /
        `last_observed_at`), and re-derive `status` from
        `(latest deployment intent, observed image, endpoint readiness)`.
 
-  Because step 4 re-derives `status` from observation every tick,
+  Because step 6 re-derives `status` from observation every tick,
   `:failed` is never a sticky terminal sink: a server whose backing
   resource recovers and reports the intended image with a serving
   endpoint heals back to `:active` in place, with no new deployment row
@@ -41,14 +43,23 @@ defmodule Tuist.Kura.Reconciler do
   this loop observes the same rows on the next tick and converges again.
   """
 
-  use Oban.Worker, queue: :default, max_attempts: 3
+  use Oban.Worker,
+    queue: :default,
+    max_attempts: 3,
+    unique: [
+      fields: [:worker],
+      period: :infinity,
+      states: [:available, :scheduled, :executing, :retryable]
+    ]
 
   import Ecto.Query
 
+  alias Oban.Job
   alias Tuist.Kura
   alias Tuist.Kura.Deployment
   alias Tuist.Kura.Provisioner
   alias Tuist.Kura.Regions
+  alias Tuist.Kura.RunnerCache
   alias Tuist.Kura.Server
   alias Tuist.Repo
 
@@ -63,7 +74,7 @@ defmodule Tuist.Kura.Reconciler do
   @reconcile_batch_size 200
 
   @impl Oban.Worker
-  def perform(%Oban.Job{}) do
+  def perform(%Job{}) do
     reconcile()
   end
 
@@ -71,15 +82,43 @@ defmodule Tuist.Kura.Reconciler do
     # Converge runner-cache nodes with runner enablement before the rest
     # of the loop so a freshly enabled account's node enters the normal
     # provisioning/observation path within the same tick.
-    Tuist.Kura.RunnerCache.reconcile()
+    RunnerCache.reconcile()
 
-    with {:ok, scheduled} <- Kura.schedule_runtime_image_deployments() do
-      log_scheduled_deployments(scheduled)
-      reconcile_destroying_servers()
-      reconcile_moving_out_servers()
-      handled = reconcile_deployments()
-      reconcile_observed_servers(handled)
-    end
+    schedule_runtime_image_deployments()
+    reconcile_retired_region_servers()
+    reconcile_destroying_servers()
+    reconcile_moving_out_servers()
+    handled = reconcile_deployments()
+    reconcile_observed_servers(handled)
+  end
+
+  defp schedule_runtime_image_deployments do
+    {:ok, %{scheduled: scheduled, failures: failures}} = Kura.schedule_runtime_image_deployments()
+    log_scheduled_deployments(scheduled)
+    Enum.each(failures, &report_scheduling_failure/1)
+
+    :ok
+  end
+
+  defp report_scheduling_failure(failure) do
+    detail = inspect(failure.reason)
+    kind = failure_kind(failure.reason)
+
+    Logger.error(
+      "[Kura.Reconciler] could not schedule runtime image deployment for server #{failure.server_id} in #{failure.region}: #{detail}"
+    )
+
+    Sentry.capture_message("Kura deployment scheduling failed",
+      level: :error,
+      tags: %{failure_kind: kind, region: failure.region},
+      extra: %{
+        account_id: failure.account_id,
+        failure_detail: detail,
+        failure_kind: kind,
+        region: failure.region,
+        server_id: failure.server_id
+      }
+    )
   end
 
   # Drain window a promoted move's source keeps serving before teardown, so
@@ -126,6 +165,47 @@ defmodule Tuist.Kura.Reconciler do
   defp log_scheduled_deployments(deployments) do
     Logger.info("[Kura.Reconciler] scheduled #{length(deployments)} runtime image deployment(s)")
     :ok
+  end
+
+  # Retiring a region leaves its servers stranded. The catalog tombstone exists
+  # so the reconciler can still resolve their cluster identity, but nothing ever
+  # scheduled their teardown, so the rows kept their status, their KuraInstances
+  # kept being reconciled, and their pods sat unschedulable forever against a
+  # node pool that was deleted with the region. Scheduling destruction here is
+  # what the tombstone was always for; `reconcile_destroying_servers` then runs
+  # the same teardown an operator-initiated destroy uses.
+  defp reconcile_retired_region_servers do
+    case Regions.retired_ids() do
+      [] ->
+        :ok
+
+      retired_ids ->
+        Server
+        |> where([s], s.region in ^retired_ids)
+        |> where([s], s.status not in [:destroying, :destroyed])
+        |> order_by([s], asc: s.updated_at, asc: s.id)
+        |> limit(^@reconcile_batch_size)
+        |> Repo.all()
+        |> Enum.each(&destroy_retired_region_server/1)
+
+        :ok
+    end
+  end
+
+  defp destroy_retired_region_server(%Server{} = server) do
+    case Kura.destroy_server(server) do
+      {:ok, _server} ->
+        Logger.info("[Kura.Reconciler] scheduled destruction of server #{server.id} in retired region #{server.region}")
+
+        :ok
+
+      {:error, reason} ->
+        Logger.warning(
+          "[Kura.Reconciler] could not schedule destruction of server #{server.id} in retired region #{server.region}: #{inspect(reason)}"
+        )
+
+        :ok
+    end
   end
 
   defp reconcile_destroying_servers do
@@ -380,11 +460,18 @@ defmodule Tuist.Kura.Reconciler do
       {:ok, observed} ->
         record(server, derived_status(server, latest_status), observed, now())
 
-      {:error, :not_found} when latest_status == :succeeded ->
-        apply_current_manifest(server, desired)
-
       {:error, :not_found} ->
-        record(server, derived_status(server, latest_status), nil, now())
+        # A present-intent server (provisioning/active/failed) whose backing
+        # KuraInstance has vanished is drift to correct on its own, regardless
+        # of the latest deployment's status. Gating recreation on a `:succeeded`
+        # latest deployment let a transient control-plane error — e.g. an
+        # apiserver 401 during a rollout that marked the deployment `:failed` —
+        # silently and permanently disable self-heal: a failed latest deployment
+        # never flips back to `:succeeded` on its own, so a CR later deleted
+        # out-of-band was never recreated and the instance stranded. Re-applying
+        # is idempotent; a genuinely broken rollout surfaces its own error each
+        # tick instead of the instance disappearing.
+        apply_current_manifest(server, desired)
 
       {:error, reason} ->
         Logger.warning("[Kura.Reconciler] could not observe server #{server.id}: #{inspect(reason)}")
@@ -563,26 +650,37 @@ defmodule Tuist.Kura.Reconciler do
   defp fail(deployment, server, reason) do
     message = if is_binary(reason), do: reason, else: inspect(reason)
 
-    capture_deploy_failure(deployment, server, message)
+    capture_deploy_failure(deployment, server, reason, message)
 
     {:ok, _} = Kura.mark_failed(deployment, message)
     if server, do: Kura.fail_server(server)
     :ok
   end
 
-  defp capture_deploy_failure(deployment, server, message) do
+  defp capture_deploy_failure(deployment, server, reason, message) do
+    kind = failure_kind(reason)
+
     Sentry.capture_message("Kura deploy failed",
       level: :error,
+      tags: %{failure_kind: kind, region: server && server.region},
       extra: %{
         deployment_id: deployment.id,
         image_tag: deployment.image_tag,
         server_id: server && server.id,
         account_id: server && server.account_id,
         region: server && server.region,
-        reason: message
+        failure_detail: message,
+        failure_kind: kind
       }
     )
   end
+
+  defp failure_kind(:not_found), do: "not_found"
+  defp failure_kind({kind, _}) when is_atom(kind), do: Atom.to_string(kind)
+  defp failure_kind({kind, _, _}) when is_atom(kind), do: Atom.to_string(kind)
+  defp failure_kind(%{__struct__: module}), do: module |> Module.split() |> List.last() |> Macro.underscore()
+  defp failure_kind(reason) when is_binary(reason), do: "provisioner_error"
+  defp failure_kind(_reason), do: "unknown"
 
   defp server_status(:server_destroying), do: "destroying"
   defp server_status(:server_destroyed), do: "destroyed"

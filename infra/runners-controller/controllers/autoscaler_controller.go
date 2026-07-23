@@ -230,6 +230,12 @@ func (r *AutoscalerReconciler) desiredForPool(
 	// on its own series, not inferred from alive-vs-desired.
 	metrics.RecordAllocation(pool.Name, signals.Claimed+signals.Queued, knobs.MinWarmPoolFloor, perPool, allocated)
 
+	// Publish the demand signals unsummed as well. The allocator only
+	// needs claimed+queued, but that sum is flat while work drains
+	// normally (queued -> claimed), so it cannot distinguish a pool
+	// serving its backlog from one wedged with the same backlog.
+	metrics.RecordDemand(pool.Name, signals.Claimed, signals.Queued)
+
 	return allocated
 }
 
@@ -368,7 +374,12 @@ func (r *AutoscalerReconciler) fleetAllocatableMemory(ctx context.Context, fleet
 	}
 
 	var total int64
+	ready, filtered := summarizeFleetNodes(nodes.Items)
+	metrics.RecordFleetNodes(fleetSelector, "linux", ready, filtered)
 	for i := range nodes.Items {
+		if nodeFilterReason(&nodes.Items[i]) != "" {
+			continue
+		}
 		if mem := nodes.Items[i].Status.Allocatable.Memory(); mem != nil {
 			total += mem.Value()
 		}
@@ -395,7 +406,9 @@ func (r *AutoscalerReconciler) fleetHostCount(ctx context.Context, fleetSelector
 	}); err != nil {
 		return 0, fmt.Errorf("list macOS fleet nodes: %w", err)
 	}
-	return int64(len(nodes.Items)), nil
+	ready, filtered := summarizeFleetNodes(nodes.Items)
+	metrics.RecordFleetNodes(fleetSelector, "darwin", ready, filtered)
+	return int64(ready), nil
 }
 
 func (r *AutoscalerReconciler) applyReplicas(ctx context.Context, pool *tuistv1.RunnerPool, desired int32) error {

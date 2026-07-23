@@ -694,7 +694,7 @@ defmodule TuistWeb.AgentAuthController do
   # app URL, never from request headers — otherwise a caller could spoof
   # `X-Forwarded-Host` and have Tuist email a secret claim-view link to
   # an attacker-controlled origin.
-  defp canonical_origin, do: Environment.app_url()
+  defp canonical_origin, do: Environment.app_url(route_type: :app)
 
   defp claim_view_url(claim_view_token) do
     "#{canonical_origin()}/agent/auth/claim/view?token=#{URI.encode_www_form(claim_view_token)}"

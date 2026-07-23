@@ -157,6 +157,8 @@ build {
   # simulator runtimes at image build so the first job on a fresh
   # VM doesn't pay the runtime download cost. Matches what
   # GitHub-hosted's macos-26 image ships.
+  # `-downloadComponent MetalToolchain` then installs the optional
+  # Metal compiler toolchain required by Xcode 26 and newer.
   #
   # `echo 'admin' | sudo -S` on the first sudo call primes the
   # admin sudo timestamp cache; subsequent bare `sudo` calls in
@@ -176,6 +178,7 @@ build {
       "sudo xcodebuild -license accept",
       "sudo xcodebuild -runFirstLaunch",
       "sudo xcodebuild -downloadAllPlatforms",
+      "sudo xcodebuild -downloadComponent MetalToolchain",
       "/usr/bin/xcrun xcresulttool version || (echo 'xcresulttool not reachable after install' >&2 && exit 1)"
     ]
   }
@@ -252,8 +255,9 @@ build {
       # $PATH directly — it's reached via `xcrun xcresulttool`.
       # The `command -v` loop above checks `xcrun`'s presence;
       # the line below proves `xcrun` can actually resolve
-      # xcresulttool against the active developer dir.
-      "/bin/zsh -lc '/usr/bin/xcrun xcresulttool version'"
+      # Xcode tools against the active developer dir.
+      "/bin/zsh -lc '/usr/bin/xcrun xcresulttool version'",
+      "/bin/zsh -lc '/usr/bin/xcrun metal --version'"
     ]
   }
 }

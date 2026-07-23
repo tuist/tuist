@@ -19,8 +19,9 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   alias Tuist.Kura.Server
 
   @namespace "kura"
-  @manifest_revision "2026-07-16-cas-capacity-v1"
+  @manifest_revision "2026-07-19-peer-publication-v1"
   @manifest_revision_annotation "tuist.dev/kura-manifest-revision"
+  @warm_handoffs_enabled Application.compile_env(:tuist, :kura_warm_handoffs_enabled, false)
   # Mirrors Kura's DEFAULT_TMP_DIR_MAX_BYTES (kura/src/constants.rs): 4 x
   # MAX_REPLICATION_BODY_BYTES, itself 4 x MAX_SEGMENT_BYTES. We never set
   # KURA_TMP_DIR_MAX_BYTES, so this default is what upload staging can reach
@@ -41,10 +42,18 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   end
 
   @impl true
-  def rollout(
-        name,
-        %{image_tag: image_tag, account: account, server: %Server{} = server, region: %Regions{} = region} = inputs
-      ) do
+  def rollout(name, %{server: %Server{} = server} = inputs) do
+    if @warm_handoffs_enabled or server.move_phase == :none do
+      do_rollout(name, inputs)
+    else
+      {:error, :stable_endpoint_binding_required}
+    end
+  end
+
+  defp do_rollout(
+         name,
+         %{image_tag: image_tag, account: account, server: %Server{} = server, region: %Regions{} = region} = inputs
+       ) do
     with {:ok, hook_script} <- hook_script(inputs) do
       external_peers = self_hosted_peers(account, region)
 
@@ -182,7 +191,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
   @impl true
   def manifest_revision(account, %Regions{} = region) do
-    @manifest_revision <> peers_revision_suffix(self_hosted_peers(account, region))
+    manifest_revision_string(account, region, self_hosted_peers(account, region))
   end
 
   @doc "The base manifest revision, independent of dynamic per-account inputs."
@@ -220,7 +229,8 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   @doc false
   def manifest(name, image_tag, account, %Regions{} = region, %Server{} = server, hook_script, external_peers \\ []) do
     account_handle = dns_handle(account.name)
-    revision = @manifest_revision <> peers_revision_suffix(external_peers)
+    external_peers = entitled_self_hosted_peers(account, region, external_peers)
+    revision = manifest_revision_string(account, region, external_peers)
     annotations = %{@manifest_revision_annotation => revision}
 
     %{
@@ -243,15 +253,11 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
           "tenantID" => account_handle,
           "region" => region.id,
           "image" => "ghcr.io/tuist/kura:#{image_tag}",
-          # Only the steady-state (`:none`) server owns the account's customer
-          # host. A `:moving_in` target warms with the customer plane withheld
-          # (peer plane only, so it bootstraps from the source without two
-          # instances claiming the same host), and a `:moving_out` source has
-          # already handed the host to the promoted target. The kura-controller
-          # leaves the public Ingress/DNS/Certificate unreconciled for an empty
-          # publicHost, so host ownership stays with exactly one instance.
-          "publicHost" => if(owns_customer_host?(server), do: public_host(account_handle, region)),
-          "grpcPublicHost" => if(owns_customer_host?(server), do: grpc_public_host(account_handle, region)),
+          # Only the steady-state (`:none`) server publishes the account's
+          # customer endpoints. Warm handoffs remain disabled in production
+          # until the peer endpoint has a stable account-region owner.
+          "publicHost" => if(owns_public_endpoints?(server), do: public_host(account_handle, region)),
+          "grpcPublicHost" => if(owns_public_endpoints?(server), do: grpc_public_host(account_handle, region)),
           "ingressClassName" => ingress_class_name(region),
           "publicHostNetwork" => public_host_network?(region),
           "peerTLSSecretName" => peer_tls_secret_name(region),
@@ -272,7 +278,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
           "nodeSelector" => instance_node_selector(region, server),
           "tolerations" => tolerations(region),
           "extensionScript" => hook_script,
-          "extraEnv" => extension_env(region)
+          "extraEnv" => extension_env(account, region)
         }
         |> Enum.reject(fn {_key, value} -> value in [nil, "", false] end)
         |> Map.new()
@@ -315,8 +321,37 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   defp mesh_enabled?(%Regions{provisioner_config: %{mesh: mesh}}) when is_boolean(mesh), do: mesh
   defp mesh_enabled?(_region), do: false
 
+  # The dynamic peer view (KURA_MESH_PEERS_SYNC, see mesh_peers_sync_env/2)
+  # only ever carries self-hosted peers, so it is meaningful exactly for the
+  # accounts that can enroll one. That capability is the `self_hosted_cache`
+  # entitlement — the same predicate `SelfHostedClients.verify/2` authorizes
+  # enrollment with — so gating the sync on it can never diverge from who may
+  # actually join a peer. An account that cannot self-host has a fully static
+  # roster (its managed peers, baked into the manifest), so it has nothing
+  # dynamic to under-replicate to and must not arm Kura's peer-view boot gate.
+  defp mesh_peers_sync_enabled?(account, %Regions{} = region) do
+    mesh_enabled?(region) and Entitlements.allows?(account, :self_hosted_cache)
+  end
+
   defp self_hosted_peers(account, %Regions{} = region) do
-    (mesh_enabled?(region) && Mesh.self_hosted_peer_urls(account)) || []
+    if mesh_peers_sync_enabled?(account, region) do
+      Mesh.self_hosted_peer_urls(account)
+    else
+      []
+    end
+  end
+
+  defp entitled_self_hosted_peers(account, %Regions{} = region, peer_urls) do
+    if mesh_peers_sync_enabled?(account, region), do: peer_urls, else: []
+  end
+
+  # The desired revision the reconciler compares against the live CR's
+  # annotation. Both the reconcile check (manifest_revision/2) and the applied
+  # manifest (manifest/7) build it here so they can never disagree and loop.
+  defp manifest_revision_string(account, %Regions{} = region, peer_urls) do
+    @manifest_revision <>
+      peers_revision_suffix(peer_urls) <>
+      mesh_peers_sync_revision_suffix(account, region)
   end
 
   # Folded into the manifest revision so enrolling or dropping a self-hosted
@@ -333,6 +368,24 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
       |> binary_part(0, 12)
 
     "+peers-" <> digest
+  end
+
+  # Whether KURA_MESH_PEERS_SYNC is set has to be part of the revision, or a
+  # plan change that flips mesh_peers_sync_enabled?/2 would alter the desired
+  # env without altering the revision, and the reconciler (which converges on
+  # the revision alone) would never re-apply — an account upgraded to a
+  # self-hosting plan would keep serving without the peer-view gate armed, the
+  # exact silent under-replication the gate exists to prevent. The marker fires
+  # only for a mesh region whose account is not entitled: that keeps both the
+  # enabled state and every non-mesh region byte-identical to today's revision,
+  # so nothing that already runs with the right env is rolled — only the
+  # mesh-region instances that should shed the variable change revision.
+  defp mesh_peers_sync_revision_suffix(account, region) do
+    if mesh_enabled?(region) and not mesh_peers_sync_enabled?(account, region) do
+      "+nosync"
+    else
+      ""
+    end
   end
 
   defp mesh_public_peer_host(handle, region) do
@@ -397,7 +450,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   # that ever runs Kura. The controller's envFrom on the StatefulSet
   # picks up that Secret automatically. Non-secret knobs such as the
   # introspection client ID are safe to keep in the spec.
-  defp extension_env(%Regions{} = region) do
+  defp extension_env(account, %Regions{} = region) do
     [
       env_var("KURA_EXTENSION_FAIL_CLOSED_AUTHENTICATE", "true"),
       env_var("KURA_EXTENSION_FAIL_CLOSED_AUTHORIZE", "true"),
@@ -412,7 +465,7 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
         Environment.kura_control_plane_client_id()
       ) ++
       cas_capacity_env(region) ++
-      mesh_peers_sync_env(region) ++
+      mesh_peers_sync_env(account, region) ++
       telemetry_env(region)
   end
 
@@ -521,12 +574,17 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
   defp storage_multiplier("Ti"), do: 1024 * 1024 * 1024 * 1024
   defp storage_multiplier(_), do: nil
 
-  # Managed pods fetch the account's self-hosted peer list from the control
-  # plane at boot and on cadence, so a self-hosted peer joining or leaving
-  # propagates without rolling the fleet. Once the whole fleet runs an image
-  # that fetches, the peers digest can be dropped from the manifest revision.
-  defp mesh_peers_sync_env(region) do
-    if mesh_enabled?(region) do
+  # Managed pods of self-hosting-capable accounts fetch the account's
+  # self-hosted peer list from the control plane at boot and on cadence, so a
+  # self-hosted peer joining or leaving propagates without rolling the fleet.
+  # The variable also arms Kura's peer-view boot gate, so it is set only for
+  # accounts that can have such peers (see mesh_peers_sync_enabled?/2); folding
+  # the flag into the manifest revision (mesh_peers_sync_revision_suffix/2)
+  # keeps a plan change from silently leaving a running instance ungated. Once
+  # the whole fleet runs an image that fetches, the peers digest can be dropped
+  # from the manifest revision.
+  defp mesh_peers_sync_env(account, region) do
+    if mesh_peers_sync_enabled?(account, region) do
       [env_var("KURA_MESH_PEERS_SYNC", "true")]
     else
       []
@@ -576,11 +634,11 @@ defmodule Tuist.Kura.Provisioner.KubernetesController do
 
   defp node_selector(_), do: nil
 
-  # Only the steady-state (`:none`) server publishes the account's customer host.
-  # See the `publicHost` gating in `manifest/8`.
-  defp owns_customer_host?(%Server{move_phase: :moving_in}), do: false
-  defp owns_customer_host?(%Server{move_phase: :moving_out}), do: false
-  defp owns_customer_host?(%Server{}), do: true
+  # Only the steady-state (`:none`) server publishes the account's customer and
+  # peer endpoints. See the endpoint fields in `manifest/7`.
+  defp owns_public_endpoints?(%Server{move_phase: :moving_in}), do: false
+  defp owns_public_endpoints?(%Server{move_phase: :moving_out}), do: false
+  defp owns_public_endpoints?(%Server{}), do: true
 
   # A `:moving_in` target is pinned to the destination box (its `target_node`)
   # so the warm handoff lands the account on the intended box, layered on top of

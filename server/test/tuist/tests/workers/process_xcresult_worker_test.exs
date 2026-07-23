@@ -134,6 +134,17 @@ defmodule Tuist.Tests.Workers.ProcessXcresultWorkerTest do
   end
 
   describe "perform/1 success path" do
+    test "adds the test run identifier to the root processing span", %{account: account, project: project} do
+      test_run_id = Ecto.UUID.generate()
+      expect_local_parse(parsed_data())
+
+      expect(OpenTelemetry.Tracer, :set_attribute, fn "test_run_id", ^test_run_id -> :ok end)
+      expect(Tuist.Tests, :create_test, fn _attrs -> {:ok, %{id: test_run_id}} end)
+
+      assert :ok ==
+               ProcessXcresultWorker.perform(oban_job(job_args(test_run_id, account.id, project.id)))
+    end
+
     test "downloads + parses + creates the test run", %{account: account, project: project} do
       test_run_id = Ecto.UUID.generate()
       expect_local_parse(parsed_data())

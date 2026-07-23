@@ -10,10 +10,13 @@ defmodule Tuist.RunnersTest do
   alias Tuist.Runners.CacheGrant
   alias Tuist.Runners.Catalog
   alias Tuist.Runners.Claims
+  alias Tuist.Runners.Concurrency
   alias Tuist.Runners.Dispatch
   alias Tuist.Runners.Jobs
   alias Tuist.Runners.VolumeAffinities
   alias Tuist.Runners.VolumeHeads
+  alias Tuist.Runners.VolumeMasterOrphans
+  alias Tuist.Runners.Workers.PruneVolumeMasterOrphanWorker
   alias Tuist.Runners.Workers.PruneVolumeMasterWorker
   alias Tuist.VCS
 
@@ -916,23 +919,37 @@ defmodule Tuist.RunnersTest do
     end
   end
 
-  describe "report_volume_head/3" do
-    test "bumps the HEAD for a valid hex digest" do
+  describe "report_volume_head/4" do
+    test "fast-forwards the HEAD for a valid hex digest built on the current base" do
       account = account_fixture()
       digest = String.duplicate("a", 40)
 
-      assert :ok = Runners.report_volume_head(account.id, "node-1", digest)
-      assert %{tree_digest: ^digest} = VolumeHeads.get_head(account.id)
+      assert {:ok, 1} = Runners.report_volume_head(account.id, "node-1", digest, 0)
+      assert %{generation: 1, tree_digest: ^digest} = VolumeHeads.get_head(account.id)
     end
 
     test "rejects a digest with path characters (or non-hex) without bumping the HEAD" do
       account = account_fixture()
 
       for bad <- ["../../etc/passwd", "tuist-cache/../x", "a/b", "", nil, String.duplicate("A", 40)] do
-        assert :error = Runners.report_volume_head(account.id, "node-1", bad)
+        assert :error = Runners.report_volume_head(account.id, "node-1", bad, 0)
       end
 
       assert VolumeHeads.get_head(account.id) == nil
+    end
+
+    test "rejects a promote built on a stale base and leaves the HEAD untouched" do
+      account = account_fixture()
+      first = String.duplicate("a", 40)
+      Runners.report_volume_head(account.id, "node-1", first, 0)
+
+      # A job that built on generation 1 promotes after the HEAD already moved to 2.
+      second = String.duplicate("b", 40)
+      Runners.report_volume_head(account.id, "node-2", second, 1)
+      stale = String.duplicate("c", 40)
+
+      assert :conflict = Runners.report_volume_head(account.id, "node-3", stale, 1)
+      assert %{generation: 2, tree_digest: ^second} = VolumeHeads.get_head(account.id)
     end
 
     test "schedules a delayed prune of the superseded master only once a digest changes" do
@@ -941,16 +958,96 @@ defmodule Tuist.RunnersTest do
       new = String.duplicate("b", 40)
 
       # First promote: nothing is superseded, so nothing to prune.
-      assert :ok = Runners.report_volume_head(account.id, "node-1", old)
+      assert {:ok, 1} = Runners.report_volume_head(account.id, "node-1", old, 0)
       refute_enqueued(worker: PruneVolumeMasterWorker)
 
       # A new digest supersedes the old object → schedule its delayed deletion.
-      assert :ok = Runners.report_volume_head(account.id, "node-1", new)
+      assert {:ok, 2} = Runners.report_volume_head(account.id, "node-1", new, 1)
 
       assert_enqueued(
         worker: PruneVolumeMasterWorker,
         args: %{account_id: account.id, tree_digest: old}
       )
+    end
+
+    test "records a rejected promote's upload as an orphan and schedules its reclaim" do
+      account = account_fixture()
+      Runners.report_volume_head(account.id, "node-1", String.duplicate("a", 40), 0)
+
+      # The guest uploaded its object before the compare-and-swap, so a rejected
+      # promote leaves an orphan with no HEAD pointing at it. Record it and
+      # schedule a delayed reclaim so it does not accumulate indefinitely — but do
+      # NOT touch the superseded-master worker (this digest never superseded one).
+      rejected = String.duplicate("c", 40)
+      assert :conflict = Runners.report_volume_head(account.id, "node-2", rejected, 0)
+
+      assert VolumeMasterOrphans.exists?(account.id, rejected)
+
+      assert_enqueued(
+        worker: PruneVolumeMasterOrphanWorker,
+        args: %{account_id: account.id, tree_digest: rejected}
+      )
+
+      refute_enqueued(worker: PruneVolumeMasterWorker, args: %{tree_digest: rejected})
+    end
+
+    test "forgets an orphan once the same digest is later accepted as HEAD" do
+      account = account_fixture()
+      Runners.report_volume_head(account.id, "node-1", String.duplicate("a", 40), 0)
+
+      # A digest is rejected (recorded as orphan)…
+      digest = String.duplicate("c", 40)
+      assert :conflict = Runners.report_volume_head(account.id, "node-2", digest, 0)
+      assert VolumeMasterOrphans.exists?(account.id, digest)
+
+      # …then a later job builds on the current base and commits that same
+      # inventory. It is now the live HEAD, so it is no longer an orphan and the
+      # scheduled reclaim must skip it.
+      assert {:ok, 2} = Runners.report_volume_head(account.id, "node-3", digest, 1)
+      refute VolumeMasterOrphans.exists?(account.id, digest)
+    end
+  end
+
+  describe "prune_orphan_volume_master/2" do
+    test "deletes the orphaned object and forgets the row" do
+      account = account_fixture()
+      # HEAD sits elsewhere; `digest` was rejected and recorded as an orphan.
+      Runners.report_volume_head(account.id, "node-1", String.duplicate("a", 40), 0)
+      digest = String.duplicate("c", 40)
+      Runners.report_volume_head(account.id, "node-2", digest, 0)
+      key = "runner-volume-masters/#{account.id}/tuist-cache/#{digest}.image"
+
+      expect(Tuist.Storage, :delete_object, fn ^key, actor ->
+        assert actor.id == account.id
+        :ok
+      end)
+
+      assert :ok = Runners.prune_orphan_volume_master(account.id, digest)
+      refute VolumeMasterOrphans.exists?(account.id, digest)
+    end
+
+    test "skips deletion when the digest was accepted as HEAD (no longer an orphan)" do
+      account = account_fixture()
+      digest = String.duplicate("a", 40)
+      Runners.report_volume_head(account.id, "node-1", digest, 0)
+
+      # It is the live HEAD and was never recorded as an orphan, so the reclaim is
+      # a no-op that must never delete the object.
+      reject(&Tuist.Storage.delete_object/2)
+
+      assert :ok = Runners.prune_orphan_volume_master(account.id, digest)
+    end
+
+    test "keeps the orphan row when the storage delete fails so a retry can reclaim it" do
+      account = account_fixture()
+      Runners.report_volume_head(account.id, "node-1", String.duplicate("a", 40), 0)
+      digest = String.duplicate("c", 40)
+      Runners.report_volume_head(account.id, "node-2", digest, 0)
+
+      expect(Tuist.Storage, :delete_object, fn _key, _actor -> {:error, :timeout} end)
+
+      assert {:error, :timeout} = Runners.prune_orphan_volume_master(account.id, digest)
+      assert VolumeMasterOrphans.exists?(account.id, digest)
     end
   end
 
@@ -959,7 +1056,7 @@ defmodule Tuist.RunnersTest do
       account = account_fixture()
       digest = String.duplicate("a", 40)
       # HEAD sits at a different digest, so `digest` is genuinely superseded.
-      Runners.report_volume_head(account.id, "node-1", String.duplicate("b", 40))
+      Runners.report_volume_head(account.id, "node-1", String.duplicate("b", 40), 0)
       key = "runner-volume-masters/#{account.id}/tuist-cache/#{digest}.image"
 
       expect(Tuist.Storage, :delete_object, fn ^key, actor ->
@@ -973,7 +1070,7 @@ defmodule Tuist.RunnersTest do
     test "skips deletion when the digest is (again) the current HEAD (re-promoted)" do
       account = account_fixture()
       digest = String.duplicate("a", 40)
-      Runners.report_volume_head(account.id, "node-1", digest)
+      Runners.report_volume_head(account.id, "node-1", digest, 0)
 
       reject(&Tuist.Storage.delete_object/2)
 
@@ -1020,6 +1117,92 @@ defmodule Tuist.RunnersTest do
     test "errors when the account does not exist" do
       digest = String.duplicate("c", 40)
       assert :error = Runners.volume_master_upload_url(-1, digest)
+    end
+  end
+
+  describe "scaling_signals_for_fleet/1" do
+    defp queue_job(account, workflow_job_id, fleet_name, resources) do
+      :ok =
+        Jobs.enqueue(%{
+          workflow_job_id: workflow_job_id,
+          account_id: account.id,
+          fleet_name: fleet_name,
+          platform: Atom.to_string(resources.platform),
+          vcpus: resources.vcpus,
+          memory_gb: resources.memory_gb,
+          repository: "acme/cli",
+          workflow_run_id: workflow_job_id * 10,
+          run_attempt: 1,
+          workflow_name: "CI",
+          job_name: "build",
+          head_branch: "main",
+          head_sha: "deadbeef",
+          requested_dispatch_label: ""
+        })
+    end
+
+    test "reports full queue depth while the account has headroom" do
+      account = account_fixture()
+      fleet = "macos-signal-headroom"
+      {:ok, resources} = Catalog.resources_for_fleet(fleet)
+
+      queue_job(account, 91_001, fleet, resources)
+
+      assert %{queued: 1} = Runners.scaling_signals_for_fleet(fleet)
+    end
+
+    # The regression this exists for. An account that queues past its
+    # concurrency limit used to inflate the signal with jobs dispatch
+    # will refuse, so the autoscaler provisioned Pods that could never
+    # serve them and that then idled on hosts other pools needed.
+    test "caps the queue depth at what the account can actually claim" do
+      account = account_fixture()
+      fleet = "macos-signal-capped"
+      {:ok, resources} = Catalog.resources_for_fleet(fleet)
+
+      headroom = Concurrency.headroom_jobs(account.id, resources)
+      queued = headroom + 5
+
+      for i <- 1..queued do
+        queue_job(account, 91_100 + i, fleet, resources)
+      end
+
+      assert Jobs.queued_count_by_fleet(fleet) == queued
+      assert %{queued: ^headroom} = Runners.scaling_signals_for_fleet(fleet)
+    end
+
+    test "counts each account's headroom independently" do
+      account_a = account_fixture()
+      account_b = account_fixture()
+      fleet = "macos-signal-multi"
+      {:ok, resources} = Catalog.resources_for_fleet(fleet)
+
+      headroom = Concurrency.headroom_jobs(account_a.id, resources)
+
+      # A is parked over its cap; B queues a single claimable job. B's
+      # job must still register, or one capped customer would zero out
+      # the whole fleet's demand signal.
+      for i <- 1..(headroom + 3) do
+        queue_job(account_a, 91_200 + i, fleet, resources)
+      end
+
+      queue_job(account_b, 91_300, fleet, resources)
+
+      assert %{queued: signal} = Runners.scaling_signals_for_fleet(fleet)
+      assert signal == headroom + 1
+    end
+
+    # An unrecognised fleet has no shape to price headroom against.
+    # Reporting 0 there would scale the pool to nothing; fall back to
+    # the raw depth instead.
+    test "falls back to raw queue depth for a fleet with no known shape" do
+      account = account_fixture()
+      fleet = "not-a-known-prefix"
+
+      queue_job(account, 91_401, fleet, %{platform: :linux, vcpus: 4, memory_gb: 16})
+
+      assert {:error, _} = Catalog.resources_for_fleet(fleet)
+      assert %{queued: 1} = Runners.scaling_signals_for_fleet(fleet)
     end
   end
 end
