@@ -527,6 +527,108 @@ final class SettingsMapperTests: XCTestCase {
             ])
         )
     }
+
+    func test_trait_define_included_when_trait_enabled() throws {
+        let settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting] = [
+            .init(
+                tool: .swift,
+                name: .define,
+                condition: PackageInfo.PackageConditionDescription(
+                    platformNames: [],
+                    config: nil,
+                    traits: ["EnableFoo"]
+                ),
+                value: ["FOO_DEFINE"]
+            ),
+        ]
+
+        let mapper = SettingsMapper(
+            headerSearchPaths: [],
+            mainRelativePath: try RelativePath(validating: "path"),
+            settings: settings,
+            enabledTraits: ["EnableFoo"]
+        )
+
+        let allPlatformSettings = try mapper.settingsDictionary()
+
+        XCTAssertEqual(
+            allPlatformSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS"],
+            .array(["$(inherited)", "FOO_DEFINE"])
+        )
+
+        let iosPlatformSettings = try mapper.settingsDictionary(for: .iOS)
+
+        XCTAssertEqual(
+            iosPlatformSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS"],
+            .array(["$(inherited)", "FOO_DEFINE"])
+        )
+    }
+
+    func test_trait_define_dropped_when_trait_disabled() throws {
+        let settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting] = [
+            .init(
+                tool: .swift,
+                name: .define,
+                condition: PackageInfo.PackageConditionDescription(
+                    platformNames: [],
+                    config: nil,
+                    traits: ["EnableFoo"]
+                ),
+                value: ["FOO_DEFINE"]
+            ),
+        ]
+
+        let mapper = SettingsMapper(
+            headerSearchPaths: [],
+            mainRelativePath: try RelativePath(validating: "path"),
+            settings: settings,
+            enabledTraits: []
+        )
+
+        let allPlatformSettings = try mapper.settingsDictionary()
+        let iosPlatformSettings = try mapper.settingsDictionary(for: .iOS)
+
+        XCTAssertNil(allPlatformSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS"])
+        XCTAssertNil(iosPlatformSettings["SWIFT_ACTIVE_COMPILATION_CONDITIONS"])
+    }
+
+    func test_trait_define_with_platform_intersection() throws {
+        let settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting] = [
+            .init(
+                tool: .swift,
+                name: .define,
+                condition: PackageInfo.PackageConditionDescription(
+                    platformNames: ["ios"],
+                    config: nil,
+                    traits: ["EnableFoo"]
+                ),
+                value: ["FOO_IOS"]
+            ),
+        ]
+
+        let mapper = SettingsMapper(
+            headerSearchPaths: [],
+            mainRelativePath: try RelativePath(validating: "path"),
+            settings: settings,
+            enabledTraits: ["EnableFoo"]
+        )
+
+        XCTAssertNil(try mapper.settingsDictionary()["SWIFT_ACTIVE_COMPILATION_CONDITIONS"])
+        XCTAssertEqual(
+            try mapper.settingsDictionary(for: .iOS)["SWIFT_ACTIVE_COMPILATION_CONDITIONS"],
+            .array(["$(inherited)", "FOO_IOS"])
+        )
+        XCTAssertNil(try mapper.settingsDictionary(for: .tvOS)["SWIFT_ACTIVE_COMPILATION_CONDITIONS"])
+
+        let traitOff = SettingsMapper(
+            headerSearchPaths: [],
+            mainRelativePath: try RelativePath(validating: "path"),
+            settings: settings,
+            enabledTraits: []
+        )
+
+        XCTAssertNil(try traitOff.settingsDictionary(for: .iOS)["SWIFT_ACTIVE_COMPILATION_CONDITIONS"])
+    }
 }
 
 // OTHER_LDFLAGS
