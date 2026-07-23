@@ -211,6 +211,7 @@ spec:
 {{- $runnerLabels := $pool.runnerLabels | default $defaultRunnerLabels }}
 {{- $autoscaling := $pool.autoscaling }}
 {{- $runtimeClass := $pool.runtimeClass | default "" }}
+{{- $provisioning := mergeOverwrite (deepCopy ($.Values.runnersFleetLinux.provisioning | default dict)) (default dict $pool.provisioning) }}
 {{- $poolName := printf "%s-%s" (include "tuist.componentName" (dict "root" $ "component" "runner-pool-linux")) $name }}
 ---
 apiVersion: tuist.dev/v1alpha1
@@ -243,6 +244,9 @@ spec:
   {{- if $runtimeClass }}
   runtimeClass: {{ $runtimeClass | quote }}
   {{- end }}
+  provisioning:
+    maxConcurrentPerFleetSelector: {{ dig "maxConcurrentPerFleetSelector" 4 $provisioning }}
+    startTimeoutSeconds: {{ dig "startTimeoutSeconds" 300 $provisioning }}
   {{- if $autoscaling }}
   autoscaling:
     enabled: {{ dig "enabled" false $autoscaling }}
@@ -285,6 +289,7 @@ autoscaling per-shape (a popular shape may want a higher floor).
 {{- $podMem := mul $memoryGb 1024 }}
 {{- $isDefault := dig "default" false $shape }}
 {{- $autoscaling := mergeOverwrite (deepCopy $shapeAutoscalingDefaults) (default dict $shape.autoscaling) }}
+{{- $provisioning := mergeOverwrite (deepCopy ($.Values.runnersFleetLinux.provisioning | default dict)) (default dict $shape.provisioning) }}
 ---
 apiVersion: tuist.dev/v1alpha1
 kind: RunnerPool
@@ -322,6 +327,9 @@ spec:
   {{- if $shapeRuntimeClass }}
   runtimeClass: {{ $shapeRuntimeClass | quote }}
   {{- end }}
+  provisioning:
+    maxConcurrentPerFleetSelector: {{ dig "maxConcurrentPerFleetSelector" 4 $provisioning }}
+    startTimeoutSeconds: {{ dig "startTimeoutSeconds" 300 $provisioning }}
   autoscaling:
     enabled: {{ dig "enabled" true $autoscaling }}
     minWarmPoolFloor: {{ dig "minWarmPoolFloor" 1 $autoscaling }}

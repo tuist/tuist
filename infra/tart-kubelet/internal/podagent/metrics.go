@@ -164,6 +164,28 @@ var cacheVolumeMaterializeTotal = prometheus.NewCounterVec(
 	[]string{"result"},
 )
 
+// cacheVolumePromoteTotal counts the outcome of a cache-changing job's HEAD
+// fast-forward on this host, by result:
+//   - "accepted": the HEAD fast-forwarded and the branch became this host's local
+//     master.
+//   - "rejected": the server returned 409 — the job built on a base another host
+//     had already advanced past (genuine cross-host contention); the branch is
+//     discarded and the host re-converges.
+//   - "error": an upload, network, or control-plane failure — NOT a stale base.
+//     Kept distinct so a storage outage does not masquerade as cache races.
+//
+// rejected/(accepted+rejected) is the fast-forward CONTENTION RATE — the headline
+// health signal for the last-writer-wins model — and deliberately excludes
+// "error". Only promote-eligible jobs (succeeded, cache-changing, own account)
+// are counted, so read-only and failed jobs never dilute the ratios.
+var cacheVolumePromoteTotal = prometheus.NewCounterVec(
+	prometheus.CounterOpts{
+		Name: "tart_kubelet_cache_volume_promote_total",
+		Help: "Outcome of cache-changing jobs' HEAD fast-forward, by accepted/rejected/error.",
+	},
+	[]string{"result"},
+)
+
 // cacheVolumeConvergedTotal counts background fast-forwards of this host's
 // master to the account's HEAD — a host that was behind pulling the latest
 // master after a job started (off the job-start path), so the next job on it
@@ -245,6 +267,7 @@ func init() {
 		vmProvisionWorkSeconds,
 		cacheVolumeOutcomeTotal,
 		cacheVolumeMaterializeTotal,
+		cacheVolumePromoteTotal,
 		cacheVolumeConvergedTotal,
 		cacheVolumeResidentCount,
 		cacheVolumeRootFreeBytes,
@@ -252,6 +275,15 @@ func init() {
 		cacheVolumeRootMounted,
 		cacheVolumeAdmissionDeclinedTotal,
 	)
+
+	// Initialize every promote-result series to 0 at registration. Counter-vector
+	// series are created lazily on first Inc(), so without this the "rejected"
+	// series would not exist until a host actually rejected a promote — and a
+	// reject-rate panel dividing a missing numerator by a present denominator
+	// renders "No data" during healthy, zero-rejection periods instead of 0%.
+	for _, result := range []string{"accepted", "rejected", "error"} {
+		cacheVolumePromoteTotal.WithLabelValues(result)
+	}
 }
 
 // RecordVolumeOutcome increments the per-outcome count of finalized cache
@@ -261,6 +293,20 @@ func RecordVolumeOutcome(outcome string) {
 		outcome = string(VolumeOutcomeNone)
 	}
 	cacheVolumeOutcomeTotal.WithLabelValues(outcome).Inc()
+}
+
+// RecordVolumePromote increments the promote-outcome count for a promote-eligible
+// job. result is "accepted", "rejected" (an actual 409 stale-base conflict), or
+// "error" (upload/network/control-plane failure). Call only for promote-eligible
+// jobs (succeeded, cache-changing, account matched) so the ratios reflect the
+// server's decision rather than jobs that were never going to promote.
+func RecordVolumePromote(result string) {
+	switch result {
+	case "accepted", "rejected", "error":
+	default:
+		result = "error"
+	}
+	cacheVolumePromoteTotal.WithLabelValues(result).Inc()
 }
 
 // RecordVolumeMaterialized increments the warm/cold count of post-dispatch

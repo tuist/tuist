@@ -97,6 +97,17 @@ type RunnerPoolSpec struct {
 	// +optional
 	RuntimeClass string `json:"runtimeClass,omitempty"`
 
+	// Provisioning bounds how many Linux Kata sandboxes may be starting at
+	// once across pools that share this pool's FleetSelector, and how long a
+	// bound Pod may take to start its dispatch poller. The controller uses the
+	// lowest maxConcurrentPerFleetSelector configured by sibling pools so a
+	// mismatched pool cannot weaken the shared safety boundary.
+	//
+	// Linux only. macOS runner Pods use the Tart host lifecycle and do not
+	// participate in this admission gate.
+	// +optional
+	Provisioning *RunnerPoolProvisioning `json:"provisioning,omitempty"`
+
 	// IdleTimeoutSeconds bounds how long a runner that has registered
 	// with GitHub but has not been handed a job stays alive. The runner
 	// image's watchdog reads it as `TUIST_RUNNER_IDLE_TIMEOUT_SECONDS`:
@@ -202,6 +213,51 @@ type RunnerPoolAutoscaling struct {
 	// via ScaleDownCooldownSecondsOrDefault.
 	// +optional
 	ScaleDownCooldownSeconds *int32 `json:"scaleDownCooldownSeconds,omitempty"`
+}
+
+const (
+	defaultMaxConcurrentProvisioningPerFleetSelector int32 = 4
+	defaultProvisioningStartTimeoutSeconds           int32 = 300
+)
+
+// RunnerPoolProvisioning carries the Linux Kata sandbox admission knobs.
+// Pointer fields preserve a deliberate zero for startTimeoutSeconds while
+// allowing the custom-resource defaults to distinguish an omitted value.
+type RunnerPoolProvisioning struct {
+	// MaxConcurrentPerFleetSelector is the maximum number of Linux runner
+	// Pods that may be waiting for their dispatch poller to start across all
+	// sibling pools sharing the same operating system and FleetSelector. The lowest sibling value is
+	// authoritative for the shared fleet. Default 4.
+	// +kubebuilder:default=4
+	// +kubebuilder:validation:Minimum=1
+	// +optional
+	MaxConcurrentPerFleetSelector *int32 `json:"maxConcurrentPerFleetSelector,omitempty"`
+
+	// StartTimeoutSeconds bounds how long a Linux runner Pod that has been
+	// assigned to a node may wait for its dispatch poller to start. Timed-out
+	// Pods are reaped so failed Kata sandboxes release their admission slot.
+	// Unscheduled Pods are not timed out. Default 300; 0 disables the timeout.
+	// +kubebuilder:default=300
+	// +kubebuilder:validation:Minimum=0
+	// +optional
+	StartTimeoutSeconds *int32 `json:"startTimeoutSeconds,omitempty"`
+}
+
+func (p *RunnerPoolProvisioning) MaxConcurrentPerFleetSelectorOrDefault() int32 {
+	// The custom-resource schema rejects 0. Keep the non-positive fallback
+	// defensive for typed test clients and clusters whose schema has not yet
+	// been upgraded; unlike StartTimeoutSeconds, zero never disables this cap.
+	if p == nil || p.MaxConcurrentPerFleetSelector == nil || *p.MaxConcurrentPerFleetSelector <= 0 {
+		return defaultMaxConcurrentProvisioningPerFleetSelector
+	}
+	return *p.MaxConcurrentPerFleetSelector
+}
+
+func (p *RunnerPoolProvisioning) StartTimeoutSecondsOrDefault() int32 {
+	if p == nil || p.StartTimeoutSeconds == nil {
+		return defaultProvisioningStartTimeoutSeconds
+	}
+	return *p.StartTimeoutSeconds
 }
 
 // MinWarmPoolFloorOrDefault returns the configured floor, or the CRD

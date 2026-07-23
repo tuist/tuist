@@ -42,6 +42,7 @@ defmodule Tuist.Kura do
   @public_endpoint_timeout 5_000
   @provisioner_node_ref_format ~r/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/
   @provisioner_node_ref_max_length 53
+  @warm_handoffs_enabled Application.compile_env(:tuist, :kura_warm_handoffs_enabled, false)
 
   # A version change is a deliberate fix delivery, so it must reach
   # degraded servers, not only healthy ones. A `:failed` or `:replicating`
@@ -50,6 +51,7 @@ defmodule Tuist.Kura do
   # to rescue and forces manual intervention. Only terminal servers
   # (`:destroying`/`:destroyed`) are skipped.
   @version_rollout_statuses [:provisioning, :replicating, :active, :failed]
+  @version_rollout_batch_size 100
 
   @doc "Reconciles desired Kura server rows with the observed Kubernetes state."
   def reconcile_orphaned_deployments, do: Reconciler.reconcile()
@@ -93,7 +95,7 @@ defmodule Tuist.Kura do
   """
   def schedule_runtime_image_deployments do
     case runtime_image_tag() do
-      nil -> {:ok, []}
+      nil -> {:ok, %{scheduled: [], failures: []}}
       image_tag -> schedule_runtime_image_deployments(image_tag)
     end
   end
@@ -126,22 +128,43 @@ defmodule Tuist.Kura do
   end
 
   def schedule_version_deployments(image_tag) when is_binary(image_tag) do
-    deployments =
+    {scheduled, failures} =
       image_tag
       |> servers_needing_version_query()
       |> Repo.all()
-      |> Enum.map(&create_deployment(&1, image_tag))
+      |> Enum.reduce({[], []}, fn server, {scheduled, failures} ->
+        case schedule_version_deployment(server, image_tag) do
+          {:ok, nil} ->
+            {scheduled, failures}
 
-    case Enum.find(deployments, &match?({:error, _}, &1)) do
-      nil -> {:ok, Enum.map(deployments, fn {:ok, deployment} -> deployment end)}
-      {:error, reason} -> {:error, reason}
-    end
+          {:ok, deployment} ->
+            {[deployment | scheduled], failures}
+
+          {:error, reason} ->
+            failure = %{
+              account_id: server.account_id,
+              reason: reason,
+              region: server.region,
+              server_id: server.id
+            }
+
+            {scheduled, [failure | failures]}
+        end
+      end)
+
+    {:ok, %{scheduled: Enum.reverse(scheduled), failures: Enum.reverse(failures)}}
   end
 
   defp servers_needing_version_query(image_tag) do
-    deployment_exists_query =
+    deployment_for_image_exists_query =
       from(d in Deployment,
         where: parent_as(:server).id == d.kura_server_id and d.image_tag == ^image_tag,
+        select: 1
+      )
+
+    open_deployment_exists_query =
+      from(d in Deployment,
+        where: parent_as(:server).id == d.kura_server_id and d.status in [:pending, :running],
         select: 1
       )
 
@@ -155,7 +178,10 @@ defmodule Tuist.Kura do
       where: s.move_phase == :none,
       where: s.status in @version_rollout_statuses,
       where: s.current_image_tag != ^image_tag,
-      where: not exists(deployment_exists_query)
+      where: not exists(deployment_for_image_exists_query),
+      where: not exists(open_deployment_exists_query),
+      order_by: [asc: s.updated_at, asc: s.id],
+      limit: ^@version_rollout_batch_size
     )
   end
 
@@ -846,14 +872,25 @@ defmodule Tuist.Kura do
 
   defp retry_server_transaction(server, region, image_tag) do
     Repo.transaction(fn ->
-      with {:ok, server} <-
-             server |> Server.status_changeset(%{status: :provisioning}) |> Repo.update(),
-           {:ok, _deployment} <- insert_initial_deployment(server, region, image_tag) do
-        server
+      locked_server = lock_retryable_server_or_rollback(server)
+
+      with :ok <- ensure_no_open_deployment(locked_server.id),
+           {:ok, locked_server} <-
+             locked_server |> Server.status_changeset(%{status: :provisioning}) |> Repo.update(),
+           {:ok, _deployment} <- insert_initial_deployment(locked_server, region, image_tag) do
+        locked_server
       else
         {:error, reason} -> Repo.rollback(reason)
       end
     end)
+  end
+
+  defp lock_retryable_server_or_rollback(server) do
+    case lock_server(server.id, server.account_id) do
+      %Server{status: :failed, current_image_tag: nil} = locked_server -> locked_server
+      %Server{} -> Repo.rollback(:not_retryable)
+      nil -> Repo.rollback(:not_found)
+    end
   end
 
   @doc """
@@ -867,12 +904,25 @@ defmodule Tuist.Kura do
   `:moving_in -> :none`, so the account's customer host flips to the target box
   with no cold-cache dip. The source then drains and is destroyed.
 
-  Only steady-state (`:none`, `:active`) servers in a host-network (multi-box
+  Production builds keep this transition disabled until a stable account-region
+  endpoint binding can switch customer traffic atomically. Test builds enable
+  the transition machinery so its invariants remain covered. Once enabled,
+  only steady-state (`:none`, `:active`) servers in a host-network (multi-box
   bare-metal) region can move; there is no move in a single-endpoint cloud
   region. Returns `{:ok, moving_in_server}` or `{:error, reason}`.
   """
   def move_server(%Server{status: :active, move_phase: :none, region: region_id} = source, target_node)
       when is_binary(target_node) and target_node != "" do
+    if @warm_handoffs_enabled do
+      do_move_server(source, region_id, target_node)
+    else
+      {:error, :stable_endpoint_binding_required}
+    end
+  end
+
+  def move_server(%Server{}, _target_node), do: {:error, :not_movable}
+
+  defp do_move_server(source, region_id, target_node) do
     with {:ok, region} <- Regions.fetch(region_id),
          :ok <- ensure_movable_region(region),
          {:ok, account} <- Accounts.get_account_by_id(source.account_id),
@@ -882,8 +932,6 @@ defmodule Tuist.Kura do
       insert_move_target(source, region, ref, target_node)
     end
   end
-
-  def move_server(%Server{}, _target_node), do: {:error, :not_movable}
 
   # Moves only apply to multi-box bare-metal (host-network) regions; a cloud LB
   # region is a single logical endpoint with nothing to move between.
@@ -941,17 +989,32 @@ defmodule Tuist.Kura do
   to it: the source drops the host (`:none -> :moving_out`) and the target gains
   it (`:moving_in -> :none`).
 
-  Both ownership manifests are applied FIRST — rendered at the phases they will
-  hold, so the target gains the customer host (Ingress/DNS/Certificate) and the
-  source loses it — and only once both converge is the Postgres phase swap
-  committed. A failed apply returns an error with the DB untouched, so the
-  reconciler simply retries the promotion next tick (target still `:moving_in`)
-  rather than stranding a promoted target without its host or leaving two
-  instances claiming the host. Idempotent: a crash between apply and swap
-  re-converges next tick (the applied target already serves the host).
-  Reconciler-only.
+  Both ownership manifests are submitted first, rendered at the phases they will
+  hold, and the Postgres phase swap is committed only after both submissions are
+  accepted. Submission is not cluster convergence: the controllers can observe
+  the two resources in either order. The target is submitted first so the source
+  is never asked to relinquish publication before target intent exists. The peer
+  demultiplexer tolerates the possible overlap while the controllers converge.
+
+  A failed submission leaves the database phases untouched, so the reconciler
+  retries on the next tick. A crash between submission and the phase swap is
+  likewise retried from the durable `:moving_in` row. This is idempotent
+  containment, not an atomic public-endpoint cutover; strict ownership will move
+  to a stable account-region endpoint resource.
+  Production builds return `{:error, :stable_endpoint_binding_required}` before
+  changing either manifest. Reconciler-only.
   """
   def promote_move(%Server{move_phase: :moving_in, region: region_id} = target) do
+    if @warm_handoffs_enabled do
+      do_promote_move(target, region_id)
+    else
+      {:error, :stable_endpoint_binding_required}
+    end
+  end
+
+  def promote_move(%Server{}), do: {:error, :not_moving_in}
+
+  defp do_promote_move(target, region_id) do
     with {:ok, region} <- Regions.fetch(region_id),
          {:ok, account} <- Accounts.get_account_by_id(target.account_id),
          %Server{} = source <- move_source_for(target),
@@ -966,8 +1029,6 @@ defmodule Tuist.Kura do
       {:error, reason} -> {:error, reason}
     end
   end
-
-  def promote_move(%Server{}), do: {:error, :not_moving_in}
 
   defp swap_move_phases(source, target) do
     Repo.transaction(fn ->
@@ -1080,19 +1141,85 @@ defmodule Tuist.Kura do
   Inserts a `Deployment` record for the reconciler to apply.
   """
   def create_deployment(%Server{} = server, image_tag) when is_binary(image_tag) do
-    insert_deployment(server, image_tag)
+    with {:ok, region} <- Regions.fetch(server.region) do
+      Repo.transaction(fn ->
+        locked_server = lock_server_or_rollback(server)
+
+        with :ok <- ensure_no_open_deployment(locked_server.id),
+             {:ok, deployment} <- insert_deployment(locked_server, region, image_tag) do
+          deployment
+        else
+          {:error, reason} -> Repo.rollback(reason)
+        end
+      end)
+    end
   end
 
-  defp insert_deployment(%Server{} = server, image_tag) do
+  defp schedule_version_deployment(%Server{} = server, image_tag) do
     with {:ok, region} <- Regions.fetch(server.region) do
-      %{
-        cluster_id: deployment_cluster_id(region),
-        image_tag: image_tag,
-        kura_server_id: server.id
-      }
-      |> Deployment.create_changeset()
-      |> Repo.insert()
+      Repo.transaction(fn ->
+        server
+        |> lock_server_or_rollback()
+        |> insert_scheduled_deployment(region, image_tag)
+      end)
     end
+  end
+
+  defp lock_server_or_rollback(server) do
+    case lock_server(server.id, server.account_id) do
+      %Server{} = locked_server -> locked_server
+      nil -> Repo.rollback(:not_found)
+    end
+  end
+
+  defp insert_scheduled_deployment(server, region, image_tag) do
+    case insert_deployment(server, region, image_tag) do
+      {:ok, deployment} ->
+        deployment
+
+      {:error, %Ecto.Changeset{} = changeset} ->
+        if open_deployment_conflict?(changeset) do
+          nil
+        else
+          Repo.rollback(changeset)
+        end
+
+      {:error, reason} ->
+        Repo.rollback(reason)
+    end
+  end
+
+  defp open_deployment_conflict?(changeset) do
+    Enum.any?(changeset.errors, fn
+      {:kura_server_id, {_message, metadata}} ->
+        metadata[:constraint] == :unique and
+          metadata[:constraint_name] == "kura_deployments_one_open_per_server_index"
+
+      _error ->
+        false
+    end)
+  end
+
+  defp insert_deployment(%Server{} = server, region, image_tag) do
+    %{
+      cluster_id: deployment_cluster_id(region),
+      image_tag: image_tag,
+      kura_server_id: server.id
+    }
+    |> Deployment.create_changeset()
+    |> Repo.insert()
+  end
+
+  defp open_deployment_exists?(server_id) do
+    Repo.exists?(
+      from(d in Deployment,
+        where: d.kura_server_id == ^server_id and d.status in [:pending, :running]
+      )
+    )
+  end
+
+  defp ensure_no_open_deployment(server_id) do
+    if open_deployment_exists?(server_id), do: {:error, :deployment_in_progress}, else: :ok
   end
 
   @doc "Returns deployment records for the account, newest first."

@@ -10,6 +10,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/tools/record"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -47,6 +49,32 @@ func newPool(name, image string, replicas int32) *tuistv1.RunnerPool {
 			PodCPUMilli:   8000,
 			PodMemoryMB:   14336,
 		},
+	}
+}
+
+func newLinuxKataPool(name string, replicas, maxProvisioning int32) *tuistv1.RunnerPool {
+	pool := newPool(name, "ghcr.io/tuist/tuist-linux-runner:test", replicas)
+	pool.Spec.OS = "linux"
+	pool.Spec.RuntimeClass = "kata-qemu"
+	pool.Spec.Provisioning = &tuistv1.RunnerPoolProvisioning{
+		MaxConcurrentPerFleetSelector: ptr.To(maxProvisioning),
+		StartTimeoutSeconds:           ptr.To[int32](300),
+	}
+	return pool
+}
+
+func readyLinuxRunnerNode(name, fleetSelector string) *corev1.Node {
+	return &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+			Labels: map[string]string{
+				fleetNodePoolLabel: fleetSelector,
+			},
+		},
+		Status: corev1.NodeStatus{Conditions: []corev1.NodeCondition{{
+			Type:   corev1.NodeReady,
+			Status: corev1.ConditionTrue,
+		}}},
 	}
 }
 
@@ -1076,5 +1104,239 @@ func TestIdleReplicasExcludesWaitingLinuxPoller(t *testing.T) {
 
 	if got := idleReplicasGauge(t, poolName); got != 0 {
 		t.Fatalf("idle replicas = %v, want 0 (a waiting poller is not warm)", got)
+	}
+}
+
+func TestReconcileCapsLinuxKataProvisioningAcrossSiblingPools(t *testing.T) {
+	scheme := mustScheme(t)
+	poolA := newLinuxKataPool("linux-a", 8, 4)
+	poolB := newLinuxKataPool("linux-b", 8, 4)
+	node := readyLinuxRunnerNode("runner-node", poolA.Spec.FleetSelector)
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(poolA, poolB, node).
+		WithStatusSubresource(&tuistv1.RunnerPool{}).
+		Build()
+	r := &RunnerPoolReconciler{
+		Client:      c,
+		Scheme:      scheme,
+		DispatchURL: "http://dispatch",
+		DindImage:   "docker:dind",
+	}
+
+	result, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: nn(poolA.Namespace, poolA.Name)})
+	if err != nil {
+		t.Fatalf("reconcile first pool: %v", err)
+	}
+	if result.RequeueAfter != provisioningRequeueAfter {
+		t.Fatalf("first pool requeue = %s, want %s while gap remains", result.RequeueAfter, provisioningRequeueAfter)
+	}
+
+	var pods corev1.PodList
+	if err := c.List(context.Background(), &pods); err != nil {
+		t.Fatalf("list first pool pods: %v", err)
+	}
+	if len(pods.Items) != 4 {
+		t.Fatalf("first reconcile created %d Pods, want shared cap 4", len(pods.Items))
+	}
+
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: nn(poolB.Namespace, poolB.Name)}); err != nil {
+		t.Fatalf("reconcile sibling pool: %v", err)
+	}
+	pods = corev1.PodList{}
+	if err := c.List(context.Background(), &pods); err != nil {
+		t.Fatalf("list sibling pool pods: %v", err)
+	}
+	if len(pods.Items) != 4 {
+		t.Fatalf("sibling reconcile exceeded shared cap: got %d Pods, want 4", len(pods.Items))
+	}
+
+	gotPool := &tuistv1.RunnerPool{}
+	if err := c.Get(context.Background(), nn(poolA.Namespace, poolA.Name), gotPool); err != nil {
+		t.Fatalf("get first pool: %v", err)
+	}
+	if gotPool.Status.ObservedReplicas != 4 {
+		t.Fatalf("ObservedReplicas = %d, want only the 4 Pods actually created", gotPool.Status.ObservedReplicas)
+	}
+}
+
+func TestReconcileLinuxKataProvisioningAdvancesWhenPollerStarts(t *testing.T) {
+	scheme := mustScheme(t)
+	pool := newLinuxKataPool("linux", 6, 4)
+	node := readyLinuxRunnerNode("runner-node", pool.Spec.FleetSelector)
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(pool, node).
+		WithStatusSubresource(&tuistv1.RunnerPool{}).
+		Build()
+	r := &RunnerPoolReconciler{
+		Client:      c,
+		Scheme:      scheme,
+		DispatchURL: "http://dispatch",
+		DindImage:   "docker:dind",
+	}
+
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: nn(pool.Namespace, pool.Name)}); err != nil {
+		t.Fatalf("initial reconcile: %v", err)
+	}
+	var pods corev1.PodList
+	if err := c.List(context.Background(), &pods); err != nil {
+		t.Fatalf("list pods: %v", err)
+	}
+	if len(pods.Items) != 4 {
+		t.Fatalf("initial Pods = %d, want 4", len(pods.Items))
+	}
+
+	started := pods.Items[0].DeepCopy()
+	started.Status.InitContainerStatuses = []corev1.ContainerStatus{{
+		Name:  "poller",
+		State: corev1.ContainerState{Running: &corev1.ContainerStateRunning{}},
+	}}
+	if err := c.Status().Update(context.Background(), started); err != nil {
+		t.Fatalf("mark poller running: %v", err)
+	}
+
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: nn(pool.Namespace, pool.Name)}); err != nil {
+		t.Fatalf("reconcile after poller start: %v", err)
+	}
+	pods = corev1.PodList{}
+	if err := c.List(context.Background(), &pods); err != nil {
+		t.Fatalf("list replenished pods: %v", err)
+	}
+	if len(pods.Items) != 5 {
+		t.Fatalf("Pods after one poller started = %d, want 5", len(pods.Items))
+	}
+}
+
+func TestProvisioningAdmissionCountsLocalCreateReservations(t *testing.T) {
+	scheme := mustScheme(t)
+	pool := newLinuxKataPool("linux", 2, 1)
+	node := readyLinuxRunnerNode("runner-node", pool.Spec.FleetSelector)
+	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(pool, node).Build()
+	r := &RunnerPoolReconciler{Client: c, Scheme: scheme, Now: func() time.Time { return time.Unix(1000, 0) }}
+	r.reserveCreatedRunner(pool, "not-in-cache-yet")
+
+	admission, err := r.provisioningAdmission(context.Background(), pool)
+	if err != nil {
+		t.Fatalf("provisioningAdmission: %v", err)
+	}
+	if admission.pendingForFleet != 1 || admission.available != 0 || admission.blockedReason != "fleet_cap" {
+		t.Fatalf("admission with local reservation = %+v, want pending=1 available=0 fleet_cap", admission)
+	}
+}
+
+func TestReconcileDoesNotCreateLinuxKataPodWithoutHealthyNode(t *testing.T) {
+	scheme := mustScheme(t)
+	pool := newLinuxKataPool("linux", 3, 4)
+	node := readyLinuxRunnerNode("runner-node", pool.Spec.FleetSelector)
+	node.Status.Conditions[0].Status = corev1.ConditionFalse
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(pool, node).
+		WithStatusSubresource(&tuistv1.RunnerPool{}).
+		Build()
+	r := &RunnerPoolReconciler{
+		Client:      c,
+		Scheme:      scheme,
+		DispatchURL: "http://dispatch",
+		DindImage:   "docker:dind",
+	}
+
+	result, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: nn(pool.Namespace, pool.Name)})
+	if err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	if result.RequeueAfter != provisioningRequeueAfter {
+		t.Fatalf("requeue = %s, want %s", result.RequeueAfter, provisioningRequeueAfter)
+	}
+	var pods corev1.PodList
+	if err := c.List(context.Background(), &pods); err != nil {
+		t.Fatalf("list pods: %v", err)
+	}
+	if len(pods.Items) != 0 {
+		t.Fatalf("created %d Pods with no healthy node, want 0", len(pods.Items))
+	}
+}
+
+func TestReconcileReapsBoundLinuxPodWhosePollerNeverStarts(t *testing.T) {
+	now := time.Unix(10_000, 0)
+	scheme := mustScheme(t)
+	pool := newLinuxKataPool("linux", 1, 4)
+	pool.Spec.Provisioning.StartTimeoutSeconds = ptr.To[int32](300)
+	node := readyLinuxRunnerNode("runner-node", pool.Spec.FleetSelector)
+	pod := linuxPod("linux-runner-stuck", pool.Name, nil)
+	pod.Spec.NodeName = node.Name
+	pod.CreationTimestamp = metav1.NewTime(now.Add(-6 * time.Minute))
+	pod.Status.Conditions = []corev1.PodCondition{{
+		Type:               corev1.PodScheduled,
+		Status:             corev1.ConditionTrue,
+		LastTransitionTime: metav1.NewTime(now.Add(-6 * time.Minute)),
+	}}
+	sa := &corev1.ServiceAccount{ObjectMeta: metav1.ObjectMeta{Name: pod.Name, Namespace: pod.Namespace}}
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(pool, node, pod, sa).
+		WithStatusSubresource(&tuistv1.RunnerPool{}).
+		Build()
+	recorder := record.NewFakeRecorder(1)
+	r := &RunnerPoolReconciler{
+		Client:      c,
+		Scheme:      scheme,
+		DispatchURL: "http://dispatch",
+		DindImage:   "docker:dind",
+		Now:         func() time.Time { return now },
+		Recorder:    recorder,
+	}
+
+	if _, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: nn(pool.Namespace, pool.Name)}); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	if err := c.Get(context.Background(), nn(pod.Namespace, pod.Name), &corev1.Pod{}); !apierrors.IsNotFound(err) {
+		t.Fatalf("timed-out Pod get error = %v, want NotFound", err)
+	}
+	select {
+	case event := <-recorder.Events:
+		if event == "" {
+			t.Fatal("empty timeout event")
+		}
+	default:
+		t.Fatal("expected RunnerPodStartTimedOut event")
+	}
+}
+
+func TestStartTimeoutIgnoresUnboundAndClaimedPods(t *testing.T) {
+	now := time.Unix(10_000, 0)
+	pool := newLinuxKataPool("linux", 1, 4)
+
+	unbound := linuxPod("unbound", pool.Name, nil)
+	unbound.CreationTimestamp = metav1.NewTime(now.Add(-time.Hour))
+	if startTimedOut(unbound, pool, now) {
+		t.Fatal("unbound Pod timed out; scheduler waiting must not churn")
+	}
+
+	recentlyBound := linuxPod("recently-bound", pool.Name, nil)
+	recentlyBound.Spec.NodeName = "runner-node"
+	recentlyBound.CreationTimestamp = metav1.NewTime(now.Add(-time.Hour))
+	recentlyBound.Status.Conditions = []corev1.PodCondition{{
+		Type:               corev1.PodScheduled,
+		Status:             corev1.ConditionTrue,
+		LastTransitionTime: metav1.NewTime(now.Add(-time.Minute)),
+	}}
+	if startTimedOut(recentlyBound, pool, now) {
+		t.Fatal("recently bound Pod inherited its unscheduled age instead of starting a fresh timeout clock")
+	}
+
+	claimed := linuxPod("claimed", pool.Name, nil)
+	claimed.Spec.NodeName = "runner-node"
+	claimed.CreationTimestamp = metav1.NewTime(now.Add(-time.Hour))
+	claimed.Status.Conditions = []corev1.PodCondition{{
+		Type:               corev1.PodScheduled,
+		Status:             corev1.ConditionTrue,
+		LastTransitionTime: metav1.NewTime(now.Add(-time.Hour)),
+	}}
+	claimed.Labels["tuist.dev/runner-pool-owner"] = "account"
+	if startTimedOut(claimed, pool, now) {
+		t.Fatal("claimed Pod timed out; customer work must be protected")
 	}
 }
