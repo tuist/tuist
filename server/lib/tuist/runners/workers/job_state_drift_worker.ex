@@ -41,7 +41,6 @@ defmodule Tuist.Runners.Workers.JobStateDriftWorker do
 
   alias Tuist.ClickHouseRepo
   alias Tuist.Runners.Job
-  alias Tuist.Runners.Telemetry
   alias Tuist.Runners.WorkflowJobs
 
   require Logger
@@ -82,13 +81,9 @@ defmodule Tuist.Runners.Workers.JobStateDriftWorker do
         end
       end)
 
-    emit(:telemetry_compared, length(rows))
-
     drift
     |> Enum.group_by(fn {kind, _row, _ch_status} -> kind end)
     |> Enum.each(fn {kind, entries} ->
-      emit(kind, length(entries))
-
       samples =
         entries
         |> Enum.take(@sample_limit)
@@ -106,17 +101,6 @@ defmodule Tuist.Runners.Workers.JobStateDriftWorker do
 
     :ok
   end
-
-  defp emit(kind, count) do
-    :telemetry.execute(
-      Telemetry.event_name_workflow_job_drift(),
-      %{count: count},
-      %{kind: drift_kind(kind)}
-    )
-  end
-
-  defp drift_kind(:telemetry_compared), do: "compared"
-  defp drift_kind(kind), do: Atom.to_string(kind)
 
   # Latest (status, conclusion) per job, folded into the Postgres
   # status space so the comparison is a plain equality. The

@@ -24,12 +24,6 @@ defmodule Tuist.Runners.Telemetry do
   def event_name_recovery, do: [:tuist, :runners, :recovery]
   def event_name_webhook, do: [:tuist, :runners, :webhook]
 
-  # Postgres-vs-ClickHouse status drift found by
-  # `Tuist.Runners.Workers.JobStateDriftWorker` — the confidence
-  # signal that the outbox-replicated ClickHouse view matches the
-  # Postgres control-plane state.
-  def event_name_workflow_job_drift, do: [:tuist, :runners, :workflow_job, :drift]
-
   def event_name_queue_length, do: [:tuist, :runners, :queue, :length]
 
   # Queued jobs excluded from the autoscaler's demand signal because

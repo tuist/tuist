@@ -1,14 +1,16 @@
 defmodule Tuist.Runners.Workers.JobStateDriftWorkerTest do
   use TuistTestSupport.Cases.DataCase, async: true
 
+  import ExUnit.CaptureLog
   import TuistTestSupport.Fixtures.AccountsFixtures
 
   alias Tuist.Repo
   alias Tuist.Runners.Jobs
-  alias Tuist.Runners.Telemetry
   alias Tuist.Runners.Workers.JobStateDriftWorker
   alias Tuist.Runners.WorkflowJob
   alias Tuist.Runners.WorkflowJobs
+
+  @drift_message "runners: workflow_job state drift between Postgres and ClickHouse"
 
   defp attrs(account, workflow_job_id) do
     %{
@@ -39,79 +41,58 @@ defmodule Tuist.Runners.Workers.JobStateDriftWorkerTest do
     )
   end
 
-  defp attach_drift_telemetry! do
-    handler_id = make_ref()
-    on_exit(fn -> :telemetry.detach(handler_id) end)
-    test_pid = self()
-
-    :ok =
-      :telemetry.attach(
-        handler_id,
-        Telemetry.event_name_workflow_job_drift(),
-        fn _name, measurements, metadata, _ ->
-          send(test_pid, {:drift, measurements, metadata})
-        end,
-        nil
-      )
+  defp drift_log do
+    capture_log([level: :warning], fn ->
+      assert :ok = perform_job(JobStateDriftWorker, %{})
+    end)
   end
 
-  test "agreeing stores report only the compared count" do
-    attach_drift_telemetry!()
+  test "agreeing stores log no drift" do
     account = account_fixture()
 
     :ok = Jobs.enqueue(attrs(account, 930_001))
     settle!(930_001)
 
-    assert :ok = perform_job(JobStateDriftWorker, %{})
-
-    assert_receive {:drift, %{count: 1}, %{kind: "compared"}}, 500
-    refute_receive {:drift, _, %{kind: "status_mismatch"}}, 100
-    refute_receive {:drift, _, %{kind: "missing_in_clickhouse"}}, 100
+    refute drift_log() =~ @drift_message
   end
 
-  test "reports a status mismatch between Postgres and ClickHouse" do
-    attach_drift_telemetry!()
+  test "logs a status mismatch between Postgres and ClickHouse" do
     account = account_fixture()
 
-    # `Jobs.enqueue/1` dark-writes both stores as queued; a
-    # Postgres-only claim transition diverges them.
+    # `Jobs.enqueue/1` writes both stores as queued; a Postgres-only
+    # claim transition diverges them.
     :ok = Jobs.enqueue(attrs(account, 930_002))
     :ok = WorkflowJobs.transition_claimed(930_002, "pod-1", DateTime.utc_now())
     settle!(930_002)
 
-    assert :ok = perform_job(JobStateDriftWorker, %{})
-
-    assert_receive {:drift, %{count: 1}, %{kind: "status_mismatch"}}, 500
+    log = drift_log()
+    assert log =~ @drift_message
+    assert log =~ "status_mismatch"
+    assert log =~ "930002"
   end
 
-  test "reports rows missing from ClickHouse" do
-    attach_drift_telemetry!()
+  test "logs rows missing from ClickHouse" do
     account = account_fixture()
 
     :ok = WorkflowJobs.upsert_queued(attrs(account, 930_003))
     settle!(930_003)
 
-    assert :ok = perform_job(JobStateDriftWorker, %{})
-
-    assert_receive {:drift, %{count: 1}, %{kind: "missing_in_clickhouse"}}, 500
+    log = drift_log()
+    assert log =~ @drift_message
+    assert log =~ "missing_in_clickhouse"
   end
 
   test "does not flag Postgres cancelled against ClickHouse completed with a cancelled conclusion" do
-    attach_drift_telemetry!()
     account = account_fixture()
 
     :ok = Jobs.enqueue(attrs(account, 930_004))
     assert {:ok, _} = Jobs.complete(930_004, "cancelled")
     settle!(930_004)
 
-    assert :ok = perform_job(JobStateDriftWorker, %{})
-
-    assert_receive {:drift, %{count: 1}, %{kind: "compared"}}, 500
-    refute_receive {:drift, _, %{kind: "status_mismatch"}}, 100
+    refute drift_log() =~ @drift_message
   end
 
   test "flags terminal rows whose cancelled-ness disagrees across stores" do
-    attach_drift_telemetry!()
     account = account_fixture()
 
     # Postgres lands completed/success first, so the ClickHouse-side
@@ -122,8 +103,8 @@ defmodule Tuist.Runners.Workers.JobStateDriftWorkerTest do
     assert {:ok, _} = Jobs.complete(930_005, "cancelled")
     settle!(930_005)
 
-    assert :ok = perform_job(JobStateDriftWorker, %{})
-
-    assert_receive {:drift, %{count: 1}, %{kind: "status_mismatch"}}, 500
+    log = drift_log()
+    assert log =~ @drift_message
+    assert log =~ "status_mismatch"
   end
 end
