@@ -166,6 +166,140 @@ defmodule Tuist.KuraTest do
       assert {:ok, %{scheduled: [], failures: []}} = Kura.schedule_runtime_image_deployments()
     end
 
+    test "supersedes an open deployment for an older tag and schedules the newer tag" do
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      {:ok, server} =
+        Kura.create_server(%{
+          account_id: account.id,
+          region: "local-controller",
+          image_tag: "0.5.2"
+        })
+
+      {:ok, server} = Kura.activate_server(server, "0.5.2")
+      mark_initial_deployment_succeeded(server)
+
+      # An open deployment for an older tag, standing in for an instance still
+      # grinding through a wedge behind the readiness gate.
+      {:ok, open} = Kura.create_deployment(server, "0.5.3")
+
+      stub(Tuist.Environment, :kura_runtime_image_tag, fn -> "0.6.0" end)
+
+      assert {:ok, %{scheduled: [%Deployment{image_tag: "0.6.0"} = scheduled], failures: []}} =
+               Kura.schedule_runtime_image_deployments()
+
+      assert scheduled.kura_server_id == server.id
+
+      superseded = Repo.reload!(open)
+      assert superseded.status == :superseded
+      assert superseded.error_message == "superseded by 0.6.0"
+      assert superseded.finished_at
+
+      # Exactly one open deployment remains — the new tag — so the release is no
+      # longer wedged behind the displaced one.
+      open_deployments =
+        Repo.all(from(d in Deployment, where: d.kura_server_id == ^server.id and d.status in [:pending, :running]))
+
+      assert [%Deployment{image_tag: "0.6.0"}] = open_deployments
+    end
+
+    test "emits a superseded telemetry event with the displaced and displacing tags" do
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      {:ok, server} =
+        Kura.create_server(%{
+          account_id: account.id,
+          region: "local-controller",
+          image_tag: "0.5.2"
+        })
+
+      {:ok, server} = Kura.activate_server(server, "0.5.2")
+      mark_initial_deployment_succeeded(server)
+      {:ok, _open} = Kura.create_deployment(server, "0.5.3")
+
+      handler_id = make_ref()
+      test_pid = self()
+
+      :ok =
+        :telemetry.attach(
+          handler_id,
+          Tuist.Telemetry.event_name_kura_deployment_superseded(),
+          fn name, measurements, metadata, _config ->
+            send(test_pid, {:telemetry_event, name, measurements, metadata})
+          end,
+          nil
+        )
+
+      on_exit(fn -> :telemetry.detach(handler_id) end)
+
+      stub(Tuist.Environment, :kura_runtime_image_tag, fn -> "0.6.0" end)
+
+      assert {:ok, %{scheduled: [_scheduled], failures: []}} = Kura.schedule_runtime_image_deployments()
+
+      assert_receive {:telemetry_event, [:tuist, :kura, :deployment, :superseded], %{count: 1}, metadata}
+      assert metadata.server_id == server.id
+      assert metadata.region == "local-controller"
+      assert metadata.provisioner_node_ref == server.provisioner_node_ref
+      assert metadata.displaced_image_tag == "0.5.3"
+      assert metadata.displacing_image_tag == "0.6.0"
+    end
+
+    test "keeps the superseded attempt in the deployment history" do
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      {:ok, server} =
+        Kura.create_server(%{
+          account_id: account.id,
+          region: "local-controller",
+          image_tag: "0.5.2"
+        })
+
+      {:ok, server} = Kura.activate_server(server, "0.5.2")
+      mark_initial_deployment_succeeded(server)
+      {:ok, _open} = Kura.create_deployment(server, "0.5.3")
+
+      stub(Tuist.Environment, :kura_runtime_image_tag, fn -> "0.6.0" end)
+
+      assert {:ok, %{scheduled: [_scheduled], failures: []}} = Kura.schedule_runtime_image_deployments()
+
+      image_tags_by_status =
+        account.id
+        |> Kura.list_deployments_for_account()
+        |> Map.new(&{&1.image_tag, &1.status})
+
+      # The audit trail records the actual sequence of intent: the initial
+      # install, the displaced attempt, and the displacing release.
+      assert image_tags_by_status == %{"0.5.2" => :succeeded, "0.5.3" => :superseded, "0.6.0" => :pending}
+    end
+
+    test "does not supersede an open deployment already carrying the target tag" do
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      {:ok, server} =
+        Kura.create_server(%{
+          account_id: account.id,
+          region: "local-controller",
+          image_tag: "0.5.2"
+        })
+
+      {:ok, server} = Kura.activate_server(server, "0.5.2")
+      mark_initial_deployment_succeeded(server)
+      {:ok, open} = Kura.create_deployment(server, "0.6.0")
+
+      stub(Tuist.Environment, :kura_runtime_image_tag, fn -> "0.6.0" end)
+
+      # The open deployment is already rolling the target out: nothing to
+      # displace, and the once-per-tag guard keeps a duplicate from being
+      # scheduled.
+      assert {:ok, %{scheduled: [], failures: []}} = Kura.schedule_runtime_image_deployments()
+
+      assert Repo.reload!(open).status == :pending
+    end
+
     test "does not create deployments when no runtime image tag is configured" do
       stub(Tuist.Environment, :kura_runtime_image_tag, fn -> nil end)
 

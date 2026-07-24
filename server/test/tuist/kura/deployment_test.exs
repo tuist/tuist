@@ -13,7 +13,8 @@ defmodule Tuist.Kura.DeploymentTest do
                running: 1,
                succeeded: 2,
                failed: 3,
-               cancelled: 4
+               cancelled: 4,
+               superseded: 5
              ]
     end
   end
@@ -93,7 +94,7 @@ defmodule Tuist.Kura.DeploymentTest do
 
       assert definition =~ "status"
 
-      for status <- 0..4 do
+      for status <- 0..5 do
         assert definition =~ Integer.to_string(status)
       end
     end
@@ -192,9 +193,12 @@ defmodule Tuist.Kura.DeploymentTest do
         {:running, :succeeded},
         {:running, :failed},
         {:running, :cancelled},
+        {:pending, :superseded},
+        {:running, :superseded},
         {:succeeded, :succeeded},
         {:failed, :failed},
-        {:cancelled, :cancelled}
+        {:cancelled, :cancelled},
+        {:superseded, :superseded}
       ]
 
       for {from, to} <- transitions do
@@ -207,7 +211,10 @@ defmodule Tuist.Kura.DeploymentTest do
         {:pending, :succeeded},
         {:succeeded, :running},
         {:failed, :running},
-        {:cancelled, :running}
+        {:cancelled, :running},
+        {:superseded, :running},
+        {:succeeded, :superseded},
+        {:failed, :superseded}
       ]
 
       for {from, to} <- transitions do

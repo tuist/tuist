@@ -162,12 +162,6 @@ defmodule Tuist.Kura do
         select: 1
       )
 
-    open_deployment_exists_query =
-      from(d in Deployment,
-        where: parent_as(:server).id == d.kura_server_id and d.status in [:pending, :running],
-        select: 1
-      )
-
     from(s in Server,
       as: :server,
       # Skip rows mid warm-handoff: a `:moving_in` target must warm on the
@@ -178,8 +172,13 @@ defmodule Tuist.Kura do
       where: s.move_phase == :none,
       where: s.status in @version_rollout_statuses,
       where: s.current_image_tag != ^image_tag,
+      # An open deployment for an *older* tag no longer excludes the server: the
+      # newest released tag supersedes it (see `schedule_version_deployment/2`),
+      # so a release stays schedulable even when an instance is wedged
+      # converging. The `deployment_for_image_exists` guard still serializes
+      # work within a single release — a deployment already exists for this exact
+      # tag (open or closed), so the same tag is never scheduled twice per server.
       where: not exists(deployment_for_image_exists_query),
-      where: not exists(open_deployment_exists_query),
       order_by: [asc: s.updated_at, asc: s.id],
       limit: ^@version_rollout_batch_size
     )
@@ -1157,12 +1156,63 @@ defmodule Tuist.Kura do
 
   defp schedule_version_deployment(%Server{} = server, image_tag) do
     with {:ok, region} <- Regions.fetch(server.region) do
-      Repo.transaction(fn ->
-        server
-        |> lock_server_or_rollback()
-        |> insert_scheduled_deployment(region, image_tag)
-      end)
+      case Repo.transaction(fn ->
+             locked_server = lock_server_or_rollback(server)
+             superseded = supersede_open_deployments(locked_server, image_tag)
+             deployment = insert_scheduled_deployment(locked_server, region, image_tag)
+             {deployment, superseded}
+           end) do
+        {:ok, {deployment, superseded}} ->
+          Enum.each(superseded, &report_superseded(&1, server, image_tag))
+          {:ok, deployment}
+
+        {:error, reason} ->
+          {:error, reason}
+      end
     end
+  end
+
+  # Newest intent wins: close any open deployment carrying an *older* image tag
+  # as `:superseded` so the newer tag inserts cleanly (the one-open-per-server
+  # index only counts `:pending`/`:running` rows) and rolls out in the same tick.
+  # There is at most one open row per server. This read-then-update is not guarded
+  # by a row lock, but it is safe because every deployment-status writer — this
+  # scheduler and the reconciler's `mark_*` transitions — runs inside the single
+  # serialized `Tuist.Kura.Reconciler` Oban job (unique across `:executing`), with
+  # scheduling sequenced before the transition steps in one `reconcile/0` pass, so
+  # nothing else can close this row between the read and the update. The
+  # transition guard does not backstop a racing close here (it validates against
+  # the pre-read snapshot), and `insert_scheduled_deployment/3` no-oping on the
+  # open-deployment conflict is the only fallback, retrying the server next tick.
+  defp supersede_open_deployments(%Server{id: server_id}, image_tag) do
+    Deployment
+    |> where([d], d.kura_server_id == ^server_id and d.status in [:pending, :running] and d.image_tag != ^image_tag)
+    |> Repo.all()
+    |> Enum.flat_map(fn deployment ->
+      case mark_superseded(deployment, image_tag) do
+        {:ok, superseded} -> [superseded]
+        {:error, _reason} -> []
+      end
+    end)
+  end
+
+  defp report_superseded(%Deployment{} = superseded, %Server{} = server, displacing_image_tag) do
+    Logger.info(
+      "[Kura] superseded deployment #{superseded.id} for server #{superseded.kura_server_id}: " <>
+        "displaced #{superseded.image_tag} with #{displacing_image_tag}"
+    )
+
+    :telemetry.execute(
+      Tuist.Telemetry.event_name_kura_deployment_superseded(),
+      %{count: 1},
+      %{
+        server_id: superseded.kura_server_id,
+        region: server.region,
+        provisioner_node_ref: server.provisioner_node_ref,
+        displaced_image_tag: superseded.image_tag,
+        displacing_image_tag: displacing_image_tag
+      }
+    )
   end
 
   defp lock_server_or_rollback(server) do
@@ -1278,6 +1328,20 @@ defmodule Tuist.Kura do
     update_deployment_status(deployment, %{
       status: :cancelled,
       error_message: message,
+      finished_at: now_truncated()
+    })
+  end
+
+  @doc """
+  Closes an open deployment as `:superseded`: it was displaced by a newer
+  released image tag before it could converge. The displacing tag is recorded so
+  the /ops history reads the actual sequence of intent rather than losing the
+  attempt.
+  """
+  def mark_superseded(%Deployment{} = deployment, displacing_image_tag) when is_binary(displacing_image_tag) do
+    update_deployment_status(deployment, %{
+      status: :superseded,
+      error_message: "superseded by #{displacing_image_tag}",
       finished_at: now_truncated()
     })
   end

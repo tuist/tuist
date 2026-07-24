@@ -71,4 +71,8 @@ defmodule Tuist.Telemetry do
   def event_name_repo_pool_metrics do
     [:tuist, :repo, :pool, :metrics]
   end
+
+  def event_name_kura_deployment_superseded do
+    [:tuist, :kura, :deployment, :superseded]
+  end
 end

@@ -26,14 +26,19 @@ defmodule Tuist.Kura.Deployment do
 
   alias Tuist.Kura.Server
 
-  @status_mappings [pending: 0, running: 1, succeeded: 2, failed: 3, cancelled: 4]
+  @status_mappings [pending: 0, running: 1, succeeded: 2, failed: 3, cancelled: 4, superseded: 5]
   @statuses Keyword.keys(@status_mappings)
+  # `:superseded` is the terminal state for an open deployment displaced by a
+  # newer released image tag. It closes the open row so the newer tag is
+  # schedulable in the same tick, keeping a release from wedging behind an
+  # instance that is stuck converging (see `Tuist.Kura.schedule_version_deployments/1`).
   @allowed_status_transitions %{
-    pending: [:pending, :running, :failed, :cancelled],
-    running: [:running, :succeeded, :failed, :cancelled],
+    pending: [:pending, :running, :failed, :cancelled, :superseded],
+    running: [:running, :succeeded, :failed, :cancelled, :superseded],
     succeeded: [:succeeded],
     failed: [:failed],
-    cancelled: [:cancelled]
+    cancelled: [:cancelled],
+    superseded: [:superseded]
   }
   @image_tag_format ~r/\A[A-Za-z0-9_][A-Za-z0-9_.-]*\z/
   @image_tag_message "must be a valid OCI image tag like sha-abcdef123456, latest, or 0.5.2"
