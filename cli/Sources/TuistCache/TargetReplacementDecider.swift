@@ -54,19 +54,25 @@ public struct CacheProfileTargetReplacementDecider: TargetReplacementDeciding {
         if focusedTargetNames.contains(target.name) { return false }
         if !target.metadata.tags.isDisjoint(with: focusedTargetTags) { return false }
 
+        var resolvedBase = base
+        if case .commandDefault = resolvedBase {
+            assertionFailure("command-default cache profiles must be resolved before target replacement")
+            resolvedBase = .none
+        }
+
         switch project.type {
         case .external:
-            switch base {
-            case .none:
+            switch resolvedBase {
+            case .commandDefault, .none:
                 return false
             case .onlyExternal, .allPossible:
                 return true
             }
         case .local:
-            switch base {
+            switch resolvedBase {
             case .allPossible:
                 return true
-            case .onlyExternal, .none:
+            case .commandDefault, .onlyExternal, .none:
                 if profileTargetNames.contains(target.name) { return true }
                 if !target.metadata.tags.isDisjoint(with: profileTargetTags) { return true }
                 return false

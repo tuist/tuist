@@ -96,6 +96,7 @@ extension TuistConfig.BaseCacheProfile {
         switch manifest {
         case .onlyExternal: return .onlyExternal
         case .allPossible: return .allPossible
+        case .commandDefault: return .commandDefault
         case .none: return .none
         }
     }

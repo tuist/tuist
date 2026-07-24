@@ -25,7 +25,8 @@ extension Tuist {
     func resolveCacheProfile(
         ignoreBinaryCache: Bool,
         includedTargets: Set<TargetQuery>,
-        cacheProfile: CacheProfileType?
+        cacheProfile: CacheProfileType?,
+        commandDefault: CacheProfile? = nil
     ) throws -> CacheProfile {
         if ignoreBinaryCache {
             Logger.current.debug("Using cache profile none")
@@ -37,33 +38,41 @@ extension Tuist {
             return .none
         }
 
-        if !includedTargets.isEmpty {
-            Logger.current.debug("Using cache profile all-possible")
-            return .allPossible
-        }
-
         let profiles = project.generatedProject?.cacheOptions.profiles
+        let contextualCommandDefault = commandDefault ?? (includedTargets.isEmpty ? .onlyExternal : .allPossible)
+        let resolvedCommandDefault: CacheProfile
+        if let configDefault = profiles?.defaultProfile {
+            resolvedCommandDefault = try resolveFromProfileType(
+                configDefault,
+                profiles: profiles,
+                commandDefault: contextualCommandDefault
+            )
+        } else {
+            resolvedCommandDefault = contextualCommandDefault
+        }
 
         if let cacheProfile {
             Logger.current.debug("Using cache profile \(cacheProfile)")
-            return try resolveFromProfileType(cacheProfile, profiles: profiles)
+            return try resolveFromProfileType(
+                cacheProfile,
+                profiles: profiles,
+                commandDefault: resolvedCommandDefault
+            )
         }
 
-        // The default profile was already validated when loaded
-        if let configDefault = profiles?.defaultProfile,
-           let profile = try? resolveFromProfileType(configDefault, profiles: profiles)
-        {
+        if let configDefault = profiles?.defaultProfile {
             Logger.current.debug("Using cache profile \(configDefault)")
-            return profile
+            return resolvedCommandDefault
         }
 
-        Logger.current.debug("Using cache profile only-external")
-        return .onlyExternal
+        Logger.current.debug("Using cache profile \(contextualCommandDefault.base)")
+        return contextualCommandDefault
     }
 
     private func resolveFromProfileType(
         _ profile: CacheProfileType,
-        profiles: CacheProfiles?
+        profiles: CacheProfiles?,
+        commandDefault: CacheProfile
     ) throws -> CacheProfile {
         switch profile {
         case .onlyExternal:
@@ -74,12 +83,35 @@ extension Tuist {
             return .none
         case let .custom(name):
             if let custom = profiles?.profileByName[name] {
-                return custom
+                return resolveCustomProfile(custom, commandDefault: commandDefault)
             }
             throw CacheProfileError.profileNotFound(
                 profile: name,
                 available: profiles?.profileByName.map(\.key) ?? []
             )
         }
+    }
+
+    private func resolveCustomProfile(
+        _ profile: CacheProfile,
+        commandDefault: CacheProfile
+    ) -> CacheProfile {
+        let baseProfile: CacheProfile
+        switch profile.base {
+        case .onlyExternal:
+            baseProfile = .onlyExternal
+        case .allPossible:
+            baseProfile = .allPossible
+        case .commandDefault:
+            baseProfile = commandDefault
+        case .none:
+            baseProfile = .none
+        }
+
+        return CacheProfile(
+            base: baseProfile.base,
+            targetQueries: baseProfile.targetQueries + profile.targetQueries,
+            exceptTargetQueries: baseProfile.exceptTargetQueries + profile.exceptTargetQueries
+        )
     }
 }
