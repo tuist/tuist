@@ -8,6 +8,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
   alias Tuist.Automations.Workers.AlertEvaluationWorker
   alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
+  alias Tuist.Repo
   alias Tuist.Tests
   alias Tuist.Tests.TestCaseRun
   alias TuistTestSupport.Fixtures.AutomationsFixtures
@@ -52,6 +53,37 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     automation = AutomationsFixtures.automation_alert_fixture(enabled: false)
     reject(&FlakyTestsMonitor.evaluate/1)
     assert :ok = run(automation.id)
+  end
+
+  test "skips an unsupported rolling trigger without failing the job" do
+    automation =
+      AutomationsFixtures.automation_alert_fixture(
+        trigger_config: %{
+          "threshold" => 10,
+          "window_type" => "rolling",
+          "rolling_window_size" => 75
+        }
+      )
+
+    automation
+    |> Ecto.Changeset.change(
+      trigger_config: %{
+        "threshold" => 10,
+        "window_type" => "rolling",
+        "rolling_window_size" => 76
+      }
+    )
+    |> Repo.update!()
+
+    reject(&FlakyTestsMonitor.evaluate/1)
+
+    log =
+      ExUnit.CaptureLog.capture_log(fn ->
+        assert :ok = run(automation.id)
+      end)
+
+    assert log =~ "Skipping automation alert #{automation.id}"
+    assert log =~ "rolling trigger windows must be between 1 and 75"
   end
 
   test "executes trigger actions for newly triggered test cases and creates alert" do
@@ -213,6 +245,76 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     assert {:ok, updated_second_alert} = Automations.get_alert(second_alert.id)
     assert updated_first_alert.last_scoped_evaluation_inserted_at == ~U[2026-06-09 10:00:10Z]
     assert updated_second_alert.last_scoped_evaluation_inserted_at == ~U[2026-06-09 10:00:02Z]
+  end
+
+  test "project-scoped job isolates an unsupported alert from valid alerts" do
+    project = ProjectsFixtures.project_fixture()
+
+    valid_alert =
+      AutomationsFixtures.automation_alert_fixture(
+        project: project,
+        monitor_type: "flakiness_rate",
+        trigger_config: %{
+          "threshold" => 5,
+          "comparison" => "gte",
+          "window_type" => "rolling",
+          "rolling_window_size" => 75
+        }
+      )
+
+    unsupported_alert =
+      AutomationsFixtures.automation_alert_fixture(
+        project: project,
+        monitor_type: "flakiness_rate",
+        trigger_config: %{
+          "threshold" => 20,
+          "comparison" => "gte",
+          "window_type" => "rolling",
+          "rolling_window_size" => 75
+        }
+      )
+
+    unsupported_alert
+    |> Ecto.Changeset.change(
+      trigger_config: %{
+        "threshold" => 20,
+        "comparison" => "gte",
+        "window_type" => "rolling",
+        "rolling_window_size" => 76
+      }
+    )
+    |> Repo.update!()
+
+    test_case_id = Ecto.UUID.generate()
+
+    expect(ClickHouseRepo, :all, fn _query ->
+      [%{test_case_id: test_case_id, last_inserted_at: ~N[2026-06-09 10:00:02]}]
+    end)
+
+    expect(FlakyTestsMonitor, :evaluate, fn loaded_alert, [^test_case_id] ->
+      assert loaded_alert.id == valid_alert.id
+      %{triggered: [], all: [test_case_id]}
+    end)
+
+    expect(Automations, :list_active_alert_events, fn alert_id, [^test_case_id] ->
+      assert alert_id == valid_alert.id
+      []
+    end)
+
+    reject(&ActionExecutor.execute_actions/3)
+    reject(&Automations.create_alert_event/1)
+
+    log =
+      ExUnit.CaptureLog.capture_log(fn ->
+        assert :ok = run_recent_test_case_runs_for_project(project.id)
+      end)
+
+    assert log =~ "Skipping automation alert #{unsupported_alert.id}"
+
+    assert {:ok, updated_valid_alert} = Automations.get_alert(valid_alert.id)
+    assert {:ok, updated_unsupported_alert} = Automations.get_alert(unsupported_alert.id)
+    assert updated_valid_alert.last_scoped_evaluation_inserted_at == ~U[2026-06-09 10:00:02Z]
+    assert updated_unsupported_alert.last_scoped_evaluation_inserted_at == nil
   end
 
   test "ingestion-driven job chunks large affected sets" do

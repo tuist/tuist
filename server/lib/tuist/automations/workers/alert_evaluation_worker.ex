@@ -33,7 +33,8 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
       |> Automations.list_alerts()
       |> Enum.filter(fn alert ->
         alert.enabled and Alert.scoped_evaluation?(alert) and
-          Alert.cadence_seconds(alert.cadence) == cadence_seconds
+          Alert.cadence_seconds(alert.cadence) == cadence_seconds and
+          trigger_window_supported?(alert)
       end)
 
     evaluate_recent_test_case_runs_and_execute(alerts)
@@ -42,18 +43,34 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
   def perform(%Oban.Job{args: %{"alert_id" => alert_id} = args}) do
     case Automations.get_alert(alert_id) do
       {:ok, alert} ->
-        if alert.enabled do
-          if evaluate_recent_test_case_runs?(args) do
+        cond do
+          not alert.enabled ->
+            :ok
+
+          not trigger_window_supported?(alert) ->
+            :ok
+
+          evaluate_recent_test_case_runs?(args) ->
             evaluate_recent_test_case_runs_and_execute(alert)
-          else
+
+          true ->
             evaluate_and_execute(alert, scoped_test_case_ids(args))
-          end
-        else
-          :ok
         end
 
       {:error, :not_found} ->
         :ok
+    end
+  end
+
+  defp trigger_window_supported?(alert) do
+    if Alert.trigger_window_supported?(alert) do
+      true
+    else
+      Logger.warning(
+        "Skipping automation alert #{alert.id}: rolling trigger windows must be between 1 and #{Alert.max_rolling_trigger_window_size()}"
+      )
+
+      false
     end
   end
 
