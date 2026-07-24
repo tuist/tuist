@@ -171,7 +171,7 @@ defmodule Tuist.Automations.Alerts.AlertTest do
             "trigger_config" => %{
               "threshold" => 10,
               "window_type" => "rolling",
-              "rolling_window_size" => 100
+              "rolling_window_size" => 75
             }
           })
         )
@@ -223,13 +223,64 @@ defmodule Tuist.Automations.Alerts.AlertTest do
             "trigger_config" => %{
               "threshold" => 10,
               "window_type" => "rolling",
-              "rolling_window_size" => 1_000_000
+              "rolling_window_size" => 76
             }
           })
         )
 
       refute changeset.valid?
-      assert "rolling_window_size must be at most 1000" in errors_on(changeset).trigger_config
+      assert "rolling_window_size must be at most 75" in errors_on(changeset).trigger_config
+    end
+
+    test "allows an existing alert with a legacy rolling window to be disabled" do
+      project = ProjectsFixtures.project_fixture()
+
+      alert =
+        %Alert{id: UUIDv7.generate(), enabled: true}
+        |> Alert.changeset(
+          valid_attrs(project, %{
+            "trigger_config" => %{
+              "threshold" => 10,
+              "window_type" => "rolling",
+              "rolling_window_size" => 75
+            }
+          })
+        )
+        |> Ecto.Changeset.apply_changes()
+        |> Map.put(:trigger_config, %{
+          "threshold" => 10,
+          "window_type" => "rolling",
+          "rolling_window_size" => 100
+        })
+
+      assert Alert.changeset(alert, %{enabled: false}).valid?
+    end
+
+    test "validates other edits to an existing alert with a legacy rolling window" do
+      project = ProjectsFixtures.project_fixture()
+
+      alert =
+        %Alert{id: UUIDv7.generate(), enabled: true}
+        |> Alert.changeset(
+          valid_attrs(project, %{
+            "trigger_config" => %{
+              "threshold" => 10,
+              "window_type" => "rolling",
+              "rolling_window_size" => 75
+            }
+          })
+        )
+        |> Ecto.Changeset.apply_changes()
+        |> Map.put(:trigger_config, %{
+          "threshold" => 10,
+          "window_type" => "rolling",
+          "rolling_window_size" => 100
+        })
+
+      changeset = Alert.changeset(alert, %{enabled: false, name: "Changed while disabling"})
+
+      refute changeset.valid?
+      assert "rolling_window_size must be at most 75" in errors_on(changeset).trigger_config
     end
 
     test "rejects rolling window_type with non-positive rolling_window_size" do
@@ -412,6 +463,22 @@ defmodule Tuist.Automations.Alerts.AlertTest do
           valid_attrs(project, %{
             "recovery_enabled" => true,
             "recovery_config" => %{"window_type" => "rolling", "rolling_window_size" => 50},
+            "recovery_actions" => [%{"type" => "remove_label", "label" => "flaky"}]
+          })
+        )
+
+      assert changeset.valid?
+    end
+
+    test "keeps the larger rolling window cap for recovery" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "recovery_enabled" => true,
+            "recovery_config" => %{"window_type" => "rolling", "rolling_window_size" => 500},
             "recovery_actions" => [%{"type" => "remove_label", "label" => "flaky"}]
           })
         )

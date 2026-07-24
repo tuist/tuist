@@ -7,6 +7,7 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
 
   alias Tuist.Accounts
   alias Tuist.Automations
+  alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
   alias TuistTestSupport.Fixtures.AutomationsFixtures
 
@@ -230,7 +231,7 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
       render_hook(lv, "open_create_automation_modal", %{})
       render_hook(lv, "update_create_automation_form_name", %{"value" => "Over cap"})
       render_hook(lv, "update_create_automation_form_window_type", %{"data" => "rolling"})
-      render_hook(lv, "update_create_automation_form_rolling_window_size", %{"value" => "100000"})
+      render_hook(lv, "update_create_automation_form_rolling_window_size", %{"value" => "76"})
 
       # The Save button itself is rendered as disabled, so the user can't
       # click it and the changeset's cap is never exercised silently.
@@ -252,12 +253,12 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
       render_hook(lv, "open_create_automation_modal", %{})
       render_hook(lv, "update_create_automation_form_name", %{"value" => "Within cap"})
       render_hook(lv, "update_create_automation_form_window_type", %{"data" => "rolling"})
-      render_hook(lv, "update_create_automation_form_rolling_window_size", %{"value" => "100000"})
-      render_hook(lv, "update_create_automation_form_rolling_window_size", %{"value" => "500"})
+      render_hook(lv, "update_create_automation_form_rolling_window_size", %{"value" => "76"})
+      render_hook(lv, "update_create_automation_form_rolling_window_size", %{"value" => "75"})
 
       render_hook(lv, "save_automation", %{})
       assert [automation] = Automations.list_alerts(project.id)
-      assert automation.trigger_config["rolling_window_size"] == 500
+      assert automation.trigger_config["rolling_window_size"] == 75
     end
 
     test "rolling recovery window persists rolling_window_size and drops the days window", %{
@@ -453,6 +454,71 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
       automation = AutomationsFixtures.automation_alert_fixture(project: project, enabled: true)
       {:ok, lv, _html} = open(conn, organization, project)
       render_hook(lv, "toggle_automation_enabled", %{"id" => automation.id})
+      assert {:ok, %{enabled: false}} = Automations.get_alert(automation.id)
+    end
+
+    test "can disable an existing automation whose rolling window is now unsupported", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      automation =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          enabled: true,
+          trigger_config: %{
+            "threshold" => 10,
+            "window_type" => "rolling",
+            "rolling_window_size" => 75
+          }
+        )
+
+      automation
+      |> Ecto.Changeset.change(
+        trigger_config: %{
+          "threshold" => 10,
+          "window_type" => "rolling",
+          "rolling_window_size" => 100
+        }
+      )
+      |> Repo.update!()
+
+      {:ok, lv, _html} = open(conn, organization, project)
+      render_hook(lv, "toggle_automation_enabled", %{"id" => automation.id})
+
+      assert {:ok, %{enabled: false}} = Automations.get_alert(automation.id)
+    end
+
+    test "keeps an unsupported legacy automation disabled and explains how to enable it", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      automation =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          enabled: false,
+          trigger_config: %{
+            "threshold" => 10,
+            "window_type" => "rolling",
+            "rolling_window_size" => 75
+          }
+        )
+
+      automation
+      |> Ecto.Changeset.change(
+        trigger_config: %{
+          "threshold" => 10,
+          "window_type" => "rolling",
+          "rolling_window_size" => 100
+        }
+      )
+      |> Repo.update!()
+
+      {:ok, lv, _html} = open(conn, organization, project)
+      html = render_hook(lv, "toggle_automation_enabled", %{"id" => automation.id})
+
+      assert html =~ "This automation uses an unsupported trigger configuration. Edit it before enabling it."
       assert {:ok, %{enabled: false}} = Automations.get_alert(automation.id)
     end
 
