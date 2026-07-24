@@ -13,6 +13,11 @@ defmodule Tuist.IngestRepo.Migrations.StopUnusedRecentTestCaseRunAggregates do
 
   The 100-run table and its two materialized views stay active because rolling
   triggers are constrained to windows that it can serve.
+
+  Production uses ClickHouse Cloud's shared table metadata. Its in-memory
+  system tables remain replica-local, so merge and schema guards query every
+  replica through the service's `default` cluster. Embedded development
+  deployments have no cluster definition and use their local system tables.
   """
 
   use Ecto.Migration
@@ -21,6 +26,8 @@ defmodule Tuist.IngestRepo.Migrations.StopUnusedRecentTestCaseRunAggregates do
 
   @disable_ddl_transaction true
   @disable_migration_lock true
+  @automatic_merge_setting "max_bytes_to_merge_at_max_space_in_pool"
+  @cloud_cluster "default"
 
   @active_materialized_views [
     "test_case_runs_recent_100_per_case_mv",
@@ -46,29 +53,34 @@ defmodule Tuist.IngestRepo.Migrations.StopUnusedRecentTestCaseRunAggregates do
   ]
 
   def up do
-    assert_views_present!(@active_materialized_views)
-    assert_no_active_merges!(@retired_tables)
+    cluster_available? = cloud_cluster_available?()
+    assert_views_present!(@active_materialized_views, cluster_available?)
+    previous_merge_settings = automatic_merge_settings!(@retired_tables, cluster_available?)
+    assert_no_active_merges!(@retired_tables, cluster_available?)
 
-    # Prevent a new automatic merge from starting while the views are removed.
-    # A merge that won the race with this setting is caught by the second
-    # assertion, leaving the views active so the migration can be retried.
-    for table <- @retired_tables do
-      # excellent_migrations:safety-assured-for-next-line raw_sql_executed
-      IngestRepo.query!("""
-      ALTER TABLE #{table}
-      MODIFY SETTING max_bytes_to_merge_at_max_space_in_pool = 1
-      """)
+    try do
+      # Prevent a new automatic merge from starting while the views are
+      # removed. A merge that won the race is caught by the second assertion.
+      stop_automatic_merges!(@retired_tables)
+      assert_no_active_merges!(@retired_tables, cluster_available?)
+
+      for materialized_view <- @retired_materialized_views do
+        # excellent_migrations:safety-assured-for-next-line raw_sql_executed
+        IngestRepo.query!("DROP VIEW IF EXISTS #{materialized_view}")
+      end
+
+      assert_views_absent!(@retired_materialized_views, cluster_available?)
+      assert_automatic_merges_stopped!(@retired_tables, cluster_available?)
+    rescue
+      exception ->
+        restore_merge_settings_if_views_remain!(
+          @retired_materialized_views,
+          previous_merge_settings,
+          cluster_available?
+        )
+
+        reraise exception, __STACKTRACE__
     end
-
-    assert_no_active_merges!(@retired_tables)
-
-    for materialized_view <- @retired_materialized_views do
-      # excellent_migrations:safety-assured-for-next-line raw_sql_executed
-      IngestRepo.query!("DROP VIEW IF EXISTS #{materialized_view}")
-    end
-
-    assert_views_absent!(@retired_materialized_views)
-    assert_automatic_merges_stopped!(@retired_tables)
   end
 
   def down do
@@ -76,8 +88,8 @@ defmodule Tuist.IngestRepo.Migrations.StopUnusedRecentTestCaseRunAggregates do
           "the retired materialized views require a bounded backfill before they can be re-enabled safely"
   end
 
-  defp assert_views_present!(views) do
-    present_views = table_names(views)
+  defp assert_views_present!(views, cluster_available?) do
+    present_views = table_names(views, cluster_available?)
     missing_views = views -- present_views
 
     if missing_views != [] do
@@ -86,8 +98,8 @@ defmodule Tuist.IngestRepo.Migrations.StopUnusedRecentTestCaseRunAggregates do
     end
   end
 
-  defp assert_views_absent!(views) do
-    case table_names(views) do
+  defp assert_views_absent!(views, cluster_available?) do
+    case table_names(views, cluster_available?) do
       [] ->
         :ok
 
@@ -97,14 +109,15 @@ defmodule Tuist.IngestRepo.Migrations.StopUnusedRecentTestCaseRunAggregates do
     end
   end
 
-  defp assert_no_active_merges!(tables) do
+  defp assert_no_active_merges!(tables, cluster_available?) do
     quoted_names = Enum.map_join(tables, ", ", &"'#{&1}'")
+    merges_source = system_table_source("merges", cluster_available?)
 
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
     %{rows: rows} =
       IngestRepo.query!("""
       SELECT DISTINCT table
-      FROM system.merges
+      FROM #{merges_source}
       WHERE database = currentDatabase()
         AND table IN (#{quoted_names})
       ORDER BY table
@@ -118,17 +131,80 @@ defmodule Tuist.IngestRepo.Migrations.StopUnusedRecentTestCaseRunAggregates do
     end
   end
 
-  defp assert_automatic_merges_stopped!(tables) do
+  defp stop_automatic_merges!(tables) do
+    for table <- tables do
+      # excellent_migrations:safety-assured-for-next-line raw_sql_executed
+      IngestRepo.query!("""
+      ALTER TABLE #{table}
+      MODIFY SETTING #{@automatic_merge_setting} = 1
+      """)
+    end
+  end
+
+  defp automatic_merge_settings!(tables, cluster_available?) do
+    metadata = table_metadata(tables, cluster_available?)
+
+    settings_by_table =
+      Enum.group_by(
+        metadata,
+        fn [name, _create_table_query] -> name end,
+        fn [_name, create_table_query] -> automatic_merge_setting(create_table_query) end
+      )
+
+    present_tables = Map.keys(settings_by_table)
+    missing_tables = tables -- present_tables
+
+    if missing_tables != [] do
+      raise Ecto.MigrationError,
+            "required rolling aggregate tables are missing: #{Enum.join(missing_tables, ", ")}"
+    end
+
+    Enum.map(tables, fn table ->
+      settings = settings_by_table |> Map.fetch!(table) |> Enum.uniq()
+
+      case settings do
+        [setting] ->
+          {table, setting}
+
+        _settings ->
+          raise Ecto.MigrationError,
+                "rolling aggregate table has inconsistent merge settings across replicas: #{table}"
+      end
+    end)
+  end
+
+  defp restore_merge_settings_if_views_remain!(views, previous_settings, cluster_available?) do
+    if table_names(views, cluster_available?) != [] do
+      for {table, previous_setting} <- previous_settings do
+        restore_merge_setting!(table, previous_setting)
+      end
+    end
+  end
+
+  defp restore_merge_setting!(table, :default) do
+    # excellent_migrations:safety-assured-for-next-line raw_sql_executed
+    IngestRepo.query!("ALTER TABLE #{table} RESET SETTING #{@automatic_merge_setting}")
+  end
+
+  defp restore_merge_setting!(table, {:explicit, value}) do
+    # excellent_migrations:safety-assured-for-next-line raw_sql_executed
+    IngestRepo.query!(
+      "ALTER TABLE #{table} MODIFY SETTING #{@automatic_merge_setting} = #{value}"
+    )
+  end
+
+  defp assert_automatic_merges_stopped!(tables, cluster_available?) do
     stopped_tables =
       tables
-      |> table_metadata()
-      |> Enum.filter(fn [_name, create_table_query] ->
-        String.contains?(
-          create_table_query,
-          "max_bytes_to_merge_at_max_space_in_pool = 1"
-        )
+      |> table_metadata(cluster_available?)
+      |> Enum.group_by(
+        fn [name, _create_table_query] -> name end,
+        fn [_name, create_table_query] -> automatic_merge_setting(create_table_query) end
+      )
+      |> Enum.filter(fn {_name, settings} ->
+        Enum.all?(settings, &(&1 == {:explicit, 1}))
       end)
-      |> Enum.map(fn [name, _create_table_query] -> name end)
+      |> Enum.map(fn {name, _settings} -> name end)
 
     mergeable_tables = tables -- stopped_tables
 
@@ -138,20 +214,32 @@ defmodule Tuist.IngestRepo.Migrations.StopUnusedRecentTestCaseRunAggregates do
     end
   end
 
-  defp table_names(names) do
-    names
-    |> table_metadata()
-    |> Enum.map(fn [name, _create_table_query] -> name end)
+  defp automatic_merge_setting(create_table_query) do
+    setting_pattern =
+      ~r/(?:^|[\s,])#{@automatic_merge_setting}\s*=\s*(\d+)(?=\s*(?:,|$))/
+
+    case Regex.run(setting_pattern, create_table_query) do
+      [_match, value] -> {:explicit, String.to_integer(value)}
+      nil -> :default
+    end
   end
 
-  defp table_metadata(names) do
+  defp table_names(names, cluster_available?) do
+    names
+    |> table_metadata(cluster_available?)
+    |> Enum.map(fn [name, _create_table_query] -> name end)
+    |> Enum.uniq()
+  end
+
+  defp table_metadata(names, cluster_available?) do
     quoted_names = Enum.map_join(names, ", ", &"'#{&1}'")
+    tables_source = system_table_source("tables", cluster_available?)
 
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
     %{rows: rows} =
       IngestRepo.query!("""
-      SELECT name, create_table_query
-      FROM system.tables
+      SELECT DISTINCT name, create_table_query
+      FROM #{tables_source}
       WHERE database = currentDatabase()
         AND name IN (#{quoted_names})
       ORDER BY name
@@ -159,4 +247,22 @@ defmodule Tuist.IngestRepo.Migrations.StopUnusedRecentTestCaseRunAggregates do
 
     rows
   end
+
+  defp cloud_cluster_available? do
+    # excellent_migrations:safety-assured-for-next-line raw_sql_executed
+    %{rows: rows} =
+      IngestRepo.query!("""
+      SELECT 1
+      FROM system.clusters
+      WHERE cluster = '#{@cloud_cluster}'
+      LIMIT 1
+      """)
+
+    rows != []
+  end
+
+  defp system_table_source(table, true),
+    do: "clusterAllReplicas(#{@cloud_cluster}, system.#{table})"
+
+  defp system_table_source(table, false), do: "system.#{table}"
 end
