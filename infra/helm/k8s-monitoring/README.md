@@ -76,6 +76,15 @@ Plus the telemetry services themselves:
 - `kube-state-metrics` Deployment
 - `node-exporter` DaemonSet
 
+## Metrics scrape cadence
+
+All cluster and custom metrics jobs use a 60-second scrape interval. This
+matches Grafana Cloud's included rate of one data point per minute for each
+active series, while keeping enough resolution for the infrastructure
+dashboards and alerts. Keep job-specific overrides at 60 seconds unless a
+documented operational requirement justifies the additional ingestion cost.
+See [Grafana's scrape interval guidance](https://grafana.com/docs/grafana-cloud/cost-management-and-billing/analyze-costs/reduce-costs/metrics-costs/adjust-data-points-per-minute/).
+
 ## Local validation
 
 ```bash
