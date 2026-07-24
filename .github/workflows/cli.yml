@@ -267,8 +267,6 @@ jobs:
         run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
       - name: Skip Xcode Package Validation
         run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidation -bool YES
-      - name: Download Metal Toolchain
-        run: xcodebuild -downloadComponent MetalToolchain
       - name: Build tests
         id: shard
         run: tuist test --build-only --shard-total 2 --shard-granularity suite TuistAcceptanceTests
@@ -357,8 +355,6 @@ jobs:
         run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
       - name: Skip Xcode Package Validation
         run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidation -bool YES
-      - name: Download Metal Toolchain
-        run: xcodebuild -downloadComponent MetalToolchain
       - name: Set up new keychain
         run: |
           TMP_DIRECTORY=$(mktemp -d)
