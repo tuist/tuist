@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
@@ -2873,4 +2874,173 @@ func TestReconcileStaleDataStorage(t *testing.T) {
 			t.Fatalf("a pending PVC on the desired storage class is not stale, got reason %q", reason)
 		}
 	})
+}
+
+func kuraPodWithImage(instanceName, namespace string, ordinal int, ready bool, image string) *corev1.Pod {
+	pod := kuraPod(instanceName, namespace, ordinal, ready)
+	pod.Spec.Containers = []corev1.Container{{Name: "kura", Image: image}}
+	return pod
+}
+
+func assertPodPresence(t *testing.T, c client.Client, namespace, name string, want bool, msg string) {
+	t.Helper()
+	err := c.Get(context.Background(), types.NamespacedName{Name: name, Namespace: namespace}, &corev1.Pod{})
+	if err != nil && !apierrors.IsNotFound(err) {
+		t.Fatalf("get pod %s: %v", name, err)
+	}
+	if present := err == nil; present != want {
+		t.Fatalf("%s (pod %s present=%v, want present=%v)", msg, name, present, want)
+	}
+}
+
+func TestRollFailingPodsToDesiredImage(t *testing.T) {
+	ctx := context.Background()
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := kurav1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+
+	const oldImage = "ghcr.io/tuist/kura:0.19.0"
+	const newImage = "ghcr.io/tuist/kura:0.20.0"
+
+	instance := &kurav1alpha1.KuraInstance{
+		ObjectMeta: metav1.ObjectMeta{Name: "kura-tuist-eu-central-1", Namespace: "kura"},
+		Spec: kurav1alpha1.KuraInstanceSpec{
+			AccountHandle: "tuist",
+			TenantID:      "tuist",
+			Region:        "eu-central",
+			Image:         newImage,
+		},
+	}
+
+	readyOld := kuraPodWithImage(instance.Name, instance.Namespace, 0, true, oldImage)
+	failingOldA := kuraPodWithImage(instance.Name, instance.Namespace, 1, false, oldImage)
+	failingOldB := kuraPodWithImage(instance.Name, instance.Namespace, 2, false, oldImage)
+	failingNew := kuraPodWithImage(instance.Name, instance.Namespace, 3, false, newImage)
+
+	c := fake.NewClientBuilder().WithScheme(scheme).WithStatusSubresource(&corev1.Pod{}).WithObjects(
+		instance, readyOld, failingOldA, failingOldB, failingNew,
+	).Build()
+	reconciler := &KuraInstanceReconciler{Client: c, Scheme: scheme}
+
+	before := testutil.ToFloat64(kuraNotReadyPodDeletionsTotal.WithLabelValues(instance.Namespace, instance.Name))
+
+	if err := reconciler.rollFailingPodsToDesiredImage(ctx, instance); err != nil {
+		t.Fatal(err)
+	}
+
+	assertPodPresence(t, c, instance.Namespace, readyOld.Name, true,
+		"a Ready pod on the superseded image keeps serving and must not be deleted")
+	assertPodPresence(t, c, instance.Namespace, failingNew.Name, true,
+		"a not-Ready pod already on the desired image must not be thrown back to the start of its bootstrap")
+	assertPodPresence(t, c, instance.Namespace, failingOldA.Name, false,
+		"a not-Ready pod on the superseded image must be deleted so it recreates on the desired image")
+	assertPodPresence(t, c, instance.Namespace, failingOldB.Name, false,
+		"every not-Ready pod on the superseded image must be deleted, not one gated ordinal at a time")
+
+	after := testutil.ToFloat64(kuraNotReadyPodDeletionsTotal.WithLabelValues(instance.Namespace, instance.Name))
+	if delta := after - before; delta != 2 {
+		t.Fatalf("expected 2 proactive not-Ready pod deletions counted, got %v", delta)
+	}
+}
+
+func TestRollFailingPodsToDesiredImageIgnoresEmptyImage(t *testing.T) {
+	ctx := context.Background()
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := kurav1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+
+	instance := &kurav1alpha1.KuraInstance{
+		ObjectMeta: metav1.ObjectMeta{Name: "kura-tuist-eu-central-1", Namespace: "kura"},
+		Spec:       kurav1alpha1.KuraInstanceSpec{AccountHandle: "tuist", TenantID: "tuist", Region: "eu-central"},
+	}
+	failing := kuraPodWithImage(instance.Name, instance.Namespace, 0, false, "ghcr.io/tuist/kura:0.19.0")
+	c := fake.NewClientBuilder().WithScheme(scheme).WithStatusSubresource(&corev1.Pod{}).WithObjects(instance, failing).Build()
+	reconciler := &KuraInstanceReconciler{Client: c, Scheme: scheme}
+
+	if err := reconciler.rollFailingPodsToDesiredImage(ctx, instance); err != nil {
+		t.Fatal(err)
+	}
+
+	assertPodPresence(t, c, instance.Namespace, failing.Name, true,
+		"with no desired image set the controller has no target to roll toward and must not delete pods")
+}
+
+func TestRollFailingPodsToDesiredImageSparesUnreadableImage(t *testing.T) {
+	ctx := context.Background()
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := kurav1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+
+	instance := &kurav1alpha1.KuraInstance{
+		ObjectMeta: metav1.ObjectMeta{Name: "kura-tuist-eu-central-1", Namespace: "kura"},
+		Spec:       kurav1alpha1.KuraInstanceSpec{AccountHandle: "tuist", TenantID: "tuist", Region: "eu-central", Image: "ghcr.io/tuist/kura:0.20.0"},
+	}
+	// kuraPod sets no containers, so podPrimaryImage returns "" — an image we
+	// cannot read. Deleting rests on knowing the pod runs the displaced version,
+	// so it must be spared even while not-Ready.
+	unreadable := kuraPod(instance.Name, instance.Namespace, 0, false)
+	c := fake.NewClientBuilder().WithScheme(scheme).WithStatusSubresource(&corev1.Pod{}).WithObjects(instance, unreadable).Build()
+	reconciler := &KuraInstanceReconciler{Client: c, Scheme: scheme}
+
+	before := testutil.ToFloat64(kuraNotReadyPodDeletionsTotal.WithLabelValues(instance.Namespace, instance.Name))
+
+	if err := reconciler.rollFailingPodsToDesiredImage(ctx, instance); err != nil {
+		t.Fatal(err)
+	}
+
+	assertPodPresence(t, c, instance.Namespace, unreadable.Name, true,
+		"a not-Ready pod whose kura image cannot be read must not be deleted")
+	if delta := testutil.ToFloat64(kuraNotReadyPodDeletionsTotal.WithLabelValues(instance.Namespace, instance.Name)) - before; delta != 0 {
+		t.Fatalf("expected no deletions counted for an unreadable-image pod, got %v", delta)
+	}
+}
+
+func TestRollFailingPodsToDesiredImageSparesTerminatingPod(t *testing.T) {
+	ctx := context.Background()
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := kurav1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+
+	instance := &kurav1alpha1.KuraInstance{
+		ObjectMeta: metav1.ObjectMeta{Name: "kura-tuist-eu-central-1", Namespace: "kura"},
+		Spec:       kurav1alpha1.KuraInstanceSpec{AccountHandle: "tuist", TenantID: "tuist", Region: "eu-central", Image: "ghcr.io/tuist/kura:0.20.0"},
+	}
+	// A not-Ready pod on the superseded image that is already terminating: the
+	// StatefulSet is recreating it, so a second delete is redundant. A finalizer
+	// makes the fake client retain it under a DeletionTimestamp after Delete.
+	terminating := kuraPodWithImage(instance.Name, instance.Namespace, 0, false, "ghcr.io/tuist/kura:0.19.0")
+	terminating.Finalizers = []string{"kura.tuist.dev/test-hold"}
+	c := fake.NewClientBuilder().WithScheme(scheme).WithStatusSubresource(&corev1.Pod{}).WithObjects(instance, terminating).Build()
+	if err := c.Delete(ctx, terminating.DeepCopy()); err != nil {
+		t.Fatalf("seed terminating pod: %v", err)
+	}
+	reconciler := &KuraInstanceReconciler{Client: c, Scheme: scheme}
+
+	before := testutil.ToFloat64(kuraNotReadyPodDeletionsTotal.WithLabelValues(instance.Namespace, instance.Name))
+
+	if err := reconciler.rollFailingPodsToDesiredImage(ctx, instance); err != nil {
+		t.Fatal(err)
+	}
+
+	assertPodPresence(t, c, instance.Namespace, terminating.Name, true,
+		"a pod already terminating must not be deleted again by this path")
+	if delta := testutil.ToFloat64(kuraNotReadyPodDeletionsTotal.WithLabelValues(instance.Namespace, instance.Name)) - before; delta != 0 {
+		t.Fatalf("expected no deletions counted for an already-terminating pod, got %v", delta)
+	}
 }

@@ -367,6 +367,9 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	if err := r.reconcileStatefulSet(ctx, instance); err != nil {
 		return ctrl.Result{}, err
 	}
+	if err := r.rollFailingPodsToDesiredImage(ctx, instance); err != nil {
+		return ctrl.Result{}, err
+	}
 
 	rollout, err := r.rolloutStatus(ctx, instance)
 	if err != nil {
@@ -2263,6 +2266,67 @@ func (r *KuraInstanceReconciler) reconcileStatefulSet(ctx context.Context, insta
 		return err
 	}
 	return r.reconcileDataPersistentVolumeClaims(ctx, instance)
+}
+
+// rollFailingPodsToDesiredImage deletes the instance's not-Ready pods that are
+// still running a superseded image so the StatefulSet recreates them on the
+// desired image. With ParallelPodManagement the recreations start together,
+// instead of the StatefulSet's ordered, readiness-gated update walk delivering
+// the new image one ordinal at a time — and not at all below a pod that stays
+// not-Ready on the old version. This is the difference, on a degraded instance,
+// between every wedged replica jumping to the fixed image at once and the fix
+// crawling behind a bootstrap that may itself be the bug.
+//
+// The scope is deliberately narrow. A not-Ready pod serves no load-balanced
+// traffic (readiness gates routing), so deleting it costs nothing currently
+// being provided; its data PVC persists across the recreation, so only
+// in-memory bootstrap progress on the image being displaced is lost. Ready pods
+// are never touched — they keep serving and roll through the ordinary
+// one-at-a-time readiness-gated walk. Pods already on the desired image are left
+// alone even while they bootstrap, so a pod making progress on the fix is not
+// thrown back to the start, and a fix that is itself broken does not thrash.
+func (r *KuraInstanceReconciler) rollFailingPodsToDesiredImage(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
+	if instance.Spec.Image == "" {
+		return nil
+	}
+	pods := &corev1.PodList{}
+	if err := r.List(ctx, pods, client.InNamespace(instance.Namespace), client.MatchingLabels(selectorLabels(instance))); err != nil {
+		return err
+	}
+	logger := log.FromContext(ctx)
+	for i := range pods.Items {
+		pod := &pods.Items[i]
+		image := podPrimaryImage(pod)
+		// Only delete a pod we can positively see is on a *different* image than
+		// desired. A pod whose kura image is unreadable (empty) is left alone: the
+		// safety argument for deleting rests on knowing the pod is running the
+		// version the fix displaces, so an image we cannot read is never grounds to
+		// throw away a pod's bootstrap progress.
+		if pod.DeletionTimestamp != nil || podReady(pod) || image == "" || image == instance.Spec.Image {
+			continue
+		}
+		if err := r.Delete(ctx, pod); err != nil {
+			if apierrors.IsNotFound(err) {
+				continue
+			}
+			return err
+		}
+		kuraNotReadyPodDeletionsTotal.WithLabelValues(instance.Namespace, instance.Name).Inc()
+		logger.Info("deleted not-Ready Kura pod on image change so it rolls to the desired image in parallel",
+			"pod", pod.Name, "podImage", image, "desiredImage", instance.Spec.Image)
+	}
+	return nil
+}
+
+// podPrimaryImage returns the image of the pod's kura container, the one whose
+// tag the rollout advances, or empty when the container is absent.
+func podPrimaryImage(pod *corev1.Pod) string {
+	for _, container := range pod.Spec.Containers {
+		if container.Name == "kura" {
+			return container.Image
+		}
+	}
+	return ""
 }
 
 func (r *KuraInstanceReconciler) reconcileDataPersistentVolumeClaims(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
