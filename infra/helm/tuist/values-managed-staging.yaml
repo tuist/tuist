@@ -481,17 +481,14 @@ macosFleet:
   # Staging is the proving ground for the cache volume: it carries the
   # fail-safe guest (a share it cannot write is abandoned for a local cold
   # cache instead of failing the job) plus cache_diag, so a bad share costs
-  # warmth and names itself in the runner log. Canary/production stay at 0
-  # until a real CI job is verified green here — host-side checks (volume
-  # provisioned, config converged) are NOT evidence; trusting them is what
-  # broke every macOS job in production on 2026-07-16.
+  # warmth and names itself in the runner log — the guard that was missing
+  # when host-side checks alone (volume provisioned, config converged) let a
+  # broken share reach prod and break every macOS job on 2026-07-16.
   runnerCacheVolume:
     gib: 40
     # Fold the Xcode compilation cache (CAS) into the per-account image and
     # give it 8 of the master's 20 GiB (binary cache keeps ~10, reserve ~2).
-    # Staging-only for the same reason as the volume itself: prove the folded
-    # path green on a real CI job here before canary/production leave 0. The
-    # guest is fail-safe (an unusable store falls back to a VM-local cold
+    # The guest is fail-safe (an unusable store falls back to a VM-local cold
     # compilation cache, never fails the job), so a bad budget costs warmth,
     # not the build.
     casGib: 8
