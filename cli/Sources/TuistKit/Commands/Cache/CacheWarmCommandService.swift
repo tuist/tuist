@@ -257,7 +257,8 @@ import XcodeGraph
                 .filter { !($0.buildAction?.targets ?? []).isEmpty }
                 .map { (scheme: $0, cacheOutputType: CacheOutputType.xcframework) }
 
-            try await fileSystem.runInTemporaryDirectory(prefix: "CacheWarm") { temporaryDirectory in
+            let temporaryDirectory = try await fileSystem.makeTemporaryDirectory(prefix: "CacheWarm")
+            do {
                 var artifactsToStore: [CacheGraphTargetBuiltArtifact] = []
 
                 let derivedDataPath = temporaryDirectory.appending(component: "derived-data")
@@ -340,6 +341,43 @@ import XcodeGraph
                     Logger.current.info("\(successfullyStoredTargets.count) target stored: \(targetsStored)")
                 } else {
                     Logger.current.info("\(successfullyStoredTargets.count) targets stored: \(targetsStored)")
+                }
+            } catch {
+                await cleanUpCacheWarmDirectory(temporaryDirectory)
+                throw error
+            }
+
+            await cleanUpCacheWarmDirectory(temporaryDirectory)
+        }
+
+        /// Removes the throwaway cache-warm directory, tolerating a cleanup failure so it can never fail an
+        /// otherwise-successful run.
+        ///
+        /// The build writes Xcode's compilation cache into `derived-data/CompilationCache.noindex`, whose
+        /// spool the machine-wide CAS proxy drains asynchronously; it can create spool entries there
+        /// concurrently with this teardown. Removing that subtree first, with a short retry, keeps a lost
+        /// race (the directory repopulated between enumeration and `rmdir`, surfaced as "Directory not
+        /// empty") from aborting the command after the cache has already been stored.
+        private func cleanUpCacheWarmDirectory(_ temporaryDirectory: AbsolutePath) async {
+            let compilationCachePath = temporaryDirectory
+                .appending(components: ["derived-data", "CompilationCache.noindex"])
+            await bestEffortRemove(compilationCachePath)
+            await bestEffortRemove(temporaryDirectory)
+        }
+
+        private func bestEffortRemove(_ path: AbsolutePath, attempts: Int = 3) async {
+            for attempt in 1 ... attempts {
+                do {
+                    try await fileSystem.remove(path)
+                    return
+                } catch {
+                    if attempt == attempts {
+                        Logger.current.debug(
+                            "Best-effort cleanup of \(path.pathString) failed after \(attempts) attempts: \(error)"
+                        )
+                    } else {
+                        try? await Task.sleep(for: .milliseconds(200))
+                    }
                 }
             }
         }

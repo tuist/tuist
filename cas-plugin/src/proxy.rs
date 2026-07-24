@@ -2269,9 +2269,21 @@ impl Proxy {
             let last = Duration::from_millis(state.last_used.load(Ordering::Relaxed));
             let idle = now.saturating_sub(last);
             let cas_dir_gone = std::fs::symlink_metadata(&cas_path).is_err();
-            if should_reclaim(idle, cas_dir_gone) {
-                state.invalidate();
-                state.publish_cache.lock().unwrap().clear();
+            if !should_reclaim(idle, cas_dir_gone) {
+                continue;
+            }
+            state.invalidate();
+            state.publish_cache.lock().unwrap().clear();
+            // A CAS whose on-disk directory is gone never comes back: the path is a one-shot
+            // throwaway (e.g. `tuist cache`'s temp derived-data, a deleted worktree). Forget it
+            // entirely rather than retain the shell, so we stop sweeping a vanished spool and
+            // stop persisting a registry entry per run, which would otherwise grow without bound.
+            if cas_dir_gone {
+                self.paths.lock().unwrap().remove(&cas_path);
+                let mut map = self.path_instance.lock().unwrap();
+                if map.remove(&cas_path).is_some() {
+                    self.persist_registry(&map);
+                }
             }
         }
     }
@@ -2319,6 +2331,12 @@ impl Proxy {
     pub fn sweep(&self) {
         let paths: Vec<String> = self.paths.lock().unwrap().keys().cloned().collect();
         for cas_path in paths {
+            // A path whose on-disk CAS is gone (its build's throwaway dir was removed) has no
+            // spool to drain, and claiming records back into a directory mid-teardown is what
+            // races the remover into an ENOTEMPTY failure. Skip it; reclaim_idle forgets it.
+            if std::fs::symlink_metadata(&cas_path).is_err() {
+                continue;
+            }
             let Some(instance) = self.path_instance.lock().unwrap().get(&cas_path).cloned() else {
                 continue;
             };
