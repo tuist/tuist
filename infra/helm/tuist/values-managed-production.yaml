@@ -595,13 +595,15 @@ macosFleet:
   # and xattrs intact.
   runnerCacheVolume:
     gib: 80
-    # Fold the Xcode compilation cache (CAS) into the per-account image and
-    # give it 8 of the master's 20 GiB (binary cache keeps ~10, reserve ~2).
-    # A typical binary master is ~2.4 GB, so a 10 GiB binary budget still holds
-    # ~4x headroom while the CAS rides the same clone/promote/converge path.
-    # The guest is fail-safe: a store it cannot write falls back to a VM-local
-    # cold compilation cache, so a bad budget costs warmth, not the job.
-    casGib: 8
+    # Fold the Xcode compilation cache (CAS) into the per-account image.
+    # masterCapGib 28 is the sparse per-master ceiling; of it the CAS gets
+    # 16 GiB, the binary cache ~10, and a ~2 GiB reserve stays free. A typical
+    # binary master is ~2.4 GB, so a 10 GiB binary budget still holds ~4x
+    # headroom while the CAS rides the same clone/promote/converge path. The
+    # guest is fail-safe: a store it cannot write falls back to a VM-local cold
+    # compilation cache, so a bad budget costs warmth, not the job.
+    masterCapGib: 28
+    casGib: 16
   # Production tailnet — alloy-metrics scrapes PromEx (xcresult VM)
   # + node_exporter (host) over the tailnet. The pre-auth key lives
   # in the production 1Password vault under TAILSCALE/auth-key.

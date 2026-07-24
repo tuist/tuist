@@ -404,20 +404,22 @@ macosFleet:
   # Per-account cache volumes. The quota is an APFS ceiling (shares the
   # container's free space, not a reservation) fenced by admission +
   # watermark eviction, so space pressure degrades a job to the cold
-  # path rather than risking ENOSPC. A real Tuist cache master is ~2.4 GB
-  # (the 20 GiB masterCapGib is a sparse per-master ceiling), so 40 GiB
-  # holds ~16 masters — ample for canary's single replica.
+  # path rather than risking ENOSPC. With the CAS folded in, a master's
+  # sparse ceiling is masterCapGib (28 GiB); it only bills the quota for
+  # what it actually holds, and the evictor drops whole masters LRU as the
+  # 80 GiB quota fills — ample for canary's single replica.
   # The 2026-07-16 incident (the guest exported TUIST_XDG_CACHE_HOME at a
   # virtio-fs share it could not create dirs on, so the CLI died on its
   # first cache write) was fixed by the disk-image redesign (#11908) — the
   # cache is now a block-device APFS image, and the guest abandons an
   # unwritable share for a local cold cache instead of exporting a broken
   # root. Production has run on that path (gib: 80) since; canary tracks it
-  # here, with the Xcode compilation cache (CAS) folded in — 8 of the
-  # master's 20 GiB, binary cache ~10, reserve ~2.
+  # here, with the Xcode compilation cache (CAS) folded in — masterCapGib 28
+  # gives the CAS 16 GiB, the binary cache ~10, and a ~2 GiB reserve.
   runnerCacheVolume:
     gib: 80
-    casGib: 8
+    masterCapGib: 28
+    casGib: 16
   # Canary runs on the production tailnet (single shared tailnet
   # across canary + production — same Grafana, same admin console).
   # Staging has its own tailnet so a leaked staging key can't add

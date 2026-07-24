@@ -486,12 +486,14 @@ macosFleet:
   # broken share reach prod and break every macOS job on 2026-07-16.
   runnerCacheVolume:
     gib: 40
-    # Fold the Xcode compilation cache (CAS) into the per-account image and
-    # give it 8 of the master's 20 GiB (binary cache keeps ~10, reserve ~2).
-    # The guest is fail-safe (an unusable store falls back to a VM-local cold
-    # compilation cache, never fails the job), so a bad budget costs warmth,
-    # not the build.
-    casGib: 8
+    # Fold the Xcode compilation cache (CAS) into the per-account image.
+    # masterCapGib 28 is the sparse per-master ceiling; of it the CAS gets
+    # 16 GiB, the binary cache ~10, and a ~2 GiB reserve stays free (the
+    # split cacheImageSplit(28, 16) pins). The guest is fail-safe (an
+    # unusable store falls back to a VM-local cold compilation cache, never
+    # fails the job), so a bad budget costs warmth, not the build.
+    masterCapGib: 28
+    casGib: 16
   # Share the pre-ordered pool with runnersFleet (same prefix
   # below). Both MachineDeployments draw from one Scaleway-side
   # pool of `tuist-pool-*` hosts; the controller claims the first
