@@ -477,6 +477,8 @@ seed_account_token.(organization_account, "organization-projects-ci",
   project_ids: [tuist_project.id, android_project.id]
 )
 
+Code.eval_file(Path.join(__DIR__, "automation_history_seeds.exs"))
+
 IO.puts("Generating #{seed_config.build_runs} build runs in parallel...")
 
 org_account_id = organization.account.id

@@ -32,6 +32,21 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
       assert html =~ automation.id
     end
 
+    test "links each automation to its detail page", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      automation = AutomationsFixtures.automation_alert_fixture(project: project, name: "Auto-quarantine")
+
+      {:ok, live_view, _html} = open(conn, organization, project)
+
+      assert has_element?(
+               live_view,
+               "a[href='/#{organization.account.name}/#{project.name}/settings/automations/#{automation.id}']"
+             )
+    end
+
     test "does not let a regular project member forge automation mutations", %{
       organization: organization,
       project: project

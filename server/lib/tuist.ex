@@ -135,6 +135,7 @@ defmodule Tuist do
       Alerts.Workers.AlertWorker,
       Automations,
       Automations.Alerts.Alert,
+      Automations.Alerts.Revision,
       Webhooks,
       Webhooks.Dispatcher,
       Webhooks.Signature,

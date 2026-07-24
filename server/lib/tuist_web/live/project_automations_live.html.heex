@@ -885,6 +885,11 @@
         id="automations-table"
         rows={@automations}
         row_key={fn a -> a.id end}
+        row_navigate={
+          fn automation ->
+            ~p"/#{@selected_account.name}/#{@selected_project.name}/settings/automations/#{automation.id}"
+          end
+        }
       >
         <:col :let={automation} label={dgettext("dashboard_projects", "Name")}>
           <.text_cell label={automation.name} />
@@ -893,8 +898,21 @@
           <.text_cell label={automation_summary(automation)} />
         </:col>
         <:col :let={automation} label="">
-          <.button_cell :if={@can_manage_automations}>
+          <.button_cell>
             <:button>
+              <.button
+                icon_only
+                size="small"
+                variant="secondary"
+                aria-label={dgettext("dashboard_projects", "View automation details")}
+                navigate={
+                  ~p"/#{@selected_account.name}/#{@selected_project.name}/settings/automations/#{automation.id}"
+                }
+              >
+                <.icon name="arrow_right" />
+              </.button>
+            </:button>
+            <:button :if={@can_manage_automations}>
               <.button
                 icon_only
                 size="small"
@@ -905,7 +923,7 @@
                 <.icon name="pencil" />
               </.button>
             </:button>
-            <:button>
+            <:button :if={@can_manage_automations}>
               <.button
                 icon_only
                 size="small"

@@ -2,9 +2,11 @@ defmodule Tuist.Automations do
   @moduledoc false
   import Ecto.Query
 
+  alias Ecto.Multi
   alias Tuist.Automations.ActionExecutor
   alias Tuist.Automations.Alerts.Alert
   alias Tuist.Automations.Alerts.Event, as: AlertEvent
+  alias Tuist.Automations.Alerts.Revision
   alias Tuist.Automations.Workers.AlertEvaluationWorker
   alias Tuist.ClickHouseRepo
   alias Tuist.Environment
@@ -27,6 +29,17 @@ defmodule Tuist.Automations do
   # project-wide identifier set as one scan.
   @max_scoped_evaluation_range_size 2000
   @minimum_scoped_evaluation_ranges 4
+  @revision_fields ~w(
+    name
+    enabled
+    monitor_type
+    trigger_config
+    cadence
+    trigger_actions
+    recovery_enabled
+    recovery_config
+    recovery_actions
+  )a
 
   def list_alerts(project_id) do
     Alert
@@ -42,10 +55,22 @@ defmodule Tuist.Automations do
     end
   end
 
-  def create_alert(attrs) do
-    %Alert{}
-    |> Alert.changeset(attrs)
-    |> Repo.insert()
+  def list_alert_revisions(alert_id) do
+    Revision
+    |> where(automation_alert_id: ^alert_id)
+    |> order_by(desc: :inserted_at, desc: :id)
+    |> preload(actor: :account)
+    |> Repo.all()
+  end
+
+  def create_alert(attrs, opts \\ []) do
+    Multi.new()
+    |> Multi.insert(:alert, Alert.changeset(%Alert{}, attrs))
+    |> Multi.run(:revision, fn repo, %{alert: alert} ->
+      insert_alert_revision(repo, nil, alert, "created", opts)
+    end)
+    |> Repo.transaction()
+    |> unwrap_alert_transaction()
   end
 
   @doc """
@@ -68,13 +93,75 @@ defmodule Tuist.Automations do
     }
   end
 
-  def update_alert(%Alert{} = alert, attrs) do
+  def update_alert(%Alert{} = alert, attrs, opts \\ []) do
     attrs = maybe_reset_baseline(alert, attrs)
 
-    alert
-    |> Alert.changeset(attrs)
-    |> Repo.update()
+    Multi.new()
+    |> Multi.update(:alert, Alert.changeset(alert, attrs))
+    |> Multi.run(:revision, fn repo, %{alert: updated_alert} ->
+      insert_alert_revision(repo, alert, updated_alert, "updated", opts)
+    end)
+    |> Repo.transaction()
+    |> unwrap_alert_transaction()
   end
+
+  defp unwrap_alert_transaction({:ok, %{alert: alert}}), do: {:ok, alert}
+  defp unwrap_alert_transaction({:error, _operation, reason, _changes}), do: {:error, reason}
+
+  defp insert_alert_revision(repo, previous_alert, alert, event, opts) do
+    changes = alert_revision_changes(previous_alert, alert)
+
+    if event == "updated" and changes == %{} do
+      {:ok, nil}
+    else
+      attrs = %{
+        automation_alert_id: alert.id,
+        actor_id: alert_revision_actor_id(opts),
+        event: event,
+        source: Keyword.get(opts, :source, "system"),
+        changes: changes,
+        snapshot: alert_revision_snapshot(alert)
+      }
+
+      %Revision{}
+      |> Revision.changeset(attrs)
+      |> repo.insert()
+    end
+  end
+
+  defp alert_revision_actor_id(opts) do
+    case Keyword.get(opts, :actor) do
+      %{id: id} -> id
+      _ -> Keyword.get(opts, :actor_id)
+    end
+  end
+
+  defp alert_revision_changes(nil, _alert), do: %{}
+
+  defp alert_revision_changes(previous_alert, alert) do
+    Enum.reduce(@revision_fields, %{}, fn field, changes ->
+      previous_value = revision_value(field, Map.fetch!(previous_alert, field))
+      current_value = revision_value(field, Map.fetch!(alert, field))
+
+      if previous_value == current_value do
+        changes
+      else
+        Map.put(changes, Atom.to_string(field), %{"from" => previous_value, "to" => current_value})
+      end
+    end)
+  end
+
+  defp alert_revision_snapshot(alert) do
+    Map.new(@revision_fields, fn field ->
+      {Atom.to_string(field), revision_value(field, Map.fetch!(alert, field))}
+    end)
+  end
+
+  defp revision_value(field, actions) when field in [:trigger_actions, :recovery_actions] do
+    Enum.map(actions, &Map.delete(&1, "webhook_url_encrypted"))
+  end
+
+  defp revision_value(_field, value), do: value
 
   defp maybe_reset_baseline(alert, attrs) do
     if monitor_definition_changed?(alert, attrs) do
