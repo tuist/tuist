@@ -5334,7 +5334,7 @@ end
         };
 
         // First upload stores both blobs; the second finds both already present
-        // (IgnoredStale) and must not bill them again.
+        // and must not bill them again.
         service
             .batch_update_blobs(build_update())
             .await

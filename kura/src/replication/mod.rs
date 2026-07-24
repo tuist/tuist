@@ -728,8 +728,11 @@ async fn bootstrap_artifact_from_peer(
         .send()
         .await
         .map_err(|error| format!("bootstrap artifact request failed: {error:?}"))?;
+    // The peer advertised this artifact in a manifest page but no longer serves
+    // the body (e.g. it evicted the segment between the two round trips). Not a
+    // version comparison, so it must not be reported as version skew.
     if response.status() == reqwest::StatusCode::NOT_FOUND {
-        return Ok(ArtifactApplyOutcome::IgnoredStale);
+        return Ok(ArtifactApplyOutcome::IgnoredMissing);
     }
     let response = response
         .error_for_status()
@@ -2331,6 +2334,35 @@ mod tests {
             .await
             .expect("artifact bytes should read");
         assert_eq!(bytes, b"local-v2");
+    }
+
+    #[tokio::test]
+    async fn bootstrap_reports_missing_when_peer_no_longer_serves_the_body() {
+        let remote = test_context(|_| {}).await;
+        let mut manifest = remote
+            .state
+            .store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "ios",
+                "artifact",
+                "application/octet-stream",
+                b"remote-v1",
+            )
+            .await
+            .expect("remote artifact should persist");
+        let (remote_url, _server) = spawn_server(router(remote.state.clone())).await;
+
+        // Advertise an artifact the peer does not serve, as when it evicts the
+        // segment between the manifest page and the body fetch.
+        manifest.artifact_id = format!("{}-gone", manifest.artifact_id);
+        manifest.key = "artifact-gone".to_string();
+
+        let local = test_context(|_| {}).await;
+        let outcome = bootstrap_artifact_from_peer(&local.state, &remote_url, &manifest)
+            .await
+            .expect("bootstrap should complete");
+        assert_eq!(outcome, ArtifactApplyOutcome::IgnoredMissing);
     }
 
     #[tokio::test]
