@@ -5,7 +5,6 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitorTest do
   alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
   alias Tuist.Tests
-  alias Tuist.Tests.TestCaseRun
   alias TuistTestSupport.Fixtures.AutomationsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
@@ -651,39 +650,8 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitorTest do
       refute excluded_id in triggered
     end
 
-    test "uses the 250-run aggregate for a 247-run window" do
+    test "rejects rolling windows that require a retired aggregate" do
       project = ProjectsFixtures.project_fixture()
-
-      {:ok, _run} =
-        RunsFixtures.test_fixture(
-          project_id: project.id,
-          test_modules: [
-            %{
-              name: "M",
-              status: "success",
-              duration: 1000,
-              test_cases: [%{name: "tc", status: "success", duration: 100}]
-            }
-          ]
-        )
-
-      {[test_case], _meta} = Tests.list_test_cases(project.id, %{})
-      base = NaiveDateTime.utc_now()
-
-      insert_test_case_runs([
-        test_case_run_attrs(project.id, test_case.id,
-          is_flaky: true,
-          ran_at: NaiveDateTime.add(base, -1, :hour),
-          inserted_at: NaiveDateTime.add(base, -1, :hour)
-        )
-        | for i <- 1..245 do
-            test_case_run_attrs(project.id, test_case.id,
-              is_flaky: false,
-              ran_at: NaiveDateTime.add(base, i, :second),
-              inserted_at: NaiveDateTime.add(base, i, :second)
-            )
-          end
-      ])
 
       alert =
         AutomationsFixtures.automation_alert_fixture(
@@ -692,61 +660,18 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitorTest do
           trigger_config: %{
             "threshold" => 1,
             "window_type" => "rolling",
-            "rolling_window_size" => 247,
+            "rolling_window_size" => 75,
             "comparison" => "gte"
           }
         )
 
-      assert test_case.id in FlakyTestsMonitor.evaluate_by_run_count(alert).triggered
-    end
+      legacy_alert = put_in(alert.trigger_config["rolling_window_size"], 100)
 
-    test "uses the 1000-run aggregate above the recent-runs bucket cap" do
-      project = ProjectsFixtures.project_fixture()
-
-      {:ok, _run} =
-        RunsFixtures.test_fixture(
-          project_id: project.id,
-          test_modules: [
-            %{
-              name: "M",
-              status: "success",
-              duration: 1000,
-              test_cases: [%{name: "tc", status: "success", duration: 100}]
-            }
-          ]
-        )
-
-      {[test_case], _meta} = Tests.list_test_cases(project.id, %{})
-      base = NaiveDateTime.utc_now()
-
-      insert_test_case_runs([
-        test_case_run_attrs(project.id, test_case.id,
-          is_flaky: true,
-          ran_at: NaiveDateTime.add(base, -1, :hour),
-          inserted_at: NaiveDateTime.add(base, -1, :hour)
-        )
-        | for i <- 1..749 do
-            test_case_run_attrs(project.id, test_case.id,
-              is_flaky: false,
-              ran_at: NaiveDateTime.add(base, i, :second),
-              inserted_at: NaiveDateTime.add(base, i, :second)
-            )
-          end
-      ])
-
-      alert =
-        AutomationsFixtures.automation_alert_fixture(
-          project: project,
-          monitor_type: "flaky_run_count",
-          trigger_config: %{
-            "threshold" => 1,
-            "window_type" => "rolling",
-            "rolling_window_size" => 751,
-            "comparison" => "gte"
-          }
-        )
-
-      assert test_case.id in FlakyTestsMonitor.evaluate_by_run_count(alert).triggered
+      assert_raise ArgumentError,
+                   "rolling trigger windows must be at most 99 while aggregate storage is being replaced",
+                   fn ->
+                     FlakyTestsMonitor.evaluate_by_run_count(legacy_alert)
+                   end
     end
 
     test "ignores runs outside the rolling window" do
@@ -854,88 +779,6 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitorTest do
 
       assert %{triggered: triggered} = FlakyTestsMonitor.evaluate_by_reliability_rate(alert)
       assert test_case_id in triggered
-    end
-
-    test "reads a mid-size bucket and ignores runs older than the window" do
-      project = ProjectsFixtures.project_fixture()
-      test_case_id = UUIDv7.generate()
-      RunsFixtures.test_case_fixture(project_id: project.id, id: test_case_id, name: "rolling_mid_bucket")
-
-      base = NaiveDateTime.utc_now()
-
-      # Older history is all failures; a 247-run window routes to the 250-run
-      # bucket and must see only the recent successes, so reliability is 100%
-      # and the alert (unreliable when < 90%) does not fire. Reading the full
-      # history instead would drop it to ~45% and wrongly trigger.
-      old_failures =
-        for i <- 1..300 do
-          test_case_run_attrs(project.id, test_case_id,
-            status: 1,
-            ran_at: NaiveDateTime.add(base, -10_000 - i, :second),
-            inserted_at: NaiveDateTime.add(base, -10_000 - i, :second)
-          )
-        end
-
-      recent_successes =
-        for i <- 1..247 do
-          test_case_run_attrs(project.id, test_case_id,
-            status: 0,
-            ran_at: NaiveDateTime.add(base, i, :second),
-            inserted_at: NaiveDateTime.add(base, i, :second)
-          )
-        end
-
-      insert_test_case_runs(old_failures ++ recent_successes)
-
-      alert =
-        AutomationsFixtures.automation_alert_fixture(
-          project: project,
-          monitor_type: "reliability_rate",
-          trigger_config: %{
-            "threshold" => 90,
-            "window_type" => "rolling",
-            "rolling_window_size" => 247,
-            "comparison" => "lt"
-          }
-        )
-
-      refute test_case_id in FlakyTestsMonitor.evaluate_by_reliability_rate(alert).triggered
-    end
-
-    test "falls back to the 1000-run aggregate above the bucket cap" do
-      project = ProjectsFixtures.project_fixture()
-      test_case_id = UUIDv7.generate()
-      RunsFixtures.test_case_fixture(project_id: project.id, id: test_case_id, name: "rolling_above_cap")
-
-      base = NaiveDateTime.utc_now()
-
-      # A 751-run window is above the largest bucket (750), so evaluation reads
-      # the full `recent_successful_runs` aggregate. All-failure runs give 0%
-      # reliability, which trips the < 90% threshold.
-      failures =
-        for i <- 1..750 do
-          test_case_run_attrs(project.id, test_case_id,
-            status: 1,
-            ran_at: NaiveDateTime.add(base, i, :second),
-            inserted_at: NaiveDateTime.add(base, i, :second)
-          )
-        end
-
-      insert_test_case_runs(failures)
-
-      alert =
-        AutomationsFixtures.automation_alert_fixture(
-          project: project,
-          monitor_type: "reliability_rate",
-          trigger_config: %{
-            "threshold" => 90,
-            "window_type" => "rolling",
-            "rolling_window_size" => 751,
-            "comparison" => "lt"
-          }
-        )
-
-      assert test_case_id in FlakyTestsMonitor.evaluate_by_reliability_rate(alert).triggered
     end
   end
 
@@ -1045,54 +888,6 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitorTest do
       # 7/10 = 70% and wrongly skips a healthy test.
       refute test_case_id in FlakyTestsMonitor.evaluate_by_reliability_rate(alert).triggered
     end
-
-    test "reads a bucket larger than the window so duplication cannot shrink it below the window" do
-      project = ProjectsFixtures.project_fixture()
-      test_case_id = UUIDv7.generate()
-      RunsFixtures.test_case_fixture(project_id: project.id, id: test_case_id, name: "boundary")
-
-      base = NaiveDateTime.utc_now()
-
-      stable_rows =
-        for i <- 1..100 do
-          ran_at = NaiveDateTime.add(base, -i, :second)
-          test_case_run_attrs(project.id, test_case_id, is_flaky: false, ran_at: ran_at, inserted_at: ran_at)
-        end
-
-      # One flaky run re-marked far more times than production ever would, so
-      # the effect is observable at the size-100 bucket boundary. A size-100
-      # source would be filled entirely by these copies and evict every stable
-      # run; reading the next bucket up keeps them, so de-dup still recovers the
-      # 100 distinct runs.
-      flaky_run_id = UUIDv7.generate()
-
-      flaky_rows =
-        for _ <- 1..101 do
-          %{
-            test_case_run_attrs(project.id, test_case_id, is_flaky: true, ran_at: base, inserted_at: base)
-            | id: flaky_run_id
-          }
-        end
-
-      insert_test_case_runs(stable_rows ++ flaky_rows)
-
-      alert =
-        AutomationsFixtures.automation_alert_fixture(
-          project: project,
-          monitor_type: "flakiness_rate",
-          trigger_config: %{
-            "threshold" => 50,
-            "window_type" => "rolling",
-            "rolling_window_size" => 100,
-            "comparison" => "gte"
-          }
-        )
-
-      # True flakiness is 1/101 ≈ 1%. Only if the window collapsed onto the
-      # duplicate copies of the single flaky run (a source no larger than the
-      # window) would it read as 100% and fire.
-      refute test_case_id in FlakyTestsMonitor.evaluate(alert).triggered
-    end
   end
 
   # One flaky run (most recent), re-inserted the way flaky detection does: the
@@ -1127,7 +922,6 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitorTest do
       )
     end
   end
-
   defp insert_test_case_runs(rows) do
     IngestRepo.insert_all(TestCaseRun, rows)
   end
