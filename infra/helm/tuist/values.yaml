@@ -167,6 +167,13 @@ kuraRuntime:
   image:
     repository: ghcr.io/tuist/kura
     tag: ""
+  rollout:
+    # Image tag the deploy explicitly asks to expedite (all-at-once
+    # fan-out at rollout creation, for rollbacks to a tag that already
+    # completed a rollout in the environment). Set per deploy via the
+    # workflow's kura_expedite input — never committed — and matched
+    # against exactly this tag so it cannot leak onto a later rollout.
+    expediteTag: ""
   # An optional per-release KuraInstance, rendered into `instance.namespace`
   # (the cluster-wide namespace the controller watches). Off by default:
   # managed environments provision Kura through the server's reconciler, which

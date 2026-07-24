@@ -87,6 +87,41 @@ defmodule Tuist.Kura.Usage do
   end
 
   @doc """
+  Total deduped request count per account over the trailing `days`
+  window, for every account in `account_ids`. Used by
+  `Tuist.Kura.Rollouts` to order accounts into waves by recent usage
+  ascending; accounts with no usage are absent from the result and read
+  as zero.
+  """
+  def recent_request_counts_by_account(account_ids, days \\ 7)
+
+  def recent_request_counts_by_account([], _days), do: %{}
+
+  def recent_request_counts_by_account(account_ids, days) when is_list(account_ids) do
+    cutoff =
+      NaiveDateTime.utc_now()
+      |> NaiveDateTime.add(-days * 86_400, :second)
+      |> NaiveDateTime.truncate(:second)
+
+    deduped =
+      from(e in UsageEvent,
+        where: e.account_id in ^account_ids and e.window_start >= ^cutoff,
+        group_by: [e.account_id, e.event_id],
+        select: %{
+          account_id: e.account_id,
+          request_count: fragment("argMax(?, ?)", e.request_count, e.inserted_at)
+        }
+      )
+
+    from(e in subquery(deduped),
+      group_by: e.account_id,
+      select: {e.account_id, fragment("sum(?)", e.request_count)}
+    )
+    |> ClickHouseRepo.all()
+    |> Map.new(fn {account_id, count} -> {account_id, zeroed(count)} end)
+  end
+
+  @doc """
   Totals broken down by direction (egress + ingress) for an account in
   `[start_dt, end_dt]`, plus a trend (% change) versus the equivalent
   previous window so the dashboard widgets can show "since last week" /

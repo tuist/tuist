@@ -267,15 +267,19 @@ defmodule Tuist.KuraTest do
 
       {101, nil} = Repo.insert_all(Server, server_rows)
 
+      # Interim pacing (spec #79 phase 2): bounded batches per call. The
+      # wait-for-open-deployments pacing between batches lives in
+      # schedule_runtime_image_deployments/0; calling the version
+      # scheduler directly moves on to the next batch.
       assert {:ok, %{scheduled: first_batch, failures: []}} =
                Kura.schedule_version_deployments("0.5.3")
 
-      assert length(first_batch) == 100
+      assert length(first_batch) == 25
 
       assert {:ok, %{scheduled: second_batch, failures: []}} =
                Kura.schedule_version_deployments("0.5.3")
 
-      assert length(second_batch) == 1
+      assert length(second_batch) == 25
     end
   end
 

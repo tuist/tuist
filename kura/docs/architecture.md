@@ -187,6 +187,8 @@ The pieces:
 
 The rollout gate explicitly assumes only that it can fetch `/status/rollout` from each node. It does not depend on Kubernetes probes or Prometheus.
 
+Beyond the signals the standalone gate consumes, `/status/rollout` also reports `peer_connection_failure_count` — peer-plane request failures (outbox replication deliveries and bootstrap runs that errored against a peer). The managed fleet's control plane consumes it, together with `fd_timeout_count`, as a regression signal for its health-gated progressive rollout ([spec #79](https://hive.tuist.dev/specs/79)); the standalone gate keeps its existing conditions.
+
 ## Observability
 
 Each node exposes:

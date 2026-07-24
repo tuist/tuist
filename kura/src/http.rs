@@ -1090,6 +1090,7 @@ async fn rollout_status(State(state): State<SharedState>) -> impl IntoResponse {
         "outbox_messages": status.outbox_messages,
         "memory_pressure_state": status.memory_pressure_state,
         "fd_timeout_count": status.fd_timeout_count,
+        "peer_connection_failure_count": status.peer_connection_failure_count,
     }))
 }
 
@@ -3056,6 +3057,12 @@ mod tests {
             .state
             .metrics
             .record_file_descriptor_wait("timeout", Duration::from_millis(5));
+        context.state.metrics.record_replication(
+            &peer,
+            "upsert_artifact",
+            "error",
+            Duration::from_millis(3),
+        );
         context.state.enter_draining();
 
         let response = public_router(context.state.clone())
@@ -3080,6 +3087,7 @@ mod tests {
         assert_eq!(body["outbox_messages"], 7);
         assert_eq!(body["memory_pressure_state"], 0);
         assert_eq!(body["fd_timeout_count"], 1);
+        assert_eq!(body["peer_connection_failure_count"], 1);
     }
 
     #[tokio::test]

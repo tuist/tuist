@@ -119,6 +119,9 @@ func (in *KuraInstanceStatus) DeepCopyInto(out *KuraInstanceStatus) {
 	if in.LastReconciledAt != nil {
 		out.LastReconciledAt = in.LastReconciledAt.DeepCopy()
 	}
+	if in.RolloutHealth != nil {
+		out.RolloutHealth = in.RolloutHealth.DeepCopy()
+	}
 }
 
 func (in *KuraInstanceStatus) DeepCopy() *KuraInstanceStatus {
@@ -126,6 +129,22 @@ func (in *KuraInstanceStatus) DeepCopy() *KuraInstanceStatus {
 		return nil
 	}
 	out := new(KuraInstanceStatus)
+	in.DeepCopyInto(out)
+	return out
+}
+
+func (in *KuraInstanceRolloutHealth) DeepCopyInto(out *KuraInstanceRolloutHealth) {
+	*out = *in
+	if in.SampledAt != nil {
+		out.SampledAt = in.SampledAt.DeepCopy()
+	}
+}
+
+func (in *KuraInstanceRolloutHealth) DeepCopy() *KuraInstanceRolloutHealth {
+	if in == nil {
+		return nil
+	}
+	out := new(KuraInstanceRolloutHealth)
 	in.DeepCopyInto(out)
 	return out
 }

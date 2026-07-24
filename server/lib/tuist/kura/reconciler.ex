@@ -85,12 +85,24 @@ defmodule Tuist.Kura.Reconciler do
     # provisioning/observation path within the same tick.
     RunnerCache.reconcile()
 
-    schedule_runtime_image_deployments()
+    schedule_runtime_rollout()
     reconcile_retired_region_servers()
     reconcile_destroying_servers()
     reconcile_moving_out_servers()
     handled = reconcile_deployments()
     reconcile_observed_servers(handled)
+  end
+
+  # Version scheduling has two paths (spec #79): the rollout
+  # orchestration — durable rollout records, account-grouped waves with
+  # the health gate in production, expedited fan-out elsewhere — and the
+  # interim-paced scheduler as the flag-off fallback and rollback path.
+  defp schedule_runtime_rollout do
+    if Tuist.FeatureFlags.kura_rollout_orchestration_enabled?() do
+      Tuist.Kura.Rollouts.sync()
+    else
+      schedule_runtime_image_deployments()
+    end
   end
 
   defp schedule_runtime_image_deployments do
@@ -656,6 +668,12 @@ defmodule Tuist.Kura.Reconciler do
 
   defp fail(deployment, server, reason) do
     message = if is_binary(reason), do: reason, else: inspect(reason)
+
+    # Logged as well as Sentry-captured: environments without a DSN
+    # would otherwise fail deployments with no trace outside the DB.
+    Logger.error(
+      "[Kura.Reconciler] deployment #{deployment.id} (#{deployment.image_tag}) failed for server #{(server && server.id) || "unknown"}: #{message}"
+    )
 
     capture_deploy_failure(deployment, server, reason, message)
 
