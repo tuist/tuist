@@ -234,9 +234,19 @@ struct PersistArtifactSpec<'a> {
     trunk: Option<&'a str>,
 }
 
+// `IgnoredEqual` (incoming version equals the stored one — both sides already
+// hold the identical entry) is reported separately from `IgnoredStale`
+// (incoming strictly older — a real LWW rejection, the peer is behind) so
+// anti-entropy diagnosis can tell a re-walk churning already-converged data
+// from genuine one-directional version skew. The apply decision is the same
+// for both: local wins. `IgnoredMissing` covers a bootstrap body fetch the
+// peer 404s (advertised in a manifest page but no longer served, e.g. evicted
+// in between) — no version comparison happened, so it must not count as skew.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ArtifactApplyOutcome {
     Applied,
+    IgnoredEqual,
+    IgnoredMissing,
     IgnoredStale,
     IgnoredTombstone,
 }
@@ -245,6 +255,8 @@ impl ArtifactApplyOutcome {
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Applied => "applied",
+            Self::IgnoredEqual => "ignored_equal",
+            Self::IgnoredMissing => "ignored_missing",
             Self::IgnoredStale => "ignored_stale",
             Self::IgnoredTombstone => "ignored_tombstone",
         }
@@ -277,6 +289,7 @@ impl NamespaceDeleteOutcome {
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum PersistArtifactOutcome {
     Applied(ArtifactManifest),
+    IgnoredEqual(ArtifactManifest),
     IgnoredStale(ArtifactManifest),
     IgnoredTombstone,
 }
@@ -286,7 +299,7 @@ enum PersistArtifactOutcome {
 // evaluated under the per-artifact write lock — so concurrent persists of the
 // same key resolve it consistently: exactly one observes `false`. Billing uses
 // it to charge only newly-stored bytes; it is deliberately not derived from the
-// Applied/IgnoredStale version outcome, because a re-upload with a newer
+// Applied-vs-ignored version outcome, because a re-upload with a newer
 // version still applies over an already-present artifact.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PersistedArtifact {
@@ -295,16 +308,25 @@ pub struct PersistedArtifact {
 }
 
 impl PersistArtifactOutcome {
+    fn ignored(existing: ArtifactManifest, incoming_version_ms: u64) -> Self {
+        if versions_converged(manifest_version_ms(&existing), incoming_version_ms) {
+            Self::IgnoredEqual(existing)
+        } else {
+            Self::IgnoredStale(existing)
+        }
+    }
+
     fn apply_outcome(&self) -> ArtifactApplyOutcome {
         match self {
             Self::Applied(_) => ArtifactApplyOutcome::Applied,
+            Self::IgnoredEqual(_) => ArtifactApplyOutcome::IgnoredEqual,
             Self::IgnoredStale(_) => ArtifactApplyOutcome::IgnoredStale,
             Self::IgnoredTombstone => ArtifactApplyOutcome::IgnoredTombstone,
         }
     }
 
-    // Converts a client-facing persist outcome into the public result: both
-    // Applied and IgnoredStale surface their manifest, while a tombstone
+    // Converts a client-facing persist outcome into the public result: every
+    // non-tombstone outcome surfaces its manifest, while a tombstone
     // rejection is an error (client writes must not be silently dropped).
     fn into_persisted(
         self,
@@ -314,7 +336,9 @@ impl PersistArtifactOutcome {
         key: &str,
     ) -> Result<PersistedArtifact, String> {
         match self {
-            Self::Applied(manifest) | Self::IgnoredStale(manifest) => Ok(PersistedArtifact {
+            Self::Applied(manifest)
+            | Self::IgnoredEqual(manifest)
+            | Self::IgnoredStale(manifest) => Ok(PersistedArtifact {
                 manifest,
                 already_present,
             }),
@@ -705,7 +729,7 @@ impl Store {
         // only the last manifest write wins — leaving the rest as orphaned bytes
         // that accumulate to N x on disk (the bootstrap-from-many-peers ENOSPC).
         // Whoever wins the lock commits the manifest; the rest re-read it here and
-        // short-circuit to IgnoredStale without appending.
+        // short-circuit to IgnoredEqual without appending.
         let _write_guard = self.artifact_write_lock_for(&artifact_id).lock().await;
         let size = self.io.metadata_len(source_path).await?;
 
@@ -721,7 +745,7 @@ impl Store {
             self.note_artifact_exists(&artifact_id);
             self.io.remove_file_if_exists(source_path).await;
             return Ok((
-                PersistArtifactOutcome::IgnoredStale(existing.clone()),
+                PersistArtifactOutcome::ignored(existing.clone(), spec.version_ms),
                 already_present,
             ));
         }
@@ -1083,7 +1107,7 @@ impl Store {
             // declared Content-Length — peers see an undecodable response and
             // bootstrap silently wedges. Surface a truncated artifact as missing
             // so the serve 404s it; the bootstrap client then skips it
-            // (IgnoredStale) and the lost entry re-populates on cache miss.
+            // (IgnoredMissing) and the lost entry re-populates on cache miss.
             let needed = offset.saturating_add(read_offset).saturating_add(limit);
             let have = handle
                 .as_std()
@@ -1328,7 +1352,10 @@ impl Store {
             && (manifest_version_ms(existing) >= spec.version_ms || spec.version_ms == 0)
         {
             self.note_artifact_exists(&artifact_id);
-            return Ok(PersistArtifactOutcome::IgnoredStale(existing.clone()));
+            return Ok(PersistArtifactOutcome::ignored(
+                existing.clone(),
+                spec.version_ms,
+            ));
         }
         // Resolved here, under the lock, from the read above: every inline
         // writer goes through this function, so this is the one place where the
@@ -2000,6 +2027,7 @@ impl Store {
             .await?
         {
             PersistArtifactOutcome::Applied(manifest)
+            | PersistArtifactOutcome::IgnoredEqual(manifest)
             | PersistArtifactOutcome::IgnoredStale(manifest) => Ok(manifest),
             PersistArtifactOutcome::IgnoredTombstone => Err(format!(
                 "artifact write for {producer:?}/{namespace_id}/{key} was rejected by a newer tombstone"
@@ -2101,6 +2129,7 @@ impl Store {
             .await?
         {
             PersistArtifactOutcome::Applied(manifest)
+            | PersistArtifactOutcome::IgnoredEqual(manifest)
             | PersistArtifactOutcome::IgnoredStale(manifest) => Ok(manifest),
             PersistArtifactOutcome::IgnoredTombstone => Err(format!(
                 "artifact write for {producer:?}/{namespace_id}/{key} was rejected by a newer tombstone"
@@ -3237,8 +3266,11 @@ impl Store {
         Ok(self
             .manifest_from_db(&artifact_id)?
             .map(|manifest| {
-                if manifest_version_ms(&manifest) < version_ms {
+                let existing_version_ms = manifest_version_ms(&manifest);
+                if existing_version_ms < version_ms {
                     ArtifactApplyOutcome::Applied
+                } else if versions_converged(existing_version_ms, version_ms) {
+                    ArtifactApplyOutcome::IgnoredEqual
                 } else {
                     ArtifactApplyOutcome::IgnoredStale
                 }
@@ -4103,6 +4135,14 @@ fn manifest_version_ms(manifest: &ArtifactManifest) -> u64 {
     }
 }
 
+// True when a rejected (local-wins) apply carries the version we already
+// store, i.e. both sides hold the identical entry. An incoming version of 0
+// carries no ordering information (the persist path re-stamps it with
+// now_ms()), so it can never attest convergence and classifies as stale.
+fn versions_converged(existing_version_ms: u64, incoming_version_ms: u64) -> bool {
+    incoming_version_ms != 0 && existing_version_ms == incoming_version_ms
+}
+
 fn read_bytes_at(file: &std::fs::File, offset: u64, size: u64) -> Result<Vec<u8>, String> {
     let size = usize::try_from(size)
         .map_err(|_| format!("artifact size {size} exceeds addressable memory"))?;
@@ -4416,7 +4456,7 @@ mod tests {
         // Several peers replicating the same artifact concurrently (same key,
         // same version) must not each append their own copy to a segment. The
         // per-key apply lock serializes them: the first writer commits the
-        // manifest and the rest re-read it and short-circuit to IgnoredStale. A
+        // manifest and the rest re-read it and short-circuit to IgnoredEqual. A
         // sleep failpoint between the durable append and the metadata commit
         // forces the writers to overlap, so without the lock every copy would be
         // appended (writer_count x on disk). This guards the store invariant
@@ -4451,14 +4491,23 @@ mod tests {
         });
         let outcomes = futures_util::future::join_all(applies).await;
 
-        let applied = outcomes
+        let outcomes: Vec<ArtifactApplyOutcome> = outcomes
             .into_iter()
             .map(|outcome| outcome.expect("apply should succeed"))
-            .filter(|outcome| outcome.applied())
-            .count();
+            .collect();
+        let applied = outcomes.iter().filter(|outcome| outcome.applied()).count();
         assert_eq!(
             applied, 1,
-            "exactly one concurrent same-key apply should write; the rest are stale"
+            "exactly one concurrent same-key apply should write"
+        );
+        let equal = outcomes
+            .iter()
+            .filter(|outcome| **outcome == ArtifactApplyOutcome::IgnoredEqual)
+            .count();
+        assert_eq!(
+            equal,
+            writer_count - 1,
+            "the losers re-read the committed manifest and report the converged duplicate"
         );
 
         let segments_bytes = crate::utils::directory_size_bytes(&config.data_dir.join("segments"));
@@ -5360,7 +5409,7 @@ mod tests {
 
     #[tokio::test]
     async fn persist_reports_already_present_across_re_uploads() {
-        // `already_present` must reflect presence, not the Applied/IgnoredStale
+        // `already_present` must reflect presence, not the Applied-vs-ignored
         // version outcome: a re-upload takes a newer version and still applies,
         // yet billing must see it as already present.
         let (_temp_dir, _config, store) = temp_store();
@@ -6764,6 +6813,20 @@ mod tests {
                 .expect("stale artifact should resolve cleanly"),
             ArtifactApplyOutcome::IgnoredStale
         );
+        assert_eq!(
+            store
+                .apply_replicated_artifact_from_bytes(
+                    ArtifactProducer::Xcode,
+                    "ios",
+                    "artifact",
+                    "application/octet-stream",
+                    b"v2",
+                    200,
+                )
+                .await
+                .expect("equal-version artifact should resolve cleanly"),
+            ArtifactApplyOutcome::IgnoredEqual
+        );
 
         let manifest = store
             .fetch_artifact(ArtifactProducer::Xcode, "ios", "artifact")
@@ -6772,6 +6835,94 @@ mod tests {
             .expect("artifact should remain");
         assert_eq!(manifest.version_ms, 200);
         assert_eq!(read_manifest_bytes(&store, &manifest).await, b"v2");
+    }
+
+    #[test]
+    fn versions_converged_requires_a_non_zero_matching_incoming_version() {
+        assert!(versions_converged(100, 100));
+        assert!(!versions_converged(100, 50));
+        assert!(!versions_converged(100, 0));
+        // Both sides zero: only this pair exercises the non-zero guard, and a
+        // zero incoming version still attests nothing.
+        assert!(!versions_converged(0, 0));
+    }
+
+    #[tokio::test]
+    async fn apply_outcome_distinguishes_equal_from_strictly_older() {
+        let (_temp_dir, _config, store) = temp_store();
+
+        store
+            .apply_replicated_inline_artifact_from_bytes(
+                ArtifactProducer::Gradle,
+                "ios",
+                "artifact",
+                "application/octet-stream",
+                b"payload",
+                100,
+                None,
+                None,
+            )
+            .await
+            .expect("initial inline artifact should apply");
+
+        assert_eq!(
+            store
+                .artifact_apply_outcome(ArtifactProducer::Gradle, "ios", "artifact", 150)
+                .expect("outcome should resolve"),
+            ArtifactApplyOutcome::Applied
+        );
+        assert_eq!(
+            store
+                .artifact_apply_outcome(ArtifactProducer::Gradle, "ios", "artifact", 100)
+                .expect("outcome should resolve"),
+            ArtifactApplyOutcome::IgnoredEqual
+        );
+        assert_eq!(
+            store
+                .artifact_apply_outcome(ArtifactProducer::Gradle, "ios", "artifact", 50)
+                .expect("outcome should resolve"),
+            ArtifactApplyOutcome::IgnoredStale
+        );
+        // Version 0 carries no ordering information, so it never reports equal.
+        assert_eq!(
+            store
+                .artifact_apply_outcome(ArtifactProducer::Gradle, "ios", "artifact", 0)
+                .expect("outcome should resolve"),
+            ArtifactApplyOutcome::IgnoredStale
+        );
+
+        assert_eq!(
+            store
+                .apply_replicated_inline_artifact_from_bytes(
+                    ArtifactProducer::Gradle,
+                    "ios",
+                    "artifact",
+                    "application/octet-stream",
+                    b"payload",
+                    100,
+                    None,
+                    None,
+                )
+                .await
+                .expect("equal-version inline apply should resolve cleanly"),
+            ArtifactApplyOutcome::IgnoredEqual
+        );
+        assert_eq!(
+            store
+                .apply_replicated_inline_artifact_from_bytes(
+                    ArtifactProducer::Gradle,
+                    "ios",
+                    "artifact",
+                    "application/octet-stream",
+                    b"payload",
+                    50,
+                    None,
+                    None,
+                )
+                .await
+                .expect("older inline apply should resolve cleanly"),
+            ArtifactApplyOutcome::IgnoredStale
+        );
     }
 
     #[tokio::test]
@@ -7348,7 +7499,7 @@ mod tests {
                 )
                 .await
                 .expect("duplicate artifact apply should succeed"),
-            ArtifactApplyOutcome::IgnoredStale
+            ArtifactApplyOutcome::IgnoredEqual
         );
         assert_eq!(
             store
