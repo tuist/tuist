@@ -549,8 +549,19 @@ defmodule Tuist.Accounts do
         assign_sso_user_to_organization(user, attrs.provider, attrs[:provider_organization_id])
         {:ok, oauth_identity}
 
-      error ->
-        error
+      {:error, %Changeset{}} = error ->
+        case get_oauth2_identity(
+               attrs.provider,
+               attrs.id_in_provider,
+               attrs[:provider_organization_id]
+             ) do
+          {:ok, %Oauth2Identity{user_id: ^user_id} = oauth_identity} ->
+            assign_sso_user_to_organization(user, attrs.provider, attrs[:provider_organization_id])
+            {:ok, oauth_identity}
+
+          _ ->
+            error
+        end
     end
   end
 
