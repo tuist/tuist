@@ -81,21 +81,16 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
                 guard hasModuleMap || !(targetToDependenciesMetadata[targetID]?.isEmpty ?? true)
                 else { return (targetName, target) }
 
-                if hasModuleMap, target.product.isFramework {
-                    // ExtractAPI consumes MODULEMAP_PATH as an explicit -fmodule-map-file dependency.
-                    // Pointing it at the source map keeps the map out of the framework product, which
-                    // avoids both duplicate module-map discovery and the static-framework copy fixed in #11588.
-                    // https://github.com/tuist/tuist/pull/11588
-                    if let moduleMapPath = Self.moduleMapPath(
+                if hasModuleMap {
+                    if target.product.isFramework, let moduleMapPath = Self.moduleMapPath(
                         from: mappedSettingsDictionary[Self.modulemapFileSetting],
                         projectPath: project.path
                     ) {
+                        // ExtractAPI consumes MODULEMAP_PATH as an explicit -fmodule-map-file input. Keeping the
+                        // source map out of the framework product avoids duplicate module-map discovery and the
+                        // static-framework copy fixed in #11588: https://github.com/tuist/tuist/pull/11588
                         mappedSettingsDictionary[Self.modulemapPathSetting] = .string(moduleMapPath.pathString)
                     }
-                    mappedSettingsDictionary[Self.modulemapFileSetting] = nil
-                } else if hasModuleMap {
-                    // Non-framework products have no Modules/module.modulemap location for ExtractAPI.
-                    // Their dependents receive this map through the combined -fmodule-map-file flags below.
                     mappedSettingsDictionary[Self.modulemapFileSetting] = nil
                 }
 
@@ -178,11 +173,12 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
         return (graph, sideEffects, environment)
     } // swiftlint:enable function_body_length
 
-    /// Resolves a module-map setting to the absolute path required by `ExtractAPI`'s `MODULEMAP_PATH` input.
-    /// swift-build passes this setting directly as `-fmodule-map-file` for dependencies without module info:
+    /// Resolves a `MODULEMAP_FILE` value to the absolute source path used for a framework's `MODULEMAP_PATH`.
+    /// swift-build uses `MODULEMAP_PATH` as the module's built map path, which ExtractAPI registers with
+    /// `-fmodule-map-file` for dependent targets:
+    /// https://github.com/swiftlang/swift-build/blob/5a49bfa5d4d7c4fbf1bea6e140481ba0818d676a/Sources/SWBTaskConstruction/ProductPlanning/ProductPlan.swift#L1443-L1474
     /// https://github.com/swiftlang/swift-build/blob/5a49bfa5d4d7c4fbf1bea6e140481ba0818d676a/Sources/SWBTaskConstruction/TaskProducers/OtherTaskProducers/TAPISymbolExtractorTaskProducer.swift#L76-L108
-    /// Keeping that source map out of framework products prevents clang from discovering both copies and
-    /// avoids a Copy Module Map phase becoming a cycle with Compile Sources.
+    /// Tuist settings may express this path relative to `PROJECT_DIR`, `SRCROOT`, or `SOURCE_ROOT`.
     private static func moduleMapPath(
         from value: SettingsDictionary.Value?,
         projectPath: AbsolutePath
