@@ -67,7 +67,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
       true
     else
       Logger.warning(
-        "Skipping automation alert #{alert.id}: rolling trigger windows must be between 1 and #{Alert.max_rolling_trigger_window_size()}"
+        "Skipping automation alert #{alert.id}, including recovery: rolling trigger windows must be between 1 and #{Alert.max_rolling_trigger_window_size()}"
       )
 
       false

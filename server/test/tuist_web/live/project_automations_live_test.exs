@@ -489,6 +489,39 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
       assert {:ok, %{enabled: false}} = Automations.get_alert(automation.id)
     end
 
+    test "keeps an unsupported legacy automation disabled and explains how to enable it", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      automation =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          enabled: false,
+          trigger_config: %{
+            "threshold" => 10,
+            "window_type" => "rolling",
+            "rolling_window_size" => 75
+          }
+        )
+
+      automation
+      |> Ecto.Changeset.change(
+        trigger_config: %{
+          "threshold" => 10,
+          "window_type" => "rolling",
+          "rolling_window_size" => 100
+        }
+      )
+      |> Repo.update!()
+
+      {:ok, lv, _html} = open(conn, organization, project)
+      html = render_hook(lv, "toggle_automation_enabled", %{"id" => automation.id})
+
+      assert html =~ "This automation uses an unsupported trigger configuration. Edit it before enabling it."
+      assert {:ok, %{enabled: false}} = Automations.get_alert(automation.id)
+    end
+
     test "delete_automation removes the automation", %{conn: conn, organization: organization, project: project} do
       automation = AutomationsFixtures.automation_alert_fixture(project: project)
       {:ok, lv, _html} = open(conn, organization, project)
