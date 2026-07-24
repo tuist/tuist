@@ -55,6 +55,7 @@ defmodule Tuist.Kura.Reconciler do
   import Ecto.Query
 
   alias Oban.Job
+  alias Tuist.Billing.Subscription
   alias Tuist.Kura
   alias Tuist.Kura.Deployment
   alias Tuist.Kura.Provisioner
@@ -410,6 +411,12 @@ defmodule Tuist.Kura.Reconciler do
   # drifted ones surface the drift. Bounded by the same converge
   # ceiling as the rest of the loop; the rest is picked up next tick.
   defp reconcile_observed_servers(handled_server_ids) do
+    active_subscriptions_query =
+      from(s in Subscription,
+        where: s.status in ["active", "trialing"],
+        order_by: [desc: s.inserted_at, desc: s.id]
+      )
+
     servers =
       Server
       |> where([s], s.status in ^@present_intent_statuses)
@@ -420,7 +427,7 @@ defmodule Tuist.Kura.Reconciler do
       |> where([s], s.move_phase == :none)
       |> order_by([s], asc: s.updated_at, asc: s.id)
       |> limit(^@reconcile_batch_size)
-      |> preload(:account)
+      |> preload([s], account: [subscriptions: ^active_subscriptions_query])
       |> Repo.all()
       |> Enum.reject(&MapSet.member?(handled_server_ids, &1.id))
 
