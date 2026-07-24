@@ -1,15 +1,19 @@
 import Command
 import Foundation
 import Mockable
+import TuistEnvironment
 import TuistLogging
 
 public enum SwiftVersionProviderError: FatalError, Equatable {
     case parseSwiftVersion(String)
+    case parseSwiftDefaultLanguageModeVersion(String)
 
     public var description: String {
         switch self {
         case let .parseSwiftVersion(output):
             return "Couldn't obtain the Swift version from the output: \(output)."
+        case let .parseSwiftDefaultLanguageModeVersion(output):
+            return "Couldn't obtain the default Swift language mode from the output: \(output)."
         }
     }
 
@@ -31,6 +35,10 @@ public protocol SwiftVersionProviding {
     /// - Returns: Swift version including the build number.
     /// - Throws: An error if Swift is not installed or it exists unsuccessfully.
     func swiftlangVersion() async throws -> String
+
+    /// Returns the language mode selected by `xcrun swift` when no language mode is specified,
+    /// normalized for Xcode's `SWIFT_VERSION` build setting.
+    func swiftDefaultLanguageModeVersion() async throws -> String
 }
 
 public struct SwiftVersionProvider: SwiftVersionProviding {
@@ -51,6 +59,22 @@ public struct SwiftVersionProvider: SwiftVersionProviding {
 
     // swiftlint:enable force_try
 
+    static let swiftDefaultLanguageModeVersionProbe = """
+    #if swift(>=6)
+    print("6")
+    #elseif swift(>=5)
+    print("5")
+    #elseif swift(>=4.2)
+    print("4.2")
+    #elseif swift(>=4)
+    print("4")
+    #else
+    print("unsupported")
+    #endif
+    """
+
+    private static let supportedSwiftDefaultLanguageModeVersions: Set<String> = ["4", "4.2", "5", "6"]
+
     public func swiftVersion() async throws -> String {
         try await cachedSwiftVersion.value()
     }
@@ -59,8 +83,13 @@ public struct SwiftVersionProvider: SwiftVersionProviding {
         try await cachedSwiftlangVersion.value()
     }
 
+    public func swiftDefaultLanguageModeVersion() async throws -> String {
+        try await cachedSwiftDefaultLanguageModeVersion.value()
+    }
+
     private let cachedSwiftVersion: AsyncThrowableCaching<String>
     private let cachedSwiftlangVersion: AsyncThrowableCaching<String>
+    private let cachedSwiftDefaultLanguageModeVersion: AsyncThrowableCaching<String>
 
     init(commandRunner: CommandRunning) {
         cachedSwiftVersion = AsyncThrowableCaching<String> {
@@ -85,6 +114,18 @@ public struct SwiftVersionProvider: SwiftVersionProviding {
                 throw SwiftVersionProviderError.parseSwiftVersion(output)
             }
             return NSString(string: output).substring(with: match.range(at: 1)).spm_chomp()
+        }
+
+        cachedSwiftDefaultLanguageModeVersion = AsyncThrowableCaching<String> {
+            let output = try await commandRunner.capture(
+                arguments: ["/usr/bin/xcrun", "swift", "-e", Self.swiftDefaultLanguageModeVersionProbe],
+                environment: Environment.current.manifestLoadingVariables
+            )
+            let version = output.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard Self.supportedSwiftDefaultLanguageModeVersions.contains(version) else {
+                throw SwiftVersionProviderError.parseSwiftDefaultLanguageModeVersion(output)
+            }
+            return version
         }
     }
 }

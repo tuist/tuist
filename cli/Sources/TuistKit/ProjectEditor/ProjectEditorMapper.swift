@@ -60,7 +60,9 @@ struct ProjectEditorMapper: ProjectEditorMapping {
         projectDescriptionSearchPath: AbsolutePath
     ) async throws -> Graph {
         Logger.current.notice("Building the editable project graph")
-        let swiftVersion = try await SwiftVersionProvider.current.swiftVersion()
+        // The Swift compiler version and its default language mode can differ. Match edit targets to the language mode
+        // used by the unversioned `swift` and `swiftc` invocations that evaluate manifests and compile helpers.
+        let swiftVersion = try await SwiftVersionProvider.current.swiftDefaultLanguageModeVersion()
 
         let pluginsProject = try await mapPluginsProject(
             pluginManifests: editablePluginManifests,
@@ -179,7 +181,8 @@ struct ProjectEditorMapper: ProjectEditorMapping {
                 name: "Config",
                 filesGroup: manifestsFilesGroup,
                 targetSettings: baseTargetSettings,
-                sourcePaths: [configPath]
+                sourcePaths: [configPath],
+                excludeSourcesFromBuild: true
             )
         }()
 
@@ -289,6 +292,7 @@ struct ProjectEditorMapper: ProjectEditorMapping {
                     defaultSettings: .recommended
                 ),
                 sourcePaths: [packageManifestPath],
+                excludeSourcesFromBuild: true,
                 dependencies: dependencies
             )
         }()
@@ -299,6 +303,7 @@ struct ProjectEditorMapper: ProjectEditorMapping {
                 filesGroup: manifestsFilesGroup,
                 targetSettings: targetWithLinkedPluginsSettings,
                 sourcePaths: [projectManifestSourcePath],
+                excludeSourcesFromBuild: true,
                 dependencies: helperAndPluginDependencies
             )
         }
@@ -502,6 +507,9 @@ struct ProjectEditorMapper: ProjectEditorMapping {
     ///   - filesGroup: File group for target.
     ///   - targetSettings: Target's settings.
     ///   - sourcePaths: Target's sources.
+    ///   - excludeSourcesFromBuild: Whether Xcode should exclude the sources from compilation while retaining
+    ///     their original file references.
+    ///   - additionalFilePaths: Additional files shown in the target.
     ///   - dependencies: Target's dependencies.
     /// - Returns: Target for edit project.
     private func editorHelperTarget(
@@ -509,16 +517,26 @@ struct ProjectEditorMapper: ProjectEditorMapping {
         filesGroup: ProjectGroup,
         targetSettings: Settings,
         sourcePaths: [AbsolutePath],
+        excludeSourcesFromBuild: Bool = false,
         additionalFilePaths: [AbsolutePath] = [],
         dependencies: [TargetDependency] = []
     ) -> Target {
-        Target(
+        let settings = excludeSourcesFromBuild
+            ? targetSettings.with(base: targetSettings.base.merging(
+                [
+                    "DEFINES_MODULE": "NO",
+                    "EXCLUDED_SOURCE_FILE_NAMES": .array(sourcePaths.map(\.basename)),
+                ],
+                uniquingKeysWith: { _, new in new }
+            ))
+            : targetSettings
+        return Target(
             name: name,
             destinations: .macOS,
             product: .staticFramework,
             productName: name,
             bundleId: "dev.tuist.${PRODUCT_NAME:rfc1034identifier}",
-            settings: targetSettings,
+            settings: settings,
             sources: sourcePaths.map { SourceFile(path: $0, compilerFlags: nil) },
             filesGroup: filesGroup,
             dependencies: dependencies,
