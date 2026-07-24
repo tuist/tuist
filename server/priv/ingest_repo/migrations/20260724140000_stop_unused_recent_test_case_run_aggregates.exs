@@ -1,4 +1,4 @@
-defmodule Tuist.IngestRepo.Migrations.FreezeUnusedRecentTestCaseRunAggregates do
+defmodule Tuist.IngestRepo.Migrations.StopUnusedRecentTestCaseRunAggregates do
   @moduledoc """
   Stops writes and background merges for rolling test-run aggregates that the
   application no longer reads.
@@ -47,12 +47,11 @@ defmodule Tuist.IngestRepo.Migrations.FreezeUnusedRecentTestCaseRunAggregates do
 
   def up do
     assert_views_present!(@active_materialized_views)
+    assert_no_active_merges!(@retired_tables)
 
-    for materialized_view <- @retired_materialized_views do
-      # excellent_migrations:safety-assured-for-next-line raw_sql_executed
-      IngestRepo.query!("DROP VIEW IF EXISTS #{materialized_view}")
-    end
-
+    # Prevent a new automatic merge from starting while the views are removed.
+    # A merge that won the race with this setting is caught by the second
+    # assertion, leaving the views active so the migration can be retried.
     for table <- @retired_tables do
       # excellent_migrations:safety-assured-for-next-line raw_sql_executed
       IngestRepo.query!("""
@@ -61,8 +60,15 @@ defmodule Tuist.IngestRepo.Migrations.FreezeUnusedRecentTestCaseRunAggregates do
       """)
     end
 
+    assert_no_active_merges!(@retired_tables)
+
+    for materialized_view <- @retired_materialized_views do
+      # excellent_migrations:safety-assured-for-next-line raw_sql_executed
+      IngestRepo.query!("DROP VIEW IF EXISTS #{materialized_view}")
+    end
+
     assert_views_absent!(@retired_materialized_views)
-    assert_tables_frozen!(@retired_tables)
+    assert_automatic_merges_stopped!(@retired_tables)
   end
 
   def down do
@@ -91,8 +97,29 @@ defmodule Tuist.IngestRepo.Migrations.FreezeUnusedRecentTestCaseRunAggregates do
     end
   end
 
-  defp assert_tables_frozen!(tables) do
-    frozen_tables =
+  defp assert_no_active_merges!(tables) do
+    quoted_names = Enum.map_join(tables, ", ", &"'#{&1}'")
+
+    # excellent_migrations:safety-assured-for-next-line raw_sql_executed
+    %{rows: rows} =
+      IngestRepo.query!("""
+      SELECT DISTINCT table
+      FROM system.merges
+      WHERE database = currentDatabase()
+        AND table IN (#{quoted_names})
+      ORDER BY table
+      """)
+
+    if rows != [] do
+      tables = Enum.map_join(rows, ", ", fn [table] -> table end)
+
+      raise Ecto.MigrationError,
+            "active background merges must finish before retiring rolling aggregates: #{tables}"
+    end
+  end
+
+  defp assert_automatic_merges_stopped!(tables) do
+    stopped_tables =
       tables
       |> table_metadata()
       |> Enum.filter(fn [_name, create_table_query] ->
@@ -103,11 +130,11 @@ defmodule Tuist.IngestRepo.Migrations.FreezeUnusedRecentTestCaseRunAggregates do
       end)
       |> Enum.map(fn [name, _create_table_query] -> name end)
 
-    unfrozen_tables = tables -- frozen_tables
+    mergeable_tables = tables -- stopped_tables
 
-    if unfrozen_tables != [] do
+    if mergeable_tables != [] do
       raise Ecto.MigrationError,
-            "rolling aggregate tables still allow automatic merges: #{Enum.join(unfrozen_tables, ", ")}"
+            "rolling aggregate tables still allow automatic merges: #{Enum.join(mergeable_tables, ", ")}"
     end
   end
 
