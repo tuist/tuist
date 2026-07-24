@@ -6,8 +6,8 @@
 }: let
   hostName = config.networking.hostName;
   isNonProduction = lib.hasSuffix "-staging" hostName || lib.hasSuffix "-canary" hostName;
-  cachePromexScrapeInterval = if isNonProduction then "120s" else "30s";
-  internalExporterScrapeInterval = if isNonProduction then "60s" else "30s";
+  cachePromexScrapeInterval = if isNonProduction then "120s" else "60s";
+  internalExporterScrapeInterval = "60s";
 
   grafanaCloudUrl = config.services.onepassword-secrets.secrets.grafanaCloudPromRemoteWriteUrl.path;
   grafanaCloudUsername = config.services.onepassword-secrets.secrets.grafanaCloudPromUsername.path;
