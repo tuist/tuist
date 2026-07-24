@@ -53,14 +53,21 @@ jobs:
           echo "host: $(hostname)  macOS: $(sw_vers -productVersion)  arch: $(uname -m)"
           sysctl -n machdep.cpu.brand_string || true
           curl -V | head -1
-      - name: Repro (all modes once, then loop pool to catch intermittent stalls)
+      - name: Repro (baseline, then hammer pool mode to catch the intermittent stall)
         run: |
           set -uo pipefail
           bash .github/scripts/repro_download_stall.sh
-          for i in 1 2 3 4 5 6; do
-            echo "===== extra pool iteration $i ====="
-            MODES=pool OUT_DIR="./pool-$i" bash .github/scripts/repro_download_stall.sh || true
+          echo "===== hammering pool mode (up to 24 iterations, early-exit on anomaly) ====="
+          for i in $(seq 1 24); do
+            MODES=pool OUT_DIR="./pool-$i" bash .github/scripts/repro_download_stall.sh >"/tmp/pool-$i.log" 2>&1 || true
+            if grep -Eq 'STALL|ERR|CONNECT-TIMEOUT|FAIL' "./pool-$i/results.tsv" 2>/dev/null; then
+              echo "!!! ANOMALY on pool iteration $i"
+              cat "./pool-$i/results.tsv"
+              break
+            fi
+            [ $((i % 6)) -eq 0 ] && echo "  ...$i clean pool iterations"
           done
+          echo "hammer complete"
       - name: Dump traces for any stalled runs
         if: always()
         run: |
