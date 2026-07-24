@@ -39,26 +39,97 @@
     & > [data-part="content"] {
       padding: var(--noora-spacing-8);
     }
+  }
 
-    & .noora-modal {
-      & [data-part="body"] {
+  /* Stacked card sections: a header, an action button beside it, and a
+     full-width table underneath. The row layout above centres a single
+     content block next to the header, which would sit the table alongside
+     the title instead of below it. */
+  & > [data-part="kura-servers-card-section"],
+  & > [data-part="cache-endpoints-card-section"] {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    border-radius: var(--noora-radius-8);
+    padding: var(--noora-spacing-0);
+
+    & > [data-part="header"] {
+      display: flex;
+      grid-column: 1;
+      flex-direction: column;
+      gap: var(--noora-spacing-2);
+      padding: var(--noora-spacing-8);
+      min-width: 0;
+
+      /* The cache-endpoints title is nested in a toggle row, the Kura one
+         is a direct child, so match both depths. */
+      & [data-part="title"] {
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-medium) var(--noora-font-heading-medium);
+      }
+
+      & > [data-part="subtitle"] {
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
+      }
+
+      & > [data-part="toggle-row"] {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        gap: var(--noora-spacing-3);
+      }
+    }
+
+    & > [data-part="button-container"] {
+      grid-column: 2;
+      padding: var(--noora-spacing-8);
+    }
+
+    & > [data-part="content"] {
+      grid-column: 1 / -1;
+      padding: 0 var(--noora-spacing-8) var(--noora-spacing-8);
+
+      & > .noora-table {
+        box-sizing: border-box;
+        width: 100%;
+      }
+    }
+
+    @media (max-width: 768px) {
+      & {
+        grid-template-columns: 1fr;
+      }
+
+      & > [data-part="header"] {
+        padding-bottom: var(--noora-spacing-4);
+      }
+
+      & > [data-part="button-container"] {
+        grid-column: 1;
+        padding-top: 0;
+      }
+    }
+  }
+
+  & > [data-part$="card-section"] .noora-modal {
+    & [data-part="body"] {
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-8);
+      min-width: 392px;
+
+      @media (max-width: 768px) {
+        & {
+          min-width: 80vw;
+        }
+      }
+
+      & [data-part="content"] {
         display: flex;
         flex-direction: column;
         gap: var(--noora-spacing-8);
-        min-width: 392px;
-
-        @media (max-width: 768px) {
-          & {
-            min-width: 80vw;
-          }
-        }
-
-        & [data-part="content"] {
-          display: flex;
-          flex-direction: column;
-          gap: var(--noora-spacing-8);
-          padding: var(--noora-spacing-8) var(--noora-spacing-2) var(--noora-spacing-9) var(--noora-spacing-2);
-        }
+        padding: var(--noora-spacing-8) var(--noora-spacing-2) var(--noora-spacing-9) var(--noora-spacing-2);
       }
     }
   }

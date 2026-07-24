@@ -379,7 +379,8 @@ defmodule TuistWeb.TestCaseLive do
   end
 
   defp assign_test_case_runs(
-         %{assigns: %{test_case_id: test_case_id, available_filters: available_filters}} = socket,
+         %{assigns: %{selected_project: project, test_case_id: test_case_id, available_filters: available_filters}} =
+           socket,
          params
        ) do
     page = parse_page(params["page"])
@@ -397,7 +398,10 @@ defmodule TuistWeb.TestCaseLive do
       Tests.list_test_case_runs(%{
         page: page,
         page_size: @table_page_size,
-        filters: [%{field: :test_case_id, op: :==, value: test_case_id} | flop_filters],
+        filters: [
+          %{field: :project_id, op: :==, value: project.id},
+          %{field: :test_case_id, op: :==, value: test_case_id} | flop_filters
+        ],
         order_by: order_by,
         order_directions: order_directions
       })

@@ -535,6 +535,13 @@ public class GraphTraverser: GraphTraversing {
         try linkableDependencies(path: path, name: name, shouldExcludeHostAppDependencies: true)
     }
 
+    public func packageProductsLinkedThroughStaticTargets(
+        path: Path.AbsolutePath,
+        name: String
+    ) -> Set<GraphDependencyReference> {
+        packageProductsLinkedThroughStaticTargets(from: .target(name: name, path: path))
+    }
+
     // swiftlint:disable:next function_body_length
     public func linkableDependencies(
         path: Path.AbsolutePath,

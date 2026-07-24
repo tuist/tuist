@@ -34,6 +34,15 @@ server:
 
   appUrl: https://tuist.dev
 
+  # Cache-signing grant private key (PEM Ed25519), synced from the
+  # TUIST_CACHE_GRANT_PRIVATE_KEY 1Password item. Without it dispatch omits the
+  # grant and the runner CLI falls back to per-machine MAC signing, so a warm
+  # cache volume's binaries never validate as local hits across VMs. Same
+  # keypair as staging (the CLI's baked public key pins it).
+  externalSecrets:
+    cacheGrant:
+      item: TUIST_CACHE_GRANT_PRIVATE_KEY
+
   # Stripe price IDs (identifiers, not secrets — the API keys live in the
   # STRIPE 1Password item). Live-mode prices, so they're set per env: staging
   # and canary use their own (test-mode) IDs in their overlays. The chart
@@ -441,8 +450,23 @@ xcresultProcessor:
   extraEnv:
     - name: TUIST_DEPLOY_ENV
       value: prod
+    # Deliberately NOT the in-cluster receiver address the Linux deployments
+    # use. These pods are macOS Tart VMs whose only interface is Tailscale, so
+    # `*.svc.cluster.local` does not resolve inside the guest and every span
+    # was being dropped before it left the VM. This is the tailnet hostname of
+    # the Tailscale-operator proxy in front of the same receiver Service, set
+    # up in the k8s-monitoring chart's production values.
     - name: TUIST_OTEL_EXPORTER_OTLP_ENDPOINT
-      value: http://k8s-monitoring-alloy-receiver.observability.svc.cluster.local:4317
+      value: http://tuist-alloy-receiver-production:4317
+    # Push logs to the same tailnet-fronted Alloy. Setting this attaches the
+    # in-process handler in Tuist.Application.start_loki_logger/0, which is
+    # the only way these pods can ship logs: Alloy cannot tail a Tart guest
+    # and `kubectl logs` cannot resolve their kubelet hostnames. The handler
+    # appends /loki/api/v1/push, matching the loki.source.api endpoint the
+    # k8s-monitoring chart exposes on 3100. No credentials here: Alloy
+    # forwards to Grafana Cloud with the ones it already holds.
+    - name: TUIST_LOKI_URL
+      value: http://tuist-alloy-receiver-production:3100
 
 # Declarative Scaleway Elastic Metal kura runner-cache node, co-located with the
 # Mac fleet in fr-par. The provider orders the bare-metal server, attaches it to

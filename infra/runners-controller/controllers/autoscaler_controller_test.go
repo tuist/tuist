@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -309,6 +310,10 @@ func linuxNode(name string, allocatableGiB int64) *corev1.Node {
 			Labels: map[string]string{"node.cluster.x-k8s.io/pool": "runners-linux"},
 		},
 		Status: corev1.NodeStatus{
+			Conditions: []corev1.NodeCondition{{
+				Type:   corev1.NodeReady,
+				Status: corev1.ConditionTrue,
+			}},
 			Allocatable: corev1.ResourceList{
 				corev1.ResourceMemory: *resource.NewQuantity(allocatableGiB*1024*1024*1024, resource.BinarySI),
 			},
@@ -410,6 +415,92 @@ func macosNode(name, fleetSelector string) *corev1.Node {
 				macosNodeOSLabel: macosNodeOSDarwin,
 			},
 		},
+		Status: corev1.NodeStatus{Conditions: []corev1.NodeCondition{{
+			Type:   corev1.NodeReady,
+			Status: corev1.ConditionTrue,
+		}}},
+	}
+}
+
+func TestAutoscaler_FleetCapacityExcludesUnhealthyNodes(t *testing.T) {
+	pool := linuxFleetPool("linux", 1, 8192, 1, 30)
+	ready := linuxNode("ready", 64)
+	notReady := linuxNode("not-ready", 64)
+	notReady.Status.Conditions[0].Status = corev1.ConditionFalse
+	unschedulable := linuxNode("unschedulable", 64)
+	unschedulable.Spec.Unschedulable = true
+	pressured := linuxNode("pressured", 64)
+	pressured.Status.Conditions = append(pressured.Status.Conditions, corev1.NodeCondition{
+		Type:   corev1.NodeMemoryPressure,
+		Status: corev1.ConditionTrue,
+	})
+
+	scheme := runtime.NewScheme()
+	_ = clientgoscheme.AddToScheme(scheme)
+	_ = tuistv1.AddToScheme(scheme)
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(pool, ready, notReady, unschedulable, pressured).
+		Build()
+	r := &AutoscalerReconciler{Client: fakeClient, Scheme: scheme, MemReserveFraction: 1}
+
+	got, err := r.fleetAllocatableMemory(context.Background(), pool.Spec.FleetSelector)
+	if err != nil {
+		t.Fatalf("fleetAllocatableMemory: %v", err)
+	}
+	want := int64(64 * 1024 * 1024 * 1024)
+	if got != want {
+		t.Fatalf("fleetAllocatableMemory = %d, want only Ready node memory %d", got, want)
+	}
+}
+
+func TestAutoscaler_MacosFleetCountExcludesUnhealthyNodes(t *testing.T) {
+	const fleet = "runners-macos"
+	ready := macosNode("ready", fleet)
+	notReady := macosNode("not-ready", fleet)
+	notReady.Status.Conditions[0].Status = corev1.ConditionUnknown
+	pressured := macosNode("pressured", fleet)
+	pressured.Status.Conditions = append(pressured.Status.Conditions, corev1.NodeCondition{
+		Type:   corev1.NodeDiskPressure,
+		Status: corev1.ConditionTrue,
+	})
+
+	scheme := runtime.NewScheme()
+	_ = clientgoscheme.AddToScheme(scheme)
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(ready, notReady, pressured).
+		Build()
+	r := &AutoscalerReconciler{Client: fakeClient, Scheme: scheme}
+
+	got, err := r.fleetHostCount(context.Background(), fleet)
+	if err != nil {
+		t.Fatalf("fleetHostCount: %v", err)
+	}
+	if got != 1 {
+		t.Fatalf("fleetHostCount = %d, want 1 Ready node", got)
+	}
+}
+
+func TestAutoscaler_FilteredZeroCapacityFallsBackToPerPoolTarget(t *testing.T) {
+	pool := linuxFleetPool("linux", 5, 8192, 1, 30)
+	node := linuxNode("not-ready", 64)
+	node.Status.Conditions[0].Status = corev1.ConditionFalse
+
+	scheme := runtime.NewScheme()
+	_ = clientgoscheme.AddToScheme(scheme)
+	_ = tuistv1.AddToScheme(scheme)
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(pool, node).
+		Build()
+	r := &AutoscalerReconciler{Client: fakeClient, Scheme: scheme, MemReserveFraction: 1}
+	signals := scaling.Signals{Fleet: pool.Name, Claimed: 7}
+	knobs := scaling.PolicyKnobs{MinWarmPoolFloor: 1, MaxReplicas: 30}
+
+	got := r.allocate(context.Background(), pool, signals, knobs, 8, logr.Discard())
+	if got != 8 {
+		t.Fatalf("allocate with every node filtered = %d, want per-pool fallback 8", got)
 	}
 }
 

@@ -388,13 +388,19 @@ enum WorkspaceRestorer {
             }
         }
 
-        for pin in resolved.pins {
-            guard PinKind.isSourceControl(pin.kind) || PinKind.isRegistry(pin.kind) else {
-                continue
-            }
-            let packagePath = try packagePathForPin(scratchDir: scratchDir, pin: pin)
-            contexts.append(
-                PackageContext(
+        // Each `packageRef` here shells out to `swift package dump-package` for
+        // its pin, so walking the pins serially puts N cold manifest compiles
+        // end to end before any of the concurrent work below starts. Fan out at
+        // the same limit `PackageInfoCacheWriter` already uses for the identical
+        // operation; `ConcurrentTasks.map` preserves input order, which the
+        // workspace state depends on.
+        let pinnedPackages = resolved.pins.filter {
+            PinKind.isSourceControl($0.kind) || PinKind.isRegistry($0.kind)
+        }
+        contexts.append(
+            contentsOf: try await ConcurrentTasks.map(pinnedPackages) { pin in
+                let packagePath = try packagePathForPin(scratchDir: scratchDir, pin: pin)
+                return PackageContext(
                     packageRef: try await packageRef(
                         pin,
                         packagePath: packagePath,
@@ -403,8 +409,8 @@ enum WorkspaceRestorer {
                     packagePath: packagePath,
                     canonicalizeLocalBinaryPaths: false
                 )
-            )
-        }
+            }
+        )
 
         return contexts
     }

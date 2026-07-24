@@ -195,7 +195,7 @@ jobs:
   cli-unit-tests:
     name: Unit Tests
     runs-on: tuist-macos
-    timeout-minutes: 30
+    timeout-minutes: 60
     permissions:
       contents: read
       id-token: write
@@ -233,12 +233,7 @@ jobs:
 
   cli-acceptance-tests-build:
     name: Build Acceptance Tests
-    # Pin to the tuist-macos-26-5 runner profile (matches .xcode-version: 26.5). This job
-    # runs `xcodebuild -downloadComponent MetalToolchain`; on the general `tuist-macos`
-    # pool that runtime fetch currently fails ("Failed fetching catalog for assetType
-    # (com.apple.MobileAsset.MetalToolchain)") because Apple stopped serving that Xcode
-    # build's Metal Toolchain component.
-    runs-on: tuist-macos-26-5
+    runs-on: tuist-macos
     timeout-minutes: 60
     permissions:
       contents: read
@@ -288,8 +283,7 @@ jobs:
 
   cli-acceptance-tests:
     name: Acceptance Tests
-    # Keep the shard run on the same Xcode (26.5) as the build job above.
-    runs-on: tuist-macos-26-5
+    runs-on: tuist-macos
     timeout-minutes: 60
     needs: cli-acceptance-tests-build
     permissions:
@@ -348,9 +342,7 @@ jobs:
 
   cli-acceptance-tests-fork:
     name: Acceptance Tests (Fork)
-    # tuist-macos-26-5 runner: this job also downloads the Metal Toolchain component
-    # (see the "Build Acceptance Tests" job for the runner rationale).
-    runs-on: tuist-macos-26-5
+    runs-on: tuist-macos
     timeout-minutes: 60
     if: (github.event.pull_request.draft == false || github.event_name != 'pull_request') && github.event.pull_request.head.repo.fork == true
     steps:

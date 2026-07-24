@@ -167,6 +167,17 @@ defmodule Tuist.Application do
     end
   end
 
+  # Mirrors the Kubernetes Deployment names so a Loki stream lines up with
+  # the workload an operator is already looking at.
+  defp loki_service_name do
+    case Environment.mode() do
+      :web -> "tuist-server"
+      :processor -> "tuist-processor"
+      :xcresult_processor -> "tuist-xcresult-processor"
+      :swift_registry_sync -> "tuist-swift-registry-sync"
+    end
+  end
+
   @loki_attach_max_attempts 10
   @loki_attach_base_backoff_ms 1_000
   @loki_attach_max_backoff_ms 30_000
@@ -198,9 +209,16 @@ defmodule Tuist.Application do
     handler_config = %{
       loki_url: loki_url,
       storage: :memory,
+      # Identify the pod role rather than hardcoding "tuist-server". The
+      # same release boots as the web tier, the build processor and the
+      # xcresult processor, and filing all three under one service name
+      # makes the logs unusable for exactly the pods that need them most:
+      # the macOS xcresult processors, whose output is unreachable by every
+      # other route (Alloy cannot tail a Tart guest, and `kubectl logs`
+      # cannot resolve the Tailscale-only kubelet hostnames).
       labels: %{
-        app: {:static, "tuist-server"},
-        service_name: {:static, "tuist-server"},
+        app: {:static, loki_service_name()},
+        service_name: {:static, loki_service_name()},
         service_namespace: {:static, "tuist"},
         env: {:static, to_string(Environment.env())},
         level: :level

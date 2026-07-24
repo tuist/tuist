@@ -203,6 +203,7 @@ public struct GraphMapperFactory: GraphMapperFactorying {
 
             mappers.append(FrameworkSearchPathsGraphMapper())
             mappers.append(ForeignBuildSideEffectGraphMapper())
+            mappers.append(CachedModulesDebuggingGraphMapper())
 
             return mappers
         }
@@ -252,6 +253,7 @@ public struct GraphMapperFactory: GraphMapperFactorying {
                         .testInsightsDisabled ?? true
                 )
             )
+            mappers.append(CachedModulesDebuggingGraphMapper())
 
             return mappers
         }
@@ -315,6 +317,7 @@ public struct GraphMapperFactory: GraphMapperFactorying {
                         .testInsightsDisabled ?? true
                 )
             )
+            mappers.append(CachedModulesDebuggingGraphMapper())
 
             return mappers
         }
@@ -362,6 +365,7 @@ public struct GraphMapperFactory: GraphMapperFactorying {
                         .testInsightsDisabled ?? true
                 )
             )
+            mappers.append(CachedModulesDebuggingGraphMapper())
 
             return mappers
         }
@@ -386,6 +390,7 @@ public struct GraphMapperFactory: GraphMapperFactorying {
                         .testInsightsDisabled ?? true
                 )
             )
+            mappers.append(CachedModulesDebuggingGraphMapper())
 
             return mappers
         }
@@ -409,6 +414,7 @@ public struct GraphMapperFactory: GraphMapperFactorying {
                         .testInsightsDisabled ?? true
                 )
             )
+            mappers.append(CachedModulesDebuggingGraphMapper())
 
             return mappers
         }

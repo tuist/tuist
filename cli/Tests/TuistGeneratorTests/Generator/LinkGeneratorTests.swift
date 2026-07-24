@@ -1,6 +1,7 @@
 import Foundation
 import Mockable
 import Path
+import Testing
 import TuistCore
 import TuistTesting
 import XcodeGraph
@@ -15,6 +16,64 @@ final class LinkGeneratorPathTests: TuistUnitTestCase {
         XCTAssertEqual(
             LinkGeneratorPath.string("$(DEVELOPER_FRAMEWORKS_DIR)").xcodeValue(sourceRootPath: .root),
             "$(DEVELOPER_FRAMEWORKS_DIR)"
+        )
+    }
+}
+
+struct LinkGeneratorPackageTests {
+    @Test func generatePackagesAddsRuntimePackageFromStaticTargetChainAsBuildOnlyDependency() throws {
+        // Given
+        let subject = LinkGenerator(embedScriptGenerator: MockEmbedScriptGenerator())
+        let target = Target.test(
+            name: "Test",
+            destinations: [.iPhone, .mac],
+            product: .staticFramework,
+            dependencies: [
+                .target(name: "FeatureCore"),
+            ]
+        )
+        let pbxproj = PBXProj()
+        let pbxTarget = PBXNativeTarget(name: target.name)
+        pbxproj.add(object: pbxTarget)
+
+        let buildConfiguration = XCBuildConfiguration(
+            name: "Debug",
+            buildSettings: ["EXCLUDED_SOURCE_FILE_NAMES": "Existing.o"]
+        )
+        let configurationList = XCConfigurationList(buildConfigurations: [buildConfiguration])
+        pbxproj.add(object: buildConfiguration)
+        pbxproj.add(object: configurationList)
+        pbxTarget.buildConfigurationList = configurationList
+
+        let frameworksBuildPhase = PBXFrameworksBuildPhase()
+        pbxproj.add(object: frameworksBuildPhase)
+        pbxTarget.buildPhases.append(frameworksBuildPhase)
+
+        let graphTraverser = MockGraphTraversing()
+        given(graphTraverser)
+            .packageProductsLinkedThroughStaticTargets(path: .any, name: .any)
+            .willReturn([.packageProduct(product: "OrderedCollections", condition: .when([.ios]))])
+
+        // When
+        try subject.generatePackages(
+            target: target,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj,
+            path: "/path",
+            graphTraverser: graphTraverser
+        )
+
+        // Then
+        #expect(pbxTarget.packageProductDependencies?.map(\.productName) == ["OrderedCollections"])
+        let resolvedFrameworksBuildPhase = try pbxTarget.frameworksBuildPhase()
+        let generatedFrameworksBuildPhase = try #require(resolvedFrameworksBuildPhase)
+        let files = try #require(generatedFrameworksBuildPhase.files)
+        #expect(files.isEmpty)
+        #expect(pbxTarget.dependencies.map(\.product?.productName) == ["OrderedCollections"])
+        #expect(pbxTarget.dependencies.map(\.platformFilter) == ["ios"])
+        #expect(
+            buildConfiguration.buildSettings["EXCLUDED_SOURCE_FILE_NAMES"]
+                == .array(["$(inherited)", "Existing.o", "$(BUILT_PRODUCTS_DIR)/*.o"])
         )
     }
 }
@@ -445,38 +504,6 @@ final class LinkGeneratorTests: XCTestCase {
         XCTAssertEqual(try pbxTarget.frameworksBuildPhase()?.files?.map(\.product?.productName), ["OrderedCollections"])
     }
 
-    func test_generatePackages_addsRuntimePackageAsBuildOnlyDependencyForStaticTarget() throws {
-        // Given
-        let target = Target.test(
-            name: "Test",
-            destinations: [.iPhone, .mac],
-            product: .staticFramework,
-            dependencies: [
-                .package(product: "OrderedCollections", type: .runtime, condition: .when([.ios])),
-            ]
-        )
-        let pbxproj = PBXProj()
-        let pbxTarget = PBXNativeTarget(name: target.name)
-        pbxproj.add(object: pbxTarget)
-
-        let frameworksBuildPhase = PBXFrameworksBuildPhase()
-        pbxproj.add(object: frameworksBuildPhase)
-        pbxTarget.buildPhases.append(frameworksBuildPhase)
-
-        // When
-        try subject.generatePackages(
-            target: target,
-            pbxTarget: pbxTarget,
-            pbxproj: pbxproj
-        )
-
-        // Then
-        XCTAssertTrue(try XCTUnwrap(pbxTarget.packageProductDependencies).isEmpty)
-        XCTAssertTrue(try XCTUnwrap(pbxTarget.frameworksBuildPhase()?.files).isEmpty)
-        XCTAssertEqual(pbxTarget.dependencies.map(\.product?.productName), ["OrderedCollections"])
-        XCTAssertEqual(pbxTarget.dependencies.map(\.platformFilter), ["ios"])
-    }
-
     func test_generatePackages_preservesPluginAndMacroRolesForStaticTarget() throws {
         // Given
         let target = Target.test(
@@ -495,11 +522,18 @@ final class LinkGeneratorTests: XCTestCase {
         pbxproj.add(object: frameworksBuildPhase)
         pbxTarget.buildPhases.append(frameworksBuildPhase)
 
+        let graphTraverser = MockGraphTraversing()
+        given(graphTraverser)
+            .packageProductsLinkedThroughStaticTargets(path: .any, name: .any)
+            .willReturn([])
+
         // When
         try subject.generatePackages(
             target: target,
             pbxTarget: pbxTarget,
-            pbxproj: pbxproj
+            pbxproj: pbxproj,
+            path: "/path",
+            graphTraverser: graphTraverser
         )
 
         // Then

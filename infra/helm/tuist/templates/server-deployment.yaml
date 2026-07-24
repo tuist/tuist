@@ -38,9 +38,6 @@ spec:
         # per pod. See helm/k8s-monitoring/values.yaml for the
         # annotation→config mapping.
         prometheus.io/port-name: metrics
-        {{- if and .Values.server.serviceAccount.create .Values.server.migrationJob.asHook }}
-        tuist.dev/server-service-account-revision: {{ .Release.Revision | quote }}
-        {{- end }}
         {{- with .Values.server.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
