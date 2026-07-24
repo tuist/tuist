@@ -595,7 +595,56 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     assert :ok = run(automation.id)
   end
 
-  test "rolling recovery above the trigger cap counts runs after each candidate's own trigger (real ClickHouse)" do
+  test "rolling recovery counts only runs after each candidate's own trigger (real ClickHouse)" do
+    project = ProjectsFixtures.project_fixture()
+
+    automation =
+      AutomationsFixtures.automation_alert_fixture(
+        project: project,
+        recovery_enabled: true,
+        recovery_config: %{"window_type" => "rolling", "rolling_window_size" => 3},
+        recovery_actions: [%{"type" => "change_state", "state" => "enabled"}]
+      )
+
+    ready_id = UUIDv7.generate()
+    not_ready_id = UUIDv7.generate()
+    base = NaiveDateTime.utc_now()
+    ready_triggered_at = base
+    not_ready_triggered_at = NaiveDateTime.add(base, 10, :second)
+
+    insert_test_case_runs([
+      # ready_id: a pre-trigger run that must be ignored, then 4 post-trigger
+      # runs that clear the rolling window of 3.
+      run_attrs(project.id, ready_id, NaiveDateTime.add(base, -5, :second)),
+      run_attrs(project.id, ready_id, NaiveDateTime.add(base, 1, :second)),
+      run_attrs(project.id, ready_id, NaiveDateTime.add(base, 2, :second)),
+      run_attrs(project.id, ready_id, NaiveDateTime.add(base, 3, :second)),
+      run_attrs(project.id, ready_id, NaiveDateTime.add(base, 4, :second)),
+      # not_ready_id: 3 runs after the batch's earliest trigger but before this
+      # candidate's own trigger, and only 1 run after its own trigger.
+      run_attrs(project.id, not_ready_id, NaiveDateTime.add(base, 5, :second)),
+      run_attrs(project.id, not_ready_id, NaiveDateTime.add(base, 6, :second)),
+      run_attrs(project.id, not_ready_id, NaiveDateTime.add(base, 7, :second)),
+      run_attrs(project.id, not_ready_id, NaiveDateTime.add(base, 11, :second))
+    ])
+
+    expect(FlakyTestsMonitor, :evaluate, fn _automation -> %{triggered: []} end)
+
+    expect(Automations, :list_active_alert_events, fn _id ->
+      [
+        %{test_case_id: ready_id, triggered_at: ready_triggered_at},
+        %{test_case_id: not_ready_id, triggered_at: not_ready_triggered_at}
+      ]
+    end)
+
+    expected_entity = %{type: :test_case, id: ready_id}
+    expect(ActionExecutor, :execute_actions, fn _actions, ^automation, ^expected_entity -> :ok end)
+    expect(Automations, :create_alert_event, fn %{test_case_id: ^ready_id, status: "recovered"} -> :ok end)
+
+    assert :ok = run(automation.id)
+  end
+
+  test "rolling recovery above the trigger cap reads raw runs without clamping (real ClickHouse)" do
     project = ProjectsFixtures.project_fixture()
 
     automation =
@@ -609,29 +658,38 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     ready_id = UUIDv7.generate()
     not_ready_id = UUIDv7.generate()
     base = NaiveDateTime.utc_now()
-    ready_triggered_at = base
-    not_ready_triggered_at = NaiveDateTime.add(base, 200, :second)
+    corrected_run_id = UUIDv7.generate()
 
-    ready_runs =
-      [run_attrs(project.id, ready_id, NaiveDateTime.add(base, -1, :second))] ++
-        Enum.map(1..77, fn offset ->
-          run_attrs(project.id, ready_id, NaiveDateTime.add(base, offset, :second))
-        end)
+    ready_distinct_runs =
+      Enum.map(1..76, fn offset ->
+        overrides = if offset == 76, do: [id: corrected_run_id], else: []
+        run_attrs(project.id, ready_id, NaiveDateTime.add(base, offset, :second), overrides)
+      end)
+
+    correction_rows =
+      Enum.map(1..50, fn _correction ->
+        run_attrs(
+          project.id,
+          ready_id,
+          NaiveDateTime.add(base, 76, :second),
+          id: corrected_run_id,
+          is_flaky: true
+        )
+      end)
 
     not_ready_runs =
-      Enum.map(100..175, fn offset ->
+      Enum.map(1..75, fn offset ->
         run_attrs(project.id, not_ready_id, NaiveDateTime.add(base, offset, :second))
-      end) ++
-        [run_attrs(project.id, not_ready_id, NaiveDateTime.add(base, 201, :second))]
+      end)
 
-    insert_test_case_runs(ready_runs ++ not_ready_runs)
+    insert_test_case_runs(ready_distinct_runs ++ correction_rows ++ not_ready_runs)
 
     expect(FlakyTestsMonitor, :evaluate, fn _automation -> %{triggered: []} end)
 
     expect(Automations, :list_active_alert_events, fn _id ->
       [
-        %{test_case_id: ready_id, triggered_at: ready_triggered_at},
-        %{test_case_id: not_ready_id, triggered_at: not_ready_triggered_at}
+        %{test_case_id: ready_id, triggered_at: base},
+        %{test_case_id: not_ready_id, triggered_at: base}
       ]
     end)
 
@@ -975,27 +1033,30 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
 
   defp insert_test_case_runs(rows), do: IngestRepo.insert_all(TestCaseRun, rows)
 
-  defp run_attrs(project_id, test_case_id, ran_at) do
-    %{
-      id: UUIDv7.generate(),
-      test_run_id: UUIDv7.generate(),
-      test_module_run_id: UUIDv7.generate(),
-      test_case_id: test_case_id,
-      project_id: project_id,
-      is_ci: false,
-      scheme: "",
-      git_branch: "main",
-      git_commit_sha: "",
-      module_name: "MyTests",
-      suite_name: "TestSuite",
-      name: "testExample",
-      status: 0,
-      is_flaky: false,
-      is_new: false,
-      is_quarantined: false,
-      duration: 100,
-      ran_at: ran_at,
-      inserted_at: ran_at
-    }
+  defp run_attrs(project_id, test_case_id, ran_at, overrides \\ []) do
+    Map.merge(
+      %{
+        id: UUIDv7.generate(),
+        test_run_id: UUIDv7.generate(),
+        test_module_run_id: UUIDv7.generate(),
+        test_case_id: test_case_id,
+        project_id: project_id,
+        is_ci: false,
+        scheme: "",
+        git_branch: "main",
+        git_commit_sha: "",
+        module_name: "MyTests",
+        suite_name: "TestSuite",
+        name: "testExample",
+        status: 0,
+        is_flaky: false,
+        is_new: false,
+        is_quarantined: false,
+        duration: 100,
+        ran_at: ran_at,
+        inserted_at: ran_at
+      },
+      Map.new(overrides)
+    )
   end
 end
