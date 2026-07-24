@@ -174,6 +174,7 @@
                                         )
                                     },
                                 bundle_id: target.bundleId,
+                                dependencies: target.dependencies,
                                 destinations: target.destinations.map { map(destination: $0) },
                                 name: target.name,
                                 product: map(product: target.product),

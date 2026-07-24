@@ -9,6 +9,8 @@ public struct RunTarget: Codable, Hashable {
     public let destinations: Set<Destination>
     public let binaryCacheMetadata: RunCacheTargetMetadata?
     public let selectiveTestingMetadata: RunCacheTargetMetadata?
+    /// Names of the targets this target directly depends on (dependency-graph edges).
+    public let dependencies: [String]
 
     public init(
         name: String,
@@ -17,7 +19,8 @@ public struct RunTarget: Codable, Hashable {
         productName: String,
         destinations: Set<Destination>,
         binaryCacheMetadata: RunCacheTargetMetadata?,
-        selectiveTestingMetadata: RunCacheTargetMetadata?
+        selectiveTestingMetadata: RunCacheTargetMetadata?,
+        dependencies: [String] = []
     ) {
         self.name = name
         self.product = product
@@ -26,6 +29,19 @@ public struct RunTarget: Codable, Hashable {
         self.destinations = destinations
         self.binaryCacheMetadata = binaryCacheMetadata
         self.selectiveTestingMetadata = selectiveTestingMetadata
+        self.dependencies = dependencies
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        name = try container.decode(String.self, forKey: .name)
+        product = try container.decode(Product.self, forKey: .product)
+        bundleId = try container.decode(String.self, forKey: .bundleId)
+        productName = try container.decode(String.self, forKey: .productName)
+        destinations = try container.decode(Set<Destination>.self, forKey: .destinations)
+        binaryCacheMetadata = try container.decodeIfPresent(RunCacheTargetMetadata.self, forKey: .binaryCacheMetadata)
+        selectiveTestingMetadata = try container.decodeIfPresent(RunCacheTargetMetadata.self, forKey: .selectiveTestingMetadata)
+        dependencies = try container.decodeIfPresent([String].self, forKey: .dependencies) ?? []
     }
 
     #if DEBUG
