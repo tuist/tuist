@@ -5501,7 +5501,7 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/Organization/name`.
             public var name: Swift.String
-            /// The plan associated with the organization
+            /// The effective plan associated with the organization. `none` is deprecated and is no longer emitted.
             ///
             /// - Remark: Generated from `#/components/schemas/Organization/plan`.
             @frozen public enum planPayload: String, Codable, Hashable, Sendable, CaseIterable {
@@ -5510,7 +5510,7 @@ public enum Components {
                 case enterprise = "enterprise"
                 case none = "none"
             }
-            /// The plan associated with the organization
+            /// The effective plan associated with the organization. `none` is deprecated and is no longer emitted.
             ///
             /// - Remark: Generated from `#/components/schemas/Organization/plan`.
             public var plan: Components.Schemas.Organization.planPayload
@@ -5540,7 +5540,7 @@ public enum Components {
             ///   - invitations: A list of organization invitations
             ///   - members: A list of organization members
             ///   - name: The organization's name
-            ///   - plan: The plan associated with the organization
+            ///   - plan: The effective plan associated with the organization. `none` is deprecated and is no longer emitted.
             ///   - sso_enforced: Whether SSO is enforced for the organization
             ///   - sso_organization_id: The organization ID associated with the SSO provider
             ///   - sso_provider: The SSO provider set up for the organization

@@ -40,14 +40,14 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
                  "invitations" => [],
                  "members" => [],
                  "name" => "tuist-org",
-                 "plan" => "none"
+                 "plan" => "air"
                },
                %{
                  "id" => organization_three.id,
                  "invitations" => [],
                  "members" => [],
                  "name" => "tuist-org-3",
-                 "plan" => "none"
+                 "plan" => "air"
                }
              ] == Enum.sort_by(response["organizations"], & &1["name"])
     end
@@ -90,7 +90,7 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
                %{
                  "id" => organization.id,
                  "name" => "tuist-org",
-                 "plan" => "none",
+                 "plan" => "air",
                  "members" => [],
                  "invitations" => []
                }
@@ -123,7 +123,7 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
       # Then
       response = json_response(conn, :ok)
       assert response["name"] == "tuist-org"
-      assert response["plan"] == "none"
+      assert response["plan"] == "air"
     end
 
     test "returns an organization with an active pro plan", %{conn: conn, user: user} do
