@@ -252,7 +252,7 @@ defmodule TuistWeb.CacheLiveTest do
   test "hides the self-hosted section without the enterprise entitlement", %{conn: conn, account: account} do
     enable_cache(account)
     stub(Environment, :tuist_hosted?, fn -> true end)
-    stub(Tuist.Billing, :get_current_active_subscription, fn _ -> %{plan: :pro} end)
+    stub(Tuist.Billing, :effective_plan, fn _ -> :pro end)
     stub(Kura, :latest_versions, fn 1 -> [] end)
 
     {:ok, _lv, html} = live(conn, ~p"/#{account.name}/cache")
@@ -265,7 +265,7 @@ defmodule TuistWeb.CacheLiveTest do
   test "shows the self-hosted section with the enterprise entitlement", %{conn: conn, account: account} do
     enable_cache(account)
     stub(Environment, :tuist_hosted?, fn -> true end)
-    stub(Tuist.Billing, :get_current_active_subscription, fn _ -> %{plan: :enterprise} end)
+    stub(Tuist.Billing, :effective_plan, fn _ -> :enterprise end)
     stub(Kura, :latest_versions, fn 1 -> [] end)
 
     {:ok, _lv, html} = live(conn, ~p"/#{account.name}/cache")

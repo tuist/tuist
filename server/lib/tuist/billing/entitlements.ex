@@ -34,7 +34,7 @@ defmodule Tuist.Billing.Entitlements do
 
   def allowed_features(account, features) when is_list(features) do
     if Environment.tuist_hosted?() do
-      plan = current_plan(account)
+      plan = resolve_plan(account)
 
       features
       |> Enum.filter(&plan_allows?(plan, &1))
@@ -61,31 +61,6 @@ defmodule Tuist.Billing.Entitlements do
 
   defp plan_allows?(_plan, _feature), do: false
 
-  defp current_plan(%Account{subscriptions: subscriptions}) when is_list(subscriptions) do
-    subscriptions
-    |> Enum.filter(&(&1.status in ["active", "trialing"]))
-    |> case do
-      [] -> :air
-      active -> active |> latest_subscription() |> Map.fetch!(:plan)
-    end
-  end
-
-  defp current_plan(%Account{} = account) do
-    case Billing.get_current_active_subscription(account) do
-      %{plan: plan} when is_atom(plan) -> plan
-      _ -> :air
-    end
-  end
-
-  defp current_plan(_), do: :air
-
-  defp latest_subscription([subscription | subscriptions]) do
-    Enum.reduce(subscriptions, subscription, fn candidate, latest ->
-      case NaiveDateTime.compare(candidate.inserted_at, latest.inserted_at) do
-        :gt -> candidate
-        :lt -> latest
-        :eq -> if candidate.id > latest.id, do: candidate, else: latest
-      end
-    end)
-  end
+  defp resolve_plan(%Account{} = account), do: Billing.effective_plan(account)
+  defp resolve_plan(_), do: :air
 end

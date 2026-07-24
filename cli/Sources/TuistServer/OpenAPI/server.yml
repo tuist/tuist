@@ -2112,7 +2112,7 @@ components:
           x-struct:
           x-validate:
         plan:
-          description: The plan associated with the organization
+          description: The effective plan associated with the organization. `none` is deprecated and is no longer emitted.
           enum:
             - air
             - pro
