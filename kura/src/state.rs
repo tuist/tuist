@@ -24,6 +24,7 @@ use crate::{
     memory::MemoryController,
     metrics::Metrics,
     peer_tls::PeerClientFactory,
+    reapi::SnapshotCache,
     runtime::{DataDirLock, HttpTrafficClass, InflightGuard, RuntimeState, TrafficState},
     store::Store,
     usage::Usage,
@@ -35,9 +36,10 @@ const READINESS_SETTLE_WINDOW: Duration = Duration::from_secs(5);
 pub struct AppState {
     pub config: Config,
     pub _data_dir_lock: DataDirLock,
-    pub store: Store,
+    pub store: Arc<Store>,
     pub io: IoController,
     pub memory: MemoryController,
+    pub snapshot_cache: Arc<SnapshotCache>,
     pub metrics: Metrics,
     pub runtime: Arc<RuntimeState>,
     pub extension: Option<SharedExtension>,
@@ -59,6 +61,8 @@ pub struct AppState {
     pub notify: Notify,
     pub readiness: Mutex<ReadinessState>,
     pub bootstrap_semaphore: Arc<Semaphore>,
+    /// Process-wide byte budget shared by every transient disk writer.
+    pub tmp_staging_budget: Arc<TmpBudget>,
     pub bootstrap_staging_budget: Arc<TmpBudget>,
     // Per-artifact gate that single-flights the bootstrap body download across
     // peers: only the first peer-task to claim a key fetches it, and the rest

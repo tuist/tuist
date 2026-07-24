@@ -1,8 +1,10 @@
 import FileSystem
 import FileSystemTesting
 import Foundation
+import Mockable
 import Path
 import Testing
+import struct TSCUtility.Version
 import TuistConfig
 import TuistConstants
 import TuistCore
@@ -13,9 +15,20 @@ import XcodeGraph
 @testable import TuistGenerator
 
 struct XcodeCacheSettingsProjectMapperTests {
-    @Test(.inTemporaryDirectory)
+    /// Stubs the selected Xcode version. Required in every test: the mapper reads the
+    /// version to decide whether to enable prefix mapping, and an unstubbed Mockable
+    /// call traps rather than throwing.
+    private func stubXcodeVersion(_ version: Version) throws {
+        let xcodeControllerMock = try #require(XcodeController.mocked)
+        given(xcodeControllerMock)
+            .selectedVersion()
+            .willReturn(version)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedXcodeController)
     func map_whenCachingDisabled_returnsUnmodifiedProject() async throws {
         // Given
+        try stubXcodeVersion(Version(26, 0, 0))
         let tuist = Tuist(
             project: .generated(
                 .test(
@@ -43,9 +56,71 @@ struct XcodeCacheSettingsProjectMapperTests {
         #expect(sideEffects.isEmpty)
     }
 
-    @Test(.inTemporaryDirectory)
+    /// Xcode 27 (Swift 6.4) is the first build system that implements the
+    /// source/build directory prefix mappings, which make the compilation-cache key
+    /// independent of where the project and DerivedData live. Apple ships them off
+    /// (no default), so generation opts in.
+    @Test(.inTemporaryDirectory, .withMockedXcodeController)
+    func map_whenXcode27_enablesPrefixMapping() async throws {
+        // Given
+        try stubXcodeVersion(Version(27, 0, 0))
+        let tuist = Tuist(
+            project: .generated(
+                .test(
+                    generationOptions: .test(enableCaching: true)
+                )
+            ),
+            fullHandle: nil,
+            inspectOptions: .init(redundantDependencies: .init(ignoreTagsMatching: [])),
+            url: Constants.URLs.production
+        )
+        let subject = XcodeCacheSettingsProjectMapper(tuist: tuist)
+
+        // When
+        let (mappedProject, _) = try await subject.map(project: Project.test(name: "TestProject"))
+
+        // Then
+        let baseSettings = mappedProject.settings.base
+        #expect(baseSettings["SWIFT_ENABLE_PREFIX_MAPPING"] == .string("YES"))
+        #expect(baseSettings["SWIFT_ENABLE_PROJECT_PREFIX_MAPPING"] == .string("YES"))
+        #expect(baseSettings["CLANG_ENABLE_PREFIX_MAPPING"] == .string("YES"))
+        #expect(baseSettings["CLANG_ENABLE_PROJECT_PREFIX_MAPPING"] == .string("YES"))
+    }
+
+    /// Earlier Xcodes don't define these settings and their build systems lack the
+    /// mappings, so setting them would be inert noise in the generated project.
+    @Test(.inTemporaryDirectory, .withMockedXcodeController)
+    func map_whenXcodeOlderThan27_doesNotEnablePrefixMapping() async throws {
+        // Given
+        try stubXcodeVersion(Version(26, 5, 0))
+        let tuist = Tuist(
+            project: .generated(
+                .test(
+                    generationOptions: .test(enableCaching: true)
+                )
+            ),
+            fullHandle: nil,
+            inspectOptions: .init(redundantDependencies: .init(ignoreTagsMatching: [])),
+            url: Constants.URLs.production
+        )
+        let subject = XcodeCacheSettingsProjectMapper(tuist: tuist)
+
+        // When
+        let (mappedProject, _) = try await subject.map(project: Project.test(name: "TestProject"))
+
+        // Then
+        let baseSettings = mappedProject.settings.base
+        #expect(baseSettings["COMPILATION_CACHE_ENABLE_CACHING"] == .string("YES"))
+        #expect(baseSettings["SWIFT_ENABLE_PREFIX_MAPPING"] == nil)
+        #expect(baseSettings["SWIFT_ENABLE_PROJECT_PREFIX_MAPPING"] == nil)
+        #expect(baseSettings["CLANG_ENABLE_PREFIX_MAPPING"] == nil)
+        #expect(baseSettings["CLANG_ENABLE_PROJECT_PREFIX_MAPPING"] == nil)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedXcodeController)
     func map_whenFullHandleNil_addsLocalCacheSettingsOnly() async throws {
         // Given
+        try stubXcodeVersion(Version(26, 0, 0))
         let tuist = Tuist(
             project: .generated(
                 .test(
@@ -82,9 +157,10 @@ struct XcodeCacheSettingsProjectMapperTests {
         #expect(baseSettings["COMPILATION_CACHE_REMOTE_SERVICE_PATH"] == nil)
     }
 
-    @Test(.inTemporaryDirectory)
+    @Test(.inTemporaryDirectory, .withMockedXcodeController)
     func map_whenCachingEnabled_addsCacheSettings() async throws {
         // Given
+        try stubXcodeVersion(Version(26, 0, 0))
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let casPluginPath = temporaryDirectory.appending(component: "libtuist_cas_plugin.dylib")
         try await FileSystem().touch(casPluginPath)
@@ -147,9 +223,10 @@ struct XcodeCacheSettingsProjectMapperTests {
         #expect(mappedProject.settings.configurations == project.settings.configurations)
     }
 
-    @Test(.inTemporaryDirectory)
+    @Test(.inTemporaryDirectory, .withMockedXcodeController)
     func map_whenPluginMissing_addsLocalCacheSettingsOnly() async throws {
         // Given
+        try stubXcodeVersion(Version(26, 0, 0))
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let missingPluginPath = temporaryDirectory.appending(component: "libtuist_cas_plugin.dylib")
         let tuist = Tuist(
@@ -180,9 +257,10 @@ struct XcodeCacheSettingsProjectMapperTests {
         #expect(baseSettings["OTHER_SWIFT_FLAGS"] == nil)
     }
 
-    @Test(.inTemporaryDirectory)
+    @Test(.inTemporaryDirectory, .withMockedXcodeController)
     func map_whenUploadDisabled_addsUploadOptionToSwiftFlags() async throws {
         // Given
+        try stubXcodeVersion(Version(26, 0, 0))
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let casPluginPath = temporaryDirectory.appending(component: "libtuist_cas_plugin.dylib")
         try await FileSystem().touch(casPluginPath)
@@ -221,9 +299,10 @@ struct XcodeCacheSettingsProjectMapperTests {
         )
     }
 
-    @Test(.inTemporaryDirectory)
+    @Test(.inTemporaryDirectory, .withMockedXcodeController)
     func map_whenNoExistingSettings_addsOnlyCacheSettings() async throws {
         // Given
+        try stubXcodeVersion(Version(26, 0, 0))
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let casPluginPath = temporaryDirectory.appending(component: "libtuist_cas_plugin.dylib")
         try await FileSystem().touch(casPluginPath)
@@ -269,9 +348,10 @@ struct XcodeCacheSettingsProjectMapperTests {
         )
     }
 
-    @Test(.inTemporaryDirectory)
+    @Test(.inTemporaryDirectory, .withMockedXcodeController)
     func map_preservesOtherProjectProperties() async throws {
         // Given
+        try stubXcodeVersion(Version(26, 0, 0))
         let fullHandle = "test/handle"
         let tuist = Tuist(
             project: .generated(
@@ -311,9 +391,10 @@ struct XcodeCacheSettingsProjectMapperTests {
         #expect(mappedProject.settings.base["COMPILATION_CACHE_ENABLE_CACHING"] == .string("YES"))
     }
 
-    @Test(.inTemporaryDirectory)
+    @Test(.inTemporaryDirectory, .withMockedXcodeController)
     func map_whenKuraDisabled_addsLegacyRemoteServiceSettings() async throws {
         // Given: no kura flag → the legacy per-project daemon path
+        try stubXcodeVersion(Version(26, 0, 0))
         let fullHandle = "test-org/test-project"
         let tuist = Tuist(
             project: .generated(

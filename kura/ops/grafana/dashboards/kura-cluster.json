@@ -104,9 +104,51 @@
           "expr": "kura_process_virtual_memory_bytes",
           "legendFormat": "{{region}} virtual",
           "refId": "B"
+        },
+        {
+          "editorMode": "code",
+          "expr": "kura_container_memory_current_bytes",
+          "legendFormat": "{{region}} container",
+          "refId": "C"
+        },
+        {
+          "editorMode": "code",
+          "expr": "kura_container_memory_anon_bytes",
+          "legendFormat": "{{region}} anonymous",
+          "refId": "D"
+        },
+        {
+          "editorMode": "code",
+          "expr": "kura_container_memory_file_bytes",
+          "legendFormat": "{{region}} file cache",
+          "refId": "E"
+        },
+        {
+          "editorMode": "code",
+          "expr": "kura_container_memory_kernel_bytes",
+          "legendFormat": "{{region}} kernel",
+          "refId": "F"
+        },
+        {
+          "editorMode": "code",
+          "expr": "kura_memory_soft_limit_bytes",
+          "legendFormat": "{{region}} soft watermark",
+          "refId": "G"
+        },
+        {
+          "editorMode": "code",
+          "expr": "kura_memory_hard_limit_bytes",
+          "legendFormat": "{{region}} hard watermark",
+          "refId": "H"
+        },
+        {
+          "editorMode": "code",
+          "expr": "kura_memory_transient_reserved_bytes",
+          "legendFormat": "{{region}} transient reserved",
+          "refId": "I"
         }
       ],
-      "title": "Process Memory",
+      "title": "Container and Process Memory",
       "type": "timeseries"
     },
     {

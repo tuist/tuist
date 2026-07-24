@@ -68,9 +68,10 @@ subjects:
 # Read-only extension to the `view` tier. The upstream `view` ClusterRole
 # omits cluster-scoped and custom resources, so a view-tier identity (every
 # member + their agents) can't observe the infra it routinely needs to:
-# nodes, CAPI machines, our Scaleway provider CRs, the Kura CRs, CRDs, and
-# RBAC objects. This aggregates into `view` via the label below (no extra
-# binding; both tuist-admins and tuist-eng inherit it), and is strictly
+# nodes, CAPI machines, our Scaleway provider CRs, the Kura CRs, the
+# RunnerPool CRs, CRDs, and RBAC objects. This aggregates into `view` via
+# the label below (no extra binding; both tuist-admins and tuist-eng
+# inherit it), and is strictly
 # `get`/`list`/`watch` with no `secrets` rule, so the view tier's deliberate
 # Secret exclusion is untouched. None of these resource kinds embed secret
 # data (CAPI/Kura reference Secrets by name, never inline).
@@ -100,6 +101,7 @@ rules:
       - cluster.x-k8s.io
       - infrastructure.cluster.x-k8s.io
       - kura.tuist.dev
+      - tuist.dev
     resources: ["*"]
     verbs: ["get", "list", "watch"]
   - apiGroups: ["rbac.authorization.k8s.io"]
@@ -130,6 +132,27 @@ metadata:
 rules:
   - apiGroups: ["kura.tuist.dev"]
     resources: ["*"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete", "deletecollection"]
+---
+# RunnerPool analog of `tuist-edit-kura-write`. RunnerPool specs are
+# helm-rendered and autoscaler-patched, but operational corrections
+# sometimes need a direct write: healing spec drift the deploy pipeline
+# cannot see (helm's three-way merge only patches fields whose rendered
+# manifest changed between releases, so a value the apiserver rewrote
+# out-of-band persists indefinitely), or nudging a pool while its next
+# chart release is still in flight. Scoped to `runnerpools` rather than
+# the whole `tuist.dev` group so future kinds in that group don't
+# silently inherit write access from the edit tier.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: tuist-edit-runners-write
+  labels:
+    {{- include "pomerium.labels" . | nindent 4 }}
+    rbac.authorization.k8s.io/aggregate-to-edit: "true"
+rules:
+  - apiGroups: ["tuist.dev"]
+    resources: ["runnerpools"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete", "deletecollection"]
 ---
 # Host-recovery capability for UN-WEDGING a single fleet host without the

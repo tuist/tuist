@@ -1040,7 +1040,7 @@ defmodule Tuist.Builds.Analytics do
     start_datetime =
       Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
 
-    end_datetime = DateTime.utc_now()
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
 
     result =
       CommandEvents.selective_testing_hit_rate(project_id, start_datetime, end_datetime, opts)

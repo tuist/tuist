@@ -309,6 +309,18 @@ defmodule Tuist.Kura.Regions do
   def retired?(_), do: false
 
   @doc """
+  Ids of regions kept only as catalog tombstones. A tombstone exists so the
+  reconciler can still resolve a stored server's cluster identity long enough
+  to tear its resources down; servers left in one can never schedule, because
+  the node pool the tombstone names is gone.
+  """
+  def retired_ids do
+    all()
+    |> Enum.filter(&retired?/1)
+    |> Enum.map(& &1.id)
+  end
+
+  @doc """
   True iff this private region's runner fleet dials a node-published
   endpoint (`http://<node address>:<NodePort>`) instead of cluster
   Service DNS — the data plane for fleets that share a network with

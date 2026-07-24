@@ -25,9 +25,12 @@ public struct SettingsContentHasher: SettingsContentHashing {
 
     public func hash(settings: Settings) async throws -> String {
         let baseSettingsHash = try hash(settings.base)
+        let baseDebugSettingsHash = settings.baseDebug.isEmpty ? nil : try hash(settings.baseDebug)
         let configurationHash = try await hash(settings.configurations)
         let defaultSettingsHash = try hash(settings.defaultSettings)
-        return try contentHasher.hash([baseSettingsHash, configurationHash, defaultSettingsHash])
+        return try contentHasher.hash(
+            [baseSettingsHash, baseDebugSettingsHash, configurationHash, defaultSettingsHash].compactMap { $0 }
+        )
     }
 
     private func hash(_ configurations: [BuildConfiguration: Configuration?]) async throws -> String {

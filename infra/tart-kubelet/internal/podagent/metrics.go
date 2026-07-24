@@ -257,6 +257,32 @@ var cacheVolumeAdmissionDeclinedTotal = prometheus.NewCounter(
 	},
 )
 
+// cacheVolumeUploadSeconds measures how long the guest's teardown HEAD upload of
+// the cache image took. The upload blocks the VM from halting, so this is exactly
+// how long a promoting job holds the host slot before it can be reclaimed — the
+// signal for keeping the volume sized so uploads stay fast (the CAS is folded in,
+// so this now includes CAS bytes). Reported by the guest via the volume-upload-ms
+// status marker and recorded here at finalize.
+var cacheVolumeUploadSeconds = prometheus.NewHistogram(
+	prometheus.HistogramOpts{
+		Name:    "tart_kubelet_cache_volume_upload_seconds",
+		Help:    "Wall-clock the guest teardown spent uploading the cache image as the account HEAD; blocks slot reclaim.",
+		Buckets: []float64{0.5, 1, 2, 5, 10, 20, 30, 60, 120, 300, 600},
+	},
+)
+
+// cacheVolumeFillPercent is the post-job fill % of the cache image mount (binary
+// cache + folded CAS + overhead), sampled at teardown. The tail approaching 100
+// is the ENOSPC pressure the reserve guards against — this is what makes the
+// reserve/split tunable from observation rather than from build failures.
+var cacheVolumeFillPercent = prometheus.NewHistogram(
+	prometheus.HistogramOpts{
+		Name:    "tart_kubelet_cache_volume_fill_percent",
+		Help:    "Post-job fill % of the cache image mount (binary cache + CAS + overhead); the tail near 100 is ENOSPC pressure.",
+		Buckets: []float64{25, 50, 60, 70, 80, 85, 90, 93, 95, 97, 99, 100},
+	},
+)
+
 func init() {
 	metrics.Registry.MustRegister(
 		vmBootDurationSeconds,
@@ -274,6 +300,8 @@ func init() {
 		cacheVolumeEnabled,
 		cacheVolumeRootMounted,
 		cacheVolumeAdmissionDeclinedTotal,
+		cacheVolumeUploadSeconds,
+		cacheVolumeFillPercent,
 	)
 
 	// Initialize every promote-result series to 0 at registration. Counter-vector
@@ -284,6 +312,23 @@ func init() {
 	for _, result := range []string{"accepted", "rejected", "error"} {
 		cacheVolumePromoteTotal.WithLabelValues(result)
 	}
+}
+
+// RecordVolumeUpload records how long the guest's HEAD upload blocked teardown
+// (ms in, seconds observed).
+func RecordVolumeUpload(ms int64) {
+	if ms < 0 {
+		return
+	}
+	cacheVolumeUploadSeconds.Observe(float64(ms) / 1000)
+}
+
+// RecordVolumeFill records the post-job fill % of the cache image mount.
+func RecordVolumeFill(pct int) {
+	if pct < 0 {
+		return
+	}
+	cacheVolumeFillPercent.Observe(float64(pct))
 }
 
 // RecordVolumeOutcome increments the per-outcome count of finalized cache

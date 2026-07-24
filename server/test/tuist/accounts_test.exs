@@ -3804,6 +3804,51 @@ defmodule Tuist.AccountsTest do
       assert retrieved.user.id == user.id
     end
 
+    test "allows the same user and provider subject under different issuers" do
+      # Given
+      user = user_fixture(email: "multi-issuer@example.com")
+      uid = "shared-sub-#{System.unique_integer([:positive])}"
+
+      first_attrs = %{
+        provider: :oauth2,
+        id_in_provider: uid,
+        provider_organization_id: "https://first.example.com"
+      }
+
+      second_attrs = %{
+        provider: :oauth2,
+        id_in_provider: uid,
+        provider_organization_id: "https://second.example.com"
+      }
+
+      # When
+      {:ok, first_identity} = Accounts.link_oauth_identity_to_user(user, first_attrs)
+      {:ok, second_identity} = Accounts.link_oauth_identity_to_user(user, second_attrs)
+
+      # Then
+      refute first_identity.id == second_identity.id
+      assert first_identity.user_id == user.id
+      assert second_identity.user_id == user.id
+    end
+
+    test "returns the existing identity when the same link is inserted twice" do
+      # Given
+      user = user_fixture(email: "duplicate-link@example.com")
+
+      attrs = %{
+        provider: :google,
+        id_in_provider: "google-uid-#{System.unique_integer([:positive])}",
+        provider_organization_id: nil
+      }
+
+      # When
+      {:ok, first_identity} = Accounts.link_oauth_identity_to_user(user, attrs)
+      {:ok, second_identity} = Accounts.link_oauth_identity_to_user(user, attrs)
+
+      # Then
+      assert second_identity.id == first_identity.id
+    end
+
     test "assigns user to SSO organization when provider_organization_id matches" do
       # Given
       organization =
