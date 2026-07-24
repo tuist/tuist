@@ -52,6 +52,7 @@ public enum EnvKey: String, CaseIterable {
     case generateOpen = "TUIST_GENERATE_OPEN"
     case generateBinaryCache = "TUIST_GENERATE_BINARY_CACHE"
     case generateCacheProfile = "TUIST_GENERATE_CACHE_PROFILE"
+    case generateLint = "TUIST_GENERATE_LINT"
 
     // GRAPH
 
