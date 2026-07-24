@@ -46,12 +46,17 @@ defmodule Tuist.IngestRepo.Migrations.StopUnusedRecentTestCaseRunAggregatesTest 
            %{
              active_views: @active_views,
              cluster_available?: true,
+             create_table_suffix: "",
+             current_database: "tuist_test",
              drop_failure: nil,
+             drop_failure_kind: :raise,
              drop_failure_raised?: false,
              drop_noop: nil,
              initial_merge_settings: Map.new(@retired_tables, &{&1, :default}),
              merge_responses: List.duplicate([], 8),
-             postcondition_setting: nil
+             postcondition_setting: nil,
+             restoration_guard_failure: nil,
+             restoration_guard_failure_raised?: false
            }
          end},
         id: :migration_state
@@ -111,6 +116,7 @@ defmodule Tuist.IngestRepo.Migrations.StopUnusedRecentTestCaseRunAggregatesTest 
     previous_setting = 10_000
 
     update_state(state,
+      create_table_suffix: " COMMENT 'retired aggregate'",
       initial_merge_settings: Map.new(@retired_tables, &{&1, {:explicit, previous_setting}}),
       merge_responses: [[], [["test_case_runs_recent_500_per_case"]]]
     )
@@ -149,6 +155,14 @@ defmodule Tuist.IngestRepo.Migrations.StopUnusedRecentTestCaseRunAggregatesTest 
     guard_queries = Enum.filter(queries, &String.contains?(&1, "system."))
     assert Enum.any?(guard_queries, &String.contains?(&1, "clusterAllReplicas(default, system.merges)"))
     assert Enum.any?(guard_queries, &String.contains?(&1, "clusterAllReplicas(default, system.tables)"))
+
+    database_guard_queries =
+      Enum.filter(guard_queries, fn query ->
+        String.contains?(query, "system.merges") or String.contains?(query, "system.tables")
+      end)
+
+    assert Enum.all?(database_guard_queries, &String.contains?(&1, "WHERE database = 'tuist_test'"))
+    refute Enum.any?(database_guard_queries, &String.contains?(&1, "currentDatabase()"))
 
     mutation_queries =
       Enum.filter(queries, &(String.starts_with?(&1, "ALTER TABLE") or String.starts_with?(&1, "DROP VIEW")))
@@ -196,7 +210,10 @@ defmodule Tuist.IngestRepo.Migrations.StopUnusedRecentTestCaseRunAggregatesTest 
     query_log: query_log,
     state: state
   } do
-    update_state(state, postcondition_setting: 161_061_273_600)
+    update_state(state,
+      create_table_suffix: " COMMENT 'retired aggregate'",
+      postcondition_setting: 161_061_273_600
+    )
 
     assert_raise Ecto.MigrationError,
                  "rolling aggregate tables still allow automatic merges: #{Enum.join(@retired_tables, ", ")}",
@@ -205,7 +222,55 @@ defmodule Tuist.IngestRepo.Migrations.StopUnusedRecentTestCaseRunAggregatesTest 
                  end
 
     queries = recorded_queries(query_log)
-    refute Enum.any?(queries, &reset_merge_setting_query?/1)
+    refute Enum.any?(queries, &String.starts_with?(&1, "DROP VIEW"))
+    assert Enum.count(queries, &reset_merge_setting_query?/1) == 4
+  end
+
+  test "parses exact automatic merge settings from ClickHouse create table queries" do
+    assert StopUnusedRecentTestCaseRunAggregates.automatic_merge_setting(
+             "CREATE TABLE t (id UInt64) ENGINE = MergeTree ORDER BY id SETTINGS max_bytes_to_merge_at_max_space_in_pool = 1"
+           ) == {:explicit, 1}
+
+    assert StopUnusedRecentTestCaseRunAggregates.automatic_merge_setting(
+             "CREATE TABLE t (id UInt64) ENGINE = MergeTree ORDER BY id SETTINGS max_bytes_to_merge_at_max_space_in_pool = 161061273600, index_granularity = 8192"
+           ) == {:explicit, 161_061_273_600}
+
+    assert StopUnusedRecentTestCaseRunAggregates.automatic_merge_setting(
+             "CREATE TABLE t (id UInt64) ENGINE = MergeTree ORDER BY id SETTINGS index_granularity = 8192, max_bytes_to_merge_at_max_space_in_pool = 10000 COMMENT 'retired'"
+           ) == {:explicit, 10_000}
+
+    assert StopUnusedRecentTestCaseRunAggregates.automatic_merge_setting(
+             "CREATE TABLE t (id UInt64) ENGINE = MergeTree ORDER BY id SETTINGS index_granularity = 8192"
+           ) == :default
+  end
+
+  test "restores every setting and preserves the original error when the restoration guard fails", %{
+    query_log: query_log,
+    state: state
+  } do
+    update_state(state,
+      drop_failure: "test_case_runs_recent_500_success_per_case_mv",
+      restoration_guard_failure: :raise
+    )
+
+    assert_raise RuntimeError, "simulated drop failure", fn ->
+      StopUnusedRecentTestCaseRunAggregates.up()
+    end
+
+    assert Enum.count(recorded_queries(query_log), &reset_merge_setting_query?/1) == 4
+  end
+
+  test "restores every setting and preserves an exit from the migration", %{
+    query_log: query_log,
+    state: state
+  } do
+    update_state(state,
+      drop_failure: "test_case_runs_recent_500_success_per_case_mv",
+      drop_failure_kind: :exit
+    )
+
+    assert catch_exit(StopUnusedRecentTestCaseRunAggregates.up()) == :simulated_drop_failure
+    assert Enum.count(recorded_queries(query_log), &reset_merge_setting_query?/1) == 4
   end
 
   test "restores settings after a partial drop failure and succeeds when retried", %{
@@ -247,6 +312,9 @@ defmodule Tuist.IngestRepo.Migrations.StopUnusedRecentTestCaseRunAggregatesTest 
 
   defp query_result(sql, state, query_log) do
     cond do
+      sql == "SELECT currentDatabase()" ->
+        %{rows: [[get_state(state, :current_database)]]}
+
       String.contains?(sql, "FROM system.clusters") ->
         if get_state(state, :cluster_available?), do: %{rows: [[1]]}, else: %{rows: []}
 
@@ -296,19 +364,25 @@ defmodule Tuist.IngestRepo.Migrations.StopUnusedRecentTestCaseRunAggregatesTest 
 
   defp retired_table_metadata(state, query_log) do
     queries = recorded_queries(query_log)
-    all_views_removed? = remaining_retired_views(query_log, state) == []
     postcondition_setting = get_state(state, :postcondition_setting)
     initial_settings = get_state(state, :initial_merge_settings)
+    create_table_suffix = get_state(state, :create_table_suffix)
+
+    automatic_merges_stopped? =
+      Enum.count(queries, fn query ->
+        modify_merge_setting_query?(query) and
+          String.contains?(query, " = 1")
+      end) == length(@retired_tables)
 
     Enum.map(@retired_tables, fn table ->
       setting =
-        if all_views_removed? and not is_nil(postcondition_setting) do
+        if automatic_merges_stopped? and not is_nil(postcondition_setting) do
           {:explicit, postcondition_setting}
         else
           latest_merge_setting(queries, table, Map.fetch!(initial_settings, table))
         end
 
-      [table, create_table_query(table, setting)]
+      [table, create_table_query(table, setting) <> create_table_suffix]
     end)
   end
 
@@ -337,16 +411,40 @@ defmodule Tuist.IngestRepo.Migrations.StopUnusedRecentTestCaseRunAggregatesTest 
       "CREATE TABLE #{table} SETTINGS index_granularity = 8192, " <> "max_bytes_to_merge_at_max_space_in_pool = #{value}"
 
   defp maybe_fail_query!(sql, state) do
-    should_fail? =
-      Agent.get_and_update(state, fn current ->
-        fail? =
-          not current.drop_failure_raised? and
-            sql == "DROP VIEW IF EXISTS #{current.drop_failure}"
+    case next_failure(sql, state) do
+      {:drop, :raise} -> raise "simulated drop failure"
+      {:drop, :exit} -> exit(:simulated_drop_failure)
+      :raise -> raise "simulated restoration guard failure"
+      :exit -> exit(:simulated_restoration_guard_failure)
+      nil -> :ok
+    end
+  end
 
-        {fail?, if(fail?, do: %{current | drop_failure_raised?: true}, else: current)}
-      end)
+  defp next_failure(sql, state) do
+    Agent.get_and_update(state, fn current ->
+      cond do
+        drop_failure?(sql, current) ->
+          {{:drop, current.drop_failure_kind}, %{current | drop_failure_raised?: true}}
 
-    if should_fail?, do: raise("simulated drop failure")
+        restoration_guard_failure?(sql, current) ->
+          {current.restoration_guard_failure, %{current | restoration_guard_failure_raised?: true}}
+
+        true ->
+          {nil, current}
+      end
+    end)
+  end
+
+  defp drop_failure?(sql, state) do
+    not state.drop_failure_raised? and
+      sql == "DROP VIEW IF EXISTS #{state.drop_failure}"
+  end
+
+  defp restoration_guard_failure?(sql, state) do
+    state.drop_failure_raised? and
+      not state.restoration_guard_failure_raised? and
+      not is_nil(state.restoration_guard_failure) and
+      system_tables_query?(sql, @retired_views)
   end
 
   defp system_tables_query?(sql, names) do

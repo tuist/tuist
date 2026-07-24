@@ -19,6 +19,12 @@ defmodule Tuist.Repo.Migrations.ReassertRollingAutomationWindowsFitActiveAggrega
     supported = alert_with_trigger_config(project, %{"window_type" => "rolling", "rolling_window_size" => 75})
     calendar = alert_with_trigger_config(project, %{"window_type" => "last_days", "window" => "30d"})
 
+    legacy_without_window_type =
+      alert_with_trigger_config(project, %{"rolling_window_size" => 1000})
+
+    legacy_with_null_window_type =
+      alert_with_trigger_config(project, %{"window_type" => nil, "rolling_window_size" => 1000})
+
     disabled =
       alert_with_trigger_config(
         project,
@@ -46,6 +52,8 @@ defmodule Tuist.Repo.Migrations.ReassertRollingAutomationWindowsFitActiveAggrega
 
     refute error.message =~ supported.id
     refute error.message =~ calendar.id
+    refute error.message =~ legacy_without_window_type.id
+    refute error.message =~ legacy_with_null_window_type.id
     refute error.message =~ disabled.id
   end
 
