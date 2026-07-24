@@ -343,43 +343,43 @@ import XcodeGraph
                     Logger.current.info("\(successfullyStoredTargets.count) targets stored: \(targetsStored)")
                 }
             } catch {
-                await cleanUpCacheWarmDirectory(temporaryDirectory)
+                await removeCacheWarmDirectory(temporaryDirectory)
                 throw error
             }
 
-            await cleanUpCacheWarmDirectory(temporaryDirectory)
+            await removeCacheWarmDirectory(temporaryDirectory)
         }
 
-        /// Removes the throwaway cache-warm directory, tolerating a cleanup failure so it can never fail an
-        /// otherwise-successful run.
-        ///
-        /// The build writes Xcode's compilation cache into `derived-data/CompilationCache.noindex`, whose
-        /// spool the machine-wide CAS proxy drains asynchronously; it can create spool entries there
-        /// concurrently with this teardown. Removing that subtree first, with a short retry, keeps a lost
-        /// race (the directory repopulated between enumeration and `rmdir`, surfaced as "Directory not
-        /// empty") from aborting the command after the cache has already been stored.
-        private func cleanUpCacheWarmDirectory(_ temporaryDirectory: AbsolutePath) async {
-            let compilationCachePath = temporaryDirectory
-                .appending(components: ["derived-data", "CompilationCache.noindex"])
-            await bestEffortRemove(compilationCachePath)
-            await bestEffortRemove(temporaryDirectory)
-        }
-
-        private func bestEffortRemove(_ path: AbsolutePath, attempts: Int = 3) async {
+        /// Removes the throwaway cache-warm directory, tolerating a failure so cleanup can never fail an
+        /// otherwise-successful run. Only the build products live here; Xcode's compilation cache is kept
+        /// out of this directory (see `compilationCacheCASArgument`), so nothing writes to it concurrently
+        /// and the retry is a safety net for an unexpected straggler, not the fix for a known race.
+        private func removeCacheWarmDirectory(_ temporaryDirectory: AbsolutePath, attempts: Int = 3) async {
             for attempt in 1 ... attempts {
                 do {
-                    try await fileSystem.remove(path)
+                    try await fileSystem.remove(temporaryDirectory)
                     return
                 } catch {
                     if attempt == attempts {
                         Logger.current.debug(
-                            "Best-effort cleanup of \(path.pathString) failed after \(attempts) attempts: \(error)"
+                            "Best-effort cleanup of \(temporaryDirectory.pathString) failed after \(attempts) attempts: \(error)"
                         )
                     } else {
                         try? await Task.sleep(for: .milliseconds(200))
                     }
                 }
             }
+        }
+
+        /// Pins Xcode's compilation cache (CAS) to the machine's shared DerivedData instead of letting it
+        /// follow `-derivedDataPath` into this command's throwaway build directory. The plugin's spool
+        /// there is drained asynchronously by the machine-wide CAS proxy and must outlive the build, so
+        /// keeping it at the default location avoids racing the directory's teardown and warms the same
+        /// store regular Xcode builds read.
+        private func compilationCacheCASArgument() async throws -> XcodeBuildArgument {
+            let casPath = try await Environment.current.derivedDataDirectory()
+                .appending(component: "CompilationCache.noindex")
+            return .xcarg("COMPILATION_CACHE_CAS_PATH", casPath.pathString)
         }
 
         private func productsDirectory(
@@ -420,6 +420,7 @@ import XcodeGraph
                 .xcarg("CODE_SIGNING_ALLOWED", "NO"),
                 .xcarg("CODE_SIGNING_REQUIRED", "NO"),
                 .xcarg("SYMROOT", derivedDataPath.appending(components: ["Build", "Products"]).pathString),
+                try await compilationCacheCASArgument(),
             ]
             try await xcodeBuildController.build(
                 xcodebuildTarget,
@@ -482,6 +483,7 @@ import XcodeGraph
                 .xcarg("CODE_SIGNING_REQUIRED", "NO"),
                 .configuration(configuration),
                 .xcarg("SYMROOT", derivedDataPath.appending(components: ["Build", "Products"]).pathString),
+                try await compilationCacheCASArgument(),
             ]
             // We currently skip building for maccatalyst as we prefer to generate a bundle for iOS instead.
             // iOS bundles should be compatible with maccatalyst ones
@@ -738,6 +740,7 @@ import XcodeGraph
                         .xcarg("COMPILER_INDEX_STORE_ENABLE", "NO"),
                         .configuration(configuration),
                         .xcarg("SYMROOT", derivedDataPath.appending(components: ["Build", "Products"]).pathString),
+                        try await compilationCacheCASArgument(),
                         // To prevent the rejection when publishing on the App Store
                         // https://developer.apple.com/library/archive/qa/qa1964/_index.html
                     ] + (isReleaseConfiguration ? [
@@ -784,6 +787,7 @@ import XcodeGraph
                 .xcarg("COMPILER_INDEX_STORE_ENABLE", "NO"),
                 .configuration(configuration),
                 .xcarg("SYMROOT", derivedDataPath.appending(components: ["Build", "Products"]).pathString),
+                try await compilationCacheCASArgument(),
                 // To prevent the rejection when publishing on the App Store
                 // https://developer.apple.com/library/archive/qa/qa1964/_index.html
             ] + (isReleaseConfiguration ? [
@@ -866,6 +870,7 @@ import XcodeGraph
                     .xcarg("COMPILER_INDEX_STORE_ENABLE", "NO"),
                     .configuration(configuration),
                     .xcarg("SYMROOT", derivedDataPath.appending(components: ["Build", "Products"]).pathString),
+                    try await compilationCacheCASArgument(),
                 ] + (isReleaseConfiguration ? [
                     .xcarg("GCC_INSTRUMENT_PROGRAM_FLOW_ARCS", "NO"),
                     .xcarg("CLANG_ENABLE_CODE_COVERAGE", "NO"),
