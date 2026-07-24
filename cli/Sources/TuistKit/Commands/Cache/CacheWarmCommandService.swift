@@ -257,8 +257,7 @@ import XcodeGraph
                 .filter { !($0.buildAction?.targets ?? []).isEmpty }
                 .map { (scheme: $0, cacheOutputType: CacheOutputType.xcframework) }
 
-            let temporaryDirectory = try await fileSystem.makeTemporaryDirectory(prefix: "CacheWarm")
-            do {
+            try await fileSystem.runInTemporaryDirectory(prefix: "CacheWarm") { temporaryDirectory in
                 var artifactsToStore: [CacheGraphTargetBuiltArtifact] = []
 
                 let derivedDataPath = temporaryDirectory.appending(component: "derived-data")
@@ -341,32 +340,6 @@ import XcodeGraph
                     Logger.current.info("\(successfullyStoredTargets.count) target stored: \(targetsStored)")
                 } else {
                     Logger.current.info("\(successfullyStoredTargets.count) targets stored: \(targetsStored)")
-                }
-            } catch {
-                await removeCacheWarmDirectory(temporaryDirectory)
-                throw error
-            }
-
-            await removeCacheWarmDirectory(temporaryDirectory)
-        }
-
-        /// Removes the throwaway cache-warm directory, tolerating a failure so cleanup can never fail an
-        /// otherwise-successful run. Only the build products live here; Xcode's compilation cache is kept
-        /// out of this directory (see `compilationCacheCASArgument`), so nothing writes to it concurrently
-        /// and the retry is a safety net for an unexpected straggler, not the fix for a known race.
-        private func removeCacheWarmDirectory(_ temporaryDirectory: AbsolutePath, attempts: Int = 3) async {
-            for attempt in 1 ... attempts {
-                do {
-                    try await fileSystem.remove(temporaryDirectory)
-                    return
-                } catch {
-                    if attempt == attempts {
-                        Logger.current.debug(
-                            "Best-effort cleanup of \(temporaryDirectory.pathString) failed after \(attempts) attempts: \(error)"
-                        )
-                    } else {
-                        try? await Task.sleep(for: .milliseconds(200))
-                    }
                 }
             }
         }
