@@ -208,6 +208,6 @@ end
 # locale set.
 locale_exclude = if Tuist.Environment.dev_all_locales?(), do: [], else: [:locale]
 
-ExUnit.start(capture_log: true, exclude: [:skip] ++ locale_exclude)
+ExUnit.start(capture_log: true, exclude: [:skip, :destructive_clickhouse_migration] ++ locale_exclude)
 Sandbox.mode(Tuist.Repo, :manual)
 Sandbox.mode(Tuist.IngestRepo, :manual)
