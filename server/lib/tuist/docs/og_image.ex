@@ -5,6 +5,13 @@ defmodule Tuist.Docs.OgImage do
   """
   use Phoenix.Component
 
+  alias Phoenix.HTML.Safe
+  alias Tuist.Docs
+  alias Tuist.Docs.Sidebar
+  alias Tuist.Environment
+  alias Tuist.OpenGraphImageRenderer
+  alias Tuist.OpenGraphImages
+
   @max_title_length 60
   @max_description_length 120
 
@@ -173,13 +180,136 @@ defmodule Tuist.Docs.OgImage do
     }
 
     "<!DOCTYPE html>" <>
-      (assigns |> card() |> Phoenix.HTML.Safe.to_iodata() |> IO.iodata_to_binary())
+      (assigns |> card() |> Safe.to_iodata() |> IO.iodata_to_binary())
   end
 
   def slug_to_filename(slug) do
     [locale | rest] = String.split(slug, "/", trim: true)
     page_path = rest |> Enum.join("-") |> then(&"#{&1}.jpg")
     Path.join(locale, page_path)
+  end
+
+  def image_path(page) do
+    # Derive both the URL and the content key from the page's canonical slug so
+    # generation matches what resolve/1 reconstructs at serve time. Keying off
+    # the raw requested path instead diverges whenever Docs.get_page/1
+    # normalizes the URL (trailing slash, "/index" suffix), producing a key the
+    # controller cannot reproduce and a 404 for the social card.
+    path = "/docs/images/og/generated/#{slug_to_filename(page.slug)}"
+    spec = spec(page.slug, page)
+    OpenGraphImages.versioned_path(path, spec.key)
+  end
+
+  def resolve(path) do
+    prefix = "/docs/images/og/generated/"
+
+    with true <- String.starts_with?(path, prefix),
+         relative_path = String.replace_prefix(path, prefix, ""),
+         true <- String.ends_with?(relative_path, ".jpg"),
+         {slug, page} when not is_nil(page) <- page_for_filename(relative_path) do
+      {:ok, spec(slug, page)}
+    else
+      _ -> :error
+    end
+  end
+
+  defp page_for_filename(filename) do
+    case Enum.find(Docs.pages(), &(slug_to_filename(&1.slug) == filename)) do
+      nil -> localized_fallback_page(filename)
+      page -> {page.slug, page}
+    end
+  end
+
+  defp localized_fallback_page(filename) do
+    case String.split(filename, "/", parts: 2) do
+      [locale, page_filename] when locale != "en" ->
+        english_filename = Path.join("en", page_filename)
+
+        case Enum.find(Docs.pages(), &(slug_to_filename(&1.slug) == english_filename)) do
+          nil -> {nil, nil}
+          page -> {String.replace_prefix(page.slug, "/en/", "/#{locale}/"), page}
+        end
+
+      _ ->
+        {nil, nil}
+    end
+  end
+
+  defp spec(slug, page) do
+    priv_dir = Application.app_dir(:tuist, "priv")
+    fonts_dir = Path.join(priv_dir, "static/fonts")
+    logo_path = Path.join(priv_dir, "docs/images/logo.webp")
+    category = category(slug)
+
+    key_parts = [
+      "docs-page:v2",
+      slug,
+      page.title || "",
+      page.description || "",
+      category,
+      asset_hash()
+    ]
+
+    OpenGraphImages.spec(key_parts, fn ->
+      html =
+        render_html(
+          title: page.title,
+          description: page.description,
+          category: category,
+          fonts_dir: fonts_dir,
+          logo_path: logo_path
+        )
+
+      OpenGraphImageRenderer.render(html, page.title || category)
+    end)
+  end
+
+  defp category(slug) do
+    en_slug = String.replace(slug, ~r{^/[^/]+/}, "/en/")
+    Map.get(category_map(), en_slug, "Docs")
+  end
+
+  # The slug -> category map is derived by walking the entire sidebar tree, which
+  # is static in a running release. Build it once and memoize so every docs page
+  # render does not rebuild the tree and the map just to label its OG card.
+  # Recompute in dev, where the docs content (and thus the tree) hot-reloads.
+  defp category_map do
+    if Environment.dev?() do
+      build_category_map()
+    else
+      case :persistent_term.get({__MODULE__, :category_map}, nil) do
+        nil ->
+          map = build_category_map()
+          :persistent_term.put({__MODULE__, :category_map}, map)
+          map
+
+        map ->
+          map
+      end
+    end
+  end
+
+  defp build_category_map do
+    Sidebar.tree()
+    |> Enum.flat_map(fn group -> collect_slugs_with_category(group.label || "Docs", group.items) end)
+    |> Map.new()
+  end
+
+  defp collect_slugs_with_category(category, items) do
+    Enum.flat_map(items, fn item ->
+      own = if item.slug, do: [{item.slug, category}], else: []
+      own ++ collect_slugs_with_category(category, item.items)
+    end)
+  end
+
+  defp asset_hash do
+    priv_dir = Application.app_dir(:tuist, "priv")
+
+    OpenGraphImages.cached_key(:docs_open_graph_assets, [
+      {:module, __MODULE__},
+      {:dir, Path.join(priv_dir, "static/fonts")},
+      {:file, Path.join(priv_dir, "docs/images/logo.webp")}
+    ])
   end
 
   defp truncate(nil, _max), do: ""

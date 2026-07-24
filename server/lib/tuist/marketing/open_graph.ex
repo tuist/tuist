@@ -8,25 +8,17 @@ defmodule Tuist.Marketing.OpenGraph do
 
   @max_length 35
 
-  @doc """
-  Generates an OG image with the given title and saves it to the specified path.
-
-  If locale is provided, it will be included in the path structure before the filename.
-  For example: path="/og/about.jpg", locale="ko" -> "/og/ko/about.jpg"
-  """
-  def generate_og_image(title, path, locale \\ nil) do
-    final_path = apply_locale_to_path(path, locale)
-    {title_line_1, title_line_2, title_line_3} = og_image_title_lines(title)
-
-    parent_directory = Path.dirname(final_path)
-
-    if not File.exists?(parent_directory) do
-      File.mkdir_p!(parent_directory)
+  def generate_og_image_binary(title) do
+    with {:ok, image} <- generate_image(title) do
+      Image.write(image, :memory, quality: 95, strip_metadata: false, suffix: ".jpg")
     end
+  end
+
+  defp generate_image(title) do
+    {title_line_1, title_line_2, title_line_3} = og_image_title_lines(title)
 
     # Load the background template image
     template_path = Path.join([Application.app_dir(:tuist, "priv"), "static", "images", "og_template.png"])
-    {:ok, background} = Image.open(template_path)
 
     # Text configuration
     # Color oklch(21.7% 0.002 247.941) - converted to RGB [25, 26, 27]
@@ -37,59 +29,32 @@ defmodule Tuist.Marketing.OpenGraph do
       text_fill_color: [25, 26, 27]
     ]
 
-    # Create and composite text overlays
+    # Composite the text overlays onto the template.
     # Line height: 100% (100px spacing = font size)
-    image = background
     font_size = text_options[:font_size]
     base_y = 450
 
-    image =
-      if title_line_1 == "" do
-        image
-      else
-        {:ok, text1} = Image.Text.text(title_line_1, text_options)
-        {:ok, composed} = Image.compose(image, text1, x: 85, y: base_y)
-        composed
-      end
+    lines = [
+      {title_line_1, base_y},
+      {title_line_2, base_y + font_size},
+      {title_line_3, base_y + font_size * 2}
+    ]
 
-    image =
-      if title_line_2 == "" do
-        image
-      else
-        {:ok, text2} = Image.Text.text(title_line_2, text_options)
-        {:ok, composed} = Image.compose(image, text2, x: 85, y: base_y + font_size)
-        composed
-      end
-
-    image =
-      if title_line_3 == "" do
-        image
-      else
-        {:ok, text3} = Image.Text.text(title_line_3, text_options)
-        {:ok, composed} = Image.compose(image, text3, x: 85, y: base_y + font_size * 2)
-        composed
-      end
-
-    # Save as JPEG with high quality and proper color space
-    Image.write!(image, final_path, write_options(final_path))
+    with {:ok, background} <- Image.open(template_path) do
+      Enum.reduce_while(lines, {:ok, background}, fn {line, y}, {:ok, image} ->
+        case compose_line(image, line, y, text_options) do
+          {:ok, composed} -> {:cont, {:ok, composed}}
+          {:error, reason} -> {:halt, {:error, reason}}
+        end
+      end)
+    end
   end
 
-  defp apply_locale_to_path(path, nil), do: path
-  defp apply_locale_to_path(path, "en"), do: path
+  defp compose_line(image, "", _y, _text_options), do: {:ok, image}
 
-  defp apply_locale_to_path(path, locale) do
-    dirname = Path.dirname(path)
-    basename = Path.basename(path)
-    Path.join([dirname, locale, basename])
-  end
-
-  defp write_options(path) do
-    options = [quality: 95, strip_metadata: false]
-
-    if Path.extname(path) == "" do
-      Keyword.put(options, :suffix, ".jpg")
-    else
-      options
+  defp compose_line(image, line, y, text_options) do
+    with {:ok, text} <- Image.Text.text(line, text_options) do
+      Image.compose(image, text, x: 85, y: y)
     end
   end
 

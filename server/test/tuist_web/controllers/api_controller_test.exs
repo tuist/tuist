@@ -32,6 +32,27 @@ defmodule TuistWeb.APIControllerTest do
       assert html =~ "<title>API Documentation · Tuist</title>"
     end
 
+    test "includes a content-addressed Open Graph image when hosted", %{conn: conn} do
+      stub(Tuist.Environment, :tuist_hosted?, fn -> true end)
+
+      conn = get(conn, "/api/docs")
+
+      {:ok, document} = conn |> html_response(200) |> Floki.parse_document()
+      [image] = Floki.attribute(document, "meta[property='og:image']", "content")
+      assert image =~ ~r"/marketing/images/og/generated/api-docs-[0-9a-f]{64}\.jpg$"
+    end
+
+    test "omits the Open Graph image on-premise, where the image route is not served", %{
+      conn: conn
+    } do
+      stub(Tuist.Environment, :tuist_hosted?, fn -> false end)
+
+      conn = get(conn, "/api/docs")
+
+      {:ok, document} = conn |> html_response(200) |> Floki.parse_document()
+      assert Floki.find(document, "meta[property='og:image']") == []
+    end
+
     test "includes the right scalar configuration when the user is not authenticated", %{
       conn: conn
     } do
