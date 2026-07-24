@@ -8,6 +8,8 @@ import Config
 # to bundle .js and .css sources.
 
 noora_source_path = Path.expand("../../noora", __DIR__)
+server_source_path = Path.expand("..", __DIR__)
+escaped_noora_source_path = Regex.escape(noora_source_path)
 deps_path = Path.expand("../deps", __DIR__)
 node_modules_path = Path.expand("../node_modules", __DIR__)
 code_reloader_enabled = System.get_env("TUIST_DEV_DISABLE_CODE_RELOADER") not in ["1", "true"]
@@ -51,10 +53,10 @@ base_live_reload_patterns = [
   ~r"lib/tuist_web/marketing/(controllers|live|components)/.*(ex|heex)$",
   ~r"lib/tuist_web/docs/.*(ex|heex)$",
   ~r"priv/marketing/blog/*/.*(md)$",
-  ~r"../../noora/lib/noora/.*(ex|heex)$",
-  ~r"../../noora/js/.*(js)$",
-  ~r"../../noora/css/.*(css)$",
-  ~r"../../noora/priv/static/.*(js|css)$"
+  ~r"#{escaped_noora_source_path}/lib/noora/.*(ex|heex)$",
+  ~r"#{escaped_noora_source_path}/js/.*(js)$",
+  ~r"#{escaped_noora_source_path}/css/.*(css)$",
+  ~r"#{escaped_noora_source_path}/priv/static/.*(js|css)$"
 ]
 
 config :esbuild,
@@ -130,9 +132,11 @@ config :phoenix, :stacktrace_depth, 20
 
 config :phoenix_live_reload,
   dirs: [
-    "../../noora/lib",
-    "../../noora/js",
-    "../../noora/css"
+    server_source_path,
+    Path.join(noora_source_path, "lib"),
+    Path.join(noora_source_path, "js"),
+    Path.join(noora_source_path, "css"),
+    Path.join(noora_source_path, "priv/static")
   ]
 
 # Include HEEx debug annotations as HTML comments in rendered markup
