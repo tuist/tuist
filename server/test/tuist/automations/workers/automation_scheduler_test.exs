@@ -19,7 +19,7 @@ defmodule Tuist.Automations.Workers.AutomationSchedulerTest do
     for monitor_type <- ["flakiness_rate", "flaky_run_count", "reliability_rate"] do
       AutomationsFixtures.automation_alert_fixture(
         monitor_type: monitor_type,
-        trigger_config: %{"threshold" => 1, "window_type" => "rolling", "rolling_window_size" => 100}
+        trigger_config: %{"threshold" => 1, "window_type" => "rolling", "rolling_window_size" => 75}
       )
     end
 
@@ -33,7 +33,7 @@ defmodule Tuist.Automations.Workers.AutomationSchedulerTest do
       AutomationsFixtures.automation_alert_fixture(
         baseline_established_at: nil,
         monitor_type: "flaky_run_count",
-        trigger_config: %{"threshold" => 1, "window_type" => "rolling", "rolling_window_size" => 100}
+        trigger_config: %{"threshold" => 1, "window_type" => "rolling", "rolling_window_size" => 75}
       )
 
     assert :ok = AutomationScheduler.perform(%Oban.Job{args: %{}})

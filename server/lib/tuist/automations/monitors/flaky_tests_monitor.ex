@@ -30,15 +30,12 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
   `(test_run_id, …)` and would have to filter `project_id` after reading
   every granule in the relevant monthly partitions).
 
-  The `rolling` mode reads bucketed `test_case_runs_recent_N_per_case`
-  `AggregatingMergeTree` MVs for common windows and falls back to
-  `test_case_runs_recent_per_case` for windows above the largest bucket. The
-  buckets carry both a flaky aggregate (`recent_runs`) and a success aggregate
-  (`recent_successful_runs`), so flakiness, flaky-run-count, and reliability
-  monitors all take the same bucketed fast path — reliability just reads the
-  success column. A project's whole rolling-window scan becomes one row per
-  active test case, regardless of run volume — reading raw `test_case_runs`
-  for that pattern is unrunnable on busy projects.
+  The `rolling` mode reads `test_case_runs_recent_100_per_case`, the only
+  aggregate kept active during the rolling-storage replacement. Trigger
+  windows are temporarily capped below 100 runs, while recovery continues to
+  read raw runs. The table carries both a flaky aggregate (`recent_runs`) and a
+  success aggregate (`recent_successful_runs`), so flakiness, flaky-run-count,
+  and reliability monitors take the same path.
 
   When several alerts use the same rolling window and aggregate column, the
   ingestion-driven worker calls `evaluate_rolling_alerts/2`. That query returns
@@ -53,11 +50,12 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
 
   @comparisons ~w(gte gt lt lte)
 
-  # Product cap shared with `Alert.changeset/2`; larger values are rejected at
-  # write time. Common windows use the smaller recent-runs MV fast path below.
+  # Legacy persisted values are still parsed up to the old product ceiling so
+  # execution can reject them explicitly instead of silently truncating them.
   @max_rolling_window_size 1000
-  @default_rolling_window_size 100
-  @recent_runs_bucket_sizes [100, 250, 500, 750]
+  @default_rolling_window_size 75
+  @active_recent_runs_bucket_size 100
+  @max_active_rolling_window_size 99
 
   # Merging the rolling aggregate states is memory-heavy and memory grows with
   # parallelism. Keep this limit local to these queries so concurrent alert
@@ -319,21 +317,17 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
     )
   end
 
-  # The rolling fast path reads `test_case_runs_recent_N_per_case`, where N is
-  # the smallest bucket in `@recent_runs_bucket_sizes` that can satisfy the
-  # configured window. These tables maintain `groupArraySorted` aggregates
-  # per `(project_id, test_case_id)`: `recent_runs` holds
+  # The rolling fast path reads `test_case_runs_recent_100_per_case`. It
+  # maintains `groupArraySorted` aggregates per `(project_id, test_case_id)`:
+  # `recent_runs` holds
   # `(-ran_at_microseconds, is_flaky)` tuples for flakiness/count monitors and
   # `recent_successful_runs` holds `(-ran_at_microseconds, is_success)` tuples
-  # for reliability monitors. The full `test_case_runs_recent_per_case`
-  # aggregate keeps 1000 entries of both for windows above the largest bucket.
+  # for reliability monitors.
   #
   # The materialized-view scan is bounded by `active_test_cases_in_project`
   # rather than total run volume — usually a few thousand rows. The bucket
   # aggregate is `groupArraySorted` by `-ran_at_microseconds`, so the merged
-  # array is already latest-first before the final user-configured slice (no
-  # re-sort); only the 1000-entry fallback keeps `groupArrayLast` order and has
-  # to `arrayReverseSort` before slicing.
+  # array is already latest-first before the final user-configured slice.
   #
   # `test_case_runs` is a ReplacingMergeTree and flaky detection re-inserts a
   # run to set `is_flaky` after ingestion, so the materialized view can absorb
@@ -455,35 +449,28 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
   defp recent_runs_column(_monitor_type), do: "recent_runs"
 
   # Returns `{table, ordered_runs_expr, duplicate_position}`.
-  # `ordered_runs_expr` merges the full per-test-case aggregate and orders it
-  # latest-first. `duplicate_position` says whether the correct flag for a
-  # duplicate timestamp is the first or last adjacent tuple. The 1000-entry
-  # fallback stores `ran_at` directly and must be sorted at read time. The
-  # buckets store `-ran_at_microseconds` in sorted states, so they are already
-  # latest-first and only need a linear pass to collapse duplicates.
+  # `ordered_runs_expr` merges the full per-test-case aggregate in latest-first
+  # order. The bucket stores `-ran_at_microseconds` in sorted state, so the
+  # reader only needs a linear pass to collapse duplicates.
   #
   # The bucket is chosen strictly larger than the window (`size < bucket`) so
-  # de-dup has headroom: a bucket only holds `bucket` physical rows, and
-  # re-inserted runs consume slots, so a window equal to the bucket could
-  # yield fewer than `size` distinct runs after de-dup. Reading the next tier
-  # up keeps enough physical rows to recover `size` distinct runs. Windows
-  # above the largest bucket fall through to the 1000-entry aggregate.
-  defp recent_runs_source(column, size) do
-    case Enum.find(@recent_runs_bucket_sizes, &(size < &1)) do
-      nil ->
-        {
-          "test_case_runs_recent_per_case",
-          "arrayReverseSort(entry -> (tupleElement(entry, 1), tupleElement(entry, 2)), arrayMap(entry -> (toUnixTimestamp64Micro(tupleElement(entry, 1)), tupleElement(entry, 2)), groupArrayLastMerge(#{@max_rolling_window_size})(#{column})))",
-          :first
-        }
+  # de-dup has some headroom: a bucket only holds `bucket` physical rows, and
+  # re-inserted runs consume slots, so a window equal to the bucket can yield
+  # fewer than `size` distinct runs after de-dup. The writer-side idempotency
+  # work tracked in issue 12038 will make that headroom exact. Until then,
+  # windows above the active bucket are rejected before a stale retired table
+  # can be read.
+  defp recent_runs_source(_column, size) when size > @max_active_rolling_window_size do
+    raise ArgumentError,
+          "rolling trigger windows must be at most #{@max_active_rolling_window_size} while aggregate storage is being replaced"
+  end
 
-      bucket_size ->
-        {
-          "test_case_runs_recent_#{bucket_size}_per_case",
-          "groupArraySortedMerge(#{bucket_size})(#{column})",
-          :last
-        }
-    end
+  defp recent_runs_source(column, _size) do
+    {
+      "test_case_runs_recent_#{@active_recent_runs_bucket_size}_per_case",
+      "groupArraySortedMerge(#{@active_recent_runs_bucket_size})(#{column})",
+      :last
+    }
   end
 
   defp rolling_triggered_test_case_ids_from_recent_runs(
@@ -553,22 +540,7 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
     Enum.map(rows, fn [binary] -> Ecto.UUID.load!(binary) end)
   end
 
-  # The fallback aggregate is unsorted, so `ordered_runs` was sorted by
-  # `(timestamp, flag)` descending. The largest flag is therefore the first
-  # tuple for a duplicate timestamp. Keep the existing de-duplication path for
-  # this less common fallback; the optimized adjacent comparison only applies
-  # to the pre-sorted buckets.
-  defp deduplicated_runs_expr(:first) do
-    """
-    arrayFilter(
-      (entry, position) -> position = 1,
-      ordered_runs,
-      arrayEnumerateUniq(arrayMap(entry -> tupleElement(entry, 1), ordered_runs))
-    )
-    """
-  end
-
-  # Bucket states are already sorted by `(-timestamp, flag)` ascending. Runs
+  # Bucket states are sorted by `(-timestamp, flag)` ascending. Runs
   # are newest-first, duplicate timestamps are adjacent, and the largest flag
   # is last. Comparing every tuple's key with the next tuple's key keeps that
   # last tuple in a linear pass. The positive sentinel cannot collide with the

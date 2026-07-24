@@ -230,7 +230,7 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
       render_hook(lv, "open_create_automation_modal", %{})
       render_hook(lv, "update_create_automation_form_name", %{"value" => "Over cap"})
       render_hook(lv, "update_create_automation_form_window_type", %{"data" => "rolling"})
-      render_hook(lv, "update_create_automation_form_rolling_window_size", %{"value" => "100000"})
+      render_hook(lv, "update_create_automation_form_rolling_window_size", %{"value" => "100"})
 
       # The Save button itself is rendered as disabled, so the user can't
       # click it and the changeset's cap is never exercised silently.
@@ -252,12 +252,12 @@ defmodule TuistWeb.ProjectAutomationsLiveTest do
       render_hook(lv, "open_create_automation_modal", %{})
       render_hook(lv, "update_create_automation_form_name", %{"value" => "Within cap"})
       render_hook(lv, "update_create_automation_form_window_type", %{"data" => "rolling"})
-      render_hook(lv, "update_create_automation_form_rolling_window_size", %{"value" => "100000"})
-      render_hook(lv, "update_create_automation_form_rolling_window_size", %{"value" => "500"})
+      render_hook(lv, "update_create_automation_form_rolling_window_size", %{"value" => "100"})
+      render_hook(lv, "update_create_automation_form_rolling_window_size", %{"value" => "99"})
 
       render_hook(lv, "save_automation", %{})
       assert [automation] = Automations.list_alerts(project.id)
-      assert automation.trigger_config["rolling_window_size"] == 500
+      assert automation.trigger_config["rolling_window_size"] == 99
     end
 
     test "rolling recovery window persists rolling_window_size and drops the days window", %{
