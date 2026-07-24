@@ -39,7 +39,14 @@ use crate::{
 
 use self::{operation::ReplicationOperation, outbox_message::OutboxMessage};
 
-const BOOTSTRAP_PAGE_LIMIT: usize = 256;
+// Manifests per page of the bootstrap keyspace walk. Sized to hold a whole
+// digest bucket in one request: at BOOTSTRAP_DIGEST_DEFAULT_PREFIX_LEN the
+// keyspace splits into 4096 buckets, so a 3M-artifact account averages ~750
+// manifests per bucket and every divergent bucket used to cost three
+// round-trips instead of one. A page is bounded by count, not bytes — a REAPI
+// manifest serializes to ~420 B, so 2048 is ~850 KiB, well inside the
+// MAX_BOOTSTRAP_PAGE_BYTES ceiling the puller reads under.
+const BOOTSTRAP_PAGE_LIMIT: usize = 2048;
 
 // Artifact bodies fetched from a peer concurrently within a bootstrap page. Caps
 // open peer connections; staged bytes stay bounded by bootstrap_staging_budget.
@@ -624,7 +631,7 @@ async fn bootstrap_manifest_range_from_peer(
                         let applied = outcome.applied();
                         if applied {
                             // Tick progress as each artifact lands, not once per
-                            // page: draining a single 256-manifest page can take
+                            // page: draining a single full page can take
                             // longer than the no-progress window on a slow/cold
                             // link, and batching the bump to page end would let the
                             // watchdog cancel a bootstrap that is in fact applying.
@@ -2838,9 +2845,11 @@ mod tests {
 
         // Reproduces the production wedge: a large peer dataset that the joining
         // node already holds almost all of. Prod is ~1.4M artifacts / 4096
-        // buckets, ~99% in sync; a thousand here spans many buckets and forces
-        // the legacy full walk into several pages while staying fast.
-        const TOTAL: usize = 1024;
+        // buckets, ~99% in sync; this spans many buckets and forces the legacy
+        // full walk into several pages while staying fast. Keep it a multiple of
+        // BOOTSTRAP_PAGE_LIMIT above 1 so the full walk stays multi-page — the
+        // A/B assertion below is only meaningful while it is.
+        const TOTAL: usize = 4 * BOOTSTRAP_PAGE_LIMIT;
         const MISSING: usize = 2;
 
         let remote = test_context(|_| {}).await;
@@ -3235,9 +3244,10 @@ mod tests {
             response::IntoResponse,
         };
 
-        // Exactly one page (limit=256) of segment-backed artifacts, each body
-        // fetch delayed. At concurrency 16 the single page takes ~16*40ms to
-        // drain — many watchdog windows — with no page boundary in between.
+        // Fewer artifacts than BOOTSTRAP_PAGE_LIMIT, so the walk is a single
+        // page, each body fetch delayed. At concurrency 16 that page takes
+        // ~16*40ms to drain — many watchdog windows — with no page boundary in
+        // between.
         let remote = test_context(|_| {}).await;
         for i in 0..256 {
             let key = format!("artifact-{i:05}");
