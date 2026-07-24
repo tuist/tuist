@@ -487,6 +487,14 @@ macosFleet:
   # broke every macOS job in production on 2026-07-16.
   runnerCacheVolume:
     gib: 40
+    # Fold the Xcode compilation cache (CAS) into the per-account image and
+    # give it 8 of the master's 20 GiB (binary cache keeps ~10, reserve ~2).
+    # Staging-only for the same reason as the volume itself: prove the folded
+    # path green on a real CI job here before canary/production leave 0. The
+    # guest is fail-safe (an unusable store falls back to a VM-local cold
+    # compilation cache, never fails the job), so a bad budget costs warmth,
+    # not the build.
+    casGib: 8
   # Share the pre-ordered pool with runnersFleet (same prefix
   # below). Both MachineDeployments draw from one Scaleway-side
   # pool of `tuist-pool-*` hosts; the controller claims the first
