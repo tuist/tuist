@@ -71,11 +71,14 @@ extension XcodeGraph.Workspace {
         let ideTemplateMacros = try manifest.fileHeaderTemplate
             .map { try IDETemplateMacros.from(manifest: $0, generatorPaths: generatorPaths) }
 
+        let projects = try await manifest.projects.concurrentFlatMap(globProjects)
+
         return XcodeGraph.Workspace(
             path: path,
             xcWorkspacePath: path.appending(component: "\(manifest.name).xcworkspace"),
             name: manifest.name,
-            projects: try await manifest.projects.concurrentFlatMap(globProjects),
+            projects: projects,
+            manifestProjectPaths: projects,
             schemes: schemes,
             generationOptions: generationOptions,
             ideTemplateMacros: ideTemplateMacros,

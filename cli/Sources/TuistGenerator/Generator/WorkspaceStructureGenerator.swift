@@ -38,6 +38,7 @@ struct WorkspaceStructureGenerator: WorkspaceStructureGenerating {
             path: path,
             projects: xcodeProjPaths,
             files: workspace.additionalFiles,
+            projectsOrder: workspace.generationOptions.projectsOrder,
             fileSystem: fileSystem
         ).buildGraph()
         return WorkspaceStructure(
@@ -70,6 +71,7 @@ private class DirectoryStructure {
     let path: AbsolutePath
     let projects: [AbsolutePath]
     let files: [FileElement]
+    let projectsOrder: Workspace.GenerationOptions.ProjectsOrder
     let fileSystem: FileSysteming
 
     private let containers: [String] = [
@@ -81,11 +83,13 @@ private class DirectoryStructure {
         path: AbsolutePath,
         projects: [AbsolutePath],
         files: [FileElement],
+        projectsOrder: Workspace.GenerationOptions.ProjectsOrder,
         fileSystem: FileSysteming = FileSystem()
     ) {
         self.path = path
         self.projects = projects
         self.files = files
+        self.projectsOrder = projectsOrder
         self.fileSystem = fileSystem
     }
 
@@ -104,13 +108,21 @@ private class DirectoryStructure {
         }
         let fileNodes = filesIncludingContainers.map(fileNode)
         let projectNodes = projects.map(projectNode)
-        let nodesWitPaths = (projectNodes + fileNodes).filter { $0.path != nil }.sorted(by: { $0.path! < $1.path! })
+        let nodesWithPaths: [Node]
+        switch projectsOrder {
+        case .alphabetical:
+            nodesWithPaths = (projectNodes + fileNodes)
+                .filter { $0.path != nil }
+                .sorted(by: { $0.path! < $1.path! })
+        case .manifestOrder:
+            nodesWithPaths = projectNodes + fileNodes.sorted(by: { $0.path! < $1.path! })
+        }
 
         let dependenciesGraph = Graph()
 
-        let commonAncestor = nodesWitPaths.reduce(path) { $0.commonAncestor(with: $1.path!) }
+        let commonAncestor = nodesWithPaths.reduce(path) { $0.commonAncestor(with: $1.path!) }
 
-        for node in nodesWitPaths {
+        for node in nodesWithPaths {
             if !isDependencyProject(node) {
                 let relativePath = node.path!.relative(to: commonAncestor)
 

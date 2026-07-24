@@ -340,6 +340,86 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
         ])
     }
 
+    func test_generateStructure_projectsAreAlphabeticalByDefault() async throws {
+        // Given
+        let xcodeProjPaths = try createFolders([
+            "/path/to/workspace/Modules/Sub/D/Project.xcodeproj",
+            "/path/to/workspace/Modules/Sub/C/Project.xcodeproj",
+            "/path/to/workspace/Modules/B/Project.xcodeproj",
+            "/path/to/workspace/Modules/A/Project.xcodeproj",
+        ])
+
+        // When
+        let structure = try await subject.generateStructure(
+            path: "/path/to/workspace",
+            workspace: Workspace.test(),
+            xcodeProjPaths: xcodeProjPaths,
+            fileSystem: fileSystem
+        )
+
+        // Then
+        XCTAssertEqual(structure.contents, [
+            .group("Modules", "/path/to/workspace/Modules", [
+                .project("/path/to/workspace/Modules/A/Project.xcodeproj"),
+                .project("/path/to/workspace/Modules/B/Project.xcodeproj"),
+                .group("Sub", "/path/to/workspace/Modules/Sub", [
+                    .project("/path/to/workspace/Modules/Sub/C/Project.xcodeproj"),
+                    .project("/path/to/workspace/Modules/Sub/D/Project.xcodeproj"),
+                ]),
+            ]),
+        ])
+    }
+
+    func test_generateStructure_manifestOrder() async throws {
+        // Given
+        let xcodeProjPaths = try createFolders([
+            "/path/to/workspace/Main/Main.xcodeproj",
+            "/path/to/workspace/Features/B/B.xcodeproj",
+            "/path/to/workspace/Features/A/A.xcodeproj",
+            "/path/to/workspace/Data/B/B.xcodeproj",
+            "/path/to/workspace/Data/A/A.xcodeproj",
+            "/path/to/workspace/Unlisted/Unlisted.xcodeproj",
+            "/path/to/workspace/Tuist/.build/tuist-derived/Projects/B/B.xcodeproj",
+            "/path/to/workspace/Tuist/.build/tuist-derived/Projects/A/A.xcodeproj",
+        ])
+        let readmePath = try XCTUnwrap(
+            createFiles([
+                "/path/to/workspace/README.md",
+            ]).first
+        )
+        let workspace = Workspace.test(
+            additionalFiles: [.file(path: readmePath)],
+            generationOptions: .test(projectsOrder: .manifestOrder)
+        )
+
+        // When
+        let structure = try await subject.generateStructure(
+            path: "/path/to/workspace",
+            workspace: workspace,
+            xcodeProjPaths: xcodeProjPaths,
+            fileSystem: fileSystem
+        )
+
+        // Then
+        XCTAssertEqual(structure.contents, [
+            .project("/path/to/workspace/Main/Main.xcodeproj"),
+            .group("Features", "/path/to/workspace/Features", [
+                .project("/path/to/workspace/Features/B/B.xcodeproj"),
+                .project("/path/to/workspace/Features/A/A.xcodeproj"),
+            ]),
+            .group("Data", "/path/to/workspace/Data", [
+                .project("/path/to/workspace/Data/B/B.xcodeproj"),
+                .project("/path/to/workspace/Data/A/A.xcodeproj"),
+            ]),
+            .project("/path/to/workspace/Unlisted/Unlisted.xcodeproj"),
+            .file("/path/to/workspace/README.md"),
+            .virtualGroup(name: "Dependencies", contents: [
+                .project("/path/to/workspace/Tuist/.build/tuist-derived/Projects/B/B.xcodeproj"),
+                .project("/path/to/workspace/Tuist/.build/tuist-derived/Projects/A/A.xcodeproj"),
+            ]),
+        ])
+    }
+
     // MARK: - Helpers
 
     @discardableResult
