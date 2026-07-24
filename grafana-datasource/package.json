@@ -70,7 +70,7 @@
   "dependencies": {
     "@emotion/css": "11.10.6",
     "@grafana/data": "12.4.2",
-    "@grafana/i18n": "12.4.2",
+    "@grafana/i18n": "12.4.6",
     "@grafana/runtime": "12.4.2",
     "@grafana/ui": "12.4.2",
     "@grafana/schema": "12.4.2",
