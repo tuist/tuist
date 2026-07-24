@@ -55,7 +55,7 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
   @max_rolling_window_size 1000
   @default_rolling_window_size 75
   @active_recent_runs_bucket_size 100
-  @max_active_rolling_window_size 99
+  @max_active_rolling_window_size 75
 
   # Merging the rolling aggregate states is memory-heavy and memory grows with
   # parallelism. Keep this limit local to these queries so concurrent alert
@@ -453,13 +453,10 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
   # order. The bucket stores `-ran_at_microseconds` in sorted state, so the
   # reader only needs a linear pass to collapse duplicates.
   #
-  # The bucket is chosen strictly larger than the window (`size < bucket`) so
-  # de-dup has some headroom: a bucket only holds `bucket` physical rows, and
-  # re-inserted runs consume slots, so a window equal to the bucket can yield
-  # fewer than `size` distinct runs after de-dup. The writer-side idempotency
-  # work tracked in issue 12038 will make that headroom exact. Until then,
-  # windows above the active bucket are rejected before a stale retired table
-  # can be read.
+  # The 75-run cap preserves every rolling window currently enabled in
+  # production and leaves 25 physical positions for correction rows. It does
+  # not claim exactness under unbounded duplication. Larger windows are
+  # rejected before a stale retired table can be read.
   defp recent_runs_source(_column, size) when size > @max_active_rolling_window_size do
     raise ArgumentError,
           "rolling trigger windows must be at most #{@max_active_rolling_window_size} while aggregate storage is being replaced"

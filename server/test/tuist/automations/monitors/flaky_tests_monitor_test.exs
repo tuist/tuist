@@ -628,10 +628,10 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitorTest do
           }
         )
 
-      legacy_alert = put_in(alert.trigger_config["rolling_window_size"], 100)
+      legacy_alert = put_in(alert.trigger_config["rolling_window_size"], 76)
 
       assert_raise ArgumentError,
-                   "rolling trigger windows must be at most 99 while aggregate storage is being replaced",
+                   "rolling trigger windows must be at most 75 while aggregate storage is being replaced",
                    fn ->
                      FlakyTestsMonitor.evaluate_by_run_count(legacy_alert)
                    end

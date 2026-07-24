@@ -20,10 +20,10 @@ defmodule Tuist.Automations.Alerts.Alert do
   )
   @window_types ~w(last_days rolling)
 
-  # New or edited trigger windows are temporarily constrained to the only
-  # rolling aggregate that remains active. The strict boundary leaves one
-  # physical slot of correction headroom in the 100-run aggregate.
-  @max_rolling_trigger_window_size 99
+  # New or edited trigger windows are temporarily constrained to the largest
+  # value currently used in production. The 100-run aggregate then has room
+  # for the correction rows produced when flaky runs are re-inserted.
+  @max_rolling_trigger_window_size 75
 
   # Recovery counts read raw runs rather than the rolling aggregate tables, so
   # they retain the existing product cap.
@@ -41,6 +41,17 @@ defmodule Tuist.Automations.Alerts.Alert do
   replaced.
   """
   def max_rolling_trigger_window_size, do: @max_rolling_trigger_window_size
+
+  @doc """
+  Whether an alert's rolling trigger can be evaluated from the active
+  aggregate.
+  """
+  def trigger_window_supported?(%__MODULE__{
+        trigger_config: %{"window_type" => "rolling", "rolling_window_size" => size}
+      }), do: is_integer(size) and size >= 1 and size <= @max_rolling_trigger_window_size
+
+  def trigger_window_supported?(%__MODULE__{trigger_config: %{"window_type" => "rolling"}}), do: false
+  def trigger_window_supported?(%__MODULE__{}), do: true
 
   @doc """
   Maximum rolling recovery window and legacy runtime ceiling.
@@ -217,6 +228,22 @@ defmodule Tuist.Automations.Alerts.Alert do
   end
 
   defp validate_config(changeset) do
+    if disabling_only?(changeset) do
+      changeset
+    else
+      validate_monitor_config(changeset)
+    end
+  end
+
+  # A legacy alert may contain a trigger that new code no longer accepts. It
+  # must still be possible to turn that alert off without editing its
+  # definition. Any other effective change continues through full validation.
+  defp disabling_only?(%{data: %__MODULE__{id: id, enabled: true}, changes: %{enabled: false} = changes})
+       when not is_nil(id) and map_size(changes) == 1, do: true
+
+  defp disabling_only?(_changeset), do: false
+
+  defp validate_monitor_config(changeset) do
     monitor_type = get_field(changeset, :monitor_type)
     trigger_config = get_field(changeset, :trigger_config) || %{}
 
