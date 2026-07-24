@@ -1,0 +1,212 @@
+# Two-direction reconciliation checks for the mgmt cluster (spec/72
+# Decision 7), both alerting via Pillar 2:
+#
+#   (a) Orphan servers — Hetzner Cloud servers with no owning CAPI Machine
+#       (billed but untracked). Reads the Cloud API token from the existing
+#       org-tuist/hetzner Secret; nothing leaves the cluster (a CI job would
+#       copy the Hetzner credential out).
+#   (b) Stale clusters — live Cluster objects that Flux no longer manages
+#       (removed from git but still running under CAPI with valid Machine
+#       owners, so the orphan check can't see them). "Managed by Flux" is
+#       read straight from the Flux Kustomization inventories, so the check
+#       stays correct with no separate list to maintain. `tuist-preview` is
+#       excluded — it is git-managed outside Flux by mgmt-cluster-apply.yml.
+#
+# A CronJob can't be scraped directly, so it pushes two gauges to a tiny
+# Pushgateway that alloy-metrics scrapes (annotationAutodiscovery) into
+# Grafana Cloud. Alert rules live in
+# infra/helm/k8s-monitoring/alerts/capi-health.yaml.
+#
+# Intentional cluster removal is the explicit destroy flow (remove from git,
+# then `kubectl delete cluster` under break-glass — see infra/flux/mgmt/README.md),
+# not silent divergence; until the delete, the stale-cluster gauge flags it.
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: reconciliation-checks
+  namespace: org-tuist
+  labels:
+    app.kubernetes.io/name: reconciliation-checks
+    app.kubernetes.io/managed-by: tuist-bootstrap
+---
+# Read-only across two namespaces (clusters/machines in org-tuist,
+# kustomizations in flux-system), so a cluster-scoped read ClusterRole.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: reconciliation-checks
+rules:
+  - apiGroups: ["cluster.x-k8s.io"]
+    resources: ["clusters", "machines"]
+    verbs: ["get", "list"]
+  - apiGroups: ["kustomize.toolkit.fluxcd.io"]
+    resources: ["kustomizations"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: reconciliation-checks
+roleRef:
+  kind: ClusterRole
+  name: reconciliation-checks
+  apiGroup: rbac.authorization.k8s.io
+subjects:
+  - kind: ServiceAccount
+    name: reconciliation-checks
+    namespace: org-tuist
+---
+# Pushgateway bridges the CronJob's batch metrics into the scrape pipeline.
+# Restricted-PSA compliant (non-root, no host access), scraped by
+# alloy-metrics via the prometheus.io/scrape pod annotation.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: reconciliation-pushgateway
+  namespace: observability
+  labels:
+    app.kubernetes.io/name: reconciliation-pushgateway
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: reconciliation-pushgateway
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: reconciliation-pushgateway
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9091"
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: pushgateway
+          image: prom/pushgateway:v1.10.0
+          args:
+            - --persistence.file=/tmp/pushgateway.store
+          ports:
+            - name: metrics
+              containerPort: 9091
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: reconciliation-pushgateway
+  namespace: observability
+  labels:
+    app.kubernetes.io/name: reconciliation-pushgateway
+spec:
+  selector:
+    app.kubernetes.io/name: reconciliation-pushgateway
+  ports:
+    - name: metrics
+      port: 9091
+      targetPort: 9091
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: reconciliation-checks
+  namespace: org-tuist
+spec:
+  schedule: "*/30 * * * *"
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 300
+      template:
+        spec:
+          serviceAccountName: reconciliation-checks
+          restartPolicy: OnFailure
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: check
+              # kubectl + jq + curl.
+              image: alpine/k8s:1.31.2
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              env:
+                # Hetzner Cloud API token, from the same Secret caph reads.
+                - name: HCLOUD_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: hetzner
+                      key: hcloud
+                - name: PUSHGW
+                  value: "http://reconciliation-pushgateway.observability.svc.cluster.local:9091"
+              command:
+                - sh
+                - -c
+                - |
+                  set -euo pipefail
+
+                  # (a) Orphan Hetzner Cloud servers: every server id in the
+                  # project, minus every id owned by a CAPI Machine.
+                  page=1
+                  server_ids=""
+                  while :; do
+                    resp=$(curl -sf -H "Authorization: Bearer $HCLOUD_TOKEN" \
+                      "https://api.hetzner.cloud/v1/servers?per_page=50&page=$page")
+                    server_ids="$server_ids $(echo "$resp" | jq -r '.servers[].id')"
+                    next=$(echo "$resp" | jq -r '.meta.pagination.next_page // empty')
+                    [ -z "$next" ] && break
+                    page=$next
+                  done
+                  owned=$(kubectl get machines.cluster.x-k8s.io -A -o json \
+                    | jq -r '.items[].spec.providerID // empty' \
+                    | sed -n 's#^hcloud://##p')
+                  orphans=0
+                  for id in $server_ids; do
+                    echo "$owned" | grep -qx "$id" || orphans=$((orphans + 1))
+                  done
+
+                  # (b) Stale clusters: live Clusters not in any Flux
+                  # Kustomization inventory (i.e. removed from git but still
+                  # running), excluding the non-Flux-managed preview cluster.
+                  git_clusters=$(kubectl get kustomizations.kustomize.toolkit.fluxcd.io \
+                    -n flux-system -o json \
+                    | jq -r '.items[].status.inventory.entries[]?.id' \
+                    | awk -F_ '$3 == "cluster.x-k8s.io" && $4 == "Cluster" { print $2 }')
+                  stale=0
+                  for c in $(kubectl get clusters.cluster.x-k8s.io -A \
+                      -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}'); do
+                    [ "$c" = "tuist-preview" ] && continue
+                    echo "$git_clusters" | grep -qx "$c" || stale=$((stale + 1))
+                  done
+
+                  echo "orphan_servers=$orphans stale_clusters=$stale"
+                  printf '# TYPE capi_reconciliation_orphan_servers gauge\ncapi_reconciliation_orphan_servers %s\n# TYPE capi_reconciliation_stale_clusters gauge\ncapi_reconciliation_stale_clusters %s\n' \
+                    "$orphans" "$stale" \
+                    | curl -sf --data-binary @- \
+                      "$PUSHGW/metrics/job/reconciliation-checks"

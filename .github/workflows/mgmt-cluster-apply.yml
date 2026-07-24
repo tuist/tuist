@@ -1,17 +1,23 @@
 name: Mgmt Cluster Apply
 
-# Auto-applies CAPI manifests (ClusterClass + per-env Cluster CRs) and
-# mgmt-cluster workloads (etcd-snapshot CronJob, Tailscale daemon) to
-# our self-hosted CAPI mgmt cluster on push to main when the relevant
-# paths change.
+# Auto-applies the immutable CAPI templates (ClusterClass + bare-metal),
+# the preview Cluster CR, and mgmt-cluster workloads (etcd-snapshot
+# CronJob, Tailscale daemon) to our self-hosted CAPI mgmt cluster on
+# push to main when the relevant paths change.
 #
-# Why a workflow instead of Argo CD / Flux: the mgmt cluster has a tiny
-# manifest surface (one ClusterClass, four Cluster CRs, two mgmt-side
-# workloads) — drift detection / continuous reconciliation provided by
-# a long-running GitOps controller is overkill at this scale. A
-# push-driven CI apply gets us GitOps-style "the repo is the source of
-# truth" without the operational overhead of running another controller.
-# We can graduate to Argo CD later if the mgmt-cluster surface grows.
+# Scope split with Flux (see infra/flux/mgmt/): the workload Cluster CRs
+# (staging / canary / production and the hive / once / atlas tenants) are
+# continuously reconciled by Flux from infra/k8s/clusters/workloads/, not
+# here. This workflow retains only what Flux deliberately does NOT own:
+#   - clusterclass-tuist.yaml + bare-metal*.yaml — their specs are
+#     immutable, and the delete-and-apply fallback below (for CAPI's
+#     "field is immutable" error) cannot be reproduced by a plain Flux
+#     Kustomization, which would wedge. They stay a push-driven apply.
+#   - cluster-preview.yaml — its control-plane and md-0 replicas are
+#     mutated out-of-band by preview-deploy / preview-sweep, so a Flux
+#     reconcile would fight those workflows every interval.
+#   - the mgmt-side workloads (etcd-snapshot, tailscale, autoscaler,
+#     hetzner-robot-controller), which live outside Flux's cluster scope.
 #
 # Order matters: the ClusterClass is applied before the Cluster CRs
 # because the topology controller resolves `topology.classRef.name`
@@ -38,12 +44,17 @@ on:
     # posture so a feature branch never mutates production state.
     branches: [main]
     paths:
-      - 'infra/k8s/clusters/**'
-      - 'infra/k8s/mgmt/cluster-autoscaler.yaml'
-      - 'infra/k8s/mgmt/etcd-snapshot.yaml'
-      - 'infra/k8s/mgmt/tailscale.yaml'
-      - 'infra/k8s/mgmt/hetzner-robot-controller.yaml'
-      - '.github/workflows/mgmt-cluster-apply.yml'
+      # Only the manifests this workflow still owns. The Flux-reconciled
+      # workload Cluster CRs under infra/k8s/clusters/workloads/** are
+      # deliberately excluded — Flux applies those, not this job.
+      - "infra/k8s/clusters/clusterclass-tuist.yaml"
+      - "infra/k8s/clusters/bare-metal*.yaml"
+      - "infra/k8s/clusters/cluster-preview.yaml"
+      - "infra/k8s/mgmt/cluster-autoscaler.yaml"
+      - "infra/k8s/mgmt/etcd-snapshot.yaml"
+      - "infra/k8s/mgmt/tailscale.yaml"
+      - "infra/k8s/mgmt/hetzner-robot-controller.yaml"
+      - ".github/workflows/mgmt-cluster-apply.yml"
   # Manual re-runs of the apply path, e.g. to force a re-deploy
   # without a code change. No inputs — incident-recovery actions
   # run from an operator's laptop (see `infra/k8s/onboarding.md`).
@@ -157,7 +168,12 @@ jobs:
               fi
             fi
           done
-      - name: Apply per-env Cluster CRs
+      - name: Apply the preview Cluster CR
+        # Only preview stays here; the staging / canary / production and
+        # tenant Cluster CRs are reconciled by Flux from
+        # infra/k8s/clusters/workloads/. Preview is excluded from Flux
+        # because preview-deploy / preview-sweep mutate its replicas
+        # out-of-band and a Flux reconcile would fight them every interval.
         run: |
           for f in infra/k8s/clusters/cluster-*.yaml; do
             echo "==> $f"

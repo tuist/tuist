@@ -1,0 +1,170 @@
+# Overlay for the MANAGEMENT cluster (single-node Talos), spec/72 Pillar 2.
+#
+# Unlike the workload overlays, this one turns the k8s-monitoring chart into
+# a CAPI control-plane / etcd health probe: kube-state-metrics runs a
+# CustomResourceState (CRS) config that exposes Cluster API CRD conditions as
+# metrics, ships them to Grafana Cloud, and Grafana Cloud alert rules (see
+# alerts/) page on degraded control planes and unhealthy etcd — evaluated
+# OUTSIDE this single-node cluster, with a heartbeat so the monitor cannot
+# fail silent.
+#
+# Install:
+#   helm dependency update infra/helm/k8s-monitoring
+#   helm upgrade --install k8s-monitoring infra/helm/k8s-monitoring \
+#     -n observability --create-namespace \
+#     -f infra/helm/k8s-monitoring/values-mgmt.yaml
+#
+# Prerequisites (mgmt cluster): the `onepassword` ClusterSecretStore
+# (infra/k8s/mgmt/external-secrets.yaml) and PROMETHEUS_TOKEN / LOKI_TOKEN /
+# TEMPO_TOKEN items in the tuist-k8s-mgmt vault. Label the observability
+# namespace PSA `restricted` (Talos default) — this overlay deploys nothing
+# that needs host access, so no privileged label is required.
+
+k8s-monitoring:
+  cluster:
+    name: tuist-mgmt
+
+  destinations:
+    grafana-cloud-metrics:
+      extraLabels:
+        env: mgmt
+    grafana-cloud-logs:
+      extraLabels:
+        env: mgmt
+
+  # ───── Features: keep only what needs no host access ─────
+  #
+  # clusterMetrics stays on — alloy-metrics scrapes KSM / kubelet / cAdvisor
+  # over the network (no host mounts), which is how the CAPI CRS metrics
+  # reach Grafana Cloud. clusterEvents (API watch) and integrations (Alloy
+  # self-metrics) also need no host access and are left at their chart
+  # defaults. Everything below is disabled because it mounts host paths and
+  # would force the observability namespace to `privileged` PSA on Talos:
+  hostMetrics:
+    enabled: false # node-exporter: hostPID + /proc,/sys
+  nodeLogs:
+    enabled: false # host journald: /var/log/journal
+  podLogsViaLoki:
+    enabled: false # pod logs: /var/log/pods DaemonSet
+  # No managed workloads push OTLP traces to the mgmt cluster.
+  applicationObservability:
+    enabled: false
+
+  # With nodeLogs + podLogsViaLoki off, nothing feeds the alloy-logs
+  # collector; the chart validates that an enabled collector has a consumer,
+  # so disable it explicitly (leaving alloy-metrics / alloy-singleton on).
+  collectors:
+    alloy-logs:
+      enabled: false
+    # applicationObservability off → nothing feeds the OTLP receiver.
+    alloy-receiver:
+      enabled: false
+
+  clusterMetrics:
+    enabled: true
+    collector: alloy-metrics
+    kube-state-metrics:
+      metricsTuning:
+        useDefaultAllowList: true
+        # CRITICAL (spec/72 footgun): the default allow-list keeps only the
+        # curated kube_* metrics, so the CAPI CRS series (capi_*) would be
+        # emitted by KSM and then silently dropped by Alloy before reaching
+        # Grafana Cloud. Keep them explicitly. (List replaces the base entry,
+        # so re-state kube_pod_status_unschedulable too.)
+        includeMetrics:
+          - kube_pod_status_unschedulable
+          - capi_cluster_status_condition
+          - capi_kubeadmcontrolplane_status_condition
+          - capi_machine_status_condition
+
+  # ───── kube-state-metrics: CAPI Custom Resource State ─────
+  #
+  # Passthrough to the upstream kube-state-metrics subchart (verified: the
+  # wrapper forwards customResourceState + rbac.extraRules). Each condition
+  # becomes a StateSet: one 0/1 series per {type, status} pair, matching the
+  # kube-prometheus `kube_*_status_condition` idiom. etcd health lives on the
+  # KubeadmControlPlane as condition type `EtcdClusterHealthy`.
+  telemetryServices:
+    kube-state-metrics:
+      deploy: true
+      rbac:
+        extraRules:
+          - apiGroups: ["cluster.x-k8s.io"]
+            resources:
+              ["clusters", "machines", "machinedeployments", "machinesets"]
+            verbs: ["list", "watch"]
+          - apiGroups: ["controlplane.cluster.x-k8s.io"]
+            resources: ["kubeadmcontrolplanes"]
+            verbs: ["list", "watch"]
+      customResourceState:
+        enabled: true
+        config:
+          spec:
+            resources:
+              - groupVersionKind:
+                  group: cluster.x-k8s.io
+                  version: v1beta2
+                  kind: Cluster
+                metricNamePrefix: capi_cluster
+                labelsFromPath:
+                  name: [metadata, name]
+                  namespace: [metadata, namespace]
+                metrics:
+                  - name: status_condition
+                    help: "CAPI Cluster status conditions"
+                    each:
+                      type: StateSet
+                      stateSet:
+                        labelName: status
+                        labelsFromPath:
+                          type: [type]
+                        path: [status, conditions]
+                        valueFrom: [status]
+                        list: ["True", "False", "Unknown"]
+              - groupVersionKind:
+                  group: controlplane.cluster.x-k8s.io
+                  version: v1beta2
+                  kind: KubeadmControlPlane
+                metricNamePrefix: capi_kubeadmcontrolplane
+                labelsFromPath:
+                  name: [metadata, name]
+                  namespace: [metadata, namespace]
+                metrics:
+                  - name: status_condition
+                    help: "KubeadmControlPlane status conditions (incl. EtcdClusterHealthy)"
+                    each:
+                      type: StateSet
+                      stateSet:
+                        labelName: status
+                        labelsFromPath:
+                          type: [type]
+                        path: [status, conditions]
+                        valueFrom: [status]
+                        list: ["True", "False", "Unknown"]
+              - groupVersionKind:
+                  group: cluster.x-k8s.io
+                  version: v1beta2
+                  kind: Machine
+                metricNamePrefix: capi_machine
+                labelsFromPath:
+                  name: [metadata, name]
+                  namespace: [metadata, namespace]
+                  # `capi_cluster`, not `cluster` — the chart already stamps
+                  # cluster=tuist-mgmt (the reporting cluster) as an external
+                  # label on every series; reusing `cluster` here would collide.
+                  capi_cluster:
+                    [metadata, labels, "cluster.x-k8s.io/cluster-name"]
+                metrics:
+                  - name: status_condition
+                    help: "CAPI Machine status conditions"
+                    each:
+                      type: StateSet
+                      stateSet:
+                        labelName: status
+                        labelsFromPath:
+                          type: [type]
+                        path: [status, conditions]
+                        valueFrom: [status]
+                        list: ["True", "False", "Unknown"]
+    node-exporter:
+      deploy: false

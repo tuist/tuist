@@ -27,6 +27,29 @@ spec:
     version: v1.34.6
     controlPlane:
       replicas: 3
+      # Per-topology control-plane remediation (spec/72 Decision 5). This
+      # cluster runs 3 control-plane nodes, so remediating a single stuck
+      # node is safe: an absolute `unhealthyLessThanOrEqualTo: 1` self-heals
+      # one bad node while still short-circuiting a wider outage. The shared
+      # ClusterClass default (33%) is kept for single-CP clusters, where a
+      # 1-of-1 unhealthy node exceeds 33% and correctly does NOT self-
+      # remediate (an absolute `1` there would destroy the only node). The
+      # full healthCheck block is restated (not just remediation) so the
+      # override is unambiguous regardless of ClusterClass merge semantics;
+      # keep `checks` in sync with clusterclass-tuist.yaml controlPlane.
+      healthCheck:
+        checks:
+          nodeStartupTimeoutSeconds: 900
+          unhealthyNodeConditions:
+            - type: Ready
+              status: Unknown
+              timeoutSeconds: 300
+            - type: Ready
+              status: "False"
+              timeoutSeconds: 300
+        remediation:
+          triggerIf:
+            unhealthyLessThanOrEqualTo: 1
     variables:
       - name: region
         value: fsn1
@@ -104,13 +127,21 @@ spec:
         # MachineDeployment via topology mode. Without them the
         # classRef swap to tuist-hcloud would re-render the MD
         # without the autoscaler bounds, dropping cluster-autoscaler's
-        # node-group registration mid-flight. Values must match the
-        # live MD at swap time; verify with:
+        # node-group registration mid-flight.
+        #
+        # `replicas` is deliberately UNSET on this pool (spec/72 footgun):
+        # it is autoscaled between the min/max annotations below, and CAPI's
+        # topology controller only manages replicas when the field is
+        # present. Under Flux (10-min reconcile) a pinned `replicas` would
+        # be re-asserted on every sync and fight cluster-autoscaler; leaving
+        # it unset lets CAPI default within [min,max] and hands replica
+        # control to the autoscaler (see the CAPI Autoscaling docs). Before
+        # enabling the production Flux Kustomization, confirm the live MD's
+        # replicas are preserved:
         #   kubectl -n org-tuist get md tuist-md-processor \
-        #     -o jsonpath='{.metadata.annotations}'
+        #     -o jsonpath='{.spec.replicas}{"\n"}{.metadata.annotations}'
         - class: hcloud-worker
           name: md-processor
-          replicas: 2
           failureDomain: fsn1
           metadata:
             labels:

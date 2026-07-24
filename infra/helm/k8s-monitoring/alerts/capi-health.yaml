@@ -1,0 +1,149 @@
+# CAPI control-plane / etcd health alert rules for the MANAGEMENT cluster
+# (spec/72 Pillar 2). Prometheus/Mimir rule-group format — the reviewed,
+# version-controlled source of truth. Grafana Cloud does not yet sync alert
+# rules via Git Sync (grafana/grafana#120686), so these are transcribed into
+# Grafana Cloud manually for now (see README.md). Evaluation runs in Grafana
+# Cloud, OUTSIDE this single-node cluster, so a dead mgmt cluster still pages
+# (the heartbeat rule below).
+#
+# Metrics come from kube-state-metrics CustomResourceState
+# (values-mgmt.yaml): capi_{cluster,kubeadmcontrolplane,machine}_status_condition,
+# each a StateSet with labels {name, namespace, type, status}. Every series
+# also carries the chart's external label cluster="tuist-mgmt".
+groups:
+  - name: capi-control-plane-health
+    interval: 1m
+    rules:
+      # The "degraded for weeks" failure: etcd unhealthy on a control plane.
+      # EtcdClusterHealthy lives on the KubeadmControlPlane.
+      - alert: CAPIEtcdClusterUnhealthy
+        expr: |
+          max by (cluster, name, namespace) (
+            capi_kubeadmcontrolplane_status_condition{type="EtcdClusterHealthy", status="False"}
+          ) == 1
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "CAPI etcd unhealthy on {{ $labels.name }}"
+          description: >
+            KubeadmControlPlane {{ $labels.namespace }}/{{ $labels.name }} reports
+            EtcdClusterHealthy=False for 5m. A stuck control-plane machine or an
+            unstarted etcd learner. Investigate before it silently persists.
+
+      # Control plane not Available (rollup) — a broader degradation signal.
+      - alert: CAPIControlPlaneNotAvailable
+        expr: |
+          max by (cluster, name, namespace) (
+            capi_kubeadmcontrolplane_status_condition{type="Available", status="False"}
+          ) == 1
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "CAPI control plane not available on {{ $labels.name }}"
+          description: >
+            KubeadmControlPlane {{ $labels.namespace }}/{{ $labels.name }} has
+            Available=False for 10m.
+
+      # Cluster-level rollup degraded.
+      - alert: CAPIClusterNotAvailable
+        expr: |
+          max by (cluster, name, namespace) (
+            capi_cluster_status_condition{type="Available", status="False"}
+          ) == 1
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "CAPI Cluster {{ $labels.name }} not available"
+          description: >
+            Cluster {{ $labels.namespace }}/{{ $labels.name }} reports
+            Available=False for 10m.
+
+  - name: capi-machine-health
+    interval: 1m
+    rules:
+      # A machine stuck NotReady long enough to matter. On single-CP tenants
+      # this is the primary control-plane safeguard (no self-remediation).
+      - alert: CAPIMachineNotReady
+        expr: |
+          max by (cluster, capi_cluster, name, namespace) (
+            capi_machine_status_condition{type="Ready", status="False"}
+          ) == 1
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "CAPI Machine {{ $labels.name }} not ready"
+          description: >
+            Machine {{ $labels.namespace }}/{{ $labels.name }} (cluster
+            {{ $labels.capi_cluster }}) has Ready=False for 15m. On a 3-CP
+            cluster MachineHealthCheck remediates; on a single-CP cluster it
+            does not — investigate and rebuild under break-glass.
+
+  - name: capi-monitor-liveness
+    interval: 1m
+    rules:
+      # HEARTBEAT / missing-scrape. Evaluated in Grafana Cloud, so if the
+      # single-node mgmt cluster stops reporting entirely, this still fires —
+      # the monitor cannot fail silent with the thing it watches. `up` for
+      # cluster=tuist-mgmt disappears when nothing scrapes.
+      - alert: MgmtClusterMonitoringDown
+        expr: absent(up{cluster="tuist-mgmt"})
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Management cluster stopped reporting to Grafana Cloud"
+          description: >
+            No `up` series for cluster=tuist-mgmt for 10m. The mgmt-cluster
+            monitoring stack (kube-state-metrics / alloy-metrics) is down or the
+            cluster is unreachable, so CAPI health is no longer being watched.
+
+      # Flux reconciler down: a stalled reconciler stops correcting drift.
+      # Requires Flux controller metrics to be scraped (gotk_* via
+      # annotationAutodiscovery / a scrape of the flux-system controllers).
+      - alert: FluxReconciliationStalled
+        expr: |
+          max by (cluster, kind, name, namespace) (
+            gotk_reconcile_condition{type="Ready", status="False", cluster="tuist-mgmt"}
+          ) == 1
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Flux {{ $labels.kind }}/{{ $labels.name }} not reconciling"
+          description: >
+            Flux {{ $labels.kind }} {{ $labels.namespace }}/{{ $labels.name }}
+            has Ready=False for 15m; drift is no longer being corrected.
+
+  - name: capi-reconciliation-drift
+    interval: 1m
+    rules:
+      # Gauges pushed by the reconciliation-checks CronJob
+      # (infra/k8s/mgmt/reconciliation-checks.yaml).
+      - alert: HetznerOrphanServers
+        expr: max(capi_reconciliation_orphan_servers{cluster="tuist-mgmt"}) > 0
+        # 30m absorbs a freshly-provisioned server that is briefly without a
+        # Machine owner.
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $value }} Hetzner server(s) with no owning CAPI Machine"
+          description: >
+            Hetzner Cloud servers are billed with no owning CAPI Machine.
+            Untracked infrastructure — reconcile against git/CAPI or delete the
+            orphaned servers.
+      - alert: StaleClustersNotInGit
+        expr: max(capi_reconciliation_stale_clusters{cluster="tuist-mgmt"}) > 0
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $value }} live Cluster(s) absent from git"
+          description: >
+            A live CAPI Cluster is no longer managed by any Flux Kustomization
+            (removed from git but still running under CAPI). Follow the explicit
+            destroy flow, or restore it to git if the removal was unintended.

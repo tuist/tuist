@@ -20,12 +20,37 @@ K8s minor bumps are a `topology.version:` edit on each Cluster CR.
 ```
 clusters/
 ├── README.md                  this file
-├── clusterclass-tuist.yaml    the tuist-hcloud ClusterClass
-├── cluster-staging.yaml       per-env Cluster CRs in topology mode
-├── cluster-canary.yaml
-├── cluster-production.yaml
-└── cluster-preview.yaml
+├── clusterclass-tuist.yaml    the tuist-hcloud ClusterClass  (mgmt-cluster-apply.yml)
+├── bare-metal.yaml            bare-metal templates           (mgmt-cluster-apply.yml)
+├── cluster-preview.yaml       preview Cluster CR             (mgmt-cluster-apply.yml)
+└── workloads/                 Flux-reconciled Cluster CRs (infra/flux/mgmt/)
+    ├── staging/{cluster,kustomization}.yaml
+    ├── canary/{cluster,kustomization}.yaml
+    ├── production/{cluster,kustomization}.yaml
+    ├── hive/{cluster,kustomization}.yaml    tenant (migrated from tuist/hive)
+    ├── once/{cluster,kustomization}.yaml    tenant (migrated from tuist/once)
+    └── atlas/{cluster,kustomization}.yaml   tenant (migrated from tuist/atlas)
 ```
+
+## Reconciliation ownership
+
+Two mechanisms apply these manifests, split deliberately (see
+[hive/specs/72](https://hive.tuist.dev/specs/72) and `infra/flux/mgmt/README.md`):
+
+- **Flux** (`infra/flux/mgmt/`) continuously reconciles the per-cluster
+  `Cluster` CRs under `workloads/`, one Flux `Kustomization` per subdir,
+  scoped never to prune a `Cluster` object. This is the source of truth
+  for the staging / canary / production and hive / once / atlas topologies.
+- **`mgmt-cluster-apply.yml`** keeps the immutable `clusterclass-tuist.yaml`
+  and `bare-metal*.yaml` templates (whose delete-and-apply fallback for
+  `field is immutable` a plain Kustomization can't reproduce) plus the
+  preview `Cluster` CR (its replicas are mutated out-of-band by the
+  preview workflows). Flux never sees these files.
+
+Tenant `Cluster` CRs were migrated in from `tuist/{hive,once,atlas}`
+(`infra/k8s/cluster-production.yaml`). Keep each `workloads/<tenant>/cluster.yaml`
+byte-identical to the live object so the first Flux reconcile is a no-op;
+the tenant-repo copies are then retired to a pointer.
 
 ## Target shape per cluster
 

@@ -1,0 +1,59 @@
+# Hive production workload Cluster, topology mode against `tuist-hcloud`.
+#
+# Reconciled by the self-hosted CAPI + caph management cluster maintained
+# in tuist/tuist. Hive reuses tuist's `org-tuist` namespace and the
+# `hetzner` Secret living in it, matching Atlas' v1 deployment model.
+#
+# Migrated into tuist/tuist from tuist/hive (`infra/k8s/cluster-production.yaml`)
+# for Flux reconciliation. Keep byte-identical to the live Cluster so the
+# first reconcile is a no-op; the tuist/hive copy is retired to a pointer.
+apiVersion: cluster.x-k8s.io/v1beta2
+kind: Cluster
+metadata:
+  name: hive-production
+  namespace: org-tuist
+spec:
+  clusterNetwork:
+    services:
+      cidrBlocks:
+        - 10.128.0.0/12
+    pods:
+      cidrBlocks:
+        - 192.168.0.0/16
+    serviceDomain: cluster.local
+  topology:
+    classRef:
+      name: tuist-hcloud
+    version: v1.34.6
+    controlPlane:
+      # hive.tuist.dev is a non-critical internal service; a single-node
+      # control plane is enough. A control-plane outage only pauses
+      # scheduling, it does not take the running app down.
+      #
+      # Single-CP: control-plane MachineHealthCheck stays on the shared
+      # ClusterClass 33% ratio, which does NOT self-remediate a 1-of-1
+      # unhealthy node (it would destroy the only node). A degraded
+      # control plane pages via Grafana Cloud (Pillar 2) and is rebuilt
+      # under break-glass. See infra/flux/mgmt/README.md.
+      replicas: 1
+    variables:
+      - name: region
+        value: fsn1
+      - name: hcloudControlPlaneMachineType
+        value: cpx22
+      - name: hcloudWorkerMachineType
+        value: cpx32
+      - name: hcloudSSHKeyName
+        value:
+          - name: tuist-ops
+    workers:
+      machineDeployments:
+        - class: hcloud-worker
+          name: md-0
+          # One worker holds the whole workload (app + Postgres + ingress +
+          # operators). Scale up only if resource pressure appears.
+          replicas: 1
+          failureDomain: fsn1
+          metadata:
+            labels:
+              node.cluster.x-k8s.io/pool: general

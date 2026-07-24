@@ -31,6 +31,29 @@ spec:
     version: v1.34.6
     controlPlane:
       replicas: 3
+      # Per-topology control-plane remediation (spec/72 Decision 5). This
+      # cluster runs 3 control-plane nodes, so remediating a single stuck
+      # node is safe: an absolute `unhealthyLessThanOrEqualTo: 1` self-heals
+      # one bad node while still short-circuiting a wider outage. The shared
+      # ClusterClass default (33%) is kept for single-CP clusters, where a
+      # 1-of-1 unhealthy node exceeds 33% and correctly does NOT self-
+      # remediate (an absolute `1` there would destroy the only node). The
+      # full healthCheck block is restated (not just remediation) so the
+      # override is unambiguous regardless of ClusterClass merge semantics;
+      # keep `checks` in sync with clusterclass-tuist.yaml controlPlane.
+      healthCheck:
+        checks:
+          nodeStartupTimeoutSeconds: 900
+          unhealthyNodeConditions:
+            - type: Ready
+              status: Unknown
+              timeoutSeconds: 300
+            - type: Ready
+              status: "False"
+              timeoutSeconds: 300
+        remediation:
+          triggerIf:
+            unhealthyLessThanOrEqualTo: 1
     variables:
       - name: region
         value: fsn1
