@@ -40,7 +40,6 @@ defmodule TuistWeb.MembersLive do
   def render(assigns) do
     ~H"""
     <div id="members">
-      <h1 data-part="page-title">{@selected_account.name}</h1>
       <h2 data-part="title">{dgettext("dashboard_account", "Members")}</h2>
       <div data-part="members-section">
         <div data-part="row">

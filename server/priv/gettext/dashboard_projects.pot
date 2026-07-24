@@ -37,7 +37,7 @@ msgstr ""
 msgid "%{selective_tests_effectiveness}%"
 msgstr ""
 
-#: lib/tuist_web/live/projects_live.ex:247
+#: lib/tuist_web/live/projects_live.ex:246
 #, elixir-autogen, elixir-format
 msgid "All projects"
 msgstr ""
@@ -161,7 +161,7 @@ msgstr ""
 msgid "Continue"
 msgstr ""
 
-#: lib/tuist_web/live/projects_live.ex:358
+#: lib/tuist_web/live/projects_live.ex:357
 #, elixir-autogen, elixir-format
 msgid "Create a new project"
 msgstr ""
@@ -171,14 +171,14 @@ msgstr ""
 msgid "Create a project"
 msgstr ""
 
-#: lib/tuist_web/live/projects_live.ex:342
+#: lib/tuist_web/live/projects_live.ex:341
 #, elixir-autogen, elixir-format
 msgid "Create project"
 msgstr ""
 
-#: lib/tuist_web/live/projects_live.ex:188
-#: lib/tuist_web/live/projects_live.ex:237
-#: lib/tuist_web/live/projects_live.ex:311
+#: lib/tuist_web/live/projects_live.ex:187
+#: lib/tuist_web/live/projects_live.ex:236
+#: lib/tuist_web/live/projects_live.ex:310
 #, elixir-autogen, elixir-format
 msgid "Created %{time}"
 msgstr ""
@@ -251,9 +251,9 @@ msgstr ""
 msgid "Last 40 runs"
 msgstr ""
 
-#: lib/tuist_web/live/projects_live.ex:183
-#: lib/tuist_web/live/projects_live.ex:232
-#: lib/tuist_web/live/projects_live.ex:306
+#: lib/tuist_web/live/projects_live.ex:182
+#: lib/tuist_web/live/projects_live.ex:231
+#: lib/tuist_web/live/projects_live.ex:305
 #, elixir-autogen, elixir-format
 msgid "Last interacted with %{time}"
 msgstr ""
@@ -284,7 +284,7 @@ msgstr ""
 #: lib/tuist_web/live/project_notifications_live.html.heex:517
 #: lib/tuist_web/live/project_notifications_live.html.heex:584
 #: lib/tuist_web/live/project_notifications_live.html.heex:757
-#: lib/tuist_web/live/projects_live.ex:367
+#: lib/tuist_web/live/projects_live.ex:366
 #, elixir-autogen, elixir-format
 msgid "Name"
 msgstr ""
@@ -347,12 +347,12 @@ msgid "Project name"
 msgstr ""
 
 #: lib/tuist_web/live/projects_live.ex:33
-#: lib/tuist_web/live/projects_live.ex:130
+#: lib/tuist_web/live/projects_live.ex:129
 #, elixir-autogen, elixir-format
 msgid "Projects"
 msgstr ""
 
-#: lib/tuist_web/live/projects_live.ex:198
+#: lib/tuist_web/live/projects_live.ex:197
 #, elixir-autogen, elixir-format
 msgid "Recent projects"
 msgstr ""
@@ -393,7 +393,7 @@ msgstr ""
 msgid "Saved"
 msgstr ""
 
-#: lib/tuist_web/live/projects_live.ex:259
+#: lib/tuist_web/live/projects_live.ex:258
 #, elixir-autogen, elixir-format
 msgid "Search projects..."
 msgstr ""
@@ -420,7 +420,7 @@ msgstr ""
 msgid "Settings"
 msgstr ""
 
-#: lib/tuist_web/live/projects_live.ex:220
+#: lib/tuist_web/live/projects_live.ex:219
 #, elixir-autogen, elixir-format
 msgid "Supported platforms"
 msgstr ""
@@ -756,7 +756,7 @@ msgstr ""
 #: lib/tuist_web/live/project_automations_live.html.heex:859
 #: lib/tuist_web/live/project_bundle_settings_live.html.heex:198
 #: lib/tuist_web/live/project_notifications_live.html.heex:500
-#: lib/tuist_web/live/projects_live.ex:401
+#: lib/tuist_web/live/projects_live.ex:400
 #, elixir-autogen, elixir-format
 msgid "Create"
 msgstr ""
@@ -813,13 +813,13 @@ msgid "Automations"
 msgstr ""
 
 #: lib/tuist_web/live/create_project_live.ex:99
-#: lib/tuist_web/live/projects_live.ex:379
+#: lib/tuist_web/live/projects_live.ex:378
 #, elixir-autogen, elixir-format
 msgid "Build system"
 msgstr ""
 
 #: lib/tuist_web/live/create_project_live.ex:93
-#: lib/tuist_web/live/projects_live.ex:373
+#: lib/tuist_web/live/projects_live.ex:372
 #, elixir-autogen, elixir-format
 msgid "Select build system"
 msgstr ""
@@ -1431,7 +1431,7 @@ msgstr ""
 msgid "When a test is updated: %{events}"
 msgstr ""
 
-#: lib/tuist_web/live/projects_live.ex:349
+#: lib/tuist_web/live/projects_live.ex:348
 #, elixir-autogen, elixir-format
 msgid "New Project"
 msgstr ""

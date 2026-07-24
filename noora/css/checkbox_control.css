@@ -19,7 +19,7 @@
     display: none;
     width: 12px;
     height: 12px;
-    color: var(--noora-surface-background-primary);
+    color: var(--noora-choice-selector-label);
 
     & svg {
       width: 100%;
