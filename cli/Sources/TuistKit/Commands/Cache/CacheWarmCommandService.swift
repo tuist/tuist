@@ -22,6 +22,21 @@ import XcodeGraph
 
 #if canImport(TuistCacheEE)
 
+    enum CacheWarmIndexingError: LocalizedError, Equatable {
+        case indexReaderUnavailable
+
+        var errorDescription: String? {
+            switch self {
+            case .indexReaderUnavailable:
+                return """
+                Indexing is enabled but the index reader tool (absolute-unit) could not be found. \
+                Install the index-import tools or disable the indexing feature flag to avoid caching \
+                modules without index data.
+                """
+            }
+        }
+    }
+
     // swiftlint:disable:next type_body_length
     public struct CacheWarmCommandService: CacheServicing {
         enum Destination {
@@ -276,6 +291,7 @@ import XcodeGraph
                         binaryArtifactDirectories: &binaryArtifactDirectories,
                         temporaryDirectory: temporaryDirectory,
                         derivedDataPath: derivedDataPath,
+                        sourceRoot: path,
                         isReleaseConfiguration: isReleaseConfiguration
                     )
                 }
@@ -288,6 +304,7 @@ import XcodeGraph
                         binaryArtifactDirectories: &binaryArtifactDirectories,
                         temporaryDirectory: temporaryDirectory,
                         derivedDataPath: derivedDataPath,
+                        sourceRoot: path,
                         isReleaseConfiguration: isReleaseConfiguration
                     )
                 }
@@ -325,10 +342,20 @@ import XcodeGraph
                     temporaryDirectory: temporaryDirectory
                 ))
 
+                var indexStorePaths: [CacheStorableTarget: AbsolutePath] = [:]
+                if ClientFeatureFlags.indexingEnabled() {
+                    indexStorePaths = try await sliceIndexStores(
+                        for: artifactsToStore,
+                        derivedDataPath: derivedDataPath,
+                        temporaryDirectory: temporaryDirectory
+                    )
+                }
+
                 Logger.current.info("Storing binaries to speed up workflows", metadata: .section)
 
                 let successfullyStoredTargets = try await store(
                     artifactsToStore,
+                    indexStorePaths: indexStorePaths,
                     cacheStorage: cacheStorage,
                     temporaryDirectory: temporaryDirectory
                 )
@@ -657,6 +684,42 @@ import XcodeGraph
             return artifacts
         }
 
+        // Xcode writes no index data unless `COMPILER_INDEX_STORE_ENABLE` and
+        // `INDEX_ENABLE_DATA_STORE` are both explicitly on. When indexing is disabled we keep the
+        // long-standing default of skipping index generation, which is a measurable build-time win.
+        // `INDEX_DATA_STORE_DIR` is deliberately not set: xcodebuild ignores it and always writes to
+        // `<derivedData>/Index.noindex/DataStore`, which is the path we later slice from.
+        //
+        // The `-file-prefix-map` flags are injected as command-line overrides rather than into the
+        // generated project because command-line settings have the highest precedence — they win over
+        // any configuration-level `OTHER_SWIFT_FLAGS`/`OTHER_C_FLAGS` a target defines — and
+        // `$(inherited)` preserves each target's own resolved flags. Both the source root and the
+        // build (derived data) root are mapped to stable tokens so the emitted units are hermetic; the
+        // consumer reverses both when importing.
+        private static func indexStoreArguments(
+            sourceRoot: AbsolutePath,
+            derivedDataPath: AbsolutePath
+        ) -> [XcodeBuildArgument] {
+            guard ClientFeatureFlags.indexingEnabled() else {
+                return [.xcarg("COMPILER_INDEX_STORE_ENABLE", "NO")]
+            }
+            let swiftPrefixMaps = [
+                "-file-prefix-map", "\(sourceRoot.pathString)=\(CacheIndexStore.sourceRootToken)",
+                "-file-prefix-map", "\(derivedDataPath.pathString)=\(CacheIndexStore.buildRootToken)",
+                "-index-ignore-system-modules",
+            ].joined(separator: " ")
+            let clangPrefixMaps = [
+                "-ffile-prefix-map=\(sourceRoot.pathString)=\(CacheIndexStore.sourceRootToken)",
+                "-ffile-prefix-map=\(derivedDataPath.pathString)=\(CacheIndexStore.buildRootToken)",
+            ].joined(separator: " ")
+            return [
+                .xcarg("COMPILER_INDEX_STORE_ENABLE", "YES"),
+                .xcarg("INDEX_ENABLE_DATA_STORE", "YES"),
+                .xcarg("OTHER_SWIFT_FLAGS", "$(inherited) \(swiftPrefixMaps)"),
+                .xcarg("OTHER_C_FLAGS", "$(inherited) \(clangPrefixMaps)"),
+            ]
+        }
+
         // swiftlint:disable:next function_body_length
         private func buildBinarySchemes(
             _ scheme: Scheme,
@@ -666,6 +729,7 @@ import XcodeGraph
             binaryArtifactDirectories: inout [Platform: Set<AbsolutePath>],
             temporaryDirectory: AbsolutePath,
             derivedDataPath: AbsolutePath,
+            sourceRoot: AbsolutePath,
             isReleaseConfiguration: Bool
         ) async throws {
             let platform = Platform.allCases.first { scheme.name.hasSuffix($0.caseValue) }!
@@ -697,7 +761,6 @@ import XcodeGraph
                         .xcarg("CODE_SIGN_ENTITLEMENTS", ""),
                         .xcarg("CODE_SIGNING_ALLOWED", "NO"),
                         .xcarg("CODE_SIGNING_REQUIRED", "NO"),
-                        .xcarg("COMPILER_INDEX_STORE_ENABLE", "NO"),
                         .configuration(configuration),
                         .xcarg("SYMROOT", derivedDataPath.appending(components: ["Build", "Products"]).pathString),
                         // To prevent the rejection when publishing on the App Store
@@ -705,7 +768,7 @@ import XcodeGraph
                     ] + (isReleaseConfiguration ? [
                         .xcarg("GCC_INSTRUMENT_PROGRAM_FLOW_ARCS", "NO"),
                         .xcarg("CLANG_ENABLE_CODE_COVERAGE", "NO"),
-                    ] : []),
+                    ] : []) + Self.indexStoreArguments(sourceRoot: sourceRoot, derivedDataPath: derivedDataPath),
                     passthroughXcodeBuildArguments: [
                         "-resultBundlePath",
                         derivedDataPath.appending(component: UUID().uuidString).pathString,
@@ -743,7 +806,6 @@ import XcodeGraph
                 .xcarg("CODE_SIGN_ENTITLEMENTS", ""),
                 .xcarg("CODE_SIGNING_ALLOWED", "NO"),
                 .xcarg("CODE_SIGNING_REQUIRED", "NO"),
-                .xcarg("COMPILER_INDEX_STORE_ENABLE", "NO"),
                 .configuration(configuration),
                 .xcarg("SYMROOT", derivedDataPath.appending(components: ["Build", "Products"]).pathString),
                 // To prevent the rejection when publishing on the App Store
@@ -751,7 +813,7 @@ import XcodeGraph
             ] + (isReleaseConfiguration ? [
                 .xcarg("GCC_INSTRUMENT_PROGRAM_FLOW_ARCS", "NO"),
                 .xcarg("CLANG_ENABLE_CODE_COVERAGE", "NO"),
-            ] : [])
+            ] : []) + Self.indexStoreArguments(sourceRoot: sourceRoot, derivedDataPath: derivedDataPath)
             if platform == .macOS {
                 deviceArguments.append(contentsOf: [
                     .xcarg("ONLY_ACTIVE_ARCH", "NO"),
@@ -797,6 +859,7 @@ import XcodeGraph
             binaryArtifactDirectories: inout [Platform: Set<AbsolutePath>],
             temporaryDirectory: AbsolutePath,
             derivedDataPath: AbsolutePath,
+            sourceRoot: AbsolutePath,
             isReleaseConfiguration: Bool
         ) async throws {
             let platformArtifactsDirectory = temporaryDirectory.appending(components: ["artifacts", "iOS"])
@@ -825,13 +888,12 @@ import XcodeGraph
                     .xcarg("CODE_SIGN_ENTITLEMENTS", ""),
                     .xcarg("CODE_SIGNING_ALLOWED", "NO"),
                     .xcarg("CODE_SIGNING_REQUIRED", "NO"),
-                    .xcarg("COMPILER_INDEX_STORE_ENABLE", "NO"),
                     .configuration(configuration),
                     .xcarg("SYMROOT", derivedDataPath.appending(components: ["Build", "Products"]).pathString),
                 ] + (isReleaseConfiguration ? [
                     .xcarg("GCC_INSTRUMENT_PROGRAM_FLOW_ARCS", "NO"),
                     .xcarg("CLANG_ENABLE_CODE_COVERAGE", "NO"),
-                ] : []),
+                ] : []) + Self.indexStoreArguments(sourceRoot: sourceRoot, derivedDataPath: derivedDataPath),
                 passthroughXcodeBuildArguments: [
                     "-resultBundlePath",
                     derivedDataPath.appending(component: UUID().uuidString).pathString,
@@ -870,8 +932,66 @@ import XcodeGraph
             binaryArtifactDirectories[platform] = platformDirectories
         }
 
+        /// Splits the shared index store produced by the warm build into per-target slices, returning
+        /// the slice path for each target. The build writes every target's index units into one
+        /// `Index.noindex/DataStore` under the derived data directory, so we slice from there in a
+        /// single pass over the store.
+        ///
+        /// If the index reader tool is unavailable while indexing is enabled, this throws rather than
+        /// returning no slices: the artifacts would otherwise be cached under the indexing-enabled hash
+        /// with no index data, and every later warm would treat that partial result as a hit and never
+        /// repair it.
+        private func sliceIndexStores(
+            for artifacts: [CacheGraphTargetBuiltArtifact],
+            derivedDataPath: AbsolutePath,
+            temporaryDirectory: AbsolutePath
+        ) async throws -> [CacheStorableTarget: AbsolutePath] {
+            let sharedStore = derivedDataPath.appending(components: "Index.noindex", "DataStore")
+            // No store means nothing was compiled with indexing (e.g. resource-only targets); there is
+            // genuinely no index to ship, which is correct rather than a partial result.
+            guard try await fileSystem.exists(sharedStore) else { return [:] }
+
+            let xcframeworks = artifacts.filter { $0.type == .xcframework }
+            guard !xcframeworks.isEmpty else { return [:] }
+
+            guard let absoluteUnitPath = IndexImportLocator.absoluteUnitPath() else {
+                throw CacheWarmIndexingError.indexReaderUnavailable
+            }
+
+            let slicesByStorableTarget: [CacheStorableTarget: IndexStoreTargetSlice] = Dictionary(
+                uniqueKeysWithValues: xcframeworks.map { artifact in
+                    let storableTarget = CacheStorableTarget(target: artifact.graphTarget, hash: artifact.hash)
+                    let slice = IndexStoreTargetSlice(
+                        targetName: artifact.graphTarget.target.name,
+                        projectName: artifact.graphTarget.project.name,
+                        // The hash keeps destinations unique even when two projects have equally named targets.
+                        destination: temporaryDirectory.appending(
+                            components: "IndexStores", "\(artifact.graphTarget.target.name)-\(artifact.hash)",
+                            CacheIndexStore.directoryName
+                        )
+                    )
+                    return (storableTarget, slice)
+                }
+            )
+
+            let slicer = IndexStoreSlicer(
+                unitReader: AbsoluteUnitIndexStoreUnitReader(absoluteUnitPath: absoluteUnitPath),
+                fileSystem: fileSystem
+            )
+            try await slicer.slice(store: sharedStore, targets: Array(slicesByStorableTarget.values))
+
+            var result: [CacheStorableTarget: AbsolutePath] = [:]
+            for (storableTarget, slice) in slicesByStorableTarget
+                where try await fileSystem.exists(slice.destination)
+            {
+                result[storableTarget] = slice.destination
+            }
+            return result
+        }
+
         private func store(
             _ artifacts: [CacheGraphTargetBuiltArtifact],
+            indexStorePaths: [CacheStorableTarget: AbsolutePath] = [:],
             cacheStorage: CacheStoring,
             temporaryDirectory: AbsolutePath
         ) async throws -> [CacheStorableTarget] {
@@ -879,7 +999,10 @@ import XcodeGraph
             let storableTargets = Dictionary(
                 uniqueKeysWithValues: try await artifacts
                     .reduce(into: [CacheStorableTarget: [AbsolutePath]]()) { acc, next in
-                        acc[CacheStorableTarget(target: next.graphTarget, hash: next.hash)] = [next.path]
+                        let storableTarget = CacheStorableTarget(target: next.graphTarget, hash: next.hash)
+                        // The index store slice, when present, travels with the artifact through the
+                        // existing upload/download path as an additional stored path.
+                        acc[storableTarget] = [next.path] + (indexStorePaths[storableTarget].map { [$0] } ?? [])
                     }.concurrentMap { storableTarget, paths in
                         let metadataFilePath = temporaryDirectory.appending(
                             components: "Metadatas",
@@ -924,7 +1047,8 @@ import XcodeGraph
                 configuration: configuration,
                 defaultConfiguration: config.project.generatedProject?.generationOptions.defaultConfiguration,
                 excludedTargets: excludedTargets,
-                destination: nil
+                destination: nil,
+                indexingEnabled: ClientFeatureFlags.indexingEnabled()
             )
             let selectedHashesByCacheableTarget: [GraphTarget: TargetContentHash]
             switch CacheWarmTargetGraphSelector.selection(
