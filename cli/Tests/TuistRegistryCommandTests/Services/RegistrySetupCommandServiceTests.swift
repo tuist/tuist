@@ -19,6 +19,7 @@ struct RegistrySetupCommandServiceTests {
     private let serverEnvironmentService = MockServerEnvironmentServicing()
     private let configLoader = MockConfigLoading()
     private let fileSystem = FileSystem()
+    private let registryURLService = MockRegistryURLServicing()
 
     #if canImport(TuistLoader)
         private let manifestFilesLocator = MockManifestFilesLocating()
@@ -33,6 +34,7 @@ struct RegistrySetupCommandServiceTests {
                 serverEnvironmentService: serverEnvironmentService,
                 configLoader: configLoader,
                 fileSystem: fileSystem,
+                registryURLService: registryURLService,
                 manifestFilesLocator: manifestFilesLocator,
                 defaultsController: defaultsController
             )
@@ -44,9 +46,19 @@ struct RegistrySetupCommandServiceTests {
             subject = RegistrySetupCommandService(
                 serverEnvironmentService: serverEnvironmentService,
                 configLoader: configLoader,
-                fileSystem: fileSystem
+                fileSystem: fileSystem,
+                registryURLService: registryURLService
             )
         #endif
+
+        given(registryURLService)
+            .registryConfiguration(serverURL: .any)
+            .willReturn(
+                RegistryConfiguration(
+                    url: URL(string: "https://registry.test.tuist.io/swift")!,
+                    loginAPIPath: "/swift/login"
+                )
+            )
     }
 
     @Test(.withMockedEnvironment(), .withMockedNoora)
@@ -92,15 +104,15 @@ struct RegistrySetupCommandServiceTests {
                     }
                   },
                   "authentication": {
-                    "test.tuist.io": {
-                      "loginAPIPath": "/api/registry/swift/login",
+                    "registry.test.tuist.io": {
+                      "loginAPIPath": "/swift/login",
                       "type": "token"
                     }
                   },
                   "registries": {
                     "[default]": {
                       "supportsAvailability": false,
-                      "url": "\(serverURL)/api/registry/swift"
+                      "url": "https://registry.test.tuist.io/swift"
                     }
                   },
                   "version": 1

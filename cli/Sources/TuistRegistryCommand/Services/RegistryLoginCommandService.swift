@@ -14,6 +14,7 @@
         case missingFullHandle
         case missingCIToken
         case missingHost(URL)
+        case registryNotAvailable(URL)
 
         var errorDescription: String? {
             switch self {
@@ -25,6 +26,8 @@
                     "A project token or OIDC account token is needed to interact with the registry on the CI. Make sure the 'TUIST_TOKEN' environment variable is present and valid, or that OIDC authentication is configured."
             case let .missingHost(url):
                 return "Failed getting host from the Tuist server URL \(url.absoluteString)."
+            case let .registryNotAvailable(url):
+                return "The server at \(url.absoluteString) doesn't provide a Swift package registry."
             }
         }
     }
@@ -41,6 +44,7 @@
         private let manifestFilesLocator: ManifestFilesLocating
         private let xcodeController: XcodeControlling
         private let defaultsController: DefaultsControlling
+        private let registryURLService: RegistryURLServicing
 
         init(
             createAccountTokenService: CreateAccountTokenServicing = CreateAccountTokenService(),
@@ -55,7 +59,8 @@
             securityController: SecurityControlling = SecurityController(),
             manifestFilesLocator: ManifestFilesLocating = ManifestFilesLocator(),
             xcodeController: XcodeControlling = XcodeController(),
-            defaultsController: DefaultsControlling = DefaultsController()
+            defaultsController: DefaultsControlling = DefaultsController(),
+            registryURLService: RegistryURLServicing = RegistryURLService()
         ) {
             self.createAccountTokenService = createAccountTokenService
             self.serverEnvironmentService = serverEnvironmentService
@@ -68,6 +73,7 @@
             self.manifestFilesLocator = manifestFilesLocator
             self.xcodeController = xcodeController
             self.defaultsController = defaultsController
+            self.registryURLService = registryURLService
         }
 
         func run(
@@ -88,9 +94,11 @@
                 showSpinner: true
             ) { _ in
                 let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
-                let registryURL = serverURL.appending(
-                    path: "api/registry/swift"
-                )
+                guard let registry = try await registryURLService.registryConfiguration(serverURL: serverURL)
+                else {
+                    throw RegistryLoginCommandServiceError.registryNotAvailable(serverURL)
+                }
+                let registryURL = registry.url
 
                 if Environment.current.isCI {
                     try await registryCILogin(
@@ -128,8 +136,8 @@
             }
 
             if try await manifestFilesLocator.locatePackageManifest(at: path) == nil {
-                guard let host = serverURL.host else {
-                    throw RegistryLoginCommandServiceError.missingHost(serverURL)
+                guard let host = registryURL.host else {
+                    throw RegistryLoginCommandServiceError.missingHost(registryURL)
                 }
                 let xcode = try await xcodeController.selected()
                 try await securityController.addInternetPassword(

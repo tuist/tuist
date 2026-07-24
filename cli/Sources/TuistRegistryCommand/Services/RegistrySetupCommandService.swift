@@ -16,10 +16,12 @@ import TuistServer
 
 enum RegistryCommandSetupServiceError: Equatable, LocalizedError {
     case noProjectFound(AbsolutePath)
+    case registryNotAvailable(URL)
 
     var type: ErrorType {
         switch self {
         case .noProjectFound: .abort
+        case .registryNotAvailable: .abort
         }
     }
 
@@ -28,6 +30,8 @@ enum RegistryCommandSetupServiceError: Equatable, LocalizedError {
         case let .noProjectFound(path):
             return
                 "We couldn't find a Package.swift (including Tuist/Package.swift), .xcworkspace, or .xcodeproj at \(path.pathString). The registry setup doesn't use Tuist.swift, so run it from a directory containing one of those files or pass --path to one."
+        case let .registryNotAvailable(serverURL):
+            return "The server at \(serverURL.absoluteString) doesn't provide a Swift package registry."
         }
     }
 }
@@ -36,6 +40,7 @@ struct RegistrySetupCommandService {
     private let serverEnvironmentService: ServerEnvironmentServicing
     private let configLoader: ConfigLoading
     private let fileSystem: FileSysteming
+    private let registryURLService: RegistryURLServicing
 
     #if os(macOS)
         private let manifestFilesLocator: ManifestFilesLocating
@@ -47,12 +52,14 @@ struct RegistrySetupCommandService {
             serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
             configLoader: ConfigLoading = ConfigLoader(),
             fileSystem: FileSysteming = FileSystem(),
+            registryURLService: RegistryURLServicing = RegistryURLService(),
             manifestFilesLocator: ManifestFilesLocating = ManifestFilesLocator(),
             defaultsController: DefaultsControlling = DefaultsController()
         ) {
             self.serverEnvironmentService = serverEnvironmentService
             self.configLoader = configLoader
             self.fileSystem = fileSystem
+            self.registryURLService = registryURLService
             self.manifestFilesLocator = manifestFilesLocator
             self.defaultsController = defaultsController
         }
@@ -60,11 +67,13 @@ struct RegistrySetupCommandService {
         init(
             serverEnvironmentService: ServerEnvironmentServicing = ServerEnvironmentService(),
             configLoader: ConfigLoading = ConfigLoader(),
-            fileSystem: FileSysteming = FileSystem()
+            fileSystem: FileSysteming = FileSystem(),
+            registryURLService: RegistryURLServicing = RegistryURLService()
         ) {
             self.serverEnvironmentService = serverEnvironmentService
             self.configLoader = configLoader
             self.fileSystem = fileSystem
+            self.registryURLService = registryURLService
         }
     #endif
 
@@ -74,6 +83,10 @@ struct RegistrySetupCommandService {
         let path = try await Environment.current.pathRelativeToWorkingDirectory(path)
         let config = try await configLoader.loadConfig(path: path)
         let serverURL = try serverEnvironmentService.url(configServerURL: config.url)
+
+        guard let registry = try await registryURLService.registryConfiguration(serverURL: serverURL) else {
+            throw RegistryCommandSetupServiceError.registryNotAvailable(serverURL)
+        }
 
         let swiftPackageManagerPath: AbsolutePath
 
@@ -121,7 +134,7 @@ struct RegistrySetupCommandService {
             try await fileSystem.remove(configurationJSONPath)
         }
         try await fileSystem.writeText(
-            Self.registryConfigurationJSON(serverURL: serverURL),
+            Self.registryConfigurationJSON(registry: registry),
             at: configurationJSONPath
         )
 
@@ -136,8 +149,8 @@ struct RegistrySetupCommandService {
         )
     }
 
-    static func registryConfigurationJSON(serverURL: URL) -> String {
-        let urlString = serverURL.absoluteString
+    static func registryConfigurationJSON(registry: RegistryConfiguration) -> String {
+        let urlString = registry.url.absoluteString
         let trimmedURLString = urlString.hasSuffix("/") ? String(urlString.dropLast()) : urlString
         return """
         {
@@ -149,15 +162,15 @@ struct RegistrySetupCommandService {
             }
           },
           "authentication": {
-            "\(serverURL.host() ?? Constants.URLs.production.host()!)": {
-              "loginAPIPath": "/api/registry/swift/login",
+            "\(registry.url.host() ?? Constants.URLs.production.host()!)": {
+              "loginAPIPath": "\(registry.loginAPIPath)",
               "type": "token"
             }
           },
           "registries": {
             "[default]": {
               "supportsAvailability": false,
-              "url": "\(trimmedURLString)/api/registry/swift"
+              "url": "\(trimmedURLString)"
             }
           },
           "version": 1
