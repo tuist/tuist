@@ -111,6 +111,19 @@ struct CommandEnvironmentVariableTests {
         #expect(cleanCommandWithArgs.path == "/new/clean/path")
     }
 
+    @Test(.withMockedEnvironment()) func cleanCommandFailsWhenCategoriesAndExclusionsFromEnvironmentAreCombined() throws {
+        setVariable(.cleanCleanCategories, value: "dependencies")
+
+        do {
+            _ = try CleanCommand.parse([
+                "--exclude", "manifests",
+            ])
+            Issue.record("Expected parsing to fail when environment-provided categories and --exclude are used together")
+        } catch {
+            #expect(CleanCommand.message(for: error) == "Cannot use category arguments and --exclude at the same time.")
+        }
+    }
+
     @Test(.withMockedEnvironment()) func dumpCommandUsesEnvVars() throws {
         setVariable(.dumpPath, value: "/path/to/dump")
         setVariable(.dumpManifest, value: "Project")
