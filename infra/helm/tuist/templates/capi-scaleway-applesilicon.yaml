@@ -356,6 +356,12 @@ spec:
             {{- with .masterCapGib }}
             - --cache-volume-master-cap-gib={{ . }}
             {{- end }}
+            {{- with .casGib }}
+            # Folded Xcode compilation-cache (CAS) budget within each
+            # per-account cache image. 0/unset keeps the compilation cache
+            # VM-local; the binary cache is unaffected.
+            - --cache-volume-cas-gib={{ . }}
+            {{- end }}
             {{- end }}
             {{- end }}
             {{- if .Values.macosFleet.tailscale.enabled }}

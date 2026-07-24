@@ -82,7 +82,43 @@ runtime — no service, sudo entry, or auto-login targets it.
   The server also delivers a `cache_signing_grant` in
   the dispatch 200, exported as `TUIST_CACHE_SIGNING_GRANT` so the EE CLI signs
   artifacts with the account scope instead of the machine MAC — which is what
-  lets a clonefiled master validate across the account's VMs.
+  lets a clonefiled master validate across the account's VMs. The Xcode
+  compilation cache (CAS) is **folded INTO the cache image**: a
+  `CompilationCache.noindex` store dir beside `tuist/` inside the one mounted
+  image, so it rides the binary cache's whole lifecycle — clone, promote,
+  fast-forward HEAD, convergence — with no separate image, mount, or promote
+  gate. (It works because the store is on the block-device image, not the
+  virtio-fs share — llcas mmaps its store and mmap over virtio-fs SIGBUSes.) When
+  the host stages the `cas-enabled` marker (gated on `--cache-volume-cas-gib`),
+  `setup_cas_store` — called from `attach_cache_image` after the mount — creates
+  the store, writes an xcconfig pointing `COMPILATION_CACHE_CAS_PATH` at it, and
+  exports **`XCODE_XCCONFIG_FILE`**. There is no separate detach or CAS success
+  gate: the cache image's own quiesced detach (and not-promotable-on-failed-detach
+  guard) covers it. A compile-only job still persists its CAS because the
+  inventory digest includes one `~cas/<relpath>\t<size>` line per store file (a
+  content identity, computed identically host- and guest-side), so CAS growth
+  flips the digest → dirty → the whole image promotes. The `.noindex` name keeps Spotlight (`mds`)
+  out of the multi-GB store. Absent marker ⇒ the compilation cache runs VM-local
+  (cold), unchanged. The CAS shares the volume cap with the binary cache, so size
+  `--cache-volume-cap-gib` for both and keep HEAD uploads fast
+  (`tart_kubelet_cache_volume_upload_seconds` watches the teardown upload that
+  blocks slot reclaim).
+  `XCODE_XCCONFIG_FILE` is the mechanism because the common case is a plain
+  `xcodebuild build` against a project Tuist never generated and never wraps —
+  which the generate-time project mapper and the `tuist xcodebuild` wrapper both
+  miss. It is the one layer every xcodebuild invocation honors. (Measured on
+  staging: `COMPILATION_CACHE_*` exported as plain env vars does nothing —
+  xcodebuild does not read build settings from the environment.) Consequences to
+  know: the xcconfig deliberately does **not** set
+  `COMPILATION_CACHE_ENABLE_CACHING` (enabling the cache stays the project's
+  opt-in; this only says *where* an already-caching build keeps its store); it
+  chains a pre-existing `XCODE_XCCONFIG_FILE` via `#include` rather than
+  clobbering it, but a workflow exporting that variable *after* us wins and the
+  CAS falls back to VM-local; and `XCODE_XCCONFIG_FILE` is an OVERRIDES layer
+  (swift-build's `environmentConfigPath`), so it FORCES the CAS path over
+  project/target-defined settings — a stray target-level `COMPILATION_CACHE_CAS_PATH`
+  does NOT win. The escape hatch is a workflow's own xcconfig, which we `#include`
+  LAST, so anything it sets explicitly (the CAS path included) still wins.
 - `/opt/tuist/metrics-poll.sh` — the machine-metrics sampler.
   `dispatch-poll.sh` forks it into the background right before it
   starts `./run.sh`, so it samples whole-VM CPU/memory/network/disk
