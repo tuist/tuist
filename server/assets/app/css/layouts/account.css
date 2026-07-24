@@ -8,9 +8,9 @@
      not pane padding. */
   & > * {
     box-sizing: border-box;
-    width: var(--layout-page-max-width-with-margin-current);
     margin-inline: auto;
     padding-inline: var(--layout-page-padding-inline);
+    width: var(--layout-page-max-width-with-margin-current);
   }
 
   /* Compact pages (settings-style, e.g. cache) narrow the cap. */

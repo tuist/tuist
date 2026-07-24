@@ -53,10 +53,7 @@
   --layout-page-width-with-margin-current: calc(
     var(--layout-page-width-current) + 2 * var(--layout-page-padding-inline)
   );
-  --layout-page-max-width-with-margin-current: min(
-    100%,
-    var(--layout-page-width-with-margin-current)
-  );
+  --layout-page-max-width-with-margin-current: min(100%, var(--layout-page-width-with-margin-current));
   flex: 1;
   min-width: 0;
   /* Explicit overflow-x: an auto-scrolling axis forces the other axis from

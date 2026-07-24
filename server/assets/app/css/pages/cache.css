@@ -2,10 +2,7 @@
   /* Selected-option surface: purple-50 washes out on dark backgrounds, so
      dark mode uses the translucent alpha purple instead (same pairing noora
      uses for primary badge fills). */
-  --cache-selected-option-background: light-dark(
-    var(--noora-purple-50),
-    var(--noora-alpha-purple)
-  );
+  --cache-selected-option-background: light-dark(var(--noora-purple-50), var(--noora-alpha-purple));
   display: flex;
   flex-direction: column;
   gap: var(--noora-spacing-10);
@@ -35,9 +32,9 @@
      with the base box styles the noora class used to provide. */
   & > .cache-section {
     display: flex;
-    box-sizing: border-box;
     flex-direction: column;
     gap: 0;
+    box-sizing: border-box;
     margin-block: var(--noora-spacing-5);
     border-radius: var(--noora-radius-8);
     background: var(--noora-surface-background-primary);
@@ -114,9 +111,9 @@
       align-items: flex-start;
       cursor: pointer;
       box-sizing: border-box;
+      box-shadow: var(--noora-border-light-default);
       border: 0;
       border-radius: var(--noora-radius-4);
-      box-shadow: var(--noora-border-light-default);
       background: transparent;
       padding: var(--noora-spacing-5);
       min-width: 0;
@@ -178,14 +175,14 @@
     }
 
     & [data-part="policy-option"][data-selected="true"] [data-part="control"]::after {
-      content: "";
       position: absolute;
-      inset: 0;
       margin: auto;
+      inset: 0;
       border-radius: var(--noora-radius-99);
+      background: var(--noora-choice-selector-label);
       width: 6px;
       height: 6px;
-      background: var(--noora-choice-selector-label);
+      content: "";
     }
 
     & [data-part="body"] {
@@ -252,37 +249,37 @@
     gap: var(--noora-spacing-7);
 
     & > [data-part="subsection-header"] {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: var(--noora-spacing-5);
+      padding: 0;
+
+      & > [data-part="title-group"] {
         display: flex;
-        flex-direction: row;
-        align-items: center;
-        gap: var(--noora-spacing-5);
-        padding: 0;
+        flex-grow: 1;
+        flex-direction: column;
+        gap: var(--noora-spacing-1);
+        min-width: 0;
 
-        & > [data-part="title-group"] {
-          display: flex;
-          flex-grow: 1;
-          flex-direction: column;
-          gap: var(--noora-spacing-1);
-          min-width: 0;
-
-          & > [data-part="title"] {
-            color: var(--noora-surface-label-primary);
-            font: var(--noora-font-weight-medium) var(--noora-font-heading-small);
-          }
-
-          & > [data-part="subtitle"] {
-            color: var(--noora-surface-label-secondary);
-            font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
-          }
+        & > [data-part="title"] {
+          color: var(--noora-surface-label-primary);
+          font: var(--noora-font-weight-medium) var(--noora-font-heading-small);
         }
 
-        & > [data-part="actions"] {
-          display: flex;
-          flex-shrink: 0;
-          flex-direction: row;
-          align-items: center;
+        & > [data-part="subtitle"] {
+          color: var(--noora-surface-label-secondary);
+          font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
         }
       }
+
+      & > [data-part="actions"] {
+        display: flex;
+        flex-shrink: 0;
+        flex-direction: row;
+        align-items: center;
+      }
+    }
 
     & > .noora-table {
       box-sizing: border-box;

@@ -359,7 +359,9 @@ export default {
       const viewportHeight = viewBottom - viewTop;
       const tableTallerThanViewport = contentBottom - rect.top > viewportHeight;
       const floatingHeader =
-        tableTallerThanViewport && rect.top < viewTop && contentBottom > viewTop;
+        tableTallerThanViewport &&
+        rect.top < viewTop &&
+        contentBottom > viewTop;
       if (floatingHeader) {
         if (!this.header.hasAttribute("data-visible")) this.refreshHeader();
         const headerHeight = this.thead.offsetHeight;
