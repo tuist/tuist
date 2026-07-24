@@ -262,6 +262,18 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
         }
       )
 
+    second_valid_alert =
+      AutomationsFixtures.automation_alert_fixture(
+        project: project,
+        monitor_type: "flakiness_rate",
+        trigger_config: %{
+          "threshold" => 15,
+          "comparison" => "gte",
+          "window_type" => "rolling",
+          "rolling_window_size" => 75
+        }
+      )
+
     unsupported_alert =
       AutomationsFixtures.automation_alert_fixture(
         project: project,
@@ -291,13 +303,15 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
       [%{test_case_id: test_case_id, last_inserted_at: ~N[2026-06-09 10:00:02]}]
     end)
 
-    expect(FlakyTestsMonitor, :evaluate, fn loaded_alert, [^test_case_id] ->
-      assert loaded_alert.id == valid_alert.id
-      %{triggered: [], all: [test_case_id]}
+    reject(&FlakyTestsMonitor.evaluate/2)
+
+    expect(FlakyTestsMonitor, :evaluate_rolling_alerts, fn alerts, [^test_case_id] ->
+      assert MapSet.new(alerts, & &1.id) == MapSet.new([valid_alert.id, second_valid_alert.id])
+      %{valid_alert.id => [], second_valid_alert.id => []}
     end)
 
-    expect(Automations, :list_active_alert_events, fn alert_id, [^test_case_id] ->
-      assert alert_id == valid_alert.id
+    expect(Automations, :list_active_alert_events, 2, fn alert_id, [^test_case_id] ->
+      assert alert_id in [valid_alert.id, second_valid_alert.id]
       []
     end)
 
@@ -312,8 +326,10 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     assert log =~ "Skipping automation alert #{unsupported_alert.id}"
 
     assert {:ok, updated_valid_alert} = Automations.get_alert(valid_alert.id)
+    assert {:ok, updated_second_valid_alert} = Automations.get_alert(second_valid_alert.id)
     assert {:ok, updated_unsupported_alert} = Automations.get_alert(unsupported_alert.id)
     assert updated_valid_alert.last_scoped_evaluation_inserted_at == ~U[2026-06-09 10:00:02Z]
+    assert updated_second_valid_alert.last_scoped_evaluation_inserted_at == ~U[2026-06-09 10:00:02Z]
     assert updated_unsupported_alert.last_scoped_evaluation_inserted_at == nil
   end
 
@@ -579,14 +595,14 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     assert :ok = run(automation.id)
   end
 
-  test "rolling recovery counts only runs after each candidate's own trigger (real ClickHouse)" do
+  test "rolling recovery above the trigger cap counts runs after each candidate's own trigger (real ClickHouse)" do
     project = ProjectsFixtures.project_fixture()
 
     automation =
       AutomationsFixtures.automation_alert_fixture(
         project: project,
         recovery_enabled: true,
-        recovery_config: %{"window_type" => "rolling", "rolling_window_size" => 3},
+        recovery_config: %{"window_type" => "rolling", "rolling_window_size" => 76},
         recovery_actions: [%{"type" => "change_state", "state" => "enabled"}]
       )
 
@@ -594,24 +610,21 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     not_ready_id = UUIDv7.generate()
     base = NaiveDateTime.utc_now()
     ready_triggered_at = base
-    not_ready_triggered_at = NaiveDateTime.add(base, 10, :second)
+    not_ready_triggered_at = NaiveDateTime.add(base, 200, :second)
 
-    insert_test_case_runs([
-      # ready_id: a pre-trigger run that must be ignored, then 4 post-trigger
-      # runs — clears the rolling window of 3.
-      run_attrs(project.id, ready_id, NaiveDateTime.add(base, -5, :second)),
-      run_attrs(project.id, ready_id, NaiveDateTime.add(base, 1, :second)),
-      run_attrs(project.id, ready_id, NaiveDateTime.add(base, 2, :second)),
-      run_attrs(project.id, ready_id, NaiveDateTime.add(base, 3, :second)),
-      run_attrs(project.id, ready_id, NaiveDateTime.add(base, 4, :second)),
-      # not_ready_id: 3 runs that fall after the batch's earliest trigger but
-      # before this candidate's own trigger (must be excluded), and only 1 run
-      # after its own trigger — stays below the window of 3.
-      run_attrs(project.id, not_ready_id, NaiveDateTime.add(base, 5, :second)),
-      run_attrs(project.id, not_ready_id, NaiveDateTime.add(base, 6, :second)),
-      run_attrs(project.id, not_ready_id, NaiveDateTime.add(base, 7, :second)),
-      run_attrs(project.id, not_ready_id, NaiveDateTime.add(base, 11, :second))
-    ])
+    ready_runs =
+      [run_attrs(project.id, ready_id, NaiveDateTime.add(base, -1, :second))] ++
+        Enum.map(1..77, fn offset ->
+          run_attrs(project.id, ready_id, NaiveDateTime.add(base, offset, :second))
+        end)
+
+    not_ready_runs =
+      Enum.map(100..175, fn offset ->
+        run_attrs(project.id, not_ready_id, NaiveDateTime.add(base, offset, :second))
+      end) ++
+        [run_attrs(project.id, not_ready_id, NaiveDateTime.add(base, 201, :second))]
+
+    insert_test_case_runs(ready_runs ++ not_ready_runs)
 
     expect(FlakyTestsMonitor, :evaluate, fn _automation -> %{triggered: []} end)
 

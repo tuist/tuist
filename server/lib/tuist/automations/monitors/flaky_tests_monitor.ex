@@ -53,7 +53,7 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
   # Legacy persisted values are still parsed up to the old product ceiling so
   # execution can reject them explicitly instead of silently truncating them.
   @max_rolling_window_size 1000
-  @default_rolling_window_size 75
+  @default_rolling_window_size 100
   @active_recent_runs_bucket_size 100
   @max_active_rolling_window_size 75
 

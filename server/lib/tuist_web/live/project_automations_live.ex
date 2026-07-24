@@ -31,6 +31,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
         :can_manage_automations,
         Authorization.authorize(:automation_alert_create, current_user, selected_project) == :ok
       )
+      |> assign(:flash_message, nil)
       |> assign(:head_title, "#{dgettext("dashboard_projects", "Automations")} · #{selected_project.name} · Tuist")
       |> assign(
         :automation_channel_selection_url,
@@ -450,9 +451,22 @@ defmodule TuistWeb.ProjectAutomationsLive do
          {:ok, automation} <- Automations.get_alert(id),
          true <- automation.project_id == project.id,
          {:ok, _} <- Automations.update_alert(automation, %{enabled: not automation.enabled}) do
-      {:noreply, assign_automations(socket, project)}
+      {:noreply, socket |> assign(:flash_message, nil) |> assign_automations(project)}
     else
-      _ -> {:noreply, socket}
+      {:error, %Ecto.Changeset{}} ->
+        {:noreply,
+         assign(
+           socket,
+           :flash_message,
+           {"error",
+            dgettext(
+              "dashboard_projects",
+              "This automation uses an unsupported trigger configuration. Edit it before enabling it."
+            )}
+         )}
+
+      _ ->
+        {:noreply, socket}
     end
   end
 

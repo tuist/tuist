@@ -2,7 +2,9 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitorTest do
   use TuistTestSupport.Cases.DataCase, async: false
 
   alias Tuist.Automations.Monitors.FlakyTestsMonitor
+  alias Tuist.IngestRepo
   alias Tuist.Tests
+  alias Tuist.Tests.TestCaseRun
   alias TuistTestSupport.Fixtures.AutomationsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
@@ -851,6 +853,47 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitorTest do
       # 7/10 = 70% and wrongly skips a healthy test.
       refute test_case_id in FlakyTestsMonitor.evaluate_by_reliability_rate(alert).triggered
     end
+
+    test "a 75-run window remains exact with all 25 correction positions in use" do
+      project = ProjectsFixtures.project_fixture()
+      test_case_id = UUIDv7.generate()
+      RunsFixtures.test_case_fixture(project_id: project.id, id: test_case_id, name: "correction_headroom")
+
+      base = NaiveDateTime.utc_now()
+
+      stable_runs =
+        Enum.map(1..74, fn offset ->
+          aggregate_run_attrs(project.id, test_case_id, NaiveDateTime.add(base, -offset, :second))
+        end)
+
+      corrected_run_id = UUIDv7.generate()
+
+      corrected_run_rows =
+        Enum.map(0..25, fn correction ->
+          aggregate_run_attrs(project.id, test_case_id, base,
+            id: corrected_run_id,
+            is_flaky: correction > 0
+          )
+        end)
+
+      IngestRepo.insert_all(TestCaseRun, stable_runs ++ corrected_run_rows)
+
+      alert =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          monitor_type: "flakiness_rate",
+          trigger_config: %{
+            "threshold" => 2,
+            "window_type" => "rolling",
+            "rolling_window_size" => 75,
+            "comparison" => "gte"
+          }
+        )
+
+      # The active 100-position aggregate still contains all 75 distinct runs.
+      # The corrected run counts once, so the rate is 1/75 rather than 26/75.
+      refute test_case_id in FlakyTestsMonitor.evaluate(alert).triggered
+    end
   end
 
   # One flaky run (most recent), re-inserted the way flaky detection does: the
@@ -884,5 +927,32 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitorTest do
         inserted_at: base
       )
     end
+  end
+
+  defp aggregate_run_attrs(project_id, test_case_id, ran_at, overrides \\ []) do
+    Map.merge(
+      %{
+        id: UUIDv7.generate(),
+        test_run_id: UUIDv7.generate(),
+        test_module_run_id: UUIDv7.generate(),
+        test_case_id: test_case_id,
+        project_id: project_id,
+        is_ci: false,
+        scheme: "",
+        git_branch: "main",
+        git_commit_sha: "",
+        module_name: "MyTests",
+        suite_name: "TestSuite",
+        name: "testExample",
+        status: 0,
+        is_flaky: false,
+        is_new: false,
+        is_quarantined: false,
+        duration: 100,
+        ran_at: ran_at,
+        inserted_at: ran_at
+      },
+      Map.new(overrides)
+    )
   end
 end

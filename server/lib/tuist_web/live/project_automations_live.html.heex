@@ -32,6 +32,14 @@
     {dgettext("dashboard_projects", "Automations")}
   </h2>
 
+  <.alert
+    :if={@flash_message}
+    status={elem(@flash_message, 0)}
+    type="secondary"
+    size="small"
+    title={elem(@flash_message, 1)}
+  />
+
   <.card_section data-part="test-case-automations-card-section">
     <div data-part="header">
       <div data-part="title-group">
