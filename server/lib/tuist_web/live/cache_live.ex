@@ -3,7 +3,6 @@ defmodule TuistWeb.CacheLive do
   use TuistWeb, :live_view
   use Noora
 
-  import Noora.CheckboxControl
   import Phoenix.Component
 
   alias Phoenix.HTML.Form
@@ -94,6 +93,8 @@ defmodule TuistWeb.CacheLive do
   def handle_event("create_cache_server", _params, socket), do: {:noreply, socket}
 
   def handle_event("destroy_cache_server", %{"id" => id}, %{assigns: %{cache_enabled: true}} = socket) do
+    socket = push_event(socket, "close-modal", %{id: "destroy-cache-server-modal-#{id}"})
+
     case Kura.get_server(socket.assigns.selected_account.id, id) do
       nil ->
         {:noreply, put_flash(socket, :error, dgettext("dashboard_account", "Cache server not found."))}
@@ -109,6 +110,10 @@ defmodule TuistWeb.CacheLive do
   end
 
   def handle_event("destroy_cache_server", _params, socket), do: {:noreply, socket}
+
+  def handle_event("close-destroy-cache-server-modal-" <> id, _params, socket) do
+    {:noreply, push_event(socket, "close-modal", %{id: "destroy-cache-server-modal-#{id}"})}
+  end
 
   def handle_event("retry_cache_server", %{"id" => id}, %{assigns: %{cache_enabled: true}} = socket) do
     with %Server{} = server <- Kura.get_server(socket.assigns.selected_account.id, id),
@@ -144,22 +149,36 @@ defmodule TuistWeb.CacheLive do
         params,
         %{assigns: %{self_hosted_enabled: true, selected_account: account}} = socket
       ) do
-    case SelfHostedClients.create_self_hosted_client(account, %{name: get_in(params, ["self_hosted_client", "name"])}) do
-      {:ok, {client, secret}} ->
-        # Keep the modal open and swap its body to the one-time secret
-        # disclosure (mirrors the webhook signing-secret flow).
-        {:noreply,
-         socket
-         |> assign(:new_self_hosted_client_secret, %{
-           client_id: client.client_id,
-           secret: secret,
-           name: client.name
-         })
-         |> assign(:new_self_hosted_client_form, to_form(%{"name" => ""}, as: :self_hosted_client))
-         |> load_self_hosted_state()}
+    name = params |> get_in(["self_hosted_client", "name"]) |> to_string() |> String.trim()
 
-      {:error, %Ecto.Changeset{} = changeset} ->
-        {:noreply, assign(socket, :new_self_hosted_client_form, to_form(changeset))}
+    if name == "" do
+      form =
+        to_form(%{"name" => ""},
+          as: :self_hosted_client,
+          errors: [
+            name: {dgettext("dashboard_account", "Enter a name to identify this credential."), []}
+          ]
+        )
+
+      {:noreply, assign(socket, :new_self_hosted_client_form, form)}
+    else
+      case SelfHostedClients.create_self_hosted_client(account, %{name: name}) do
+        {:ok, {client, secret}} ->
+          # Keep the modal open and swap its body to the one-time secret
+          # disclosure (mirrors the webhook signing-secret flow).
+          {:noreply,
+           socket
+           |> assign(:new_self_hosted_client_secret, %{
+             client_id: client.client_id,
+             secret: secret,
+             name: client.name
+           })
+           |> assign(:new_self_hosted_client_form, to_form(%{"name" => ""}, as: :self_hosted_client))
+           |> load_self_hosted_state()}
+
+        {:error, %Ecto.Changeset{} = changeset} ->
+          {:noreply, assign(socket, :new_self_hosted_client_form, to_form(changeset))}
+      end
     end
   end
 
@@ -340,26 +359,14 @@ defmodule TuistWeb.CacheLive do
     Enum.map_join(errors, ", ", fn {field, {msg, _}} -> "#{field} #{msg}" end)
   end
 
-  defp server_rows(servers, available_regions) do
-    Enum.map(servers, &%{id: "server-#{&1.id}", type: :server, region_id: &1.region, server: &1}) ++
-      Enum.map(
-        available_regions,
-        &%{
-          id: "available-region-#{&1.id}",
-          type: :available_region,
-          region_id: &1.id,
-          region: &1
-        }
-      )
+  defp server_rows(servers) do
+    Enum.map(servers, &%{id: "server-#{&1.id}", type: :server, region_id: &1.region, server: &1})
   end
 
   defp row_region_id(row), do: row.region_id
 
   defp row_server?(%{type: :server}), do: true
   defp row_server?(_row), do: false
-
-  defp row_available_region?(%{type: :available_region}), do: true
-  defp row_available_region?(_row), do: false
 
   # Retry is offered only on first-time deploys that never reached `:active`
   # (current_image_tag is nil): no traffic depends on the row, so atomically
@@ -370,26 +377,12 @@ defmodule TuistWeb.CacheLive do
   defp row_retry?(_row), do: false
 
   defp row_status_label(%{type: :server, server: server}), do: display_status_label(server)
-  defp row_status_label(%{type: :available_region}), do: dgettext("dashboard_account", "Not deployed")
 
   defp row_status_color(%{type: :server, server: server}), do: display_status_color(server)
-  defp row_status_color(%{type: :available_region}), do: "neutral"
 
   defp row_domain_label(%{type: :server, server: server}) do
     server.url || dgettext("dashboard_account", "Pending")
   end
-
-  defp row_domain_label(%{type: :available_region}), do: dgettext("dashboard_account", "Pending")
-
-  # Prefer the image the cluster actually reports running
-  # (`observed_image_tag`) over the last activated image, so a rollout in
-  # flight or drift is visible; fall back while nothing has been observed yet.
-  defp row_version_label(%{type: :server, server: server}) do
-    version_label(server.observed_image_tag || server.current_image_tag) ||
-      dgettext("dashboard_account", "Pending")
-  end
-
-  defp row_version_label(%{type: :available_region}), do: dgettext("dashboard_account", "Pending")
 
   defp display_status_label(server) do
     if show_deploying?(server),
@@ -428,30 +421,36 @@ defmodule TuistWeb.CacheLive do
     end
   end
 
-  defp version_label(image_tag), do: Kura.version_label(image_tag)
-
   attr(:cache_write_policy, :atom, required: true)
 
   def cache_write_policy_section(assigns) do
     ~H"""
-    <.card_section data-part="cache-write-policy-card">
+    <div class="cache-section" data-part="cache-write-policy-card">
       <div data-part="header">
         <div data-part="title-group">
-          <span data-part="title">{dgettext("dashboard_account", "Cache upload access")}</span>
+          <span data-part="title">{dgettext("dashboard_account", "Upload access")}</span>
           <span data-part="subtitle">
             {dgettext(
               "dashboard_account",
               "Choose whether members can upload or CI is the trusted cache writer."
             )}
-            {dgettext("dashboard_account", "Learn more about how to authenticate CI")}
-            <span phx-no-format><.link href="/en/docs/guides/server/authentication#continuous-integration" target="_blank" data-part="docs-link">{dgettext("dashboard_account", "here")}</.link>.</span>
           </span>
+          <.link_button
+            href="/en/docs/guides/server/authentication#continuous-integration"
+            target="_blank"
+            label={dgettext("dashboard_account", "Learn how to authenticate CI")}
+            variant="primary"
+            size="medium"
+            data-part="docs-link"
+          >
+            <:icon_right><.external_link /></:icon_right>
+          </.link_button>
         </div>
       </div>
       <div
         data-part="policy-options"
         role="radiogroup"
-        aria-label={dgettext("dashboard_account", "Cache upload access")}
+        aria-label={dgettext("dashboard_account", "Upload access")}
       >
         <button
           id="cache-upload-policy-members-and-tokens"
@@ -464,13 +463,10 @@ defmodule TuistWeb.CacheLive do
           phx-value-policy="members_and_tokens"
         >
           <span data-part="option-header">
-            <.checkbox_control
-              checked={@cache_write_policy == :members_and_tokens}
-              data-part="control"
-            />
+            <span data-part="control" aria-hidden="true"></span>
             <span data-part="body">
               <span data-part="label">
-                {dgettext("dashboard_account", "Members, CI, and account tokens")}
+                {dgettext("dashboard_account", "Members, CI and account tokens")}
               </span>
               <span data-part="description">
                 {dgettext(
@@ -492,7 +488,7 @@ defmodule TuistWeb.CacheLive do
           phx-value-policy="tokens_only"
         >
           <span data-part="option-header">
-            <.checkbox_control checked={@cache_write_policy == :tokens_only} data-part="control" />
+            <span data-part="control" aria-hidden="true"></span>
             <span data-part="body">
               <span data-part="label">
                 {dgettext("dashboard_account", "CI and account tokens only")}
@@ -507,7 +503,7 @@ defmodule TuistWeb.CacheLive do
           </span>
         </button>
       </div>
-    </.card_section>
+    </div>
     """
   end
 
@@ -518,10 +514,10 @@ defmodule TuistWeb.CacheLive do
 
   def cache_servers_section(assigns) do
     ~H"""
-    <.card_section data-part="servers-card">
+    <div class="cache-section" data-part="servers-card">
       <div data-part="header">
         <div data-part="title-group">
-          <span data-part="title">{dgettext("dashboard_account", "Cache servers")}</span>
+          <span data-part="title">{dgettext("dashboard_account", "Servers")}</span>
           <span data-part="subtitle">
             {dgettext(
               "dashboard_account",
@@ -636,7 +632,7 @@ defmodule TuistWeb.CacheLive do
           </.modal>
         </div>
       </div>
-      <.table id="cache-servers-table" rows={server_rows(@servers, @available_regions)}>
+      <.table id="cache-servers-table" rows={server_rows(@servers)}>
         <:col :let={row} label={dgettext("dashboard_account", "Region")}>
           <.text_cell label={region_label(row_region_id(row))} />
         </:col>
@@ -646,49 +642,81 @@ defmodule TuistWeb.CacheLive do
         <:col :let={row} label={dgettext("dashboard_account", "Domain")}>
           <.text_cell label={row_domain_label(row)} />
         </:col>
-        <:col :let={row} label={dgettext("dashboard_account", "Version")}>
-          <.text_cell label={row_version_label(row)} />
-        </:col>
         <:col :let={row} label="">
           <.button
             :if={row_retry?(row)}
             type="button"
             label={dgettext("dashboard_account", "Retry")}
             variant="primary"
-            size="small"
+            size="medium"
             phx-click="retry_cache_server"
             phx-value-id={row.server.id}
             disabled={is_nil(@latest_version)}
           />
-          <.button
+          <.modal
             :if={row_server?(row) and row.server.status not in [:destroying, :destroyed]}
-            type="button"
-            label={dgettext("dashboard_account", "Destroy")}
-            variant="destructive"
-            size="small"
-            phx-click="destroy_cache_server"
-            phx-value-id={row.server.id}
-            data-confirm={
-              dgettext(
+            id={"destroy-cache-server-modal-#{row.server.id}"}
+            title={dgettext("dashboard_account", "Destroy cache server")}
+            header_type="icon"
+            header_size="small"
+            on_dismiss={"close-destroy-cache-server-modal-#{row.server.id}"}
+          >
+            <:trigger :let={attrs}>
+              <.button
+                type="button"
+                label={dgettext("dashboard_account", "Destroy")}
+                variant="destructive"
+                size="medium"
+                {attrs}
+              />
+            </:trigger>
+            <:header_icon>
+              <.trash />
+            </:header_icon>
+            <.line_divider />
+            <p data-part="destroy-server-message">
+              {dgettext(
                 "dashboard_account",
                 "Destroy the cache server in %{region}? This removes the account's cache endpoint for that region.",
                 region: row.server.region
+              )}
+            </p>
+            <:footer>
+              <.modal_footer>
+                <:action>
+                  <.button
+                    label={dgettext("dashboard_account", "Cancel")}
+                    variant="secondary"
+                    type="button"
+                    phx-click={"close-destroy-cache-server-modal-#{row.server.id}"}
+                  />
+                </:action>
+                <:action>
+                  <.button
+                    label={dgettext("dashboard_account", "Destroy")}
+                    variant="destructive"
+                    type="button"
+                    phx-click="destroy_cache_server"
+                    phx-value-id={row.server.id}
+                  />
+                </:action>
+              </.modal_footer>
+            </:footer>
+          </.modal>
+        </:col>
+        <:empty_state>
+          <.table_empty_state
+            title={dgettext("dashboard_account", "No cache servers yet")}
+            subtitle={
+              dgettext(
+                "dashboard_account",
+                "Deploy one to cache build artifacts closer to your builds."
               )
             }
           />
-          <.button
-            :if={row_available_region?(row)}
-            type="button"
-            label={dgettext("dashboard_account", "Deploy")}
-            variant="primary"
-            size="small"
-            phx-click="create_cache_server"
-            phx-value-region={row.region.id}
-            disabled={is_nil(@latest_version)}
-          />
-        </:col>
+        </:empty_state>
       </.table>
-    </.card_section>
+    </div>
     """
   end
 
@@ -699,290 +727,284 @@ defmodule TuistWeb.CacheLive do
 
   def self_hosted_section(assigns) do
     ~H"""
-    <.card_section data-part="self-hosted-card">
-      <div data-part="header">
+    <div data-part="self-hosted-header">
+      <div data-part="title-group">
+        <span data-part="title">
+          {dgettext("dashboard_account", "Self-hosted servers")}
+        </span>
+        <span data-part="subtitle">
+          {dgettext(
+            "dashboard_account",
+            "Run your own cache nodes. Generate a credential they authenticate with, and they register themselves so the CLI can reach them directly."
+          )}
+        </span>
+      </div>
+    </div>
+    <div class="cache-section" data-part="credentials-section">
+      <div data-part="subsection-header">
         <div data-part="title-group">
-          <span data-part="title">
-            {dgettext("dashboard_account", "Self-hosted cache servers")}
-          </span>
+          <span data-part="title">{dgettext("dashboard_account", "Credentials")}</span>
           <span data-part="subtitle">
             {dgettext(
               "dashboard_account",
-              "Run your own cache nodes. Generate a credential they authenticate with, and they register themselves so the CLI can reach them directly."
+              "Tenant-scoped credentials your nodes present to Tuist. A credential only authorizes this account's traffic."
             )}
           </span>
         </div>
-      </div>
-
-      <div data-part="subsection">
-        <div data-part="subsection-header">
-          <div data-part="title-group">
-            <span data-part="title">{dgettext("dashboard_account", "Credentials")}</span>
-            <span data-part="subtitle">
-              {dgettext(
-                "dashboard_account",
-                "Tenant-scoped credentials your nodes present to Tuist. A credential only authorizes this account's traffic."
-              )}
-            </span>
-          </div>
-          <div data-part="actions">
-            <.form
-              for={@new_self_hosted_client_form}
-              id="add-self-hosted-client-form"
-              phx-submit="create_self_hosted_client"
+        <div data-part="actions">
+          <.form
+            for={@new_self_hosted_client_form}
+            id="add-self-hosted-client-form"
+            phx-submit="create_self_hosted_client"
+          >
+            <%!-- Noora's modal shell is `phx-update="ignore"`, so we keep the --%>
+            <%!-- title neutral and swap the body between the form and the --%>
+            <%!-- one-time secret disclosure (mirrors the webhook flow). --%>
+            <.modal
+              id="add-self-hosted-client-modal"
+              title={dgettext("dashboard_account", "Node credential")}
+              on_dismiss="dismiss_self_hosted_client_secret"
+              on_open_change="self_hosted_client_modal_open_change"
             >
-              <%!-- Noora's modal shell is `phx-update="ignore"`, so we keep the --%>
-              <%!-- title neutral and swap the body between the form and the --%>
-              <%!-- one-time secret disclosure (mirrors the webhook flow). --%>
+              <:trigger :let={attrs}>
+                <.button
+                  id="add-self-hosted-client-button"
+                  label={dgettext("dashboard_account", "Generate credential")}
+                  variant="secondary"
+                  size="medium"
+                  type="button"
+                  {attrs}
+                />
+              </:trigger>
+
+              <div data-part="modal-content-wrapper">
+                <.line_divider />
+
+                <%= if @new_self_hosted_client_secret do %>
+                  <div data-part="modal-body">
+                    <div data-part="modal-message">
+                      <span data-part="title">
+                        {dgettext("dashboard_account", "Client credentials")}
+                      </span>
+                      <span data-part="subtitle">
+                        {dgettext(
+                          "dashboard_account",
+                          "Copy the secret now. It will not be shown again after you close this dialog."
+                        )}
+                      </span>
+                    </div>
+                    <div data-part="credential-field">
+                      <span data-part="label">
+                        {dgettext("dashboard_account", "Client ID")}
+                      </span>
+                      <div data-part="read-only-value">
+                        <code>{@new_self_hosted_client_secret.client_id}</code>
+                        <.button
+                          id="copy-self-hosted-client-id-button"
+                          variant="secondary"
+                          size="small"
+                          icon_only
+                          type="button"
+                          phx-hook="Clipboard"
+                          data-clipboard-value={@new_self_hosted_client_secret.client_id}
+                          aria-label={dgettext("dashboard_account", "Copy client ID")}
+                        >
+                          <.copy />
+                        </.button>
+                      </div>
+                    </div>
+                    <div data-part="credential-field">
+                      <span data-part="label">
+                        {dgettext("dashboard_account", "Client secret")}
+                      </span>
+                      <div data-part="read-only-value">
+                        <code id="new-self-hosted-client-secret">
+                          {@new_self_hosted_client_secret.secret}
+                        </code>
+                        <.button
+                          id="copy-self-hosted-client-secret-button"
+                          variant="secondary"
+                          size="small"
+                          icon_only
+                          type="button"
+                          phx-hook="Clipboard"
+                          data-clipboard-value={@new_self_hosted_client_secret.secret}
+                          aria-label={dgettext("dashboard_account", "Copy client secret")}
+                        >
+                          <.copy />
+                        </.button>
+                      </div>
+                    </div>
+                  </div>
+                <% else %>
+                  <div data-part="modal-body">
+                    <.text_input
+                      field={@new_self_hosted_client_form[:name]}
+                      type="basic"
+                      label={dgettext("dashboard_account", "Name")}
+                      placeholder={dgettext("dashboard_account", "Production mesh")}
+                    />
+                  </div>
+                <% end %>
+
+                <.line_divider />
+              </div>
+
+              <:footer>
+                <.modal_footer>
+                  <:action :if={@new_self_hosted_client_secret}>
+                    <.button
+                      type="button"
+                      label={dgettext("dashboard_account", "Done")}
+                      variant="primary"
+                      phx-click="dismiss_self_hosted_client_secret"
+                    />
+                  </:action>
+                  <:action :if={is_nil(@new_self_hosted_client_secret)}>
+                    <.button
+                      type="button"
+                      label={dgettext("dashboard_account", "Cancel")}
+                      variant="secondary"
+                      phx-click="dismiss_self_hosted_client_secret"
+                    />
+                  </:action>
+                  <:action :if={is_nil(@new_self_hosted_client_secret)}>
+                    <.button
+                      type="submit"
+                      label={dgettext("dashboard_account", "Generate")}
+                      variant="primary"
+                    />
+                  </:action>
+                </.modal_footer>
+              </:footer>
+            </.modal>
+          </.form>
+        </div>
+      </div>
+      <.table id="self-hosted-clients-table" rows={@self_hosted_clients}>
+        <:col :let={client} label={dgettext("dashboard_account", "Name")}>
+          <.text_cell label={client.name} />
+        </:col>
+        <:col :let={client} label={dgettext("dashboard_account", "Client ID")}>
+          <.text_cell label={client.client_id} />
+        </:col>
+        <:col :let={client} label={dgettext("dashboard_account", "Secret")}>
+          <.text_cell label={masked_secret(client.secret_last_four)} />
+        </:col>
+        <:col :let={client} label="">
+          <.button_cell>
+            <:button>
               <.modal
-                id="add-self-hosted-client-modal"
-                title={dgettext("dashboard_account", "Node credential")}
-                on_dismiss="dismiss_self_hosted_client_secret"
-                on_open_change="self_hosted_client_modal_open_change"
+                id={"revoke-credential-modal-#{client.id}"}
+                title={dgettext("dashboard_account", "Revoke credential")}
+                header_type="icon"
+                header_size="small"
+                on_dismiss={"close-revoke-credential-modal-#{client.id}"}
               >
                 <:trigger :let={attrs}>
                   <.button
-                    id="add-self-hosted-client-button"
-                    label={dgettext("dashboard_account", "Generate credential")}
-                    variant="secondary"
-                    size="medium"
                     type="button"
+                    variant="secondary"
+                    size="small"
+                    icon_only
+                    aria-label={dgettext("dashboard_account", "Revoke credential")}
                     {attrs}
-                  />
+                  >
+                    <.trash />
+                  </.button>
                 </:trigger>
-
-                <div data-part="modal-content-wrapper">
-                  <.line_divider />
-
-                  <%= if @new_self_hosted_client_secret do %>
-                    <div data-part="modal-body">
-                      <div data-part="modal-message">
-                        <span data-part="title">
-                          {dgettext("dashboard_account", "Client credentials")}
-                        </span>
-                        <span data-part="subtitle">
-                          {dgettext(
-                            "dashboard_account",
-                            "Copy the secret now. It will not be shown again after you close this dialog."
-                          )}
-                        </span>
-                      </div>
-                      <div data-part="credential-field">
-                        <span data-part="label">
-                          {dgettext("dashboard_account", "Client ID")}
-                        </span>
-                        <div data-part="read-only-value">
-                          <code>{@new_self_hosted_client_secret.client_id}</code>
-                          <.button
-                            id="copy-self-hosted-client-id-button"
-                            variant="secondary"
-                            size="small"
-                            icon_only
-                            type="button"
-                            phx-hook="Clipboard"
-                            data-clipboard-value={@new_self_hosted_client_secret.client_id}
-                            aria-label={dgettext("dashboard_account", "Copy client ID")}
-                          >
-                            <.copy />
-                          </.button>
-                        </div>
-                      </div>
-                      <div data-part="credential-field">
-                        <span data-part="label">
-                          {dgettext("dashboard_account", "Client secret")}
-                        </span>
-                        <div data-part="read-only-value">
-                          <code id="new-self-hosted-client-secret">
-                            {@new_self_hosted_client_secret.secret}
-                          </code>
-                          <.button
-                            id="copy-self-hosted-client-secret-button"
-                            variant="secondary"
-                            size="small"
-                            icon_only
-                            type="button"
-                            phx-hook="Clipboard"
-                            data-clipboard-value={@new_self_hosted_client_secret.secret}
-                            aria-label={dgettext("dashboard_account", "Copy client secret")}
-                          >
-                            <.copy />
-                          </.button>
-                        </div>
-                      </div>
-                    </div>
-                  <% else %>
-                    <div data-part="modal-body">
-                      <.text_input
-                        field={@new_self_hosted_client_form[:name]}
-                        type="basic"
-                        label={dgettext("dashboard_account", "Name")}
-                        placeholder={dgettext("dashboard_account", "Production mesh")}
-                      />
-                    </div>
-                  <% end %>
-
-                  <.line_divider />
-                </div>
-
+                <:header_icon>
+                  <.trash />
+                </:header_icon>
+                <.line_divider />
+                <p data-part="revoke-credential-message">
+                  {dgettext(
+                    "dashboard_account",
+                    "Revoke %{name}? Self-hosted nodes using it will stop authenticating.",
+                    name: client.name
+                  )}
+                </p>
                 <:footer>
                   <.modal_footer>
-                    <:action :if={@new_self_hosted_client_secret}>
+                    <:action>
                       <.button
-                        type="button"
-                        label={dgettext("dashboard_account", "Done")}
-                        variant="primary"
-                        phx-click="dismiss_self_hosted_client_secret"
-                      />
-                    </:action>
-                    <:action :if={is_nil(@new_self_hosted_client_secret)}>
-                      <.button
-                        type="button"
                         label={dgettext("dashboard_account", "Cancel")}
                         variant="secondary"
-                        phx-click="dismiss_self_hosted_client_secret"
+                        type="button"
+                        phx-click={"close-revoke-credential-modal-#{client.id}"}
                       />
                     </:action>
-                    <:action :if={is_nil(@new_self_hosted_client_secret)}>
+                    <:action>
                       <.button
-                        type="submit"
-                        label={dgettext("dashboard_account", "Generate")}
-                        variant="primary"
+                        label={dgettext("dashboard_account", "Revoke")}
+                        variant="destructive"
+                        type="button"
+                        phx-click="revoke_self_hosted_client"
+                        phx-value-id={client.id}
                       />
                     </:action>
                   </.modal_footer>
                 </:footer>
               </.modal>
-            </.form>
-          </div>
-        </div>
-        <.table id="self-hosted-clients-table" rows={@self_hosted_clients}>
-          <:col :let={client} label={dgettext("dashboard_account", "Name")}>
-            <.text_cell label={client.name} />
-          </:col>
-          <:col :let={client} label={dgettext("dashboard_account", "Client ID")}>
-            <.text_cell label={client.client_id} />
-          </:col>
-          <:col :let={client} label={dgettext("dashboard_account", "Secret")}>
-            <.text_cell label={masked_secret(client.secret_last_four)} />
-          </:col>
-          <:col :let={client} label="">
-            <.button_cell>
-              <:button>
-                <.modal
-                  id={"revoke-credential-modal-#{client.id}"}
-                  title={dgettext("dashboard_account", "Revoke credential")}
-                  header_type="icon"
-                  header_size="small"
-                  on_dismiss={"close-revoke-credential-modal-#{client.id}"}
-                >
-                  <:trigger :let={attrs}>
-                    <.button
-                      type="button"
-                      variant="secondary"
-                      size="small"
-                      icon_only
-                      aria-label={dgettext("dashboard_account", "Revoke credential")}
-                      {attrs}
-                    >
-                      <.trash />
-                    </.button>
-                  </:trigger>
-                  <:header_icon>
-                    <.trash />
-                  </:header_icon>
-                  <.line_divider />
-                  <p data-part="revoke-credential-message">
-                    {dgettext(
-                      "dashboard_account",
-                      "Revoke %{name}? Self-hosted nodes using it will stop authenticating.",
-                      name: client.name
-                    )}
-                  </p>
-                  <:footer>
-                    <.modal_footer>
-                      <:action>
-                        <.button
-                          label={dgettext("dashboard_account", "Cancel")}
-                          variant="secondary"
-                          type="button"
-                          phx-click={"close-revoke-credential-modal-#{client.id}"}
-                        />
-                      </:action>
-                      <:action>
-                        <.button
-                          label={dgettext("dashboard_account", "Revoke")}
-                          variant="destructive"
-                          type="button"
-                          phx-click="revoke_self_hosted_client"
-                          phx-value-id={client.id}
-                        />
-                      </:action>
-                    </.modal_footer>
-                  </:footer>
-                </.modal>
-              </:button>
-            </.button_cell>
-          </:col>
-          <:empty_state>
-            <.table_empty_state
-              title={dgettext("dashboard_account", "No credentials yet")}
-              subtitle={
-                dgettext("dashboard_account", "Generate one to authorize your self-hosted nodes.")
-              }
-            />
-          </:empty_state>
-        </.table>
-      </div>
+            </:button>
+          </.button_cell>
+        </:col>
+        <:empty_state>
+          <.table_empty_state
+            title={dgettext("dashboard_account", "No credentials yet")}
+            subtitle={
+              dgettext("dashboard_account", "Generate one to authorize your self-hosted nodes.")
+            }
+          />
+        </:empty_state>
+      </.table>
+    </div>
 
-      <div data-part="subsection">
-        <div data-part="subsection-header">
-          <div data-part="title-group">
-            <span data-part="title">{dgettext("dashboard_account", "Registered nodes")}</span>
-            <span data-part="subtitle">
-              {dgettext(
-                "dashboard_account",
-                "Self-hosted nodes reporting in via registration heartbeats. The CLI routes cache traffic to each node's endpoint, and a node drops off this list when it stops heartbeating."
-              )}
-            </span>
-          </div>
+    <div class="cache-section" data-part="registered-nodes-section">
+      <div data-part="subsection-header">
+        <div data-part="title-group">
+          <span data-part="title">{dgettext("dashboard_account", "Registered nodes")}</span>
+          <span data-part="subtitle">
+            {dgettext(
+              "dashboard_account",
+              "Self-hosted nodes reporting in via registration heartbeats. The CLI routes cache traffic to each node's endpoint, and a node drops off this list when it stops heartbeating."
+            )}
+          </span>
         </div>
-        <.table id="registered-nodes-table" rows={@registered_endpoints}>
-          <:col :let={node} label={dgettext("dashboard_account", "Node")}>
-            <.text_cell label={node.node_id} />
-          </:col>
-          <:col :let={node} label={dgettext("dashboard_account", "Endpoint")}>
-            <.text_cell label={node.advertised_http_url} />
-          </:col>
-          <:col :let={node} label={dgettext("dashboard_account", "Region")}>
-            <.text_cell label={node.region || "—"} />
-          </:col>
-          <:col :let={node} label={dgettext("dashboard_account", "Version")}>
-            <.text_cell label={node.version || "—"} />
-          </:col>
-          <:col :let={node} label={dgettext("dashboard_account", "Status")}>
-            <.badge_cell
-              label={registered_status_label(node)}
-              color={registered_status_color(node)}
-              style="light-fill"
-            />
-          </:col>
-          <:col :let={node} label={dgettext("dashboard_account", "Last heartbeat")}>
-            <.text_cell label={Tuist.Utilities.DateFormatter.from_now(node.last_heartbeat_at)} />
-          </:col>
-          <:empty_state>
-            <.table_empty_state
-              title={dgettext("dashboard_account", "No registered nodes")}
-              subtitle={
-                dgettext(
-                  "dashboard_account",
-                  "Self-hosted nodes appear here once they start sending registration heartbeats."
-                )
-              }
-            />
-          </:empty_state>
-        </.table>
       </div>
-    </.card_section>
+      <.table id="registered-nodes-table" rows={@registered_endpoints}>
+        <:col :let={node} label={dgettext("dashboard_account", "Node")}>
+          <.text_cell label={node.node_id} />
+        </:col>
+        <:col :let={node} label={dgettext("dashboard_account", "Endpoint")}>
+          <.text_cell label={node.advertised_http_url} />
+        </:col>
+        <:col :let={node} label={dgettext("dashboard_account", "Region")}>
+          <.text_cell label={node.region || "—"} />
+        </:col>
+        <:col :let={node} label={dgettext("dashboard_account", "Status")}>
+          <.badge_cell
+            label={registered_status_label(node)}
+            color={registered_status_color(node)}
+            style="light-fill"
+          />
+        </:col>
+        <:col :let={node} label={dgettext("dashboard_account", "Last heartbeat")}>
+          <.text_cell label={Tuist.Utilities.DateFormatter.from_now(node.last_heartbeat_at)} />
+        </:col>
+        <:empty_state>
+          <.table_empty_state
+            title={dgettext("dashboard_account", "No registered nodes")}
+            subtitle={
+              dgettext(
+                "dashboard_account",
+                "Self-hosted nodes appear here once they start sending registration heartbeats."
+              )
+            }
+          />
+        </:empty_state>
+      </.table>
+    </div>
     """
   end
 

@@ -125,7 +125,6 @@ defmodule TuistWeb.ProjectsLive do
   def render(assigns) do
     ~H"""
     <div id="projects">
-      <h1 data-part="page-title">{@selected_account.name}</h1>
       <div data-part="row">
         <h2 data-part="title">{dgettext("dashboard_projects", "Projects")}</h2>
         <.create_project_form

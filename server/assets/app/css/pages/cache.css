@@ -1,17 +1,19 @@
 #account-cache {
+  /* Selected-option surface: purple-50 washes out on dark backgrounds, so
+     dark mode uses the translucent alpha purple instead (same pairing noora
+     uses for primary badge fills). */
+  --cache-selected-option-background: light-dark(
+    var(--noora-purple-50),
+    var(--noora-alpha-purple)
+  );
   display: flex;
   flex-direction: column;
-  gap: var(--noora-spacing-7);
-
-  /* Per design: no outer border on the page's sections. */
-  & > .noora-card__section {
-    box-shadow: none;
-  }
+  gap: var(--noora-spacing-10);
 
   & > [data-part="page-header"] {
     display: flex;
     flex-direction: column;
-    gap: var(--noora-spacing-2);
+    gap: var(--noora-spacing-4);
 
     & > [data-part="title"] {
       margin: 0;
@@ -20,7 +22,7 @@
     }
 
     & > [data-part="subtitle"] {
-      color: var(--noora-surface-label-secondary);
+      color: var(--noora-surface-label-primary);
       font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
     }
   }
@@ -29,21 +31,24 @@
     padding: var(--noora-spacing-8);
   }
 
-  & > [data-part="cache-write-policy-card"],
-  & > [data-part="servers-card"],
-  & > [data-part="self-hosted-card"] {
+  /* Page sections: replaces Noora's card_section — borderless per design,
+     with the base box styles the noora class used to provide. */
+  & > .cache-section {
     display: flex;
+    box-sizing: border-box;
     flex-direction: column;
     gap: 0;
+    margin-block: var(--noora-spacing-5);
     border-radius: var(--noora-radius-8);
+    background: var(--noora-surface-background-primary);
     padding: 0;
+    color: var(--noora-surface-label-primary);
 
     & > [data-part="header"] {
       display: flex;
       flex-direction: row;
       align-items: center;
-      gap: var(--noora-spacing-5);
-      padding: var(--noora-spacing-7) 0;
+      gap: var(--noora-spacing-4);
 
       & > [data-part="title-group"] {
         display: flex;
@@ -62,14 +67,9 @@
           font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
         }
 
-        & [data-part="docs-link"] {
-          color: var(--noora-surface-label-secondary);
-          font-weight: var(--noora-font-weight-medium);
-          text-decoration: none;
-
-          &:hover {
-            color: var(--noora-surface-label-primary);
-          }
+        & > [data-part="docs-link"] {
+          align-self: flex-start;
+          margin-top: var(--noora-spacing-2);
         }
       }
 
@@ -90,53 +90,55 @@
 
     & > .noora-table {
       box-sizing: border-box;
-      margin: 0 0 var(--noora-spacing-6);
+      margin: 0;
       width: 100%;
     }
   }
 
   & > [data-part="cache-write-policy-card"] {
-    gap: var(--noora-spacing-5);
+    gap: var(--noora-spacing-7);
+    /* First section on the page: sits directly under the page header without
+       the extra breathing room the other sections carry. */
+    margin-block: 0;
 
-    & > [data-part="header"] {
-      padding: var(--noora-spacing-6) 0 0;
-    }
-
+    /* Vertical stack of radio cards: every option carries a light border, and
+       the selected one is lifted with the primary border + purple surface. */
     & > [data-part="policy-options"] {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: var(--noora-spacing-4);
-      padding-bottom: var(--noora-spacing-6);
+      display: flex;
+      flex-direction: column;
+      gap: var(--noora-spacing-5);
     }
 
     & [data-part="policy-option"] {
       display: flex;
       align-items: flex-start;
-      transition:
-        background 0.2s ease,
-        box-shadow 0.2s ease;
       cursor: pointer;
       box-sizing: border-box;
-      box-shadow: var(--noora-border-light-default);
       border: 0;
       border-radius: var(--noora-radius-4);
-      background: var(--noora-surface-background-primary);
+      box-shadow: var(--noora-border-light-default);
+      background: transparent;
       padding: var(--noora-spacing-5);
       min-width: 0;
       color: inherit;
       font: inherit;
       text-align: left;
 
-      &:hover {
-        background: var(--noora-surface-background-secondary);
-      }
-
-      &:focus-visible {
-        outline: none;
-        box-shadow: var(--noora-border-light-focus);
+      @media (hover: hover) {
+        &:hover {
+          background: var(--noora-surface-background-secondary);
+        }
       }
 
       &[data-selected="true"] {
+        box-shadow: var(--noora-button-border-primary);
+        background: var(--cache-selected-option-background);
+      }
+
+      /* Listed last so the focus ring wins over the selected border: both
+         selectors have equal specificity, so source order decides. */
+      &:focus-visible {
+        outline: none;
         box-shadow: var(--noora-border-light-focus);
       }
     }
@@ -144,15 +146,46 @@
     & [data-part="option-header"] {
       display: flex;
       flex-direction: row;
-      align-items: flex-start;
-      gap: var(--noora-spacing-4);
+      align-items: center;
+      gap: var(--noora-spacing-5);
       width: 100%;
       min-width: 0;
     }
 
+    /* Circular radio control mirroring Noora's checkbox_control state tokens. */
     & [data-part="control"] {
+      position: relative;
       flex-shrink: 0;
-      margin-top: 2px;
+      transition:
+        background 0.2s ease,
+        box-shadow 0.2s ease;
+      box-sizing: border-box;
+      box-shadow: var(--noora-border-light-default);
+      border-radius: var(--noora-radius-99);
+      background: var(--noora-choice-selector-uncheck-background);
+      width: 16px;
+      height: 16px;
+    }
+
+    & [data-part="policy-option"]:hover [data-part="control"] {
+      background: var(--noora-choice-selector-uncheck-background-hover);
+    }
+
+    & [data-part="policy-option"][data-selected="true"] [data-part="control"] {
+      box-shadow: 0px 1px 0px 0px oklch(100% 0 0 / 0.2) inset;
+      border: 1px solid var(--noora-purple-500);
+      background: var(--noora-choice-selector-check-background);
+    }
+
+    & [data-part="policy-option"][data-selected="true"] [data-part="control"]::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      margin: auto;
+      border-radius: var(--noora-radius-99);
+      width: 6px;
+      height: 6px;
+      background: var(--noora-choice-selector-label);
     }
 
     & [data-part="body"] {
@@ -170,34 +203,60 @@
 
     & [data-part="description"] {
       color: var(--noora-surface-label-secondary);
-      font: var(--noora-font-weight-regular) var(--noora-font-body-small);
+      font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
     }
+  }
 
-    @media (max-width: 768px) {
-      & > [data-part="policy-options"] {
-        grid-template-columns: 1fr;
+  /* Standalone (non-Noora-card) section: header stacked above the table. The
+     card gap is the only spacer between them, so it sets the 20px header→table
+     distance directly. */
+  & > [data-part="servers-card"] {
+    gap: var(--noora-spacing-7);
+
+    & > [data-part="header"] > [data-part="title-group"] {
+      gap: var(--noora-spacing-4);
+    }
+  }
+
+  /* Standalone section header: a sibling of the self-hosted card (mirrors the
+     Figma structure), so the page's section gap spaces it on both sides. */
+  & > [data-part="self-hosted-header"] {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: var(--noora-spacing-4);
+
+    & > [data-part="title-group"] {
+      display: flex;
+      flex-grow: 1;
+      flex-direction: column;
+      gap: var(--noora-spacing-2);
+      min-width: 0;
+
+      & > [data-part="title"] {
+        color: var(--noora-surface-label-primary);
+        font: var(--noora-font-weight-medium) var(--noora-font-heading-medium);
+      }
+
+      & > [data-part="subtitle"] {
+        color: var(--noora-surface-label-secondary);
+        font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
       }
     }
   }
 
-  /* The merged self-hosted card stacks a credentials and an endpoints
-     subsection under one header, each with its own sub-header + table. */
-  & > [data-part="self-hosted-card"] {
-    & > [data-part="header"] {
-      padding-bottom: var(--noora-spacing-4);
-    }
+  /* Credentials and registered-nodes are standalone page sections (not
+     grouped in a card), so the page's 40px section gap spaces them. */
+  & > [data-part="credentials-section"],
+  & > [data-part="registered-nodes-section"] {
+    gap: var(--noora-spacing-7);
 
-    & [data-part="subsection"] {
-      display: flex;
-      flex-direction: column;
-      gap: 0;
-
-      & > [data-part="subsection-header"] {
+    & > [data-part="subsection-header"] {
         display: flex;
         flex-direction: row;
         align-items: center;
         gap: var(--noora-spacing-5);
-        padding: var(--noora-spacing-5) 0 var(--noora-spacing-4);
+        padding: 0;
 
         & > [data-part="title-group"] {
           display: flex;
@@ -208,7 +267,7 @@
 
           & > [data-part="title"] {
             color: var(--noora-surface-label-primary);
-            font: var(--noora-font-weight-medium) var(--noora-font-body-large);
+            font: var(--noora-font-weight-medium) var(--noora-font-heading-small);
           }
 
           & > [data-part="subtitle"] {
@@ -225,18 +284,17 @@
         }
       }
 
-      & > .noora-table {
-        box-sizing: border-box;
-        margin: 0 0 var(--noora-spacing-6);
-        width: 100%;
-      }
+    & > .noora-table {
+      box-sizing: border-box;
+      margin: 0;
+      width: 100%;
     }
+  }
 
-    /* Right-align the row's icon-only revoke action; the button cell keeps
-       its standard padding so the icon stays inset from the table edge. */
-    & #self-hosted-clients-table [data-part="cell"][data-type="button"] {
-      justify-content: flex-end;
-    }
+  /* Right-align the row's icon-only revoke action; the button cell keeps
+     its standard padding so the icon stays inset from the table edge. */
+  & #self-hosted-clients-table [data-part="cell"][data-type="button"] {
+    justify-content: flex-end;
   }
 }
 
@@ -317,11 +375,17 @@
   }
 }
 
-/* Revoke-credential confirmation modal: give the message room between the
-   header/footer dividers (the Noora body only adds minimal vertical padding). */
-[id^="revoke-credential-modal-"] [data-part="revoke-credential-message"] {
+/* Confirmation modals: give the message room between the header/footer
+   dividers (the Noora body only adds minimal vertical padding). */
+[id^="revoke-credential-modal-"] [data-part="revoke-credential-message"],
+[id^="destroy-cache-server-modal-"] [data-part="destroy-server-message"] {
   margin: 0;
   padding-block: var(--noora-spacing-5);
+}
+
+[id^="destroy-cache-server-modal-"] [data-part="content"] {
+  width: 400px;
+  max-width: calc(100dvw - 2 * var(--noora-spacing-7));
 }
 
 /* Deploy-server modal lives on this page. */
