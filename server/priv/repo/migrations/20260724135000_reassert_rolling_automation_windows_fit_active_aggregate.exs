@@ -3,10 +3,12 @@ defmodule Tuist.Repo.Migrations.ReassertRollingAutomationWindowsFitActiveAggrega
 
   @max_rolling_window_size 75
 
-  def up do
+  def up, do: assert_compatible_alerts!(repo())
+
+  def assert_compatible_alerts!(repo) do
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
     %{rows: rows} =
-      repo().query!("""
+      repo.query!("""
       SELECT id::text
       FROM automation_alerts
       WHERE enabled
@@ -26,7 +28,7 @@ defmodule Tuist.Repo.Migrations.ReassertRollingAutomationWindowsFitActiveAggrega
       alert_ids = Enum.map_join(rows, ", ", fn [alert_id] -> alert_id end)
 
       raise Ecto.MigrationError,
-            "enabled rolling automation alerts fall outside the active 1 to #{@max_rolling_window_size}-run range: #{alert_ids}"
+            "enabled rolling automation alerts fall outside the active 1 to #{@max_rolling_window_size}-run range; disable them or reduce their rolling trigger windows before retrying. Alert IDs: #{alert_ids}"
     end
   end
 
