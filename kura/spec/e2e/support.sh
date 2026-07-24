@@ -113,6 +113,10 @@ container_oom_killed() {
   docker inspect --format '{{.State.OOMKilled}}' "$(dc_container_id "$1")"
 }
 
+container_memory_event() {
+  dc exec -T "$1" awk -v event="$2" '$1 == event { print $2 }' /sys/fs/cgroup/memory.events
+}
+
 run_parallel_http_gets() {
   local url="$1"
   local workers="$2"
@@ -124,6 +128,37 @@ run_parallel_http_gets() {
     (
       for _ in $(seq 1 "$iterations"); do
         curl -fsS --max-time 20 -o /dev/null "$url" || exit 1
+      done
+    ) &
+    pids+=("$!")
+  done
+
+  for pid in "${pids[@]}"; do
+    if ! wait "$pid"; then
+      failures=1
+    fi
+  done
+
+  return "$failures"
+}
+
+run_parallel_http_posts() {
+  local url="$1"
+  local path="$2"
+  local workers="$3"
+  local iterations="$4"
+  local failures=0
+  local status
+  local pids=()
+
+  for worker in $(seq 1 "$workers"); do
+    (
+      for _ in $(seq 1 "$iterations"); do
+        status="$(status_only -X POST \
+          "$url" \
+          -H "content-type: application/octet-stream" \
+          --data-binary "@$path")"
+        [ "$status" = 204 ] || exit 1
       done
     ) &
     pids+=("$!")
