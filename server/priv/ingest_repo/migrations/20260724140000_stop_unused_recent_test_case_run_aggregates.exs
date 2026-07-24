@@ -53,33 +53,53 @@ defmodule Tuist.IngestRepo.Migrations.StopUnusedRecentTestCaseRunAggregates do
   ]
 
   def up do
+    database = current_database!()
     cluster_available? = cloud_cluster_available?()
-    assert_views_present!(@active_materialized_views, cluster_available?)
-    previous_merge_settings = automatic_merge_settings!(@retired_tables, cluster_available?)
-    assert_no_active_merges!(@retired_tables, cluster_available?)
+    assert_views_present!(@active_materialized_views, database, cluster_available?)
+
+    previous_merge_settings =
+      automatic_merge_settings!(@retired_tables, database, cluster_available?)
+
+    assert_no_active_merges!(@retired_tables, database, cluster_available?)
 
     try do
       # Prevent a new automatic merge from starting while the views are
       # removed. A merge that won the race is caught by the second assertion.
       stop_automatic_merges!(@retired_tables)
-      assert_no_active_merges!(@retired_tables, cluster_available?)
+      assert_automatic_merges_stopped!(@retired_tables, database, cluster_available?)
+      assert_no_active_merges!(@retired_tables, database, cluster_available?)
 
       for materialized_view <- @retired_materialized_views do
         # excellent_migrations:safety-assured-for-next-line raw_sql_executed
         IngestRepo.query!("DROP VIEW IF EXISTS #{materialized_view}")
       end
 
-      assert_views_absent!(@retired_materialized_views, cluster_available?)
-      assert_automatic_merges_stopped!(@retired_tables, cluster_available?)
+      assert_views_absent!(@retired_materialized_views, database, cluster_available?)
+      assert_automatic_merges_stopped!(@retired_tables, database, cluster_available?)
     rescue
       exception ->
+        stacktrace = __STACKTRACE__
+
         restore_merge_settings_if_views_remain!(
           @retired_materialized_views,
           previous_merge_settings,
+          database,
           cluster_available?
         )
 
-        reraise exception, __STACKTRACE__
+        reraise exception, stacktrace
+    catch
+      kind, reason ->
+        stacktrace = __STACKTRACE__
+
+        restore_merge_settings_if_views_remain!(
+          @retired_materialized_views,
+          previous_merge_settings,
+          database,
+          cluster_available?
+        )
+
+        :erlang.raise(kind, reason, stacktrace)
     end
   end
 
@@ -88,8 +108,19 @@ defmodule Tuist.IngestRepo.Migrations.StopUnusedRecentTestCaseRunAggregates do
           "the retired materialized views require a bounded backfill before they can be re-enabled safely"
   end
 
-  defp assert_views_present!(views, cluster_available?) do
-    present_views = table_names(views, cluster_available?)
+  @doc false
+  def automatic_merge_setting(create_table_query) do
+    setting_pattern =
+      ~r/(?:^|[\s,])#{@automatic_merge_setting}\s*=\s*(\d+)\b/
+
+    case Regex.run(setting_pattern, create_table_query) do
+      [_match, value] -> {:explicit, String.to_integer(value)}
+      nil -> :default
+    end
+  end
+
+  defp assert_views_present!(views, database, cluster_available?) do
+    present_views = table_names(views, database, cluster_available?)
     missing_views = views -- present_views
 
     if missing_views != [] do
@@ -98,8 +129,8 @@ defmodule Tuist.IngestRepo.Migrations.StopUnusedRecentTestCaseRunAggregates do
     end
   end
 
-  defp assert_views_absent!(views, cluster_available?) do
-    case table_names(views, cluster_available?) do
+  defp assert_views_absent!(views, database, cluster_available?) do
+    case table_names(views, database, cluster_available?) do
       [] ->
         :ok
 
@@ -109,16 +140,17 @@ defmodule Tuist.IngestRepo.Migrations.StopUnusedRecentTestCaseRunAggregates do
     end
   end
 
-  defp assert_no_active_merges!(tables, cluster_available?) do
+  defp assert_no_active_merges!(tables, database, cluster_available?) do
     quoted_names = Enum.map_join(tables, ", ", &"'#{&1}'")
     merges_source = system_table_source("merges", cluster_available?)
+    database = string_literal(database)
 
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
     %{rows: rows} =
       IngestRepo.query!("""
       SELECT DISTINCT table
       FROM #{merges_source}
-      WHERE database = currentDatabase()
+      WHERE database = #{database}
         AND table IN (#{quoted_names})
       ORDER BY table
       """)
@@ -141,8 +173,8 @@ defmodule Tuist.IngestRepo.Migrations.StopUnusedRecentTestCaseRunAggregates do
     end
   end
 
-  defp automatic_merge_settings!(tables, cluster_available?) do
-    metadata = table_metadata(tables, cluster_available?)
+  defp automatic_merge_settings!(tables, database, cluster_available?) do
+    metadata = table_metadata(tables, database, cluster_available?)
 
     settings_by_table =
       Enum.group_by(
@@ -173,12 +205,33 @@ defmodule Tuist.IngestRepo.Migrations.StopUnusedRecentTestCaseRunAggregates do
     end)
   end
 
-  defp restore_merge_settings_if_views_remain!(views, previous_settings, cluster_available?) do
-    if table_names(views, cluster_available?) != [] do
+  defp restore_merge_settings_if_views_remain!(
+         views,
+         previous_settings,
+         database,
+         cluster_available?
+       ) do
+    if views_may_remain?(views, database, cluster_available?) do
       for {table, previous_setting} <- previous_settings do
-        restore_merge_setting!(table, previous_setting)
+        best_effort(fn -> restore_merge_setting!(table, previous_setting) end)
       end
     end
+  end
+
+  defp views_may_remain?(views, database, cluster_available?) do
+    table_names(views, database, cluster_available?) != []
+  rescue
+    _exception -> true
+  catch
+    _kind, _reason -> true
+  end
+
+  defp best_effort(operation) do
+    operation.()
+  rescue
+    _exception -> :ok
+  catch
+    _kind, _reason -> :ok
   end
 
   defp restore_merge_setting!(table, :default) do
@@ -193,10 +246,10 @@ defmodule Tuist.IngestRepo.Migrations.StopUnusedRecentTestCaseRunAggregates do
     )
   end
 
-  defp assert_automatic_merges_stopped!(tables, cluster_available?) do
+  defp assert_automatic_merges_stopped!(tables, database, cluster_available?) do
     stopped_tables =
       tables
-      |> table_metadata(cluster_available?)
+      |> table_metadata(database, cluster_available?)
       |> Enum.group_by(
         fn [name, _create_table_query] -> name end,
         fn [_name, create_table_query] -> automatic_merge_setting(create_table_query) end
@@ -214,39 +267,38 @@ defmodule Tuist.IngestRepo.Migrations.StopUnusedRecentTestCaseRunAggregates do
     end
   end
 
-  defp automatic_merge_setting(create_table_query) do
-    setting_pattern =
-      ~r/(?:^|[\s,])#{@automatic_merge_setting}\s*=\s*(\d+)(?=\s*(?:,|$))/
-
-    case Regex.run(setting_pattern, create_table_query) do
-      [_match, value] -> {:explicit, String.to_integer(value)}
-      nil -> :default
-    end
-  end
-
-  defp table_names(names, cluster_available?) do
+  defp table_names(names, database, cluster_available?) do
     names
-    |> table_metadata(cluster_available?)
+    |> table_metadata(database, cluster_available?)
     |> Enum.map(fn [name, _create_table_query] -> name end)
     |> Enum.uniq()
   end
 
-  defp table_metadata(names, cluster_available?) do
+  defp table_metadata(names, database, cluster_available?) do
     quoted_names = Enum.map_join(names, ", ", &"'#{&1}'")
     tables_source = system_table_source("tables", cluster_available?)
+    database = string_literal(database)
 
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
     %{rows: rows} =
       IngestRepo.query!("""
       SELECT DISTINCT name, create_table_query
       FROM #{tables_source}
-      WHERE database = currentDatabase()
+      WHERE database = #{database}
         AND name IN (#{quoted_names})
       ORDER BY name
       """)
 
     rows
   end
+
+  defp current_database! do
+    # excellent_migrations:safety-assured-for-next-line raw_sql_executed
+    %{rows: [[database]]} = IngestRepo.query!("SELECT currentDatabase()")
+    database
+  end
+
+  defp string_literal(value), do: "'#{String.replace(value, "'", "''")}'"
 
   defp cloud_cluster_available? do
     # excellent_migrations:safety-assured-for-next-line raw_sql_executed
