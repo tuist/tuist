@@ -2238,8 +2238,17 @@ fn digest_key(digest: &reapi::Digest) -> Result<String, Status> {
     if digest.size_bytes < 0 {
         return Err(Status::invalid_argument("digest size must be non-negative"));
     }
-    if digest.hash.is_empty() {
-        return Err(Status::invalid_argument("digest hash must be present"));
+    // The hash becomes the manifest key, and a SHA-256 digest is always 32 bytes
+    // = 64 hex chars. The CAS write paths bound it implicitly by verifying the
+    // uploaded bytes against it, but update_action_result stores the digest as a
+    // key with no body to check against — so without this an authenticated client
+    // could persist an arbitrarily long "hash", inflating the manifest key until a
+    // bootstrap page overflows the receiver's MAX_BOOTSTRAP_PAGE_BYTES ceiling and
+    // wedges a joining node. Pin it to the fixed width a conforming client sends.
+    if digest.hash.len() != 64 || !digest.hash.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return Err(Status::invalid_argument(
+            "digest hash must be a 64-character hex SHA-256",
+        ));
     }
     Ok(format!("{}/{}", digest.hash, digest.size_bytes))
 }
@@ -2962,6 +2971,37 @@ mod tests {
         cache.trim_to(3 * 1024, "test", &metrics);
 
         assert!(cache.stats().bytes <= 3 * 1024);
+    }
+
+    #[test]
+    fn digest_key_requires_a_fixed_width_sha256_hash() {
+        let valid = reapi::Digest {
+            hash: hex::encode([0xabu8; 32]),
+            size_bytes: 10,
+        };
+        assert_eq!(
+            digest_key(&valid).expect("a 64-hex hash must be accepted"),
+            format!("{}/10", hex::encode([0xabu8; 32]))
+        );
+
+        // An unbounded hash is what inflates the manifest key past the bootstrap
+        // page ceiling; update_action_result has no body to verify it against, so
+        // the width check is the only thing keeping the key fixed-size.
+        for bad in [
+            String::new(),
+            "abc".to_string(),
+            "z".repeat(64),
+            "a".repeat(63),
+            "a".repeat(65),
+            "a".repeat(16 * 1024),
+        ] {
+            let digest = reapi::Digest {
+                hash: bad,
+                size_bytes: 10,
+            };
+            let status = digest_key(&digest).expect_err("a non-64-hex hash must be rejected");
+            assert_eq!(status.code(), tonic::Code::InvalidArgument);
+        }
     }
 
     #[test]
