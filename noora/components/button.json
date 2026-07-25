@@ -1,0 +1,226 @@
+{
+  "name": "Button",
+  "tagName": "noora-button",
+  "elementClassName": "NooraButton",
+  "className": "noora-button",
+  "modulePath": "./priv/static/noora-web-components.js",
+  "description": "Triggers an action, submits a form, or navigates to another location.",
+  "usage": "<noora-button type=\"button\">Create project</noora-button>",
+  "attributes": [
+    {
+      "name": "aria-describedby",
+      "property": "_ariaDescribedBy",
+      "publicProperty": false,
+      "type": "string",
+      "description": "Identifies the element that describes the button."
+    },
+    {
+      "name": "aria-label",
+      "property": "_ariaLabel",
+      "publicProperty": false,
+      "type": "string",
+      "description": "Provides an accessible name when visible text is unavailable."
+    },
+    {
+      "name": "aria-labelledby",
+      "property": "_ariaLabelledBy",
+      "publicProperty": false,
+      "type": "string",
+      "description": "Identifies the element that labels the button."
+    },
+    {
+      "name": "title",
+      "property": "_title",
+      "publicProperty": false,
+      "type": "string",
+      "description": "Provides advisory information for the button."
+    },
+    {
+      "name": "autofocus",
+      "property": "autofocus",
+      "type": "boolean",
+      "default": false,
+      "description": "Focuses the button when the page loads."
+    },
+    {
+      "name": "disabled",
+      "property": "disabled",
+      "type": "boolean",
+      "default": false,
+      "reflect": true,
+      "description": "Prevents activation and form submission."
+    },
+    {
+      "name": "download",
+      "property": "download",
+      "type": "string",
+      "description": "Downloads the linked resource, optionally using this value as the filename."
+    },
+    {
+      "name": "form",
+      "property": "formId",
+      "type": "string",
+      "description": "Associates the button with a form by element identifier."
+    },
+    {
+      "name": "formaction",
+      "property": "formAction",
+      "type": "string",
+      "description": "Overrides the associated form action for this submit button."
+    },
+    {
+      "name": "formenctype",
+      "property": "formEnctype",
+      "type": "string",
+      "description": "Overrides the associated form encoding type for this submit button."
+    },
+    {
+      "name": "formmethod",
+      "property": "formMethod",
+      "type": "string",
+      "description": "Overrides the associated form method for this submit button."
+    },
+    {
+      "name": "formnovalidate",
+      "property": "formNoValidate",
+      "type": "boolean",
+      "default": false,
+      "description": "Skips validation when this button submits its associated form."
+    },
+    {
+      "name": "formtarget",
+      "property": "formTarget",
+      "type": "string",
+      "description": "Overrides where the associated form response is displayed."
+    },
+    {
+      "name": "href",
+      "property": "href",
+      "type": "string",
+      "default": "",
+      "description": "Renders the control as a link to this location."
+    },
+    {
+      "name": "icon-only",
+      "property": "iconOnly",
+      "type": "boolean",
+      "default": false,
+      "reflect": true,
+      "description": "Uses the default slot as the entire button content. An accessible label is required."
+    },
+    {
+      "name": "label",
+      "property": "label",
+      "type": "string",
+      "default": "",
+      "description": "Provides fallback text when the default slot is empty."
+    },
+    {
+      "name": "name",
+      "property": "name",
+      "type": "string",
+      "default": "",
+      "description": "Sets the form field name submitted with the button value."
+    },
+    {
+      "name": "rel",
+      "property": "rel",
+      "type": "string",
+      "description": "Sets the relationship between the current page and a linked resource."
+    },
+    {
+      "name": "size",
+      "property": "size",
+      "type": "string",
+      "values": ["small", "medium", "large"],
+      "default": "large",
+      "description": "Controls the button dimensions and text size."
+    },
+    {
+      "name": "target",
+      "property": "target",
+      "type": "string",
+      "description": "Controls where a linked resource is opened."
+    },
+    {
+      "name": "type",
+      "property": "type",
+      "type": "string",
+      "values": ["button", "reset", "submit"],
+      "default": "submit",
+      "description": "Controls native button behavior when href is absent."
+    },
+    {
+      "name": "value",
+      "property": "value",
+      "type": "string",
+      "default": "",
+      "description": "Sets the form value submitted with the button name."
+    },
+    {
+      "name": "variant",
+      "property": "variant",
+      "type": "string",
+      "values": ["primary", "secondary", "destructive"],
+      "default": "primary",
+      "description": "Controls the visual emphasis and semantic intent."
+    }
+  ],
+  "readonlyProperties": [
+    {
+      "name": "control",
+      "type": "HTMLAnchorElement | HTMLButtonElement | null",
+      "description": "The native link or button rendered inside the component."
+    },
+    {
+      "name": "form",
+      "type": "HTMLFormElement | null",
+      "description": "The form associated with the button, if one exists."
+    }
+  ],
+  "slots": [
+    {
+      "name": "",
+      "description": "The visible label, or the complete content when icon-only is present."
+    },
+    {
+      "name": "icon-left",
+      "description": "An icon displayed before the label."
+    },
+    {
+      "name": "icon-right",
+      "description": "An icon displayed after the label."
+    }
+  ],
+  "cssParts": [
+    {
+      "name": "control",
+      "description": "The native link or button control."
+    }
+  ],
+  "stylingExample": "noora-button::part(control) {\n  inline-size: 100%;\n}",
+  "notes": [
+    "The component emits the standard browser click event.",
+    "It renders a native link when href is present and the component is enabled. Otherwise, it renders a native button and supports form submission and reset."
+  ],
+  "examples": [
+    {
+      "id": "variants",
+      "title": "Variants",
+      "description": "Choose a semantic variant through the variant attribute.",
+      "markup": "<noora-button type=\"button\" variant=\"primary\">Primary</noora-button>\n<noora-button type=\"button\" variant=\"secondary\">Secondary</noora-button>\n<noora-button type=\"button\" variant=\"destructive\">Destructive</noora-button>"
+    },
+    {
+      "id": "sizes",
+      "title": "Sizes",
+      "description": "The default size is large.",
+      "markup": "<noora-button type=\"button\" size=\"small\">Small</noora-button>\n<noora-button type=\"button\" size=\"medium\">Medium</noora-button>\n<noora-button type=\"button\" size=\"large\">Large</noora-button>"
+    },
+    {
+      "id": "icons-and-states",
+      "title": "Icons and states",
+      "description": "Named slots place icons around the label. Icon-only buttons require an accessible label.",
+      "markup": "<noora-button type=\"button\">\n  <svg\n    slot=\"icon-left\"\n    aria-hidden=\"true\"\n    viewBox=\"0 0 24 24\"\n    fill=\"none\"\n    stroke=\"currentColor\"\n  >\n    <path d=\"m15 18-6-6 6-6\" stroke-width=\"2\"></path>\n  </svg>\n  Previous\n</noora-button>\n\n<noora-button type=\"button\" variant=\"secondary\">\n  Continue\n  <svg\n    slot=\"icon-right\"\n    aria-hidden=\"true\"\n    viewBox=\"0 0 24 24\"\n    fill=\"none\"\n    stroke=\"currentColor\"\n  >\n    <path d=\"m9 18 6-6-6-6\" stroke-width=\"2\"></path>\n  </svg>\n</noora-button>\n\n<noora-button type=\"button\" icon-only aria-label=\"Go back\">\n  <svg aria-hidden=\"true\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\">\n    <path d=\"m15 18-6-6 6-6\" stroke-width=\"2\"></path>\n  </svg>\n</noora-button>\n\n<noora-button type=\"button\" variant=\"secondary\" disabled>\n  Disabled\n</noora-button>"
+    }
+  ]
+}

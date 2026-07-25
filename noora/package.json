@@ -1,22 +1,61 @@
 {
-  "name": "noora",
-  "version": "0.81.1",
-  "private": true,
-  "main": "index.js",
+  "name": "@tuist/noora",
+  "version": "0.81.4",
+  "type": "module",
+  "description": "Noora components for Phoenix LiveView and framework-independent web applications",
   "license": "MIT",
-  "module": "./priv/static/noora.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tuist/tuist.git",
+    "directory": "noora"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "customElements": "./custom-elements.json",
+  "sideEffects": [
+    "./css/*.css",
+    "./js/index.js",
+    "./js/web-components/index.js",
+    "./priv/static/*.css",
+    "./priv/static/noora.js",
+    "./priv/static/noora-web-components.js"
+  ],
+  "files": [
+    "custom-elements.json",
+    "docs",
+    "priv/static/*.css",
+    "priv/static/*.js",
+    "types",
+    "LICENSE",
+    "README.md"
+  ],
   "exports": {
-    ".": "./priv/static/noora.js",
+    ".": {
+      "import": "./priv/static/noora.js"
+    },
+    "./web-components": {
+      "types": "./types/web-components.d.ts",
+      "import": "./priv/static/noora-web-components.js"
+    },
     "./noora.css": "./priv/static/noora.css",
-    "./fonts.css": "./priv/static/fonts.css"
+    "./fonts.css": "./priv/static/fonts.css",
+    "./tokens.css": "./priv/static/tokens.css",
+    "./custom-elements.json": "./custom-elements.json"
   },
   "scripts": {
     "build:css": "esbuild css/noora.css --bundle --minify --sourcemap --outfile=./priv/static/noora.css",
+    "build:fonts": "esbuild css/fonts.css --bundle --minify --sourcemap --outfile=./priv/static/fonts.css",
     "build:js": "esbuild js/index.js --bundle --minify --sourcemap --format=esm --outfile=./priv/static/noora.js",
+    "build:tokens": "esbuild css/tokens.css --bundle --minify --sourcemap --outfile=./priv/static/tokens.css",
+    "build:web-components": "esbuild js/web-components/index.js --bundle --minify --sourcemap --format=esm --loader:.css=text --outfile=./priv/static/noora-web-components.js",
+    "check:generated": "node scripts/generate-web-components.js --check",
+    "generate:web-components": "node scripts/generate-web-components.js",
+    "prepack": "aube run build",
     "test": "vitest",
-    "build": "aube run build:js && aube run build:css"
+    "build": "aube run generate:web-components && aube run build:js && aube run build:css && aube run build:fonts && aube run build:tokens && aube run build:web-components"
   },
-  "dependencies": {
+  "devDependencies": {
     "@zag-js/avatar": "^1.8.2",
     "@zag-js/checkbox": "^1.8.2",
     "@zag-js/collapsible": "^1.8.2",
@@ -35,10 +74,10 @@
     "@zag-js/types": "^1.8.2",
     "@zag-js/utils": "^1.8.2",
     "culori": "^4.0.1",
-    "echarts": "^6.1.0"
-  },
-  "devDependencies": {
+    "echarts": "^6.1.0",
+    "lit": "^3.3.3",
     "esbuild": "^0.27.0",
+    "happy-dom": "^20.0.0",
     "prettier": "^3.7.4",
     "prettier-plugin-css-order": "^2.1.2",
     "vitest": "^4.0.0"
@@ -47,5 +86,21 @@
     "allowBuilds": {
       "esbuild": true
     }
-  }
+  },
+  "main": "index.js",
+  "directories": {
+    "doc": "docs",
+    "example": "examples",
+    "lib": "lib",
+    "test": "test"
+  },
+  "dependencies": {
+    "vite": "^8.0.10"
+  },
+  "keywords": [],
+  "author": "",
+  "bugs": {
+    "url": "https://github.com/tuist/tuist/issues"
+  },
+  "homepage": "https://github.com/tuist/tuist#readme"
 }
