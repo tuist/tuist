@@ -83,7 +83,14 @@ persistence:
   storageClass: ""
   annotations: {}
 
-resources: {}
+# Kura derives every memory budget from the container limit. Keep the request
+# equal to the limit so a default install reserves the memory it may consume
+# instead of sizing itself from the shared node's physical memory.
+resources:
+  requests:
+    memory: 1Gi
+  limits:
+    memory: 1Gi
 
 nodeSelector: {}
 tolerations: []
