@@ -523,8 +523,13 @@ jobs:
     name: Release Noora
     needs: check-releases
     if: needs.check-releases.outputs.noora-should-release == 'true'
-    runs-on: tuist-linux
+    # Trusted publishing requires a GitHub-hosted runner:
+    # https://docs.npmjs.com/trusted-publishers
+    runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     outputs:
@@ -542,6 +547,11 @@ jobs:
           working-directory: noora
           github-token: ${{ env.MISE_GITHUB_TOKEN }}
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+
       - name: Get release notes
         id: release-notes
         run: |
@@ -556,10 +566,11 @@ jobs:
           fi
           echo "EOF" >> "$GITHUB_OUTPUT"
 
-      - name: Update version in mix.exs
+      - name: Update package versions
         working-directory: noora
         run: |
           sed -i 's/version: ".*"/version: "${{ needs.check-releases.outputs.noora-next-version-number }}"/' mix.exs
+          npm pkg set version="${{ needs.check-releases.outputs.noora-next-version-number }}"
 
       - name: Update CHANGELOG.md
         working-directory: noora
@@ -571,15 +582,29 @@ jobs:
           mix deps.get
           aube install
 
-      - name: Build JS assets
+      - name: Validate generated files and tests
         working-directory: noora
-        run: aube run build
+        run: |
+          aube run check:generated
+          aube run test -- --run
+
+      - name: Validate release artifacts
+        working-directory: noora
+        run: |
+          npm pack --dry-run
+          mix hex.build
 
       - name: Publish to hex.pm
         working-directory: noora
         run: mix hex.publish --yes --replace
         env:
           HEX_API_KEY: ${{ secrets.HEX_API_KEY }}
+
+      - name: Publish to npm
+        working-directory: noora
+        run: npm publish --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Upload Noora artifacts
         id: upload
@@ -589,6 +614,7 @@ jobs:
           path: |
             noora/CHANGELOG.md
             noora/mix.exs
+            noora/package.json
           retention-days: 1
 
   release-helm:
@@ -1636,6 +1662,7 @@ jobs:
           tag_name: ${{ needs.check-releases.outputs.noora-next-version }}
           body: |
             hex.pm: https://hex.pm/packages/noora/${{ needs.check-releases.outputs.noora-next-version-number }}
+            npm: https://www.npmjs.com/package/@tuist/noora/v/${{ needs.check-releases.outputs.noora-next-version-number }}
 
             ${{ needs.release-noora.outputs.release-notes }}
 
