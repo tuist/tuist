@@ -18,6 +18,7 @@ use axum::{
 };
 use bytes::Bytes;
 use futures_util::{Stream, StreamExt};
+use http_body::{Body as HttpBody, Frame, SizeHint};
 use serde::Deserialize;
 use tokio_util::io::ReaderStream;
 use tracing::{Instrument, field};
@@ -26,13 +27,16 @@ use crate::{
     artifact::{manifest::ArtifactManifest, producer::ArtifactProducer},
     bandwidth::BandwidthLimiter,
     constants::{
-        BOOTSTRAP_DIGEST_DEFAULT_PREFIX_LEN, BOOTSTRAP_DIGEST_MAX_PREFIX_LEN, MAX_GRADLE_BYTES,
-        MAX_INLINE_REPLICATION_BODY_BYTES, MAX_MODULE_PART_BYTES, MAX_MODULE_TOTAL_BYTES,
-        MAX_REPLICATION_BODY_BYTES, MAX_XCODE_BYTES,
+        BOOTSTRAP_DIGEST_DEFAULT_PREFIX_LEN, MAX_GRADLE_BYTES, MAX_INLINE_REPLICATION_BODY_BYTES,
+        MAX_MODULE_PART_BYTES, MAX_MODULE_TOTAL_BYTES, MAX_REPLICATION_BODY_BYTES, MAX_XCODE_BYTES,
+        RESPONSE_STREAM_MIN_CHUNK_BYTES, response_stream_chunk_bytes,
     },
     extension::{AccessDecision, ExtensionContext},
     io::is_fd_pool_exhausted_error,
-    memory::MemoryPressure,
+    memory::{
+        MemoryPressure, ResponseStreamAdmissionPatience, ResponseStreamMemoryPermit,
+        ResponseTransportGuard,
+    },
     metrics::Metrics,
     multipart::error::MultipartError,
     replication::replication_targets,
@@ -50,7 +54,9 @@ use crate::{
 };
 
 const MMAP_RESPONSE_CHUNK_BYTES: usize = 1024 * 1024;
-const READER_RESPONSE_CHUNK_BYTES: usize = 512 * 1024;
+#[cfg(test)]
+const HTTP_RESPONSE_STREAM_RESERVATION_BYTES: usize =
+    crate::constants::RESPONSE_STREAM_CHUNK_BYTES * 4;
 const ROUTE_UP: &str = "/up";
 const ROUTE_READY: &str = "/ready";
 const ROUTE_ROLLOUT_STATUS: &str = "/status/rollout";
@@ -122,6 +128,7 @@ pub fn public_router(state: SharedState) -> Router {
             state.clone(),
             track_http_metrics,
         ))
+        .layer(middleware::map_response(guard_response_stream_transport))
         .with_state(state)
 }
 
@@ -131,6 +138,7 @@ pub fn internal_router(state: SharedState) -> Router {
             state.clone(),
             track_http_metrics,
         ))
+        .layer(middleware::map_response(guard_response_stream_transport))
         .with_state(state)
 }
 
@@ -146,7 +154,81 @@ pub fn combined_router(state: SharedState) -> Router {
             state.clone(),
             track_http_metrics,
         ))
+        .layer(middleware::map_response(guard_response_stream_transport))
         .with_state(state)
+}
+
+pub(crate) async fn guard_response_stream_transport(mut response: Response) -> Response {
+    let Some(guard) = response.extensions_mut().remove::<ResponseTransportGuard>() else {
+        return response;
+    };
+    let body = std::mem::take(response.body_mut());
+    *response.body_mut() = Body::new(ResponseStreamTransportBody { body, guard });
+    response
+}
+
+struct ResponseStreamTransportBody {
+    body: Body,
+    guard: ResponseTransportGuard,
+}
+
+impl HttpBody for ResponseStreamTransportBody {
+    type Data = Bytes;
+    type Error = axum::Error;
+
+    fn poll_frame(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<Option<Result<Frame<Self::Data>, Self::Error>>> {
+        match Pin::new(&mut self.body).poll_frame(cx) {
+            Poll::Ready(Some(Ok(frame))) => {
+                let guard = self.guard.clone();
+                Poll::Ready(Some(Ok(frame.map_data(|bytes| {
+                    Bytes::from_owner(ResponseStreamTransportBytes {
+                        bytes,
+                        _guard: guard,
+                    })
+                }))))
+            }
+            other => other,
+        }
+    }
+
+    fn is_end_stream(&self) -> bool {
+        self.body.is_end_stream()
+    }
+
+    fn size_hint(&self) -> SizeHint {
+        self.body.size_hint()
+    }
+}
+
+struct ResponseStreamTransportBytes {
+    bytes: Bytes,
+    _guard: ResponseTransportGuard,
+}
+
+impl AsRef<[u8]> for ResponseStreamTransportBytes {
+    fn as_ref(&self) -> &[u8] {
+        self.bytes.as_ref()
+    }
+}
+
+fn attach_response_stream_permit(response: &mut Response, permit: ResponseStreamMemoryPermit) {
+    response
+        .extensions_mut()
+        .insert(permit.into_transport_guard());
+}
+
+fn attach_materialized_response_permit(
+    response: &mut Response,
+    permit: crate::memory::MemoryPermit,
+) {
+    response
+        .extensions_mut()
+        .insert(ResponseTransportGuard::from_materialization_permits(vec![
+            permit,
+        ]));
 }
 
 #[cfg(test)]
@@ -392,6 +474,9 @@ impl PageQuery {
             .unwrap_or(256);
         if limit == 0 {
             return Err("Invalid limit: must be greater than 0".to_string());
+        }
+        if limit > 256 {
+            return Err("Invalid limit: must not exceed 256".to_string());
         }
 
         Ok(Self {
@@ -1121,6 +1206,18 @@ async fn get_keyvalue(
         &key,
     ) {
         Ok(Some(bytes)) => {
+            let permit = match state
+                .memory
+                .try_acquire_response_materialization(bytes.len())
+            {
+                Ok(permit) => permit,
+                Err(()) => {
+                    state
+                        .metrics
+                        .record_memory_action("keyvalue_response_materialization_rejected");
+                    return response_stream_unavailable();
+                }
+            };
             state
                 .metrics
                 .record_artifact_read(ArtifactProducer::Xcode, "ok", bytes.len() as u64);
@@ -1131,14 +1228,18 @@ async fn get_keyvalue(
                 Some(&usage),
                 bytes.len() as u64,
             );
-            (
+            let mut response = (
                 [(
                     axum::http::header::CONTENT_TYPE,
                     HeaderValue::from_static("application/json"),
                 )],
                 bytes,
             )
-                .into_response()
+                .into_response();
+            if let Some(permit) = permit {
+                attach_materialized_response_permit(&mut response, permit);
+            }
+            response
         }
         Ok(None) => {
             state
@@ -1806,15 +1907,11 @@ async fn internal_bootstrap_manifests_digest(
 ) -> Response {
     let prefix_len = match params.get("prefix_len") {
         Some(value) => match value.parse::<usize>() {
-            Ok(prefix_len) if prefix_len > 0 && prefix_len <= BOOTSTRAP_DIGEST_MAX_PREFIX_LEN => {
-                prefix_len
-            }
+            Ok(prefix_len) if prefix_len == BOOTSTRAP_DIGEST_DEFAULT_PREFIX_LEN => prefix_len,
             _ => {
                 return error_response(
                     StatusCode::BAD_REQUEST,
-                    format!(
-                        "Invalid prefix_len: must be between 1 and {BOOTSTRAP_DIGEST_MAX_PREFIX_LEN}"
-                    ),
+                    format!("Invalid prefix_len: must equal {BOOTSTRAP_DIGEST_DEFAULT_PREFIX_LEN}"),
                 );
             }
         },
@@ -1870,7 +1967,7 @@ async fn internal_bootstrap_artifact(
                 StatusCode::OK,
                 &manifest,
                 state.replication_bandwidth_limiter.clone(),
-                false,
+                ResponseStreamClass::Bootstrap,
             )
             .await
         }
@@ -2343,22 +2440,53 @@ async fn serve_file(
 ) -> Response {
     match state.store.try_mmap_artifact_bytes(manifest).await {
         Ok(Some(bytes)) => {
+            state.metrics.record_artifact_serving_path("mmap");
+            let requested_bytes = response_stream_chunk_bytes(manifest.size).saturating_mul(4);
+            let permit = match state
+                .memory
+                .try_acquire_mmap_response_stream_memory(requested_bytes, "http")
+            {
+                Some(permit) => permit,
+                // mmap serving is an optimization; hand a budget-constrained
+                // read straight to the streaming path, which can use the
+                // smaller degraded pool. Waiting here first would only delay
+                // that fallback by a full admission timeout.
+                None => {
+                    return serve_file_reader(
+                        state,
+                        status,
+                        manifest,
+                        None,
+                        ResponseStreamClass::Public,
+                    )
+                    .await;
+                }
+            };
             let stream = instrument_artifact_stream(state, manifest, bytes_chunks(bytes), true);
             let mut response = Response::new(Body::from_stream(stream));
             *response.status_mut() = status;
             apply_artifact_response_headers(&mut response, manifest);
+            attach_response_stream_permit(&mut response, permit);
             response
         }
-        Ok(None) => serve_file_reader(state, status, manifest, None, true).await,
+        Ok(None) => {
+            serve_file_reader(state, status, manifest, None, ResponseStreamClass::Public).await
+        }
         Err(error) => {
             tracing::warn!(
                 artifact_id = %manifest.artifact_id,
                 %error,
                 "mmap artifact serving failed; falling back to streaming reader"
             );
-            serve_file_reader(state, status, manifest, None, true).await
+            serve_file_reader(state, status, manifest, None, ResponseStreamClass::Public).await
         }
     }
+}
+
+#[derive(Clone, Copy)]
+enum ResponseStreamClass {
+    Public,
+    Bootstrap,
 }
 
 async fn serve_file_reader(
@@ -2366,8 +2494,58 @@ async fn serve_file_reader(
     status: StatusCode,
     manifest: &ArtifactManifest,
     bandwidth_limiter: Option<Arc<BandwidthLimiter>>,
-    hold_public_inflight: bool,
+    class: ResponseStreamClass,
 ) -> Response {
+    state.metrics.record_artifact_serving_path("streaming");
+    let inline_bytes = if manifest.inline { manifest.size } else { 0 };
+    let stream_chunk_bytes = response_stream_chunk_bytes(manifest.size);
+    let requested_bytes = usize::try_from(
+        u64::try_from(stream_chunk_bytes.saturating_mul(4))
+            .unwrap_or(u64::MAX)
+            .saturating_add(inline_bytes),
+    )
+    .unwrap_or(usize::MAX);
+    let (permit, stream_chunk_bytes) = match class {
+        // A public read first degrades to the minimum chunk. If even that
+        // bounded path has no slot or live headroom, shed it with a retryable
+        // response rather than opening an unaccounted stream.
+        ResponseStreamClass::Public => match state
+            .memory
+            .acquire_response_stream_memory(
+                requested_bytes,
+                "http",
+                ResponseStreamAdmissionPatience::Degradable,
+            )
+            .await
+        {
+            Ok(permit) => (permit, stream_chunk_bytes),
+            Err(_) => {
+                let degraded_bytes = usize::try_from(
+                    u64::try_from(RESPONSE_STREAM_MIN_CHUNK_BYTES.saturating_mul(4))
+                        .unwrap_or(u64::MAX)
+                        .saturating_add(inline_bytes),
+                )
+                .unwrap_or(usize::MAX);
+                match state
+                    .memory
+                    .acquire_degraded_response_stream_memory(degraded_bytes, "http")
+                    .await
+                {
+                    Ok(permit) => (permit, RESPONSE_STREAM_MIN_CHUNK_BYTES),
+                    Err(_) => return response_stream_unavailable(),
+                }
+            }
+        },
+        // Bootstrap is internal peer traffic that retries on its own schedule,
+        // so shedding it keeps the background bound intact.
+        ResponseStreamClass::Bootstrap => match state
+            .memory
+            .try_acquire_background_response_stream_memory(requested_bytes, "bootstrap")
+        {
+            Ok(permit) => (permit, stream_chunk_bytes),
+            Err(_) => return response_stream_unavailable(),
+        },
+    };
     // Tolerates a concurrent background promotion relocating the artifact
     // between the caller's manifest fetch and this open (see
     // `Store::open_artifact_reader_range_tolerating_promotion`); response
@@ -2379,12 +2557,18 @@ async fn serve_file_reader(
         .await
     {
         Ok(Some((manifest, reader))) => {
-            let stream = ReaderStream::with_capacity(reader, READER_RESPONSE_CHUNK_BYTES);
+            let stream = ReaderStream::with_capacity(reader, stream_chunk_bytes);
             let stream = throttle_body_stream(stream, bandwidth_limiter);
-            let stream = instrument_artifact_stream(state, &manifest, stream, hold_public_inflight);
+            let stream = instrument_artifact_stream(
+                state,
+                &manifest,
+                stream,
+                matches!(class, ResponseStreamClass::Public),
+            );
             let mut response = Response::new(Body::from_stream(stream));
             *response.status_mut() = status;
             apply_artifact_response_headers(&mut response, &manifest);
+            attach_response_stream_permit(&mut response, permit);
             response
         }
         Ok(None) => error_response(
@@ -2396,6 +2580,18 @@ async fn serve_file_reader(
             format!("Artifact bytes are missing from local storage: {error}"),
         ),
     }
+}
+
+fn response_stream_unavailable() -> Response {
+    let mut response = error_response(
+        StatusCode::SERVICE_UNAVAILABLE,
+        "The server is limiting concurrent artifact response streams; retry shortly".to_string(),
+    );
+    response.headers_mut().insert(
+        axum::http::header::RETRY_AFTER,
+        HeaderValue::from_static("1"),
+    );
+    response
 }
 
 fn instrument_artifact_stream<S>(
@@ -2612,6 +2808,22 @@ mod tests {
             max_buckets: 100,
             outbox_max_depth: 100,
         }
+    }
+
+    #[test]
+    fn bootstrap_page_query_rejects_unbounded_limits() {
+        let maximum = HashMap::from([("limit".to_owned(), "256".to_owned())]);
+        assert_eq!(
+            PageQuery::from_params(&maximum)
+                .expect("maximum bootstrap page should be accepted")
+                .limit,
+            256
+        );
+        let oversized = HashMap::from([("limit".to_owned(), usize::MAX.to_string())]);
+        assert_eq!(
+            PageQuery::from_params(&oversized).expect_err("oversized page must be rejected"),
+            "Invalid limit: must not exceed 256"
+        );
     }
 
     async fn assert_json_error_response(response: Response, status: StatusCode, message: &str) {
@@ -3254,6 +3466,43 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn keyvalue_response_holds_materialization_memory_until_transport_drops() {
+        let context = test_context(|_| {}).await;
+        let app = router(context.state.clone());
+
+        let put_response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("PUT")
+                    .uri("/api/cache/keyvalue?tenant_id=acme&namespace_id=ios")
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        r#"{"cas_id":"cas-1","entries":[{"value":"hello"}]}"#,
+                    ))
+                    .expect("failed to build put request"),
+            )
+            .await
+            .expect("put request failed");
+        assert_eq!(put_response.status(), StatusCode::NO_CONTENT);
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/cache/keyvalue/cas-1?tenant_id=acme&namespace_id=ios")
+                    .body(Body::empty())
+                    .expect("failed to build get request"),
+            )
+            .await
+            .expect("get request failed");
+        assert_eq!(response.status(), StatusCode::OK);
+        assert!(context.state.memory.transient_reserved_bytes() > 0);
+
+        drop(response);
+        assert_eq!(context.state.memory.transient_reserved_bytes(), 0);
+    }
+
+    #[tokio::test]
     async fn keyvalue_misses_return_json_not_found_errors() {
         let context = test_context(|_| {}).await;
 
@@ -3368,6 +3617,74 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn response_stream_reservation_follows_bytes_into_the_transport() {
+        let context = test_context(|_| {}).await;
+        let requested_bytes = HTTP_RESPONSE_STREAM_RESERVATION_BYTES;
+        let permit = context
+            .state
+            .memory
+            .acquire_response_stream_memory(
+                requested_bytes,
+                "http",
+                ResponseStreamAdmissionPatience::Degradable,
+            )
+            .await
+            .expect("response stream should be admitted");
+        let mut response = Response::new(Body::from("payload"));
+        attach_response_stream_permit(&mut response, permit);
+        let mut response = guard_response_stream_transport(response).await;
+
+        let frame = response
+            .body_mut()
+            .frame()
+            .await
+            .expect("body should yield a frame")
+            .expect("frame should be valid");
+        let bytes = frame.into_data().expect("frame should contain data");
+        drop(response);
+
+        assert_eq!(
+            context.state.memory.transient_reserved_bytes(),
+            requested_bytes as u64,
+            "transport-owned bytes must keep the complete bounded reservation"
+        );
+        drop(bytes);
+        assert_eq!(context.state.memory.transient_reserved_bytes(), 0);
+    }
+
+    #[tokio::test]
+    async fn materialized_response_reservation_follows_encoded_transport_bytes() {
+        let context = test_context(|_| {}).await;
+        let content_bytes = 64 * 1024;
+        let permit = context
+            .state
+            .memory
+            .try_acquire_response_materialization(content_bytes)
+            .expect("materialized response should be admitted")
+            .expect("non-empty response should return a permit");
+        let mut response = Response::new(Body::from(vec![0_u8; content_bytes]));
+        response.extensions_mut().insert(
+            crate::memory::ResponseTransportGuard::from_materialization_permits(vec![permit]),
+        );
+        let mut response = guard_response_stream_transport(response).await;
+
+        let frame = response
+            .body_mut()
+            .frame()
+            .await
+            .expect("body should yield a frame")
+            .expect("frame should be valid");
+        let bytes = frame.into_data().expect("frame should contain data");
+        drop(response);
+        assert_eq!(
+            context.state.memory.transient_reserved_bytes(),
+            (content_bytes * 2) as u64
+        );
+        drop(bytes);
+        assert_eq!(context.state.memory.transient_reserved_bytes(), 0);
+    }
+
+    #[tokio::test]
     async fn bytes_chunks_reassembles_multi_chunk_payloads() {
         use futures_util::StreamExt;
 
@@ -3434,9 +3751,16 @@ mod tests {
             .to_bytes();
         assert_eq!(mmap_body.as_ref(), payload.as_slice());
 
-        // Force memory pressure so mmap serving is skipped and the streaming
-        // reader path serves the same artifact; the bytes must be identical.
-        context.state.memory.observe(u64::MAX);
+        // Force constrained memory pressure so mmap serving is skipped while
+        // leaving exactly one bounded streaming reservation available; the
+        // reader fallback must serve identical bytes.
+        context.state.memory.observe(
+            context
+                .state
+                .memory
+                .hard_limit_bytes()
+                .saturating_sub(HTTP_RESPONSE_STREAM_RESERVATION_BYTES as u64),
+        );
 
         let reader_response = app
             .oneshot(get_request())
@@ -3456,6 +3780,122 @@ mod tests {
         assert!(metrics.contains("producer=\"xcode\""));
         assert!(metrics.contains("result=\"ok\""));
         assert!(metrics.contains(&format!("{}", payload.len() * 2)));
+    }
+
+    #[tokio::test]
+    async fn a_public_read_sheds_when_no_bounded_stream_reservation_remains() {
+        let context = test_context(|_| {}).await;
+        let app = router(context.state.clone());
+        let payload: Vec<u8> = (0..(512 * 1024 + 13))
+            .map(|index| (index % 251) as u8)
+            .collect();
+
+        let put_response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/cache/cas/degraded-read?tenant_id=acme&namespace_id=ios")
+                    .header("content-type", "application/octet-stream")
+                    .body(Body::from(payload.clone()))
+                    .expect("failed to build put request"),
+            )
+            .await
+            .expect("put request failed");
+        assert_eq!(put_response.status(), StatusCode::NO_CONTENT);
+
+        // Leave no transient headroom at all, so both the weighted pool and the
+        // ledger refuse the full four-buffer reservation.
+        context
+            .state
+            .memory
+            .observe(context.state.memory.hard_limit_bytes());
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/cache/cas/degraded-read?tenant_id=acme&namespace_id=ios")
+                    .body(Body::empty())
+                    .expect("failed to build get request"),
+            )
+            .await
+            .expect("get request failed");
+
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        assert_eq!(
+            response.headers().get(axum::http::header::RETRY_AFTER),
+            Some(&HeaderValue::from_static("1"))
+        );
+        assert!(
+            context
+                .state
+                .metrics
+                .render()
+                .contains("outcome=\"degraded_memory_unavailable\"")
+        );
+    }
+
+    #[tokio::test]
+    async fn a_public_read_uses_the_bounded_degraded_pool_when_full_size_admission_is_exhausted() {
+        let context = test_context(|_| {}).await;
+        let app = router(context.state.clone());
+        let payload: Vec<u8> = (0..(512 * 1024 + 13))
+            .map(|index| (index % 251) as u8)
+            .collect();
+
+        let put_response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/cache/cas/degraded-read?tenant_id=acme&namespace_id=ios")
+                    .header("content-type", "application/octet-stream")
+                    .body(Body::from(payload.clone()))
+                    .expect("failed to build put request"),
+            )
+            .await
+            .expect("put request failed");
+        assert_eq!(put_response.status(), StatusCode::NO_CONTENT);
+
+        let _held = context
+            .state
+            .memory
+            .acquire_response_stream_memory(
+                context
+                    .state
+                    .memory
+                    .foreground_response_streaming_pool_bytes(),
+                "test",
+                ResponseStreamAdmissionPatience::Blocking,
+            )
+            .await
+            .expect("the full-size response pool should start available");
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/cache/cas/degraded-read?tenant_id=acme&namespace_id=ios")
+                    .body(Body::empty())
+                    .expect("failed to build get request"),
+            )
+            .await
+            .expect("get request failed");
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = response
+            .into_body()
+            .collect()
+            .await
+            .expect("failed to collect degraded body")
+            .to_bytes();
+        assert_eq!(body.as_ref(), payload.as_slice());
+        assert!(
+            context
+                .state
+                .metrics
+                .render()
+                .contains("outcome=\"degraded\"")
+        );
     }
 
     #[tokio::test]
@@ -4288,6 +4728,17 @@ mod tests {
         assert_eq!(context.state.runtime.public_http_inflight(), 1);
         drop(instrumented);
         assert_eq!(context.state.runtime.public_http_inflight(), 0);
+    }
+
+    #[test]
+    fn response_stream_admission_failure_is_retryable() {
+        let response = response_stream_unavailable();
+
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        assert_eq!(
+            response.headers().get(axum::http::header::RETRY_AFTER),
+            Some(&HeaderValue::from_static("1"))
+        );
     }
 
     #[derive(Clone, Debug)]
