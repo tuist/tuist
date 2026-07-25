@@ -200,15 +200,6 @@ defmodule Tuist.Kura.Regions do
       # installed on the pool out-of-band).
       storage_class: "scw-local-nvme",
       storage_size: "50Gi",
-      # No disk_envelope_size override: this region derives the mesh-standard
-      # ~40GiB ring (storage_size after reserves), the same budget every managed
-      # region uses. A per-account node here peers with the account's other
-      # regions under one mesh, and a peer only reaches "caught up" (Ready) if its
-      # ring can hold the set its peers serve — so every region must size its ring
-      # the same, or a larger ring here leaves a smaller-ringed peer (e.g.
-      # eu-central) evicting-and-refetching forever, never Ready, serving an
-      # incomplete CAS that fails clang builds. Uniform 40GiB per account also
-      # keeps this shared ~900G node well clear of the box's disk envelope.
       runner_platforms: [:macos],
       # The macOS Tart VMs reach this pool over a Scaleway Private
       # Network, not the cluster's pod network, so cluster Service DNS
