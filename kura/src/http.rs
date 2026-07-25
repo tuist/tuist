@@ -1074,6 +1074,7 @@ async fn rollout_status(State(state): State<SharedState>) -> impl IntoResponse {
         "ready": status.ready,
         "state": status.state.as_str(),
         "ring_members": status.ring_members,
+        "ring_fingerprint": status.ring_fingerprint,
         "initial_discovery_completed": status.initial_discovery_completed,
         "writer_lock_owned": status.writer_lock_owned,
         "bootstrap_known_peers": status.bootstrap_known_peers,
@@ -3041,6 +3042,11 @@ mod tests {
         assert_eq!(body["memory_pressure_state"], 0);
         assert_eq!(body["fd_timeout_count"], 1);
         assert_eq!(body["peer_connection_failure_count"], 1);
+        let fingerprint = body["ring_fingerprint"]
+            .as_str()
+            .expect("ring fingerprint should be a string");
+        assert_eq!(fingerprint.len(), 16);
+        assert!(fingerprint.chars().all(|c| c.is_ascii_hexdigit()));
     }
 
     #[tokio::test]

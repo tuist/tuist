@@ -329,6 +329,22 @@ defmodule Tuist.Environment do
   end
 
   @doc """
+  Whether this process is the deployment that owns the Kura control
+  plane. Booting in web mode is not proof: an ops eval Job boots the
+  application with the server's envFrom secrets but not its manifest env
+  list, and its reconcile would read the secrets-blob runtime-tag
+  fallback (a stale blob tag superseded a live rollout on staging that
+  way). The helm-injected env var is the discriminator that fails safe:
+  only the server Deployment's manifest carries it.
+  """
+  def kura_control_plane? do
+    case System.get_env("TUIST_KURA_RUNTIME_IMAGE_TAG") do
+      tag when is_binary(tag) and tag != "" -> true
+      _ -> false
+    end
+  end
+
+  @doc """
   Account handles of the Tuist-owned accounts that make up wave 0 (the
   canary) of a progressive Kura runtime rollout. Comma-separated in
   `TUIST_KURA_CANARY_ACCOUNT_HANDLES`; matching is case-insensitive.

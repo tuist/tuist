@@ -182,6 +182,7 @@ type runtimeStatus struct {
 	Ready                      bool   `json:"ready"`
 	State                      string `json:"state"`
 	RingMembers                int    `json:"ring_members"`
+	RingFingerprint            string `json:"ring_fingerprint"`
 	WriterLockOwned            bool   `json:"writer_lock_owned"`
 	Generation                 uint64 `json:"generation"`
 	BootstrapInflightPeers     int64  `json:"bootstrap_inflight_peers"`
@@ -1841,6 +1842,7 @@ func (r *KuraInstanceReconciler) aggregateRolloutHealth(
 	health := &kurav1alpha1.KuraInstanceRolloutHealth{ExpectedPods: expected}
 	var oldest time.Time
 	var ringMembers int
+	var ringFingerprints []string
 	ringConsistent := true
 	allReady := true
 	allServing := true
@@ -1850,8 +1852,15 @@ func (r *KuraInstanceReconciler) aggregateRolloutHealth(
 			continue
 		}
 		// The runtime's generation is a process-local change counter, so
-		// absolute values never agree across pods; the ring size the pods
-		// have converged on is the comparable mesh-view signal.
+		// absolute values never agree across pods. The ring fingerprint (a
+		// digest of the sorted member identities) is the comparable
+		// mesh-view signal: equal ring sizes alone cannot prove the views
+		// match — three pods can each see two members from different peer
+		// subsets. Runtimes predating the fingerprint contribute only the
+		// size comparison until the fleet catches up.
+		if sample.status.RingFingerprint != "" {
+			ringFingerprints = append(ringFingerprints, sample.status.RingFingerprint)
+		}
 		if health.SampledPods == 0 {
 			ringMembers = sample.status.RingMembers
 		} else if sample.status.RingMembers != ringMembers {
@@ -1869,6 +1878,14 @@ func (r *KuraInstanceReconciler) aggregateRolloutHealth(
 		}
 		if oldest.IsZero() || sample.sampledAt.Before(oldest) {
 			oldest = sample.sampledAt
+		}
+	}
+	// A mismatch between any two fingerprinted pods is a true
+	// inconsistency, whatever the rest of the fleet reports.
+	for i := 1; i < len(ringFingerprints); i++ {
+		if ringFingerprints[i] != ringFingerprints[0] {
+			ringConsistent = false
+			break
 		}
 	}
 	// The conjunctions require every expected pod to have a report: a pod

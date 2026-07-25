@@ -2622,6 +2622,68 @@ func TestAggregateRolloutHealthHealthyConjunctions(t *testing.T) {
 	}
 }
 
+func TestAggregateRolloutHealthComparesRingFingerprints(t *testing.T) {
+	const name = "kura-tuist-eu-1"
+	instance := &kurav1alpha1.KuraInstance{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "kura"},
+		Spec:       kurav1alpha1.KuraInstanceSpec{Replicas: ptr(int32(2))},
+	}
+	pods := []corev1.Pod{
+		*kuraPod(name, "kura", 0, true),
+		*kuraPod(name, "kura", 1, true),
+	}
+	reconciler := &KuraInstanceReconciler{
+		RuntimeStatusClient: fakeRuntimeStatusClient{
+			statuses: map[string]runtimeStatus{
+				// Equal ring sizes but disjoint member views: size-only
+				// comparison would wrongly report a consistent ring.
+				name + "-0": {Ready: true, State: "serving", WriterLockOwned: true, RingMembers: 2, RingFingerprint: "aaaa000011112222"},
+				name + "-1": {Ready: true, State: "serving", RingMembers: 2, RingFingerprint: "bbbb000011112222"},
+			},
+		},
+	}
+
+	reconciler.sampleRuntimeStatuses(context.Background(), instance, pods)
+	health := reconciler.aggregateRolloutHealth(instance, pods)
+
+	if health.RingConsistent {
+		t.Fatal("expected differing ring fingerprints to clear RingConsistent despite equal sizes")
+	}
+	if !health.Ready || !health.Serving {
+		t.Fatalf("expected the other conjunctions to be unaffected, got %+v", health)
+	}
+}
+
+func TestAggregateRolloutHealthMatchingFingerprintsStayConsistent(t *testing.T) {
+	const name = "kura-tuist-eu-1"
+	instance := &kurav1alpha1.KuraInstance{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "kura"},
+		Spec:       kurav1alpha1.KuraInstanceSpec{Replicas: ptr(int32(2))},
+	}
+	pods := []corev1.Pod{
+		*kuraPod(name, "kura", 0, true),
+		*kuraPod(name, "kura", 1, true),
+	}
+	reconciler := &KuraInstanceReconciler{
+		RuntimeStatusClient: fakeRuntimeStatusClient{
+			statuses: map[string]runtimeStatus{
+				// A runtime predating the fingerprint (empty string) only
+				// contributes the size comparison; the fingerprinted pod
+				// cannot be declared inconsistent against it.
+				name + "-0": {Ready: true, State: "serving", WriterLockOwned: true, RingMembers: 2, RingFingerprint: "aaaa000011112222"},
+				name + "-1": {Ready: true, State: "serving", RingMembers: 2},
+			},
+		},
+	}
+
+	reconciler.sampleRuntimeStatuses(context.Background(), instance, pods)
+	health := reconciler.aggregateRolloutHealth(instance, pods)
+
+	if !health.RingConsistent {
+		t.Fatalf("expected a legacy pod without a fingerprint to fall back to size comparison, got %+v", health)
+	}
+}
+
 func TestAggregateRolloutHealthClampsCounterResets(t *testing.T) {
 	// A pod restart resets its process-local counters; the published
 	// aggregate must never go backwards because of it.

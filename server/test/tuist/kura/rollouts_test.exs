@@ -222,6 +222,26 @@ defmodule Tuist.Kura.RolloutsTest do
       assert Rollouts.provisioning_image_tag(account.id, @target_tag) == @baseline_tag
     end
 
+    test "critical memory pressure pauses an expedited rollout" do
+      %{server: server} = create_active_server()
+
+      assert :ok = Rollouts.sync()
+      rollout = Rollouts.active_rollout()
+      assert rollout.mode == :expedited
+
+      {:ok, _} = Kura.activate_server(Repo.get!(Server, server.id), @target_tag)
+
+      stub(Provisioner, :rollout_health, fn _server ->
+        {:ok, healthy_health(%{memory_pressure_state: 2})}
+      end)
+
+      assert :ok = Rollouts.sync()
+
+      reloaded = Repo.get!(Rollout, rollout.id)
+      assert reloaded.status == :paused
+      assert reloaded.pause_reason == "memory_pressure_critical"
+    end
+
     test "pauses on a terminal deployment failure" do
       %{server: server} = create_active_server()
 
@@ -410,6 +430,23 @@ defmodule Tuist.Kura.RolloutsTest do
       :ok
     end
 
+    test "a pre-existing ring skew makes the server soak-ineligible instead of gating its fix" do
+      %{account: canary_account, server: canary_server} = create_active_server()
+
+      stub(Tuist.Environment, :kura_canary_account_handles, fn -> [String.downcase(canary_account.name)] end)
+
+      stub(Provisioner, :rollout_health, fn _server ->
+        {:ok, healthy_health(%{ring_consistent: false})}
+      end)
+
+      assert :ok = Rollouts.sync()
+      rollout = Rollouts.active_rollout()
+
+      rollout_server = rollout_server(rollout, canary_server)
+      refute rollout_server.soak_eligible
+      assert rollout_server.deployment_id
+    end
+
     test "resume re-attempts failed deployments with a fresh attempt" do
       %{account: canary_account, server: canary_server} = create_active_server()
 
@@ -529,6 +566,43 @@ defmodule Tuist.Kura.RolloutsTest do
 
       assert Rollouts.provisioning_image_tag(canary_account.id, @target_tag) == @target_tag
       assert Rollouts.provisioning_image_tag(customer_account.id, @target_tag) == @baseline_tag
+    end
+
+    test "a superseding rollout keeps fresh servers on the account's actual tag, not the oldest baseline" do
+      %{account: upgraded_account, server: upgraded_server} = create_active_server()
+      %{account: pending_account} = create_active_server()
+
+      stub(Tuist.Environment, :kura_canary_account_handles, fn -> [String.downcase(upgraded_account.name)] end)
+      stub(Tuist.FeatureFlags, :kura_rollout_orchestration_enabled?, fn -> true end)
+
+      # Rollout B (baseline A): the canary account converges and its wave
+      # completes; the other account's wave never runs.
+      assert :ok = Rollouts.sync()
+      rollout_b = Rollouts.active_rollout()
+
+      {1, _} =
+        Rollout
+        |> where([r], r.id == ^rollout_b.id)
+        |> Repo.update_all(set: [baseline_image_tag: @baseline_tag])
+
+      {:ok, _} = Kura.activate_server(Repo.get!(Server, upgraded_server.id), @target_tag)
+      assert :ok = Rollouts.sync()
+      back_date(Repo.get!(Rollout, rollout_b.id), :wave_healthy_since, 16 * 60)
+      assert :ok = Rollouts.sync()
+      assert Repo.get!(Rollout, rollout_b.id).current_wave == 1
+
+      # Rollout C supersedes B; its global baseline chains back to A.
+      stub(Tuist.Environment, :kura_runtime_image_tag, fn -> "0.7.0" end)
+      assert :ok = Rollouts.sync()
+
+      rollout_c = Rollouts.active_rollout()
+      assert rollout_c.image_tag == "0.7.0"
+      assert rollout_c.baseline_image_tag == @baseline_tag
+
+      # The upgraded account's mesh runs B: a fresh server must get B, not
+      # regress to A. The never-upgraded account stays on A.
+      assert Rollouts.provisioning_image_tag(upgraded_account.id, "0.7.0") == @target_tag
+      assert Rollouts.provisioning_image_tag(pending_account.id, "0.7.0") == @baseline_tag
     end
 
     test "returns the default when orchestration is disabled" do

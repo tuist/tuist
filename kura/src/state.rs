@@ -127,6 +127,7 @@ pub struct RolloutStatusReport {
     pub memory_pressure_state: i64,
     pub fd_timeout_count: u64,
     pub peer_connection_failure_count: u64,
+    pub ring_fingerprint: String,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -616,11 +617,16 @@ impl AppState {
         let ready = writer_lock_owned && !draining && self.runtime.is_serving();
         let metrics = self.metrics.rollout_metrics_snapshot();
 
+        let mut ring: Vec<String> = snapshot.known_peers.clone();
+        ring.push(self.config.node_url.clone());
+        ring.sort();
+
         RolloutStatusReport {
             generation: snapshot.generation,
             ready,
             state: self.runtime.traffic_state(),
-            ring_members: snapshot.known_peers.len() + 1,
+            ring_members: ring.len(),
+            ring_fingerprint: ring_fingerprint(&ring),
             initial_discovery_completed: snapshot.initial_discovery_completed,
             writer_lock_owned,
             bootstrap_known_peers: snapshot.known_peers.len(),
@@ -660,6 +666,21 @@ impl AppState {
     }
 }
 
+/// Stable digest of the sorted ring member identities. Two pods can report
+/// equal ring sizes while seeing different peer subsets, so the controller's
+/// cross-pod consistency check compares fingerprints, not counts.
+pub fn ring_fingerprint(sorted_members: &[String]) -> String {
+    use sha2::{Digest, Sha256};
+
+    let mut hasher = Sha256::new();
+    for member in sorted_members {
+        hasher.update(member.as_bytes());
+        hasher.update([0u8]);
+    }
+    let digest = hasher.finalize();
+    hex::encode(&digest[..8])
+}
+
 #[cfg(test)]
 mod tests {
     use tokio::sync::Barrier;
@@ -667,6 +688,16 @@ mod tests {
     use crate::test_support::test_context;
 
     use super::*;
+
+    #[test]
+    fn ring_fingerprint_distinguishes_equal_sized_rings() {
+        let ring_a = vec!["https://a:7443".to_string(), "https://b:7443".to_string()];
+        let ring_b = vec!["https://a:7443".to_string(), "https://c:7443".to_string()];
+
+        assert_eq!(ring_fingerprint(&ring_a), ring_fingerprint(&ring_a));
+        assert_ne!(ring_fingerprint(&ring_a), ring_fingerprint(&ring_b));
+        assert_eq!(ring_fingerprint(&ring_a).len(), 16);
+    }
 
     #[test]
     fn readiness_state_advances_generation_and_reconciles_peer_sets() {

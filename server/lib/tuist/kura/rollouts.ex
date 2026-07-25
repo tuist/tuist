@@ -240,10 +240,21 @@ defmodule Tuist.Kura.Rollouts do
   def provisioning_image_tag(account_id, default_tag) do
     if Tuist.FeatureFlags.kura_rollout_orchestration_enabled?() do
       case active_rollout() do
-        nil -> default_tag
-        %Rollout{status: :paused} = rollout -> rollout.baseline_image_tag || default_tag
-        %Rollout{mode: :progressive} = rollout -> inherited_image_tag(rollout, account_id, default_tag)
-        %Rollout{mode: :expedited} -> default_tag
+        nil ->
+          default_tag
+
+        %Rollout{status: :paused} = rollout ->
+          # A pause stops the suspect target from spreading to meshes that
+          # do not run it — it must not force skew into meshes that
+          # already do, so a fresh server matches its account's mesh
+          # first and only falls back to the rollout baseline.
+          account_current_image_tag(account_id) || rollout.baseline_image_tag || default_tag
+
+        %Rollout{mode: :progressive} = rollout ->
+          inherited_image_tag(rollout, account_id, default_tag)
+
+        %Rollout{mode: :expedited} ->
+          default_tag
       end
     else
       default_tag
@@ -260,8 +271,28 @@ defmodule Tuist.Kura.Rollouts do
     if not is_nil(wave) and wave < rollout.current_wave do
       rollout.image_tag
     else
-      rollout.baseline_image_tag || default_tag
+      # Pre-wave, a fresh server matches what the account's mesh actually
+      # runs, not the rollout's global baseline: in a supersede chain
+      # (A -> B superseded by C) an account already upgraded to B would
+      # otherwise get A — the exact intra-mesh skew wave grouping exists
+      # to prevent.
+      account_current_image_tag(account_id) || rollout.baseline_image_tag || default_tag
     end
+  end
+
+  # The tag the account's mesh is actually on: the most common
+  # current_image_tag across its live servers (a mesh is homogeneous
+  # outside its own wave; the mode tolerates a mid-wave snapshot).
+  defp account_current_image_tag(account_id) do
+    Server
+    |> where([s], s.account_id == ^account_id)
+    |> where([s], s.status in ^@rollout_server_statuses and s.move_phase == :none)
+    |> where([s], not is_nil(s.current_image_tag))
+    |> group_by([s], s.current_image_tag)
+    |> order_by([s], desc: count(s.id), asc: s.current_image_tag)
+    |> limit(1)
+    |> select([s], s.current_image_tag)
+    |> Repo.one()
   end
 
   ## Rollout minting and supersede
@@ -406,13 +437,25 @@ defmodule Tuist.Kura.Rollouts do
       Enum.map(wave_two, &{elem(&1, 0), 2}) ++ Enum.map(wave_three, &{elem(&1, 0), @last_wave})
   end
 
+  defp insert_wave_assignments(_rollout, []), do: :ok
+
   defp insert_wave_assignments(rollout, assignments) do
-    Enum.each(assignments, fn {account_id, wave} ->
-      {:ok, _} =
-        %{kura_rollout_id: rollout.id, account_id: account_id, wave: wave}
-        |> RolloutWaveAssignment.create_changeset()
-        |> Repo.insert()
-    end)
+    timestamp = now()
+
+    rows =
+      Enum.map(assignments, fn {account_id, wave} ->
+        %{
+          id: Ecto.UUID.generate(),
+          kura_rollout_id: rollout.id,
+          account_id: account_id,
+          wave: wave,
+          inserted_at: timestamp,
+          updated_at: timestamp
+        }
+      end)
+
+    {_count, _} = Repo.insert_all(RolloutWaveAssignment, rows)
+    :ok
   end
 
   defp fraction_count(0, _fraction), do: 0
@@ -473,11 +516,25 @@ defmodule Tuist.Kura.Rollouts do
       failure = hard_failure(rollout) ->
         pause_rollout(rollout, failure)
 
+      failure = critical_gate_signal(rollout) ->
+        # Expedited mode skips the comparative soak, never the hard
+        # signals: critical memory pressure on an updated server pauses
+        # here too — the canary environment runs expedited, and its
+        # rollout record gates production promotion.
+        pause_rollout(rollout, failure)
+
       all_converged?(rollout) ->
         complete_rollout(rollout)
 
       true ->
         :ok
+    end
+  end
+
+  defp critical_gate_signal(rollout) do
+    case gate_failure(rollout) do
+      {:critical, details} -> {details.signal, details}
+      _ -> nil
     end
   end
 
@@ -576,12 +633,8 @@ defmodule Tuist.Kura.Rollouts do
       |> select([s], s.account_id)
       |> Repo.all()
 
-    Enum.each(missing, fn account_id ->
-      {:ok, _} =
-        %{kura_rollout_id: rollout.id, account_id: account_id, wave: max(max_wave(rollout), @last_wave)}
-        |> RolloutWaveAssignment.create_changeset()
-        |> Repo.insert()
-    end)
+    wave = max(max_wave(rollout), @last_wave)
+    insert_wave_assignments(rollout, Enum.map(missing, &{&1, wave}))
   end
 
   # Servers of accounts assigned to waves <= max_open_wave that are not
@@ -723,8 +776,13 @@ defmodule Tuist.Kura.Rollouts do
     end
   end
 
+  # Mirrors every absolute condition the post-upgrade gate checks
+  # (including ring consistency): a server failing any of them before its
+  # wave schedules would read that pre-existing sickness as a regression
+  # the new image caused, so it is excluded from the comparative soak.
   defp baseline_healthy?(health) do
-    health.ready and health.serving and health.sampled_pods >= health.expected_pods and
+    health.ready and health.serving and health.ring_consistent and
+      health.sampled_pods >= health.expected_pods and
       health.memory_pressure_state < 2 and fresh_sample?(health)
   end
 
