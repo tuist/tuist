@@ -25,6 +25,8 @@ RUN npm install -g --ignore-scripts=false @endevco/aube@1.6.2
 COPY package.json aube-lock.yaml /app/noora/
 COPY js/ /app/noora/js/
 COPY css/ /app/noora/css/
+COPY components/ /app/noora/components/
+COPY scripts/ /app/noora/scripts/
 COPY lib/ /app/noora/lib/
 COPY mix.exs README.md /app/noora/
 
