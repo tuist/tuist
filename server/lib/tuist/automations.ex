@@ -27,6 +27,7 @@ defmodule Tuist.Automations do
   # project-wide identifier set as one scan.
   @max_scoped_evaluation_range_size 2000
   @minimum_scoped_evaluation_ranges 4
+  @max_scoped_evaluation_window_seconds [hour: 1] |> to_timeout() |> div(1000)
 
   def list_alerts(project_id) do
     Alert
@@ -200,37 +201,44 @@ defmodule Tuist.Automations do
   end
 
   def recent_test_case_run_changes_for_alert(%Alert{} = alert) do
-    recent_test_case_run_changes(alert.project_id, scoped_evaluation_query_since(alert))
+    now = DateTime.utc_now(:second)
+    cursor = scoped_evaluation_cursor(alert, now)
+    recent_test_case_run_changes(alert.project_id, cursor, now)
   end
 
   def recent_test_case_run_changes_for_alerts([%Alert{} = alert | _alerts] = alerts) do
-    since =
+    now = DateTime.utc_now(:second)
+
+    cursor =
       alerts
-      |> Enum.map(&scoped_evaluation_query_since/1)
+      |> Enum.map(&scoped_evaluation_cursor(&1, now))
       |> Enum.min(DateTime)
 
-    recent_test_case_run_changes(alert.project_id, since)
+    recent_test_case_run_changes(alert.project_id, cursor, now)
   end
 
-  defp recent_test_case_run_changes(project_id, since) do
-    rows =
+  defp recent_test_case_run_changes(project_id, cursor, now) do
+    query_start = DateTime.add(cursor, -scoped_evaluation_cursor_lookback_seconds(), :second)
+
+    window_end = Enum.min([DateTime.add(cursor, @max_scoped_evaluation_window_seconds, :second), now], DateTime)
+
+    test_case_ids =
       ClickHouseRepo.all(
         from(r in {"test_case_runs_by_inserted_at", TestCaseRun},
           where: r.project_id == ^project_id,
           where: not is_nil(r.test_case_id),
-          where: r.inserted_at >= ^DateTime.to_naive(since),
+          where: r.inserted_at >= ^DateTime.to_naive(query_start),
+          where: r.inserted_at < ^DateTime.to_naive(window_end),
           group_by: r.test_case_id,
           order_by: [asc: r.test_case_id],
-          select: %{
-            test_case_id: r.test_case_id,
-            last_inserted_at: max(r.inserted_at)
-          }
+          select: r.test_case_id
         )
       )
 
     %{
-      test_case_ids: Enum.map(rows, & &1.test_case_id),
-      cursor: latest_inserted_at_cursor(rows) || DateTime.utc_now(:second)
+      test_case_ids: test_case_ids,
+      cursor: window_end,
+      more?: DateTime.before?(window_end, now)
     }
   end
 
@@ -295,13 +303,8 @@ defmodule Tuist.Automations do
     div(Environment.clickhouse_flush_interval_ms(), 1000) + 1
   end
 
-  defp scoped_evaluation_query_since(%Alert{last_scoped_evaluation_inserted_at: nil}) do
-    DateTime.add(DateTime.utc_now(:second), -scoped_evaluation_cursor_lookback_seconds(), :second)
-  end
-
-  defp scoped_evaluation_query_since(%Alert{last_scoped_evaluation_inserted_at: cursor}) do
-    DateTime.add(cursor, -scoped_evaluation_cursor_lookback_seconds(), :second)
-  end
+  defp scoped_evaluation_cursor(%Alert{last_scoped_evaluation_inserted_at: nil}, now), do: now
+  defp scoped_evaluation_cursor(%Alert{last_scoped_evaluation_inserted_at: cursor}, _now), do: cursor
 
   defp scoped_evaluation_cursor_lookback_seconds do
     max(alert_evaluation_schedule_in(), 10)
@@ -311,27 +314,6 @@ defmodule Tuist.Automations do
 
   defp later_cursor(current_cursor, cursor) do
     Enum.max([current_cursor, cursor], DateTime)
-  end
-
-  defp latest_inserted_at_cursor([]), do: nil
-
-  defp latest_inserted_at_cursor(rows) do
-    rows
-    |> Enum.map(&clickhouse_datetime_to_utc_datetime(&1.last_inserted_at))
-    |> Enum.max_by(&DateTime.to_unix(&1, :microsecond))
-    |> DateTime.truncate(:second)
-  end
-
-  defp clickhouse_datetime_to_utc_datetime(%DateTime{} = datetime) do
-    datetime
-    |> DateTime.shift_zone!("Etc/UTC")
-    |> DateTime.truncate(:second)
-  end
-
-  defp clickhouse_datetime_to_utc_datetime(%NaiveDateTime{} = datetime) do
-    datetime
-    |> NaiveDateTime.truncate(:second)
-    |> DateTime.from_naive!("Etc/UTC")
   end
 
   @doc """

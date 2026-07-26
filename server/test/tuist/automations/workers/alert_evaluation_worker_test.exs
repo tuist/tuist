@@ -151,14 +151,14 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     automation =
       AutomationsFixtures.automation_alert_fixture(trigger_actions: [%{"type" => "change_state", "state" => "muted"}])
 
+    {:ok, automation} =
+      Automations.update_alert_scoped_evaluation_cursor(automation, ~U[2026-06-09 09:00:02Z])
+
     [first_id, second_id] = Enum.map(1..2, fn _ -> Ecto.UUID.generate() end)
     test_pid = self()
 
     expect(ClickHouseRepo, :all, fn _query ->
-      [
-        %{test_case_id: first_id, last_inserted_at: ~N[2026-06-09 10:00:01]},
-        %{test_case_id: second_id, last_inserted_at: ~N[2026-06-09 10:00:02]}
-      ]
+      [first_id, second_id]
     end)
 
     reject(&FlakyTestsMonitor.evaluate/1)
@@ -186,6 +186,54 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
 
     assert {:ok, updated} = Automations.get_alert(automation.id)
     assert updated.last_scoped_evaluation_inserted_at == ~U[2026-06-09 10:00:02Z]
+  end
+
+  test "ingestion-driven job keeps the cursor when evaluation fails" do
+    automation = AutomationsFixtures.automation_alert_fixture()
+
+    {:ok, automation} =
+      Automations.update_alert_scoped_evaluation_cursor(automation, ~U[2026-06-09 09:00:00Z])
+
+    test_case_id = Ecto.UUID.generate()
+
+    expect(ClickHouseRepo, :all, fn _query -> [test_case_id] end)
+
+    expect(FlakyTestsMonitor, :evaluate, fn ^automation, [^test_case_id] ->
+      raise "evaluation failed"
+    end)
+
+    reject(&ActionExecutor.execute_actions/3)
+    reject(&Automations.create_alert_event/1)
+
+    assert_raise RuntimeError, "evaluation failed", fn ->
+      run_recent_test_case_runs(automation.id)
+    end
+
+    assert {:ok, unchanged} = Automations.get_alert(automation.id)
+    assert unchanged.last_scoped_evaluation_inserted_at == ~U[2026-06-09 09:00:00Z]
+    assert all_enqueued(worker: AlertEvaluationWorker) == []
+  end
+
+  test "ingestion-driven job advances and continues across an empty backlog window" do
+    automation = AutomationsFixtures.automation_alert_fixture()
+
+    {:ok, automation} =
+      Automations.update_alert_scoped_evaluation_cursor(automation, ~U[2026-06-09 09:00:00Z])
+
+    expect(ClickHouseRepo, :all, fn _query -> [] end)
+    reject(&FlakyTestsMonitor.evaluate/2)
+    reject(&ActionExecutor.execute_actions/3)
+    reject(&Automations.create_alert_event/1)
+
+    assert :ok = run_recent_test_case_runs(automation.id)
+
+    assert {:ok, updated} = Automations.get_alert(automation.id)
+    assert updated.last_scoped_evaluation_inserted_at == ~U[2026-06-09 10:00:00Z]
+
+    assert [%{args: %{"project_id" => project_id, "evaluate_recent_test_case_runs" => true}}] =
+             all_enqueued(worker: AlertEvaluationWorker)
+
+    assert project_id == automation.project_id
   end
 
   test "project-scoped job shares rolling measurements across compatible alerts" do
@@ -224,7 +272,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     test_case_id = Ecto.UUID.generate()
 
     expect(ClickHouseRepo, :all, fn _query ->
-      [%{test_case_id: test_case_id, last_inserted_at: ~N[2026-06-09 10:00:02]}]
+      [test_case_id]
     end)
 
     reject(&FlakyTestsMonitor.evaluate/1)
@@ -243,8 +291,8 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
 
     assert {:ok, updated_first_alert} = Automations.get_alert(first_alert.id)
     assert {:ok, updated_second_alert} = Automations.get_alert(second_alert.id)
-    assert updated_first_alert.last_scoped_evaluation_inserted_at == ~U[2026-06-09 10:00:10Z]
-    assert updated_second_alert.last_scoped_evaluation_inserted_at == ~U[2026-06-09 10:00:02Z]
+    assert updated_first_alert.last_scoped_evaluation_inserted_at == ~U[2026-06-09 11:00:00Z]
+    assert updated_second_alert.last_scoped_evaluation_inserted_at == ~U[2026-06-09 11:00:00Z]
   end
 
   test "project-scoped job isolates an unsupported alert from valid alerts" do
@@ -297,10 +345,16 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     )
     |> Repo.update!()
 
+    {:ok, valid_alert} =
+      Automations.update_alert_scoped_evaluation_cursor(valid_alert, ~U[2026-06-09 09:00:02Z])
+
+    {:ok, second_valid_alert} =
+      Automations.update_alert_scoped_evaluation_cursor(second_valid_alert, ~U[2026-06-09 09:00:02Z])
+
     test_case_id = Ecto.UUID.generate()
 
     expect(ClickHouseRepo, :all, fn _query ->
-      [%{test_case_id: test_case_id, last_inserted_at: ~N[2026-06-09 10:00:02]}]
+      [test_case_id]
     end)
 
     reject(&FlakyTestsMonitor.evaluate/2)
@@ -335,13 +389,12 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
 
   test "ingestion-driven job chunks large affected sets" do
     automation = AutomationsFixtures.automation_alert_fixture()
+    {:ok, automation} = Automations.update_alert_scoped_evaluation_cursor(automation, ~U[2026-06-09 09:00:00Z])
     test_case_ids = Enum.map(1..4001, fn _ -> Ecto.UUID.generate() end)
     test_pid = self()
 
     expect(ClickHouseRepo, :all, fn _query ->
-      Enum.map(test_case_ids, fn test_case_id ->
-        %{test_case_id: test_case_id, last_inserted_at: ~N[2026-06-09 10:00:00]}
-      end)
+      test_case_ids
     end)
 
     expect(FlakyTestsMonitor, :evaluate, 5, fn ^automation, chunk ->
