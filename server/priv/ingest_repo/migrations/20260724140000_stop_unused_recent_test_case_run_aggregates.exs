@@ -24,6 +24,8 @@ defmodule Tuist.IngestRepo.Migrations.StopUnusedRecentTestCaseRunAggregates do
 
   alias Tuist.IngestRepo
 
+  require Logger
+
   @disable_ddl_transaction true
   @disable_migration_lock true
   @automatic_merge_setting "max_bytes_to_merge_at_max_space_in_pool"
@@ -57,50 +59,25 @@ defmodule Tuist.IngestRepo.Migrations.StopUnusedRecentTestCaseRunAggregates do
     cluster_available? = cloud_cluster_available?()
     assert_views_present!(@active_materialized_views, database, cluster_available?)
 
-    previous_merge_settings =
-      automatic_merge_settings!(@retired_tables, database, cluster_available?)
+    automatic_merge_settings!(@retired_tables, database, cluster_available?)
 
-    assert_no_active_merges!(@retired_tables, database, cluster_available?)
+    # The poisoned aggregate can have a merge active almost continuously:
+    # once it exceeds memory, ClickHouse retries it. Waiting for an idle
+    # instant before changing the setting therefore prevents the containment
+    # from ever taking effect. Stop future scheduling first. An already
+    # running merge can finish or fail independently while the materialized
+    # views are removed; neither operation changes the retained table's data.
+    stop_automatic_merges!(@retired_tables)
+    assert_automatic_merges_stopped!(@retired_tables, database, cluster_available?)
+    warn_about_active_merges(@retired_tables, database, cluster_available?)
 
-    try do
-      # Prevent a new automatic merge from starting while the views are
-      # removed. A merge that won the race is caught by the second assertion.
-      stop_automatic_merges!(@retired_tables)
-      assert_automatic_merges_stopped!(@retired_tables, database, cluster_available?)
-      assert_no_active_merges!(@retired_tables, database, cluster_available?)
-
-      for materialized_view <- @retired_materialized_views do
-        # excellent_migrations:safety-assured-for-next-line raw_sql_executed
-        IngestRepo.query!("DROP VIEW IF EXISTS #{materialized_view}")
-      end
-
-      assert_views_absent!(@retired_materialized_views, database, cluster_available?)
-      assert_automatic_merges_stopped!(@retired_tables, database, cluster_available?)
-    rescue
-      exception ->
-        stacktrace = __STACKTRACE__
-
-        restore_merge_settings_if_views_remain!(
-          @retired_materialized_views,
-          previous_merge_settings,
-          database,
-          cluster_available?
-        )
-
-        reraise exception, stacktrace
-    catch
-      kind, reason ->
-        stacktrace = __STACKTRACE__
-
-        restore_merge_settings_if_views_remain!(
-          @retired_materialized_views,
-          previous_merge_settings,
-          database,
-          cluster_available?
-        )
-
-        :erlang.raise(kind, reason, stacktrace)
+    for materialized_view <- @retired_materialized_views do
+      # excellent_migrations:safety-assured-for-next-line raw_sql_executed
+      IngestRepo.query!("DROP VIEW IF EXISTS #{materialized_view}")
     end
+
+    assert_views_absent!(@retired_materialized_views, database, cluster_available?)
+    assert_automatic_merges_stopped!(@retired_tables, database, cluster_available?)
   end
 
   def down do
@@ -140,7 +117,7 @@ defmodule Tuist.IngestRepo.Migrations.StopUnusedRecentTestCaseRunAggregates do
     end
   end
 
-  defp assert_no_active_merges!(tables, database, cluster_available?) do
+  defp warn_about_active_merges(tables, database, cluster_available?) do
     quoted_names = Enum.map_join(tables, ", ", &"'#{&1}'")
     merges_source = system_table_source("merges", cluster_available?)
     database = string_literal(database)
@@ -158,8 +135,9 @@ defmodule Tuist.IngestRepo.Migrations.StopUnusedRecentTestCaseRunAggregates do
     if rows != [] do
       tables = Enum.map_join(rows, ", ", fn [table] -> table end)
 
-      raise Ecto.MigrationError,
-            "active background merges must finish before retiring rolling aggregates: #{tables}"
+      Logger.warning(
+        "Retired rolling aggregates still have active background merges after automatic scheduling was stopped: #{tables}. The in-flight merges may finish or fail, but no replacement merge can be scheduled."
+      )
     end
   end
 
@@ -203,47 +181,6 @@ defmodule Tuist.IngestRepo.Migrations.StopUnusedRecentTestCaseRunAggregates do
                 "rolling aggregate table has inconsistent merge settings across replicas: #{table}"
       end
     end)
-  end
-
-  defp restore_merge_settings_if_views_remain!(
-         views,
-         previous_settings,
-         database,
-         cluster_available?
-       ) do
-    if views_may_remain?(views, database, cluster_available?) do
-      for {table, previous_setting} <- previous_settings do
-        best_effort(fn -> restore_merge_setting!(table, previous_setting) end)
-      end
-    end
-  end
-
-  defp views_may_remain?(views, database, cluster_available?) do
-    table_names(views, database, cluster_available?) != []
-  rescue
-    _exception -> true
-  catch
-    _kind, _reason -> true
-  end
-
-  defp best_effort(operation) do
-    operation.()
-  rescue
-    _exception -> :ok
-  catch
-    _kind, _reason -> :ok
-  end
-
-  defp restore_merge_setting!(table, :default) do
-    # excellent_migrations:safety-assured-for-next-line raw_sql_executed
-    IngestRepo.query!("ALTER TABLE #{table} RESET SETTING #{@automatic_merge_setting}")
-  end
-
-  defp restore_merge_setting!(table, {:explicit, value}) do
-    # excellent_migrations:safety-assured-for-next-line raw_sql_executed
-    IngestRepo.query!(
-      "ALTER TABLE #{table} MODIFY SETTING #{@automatic_merge_setting} = #{value}"
-    )
   end
 
   defp assert_automatic_merges_stopped!(tables, database, cluster_available?) do
