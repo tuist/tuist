@@ -326,6 +326,17 @@ spec:
                     mini. The Machine reconciler uses this for delete + status
                     polling against Scaleway's API.
                   type: string
+                failedHostConfigHash:
+                  description: |-
+                    FailedHostConfigHash records the desired HostConfigHash that
+                    exhausted its update-retry budget and drove the CR into the
+                    terminal Failed state. A broken config can never be applied, so
+                    HostConfigHash never advances to it and comparing
+                    desired-vs-last-applied would see drift forever and reset the
+                    retry cap every reconcile. Comparing desired-vs-FailedHostConfigHash
+                    instead keeps the cap for an unchanged broken config while still
+                    retrying a genuinely new one.
+                  type: string
                 hostConfigHash:
                   description: |-
                     HostConfigHash is the fleet-wide canonical hash of every host

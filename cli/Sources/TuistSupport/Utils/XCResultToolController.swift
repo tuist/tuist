@@ -8,6 +8,7 @@ import struct TSCUtility.Version
 public protocol XCResultToolControlling {
     func resultBundleObject(_ path: AbsolutePath) async throws -> String
     func resultBundleObject(_ path: AbsolutePath, id: String) async throws -> String
+    func merge(_ resultBundlePaths: [AbsolutePath], into resultBundlePath: AbsolutePath) async throws
 }
 
 public struct XCResultToolController: XCResultToolControlling {
@@ -53,5 +54,13 @@ public struct XCResultToolController: XCResultToolControlling {
                 ]
             )
         }
+    }
+
+    public func merge(_ resultBundlePaths: [AbsolutePath], into resultBundlePath: AbsolutePath) async throws {
+        _ = try await commandRunner.capture(
+            arguments: ["/usr/bin/xcrun", "xcresulttool", "merge"]
+                + resultBundlePaths.map(\.pathString)
+                + ["--output-path", resultBundlePath.pathString]
+        )
     }
 }

@@ -512,6 +512,39 @@ defmodule TuistWeb.API.BuildsControllerTest do
       assert response["id"] == build_id
     end
 
+    test "does not return a build from another project after an identifier conflict", %{
+      conn: conn,
+      user: user,
+      project: project
+    } do
+      build_id = UUIDv7.generate()
+
+      expect(Builds, :get_build, 2, fn ^build_id, opts ->
+        assert opts == [project_id: project.id]
+        {:error, :not_found}
+      end)
+
+      stub(Builds, :create_build, fn _attrs ->
+        {:error,
+         %Ecto.Changeset{
+           errors: [id: {"has already been taken", [constraint: :unique]}],
+           valid?: false
+         }}
+      end)
+
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/projects/#{user.account.name}/#{project.name}/builds", %{
+          id: build_id,
+          is_ci: false
+        })
+
+      assert json_response(conn, :bad_request) == %{
+               "message" => "The request parameters are invalid"
+             }
+    end
+
     test "attributes the run to the authenticated user while keeping storage under the project account", %{conn: conn} do
       user = AccountsFixtures.user_fixture(preload: [:account])
       organization = AccountsFixtures.organization_fixture(creator: user, preload: [:account])

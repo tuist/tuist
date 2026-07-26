@@ -235,6 +235,80 @@ struct GitControllerTests {
 
     // MARK: - gitInfo() tests
 
+    /// `GITHUB_HEAD_REF` is a pull-request variable, so a push falls through to
+    /// git, and a workflow that checks out an explicit SHA is detached, where git
+    /// cannot name the branch either. CI on the default branch is where most of a
+    /// project's cache comes from, so reporting no branch there is the whole
+    /// point of the branch being reported at all.
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func gitInfo_when_github_actions_pushes_to_a_branch_with_a_detached_head() async throws {
+        // Given
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let mockEnvironment = try #require(Environment.mocked)
+        mockEnvironment.variables = [
+            "GITHUB_REF": "refs/heads/main",
+            "GITHUB_REF_NAME": "main",
+            "GITHUB_REF_TYPE": "branch",
+        ]
+        commandRunner.succeedCommand(["git", "-C", path.pathString, "rev-parse"])
+        commandRunner.succeedCommand(["git", "-C", path.pathString, "log", "-1"])
+        commandRunner.succeedCommand(
+            ["git", "-C", path.pathString, "rev-parse", "HEAD"],
+            output: "some-sha\n"
+        )
+        // Detached: git reports no current branch.
+        commandRunner.succeedCommand(
+            ["git", "-C", path.pathString, "branch", "--show-current"],
+            output: "\n"
+        )
+        commandRunner.succeedCommand(["git", "-C", path.pathString, "remote"], output: "origin")
+        commandRunner.succeedCommand(
+            ["git", "-C", path.pathString, "remote", "get-url", "origin"],
+            output: "https://github.com/tuist/tuist"
+        )
+
+        // When
+        let gitInfo = try await subject.gitInfo(workingDirectory: path)
+
+        // Then
+        #expect(gitInfo.branch == "main")
+    }
+
+    /// A tag push sets `GITHUB_REF_NAME` to the tag. Reporting it as the branch
+    /// would attribute the build to a ref no branch ever matches.
+    @Test(.inTemporaryDirectory, .withMockedEnvironment())
+    func gitInfo_when_github_actions_pushes_a_tag() async throws {
+        // Given
+        let path = try #require(FileSystem.temporaryTestDirectory)
+        let mockEnvironment = try #require(Environment.mocked)
+        mockEnvironment.variables = [
+            "GITHUB_REF": "refs/tags/4.1.0",
+            "GITHUB_REF_NAME": "4.1.0",
+            "GITHUB_REF_TYPE": "tag",
+        ]
+        commandRunner.succeedCommand(["git", "-C", path.pathString, "rev-parse"])
+        commandRunner.succeedCommand(["git", "-C", path.pathString, "log", "-1"])
+        commandRunner.succeedCommand(
+            ["git", "-C", path.pathString, "rev-parse", "HEAD"],
+            output: "some-sha\n"
+        )
+        commandRunner.succeedCommand(
+            ["git", "-C", path.pathString, "branch", "--show-current"],
+            output: "\n"
+        )
+        commandRunner.succeedCommand(["git", "-C", path.pathString, "remote"], output: "origin")
+        commandRunner.succeedCommand(
+            ["git", "-C", path.pathString, "remote", "get-url", "origin"],
+            output: "https://github.com/tuist/tuist"
+        )
+
+        // When
+        let gitInfo = try await subject.gitInfo(workingDirectory: path)
+
+        // Then
+        #expect(gitInfo.branch == nil, "a tag is not a branch")
+    }
+
     @Test(.inTemporaryDirectory, .withMockedEnvironment()) func gitInfo_when_github_actions() async throws {
         // Given
         let path = try #require(FileSystem.temporaryTestDirectory)

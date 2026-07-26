@@ -71,6 +71,11 @@ delete_preview() {
 
   log "==> Deleting: $namespace ($reason)"
 
+  # Delete the KuraInstance (in the kura namespace) before the preview
+  # namespace: the controller then GCs its StatefulSet/PVC/Service/Ingress and
+  # clears the finalizer. If this fails, the namespace deletion below is a
+  # backstop, since the KuraInstance is owned by the preview namespace and is
+  # garbage-collected with it.
   if ! kubectl -n "$KURA_NAMESPACE" delete kurainstance "${release}-kura" --ignore-not-found --wait=true --timeout "$TEARDOWN_TIMEOUT"; then
     warn "failed to delete KuraInstance ${KURA_NAMESPACE}/${release}-kura; continuing to namespace deletion"
   fi

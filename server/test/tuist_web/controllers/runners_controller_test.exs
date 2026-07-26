@@ -26,7 +26,12 @@ defmodule TuistWeb.RunnersControllerTest do
           head_sha: "deadbeef"
         })
 
-      {:ok, _} = Claims.attempt(7_100_002, account.id, "fleet-scale", "pod-scale-1")
+      {:ok, _} =
+        Claims.attempt(7_100_002, account.id, "fleet-scale", "pod-scale-1", %{
+          platform: :linux,
+          vcpus: 1,
+          memory_gb: 1
+        })
 
       stub(K8sClient, :create_controller_token_review, fn "valid-token" ->
         {:ok, %{namespace: "tuist-runners-controller", name: "runners-controller"}}
@@ -134,33 +139,29 @@ defmodule TuistWeb.RunnersControllerTest do
       account = account_fixture()
 
       # The endpoint lookup goes through `Regions.available/0`, which
-      # in test sees only the local controller region — surface both
-      # private regions the way a managed runtime would.
+      # in test sees only the local controller region — surface the
+      # private region the way a managed runtime would.
       stub(Tuist.Environment, :dev?, fn -> false end)
       stub(Tuist.Environment, :test?, fn -> false end)
 
       stub(Tuist.Environment, :kura_available_region_ids, fn ->
-        ["scw-fr-par-runners", "hetzner-staging-runners"]
+        ["scw-fr-par-runners"]
       end)
 
-      # Active runner-cache nodes in both private regions: the
-      # macOS-serving Scaleway one and the linux+macos staging one.
+      # The only private runner-cache region, serving macOS. Linux has none.
       scw_url = "http://kura-#{account.name}-scw-fr-par.kura.svc.cluster.local:4000"
-      staging_url = "http://kura-#{account.name}-staging.kura.svc.cluster.local:4000"
 
-      for {region, url} <- [{"scw-fr-par-runners", scw_url}, {"hetzner-staging-runners", staging_url}] do
-        Tuist.Repo.insert!(%Tuist.Kura.Server{
-          account_id: account.id,
-          region: region,
-          status: :active,
-          url: url,
-          # Fresh readiness heartbeat so the node-port server is served
-          # rather than failed over to the public cache (see
-          # Kura.runner_cache_endpoint_url/2).
-          last_ready_at: DateTime.truncate(DateTime.utc_now(), :second),
-          provisioner_node_ref: "kura-#{account.name}-#{region}"
-        })
-      end
+      Tuist.Repo.insert!(%Tuist.Kura.Server{
+        account_id: account.id,
+        region: "scw-fr-par-runners",
+        status: :active,
+        url: scw_url,
+        # Fresh readiness heartbeat so the node-port server is served
+        # rather than failed over to the public cache (see
+        # Kura.runner_cache_endpoint_url/2).
+        last_ready_at: DateTime.truncate(DateTime.utc_now(), :second),
+        provisioner_node_ref: "kura-#{account.name}-scw-fr-par-runners"
+      })
 
       stub(K8sClient, :create_token_review, fn "valid-token" ->
         {:ok, %{namespace: "tuist-runners", name: "pod-1"}}
@@ -185,11 +186,11 @@ defmodule TuistWeb.RunnersControllerTest do
         |> json_response(200)
       end
 
-      # Locality: each platform only ever sees a region that serves
-      # it. The Linux fleet must never receive the Scaleway URL —
-      # that node is co-located with the macOS fleet on the other
-      # side of a WAN.
-      assert dispatch.(true, :linux)["cache_endpoint_url"] == staging_url
+      # Locality: each platform only ever sees a region that serves it. The
+      # Linux fleet must never receive the Scaleway URL — that node is
+      # co-located with the macOS fleet on the other side of a WAN — and since
+      # no region serves Linux, it gets no URL rather than the wrong one.
+      refute Map.has_key?(dispatch.(true, :linux), "cache_endpoint_url")
       assert dispatch.(true, :macos)["cache_endpoint_url"] == scw_url
 
       # Reachability: a fleet off the cluster network gets no URL at
@@ -246,6 +247,116 @@ defmodule TuistWeb.RunnersControllerTest do
         |> json_response(200)
 
       refute Map.has_key?(off_cluster, "cache_endpoint_url")
+    end
+  end
+
+  describe "POST /api/internal/runners/volume-head/upload-url" do
+    test "returns a presigned upload URL for the reported digest", %{conn: conn} do
+      digest = String.duplicate("a", 40)
+
+      stub(K8sClient, :create_token_review, fn "valid-token" ->
+        {:ok, %{namespace: "tuist-runners", name: "pod-1"}}
+      end)
+
+      stub(Runners, :account_id_for_sa, fn "tuist-runners", "pod-1" -> {:ok, 77} end)
+      stub(Runners, :volume_master_upload_url, fn 77, ^digest -> {:ok, "https://bucket.example.com/put"} end)
+
+      body =
+        conn
+        |> put_req_header("authorization", "Bearer valid-token")
+        |> post("/api/internal/runners/volume-head/upload-url", %{"tree_digest" => digest})
+        |> json_response(200)
+
+      assert body["upload_url"] == "https://bucket.example.com/put"
+    end
+
+    test "422 when the digest is rejected", %{conn: conn} do
+      stub(K8sClient, :create_token_review, fn "valid-token" ->
+        {:ok, %{namespace: "tuist-runners", name: "pod-1"}}
+      end)
+
+      stub(Runners, :account_id_for_sa, fn _ns, _sa -> {:ok, 77} end)
+      stub(Runners, :volume_master_upload_url, fn 77, "bad" -> :error end)
+
+      body =
+        conn
+        |> put_req_header("authorization", "Bearer valid-token")
+        |> post("/api/internal/runners/volume-head/upload-url", %{"tree_digest" => "bad"})
+        |> json_response(422)
+
+      assert body["error"] == "invalid digest"
+    end
+
+    test "401 without a bearer token", %{conn: conn} do
+      conn = post(conn, "/api/internal/runners/volume-head/upload-url", %{"tree_digest" => "x"})
+      assert json_response(conn, 401)
+    end
+  end
+
+  describe "POST /api/internal/runners/volume-head" do
+    setup %{conn: conn} do
+      stub(K8sClient, :create_token_review, fn "valid-token" ->
+        {:ok, %{namespace: "tuist-runners", name: "pod-1"}}
+      end)
+
+      stub(Runners, :account_id_for_sa, fn "tuist-runners", "pod-1" -> {:ok, 77} end)
+      {:ok, conn: put_req_header(conn, "authorization", "Bearer valid-token")}
+    end
+
+    test "returns the accepted generation on a fast-forward", %{conn: conn} do
+      digest = String.duplicate("a", 40)
+      stub(Runners, :report_volume_head, fn 77, "node-1", ^digest, 5 -> {:ok, 6} end)
+
+      body =
+        conn
+        |> post("/api/internal/runners/volume-head", %{
+          "tree_digest" => digest,
+          "node_name" => "node-1",
+          "base_generation" => 5
+        })
+        |> json_response(200)
+
+      assert body["generation"] == 6
+    end
+
+    test "409 when the fast-forward is rejected as stale", %{conn: conn} do
+      digest = String.duplicate("a", 40)
+      stub(Runners, :report_volume_head, fn 77, _node, ^digest, _base -> :conflict end)
+
+      body =
+        conn
+        |> post("/api/internal/runners/volume-head", %{"tree_digest" => digest, "base_generation" => 1})
+        |> json_response(409)
+
+      assert body["error"] == "stale base generation"
+    end
+
+    test "parses a string base_generation and defaults a missing one to 0", %{conn: conn} do
+      digest = String.duplicate("a", 40)
+      stub(Runners, :report_volume_head, fn 77, _node, ^digest, base -> {:ok, base + 1} end)
+
+      # A string body value is parsed to an integer.
+      assert %{"generation" => 4} =
+               conn
+               |> post("/api/internal/runners/volume-head", %{"tree_digest" => digest, "base_generation" => "3"})
+               |> json_response(200)
+
+      # A missing base_generation is treated as 0 (a cold job).
+      assert %{"generation" => 1} =
+               conn
+               |> post("/api/internal/runners/volume-head", %{"tree_digest" => digest})
+               |> json_response(200)
+    end
+
+    test "422 when the digest is invalid", %{conn: conn} do
+      stub(Runners, :report_volume_head, fn 77, _node, "bad", _base -> :error end)
+
+      body =
+        conn
+        |> post("/api/internal/runners/volume-head", %{"tree_digest" => "bad", "base_generation" => 0})
+        |> json_response(422)
+
+      assert body["error"] == "invalid digest"
     end
   end
 end

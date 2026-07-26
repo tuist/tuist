@@ -109,9 +109,15 @@ class TokenProviderTest {
         val store = CredentialStore(File(tempDir, "empty-credentials"))
         val provider = createProvider(credentialStore = store)
 
-        assertFailsWith<TokenProvider.NotAuthenticatedException> {
+        val error = assertFailsWith<TokenProvider.NotAuthenticatedException> {
             provider.getToken()
         }
+
+        assertEquals(
+            "Not authenticated with Tuist. Run `tuist auth login --url https://tuist.dev` or set the TUIST_TOKEN environment variable. " +
+                "See https://tuist.dev/en/docs/guides/install-gradle-plugin#authenticate",
+            error.message
+        )
     }
 
     @Test

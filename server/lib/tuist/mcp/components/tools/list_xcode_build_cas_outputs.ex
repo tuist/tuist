@@ -1,11 +1,11 @@
 defmodule Tuist.MCP.Components.Tools.ListXcodeBuildCASOutputs do
   @moduledoc """
-  List CAS (Content Addressable Storage) outputs for a specific Xcode build run. Only available for projects with build_system=xcode. The build_run_id can also be a Tuist dashboard URL, e.g. https://tuist.dev/{account}/{project}/builds/build-runs/{id}.
+  List content-addressable storage outputs for a specific Xcode build run. Only available for projects with build_system=xcode. The build_run_id can also be a Tuist dashboard URL, e.g. https://tuist.dev/{account}/{project}/builds/build-runs/{id}.
   """
 
   use Tuist.MCP.Tool,
     name: "list_xcode_build_cas_outputs",
-    title: "List Xcode Build CAS Outputs",
+    title: "List Xcode Build Content-Addressable Storage Outputs",
     schema: %{
       "type" => "object",
       "properties" => %{
@@ -19,7 +19,7 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeBuildCASOutputs do
         },
         "type" => %{
           "type" => "string",
-          "description" => "Filter by CAS output type (e.g. swift, object, dSYM)."
+          "description" => "Filter by content-addressable storage output type (e.g. swift, object, dSYM)."
         },
         "page" => %{
           "type" => "integer",
@@ -31,6 +31,39 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeBuildCASOutputs do
         }
       },
       "required" => ["build_run_id"]
+    },
+    output_schema: %{
+      "type" => "object",
+      "properties" => %{
+        "outputs" => %{
+          "type" => "array",
+          "items" => %{
+            "type" => "object",
+            "properties" => %{
+              "node_id" => %{"type" => "string"},
+              "checksum" => %{"type" => "string"},
+              "size" => %{"type" => "integer"},
+              "compressed_size" => %{"type" => "integer"},
+              "duration" => %{"type" => "integer"},
+              "operation" => %{"type" => "string", "enum" => ["download", "upload"]},
+              "type" => %{"type" => "string"}
+            },
+            "required" => [
+              "node_id",
+              "checksum",
+              "size",
+              "compressed_size",
+              "duration",
+              "operation",
+              "type"
+            ],
+            "additionalProperties" => false
+          }
+        },
+        "pagination_metadata" => Tuist.MCP.Tool.pagination_metadata_schema()
+      },
+      "required" => ["outputs", "pagination_metadata"],
+      "additionalProperties" => false
     }
 
   alias Tuist.Builds
@@ -39,7 +72,7 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeBuildCASOutputs do
   @impl EMCP.Tool
   def description,
     do:
-      "List CAS (Content Addressable Storage) outputs for a specific Xcode build run. Only available for projects with build_system=xcode. The build_run_id can also be a Tuist dashboard URL, e.g. #{Tuist.Environment.app_url()}/{account}/{project}/builds/build-runs/{id}."
+      "List content-addressable storage outputs for a specific Xcode build run. Only available for projects with build_system=xcode. The build_run_id can also be a Tuist dashboard URL, e.g. #{Tuist.Environment.app_url()}/{account}/{project}/builds/build-runs/{id}."
 
   def execute(conn, args) do
     build_run_id = Map.get(args, "build_run_id")

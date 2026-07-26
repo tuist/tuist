@@ -10,8 +10,8 @@ defmodule TuistCommon.HTTP.TransportPromExPluginTest do
 
       assert timeout_metric.event_name == [:bandit, :request, :stop]
       assert timeout_metric.tags == [:method, :route]
-      assert timeout_metric.keep.(%{error: "Body read timeout"}, %{})
-      refute timeout_metric.keep.(%{}, %{})
+      assert timeout_metric.keep.(%{error: "Body read timeout"})
+      refute timeout_metric.keep.(%{})
 
       assert timeout_metric.tag_values.(%{
                conn: %{method: "POST", private: %{phoenix_route: "/foo"}, request_path: "/foo"}
@@ -23,7 +23,7 @@ defmodule TuistCommon.HTTP.TransportPromExPluginTest do
       [stop_metric, exception_metric] = failure_event.metrics
 
       assert stop_metric.event_name == [:bandit, :request, :stop]
-      assert stop_metric.keep.(%{conn: %{status: 500}}, %{})
+      assert stop_metric.keep.(%{conn: %{status: 500}})
 
       assert stop_metric.tag_values.(%{
                conn: %{method: "GET", private: %{}, request_path: "/bar", status: 500},
@@ -36,6 +36,7 @@ defmodule TuistCommon.HTTP.TransportPromExPluginTest do
              }
 
       assert exception_metric.event_name == [:bandit, :request, :exception]
+      assert exception_metric.name == [:tuist, :http, :request, :exception, :count]
 
       assert exception_metric.tag_values.(%{
                conn: %{method: "GET", private: %{}, request_path: "/bar"}
@@ -50,13 +51,15 @@ defmodule TuistCommon.HTTP.TransportPromExPluginTest do
       [recv_metric, send_metric] = error_event.metrics
 
       assert drop_metric.event_name == [:thousand_island, :connection, :stop]
-      assert drop_metric.keep.(%{error: :closed}, %{})
+      assert drop_metric.keep.(%{error: :closed})
       assert drop_metric.tag_values.(%{error: :closed}) == %{reason: "closed"}
 
       assert recv_metric.event_name == [:thousand_island, :connection, :recv_error]
+      assert recv_metric.name == [:tuist, :http, :connection, :error, :count]
       assert recv_metric.tag_values.(%{}) == %{event: "recv_error"}
 
       assert send_metric.event_name == [:thousand_island, :connection, :send_error]
+      assert send_metric.name == [:tuist, :http, :connection, :send_error, :count]
       assert send_metric.tag_values.(%{}) == %{event: "send_error"}
     end
   end

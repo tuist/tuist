@@ -12,6 +12,7 @@ defmodule Tuist.Accounts.Account do
   alias Tuist.Accounts.User
   alias Tuist.Billing.Subscription
   alias Tuist.Projects.Project
+  alias Tuist.Runners.ConcurrencyLimit
   alias Tuist.Slack.Installation, as: SlackInstallation
   alias Tuist.Vault.Binary
   alias Tuist.VCS.GitHubAppInstallation
@@ -50,6 +51,10 @@ defmodule Tuist.Accounts.Account do
     field :current_month_remote_cache_hits_count_updated_at, :naive_datetime
     field :region, Ecto.Enum, values: [all: 0, europe: 1, usa: 2], default: :all
 
+    field :cache_write_policy, Ecto.Enum,
+      values: [members_and_tokens: 0, tokens_only: 1],
+      default: :members_and_tokens
+
     field :s3_bucket_name, :string
     field :s3_access_key_id, Binary
     field :s3_secret_access_key, Binary
@@ -62,6 +67,7 @@ defmodule Tuist.Accounts.Account do
     belongs_to :user, User
 
     has_many(:projects, Project, on_delete: :delete_all)
+    has_many(:runner_concurrency_limits, ConcurrencyLimit, on_delete: :delete_all)
     has_many(:subscriptions, Subscription, on_delete: :delete_all)
     has_many(:cache_endpoints, AccountCacheEndpoint, on_delete: :delete_all)
     has_one(:github_app_installation, GitHubAppInstallation, on_delete: :delete_all)
@@ -123,9 +129,10 @@ defmodule Tuist.Accounts.Account do
 
   def update_changeset(account, attrs) do
     account
-    |> cast(attrs, [:name, :region, :billing_email, :custom_cache_endpoints_enabled])
+    |> cast(attrs, [:name, :region, :billing_email, :cache_write_policy, :custom_cache_endpoints_enabled])
     |> validate_handle()
     |> validate_inclusion(:region, [:all, :europe, :usa])
+    |> validate_inclusion(:cache_write_policy, [:members_and_tokens, :tokens_only])
   end
 
   @s3_fields [:s3_bucket_name, :s3_access_key_id, :s3_secret_access_key, :s3_region, :s3_endpoint]

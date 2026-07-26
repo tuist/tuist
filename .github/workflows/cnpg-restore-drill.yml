@@ -74,11 +74,27 @@ jobs:
         run: |
           set -euo pipefail
           get() { kubectl -n "$NS" get clusters.postgresql.cnpg.io "$CLUSTER" -o jsonpath="$1"; }
-          # Pull the barman store + image straight from the source cluster so
-          # the recovery config can't drift from it (bucket paths, endpoint,
-          # and the PG image differ per env / over time).
-          echo "DEST=$(get '{.spec.backup.barmanObjectStore.destinationPath}')" >> "$GITHUB_ENV"
-          echo "ENDPOINT=$(get '{.spec.backup.barmanObjectStore.endpointURL}')" >> "$GITHUB_ENV"
+          # Pull the recovery source straight from the source cluster so the
+          # recovery config can't drift from it. The shape depends on the
+          # cluster's backup mode: the Barman Cloud Plugin recovers from the
+          # ObjectStore CR (bucket + read credentials live there), while the
+          # legacy in-tree path recovers from barmanObjectStore on the Cluster.
+          # Detect via the WAL-archiver plugin's barmanObjectName (the tuist
+          # clusters carry exactly one plugin; empty => in-tree).
+          BARMAN_OBJ=$(get '{.spec.plugins[0].parameters.barmanObjectName}')
+          if [ -n "$BARMAN_OBJ" ]; then
+            {
+              echo "MODE=plugin"
+              echo "BARMAN_OBJ=$BARMAN_OBJ"
+              echo "SERVER_NAME=$(get '{.spec.plugins[0].parameters.serverName}')"
+            } >> "$GITHUB_ENV"
+          else
+            {
+              echo "MODE=intree"
+              echo "DEST=$(get '{.spec.backup.barmanObjectStore.destinationPath}')"
+              echo "ENDPOINT=$(get '{.spec.backup.barmanObjectStore.endpointURL}')"
+            } >> "$GITHUB_ENV"
+          fi
           echo "IMG=$(get '{.spec.imageName}')" >> "$GITHUB_ENV"
           # Match the live volume size so the restore can actually hold the
           # data (and validates prod-sized recovery), not a hardcoded floor.
@@ -95,7 +111,16 @@ jobs:
       - name: Launch recovery cluster
         run: |
           set -euo pipefail
-          cat <<YAML | kubectl apply -f -
+          # Assemble the recovery source as a flow-style value so the manifest
+          # stays a single heredoc regardless of backup mode. The plugin path
+          # reuses the in-namespace ObjectStore CR (credentials + bucket live
+          # there); the in-tree path inlines the store + read credentials.
+          if [ "$MODE" = plugin ]; then
+            EXT_ENTRY="plugin: {name: barman-cloud.cloudnative-pg.io, parameters: {barmanObjectName: $BARMAN_OBJ, serverName: $SERVER_NAME}}"
+          else
+            EXT_ENTRY="barmanObjectStore: {destinationPath: $DEST, endpointURL: $ENDPOINT, s3Credentials: {accessKeyId: {name: $BACKUP_SECRET, key: ACCESS_KEY_ID}, secretAccessKey: {name: $BACKUP_SECRET, key: ACCESS_SECRET_KEY}}, wal: {compression: gzip}}"
+          fi
+          cat <<YAML | tee /dev/stderr | kubectl apply -f -
           apiVersion: postgresql.cnpg.io/v1
           kind: Cluster
           metadata:
@@ -117,13 +142,7 @@ jobs:
                 source: $CLUSTER
             externalClusters:
               - name: $CLUSTER
-                barmanObjectStore:
-                  destinationPath: $DEST
-                  endpointURL: $ENDPOINT
-                  s3Credentials:
-                    accessKeyId: { name: $BACKUP_SECRET, key: ACCESS_KEY_ID }
-                    secretAccessKey: { name: $BACKUP_SECRET, key: ACCESS_SECRET_KEY }
-                  wal: { compression: gzip }
+                $EXT_ENTRY
           YAML
 
       - name: Wait for recovery to reach healthy

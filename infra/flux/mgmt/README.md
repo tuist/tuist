@@ -7,8 +7,9 @@ GitOps reconciliation, so drift is corrected on an interval instead of only
 on merge, and no routine change needs the break-glass kubeconfig.
 
 Health alerting is a separate, independent path — **Pillar 2**, Grafana
-Cloud (`infra/helm/k8s-monitoring/values-mgmt.yaml`). A GitOps dashboard is
-not the health mechanism; a degraded control plane pages via Grafana Cloud.
+Cloud (`infra/helm/k8s-monitoring/values-management.yaml` +
+`infra/helm/k8s-monitoring/alerts.md`). A GitOps dashboard is not the health
+mechanism; a degraded control plane pages via Grafana Cloud.
 
 ## What Flux owns (and deliberately does not)
 
@@ -74,9 +75,9 @@ spec:
 ## Health of Flux itself
 
 A down reconciler stops correcting drift, so Flux's controllers are scraped
-and heartbeat-alerted via Pillar 2 (`infra/helm/k8s-monitoring/values-mgmt.yaml`
-+ `alerts/`). Grafana Cloud evaluates the alerts outside this single-node
-cluster.
+and heartbeat-alerted via Pillar 2 (`infra/helm/k8s-monitoring/values-management.yaml`
++ `infra/helm/k8s-monitoring/alerts.md`). Grafana Cloud evaluates the alerts
+outside this single-node cluster.
 
 ## Removing a cluster (explicit destroy flow)
 

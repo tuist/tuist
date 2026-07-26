@@ -1196,7 +1196,7 @@ struct ConfigGeneratorTests {
     @Test(
         .withMockedXcodeController,
         .inTemporaryDirectory
-    ) func generateTargetConfig_addsTheLoadPluginExecutableSwiftFlag_when_tagetDependsOnMacroStaticFramework(
+    ) func generateTargetConfig_doesntAddExplicitCompilerFlags_when_targetDependsOnSourceMacro(
     ) async throws {
         // Given
         let projectSettings = Settings.default
@@ -1228,18 +1228,89 @@ struct ConfigGeneratorTests {
         )
 
         // Then
-        let targetSettingsResult = pbxTarget
+        let targetSettings = pbxTarget
             .buildConfigurationList?
             .buildConfigurations
             .first { $0.name == "Debug" }?
             .buildSettings
-            .toSettings()["OTHER_SWIFT_FLAGS"]
+            .toSettings()
+        #expect(targetSettings?["OTHER_SWIFT_FLAGS"] == nil)
+        #expect(targetSettings?["SWIFT_LOAD_BINARY_MACROS"] == nil)
+    }
+
+    @Test(
+        .withMockedXcodeController,
+        .inTemporaryDirectory
+    ) func generateTargetConfig_addsNativeMacroImplementationSettings_toMacroTarget() async throws {
+        // Given
+        let projectSettings = Settings.default
+        let macro = Target.test(name: "MacroImplementation", platform: .macOS, product: .macro)
+        let project = Project.test(targets: [macro])
+        let graph = Graph.test(path: project.path, projects: [project.path: project])
+
+        // When
+        try await subject.generateTargetConfig(
+            macro,
+            project: project,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj,
+            projectSettings: projectSettings,
+            fileElements: ProjectFileElements(),
+            graphTraverser: GraphTraverser(graph: graph),
+            sourceRootPath: try AbsolutePath(validating: "/project")
+        )
+
+        // Then
+        let targetSettings = pbxTarget
+            .buildConfigurationList?
+            .buildConfigurations
+            .first { $0.name == "Debug" }?
+            .buildSettings
+            .toSettings()
+        #expect(targetSettings?["EAGER_COMPILATION_DISABLE"] == "YES")
+        #expect(targetSettings?["SDKROOT"] == "auto")
+        #expect(targetSettings?["SKIP_BUILDING_DOCUMENTATION"] == "YES")
+        #expect(targetSettings?["SUPPORTED_PLATFORMS"] == "$(HOST_PLATFORM)")
+        #expect(targetSettings?["SWIFT_IMPLEMENTS_MACROS_FOR_MODULE_NAMES"] == "$(PRODUCT_MODULE_NAME)")
+        #expect(targetSettings?["SWIFT_INSTALL_MODULE"] == "NO")
+    }
+
+    @Test(
+        .withMockedXcodeController,
+        .inTemporaryDirectory
+    ) func generateTargetConfig_usesNativeBinaryMacroSetting_when_targetDependsOnPrecompiledMacro() async throws {
+        // Given
+        let projectSettings = Settings.default
+        let app = Target.test(name: "app", platform: .iOS, product: .app)
+        let project = Project.test(targets: [app])
+        let macroPath = try AbsolutePath(validating: "/cache/MacroImplementation.macro")
+        let graph = Graph.test(path: project.path, projects: [project.path: project], dependencies: [
+            .target(name: app.name, path: project.path): Set([.macro(path: macroPath)]),
+        ])
+
+        // When
+        try await subject.generateTargetConfig(
+            app,
+            project: project,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj,
+            projectSettings: projectSettings,
+            fileElements: ProjectFileElements(),
+            graphTraverser: GraphTraverser(graph: graph),
+            sourceRootPath: try AbsolutePath(validating: "/project")
+        )
+
+        // Then
+        let targetSettings = pbxTarget
+            .buildConfigurationList?
+            .buildConfigurations
+            .first { $0.name == "Debug" }?
+            .buildSettings
+            .toSettings()
+        #expect(targetSettings?["OTHER_SWIFT_FLAGS"] == nil)
         #expect(
-            targetSettingsResult ==
-                .array([
-                    "-load-plugin-executable",
-                    "$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/\(macroExecutable.productName)#\(macroExecutable.productName)",
-                ])
+            targetSettings?["SWIFT_LOAD_BINARY_MACROS"] ==
+                "\(macroPath.pathString)#MacroImplementation"
         )
     }
 

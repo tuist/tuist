@@ -180,7 +180,7 @@ defmodule Tuist.Repo.Migrations.MigrateCommandEventsToUuidPrimaryKey do
         LIMIT 10;
       """)
 
-    if length(duplicate_uuids) > 0 do
+    if duplicate_uuids != [] do
       duplicates =
         Enum.map(duplicate_uuids, fn [uuid, count] -> "UUID: #{uuid} (#{count} occurrences)" end)
 

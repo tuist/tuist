@@ -121,8 +121,10 @@ public struct FrameworkSearchPathsGraphMapper: GraphMapping {
                     ))
                     additions.append((Self.otherCFlagsSetting, [responseFileReference]))
                     // OTHER_SWIFT_FLAGS gets -F flags instead of @file because the Xcode 26 ClangImporter and
-                    // integrated SwiftDriver mishandle a @file token.
-                    additions.append((Self.otherSwiftFlagsSetting, swiftSearchPathAdditions.flatMap { ["-F", $0] }))
+                    // integrated SwiftDriver mishandle a @file token. Each search path is quoted so paths
+                    // that contain whitespace (e.g. a target named "Notification Service") stay a single
+                    // token instead of being word-split into an unexpected input file.
+                    additions.append((Self.otherSwiftFlagsSetting, swiftSearchPathAdditions.flatMap { ["-F", "\"\($0)\""] }))
                     additions.append((Self.otherLinkerFlagsSetting, [responseFileReference]))
                 } else {
                     additions.append((

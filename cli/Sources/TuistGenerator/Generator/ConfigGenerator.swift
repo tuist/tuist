@@ -205,7 +205,7 @@ struct ConfigGenerator: ConfigGenerating {
         settingsHelper
             .extend(
                 buildSettings: &settings,
-                with: swiftMacrosDerivedSettings(
+                with: precompiledSwiftMacrosDerivedSettings(
                     target: target,
                     graphTraverser: graphTraverser,
                     projectPath: project.path
@@ -290,6 +290,7 @@ struct ConfigGenerator: ConfigGenerating {
         ) { $1 }
         settings.merge(destinationsDerivedSettings(target: target)) { $1 }
         settings.merge(deploymentTargetDerivedSettings(target: target)) { $1 }
+        settings.merge(swiftMacroImplementationDerivedSettings(target: target)) { $1 }
         settings
             .merge(watchTargetDerivedSettings(target: target, graphTraverser: graphTraverser, projectPath: project.path)) { $1 }
     }
@@ -368,17 +369,28 @@ struct ConfigGenerator: ConfigGenerating {
         return settings
     }
 
-    private func swiftMacrosDerivedSettings(
+    private func precompiledSwiftMacrosDerivedSettings(
         target: Target,
         graphTraverser: GraphTraversing,
         projectPath: AbsolutePath
     ) -> SettingsDictionary {
-        let pluginExecutables = graphTraverser.allSwiftPluginExecutables(path: projectPath, name: target.name)
+        let macroExecutables = graphTraverser.allPrecompiledSwiftMacroExecutables(path: projectPath, name: target.name)
         var settings: SettingsDictionary = [:]
-        if pluginExecutables.isEmpty { return settings }
-        let swiftCompilerFlags = pluginExecutables.sorted().flatMap { ["-load-plugin-executable", $0] }
-        settings["OTHER_SWIFT_FLAGS"] = .array(swiftCompilerFlags)
+        if macroExecutables.isEmpty { return settings }
+        settings["SWIFT_LOAD_BINARY_MACROS"] = .array(macroExecutables.sorted())
         return settings
+    }
+
+    private func swiftMacroImplementationDerivedSettings(target: Target) -> SettingsDictionary {
+        guard target.product == .macro else { return [:] }
+        return [
+            "EAGER_COMPILATION_DISABLE": "YES",
+            "SDKROOT": "auto",
+            "SKIP_BUILDING_DOCUMENTATION": "YES",
+            "SUPPORTED_PLATFORMS": "$(HOST_PLATFORM)",
+            "SWIFT_IMPLEMENTS_MACROS_FOR_MODULE_NAMES": "$(PRODUCT_MODULE_NAME)",
+            "SWIFT_INSTALL_MODULE": "NO",
+        ]
     }
 
     private func destinationsDerivedSettings(target: Target) -> SettingsDictionary {

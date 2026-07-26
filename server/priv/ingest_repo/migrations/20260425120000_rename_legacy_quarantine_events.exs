@@ -61,23 +61,21 @@ defmodule Tuist.IngestRepo.Migrations.RenameLegacyQuarantineEvents do
     # no user-level advisory lock, so we open a Postgres transaction, take
     # `pg_advisory_xact_lock`, do the ClickHouse work, and let the transaction
     # commit release the lock. `Ecto.Migrator.with_repo` only starts the
-    # IngestRepo when running IngestRepo migrations, so we have to bootstrap
-    # `Tuist.Repo` ourselves — same pattern as
+    # IngestRepo when running IngestRepo migrations, so we bootstrap
+    # `Tuist.Repo` through that same API — same pattern as
     # `BackfillTestRunsFromCommandEvents`.
-    case Repo.start_link() do
-      {:ok, _} -> :ok
-      {:error, {:already_started, _}} -> :ok
-    end
+    {:ok, _, _} =
+      Ecto.Migrator.with_repo(Repo, fn _repo ->
+        Repo.transaction(
+          fn ->
+            Repo.query!("SELECT pg_advisory_xact_lock($1)", [@lock_id])
 
-    Repo.transaction(
-      fn ->
-        Repo.query!("SELECT pg_advisory_xact_lock($1)", [@lock_id])
-
-        rename_event("quarantined", "muted")
-        rename_event("unquarantined", "unmuted")
-      end,
-      timeout: :infinity
-    )
+            rename_event("quarantined", "muted")
+            rename_event("unquarantined", "unmuted")
+          end,
+          timeout: :infinity
+        )
+      end)
   end
 
   def down do

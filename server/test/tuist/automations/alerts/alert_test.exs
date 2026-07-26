@@ -436,6 +436,13 @@ defmodule Tuist.Automations.Alerts.AlertTest do
   end
 
   describe "cadence validation" do
+    test "converts cadence values to seconds" do
+      assert Alert.cadence_seconds("30s") == 30
+      assert Alert.cadence_seconds("5m") == 300
+      assert Alert.cadence_seconds("1h") == 3600
+      assert Alert.cadence_seconds("invalid") == 300
+    end
+
     test "accepts cadences at or under one hour" do
       project = ProjectsFixtures.project_fixture()
 
@@ -463,6 +470,30 @@ defmodule Tuist.Automations.Alerts.AlertTest do
         refute changeset.valid?, "expected #{inspect(cadence)} to be rejected"
         assert errors_on(changeset).cadence
       end
+    end
+  end
+
+  describe "scoped_evaluation?/1" do
+    test "returns true only for established rolling metric alerts" do
+      established_at = DateTime.utc_now()
+
+      assert Alert.scoped_evaluation?(%{
+               monitor_type: "flakiness_rate",
+               trigger_config: %{"window_type" => "rolling"},
+               baseline_established_at: established_at
+             })
+
+      refute Alert.scoped_evaluation?(%{
+               monitor_type: "flakiness_rate",
+               trigger_config: %{"window_type" => "last_days"},
+               baseline_established_at: established_at
+             })
+
+      refute Alert.scoped_evaluation?(%{
+               monitor_type: "flakiness_rate",
+               trigger_config: %{"window_type" => "rolling"},
+               baseline_established_at: nil
+             })
     end
   end
 

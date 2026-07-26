@@ -48,17 +48,13 @@ defmodule TuistOps.JIT.PolicyTest do
       end
     end
 
-    test "Member can self-approve staging and canary" do
+    test "Member can self-approve any env, production included" do
       stub_roles(%{@member => :member})
 
-      assert Policy.self_approval_allowed?(@member, @staging)
-      assert Policy.self_approval_allowed?(@member, @canary)
-    end
-
-    test "Member cannot self-approve production" do
-      stub_roles(%{@member => :member})
-
-      refute Policy.self_approval_allowed?(@member, @prod)
+      for grp <- [@staging, @canary, @prod] do
+        assert Policy.self_approval_allowed?(@member, grp),
+               "expected Member #{@member} to self-approve #{grp}"
+      end
     end
 
     test "admin-flavor roles outside Owner/Admin cannot self-approve any env" do
@@ -128,14 +124,15 @@ defmodule TuistOps.JIT.PolicyTest do
       end
     end
 
-    test "Member can approve staging and canary but NOT production" do
-      # This is the new gate: an engineer approving another
-      # engineer's production write is rejected.
+    test "Member can approve any env, production included" do
+      # Members are trusted for production now that they can
+      # self-approve it; the second-human path matches that tier.
       stub_roles(%{@member => :member})
 
-      assert Policy.approver_allowed?(@member, @staging)
-      assert Policy.approver_allowed?(@member, @canary)
-      refute Policy.approver_allowed?(@member, @prod)
+      for grp <- [@staging, @canary, @prod] do
+        assert Policy.approver_allowed?(@member, grp),
+               "expected Member #{@member} to approve #{grp}"
+      end
     end
 
     test "off-tailnet identities cannot approve any env" do

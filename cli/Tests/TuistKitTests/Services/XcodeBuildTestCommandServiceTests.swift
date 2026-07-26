@@ -45,7 +45,7 @@ struct XcodeBuildTestCommandServiceTests {
 
     init() {
         given(testCaseListService)
-            .listTestCases(fullHandle: .any, serverURL: .any, state: .any)
+            .listAllTestCases(fullHandle: .any, serverURL: .any, state: .any)
             .willReturn([])
         given(testQuarantineService)
             .markQuarantinedTests(testSummary: .any, quarantinedTests: .any)

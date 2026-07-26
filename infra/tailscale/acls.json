@@ -76,7 +76,13 @@
 		{"src": ["*"], "dst": ["*"], "ip": ["*"]},
 
 		// Per-env operator → matching-env Mac mini fleet on the
-		// three scrape ports:
+		// scrape ports plus SSH:
+		//   :22    tart-kubelet drift updates. The CAPI controller
+		//          rolls host config to already-bootstrapped minis
+		//          over the tailnet (reconcileTailscaleEgressService
+		//          fronts :22 on the ProxyGroup) because a running
+		//          runner mini filters inbound :22 on its public
+		//          interface, wedging the public-IP roll path.
 		//   :8080  controller-runtime metrics on tart-kubelet
 		//          (reconcile counts, errors, and the
 		//          tart_kubelet_vm_boot_duration_seconds histogram).
@@ -97,17 +103,17 @@
 		{
 			"src": ["tag:tuist-k8s-staging"],
 			"dst": ["tag:tuist-macmini-staging"],
-			"ip":  ["tcp:8080", "tcp:9091", "tcp:9100"],
+			"ip":  ["tcp:22", "tcp:8080", "tcp:9091", "tcp:9100"],
 		},
 		{
 			"src": ["tag:tuist-k8s-canary"],
 			"dst": ["tag:tuist-macmini-canary"],
-			"ip":  ["tcp:8080", "tcp:9091", "tcp:9100"],
+			"ip":  ["tcp:22", "tcp:8080", "tcp:9091", "tcp:9100"],
 		},
 		{
 			"src": ["tag:tuist-k8s-production"],
 			"dst": ["tag:tuist-macmini-production"],
-			"ip":  ["tcp:8080", "tcp:9091", "tcp:9100"],
+			"ip":  ["tcp:22", "tcp:8080", "tcp:9091", "tcp:9100"],
 		},
 
 		// Same-env Mac mini fleet → CNPG pooler proxy on tcp:5432.
@@ -128,17 +134,29 @@
 		{
 			"src": ["tag:tuist-macmini-staging"],
 			"dst": ["tag:tuist-k8s-staging"],
-			"ip":  ["tcp:5432"],
+			// 5432: CNPG pooler proxy. 4317 and 3100: the Alloy receiver
+			// proxy, for spans and logs. Tart VMs have no route to the
+			// in-cluster receiver address other workloads use, and their
+			// logs cannot be tailed from the node at all.
+			"ip":  ["tcp:5432", "tcp:4317", "tcp:3100"],
 		},
 		{
 			"src": ["tag:tuist-macmini-canary"],
 			"dst": ["tag:tuist-k8s-canary"],
-			"ip":  ["tcp:5432"],
+			// 5432: CNPG pooler proxy. 4317 and 3100: the Alloy receiver
+			// proxy, for spans and logs. Tart VMs have no route to the
+			// in-cluster receiver address other workloads use, and their
+			// logs cannot be tailed from the node at all.
+			"ip":  ["tcp:5432", "tcp:4317", "tcp:3100"],
 		},
 		{
 			"src": ["tag:tuist-macmini-production"],
 			"dst": ["tag:tuist-k8s-production"],
-			"ip":  ["tcp:5432"],
+			// 5432: CNPG pooler proxy. 4317 and 3100: the Alloy receiver
+			// proxy, for spans and logs. Tart VMs have no route to the
+			// in-cluster receiver address other workloads use, and their
+			// logs cannot be tailed from the node at all.
+			"ip":  ["tcp:5432", "tcp:4317", "tcp:3100"],
 		},
 
 		// Staging Mac mini fleet → the staging cluster's Service CIDR,
@@ -147,8 +165,8 @@
 		// 10.128.0.0/12; infra/k8s/clusters/cluster-staging.yaml is the
 		// source of truth for the CIDR). This is the macOS runner-cache
 		// path: Tart runner VMs on the minis dial the account's private
-		// Kura node at its ClusterIP — 4000 (HTTP cache API) + 50051
-		// (gRPC), mirroring the Linux runner namespace's egress
+		// Kura node at its ClusterIP — 4000 (the co-hosted HTTP + gRPC
+		// cache port), mirroring the Linux runner namespace's egress
 		// carve-out in infra/helm/tuist/templates/runners-namespace.yaml
 		// — plus cluster DNS on 53 (kube-dns ClusterIP lives in the same
 		// range) so the VM's /etc/resolver entry can resolve
@@ -166,7 +184,7 @@
 		{
 			"src": ["tag:tuist-macmini-staging"],
 			"dst": ["10.128.0.0/12"],
-			"ip":  ["tcp:4000", "tcp:50051", "tcp:53", "udp:53"],
+			"ip":  ["tcp:4000", "tcp:53", "udp:53"],
 		},
 
 		// Humans SSH into any Mac mini. Not load-bearing — the
@@ -349,7 +367,6 @@
 			"src": "tag:tuist-macmini-staging",
 			"accept": [
 				"10.128.0.10:4000",
-				"10.128.0.10:50051",
 				"10.128.0.10:53",
 			],
 		},

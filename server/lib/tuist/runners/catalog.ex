@@ -4,20 +4,23 @@ defmodule Tuist.Runners.Catalog do
   the runner fleets expose. Read from application config:
 
     * `:runner_linux_shapes` — Linux shape catalog.
+    * `:runner_linux_pools` — operator-defined Linux pools.
     * `:runner_macos_shapes` — macOS shape catalog (M2-L only today).
     * `:runner_macos_xcode_versions` — Xcode versions runnable on the
       macOS fleet.
 
   **Single source of truth: the Helm `runnersFleetLinux.shapes`,
-  `runnersFleet.shapes`, and `runnersFleet.xcodeVersions` lists.**
-  Helm both renders the corresponding `RunnerPool` CRs *and* injects
-  the same lists into the server as `TUIST_RUNNER_LINUX_SHAPES`,
-  `TUIST_RUNNER_MACOS_SHAPES`, and `TUIST_RUNNER_MACOS_XCODE_VERSIONS`
-  (JSON), which `config/runtime.exs` parses into the matching config
-  keys. So in a managed deploy the pools and the server's view of
-  them can't drift — they come from one place. `config/config.exs`
-  carries defaults for local dev, tests, and CI, where there's no
-  cluster and the env vars are unset.
+  `runnersFleetLinux.pools`, `runnersFleet.shapes`, and
+  `runnersFleet.xcodeVersions` lists.** Helm both renders the
+  corresponding `RunnerPool` CRs *and* injects the same lists into the
+  server as `TUIST_RUNNER_LINUX_SHAPES`, `TUIST_RUNNER_LINUX_POOLS`,
+  `TUIST_RUNNER_MACOS_SHAPES`, and
+  `TUIST_RUNNER_MACOS_XCODE_VERSIONS` (JSON), which
+  `config/runtime.exs` parses into the matching config keys. So in a
+  managed deploy the pools and the server's view of them can't drift —
+  they come from one place. `config/config.exs` carries defaults for
+  local dev, tests, and CI, where there's no cluster and the env vars
+  are unset.
 
   Config rather than a live K8s LIST: dispatch stays a pure, fast hot
   path (no apiserver dependency to decide where a job goes), the
@@ -68,6 +71,51 @@ defmodule Tuist.Runners.Catalog do
   """
   def default_shape(platform) when platform in @platforms do
     Enum.find(shapes(platform), & &1.default?)
+  end
+
+  @doc """
+  Operator-defined Linux pools. CPU and memory are stored in the same
+  units used by the RunnerPool pod specification.
+  """
+  def linux_pools do
+    raw =
+      case Application.get_env(:tuist, :runner_linux_pools, []) do
+        list when is_list(list) -> list
+        _ -> []
+      end
+
+    raw
+    |> Enum.map(&normalize_linux_pool/1)
+    |> Enum.reject(&is_nil/1)
+  end
+
+  @doc """
+  Exact Linux fleet names and their configured whole-vCPU and GiB
+  resources. Partial units round up so admission never understates a
+  runner's reservation.
+  """
+  def linux_fleet_resources do
+    shape_resources =
+      Enum.map(shapes(:linux), fn shape ->
+        %{
+          fleet_name: pool_name(%{platform: :linux, vcpus: shape.vcpus, memory_gb: shape.memory_gb}),
+          platform: :linux,
+          vcpus: shape.vcpus,
+          memory_gb: shape.memory_gb
+        }
+      end)
+
+    pool_resources =
+      Enum.map(linux_pools(), fn pool ->
+        %{
+          fleet_name: "#{Tuist.Environment.runners_linux_pool_name_prefix()}-#{pool.name}",
+          platform: :linux,
+          vcpus: div(pool.cpu_milli + 999, 1000),
+          memory_gb: div(pool.memory_mb + 1023, 1024)
+        }
+      end)
+
+    shape_resources ++ pool_resources
   end
 
   @doc """
@@ -170,6 +218,44 @@ defmodule Tuist.Runners.Catalog do
   def fleet_platform(_), do: nil
 
   @doc """
+  Resolves the resources represented by a fleet name.
+
+  New lifecycle rows persist resources at webhook enqueue time, so
+  this is primarily a rollout fallback for queued rows created before
+  resource columns existed. Linux profile and operator-defined pools
+  are matched against their configured resources; macOS pools use the
+  catalog default shape because the current Xcode-keyed pools all run
+  on the same machine shape. Legacy `linux-…` names use the Linux
+  default, while an unconfigured catalog pool is rejected.
+  """
+  def resources_for_fleet(fleet_name) when is_binary(fleet_name) do
+    case fleet_platform(fleet_name) do
+      :linux -> linux_resources_for_fleet(fleet_name)
+      :macos -> default_resources(:macos)
+      nil -> {:error, :invalid_resources}
+    end
+  end
+
+  defp linux_resources_for_fleet(fleet_name) do
+    resources = Enum.find(__MODULE__.linux_fleet_resources(), &(&1.fleet_name == fleet_name))
+
+    case resources do
+      nil -> legacy_linux_resources(fleet_name)
+      resources -> {:ok, Map.take(resources, [:platform, :vcpus, :memory_gb])}
+    end
+  end
+
+  defp legacy_linux_resources("linux-" <> _fleet_name), do: default_resources(:linux)
+  defp legacy_linux_resources(_fleet_name), do: {:error, :invalid_resources}
+
+  defp default_resources(platform) do
+    case default_shape(platform) do
+      nil -> {:error, :invalid_resources}
+      shape -> {:ok, %{platform: platform, vcpus: shape.vcpus, memory_gb: shape.memory_gb}}
+    end
+  end
+
+  @doc """
   Whether jobs on this fleet can reach the private (in-cluster) Kura
   runner-cache endpoint dispatch would hand them.
 
@@ -228,6 +314,41 @@ defmodule Tuist.Runners.Catalog do
   def parse_shapes_json(_), do: :error
 
   @doc """
+  Decode the operator-defined Linux pool resources Helm injects.
+  Pool names are suffixes; `linux_fleet_resources/0` combines them
+  with the deployment's component prefix.
+  """
+  def parse_linux_pools_json(json) when is_binary(json) do
+    case JSON.decode(json) do
+      {:ok, pools} when is_list(pools) ->
+        pools
+        |> Enum.reduce_while([], fn pool, parsed ->
+          case parse_linux_pool(pool) do
+            {:ok, pool} -> {:cont, [pool | parsed]}
+            :error -> {:halt, :error}
+          end
+        end)
+        |> case do
+          :error -> :error
+          parsed -> Enum.reverse(parsed)
+        end
+
+      _ ->
+        :error
+    end
+  end
+
+  def parse_linux_pools_json(_), do: :error
+
+  defp parse_linux_pool(%{"name" => name, "cpuMilli" => cpu_milli, "memoryMB" => memory_mb})
+       when is_binary(name) and name != "" and is_integer(cpu_milli) and cpu_milli > 0 and is_integer(memory_mb) and
+              memory_mb > 0 do
+    {:ok, %{name: name, cpu_milli: cpu_milli, memory_mb: memory_mb}}
+  end
+
+  defp parse_linux_pool(_), do: :error
+
+  @doc """
   Decode the JSON wire form of the macOS Xcode catalog into the
   `:runner_macos_xcode_versions` config shape (atom keys,
   `xcodeVersion` → `:xcode_version`). Mirrors `parse_shapes_json/1`
@@ -261,6 +382,14 @@ defmodule Tuist.Runners.Catalog do
   end
 
   defp normalize_shape(_), do: nil
+
+  defp normalize_linux_pool(%{name: name, cpu_milli: cpu_milli, memory_mb: memory_mb})
+       when is_binary(name) and name != "" and is_integer(cpu_milli) and cpu_milli > 0 and is_integer(memory_mb) and
+              memory_mb > 0 do
+    %{name: name, cpu_milli: cpu_milli, memory_mb: memory_mb}
+  end
+
+  defp normalize_linux_pool(_), do: nil
 
   defp normalize_xcode_version(%{xcode_version: version} = entry) when is_binary(version) and version != "" do
     %{

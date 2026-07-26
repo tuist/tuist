@@ -9,7 +9,7 @@ use std::{
 use deadpool::unmanaged::{Object, Pool};
 use tokio::{
     fs::{self, File, OpenOptions},
-    io::{self, AsyncRead, AsyncSeek, AsyncWrite, ReadBuf},
+    io::{self, AsyncRead, AsyncSeek, AsyncWrite, AsyncWriteExt, ReadBuf},
     time::timeout,
 };
 
@@ -226,6 +226,72 @@ impl IoController {
         }
     }
 
+    pub async fn drop_cached_pages(
+        &self,
+        path: &Path,
+        offset: u64,
+        length: u64,
+    ) -> Result<(), String> {
+        let file = self.open_persistent_read_file(path).await?;
+        file.drop_cached_pages(offset, length).map_err(|error| {
+            format!(
+                "failed to release file cache for {}: {error}",
+                path.display()
+            )
+        })
+    }
+
+    pub async fn sync_drop_cache_and_reopen_append(
+        &self,
+        mut file: TrackedFile,
+        path: &Path,
+        offset: u64,
+        length: u64,
+    ) -> Result<TrackedFile, String> {
+        file.flush()
+            .await
+            .map_err(|error| format!("failed to flush {}: {error}", path.display()))?;
+        file.sync_data()
+            .await
+            .map_err(|error| format!("failed to sync {}: {error}", path.display()))?;
+
+        // Keep cache eviction outside the lifetime of the asynchronous writer.
+        // Advising completed ranges while that writer remained open caused
+        // later buffered writes to disappear under Linux stress. Reopening in
+        // append mode makes the continuation offset explicit and preserves the
+        // append-only segment invariant.
+        drop(file);
+        self.drop_cached_pages(path, offset, length).await?;
+        self.open_append_file(path).await
+    }
+
+    pub async fn sync_dir(&self, path: &Path) -> Result<(), String> {
+        let path = self.validate_path(path)?;
+        let lease = self.acquire("sync_dir").await?;
+        let started_at = Instant::now();
+        let result = tokio::task::spawn_blocking({
+            let path = path.clone();
+            move || {
+                let directory = std::fs::File::open(&path).map_err(|error| {
+                    format!("failed to open directory {}: {error}", path.display())
+                })?;
+                directory.sync_all().map_err(|error| {
+                    format!("failed to sync directory {}: {error}", path.display())
+                })
+            }
+        })
+        .await
+        .map_err(|error| format!("failed to join directory sync task: {error}"))?;
+        drop(lease);
+        self.inner.metrics.record_file_operation(
+            "sync_dir",
+            if result.is_ok() { "ok" } else { "error" },
+            started_at.elapsed(),
+            0,
+        );
+        result
+    }
+
     pub async fn create_dir_all(&self, path: &Path) -> Result<(), String> {
         let path = self.validate_path(path)?;
         self.run("create_dir_all", 0, async {
@@ -319,27 +385,25 @@ impl IoController {
         .await
     }
 
-    pub async fn remove_file_if_exists(&self, path: &Path) {
+    pub async fn remove_file_if_exists_result(&self, path: &Path) -> Result<(), String> {
         match self.path_exists(path).await {
-            Ok(true) => {
-                if let Err(error) = self.remove_file(path).await {
-                    tracing::warn!("{error}");
-                }
-            }
-            Ok(false) => {}
-            Err(error) => tracing::warn!("{error}"),
+            Ok(true) => self.remove_file(path).await,
+            Ok(false) => Ok(()),
+            Err(error) => Err(error),
         }
     }
 
-    pub async fn remove_dir_all_if_exists(&self, path: &Path) {
+    pub async fn remove_file_if_exists(&self, path: &Path) {
+        if let Err(error) = self.remove_file_if_exists_result(path).await {
+            tracing::warn!("{error}");
+        }
+    }
+
+    pub async fn remove_dir_all_if_exists(&self, path: &Path) -> Result<(), String> {
         match self.path_exists(path).await {
-            Ok(true) => {
-                if let Err(error) = self.remove_dir_all(path).await {
-                    tracing::warn!("{error}");
-                }
-            }
-            Ok(false) => {}
-            Err(error) => tracing::warn!("{error}"),
+            Ok(true) => self.remove_dir_all(path).await,
+            Ok(false) => Ok(()),
+            Err(error) => Err(error),
         }
     }
 
@@ -494,12 +558,57 @@ impl PersistentFile {
     pub fn as_std(&self) -> &std::fs::File {
         &self.file
     }
+
+    pub fn drop_cached_pages(&self, offset: u64, length: u64) -> Result<(), io::Error> {
+        #[cfg(target_os = "linux")]
+        {
+            drop_file_cached_pages(&self.file, offset, length)
+        }
+
+        #[cfg(not(target_os = "linux"))]
+        {
+            let _ = (offset, length);
+            Ok(())
+        }
+    }
 }
 
 impl TrackedFile {
     pub async fn sync_data(&self) -> Result<(), io::Error> {
         self.file.sync_data().await
     }
+}
+
+#[cfg(target_os = "linux")]
+fn drop_file_cached_pages(file: &std::fs::File, offset: u64, length: u64) -> Result<(), io::Error> {
+    let Some((aligned_offset, aligned_length)) =
+        aligned_advice_range(offset, length, rustix::param::page_size() as u64)
+    else {
+        return Ok(());
+    };
+    rustix::fs::fadvise(
+        file,
+        aligned_offset,
+        Some(aligned_length),
+        rustix::fs::Advice::DontNeed,
+    )
+    .map_err(io::Error::from)
+}
+
+#[cfg(any(target_os = "linux", test))]
+fn aligned_advice_range(
+    offset: u64,
+    length: u64,
+    page_size: u64,
+) -> Option<(u64, std::num::NonZeroU64)> {
+    if length == 0 || page_size == 0 {
+        return None;
+    }
+    let aligned_offset = offset / page_size * page_size;
+    let end = offset.saturating_add(length);
+    let aligned_end = end.div_ceil(page_size).saturating_mul(page_size);
+    std::num::NonZeroU64::new(aligned_end.saturating_sub(aligned_offset))
+        .map(|aligned_length| (aligned_offset, aligned_length))
 }
 
 impl IoController {
@@ -658,5 +767,15 @@ mod tests {
         };
 
         assert!(error.contains("parent traversal component"));
+    }
+
+    #[test]
+    fn file_cache_advice_expands_to_complete_pages() {
+        let (offset, length) = aligned_advice_range(4_095, 4_098, 4_096)
+            .expect("a non-empty range should produce advice");
+
+        assert_eq!(offset, 0);
+        assert_eq!(length.get(), 12_288);
+        assert_eq!(aligned_advice_range(0, 0, 4_096), None);
     }
 }

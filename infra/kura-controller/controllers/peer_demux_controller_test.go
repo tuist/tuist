@@ -2,11 +2,15 @@ package controllers
 
 import (
 	"context"
+	"crypto/sha256"
+	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	discoveryv1 "k8s.io/api/discovery/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -59,7 +63,7 @@ func TestPeerDemuxDesiredStateFiltersHostNetworkInstances(t *testing.T) {
 		},
 	}
 
-	routes, nodeSelector, tolerations := peerDemuxDesiredState("eu-central", "kura", instances)
+	routes, nodeSelector, tolerations, issues := peerDemuxDesiredState("eu-central", "kura", instances)
 
 	if len(routes) != 1 {
 		t.Fatalf("expected exactly the one host-network eu-central route, got %d: %+v", len(routes), routes)
@@ -76,6 +80,35 @@ func TestPeerDemuxDesiredStateFiltersHostNetworkInstances(t *testing.T) {
 	if len(tolerations) != 1 || tolerations[0].Key != "tuist.dev/kura-cache" {
 		t.Fatalf("expected the cache taint toleration to carry through, got %+v", tolerations)
 	}
+	if len(issues) != 0 {
+		t.Fatalf("expected no route issues, got %+v", issues)
+	}
+}
+
+func TestPeerDemuxDesiredStatePublishesOneSafeRoutePerHost(t *testing.T) {
+	host := "peer.acme-eu-central.kura.tuist.dev"
+	legacy := hostNetworkPeerInstance("kura-acme-old", "eu-central", host)
+	legacy.CreationTimestamp = metav1.NewTime(time.Date(2026, time.July, 1, 0, 0, 0, 0, time.UTC))
+	current := hostNetworkPeerInstance("kura-acme-current", "eu-central", host)
+	current.CreationTimestamp = metav1.NewTime(time.Date(2026, time.July, 2, 0, 0, 0, 0, time.UTC))
+	invalid := hostNetworkPeerInstance("kura-invalid", "eu-central", "not a host; include /tmp/file")
+
+	routes, _, _, issues := peerDemuxDesiredState(
+		"eu-central",
+		"kura",
+		[]kurav1alpha1.KuraInstance{*current, *legacy, *invalid},
+	)
+
+	if len(routes) != 1 {
+		t.Fatalf("expected one deduplicated route, got %+v", routes)
+	}
+	wantBackend := instancePublicPeerServiceName(legacy) + ".kura.svc.cluster.local:7443"
+	if routes[0].host != host || routes[0].backend != wantBackend {
+		t.Fatalf("expected the oldest owner route %s -> %s, got %+v", host, wantBackend, routes[0])
+	}
+	if len(issues) != 2 {
+		t.Fatalf("expected duplicate and invalid-host diagnostics, got %+v", issues)
+	}
 }
 
 func TestPeerDemuxNginxConfRoutesBySNI(t *testing.T) {
@@ -87,6 +120,8 @@ func TestPeerDemuxNginxConfRoutesBySNI(t *testing.T) {
 		// A resolver is mandatory for the variable proxy_pass to resolve the
 		// .svc.cluster.local backends at request time.
 		"resolver 10.96.0.10 valid=10s;",
+		"map_hash_bucket_size 512;",
+		"map_hash_max_size 8192;",
 		"map $ssl_preread_server_name $kura_peer_backend {",
 		"ssl_preread on;",
 		"listen 7443;",
@@ -100,6 +135,21 @@ func TestPeerDemuxNginxConfRoutesBySNI(t *testing.T) {
 	// No TLS termination directives — the demux is L4 SNI passthrough.
 	if strings.Contains(conf, "ssl_certificate") {
 		t.Fatalf("demux must not terminate TLS:\n%s", conf)
+	}
+}
+
+func TestPeerDemuxNginxConfSupportsMaximumAccountHandle(t *testing.T) {
+	host := "peer." + strings.Repeat("a", 32) + "-eu-central-1-staging.kura.tuist.dev"
+	conf := peerDemuxNginxConf([]peerDemuxRoute{{
+		host:    host,
+		backend: "kura-account-eu-central-1-peers-public.kura.svc.cluster.local:7443",
+	}}, "10.96.0.10")
+
+	if !strings.Contains(conf, "map_hash_bucket_size 512;") {
+		t.Fatalf("nginx conf must enlarge the map hash bucket for %d-byte peer hosts:\n%s", len(host), conf)
+	}
+	if !strings.Contains(conf, host+" ") {
+		t.Fatalf("nginx conf missing the maximum-length account host %q:\n%s", host, conf)
 	}
 }
 
@@ -233,6 +283,410 @@ func TestPeerDNSEndpointPublishesFailoverIP(t *testing.T) {
 	if len(targets) != 1 || targets[0] != "203.0.113.10" {
 		t.Fatalf("expected the failover IP target, got %v", targets)
 	}
+}
+
+func TestLegacyAccountPublicPeerServiceRetiresAfterReadyCutover(t *testing.T) {
+	ctx := context.Background()
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	if err := kurav1alpha1.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
+	scheme.AddKnownTypeWithName(dnsEndpointGVK, &unstructured.Unstructured{})
+	mapper := meta.NewDefaultRESTMapper([]schema.GroupVersion{dnsEndpointGVK.GroupVersion()})
+	mapper.Add(dnsEndpointGVK, meta.RESTScopeNamespace)
+
+	instance := hostNetworkPeerInstance(
+		"kura-acme-eu-central-1",
+		"eu-central",
+		"peer.acme-eu-central-1.kura.tuist.dev",
+	)
+	instance.Spec.AccountHandle = "acme"
+	instance.CreationTimestamp = metav1.NewTime(time.Date(2026, time.July, 1, 0, 0, 0, 0, time.UTC))
+	sibling := hostNetworkPeerInstance(
+		"kura-acme-eu-central-1-m",
+		instance.Spec.Region,
+		instance.Spec.MeshPublicPeerHost,
+	)
+	sibling.Spec.AccountHandle = instance.Spec.AccountHandle
+	sibling.CreationTimestamp = metav1.NewTime(time.Date(2026, time.July, 2, 0, 0, 0, 0, time.UTC))
+	oldAddress := "198.51.100.20"
+	targetAddress := instance.Spec.MeshPeerFailoverIP
+	legacy := &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      legacyAccountPublicPeerServiceName(instance),
+			Namespace: instance.Namespace,
+			Labels: map[string]string{
+				"app.kubernetes.io/name":       "kura",
+				"app.kubernetes.io/managed-by": "kura-controller",
+				"tuist.dev/account":            instance.Spec.AccountHandle,
+			},
+			Annotations: map[string]string{
+				externalDNSHostnameAnnotation:          instance.Spec.MeshPublicPeerHost,
+				hetznerNodeSelectorAnnotation:          "node.cluster.x-k8s.io/pool=kura",
+				"load-balancer.hetzner.cloud/location": "fsn1",
+			},
+		},
+		Spec: corev1.ServiceSpec{
+			Type:                  corev1.ServiceTypeLoadBalancer,
+			ExternalTrafficPolicy: corev1.ServiceExternalTrafficPolicyTypeLocal,
+			HealthCheckNodePort:   30123,
+			Selector: map[string]string{
+				"app.kubernetes.io/name": "kura",
+				"tuist.dev/account":      instance.Spec.AccountHandle,
+			},
+		},
+		Status: corev1.ServiceStatus{LoadBalancer: corev1.LoadBalancerStatus{Ingress: []corev1.LoadBalancerIngress{{IP: oldAddress}}}},
+	}
+	peerServiceName := instancePublicPeerServiceName(instance)
+	peerService := &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{Name: peerServiceName, Namespace: instance.Namespace},
+		Spec: corev1.ServiceSpec{
+			Type:     corev1.ServiceTypeClusterIP,
+			Selector: selectorLabels(instance),
+		},
+	}
+	ready := true
+	peerPortValue := peerPort
+	peerEndpoints := &discoveryv1.EndpointSlice{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      peerServiceName + "-ready",
+			Namespace: instance.Namespace,
+			Labels:    map[string]string{discoveryv1.LabelServiceName: peerServiceName},
+		},
+		AddressType: discoveryv1.AddressTypeIPv4,
+		Ports:       []discoveryv1.EndpointPort{{Name: ptr("peer"), Port: &peerPortValue}},
+		Endpoints: []discoveryv1.Endpoint{{
+			Addresses:  []string{"10.0.0.20"},
+			Conditions: discoveryv1.EndpointConditions{Ready: &ready},
+		}},
+	}
+	dnsEndpoint := &unstructured.Unstructured{}
+	dnsEndpoint.SetGroupVersionKind(dnsEndpointGVK)
+	dnsEndpoint.SetName(instance.Name + "-peer-dns")
+	dnsEndpoint.SetNamespace(instance.Namespace)
+	dnsEndpoint.SetGeneration(3)
+	if err := unstructured.SetNestedSlice(dnsEndpoint.Object, []interface{}{
+		map[string]interface{}{
+			"dnsName":    instance.Spec.MeshPublicPeerHost,
+			"recordType": "A",
+			"recordTTL":  peerDNSRecordTTLSeconds,
+			"targets":    []interface{}{targetAddress},
+		},
+	}, "spec", "endpoints"); err != nil {
+		t.Fatal(err)
+	}
+	if err := unstructured.SetNestedField(dnsEndpoint.Object, int64(3), "status", "observedGeneration"); err != nil {
+		t.Fatal(err)
+	}
+	config := peerDemuxNginxConf([]peerDemuxRoute{{
+		host:    instance.Spec.MeshPublicPeerHost,
+		backend: peerServiceName + "." + instance.Namespace + ".svc.cluster.local:7443",
+	}}, "10.96.0.10")
+	configMap := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{Name: peerDemuxName(instance.Spec.Region), Namespace: instance.Namespace},
+		Data:       map[string]string{"nginx.conf": config},
+	}
+	configHash := fmt.Sprintf("%x", sha256.Sum256([]byte(config)))
+	demux := &appsv1.DaemonSet{
+		ObjectMeta: metav1.ObjectMeta{Name: peerDemuxName(instance.Spec.Region), Namespace: instance.Namespace, Generation: 2},
+		Spec: appsv1.DaemonSetSpec{Template: corev1.PodTemplateSpec{ObjectMeta: metav1.ObjectMeta{
+			Annotations: map[string]string{peerDemuxConfigHashAnnotation: configHash},
+		}}},
+		Status: appsv1.DaemonSetStatus{
+			ObservedGeneration:     2,
+			DesiredNumberScheduled: 1,
+			UpdatedNumberScheduled: 1,
+			NumberReady:            1,
+			NumberAvailable:        1,
+		},
+	}
+	peerSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: peerTLSSecretName(instance), Namespace: instance.Namespace},
+		Data:       map[string][]byte{peerTLSCAFile: []byte("fake"), peerTLSCertFile: []byte("fake"), peerTLSKeyFile: []byte("fake")},
+	}
+	client := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithRESTMapper(mapper).
+		WithObjects(instance, sibling, legacy, peerService, peerEndpoints, dnsEndpoint, configMap, demux, peerSecret).
+		Build()
+	resolver := &fakePeerDNSResolver{addresses: []string{oldAddress}}
+	prober := &fakePeerPathProber{}
+	reconciler := &KuraInstanceReconciler{
+		Client: client, Scheme: scheme, PeerDNSResolver: resolver, PeerPathProber: prober,
+	}
+
+	cutoverStartedAt := time.Date(2026, time.July, 19, 12, 0, 0, 0, time.UTC)
+	// A ready DaemonSet running a stale ConfigMap revision must not start the
+	// migration. Readiness is tied to the exact rendered route hash.
+	if err := client.Get(ctx, types.NamespacedName{Name: demux.Name, Namespace: demux.Namespace}, demux); err != nil {
+		t.Fatal(err)
+	}
+	demux.Spec.Template.Annotations[peerDemuxConfigHashAnnotation] = "stale"
+	if err := client.Update(ctx, demux); err != nil {
+		t.Fatal(err)
+	}
+	if err := reconciler.retireLegacyAccountPublicPeerService(ctx, instance, cutoverStartedAt); err != nil {
+		t.Fatal(err)
+	}
+	got := &corev1.Service{}
+	if err := client.Get(ctx, types.NamespacedName{Name: legacy.Name, Namespace: legacy.Namespace}, got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Annotations[legacyPeerMigrationAnnotation] != "" {
+		t.Fatalf("expected stale demultiplexer configuration to block migration, got %v", got.Annotations)
+	}
+	demux.Spec.Template.Annotations[peerDemuxConfigHashAnnotation] = configHash
+	if err := client.Update(ctx, demux); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := reconciler.retireLegacyAccountPublicPeerService(ctx, instance, cutoverStartedAt); err != nil {
+		t.Fatal(err)
+	}
+	if err := client.Get(ctx, types.NamespacedName{Name: legacy.Name, Namespace: legacy.Namespace}, got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Annotations[legacyPeerMigrationAnnotation] != legacyPeerPhaseRepairing {
+		t.Fatalf("expected the fallback-repair phase, got %v", got.Annotations)
+	}
+	if got.Annotations[externalDNSHostnameAnnotation] == "" {
+		t.Fatal("fallback repair must keep legacy DNS publication")
+	}
+	if _, found := got.Annotations[hetznerNodeSelectorAnnotation]; found {
+		t.Fatalf("expected the stale Hetzner node selector to be removed, got %v", got.Annotations)
+	}
+	if got.Spec.ExternalTrafficPolicy != corev1.ServiceExternalTrafficPolicyTypeCluster || got.Spec.HealthCheckNodePort != 0 {
+		t.Fatalf("expected a Cluster-routed fallback, got policy=%q healthPort=%d", got.Spec.ExternalTrafficPolicy, got.Spec.HealthCheckNodePort)
+	}
+	if !stringMapEqual(got.Spec.Selector, selectorLabels(instance)) {
+		t.Fatalf("expected the fallback to select the demultiplexer route owner, got %v", got.Spec.Selector)
+	}
+	if err := reconciler.retireLegacyAccountPublicPeerService(ctx, sibling, cutoverStartedAt); err != nil {
+		t.Fatal(err)
+	}
+	if err := client.Get(ctx, types.NamespacedName{Name: legacy.Name, Namespace: legacy.Namespace}, got); err != nil {
+		t.Fatal(err)
+	}
+	if !stringMapEqual(got.Spec.Selector, selectorLabels(instance)) {
+		t.Fatalf("expected the non-owner sibling to leave the fallback selector unchanged, got %v", got.Spec.Selector)
+	}
+	// Recreate the reconciler to prove that no in-memory state is needed to
+	// resume after a controller restart.
+	reconciler = &KuraInstanceReconciler{
+		Client: client, Scheme: scheme, PeerDNSResolver: resolver, PeerPathProber: prober,
+	}
+
+	// A separate reconciliation verifies both public paths before it requests
+	// the DNS cutover.
+	prober.fail = map[string]error{oldAddress: fmt.Errorf("legacy load balancer has not converged")}
+	if err := reconciler.retireLegacyAccountPublicPeerService(ctx, instance, cutoverStartedAt); err != nil {
+		t.Fatal(err)
+	}
+	if err := client.Get(ctx, types.NamespacedName{Name: legacy.Name, Namespace: legacy.Namespace}, got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Annotations[externalDNSHostnameAnnotation] == "" {
+		t.Fatal("a failed fallback probe must keep legacy DNS publication")
+	}
+	prober.fail = nil
+	prober.addresses = nil
+	if err := reconciler.retireLegacyAccountPublicPeerService(ctx, instance, cutoverStartedAt); err != nil {
+		t.Fatal(err)
+	}
+	if err := client.Get(ctx, types.NamespacedName{Name: legacy.Name, Namespace: legacy.Namespace}, got); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := got.Annotations[externalDNSHostnameAnnotation]; ok {
+		t.Fatal("legacy service must stop publishing only after both public paths are ready")
+	}
+	if got.Annotations[legacyPeerMigrationAnnotation] != legacyPeerPhaseCutoverRequested {
+		t.Fatalf("expected a requested DNS cutover, got %v", got.Annotations)
+	}
+	if got.Annotations[legacyPeerRetireAfterAnnotation] != "" {
+		t.Fatal("the retirement timer must not start before public DNS changes")
+	}
+	if len(prober.addresses) != 2 || prober.addresses[0] != oldAddress || prober.addresses[1] != targetAddress {
+		t.Fatalf("expected both public paths to be probed, got %v", prober.addresses)
+	}
+
+	// Seeing only the old address must not start the drain.
+	if err := reconciler.retireLegacyAccountPublicPeerService(ctx, instance, cutoverStartedAt); err != nil {
+		t.Fatal(err)
+	}
+	if err := client.Get(ctx, types.NamespacedName{Name: legacy.Name, Namespace: legacy.Namespace}, got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Annotations[legacyPeerRetireAfterAnnotation] != "" {
+		t.Fatal("old DNS must keep the retirement timer unset")
+	}
+
+	// If the replacement path regresses after DNS publication was removed,
+	// republish the fallback before attempting another cutover.
+	prober.fail = map[string]error{targetAddress: fmt.Errorf("replacement path regressed")}
+	if err := reconciler.retireLegacyAccountPublicPeerService(ctx, instance, cutoverStartedAt); err != nil {
+		t.Fatal(err)
+	}
+	if err := client.Get(ctx, types.NamespacedName{Name: legacy.Name, Namespace: legacy.Namespace}, got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Annotations[legacyPeerMigrationAnnotation] != legacyPeerPhaseRepairing ||
+		got.Annotations[externalDNSHostnameAnnotation] != instance.Spec.MeshPublicPeerHost {
+		t.Fatalf("expected a failed replacement path to republish the fallback, got %v", got.Annotations)
+	}
+	prober.fail = nil
+	fallbackObservedAt := cutoverStartedAt.Add(time.Minute)
+	if err := reconciler.retireLegacyAccountPublicPeerService(ctx, instance, fallbackObservedAt); err != nil {
+		t.Fatal(err)
+	}
+	if err := client.Get(ctx, types.NamespacedName{Name: legacy.Name, Namespace: legacy.Namespace}, got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Annotations[legacyPeerFallbackObservedAnnotation] != fallbackObservedAt.Format(time.RFC3339) {
+		t.Fatalf("expected the restored fallback publication to be observed, got %v", got.Annotations)
+	}
+	if err := reconciler.retireLegacyAccountPublicPeerService(
+		ctx,
+		instance,
+		fallbackObservedAt.Add(time.Duration(peerDNSRecordTTLSeconds)*time.Second-time.Second),
+	); err != nil {
+		t.Fatal(err)
+	}
+	if err := client.Get(ctx, types.NamespacedName{Name: legacy.Name, Namespace: legacy.Namespace}, got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Annotations[externalDNSHostnameAnnotation] == "" {
+		t.Fatal("the restored fallback must remain published for a full DNS record lifetime")
+	}
+	if err := reconciler.retireLegacyAccountPublicPeerService(
+		ctx,
+		instance,
+		fallbackObservedAt.Add(time.Duration(peerDNSRecordTTLSeconds)*time.Second),
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	resolver.addresses = []string{targetAddress}
+	dnsObservedAt := fallbackObservedAt.Add(time.Duration(peerDNSRecordTTLSeconds)*time.Second + time.Minute)
+	if err := reconciler.retireLegacyAccountPublicPeerService(ctx, instance, dnsObservedAt); err != nil {
+		t.Fatal(err)
+	}
+	if err := client.Get(ctx, types.NamespacedName{Name: legacy.Name, Namespace: legacy.Namespace}, got); err != nil {
+		t.Fatal(err)
+	}
+	wantRetireAfter := dnsObservedAt.Add(legacyPeerRetirementDelay).Format(time.RFC3339)
+	if got.Annotations[legacyPeerMigrationAnnotation] != legacyPeerPhaseDraining ||
+		got.Annotations[legacyPeerRetireAfterAnnotation] != wantRetireAfter {
+		t.Fatalf("expected a post-observation drain until %s, got %v", wantRetireAfter, got.Annotations)
+	}
+
+	// An unrelated demultiplexer rollout pauses only the retirement timer while
+	// the replacement path and public DNS remain healthy. It must not republish
+	// the legacy fallback or restart the full cutover.
+	if err := client.Get(ctx, types.NamespacedName{Name: demux.Name, Namespace: demux.Namespace}, demux); err != nil {
+		t.Fatal(err)
+	}
+	demux.Spec.Template.Annotations[peerDemuxConfigHashAnnotation] = "stale"
+	if err := client.Update(ctx, demux); err != nil {
+		t.Fatal(err)
+	}
+	staleAt := dnsObservedAt.Add(legacyPeerRetirementDelay)
+	if err := reconciler.retireLegacyAccountPublicPeerService(ctx, instance, staleAt); err != nil {
+		t.Fatal(err)
+	}
+	if err := client.Get(ctx, types.NamespacedName{Name: legacy.Name, Namespace: legacy.Namespace}, got); err != nil {
+		t.Fatalf("expected the fallback to remain while the demultiplexer rolls: %v", err)
+	}
+	if got.Annotations[legacyPeerMigrationAnnotation] != legacyPeerPhaseDraining ||
+		got.Annotations[externalDNSHostnameAnnotation] != "" ||
+		got.Annotations[legacyPeerRetireAfterAnnotation] != "" {
+		t.Fatalf("expected the drain timer to pause without republishing the fallback, got %v", got.Annotations)
+	}
+
+	demux.Spec.Template.Annotations[peerDemuxConfigHashAnnotation] = configHash
+	if err := client.Update(ctx, demux); err != nil {
+		t.Fatal(err)
+	}
+	resumedAt := staleAt.Add(time.Minute)
+	if err := reconciler.retireLegacyAccountPublicPeerService(ctx, instance, resumedAt); err != nil {
+		t.Fatal(err)
+	}
+	if err := client.Get(ctx, types.NamespacedName{Name: legacy.Name, Namespace: legacy.Namespace}, got); err != nil {
+		t.Fatal(err)
+	}
+	wantResumedRetireAfter := resumedAt.Add(legacyPeerRetirementDelay).Format(time.RFC3339)
+	if got.Annotations[legacyPeerMigrationAnnotation] != legacyPeerPhaseDraining ||
+		got.Annotations[legacyPeerRetireAfterAnnotation] != wantResumedRetireAfter {
+		t.Fatalf("expected a fresh drain deadline at %s, got %v", wantResumedRetireAfter, got.Annotations)
+	}
+
+	// A DNS regression cancels the deadline and keeps the fallback. A malformed
+	// stored old-address list is rebuilt from the retained LoadBalancer status.
+	resolver.addresses = []string{oldAddress}
+	got.Annotations[legacyPeerOldAddressesAnnotation] = "invalid"
+	if err := client.Update(ctx, got); err != nil {
+		t.Fatal(err)
+	}
+	regressedAt := resumedAt.Add(legacyPeerRetirementDelay)
+	if err := reconciler.retireLegacyAccountPublicPeerService(ctx, instance, regressedAt); err != nil {
+		t.Fatal(err)
+	}
+	if err := client.Get(ctx, types.NamespacedName{Name: legacy.Name, Namespace: legacy.Namespace}, got); err != nil {
+		t.Fatalf("expected the fallback to survive a DNS regression: %v", err)
+	}
+	if got.Annotations[legacyPeerMigrationAnnotation] != legacyPeerPhaseRepairing ||
+		got.Annotations[externalDNSHostnameAnnotation] != instance.Spec.MeshPublicPeerHost ||
+		got.Annotations[legacyPeerRetireAfterAnnotation] != "" {
+		t.Fatalf("expected the drain to reset after regression, got %v", got.Annotations)
+	}
+	oldAddresses, valid := decodePeerAddresses(got.Annotations[legacyPeerOldAddressesAnnotation])
+	if !valid || !stringSlicesEqual(oldAddresses, []string{oldAddress}) {
+		t.Fatalf("expected the fallback addresses to be rebuilt from Service status, got %v", got.Annotations)
+	}
+
+	fallbackReobservedAt := regressedAt.Add(time.Minute)
+	if err := reconciler.retireLegacyAccountPublicPeerService(ctx, instance, fallbackReobservedAt); err != nil {
+		t.Fatal(err)
+	}
+	if err := reconciler.retireLegacyAccountPublicPeerService(
+		ctx,
+		instance,
+		fallbackReobservedAt.Add(time.Duration(peerDNSRecordTTLSeconds)*time.Second),
+	); err != nil {
+		t.Fatal(err)
+	}
+	resolver.addresses = []string{targetAddress}
+	reobservedAt := fallbackReobservedAt.Add(time.Duration(peerDNSRecordTTLSeconds)*time.Second + time.Minute)
+	if err := reconciler.retireLegacyAccountPublicPeerService(ctx, instance, reobservedAt); err != nil {
+		t.Fatal(err)
+	}
+	if err := reconciler.retireLegacyAccountPublicPeerService(ctx, instance, reobservedAt.Add(legacyPeerRetirementDelay)); err != nil {
+		t.Fatal(err)
+	}
+	if err := client.Get(ctx, types.NamespacedName{Name: legacy.Name, Namespace: legacy.Namespace}, got); !apierrors.IsNotFound(err) {
+		t.Fatalf("expected the drained legacy service to be deleted, got %v", err)
+	}
+}
+
+type fakePeerDNSResolver struct {
+	addresses []string
+	err       error
+}
+
+func (resolver *fakePeerDNSResolver) LookupHost(context.Context, string) ([]string, error) {
+	return resolver.addresses, resolver.err
+}
+
+type fakePeerPathProber struct {
+	addresses []string
+	fail      map[string]error
+}
+
+func (prober *fakePeerPathProber) Probe(_ context.Context, address string, _ string, _ map[string][]byte) error {
+	prober.addresses = append(prober.addresses, address)
+	return prober.fail[address]
 }
 
 func TestPeerDNSEndpointDeletedWhenFailoverIPMissing(t *testing.T) {

@@ -59,6 +59,20 @@ defmodule Tuist.Automations.Alerts.Alert do
   def recovery_ledger?(%{monitor_type: monitor_type}), do: recovery_ledger?(monitor_type)
   def recovery_ledger?(monitor_type), do: monitor_type in @recovery_ledger_monitor_types
 
+  @doc """
+  Established rolling metric alerts are evaluated from recently changed test
+  cases. Calendar-window alerts and rolling alerts without a baseline stay on
+  the periodic full-evaluation path.
+  """
+  def scoped_evaluation?(%{
+        monitor_type: monitor_type,
+        trigger_config: %{"window_type" => "rolling"},
+        baseline_established_at: %DateTime{}
+      })
+      when monitor_type in @recovery_ledger_monitor_types, do: true
+
+  def scoped_evaluation?(_alert), do: false
+
   @primary_key {:id, UUIDv7, autogenerate: true}
   @foreign_key_type UUIDv7
 
@@ -84,7 +98,15 @@ defmodule Tuist.Automations.Alerts.Alert do
   # Oban job within `cadence`, and completed jobs are pruned at 2h, so the
   # cadence must stay well under that window. Lifting this cap means
   # decoupling that dedup from Oban retention first.
+  @default_cadence_seconds 300
   @max_cadence_seconds 3600
+
+  def cadence_seconds(cadence) do
+    case parse_cadence_seconds(cadence) do
+      {:ok, seconds} -> seconds
+      :error -> @default_cadence_seconds
+    end
+  end
 
   def changeset(alert \\ %__MODULE__{}, attrs) do
     alert

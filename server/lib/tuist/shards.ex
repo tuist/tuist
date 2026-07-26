@@ -30,8 +30,8 @@ defmodule Tuist.Shards do
     granularity = Map.get(params, :granularity, "module")
     reference = Map.fetch!(params, :reference)
 
-    timing_data = fetch_timing_data(project, granularity)
-    units = resolve_units(project, params, granularity, timing_data)
+    units = resolve_units(project, params, granularity)
+    timing_data = fetch_timing_data(project, granularity, units)
     units_with_durations = assign_durations(units, timing_data, granularity)
 
     shard_count =
@@ -388,9 +388,9 @@ defmodule Tuist.Shards do
     )
   end
 
-  defp resolve_units(_project, params, "module", _timing_data), do: params_modules(params)
+  defp resolve_units(_project, params, "module"), do: params_modules(params)
 
-  defp resolve_units(project, params, "suite", _timing_data) do
+  defp resolve_units(project, params, "suite") do
     case Map.get(params, :test_suites) do
       [_ | _] = suites ->
         suites
@@ -423,13 +423,27 @@ defmodule Tuist.Shards do
     branches = suite_inventory_branches(project, params)
     suites_by_branch_module = latest_branch_module_suite_units(project, branches, modules)
 
-    modules
-    |> Enum.flat_map(fn module ->
-      branches
-      |> Enum.find_value(fn branch -> Map.get(suites_by_branch_module, {branch, module}) end)
-      |> List.wrap()
-    end)
-    |> Enum.uniq()
+    units_by_module =
+      Map.new(modules, fn module ->
+        {module, Enum.find_value(branches, fn branch -> Map.get(suites_by_branch_module, {branch, module}) end)}
+      end)
+
+    # A module with no suite history on the preferred branches falls back to its most recent CI run
+    # on any branch. The preferred branches can come up empty for reasons that have nothing to do
+    # with the module: a project that only runs tests on pull-request branches has no history on its
+    # default branch, and the build run the branch is read from is written through an async
+    # ingestion buffer, so it is usually still unflushed when the plan is created. Without the
+    # fallback every module resolves no suites, and a plan with nothing to pack collapses to a
+    # single catch-all shard that runs the whole suite serially.
+    fallback_units =
+      units_by_module
+      |> Enum.filter(fn {_module, units} -> is_nil(units) end)
+      |> Enum.map(fn {module, _units} -> module end)
+      |> then(&latest_module_suite_units(project, &1))
+
+    branch_units = units_by_module |> Map.values() |> Enum.reject(&is_nil/1) |> List.flatten()
+
+    Enum.uniq(branch_units ++ fallback_units)
   end
 
   defp suite_inventory_branches(project, params) do
@@ -496,6 +510,44 @@ defmodule Tuist.Shards do
     |> Enum.group_by(fn row -> {row.branch, row.module} end, & &1.name)
   end
 
+  # Suite inventory for modules that have no history on any of the preferred branches, taken from
+  # each module's most recent CI run regardless of branch. Suites that exist only on the branch
+  # being built still run: they are absent from the plan, and the catch-all shard picks them up.
+  defp latest_module_suite_units(_project, []), do: []
+
+  defp latest_module_suite_units(project, modules) do
+    cutoff = DateTime.add(DateTime.utc_now(), -@timing_lookback_days, :day)
+
+    latest_module_runs_query =
+      from(mr in TestModuleRun,
+        where: mr.project_id == ^project.id,
+        where: mr.is_ci == true,
+        where: mr.ran_at >= ^cutoff,
+        where: mr.name in ^modules,
+        where: mr.test_suite_count > 0,
+        group_by: mr.name,
+        select: %{
+          module_name: mr.name,
+          test_run_id: fragment("argMax(?, ?)", mr.test_run_id, mr.ran_at)
+        }
+      )
+
+    ClickHouseRepo.all(
+      from(sr in TestSuiteRun,
+        join: mr in TestModuleRun,
+        on: sr.test_module_run_id == mr.id,
+        join: latest in subquery(latest_module_runs_query),
+        on: latest.test_run_id == sr.test_run_id and latest.module_name == mr.name,
+        where: sr.project_id == ^project.id,
+        where: sr.is_ci == true,
+        where: sr.ran_at >= ^cutoff,
+        where: mr.name in ^modules,
+        group_by: [latest.module_name, sr.name],
+        select: fragment("concat(?, '/', ?)", latest.module_name, sr.name)
+      )
+    )
+  end
+
   defp blank?(nil), do: true
   defp blank?(""), do: true
   defp blank?(_), do: false
@@ -509,38 +561,59 @@ defmodule Tuist.Shards do
     end
   end
 
-  defp fetch_timing_data(project, "module") do
+  defp fetch_timing_data(_project, _granularity, []), do: %{}
+
+  defp fetch_timing_data(project, "module", modules) do
     cutoff = DateTime.add(DateTime.utc_now(), -@timing_lookback_days, :day)
 
     from(mr in TestModuleRun,
       where: mr.project_id == ^project.id,
       where: mr.is_ci == true,
       where: mr.ran_at >= ^cutoff,
+      where: mr.name in ^modules,
       group_by: mr.name,
       select: %{name: mr.name, duration: fragment("quantile(?)(?)", ^@timing_quantile, mr.duration)}
     )
     |> ClickHouseRepo.all()
-    |> Map.new(fn %{name: name, duration: duration} -> {name, round(duration)} end)
+    |> Map.new(fn %{name: name, duration: duration} -> {name, round_timing_duration(duration)} end)
   end
 
-  defp fetch_timing_data(project, "suite") do
+  defp fetch_timing_data(project, "suite", units) do
     cutoff = DateTime.add(DateTime.utc_now(), -@timing_lookback_days, :day)
+    modules = units |> Enum.map(&suite_module/1) |> Enum.uniq()
 
-    from(sr in TestSuiteRun,
-      join: mr in TestModuleRun,
-      on: sr.test_module_run_id == mr.id,
-      where: sr.project_id == ^project.id,
-      where: sr.is_ci == true,
-      where: sr.ran_at >= ^cutoff,
-      group_by: fragment("concat(?, '/', ?)", mr.name, sr.name),
-      select: %{
-        name: fragment("concat(?, '/', ?)", mr.name, sr.name),
-        duration: fragment("quantile(?)(?)", ^@timing_quantile, sr.duration)
-      }
-    )
-    |> ClickHouseRepo.all()
-    |> Map.new(fn %{name: name, duration: duration} -> {name, round(duration)} end)
+    query = """
+    SELECT
+      concat(mr.name, '/', sr.name) AS name,
+      quantile({timing_quantile:Float64})(sr.duration) AS duration
+    FROM test_suite_runs AS sr
+    INNER JOIN test_module_runs AS mr ON sr.test_module_run_id = mr.id
+    WHERE sr.project_id = {project_id:Int64}
+      AND sr.is_ci = true
+      AND sr.ran_at >= {cutoff:DateTime64(6)}
+      AND mr.project_id = {project_id:Int64}
+      AND mr.is_ci = true
+      AND mr.ran_at >= {cutoff:DateTime64(6)}
+      AND mr.name IN {modules:Array(String)}
+      AND concat(mr.name, '/', sr.name) IN {units:Array(String)}
+    GROUP BY name
+    """
+
+    params = %{
+      project_id: project.id,
+      timing_quantile: @timing_quantile,
+      cutoff: cutoff,
+      modules: modules,
+      units: units
+    }
+
+    {:ok, %{rows: rows}} = ClickHouseRepo.query(query, params)
+
+    Map.new(rows, fn [name, duration] -> {name, round_timing_duration(duration)} end)
   end
+
+  defp round_timing_duration(%Decimal{} = duration), do: duration |> Decimal.to_float() |> round()
+  defp round_timing_duration(duration), do: round(duration)
 
   defp assign_durations(unit_names, timing_data, granularity) do
     known_durations = Map.values(timing_data)

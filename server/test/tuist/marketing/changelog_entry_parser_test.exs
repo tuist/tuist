@@ -72,6 +72,19 @@ defmodule Tuist.Marketing.Changelog.EntryParserTest do
     assert Floki.find(copy, "[data-part=copy-icon]") != []
     assert Floki.find(copy, "[data-part=copy-check-icon]") != []
 
-    assert Floki.find(code_window, "[data-part=code]") != []
+    [copy_source] = Floki.find(code_window, ~s(template[data-part="copy-source"]))
+    assert Floki.text(copy_source) == "tuist share App --track beta"
+
+    assert body =~ ~s(data-code-whitespace="true">&nbsp;</span>)
+
+    [code] = Floki.find(code_window, "[data-part=code]")
+
+    code_text =
+      code
+      |> Floki.text()
+      |> String.replace(<<160::utf8>>, " ")
+
+    assert code_text =~ "tuist share App --track beta"
+    refute code_text =~ "tuistshare"
   end
 end

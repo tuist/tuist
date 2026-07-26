@@ -7,6 +7,7 @@
 #USAGE flag "--kura-controller-image <image>" help="Kura controller image repository for local kind" default="tuist-kura-controller"
 #USAGE flag "--kura-runtime-image <image>" help="Kura runtime image repository for local kind" default="tuist-kura"
 #USAGE flag "--kura-image-tag <tag>" help="Kura controller/runtime image tag for local kind" default="kind"
+#USAGE flag "--registry-image <image>" help="Registry image repository for local kind" default="tuist-registry"
 #
 # Two license-source modes, picked by which env var is exported:
 #
@@ -35,6 +36,7 @@ PLATFORM="linux/$(uname -m | sed 's/x86_64/amd64/' | sed 's/aarch64/arm64/')"
 KURA_CONTROLLER_REPO="${usage_kura_controller_image}"
 KURA_RUNTIME_REPO="${usage_kura_runtime_image}"
 KURA_IMAGE_TAG="${usage_kura_image_tag}"
+REGISTRY_REPO="${usage_registry_image}"
 KURA_INSTANCE_NAME="${RELEASE_NAME}-kura"
 # The KuraInstance lives in the cluster-wide `kura` namespace (the same
 # place the platform install puts the controller); the preview server
@@ -58,10 +60,12 @@ echo "==> License source: $LICENSE_MODE"
 if [ "${usage_remote:-}" = "true" ]; then
     SERVER_REPO="ghcr.io/tuist/tuist"
     CACHE_REPO="ghcr.io/tuist/cache"
+    REGISTRY_REPO="ghcr.io/tuist/registry"
     IMAGE_TAG="${usage_version}"
     echo "==> Pulling remote images for ${PLATFORM}..."
     docker pull --platform "$PLATFORM" "${SERVER_REPO}:${IMAGE_TAG}"
     docker pull --platform "$PLATFORM" "${CACHE_REPO}:${IMAGE_TAG}"
+    docker pull --platform "$PLATFORM" "${REGISTRY_REPO}:${IMAGE_TAG}"
     KURA_CONTROLLER_REPO="ghcr.io/tuist/kura-controller"
     KURA_RUNTIME_REPO="ghcr.io/tuist/kura"
     KURA_IMAGE_TAG="${usage_version}"
@@ -73,6 +77,12 @@ else
     IMAGE_TAG="latest"
     echo "==> Building images locally..."
     mise run helm:build
+    echo "==> Building registry image locally..."
+    docker build \
+        --platform "$PLATFORM" \
+        -f "$REPO_ROOT/registry/Dockerfile" \
+        -t "${REGISTRY_REPO}:${IMAGE_TAG}" \
+        "$REPO_ROOT"
     echo "==> Building Kura controller image locally..."
     docker build \
         --platform "$PLATFORM" \
@@ -99,7 +109,7 @@ kubectl get nodes -L role
 kubectl get nodes -o json | jq -r '.items[] | select(.spec.taints) | "\(.metadata.name): \(.spec.taints[] | "\(.key)=\(.value):\(.effect)")"'
 
 echo "==> Loading images into kind..."
-kind load docker-image "${SERVER_REPO}:${IMAGE_TAG}" "${CACHE_REPO}:${IMAGE_TAG}" --name "$CLUSTER_NAME"
+kind load docker-image "${SERVER_REPO}:${IMAGE_TAG}" "${CACHE_REPO}:${IMAGE_TAG}" "${REGISTRY_REPO}:${IMAGE_TAG}" --name "$CLUSTER_NAME"
 kind load docker-image \
     "${KURA_CONTROLLER_REPO}:${KURA_IMAGE_TAG}" \
     "${KURA_RUNTIME_REPO}:${KURA_IMAGE_TAG}" \
@@ -173,7 +183,32 @@ HELM_KURA_ARGS=(
     --set "kuraRuntime.image.repository=${KURA_RUNTIME_REPO}"
     --set "kuraRuntime.image.tag=${KURA_IMAGE_TAG}"
     --set "server.kuraEndpointUrls[0]=${KURA_ENDPOINT_URL}"
+    # The KuraInstance is a chart resource (templates/kura-instance.yaml), the
+    # same one the deploy workflow renders, so the local and CI shapes cannot
+    # drift. kind has no ingress or public DNS, so this one is `private`.
+    --set "kuraRuntime.instance.name=${KURA_INSTANCE_NAME}"
+    --set "kuraRuntime.instance.private=true"
+    --set "kuraRuntime.instance.region=kind-local"
+    --set "kuraRuntime.instance.replicas=2"
+    --set "kuraRuntime.instance.storageSize=1Gi"
+    --set "kuraRuntime.instance.accountHandle=${PREVIEW_ACCOUNT_HANDLE}"
+    --set "kuraRuntime.instance.tenantID=${PREVIEW_ACCOUNT_HANDLE}"
+    --set-file "kuraRuntime.instance.extensionScript=${REPO_ROOT}/kura/ops/helm/kura/hooks/tuist.lua"
 )
+
+HELM_REGISTRY_ARGS=(
+    --set "registry.image.repository=${REGISTRY_REPO}"
+    --set "registry.image.tag=${IMAGE_TAG}"
+    --set "registry.publicHost=registry-${RELEASE_NAME}.preview.local"
+    --set "registry.serverUrl=http://${RELEASE_NAME}.preview.local"
+)
+
+if [ -n "${GITHUB_TOKEN:-}" ]; then
+    HELM_REGISTRY_ARGS+=(--set-string "swiftRegistrySync.inlineSecrets.githubToken=${GITHUB_TOKEN}")
+else
+    echo "==> GITHUB_TOKEN is not set; registry sync will be deployed but disabled locally."
+    HELM_REGISTRY_ARGS+=(--set "swiftRegistrySync.syncEnabled=false")
+fi
 
 echo "==> Installing cluster-wide Kura controller into the kura namespace..."
 KURA_CONTROLLER_IMAGE_TAG="$KURA_IMAGE_TAG" \
@@ -193,45 +228,10 @@ helm install "$RELEASE_NAME" "$REPO_ROOT/infra/helm/tuist" \
     --set "cache.image.tag=${IMAGE_TAG}" \
     --set "server.appUrl=http://${RELEASE_NAME}.preview.local" \
     --set "server.cacheEndpointUrl=http://${RELEASE_NAME}-cache.preview.local" \
+    "${HELM_REGISTRY_ARGS[@]}" \
     "${HELM_LICENSE_ARGS[@]}" \
     "${HELM_KURA_ARGS[@]}" \
     --wait --timeout 5m
-
-echo "==> Creating KuraInstance '${KURA_INSTANCE_NAME}' for the '${PREVIEW_ACCOUNT_HANDLE}' tenant..."
-{
-    cat <<EOF
-apiVersion: kura.tuist.dev/v1alpha1
-kind: KuraInstance
-metadata:
-  name: ${KURA_INSTANCE_NAME}
-  namespace: kura
-  labels:
-    tuist.dev/preview-source: slack
-    app.kubernetes.io/instance: ${RELEASE_NAME}
-spec:
-  accountHandle: ${PREVIEW_ACCOUNT_HANDLE}
-  tenantID: ${PREVIEW_ACCOUNT_HANDLE}
-  region: kind-local
-  image: ${KURA_RUNTIME_REPO}:${KURA_IMAGE_TAG}
-  replicas: 2
-  private: true
-  storageSize: 1Gi
-  extraEnv:
-    - name: KURA_CONTROL_PLANE_URL
-      value: http://${RELEASE_NAME}-tuist-server.default.svc.cluster.local:80
-    - name: KURA_EXTENSION_HTTP_CLIENT_TUIST_BASE_URL
-      value: http://${RELEASE_NAME}-tuist-server.default.svc.cluster.local:80
-  nodeSelector:
-    role: preview
-  tolerations:
-    - key: role
-      operator: Equal
-      value: preview
-      effect: NoSchedule
-  extensionScript: |
-EOF
-    sed 's/^/    /' "$REPO_ROOT/kura/ops/helm/kura/hooks/tuist.lua"
-} | kubectl apply -f -
 
 echo "==> Waiting for the cluster-wide Kura controller to surface the StatefulSet..."
 kubectl -n kura wait --for=condition=Available deployment/kura-platform-tuist-kura-controller --timeout=3m

@@ -236,7 +236,7 @@ defmodule TuistWeb.API.ProjectsController do
           message: "You don't have permission to read the #{project.name} project."
         })
 
-      !is_nil(project) ->
+      true ->
         Tuist.PubSub.broadcast(%{user: user}, "projects.#{project.id}", :show)
 
         conn
@@ -328,7 +328,7 @@ defmodule TuistWeb.API.ProjectsController do
           message: "The authenticated subject is not authorized to perform this action."
         })
 
-      not is_nil(project) ->
+      true ->
         {:ok, project} =
           Projects.update_project(project, %{
             default_branch: Map.get(body_params, :default_branch, project.default_branch),

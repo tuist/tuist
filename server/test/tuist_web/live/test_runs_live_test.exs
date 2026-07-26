@@ -97,6 +97,30 @@ defmodule TuistWeb.TestRunsLiveTest do
       assert has_element?(lv, "[data-part='test-runs-table']")
     end
 
+    test "loads with an unknown analytics-environment value", %{
+      conn: conn,
+      organization: organization,
+      project: project
+    } do
+      {:ok, _test_run} =
+        RunsFixtures.test_fixture(
+          project_id: project.id,
+          account_id: organization.account.id,
+          scheme: "App",
+          ran_at: ~N[2024-04-30 10:19:30]
+        )
+
+      # A request with an empty or unexpected analytics-environment value should
+      # not crash analytics_environment_label/1 with a FunctionClauseError.
+      assert {:ok, lv, _html} =
+               live(
+                 conn,
+                 ~p"/#{organization.account.name}/#{project.name}/tests/test-runs?analytics-environment="
+               )
+
+      assert has_element?(lv, "[data-part='test-runs-table']")
+    end
+
     test "filters runs whose branch does not contain a substring", %{
       conn: conn,
       organization: organization,

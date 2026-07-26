@@ -3,6 +3,7 @@ defmodule Tuist.OrganizationTest do
   use Mimic
 
   alias Tuist.Accounts.Organization
+  alias Tuist.Environment
 
   @okta_attrs %{
     sso_provider: :okta,
@@ -99,6 +100,38 @@ defmodule Tuist.OrganizationTest do
       assert changeset.valid? == true
     end
 
+    test "accepts an oauth2 issuer URL with a path" do
+      changeset =
+        Organization.create_changeset(
+          %Organization{},
+          Map.merge(@oauth2_attrs, %{
+            sso_organization_id: "https://keycloak.example.com/realms/master",
+            oauth2_authorize_url: "https://keycloak.example.com/realms/master/protocol/openid-connect/auth",
+            oauth2_token_url: "https://keycloak.example.com/realms/master/protocol/openid-connect/token",
+            oauth2_user_info_url: "https://keycloak.example.com/realms/master/protocol/openid-connect/userinfo"
+          })
+        )
+
+      assert changeset.valid? == true
+    end
+
+    test "accepts private oauth2 URLs on self-hosted installations" do
+      stub(Environment, :tuist_hosted?, fn -> false end)
+
+      changeset =
+        Organization.create_changeset(
+          %Organization{},
+          Map.merge(@oauth2_attrs, %{
+            sso_organization_id: "https://10.0.0.1/realms/master",
+            oauth2_authorize_url: "https://10.0.0.1/realms/master/protocol/openid-connect/auth",
+            oauth2_token_url: "https://10.0.0.1/realms/master/protocol/openid-connect/token",
+            oauth2_user_info_url: "https://10.0.0.1/realms/master/protocol/openid-connect/userinfo"
+          })
+        )
+
+      assert changeset.valid? == true
+    end
+
     test "normalizes the oauth2 site on create" do
       changeset =
         Organization.create_changeset(
@@ -146,6 +179,8 @@ defmodule Tuist.OrganizationTest do
     end
 
     test "rejects private IP addresses in oauth2 URLs" do
+      stub(Environment, :tuist_hosted?, fn -> true end)
+
       for private_url <- [
             "https://127.0.0.1/authorize",
             "https://10.0.0.1/authorize",
@@ -171,6 +206,8 @@ defmodule Tuist.OrganizationTest do
     end
 
     test "rejects private addresses in sso_organization_id for oauth2" do
+      stub(Environment, :tuist_hosted?, fn -> true end)
+
       changeset =
         Organization.create_changeset(
           %Organization{},

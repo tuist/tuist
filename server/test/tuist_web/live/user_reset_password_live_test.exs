@@ -30,6 +30,13 @@ defmodule TuistWeb.UserResetPasswordLiveTest do
       assert html =~ "New password"
     end
 
+    test "redirects to log in when email auth is disabled", %{conn: conn, token: token} do
+      stub(Tuist.Environment, :email_auth_enabled?, fn -> false end)
+
+      assert {:error, {:redirect, %{to: to}}} = live(conn, ~p"/users/reset_password/#{token}")
+      assert to == ~p"/users/log_in"
+    end
+
     test "does not render reset password with invalid token", %{conn: conn} do
       {:error, {:redirect, to}} = live(conn, ~p"/users/reset_password/invalid")
 

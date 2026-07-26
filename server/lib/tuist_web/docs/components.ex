@@ -12,6 +12,7 @@ defmodule TuistWeb.Docs.Components do
     "Builds" => "versions",
     "Tests" => "subtask",
     "Artifacts" => "package",
+    "Compute" => "server",
     "Other features" => "apps",
     "Integrations" => "asset",
     "Server" => "server",

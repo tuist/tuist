@@ -11,6 +11,7 @@ defmodule Cache.Registry.ReleaseWorker do
   alias Cache.Registry.ManifestVariants
   alias Cache.Registry.Metadata
   alias Cache.S3
+  alias TuistCommon.Git.Authentication, as: GitAuthentication
 
   require Logger
 
@@ -175,25 +176,65 @@ defmodule Cache.Registry.ReleaseWorker do
     |> Enum.uniq()
   end
 
-  defp clone_with_submodules(full_handle, tag, token, tmp_dir) do
+  defp clone_with_submodules(full_handle, tag, token, tmp_dir) when is_binary(token) and token != "" do
     repo_name = full_handle |> String.split("/") |> List.last()
     clone_dest = Path.join(tmp_dir, "#{repo_name}-#{String.replace(tag, "/", "-")}")
-    clone_url = "https://#{token}@github.com/#{full_handle}.git"
+
+    GitAuthentication.with_github_token(tmp_dir, token, fn git_credentials ->
+      case System.cmd(
+             "git",
+             GitAuthentication.config_args(git_credentials) ++
+               [
+                 "clone",
+                 "--depth",
+                 "1",
+                 "--branch",
+                 tag,
+                 "https://github.com/#{full_handle}.git",
+                 clone_dest
+               ],
+             stderr_to_stdout: true,
+             env: GitAuthentication.command_env(git_credentials)
+           ) do
+        {_, 0} ->
+          case update_submodules(%{
+                 destination: clone_dest,
+                 repository_full_handle: full_handle,
+                 tag: tag,
+                 git_credentials: git_credentials
+               }) do
+            :ok ->
+              remove_git_metadata(clone_dest)
+              {:ok, clone_dest}
+
+            {:error, reason} ->
+              {:error, reason}
+          end
+
+        {_output, status} ->
+          {:error, {:git_clone_failed, status}}
+      end
+    end)
+  end
+
+  defp clone_with_submodules(full_handle, tag, _token, tmp_dir) do
+    repo_name = full_handle |> String.split("/") |> List.last()
+    clone_dest = Path.join(tmp_dir, "#{repo_name}-#{String.replace(tag, "/", "-")}")
 
     case System.cmd(
            "git",
-           [
-             "-c",
-             "url.https://github.com/.insteadOf=git@github.com:",
-             "clone",
-             "--depth",
-             "1",
-             "--branch",
-             tag,
-             clone_url,
-             clone_dest
-           ],
-           stderr_to_stdout: true
+           GitAuthentication.config_args(nil) ++
+             [
+               "clone",
+               "--depth",
+               "1",
+               "--branch",
+               tag,
+               "https://github.com/#{full_handle}.git",
+               clone_dest
+             ],
+           stderr_to_stdout: true,
+           env: GitAuthentication.command_env(nil)
          ) do
       {_, 0} ->
         case update_submodules(%{
@@ -215,10 +256,12 @@ defmodule Cache.Registry.ReleaseWorker do
   end
 
   @doc false
-  def update_submodules(%{destination: destination, repository_full_handle: full_handle, tag: tag}) do
+  def update_submodules(%{destination: destination, repository_full_handle: full_handle, tag: tag} = opts) do
+    git_credentials = Map.get(opts, :git_credentials)
+
     with {:ok, submodule_paths} <- submodule_paths(destination) do
       Enum.reduce_while(submodule_paths, :ok, fn submodule_path, :ok ->
-        case update_submodule(destination, submodule_path) do
+        case update_submodule(destination, submodule_path, git_credentials) do
           :ok ->
             {:cont, :ok}
 
@@ -242,23 +285,23 @@ defmodule Cache.Registry.ReleaseWorker do
     end
   end
 
-  defp update_submodule(destination, submodule_path) do
+  defp update_submodule(destination, submodule_path, git_credentials) do
     case System.cmd(
            "git",
-           [
-             "-c",
-             "url.https://github.com/.insteadOf=git@github.com:",
-             "-C",
-             destination,
-             "submodule",
-             "update",
-             "--init",
-             "--recursive",
-             "--depth",
-             "1",
-             submodule_path
-           ],
-           stderr_to_stdout: true
+           GitAuthentication.config_args(git_credentials) ++
+             [
+               "-C",
+               destination,
+               "submodule",
+               "update",
+               "--init",
+               "--recursive",
+               "--depth",
+               "1",
+               submodule_path
+             ],
+           stderr_to_stdout: true,
+           env: GitAuthentication.command_env(git_credentials)
          ) do
       {_, 0} ->
         :ok

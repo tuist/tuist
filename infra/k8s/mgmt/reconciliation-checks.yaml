@@ -14,8 +14,8 @@
 #
 # A CronJob can't be scraped directly, so it pushes two gauges to a tiny
 # Pushgateway that alloy-metrics scrapes (annotationAutodiscovery) into
-# Grafana Cloud. Alert rules live in
-# infra/helm/k8s-monitoring/alerts/capi-health.yaml.
+# Grafana Cloud. Alert rules are documented in
+# infra/helm/k8s-monitoring/alerts.md.
 #
 # Intentional cluster removal is the explicit destroy flow (remove from git,
 # then `kubectl delete cluster` under break-glass — see infra/flux/mgmt/README.md),

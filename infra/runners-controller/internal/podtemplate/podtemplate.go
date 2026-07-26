@@ -24,6 +24,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"strconv"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
@@ -42,6 +43,12 @@ const (
 	// jitFilePath is the file the poller writes the minted JIT to and
 	// the runner reads it from.
 	jitFilePath = jitMountPath + "/jit"
+	// shellSocketPath is shared through the work volume. The trusted
+	// shell sidecar owns server authentication, but the PTY child is
+	// spawned by a tiny socket server inside the runner container so
+	// the terminal sees the same filesystem, environment, and Docker
+	// socket as the running job.
+	shellSocketPath = "/home/runner/actions-runner/_work/.tuist-runner-shell.sock"
 )
 
 // Build returns the Pod manifest the controller stamps on the API
@@ -190,6 +197,7 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 				Name: "tuist-runner-token",
 				VolumeSource: corev1.VolumeSource{
 					Projected: &corev1.ProjectedVolumeSource{
+						DefaultMode: ptr(int32(0o400)),
 						Sources: []corev1.VolumeProjection{{
 							ServiceAccountToken: &corev1.ServiceAccountTokenProjection{
 								Audience:          "tuist-runners-dispatch",
@@ -206,12 +214,26 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 			corev1.EnvVar{Name: "TUIST_RUNNER_JIT_OUTPUT_PATH", Value: jitFilePath},
 		)
 
-		// The runner container runs run-job.sh: read the staged JIT
-		// and exec ./run.sh under it. It carries no dispatch env and
-		// no token mount.
-		runnerCommand = []string{"/usr/local/bin/run-job.sh"}
-		runnerEnv = []corev1.EnvVar{{Name: "TUIST_RUNNER_JIT_PATH", Value: jitFilePath}}
-		runnerMounts = []corev1.VolumeMount{{Name: "tuist-runner-jit", MountPath: jitMountPath, ReadOnly: true}}
+		// The runner container starts the local PTY socket server and
+		// then runs run-job.sh: read the staged JIT and exec ./run.sh
+		// under it. It carries no dispatch env and no token mount; the
+		// shell sidecar connects to the local socket only after the
+		// server has authorized a terminal session for this job.
+		runnerCommand = []string{
+			"sh",
+			"-c",
+			"TUIST_RUNNER_SHELL_PTY_SERVER=1 /usr/local/bin/runner-shell-agent & exec /usr/local/bin/run-job.sh",
+		}
+		runnerEnv = []corev1.EnvVar{
+			{Name: "TUIST_RUNNER_JIT_PATH", Value: jitFilePath},
+			{Name: "TUIST_RUNNER_SHELL_SOCKET", Value: shellSocketPath},
+			{Name: "TUIST_RUNNER_SHELL_WORKDIR", Value: "/home/runner/actions-runner/_work"},
+		}
+		volumes = append(volumes, corev1.Volume{Name: "work", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}})
+		runnerMounts = []corev1.VolumeMount{
+			{Name: "tuist-runner-jit", MountPath: jitMountPath, ReadOnly: true},
+			{Name: "work", MountPath: "/home/runner/actions-runner/_work"},
+		}
 
 		// Linux pods get a dockerd sidecar (k8s 1.29+ native sidecar:
 		// initContainer with restartPolicy=Always). The runner stays
@@ -232,7 +254,6 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 			}
 			volumes = append(volumes,
 				corev1.Volume{Name: "dind-sock", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
-				corev1.Volume{Name: "work", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
 				// Node-disk emptyDir holding a sparse disk.img file.
 				// The dind sidecar loop-mounts that file as an ext4
 				// filesystem onto /var/lib/docker so dockerd's
@@ -255,7 +276,6 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 			)
 			runnerMounts = append(runnerMounts,
 				corev1.VolumeMount{Name: "dind-sock", MountPath: "/var/run"},
-				corev1.VolumeMount{Name: "work", MountPath: "/home/runner/actions-runner/_work"},
 			)
 			runnerEnv = append(runnerEnv, corev1.EnvVar{Name: "DOCKER_HOST", Value: "unix:///var/run/docker.sock"})
 			initContainers = append(initContainers, corev1.Container{
@@ -349,6 +369,37 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 			SecurityContext: &corev1.SecurityContext{RunAsUser: ptr(int64(0))},
 		})
 
+		// Interactive shell bridge: a trusted native sidecar that
+		// holds the dispatch token, waits for a claimed job, polls the
+		// server for authorized shell sessions, and brokers the server-
+		// owned WebSocket tunnel to the runner container's local PTY
+		// socket. The user-facing shell is spawned inside the runner
+		// container, while the dispatch token remains mounted only here.
+		shellEnv := append(append([]corev1.EnvVar{}, dispatchEnv...),
+			corev1.EnvVar{Name: "TUIST_RUNNER_JIT_PATH", Value: jitFilePath},
+			corev1.EnvVar{Name: "TUIST_RUNNER_TOKEN_PATH", Value: "/var/run/secrets/tuist-runner/token"},
+			corev1.EnvVar{Name: "TUIST_RUNNER_SHELL_SOCKET", Value: shellSocketPath},
+			corev1.EnvVar{Name: "TUIST_RUNNER_SHELL_WORKDIR", Value: "/home/runner/actions-runner/_work"},
+		)
+		initContainers = append(initContainers, corev1.Container{
+			Name:    "shell",
+			Image:   pool.Spec.Image,
+			Command: []string{"sh", "-c"},
+			Args: []string{
+				"sed -i '/runner ALL=(ALL) NOPASSWD/d' /etc/sudoers || true; exec /usr/local/bin/runner-shell-agent",
+			},
+			Env:           shellEnv,
+			RestartPolicy: ptr(corev1.ContainerRestartPolicyAlways),
+			VolumeMounts: []corev1.VolumeMount{
+				{Name: "tuist-runner-token", MountPath: "/var/run/secrets/tuist-runner", ReadOnly: true},
+				{Name: "tuist-runner-jit", MountPath: jitMountPath, ReadOnly: true},
+				{Name: "work", MountPath: "/home/runner/actions-runner/_work"},
+			},
+			// Root only for the trusted agent: it reads the root-only
+			// token and then drops PTY children to the runner user.
+			SecurityContext: &corev1.SecurityContext{RunAsUser: ptr(int64(0))},
+		})
+
 		// poller runs after the dind sidecar (when present) so it
 		// waits on the dind startupProbe exactly as the single runner
 		// container did before the split.
@@ -396,6 +447,18 @@ func Build(pool *tuistv1.RunnerPool, podName, saName, dispatchURL, dispatchInter
 	// its _diag log is the only record, and it dies with the reaped Pod.
 	// Streaming _diag makes that exit reason durable.
 	runnerEnv = append(runnerEnv, corev1.EnvVar{Name: "ACTIONS_RUNNER_PRINT_LOG_TO_STDOUT", Value: "1"})
+
+	// Idle-runner reaping: the runner image's idle watchdog terminates a
+	// runner that registered but never had a job assigned once this many
+	// seconds elapse without an ACTIONS_RUNNER_HOOK_JOB_STARTED marker.
+	// Only injected when set (>0); the image treats an absent/0 value as
+	// "watchdog disabled". See RunnerPoolSpec.IdleTimeoutSeconds.
+	if pool.Spec.IdleTimeoutSeconds > 0 {
+		runnerEnv = append(runnerEnv, corev1.EnvVar{
+			Name:  "TUIST_RUNNER_IDLE_TIMEOUT_SECONDS",
+			Value: strconv.Itoa(int(pool.Spec.IdleTimeoutSeconds)),
+		})
+	}
 
 	return &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{

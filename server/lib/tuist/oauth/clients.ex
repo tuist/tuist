@@ -14,20 +14,26 @@ defmodule Tuist.OAuth.Clients do
   alias Boruta.Oauth.Clients
   alias Tuist.Environment
 
+  @authorization_code_ttl 300
+
   @impl Clients
   def get_client(client_id) do
     case static_client(client_id) do
-      %Client{} = client -> client
-      nil -> EctoClients.get_client(client_id)
+      %Client{} = client ->
+        client
+
+      nil ->
+        case EctoClients.get_client(client_id) do
+          %Client{} = client -> ensure_authorization_code_ttl(client)
+          nil -> nil
+        end
     end
   end
 
   @impl Clients
   def public! do
-    case tuist_oauth_client() do
-      %Client{} = client -> client
-      _ -> EctoClients.public!()
-    end
+    (%Client{} = client) = tuist_oauth_client()
+    client
   end
 
   @impl Clients
@@ -45,21 +51,19 @@ defmodule Tuist.OAuth.Clients do
 
   @impl Boruta.Openid.Clients
   def create_client(registration_params) do
-    EctoClients.create_client(registration_params)
+    registration_params
+    |> Map.put(:authorization_code_ttl, @authorization_code_ttl)
+    |> EctoClients.create_client()
   end
 
   @impl Clients
   def list_clients_jwk do
-    tuist_client_jwk =
-      case tuist_oauth_client() do
-        %Client{} = client ->
-          case to_client_jwk(client) do
-            nil -> []
-            jwk -> [{client, jwk}]
-          end
+    %Client{} = client = tuist_oauth_client()
 
-        _ ->
-          []
+    tuist_client_jwk =
+      case to_client_jwk(client) do
+        nil -> []
+        jwk -> [{client, jwk}]
       end
 
     Enum.uniq_by(tuist_client_jwk ++ EctoClients.list_clients_jwk(), fn {_client, jwk} -> jwk["kid"] end)
@@ -106,7 +110,7 @@ defmodule Tuist.OAuth.Clients do
       secret: Environment.oauth_client_secret(),
       name: Environment.oauth_client_name(),
       access_token_ttl: 86_400,
-      authorization_code_ttl: 60,
+      authorization_code_ttl: @authorization_code_ttl,
       refresh_token_ttl: 2_592_000,
       id_token_ttl: 86_400,
       id_token_signature_alg: "RS256",
@@ -148,7 +152,7 @@ defmodule Tuist.OAuth.Clients do
         id: Environment.kura_control_plane_client_id(),
         secret: Environment.kura_control_plane_client_secret(),
         name: "Kura control plane",
-        supported_grant_types: ["introspect", "kura_usage"],
+        supported_grant_types: ["introspect", "kura_usage", "kura_registration"],
         confidential: true,
         token_endpoint_auth_methods: [
           "client_secret_basic",
@@ -164,4 +168,10 @@ defmodule Tuist.OAuth.Clients do
   end
 
   defp to_client_jwk(_), do: nil
+
+  defp ensure_authorization_code_ttl(%Client{authorization_code_ttl: ttl} = client) when ttl < @authorization_code_ttl do
+    %{client | authorization_code_ttl: @authorization_code_ttl}
+  end
+
+  defp ensure_authorization_code_ttl(%Client{} = client), do: client
 end

@@ -3,6 +3,7 @@ package controllers
 import (
 	"context"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -16,7 +17,9 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/apimachinery/pkg/util/validation"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -32,6 +35,8 @@ const (
 	defaultPeerDemuxImage         = "nginx:1.27.3-alpine"
 	peerDemuxConfigHashAnnotation = "tuist.dev/peer-demux-config-hash"
 	peerDemuxPort                 = 7443
+	peerDemuxMapHashBucketSize    = 512
+	peerDemuxMapHashMaxSize       = 8192
 )
 
 // PeerDemuxReconciler maintains, per bare-metal (host-network) region, a
@@ -72,7 +77,10 @@ func (r *PeerDemuxReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		return ctrl.Result{}, err
 	}
 
-	routes, nodeSelector, tolerations := peerDemuxDesiredState(region, namespace, instances.Items)
+	routes, nodeSelector, tolerations, issues := peerDemuxDesiredState(region, namespace, instances.Items)
+	for _, issue := range issues {
+		logger.Error(errors.New(issue.reason), "ignored conflicting or invalid Kura peer route", "host", issue.host)
+	}
 
 	name := peerDemuxName(region)
 	configMap := &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace}}
@@ -124,32 +132,87 @@ type peerDemuxRoute struct {
 	backend string
 }
 
+type peerDemuxRouteIssue struct {
+	host   string
+	reason string
+}
+
+type peerDemuxRouteCandidate struct {
+	route    peerDemuxRoute
+	instance *kurav1alpha1.KuraInstance
+}
+
 // peerDemuxDesiredState collects the SNI->backend routes for a region from its
 // host-network peering KuraInstances, plus the pool nodeSelector + tolerations
 // they share (all instances of a region land on the same bare-metal pool).
-func peerDemuxDesiredState(region, namespace string, instances []kurav1alpha1.KuraInstance) ([]peerDemuxRoute, map[string]string, []corev1.Toleration) {
-	var routes []peerDemuxRoute
-	var nodeSelector map[string]string
-	var tolerations []corev1.Toleration
+func peerDemuxDesiredState(
+	region string,
+	namespace string,
+	instances []kurav1alpha1.KuraInstance,
+) ([]peerDemuxRoute, map[string]string, []corev1.Toleration, []peerDemuxRouteIssue) {
+	candidatesByHost := map[string][]peerDemuxRouteCandidate{}
+	var eligibleInstances []*kurav1alpha1.KuraInstance
+	var issues []peerDemuxRouteIssue
 
 	for i := range instances {
 		instance := &instances[i]
 		if instance.Spec.Region != region || !instance.Spec.MeshPeerHostNetwork || instance.Spec.MeshPublicPeerHost == "" {
 			continue
 		}
-		routes = append(routes, peerDemuxRoute{
+		if validationErrors := validation.IsDNS1123Subdomain(instance.Spec.MeshPublicPeerHost); len(validationErrors) > 0 {
+			issues = append(issues, peerDemuxRouteIssue{
+				host:   instance.Spec.MeshPublicPeerHost,
+				reason: strings.Join(validationErrors, "; "),
+			})
+			continue
+		}
+		candidate := peerDemuxRouteCandidate{instance: instance, route: peerDemuxRoute{
 			host: instance.Spec.MeshPublicPeerHost,
 			backend: fmt.Sprintf("%s.%s.svc.cluster.local:%d",
 				instancePublicPeerServiceName(instance), namespace, peerPort),
+		}}
+		candidatesByHost[candidate.route.host] = append(candidatesByHost[candidate.route.host], candidate)
+		eligibleInstances = append(eligibleInstances, instance)
+	}
+
+	sort.Slice(eligibleInstances, func(i, j int) bool {
+		return peerDemuxInstanceLess(eligibleInstances[i], eligibleInstances[j])
+	})
+	var nodeSelector map[string]string
+	var tolerations []corev1.Toleration
+	if len(eligibleInstances) > 0 {
+		nodeSelector = eligibleInstances[0].Spec.NodeSelector
+		tolerations = eligibleInstances[0].Spec.Tolerations
+	}
+
+	routes := make([]peerDemuxRoute, 0, len(candidatesByHost))
+	for host, candidates := range candidatesByHost {
+		sort.Slice(candidates, func(i, j int) bool {
+			return peerDemuxInstanceLess(candidates[i].instance, candidates[j].instance)
 		})
-		if nodeSelector == nil {
-			nodeSelector = instance.Spec.NodeSelector
-			tolerations = instance.Spec.Tolerations
+		routes = append(routes, candidates[0].route)
+		if len(candidates) > 1 {
+			names := make([]string, 0, len(candidates))
+			for _, candidate := range candidates {
+				names = append(names, candidate.instance.Name)
+			}
+			issues = append(issues, peerDemuxRouteIssue{
+				host:   host,
+				reason: fmt.Sprintf("instances %s claim the same host; selected %s", strings.Join(names, ", "), candidates[0].instance.Name),
+			})
 		}
 	}
 
 	sort.Slice(routes, func(i, j int) bool { return routes[i].host < routes[j].host })
-	return routes, nodeSelector, tolerations
+	sort.Slice(issues, func(i, j int) bool { return issues[i].host < issues[j].host })
+	return routes, nodeSelector, tolerations, issues
+}
+
+func peerDemuxInstanceLess(left, right *kurav1alpha1.KuraInstance) bool {
+	if !left.CreationTimestamp.Time.Equal(right.CreationTimestamp.Time) {
+		return left.CreationTimestamp.Time.Before(right.CreationTimestamp.Time)
+	}
+	return left.Name < right.Name
 }
 
 // peerDemuxNginxConf renders a stream-only nginx config that routes each peer
@@ -169,6 +232,8 @@ func peerDemuxNginxConf(routes []peerDemuxRoute, dnsIP string) string {
 	b.WriteString("events {\n  worker_connections 4096;\n}\n")
 	b.WriteString("stream {\n")
 	fmt.Fprintf(&b, "  resolver %s valid=10s;\n", dnsIP)
+	fmt.Fprintf(&b, "  map_hash_bucket_size %d;\n", peerDemuxMapHashBucketSize)
+	fmt.Fprintf(&b, "  map_hash_max_size %d;\n", peerDemuxMapHashMaxSize)
 	b.WriteString("  map $ssl_preread_server_name $kura_peer_backend {\n")
 	b.WriteString("    default \"\";\n")
 	for _, route := range routes {
@@ -288,6 +353,10 @@ func (r *PeerDemuxReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 	return ctrl.NewControllerManagedBy(mgr).
 		Named("peer-demux").
-		Watches(&kurav1alpha1.KuraInstance{}, handler.EnqueueRequestsFromMapFunc(mapInstance)).
+		Watches(
+			&kurav1alpha1.KuraInstance{},
+			handler.EnqueueRequestsFromMapFunc(mapInstance),
+			builder.WithPredicates(kuraInstanceDesiredStateChangedPredicate()),
+		).
 		Complete(r)
 }

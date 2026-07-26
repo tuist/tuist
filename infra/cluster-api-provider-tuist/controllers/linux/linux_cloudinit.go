@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -25,6 +26,18 @@ type linuxCloudInitOptions struct {
 	// KubeconfigYAML is the rendered kubelet kubeconfig (token-based, from
 	// kubeconfig.Builder).
 	KubeconfigYAML string
+
+	// ClusterCAPEM is the cluster CA bundle (PEM). When set, the bootstrap
+	// writes it to kubeletClientCAPath and points the kubelet's
+	// authentication.x509.clientCAFile at it, so the kubelet trusts the
+	// apiserver's --kubelet-client-certificate when it dials :10250 for
+	// /containerLogs, /exec, and /port-forward. Without it the apiserver's
+	// client cert can't be verified, the request authenticates as anonymous,
+	// and (anonymous disabled) those streaming endpoints 401 — so kubectl logs
+	// / exec against the node fail even once the address + serving cert are
+	// right. These are the same bytes the kubeconfig embeds as
+	// certificate-authority-data; the kubelet needs them as an on-disk file.
+	ClusterCAPEM []byte
 
 	// K8sMinor is the pkgs.k8s.io channel (e.g. "v1.34").
 	K8sMinor string
@@ -109,13 +122,47 @@ RebootWatchdogSec=5min
 	dockerHubMirrorHostsContent = `[host."https://mirror.gcr.io"]
   capabilities = ["pull", "resolve"]
 `
+
+	// kubeletClientCAPath is where the self-join drops the cluster CA so the
+	// kubelet's authentication.x509.clientCAFile can verify the apiserver's
+	// --kubelet-client-certificate. Kept under /var/lib/kubelet so it rides the
+	// same /data bind-mount as the kubeconfig on separate-/data boxes (Dedibox),
+	// rather than a path the mount would shadow.
+	kubeletClientCAPath = "/var/lib/kubelet/ca.crt"
 )
 
-// kubeletConfigContent renders the KubeletConfiguration. clusterDNS, when
-// non-empty, is appended as the kubelet's clusterDNS (a single-entry list) so
-// pods resolve in-cluster Services; empty omits it (kubelet then logs
-// MissingClusterDNS and falls back to host DNS).
-func kubeletConfigContent(clusterDNS string) string {
+// kubeletConfigContent renders the KubeletConfiguration for the self-join
+// kubelet.
+//
+// Two fields deliberately differ from the kubeadm ClusterClass kubelet config
+// the Hetzner nodes run, because the self-join kubelet authenticates as an
+// operator-minted ServiceAccount, not a system:node:<name> identity:
+//
+//   - x509.clientCAFile is set (when clientCAFile != "") to the cluster CA the
+//     bootstrap drops on disk, so the kubelet trusts the apiserver's
+//     --kubelet-client-certificate for /containerLogs, /exec, and
+//     /port-forward. Without it those requests authenticate as anonymous and,
+//     with anonymous disabled, 401. The ClusterClass sets the same field for
+//     the same reason.
+//   - serverTLSBootstrap is intentionally NOT set (defaults to false), so the
+//     kubelet serves a self-signed :10250 cert instead of requesting a
+//     CA-signed one via CSR. serverTLSBootstrap would leave this kubelet with
+//     no serving cert at all: the built-in serving-CSR approver only approves
+//     when the requesting identity equals the CSR CN (system:node:<name>), and
+//     a ServiceAccount requester never matches, so the CSR stays pending and
+//     every :10250 dial fails `tls: internal error`. Nothing in the cluster
+//     verifies kubelet serving certs (the apiserver sets no
+//     --kubelet-certificate-authority; metrics-server runs --kubelet-insecure-tls),
+//     so the self-signed cert is accepted — which is the whole point.
+//
+// clusterDNS, when non-empty, is appended as the kubelet's clusterDNS (a
+// single-entry list) so pods resolve in-cluster Services; empty omits it
+// (kubelet then logs MissingClusterDNS and falls back to host DNS).
+func kubeletConfigContent(clusterDNS, clientCAFile string) string {
+	x509Block := ""
+	if clientCAFile != "" {
+		x509Block = fmt.Sprintf("  x509:\n    clientCAFile: %s\n", clientCAFile)
+	}
 	config := `apiVersion: kubelet.config.k8s.io/v1beta1
 kind: KubeletConfiguration
 cgroupDriver: systemd
@@ -124,16 +171,25 @@ authentication:
     enabled: false
   webhook:
     enabled: true
-authorization:
+` + x509Block + `authorization:
   mode: Webhook
 clusterDomain: cluster.local
 runtimeRequestTimeout: 5m
-serverTLSBootstrap: true
 `
 	if clusterDNS != "" {
 		config += fmt.Sprintf("clusterDNS:\n  - %s\n", clusterDNS)
 	}
 	return config
+}
+
+// clientCAFilePath returns the on-disk clientCAFile path when the options carry
+// a cluster CA to write, or "" when they don't (keeping the kubelet config
+// clientCAFile-free and rendering byte-identical to the pre-CA form).
+func clientCAFilePath(opts linuxCloudInitOptions) string {
+	if len(opts.ClusterCAPEM) == 0 {
+		return ""
+	}
+	return kubeletClientCAPath
 }
 
 // kubeletUnitContent renders the kubelet systemd unit with the node's
@@ -397,13 +453,23 @@ func renderLinuxCloudInitWithOptions(opts linuxCloudInitOptions) string {
 	vlanSetup := vlanBringUp(sudo, opts.PrivateNetworkVLAN)
 	body := indent(bootstrapBody(opts.K8sMinor, sudo, sudoE, writeFile, vlanSetup), "      ")
 
+	// Optional cluster-CA write_files entry: written so the kubelet's
+	// clientCAFile can verify the apiserver's client cert (see
+	// kubeletConfigContent). Empty (no leading entry) when no CA is supplied,
+	// leaving the rendered output byte-identical to the pre-CA form.
+	caEntry := ""
+	if len(opts.ClusterCAPEM) > 0 {
+		caEntry = fmt.Sprintf("  - path: %s\n    permissions: '0644'\n    content: |\n%s\n",
+			kubeletClientCAPath, indent(string(opts.ClusterCAPEM), "      "))
+	}
+
 	return fmt.Sprintf(`#cloud-config
 write_files:
   - path: /var/lib/kubelet/kubeconfig
     permissions: '0600'
     content: |
 %[1]s
-  - path: /etc/modules-load.d/k8s.conf
+%[7]s  - path: /etc/modules-load.d/k8s.conf
     content: |
 %[2]s
   - path: /etc/sysctl.d/99-k8s.conf
@@ -434,8 +500,9 @@ runcmd:
 		indent(modulesLoadContent, "      "),
 		indent(sysctlContent, "      "),
 		indent(kubeletUnitContent(opts.NodeName, taintArg, instanceTypeOrDefault(opts.InstanceType)), "      "),
-		indent(kubeletConfigContent(opts.ClusterDNS), "      "),
+		indent(kubeletConfigContent(opts.ClusterDNS, clientCAFilePath(opts)), "      "),
 		body,
+		caEntry,
 	)
 }
 
@@ -457,6 +524,15 @@ func renderLinuxBootstrapScript(opts linuxCloudInitOptions) string {
 		return fmt.Sprintf("%s <<'TUIST_EOF'\n%sTUIST_EOF", writer, ensureTrailingNewline(content))
 	}
 
+	// Optional cluster-CA heredoc, dropped alongside the kubeconfig so the
+	// kubelet's clientCAFile can verify the apiserver's client cert (see
+	// kubeletConfigContent). Trailing newline so the next heredoc stays on its
+	// own line; empty when no CA is supplied.
+	caWrite := ""
+	if len(opts.ClusterCAPEM) > 0 {
+		caWrite = heredoc(kubeletClientCAPath, string(opts.ClusterCAPEM)) + "\n"
+	}
+
 	return fmt.Sprintf(`#!/usr/bin/env bash
 set -euxo pipefail
 %[8]s%[1]smkdir -p /var/lib/kubelet /etc/modules-load.d /etc/sysctl.d /etc/systemd/system /opt
@@ -466,7 +542,7 @@ set -euxo pipefail
 %[9]s
 %[2]s
 %[1]schmod 0600 /var/lib/kubelet/kubeconfig
-%[3]s
+%[10]s%[3]s
 %[4]s
 %[5]s
 %[6]s
@@ -477,10 +553,11 @@ set -euxo pipefail
 		heredoc("/etc/modules-load.d/k8s.conf", modulesLoadContent),
 		heredoc("/etc/sysctl.d/99-k8s.conf", sysctlContent),
 		heredoc("/etc/systemd/system/kubelet.service", kubeletUnitContent(opts.NodeName, taintArg, instanceTypeOrDefault(opts.InstanceType))),
-		heredoc("/var/lib/kubelet/config.yaml", kubeletConfigContent(opts.ClusterDNS)),
+		heredoc("/var/lib/kubelet/config.yaml", kubeletConfigContent(opts.ClusterDNS, clientCAFilePath(opts))),
 		body,
 		nopasswdSetup(opts.BootstrapUser, opts.SudoPassword),
 		dataKubeletMount(sudo),
+		caWrite,
 	)
 }
 
@@ -565,6 +642,13 @@ func shellSingleQuote(s string) string {
 // manager's cached client scopes its Services informer to the egress namespace
 // (see main.go), so a cached Get of kube-system/kube-dns never resolves.
 func discoverClusterDNS(ctx context.Context, r client.Reader) string {
+	// Bound the read: the reconcile context has no deadline of its own, so a
+	// slow/unreachable read here would block the controller's (single) worker
+	// indefinitely and silently stall every subsequent reconcile. On timeout we
+	// fall through to an unset clusterDNS, the same best-effort behaviour as any
+	// other read failure.
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
 	svc := &corev1.Service{}
 	if err := r.Get(ctx, types.NamespacedName{Namespace: "kube-system", Name: "kube-dns"}, svc); err != nil {
 		log.FromContext(ctx).Info("could not resolve kube-dns ClusterIP; kubelet clusterDNS will be unset", "err", err.Error())

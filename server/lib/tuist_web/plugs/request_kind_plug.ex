@@ -21,8 +21,6 @@ defmodule TuistWeb.Plugs.RequestKindPlug do
 
   import Plug.Conn
 
-  require Logger
-
   def init(opts), do: opts
 
   def call(conn, _opts) do

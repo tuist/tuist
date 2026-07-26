@@ -90,12 +90,16 @@ jobs:
       - uses: ./.github/actions/mise-install
         with:
           version: ${{ env.MISE_VERSION }}
-          install: "node aube"
+          install: "erlang elixir node aube"
           cache: "true"
           working-directory: noora
+      - name: Install Elixir dependencies
+        run: mix deps.get
+      - name: Run Elixir tests
+        run: mix test
       - name: Install JS dependencies
         run: aube install
-      - name: Run tests
+      - name: Run JS tests
         run: aube run test
 
   docker_build:

@@ -68,9 +68,6 @@ defmodule TuistWeb.AuthController do
 
           {:error, :oauth2_not_configured} ->
             raise_sso_unauthorized(:sso_not_configured)
-
-          _ ->
-            raise_sso_unauthorized(:sso_request_failed)
         end
 
       _ ->
@@ -107,9 +104,6 @@ defmodule TuistWeb.AuthController do
           {:error, reason} ->
             log(:error, "Failed SSO callback: #{inspect(reason)}")
             raise_sso_unauthorized(reason)
-
-          _ ->
-            raise_sso_unauthorized(:sso_callback_failed)
         end
 
       _ ->
@@ -135,13 +129,18 @@ defmodule TuistWeb.AuthController do
   end
 
   def callback(%{assigns: %{ueberauth_auth: auth}} = conn, _params) do
-    if auth.provider == :github and not Tuist.Environment.github_auth_enabled?() do
+    if provider_auth_enabled?(auth.provider) do
+      complete_oauth_callback(conn, auth)
+    else
       raise NotFoundError,
             dgettext("dashboard", "The authentication URL is not supported")
     end
-
-    complete_oauth_callback(conn, auth)
   end
+
+  defp provider_auth_enabled?(:github), do: Tuist.Environment.github_auth_enabled?()
+  defp provider_auth_enabled?(:google), do: Tuist.Environment.google_auth_enabled?()
+  defp provider_auth_enabled?(:apple), do: Tuist.Environment.apple_auth_enabled?()
+  defp provider_auth_enabled?(_provider), do: true
 
   defp complete_oauth_callback(conn, auth, opts \\ []) do
     auth_params = %{auth_method: auth.provider}
@@ -268,7 +267,10 @@ defmodule TuistWeb.AuthController do
   defp pending_invitation_for(_user, nil), do: nil
 
   defp pending_invitation_for(%{email: email}, %Organization{} = organization) do
-    Accounts.get_invitation_by_invitee_email_and_organization(email, organization)
+    case Accounts.get_invitation_by_invitee_email_and_organization(email, organization) do
+      nil -> nil
+      invitation -> if Accounts.invitation_expired?(invitation), do: nil, else: invitation
+    end
   end
 
   defp maybe_put_post_invitation_return_to(conn, nil), do: conn
@@ -413,7 +415,7 @@ defmodule TuistWeb.AuthController do
         &String.starts_with?(&1, "http")
       )
 
-    if Enum.all?(urls, &Tuist.URL.public_url?/1) do
+    if Enum.all?(urls, &Tuist.URL.sso_url?/1) do
       :ok
     else
       {:error, :unsafe_sso_url}

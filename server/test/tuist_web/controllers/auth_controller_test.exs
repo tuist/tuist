@@ -2,9 +2,13 @@ defmodule TuistWeb.AuthControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: true
   use Mimic
 
+  import Ecto.Query
+
+  alias Tuist.Accounts.Invitation
   alias Tuist.Accounts.Oauth2Identity
   alias Tuist.OAuth2.SSOClient
   alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistWeb.Errors.NotFoundError
   alias Ueberauth.Auth.Info
 
   describe "GET /auth/cli/:device_code" do
@@ -562,8 +566,60 @@ defmodule TuistWeb.AuthControllerTest do
       assert {:error, :not_found} =
                Tuist.Accounts.get_oauth2_identity(:oauth2, "invitee-sub", "https://idp.example.com")
 
-      assert %Tuist.Accounts.Invitation{} =
+      assert %Invitation{} =
                Tuist.Accounts.get_invitation_by_invitee_email_and_organization(invitee.email, organization)
+    end
+
+    test "does not redirect to the invitation accept page when the pending invitation expired",
+         %{conn: conn} do
+      admin = AccountsFixtures.user_fixture(email: "expired-sso-inviter@example.com")
+      invitee = AccountsFixtures.user_fixture(email: "expired-sso-invitee@example.com")
+
+      organization =
+        AccountsFixtures.organization_fixture(
+          creator: admin,
+          sso_provider: :oauth2,
+          sso_organization_id: "https://idp.example.com",
+          oauth2_client_id: UUIDv7.generate(),
+          oauth2_client_secret: UUIDv7.generate(),
+          oauth2_authorize_url: "https://idp.example.com/oauth2/authorize",
+          oauth2_token_url: "https://idp.example.com/oauth2/token",
+          oauth2_user_info_url: "https://idp.example.com/oauth2/userinfo"
+        )
+
+      {:ok, invitation} =
+        Tuist.Accounts.invite_user_to_organization(
+          invitee.email,
+          %{inviter: admin, to: organization, url: fn token -> "/auth/invitations/#{token}" end}
+        )
+
+      expired_at =
+        NaiveDateTime.utc_now()
+        |> NaiveDateTime.add(-(Invitation.validity_days() + 1) * 24 * 60 * 60, :second)
+        |> NaiveDateTime.truncate(:second)
+
+      Tuist.Repo.update_all(
+        from(i in Invitation, where: i.id == ^invitation.id),
+        set: [updated_at: expired_at]
+      )
+
+      expect(SSOClient, :exchange_token, fn _token_url, "auth-code", _redirect_uri, _client_id, _client_secret ->
+        {:ok, %{"access_token" => "access-token", "token_type" => "Bearer", "scope" => "openid email profile"}}
+      end)
+
+      expect(SSOClient, :fetch_userinfo, fn _user_info_url, "access-token" ->
+        {:ok, %{"sub" => "invitee-sub", "email" => invitee.email, "name" => "Invitee"}}
+      end)
+
+      assert_error_sent 401, fn ->
+        conn
+        |> init_test_session(%{
+          sso_organization_id: organization.id,
+          sso_state: "expected-state",
+          sso_route_provider: :oauth2
+        })
+        |> get("/users/auth/oauth2/callback?code=auth-code&state=expected-state")
+      end
     end
 
     test "preserves the original return-to (e.g. device-code URL) under post_invitation_return_to",
@@ -803,7 +859,41 @@ defmodule TuistWeb.AuthControllerTest do
 
       conn = conn |> init_test_session(%{}) |> assign(:ueberauth_auth, auth)
 
-      assert_raise TuistWeb.Errors.NotFoundError, fn ->
+      assert_raise NotFoundError, fn ->
+        TuistWeb.AuthController.callback(conn, %{})
+      end
+    end
+
+    test "rejects the Google callback when Google auth is disabled", %{conn: conn} do
+      stub(Tuist.Environment, :google_auth_enabled?, fn -> false end)
+
+      auth = %Ueberauth.Auth{
+        provider: :google,
+        uid: "google-uid-123",
+        info: %Info{email: "google-user@example.com"},
+        extra: %{raw_info: %{user: %{"hd" => nil}}}
+      }
+
+      conn = conn |> init_test_session(%{}) |> assign(:ueberauth_auth, auth)
+
+      assert_raise NotFoundError, fn ->
+        TuistWeb.AuthController.callback(conn, %{})
+      end
+    end
+
+    test "rejects the Apple callback when Apple auth is disabled", %{conn: conn} do
+      stub(Tuist.Environment, :apple_auth_enabled?, fn -> false end)
+
+      auth = %Ueberauth.Auth{
+        provider: :apple,
+        uid: "apple-uid-123",
+        info: %Info{email: "apple-user@example.com"},
+        extra: %{raw_info: %{user: %{}}}
+      }
+
+      conn = conn |> init_test_session(%{}) |> assign(:ueberauth_auth, auth)
+
+      assert_raise NotFoundError, fn ->
         TuistWeb.AuthController.callback(conn, %{})
       end
     end

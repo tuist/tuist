@@ -18,8 +18,8 @@ serviceAccount:
 # scrapers. The managed clusters' k8s-monitoring release discovers
 # targets via these prometheus.io/* keys (annotationAutodiscovery), and
 # the embedded Prometheus self-hosters opt into reads the same keys.
-# port-name pins discovery to the single `http` container port (the pod
-# also declares grpc and peer) so /metrics is scraped once per pod.
+# port-name pins discovery to the `http` container port (the pod also
+# declares peer) so /metrics is scraped once per pod.
 # Inert when no scraper is present.
 podAnnotations:
   prometheus.io/scrape: "true"
@@ -35,8 +35,10 @@ service:
   annotations: {}
   loadBalancerIP: ""
   externalTrafficPolicy: ""
+  # Kura serves the HTTP cache API and REAPI gRPC (h2c) on one co-hosted
+  # listener (KURA_PORT = httpPort). This chart requires a Kura image with
+  # the co-hosted listener (releases after kura@0.10.15).
   httpPort: 4000
-  grpcPort: 50051
 
 peerTls:
   enabled: false
@@ -81,7 +83,14 @@ persistence:
   storageClass: ""
   annotations: {}
 
-resources: {}
+# Kura derives every memory budget from the container limit. Keep the request
+# equal to the limit so a default install reserves the memory it may consume
+# instead of sizing itself from the shared node's physical memory.
+resources:
+  requests:
+    memory: 1Gi
+  limits:
+    memory: 1Gi
 
 nodeSelector: {}
 tolerations: []
@@ -123,9 +132,13 @@ config:
     maxConcurrent: 32
     chunkBytes: 1048576
   memory:
-    softLimitBytes: 536870912
-    hardLimitBytes: 805306368
-    manifestCacheMaxBytes: 67108864
+    # Leave watermarks and cache capacities unset so Kura derives them from
+    # the container's effective memory limit. Explicit values must remain below
+    # that limit and are intended only for deliberate tuning experiments.
+    softLimitBytes: null
+    hardLimitBytes: null
+    snapshotCacheMaxBytes: null
+    manifestCacheMaxBytes: null
     maxKeyvalueBytes: 1048576
   shutdown:
     drainCompletionTimeoutMs: 240000

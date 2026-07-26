@@ -37,7 +37,7 @@ defmodule Tuist.Storage.ExpiredArtifacts do
 
   def delete_previews(%Account{} = account, batch_size, opts \\ []) do
     plan = RetentionPolicy.current_plan(account)
-    cutoff = RetentionPolicy.cutoff(:preview_app_build, plan)
+    cutoff = RetentionPolicy.cutoff(:preview_app_build, plan, Keyword.get(opts, :retention_days))
     cursor = initial_cursor(account, :preview_app_build, opts, :utc)
 
     rows =
@@ -81,7 +81,7 @@ defmodule Tuist.Storage.ExpiredArtifacts do
 
   def delete_build_archives(%Account{} = account, batch_size, opts \\ []) do
     plan = RetentionPolicy.current_plan(account)
-    cutoff = :build_archive |> RetentionPolicy.cutoff(plan) |> DateTime.to_naive()
+    cutoff = :build_archive |> RetentionPolicy.cutoff(plan, Keyword.get(opts, :retention_days)) |> DateTime.to_naive()
     projects_by_id = projects_by_id(account)
     project_ids = Map.keys(projects_by_id)
     cursor = initial_cursor(account, :build_archive, opts, :naive)
@@ -112,7 +112,7 @@ defmodule Tuist.Storage.ExpiredArtifacts do
 
   def delete_run_artifacts(%Account{} = account, batch_size, opts \\ []) do
     plan = RetentionPolicy.current_plan(account)
-    cutoff = :run_session |> RetentionPolicy.cutoff(plan) |> DateTime.to_naive()
+    cutoff = :run_session |> RetentionPolicy.cutoff(plan, Keyword.get(opts, :retention_days)) |> DateTime.to_naive()
     projects_by_id = projects_by_id(account)
     project_ids = Map.keys(projects_by_id)
     cursor = initial_cursor(account, :run_session, opts, :naive)
@@ -151,7 +151,12 @@ defmodule Tuist.Storage.ExpiredArtifacts do
 
   def delete_test_attachments(%Account{} = account, batch_size, opts \\ []) do
     plan = RetentionPolicy.current_plan(account)
-    cutoff = :test_attachment |> RetentionPolicy.cutoff(plan) |> DateTime.to_naive()
+
+    cutoff =
+      :test_attachment
+      |> RetentionPolicy.cutoff(plan, Keyword.get(opts, :retention_days))
+      |> DateTime.to_naive()
+
     projects_by_id = projects_by_id(account)
     project_ids = Map.keys(projects_by_id)
     cursor = initial_cursor(account, :test_attachment, opts, :naive)
@@ -205,7 +210,7 @@ defmodule Tuist.Storage.ExpiredArtifacts do
 
   def delete_shard_bundles(%Account{} = account, batch_size, opts \\ []) do
     plan = RetentionPolicy.current_plan(account)
-    cutoff = :shard_bundle |> RetentionPolicy.cutoff(plan) |> DateTime.to_naive()
+    cutoff = :shard_bundle |> RetentionPolicy.cutoff(plan, Keyword.get(opts, :retention_days)) |> DateTime.to_naive()
     projects_by_id = projects_by_id(account)
     project_ids = Map.keys(projects_by_id)
     cursor = initial_cursor(account, :shard_bundle, opts, :naive)

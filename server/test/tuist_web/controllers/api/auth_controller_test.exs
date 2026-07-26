@@ -411,6 +411,23 @@ defmodule TuistWeb.API.AuthControllerTest do
       assert refresh_token_claims["preferred_username"] == user.account.name
     end
 
+    test "returns forbidden when email auth is disabled", %{conn: conn} do
+      # Given
+      stub(Tuist.Environment, :email_auth_enabled?, fn -> false end)
+      password = UUIDv7.generate()
+      user = AccountsFixtures.user_fixture(password: password)
+
+      # When
+      conn =
+        conn
+        |> put_req_header("content-type", "application/json")
+        |> post("/api/auth", %{email: user.email, password: password})
+
+      # Then
+      response = json_response(conn, :forbidden)
+      assert response == %{"message" => "Email and password sign-in is disabled."}
+    end
+
     test "returns unauthorized when the password is invalid", %{conn: conn} do
       # Given
       password = UUIDv7.generate()

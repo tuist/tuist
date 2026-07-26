@@ -171,7 +171,12 @@ jobs:
       # and tags the identical commit, with no branch-advance race.
       ref: ${{ needs.prepare.outputs.sha }}
       changelog_from: ${{ needs.prepare.outputs.changelog_from }}
-      # Backports never move GitHub's "Latest" pointer or the Homebrew formula.
+      # Backports never move GitHub's "Latest" pointer, but they DO publish the
+      # per-version Homebrew formula (tuist@X.Y.Z) so a Homebrew-managed team
+      # pinned to the line can install the patch. This is safe: the
+      # homebrew-tuist aliases task is semver-aware, so it only advances the
+      # tuist@X.Y line alias and never repoints bare `tuist` — brew install tuist
+      # stays on the highest overall stable version regardless of publish order.
       make_latest: false
-      update_homebrew: false
+      update_homebrew: true
     secrets: inherit

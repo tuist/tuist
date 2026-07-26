@@ -26,7 +26,11 @@
         </div>
       </div>
 
-      <img data-part="image" src={Blog.get_post_image_url(@post)} />
+      <img
+        data-part="image"
+        src={TuistWeb.Marketing.MarketingHTML.static_asset_path(Blog.get_post_image_url(@post))}
+        decoding="async"
+      />
     </header>
 
     <section id="blog-post-content" data-part="content" data-prose>

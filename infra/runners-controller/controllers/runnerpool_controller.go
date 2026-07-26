@@ -13,9 +13,11 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
@@ -88,6 +90,20 @@ type RunnerPoolReconciler struct {
 	// DNS and never need these. Empty disables the env injection.
 	ClusterDNSIP  string
 	ClusterDomain string
+
+	Recorder record.EventRecorder
+
+	creationReservations creationReservationStore
+
+	// Now is overridable in tests; defaults to time.Now.
+	Now func() time.Time
+}
+
+func (r *RunnerPoolReconciler) now() time.Time {
+	if r.Now != nil {
+		return r.Now()
+	}
+	return time.Now()
 }
 
 // +kubebuilder:rbac:groups=tuist.dev,resources=runnerpools,verbs=get;list;watch;update;patch
@@ -151,15 +167,40 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{}, fmt.Errorf("list pods: %w", err)
 	}
 
+	// Warm capacity is counted here, in the one pass with no early
+	// returns, rather than alongside the classification below. The reap
+	// path can bail mid-loop, and a deferred publish of a not-yet-
+	// assigned counter would report 0 warm Pods on an error path — which
+	// reads as "no capacity" and masks exactly the starvation this series
+	// exists to surface.
 	phaseReplicas := podPhaseReplicaCounts{}
+	idleCount := 0
 	for i := range pods.Items {
 		p := &pods.Items[i]
-		if isAlive(p) {
-			phaseReplicas.add(p)
+		if !isAlive(p) {
+			continue
+		}
+		phaseReplicas.add(p)
+		// Mirrors the classification below: stale-image Pods are retired
+		// by the roll throttle rather than counted as available.
+		if !isStaleImage(p, pool) && isIdle(p) && isWarmCapacity(p, pool) {
+			idleCount++
 		}
 	}
 	defer func() {
 		metrics.RecordPodPhases(pool.Name, phaseReplicas.pending, phaseReplicas.running, phaseReplicas.unknown)
+		metrics.RecordIdleReplicas(pool.Name, idleCount)
+		// darwin only: Pending means "no VM yet" for a Tart pool, but it
+		// is the healthy steady state for a Linux one. Linux warm-standby
+		// Pods run their dispatch poller as an init container and kubelet
+		// holds a Pod in Pending for as long as any init container runs,
+		// so an idle Linux runner reports Pending for its whole life —
+		// hours, by design. Publishing this for Linux would peg every
+		// idle pool at its warm-pool age. A Linux equivalent has to read
+		// the poller's own lifecycle, not the Pod phase.
+		if pool.Spec.OS == "darwin" {
+			metrics.RecordOldestPendingPodAge(pool.Name, phaseReplicas.oldestPendingAge(r.now()))
+		}
 	}()
 
 	alive := 0
@@ -177,6 +218,30 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	var stalePendingCandidates []*corev1.Pod
 	for i := range pods.Items {
 		p := &pods.Items[i]
+		if startTimedOut(p, pool, r.now()) {
+			startedAt, _ := linuxProvisioningStartedAt(p)
+			nodeConditions := r.nodeConditionSummary(ctx, p.Spec.NodeName)
+			logger.Info("reap runner pod whose dispatch poller did not start",
+				"pod", p.Name,
+				"node", p.Spec.NodeName,
+				"bound", true,
+				"age", r.now().Sub(startedAt).String(),
+				"nodeConditions", nodeConditions,
+			)
+			if r.Recorder != nil {
+				r.Recorder.Eventf(p, corev1.EventTypeWarning, "RunnerPodStartTimedOut",
+					"Dispatch poller did not start within %d seconds after binding to node %s; node conditions: %s",
+					pool.Spec.Provisioning.StartTimeoutSecondsOrDefault(), p.Spec.NodeName, nodeConditions)
+			}
+			metrics.RecordPodStartTimeout(pool.Name, pollerNotStartedTimeoutReason)
+			if err := r.reapRunner(ctx, p); err != nil {
+				logger.Error(err, "reap runner pod after start timeout; will retry", "pod", p.Name)
+				return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+			}
+			phaseReplicas.remove(p)
+			reaped++
+			continue
+		}
 
 		switch {
 		case isAlive(p):
@@ -305,12 +370,58 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		"idleAlive", len(idleAlive),
 	)
 
-	for i := 0; i < gap; i++ {
-		if err := r.createRunner(ctx, pool); err != nil {
+	createLimit := gap
+	admissionBlocked := false
+	pendingProvisioningForPool := 0
+	if isLinuxKataPool(pool) {
+		admission, err := r.provisioningAdmission(ctx, pool)
+		if err != nil {
+			logger.Error(err, "read Linux provisioning admission; leaving replica gap")
+			createLimit = 0
+			admissionBlocked = gap > 0
+			if admissionBlocked {
+				metrics.RecordAdmissionBlocked(pool.Name, "fleet_view_error")
+			}
+		} else if admission.available < createLimit {
+			pendingProvisioningForPool = admission.pendingForPool
+			createLimit = admission.available
+			admissionBlocked = gap > createLimit
+			if admissionBlocked {
+				reason := admission.blockedReason
+				if reason == "" {
+					reason = "fleet_cap"
+				}
+				metrics.RecordAdmissionBlocked(pool.Name, reason)
+				logger.Info("Linux provisioning admission left replica gap",
+					"reason", reason,
+					"gap", gap,
+					"creating", createLimit,
+					"pendingForPool", admission.pendingForPool,
+					"pendingForFleet", admission.pendingForFleet,
+					"cap", admission.cap,
+					"healthyNodes", admission.healthyNodes,
+				)
+			}
+		} else {
+			pendingProvisioningForPool = admission.pendingForPool
+		}
+	}
+
+	created := 0
+	for i := 0; i < createLimit; i++ {
+		name, err := r.createRunner(ctx, pool)
+		if err != nil {
 			logger.Error(err, "create runner; will retry")
 			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 		}
+		if isLinuxKataPool(pool) {
+			r.reserveCreatedRunner(pool, name)
+		}
+		created++
 		phaseReplicas.pending++
+	}
+	if isLinuxKataPool(pool) {
+		metrics.RecordPendingProvisioningPods(pool.Name, pendingProvisioningForPool+created)
 	}
 
 	// Scale-down: alive > target. Delete IDLE Pods first — those
@@ -327,10 +438,13 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 		}
 		phaseReplicas.remove(p)
+		if isWarmCapacity(p, pool) {
+			idleCount--
+		}
 		scaledDown++
 	}
 
-	observed := alive - scaledDown + gap
+	observed := alive - scaledDown + created
 	pool.Status.ObservedReplicas = int32(observed)
 	pool.Status.LastReconcile = metav1.Now()
 	if err := r.Status().Update(ctx, pool); err != nil {
@@ -342,6 +456,9 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	// Steady-state requeue: re-run every 60 s as a safety net for
 	// missed events. Pod-event-driven reconcile via Owns() is the
 	// primary trigger; this is the catch-all.
+	if admissionBlocked {
+		return ctrl.Result{RequeueAfter: provisioningRequeueAfter}, nil
+	}
 	return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
 }
 
@@ -407,33 +524,33 @@ func (r *RunnerPoolReconciler) reconcileDelete(ctx context.Context, pool *tuistv
 // both owned by the RunnerPool. Pod and SA share the same name so
 // the dispatch endpoint can look up "which Pod is this SA mounted
 // on" from the validated SA name alone.
-func (r *RunnerPoolReconciler) createRunner(ctx context.Context, pool *tuistv1.RunnerPool) error {
+func (r *RunnerPoolReconciler) createRunner(ctx context.Context, pool *tuistv1.RunnerPool) (string, error) {
 	suffix, err := randHex(4)
 	if err != nil {
-		return fmt.Errorf("generate suffix: %w", err)
+		return "", fmt.Errorf("generate suffix: %w", err)
 	}
 	name := fmt.Sprintf("%s-runner-%s", pool.Name, suffix)
 
 	sa := podtemplate.BuildServiceAccount(pool, name)
 	if err := controllerutil.SetControllerReference(pool, sa, r.Scheme); err != nil {
-		return fmt.Errorf("sa owner ref: %w", err)
+		return "", fmt.Errorf("sa owner ref: %w", err)
 	}
 	if err := r.Create(ctx, sa); err != nil && !apierrors.IsAlreadyExists(err) {
-		return fmt.Errorf("create sa: %w", err)
+		return "", fmt.Errorf("create sa: %w", err)
 	}
 
 	pod, err := podtemplate.Build(pool, name, name, r.DispatchURL, r.DispatchInternalURL, r.DindImage, r.RegistryMirror, r.ClusterDNSIP, r.ClusterDomain)
 	if err != nil {
-		return fmt.Errorf("build pod: %w", err)
+		return "", fmt.Errorf("build pod: %w", err)
 	}
 	if err := controllerutil.SetControllerReference(pool, pod, r.Scheme); err != nil {
-		return fmt.Errorf("pod owner ref: %w", err)
+		return "", fmt.Errorf("pod owner ref: %w", err)
 	}
 	if err := r.Create(ctx, pod); err != nil && !apierrors.IsAlreadyExists(err) {
-		return fmt.Errorf("create pod: %w", err)
+		return "", fmt.Errorf("create pod: %w", err)
 	}
 
-	return nil
+	return name, nil
 }
 
 // reapRunner deletes a Pod and its same-named ServiceAccount.
@@ -475,17 +592,42 @@ type podPhaseReplicaCounts struct {
 	pending int
 	running int
 	unknown int
+
+	// Creation timestamps of the Pods counted in `pending`, keyed by Pod
+	// name so `remove` can drop the right one. A running max can't be
+	// maintained through the reconcile's add/remove churn — reaping the
+	// oldest Pod has to reveal the next-oldest, not leave a stale peak.
+	// Pods this tick creates are deliberately absent: they're
+	// milliseconds old, so they can never be the oldest, and tracking
+	// them would mean threading a clock through createRunner.
+	pendingSince map[string]time.Time
 }
 
 func (c *podPhaseReplicaCounts) add(pod *corev1.Pod) {
 	switch pod.Status.Phase {
 	case corev1.PodPending:
 		c.pending++
+		if c.pendingSince == nil {
+			c.pendingSince = map[string]time.Time{}
+		}
+		c.pendingSince[pod.Name] = pod.CreationTimestamp.Time
 	case corev1.PodRunning:
 		c.running++
 	default:
 		c.unknown++
 	}
+}
+
+// oldestPendingAge is how long the least-recently-created Pending Pod
+// has been waiting as of `now`, or 0 when the pool has none.
+func (c *podPhaseReplicaCounts) oldestPendingAge(now time.Time) time.Duration {
+	var oldest time.Duration
+	for _, since := range c.pendingSince {
+		if age := now.Sub(since); age > oldest {
+			oldest = age
+		}
+	}
+	return oldest
 }
 
 func (c *podPhaseReplicaCounts) remove(pod *corev1.Pod) {
@@ -494,6 +636,7 @@ func (c *podPhaseReplicaCounts) remove(pod *corev1.Pod) {
 		if c.pending > 0 {
 			c.pending--
 		}
+		delete(c.pendingSince, pod.Name)
 	case corev1.PodRunning:
 		if c.running > 0 {
 			c.running--
@@ -546,6 +689,49 @@ func isIdle(pod *corev1.Pod) bool {
 		return false
 	}
 	return !pollerTerminated(pod)
+}
+
+// isWarmCapacity reports whether an idle Pod can actually accept a job
+// right now. `isIdle` alone can't answer that: it only asks "unclaimed
+// and still polling", which a Pod that has never been scheduled also
+// satisfies. On a contended Tart fleet such a Pod can sit Pending for
+// hours with no node and no VM, and counting it as available capacity
+// inverts the reading it feeds — a pool starved of hosts would report
+// idle Pods sitting on queued work, the signature of the opposite
+// failure.
+//
+// The test is OS-dependent for the same reason oldestPendingPodAge is
+// darwin-only, but neither platform can use the Pod phase alone:
+//
+//   - darwin: Pending means the VM isn't up, so only Running is capacity.
+//   - linux: Pending is the healthy steady state, because the dispatch
+//     poller is an init container and kubelet holds the Pod in Pending
+//     for as long as it runs. But an *unscheduled* Linux Pod is equally
+//     Pending, equally unowned, and `pollerTerminated` reports false for
+//     it because no poller status exists at all. Treating every non-
+//     darwin Pod as capacity would therefore classify a Linux pool that
+//     is simply out of hosts as starved — the exact inversion this
+//     function exists to prevent, just on the other platform.
+//
+// So Linux asks whether the poller is *actively running*, which is only
+// true once the Pod has a node and kubelet has started the container.
+func isWarmCapacity(pod *corev1.Pod, pool *tuistv1.RunnerPool) bool {
+	if pool.Spec.OS == "darwin" {
+		return pod.Status.Phase == corev1.PodRunning
+	}
+	return pollerRunning(pod)
+}
+
+// pollerRunning reports whether the Linux `poller` init container is
+// currently executing. Absent status means the Pod has not started it
+// (unscheduled, or still pulling), which is not warm capacity.
+func pollerRunning(pod *corev1.Pod) bool {
+	for _, cs := range pod.Status.InitContainerStatuses {
+		if cs.Name == "poller" {
+			return cs.State.Running != nil
+		}
+	}
+	return false
 }
 
 // pollerTerminated reports whether the Linux `poller` init container
@@ -651,6 +837,10 @@ func (r *RunnerPoolReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		For(&tuistv1.RunnerPool{}).
 		Owns(&corev1.Pod{}, builder.WithPredicates(runnerLabelPredicate())).
 		Owns(&corev1.ServiceAccount{}).
+		// The shared provisioning admission reads the fleet count and then
+		// creates Pods. Keep that decision serial within the elected manager;
+		// raising this requires an atomic cross-reconcile reservation step.
+		WithOptions(controller.Options{MaxConcurrentReconciles: 1}).
 		Complete(r)
 }
 

@@ -452,12 +452,19 @@ defmodule TuistWeb.AppLayoutComponents do
     ~H"""
     <.tab_menu_horizontal>
       <% general_path = ~p"/#{@selected_account.name}/settings" %>
+      <% tokens_path = ~p"/#{@selected_account.name}/settings/tokens" %>
       <% integrations_path = ~p"/#{@selected_account.name}/settings/integrations" %>
       <% authentication_path = ~p"/#{@selected_account.name}/settings/authentication" %>
       <.tab_menu_horizontal_item
         label={dgettext("dashboard", "General")}
         selected={@current_path == general_path}
         navigate={general_path}
+      />
+      <.tab_menu_horizontal_item
+        :if={Authorization.authorize(:account_token_read, @current_user, @selected_account) == :ok}
+        label={dgettext("dashboard", "Tokens")}
+        selected={String.starts_with?(@current_path, tokens_path)}
+        navigate={tokens_path}
       />
       <.tab_menu_horizontal_item
         :if={Authorization.authorize(:account_update, @current_user, @selected_account) == :ok}
@@ -495,6 +502,12 @@ defmodule TuistWeb.AppLayoutComponents do
         icon="users"
         navigate={~p"/ops/accounts"}
         selected={String.starts_with?(@current_path, "/ops/accounts")}
+      />
+      <.sidebar_item
+        label="Registry"
+        icon="package"
+        navigate={~p"/ops/registry"}
+        selected={String.starts_with?(@current_path, "/ops/registry")}
       />
       <.sidebar_item
         label={dgettext("dashboard", "Database")}
@@ -568,9 +581,10 @@ defmodule TuistWeb.AppLayoutComponents do
       <div data-part="left-section">
         <.link navigate={~p"/#{@selected_account.name}/projects"}>
           <img
-            src="/images/tuist_dashboard.png"
+            src={~p"/images/tuist_dashboard.png"}
             alt={dgettext("dashboard", "Tuist Icon")}
             class="headerbar__logo"
+            decoding="async"
           />
         </.link>
         <span :if={@title} data-part="title">{@title}</span>
@@ -610,9 +624,10 @@ defmodule TuistWeb.AppLayoutComponents do
         <div data-part="left-section">
           <.link navigate={~p"/#{@selected_account.name}/projects"}>
             <img
-              src="/images/tuist_dashboard.png"
+              src={~p"/images/tuist_dashboard.png"}
               alt={dgettext("dashboard", "Tuist Icon")}
               class="headerbar__logo"
+              decoding="async"
             />
           </.link>
           <span :if={@title} data-part="title">{@title}</span>

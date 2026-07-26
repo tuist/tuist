@@ -13,6 +13,8 @@ ciliumEgressGateway:
     egressIP: 78.47.186.71
     hostConfigurator:
       enabled: true
+      nodeSelector:
+        tuist.dev/stable-egress-candidate: server
     failoverController:
       enabled: true
       # Image tag is resolved at deploy time by k8s:install-platform (the

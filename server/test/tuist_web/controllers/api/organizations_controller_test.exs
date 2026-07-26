@@ -154,6 +154,53 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
       assert response["plan"] == "pro"
     end
 
+    test "returns an organization with an account token with members read scope", %{conn: conn, user: user} do
+      # Given
+      organization = AccountsFixtures.organization_fixture(name: "tuist-org", creator: user)
+      member = AccountsFixtures.user_fixture(email: "tuist-member@tuist.io")
+      Accounts.add_user_to_organization(member, organization)
+
+      Accounts.invite_user_to_organization("tuist-inviter@tuist.io", %{
+        inviter: user,
+        to: organization,
+        url: fn token -> token end
+      })
+
+      token = account_token_value(organization.account, user.account, ["account:members:read"])
+
+      # When
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer #{token}")
+        |> get(~p"/api/organizations/tuist-org")
+
+      # Then
+      response = json_response(conn, :ok)
+
+      assert response["name"] == "tuist-org"
+      assert Enum.any?(response["members"], &(&1["name"] == "tuist-member"))
+      assert Enum.any?(response["invitations"], &(&1["invitee_email"] == "tuist-inviter@tuist.io"))
+    end
+
+    test "returns :forbidden when an account token belongs to another organization", %{conn: conn, user: user} do
+      # Given
+      organization = AccountsFixtures.organization_fixture(name: "tuist-org", creator: user)
+      other_organization = AccountsFixtures.organization_fixture()
+      token = account_token_value(other_organization.account, user.account, ["account:members:read"])
+
+      # When
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer #{token}")
+        |> get(~p"/api/organizations/#{organization.account.name}")
+
+      # Then
+      response = json_response(conn, :forbidden)
+
+      assert response["message"] ==
+               "The authenticated subject is not authorized to perform this action"
+    end
+
     test "returns :not_found when organization does not exist", %{conn: conn, user: user} do
       # Given
       conn = Authentication.put_current_user(conn, user)
@@ -560,6 +607,24 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
       assert response == %{}
     end
 
+    test "removes a member with an account token with members write scope", %{conn: conn, user: user} do
+      # Given
+      organization = AccountsFixtures.organization_fixture(name: "tuist-org", creator: user)
+      member = AccountsFixtures.user_fixture(email: "tuist-member@tuist.io")
+      Accounts.add_user_to_organization(member, organization)
+      token = account_token_value(organization.account, user.account, ["account:members:write"])
+
+      # When
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer #{token}")
+        |> delete(~p"/api/organizations/tuist-org/members/tuist-member")
+
+      # Then
+      response = json_response(conn, :no_content)
+      assert response == %{}
+    end
+
     test "removes a member with a google hosted domain", %{conn: conn, user: user} do
       # Given
       conn = Authentication.put_current_user(conn, user)
@@ -646,6 +711,27 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
       # When
       conn =
         conn
+        |> put_req_header("content-type", "application/json")
+        |> put(~p"/api/organizations/tuist-org/members/tuist-member", role: "admin")
+
+      # Then
+      response = json_response(conn, :ok)
+      assert response["name"] == "tuist-member"
+      assert response["role"] == "admin"
+      assert Accounts.organization_admin?(member, organization)
+    end
+
+    test "updates a member with an account token with members write scope", %{conn: conn, user: user} do
+      # Given
+      organization = AccountsFixtures.organization_fixture(name: "tuist-org", creator: user)
+      member = AccountsFixtures.user_fixture(email: "tuist-member@tuist.io")
+      Accounts.add_user_to_organization(member, organization)
+      token = account_token_value(organization.account, user.account, ["account:members:write"])
+
+      # When
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer #{token}")
         |> put_req_header("content-type", "application/json")
         |> put(~p"/api/organizations/tuist-org/members/tuist-member", role: "admin")
 
@@ -749,6 +835,18 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
 
   defp unique_sso_domain(prefix \\ "tuist") do
     "#{prefix}-#{TuistTestSupport.Utilities.unique_integer(6)}.io"
+  end
+
+  defp account_token_value(account, created_by_account, scopes) do
+    {:ok, {_, token}} =
+      Accounts.create_account_token(%{
+        account: account,
+        created_by_account: created_by_account,
+        scopes: scopes,
+        name: "token-#{TuistTestSupport.Utilities.unique_integer()}"
+      })
+
+    token
   end
 
   defp google_oauth_identity(domain, local \\ "tuist") do

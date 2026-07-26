@@ -53,6 +53,10 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
     /// Project swift packages.
     public var packages: [Package]
 
+    /// Explicit package trait selections keyed by normalized package identity.
+    /// A missing identity keeps the package defaults, while an empty array disables them.
+    public var packageTraits: [String: [String]]?
+
     /// Project schemes
     public var schemes: [Scheme]
 
@@ -98,6 +102,7 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
     ///   - targets: The project targets
     ///                      *(Those won't be included in any build phases)*
     ///   - packages: Project swift packages.
+    ///   - packageTraits: Explicit package trait selections keyed by normalized package identity.
     ///   - schemes: Project schemes.
     ///   - ideTemplateMacros: IDE template macros that represent content of IDETemplateMacros.plist.
     ///   - additionalFiles: The additional files to include in the project
@@ -119,6 +124,7 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
         filesGroup: ProjectGroup,
         targets: [Target],
         packages: [Package],
+        packageTraits: [String: [String]]? = nil,
         schemes: [Scheme],
         ideTemplateMacros: IDETemplateMacros?,
         additionalFiles: [FileElement],
@@ -138,6 +144,7 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
         self.options = options
         self.targets = Dictionary(uniqueKeysWithValues: targets.map { ($0.name, $0) })
         self.packages = packages
+        self.packageTraits = packageTraits
         self.schemes = schemes
         self.settings = settings
         self.filesGroup = filesGroup
@@ -192,6 +199,7 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
             filesGroup: ProjectGroup = .group(name: "Project"),
             targets: [Target] = [Target.test()],
             packages: [Package] = [],
+            packageTraits: [String: [String]]? = nil,
             schemes: [Scheme] = [],
             ideTemplateMacros: IDETemplateMacros? = nil,
             additionalFiles: [FileElement] = [],
@@ -214,6 +222,7 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
                 filesGroup: filesGroup,
                 targets: targets,
                 packages: packages,
+                packageTraits: packageTraits,
                 schemes: schemes,
                 ideTemplateMacros: ideTemplateMacros,
                 additionalFiles: additionalFiles,
@@ -239,6 +248,7 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
             filesGroup: ProjectGroup = .group(name: "Project"),
             targets: [Target] = [],
             packages: [Package] = [],
+            packageTraits: [String: [String]]? = nil,
             schemes: [Scheme] = [],
             ideTemplateMacros: IDETemplateMacros? = nil,
             additionalFiles: [FileElement] = [],
@@ -261,6 +271,7 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
                 filesGroup: filesGroup,
                 targets: targets,
                 packages: packages,
+                packageTraits: packageTraits,
                 schemes: schemes,
                 ideTemplateMacros: ideTemplateMacros,
                 additionalFiles: additionalFiles,

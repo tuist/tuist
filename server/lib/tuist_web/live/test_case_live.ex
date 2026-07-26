@@ -361,10 +361,10 @@ defmodule TuistWeb.TestCaseLive do
        ) do
     socket
     |> assign_async(:reliability, fn ->
-      {:ok, %{reliability: Analytics.test_case_reliability_by_id(test_case_id, project.default_branch)}}
+      {:ok, %{reliability: Analytics.test_case_reliability_by_id(project.id, test_case_id, project.default_branch)}}
     end)
     |> assign_async(:analytics, fn ->
-      {:ok, %{analytics: Analytics.test_case_analytics_by_id(test_case_id)}}
+      {:ok, %{analytics: Analytics.test_case_analytics_by_id(project.id, test_case_id)}}
     end)
     |> assign_async([:flakiness_rate, :flaky_runs_grouped, :flaky_runs_meta], fn ->
       {flaky_runs_grouped, flaky_runs_meta} = Tests.list_flaky_runs_for_test_case(project.id, test_case_id)
@@ -379,7 +379,8 @@ defmodule TuistWeb.TestCaseLive do
   end
 
   defp assign_test_case_runs(
-         %{assigns: %{test_case_id: test_case_id, available_filters: available_filters}} = socket,
+         %{assigns: %{selected_project: project, test_case_id: test_case_id, available_filters: available_filters}} =
+           socket,
          params
        ) do
     page = parse_page(params["page"])
@@ -397,7 +398,10 @@ defmodule TuistWeb.TestCaseLive do
       Tests.list_test_case_runs(%{
         page: page,
         page_size: @table_page_size,
-        filters: [%{field: :test_case_id, op: :==, value: test_case_id} | flop_filters],
+        filters: [
+          %{field: :project_id, op: :==, value: project.id},
+          %{field: :test_case_id, op: :==, value: test_case_id} | flop_filters
+        ],
         order_by: order_by,
         order_directions: order_directions
       })

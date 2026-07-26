@@ -35,6 +35,20 @@ app.kubernetes.io/component: {{ .component }}
 {{- end -}}
 
 {{/*
+Name of the server migration Job. Stable when it runs as a Helm hook, and
+scoped to the release revision when it runs as a regular Job, so that Helm
+replaces it on upgrade instead of tripping the immutable `spec.template`.
+*/}}
+{{- define "tuist.serverMigrateJobName" -}}
+{{- $base := include "tuist.componentName" (dict "root" . "component" "server-migrate") -}}
+{{- if and (not .Values.server.migrationJob.asHook) .Values.server.migrationJob.namePerRevision -}}
+{{- printf "%s-r%d" $base (int .Release.Revision) -}}
+{{- else -}}
+{{- $base -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
 Service account name for an application component.
 */}}
 {{- define "tuist.componentServiceAccountName" -}}
@@ -183,6 +197,30 @@ http://{{ include "tuist.componentName" (dict "root" . "component" "object-stora
 {{- else -}}
 {{- .Values.objectStorage.external.buckets.registry -}}
 {{- end -}}
+{{- end -}}
+
+{{- define "tuist.serverObjectStorageEnv" -}}
+- name: TUIST_OBJECT_STORAGE_PROVIDER
+  value: {{ .Values.server.storage.provider | quote }}
+{{- if eq .Values.server.storage.provider "azure_blob" }}
+- name: TUIST_AZURE_STORAGE_ACCOUNT_NAME
+  value: {{ .Values.server.azureBlob.accountName | quote }}
+- name: TUIST_AZURE_BLOB_CONTAINER_NAME
+  value: {{ .Values.server.azureBlob.containerName | quote }}
+{{- with .Values.server.azureBlob.endpoint }}
+- name: TUIST_AZURE_BLOB_ENDPOINT
+  value: {{ . | quote }}
+{{- end }}
+- name: TUIST_AZURE_BLOB_SERVICE_VERSION
+  value: {{ .Values.server.azureBlob.serviceVersion | quote }}
+{{- if .Values.server.azureBlob.accountKey }}
+- name: TUIST_AZURE_STORAGE_ACCOUNT_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "tuist.componentName" (dict "root" . "component" "app-secrets") }}
+      key: azure-blob-account-key
+{{- end }}
+{{- end }}
 {{- end -}}
 
 {{/*
@@ -418,31 +456,44 @@ one of:
 {{- end }}
 
 {{/*
-License env vars. Resolves to (in order):
-  1. ESO-managed Secret (server.externalSecrets.license.item set) — preview /
-     managed envs that sync the license from 1Password via
-     templates/external-secrets.yaml.
-  2. Chart-managed app-secrets Secret — when server.license.key is inlined.
+License env vars. Resolves to one mutually exclusive source:
+  1. ESO-managed Secret (server.externalSecrets.license.item or
+     server.externalSecrets.license.certificateItem set) for managed
+     environments that sync the license from 1Password.
+  2. Chart-managed app-secrets Secret when server.license.key or
+     server.license.certificateBase64 is inlined.
 */}}
 {{- define "tuist.licenseEnv" -}}
 {{- $appSecret := include "tuist.componentName" (dict "root" . "component" "app-secrets") -}}
 {{- $esoSecret := include "tuist.componentName" (dict "root" . "component" "server-external-secrets") -}}
-{{- $useEso := ne (.Values.server.externalSecrets.license.item | default "") "" -}}
-{{- if and $useEso .Values.server.license.key -}}
-{{- fail "server.externalSecrets.license.item and server.license.key are mutually exclusive — pick one license source." -}}
+{{- $useEsoKey := ne (.Values.server.externalSecrets.license.item | default "") "" -}}
+{{- $useEsoCertificate := ne (.Values.server.externalSecrets.license.certificateItem | default "") "" -}}
+{{- $useInlineKey := ne (.Values.server.license.key | default "") "" -}}
+{{- $useInlineCertificate := ne (.Values.server.license.certificateBase64 | default "") "" -}}
+{{- if and $useEsoKey $useEsoCertificate -}}
+{{- fail "server.externalSecrets.license.item and server.externalSecrets.license.certificateItem are mutually exclusive; pick one license source." -}}
 {{- end -}}
-{{- if or $useEso .Values.server.license.key }}
+{{- if and (or $useEsoKey $useEsoCertificate) (or $useInlineKey $useInlineCertificate) -}}
+{{- fail "external and inline license settings are mutually exclusive; pick one license source." -}}
+{{- end -}}
+{{- if and $useInlineKey $useInlineCertificate -}}
+{{- fail "server.license.key and server.license.certificateBase64 are mutually exclusive; pick one license source." -}}
+{{- end -}}
+{{- if not (or $useEsoKey $useEsoCertificate $useInlineKey $useInlineCertificate) -}}
+{{- fail "no Tuist license source is configured; set exactly one online key or air-gapped certificate source." -}}
+{{- end -}}
+{{- if or $useEsoKey $useInlineKey }}
 - name: TUIST_LICENSE_KEY
   valueFrom:
     secretKeyRef:
-      name: {{ ternary $esoSecret $appSecret $useEso | quote }}
+      name: {{ ternary $esoSecret $appSecret $useEsoKey | quote }}
       key: server-license-key
 {{- end }}
-{{- if .Values.server.license.certificateBase64 }}
+{{- if or $useEsoCertificate $useInlineCertificate }}
 - name: TUIST_LICENSE_CERTIFICATE_BASE64
   valueFrom:
     secretKeyRef:
-      name: {{ $appSecret | quote }}
+      name: {{ ternary $esoSecret $appSecret $useEsoCertificate | quote }}
       key: server-license-certificate-base64
 {{- end }}
 {{- end -}}
@@ -525,6 +576,22 @@ own way).
 {{- if and .Values.server.enabled .Values.server.config.managedSecrets }}
 - secretRef:
     name: {{ include "tuist.componentName" (dict "root" . "component" "server-config-external-secrets") }}
+{{- end }}
+{{- end -}}
+
+{{/*
+ClickHouse repo pool sizes are non-secret operational knobs. Render them from
+chart values so the server, migration, processor, and xcresult-processor pods
+stay aligned without relying on the runtime secret bundle.
+*/}}
+{{- define "tuist.clickhousePoolEnv" -}}
+{{- with .Values.clickhouse.poolSize }}
+- name: TUIST_CLICKHOUSE_POOL_SIZE
+  value: {{ . | quote }}
+{{- end }}
+{{- with .Values.clickhouse.bufferPoolSize }}
+- name: TUIST_CLICKHOUSE_BUFFER_POOL_SIZE
+  value: {{ . | quote }}
 {{- end }}
 {{- end -}}
 

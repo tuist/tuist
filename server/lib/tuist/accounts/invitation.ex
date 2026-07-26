@@ -8,6 +8,10 @@ defmodule Tuist.Accounts.Invitation do
 
   alias Tuist.Accounts.Organization
   alias Tuist.Accounts.User
+  alias Tuist.Time
+
+  @validity_days 14
+  @validity_seconds @validity_days * 24 * 60 * 60
 
   schema "invitations" do
     field(:token, :string)
@@ -28,4 +32,26 @@ defmodule Tuist.Accounts.Invitation do
     |> unique_constraint(:token, name: "index_invitations_on_token")
     |> unique_constraint([:invitee_email, :organization_id])
   end
+
+  def resend_changeset(invitation, attrs \\ %{}) do
+    invitation
+    |> cast(attrs, [:token])
+    |> validate_required([:token])
+    |> unique_constraint(:token, name: "index_invitations_on_token")
+  end
+
+  def validity_days, do: @validity_days
+
+  def expires_at(%__MODULE__{} = invitation) do
+    invitation
+    |> sent_at()
+    |> NaiveDateTime.add(@validity_seconds, :second)
+  end
+
+  def expired?(%__MODULE__{} = invitation, now \\ Time.naive_utc_now()) do
+    NaiveDateTime.compare(expires_at(invitation), now) != :gt
+  end
+
+  defp sent_at(%__MODULE__{updated_at: %NaiveDateTime{} = updated_at}), do: updated_at
+  defp sent_at(%__MODULE__{created_at: %NaiveDateTime{} = created_at}), do: created_at
 end

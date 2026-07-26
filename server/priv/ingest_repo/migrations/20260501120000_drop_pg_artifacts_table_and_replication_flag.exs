@@ -19,22 +19,24 @@ defmodule Tuist.IngestRepo.Migrations.DropPgArtifactsTableAndReplicationFlag do
   @disable_migration_lock true
 
   def up do
-    # PostgreSQL repo is not started during ClickHouse migrations.
-    case Repo.start_link() do
-      {:ok, _} -> :ok
-      {:error, {:already_started, _}} -> :ok
-    end
-
-    Repo.query!("ALTER TABLE bundles DROP COLUMN IF EXISTS artifacts_replicated_to_ch")
-    Repo.query!("DROP TABLE IF EXISTS artifacts")
+    # The PostgreSQL repo is not started during ClickHouse migrations, and Ecto
+    # discards the task each migration runs in, so start it through
+    # `Ecto.Migrator.with_repo/2` instead of linking it to that task.
+    {:ok, _, _} =
+      Ecto.Migrator.with_repo(Repo, fn _repo ->
+        Repo.query!("ALTER TABLE bundles DROP COLUMN IF EXISTS artifacts_replicated_to_ch")
+        Repo.query!("DROP TABLE IF EXISTS artifacts")
+      end)
   end
 
   def down do
-    case Repo.start_link() do
-      {:ok, _} -> :ok
-      {:error, {:already_started, _}} -> :ok
-    end
+    {:ok, _, _} =
+      Ecto.Migrator.with_repo(Repo, fn _repo ->
+        recreate_artifacts_table()
+      end)
+  end
 
+  defp recreate_artifacts_table do
     Repo.query!("""
     CREATE TABLE artifacts (
       id uuid PRIMARY KEY,

@@ -46,6 +46,7 @@ public struct ManifestGraphLoader: ManifestGraphLoading {
     private let graphMapper: GraphMapping
     private let packageSettingsLoader: PackageSettingsLoading
     private let manifestFilesLocator: ManifestFilesLocating
+    private let localPackageCoverageTargetsValidator: LocalPackageCoverageTargetsValidating
 
     public init(
         manifestLoader: ManifestLoading,
@@ -84,7 +85,8 @@ public struct ManifestGraphLoader: ManifestGraphLoading {
         workspaceMapper: WorkspaceMapping,
         graphMapper: GraphMapping,
         packageSettingsLoader: PackageSettingsLoading,
-        manifestFilesLocator: ManifestFilesLocating
+        manifestFilesLocator: ManifestFilesLocating,
+        localPackageCoverageTargetsValidator: LocalPackageCoverageTargetsValidating = LocalPackageCoverageTargetsValidator()
     ) {
         self.configLoader = configLoader
         self.manifestLoader = manifestLoader
@@ -99,6 +101,7 @@ public struct ManifestGraphLoader: ManifestGraphLoading {
         self.graphMapper = graphMapper
         self.packageSettingsLoader = packageSettingsLoader
         self.manifestFilesLocator = manifestFilesLocator
+        self.localPackageCoverageTargetsValidator = localPackageCoverageTargetsValidator
     }
 
     public func load(
@@ -224,11 +227,17 @@ public struct ManifestGraphLoader: ManifestGraphLoading {
             environment: MapperEnvironment()
         )
 
+        // Validate scheme code coverage references pointing at local Swift packages
+        let (validatedGraph, coverageLintingIssues) = try await localPackageCoverageTargetsValidator.validate(
+            graph: mappedGraph,
+            disableSandbox: disableSandbox
+        )
+
         return (
-            mappedGraph,
+            validatedGraph,
             modelMapperSideEffects + graphMapperSideEffects,
             environment,
-            lintingIssues
+            lintingIssues + coverageLintingIssues
         )
     }
 

@@ -9,9 +9,18 @@ defmodule Tuist.FeatureFlags do
   environment (dev / test / staging / canary) so contributors and
   internal testers see it without the flag flipped; in production it
   requires an explicit `:runners` FunWithFlags toggle for the actor.
+
+  This is also the source of truth for co-located private Kura cache
+  infrastructure, so enabling runners provides the cache without a second
+  operator-managed switch.
   """
   def runners_enabled?(account) do
     not Environment.prod?() or FunWithFlags.enabled?(:runners, for: account)
+  end
+
+  @doc false
+  def runners_enabled?(account, %FunWithFlags.Flag{} = flag) do
+    not Environment.prod?() or FunWithFlags.Flag.enabled?(flag, for: account)
   end
 
   @doc """
@@ -27,16 +36,6 @@ defmodule Tuist.FeatureFlags do
   """
   def kura_enabled?(account) do
     not Environment.tuist_hosted?() or FunWithFlags.enabled?(:kura, for: account)
-  end
-
-  @doc """
-  Whether cache clients should use Kura endpoints for the given account.
-  This is intentionally separate from `:kura`, which controls access to the
-  managed Kura UI and provisioning surface. Kura is opt-in: accounts continue
-  to use the default cache endpoints unless this flag is explicitly enabled.
-  """
-  def kura_cache_enabled?(account) do
-    FunWithFlags.enabled?(:kura_cache, for: account)
   end
 
   defimpl FunWithFlags.Actor, for: Tuist.Accounts.User do

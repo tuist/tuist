@@ -1,0 +1,1112 @@
+//! Remote transport over the Bazel Remote Execution API (REAPI), spoken by
+//! kura's gRPC service.
+//!
+//! Mapping (Bazel-shaped, digest-function friction avoided entirely):
+//! - An llcas action key K maps to the REAPI ActionCache key
+//!   `Digest { hash: sha256(K), size: len(K) }`.
+//! - Each llcas node is stored as ONE CAS blob whose content is the
+//!   zstd-compressed `"TCP0" | u32 ref_count | (u32 len | digest)* | data`
+//!   frame, addressed by sha256 of that content (REAPI-native).
+//! - The ActionResult is the closure MANIFEST: one OutputFile per node in the
+//!   value graph, `path` = the node's llcas digest in hex (root first),
+//!   `digest` = the blob's sha256 digest. A reader learns every blob it needs
+//!   in one round trip and fetches the missing set in one batch.
+//! - Publication: FindMissingBlobs -> BatchUpdateBlobs (missing only, which
+//!   makes cross-process upload dedup server-side) -> UpdateActionResult
+//!   LAST, so a reader can never observe an entry whose graph is incomplete.
+
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, OnceLock};
+use std::time::{Duration, Instant};
+
+pub use bazel_remote_apis::build::bazel::remote::execution::v2::Digest;
+use bazel_remote_apis::build::bazel::remote::execution::v2::{
+    self as reapi, action_cache_client::ActionCacheClient, batch_update_blobs_request,
+    content_addressable_storage_client::ContentAddressableStorageClient,
+};
+use sha2::{Digest as _, Sha256};
+use tonic::transport::{Channel, ClientTlsConfig, Endpoint};
+
+use crate::token::TokenProvider;
+
+#[derive(Default)]
+pub struct OpStats {
+    pub count: AtomicU64,
+    pub total_ms: AtomicU64,
+    pub max_ms: AtomicU64,
+}
+
+impl OpStats {
+    pub fn record(&self, elapsed: Duration) {
+        let ms = elapsed.as_millis() as u64;
+        self.count.fetch_add(1, Ordering::Relaxed);
+        self.total_ms.fetch_add(ms, Ordering::Relaxed);
+        self.max_ms.fetch_max(ms, Ordering::Relaxed);
+    }
+
+    pub fn summary(&self) -> String {
+        let count = self.count.load(Ordering::Relaxed);
+        format!(
+            "n={} sum={}ms max={}ms",
+            count,
+            self.total_ms.load(Ordering::Relaxed),
+            self.max_ms.load(Ordering::Relaxed),
+        )
+    }
+}
+
+pub struct RemoteConfig {
+    pub grpc_url: String,
+    /// REAPI `instance_name`: the project segment only, NOT the `account/project`
+    /// full handle. Kura derives the tenant (account) from the bearer token and
+    /// builds the authz identifier as `{tenant}/{instance_name}`, so carrying the
+    /// account here would double-count it (e.g. `tuist/tuist/tuist`, which no
+    /// principal is granted). See `reapi_instance`.
+    pub instance: String,
+}
+
+/// The REAPI `instance_name` for an `account/project` full handle: the project
+/// segment only (everything after the first `/`). The account is conveyed to
+/// Kura by the bearer token, so it must not also be part of `instance_name`.
+pub fn reapi_instance(full_handle: &str) -> &str {
+    full_handle
+        .split_once('/')
+        .map(|(_account, project)| project)
+        .unwrap_or(full_handle)
+}
+
+pub struct Node {
+    pub refs: Vec<Vec<u8>>,
+    pub data: Vec<u8>,
+}
+
+/// One node of a value graph as it travels: the llcas digest identifies it to
+/// the local CAS, the REAPI digest identifies its frame blob remotely.
+#[derive(Clone, PartialEq)]
+pub struct ManifestEntry {
+    pub llcas_digest: Vec<u8>,
+    pub blob: reapi::Digest,
+    /// Frame bytes the server inlined into the GetActionResult response (see
+    /// the `inline_output_files: ["*"]` request hint). `None` means the server
+    /// did not inline this blob (older kura, or response budget exhausted) and
+    /// it must be fetched via `batch_read` as before.
+    pub contents: Option<Vec<u8>>,
+}
+
+// One request must stay under kura's 64MB decoding cap, with headroom.
+const MAX_BATCH_BYTES: i64 = 32 << 20;
+// Generous because it is a per-RPC ceiling, not the dead-link detector (h2
+// keepalive reaps dead connections in ~30s regardless): the snapshot fetch
+// legitimately carries tens of MB in one unary response — measured 40s for
+// 48MiB over a WAN link — and a 60s cap made slower links fail it
+// systematically.
+const RPC_TIMEOUT: Duration = Duration::from_secs(180);
+const ATTEMPTS: usize = 3;
+// How many times `batch_read` re-requests the subset of blobs a `BatchReadBlobs`
+// call returned with a retryable per-blob status. This is a separate budget from
+// `ATTEMPTS`: that one retries the RPC itself, which succeeds here -- the
+// rejection rides on each response entry, so the RPC-level retry never sees it.
+const BLOB_STATUS_ATTEMPTS: usize = 3;
+// After a `batch_read` exhausts its per-blob retries with blobs still declined,
+// how long the same `Remote` fails fast (no retries) instead. Long enough that a
+// build's thousands of reads against a deterministically-pressured node don't
+// each pay the retry ladder and pile read load onto it; short enough to re-probe
+// for recovery several times within one build.
+const PRESSURE_BACKOFF_MS: u64 = 30_000;
+
+fn now_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|elapsed| elapsed.as_millis() as u64)
+        .unwrap_or(0)
+}
+
+/// Delay between retries: the first retry is immediate -- the dominant
+/// retryable condition is kura's graceful GOAWAY rotation, where re-issuing
+/// on a fresh connection succeeds right away -- while later retries back off
+/// so many concurrent fetches don't hammer a node that is genuinely
+/// struggling.
+const RETRY_BACKOFF: Duration = Duration::from_millis(200);
+
+/// Retries a synchronous gRPC call up to `ATTEMPTS` times on retryable statuses,
+/// keeping the retry policy in one place. The caller maps success and terminal
+/// errors (e.g. NotFound) at the call site.
+fn retry_call<T>(mut op: impl FnMut() -> Result<T, tonic::Status>) -> Result<T, tonic::Status> {
+    let mut last = None;
+    for attempt in 0..ATTEMPTS {
+        if attempt > 1 {
+            std::thread::sleep(RETRY_BACKOFF * (attempt - 1) as u32);
+        }
+        match op() {
+            Ok(value) => return Ok(value),
+            Err(status) if retryable(&status) && attempt + 1 < ATTEMPTS => last = Some(status),
+            Err(status) => return Err(status),
+        }
+    }
+    Err(last.unwrap_or_else(|| tonic::Status::unknown("retry attempts exhausted")))
+}
+
+/// Async counterpart of `retry_call`, for calls issued from within a tokio task
+/// where blocking is not allowed. `op` is re-invoked (returning a fresh future)
+/// per attempt.
+async fn retry_call_async<T, F, Fut>(mut op: F) -> Result<T, tonic::Status>
+where
+    F: FnMut() -> Fut,
+    Fut: std::future::Future<Output = Result<T, tonic::Status>>,
+{
+    let mut last = None;
+    for attempt in 0..ATTEMPTS {
+        if attempt > 1 {
+            tokio::time::sleep(RETRY_BACKOFF * (attempt - 1) as u32).await;
+        }
+        match op().await {
+            Ok(value) => return Ok(value),
+            Err(status) if retryable(&status) && attempt + 1 < ATTEMPTS => last = Some(status),
+            Err(status) => return Err(status),
+        }
+    }
+    Err(last.unwrap_or_else(|| tonic::Status::unknown("retry attempts exhausted")))
+}
+
+pub(crate) fn hex(bytes: &[u8]) -> String {
+    let mut s = String::with_capacity(bytes.len() * 2);
+    for b in bytes {
+        s.push_str(&format!("{b:02x}"));
+    }
+    s
+}
+
+fn unhex(s: &str) -> Option<Vec<u8>> {
+    if s.len() % 2 != 0 {
+        return None;
+    }
+    (0..s.len())
+        .step_by(2)
+        .map(|i| u8::from_str_radix(&s[i..i + 2], 16).ok())
+        .collect()
+}
+
+/// Reserved action key kura answers with the instance-wide action-cache
+/// snapshot. Must byte-match the server constant; the version suffix bumps on
+/// any encoding change so a mixed deployment degrades to a plain not-found
+/// (v2 added the write-time watermark header and delta responses).
+pub const SNAPSHOT_ACTION_KEY: &[u8] = b"tuist-actioncache-snapshot/v2";
+/// `inline_output_files` hint carrying our watermark: the server then returns
+/// only entries written after it (a delta), so a long-lived proxy refreshes
+/// without refetching the world.
+const SNAPSHOT_AFTER_HINT: &str = "tuist-snapshot-after:";
+
+pub fn blob_digest(content: &[u8]) -> reapi::Digest {
+    reapi::Digest {
+        hash: hex(&Sha256::digest(content)),
+        size_bytes: content.len() as i64,
+    }
+}
+
+fn action_digest(key: &[u8]) -> reapi::Digest {
+    reapi::Digest {
+        hash: hex(&Sha256::digest(key)),
+        size_bytes: key.len() as i64,
+    }
+}
+
+fn runtime() -> &'static tokio::runtime::Runtime {
+    static RUNTIME: OnceLock<tokio::runtime::Runtime> = OnceLock::new();
+    RUNTIME.get_or_init(|| {
+        tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(8)
+            .enable_all()
+            .build()
+            .expect("tokio runtime")
+    })
+}
+
+pub struct Remote {
+    config: RemoteConfig,
+    tokens: Arc<TokenProvider>,
+    channel: OnceLock<Result<Channel, String>>,
+    pub get_stats: OpStats,
+    pub post_stats: OpStats,
+    // Epoch-ms until which `batch_read` skips its per-blob retries because the
+    // node was just seen persistently declining reads under memory pressure.
+    // Retrying a deterministically-pressured node only triples its read load
+    // and deepens the pressure (the same reasoning `retryable` applies to
+    // server-sent Internal), so once tripped we fail fast until it may have
+    // recovered. 0 means healthy.
+    pressure_backoff_until_ms: AtomicU64,
+}
+
+fn retryable(status: &tonic::Status) -> bool {
+    match status.code() {
+        tonic::Code::Unavailable
+        | tonic::Code::Unknown
+        | tonic::Code::DeadlineExceeded
+        | tonic::Code::ResourceExhausted => true,
+        // Kura periodically closes an h2 connection with GOAWAY(NO_ERROR)
+        // (graceful rotation), which tonic surfaces as `Internal`
+        // ("h2 protocol error"); an in-flight stream on the dropped
+        // connection surfaces as `Cancelled` ("connection closed"). Both are
+        // transient transport conditions, not the server rejecting the
+        // request -- re-issuing reconnects the lazy channel. Safe to retry
+        // because every CAS op is idempotent (content-addressed reads,
+        // dedup'd writes). Without this a graceful GOAWAY turned a cache hit
+        // into a miss + recompile: harmless at low concurrency, a real
+        // hit-rate drain once many fetches overlap.
+        //
+        // The codes alone are broader than that condition, though: kura maps
+        // genuine storage faults to trailer-borne `Internal`, and the
+        // client's own `Endpoint::timeout` surfaces as `Cancelled`
+        // ("Timeout expired"). Retrying those triples the load on a server
+        // that is deterministically failing and turns one 60s timeout into
+        // three, so gate on the status actually coming from the local
+        // transport.
+        tonic::Code::Internal | tonic::Code::Cancelled => transport_caused(status),
+        _ => false,
+    }
+}
+
+/// Whether a per-blob status on a `BatchReadBlobs` response entry means "the
+/// blob exists but the server briefly declined to serve it" rather than "the
+/// blob is gone". RESOURCE_EXHAUSTED is kura shedding load under memory
+/// pressure -- it zeroes its per-request REAPI materialization budget and
+/// rejects every read until pressure eases -- and UNAVAILABLE is a transient
+/// serving hiccup. Both are worth re-requesting: the byte is there, and
+/// dropping it as absent hands the compiler a missing object it fails the build
+/// on even though a retry moments later succeeds. NOT_FOUND is deliberately
+/// excluded -- a genuinely evicted blob must fall through to the caller's
+/// skip-and-recompile path, not spin on retries that can never find it.
+fn retryable_blob_status(code: i32) -> bool {
+    code == tonic::Code::ResourceExhausted as i32 || code == tonic::Code::Unavailable as i32
+}
+
+/// One blob's outcome from a `BatchReadBlobs` pass: the digest the server
+/// echoed (`None` if it omitted it), the per-blob gRPC status code, and the
+/// bytes (empty unless the code is 0).
+type BlobOutcome = (Option<reapi::Digest>, i32, Vec<u8>);
+
+/// The retry-and-backoff policy over one or more `BatchReadBlobs` passes,
+/// factored out of `batch_read` so it is exercised without a live server:
+/// `fetch` performs one pass. Served blobs (status 0) accumulate; retryable
+/// declines (see `retryable_blob_status`) are re-requested with backoff up to
+/// `BLOB_STATUS_ATTEMPTS`; `NOT_FOUND` and other statuses are left out for the
+/// caller to skip. A decline that survives every attempt arms
+/// `pressure_backoff_until_ms` so subsequent reads make a single fail-fast pass
+/// rather than pile the retry ladder onto a struggling node, and logs the
+/// transition once (`backing_off` already means it was armed).
+fn batch_read_retrying(
+    pressure_backoff_until_ms: &AtomicU64,
+    blobs: &[reapi::Digest],
+    mut fetch: impl FnMut(&[reapi::Digest]) -> Result<Vec<BlobOutcome>, String>,
+) -> Result<std::collections::HashMap<String, Vec<u8>>, String> {
+    let backing_off = now_ms() < pressure_backoff_until_ms.load(Ordering::Relaxed);
+    let attempts = if backing_off { 1 } else { BLOB_STATUS_ATTEMPTS };
+    let mut contents = std::collections::HashMap::new();
+    let mut pending: Vec<reapi::Digest> = blobs.to_vec();
+    for round in 1..=attempts {
+        let outcomes = fetch(&pending)?;
+        let mut retry: Vec<reapi::Digest> = Vec::new();
+        for (digest, code, data) in outcomes {
+            if code == 0 {
+                if let Some(digest) = digest {
+                    contents.insert(digest.hash, data);
+                }
+            } else if retryable_blob_status(code) {
+                if let Some(digest) = digest {
+                    retry.push(digest);
+                }
+            }
+            // Any other status (NOT_FOUND, ...) is a genuine miss: leave it out
+            // of the map so the caller's skip-and-recompile path takes over.
+        }
+        if retry.is_empty() {
+            break;
+        }
+        if round == attempts {
+            // Only the memory-pressure signature -- the node declined the
+            // *entire* set -- arms the node-wide breaker. A budget-zeroed
+            // Critical kura rejects every read; a RESOURCE_EXHAUSTED on one
+            // blob that overran a per-request materialization limit leaves the
+            // rest served, and arming on that would fail-fast unrelated,
+            // genuinely transient declines on the same Remote for 30s.
+            // `contents.is_empty()` is that signature and needs no fragile
+            // parse of the per-blob status message.
+            if contents.is_empty() {
+                arm_pressure_backoff(pressure_backoff_until_ms, retry.len(), round);
+            }
+            break;
+        }
+        std::thread::sleep(RETRY_BACKOFF * round as u32);
+        pending = retry;
+    }
+    Ok(contents)
+}
+
+/// Moves `deadline` from healthy/expired to a fresh backoff window, logging the
+/// transition. The compare-exchange makes exactly one caller win: the
+/// prematerializer's worker pool and the compiler threads' demand fetches race
+/// the same `Remote`, so a plain load-then-store would let every racer arm and
+/// log at once. A caller that finds the window already armed returns without
+/// re-logging or extending it, so "back off / log once" holds under concurrency.
+fn arm_pressure_backoff(deadline: &AtomicU64, declined: usize, attempts: usize) {
+    let now = now_ms();
+    let mut current = deadline.load(Ordering::Relaxed);
+    loop {
+        if current > now {
+            return;
+        }
+        match deadline.compare_exchange_weak(
+            current,
+            now + PRESSURE_BACKOFF_MS,
+            Ordering::Relaxed,
+            Ordering::Relaxed,
+        ) {
+            Ok(_) => break,
+            Err(observed) => current = observed,
+        }
+    }
+    crate::log_line(&format!(
+        "batch_read: server declining reads under memory pressure \
+         ({declined} blob(s) unmaterialized after {attempts} attempt(s)); \
+         backing off retries for {}s",
+        PRESSURE_BACKOFF_MS / 1000
+    ));
+}
+
+/// Whether a status was synthesized by the local h2/hyper transport rather
+/// than sent by the server. tonic attaches the transport error chain as the
+/// status source for local failures (GOAWAY, dropped connection, broken
+/// stream); a status parsed from response trailers -- i.e. one the server
+/// actually returned -- carries no source. The client's own deadline
+/// (`TimeoutExpired`) is also source-borne but is deliberately not matched:
+/// a hung server should cost one timeout, not `ATTEMPTS`.
+fn transport_caused(status: &tonic::Status) -> bool {
+    let mut source = std::error::Error::source(status);
+    while let Some(error) = source {
+        if error.downcast_ref::<h2::Error>().is_some()
+            || error.downcast_ref::<hyper::Error>().is_some()
+        {
+            return true;
+        }
+        source = error.source();
+    }
+    false
+}
+
+type AuthValue = tonic::metadata::MetadataValue<tonic::metadata::Ascii>;
+
+/// Wraps a message in a `tonic::Request`, attaching the bearer when present.
+fn authed_request<T>(message: T, auth: Option<&AuthValue>) -> tonic::Request<T> {
+    let mut request = tonic::Request::new(message);
+    if let Some(value) = auth {
+        request
+            .metadata_mut()
+            .insert("authorization", value.clone());
+    }
+    request
+}
+
+impl Remote {
+    pub fn new(config: RemoteConfig, tokens: Arc<TokenProvider>) -> Arc<Self> {
+        Arc::new(Self {
+            config,
+            tokens,
+            channel: OnceLock::new(),
+            get_stats: OpStats::default(),
+            post_stats: OpStats::default(),
+            pressure_backoff_until_ms: AtomicU64::new(0),
+        })
+    }
+
+    /// The `authorization: Bearer <token>` header, or `None` when the endpoint
+    /// is unauthenticated. Cloned onto every request so the spawned batch-read
+    /// tasks stay self-contained.
+    fn authorization(&self) -> Option<AuthValue> {
+        let token = self.tokens.current()?;
+        AuthValue::try_from(format!("Bearer {token}")).ok()
+    }
+
+    fn authed<T>(&self, message: T) -> tonic::Request<T> {
+        authed_request(message, self.authorization().as_ref())
+    }
+
+    /// An authed request carrying a git ref (the branch a publish is attributed
+    /// to, or the trunk to scope a view by) as metadata.
+    ///
+    /// Sent twice, and both are load-bearing. Git allows any UTF-8 in a ref name,
+    /// but an ASCII metadata value takes visible ASCII only, so `feature/café`
+    /// fails to convert and used to be dropped in silence: the publish went out
+    /// untagged, or the view came back unscoped, and nothing said why. The `-bin`
+    /// header carries the bytes whatever they are.
+    ///
+    /// The ASCII header stays because a node that predates the binary one reads
+    /// only that, and dropping it would untag every ASCII ref on the way through
+    /// a rolling deploy. So: ASCII when it fits, bytes always, and a reader takes
+    /// the binary one first.
+    fn authed_with<T>(
+        &self,
+        message: T,
+        header: &'static str,
+        binary_header: &'static str,
+        value: Option<&str>,
+    ) -> tonic::Request<T> {
+        let mut request = self.authed(message);
+        if let Some(value) = value.filter(|value| !value.is_empty()) {
+            if let Ok(ascii) = tonic::metadata::MetadataValue::try_from(value) {
+                request.metadata_mut().insert(header, ascii);
+            }
+            request.metadata_mut().insert_bin(
+                binary_header,
+                tonic::metadata::MetadataValue::from_bytes(value.as_bytes()),
+            );
+        }
+        request
+    }
+
+    fn channel(&self) -> Result<Channel, String> {
+        self.channel
+            .get_or_init(|| {
+                // connect_lazy wires the hyper connection pool and the h2
+                // keepalive timers to the *current* Tokio runtime. This runs from
+                // a proxy handler thread (outside the runtime), so without
+                // entering the runtime here the first RPC panics with "there is
+                // no reactor running" on a detached connection task; the panic is
+                // swallowed at the FFI boundary and every resolve silently
+                // degrades to a local miss (0% remote cache).
+                let _runtime_guard = runtime().enter();
+                let mut endpoint = Endpoint::from_shared(self.config.grpc_url.clone())
+                    .map_err(|e| format!("bad grpc url: {e}"))?
+                    .connect_timeout(Duration::from_secs(5))
+                    .timeout(RPC_TIMEOUT)
+                    // h2 keepalive prevents the stale-idle-connection class
+                    // that plagued the HTTP/1.1 transport.
+                    .http2_keep_alive_interval(Duration::from_secs(20))
+                    .keep_alive_while_idle(true)
+                    .keep_alive_timeout(Duration::from_secs(10))
+                    // Bulk-transfer windows: with default ~64KB stream
+                    // windows, a 500KB batch response costs ~8 window-update
+                    // round trips, which dominates on links with real RTT
+                    // (measured ~31ms per 30-blob resolve over the VM bridge
+                    // vs ~1ms server-side).
+                    .initial_stream_window_size(Some(16 * 1024 * 1024))
+                    .initial_connection_window_size(Some(64 * 1024 * 1024));
+                // Public kura endpoints are https (TLS with the system trust
+                // store); private-network endpoints stay plaintext h2c.
+                if self.config.grpc_url.starts_with("https://") {
+                    endpoint = endpoint
+                        .tls_config(ClientTlsConfig::new().with_native_roots())
+                        .map_err(|e| format!("tls config: {e}"))?;
+                }
+                // connect_lazy establishes (and transparently re-establishes)
+                // the connection per request, so a Kura restart or transient
+                // unreachability during the proxy's first call no longer gets
+                // cached as a permanent Err that poisons every later RPC. The
+                // only errors cached here are deterministic endpoint/TLS config
+                // errors, which will never succeed on retry anyway.
+                Ok(endpoint.connect_lazy())
+            })
+            .clone()
+    }
+
+    fn cas_client(&self) -> Result<ContentAddressableStorageClient<Channel>, String> {
+        Ok(ContentAddressableStorageClient::new(self.channel()?)
+            .max_decoding_message_size(256 << 20))
+    }
+
+    fn ac_client(&self) -> Result<ActionCacheClient<Channel>, String> {
+        // Kura's wildcard inlining packs blob contents greedily up to its
+        // response budget, whose ceiling is exactly 64MB
+        // (MAX_REAPI_RESPONSE_BUDGET_BYTES); the budget counts content bytes,
+        // not the few bytes per file of protobuf framing added by embedding
+        // them, so a cap equal to the budget can reject a maximally-packed
+        // response and turn the largest cached graphs into permanent misses.
+        // 96MB keeps deliberate headroom above the server ceiling.
+        Ok(ActionCacheClient::new(self.channel()?).max_decoding_message_size(96 << 20))
+    }
+
+    /// Fetches the closure manifest for an action key. `Ok(None)` is a
+    /// definitive miss; `Err` is a transport problem.
+    ///
+    /// Asks the server to inline every output blob it can afford, which is a
+    /// deliberate latency-for-bytes trade: the request goes out before the
+    /// local store is consulted, so on a warm store the response carries (and
+    /// the server bills as egress) frame bytes for blobs the caller already
+    /// holds and will discard. Cold-store resolves -- the dominant remote-hit
+    /// case -- waste nothing and save a full WAN round-trip per resolve.
+    pub fn get_action(&self, key: &[u8]) -> Result<Option<Vec<ManifestEntry>>, String> {
+        self.get_action_with_inline(key, true)
+    }
+
+    /// Existence probe for the publish path: the same lookup without the
+    /// wildcard inline hint. Publish callers only compare the manifest's
+    /// first entry, so asking the server to materialize and ship every output
+    /// blob (16-way concurrent reads, claims on the shared materialization
+    /// pool, billed egress up to the response budget) would pay all of that
+    /// for bytes that are immediately dropped.
+    pub fn probe_action(&self, key: &[u8]) -> Result<Option<Vec<ManifestEntry>>, String> {
+        self.get_action_with_inline(key, false)
+    }
+
+    fn get_action_with_inline(
+        &self,
+        key: &[u8],
+        inline_outputs: bool,
+    ) -> Result<Option<Vec<ManifestEntry>>, String> {
+        let started = Instant::now();
+        let result = (|| {
+            let mut client = self.ac_client()?;
+            let request = reapi::GetActionResultRequest {
+                instance_name: self.config.instance.clone(),
+                action_digest: Some(action_digest(key)),
+                // Kura extension: `"*"` asks the server to inline every output
+                // file's frame bytes into this response (best-effort, within
+                // its response budget), collapsing the action lookup + blob
+                // fetch into one round-trip. A server without the extension
+                // matches no literal `"*"` path and inlines nothing, in which
+                // case the caller batch-reads as before.
+                inline_output_files: if inline_outputs {
+                    vec!["*".into()]
+                } else {
+                    Vec::new()
+                },
+                ..Default::default()
+            };
+            let response = retry_call(|| {
+                runtime().block_on(client.get_action_result(self.authed(request.clone())))
+            });
+            match response {
+                Ok(response) => {
+                    let manifest = response
+                        .into_inner()
+                        .output_files
+                        .into_iter()
+                        .filter_map(|file| {
+                            Some(ManifestEntry {
+                                llcas_digest: unhex(&file.path)?,
+                                contents: (!file.contents.is_empty()).then_some(file.contents),
+                                blob: file.digest?,
+                            })
+                        })
+                        .collect();
+                    Ok(Some(manifest))
+                }
+                Err(status) if status.code() == tonic::Code::NotFound => Ok(None),
+                Err(status) => Err(format!("get_action: {status}")),
+            }
+        })();
+        self.get_stats.record(started.elapsed());
+        result
+    }
+
+    /// Fetches the instance's action-cache snapshot: kura answers the reserved
+    /// snapshot key with the namespace's complete key→value map inlined into a
+    /// single output file (see `SNAPSHOT_ACTION_KEY`). `Ok(None)` means the
+    /// server has no snapshot support (an ordinary not-found), and the caller
+    /// stays on the per-key path.
+    /// `after` asks for a delta: only entries written after that watermark.
+    pub fn get_snapshot(
+        &self,
+        after: Option<u64>,
+        trunk: Option<&str>,
+    ) -> Result<Option<Vec<u8>>, String> {
+        let mut client = self.ac_client()?;
+        let mut inline_output_files = vec!["*".to_string()];
+        if let Some(after) = after {
+            inline_output_files.push(format!("{SNAPSHOT_AFTER_HINT}{after}"));
+        }
+        let request = reapi::GetActionResultRequest {
+            instance_name: self.config.instance.clone(),
+            action_digest: Some(action_digest(SNAPSHOT_ACTION_KEY)),
+            inline_output_files,
+            ..Default::default()
+        };
+        let response = retry_call(|| {
+            runtime().block_on(client.get_action_result(self.authed_with(
+                request.clone(),
+                "x-tuist-trunk-branch",
+                "x-tuist-trunk-branch-bin",
+                trunk,
+            )))
+        });
+        match response {
+            Ok(response) => Ok(response
+                .into_inner()
+                .output_files
+                .into_iter()
+                .next()
+                .map(|file| file.contents)
+                .filter(|contents| !contents.is_empty())),
+            Err(status) if status.code() == tonic::Code::NotFound => Ok(None),
+            Err(status) => Err(format!("get_snapshot: {status}")),
+        }
+    }
+
+    /// Reads blobs, returning the bytes keyed by content hash for every blob
+    /// the server served. Blobs the server reports absent (NOT_FOUND) are
+    /// simply missing from the map -- the caller treats that as an incomplete
+    /// graph and recompiles. Blobs the server briefly declined under load
+    /// (RESOURCE_EXHAUSTED/UNAVAILABLE) are re-requested with backoff before
+    /// giving up, because the byte is there and reporting it absent fails the
+    /// build on a missing object; a persistent decline is logged so a build
+    /// that then fails has a cause in the proxy log.
+    pub fn batch_read(
+        &self,
+        blobs: &[reapi::Digest],
+    ) -> Result<std::collections::HashMap<String, Vec<u8>>, String> {
+        let started = Instant::now();
+        let result = batch_read_retrying(&self.pressure_backoff_until_ms, blobs, |pending| {
+            self.batch_read_once(pending)
+        });
+        self.get_stats.record(started.elapsed());
+        result
+    }
+
+    /// One `BatchReadBlobs` pass: fetches `blobs` in size-bounded chunks
+    /// concurrently over the multiplexed channel (bulk resolves can carry
+    /// gigabytes, and a sequential chunk loop turns them into round-trip
+    /// ladders). Each returned tuple is `(echoed digest, per-blob status code,
+    /// bytes)`: the RPC itself is retried inside, but a per-blob status rides
+    /// out for `batch_read_retrying` to interpret and selectively re-request.
+    fn batch_read_once(&self, blobs: &[reapi::Digest]) -> Result<Vec<BlobOutcome>, String> {
+        let client = self.cas_client()?;
+        let instance = self.config.instance.clone();
+        let auth = self.authorization();
+        let chunks = chunk_digests(blobs);
+        let responses = runtime().block_on(async {
+            let mut join_set = tokio::task::JoinSet::new();
+            for chunk in &chunks {
+                let client = client.clone();
+                let auth = auth.clone();
+                let request = reapi::BatchReadBlobsRequest {
+                    instance_name: instance.clone(),
+                    digests: chunk.to_vec(),
+                    ..Default::default()
+                };
+                join_set.spawn(async move {
+                    retry_call_async(|| {
+                        let mut client = client.clone();
+                        let request = request.clone();
+                        let auth = auth.clone();
+                        async move {
+                            client
+                                .batch_read_blobs(authed_request(request, auth.as_ref()))
+                                .await
+                        }
+                    })
+                    .await
+                    .map(|response| response.into_inner().responses)
+                    .map_err(|status| format!("batch_read: {status}"))
+                });
+            }
+            let mut all = Vec::new();
+            while let Some(joined) = join_set.join_next().await {
+                match joined {
+                    Ok(Ok(responses)) => all.extend(responses),
+                    Ok(Err(message)) => return Err(message),
+                    Err(join_error) => return Err(format!("batch_read join: {join_error}")),
+                }
+            }
+            Ok(all)
+        })?;
+        Ok(responses
+            .into_iter()
+            .map(|response| {
+                // The loop owns each response; move the bytes out rather than
+                // deep-copying every fetched blob (batches run to 32MB while
+                // the requesting compiler blocks on the resolve).
+                let code = response.status.as_ref().map(|status| status.code).unwrap_or(-1);
+                (response.digest, code, response.data)
+            })
+            .collect())
+    }
+
+    /// Returns the subset of digests the server does not have.
+    pub fn find_missing(&self, blobs: Vec<reapi::Digest>) -> Result<Vec<reapi::Digest>, String> {
+        let started = Instant::now();
+        let result = (|| {
+            let mut client = self.cas_client()?;
+            let request = reapi::FindMissingBlobsRequest {
+                instance_name: self.config.instance.clone(),
+                blob_digests: blobs,
+                ..Default::default()
+            };
+            let response = retry_call(|| {
+                runtime().block_on(client.find_missing_blobs(self.authed(request.clone())))
+            })
+            .map_err(|status| format!("find_missing: {status}"))?;
+            Ok(response.into_inner().missing_blob_digests)
+        })();
+        self.get_stats.record(started.elapsed());
+        result
+    }
+
+    /// Uploads blobs in size-bounded batches.
+    pub fn batch_update(&self, items: Vec<(reapi::Digest, Vec<u8>)>) -> Result<(), String> {
+        let started = Instant::now();
+        let result = (|| {
+            let mut client = self.cas_client()?;
+            let mut pending: Vec<batch_update_blobs_request::Request> = items
+                .into_iter()
+                .map(|(digest, data)| batch_update_blobs_request::Request {
+                    digest: Some(digest),
+                    data: data.into(),
+                    ..Default::default()
+                })
+                .collect();
+            while !pending.is_empty() {
+                let mut size = 0i64;
+                let mut take = 0usize;
+                for request in &pending {
+                    let blob_size = request.digest.as_ref().map(|d| d.size_bytes).unwrap_or(0);
+                    if take > 0 && size + blob_size > MAX_BATCH_BYTES {
+                        break;
+                    }
+                    size += blob_size;
+                    take += 1;
+                }
+                let chunk: Vec<_> = pending.drain(..take).collect();
+                let request = reapi::BatchUpdateBlobsRequest {
+                    instance_name: self.config.instance.clone(),
+                    requests: chunk,
+                    ..Default::default()
+                };
+                let response = retry_call(|| {
+                    runtime().block_on(client.batch_update_blobs(self.authed(request.clone())))
+                })
+                .map_err(|status| format!("batch_update: {status}"))?;
+                for entry in response.into_inner().responses {
+                    if let Some(status) = entry.status {
+                        if status.code != 0 {
+                            return Err(format!("batch_update blob rejected: {}", status.message));
+                        }
+                    }
+                }
+            }
+            Ok(())
+        })();
+        self.post_stats.record(started.elapsed());
+        result
+    }
+
+    /// Publishes the entry. Called only after every blob in the manifest is
+    /// known to be on the server.
+    pub fn update_action(
+        &self,
+        key: &[u8],
+        manifest: &[ManifestEntry],
+        branch: Option<&str>,
+        trunk: Option<&str>,
+    ) -> Result<(), String> {
+        let started = Instant::now();
+        let result = (|| {
+            let mut client = self.ac_client()?;
+            let action_result = reapi::ActionResult {
+                output_files: manifest
+                    .iter()
+                    .map(|entry| reapi::OutputFile {
+                        path: hex(&entry.llcas_digest),
+                        digest: Some(entry.blob.clone()),
+                        ..Default::default()
+                    })
+                    .collect(),
+                ..Default::default()
+            };
+            let request = reapi::UpdateActionResultRequest {
+                instance_name: self.config.instance.clone(),
+                action_digest: Some(action_digest(key)),
+                action_result: Some(action_result),
+                ..Default::default()
+            };
+            retry_call(|| {
+                // The trunk rides the write too: kura keeps trunk-baseline
+                // keys sticky against feature-branch republishes.
+                let mut request = self.authed_with(
+                    request.clone(),
+                    "x-tuist-branch",
+                    "x-tuist-branch-bin",
+                    branch,
+                );
+                if let Some(trunk) = trunk.filter(|trunk| !trunk.is_empty()) {
+                    if let Ok(value) = tonic::metadata::MetadataValue::try_from(trunk) {
+                        request.metadata_mut().insert("x-tuist-trunk-branch", value);
+                    }
+                    request.metadata_mut().insert_bin(
+                        "x-tuist-trunk-branch-bin",
+                        tonic::metadata::MetadataValue::from_bytes(trunk.as_bytes()),
+                    );
+                }
+                runtime().block_on(client.update_action_result(request))
+            })
+            .map_err(|status| format!("update_action: {status}"))?;
+            Ok(())
+        })();
+        self.post_stats.record(started.elapsed());
+        result
+    }
+}
+
+/// Splits digests into read batches that respect the size cap; oversized
+/// blobs go in single-item batches (kura accepts up to its 64MB cap).
+fn chunk_digests(blobs: &[reapi::Digest]) -> Vec<&[reapi::Digest]> {
+    let mut chunks = Vec::new();
+    let mut start = 0usize;
+    let mut size = 0i64;
+    for (index, digest) in blobs.iter().enumerate() {
+        if index > start && size + digest.size_bytes > MAX_BATCH_BYTES {
+            chunks.push(&blobs[start..index]);
+            start = index;
+            size = 0;
+        }
+        size += digest.size_bytes;
+    }
+    if start < blobs.len() {
+        chunks.push(&blobs[start..]);
+    }
+    chunks
+}
+
+pub fn encode_frame(refs: &[Vec<u8>], data: &[u8]) -> Vec<u8> {
+    let mut out =
+        Vec::with_capacity(16 + data.len() + refs.iter().map(|r| r.len() + 4).sum::<usize>());
+    out.extend_from_slice(b"TCP0");
+    out.extend_from_slice(&(refs.len() as u32).to_le_bytes());
+    for reference in refs {
+        out.extend_from_slice(&(reference.len() as u32).to_le_bytes());
+        out.extend_from_slice(reference);
+    }
+    out.extend_from_slice(data);
+    out
+}
+
+pub fn decode_frame(frame: &[u8]) -> Option<Node> {
+    if frame.len() < 8 || &frame[0..4] != b"TCP0" {
+        return None;
+    }
+    let mut offset = 4;
+    let ref_count = u32::from_le_bytes(frame[offset..offset + 4].try_into().ok()?) as usize;
+    offset += 4;
+    let mut refs = Vec::with_capacity(ref_count);
+    for _ in 0..ref_count {
+        if frame.len() < offset + 4 {
+            return None;
+        }
+        let len = u32::from_le_bytes(frame[offset..offset + 4].try_into().ok()?) as usize;
+        offset += 4;
+        if frame.len() < offset + len {
+            return None;
+        }
+        refs.push(frame[offset..offset + len].to_vec());
+        offset += len;
+    }
+    Some(Node {
+        refs,
+        data: frame[offset..].to_vec(),
+    })
+}
+
+pub fn compress_frame(frame: &[u8]) -> Vec<u8> {
+    zstd::stream::encode_all(frame, 1).unwrap_or_default()
+}
+
+pub fn decompress_frame(blob: &[u8]) -> Option<Vec<u8>> {
+    zstd::stream::decode_all(blob).ok()
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    use super::{reapi_instance, retryable, retryable_blob_status};
+
+    #[test]
+    fn reapi_instance_strips_the_account_from_a_full_handle() {
+        // Kura prepends the token's tenant to instance_name, so instance_name is
+        // the project only; the full handle would become account/account/project.
+        assert_eq!(reapi_instance("tuist/tuist"), "tuist");
+        assert_eq!(reapi_instance("acme/ios-app"), "ios-app");
+    }
+
+    #[test]
+    fn reapi_instance_passes_through_a_bare_project() {
+        assert_eq!(reapi_instance("tuist"), "tuist");
+        assert_eq!(reapi_instance(""), "");
+    }
+
+    #[test]
+    fn server_sent_internal_and_cancelled_are_terminal() {
+        // A status constructed directly models one parsed from response
+        // trailers: no error source, so it was the server speaking, not the
+        // local transport. Kura maps genuine storage faults to Internal --
+        // retrying those only amplifies load on a failing node.
+        assert!(!retryable(&tonic::Status::internal("failed to load blob")));
+        assert!(!retryable(&tonic::Status::cancelled("Timeout expired")));
+    }
+
+    #[test]
+    fn transport_borne_internal_and_cancelled_are_retryable() {
+        // tonic attaches the h2/hyper error chain as the status source when
+        // the failure is local (GOAWAY rotation, dropped connection).
+        let goaway: h2::Error = h2::Reason::NO_ERROR.into();
+        let status = tonic::Status::from_error(Box::new(goaway));
+        assert_eq!(status.code(), tonic::Code::Internal);
+        assert!(retryable(&status));
+
+        let cancel: h2::Error = h2::Reason::CANCEL.into();
+        let status = tonic::Status::from_error(Box::new(cancel));
+        assert_eq!(status.code(), tonic::Code::Cancelled);
+        assert!(retryable(&status));
+    }
+
+    #[test]
+    fn plain_transport_codes_stay_retryable() {
+        assert!(retryable(&tonic::Status::unavailable("draining")));
+        assert!(retryable(&tonic::Status::deadline_exceeded("slow")));
+        assert!(!retryable(&tonic::Status::not_found("miss")));
+        assert!(!retryable(&tonic::Status::out_of_range(
+            "message length too large"
+        )));
+    }
+
+    #[test]
+    fn per_blob_backpressure_is_retryable_but_absence_is_not() {
+        // RESOURCE_EXHAUSTED (8) is kura declining a blob it holds under memory
+        // pressure, and UNAVAILABLE (14) is a transient serving hiccup: both
+        // mean re-request. NOT_FOUND (5) is a genuine eviction that must fall
+        // through to skip-and-recompile, and OK (0) is served, not retried.
+        assert!(retryable_blob_status(tonic::Code::ResourceExhausted as i32));
+        assert!(retryable_blob_status(tonic::Code::Unavailable as i32));
+        assert!(!retryable_blob_status(tonic::Code::NotFound as i32));
+        assert!(!retryable_blob_status(0));
+    }
+
+    fn exhausted(pending: &[super::Digest]) -> Result<Vec<super::BlobOutcome>, String> {
+        Ok(pending
+            .iter()
+            .map(|digest| {
+                (
+                    Some(digest.clone()),
+                    tonic::Code::ResourceExhausted as i32,
+                    Vec::new(),
+                )
+            })
+            .collect())
+    }
+
+    #[test]
+    fn transient_backpressure_is_retried_then_served() {
+        // The exact production shape, minus the sustained pressure: the first
+        // pass declines the blob with RESOURCE_EXHAUSTED, the retry serves it.
+        // Before this fix that first decline was dropped as a miss and the
+        // build failed on the (present) object.
+        let breaker = AtomicU64::new(0);
+        let digest = super::Digest { hash: "aa".into(), size_bytes: 3 };
+        let mut round = 0;
+        let served =
+            super::batch_read_retrying(&breaker, std::slice::from_ref(&digest), |pending| {
+                round += 1;
+                if round == 1 {
+                    exhausted(pending)
+                } else {
+                    Ok(vec![(Some(pending[0].clone()), 0, vec![1, 2, 3])])
+                }
+            })
+            .unwrap();
+        assert_eq!(served.get("aa"), Some(&vec![1, 2, 3]), "the retry delivered the byte");
+        assert_eq!(round, 2, "it took exactly one retry");
+        assert_eq!(breaker.load(Ordering::Relaxed), 0, "a recovery does not arm the backoff");
+    }
+
+    #[test]
+    fn persistent_backpressure_arms_the_backoff_then_fails_fast() {
+        let breaker = AtomicU64::new(0);
+        let digest = super::Digest { hash: "bb".into(), size_bytes: 1 };
+
+        let mut first_calls = 0;
+        let served =
+            super::batch_read_retrying(&breaker, std::slice::from_ref(&digest), |pending| {
+                first_calls += 1;
+                exhausted(pending)
+            })
+            .unwrap();
+        assert!(served.is_empty(), "a declined blob is never served");
+        assert_eq!(first_calls, super::BLOB_STATUS_ATTEMPTS, "the first read exhausts its retries");
+        assert!(breaker.load(Ordering::Relaxed) > 0, "a sustained decline arms the backoff");
+
+        let mut second_calls = 0;
+        let _ = super::batch_read_retrying(&breaker, std::slice::from_ref(&digest), |pending| {
+            second_calls += 1;
+            exhausted(pending)
+        })
+        .unwrap();
+        assert_eq!(second_calls, 1, "within the backoff window the next read makes one fail-fast pass");
+    }
+
+    #[test]
+    fn not_found_is_skipped_without_retry_or_backoff() {
+        let breaker = AtomicU64::new(0);
+        let digest = super::Digest { hash: "cc".into(), size_bytes: 1 };
+        let mut calls = 0;
+        let served =
+            super::batch_read_retrying(&breaker, std::slice::from_ref(&digest), |pending| {
+                calls += 1;
+                Ok(vec![(Some(pending[0].clone()), tonic::Code::NotFound as i32, Vec::new())])
+            })
+            .unwrap();
+        assert!(served.is_empty(), "an evicted blob is not served");
+        assert_eq!(calls, 1, "a genuine miss is not retried");
+        assert_eq!(breaker.load(Ordering::Relaxed), 0, "a miss does not arm the backoff");
+    }
+
+    #[test]
+    fn a_partial_decline_does_not_arm_the_node_wide_backoff() {
+        // One blob declined with RESOURCE_EXHAUSTED because it overran a
+        // per-request materialization limit -- not node-wide memory pressure --
+        // leaves the rest of the batch served. Arming the breaker off that would
+        // fail-fast unrelated transient declines on the same Remote for 30s, so
+        // only a decline of the *whole* set (nothing served) counts as pressure.
+        let breaker = AtomicU64::new(0);
+        let pending = [
+            super::Digest { hash: "aa".into(), size_bytes: 3 },
+            super::Digest { hash: "bb".into(), size_bytes: 1 },
+        ];
+        let mut calls = 0;
+        let served = super::batch_read_retrying(&breaker, &pending, |pending| {
+            calls += 1;
+            Ok(pending
+                .iter()
+                .map(|digest| {
+                    if digest.hash == "aa" {
+                        (Some(digest.clone()), 0, vec![1, 2, 3])
+                    } else {
+                        (Some(digest.clone()), tonic::Code::ResourceExhausted as i32, Vec::new())
+                    }
+                })
+                .collect())
+        })
+        .unwrap();
+        assert_eq!(served.get("aa"), Some(&vec![1, 2, 3]), "the served blob is delivered");
+        assert!(!served.contains_key("bb"), "the declined blob falls through to recompile");
+        assert_eq!(calls, super::BLOB_STATUS_ATTEMPTS, "the declined subset is still retried");
+        assert_eq!(
+            breaker.load(Ordering::Relaxed),
+            0,
+            "a partial decline does not arm the node-wide backoff"
+        );
+    }
+
+    #[test]
+    fn arming_is_idempotent_within_the_window() {
+        // Concurrent materializer workers all reach the arm site at once; the
+        // compare-exchange lets exactly one set the deadline, so the window is
+        // not re-extended (nor the transition re-logged) once per racer.
+        let breaker = AtomicU64::new(0);
+        super::arm_pressure_backoff(&breaker, 1, super::BLOB_STATUS_ATTEMPTS);
+        let first = breaker.load(Ordering::Relaxed);
+        assert!(first > 0, "the first arm opens the window");
+        super::arm_pressure_backoff(&breaker, 1, super::BLOB_STATUS_ATTEMPTS);
+        assert_eq!(
+            breaker.load(Ordering::Relaxed),
+            first,
+            "a second arm within the window does not extend it"
+        );
+    }
+}

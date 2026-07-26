@@ -3,12 +3,19 @@ import Config
 if config_env() == :dev do
   cache_port = String.to_integer(System.get_env("TUIST_CACHE_PORT") || "8087")
   server_url = System.get_env("TUIST_CACHE_SERVER_URL") || "http://localhost:8080"
+  minio_api_port = String.to_integer(System.get_env("TUIST_MINIO_API_PORT") || "9095")
 
   config :cache, CacheWeb.Endpoint,
     url: [host: "localhost", port: cache_port, scheme: "http"],
     http: [ip: {0, 0, 0, 0}, port: cache_port]
 
   config :cache, server_url: server_url
+
+  config :ex_aws, :s3,
+    scheme: "http://",
+    host: "localhost",
+    port: minio_api_port,
+    region: "us-east-1"
 end
 
 if config_env() == :prod do

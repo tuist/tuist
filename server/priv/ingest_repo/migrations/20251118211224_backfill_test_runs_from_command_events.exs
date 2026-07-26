@@ -11,13 +11,15 @@ defmodule Tuist.IngestRepo.Migrations.BackfillTestRunsFromCommandEvents do
   @throttle_ms 500
 
   def up do
-    # Start the PostgreSQL repo since it's not started during ClickHouse migrations
-    case Repo.start_link() do
-      {:ok, _} -> :ok
-      {:error, {:already_started, _}} -> :ok
-    end
-
-    throttle_change_in_batches(&page_query/1, &do_change/1)
+    # `Ecto.Migrator.with_repo/2` only starts the repo being migrated, so the
+    # PostgreSQL repo is down during ClickHouse migrations. Start it through the
+    # same API rather than `Repo.start_link/0`: Ecto runs each migration in a
+    # task it discards right after, and a repo linked to that task would be torn
+    # down with it, leaving later migrations to reuse a terminating supervisor.
+    {:ok, _, _} =
+      Ecto.Migrator.with_repo(Repo, fn _repo ->
+        throttle_change_in_batches(&page_query/1, &do_change/1)
+      end)
   end
 
   def down do

@@ -11,10 +11,18 @@
   }
 >
   <:light_background>
-    <img src="/images/empty_xcode_cache_light.png" />
+    <img
+      src={~p"/images/empty_xcode_cache_light.png"}
+      loading="lazy"
+      decoding="async"
+    />
   </:light_background>
   <:dark_background>
-    <img src="/images/empty_xcode_cache_dark.png" />
+    <img
+      src={~p"/images/empty_xcode_cache_dark.png"}
+      loading="lazy"
+      decoding="async"
+    />
   </:dark_background>
   <:actions>
     <.button
@@ -740,8 +748,18 @@
       title={dgettext("dashboard_cache", "No data yet")}
     >
       <:image>
-        <img src="/images/empty_line_chart_light.png" data-theme="light" />
-        <img src="/images/empty_line_chart_dark.png" data-theme="dark" />
+        <img
+          src={~p"/images/empty_line_chart_light.png"}
+          data-theme="light"
+          loading="lazy"
+          decoding="async"
+        />
+        <img
+          src={~p"/images/empty_line_chart_dark.png"}
+          data-theme="dark"
+          loading="lazy"
+          decoding="async"
+        />
       </:image>
     </.empty_card_section>
   </.card>
@@ -885,8 +903,18 @@
         data-part="empty-builds-table-card-section"
       >
         <:image>
-          <img src="/images/empty_table_light.png" data-theme="light" />
-          <img src="/images/empty_table_dark.png" data-theme="dark" />
+          <img
+            src={~p"/images/empty_table_light.png"}
+            data-theme="light"
+            loading="lazy"
+            decoding="async"
+          />
+          <img
+            src={~p"/images/empty_table_dark.png"}
+            data-theme="dark"
+            loading="lazy"
+            decoding="async"
+          />
         </:image>
       </.empty_card_section>
     </div>

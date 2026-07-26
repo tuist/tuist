@@ -32,6 +32,7 @@ alias Credo.Checks.TimestampsType
           {DisallowGlobalStateMutation, files: %{included: ["test/"]}}
         ],
         disabled: [
+          {Credo.Check.Readability.ModuleDoc, []},
           {Credo.Check.Design.TagTODO, []}
         ]
       }

@@ -9,8 +9,6 @@ defmodule TuistWeb.Plugs.WebhookPlug do
 
   import Plug.Conn
 
-  require Logger
-
   defmodule CacheBodyReader do
     @moduledoc false
 

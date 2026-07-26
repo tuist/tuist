@@ -214,14 +214,14 @@ defmodule TuistOpsWeb.PolicyControllerTest do
       assert impersonate_groups(c) == ["tuist-eng", "tuist-canary-write"]
     end
 
-    test "Member + active PROD elevation → NO write group (Policy denies prod for Member)",
+    test "Member + active PROD elevation → tuist-eng + tuist-production-write",
          %{conn: conn} do
       stub_role(@member, :member)
       insert_active_elevation!(@member, "group:tuist-production-write")
 
       c = policy_get(conn, "kube-prod.tuist.dev", [{"x-pomerium-claim-email", @member}])
       assert c.status == 200
-      assert impersonate_groups(c) == ["tuist-eng"]
+      assert impersonate_groups(c) == ["tuist-eng", "tuist-production-write"]
     end
 
     test "elevation for wrong env is ignored (staging elevation, prod call)", %{conn: conn} do

@@ -335,11 +335,7 @@ defmodule Tuist.AppBuilds do
   def latest_app_build(git_ref, %Project{} = project, opts \\ []) do
     supported_platform = Keyword.get(opts, :supported_platform)
 
-    enum_el_type =
-      case AppBuild.__schema__(:type, :supported_platforms) do
-        {:array, el_type} -> el_type
-        other -> raise "Unexpected type for supported_platforms: #{inspect(other)}"
-      end
+    {:array, enum_el_type} = AppBuild.__schema__(:type, :supported_platforms)
 
     latest_preview =
       from p in Preview,

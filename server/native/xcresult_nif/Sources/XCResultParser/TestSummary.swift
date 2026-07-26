@@ -39,8 +39,10 @@ public struct TestSummary: Encodable, Sendable {
 /// A run/target-level error that isn't a test failure: the test runner itself
 /// errored (e.g. a target whose `.xctest` bundle couldn't be loaded, or the app
 /// under test couldn't launch). xcresult surfaces these as synthetic
-/// "xctest (<pid>) encountered an error" cases; we lift them out of the test
-/// cases and model them the way Xcode does — as errors, keyed by target.
+/// "<runner-process> (<pid>) encountered an error" cases (the runner process is
+/// `xctest` for unit tests, the app/UI-runner target for UI tests); we lift them
+/// out of the test cases and model them the way Xcode does — as errors, keyed by
+/// target.
 public struct TestRunError: Encodable, Sendable {
     /// The test target the error belongs to, or nil for a run-level error.
     public let target: String?

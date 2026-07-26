@@ -31,3 +31,13 @@ rules:
   - apiGroups: [""]
     resources: [events]
     verbs: [create, patch]
+  # On machine (node) delete, reap PVCs bound to node-local PVs pinned to the
+  # departing box's hostname so their StatefulSets reprovision fresh volumes on
+  # the replacement node. List PVs to find those pinned to the node; delete the
+  # orphaned PVCs (the cache they back is regenerable).
+  - apiGroups: [""]
+    resources: [persistentvolumes]
+    verbs: [get, list, watch]
+  - apiGroups: [""]
+    resources: [persistentvolumeclaims]
+    verbs: [get, list, watch, delete]

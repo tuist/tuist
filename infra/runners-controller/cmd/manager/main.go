@@ -114,6 +114,7 @@ func main() {
 		RegistryMirror:      registryMirror,
 		ClusterDNSIP:        clusterDNSIP,
 		ClusterDomain:       clusterDomain,
+		Recorder:            mgr.GetEventRecorderFor("runnerpool-controller"),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "setup RunnerPool reconciler")
 		os.Exit(1)

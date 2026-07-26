@@ -1,12 +1,13 @@
 // Measurement client for the Kura gRPC upload-throughput e2e test.
 //
 // It programs toxiproxy with symmetric WAN latency, then uploads an identical
-// blob via the REAPI google.bytestream.ByteStream/Write RPC through three
-// paths under the SAME injected RTT:
+// blob via the REAPI google.bytestream.ByteStream/Write RPC through three paths
+// under the SAME injected RTT, all reaching kura's single co-hosted HTTP + h2c
+// gRPC listener (kura:4000):
 //
-//	baseline    client -> toxiproxy -> nginx (default window)        -> kura
-//	patched     client -> toxiproxy -> nginx (raised window, from chart) -> kura
-//	direct_kura client -> toxiproxy -> kura (kura's own stream window)
+//	baseline client -> toxiproxy -> nginx (default window)            -> kura
+//	patched  client -> toxiproxy -> nginx (raised window, from chart) -> kura
+//	direct   client -> toxiproxy -> kura (nginx-free control)
 //
 // It prints per-path throughput and asserts that the patched path is at least
 // MIN_SPEEDUP times faster than baseline — i.e. that raising nginx's HTTP/2
@@ -28,25 +29,32 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	bs "google.golang.org/genproto/googleapis/bytestream"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
 	"gopkg.in/yaml.v3"
 )
 
 // Reference points used only for the informational ceilings printed below —
 // NOT chart values, so they are not read from helm: the baseline path inherits
-// nginx's default 64KB HTTP/2 request-body window, and the direct path is
-// bounded by the 4MB HTTP/2 stream window kura's tonic/hyper server now
-// advertises (REAPI_HTTP2_STREAM_WINDOW_BYTES in kura/src/reapi/mod.rs, raised
-// from the old 1MB tonic default — keep in sync). The patched window IS a chart
-// value and arrives via PATCHED_WINDOW_BYTES.
+// nginx's default 64KB HTTP/2 request-body window, and the direct path (kura's
+// co-hosted HTTP+gRPC listener) is bounded by the 4MB HTTP/2 stream window
+// kura advertises (HTTP2_STREAM_WINDOW_BYTES in kura/src/app.rs — keep in
+// sync). The patched window IS a chart value and arrives via
+// PATCHED_WINDOW_BYTES.
 const (
 	nginxDefaultWindowBytes = 64 * 1024
 	kuraStreamWindowBytes   = 4 * 1024 * 1024
 )
+
+// Kura's single co-hosted HTTP + h2c gRPC listener, which every path dials
+// (directly or through nginx).
+const kuraUpstream = "kura:4000"
 
 type target struct {
 	name     string
@@ -131,10 +139,10 @@ func genConfs() error {
 	if err := os.MkdirAll(outDir, 0o755); err != nil {
 		return fmt.Errorf("mkdir %s: %w", outDir, err)
 	}
-	if err := os.WriteFile(filepath.Join(outDir, "patched.conf"), renderConf(tmpl, directives.String()), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(outDir, "patched.conf"), renderConf(tmpl, directives.String(), kuraUpstream), 0o644); err != nil {
 		return err
 	}
-	if err := os.WriteFile(filepath.Join(outDir, "baseline.conf"), renderConf(tmpl, ""), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(outDir, "baseline.conf"), renderConf(tmpl, "", kuraUpstream), 0o644); err != nil {
 		return err
 	}
 
@@ -228,16 +236,17 @@ func gatewayConfig(doc map[string]any, gatewayKey string) map[string]string {
 	return out
 }
 
-// renderConf emits the template with the marker line replaced by directives
-// (patched) or removed (baseline).
-func renderConf(tmpl []byte, directives string) []byte {
+// renderConf emits the template with the window marker line replaced by
+// directives (patched) or removed (baseline), and the __KURA_UPSTREAM__ marker
+// substituted with the kura backend the config proxies to.
+func renderConf(tmpl []byte, directives, upstream string) []byte {
 	var out strings.Builder
 	for _, line := range strings.Split(strings.TrimRight(string(tmpl), "\n"), "\n") {
 		if strings.Contains(line, "__WINDOW_DIRECTIVES__") {
 			out.WriteString(directives)
 			continue
 		}
-		out.WriteString(line)
+		out.WriteString(strings.ReplaceAll(line, "__KURA_UPSTREAM__", upstream))
 		out.WriteByte('\n')
 	}
 	return []byte(out.String())
@@ -281,6 +290,13 @@ func main() {
 		}
 		return
 	}
+	if len(os.Args) > 1 && os.Args[1] == "load" {
+		if err := runConcurrentLoad(); err != nil {
+			fmt.Fprintln(os.Stderr, "load:", err)
+			os.Exit(1)
+		}
+		return
+	}
 
 	toxAPI := env("TOXIPROXY_API", "http://toxiproxy:8474")
 	toxHost := env("TOXIPROXY_HOST", "toxiproxy")
@@ -300,7 +316,7 @@ func main() {
 	targets := []target{
 		{"baseline", "0.0.0.0:21001", toxHost + ":21001", "nginx-baseline:8443"},
 		{"patched", "0.0.0.0:21002", toxHost + ":21002", "nginx-patched:8443"},
-		{"direct_kura", "0.0.0.0:21003", toxHost + ":21003", "kura:50051"},
+		{"direct", "0.0.0.0:21003", toxHost + ":21003", kuraUpstream},
 	}
 
 	waitToxiproxy(toxAPI, 60*time.Second)
@@ -313,17 +329,17 @@ func main() {
 	fmt.Printf("window-bound throughput ceilings at %dms RTT (1 stream):\n", rttMs)
 	fmt.Printf("  baseline nginx  default ~64KB window      -> ~%6.2f MB/s\n", mbpsCeiling(nginxDefaultWindowBytes, rttMs))
 	fmt.Printf("  patched  nginx  %-5s window (from chart)   -> ~%6.2f MB/s\n", patchedWindowLabel, mbpsCeiling(patchedWindowBytes, rttMs))
-	fmt.Printf("  direct   kura   window (kura code)         -> ~%6.2f MB/s\n\n", mbpsCeiling(kuraStreamWindowBytes, rttMs))
+	fmt.Printf("  direct   kura   (kura code)                -> ~%6.2f MB/s\n\n", mbpsCeiling(kuraStreamWindowBytes, rttMs))
 
 	results := map[string]float64{}
 	for i, t := range targets {
 		got, dur, err := measure(t.dial, sizeBytes, chunk, i+1)
 		if err != nil {
-			fmt.Printf("[%-11s] ERROR: %v\n", t.name, err)
+			fmt.Printf("[%-12s] ERROR: %v\n", t.name, err)
 			os.Exit(2)
 		}
 		results[t.name] = got
-		fmt.Printf("[%-11s] %7.2f MB/s   (%dMB in %s)   via %s\n",
+		fmt.Printf("[%-12s] %7.2f MB/s   (%dMB in %s)   via %s\n",
 			t.name, got, sizeMB, dur.Round(time.Millisecond), t.upstream)
 	}
 
@@ -336,12 +352,12 @@ func main() {
 
 	fmt.Printf("\nspeedup (patched / baseline) = %.1fx   (threshold >= %.0fx)\n", speedup, minSpeedup)
 	out, _ := json.Marshal(map[string]any{
-		"payload_mb":       sizeMB,
-		"rtt_ms":           rttMs,
-		"baseline_mbps":    round2(base),
-		"patched_mbps":     round2(patched),
-		"direct_kura_mbps": round2(results["direct_kura"]),
-		"speedup":          round2(speedup),
+		"payload_mb":    sizeMB,
+		"rtt_ms":        rttMs,
+		"baseline_mbps": round2(base),
+		"patched_mbps":  round2(patched),
+		"direct_mbps":   round2(results["direct"]),
+		"speedup":       round2(speedup),
 	})
 	fmt.Printf("RESULT_JSON %s\n", string(out))
 
@@ -350,6 +366,113 @@ func main() {
 		os.Exit(1)
 	}
 	fmt.Printf("\nPASS: raising the nginx HTTP/2 upload window improved throughput %.1fx under %dms RTT\n", speedup, rttMs)
+}
+
+type loadResult struct {
+	duration time.Duration
+	code     codes.Code
+}
+
+// runConcurrentLoad measures the many-small-writes shape used by build caches.
+// All workers share one HTTP/2 connection and begin together, which catches
+// admission policies that are safe for large blobs but reject ordinary burst
+// concurrency independently of actual message size.
+func runConcurrentLoad() error {
+	target := env("LOAD_TARGET", kuraUpstream)
+	concurrency := envInt("LOAD_CONCURRENCY", 100)
+	requests := envInt("LOAD_REQUESTS", concurrency)
+	size := envInt("LOAD_SIZE_KB", 256) * 1024
+	chunk := envInt("CHUNK_KB", 64) * 1024
+	if concurrency < 1 || requests < 1 || size < 1 || chunk < 1 {
+		return fmt.Errorf("load concurrency, requests, size, and chunk must be positive")
+	}
+
+	conn, err := grpc.NewClient(target,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithDefaultCallOptions(grpc.MaxCallSendMsgSize(64<<20)),
+	)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+	client := bs.NewByteStreamClient(conn)
+
+	for attempt := 0; attempt < 60; attempt++ {
+		if err := uploadBlob(client, 4096, chunk, 900000+attempt); err == nil {
+			break
+		} else if attempt == 59 {
+			return fmt.Errorf("warmup/readiness failed: %w", err)
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	jobs := make(chan int)
+	results := make(chan loadResult, requests)
+	start := make(chan struct{})
+	var workers sync.WaitGroup
+	for worker := 0; worker < concurrency; worker++ {
+		workers.Add(1)
+		go func() {
+			defer workers.Done()
+			<-start
+			for seed := range jobs {
+				began := time.Now()
+				err := uploadBlob(client, size, chunk, 1000000+seed)
+				results <- loadResult{duration: time.Since(began), code: status.Code(err)}
+			}
+		}()
+	}
+	go func() {
+		for request := 0; request < requests; request++ {
+			jobs <- request
+		}
+		close(jobs)
+	}()
+
+	wallStarted := time.Now()
+	close(start)
+	workers.Wait()
+	close(results)
+	wall := time.Since(wallStarted)
+
+	codesByName := map[string]int{}
+	latencies := make([]time.Duration, 0, requests)
+	for result := range results {
+		codesByName[result.code.String()]++
+		latencies = append(latencies, result.duration)
+	}
+	sort.Slice(latencies, func(i, j int) bool { return latencies[i] < latencies[j] })
+	percentile := func(percent int) time.Duration {
+		index := (len(latencies)*percent + 99) / 100
+		if index == 0 {
+			return 0
+		}
+		return latencies[index-1]
+	}
+
+	fmt.Printf("=== Kura concurrent ByteStream load ===\n")
+	fmt.Printf("target=%s requests=%d concurrency=%d size=%dKB chunk=%dKB\n", target, requests, concurrency, size/1024, chunk/1024)
+	fmt.Printf("wall=%s throughput=%.1f requests/s codes=%v\n", wall.Round(time.Millisecond), float64(requests)/wall.Seconds(), codesByName)
+	fmt.Printf("latency min=%s p50=%s p95=%s p99=%s max=%s\n",
+		latencies[0].Round(time.Microsecond),
+		percentile(50).Round(time.Microsecond),
+		percentile(95).Round(time.Microsecond),
+		percentile(99).Round(time.Microsecond),
+		latencies[len(latencies)-1].Round(time.Microsecond),
+	)
+	encoded, _ := json.Marshal(map[string]any{
+		"requests":       requests,
+		"concurrency":    concurrency,
+		"size_kb":        size / 1024,
+		"wall_ms":        wall.Milliseconds(),
+		"requests_per_s": round2(float64(requests) / wall.Seconds()),
+		"codes":          codesByName,
+		"p50_ms":         percentile(50).Milliseconds(),
+		"p95_ms":         percentile(95).Milliseconds(),
+		"p99_ms":         percentile(99).Milliseconds(),
+	})
+	fmt.Printf("LOAD_RESULT_JSON %s\n", encoded)
+	return nil
 }
 
 func round2(f float64) float64 { return float64(int(f*100+0.5)) / 100 }
@@ -421,6 +544,10 @@ func uploadBlob(client bs.ByteStreamClient, size, chunk, seed int) error {
 			first = false
 		}
 		if err := stream.Send(req); err != nil {
+			_, closeErr := stream.CloseAndRecv()
+			if closeErr != nil {
+				return fmt.Errorf("close after send: %w", closeErr)
+			}
 			return fmt.Errorf("send: %w", err)
 		}
 		off = end

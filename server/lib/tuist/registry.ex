@@ -1,23 +1,126 @@
 defmodule Tuist.Registry do
-  @moduledoc false
-  alias Tuist.IngestRepo
-  alias Tuist.Registry.DownloadEvent
+  @moduledoc """
+  Control-plane namespace for the Swift Package Registry.
 
-  def create_download_events(events) when is_list(events) do
-    now = NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)
+  Swift sync workers under `Tuist.Registry.Swift.*` run in the
+  swift-registry-sync pod (`TUIST_MODE=swift_registry_sync`) and write
+  package metadata + artifacts to the registry S3 bucket. Future
+  ecosystems mount their own modules + mode under the same generic
+  registry namespace. The standalone `registry` Phoenix app reads back
+  from the same bucket and is the only public surface — it does not
+  talk to this codebase directly. See `registry/AGENTS.md` for the
+  read side and
+  `infra/helm/tuist/templates/swift-registry-sync-deployment.yaml` for
+  how the Swift mode is deployed.
 
-    entries =
-      Enum.map(events, fn event ->
+  Per-download analytics are emitted as PromEx counters on the
+  standalone registry pod; nothing is persisted to ClickHouse from the
+  new path. The `registry_download_events` table that the legacy
+  cache → webhook → ClickHouse pipeline wrote to has no remaining
+  reader and will be dropped once cache's registry surface is
+  decommissioned.
+  """
+
+  alias Tuist.Registry.Swift.Metadata
+  alias Tuist.Registry.Swift.SwiftPackageIndex
+  alias Tuist.Registry.Swift.SyncWorker
+
+  def registry_bucket, do: Application.get_env(:tuist, :registry)[:bucket]
+
+  @doc """
+  The full public base URL, including the API path prefix, that clients use
+  to reach the Swift package registry. Set per environment via
+  `TUIST_REGISTRY_URL` so managed deployments and self-hosted installations
+  can choose their own base address. `nil` when the deployment exposes no
+  registry, in which case the discovery endpoint returns 404.
+  """
+  def url do
+    case Application.get_env(:tuist, :registry)[:url] do
+      url when is_binary(url) and url != "" -> String.trim_trailing(url, "/")
+      _ -> nil
+    end
+  end
+
+  def swift_registry_github_token do
+    case Application.get_env(:tuist, :registry)[:swift_github_token] do
+      token when is_binary(token) and token != "" -> token
+      _ -> nil
+    end
+  end
+
+  def swift_registry_enabled?, do: registry_bucket() != nil and swift_registry_github_token() != nil
+
+  def swift_registry_sync_enabled? do
+    Application.get_env(:tuist, :registry)[:swift_sync_enabled] == true
+  end
+
+  def swift_registry_sync_allowlist do
+    Application.get_env(:tuist, :registry)[:swift_sync_allowlist]
+  end
+
+  def swift_registry_sync_limit do
+    Application.get_env(:tuist, :registry)[:swift_sync_limit] || 1_000
+  end
+
+  def list_swift_packages do
+    SwiftPackageIndex.list_packages(nil)
+  end
+
+  def get_swift_package(scope, name) when is_binary(scope) and is_binary(name) do
+    with {:ok, packages} <- list_swift_packages(),
+         package when not is_nil(package) <-
+           Enum.find(packages, &(&1.scope == scope and &1.name == name)),
+         {:ok, metadata} <- get_swift_package_metadata(scope, name) do
+      {:ok, Map.put(package, :versions, swift_package_versions(metadata))}
+    else
+      nil -> {:error, :not_found}
+      {:error, _reason} = error -> error
+    end
+  end
+
+  def force_resync_swift_package_version(repository_full_handle, version)
+      when is_binary(repository_full_handle) and is_binary(version) do
+    %{repository_full_handle: repository_full_handle, version: version, force: true}
+    |> SyncWorker.new(unique: [period: 60, keys: [:repository_full_handle, :version, :force]])
+    |> Oban.insert()
+  end
+
+  defp get_swift_package_metadata(scope, name) do
+    case Metadata.get_package(scope, name) do
+      {:ok, metadata} -> {:ok, metadata}
+      {:error, :not_found} -> {:ok, %{}}
+      {:error, _reason} = error -> error
+    end
+  end
+
+  defp swift_package_versions(metadata) do
+    releases = Map.get(metadata, "releases", %{})
+
+    available_versions =
+      Enum.map(releases, fn {version, release} ->
         %{
-          id: UUIDv7.generate(),
-          scope: event.scope,
-          name: event.name,
-          version: event.version,
-          cache_endpoint: event.cache_endpoint,
-          inserted_at: now
+          version: version,
+          status: :available,
+          detail: Map.get(release, "checksum")
         }
       end)
 
-    IngestRepo.insert_all(DownloadEvent, entries)
+    skipped_versions =
+      metadata
+      |> Map.get("skipped_releases", %{})
+      |> Map.drop(Map.keys(releases))
+      |> Enum.map(fn {version, release} ->
+        %{
+          version: version,
+          status: :skipped,
+          detail: Map.get(release, "reason")
+        }
+      end)
+
+    Enum.sort_by(
+      available_versions ++ skipped_versions,
+      &Version.parse!(&1.version),
+      {:desc, Version}
+    )
   end
 end

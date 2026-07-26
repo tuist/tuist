@@ -34,9 +34,20 @@ defmodule TuistWeb.RunnersController do
             workflow_job_id: workflow_job_id,
             fleet_on_cluster_network: on_cluster_network,
             fleet_platform: fleet_platform
-          }} <-
+          } = dispatched} <-
            Runners.dispatch_for_sa(ns, sa_name) do
-      json(conn, dispatch_response(jit, account, workflow_job_id, on_cluster_network, fleet_platform))
+      json(
+        conn,
+        dispatch_response(
+          jit,
+          account,
+          workflow_job_id,
+          on_cluster_network,
+          fleet_platform,
+          Map.get(dispatched, :cache_signing_grant),
+          Map.get(dispatched, :volume_head)
+        )
+      )
     else
       {:error, :no_work_yet} ->
         send_resp(conn, :no_content, "")
@@ -49,6 +60,14 @@ defmodule TuistWeb.RunnersController do
         # Succeeded, and the runner-pool reconciler replaces it
         # with one on the current image.
         conn |> put_status(:gone) |> json(%{error: "drain", reason: "image stale"})
+
+      {:error, :pod_committed} ->
+        # 410 Gone: this Pod already committed to a dispatch (it carries the
+        # account label) but is polling again, so its dispatch response was lost
+        # and the runner never started. Same clean-exit signal as a drain — the
+        # VM halts and the reconciler replaces the Pod — so it can't serve a
+        # second account on the cache materialized for the first.
+        conn |> put_status(:gone) |> json(%{error: "drain", reason: "pod already committed"})
 
       {:error, :missing_bearer} ->
         conn |> put_status(:unauthorized) |> json(%{error: "missing bearer token"})
@@ -80,6 +99,84 @@ defmodule TuistWeb.RunnersController do
       {:error, reason} ->
         Logger.error("runners: dispatch failed", reason: inspect(reason))
         conn |> put_status(:internal_server_error) |> json(%{error: "dispatch failed"})
+    end
+  end
+
+  # A runner reports the cache-volume it just promoted: it uploaded its branch
+  # to the account's master archive (presigned URL from dispatch) and now bumps
+  # the account's HEAD to that inventory digest. The account is resolved from
+  # the Pod's server-stamped runner-account label, not the body, so a runner
+  # can only advance the HEAD of the account it actually ran.
+  def report_volume_head(conn, params) do
+    digest = Map.get(params, "tree_digest", "")
+    node = Map.get(params, "node_name", "")
+    base_generation = parse_base_generation(Map.get(params, "base_generation"))
+
+    with {:ok, token} <- bearer_token(conn),
+         {:ok, %{namespace: ns, name: sa_name}} <- K8sClient.create_token_review(token),
+         {:ok, account_id} <- Runners.account_id_for_sa(ns, sa_name) do
+      case Runners.report_volume_head(account_id, node, digest, base_generation) do
+        {:ok, generation} ->
+          json(conn, %{generation: generation})
+
+        :conflict ->
+          # The job built on a stale base — another host advanced the HEAD first.
+          # The runner discards its branch rather than moving its master off the
+          # accepted lineage; the next job re-converges and rebuilds.
+          conn |> put_status(:conflict) |> json(%{error: "stale base generation"})
+
+        :error ->
+          conn |> put_status(:unprocessable_entity) |> json(%{error: "invalid digest"})
+      end
+    else
+      {:error, :missing_bearer} ->
+        conn |> put_status(:unauthorized) |> json(%{error: "missing bearer token"})
+
+      _ ->
+        conn |> put_status(:unauthorized) |> json(%{error: "unauthorized"})
+    end
+  end
+
+  # The generation the promoting job's branch was cloned from, parsed defensively
+  # from the request body: a missing or non-numeric value is treated as 0 (a cold
+  # job), which the fast-forward accepts only when the account has no HEAD yet.
+  defp parse_base_generation(value) when is_integer(value) and value >= 0, do: value
+
+  defp parse_base_generation(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {n, ""} when n >= 0 -> n
+      _ -> 0
+    end
+  end
+
+  defp parse_base_generation(_), do: 0
+
+  # A runner requests the presigned PUT URL for the master object keyed by the
+  # inventory digest it is about to promote, then PUTs its image there and calls
+  # report_volume_head to bump the HEAD. Content-addressed: each distinct digest
+  # is a distinct object, so concurrent promotes never clobber the object the
+  # current HEAD points at. Same SA-token + server-stamped account-label binding
+  # as report_volume_head, so a runner can only mint an upload URL under the
+  # account it actually ran.
+  def volume_head_upload_url(conn, params) do
+    digest = Map.get(params, "tree_digest", "")
+
+    with {:ok, token} <- bearer_token(conn),
+         {:ok, %{namespace: ns, name: sa_name}} <- K8sClient.create_token_review(token),
+         {:ok, account_id} <- Runners.account_id_for_sa(ns, sa_name) do
+      case Runners.volume_master_upload_url(account_id, digest) do
+        {:ok, upload_url} ->
+          json(conn, %{upload_url: upload_url})
+
+        :error ->
+          conn |> put_status(:unprocessable_entity) |> json(%{error: "invalid digest"})
+      end
+    else
+      {:error, :missing_bearer} ->
+        conn |> put_status(:unauthorized) |> json(%{error: "missing bearer token"})
+
+      _ ->
+        conn |> put_status(:unauthorized) |> json(%{error: "unauthorized"})
     end
   end
 
@@ -133,13 +230,13 @@ defmodule TuistWeb.RunnersController do
     conn |> put_status(:bad_request) |> json(%{error: "missing fleet query param"})
   end
 
-  # Hands the polling Pod its JIT config plus, when the account runs a
-  # private runner-cache Kura node, the in-cluster URL the job should
-  # use. The runner image exports it as `TUIST_CACHE_ENDPOINT` so cache
-  # traffic stays on the cluster's internal network next to the runner
-  # instead of going through the public Kura ingress. Absent
-  # (non-runner-cache accounts), the Pod falls back to normal
-  # server-side cache resolution.
+  # Hands the polling Pod its JIT config plus, when the account has a
+  # Kura node serving the fleet's platform, the in-cluster URL the job
+  # should use (tier order in `Tuist.Kura.runner_cache_endpoint_url/2`).
+  # The runner image exports it as `TUIST_CACHE_ENDPOINT` so cache
+  # traffic stays on the cluster's internal network instead of going
+  # through the public Kura ingress. Absent (no serving node), the Pod
+  # falls back to normal server-side cache resolution.
   #
   # Only fleets on the cluster pod network get the URL: it's a
   # `*.svc.cluster.local` address, and clients treat
@@ -155,12 +252,32 @@ defmodule TuistWeb.RunnersController do
   #     `runner_cache_endpoint_url/2` matches against the private
   #     region's `runner_platforms`, so a node co-located with one
   #     fleet never serves a fleet on the wrong side of a WAN.
-  defp dispatch_response(jit, account, workflow_job_id, fleet_on_cluster_network, fleet_platform) do
+  defp dispatch_response(
+         jit,
+         account,
+         workflow_job_id,
+         fleet_on_cluster_network,
+         fleet_platform,
+         cache_signing_grant,
+         volume_head
+       ) do
     base = %{
       encoded_jit_config: jit,
       owner: account.name,
       workflow_job_id: workflow_job_id
     }
+
+    base =
+      case cache_signing_grant do
+        grant when is_binary(grant) and grant != "" -> Map.put(base, :cache_signing_grant, grant)
+        _ -> base
+      end
+
+    base =
+      case volume_head do
+        %{} = head -> Map.put(base, :volume_head, head)
+        _ -> base
+      end
 
     with true <- fleet_on_cluster_network,
          true <- fleet_platform in [:linux, :macos],

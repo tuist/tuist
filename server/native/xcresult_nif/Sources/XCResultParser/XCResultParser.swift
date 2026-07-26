@@ -144,7 +144,7 @@ public struct XCResultParser: Sendable {
     ) {
         let currentModule = (node.nodeType == "Unit test bundle" || node.nodeType == "UI test bundle") ? node.name : module
 
-        if node.nodeType == "Test Case", let name = node.name, !isRunnerError(name) {
+        if node.nodeType == "Test Case", let name = node.name, !isRunnerError(node) {
             results.append(
                 TestResultStatuses.TestCaseStatus(
                     name: name,
@@ -287,23 +287,41 @@ public struct XCResultParser: Sendable {
         }
     }
 
-    /// xctest emits a synthetic "test case" when the runner itself errors —
-    /// named "xctest (<pid>) encountered an error" — when a whole target's
-    /// `.xctest` bundle can't be loaded or the app can't launch. Xcode surfaces
-    /// these in a separate "Errors" section per target, not as test cases. We do
-    /// the same: lift them out of the test cases (so they don't inflate counts,
-    /// create unbounded per-pid rows, or fire `test_case.created` webhooks) and
-    /// collect them as target-keyed errors. The pid varies per run, so we dedup
-    /// by (target, message) to land one per target like Xcode.
-    private func isRunnerError(_ name: String?) -> Bool {
-        guard let name else { return false }
-        return name.wholeMatch(of: /xctest \(\d+\) encountered an error/) != nil
+    /// xctest emits a synthetic "test case" when the runner itself errors — a
+    /// whole target whose `.xctest` bundle can't be loaded, or an app/UI-test
+    /// runner that can't launch. Xcode surfaces these in a separate "Errors"
+    /// section per target, not as test cases, so we do the same: lift them out of
+    /// the test cases (so they don't inflate counts, create unbounded per-pid
+    /// rows, or fire `test_case.created` webhooks) and collect them as
+    /// target-keyed errors. The pid varies per run, so we dedup by (target,
+    /// message) to land one per target like Xcode.
+    ///
+    /// The node is named "<runner-process> (<pid>) encountered an error", but the
+    /// runner process is only `xctest` for unit tests — for UI tests it's the
+    /// app/UI-runner target, so the prefix varies per project and can't be
+    /// hardcoded. We key on structure instead: a real test's `nodeIdentifier` is a
+    /// "Suite/method" id that differs from its display name, whereas the synthetic
+    /// node has no real identifier, so Xcode repeats the sentence there
+    /// (`nodeIdentifier == name`). We also require the machine-generated
+    /// "… encountered an error" grammar and the `Failure Message` child every
+    /// runner error carries, so a real Swift Testing case whose display name
+    /// merely ends this way is kept.
+    private func isRunnerError(_ node: TestNode) -> Bool {
+        guard node.nodeType == "Test Case",
+              let name = node.name,
+              node.nodeIdentifier == name,
+              (node.children ?? []).contains(where: { $0.nodeType == "Failure Message" })
+        else { return false }
+
+        return name.wholeMatch(of: /\S+ \(\d+\) encountered an error/) != nil
+            || name == "The test runner encountered an error"
+            || name.wholeMatch(of: /\S+ encountered an error/) != nil
     }
 
     private func extractErrors(from node: TestNode, module: String?, into errors: inout [TestRunError]) {
         let currentModule = (node.nodeType == "Unit test bundle" || node.nodeType == "UI test bundle") ? node.name : module
 
-        if node.nodeType == "Test Case", isRunnerError(node.name) {
+        if isRunnerError(node) {
             let message = (node.children ?? [])
                 .first { $0.nodeType == "Failure Message" }?.name
                 ?? node.name
@@ -371,7 +389,7 @@ public struct XCResultParser: Sendable {
         rootDirectory: AbsolutePath?,
         actionLogFailures: [String: [TestFailure]]
     ) -> TestCase? {
-        guard node.nodeType == "Test Case", let name = node.name, !isRunnerError(name) else { return nil }
+        guard node.nodeType == "Test Case", let name = node.name, !isRunnerError(node) else { return nil }
 
         let suiteName = extractSuiteName(from: node.nodeIdentifier)
 

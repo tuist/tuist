@@ -34,6 +34,7 @@ public struct TrackableCommandInfo {
     let testRunId: String?
     let generationId: String?
     let cacheEndpoint: String
+    let moduleCacheOutputs: [ModuleCacheOutput]
 }
 
 /// A `TrackableCommand` wraps a `ParsableCommand` and reports its execution to an analytics provider
@@ -47,6 +48,7 @@ public class TrackableCommand {
     private let serverAuthenticationController: ServerAuthenticationControlling
     private let fileSystem: FileSysteming
     private let gitHubActionsJobSummaryService: GitHubActionsJobSummaryServicing
+    private let runReportService: RunReportServicing
     private let bestEffortForegroundUploadTimeout: Duration
     private let sessionDirectory: AbsolutePath
 
@@ -60,6 +62,7 @@ public class TrackableCommand {
         serverAuthenticationController: ServerAuthenticationControlling = ServerAuthenticationController(),
         fileSystem: FileSysteming = FileSystem(),
         gitHubActionsJobSummaryService: GitHubActionsJobSummaryServicing = GitHubActionsJobSummaryService(),
+        runReportService: RunReportServicing = RunReportService(),
         bestEffortForegroundUploadTimeout: Duration = .seconds(15),
         sessionDirectory: AbsolutePath
     ) {
@@ -72,6 +75,7 @@ public class TrackableCommand {
         self.serverAuthenticationController = serverAuthenticationController
         self.fileSystem = fileSystem
         self.gitHubActionsJobSummaryService = gitHubActionsJobSummaryService
+        self.runReportService = runReportService
         self.bestEffortForegroundUploadTimeout = bestEffortForegroundUploadTimeout
         self.sessionDirectory = sessionDirectory
     }
@@ -86,6 +90,16 @@ public class TrackableCommand {
         let ranAt = clock.now
         let path = try await CommandArguments.path(in: commandArguments)
         let runMetadataStorage = RunMetadataStorage()
+
+        // Up front, so that the path holds this run's report or nothing at all. Writing it only
+        // happens once the run URL is known, and everything between here and there can fail: the
+        // command, the upload, the process. Any of those leaves a report from a previous run in
+        // place, and a stale URL is worse than a missing one — it points at a different run and
+        // gives no sign that it's the wrong one.
+        if let runReportPath = (command as? RunReportingCommand)?.runReportPath {
+            await runReportService.clearRunReport(at: runReportPath)
+        }
+
         let usesOptionalAuthentication =
             optionalAuthentication
                 && (((command as? TrackableParsableCommand)?.analyticsRequired == true) || Environment.current.isCI)
@@ -175,7 +189,8 @@ public class TrackableCommand {
                 buildRunId: runMetadataStorage.buildRunId,
                 testRunId: runMetadataStorage.testRunId,
                 generationId: runMetadataStorage.generationId,
-                cacheEndpoint: runMetadataStorage.cacheEndpoint
+                cacheEndpoint: runMetadataStorage.cacheEndpoint,
+                moduleCacheOutputs: runMetadataStorage.moduleCacheOutputs
             )
             let commandEvent = try await commandEventFactory.make(
                 from: info,
@@ -215,6 +230,23 @@ public class TrackableCommand {
                     buildRunReports: buildRunReports,
                     runURL: serverCommandEvent.url
                 )
+
+                // Unlike the job summary, this is written even when there's nothing to tabulate:
+                // the URLs are the payload consumers are after.
+                if let runReportPath = (command as? RunReportingCommand)?.runReportPath {
+                    await runReportService.writeRunReport(
+                        RunReport(
+                            runId: runId,
+                            status: status,
+                            runURL: serverCommandEvent.url,
+                            testRunURL: serverCommandEvent.testRunURL,
+                            buildRunURL: buildRunURL,
+                            testRunReports: testRunReports,
+                            buildRunReports: buildRunReports
+                        ),
+                        to: runReportPath
+                    )
+                }
             } else {
                 let tempDirectory = try await fileSystem.makeTemporaryDirectory(prefix: "analytics")
                 let commandEventPath = tempDirectory.appending(component: "command-event.json")

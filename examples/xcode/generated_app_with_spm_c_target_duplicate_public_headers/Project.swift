@@ -9,7 +9,7 @@ let project = Project(
             product: .commandLineTool,
             bundleId: "dev.tuist.App",
             sources: ["Sources/**"],
-            dependencies: [.external(name: "nanopb")]
+            dependencies: [.external(name: "Transport")]
         ),
     ]
 )

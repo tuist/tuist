@@ -302,4 +302,111 @@ struct XCResultParserTests {
         // Errors mark the run failed even though no real test failed.
         #expect(summary.status == .failed)
     }
+
+    @Test
+    func parse_liftsRunnerErrorsRegardlessOfPrefix_andKeepsRealTestsNamedSimilarly() async throws {
+        // The runner-process name is only "xctest" for unit tests. For UI tests
+        // it's the app/UI-runner target (varies per project), it sometimes has no
+        // pid, and Xcode also emits a generic "The test runner encountered an
+        // error". All are lifted structurally (nodeIdentifier == name plus a
+        // Failure Message child), regardless of the prefix. A real test whose
+        // display name merely ends this way, but which carries a real
+        // "Suite/method" identifier, must survive as a test case.
+        let json = """
+        {
+          "testNodes": [
+            {
+              "nodeType": "Test Plan",
+              "name": "AppTests",
+              "children": [
+                {
+                  "nodeType": "UI test bundle",
+                  "name": "AppUITests",
+                  "children": [
+                    {
+                      "nodeType": "Test Case",
+                      "name": "UITestTarget (4242) encountered an error",
+                      "nodeIdentifier": "UITestTarget (4242) encountered an error",
+                      "result": "Failed",
+                      "children": [
+                        { "nodeType": "Failure Message", "name": "AppUITests-Runner failed to launch." }
+                      ]
+                    },
+                    {
+                      "nodeType": "Test Case",
+                      "name": "EMAUITests-Runner (99) encountered an error",
+                      "nodeIdentifier": "EMAUITests-Runner (99) encountered an error",
+                      "result": "Failed",
+                      "children": [
+                        { "nodeType": "Failure Message", "name": "The UI test runner failed to launch." }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "nodeType": "Unit test bundle",
+                  "name": "SnapshotTests",
+                  "children": [
+                    {
+                      "nodeType": "Test Case",
+                      "name": "SnapshotTestHost encountered an error",
+                      "nodeIdentifier": "SnapshotTestHost encountered an error",
+                      "result": "Failed",
+                      "children": [
+                        { "nodeType": "Failure Message", "name": "Failed to create a bundle instance." }
+                      ]
+                    },
+                    {
+                      "nodeType": "Test Case",
+                      "name": "The test runner encountered an error",
+                      "nodeIdentifier": "The test runner encountered an error",
+                      "result": "Failed",
+                      "children": [
+                        { "nodeType": "Failure Message", "name": "The test runner encountered an error." }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "nodeType": "Unit test bundle",
+                  "name": "RealTests",
+                  "children": [
+                    {
+                      "nodeType": "Test Case",
+                      "name": "the server encountered an error",
+                      "nodeIdentifier": "RealTests/theServerErrorIsSurfaced()",
+                      "result": "Passed"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+        """
+        let parser = XCResultParser(
+            commandRunner: RoutingXCResultToolStub(testResultsJSON: json, actionLogJSON: "")
+        )
+
+        let summary = try #require(
+            try await parser.parse(path: try AbsolutePath(validating: "/tmp/app.xcresult"), rootDirectory: nil)
+        )
+
+        // All four runner errors are lifted — an app/UI-runner target, an exotic
+        // single-token prefix, a no-pid form, and Xcode's generic string — keyed
+        // by their bundle target.
+        let lifted = Set(summary.errors.map { "\($0.target ?? "")|\($0.message)" })
+        #expect(lifted == [
+            "AppUITests|AppUITests-Runner failed to launch.",
+            "AppUITests|The UI test runner failed to launch.",
+            "SnapshotTests|Failed to create a bundle instance.",
+            "SnapshotTests|The test runner encountered an error.",
+        ])
+
+        // The real test whose display name ends the same way, but which has a
+        // real "Suite/method" identifier, is kept and no runner error leaked in.
+        #expect(summary.testCases.map(\.name) == ["the server encountered an error"])
+
+        #expect(summary.status == .failed)
+    }
 }

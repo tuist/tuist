@@ -77,10 +77,6 @@ defmodule Tuist.Kubernetes.Client do
     delete("/apis/kura.tuist.dev/v1alpha1/namespaces/#{namespace}/kurainstances/#{name}", opts)
   end
 
-  def delete_kura_gateway(namespace, name, opts \\ []) do
-    delete("/apis/kura.tuist.dev/v1alpha1/namespaces/#{namespace}/kuragateways/#{name}", opts)
-  end
-
   # ----- Runner dispatch helpers -----
 
   # Audience the runner-issued SA token must claim AND the
@@ -319,14 +315,6 @@ defmodule Tuist.Kubernetes.Client do
          "metadata" => %{"namespace" => namespace, "name" => name}
        }) do
     {:ok, "/apis/kura.tuist.dev/v1alpha1/namespaces/#{namespace}/kurainstances/#{name}"}
-  end
-
-  defp manifest_path(%{
-         "apiVersion" => "kura.tuist.dev/v1alpha1",
-         "kind" => "KuraGateway",
-         "metadata" => %{"namespace" => namespace, "name" => name}
-       }) do
-    {:ok, "/apis/kura.tuist.dev/v1alpha1/namespaces/#{namespace}/kuragateways/#{name}"}
   end
 
   defp manifest_path(%{
@@ -580,8 +568,6 @@ defmodule Tuist.Kubernetes.Client do
   defp cleanup_temp_files(%{temp_paths: paths}) do
     Enum.each(paths, &File.rm/1)
   end
-
-  defp cleanup_temp_files(_), do: :ok
 
   defp url(%{server: server}, path), do: server <> path
   defp url(config, path), do: "https://#{config.host}:#{config.port}#{path}"
