@@ -201,3 +201,36 @@ spec:
                 lastReconciledAt:
                   type: string
                   format: date-time
+                rolloutHealth:
+                  type: object
+                  properties:
+                    ready:
+                      type: boolean
+                    serving:
+                      type: boolean
+                    ringConsistent:
+                      type: boolean
+                    bootstrapInflightPeers:
+                      type: integer
+                      format: int64
+                    outboxMessages:
+                      type: integer
+                      format: int64
+                    fdTimeoutCount:
+                      type: integer
+                      format: int64
+                    peerConnectionFailures:
+                      type: integer
+                      format: int64
+                    memoryPressureState:
+                      type: integer
+                      format: int64
+                    sampledPods:
+                      type: integer
+                      format: int32
+                    expectedPods:
+                      type: integer
+                      format: int32
+                    sampledAt:
+                      type: string
+                      format: date-time

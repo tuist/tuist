@@ -141,6 +141,37 @@ type KuraInstanceSpec struct {
 	MeshPeerFailoverIP string `json:"meshPeerFailoverIp,omitempty"`
 }
 
+// KuraInstanceRolloutHealth aggregates the per-pod `/status/rollout` reports
+// with explicit per-field semantics, because no single worst-of rule
+// reproduces the standalone rollout gate:
+//   - Ready and Serving are conjunctions across the expected pods, so a sick
+//     or unsampled standby drags the aggregate down,
+//   - RingConsistent is an explicit all-pods-agree flag over the ring-member
+//     count. The runtime's `generation` is a process-local change counter
+//     (each pod increments its own and resets on restart), so absolute
+//     values are never comparable across pods; the ring size the pods have
+//     converged on is,
+//   - BootstrapInflightPeers and OutboxMessages are sums,
+//   - FDTimeoutCount and PeerConnectionFailures are sums with per-pod reset
+//     clamping, so a pod restart never makes the published counter go
+//     backwards,
+//   - MemoryPressureState is the maximum,
+//   - SampledAt is the OLDEST per-pod sample, so a pod whose report is a
+//     frozen snapshot reads as stale instead of silently passing.
+type KuraInstanceRolloutHealth struct {
+	Ready                  bool         `json:"ready"`
+	Serving                bool         `json:"serving"`
+	RingConsistent         bool         `json:"ringConsistent"`
+	BootstrapInflightPeers int64        `json:"bootstrapInflightPeers"`
+	OutboxMessages         int64        `json:"outboxMessages"`
+	FDTimeoutCount         int64        `json:"fdTimeoutCount"`
+	PeerConnectionFailures int64        `json:"peerConnectionFailures"`
+	MemoryPressureState    int64        `json:"memoryPressureState"`
+	SampledPods            int32        `json:"sampledPods"`
+	ExpectedPods           int32        `json:"expectedPods"`
+	SampledAt              *metav1.Time `json:"sampledAt,omitempty"`
+}
+
 type KuraInstanceStatus struct {
 	Phase            string       `json:"phase,omitempty"`
 	PublicURL        string       `json:"publicURL,omitempty"`
@@ -149,6 +180,11 @@ type KuraInstanceStatus struct {
 	ReadyReplicas    int32        `json:"readyReplicas,omitempty"`
 	Message          string       `json:"message,omitempty"`
 	LastReconciledAt *metav1.Time `json:"lastReconciledAt,omitempty"`
+
+	// RolloutHealth is the aggregate of the per-pod `/status/rollout`
+	// reports, published for the control plane's health-gated progressive
+	// rollout. Absent until at least one reconcile has sampled the pods.
+	RolloutHealth *KuraInstanceRolloutHealth `json:"rolloutHealth,omitempty"`
 
 	// NodePort exposure (spec.exposeNodePort): the address clients
 	// outside the pod network dial. NodeAddress is the

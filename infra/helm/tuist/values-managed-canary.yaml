@@ -128,6 +128,11 @@ server:
       # an implementation detail behind it (ovhFleet below, replicas 1) —
       # mirroring staging.
       value: eu-central,scw-fr-par-runners,ca-east
+    # Wave 0 (canary) of a progressive Kura runtime rollout (spec #79).
+    # This environment's rollouts run expedited, so the value only shapes
+    # interim-paced ordering here; kept aligned with production.
+    - name: TUIST_KURA_CANARY_ACCOUNT_HANDLES
+      value: tuist
     # Hand cluster-networked fleets the in-cluster cache endpoint. macOS
     # resolves to the node-port form (http://<node PN address>:<NodePort>
     # on scw-fr-par-runners), reached over the PN the minis attach to

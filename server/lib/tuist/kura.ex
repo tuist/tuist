@@ -51,7 +51,6 @@ defmodule Tuist.Kura do
   # to rescue and forces manual intervention. Only terminal servers
   # (`:destroying`/`:destroyed`) are skipped.
   @version_rollout_statuses [:provisioning, :replicating, :active, :failed]
-  @version_rollout_batch_size 100
 
   @doc "Reconciles desired Kura server rows with the observed Kubernetes state."
   def reconcile_orphaned_deployments, do: Reconciler.reconcile()
@@ -84,14 +83,26 @@ defmodule Tuist.Kura do
 
   def version_label(image_tag) when is_binary(image_tag), do: image_tag
 
+  # Interim pacing (spec #79 phase 2): instead of fanning the whole fleet
+  # out in one tick, schedule a bounded batch — Tuist-owned accounts first
+  # — and only open the next batch once no deployment for the tag is
+  # still open. This is the fallback path while
+  # `Tuist.FeatureFlags.kura_rollout_orchestration_enabled?/0` is off;
+  # the full wave machinery lives in `Tuist.Kura.Rollouts`.
+  @interim_rollout_batch_size 25
+
   @doc """
   Creates deployments for active Kura servers that are behind the
-  latest released Kura runtime image tag.
+  latest released Kura runtime image tag, a bounded batch per tick with
+  Tuist-owned (canary) accounts ordered first. The next batch is only
+  scheduled once the previous batch's deployments have closed.
 
   Each `(server, image_tag)` pair is scheduled at most once. A failed
   deployment for the configured image is intentionally not retried here;
   operators can inspect and re-trigger it manually, while the next Tuist
-  released Kura version will be scheduled normally.
+  released Kura version will be scheduled normally. (The rollout
+  orchestration path replaces this invariant with rollout-scoped
+  attempts; see `Tuist.Kura.Rollouts`.)
   """
   def schedule_runtime_image_deployments do
     case runtime_image_tag() do
@@ -101,7 +112,17 @@ defmodule Tuist.Kura do
   end
 
   defp schedule_runtime_image_deployments(image_tag) do
-    schedule_version_deployments(image_tag)
+    if open_runtime_deployments?(image_tag) do
+      {:ok, %{scheduled: [], failures: []}}
+    else
+      schedule_version_deployments(image_tag)
+    end
+  end
+
+  defp open_runtime_deployments?(image_tag) do
+    Deployment
+    |> where([d], d.image_tag == ^image_tag and d.status in [:pending, :running])
+    |> Repo.exists?()
   end
 
   defp runtime_image_tag do
@@ -131,6 +152,8 @@ defmodule Tuist.Kura do
     {scheduled, failures} =
       image_tag
       |> servers_needing_version_query()
+      |> order_canary_accounts_first()
+      |> limit(@interim_rollout_batch_size)
       |> Repo.all()
       |> Enum.reduce({[], []}, fn server, {scheduled, failures} ->
         case schedule_version_deployment(server, image_tag) do
@@ -153,6 +176,22 @@ defmodule Tuist.Kura do
       end)
 
     {:ok, %{scheduled: Enum.reverse(scheduled), failures: Enum.reverse(failures)}}
+  end
+
+  defp order_canary_accounts_first(query) do
+    case Tuist.Environment.kura_canary_account_handles() do
+      [] ->
+        order_by(query, [s], asc: s.inserted_at, asc: s.id)
+
+      canary_handles ->
+        query
+        |> join(:inner, [s], a in assoc(s, :account))
+        |> order_by([s, a],
+          desc: fragment("lower(?) = ANY(?)", a.name, type(^canary_handles, {:array, :string})),
+          asc: s.inserted_at,
+          asc: s.id
+        )
+    end
   end
 
   defp servers_needing_version_query(image_tag) do
@@ -179,9 +218,7 @@ defmodule Tuist.Kura do
       where: s.status in @version_rollout_statuses,
       where: s.current_image_tag != ^image_tag,
       where: not exists(deployment_for_image_exists_query),
-      where: not exists(open_deployment_exists_query),
-      order_by: [asc: s.updated_at, asc: s.id],
-      limit: ^@version_rollout_batch_size
+      where: not exists(open_deployment_exists_query)
     )
   end
 
@@ -199,7 +236,10 @@ defmodule Tuist.Kura do
   `attrs` keys: `:account_id`, `:region`, `:image_tag`.
   """
   def create_server(attrs) do
-    attrs = normalize_attrs(attrs)
+    attrs =
+      attrs
+      |> normalize_attrs()
+      |> inherit_rollout_image_tag()
 
     with {:ok, region} <- fetch_region(attrs[:region]),
          {:ok, account} <- Accounts.get_account_by_id(attrs[:account_id]),
@@ -209,6 +249,16 @@ defmodule Tuist.Kura do
       insert_server(attrs, region)
     end
   end
+
+  # Servers created mid-rollout inherit their account's wave state (the
+  # rollout's baseline tag until the wave completes, the target after)
+  # instead of jumping straight to whatever tag the caller resolved. See
+  # `Tuist.Kura.Rollouts.provisioning_image_tag/2`.
+  defp inherit_rollout_image_tag(%{account_id: account_id, image_tag: image_tag} = attrs) when is_binary(image_tag) do
+    %{attrs | image_tag: Tuist.Kura.Rollouts.provisioning_image_tag(account_id, image_tag)}
+  end
+
+  defp inherit_rollout_image_tag(attrs), do: attrs
 
   defp validate_provisioner_node_ref(account, ref) do
     cond do
@@ -1138,15 +1188,17 @@ defmodule Tuist.Kura do
   ## Deployments
 
   @doc """
-  Inserts a `Deployment` record for the reconciler to apply.
+  Inserts a `Deployment` record for the reconciler to apply. Pass
+  `rollout_id:` to attribute the deployment to the rollout that minted it
+  (see `Tuist.Kura.Rollouts`).
   """
-  def create_deployment(%Server{} = server, image_tag) when is_binary(image_tag) do
+  def create_deployment(%Server{} = server, image_tag, opts \\ []) when is_binary(image_tag) do
     with {:ok, region} <- Regions.fetch(server.region) do
       Repo.transaction(fn ->
         locked_server = lock_server_or_rollback(server)
 
         with :ok <- ensure_no_open_deployment(locked_server.id),
-             {:ok, deployment} <- insert_deployment(locked_server, region, image_tag) do
+             {:ok, deployment} <- insert_deployment(locked_server, region, image_tag, opts) do
           deployment
         else
           {:error, reason} -> Repo.rollback(reason)
@@ -1200,11 +1252,12 @@ defmodule Tuist.Kura do
     end)
   end
 
-  defp insert_deployment(%Server{} = server, region, image_tag) do
+  defp insert_deployment(%Server{} = server, region, image_tag, opts \\ []) do
     %{
       cluster_id: deployment_cluster_id(region),
       image_tag: image_tag,
-      kura_server_id: server.id
+      kura_server_id: server.id,
+      kura_rollout_id: opts[:rollout_id]
     }
     |> Deployment.create_changeset()
     |> Repo.insert()

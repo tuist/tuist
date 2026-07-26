@@ -1,0 +1,75 @@
+<div id="ops-kura" data-part="ops-kura-page">
+  <div data-part="header">
+    <h1 data-part="title">{dgettext("dashboard", "Kura Rollouts")}</h1>
+  </div>
+
+  <.card
+    :if={not @orchestration_enabled}
+    title="Rollout orchestration disabled"
+    icon="alert_triangle"
+  >
+    <.card_section>
+      <span data-part="disabled-note">
+        The kura_rollout_orchestration flag is off, so runtime image versions roll through the
+        interim-paced scheduler (bounded batches, Tuist-owned accounts first). Enable the flag to
+        run health-gated wave rollouts.
+      </span>
+    </.card_section>
+  </.card>
+
+  <%= if @rollout do %>
+    <.card title={"Rollout #{@rollout.image_tag}"} icon="cube_send">
+      <.card_section>
+        <div data-part="rollout-summary">
+          <.rollout_facts rollout={@rollout} />
+        </div>
+      </.card_section>
+      <.card_section :if={@rollout.status in [:running, :paused]}>
+        <.rollout_controls rollout={@rollout} />
+      </.card_section>
+    </.card>
+
+    <.card title="Waves" icon="chart_column">
+      <.card_section>
+        <.waves_table id="kura-rollout-waves-table" waves={@waves} />
+      </.card_section>
+    </.card>
+
+    <.card title="Recent events" icon="history">
+      <.card_section>
+        <.events_table id="kura-rollout-events-table" events={@events} />
+        <div :if={@events_total > @recent_limit} data-part="view-all">
+          <.link_button
+            navigate={~p"/ops/kura/rollouts/#{@rollout.id}"}
+            label={"View all #{@events_total} events"}
+            variant="secondary"
+            size="medium"
+          />
+        </div>
+      </.card_section>
+    </.card>
+  <% else %>
+    <.card title="Kura Rollouts" icon="cube_send">
+      <.card_section>
+        <span data-part="empty-note">
+          No rollout has been recorded yet. One is minted when the configured Kura runtime image
+          tag changes with rollout orchestration enabled.
+        </span>
+      </.card_section>
+    </.card>
+  <% end %>
+
+  <.card title="Recent rollouts" icon="stack_2">
+    <.card_section>
+      <.rollouts_table id="kura-rollouts-history-table" rollouts={@rollouts} />
+      <div :if={@rollouts_total > @recent_limit} data-part="view-all">
+        <.link_button
+          navigate={~p"/ops/kura/rollouts"}
+          label={"View all #{@rollouts_total} rollouts"}
+          variant="secondary"
+          size="medium"
+        />
+      </div>
+    </.card_section>
+  </.card>
+</div>

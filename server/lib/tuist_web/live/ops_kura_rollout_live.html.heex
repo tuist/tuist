@@ -1,0 +1,44 @@
+<div id="ops-kura-rollout" data-part="ops-kura-page">
+  <div data-part="header">
+    <h1 data-part="title">Rollout {@rollout.image_tag}</h1>
+    <.link_button
+      navigate={~p"/ops/kura/rollouts"}
+      label="All rollouts"
+      variant="secondary"
+      size="medium"
+    />
+  </div>
+
+  <.card title={"Rollout #{@rollout.image_tag}"} icon="cube_send">
+    <.card_section>
+      <div data-part="rollout-summary">
+        <.rollout_facts rollout={@rollout} />
+      </div>
+    </.card_section>
+    <.card_section :if={@rollout.status in [:running, :paused]}>
+      <.rollout_controls rollout={@rollout} />
+    </.card_section>
+  </.card>
+
+  <.card title="Waves" icon="chart_column">
+    <.card_section>
+      <.waves_table id="kura-rollout-waves-table" waves={@waves} />
+    </.card_section>
+  </.card>
+
+  <.card title="Events" icon="history">
+    <.card_section>
+      <.events_table id="kura-rollout-events-table" events={@events} />
+      <.pagination_group
+        :if={@events_meta.total_pages > 1}
+        current_page={@current_page}
+        number_of_pages={@events_meta.total_pages}
+        page_patch={
+          fn page ->
+            ~p"/ops/kura/rollouts/#{@rollout.id}?#{Map.put(@query_params, "page", page)}"
+          end
+        }
+      />
+    </.card_section>
+  </.card>
+</div>
