@@ -78,13 +78,15 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
     if alert.baseline_established_at == nil do
       evaluate_and_execute(alert, nil)
     else
-      %{test_case_ids: test_case_ids, cursor: cursor} = Automations.recent_test_case_run_changes_for_alert(alert)
+      %{test_case_ids: test_case_ids, cursor: cursor, more?: more?} =
+        Automations.recent_test_case_run_changes_for_alert(alert)
 
       test_case_ids
       |> Automations.scoped_evaluation_ranges()
       |> Enum.each(&evaluate_and_execute(alert, &1))
 
-      {:ok, _alert} = Automations.update_alert_scoped_evaluation_cursor(alert, cursor)
+      {:ok, updated_alert} = Automations.update_alert_scoped_evaluation_cursor(alert, cursor)
+      enqueue_next_scoped_evaluation(updated_alert, more?)
     end
 
     :ok
@@ -99,7 +101,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
     Enum.each(pending_baseline_alerts, &evaluate_and_execute(&1, nil))
 
     if established_alerts != [] do
-      %{test_case_ids: test_case_ids, cursor: cursor} =
+      %{test_case_ids: test_case_ids, cursor: cursor, more?: more?} =
         Automations.recent_test_case_run_changes_for_alerts(established_alerts)
 
       test_case_ids
@@ -107,10 +109,17 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
       |> Enum.each(&evaluate_alert_group(established_alerts, &1))
 
       {:ok, _updated_count} = Automations.advance_alert_scoped_evaluation_cursors(established_alerts, cursor)
+      enqueue_next_scoped_evaluation(hd(established_alerts), more?)
     end
 
     :ok
   end
+
+  defp enqueue_next_scoped_evaluation(alert, true) do
+    Automations.enqueue_scoped_alert_evaluation(alert, schedule_in: 0)
+  end
+
+  defp enqueue_next_scoped_evaluation(_alert, false), do: :ok
 
   defp evaluate_recent_test_case_runs?(%{"evaluate_recent_test_case_runs" => true}), do: true
   defp evaluate_recent_test_case_runs?(_args), do: false

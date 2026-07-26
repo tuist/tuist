@@ -314,6 +314,8 @@ defmodule Tuist.AutomationsTest do
 
       first_id = Ecto.UUID.generate()
       second_id = Ecto.UUID.generate()
+      corrected_id = Ecto.UUID.generate()
+      outside_window_id = Ecto.UUID.generate()
 
       RunsFixtures.test_case_run_fixture(
         project_id: project.id,
@@ -341,6 +343,19 @@ defmodule Tuist.AutomationsTest do
 
       RunsFixtures.test_case_run_fixture(
         project_id: project.id,
+        test_case_id: corrected_id,
+        ran_at: ~N[2025-01-01 00:00:00.000000],
+        inserted_at: ~N[2026-06-09 10:30:00.000000]
+      )
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: outside_window_id,
+        inserted_at: ~N[2026-06-09 11:00:50.000000]
+      )
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
         test_case_id: nil,
         inserted_at: ~N[2026-06-09 10:00:49.000000]
       )
@@ -351,11 +366,11 @@ defmodule Tuist.AutomationsTest do
         inserted_at: ~N[2026-06-09 10:00:49.000000]
       )
 
-      assert %{test_case_ids: test_case_ids, cursor: cursor} =
+      assert %{test_case_ids: test_case_ids, cursor: cursor, more?: true} =
                Automations.recent_test_case_run_changes_for_alert(alert)
 
-      assert MapSet.new(test_case_ids) == MapSet.new([first_id, second_id])
-      assert cursor == ~U[2026-06-09 10:00:48Z]
+      assert MapSet.new(test_case_ids) == MapSet.new([first_id, second_id, corrected_id])
+      assert cursor == ~U[2026-06-09 11:00:50Z]
     end
   end
 
