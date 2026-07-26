@@ -1,4 +1,4 @@
-#ops-kura-rollout {
+[data-part="ops-kura-page"] {
   display: flex;
   flex-direction: column;
   gap: var(--noora-spacing-9);
@@ -6,7 +6,8 @@
 
   & > [data-part="header"] {
     display: flex;
-    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
     gap: var(--noora-spacing-2);
 
     & > [data-part="title"] {
@@ -59,6 +60,18 @@
       color: var(--noora-surface-label-primary);
       font: var(--noora-font-weight-regular) var(--noora-font-body-medium);
     }
+  }
+
+  & [data-part="rollout-link"] {
+    color: var(--noora-surface-label-primary);
+    font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
+    text-decoration: underline;
+  }
+
+  & [data-part="view-all"] {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: var(--noora-spacing-5);
   }
 
   & [data-part="disabled-note"],

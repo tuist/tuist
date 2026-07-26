@@ -865,7 +865,9 @@ defmodule TuistWeb.Router do
         {TuistWeb.LayoutLive, :ops}
       ] do
       live "/", TuistWeb.OpsCacheLive
-      live "/kura", TuistWeb.OpsKuraRolloutLive
+      live "/kura", TuistWeb.OpsKuraLive
+      live "/kura/rollouts", TuistWeb.OpsKuraRolloutsLive
+      live "/kura/rollouts/:id", TuistWeb.OpsKuraRolloutLive
       live "/accounts", TuistWeb.OpsAccountsLive
       live "/accounts/:id", TuistWeb.OpsAccountLive
       live "/accounts/:id/kura/deployments/:deployment_id", TuistWeb.OpsAccountKuraDeploymentLive

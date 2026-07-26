@@ -151,12 +151,57 @@ defmodule Tuist.Kura.Rollouts do
     |> Repo.all()
   end
 
+  def count_rollouts do
+    Repo.aggregate(Rollout, :count)
+  end
+
+  @doc """
+  One page of rollout history, newest first. Returns `{rollouts, meta}`
+  where meta carries `total` and `total_pages` for the ops pagination.
+  """
+  def paginate_rollouts(page, page_size) when page > 0 do
+    total = count_rollouts()
+
+    rollouts =
+      Rollout
+      |> order_by([r], desc: r.inserted_at, desc: r.id)
+      |> limit(^page_size)
+      |> offset(^((page - 1) * page_size))
+      |> Repo.all()
+
+    {rollouts, %{total: total, total_pages: max(ceil(total / page_size), 1)}}
+  end
+
   def list_events(%Rollout{id: id}, limit \\ 50) do
     RolloutEvent
     |> where([e], e.kura_rollout_id == ^id)
     |> order_by([e], desc: e.inserted_at, desc: e.id)
     |> limit(^limit)
     |> Repo.all()
+  end
+
+  def count_events(%Rollout{id: id}) do
+    RolloutEvent
+    |> where([e], e.kura_rollout_id == ^id)
+    |> Repo.aggregate(:count)
+  end
+
+  @doc """
+  One page of a rollout's audit trail, newest first. Returns
+  `{events, meta}` with `total` and `total_pages`.
+  """
+  def paginate_events(%Rollout{id: id} = rollout, page, page_size) when page > 0 do
+    total = count_events(rollout)
+
+    events =
+      RolloutEvent
+      |> where([e], e.kura_rollout_id == ^id)
+      |> order_by([e], desc: e.inserted_at, desc: e.id)
+      |> limit(^page_size)
+      |> offset(^((page - 1) * page_size))
+      |> Repo.all()
+
+    {events, %{total: total, total_pages: max(ceil(total / page_size), 1)}}
   end
 
   @doc """

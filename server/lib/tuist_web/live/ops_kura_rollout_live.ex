@@ -1,50 +1,73 @@
 defmodule TuistWeb.OpsKuraRolloutLive do
   @moduledoc """
-  Internal ops view for Kura runtime rollouts (spec #79): the active
-  rollout with its wave progress, the operator verbs (pause, resume,
-  expedite, abort) next to it, the audit trail, and recent rollout
-  history — so the person paged during an incident acts from the same
-  screen that explains the situation.
+  Detail page for one Kura rollout: the facts grid, the operator verbs
+  while the rollout is non-terminal, its wave progress, and the full
+  audit trail with pagination. Terminal rollouts keep their trail
+  browsable here — the overview only ever shows the latest rollout.
   """
   use TuistWeb, :live_view
   use Noora
 
-  alias Tuist.FeatureFlags
+  import TuistWeb.OpsKuraComponents
+
   alias Tuist.Kura.Rollouts
+  alias TuistWeb.Utilities.Query
+
+  @page_size 25
 
   @impl true
-  def mount(_params, _session, socket) do
+  def mount(%{"id" => id}, _session, socket) do
+    rollout = Rollouts.get_rollout(id)
+
+    if is_nil(rollout) do
+      raise TuistWeb.Errors.NotFoundError, "Kura rollout not found."
+    end
+
     if connected?(socket) do
       Rollouts.subscribe()
     end
 
     {:ok,
      socket
-     |> assign(:head_title, "Kura Rollouts · Tuist")
+     |> assign(:head_title, "Rollout #{rollout.image_tag} · Tuist")
+     |> assign(:rollout, rollout)
      |> load_rollout_state()}
   end
 
   @impl true
+  def handle_params(_params, uri, socket) do
+    query_params = Query.query_params(uri)
+    page = parse_page(query_params["page"])
+
+    {events, meta} = Rollouts.paginate_events(socket.assigns.rollout, page, @page_size)
+
+    {:noreply,
+     socket
+     |> assign(:query_params, query_params)
+     |> assign(:current_page, page)
+     |> assign(:events, events)
+     |> assign(:events_meta, meta)}
+  end
+
+  @impl true
   def handle_info({:kura_rollouts, :updated}, socket) do
-    {:noreply, load_rollout_state(socket)}
+    socket = load_rollout_state(socket)
+
+    {events, meta} =
+      Rollouts.paginate_events(socket.assigns.rollout, socket.assigns.current_page, @page_size)
+
+    {:noreply,
+     socket
+     |> assign(:events, events)
+     |> assign(:events_meta, meta)}
   end
 
   @impl true
   def handle_event("operate", %{"action" => action, "reason" => reason}, socket) do
     actor = socket.assigns.current_user.email
-    rollout = socket.assigns.rollout
-
-    result =
-      case action do
-        "pause" -> Rollouts.pause(rollout, actor, reason)
-        "resume" -> Rollouts.resume(rollout, actor, reason)
-        "expedite" -> Rollouts.expedite(rollout, actor, reason)
-        "abort" -> Rollouts.abort(rollout, actor, reason)
-        _ -> {:error, :unknown_action}
-      end
 
     socket =
-      case result do
+      case operate(socket.assigns.rollout, action, actor, reason) do
         {:ok, _rollout} ->
           put_flash(socket, :info, "Rollout #{action} applied.")
 
@@ -52,23 +75,22 @@ defmodule TuistWeb.OpsKuraRolloutLive do
           put_flash(socket, :error, "Could not #{action} the rollout: #{inspect(reason)}")
       end
 
-    {:noreply, load_rollout_state(socket)}
+    socket = load_rollout_state(socket)
+
+    {events, meta} =
+      Rollouts.paginate_events(socket.assigns.rollout, socket.assigns.current_page, @page_size)
+
+    {:noreply,
+     socket
+     |> assign(:events, events)
+     |> assign(:events_meta, meta)}
   end
 
   defp load_rollout_state(socket) do
-    rollout = Rollouts.latest_rollout()
+    rollout = Rollouts.get_rollout(socket.assigns.rollout.id)
 
     socket
-    |> assign(:orchestration_enabled, FeatureFlags.kura_rollout_orchestration_enabled?())
     |> assign(:rollout, rollout)
-    |> assign(:waves, (rollout && Rollouts.wave_summary(rollout)) || [])
-    |> assign(:events, (rollout && Rollouts.list_events(rollout)) || [])
-    |> assign(:rollouts, Rollouts.list_rollouts(10))
-  end
-
-  def format_metadata(metadata) when metadata == %{}, do: ""
-
-  def format_metadata(metadata) do
-    Enum.map_join(metadata, ", ", fn {key, value} -> "#{key}: #{value}" end)
+    |> assign(:waves, Rollouts.wave_summary(rollout))
   end
 end
