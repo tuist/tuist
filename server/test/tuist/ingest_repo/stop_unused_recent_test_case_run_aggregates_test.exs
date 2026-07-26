@@ -53,10 +53,8 @@ defmodule Tuist.IngestRepo.Migrations.StopUnusedRecentTestCaseRunAggregatesTest 
              drop_failure_raised?: false,
              drop_noop: nil,
              initial_merge_settings: Map.new(@retired_tables, &{&1, :default}),
-             merge_responses: List.duplicate([], 8),
-             postcondition_setting: nil,
-             restoration_guard_failure: nil,
-             restoration_guard_failure_raised?: false
+             merge_responses: List.duplicate([], 4),
+             postcondition_setting: nil
            }
          end},
         id: :migration_state
@@ -72,69 +70,25 @@ defmodule Tuist.IngestRepo.Migrations.StopUnusedRecentTestCaseRunAggregatesTest 
     %{query_log: query_log, state: state}
   end
 
-  test "stops before changing tables when a retired table is merging", %{
+  test "stops future merges and removes views while an old merge is still active", %{
     query_log: query_log,
     state: state
   } do
     update_state(state, merge_responses: [[["test_case_runs_recent_750_per_case"]]])
 
-    assert_raise Ecto.MigrationError,
-                 "active background merges must finish before retiring rolling aggregates: test_case_runs_recent_750_per_case",
-                 fn ->
-                   StopUnusedRecentTestCaseRunAggregates.up()
-                 end
+    StopUnusedRecentTestCaseRunAggregates.up()
 
     queries = recorded_queries(query_log)
+    alter_positions = query_positions(queries, "MODIFY SETTING")
+    merge_check_positions = query_positions(queries, "system.merges")
+    drop_positions = query_positions(queries, "DROP VIEW")
 
-    refute mutation_query?(queries)
+    assert length(alter_positions) == 4
+    assert length(merge_check_positions) == 1
+    assert length(drop_positions) == 8
+    assert Enum.max(alter_positions) < hd(merge_check_positions)
+    assert hd(merge_check_positions) < Enum.min(drop_positions)
     assert Enum.any?(queries, &String.contains?(&1, "clusterAllReplicas(default, system.merges)"))
-  end
-
-  test "restores merge settings when a merge starts before the views are removed", %{
-    query_log: query_log,
-    state: state
-  } do
-    update_state(state, merge_responses: [[], [["test_case_runs_recent_500_per_case"]]])
-
-    assert_raise Ecto.MigrationError,
-                 "active background merges must finish before retiring rolling aggregates: test_case_runs_recent_500_per_case",
-                 fn ->
-                   StopUnusedRecentTestCaseRunAggregates.up()
-                 end
-
-    queries = recorded_queries(query_log)
-
-    assert Enum.count(queries, &modify_merge_setting_query?/1) == 4
-    assert Enum.count(queries, &reset_merge_setting_query?/1) == 4
-    refute Enum.any?(queries, &String.starts_with?(&1, "DROP VIEW"))
-  end
-
-  test "restores an explicit prior merge setting rather than resetting it", %{
-    query_log: query_log,
-    state: state
-  } do
-    previous_setting = 10_000
-
-    update_state(state,
-      create_table_suffix: " COMMENT 'retired aggregate'",
-      initial_merge_settings: Map.new(@retired_tables, &{&1, {:explicit, previous_setting}}),
-      merge_responses: [[], [["test_case_runs_recent_500_per_case"]]]
-    )
-
-    assert_raise Ecto.MigrationError, fn ->
-      StopUnusedRecentTestCaseRunAggregates.up()
-    end
-
-    restoration_queries =
-      query_log
-      |> recorded_queries()
-      |> Enum.filter(fn query ->
-        modify_merge_setting_query?(query) and
-          String.contains?(query, " = #{previous_setting}")
-      end)
-
-    assert length(restoration_queries) == 4
-    refute Enum.any?(recorded_queries(query_log), &reset_merge_setting_query?/1)
   end
 
   test "stops automatic merges cluster-wide before dropping only retired views", %{query_log: query_log} do
@@ -146,11 +100,10 @@ defmodule Tuist.IngestRepo.Migrations.StopUnusedRecentTestCaseRunAggregatesTest 
     drop_positions = query_positions(queries, "DROP VIEW")
 
     assert length(alter_positions) == 4
-    assert length(merge_check_positions) == 2
+    assert length(merge_check_positions) == 1
     assert length(drop_positions) == 8
-    assert Enum.at(merge_check_positions, 0) < Enum.min(alter_positions)
-    assert Enum.max(alter_positions) < Enum.at(merge_check_positions, 1)
-    assert Enum.at(merge_check_positions, 1) < Enum.min(drop_positions)
+    assert Enum.max(alter_positions) < hd(merge_check_positions)
+    assert hd(merge_check_positions) < Enum.min(drop_positions)
 
     guard_queries = Enum.filter(queries, &String.contains?(&1, "system."))
     assert Enum.any?(guard_queries, &String.contains?(&1, "clusterAllReplicas(default, system.merges)"))
@@ -189,7 +142,7 @@ defmodule Tuist.IngestRepo.Migrations.StopUnusedRecentTestCaseRunAggregatesTest 
     refute mutation_query?(recorded_queries(query_log))
   end
 
-  test "raises and restores merge settings when a dropped view remains present", %{
+  test "keeps automatic merges stopped when a dropped view remains present", %{
     query_log: query_log,
     state: state
   } do
@@ -203,7 +156,8 @@ defmodule Tuist.IngestRepo.Migrations.StopUnusedRecentTestCaseRunAggregatesTest 
                  end
 
     queries = recorded_queries(query_log)
-    assert Enum.count(queries, &reset_merge_setting_query?/1) == 4
+    assert Enum.count(queries, &modify_merge_setting_query?/1) == 4
+    refute Enum.any?(queries, &reset_merge_setting_query?/1)
   end
 
   test "does not accept a larger merge setting as the stopped postcondition", %{
@@ -223,7 +177,7 @@ defmodule Tuist.IngestRepo.Migrations.StopUnusedRecentTestCaseRunAggregatesTest 
 
     queries = recorded_queries(query_log)
     refute Enum.any?(queries, &String.starts_with?(&1, "DROP VIEW"))
-    assert Enum.count(queries, &reset_merge_setting_query?/1) == 4
+    refute Enum.any?(queries, &reset_merge_setting_query?/1)
   end
 
   test "parses exact automatic merge settings from ClickHouse create table queries" do
@@ -244,23 +198,7 @@ defmodule Tuist.IngestRepo.Migrations.StopUnusedRecentTestCaseRunAggregatesTest 
            ) == :default
   end
 
-  test "restores every setting and preserves the original error when the restoration guard fails", %{
-    query_log: query_log,
-    state: state
-  } do
-    update_state(state,
-      drop_failure: "test_case_runs_recent_500_success_per_case_mv",
-      restoration_guard_failure: :raise
-    )
-
-    assert_raise RuntimeError, "simulated drop failure", fn ->
-      StopUnusedRecentTestCaseRunAggregates.up()
-    end
-
-    assert Enum.count(recorded_queries(query_log), &reset_merge_setting_query?/1) == 4
-  end
-
-  test "restores every setting and preserves an exit from the migration", %{
+  test "keeps automatic merges stopped and preserves an exit from the migration", %{
     query_log: query_log,
     state: state
   } do
@@ -270,10 +208,10 @@ defmodule Tuist.IngestRepo.Migrations.StopUnusedRecentTestCaseRunAggregatesTest 
     )
 
     assert catch_exit(StopUnusedRecentTestCaseRunAggregates.up()) == :simulated_drop_failure
-    assert Enum.count(recorded_queries(query_log), &reset_merge_setting_query?/1) == 4
+    refute Enum.any?(recorded_queries(query_log), &reset_merge_setting_query?/1)
   end
 
-  test "restores settings after a partial drop failure and succeeds when retried", %{
+  test "keeps settings stopped after a partial drop failure and succeeds when retried", %{
     query_log: query_log,
     state: state
   } do
@@ -283,7 +221,7 @@ defmodule Tuist.IngestRepo.Migrations.StopUnusedRecentTestCaseRunAggregatesTest 
       StopUnusedRecentTestCaseRunAggregates.up()
     end
 
-    assert Enum.count(recorded_queries(query_log), &reset_merge_setting_query?/1) == 4
+    refute Enum.any?(recorded_queries(query_log), &reset_merge_setting_query?/1)
 
     StopUnusedRecentTestCaseRunAggregates.up()
 
@@ -414,23 +352,16 @@ defmodule Tuist.IngestRepo.Migrations.StopUnusedRecentTestCaseRunAggregatesTest 
     case next_failure(sql, state) do
       {:drop, :raise} -> raise "simulated drop failure"
       {:drop, :exit} -> exit(:simulated_drop_failure)
-      :raise -> raise "simulated restoration guard failure"
-      :exit -> exit(:simulated_restoration_guard_failure)
       nil -> :ok
     end
   end
 
   defp next_failure(sql, state) do
     Agent.get_and_update(state, fn current ->
-      cond do
-        drop_failure?(sql, current) ->
-          {{:drop, current.drop_failure_kind}, %{current | drop_failure_raised?: true}}
-
-        restoration_guard_failure?(sql, current) ->
-          {current.restoration_guard_failure, %{current | restoration_guard_failure_raised?: true}}
-
-        true ->
-          {nil, current}
+      if drop_failure?(sql, current) do
+        {{:drop, current.drop_failure_kind}, %{current | drop_failure_raised?: true}}
+      else
+        {nil, current}
       end
     end)
   end
@@ -438,13 +369,6 @@ defmodule Tuist.IngestRepo.Migrations.StopUnusedRecentTestCaseRunAggregatesTest 
   defp drop_failure?(sql, state) do
     not state.drop_failure_raised? and
       sql == "DROP VIEW IF EXISTS #{state.drop_failure}"
-  end
-
-  defp restoration_guard_failure?(sql, state) do
-    state.drop_failure_raised? and
-      not state.restoration_guard_failure_raised? and
-      not is_nil(state.restoration_guard_failure) and
-      system_tables_query?(sql, @retired_views)
   end
 
   defp system_tables_query?(sql, names) do
