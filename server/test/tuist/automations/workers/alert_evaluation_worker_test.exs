@@ -177,7 +177,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     reject(&ActionExecutor.execute_actions/3)
     reject(&Automations.create_alert_event/1)
 
-    assert :ok = run_recent_test_case_runs(automation.id)
+    assert {:snooze, 0} = run_recent_test_case_runs(automation.id)
 
     assert_receive {:evaluated_test_case_id, ^first_id}
     assert_receive {:evaluated_test_case_id, ^second_id}
@@ -185,7 +185,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     assert_receive {:checked_active_test_case_id, ^second_id}
 
     assert {:ok, updated} = Automations.get_alert(automation.id)
-    assert updated.last_scoped_evaluation_inserted_at == ~U[2026-06-09 10:00:02Z]
+    assert updated.last_scoped_evaluation_inserted_at == ~U[2026-06-09 09:15:02Z]
   end
 
   test "ingestion-driven job keeps the cursor when evaluation fails" do
@@ -225,15 +225,53 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     reject(&ActionExecutor.execute_actions/3)
     reject(&Automations.create_alert_event/1)
 
-    assert :ok = run_recent_test_case_runs(automation.id)
+    assert {:snooze, 0} = run_recent_test_case_runs(automation.id)
 
     assert {:ok, updated} = Automations.get_alert(automation.id)
-    assert updated.last_scoped_evaluation_inserted_at == ~U[2026-06-09 10:00:00Z]
+    assert updated.last_scoped_evaluation_inserted_at == ~U[2026-06-09 09:15:00Z]
 
-    assert [%{args: %{"project_id" => project_id, "evaluate_recent_test_case_runs" => true}}] =
-             all_enqueued(worker: AlertEvaluationWorker)
+    assert all_enqueued(worker: AlertEvaluationWorker) == []
+  end
 
-    assert project_id == automation.project_id
+  test "project-scoped backlog continuation snoozes the current job" do
+    project = ProjectsFixtures.project_fixture()
+
+    automation =
+      AutomationsFixtures.automation_alert_fixture(
+        project: project,
+        trigger_config: %{
+          "threshold" => 10,
+          "window_type" => "rolling",
+          "rolling_window_size" => 75
+        }
+      )
+
+    {:ok, automation} =
+      Automations.update_alert_scoped_evaluation_cursor(automation, ~U[2026-06-09 09:00:00Z])
+
+    args = %{
+      project_id: project.id,
+      cadence_seconds: 300,
+      evaluate_recent_test_case_runs: true
+    }
+
+    assert {:ok, current_job} = args |> AlertEvaluationWorker.new() |> Oban.insert()
+    current_job = Repo.get!(Oban.Job, current_job.id)
+
+    expect(ClickHouseRepo, :all, fn _query -> [] end)
+    reject(&FlakyTestsMonitor.evaluate/2)
+    reject(&ActionExecutor.execute_actions/3)
+    reject(&Automations.create_alert_event/1)
+
+    assert {:snooze, 0} =
+             AlertEvaluationWorker.perform(%{current_job | state: "executing", attempt: 3})
+
+    assert [continued_job] = all_enqueued(worker: AlertEvaluationWorker)
+    assert continued_job.id == current_job.id
+    assert continued_job.max_attempts == 5
+
+    assert {:ok, updated} = Automations.get_alert(automation.id)
+    assert updated.last_scoped_evaluation_inserted_at == ~U[2026-06-09 09:15:00Z]
   end
 
   test "project-scoped job shares rolling measurements across compatible alerts" do
@@ -287,12 +325,12 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     reject(&ActionExecutor.execute_actions/3)
     reject(&Automations.create_alert_event/1)
 
-    assert :ok = run_recent_test_case_runs_for_project(project.id)
+    assert {:snooze, 0} = run_recent_test_case_runs_for_project(project.id)
 
     assert {:ok, updated_first_alert} = Automations.get_alert(first_alert.id)
     assert {:ok, updated_second_alert} = Automations.get_alert(second_alert.id)
-    assert updated_first_alert.last_scoped_evaluation_inserted_at == ~U[2026-06-09 11:00:00Z]
-    assert updated_second_alert.last_scoped_evaluation_inserted_at == ~U[2026-06-09 11:00:00Z]
+    assert updated_first_alert.last_scoped_evaluation_inserted_at == ~U[2026-06-09 10:15:00Z]
+    assert updated_second_alert.last_scoped_evaluation_inserted_at == ~U[2026-06-09 10:15:00Z]
   end
 
   test "project-scoped job isolates an unsupported alert from valid alerts" do
@@ -374,7 +412,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
 
     log =
       ExUnit.CaptureLog.capture_log(fn ->
-        assert :ok = run_recent_test_case_runs_for_project(project.id)
+        assert {:snooze, 0} = run_recent_test_case_runs_for_project(project.id)
       end)
 
     assert log =~ "Skipping automation alert #{unsupported_alert.id}"
@@ -382,8 +420,8 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     assert {:ok, updated_valid_alert} = Automations.get_alert(valid_alert.id)
     assert {:ok, updated_second_valid_alert} = Automations.get_alert(second_valid_alert.id)
     assert {:ok, updated_unsupported_alert} = Automations.get_alert(unsupported_alert.id)
-    assert updated_valid_alert.last_scoped_evaluation_inserted_at == ~U[2026-06-09 10:00:02Z]
-    assert updated_second_valid_alert.last_scoped_evaluation_inserted_at == ~U[2026-06-09 10:00:02Z]
+    assert updated_valid_alert.last_scoped_evaluation_inserted_at == ~U[2026-06-09 09:15:02Z]
+    assert updated_second_valid_alert.last_scoped_evaluation_inserted_at == ~U[2026-06-09 09:15:02Z]
     assert updated_unsupported_alert.last_scoped_evaluation_inserted_at == nil
   end
 
@@ -411,7 +449,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     reject(&ActionExecutor.execute_actions/3)
     reject(&Automations.create_alert_event/1)
 
-    assert :ok = run_recent_test_case_runs(automation.id)
+    assert {:snooze, 0} = run_recent_test_case_runs(automation.id)
 
     assert_receive {:monitor_chunk_size, 1000}
     assert_receive {:monitor_chunk_size, 1000}
@@ -425,7 +463,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     assert_receive {:active_events_chunk_size, 1}
 
     assert {:ok, updated} = Automations.get_alert(automation.id)
-    assert updated.last_scoped_evaluation_inserted_at == ~U[2026-06-09 10:00:00Z]
+    assert updated.last_scoped_evaluation_inserted_at == ~U[2026-06-09 09:15:00Z]
   end
 
   test "ingestion-driven job no-ops when the alert is disabled" do

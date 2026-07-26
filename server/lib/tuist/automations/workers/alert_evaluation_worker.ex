@@ -19,15 +19,18 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
   # `Array(UUID)` parameter and the run scan stay within the engine's request
   # limits no matter how many tests an alert has quarantined.
   @recovery_candidate_batch_size 500
+  @attempts_per_window 3
 
   @impl Oban.Worker
-  def perform(%Oban.Job{
-        args: %{
-          "project_id" => project_id,
-          "cadence_seconds" => cadence_seconds,
-          "evaluate_recent_test_case_runs" => true
-        }
-      }) do
+  def perform(
+        %Oban.Job{
+          args: %{
+            "project_id" => project_id,
+            "cadence_seconds" => cadence_seconds,
+            "evaluate_recent_test_case_runs" => true
+          }
+        } = job
+      ) do
     alerts =
       project_id
       |> Automations.list_alerts()
@@ -37,10 +40,10 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
           trigger_window_supported?(alert)
       end)
 
-    evaluate_recent_test_case_runs_and_execute(alerts)
+    evaluate_recent_test_case_runs_and_execute(alerts, job)
   end
 
-  def perform(%Oban.Job{args: %{"alert_id" => alert_id} = args}) do
+  def perform(%Oban.Job{args: %{"alert_id" => alert_id} = args} = job) do
     case Automations.get_alert(alert_id) do
       {:ok, alert} ->
         cond do
@@ -51,7 +54,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
             :ok
 
           evaluate_recent_test_case_runs?(args) ->
-            evaluate_recent_test_case_runs_and_execute(alert)
+            evaluate_recent_test_case_runs_and_execute(alert, job)
 
           true ->
             evaluate_and_execute(alert, scoped_test_case_ids(args))
@@ -74,7 +77,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
     end
   end
 
-  defp evaluate_recent_test_case_runs_and_execute(%Alert{} = alert) do
+  defp evaluate_recent_test_case_runs_and_execute(%Alert{} = alert, job) do
     if alert.baseline_established_at == nil do
       evaluate_and_execute(alert, nil)
     else
@@ -86,21 +89,21 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
       |> Enum.each(&evaluate_and_execute(alert, &1))
 
       {:ok, updated_alert} = Automations.update_alert_scoped_evaluation_cursor(alert, cursor)
-      enqueue_next_scoped_evaluation(updated_alert, more?)
+      continue_scoped_evaluation(updated_alert, job, more?)
     end
-
-    :ok
   end
 
-  defp evaluate_recent_test_case_runs_and_execute([]), do: :ok
+  defp evaluate_recent_test_case_runs_and_execute([], _job), do: :ok
 
-  defp evaluate_recent_test_case_runs_and_execute(alerts) when is_list(alerts) do
+  defp evaluate_recent_test_case_runs_and_execute(alerts, job) when is_list(alerts) do
     {established_alerts, pending_baseline_alerts} =
       Enum.split_with(alerts, &(&1.baseline_established_at != nil))
 
     Enum.each(pending_baseline_alerts, &evaluate_and_execute(&1, nil))
 
-    if established_alerts != [] do
+    if established_alerts == [] do
+      :ok
+    else
       %{test_case_ids: test_case_ids, cursor: cursor, more?: more?} =
         Automations.recent_test_case_run_changes_for_alerts(established_alerts)
 
@@ -109,17 +112,22 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorker do
       |> Enum.each(&evaluate_alert_group(established_alerts, &1))
 
       {:ok, _updated_count} = Automations.advance_alert_scoped_evaluation_cursors(established_alerts, cursor)
-      enqueue_next_scoped_evaluation(hd(established_alerts), more?)
+      continue_scoped_evaluation(hd(established_alerts), job, more?)
     end
-
-    :ok
   end
 
-  defp enqueue_next_scoped_evaluation(alert, true) do
-    Automations.enqueue_scoped_alert_evaluation(alert, schedule_in: 0)
-  end
+  defp continue_scoped_evaluation(_alert, _job, false), do: :ok
 
-  defp enqueue_next_scoped_evaluation(_alert, false), do: :ok
+  defp continue_scoped_evaluation(_alert, %Oban.Job{id: nil}, true), do: {:snooze, 0}
+
+  defp continue_scoped_evaluation(_alert, %Oban.Job{} = job, true) do
+    max_attempts = job.attempt + @attempts_per_window - 1
+
+    case Oban.update_job(job, %{max_attempts: max_attempts}) do
+      {:ok, _job} -> {:snooze, 0}
+      error -> error
+    end
+  end
 
   defp evaluate_recent_test_case_runs?(%{"evaluate_recent_test_case_runs" => true}), do: true
   defp evaluate_recent_test_case_runs?(_args), do: false
