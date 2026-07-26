@@ -27,7 +27,7 @@ defmodule Tuist.Automations do
   # project-wide identifier set as one scan.
   @max_scoped_evaluation_range_size 2000
   @minimum_scoped_evaluation_ranges 4
-  @max_scoped_evaluation_window_seconds [hour: 1] |> to_timeout() |> div(1000)
+  @max_scoped_evaluation_window_seconds [minute: 15] |> to_timeout() |> div(1000)
 
   def list_alerts(project_id) do
     Alert

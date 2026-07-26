@@ -345,13 +345,13 @@ defmodule Tuist.AutomationsTest do
         project_id: project.id,
         test_case_id: corrected_id,
         ran_at: ~N[2025-01-01 00:00:00.000000],
-        inserted_at: ~N[2026-06-09 10:30:00.000000]
+        inserted_at: ~N[2026-06-09 10:10:00.000000]
       )
 
       RunsFixtures.test_case_run_fixture(
         project_id: project.id,
         test_case_id: outside_window_id,
-        inserted_at: ~N[2026-06-09 11:00:50.000000]
+        inserted_at: ~N[2026-06-09 10:15:50.000000]
       )
 
       RunsFixtures.test_case_run_fixture(
@@ -370,7 +370,7 @@ defmodule Tuist.AutomationsTest do
                Automations.recent_test_case_run_changes_for_alert(alert)
 
       assert MapSet.new(test_case_ids) == MapSet.new([first_id, second_id, corrected_id])
-      assert cursor == ~U[2026-06-09 11:00:50Z]
+      assert cursor == ~U[2026-06-09 10:15:50Z]
     end
   end
 
