@@ -3458,7 +3458,9 @@ defmodule Tuist.Tests do
     # `idx_status` skip index, which is the only thing that makes finding
     # `in_progress` rows cheap. Find candidate ids without FINAL (the skip
     # index then prunes granules), then re-resolve their latest version via
-    # the `proj_by_id` projection — FINAL over a small id set stays cheap.
+    # the `proj_by_id` projection. Status and age must be checked only after
+    # resolving the latest version, or an older in-progress version could
+    # overwrite a completed run.
     candidate_ids =
       ClickHouseRepo.all(
         from(t in Test,
@@ -3469,19 +3471,23 @@ defmodule Tuist.Tests do
         )
       )
 
-    stale_runs =
+    latest_candidate_runs =
       if candidate_ids == [] do
         []
       else
-        ClickHouseRepo.all(
-          from(t in Test,
-            hints: ["FINAL"],
-            where: t.id in ^candidate_ids,
-            where: t.status == "in_progress",
-            where: t.inserted_at < ^six_hours_ago
-          )
+        from(t in Test,
+          where: t.id in ^candidate_ids,
+          order_by: [asc: t.id, desc: t.inserted_at]
         )
+        |> ClickHouseRepo.all()
+        |> Enum.uniq_by(& &1.id)
       end
+
+    stale_runs =
+      Enum.filter(
+        latest_candidate_runs,
+        &(&1.status == "in_progress" and NaiveDateTime.before?(&1.inserted_at, six_hours_ago))
+      )
 
     updated_runs =
       Enum.map(stale_runs, fn run ->

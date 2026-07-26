@@ -9381,6 +9381,46 @@ defmodule Tuist.TestsTest do
 
       assert run.status == "success"
     end
+
+    test "does not expire a run whose latest version completed" do
+      project = ProjectsFixtures.project_fixture()
+      seven_hours_ago = NaiveDateTime.add(NaiveDateTime.utc_now(), -7, :hour)
+      one_hour_ago = NaiveDateTime.add(NaiveDateTime.utc_now(), -1, :hour)
+      completed_id = UUIDv7.generate()
+
+      common_attrs = %{
+        id: completed_id,
+        project_id: project.id,
+        account_id: project.account.id,
+        duration: 0,
+        model_identifier: "",
+        macos_version: "",
+        xcode_version: "",
+        git_branch: "main",
+        git_commit_sha: "",
+        git_ref: "",
+        ran_at: seven_hours_ago,
+        is_ci: true,
+        is_flaky: false
+      }
+
+      IngestRepo.insert_all(Tests.Test, [
+        Map.merge(common_attrs, %{status: "in_progress", inserted_at: seven_hours_ago}),
+        Map.merge(common_attrs, %{status: "success", duration: 5000, inserted_at: one_hour_ago})
+      ])
+
+      :ok = Tests.expire_stale_in_progress_test_runs()
+
+      latest =
+        Tests.Test
+        |> where([test], test.id == ^completed_id)
+        |> order_by([test], desc: test.inserted_at)
+        |> limit(1)
+        |> ClickHouseRepo.one()
+
+      assert latest.status == "success"
+      assert latest.inserted_at == one_hour_ago
+    end
   end
 
   defp test_report(project, test_cases) do
