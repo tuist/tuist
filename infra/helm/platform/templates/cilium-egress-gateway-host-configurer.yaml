@@ -1,6 +1,7 @@
 {{- with .Values.ciliumEgressGateway.server }}
 {{- if and .enabled .hostConfigurator.enabled }}
 {{- $egressIP := required "ciliumEgressGateway.server.egressIP is required when ciliumEgressGateway.server.hostConfigurator.enabled=true" .egressIP }}
+{{- $nodeSelector := required "ciliumEgressGateway.server.hostConfigurator.nodeSelector is required when the host-configurer is enabled" .hostConfigurator.nodeSelector }}
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
@@ -19,10 +20,11 @@ spec:
       labels:
         app.kubernetes.io/name: {{ printf "%s-host-configurer" .name | quote }}
         app.kubernetes.io/component: stable-egress
+        tuist.dev/stable-egress-host-configurer: "true"
     spec:
       hostNetwork: true
       nodeSelector:
-        {{- toYaml .gatewayNodeSelector | nindent 8 }}
+        {{- toYaml $nodeSelector | nindent 8 }}
       tolerations:
         - operator: Exists
       containers:
@@ -60,5 +62,13 @@ spec:
 
                 sleep "${RECONCILE_INTERVAL_SECONDS}"
               done
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -ec
+                - ip -4 address show dev "${INTERFACE}" | grep -Fq "${EGRESS_IP}/32"
+            periodSeconds: 2
+            failureThreshold: 3
 {{- end }}
 {{- end }}

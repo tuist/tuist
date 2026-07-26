@@ -12,8 +12,16 @@ Wraps [`grafana/k8s-monitoring`](https://github.com/grafana/k8s-monitoring-helm)
 | node-exporter | Deployed as DaemonSet (node CPU / mem / disk / net) |
 | kubelet + cAdvisor | Scraped (container resource usage) |
 | Kubernetes Events | Streamed to Loki as structured logs |
+| Kubernetes control endpoint | Request latency, requests in flight, rejected requests, and scrape availability |
+| etcd | Leader state, commit latency, write-ahead-log synchronization latency, and peer round-trip time |
+| Stable outbound gateway | Controller reconciliation plus active and prepared gateway state |
+| Management cluster | Desired, current, ready, available, and up-to-date control-plane replicas |
+| Hetzner load balancers | Target health, connections, requests, and inbound/outbound bandwidth |
 
 With these in place the Grafana Cloud **Observability → Kubernetes** app populates automatically (Cluster / Namespace / Workload / Pod / Node views) without importing dashboards by hand.
+
+The recommended incident alerts and Grafana setup steps are in
+[`alerts.md`](alerts.md).
 
 ## Install
 
@@ -27,6 +35,14 @@ helm upgrade --install k8s-monitoring infra/helm/k8s-monitoring \
   -n observability --create-namespace \
   -f infra/helm/k8s-monitoring/values-staging.yaml
 ```
+
+The Cluster API management cluster is installed by
+`.github/workflows/mgmt-cluster-apply.yml` with `values-management.yaml`. Its
+`tuist-k8s-mgmt` 1Password vault must contain a `PROMETHEUS_TOKEN` password
+item. The workflow creates only the metrics destination Secret; logs and traces
+are intentionally disabled on that small cluster. The Hetzner load-balancer
+exporter reuses the existing `org-tuist/hetzner` Secret and its `hcloud` key
+that the Cluster API provider already requires.
 
 Prerequisites:
 
@@ -70,6 +86,13 @@ Four Alloy instances, split by role (managed by the upstream `alloy-operator`):
 - `alloy-logs` — DaemonSet tailing pod logs from `/var/log/pods`, plus host journald from `/var/log/journal` (node logs feature, scoped to `containerd` / `kubelet` / kernel)
 - `alloy-singleton` — cluster events (singleton so events aren't duplicated)
 - `alloy-receiver` — OTLP gRPC and HTTP receiver for managed workload traces
+- `alloy-control-plane` — one host-networked Pod per control-plane node,
+  scraping the local Kubernetes and etcd endpoints without exposing etcd
+  outside the machine
+
+The management cluster runs only `alloy-metrics` and `alloy-control-plane`.
+It also runs a Hetzner load-balancer exporter and configures kube-state-metrics
+to expose `KubeadmControlPlane` replica state.
 
 Plus the telemetry services themselves:
 
@@ -93,6 +116,12 @@ helm lint infra/helm/k8s-monitoring -f infra/helm/k8s-monitoring/values-staging.
 helm template k8s-monitoring infra/helm/k8s-monitoring \
   -n observability \
   -f infra/helm/k8s-monitoring/values-staging.yaml \
+  | kubectl apply --dry-run=client -f -
+
+helm lint infra/helm/k8s-monitoring -f infra/helm/k8s-monitoring/values-management.yaml
+helm template k8s-monitoring infra/helm/k8s-monitoring \
+  -n observability \
+  -f infra/helm/k8s-monitoring/values-management.yaml \
   | kubectl apply --dry-run=client -f -
 ```
 

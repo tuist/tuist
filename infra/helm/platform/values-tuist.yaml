@@ -18,6 +18,8 @@ ciliumEgressGateway:
     egressIP: 116.202.0.10
     hostConfigurator:
       enabled: true
+      nodeSelector:
+        tuist.dev/stable-egress-candidate: server
     failoverController:
       # Enabled. The controller ADOPTS the node that currently holds the active
       # label (today the hand-labelled general worker) on first reconcile — no

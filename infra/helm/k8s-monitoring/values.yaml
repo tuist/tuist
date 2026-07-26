@@ -37,6 +37,29 @@ grafanaCloud:
       item: TEMPO_TOKEN
       field: password
 
+# Optional management-cluster exporter for Hetzner load-balancer health and
+# traffic. It runs beside Cluster API so the signal remains available when a
+# workload cluster's own control endpoint is unreachable.
+hcloudLoadBalancerExporter:
+  enabled: false
+  namespace: org-tuist
+  image:
+    repository: wacken/hetzner-load-balancer-prometheus-exporter
+    tag: 1.7.0
+    pullPolicy: IfNotPresent
+  loadBalancerIds: all
+  scrapeIntervalSeconds: 30
+  tokenSecretRef:
+    name: hetzner
+    key: hcloud
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 192Mi
+
 # Upstream grafana/k8s-monitoring chart values. Everything under this key
 # is passed verbatim to the subchart — see
 # https://github.com/grafana/k8s-monitoring-helm/tree/main/charts/k8s-monitoring
@@ -627,6 +650,80 @@ k8s-monitoring:
   # upstream presets — without them the Alloy subchart defaults to a
   # DaemonSet, which is wrong for the singleton + receiver roles.
   collectors:
+    # One Pod per control-plane node, using the host network so etcd's
+    # loopback-only metrics endpoint stays private. This captures the control
+    # endpoint and etcd signals that distinguish a network interruption from
+    # request saturation, storage latency, or lost etcd leadership.
+    alloy-control-plane:
+      includeDestinations:
+        - grafana-cloud-metrics
+      controller:
+        type: daemonset
+        hostNetwork: true
+        dnsPolicy: ClusterFirstWithHostNet
+        nodeSelector:
+          node-role.kubernetes.io/control-plane: ""
+        tolerations:
+          - operator: Exists
+        priorityClassName: system-node-critical
+      alloy:
+        resources:
+          requests:
+            cpu: 25m
+            memory: 64Mi
+          limits:
+            cpu: 200m
+            memory: 192Mi
+      extraConfig: |
+        prometheus.scrape "tuist_kube_apiserver" {
+          targets = [{
+            "__address__" = "127.0.0.1:6443",
+            "instance" = sys.env("HOSTNAME"),
+          }]
+          forward_to = [prometheus.relabel.tuist_kube_apiserver.receiver]
+          job_name = "tuist-kube-apiserver"
+          scheme = "https"
+          scrape_interval = "30s"
+          scrape_timeout = "10s"
+          bearer_token_file = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+
+          tls_config {
+            ca_file = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+            server_name = "kubernetes"
+          }
+        }
+
+        prometheus.relabel "tuist_kube_apiserver" {
+          rule {
+            source_labels = ["__name__"]
+            regex = "up|scrape_samples_scraped|apiserver_current_inflight_requests|apiserver_flowcontrol_rejected_requests_total|apiserver_request_duration_seconds_(bucket|count|sum)|apiserver_request_total"
+            action = "keep"
+          }
+
+          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver]
+        }
+
+        prometheus.scrape "tuist_etcd" {
+          targets = [{
+            "__address__" = "127.0.0.1:2381",
+            "instance" = sys.env("HOSTNAME"),
+          }]
+          forward_to = [prometheus.relabel.tuist_etcd.receiver]
+          job_name = "tuist-etcd"
+          scrape_interval = "30s"
+          scrape_timeout = "10s"
+        }
+
+        prometheus.relabel "tuist_etcd" {
+          rule {
+            source_labels = ["__name__"]
+            regex = "up|scrape_samples_scraped|etcd_server_has_leader|etcd_server_is_leader|etcd_server_leader_changes_seen_total|etcd_server_proposals_failed_total|etcd_disk_wal_fsync_duration_seconds_(bucket|count|sum)|etcd_disk_backend_commit_duration_seconds_(bucket|count|sum)|etcd_network_peer_round_trip_time_seconds_(bucket|count|sum)|etcd_mvcc_db_total_size_in_bytes|etcd_mvcc_db_total_size_in_use_in_bytes"
+            action = "keep"
+          }
+
+          forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver]
+        }
+
     # Clustering lets multiple alloy-metrics replicas hash-partition the
     # scrape targets, so adding replicas linearly scales capacity. Required
     # by the clusterMetrics / hostMetrics / annotationAutodiscovery features.

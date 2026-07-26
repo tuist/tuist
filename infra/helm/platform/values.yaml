@@ -299,6 +299,9 @@ ciliumEgressGateway:
     egressIP: ""
     hostConfigurator:
       enabled: false
+      # Required when enabled. Select the full candidate pool so every standby
+      # is prepared before the failover controller can activate it.
+      nodeSelector: {}
       image: quay.io/cilium/cilium:v1.18.7
       imagePullPolicy: IfNotPresent
       interface: eth0

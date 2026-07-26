@@ -30,7 +30,8 @@ name: Mgmt Cluster Apply
 # Required secrets (on the mgmt-cluster-apply GitHub Environment):
 #   OP_SERVICE_ACCOUNT_TOKEN - 1Password SA scoped read-only to the
 #     tuist-k8s-mgmt vault, where the mgmt cluster's kubeconfig is
-#     stored as `kubeconfig: tuist-mgmt`.
+#     stored as `kubeconfig: tuist-mgmt` and the Grafana Cloud metrics
+#     token is stored as `PROMETHEUS_TOKEN`.
 
 on:
   push:
@@ -43,6 +44,7 @@ on:
       - 'infra/k8s/mgmt/etcd-snapshot.yaml'
       - 'infra/k8s/mgmt/tailscale.yaml'
       - 'infra/k8s/mgmt/hetzner-robot-controller.yaml'
+      - 'infra/helm/k8s-monitoring/**'
       - '.github/workflows/mgmt-cluster-apply.yml'
   # Manual re-runs of the apply path, e.g. to force a re-deploy
   # without a code change. No inputs — incident-recovery actions
@@ -75,7 +77,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: jdx/mise-action@v3.2.0
         with:
-          install_args: "--locked kubectl"
+          install_args: "--locked helm kubectl"
           cache: "false"
       - uses: 1password/install-cli-action@v2
       - name: Load mgmt kubeconfig from 1Password
@@ -171,3 +173,22 @@ jobs:
           kubectl apply -f infra/k8s/mgmt/cluster-autoscaler.yaml
           kubectl apply -f infra/k8s/mgmt/etcd-snapshot.yaml
           kubectl apply -f infra/k8s/mgmt/tailscale.yaml
+      - name: Install management-cluster monitoring
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          set -euo pipefail
+          kubectl create namespace observability --dry-run=client -o yaml | kubectl apply -f -
+
+          PROMETHEUS_TOKEN="$(op read 'op://tuist-k8s-mgmt/PROMETHEUS_TOKEN/password')"
+          kubectl -n observability create secret generic k8s-monitoring-grafana-cloud \
+            --from-literal=prometheus-username=1774467 \
+            --from-literal=prometheus-password="$PROMETHEUS_TOKEN" \
+            --dry-run=client -o yaml | kubectl apply -f -
+          unset PROMETHEUS_TOKEN
+
+          helm dependency update infra/helm/k8s-monitoring
+          helm upgrade --install k8s-monitoring infra/helm/k8s-monitoring \
+            --namespace observability \
+            -f infra/helm/k8s-monitoring/values-management.yaml \
+            --wait --timeout 10m

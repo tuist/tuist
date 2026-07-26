@@ -54,6 +54,13 @@ type FailoverReconciler struct {
 	ActiveLabelKey      string
 	ActiveLabelValue    string
 
+	// PreparedPodNamespace and PreparedPod labels identify the host-configurer
+	// Pods whose Ready condition proves a candidate has the outbound address
+	// before Cilium is allowed to select it.
+	PreparedPodNamespace  string
+	PreparedPodLabelKey   string
+	PreparedPodLabelValue string
+
 	// EgressIPAllowlist, when non-empty, is the documented set of CIDRs
 	// customers allowlist. The controller refuses to operate a Floating IP
 	// whose address falls outside it — failing closed so we never activate an
@@ -79,16 +86,34 @@ func (r *FailoverReconciler) Reconcile(ctx context.Context, _ reconcile.Request)
 		return ctrl.Result{}, fmt.Errorf("listing active-labelled nodes: %w", err)
 	}
 
-	desiredNode := selectGateway(candidates.Items, labeled.Items)
+	prepared, err := r.preparedCandidates(ctx, candidates.Items)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	gatewayPrepared.Reset()
+	preparedCandidates := make([]corev1.Node, 0, len(candidates.Items))
+	for i := range candidates.Items {
+		node := &candidates.Items[i]
+		isPrepared := prepared[node.Name]
+		gatewayPrepared.WithLabelValues(node.Name).Set(boolFloat(isPrepared))
+		if isPrepared {
+			preparedCandidates = append(preparedCandidates, *node)
+		}
+	}
+
+	desiredNode := selectGateway(preparedCandidates, labeled.Items)
 	if desiredNode == nil {
 		// No healthy active node and no Ready candidate — leave any stale
 		// label/IP as-is so an active node recovering in place needs no action,
 		// and surface the gap (a monitoring alert on "no active gateway" belongs
 		// here).
-		logger.Error(nil, "no healthy stable-egress gateway: no healthy active node and no Ready candidate",
+		gatewayAvailable.Set(0)
+		gatewayActive.Reset()
+		logger.Error(nil, "no healthy stable-egress gateway: no healthy active node and no Ready prepared candidate",
 			"candidateLabel", r.CandidateLabelKey+"="+r.CandidateLabelValue)
 		return ctrl.Result{RequeueAfter: r.ResyncInterval}, nil
 	}
+	gatewayAvailable.Set(1)
 
 	serverID, err := parseHCloudServerID(desiredNode.Spec.ProviderID)
 	if err != nil {
@@ -126,6 +151,7 @@ func (r *FailoverReconciler) Reconcile(ctx context.Context, _ reconcile.Request)
 		if err := r.FIP.Assign(ctx, r.FloatingIPName, serverID); err != nil {
 			return ctrl.Result{}, fmt.Errorf("assigning Floating IP to server %d: %w", serverID, err)
 		}
+		gatewayFailovers.Inc()
 	}
 
 	// 2) Make the active label track the elected node: add to it, strip from any
@@ -134,8 +160,50 @@ func (r *FailoverReconciler) Reconcile(ctx context.Context, _ reconcile.Request)
 	if err := r.reconcileActiveLabel(ctx, desiredNode); err != nil {
 		return ctrl.Result{}, err
 	}
+	gatewayActive.Reset()
+	gatewayActive.WithLabelValues(desiredNode.Name, addr).Set(1)
 
 	return ctrl.Result{RequeueAfter: r.ResyncInterval}, nil
+}
+
+func (r *FailoverReconciler) preparedCandidates(ctx context.Context, candidates []corev1.Node) (map[string]bool, error) {
+	prepared := make(map[string]bool, len(candidates))
+	if r.PreparedPodNamespace == "" || r.PreparedPodLabelKey == "" {
+		for i := range candidates {
+			prepared[candidates[i].Name] = true
+		}
+		return prepared, nil
+	}
+
+	var pods corev1.PodList
+	if err := r.List(
+		ctx,
+		&pods,
+		client.InNamespace(r.PreparedPodNamespace),
+		client.MatchingLabels{r.PreparedPodLabelKey: r.PreparedPodLabelValue},
+	); err != nil {
+		return nil, fmt.Errorf("listing host-configurer pods: %w", err)
+	}
+	for i := range pods.Items {
+		pod := &pods.Items[i]
+		if pod.Spec.NodeName == "" || pod.DeletionTimestamp != nil {
+			continue
+		}
+		for _, condition := range pod.Status.Conditions {
+			if condition.Type == corev1.PodReady && condition.Status == corev1.ConditionTrue {
+				prepared[pod.Spec.NodeName] = true
+				break
+			}
+		}
+	}
+	return prepared, nil
+}
+
+func boolFloat(value bool) float64 {
+	if value {
+		return 1
+	}
+	return 0
 }
 
 // reconcileActiveLabel ensures the active label is present on exactly the
@@ -175,6 +243,9 @@ func (r *FailoverReconciler) reconcileActiveLabel(ctx context.Context, desired *
 }
 
 func (r *FailoverReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	if r.PreparedPodNamespace == "" || r.PreparedPodLabelKey == "" {
+		return fmt.Errorf("prepared Pod namespace and label are required")
+	}
 	mapToSingleton := func(context.Context, client.Object) []reconcile.Request {
 		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: reconcileName}}}
 	}
@@ -183,6 +254,9 @@ func (r *FailoverReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Watches(&corev1.Node{},
 			handler.EnqueueRequestsFromMapFunc(mapToSingleton),
 			builder.WithPredicates(r.nodeEventPredicate())).
+		Watches(&corev1.Pod{},
+			handler.EnqueueRequestsFromMapFunc(mapToSingleton),
+			builder.WithPredicates(r.preparedPodEventPredicate())).
 		Complete(r)
 }
 
@@ -204,6 +278,27 @@ func (r *FailoverReconciler) nodeEventPredicate() predicate.Predicate {
 				oldNode.Labels[r.CandidateLabelKey] != newNode.Labels[r.CandidateLabelKey] ||
 				oldNode.Labels[r.ActiveLabelKey] != newNode.Labels[r.ActiveLabelKey] ||
 				(oldNode.DeletionTimestamp == nil) != (newNode.DeletionTimestamp == nil)
+		},
+	}
+}
+
+// preparedPodEventPredicate wakes the controller as soon as a host-configurer
+// Pod becomes Ready, rather than waiting for the periodic resync. Updates that
+// add or remove the identifying label are included so preparedness cannot get
+// stuck if a Pod is relabelled.
+func (r *FailoverReconciler) preparedPodEventPredicate() predicate.Predicate {
+	matches := func(object client.Object) bool {
+		if object == nil || object.GetNamespace() != r.PreparedPodNamespace {
+			return false
+		}
+		return object.GetLabels()[r.PreparedPodLabelKey] == r.PreparedPodLabelValue
+	}
+	return predicate.Funcs{
+		CreateFunc:  func(e event.CreateEvent) bool { return matches(e.Object) },
+		DeleteFunc:  func(e event.DeleteEvent) bool { return matches(e.Object) },
+		GenericFunc: func(e event.GenericEvent) bool { return matches(e.Object) },
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			return matches(e.ObjectOld) || matches(e.ObjectNew)
 		},
 	}
 }

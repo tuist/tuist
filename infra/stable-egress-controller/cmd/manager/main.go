@@ -44,6 +44,8 @@ func main() {
 
 		candidateLabel    string
 		activeLabel       string
+		preparedPodLabel  string
+		preparedPodNS     string
 		floatingIPName    string
 		tokenPath         string
 		egressIPAllowlist string
@@ -57,7 +59,12 @@ func main() {
 		"key=value label identifying the egress candidate node pool (set by kubelet node-labels)")
 	flag.StringVar(&activeLabel, "active-label", "tuist.dev/stable-egress-gateway=server",
 		"key=value label this controller places on the single active gateway node; "+
-			"the CiliumEgressGatewayPolicy and host-configurer select on it")
+			"the CiliumEgressGatewayPolicy selects on it")
+	flag.StringVar(&preparedPodLabel, "prepared-pod-label",
+		"tuist.dev/stable-egress-host-configurer=true",
+		"key=value label identifying host-configurer Pods whose readiness proves a gateway is prepared")
+	flag.StringVar(&preparedPodNS, "prepared-pod-namespace", "kube-system",
+		"Namespace containing the host-configurer Pods")
 	flag.StringVar(&floatingIPName, "floating-ip-name", "",
 		"Name of the Hetzner Cloud Floating IP to keep on the active node (required)")
 	flag.StringVar(&tokenPath, "hcloud-token-path", "/etc/hcloud/token",
@@ -88,6 +95,15 @@ func main() {
 		setupLog.Error(nil, "invalid --active-label, want key=value", "value", activeLabel)
 		os.Exit(1)
 	}
+	preparedKey, preparedVal, ok := splitLabel(preparedPodLabel)
+	if !ok {
+		setupLog.Error(nil, "invalid --prepared-pod-label, want key=value", "value", preparedPodLabel)
+		os.Exit(1)
+	}
+	if strings.TrimSpace(preparedPodNS) == "" {
+		setupLog.Error(nil, "--prepared-pod-namespace must not be empty")
+		os.Exit(1)
+	}
 
 	allowlist, err := parsePrefixes(egressIPAllowlist)
 	if err != nil {
@@ -114,15 +130,18 @@ func main() {
 	}
 
 	if err := (&controllers.FailoverReconciler{
-		Client:              mgr.GetClient(),
-		FIP:                 hcloud.New(strings.TrimSpace(string(token))),
-		FloatingIPName:      floatingIPName,
-		CandidateLabelKey:   candKey,
-		CandidateLabelValue: candVal,
-		ActiveLabelKey:      actKey,
-		ActiveLabelValue:    actVal,
-		EgressIPAllowlist:   allowlist,
-		ResyncInterval:      resyncInterval,
+		Client:                mgr.GetClient(),
+		FIP:                   hcloud.New(strings.TrimSpace(string(token))),
+		FloatingIPName:        floatingIPName,
+		CandidateLabelKey:     candKey,
+		CandidateLabelValue:   candVal,
+		ActiveLabelKey:        actKey,
+		ActiveLabelValue:      actVal,
+		PreparedPodNamespace:  preparedPodNS,
+		PreparedPodLabelKey:   preparedKey,
+		PreparedPodLabelValue: preparedVal,
+		EgressIPAllowlist:     allowlist,
+		ResyncInterval:        resyncInterval,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "setup FailoverReconciler")
 		os.Exit(1)
@@ -138,7 +157,8 @@ func main() {
 	}
 
 	setupLog.Info("starting manager", "floatingIP", floatingIPName,
-		"candidateLabel", candidateLabel, "activeLabel", activeLabel)
+		"candidateLabel", candidateLabel, "activeLabel", activeLabel,
+		"preparedPodLabel", preparedPodLabel, "preparedPodNamespace", preparedPodNS)
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
 		setupLog.Error(err, "manager exited")
 		os.Exit(1)

@@ -71,6 +71,9 @@ Every engineer's Google Workspace identity already carries `view`-tier read acce
 
 - Tailscale on the `tuist.dev` tailnet, with `talosctl` reachable on the mgmt VM at `100.92.208.109:50000` (see [`mgmt/tailscale.yaml`](mgmt/tailscale.yaml) for tailnet onboarding).
 - Mgmt cluster kubeconfig in 1Password as `kubeconfig: tuist-mgmt` in the `tuist-k8s-mgmt` vault.
+- Grafana Cloud `PROMETHEUS_TOKEN` password item in the `tuist-k8s-mgmt`
+  vault. `mgmt-cluster-apply.yml` uses it to install the metrics-only
+  management monitoring overlay.
 - Hetzner Cloud project `tuist-workloads` (separate from `tuist-mgmt`) with API access. Token in 1Password as `tuist-workloads`.
 - A Cloudflare account with an API token stored as `cloudflare-tuist-dns`. Local bootstrap reads it from the `Founders` vault.
 - The `cloudflare-tuist-dns` token must be able to edit DNS for `tuist.dev`, read `tuist.dev` zone metadata, manage zone Load Balancers, and manage account-level Load Balancing pools/monitors.
@@ -226,6 +229,14 @@ gh workflow run server-deployment.yml -f environment=<env>
 ## 7. Observability
 
 The [`infra/helm/k8s-monitoring/`](../helm/k8s-monitoring/) chart forwards Kubernetes telemetry to Grafana Cloud. The bootstrap task in §4 installs it; the `observability-install` job in `server-deployment.yml` keeps it in sync on every deploy. After it lights up, look for the cluster name in **Observability → Kubernetes** in Grafana Cloud. Verification steps live in [`infra/helm/k8s-monitoring/README.md`](../helm/k8s-monitoring/README.md).
+
+`mgmt-cluster-apply.yml` installs the same chart with
+`values-management.yaml` into the management cluster. That metrics-only
+instance exports Cluster API control-plane replica state and Hetzner
+load-balancer telemetry under `cluster="tuist-management"`, so it remains
+available when a workload cluster is unreachable. Alert queries and setup
+instructions live in
+[`infra/helm/k8s-monitoring/alerts.md`](../helm/k8s-monitoring/alerts.md).
 
 ## 8. Preview environments (ephemeral pull request / commit deploys)
 

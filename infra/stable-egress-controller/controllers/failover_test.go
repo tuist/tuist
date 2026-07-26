@@ -106,6 +106,24 @@ func candidateNode(name, providerID string, ready bool, active bool) *corev1.Nod
 	}
 }
 
+func preparedPod(name, node string, ready bool) *corev1.Pod {
+	status := corev1.ConditionFalse
+	if ready {
+		status = corev1.ConditionTrue
+	}
+	return &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: "kube-system",
+			Labels:    map[string]string{"app.kubernetes.io/name": "host-configurer"},
+		},
+		Spec: corev1.PodSpec{NodeName: node},
+		Status: corev1.PodStatus{
+			Conditions: []corev1.PodCondition{{Type: corev1.PodReady, Status: status}},
+		},
+	}
+}
+
 func newReconciler(fip FloatingIPManager, objs ...client.Object) *FailoverReconciler {
 	c := fake.NewClientBuilder().WithObjects(objs...).Build()
 	return &FailoverReconciler{
@@ -152,6 +170,35 @@ func TestReconcileFailover(t *testing.T) {
 	got := activeNames(t, r)
 	if len(got) != 1 || got[0] != "egress-b" {
 		t.Fatalf("active nodes = %v, want [egress-b]", got)
+	}
+}
+
+func TestReconcileWaitsForPreparedCandidate(t *testing.T) {
+	dead := candidateNode("egress-a", "hcloud://111", false, true)
+	unprepared := candidateNode("egress-b", "hcloud://222", true, false)
+	prepared := candidateNode("egress-c", "hcloud://333", true, false)
+	fip := &fakeFIP{server: 111}
+	r := newReconciler(
+		fip,
+		dead,
+		unprepared,
+		prepared,
+		preparedPod("host-configurer-b", "egress-b", false),
+		preparedPod("host-configurer-c", "egress-c", true),
+	)
+	r.PreparedPodNamespace = "kube-system"
+	r.PreparedPodLabelKey = "app.kubernetes.io/name"
+	r.PreparedPodLabelValue = "host-configurer"
+
+	if _, err := r.Reconcile(context.Background(), reconcile.Request{NamespacedName: types.NamespacedName{Name: reconcileName}}); err != nil {
+		t.Fatal(err)
+	}
+
+	if fip.server != 333 {
+		t.Fatalf("Floating IP on server %d, want prepared server 333", fip.server)
+	}
+	if got := activeNames(t, r); len(got) != 1 || got[0] != "egress-c" {
+		t.Fatalf("active nodes = %v, want [egress-c]", got)
 	}
 }
 
@@ -310,6 +357,40 @@ func TestNodeEventPredicate(t *testing.T) {
 	}
 	if !pred.Delete(event.DeleteEvent{Object: base}) {
 		t.Fatal("Delete events must reconcile")
+	}
+}
+
+func TestPreparedPodEventPredicate(t *testing.T) {
+	r := newReconciler(&fakeFIP{})
+	r.PreparedPodNamespace = "kube-system"
+	r.PreparedPodLabelKey = "app.kubernetes.io/name"
+	r.PreparedPodLabelValue = "host-configurer"
+	pred := r.preparedPodEventPredicate()
+
+	matching := preparedPod("host-configurer-a", "egress-a", true)
+	unrelated := preparedPod("other", "egress-a", true)
+	unrelated.Labels[r.PreparedPodLabelKey] = "other"
+	wrongNamespace := preparedPod("host-configurer-b", "egress-b", true)
+	wrongNamespace.Namespace = "default"
+
+	if !pred.Create(event.CreateEvent{Object: matching}) {
+		t.Fatal("matching Pod create must reconcile")
+	}
+	if pred.Create(event.CreateEvent{Object: unrelated}) {
+		t.Fatal("unrelated Pod create must not reconcile")
+	}
+	if pred.Create(event.CreateEvent{Object: wrongNamespace}) {
+		t.Fatal("matching Pod in another namespace must not reconcile")
+	}
+	if !pred.Update(event.UpdateEvent{ObjectOld: matching, ObjectNew: unrelated}) {
+		t.Fatal("removing the identifying label must reconcile")
+	}
+}
+
+func TestSetupRequiresPreparedPodSelector(t *testing.T) {
+	r := newReconciler(&fakeFIP{})
+	if err := r.SetupWithManager(nil); err == nil {
+		t.Fatal("expected setup to reject an empty prepared Pod selector")
 	}
 }
 
