@@ -9921,6 +9921,12 @@ paths:
           application/json:
             schema:
               properties:
+                sso_automatic_enrollment:
+                  description: When true, users authenticated by the configured SSO provider can join automatically. Custom providers also require a verified login email domain.
+                  nullable: true
+                  type: boolean
+                  x-struct:
+                  x-validate:
                 sso_enforced:
                   description: When true, organization members must use SSO and cannot log in with email and password
                   nullable: true
@@ -9999,6 +10005,12 @@ paths:
           application/json:
             schema:
               properties:
+                sso_automatic_enrollment:
+                  description: When true, users authenticated by the configured SSO provider can join automatically. Custom providers also require a verified login email domain.
+                  nullable: true
+                  type: boolean
+                  x-struct:
+                  x-validate:
                 sso_enforced:
                   description: When true, organization members must use SSO and cannot log in with email and password
                   nullable: true

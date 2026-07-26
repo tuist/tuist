@@ -22,6 +22,11 @@ defmodule Tuist.Accounts.Organization do
     field :sso_provider, Ecto.Enum, values: [okta: 1, google: 2, oauth2: 3]
     field :sso_organization_id, :string
     field :sso_enforced, :boolean, default: false
+    field :sso_login_domain, :string
+    field :sso_login_domain_verification_token, :string
+    field :sso_login_domain_verified_at, :utc_datetime
+    field :sso_automatic_enrollment, :boolean, default: false
+    field :sso_legacy_email_domain_fallback, :boolean, default: false
     field :oauth2_client_id, :string
     field :oauth2_encrypted_client_secret, Binary
     field :oauth2_authorize_url, :string
@@ -40,6 +45,11 @@ defmodule Tuist.Accounts.Organization do
       :sso_provider,
       :sso_organization_id,
       :sso_enforced,
+      :sso_login_domain,
+      :sso_login_domain_verification_token,
+      :sso_login_domain_verified_at,
+      :sso_automatic_enrollment,
+      :sso_legacy_email_domain_fallback,
       :oauth2_client_id,
       :oauth2_encrypted_client_secret,
       :oauth2_authorize_url,
@@ -47,13 +57,20 @@ defmodule Tuist.Accounts.Organization do
       :oauth2_user_info_url,
       :created_at
     ])
+    |> normalize_sso_login_domain()
     |> normalize_oauth2_urls()
+    |> validate_sso_login_domain()
+    |> validate_sso_security_policy()
     |> validate_inclusion(:sso_provider, [:okta, :google, :oauth2])
     |> validate_oauth2_required_fields()
     |> validate_oauth2_urls()
     |> unique_constraint([:sso_provider, :sso_organization_id],
       message:
         "SSO provider and SSO organization ID must be unique. Make sure no other organization has the same SSO provider and SSO organization ID."
+    )
+    |> unique_constraint(:sso_login_domain,
+      name: :organizations_verified_sso_login_domain_index,
+      message: "has already been verified by another organization"
     )
   end
 
@@ -63,13 +80,18 @@ defmodule Tuist.Accounts.Organization do
       :sso_provider,
       :sso_organization_id,
       :sso_enforced,
+      :sso_login_domain,
+      :sso_automatic_enrollment,
       :oauth2_client_id,
       :oauth2_encrypted_client_secret,
       :oauth2_authorize_url,
       :oauth2_token_url,
       :oauth2_user_info_url
     ])
+    |> normalize_sso_login_domain()
     |> normalize_oauth2_urls()
+    |> validate_sso_login_domain()
+    |> validate_sso_security_policy()
     |> validate_inclusion(:sso_provider, [:okta, :google, :oauth2])
     |> validate_oauth2_required_fields()
     |> validate_oauth2_urls()
@@ -77,7 +99,69 @@ defmodule Tuist.Accounts.Organization do
       message:
         "SSO provider and SSO organization ID must be unique. Make sure no other organization has the same SSO provider and SSO organization ID."
     )
+    |> unique_constraint(:sso_login_domain,
+      name: :organizations_verified_sso_login_domain_index,
+      message: "has already been verified by another organization"
+    )
   end
+
+  def verify_sso_login_domain_changeset(organization, verified_at) do
+    organization
+    |> change(
+      sso_login_domain_verified_at: verified_at,
+      sso_legacy_email_domain_fallback: false
+    )
+    |> unique_constraint(:sso_login_domain,
+      name: :organizations_verified_sso_login_domain_index,
+      message: "has already been verified by another organization"
+    )
+  end
+
+  def validate_sso_security_policy(changeset) do
+    provider = get_field(changeset, :sso_provider)
+    login_domain = get_field(changeset, :sso_login_domain)
+    verified_at = get_field(changeset, :sso_login_domain_verified_at)
+    automatic_enrollment = get_field(changeset, :sso_automatic_enrollment)
+    enforced = get_field(changeset, :sso_enforced)
+    legacy_fallback = get_field(changeset, :sso_legacy_email_domain_fallback)
+    verified_domain? = is_binary(login_domain) and not is_nil(verified_at)
+
+    if provider in @oauth2_providers do
+      changeset
+      |> maybe_require_verified_domain(
+        automatic_enrollment and not verified_domain?,
+        :sso_automatic_enrollment
+      )
+      |> maybe_require_verified_domain(
+        enforced and not verified_domain? and not legacy_fallback,
+        :sso_enforced
+      )
+    else
+      changeset
+    end
+  end
+
+  defp normalize_sso_login_domain(changeset) do
+    update_change(changeset, :sso_login_domain, fn
+      nil -> nil
+      domain -> domain |> String.trim() |> String.trim_trailing(".") |> String.downcase()
+    end)
+  end
+
+  defp validate_sso_login_domain(changeset) do
+    validate_format(
+      changeset,
+      :sso_login_domain,
+      ~r/\A(?=.{1,253}\z)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\z/,
+      message: "must be a valid domain"
+    )
+  end
+
+  defp maybe_require_verified_domain(changeset, true, field) do
+    add_error(changeset, field, "requires a verified login email domain for this provider")
+  end
+
+  defp maybe_require_verified_domain(changeset, false, _field), do: changeset
 
   defp validate_oauth2_required_fields(changeset) do
     if get_field(changeset, :sso_provider) in @oauth2_providers do

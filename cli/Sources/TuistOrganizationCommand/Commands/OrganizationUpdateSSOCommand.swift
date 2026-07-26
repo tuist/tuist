@@ -6,6 +6,11 @@ public enum SSOProvider: String, ExpressibleByArgument, CaseIterable {
     case google, okta
 }
 
+public enum SSOEnrollmentPolicy: String, ExpressibleByArgument, CaseIterable {
+    case automatic
+    case invitationOnly = "invitation-only"
+}
+
 public struct OrganizationUpdateSSOCommand: AsyncParsableCommand {
     public init() {}
     public static var configuration: CommandConfiguration {
@@ -36,6 +41,12 @@ public struct OrganizationUpdateSSOCommand: AsyncParsableCommand {
     var organizationId: String
 
     @Option(
+        help: "How authenticated users join the organization. When omitted, the current policy is preserved if the provider is unchanged. New configurations and provider changes default to automatic for Google and invitation-only for Okta.",
+        envKey: .organizationUpdateSSOEnrollmentPolicy
+    )
+    var enrollmentPolicy: SSOEnrollmentPolicy?
+
+    @Option(
         name: .shortAndLong,
         help: "The path to the directory or a subdirectory of the project.",
         completion: .directory,
@@ -48,6 +59,7 @@ public struct OrganizationUpdateSSOCommand: AsyncParsableCommand {
             organizationName: organizationName,
             provider: provider,
             organizationId: organizationId,
+            enrollmentPolicy: enrollmentPolicy,
             directory: path
         )
     }

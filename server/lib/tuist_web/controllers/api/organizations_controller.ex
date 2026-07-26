@@ -377,6 +377,12 @@ defmodule TuistWeb.API.OrganizationsController do
              type: :boolean,
              description: "When true, organization members must use SSO and cannot log in with email and password",
              nullable: true
+           },
+           sso_automatic_enrollment: %Schema{
+             type: :boolean,
+             description:
+               "When true, users authenticated by the configured SSO provider can join automatically. Custom providers also require a verified login email domain.",
+             nullable: true
            }
          }
        }},
@@ -417,7 +423,14 @@ defmodule TuistWeb.API.OrganizationsController do
           Accounts.update_organization(organization, %{
             sso_provider: nil,
             sso_organization_id: nil,
-            sso_enforced: false
+            sso_enforced: false,
+            sso_login_domain: nil,
+            sso_automatic_enrollment: false,
+            oauth2_client_id: nil,
+            oauth2_encrypted_client_secret: nil,
+            oauth2_authorize_url: nil,
+            oauth2_token_url: nil,
+            oauth2_user_info_url: nil
           })
 
         json(conn, %{
@@ -427,12 +440,13 @@ defmodule TuistWeb.API.OrganizationsController do
           sso_provider: organization.sso_provider,
           sso_organization_id: organization.sso_organization_id,
           sso_enforced: organization.sso_enforced,
+          sso_automatic_enrollment: organization.sso_automatic_enrollment,
           members: [],
           invitations: []
         })
 
       is_nil(
-        Accounts.find_oauth2_identity(%{user: user, provider: String.to_atom(sso_provider)},
+        Accounts.find_oauth2_identity(%{user: user, provider: sso_provider_atom(sso_provider)},
           provider_organization_id: body_params.sso_organization_id
         )
       ) ->
@@ -447,7 +461,30 @@ defmodule TuistWeb.API.OrganizationsController do
           organization: organization,
           sso_provider: sso_provider,
           sso_organization_id: body_params.sso_organization_id,
-          sso_enforced: Map.get(body_params, :sso_enforced, false),
+          sso_enforced:
+            case body_params do
+              %{sso_enforced: value} when is_boolean(value) ->
+                value
+
+              _ ->
+                organization.sso_provider == sso_provider_atom(sso_provider) and
+                  organization.sso_enforced
+            end,
+          sso_automatic_enrollment:
+            case body_params do
+              %{sso_automatic_enrollment: value} when is_boolean(value) ->
+                value
+
+              _ when is_nil(organization.sso_provider) ->
+                sso_provider == "google"
+
+              _ ->
+                if organization.sso_provider == sso_provider_atom(sso_provider) do
+                  organization.sso_automatic_enrollment
+                else
+                  sso_provider == "google"
+                end
+            end,
           conn: conn
         })
     end
@@ -458,12 +495,14 @@ defmodule TuistWeb.API.OrganizationsController do
          sso_provider: sso_provider,
          sso_organization_id: sso_organization_id,
          sso_enforced: sso_enforced,
+         sso_automatic_enrollment: sso_automatic_enrollment,
          conn: %Plug.Conn{} = conn
        }) do
     case Accounts.update_organization(organization, %{
-           sso_provider: String.to_atom(sso_provider),
+           sso_provider: sso_provider_atom(sso_provider),
            sso_organization_id: sso_organization_id,
-           sso_enforced: sso_enforced || false
+           sso_enforced: sso_enforced || false,
+           sso_automatic_enrollment: sso_automatic_enrollment
          }) do
       {:ok, organization} ->
         json(conn, %{
@@ -473,6 +512,7 @@ defmodule TuistWeb.API.OrganizationsController do
           sso_provider: organization.sso_provider,
           sso_organization_id: organization.sso_organization_id,
           sso_enforced: organization.sso_enforced,
+          sso_automatic_enrollment: organization.sso_automatic_enrollment,
           members: [],
           invitations: []
         })
@@ -489,6 +529,9 @@ defmodule TuistWeb.API.OrganizationsController do
         |> json(%Error{message: message})
     end
   end
+
+  defp sso_provider_atom("google"), do: :google
+  defp sso_provider_atom("okta"), do: :okta
 
   operation(:remove_member,
     summary: "Removes a member from an organization",
