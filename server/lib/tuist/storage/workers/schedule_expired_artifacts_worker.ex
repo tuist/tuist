@@ -16,12 +16,14 @@ defmodule Tuist.Storage.Workers.ScheduleExpiredArtifactsWorker do
   alias Tuist.Repo
   alias Tuist.Storage.Workers.ArtifactRetentionWorker
   alias Tuist.Storage.Workers.DeleteExpiredBuildArchivesWorker
+  alias Tuist.Storage.Workers.DeleteExpiredLegacyTestAttachmentsWorker
   alias Tuist.Storage.Workers.DeleteExpiredPreviewArtifactsWorker
   alias Tuist.Storage.Workers.DeleteExpiredRunSessionsWorker
   alias Tuist.Storage.Workers.DeleteExpiredShardBundlesWorker
   alias Tuist.Storage.Workers.DeleteExpiredTestAttachmentsWorker
 
   @default_page_size 500
+  @legacy_test_attachment_dry_run true
   @deletion_workers [
     {"app_previews", DeleteExpiredPreviewArtifactsWorker},
     {"build_archives", DeleteExpiredBuildArchivesWorker},
@@ -31,6 +33,7 @@ defmodule Tuist.Storage.Workers.ScheduleExpiredArtifactsWorker do
   ]
 
   def deletion_workers, do: Enum.map(@deletion_workers, fn {_resource_type, worker} -> worker end)
+  def global_deletion_workers, do: [DeleteExpiredLegacyTestAttachmentsWorker]
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: args} = job) do
@@ -40,17 +43,28 @@ defmodule Tuist.Storage.Workers.ScheduleExpiredArtifactsWorker do
     self_hosted = Map.get(args, "self_hosted", false)
     retention_days = effective_retention_days(Map.get(args, "retention_days"), self_hosted)
 
-    if configured_deletion_workers(retention_days) == [] do
+    configured_deletion_workers = configured_deletion_workers(retention_days)
+
+    if configured_deletion_workers == [] do
       :ok
     else
-      schedule_account_page(%{
-        batch_size: batch_size,
-        page_size: page_size,
-        after_id: after_id,
-        retention_days: retention_days,
-        self_hosted: self_hosted,
-        job: job
-      })
+      with :ok <-
+             maybe_enqueue_legacy_test_attachment_sweep(
+               after_id,
+               batch_size,
+               retention_days,
+               self_hosted
+             ) do
+        schedule_account_page(%{
+          batch_size: batch_size,
+          page_size: page_size,
+          after_id: after_id,
+          retention_days: retention_days,
+          self_hosted: self_hosted,
+          job: job,
+          configured_deletion_workers: configured_deletion_workers
+        })
+      end
     end
   end
 
@@ -60,7 +74,8 @@ defmodule Tuist.Storage.Workers.ScheduleExpiredArtifactsWorker do
          after_id: after_id,
          retention_days: retention_days,
          self_hosted: self_hosted,
-         job: job
+         job: job,
+         configured_deletion_workers: configured_deletion_workers
        }) do
     account_ids =
       Account
@@ -74,7 +89,7 @@ defmodule Tuist.Storage.Workers.ScheduleExpiredArtifactsWorker do
 
     deletion_jobs =
       Enum.flat_map(account_ids, fn account_id ->
-        Enum.map(configured_deletion_workers(retention_days), fn {deletion_worker, days} ->
+        Enum.map(configured_deletion_workers, fn {deletion_worker, days} ->
           %{"account_id" => account_id}
           |> maybe_put_batch_size(batch_size)
           |> ArtifactRetentionWorker.put_retention_days(job_retention_days(days, self_hosted))
@@ -100,6 +115,27 @@ defmodule Tuist.Storage.Workers.ScheduleExpiredArtifactsWorker do
       end
     end)
   end
+
+  defp maybe_enqueue_legacy_test_attachment_sweep(0, batch_size, retention_days, self_hosted) do
+    case configured_retention_days(retention_days, "test_attachments") do
+      :disabled ->
+        :ok
+
+      {:enabled, days} ->
+        args =
+          %{"dry_run" => @legacy_test_attachment_dry_run}
+          |> maybe_put_batch_size(batch_size)
+          |> ArtifactRetentionWorker.put_retention_days(job_retention_days(days, self_hosted))
+          |> ArtifactRetentionWorker.put_self_hosted(self_hosted)
+
+        case args |> DeleteExpiredLegacyTestAttachmentsWorker.new() |> Oban.insert() do
+          {:ok, _job} -> :ok
+          error -> error
+        end
+    end
+  end
+
+  defp maybe_enqueue_legacy_test_attachment_sweep(_after_id, _batch_size, _retention_days, _self_hosted), do: :ok
 
   defp schedule_next_account_page([], _account_ids, _page_size, _batch_size, _retention_days, _self_hosted, _job), do: :ok
 
@@ -134,6 +170,15 @@ defmodule Tuist.Storage.Workers.ScheduleExpiredArtifactsWorker do
         :error -> []
       end
     end)
+  end
+
+  defp configured_retention_days(nil, _resource_type), do: {:enabled, nil}
+
+  defp configured_retention_days(retention_days, resource_type) do
+    case Map.fetch(retention_days, resource_type) do
+      {:ok, days} -> {:enabled, days}
+      :error -> :disabled
+    end
   end
 
   defp effective_retention_days(_retention_days, true) do

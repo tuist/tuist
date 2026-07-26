@@ -30,10 +30,14 @@ defmodule Tuist.Storage.ExpiredArtifacts do
   alias Tuist.Shards.ShardPlan
   alias Tuist.Storage
   alias Tuist.Storage.ArtifactRetentionCursor
+  alias Tuist.Storage.LegacyTestAttachmentRetentionCursor
   alias Tuist.Storage.RetentionPolicy
   alias Tuist.Tests
-  alias Tuist.Tests.TestCaseRun
+  alias Tuist.Tests.Test
   alias Tuist.Tests.TestCaseRunAttachment
+  alias Tuist.Tests.TestCaseRunProject
+
+  require Logger
 
   def delete_previews(%Account{} = account, batch_size, opts \\ []) do
     plan = RetentionPolicy.current_plan(account)
@@ -166,21 +170,22 @@ defmodule Tuist.Storage.ExpiredArtifacts do
     else
       rows =
         TestCaseRunAttachment
-        |> join(:inner, [attachment], test_case_run in TestCaseRun, on: attachment.test_case_run_id == test_case_run.id)
+        |> join(:inner, [attachment], test_run in Test, on: attachment.test_run_id == test_run.id)
         |> where(
-          [attachment, test_case_run],
-          test_case_run.project_id in ^project_ids and attachment.inserted_at < ^cutoff
+          [attachment, test_run],
+          not is_nil(attachment.test_run_id) and test_run.project_id in ^project_ids and
+            attachment.inserted_at < ^cutoff
         )
         |> apply_cursor(cursor)
         |> order_by([attachment], asc: attachment.inserted_at, asc: attachment.id)
         |> limit(^batch_size)
-        |> select([attachment, test_case_run], %{
+        |> select([attachment, test_run], %{
           id: attachment.id,
           test_case_run_id: attachment.test_case_run_id,
           test_run_id: attachment.test_run_id,
           file_name: attachment.file_name,
           inserted_at: attachment.inserted_at,
-          project_id: test_case_run.project_id
+          project_id: test_run.project_id
         })
         |> ClickHouseRepo.all()
 
@@ -205,6 +210,91 @@ defmodule Tuist.Storage.ExpiredArtifacts do
         end)
 
       delete_and_continue(account, object_keys, next_cursor(rows, batch_size), progress_cursor(:test_attachment, rows))
+    end
+  end
+
+  def delete_legacy_test_attachments(batch_size, opts \\ []) do
+    retention_days = Keyword.get(opts, :retention_days, 30)
+    dry_run? = Keyword.get(opts, :dry_run, true)
+    cutoff = DateTime.utc_now() |> DateTime.add(-retention_days, :day) |> DateTime.to_naive()
+    sweep = initial_legacy_test_attachment_sweep(opts, dry_run?, cutoff)
+
+    rows =
+      TestCaseRunAttachment
+      |> where(
+        [attachment],
+        is_nil(attachment.test_run_id) and attachment.inserted_at < ^sweep.sweep_before
+      )
+      |> apply_legacy_test_attachment_completed_before(sweep.completed_before)
+      |> apply_legacy_test_attachment_cursor(sweep.cursor)
+      |> order_by([attachment], asc: attachment.test_case_run_id, asc: attachment.id)
+      |> limit(^batch_size)
+      |> select([attachment], %{
+        id: attachment.id,
+        test_case_run_id: attachment.test_case_run_id,
+        file_name: attachment.file_name
+      })
+      |> ClickHouseRepo.all()
+
+    test_case_runs_by_id =
+      rows
+      |> Enum.map(& &1.test_case_run_id)
+      |> resolve_test_case_run_projects()
+
+    projects_by_id =
+      test_case_runs_by_id
+      |> Map.values()
+      |> Enum.uniq()
+      |> projects_with_accounts_by_id()
+
+    {objects_by_account_id, missing_test_case_run_count, deleted_project_count} =
+      Enum.reduce(rows, {%{}, 0, 0}, fn attachment,
+                                        {objects_by_account_id, missing_test_case_run_count, deleted_project_count} ->
+        case Map.fetch(test_case_runs_by_id, attachment.test_case_run_id) do
+          :error ->
+            {objects_by_account_id, missing_test_case_run_count + 1, deleted_project_count}
+
+          {:ok, project_id} ->
+            case Map.fetch(projects_by_id, project_id) do
+              :error ->
+                {objects_by_account_id, missing_test_case_run_count, deleted_project_count + 1}
+
+              {:ok, project} ->
+                {
+                  put_legacy_test_attachment_object(objects_by_account_id, project, attachment),
+                  missing_test_case_run_count,
+                  deleted_project_count
+                }
+            end
+        end
+      end)
+
+    next_cursor = next_legacy_test_attachment_cursor(rows, batch_size, sweep)
+    progress_cursor = legacy_test_attachment_progress_cursor(rows, next_cursor, sweep)
+
+    cond do
+      dry_run? ->
+        object_count =
+          Enum.reduce(objects_by_account_id, 0, fn {_account_id, {_account, object_keys}}, count ->
+            count + length(object_keys)
+          end)
+
+        Logger.info(
+          "Legacy test attachment retention dry run resolved #{object_count} objects across #{map_size(objects_by_account_id)} accounts with #{missing_test_case_run_count} missing test case runs and #{deleted_project_count} deleted projects; #{legacy_test_attachment_sweep_position(sweep, rows)}"
+        )
+
+        {:ok, next_cursor}
+
+      missing_test_case_run_count > 0 ->
+        {:error, {:unresolved_legacy_test_attachments, missing_test_case_run_count}}
+
+      true ->
+        maybe_log_deleted_legacy_test_attachment_projects(deleted_project_count, sweep, rows)
+
+        with :ok <- delete_legacy_test_attachment_objects(objects_by_account_id),
+             :ok <- persist_legacy_test_attachment_cursor(progress_cursor, sweep) do
+          {:ok, next_cursor}
+        end
     end
   end
 
@@ -270,6 +360,70 @@ defmodule Tuist.Storage.ExpiredArtifacts do
     |> Map.new(&{&1.id, &1})
   end
 
+  defp projects_with_accounts_by_id([]), do: %{}
+
+  defp projects_with_accounts_by_id(project_ids) do
+    Project
+    |> where([project], project.id in ^project_ids)
+    |> preload(:account)
+    |> Repo.all()
+    |> Map.new(&{&1.id, &1})
+  end
+
+  defp resolve_test_case_run_projects([]), do: %{}
+
+  defp resolve_test_case_run_projects(test_case_run_ids) do
+    TestCaseRunProject
+    |> from(hints: ["FINAL"])
+    |> where([test_case_run], test_case_run.id in ^test_case_run_ids)
+    |> select([test_case_run], {test_case_run.id, test_case_run.project_id})
+    |> ClickHouseRepo.all()
+    |> Map.new()
+  end
+
+  defp delete_legacy_test_attachment_objects(objects_by_account_id) do
+    Enum.reduce_while(objects_by_account_id, :ok, fn {_account_id, {account, object_keys}}, :ok ->
+      case Storage.delete_objects(Enum.uniq(object_keys), account) do
+        :ok -> {:cont, :ok}
+        {:error, _reason} = error -> {:halt, error}
+      end
+    end)
+  end
+
+  defp put_legacy_test_attachment_object(objects_by_account_id, project, attachment) do
+    object_key =
+      Tests.attachment_storage_key(%{
+        account_handle: project.account.name,
+        project_handle: project.name,
+        attachment_id: attachment.id,
+        test_case_run_id: attachment.test_case_run_id,
+        test_run_id: nil,
+        file_name: attachment.file_name
+      })
+
+    Map.update(
+      objects_by_account_id,
+      project.account.id,
+      {project.account, [object_key]},
+      fn {account, object_keys} -> {account, [object_key | object_keys]} end
+    )
+  end
+
+  defp maybe_log_deleted_legacy_test_attachment_projects(0, _sweep, _rows), do: :ok
+
+  defp maybe_log_deleted_legacy_test_attachment_projects(count, sweep, rows) do
+    Logger.warning(
+      "Legacy test attachment retention skipped #{count} rows whose projects have been deleted; #{legacy_test_attachment_sweep_position(sweep, rows)}"
+    )
+  end
+
+  defp legacy_test_attachment_sweep_position(sweep, rows) do
+    last = List.last(rows)
+
+    "completed_before=#{inspect(sweep.completed_before)} sweep_before=#{inspect(sweep.sweep_before)} " <>
+      "after_test_case_run_id=#{inspect(last && last.test_case_run_id)} after_id=#{inspect(last && last.id)}"
+  end
+
   defp apply_cursor(query, cursor), do: apply_cursor(query, cursor, :inserted_at)
 
   defp apply_cursor(query, nil, _field), do: query
@@ -280,6 +434,23 @@ defmodule Tuist.Storage.ExpiredArtifacts do
       [row],
       field(row, ^field) > ^inserted_at or (field(row, ^field) == ^inserted_at and row.id > ^id)
     )
+  end
+
+  defp apply_legacy_test_attachment_cursor(query, nil), do: query
+
+  defp apply_legacy_test_attachment_cursor(query, {test_case_run_id, attachment_id}) do
+    where(
+      query,
+      [attachment],
+      attachment.test_case_run_id > ^test_case_run_id or
+        (attachment.test_case_run_id == ^test_case_run_id and attachment.id > ^attachment_id)
+    )
+  end
+
+  defp apply_legacy_test_attachment_completed_before(query, nil), do: query
+
+  defp apply_legacy_test_attachment_completed_before(query, completed_before) do
+    where(query, [attachment], attachment.inserted_at >= ^completed_before)
   end
 
   defp initial_cursor(%Account{} = account, artifact_type, opts, kind) do
@@ -309,6 +480,74 @@ defmodule Tuist.Storage.ExpiredArtifacts do
     end
   end
 
+  defp initial_legacy_test_attachment_sweep(opts, dry_run?, cutoff) do
+    case parse_legacy_test_attachment_sweep(opts) do
+      {:ok, sweep} ->
+        sweep
+
+      :error when dry_run? ->
+        %{completed_before: nil, sweep_before: cutoff, cursor: nil}
+
+      :error ->
+        persisted_legacy_test_attachment_sweep(cutoff)
+    end
+  end
+
+  defp parse_legacy_test_attachment_sweep(opts) do
+    with sweep_before when is_binary(sweep_before) <- Keyword.get(opts, :sweep_before),
+         {:ok, sweep_before} <- parse_inserted_at(sweep_before, :naive),
+         {:ok, completed_before} <-
+           parse_optional_inserted_at(Keyword.get(opts, :completed_before), :naive) do
+      {:ok,
+       %{
+         completed_before: completed_before,
+         sweep_before: sweep_before,
+         cursor: parse_legacy_test_attachment_cursor(opts)
+       }}
+    else
+      _ -> :error
+    end
+  end
+
+  defp parse_legacy_test_attachment_cursor(opts) do
+    case {Keyword.get(opts, :after_test_case_run_id), Keyword.get(opts, :after_id)} do
+      {test_case_run_id, attachment_id}
+      when is_binary(test_case_run_id) and is_binary(attachment_id) ->
+        {test_case_run_id, attachment_id}
+
+      _ ->
+        nil
+    end
+  end
+
+  defp persisted_legacy_test_attachment_sweep(cutoff) do
+    case Repo.get_by(LegacyTestAttachmentRetentionCursor, artifact_type: :legacy_test_attachment) do
+      nil ->
+        %{completed_before: nil, sweep_before: cutoff, cursor: nil}
+
+      %LegacyTestAttachmentRetentionCursor{
+        after_test_case_run_id: test_case_run_id,
+        after_id: attachment_id
+      } = cursor
+      when not is_nil(test_case_run_id) and not is_nil(attachment_id) ->
+        %{
+          completed_before: stored_inserted_at(cursor.completed_before, :naive),
+          sweep_before: stored_inserted_at(cursor.sweep_before, :naive),
+          cursor: {test_case_run_id, attachment_id}
+        }
+
+      %LegacyTestAttachmentRetentionCursor{} = cursor ->
+        %{
+          completed_before: stored_inserted_at(cursor.completed_before, :naive),
+          sweep_before: cutoff,
+          cursor: nil
+        }
+    end
+  end
+
+  defp parse_optional_inserted_at(nil, _kind), do: {:ok, nil}
+  defp parse_optional_inserted_at(value, kind), do: parse_inserted_at(value, kind)
+
   defp parse_inserted_at(value, :utc) do
     case DateTime.from_iso8601(value) do
       {:ok, datetime, _offset} -> {:ok, datetime}
@@ -325,6 +564,21 @@ defmodule Tuist.Storage.ExpiredArtifacts do
     %{"after_inserted_at" => inserted_at_to_iso(last.inserted_at), "after_id" => last.id}
   end
 
+  defp next_legacy_test_attachment_cursor(rows, batch_size, _sweep) when length(rows) < batch_size, do: nil
+
+  defp next_legacy_test_attachment_cursor(rows, _batch_size, sweep) do
+    last = List.last(rows)
+
+    maybe_put_completed_before(
+      %{
+        "after_test_case_run_id" => last.test_case_run_id,
+        "after_id" => last.id,
+        "sweep_before" => inserted_at_to_iso(sweep.sweep_before)
+      },
+      sweep.completed_before
+    )
+  end
+
   defp progress_cursor(_artifact_type, []), do: nil
 
   defp progress_cursor(artifact_type, rows) do
@@ -333,6 +587,28 @@ defmodule Tuist.Storage.ExpiredArtifacts do
     %{
       artifact_type: artifact_type,
       after_inserted_at: progress_inserted_at(last.inserted_at),
+      after_id: last.id
+    }
+  end
+
+  defp legacy_test_attachment_progress_cursor(_rows, nil, sweep) do
+    %{
+      artifact_type: :legacy_test_attachment,
+      completed_before: progress_inserted_at(sweep.sweep_before),
+      sweep_before: progress_inserted_at(sweep.sweep_before),
+      after_test_case_run_id: nil,
+      after_id: nil
+    }
+  end
+
+  defp legacy_test_attachment_progress_cursor(rows, _next_cursor, sweep) do
+    last = List.last(rows)
+
+    %{
+      artifact_type: :legacy_test_attachment,
+      completed_before: optional_progress_inserted_at(sweep.completed_before),
+      sweep_before: progress_inserted_at(sweep.sweep_before),
+      after_test_case_run_id: last.test_case_run_id,
       after_id: last.id
     }
   end
@@ -372,12 +648,66 @@ defmodule Tuist.Storage.ExpiredArtifacts do
     end
   end
 
+  defp persist_legacy_test_attachment_cursor(progress_cursor, sweep) do
+    case Repo.transaction(fn ->
+           persisted_cursor =
+             LegacyTestAttachmentRetentionCursor
+             |> where([cursor], cursor.artifact_type == :legacy_test_attachment)
+             |> lock("FOR UPDATE")
+             |> Repo.one()
+
+           persist_legacy_test_attachment_cursor_change(persisted_cursor, progress_cursor, sweep)
+         end) do
+      {:ok, :ok} -> :ok
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp persist_legacy_test_attachment_cursor_change(persisted_cursor, progress_cursor, sweep) do
+    if legacy_test_attachment_sweep_matches?(persisted_cursor, sweep) do
+      persisted_cursor
+      |> Kernel.||(%LegacyTestAttachmentRetentionCursor{})
+      |> LegacyTestAttachmentRetentionCursor.changeset(progress_cursor)
+      |> Repo.insert_or_update()
+      |> case do
+        {:ok, _cursor} -> :ok
+        {:error, reason} -> Repo.rollback(reason)
+      end
+    else
+      Repo.rollback(:stale_legacy_test_attachment_cursor)
+    end
+  end
+
+  defp legacy_test_attachment_sweep_matches?(nil, _sweep), do: true
+
+  defp legacy_test_attachment_sweep_matches?(persisted_cursor, %{cursor: nil} = sweep) do
+    is_nil(persisted_cursor.after_test_case_run_id) and
+      is_nil(persisted_cursor.after_id) and
+      stored_inserted_at(persisted_cursor.completed_before, :naive) == sweep.completed_before
+  end
+
+  defp legacy_test_attachment_sweep_matches?(persisted_cursor, %{cursor: {test_case_run_id, attachment_id}} = sweep) do
+    stored_inserted_at(persisted_cursor.completed_before, :naive) == sweep.completed_before and
+      stored_inserted_at(persisted_cursor.sweep_before, :naive) == sweep.sweep_before and
+      persisted_cursor.after_test_case_run_id == test_case_run_id and
+      persisted_cursor.after_id == attachment_id
+  end
+
   defp stored_inserted_at(%DateTime{} = inserted_at, :utc), do: inserted_at
   defp stored_inserted_at(%DateTime{} = inserted_at, :naive), do: DateTime.to_naive(inserted_at)
+  defp stored_inserted_at(nil, _kind), do: nil
 
   defp progress_inserted_at(%DateTime{} = inserted_at), do: inserted_at
   defp progress_inserted_at(%NaiveDateTime{} = inserted_at), do: DateTime.from_naive!(inserted_at, "Etc/UTC")
+  defp optional_progress_inserted_at(nil), do: nil
+  defp optional_progress_inserted_at(inserted_at), do: progress_inserted_at(inserted_at)
 
   defp inserted_at_to_iso(%DateTime{} = inserted_at), do: DateTime.to_iso8601(inserted_at)
   defp inserted_at_to_iso(%NaiveDateTime{} = inserted_at), do: NaiveDateTime.to_iso8601(inserted_at)
+
+  defp maybe_put_completed_before(cursor, nil), do: cursor
+
+  defp maybe_put_completed_before(cursor, completed_before) do
+    Map.put(cursor, "completed_before", inserted_at_to_iso(completed_before))
+  end
 end

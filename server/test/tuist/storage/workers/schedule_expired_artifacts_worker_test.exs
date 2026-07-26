@@ -9,6 +9,7 @@ defmodule Tuist.Storage.Workers.ScheduleExpiredArtifactsWorkerTest do
   alias Tuist.Environment
   alias Tuist.Repo
   alias Tuist.Storage.Workers.DeleteExpiredBuildArchivesWorker
+  alias Tuist.Storage.Workers.DeleteExpiredLegacyTestAttachmentsWorker
   alias Tuist.Storage.Workers.DeleteExpiredPreviewArtifactsWorker
   alias Tuist.Storage.Workers.DeleteExpiredRunSessionsWorker
   alias Tuist.Storage.Workers.DeleteExpiredShardBundlesWorker
@@ -30,6 +31,46 @@ defmodule Tuist.Storage.Workers.ScheduleExpiredArtifactsWorkerTest do
         assert unique.period == :infinity
         assert unique.states == [:available, :scheduled, :executing, :retryable]
       end)
+
+      Enum.each(ScheduleExpiredArtifactsWorker.global_deletion_workers(), fn worker ->
+        unique = worker.new(%{}).changes.unique
+
+        assert unique.fields == [:queue, :worker]
+        assert unique.period == :infinity
+        assert unique.states == [:available, :scheduled, :executing, :retryable]
+      end)
+    end
+
+    test "enqueues the global legacy test attachment sweep in dry-run mode" do
+      _account = account_fixture()
+
+      assert :ok =
+               perform_job(ScheduleExpiredArtifactsWorker, %{
+                 "batch_size" => 10,
+                 "page_size" => 500
+               })
+
+      assert_enqueued(
+        worker: DeleteExpiredLegacyTestAttachmentsWorker,
+        args: %{"batch_size" => 10, "dry_run" => true}
+      )
+    end
+
+    test "self-hosted legacy test attachment sweeps read retention from the environment" do
+      _account = account_fixture()
+      stub(Environment, :artifact_retention_days, fn -> %{test_attachments: 45} end)
+
+      assert :ok =
+               perform_job(ScheduleExpiredArtifactsWorker, %{
+                 "batch_size" => 10,
+                 "page_size" => 500,
+                 "self_hosted" => true
+               })
+
+      assert_enqueued(
+        worker: DeleteExpiredLegacyTestAttachmentsWorker,
+        args: %{"batch_size" => 10, "dry_run" => true, "self_hosted" => true}
+      )
     end
 
     test "enqueues one deletion job per account and artifact type and reschedules the next page" do
@@ -67,6 +108,7 @@ defmodule Tuist.Storage.Workers.ScheduleExpiredArtifactsWorkerTest do
                })
 
       assert_deletion_jobs_enqueued(second_account_id)
+      refute_enqueued(worker: DeleteExpiredLegacyTestAttachmentsWorker)
     end
 
     test "self-hosted enqueues only the resource types configured in the environment" do
@@ -94,6 +136,7 @@ defmodule Tuist.Storage.Workers.ScheduleExpiredArtifactsWorkerTest do
       refute_enqueued(worker: DeleteExpiredBuildArchivesWorker)
       refute_enqueued(worker: DeleteExpiredTestAttachmentsWorker)
       refute_enqueued(worker: DeleteExpiredShardBundlesWorker)
+      refute_enqueued(worker: DeleteExpiredLegacyTestAttachmentsWorker)
 
       assert_enqueued(
         worker: ScheduleExpiredArtifactsWorker,
@@ -173,6 +216,7 @@ defmodule Tuist.Storage.Workers.ScheduleExpiredArtifactsWorkerTest do
         refute_enqueued(worker: deletion_worker)
       end)
 
+      refute_enqueued(worker: DeleteExpiredLegacyTestAttachmentsWorker)
       refute_enqueued(worker: ScheduleExpiredArtifactsWorker)
     end
   end
