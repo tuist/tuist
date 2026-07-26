@@ -30,8 +30,27 @@ var (
 		Name:      "failovers_total",
 		Help:      "Total number of stable outbound address assignments performed during failover.",
 	})
+	gatewayNodeHealthy = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "tuist",
+		Subsystem: "stable_egress",
+		Name:      "gateway_node_healthy",
+		Help:      "Whether the controller can directly reach the Cilium listener on a gateway node.",
+	}, []string{"node"})
+	gatewayHealthCheckFailures = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "tuist",
+		Subsystem: "stable_egress",
+		Name:      "health_check_failures_total",
+		Help:      "Total number of failed direct gateway node health checks.",
+	}, []string{"node"})
 )
 
 func init() {
-	metrics.Registry.MustRegister(gatewayAvailable, gatewayPrepared, gatewayActive, gatewayFailovers)
+	metrics.Registry.MustRegister(
+		gatewayAvailable,
+		gatewayPrepared,
+		gatewayActive,
+		gatewayFailovers,
+		gatewayNodeHealthy,
+		gatewayHealthCheckFailures,
+	)
 }

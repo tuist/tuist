@@ -47,6 +47,9 @@ k8s-monitoring:
                 - alloy_config_last_load_success_timestamp_seconds
 
   collectors:
+    alloy-metrics:
+      includeDestinations:
+        - grafana-cloud-metrics
     alloy-logs:
       enabled: false
     alloy-singleton:

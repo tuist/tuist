@@ -10,23 +10,28 @@ policy routes through one gateway node, and the Floating IP can only be assigned
 to one server at a time — so the gateway is inherently active/standby. This
 controller makes the failover automatic.
 
-It keeps one Ready node designated **active** — holding the Floating IP (Hetzner
-Cloud API) and the active gateway label. It **adopts** whatever node already
-holds the active label as long as that node is Ready (even one outside the
-candidate pool), so it never disturbs a working gateway — enabling it over an
-existing hand-configured gateway moves nothing (no Floating IP churn, no Cilium
-reconvergence, no egress blip). Only when there is no healthy active node does it
-fail over to a Ready candidate whose host-configurer Pod has reported Ready,
-moving the IP + label together. This replaces the manual `hcloud floating-ip
+It keeps one directly healthy, host-prepared node designated **active** —
+holding the Floating IP (Hetzner Cloud API) and the active gateway label.
+Kubernetes NodeReady does not demote a working active gateway, but readiness and
+schedulability are required before promoting a standby. The controller adopts
+an already-active prepared node without disturbing it. Only after 90 seconds of
+continuous direct health-check failure does it fail over to another prepared
+candidate. It removes the old selector before moving the address, then selects
+the new gateway after the provider assignment succeeds. This replaces the
+manual `hcloud floating-ip
 assign` + relabel runbook
 that caused a multi-hour egress outage on 2026-06-14 when a hand-labelled gateway
 node was replaced.
+
+The grace timestamps are deliberately leader-local. A controller restart or
+leadership handover restarts the grace period, preferring a delayed failover
+over moving the outbound address on stale health evidence.
 
 ## Architecture
 
 ```
  md-egress pool (≥2 nodes)            this controller (2 replicas, leader-elected)
- each self-labels at kubelet:          watches Nodes ──► elects 1 Ready candidate
+ each self-labels at kubelet:          watches Nodes ──► checks Cilium directly
    tuist.dev/stable-egress-                              │
      candidate=server       host-configurer prepares IP ──┤
                                 and reports Pod Ready      ├─► Hetzner API: assign Floating IP → active node
@@ -65,6 +70,10 @@ The Deployment + RBAC are rendered by the platform Helm chart
 | `--active-label` | `tuist.dev/stable-egress-gateway=server` | label placed on the single active node selected by Cilium |
 | `--prepared-pod-label` | `tuist.dev/stable-egress-host-configurer=true` | Ready Pod label proving a candidate has the outbound address configured |
 | `--prepared-pod-namespace` | `kube-system` | namespace containing the host-configurer Pods |
+| `--node-health-port` | `9962` | Cilium host-network listener used to check node reachability independently from NodeReady |
+| `--node-health-timeout` | `2s` | timeout for each direct node health check |
+| `--node-unhealthy-grace-period` | `90s` | continuous failed-health duration required before failover |
+| `--node-unprepared-grace-period` | `5m` | continuous missing host-preparation duration required before failover |
 | `--hcloud-token-path` | `/etc/hcloud/token` | token file, mounted from `kube-system/hcloud` |
 | `--resync-interval` | `30s` | periodic reconcile floor; Node eligibility changes and host-configurer Pod changes trigger reconciles in between. Kubelet status heartbeats are filtered out so the per-reconcile Hetzner read stays well under the API rate limit. |
 | `--leader-elect` | `true` | required when `replicas > 1` |
@@ -105,5 +114,8 @@ Keep `failoverController.enabled: false` in prod until the image is released
 The controller exposes `tuist_stable_egress_gateway_available`,
 `tuist_stable_egress_gateway_prepared`,
 `tuist_stable_egress_gateway_active`, and
-`tuist_stable_egress_failovers_total` alongside controller-runtime reconcile
-metrics. The platform chart annotates the metrics port for Alloy discovery.
+`tuist_stable_egress_failovers_total`,
+`tuist_stable_egress_gateway_node_healthy`, and
+`tuist_stable_egress_health_check_failures_total` alongside controller-runtime
+reconcile metrics. The platform chart annotates the metrics port for Alloy
+discovery.

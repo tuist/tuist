@@ -335,6 +335,18 @@ ciliumEgressGateway:
       # an un-allowlisted egress IP. Keep this in lockstep with the customer
       # network guide (server/priv/docs/en/guides/server/network.md).
       egressIpAllowlist: []
+      # Port 9962 requires Cilium's Prometheus listener, which the managed
+      # workload bootstrap enables on every Linux node.
+      # Probe Cilium directly on the node instead of treating Kubernetes
+      # NodeReady as the active-gateway failover signal. The wall-clock grace
+      # period cannot be consumed early by bursts of Kubernetes events.
+      nodeHealthPort: 9962
+      nodeHealthTimeout: 2s
+      nodeUnhealthyGracePeriod: 90s
+      # Host preparation is a promotion requirement. A longer demotion grace
+      # avoids moving the address during a host-configurer rolling update while
+      # still recovering when the address or source-routing state stays absent.
+      nodeUnpreparedGracePeriod: 5m
       resources:
         requests:
           cpu: 25m

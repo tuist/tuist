@@ -1,10 +1,10 @@
 // Command manager is the controller-manager binary for
 // stable-egress-controller. It runs in a workload cluster and keeps the
-// hosted server's stable-egress gateway highly available: exactly one Ready
-// node from the egress candidate pool holds the Hetzner Floating IP and the
-// active gateway label (which the CiliumEgressGatewayPolicy + host-configurer
-// select on). On loss of that node it re-elects another Ready candidate and
-// moves the Floating IP + label together — replacing the manual
+// hosted server's stable-egress gateway highly available: exactly one
+// host-prepared node from the egress candidate pool holds the Hetzner Floating
+// IP and the active gateway label (which the CiliumEgressGatewayPolicy
+// selects on). On loss of that node it elects another prepared, directly
+// reachable candidate and moves the Floating IP + label together, replacing the manual
 // `hcloud floating-ip assign` failover runbook.
 package main
 
@@ -15,10 +15,14 @@ import (
 	"strings"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
@@ -50,6 +54,10 @@ func main() {
 		tokenPath         string
 		egressIPAllowlist string
 		resyncInterval    time.Duration
+		nodeHealthPort    int
+		nodeHealthTimeout time.Duration
+		unhealthyGrace    time.Duration
+		unpreparedGrace   time.Duration
 	)
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "Prometheus metrics endpoint")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "Liveness/readiness probe endpoint")
@@ -74,6 +82,14 @@ func main() {
 			"controller refuses (fails closed) to operate a Floating IP whose address is outside it")
 	flag.DurationVar(&resyncInterval, "resync-interval", 30*time.Second,
 		"Periodic reconcile interval; node events trigger reconciles in between")
+	flag.IntVar(&nodeHealthPort, "node-health-port", 9962,
+		"Host-network Cilium listener port used for direct gateway health checks")
+	flag.DurationVar(&nodeHealthTimeout, "node-health-timeout", 2*time.Second,
+		"Timeout for each direct gateway node health check")
+	flag.DurationVar(&unhealthyGrace, "node-unhealthy-grace-period", 90*time.Second,
+		"Continuous direct health check failure duration required before failover")
+	flag.DurationVar(&unpreparedGrace, "node-unprepared-grace-period", 5*time.Minute,
+		"Continuous host preparation failure duration required before failover")
 
 	opts := zap.Options{Development: false}
 	opts.BindFlags(flag.CommandLine)
@@ -104,6 +120,26 @@ func main() {
 		setupLog.Error(nil, "--prepared-pod-namespace must not be empty")
 		os.Exit(1)
 	}
+	if nodeHealthPort < 1 || nodeHealthPort > 65535 {
+		setupLog.Error(nil, "--node-health-port must be between 1 and 65535")
+		os.Exit(1)
+	}
+	if nodeHealthTimeout <= 0 {
+		setupLog.Error(nil, "--node-health-timeout must be positive")
+		os.Exit(1)
+	}
+	if unhealthyGrace <= 0 {
+		setupLog.Error(nil, "--node-unhealthy-grace-period must be positive")
+		os.Exit(1)
+	}
+	if unpreparedGrace <= 0 {
+		setupLog.Error(nil, "--node-unprepared-grace-period must be positive")
+		os.Exit(1)
+	}
+	if resyncInterval <= 0 {
+		setupLog.Error(nil, "--resync-interval must be positive")
+		os.Exit(1)
+	}
 
 	allowlist, err := parsePrefixes(egressIPAllowlist)
 	if err != nil {
@@ -123,6 +159,14 @@ func main() {
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         enableLeaderElection,
 		LeaderElectionID:       "stable-egress-controller.tuist.dev",
+		Cache: cache.Options{
+			ByObject: map[client.Object]cache.ByObject{
+				&corev1.Pod{}: {
+					Namespaces: map[string]cache.Config{preparedPodNS: {}},
+					Label:      labels.SelectorFromSet(labels.Set{preparedKey: preparedVal}),
+				},
+			},
+		},
 	})
 	if err != nil {
 		setupLog.Error(err, "create manager")
@@ -141,6 +185,12 @@ func main() {
 		PreparedPodLabelKey:   preparedKey,
 		PreparedPodLabelValue: preparedVal,
 		EgressIPAllowlist:     allowlist,
+		NodeHealthChecker: controllers.DirectNodeHealthChecker{
+			Port:    nodeHealthPort,
+			Timeout: nodeHealthTimeout,
+		},
+		UnhealthyGracePeriod:  unhealthyGrace,
+		UnpreparedGracePeriod: unpreparedGrace,
 		ResyncInterval:        resyncInterval,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "setup FailoverReconciler")

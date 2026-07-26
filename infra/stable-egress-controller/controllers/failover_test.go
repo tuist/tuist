@@ -42,10 +42,10 @@ func TestSelectGateway(t *testing.T) {
 	}{
 		{"adopt healthy active even if non-candidate", []corev1.Node{tnode("c1", true), tnode("c2", true)}, []corev1.Node{tnode("general-1", true)}, "general-1"},
 		{"sticky to active candidate", []corev1.Node{tnode("a", true), tnode("b", true)}, []corev1.Node{tnode("a", true)}, "a"},
-		{"failover to candidate when active NotReady", []corev1.Node{tnode("b", true), tnode("c", true)}, []corev1.Node{tnode("a", false)}, "b"},
+		{"use candidate when unhealthy active was filtered out", []corev1.Node{tnode("b", true), tnode("c", true)}, nil, "b"},
+		{"NodeReady does not affect an already checked active node", []corev1.Node{tnode("b", true)}, []corev1.Node{tnode("a", false)}, "a"},
 		{"elect lexically-lowest candidate when no active", []corev1.Node{tnode("c", true), tnode("a", true), tnode("b", true)}, nil, "a"},
 		{"nothing eligible", nil, nil, ""},
-		{"active NotReady and no Ready candidate", []corev1.Node{tnode("b", false)}, []corev1.Node{tnode("a", false)}, ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -76,12 +76,27 @@ type fakeFIP struct {
 	addr      string
 	assignErr error
 	assigns   []int64
+	onAssign  func()
+}
+
+type fakeNodeHealth struct {
+	healthy map[string]bool
+}
+
+func (f fakeNodeHealth) Healthy(_ context.Context, node *corev1.Node) (bool, error) {
+	if healthy, ok := f.healthy[node.Name]; ok {
+		return healthy, nil
+	}
+	return true, nil
 }
 
 func (f *fakeFIP) Get(context.Context, string) (string, int64, error) { return f.addr, f.server, nil }
 func (f *fakeFIP) Assign(_ context.Context, _ string, serverID int64) error {
 	if f.assignErr != nil {
 		return f.assignErr
+	}
+	if f.onAssign != nil {
+		f.onAssign()
 	}
 	f.assigns = append(f.assigns, serverID)
 	f.server = serverID
@@ -127,14 +142,16 @@ func preparedPod(name, node string, ready bool) *corev1.Pod {
 func newReconciler(fip FloatingIPManager, objs ...client.Object) *FailoverReconciler {
 	c := fake.NewClientBuilder().WithObjects(objs...).Build()
 	return &FailoverReconciler{
-		Client:              c,
-		FIP:                 fip,
-		FloatingIPName:      "tuist-production-server-egress",
-		CandidateLabelKey:   candKey,
-		CandidateLabelValue: candVal,
-		ActiveLabelKey:      actKey,
-		ActiveLabelValue:    actVal,
-		ResyncInterval:      30 * time.Second,
+		Client:               c,
+		FIP:                  fip,
+		FloatingIPName:       "tuist-production-server-egress",
+		CandidateLabelKey:    candKey,
+		CandidateLabelValue:  candVal,
+		ActiveLabelKey:       actKey,
+		ActiveLabelValue:     actVal,
+		NodeHealthChecker:    fakeNodeHealth{},
+		ResyncInterval:       30 * time.Second,
+		UnhealthyGracePeriod: 0,
 	}
 }
 
@@ -159,6 +176,7 @@ func TestReconcileFailover(t *testing.T) {
 	alive := candidateNode("egress-b", "hcloud://222", true, false)
 	fip := &fakeFIP{server: 111} // IP still on the dead node
 	r := newReconciler(fip, dead, alive)
+	r.NodeHealthChecker = fakeNodeHealth{healthy: map[string]bool{"egress-a": false}}
 
 	if _, err := r.Reconcile(context.Background(), reconcile.Request{NamespacedName: types.NamespacedName{Name: reconcileName}}); err != nil {
 		t.Fatal(err)
@@ -189,6 +207,7 @@ func TestReconcileWaitsForPreparedCandidate(t *testing.T) {
 	r.PreparedPodNamespace = "kube-system"
 	r.PreparedPodLabelKey = "app.kubernetes.io/name"
 	r.PreparedPodLabelValue = "host-configurer"
+	r.NodeHealthChecker = fakeNodeHealth{healthy: map[string]bool{"egress-a": false}}
 
 	if _, err := r.Reconcile(context.Background(), reconcile.Request{NamespacedName: types.NamespacedName{Name: reconcileName}}); err != nil {
 		t.Fatal(err)
@@ -199,6 +218,37 @@ func TestReconcileWaitsForPreparedCandidate(t *testing.T) {
 	}
 	if got := activeNames(t, r); len(got) != 1 || got[0] != "egress-c" {
 		t.Fatalf("active nodes = %v, want [egress-c]", got)
+	}
+}
+
+func TestReconcileLeavesCurrentAssignmentWhenNoCandidateIsPrepared(t *testing.T) {
+	active := candidateNode("egress-a", "hcloud://111", false, true)
+	standby := candidateNode("egress-b", "hcloud://222", true, false)
+	fip := &fakeFIP{server: 111}
+	r := newReconciler(
+		fip,
+		active,
+		standby,
+		preparedPod("host-configurer-a", "egress-a", false),
+		preparedPod("host-configurer-b", "egress-b", false),
+	)
+	r.PreparedPodNamespace = "kube-system"
+	r.PreparedPodLabelKey = "app.kubernetes.io/name"
+	r.PreparedPodLabelValue = "host-configurer"
+	r.NodeHealthChecker = fakeNodeHealth{healthy: map[string]bool{"egress-a": false}}
+
+	if _, err := r.Reconcile(context.Background(), reconcile.Request{}); err != nil {
+		t.Fatal(err)
+	}
+
+	if fip.server != 111 {
+		t.Fatalf("Floating IP moved to unprepared server %d", fip.server)
+	}
+	if len(fip.assigns) != 0 {
+		t.Fatalf("unexpected Floating IP assignments: %v", fip.assigns)
+	}
+	if got := activeNames(t, r); len(got) != 1 || got[0] != "egress-a" {
+		t.Fatalf("active selectors = %v, want stale provider holder [egress-a]", got)
 	}
 }
 
@@ -277,6 +327,7 @@ func TestReconcileStripsDeadNonCandidateLabelOnFailover(t *testing.T) {
 	}
 	fip := &fakeFIP{server: 111}
 	r := newReconciler(fip, candidate, dead)
+	r.NodeHealthChecker = fakeNodeHealth{healthy: map[string]bool{"general-1": false}}
 
 	if _, err := r.Reconcile(context.Background(), reconcile.Request{NamespacedName: types.NamespacedName{Name: reconcileName}}); err != nil {
 		t.Fatal(err)
@@ -394,6 +445,16 @@ func TestSetupRequiresPreparedPodSelector(t *testing.T) {
 	}
 }
 
+func TestSetupRequiresNodeHealthChecker(t *testing.T) {
+	r := newReconciler(&fakeFIP{})
+	r.PreparedPodNamespace = "kube-system"
+	r.PreparedPodLabelKey = "app.kubernetes.io/name"
+	r.NodeHealthChecker = nil
+	if err := r.SetupWithManager(nil); err == nil {
+		t.Fatal("expected setup to reject a nil node health checker")
+	}
+}
+
 // Steady state: active node healthy — no IP churn, label unchanged.
 func TestReconcileStickyNoChurn(t *testing.T) {
 	a := candidateNode("egress-a", "hcloud://111", true, true)
@@ -409,5 +470,258 @@ func TestReconcileStickyNoChurn(t *testing.T) {
 	}
 	if got := activeNames(t, r); len(got) != 1 || got[0] != "egress-a" {
 		t.Fatalf("active nodes = %v, want [egress-a]", got)
+	}
+}
+
+func TestReconcileIgnoresNodeReadyWhenDirectHealthSucceeds(t *testing.T) {
+	active := candidateNode("egress-a", "hcloud://111", false, true)
+	standby := candidateNode("egress-b", "hcloud://222", true, false)
+	fip := &fakeFIP{server: 111}
+	r := newReconciler(fip, active, standby)
+
+	if _, err := r.Reconcile(context.Background(), reconcile.Request{}); err != nil {
+		t.Fatal(err)
+	}
+	if len(fip.assigns) != 0 {
+		t.Fatalf("NodeReady alone must not move the Floating IP, got %v", fip.assigns)
+	}
+	if got := activeNames(t, r); len(got) != 1 || got[0] != "egress-a" {
+		t.Fatalf("active nodes = %v, want [egress-a]", got)
+	}
+}
+
+func TestReconcileRequiresContinuousDirectHealthFailure(t *testing.T) {
+	active := candidateNode("egress-a", "hcloud://111", true, true)
+	standby := candidateNode("egress-b", "hcloud://222", true, false)
+	fip := &fakeFIP{server: 111}
+	r := newReconciler(fip, active, standby)
+	r.NodeHealthChecker = fakeNodeHealth{healthy: map[string]bool{"egress-a": false}}
+	r.UnhealthyGracePeriod = 90 * time.Second
+	now := time.Unix(1_000, 0)
+	r.Now = func() time.Time { return now }
+
+	for attempt := 1; attempt <= 3; attempt++ {
+		if _, err := r.Reconcile(context.Background(), reconcile.Request{}); err != nil {
+			t.Fatal(err)
+		}
+		if fip.server != 111 {
+			t.Fatalf("attempt %d moved the Floating IP before the grace period", attempt)
+		}
+	}
+
+	now = now.Add(89 * time.Second)
+	if _, err := r.Reconcile(context.Background(), reconcile.Request{}); err != nil {
+		t.Fatal(err)
+	}
+	if fip.server != 111 {
+		t.Fatal("moved the Floating IP before 90 seconds of continuous failure")
+	}
+
+	now = now.Add(time.Second)
+	if _, err := r.Reconcile(context.Background(), reconcile.Request{}); err != nil {
+		t.Fatal(err)
+	}
+	if fip.server != 222 {
+		t.Fatalf("Floating IP on server %d after the grace period, want 222", fip.server)
+	}
+}
+
+func TestReconcileDoesNotUndoExternalAssignmentDuringGracePeriod(t *testing.T) {
+	active := candidateNode("egress-a", "hcloud://111", true, true)
+	standby := candidateNode("egress-b", "hcloud://222", true, false)
+	fip := &fakeFIP{server: 111}
+	r := newReconciler(fip, active, standby)
+	r.NodeHealthChecker = fakeNodeHealth{healthy: map[string]bool{"egress-a": false}}
+	r.UnhealthyGracePeriod = 90 * time.Second
+	now := time.Unix(1_000, 0)
+	r.Now = func() time.Time { return now }
+
+	if _, err := r.Reconcile(context.Background(), reconcile.Request{}); err != nil {
+		t.Fatal(err)
+	}
+	fip.server = 222
+	now = now.Add(30 * time.Second)
+	if _, err := r.Reconcile(context.Background(), reconcile.Request{}); err != nil {
+		t.Fatal(err)
+	}
+
+	if fip.server != 222 {
+		t.Fatalf("controller pulled the Floating IP back to unhealthy server %d during grace", fip.server)
+	}
+	if len(fip.assigns) != 0 {
+		t.Fatalf("grace period must not write provider state, got assignments %v", fip.assigns)
+	}
+	if got := activeNames(t, r); len(got) != 1 || got[0] != "egress-a" {
+		t.Fatalf("grace period changed active selectors to %v", got)
+	}
+}
+
+func TestReconcileOnlyPromotesReadySchedulableCandidate(t *testing.T) {
+	active := candidateNode("egress-a", "hcloud://111", false, true)
+	notReady := candidateNode("egress-b", "hcloud://222", false, false)
+	unschedulable := candidateNode("egress-c", "hcloud://333", true, false)
+	unschedulable.Spec.Unschedulable = true
+	deleting := candidateNode("egress-d", "hcloud://444", true, false)
+	now := metav1.Now()
+	deleting.DeletionTimestamp = &now
+	deleting.Finalizers = []string{"test.tuist.dev"}
+	ready := candidateNode("egress-e", "hcloud://555", true, false)
+	fip := &fakeFIP{server: 111}
+	r := newReconciler(fip, active, notReady, unschedulable, deleting, ready)
+	r.NodeHealthChecker = fakeNodeHealth{healthy: map[string]bool{"egress-a": false}}
+
+	if _, err := r.Reconcile(context.Background(), reconcile.Request{}); err != nil {
+		t.Fatal(err)
+	}
+	if fip.server != 555 {
+		t.Fatalf("Floating IP on server %d, want ready, schedulable, non-deleting server 555", fip.server)
+	}
+}
+
+func TestReconcileImmediatelyDemotesDeletingActiveNode(t *testing.T) {
+	active := candidateNode("egress-a", "hcloud://111", true, true)
+	now := metav1.Now()
+	active.DeletionTimestamp = &now
+	active.Finalizers = []string{"test.tuist.dev"}
+	standby := candidateNode("egress-b", "hcloud://222", true, false)
+	fip := &fakeFIP{server: 111}
+	r := newReconciler(fip, active, standby)
+	r.NodeHealthChecker = fakeNodeHealth{healthy: map[string]bool{"egress-a": false}}
+	r.UnhealthyGracePeriod = 90 * time.Second
+
+	if _, err := r.Reconcile(context.Background(), reconcile.Request{}); err != nil {
+		t.Fatal(err)
+	}
+	if fip.server != 222 {
+		t.Fatalf("Floating IP on server %d, want standby server 222", fip.server)
+	}
+}
+
+func TestReconcileRemovesOldSelectorBeforeProviderAssignment(t *testing.T) {
+	active := candidateNode("egress-a", "hcloud://111", false, true)
+	standby := candidateNode("egress-b", "hcloud://222", true, false)
+	fip := &fakeFIP{server: 111}
+	r := newReconciler(fip, active, standby)
+	r.NodeHealthChecker = fakeNodeHealth{healthy: map[string]bool{"egress-a": false}}
+	fip.onAssign = func() {
+		if got := activeNames(t, r); len(got) != 0 {
+			t.Fatalf("active selectors during provider assignment = %v, want none", got)
+		}
+	}
+
+	if _, err := r.Reconcile(context.Background(), reconcile.Request{}); err != nil {
+		t.Fatal(err)
+	}
+	if got := activeNames(t, r); len(got) != 1 || got[0] != "egress-b" {
+		t.Fatalf("active selectors after failover = %v, want [egress-b]", got)
+	}
+}
+
+func TestReconcileRecoversSelectorAfterProviderAssignmentFailure(t *testing.T) {
+	active := candidateNode("egress-a", "hcloud://111", false, true)
+	standby := candidateNode("egress-b", "hcloud://222", true, false)
+	fip := &fakeFIP{server: 111, assignErr: context.DeadlineExceeded}
+	r := newReconciler(fip, active, standby)
+	r.NodeHealthChecker = fakeNodeHealth{healthy: map[string]bool{"egress-a": false}}
+
+	if _, err := r.Reconcile(context.Background(), reconcile.Request{}); err == nil {
+		t.Fatal("expected provider assignment error")
+	}
+	if got := activeNames(t, r); len(got) != 1 || got[0] != "egress-a" {
+		t.Fatalf("active selectors after failed assignment = %v, want provider-observed egress-a", got)
+	}
+}
+
+func TestReconcileResetsGraceAfterHealthRecovers(t *testing.T) {
+	active := candidateNode("egress-a", "hcloud://111", true, true)
+	standby := candidateNode("egress-b", "hcloud://222", true, false)
+	health := map[string]bool{"egress-a": false}
+	fip := &fakeFIP{server: 111}
+	r := newReconciler(fip, active, standby)
+	r.NodeHealthChecker = fakeNodeHealth{healthy: health}
+	r.UnhealthyGracePeriod = 90 * time.Second
+	now := time.Unix(1_000, 0)
+	r.Now = func() time.Time { return now }
+
+	if _, err := r.Reconcile(context.Background(), reconcile.Request{}); err != nil {
+		t.Fatal(err)
+	}
+	now = now.Add(60 * time.Second)
+	health["egress-a"] = true
+	if _, err := r.Reconcile(context.Background(), reconcile.Request{}); err != nil {
+		t.Fatal(err)
+	}
+	health["egress-a"] = false
+	now = now.Add(time.Second)
+	if _, err := r.Reconcile(context.Background(), reconcile.Request{}); err != nil {
+		t.Fatal(err)
+	}
+	now = now.Add(89 * time.Second)
+	if _, err := r.Reconcile(context.Background(), reconcile.Request{}); err != nil {
+		t.Fatal(err)
+	}
+	if fip.server != 111 {
+		t.Fatal("moved the Floating IP before the reset grace period elapsed")
+	}
+	now = now.Add(time.Second)
+	if _, err := r.Reconcile(context.Background(), reconcile.Request{}); err != nil {
+		t.Fatal(err)
+	}
+	if fip.server != 222 {
+		t.Fatalf("Floating IP on server %d after a fresh grace period, want 222", fip.server)
+	}
+}
+
+func TestReconcileUsesLongerGraceForPreparationLoss(t *testing.T) {
+	active := candidateNode("egress-a", "hcloud://111", true, true)
+	standby := candidateNode("egress-b", "hcloud://222", true, false)
+	fip := &fakeFIP{server: 111}
+	r := newReconciler(
+		fip,
+		active,
+		standby,
+		preparedPod("host-configurer-a", "egress-a", false),
+		preparedPod("host-configurer-b", "egress-b", true),
+	)
+	r.PreparedPodNamespace = "kube-system"
+	r.PreparedPodLabelKey = "app.kubernetes.io/name"
+	r.PreparedPodLabelValue = "host-configurer"
+	r.UnpreparedGracePeriod = 5 * time.Minute
+	now := time.Unix(1_000, 0)
+	r.Now = func() time.Time { return now }
+
+	if _, err := r.Reconcile(context.Background(), reconcile.Request{}); err != nil {
+		t.Fatal(err)
+	}
+	now = now.Add(4*time.Minute + 59*time.Second)
+	if _, err := r.Reconcile(context.Background(), reconcile.Request{}); err != nil {
+		t.Fatal(err)
+	}
+	if fip.server != 111 {
+		t.Fatal("moved the Floating IP during the host-preparation grace period")
+	}
+	now = now.Add(time.Second)
+	if _, err := r.Reconcile(context.Background(), reconcile.Request{}); err != nil {
+		t.Fatal(err)
+	}
+	if fip.server != 222 {
+		t.Fatalf("Floating IP on server %d after preparation stayed absent, want 222", fip.server)
+	}
+}
+
+func TestReconcileNormalizesDuplicateSelectorsWithoutProviderMove(t *testing.T) {
+	first := candidateNode("egress-a", "hcloud://111", true, true)
+	second := candidateNode("egress-b", "hcloud://222", true, true)
+	fip := &fakeFIP{server: 111}
+	r := newReconciler(fip, first, second)
+
+	if _, err := r.Reconcile(context.Background(), reconcile.Request{}); err != nil {
+		t.Fatal(err)
+	}
+	if len(fip.assigns) != 0 {
+		t.Fatalf("normalizing selectors moved the Floating IP: %v", fip.assigns)
+	}
+	if got := activeNames(t, r); len(got) != 1 || got[0] != "egress-a" {
+		t.Fatalf("active selectors after normalization = %v, want [egress-a]", got)
 	}
 }

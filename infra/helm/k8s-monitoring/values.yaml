@@ -101,7 +101,7 @@ k8s-monitoring:
         }
         write_relabel_config {
           source_labels = ["__name__"]
-          regex = "node_network_(receive|transmit)_drop_total|traces_service_graph_request_.*"
+          regex = "traces_service_graph_request_.*"
           action = "drop"
         }
         write_relabel_config {
@@ -338,6 +338,10 @@ k8s-monitoring:
           # throughput against the Hetzner kura nodes.
           - node_network_receive_bytes_total
           - node_network_transmit_bytes_total
+          - node_network_receive_packets_total
+          - node_network_transmit_packets_total
+          - node_network_receive_drop_total
+          - node_network_transmit_drop_total
           # NIC link-state + error signals so a host NIC/datapath flap is
           # directly visible per-node. 2026-07-20 incident: the Postgres
           # primary's node eth0 flapped for ~7s (isolating it from its
@@ -351,6 +355,18 @@ k8s-monitoring:
           - node_network_carrier_changes_total
           - node_network_receive_errs_total
           - node_network_transmit_errs_total
+          # Disk service time and saturation identify a host storage stall
+          # even when etcd itself has not emitted an error.
+          - node_disk_io_time_seconds_total
+          - node_disk_read_time_seconds_total
+          - node_disk_write_time_seconds_total
+          - node_disk_reads_completed_total
+          - node_disk_writes_completed_total
+          # Retransmissions distinguish a network path interruption from
+          # application or storage latency.
+          - node_netstat_Tcp_OutSegs
+          - node_netstat_Tcp_RetransSegs
+          - node_timex_offset_seconds
       # The allow-list above keeps node_cpu_seconds_total for all CPU modes
       # and every node_network_* series for every interface, but the
       # dashboards/alerts only read mode="idle" and physical devices
@@ -365,7 +381,7 @@ k8s-monitoring:
         rule {
           source_labels = ["__name__", "mode"]
           separator = ";"
-          regex = "node_cpu_seconds_total;(guest|guest_nice|steal|irq|softirq)"
+          regex = "node_cpu_seconds_total;(guest|guest_nice|irq|softirq)"
           action = "drop"
         }
         rule {
@@ -696,8 +712,12 @@ k8s-monitoring:
         prometheus.relabel "tuist_kube_apiserver" {
           rule {
             source_labels = ["__name__"]
-            regex = "up|scrape_samples_scraped|apiserver_current_inflight_requests|apiserver_flowcontrol_rejected_requests_total|apiserver_request_duration_seconds_(bucket|count|sum)|apiserver_request_total"
+            regex = "up|scrape_samples_scraped|process_cpu_seconds_total|process_resident_memory_bytes|process_open_fds|process_max_fds|go_goroutines|go_gc_duration_seconds(_sum|_count)?|go_sched_latencies_seconds_(bucket|count|sum)|apiserver_current_inflight_requests|apiserver_flowcontrol_current_executing_requests|apiserver_flowcontrol_current_executing_seats|apiserver_flowcontrol_current_limit_seats|apiserver_flowcontrol_nominal_limit_seats|apiserver_flowcontrol_rejected_requests_total|apiserver_request_duration_seconds_(bucket|count|sum)|apiserver_request_terminations_total|apiserver_request_total"
             action = "keep"
+          }
+          rule {
+            regex = "component|dry_run|group|resource|scope|subresource|version"
+            action = "labeldrop"
           }
 
           forward_to = [prometheus.remote_write.grafana_cloud_metrics.receiver]
@@ -717,7 +737,7 @@ k8s-monitoring:
         prometheus.relabel "tuist_etcd" {
           rule {
             source_labels = ["__name__"]
-            regex = "up|scrape_samples_scraped|etcd_server_has_leader|etcd_server_is_leader|etcd_server_leader_changes_seen_total|etcd_server_proposals_failed_total|etcd_disk_wal_fsync_duration_seconds_(bucket|count|sum)|etcd_disk_backend_commit_duration_seconds_(bucket|count|sum)|etcd_network_peer_round_trip_time_seconds_(bucket|count|sum)|etcd_mvcc_db_total_size_in_bytes|etcd_mvcc_db_total_size_in_use_in_bytes"
+            regex = "up|scrape_samples_scraped|process_cpu_seconds_total|process_resident_memory_bytes|process_open_fds|process_max_fds|go_goroutines|go_gc_duration_seconds(_sum|_count)?|etcd_server_has_leader|etcd_server_is_leader|etcd_server_leader_changes_seen_total|etcd_server_proposals_failed_total|etcd_server_proposals_pending|etcd_server_slow_apply_total|etcd_disk_wal_fsync_duration_seconds_(bucket|count|sum)|etcd_disk_backend_commit_duration_seconds_(bucket|count|sum)|etcd_network_peer_round_trip_time_seconds_(bucket|count|sum)|etcd_mvcc_db_total_size_in_bytes|etcd_mvcc_db_total_size_in_use_in_bytes"
             action = "keep"
           }
 

@@ -16,7 +16,10 @@ spec:
         name: tuist-hcloud-hcloud-machinetemplate
     healthCheck:
       checks:
-        nodeStartupTimeoutSeconds: 900
+        # New members currently reach the infrastructure-ready state but do
+        # not register a Node. Do not delete and recreate them indefinitely
+        # until that bootstrap defect has been diagnosed from the host.
+        nodeStartupTimeoutSeconds: 0
         unhealthyNodeConditions:
           - type: Ready
             status: Unknown
@@ -26,7 +29,10 @@ spec:
             timeoutSeconds: 300
       remediation:
         triggerIf:
-          unhealthyLessThanOrEqualTo: 33%
+          # Allow only one registered unhealthy member to be replaced at a
+          # time. An absolute limit does not change as the control plane
+          # moves between two and three Machines.
+          unhealthyLessThanOrEqualTo: 1
   infrastructure:
     templateRef:
       apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
