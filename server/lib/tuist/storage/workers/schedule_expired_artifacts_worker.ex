@@ -23,7 +23,7 @@ defmodule Tuist.Storage.Workers.ScheduleExpiredArtifactsWorker do
   alias Tuist.Storage.Workers.DeleteExpiredTestAttachmentsWorker
 
   @default_page_size 500
-  @legacy_test_attachment_dry_run true
+  @legacy_test_attachment_dry_run false
   @deletion_workers [
     {"app_previews", DeleteExpiredPreviewArtifactsWorker},
     {"build_archives", DeleteExpiredBuildArchivesWorker},

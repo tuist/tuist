@@ -52,7 +52,7 @@ defmodule Tuist.Storage.Workers.ScheduleExpiredArtifactsWorkerTest do
 
       assert_enqueued(
         worker: DeleteExpiredLegacyTestAttachmentsWorker,
-        args: %{"batch_size" => 10, "dry_run" => true}
+        args: %{"batch_size" => 10, "dry_run" => false}
       )
     end
 
@@ -69,7 +69,7 @@ defmodule Tuist.Storage.Workers.ScheduleExpiredArtifactsWorkerTest do
 
       assert_enqueued(
         worker: DeleteExpiredLegacyTestAttachmentsWorker,
-        args: %{"batch_size" => 10, "dry_run" => true, "self_hosted" => true}
+        args: %{"batch_size" => 10, "dry_run" => false, "self_hosted" => true}
       )
     end
 
