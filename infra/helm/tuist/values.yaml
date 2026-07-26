@@ -271,12 +271,14 @@ server:
     storeRef:
       kind: ClusterSecretStore
       name: onepassword
-    # Sync the Tuist license key from the external store. Independent of
-    # managedSecrets — preview environments use this without the encrypted
-    # priv/secrets blob. Leave `item` empty to skip license sync.
+    # Sync either the online Tuist license key or the air-gapped license
+    # certificate from the external store. These sources are mutually
+    # exclusive. Leave both item names empty to skip license sync.
     license:
       item: ""
       field: password
+      certificateItem: ""
+      certificateField: password
     # Cache-signing grant private key: a PEM Ed25519 key the
     # server signs runner cache grants with. Leave item empty to disable
     # grant minting (dispatch omits the grant; CLI falls back to the MAC
