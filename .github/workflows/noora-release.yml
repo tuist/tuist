@@ -15,7 +15,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   # Keep version calculation and publication serialized. Never cancel a
@@ -50,12 +50,53 @@ jobs:
       - id: check
         run: mise run --skip-tools release:check noora
 
-  release:
-    name: Publish Noora
+  validate:
+    name: Validate Noora
     needs: check
     if: needs.check.outputs.should-release == 'true'
     runs-on: tuist-linux
     timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/mise-install
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install: "erlang elixir node aube git-cliff"
+          cache: "false"
+          working-directory: noora
+          github-token: ${{ env.MISE_GITHUB_TOKEN }}
+
+      - name: Install dependencies
+        working-directory: noora
+        run: |
+          mix deps.get
+          aube install
+
+      - name: Validate generated files and tests
+        working-directory: noora
+        run: |
+          aube run check:generated
+          aube run test -- --run
+          mix test
+
+      - name: Validate release artifacts
+        working-directory: noora
+        run: |
+          npm pack --dry-run
+          mix hex.build
+
+  publish:
+    name: Publish Noora
+    needs: [check, validate]
+    if: needs.check.outputs.should-release == 'true'
+    # npm provenance and trusted publishing require a GitHub-hosted runner.
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      id-token: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -98,14 +139,7 @@ jobs:
           mix deps.get
           aube install
 
-      - name: Validate generated files and tests
-        working-directory: noora
-        run: |
-          aube run check:generated
-          aube run test -- --run
-          mix test
-
-      - name: Validate release artifacts
+      - name: Build release artifacts
         working-directory: noora
         run: |
           npm pack --pack-destination "$RUNNER_TEMP"
@@ -119,8 +153,10 @@ jobs:
         working-directory: noora
         run: |
           set -euo pipefail
-          printf '//registry.npmjs.org/:_authToken=${NPM_TOKEN}\n' > "$NPM_CONFIG_USERCONFIG"
-          npm whoami >/dev/null
+          if [ -n "${NPM_TOKEN:-}" ]; then
+            printf '//registry.npmjs.org/:_authToken=${NPM_TOKEN}\n' > "$NPM_CONFIG_USERCONFIG"
+            npm whoami >/dev/null
+          fi
 
           package="$RUNNER_TEMP/tuist-noora-${{ needs.check.outputs.next-version-number }}.tgz"
           local_integrity=$(node -e 'const crypto = require("node:crypto"); const fs = require("node:fs"); console.log(`sha512-${crypto.createHash("sha512").update(fs.readFileSync(process.argv[1])).digest("base64")}`);' "$package")
@@ -132,7 +168,7 @@ jobs:
             fi
             echo "@tuist/noora@${{ needs.check.outputs.next-version-number }} is already published with matching contents"
           else
-            npm publish "$package" --access public
+            npm publish "$package" --access public --provenance
           fi
 
           mix hex.publish --yes --replace

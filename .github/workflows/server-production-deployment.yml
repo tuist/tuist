@@ -107,7 +107,6 @@ jobs:
       stable-egress-controller-should-release: ${{ steps.check.outputs.stable-egress-controller-should-release }}
       stable-egress-controller-next-version: ${{ steps.check.outputs.stable-egress-controller-next-version }}
       stable-egress-controller-next-version-number: ${{ steps.check.outputs.stable-egress-controller-next-version-number }}
-      should-release-any: ${{ steps.check.outputs.should-release-any }}
       deployable-changed: ${{ steps.deployable.outputs.deployable-changed }}
       # Single source of truth for hotfix routing. "(hotfix)" in the commit
       # subject ships straight to production via the production-hotfix leg and
@@ -1348,12 +1347,12 @@ jobs:
 
   publish-releases:
     # Publishes the GitHub Releases (which create the component tags via the
-    # API) for the components released here — server, cache, kura,
-    # helm, skills, the infra images. CLI and app have their own workflows
-    # (cli-release.yml, app-release.yml). Version files are stamped into the
-    # build artifacts by each release job, image versions are resolved at
-    # deploy time from tags, and in-source consumer pins land via Renovate
-    # PRs, so this job writes nothing back to a branch.
+    # API) for the components released here: server, Kura, Helm, and the
+    # infrastructure images. Other components have dedicated workflows.
+    # Version files are stamped into the build artifacts by each release job,
+    # image versions are resolved at deploy time from tags, and in-source
+    # consumer pins land via Renovate PRs, so this job writes nothing back to
+    # a branch.
     name: Publish releases
     needs:
       [
@@ -1373,7 +1372,17 @@ jobs:
       ]
     if: |
       always() &&
-      needs.check-releases.outputs.should-release-any == 'true'
+      (
+        needs.check-releases.outputs.server-should-release == 'true' ||
+        needs.check-releases.outputs.kura-should-release == 'true' ||
+        needs.check-releases.outputs.helm-should-release == 'true' ||
+        needs.check-releases.outputs.capi-scaleway-should-release == 'true' ||
+        needs.check-releases.outputs.runners-controller-should-release == 'true' ||
+        needs.check-releases.outputs.stable-egress-controller-should-release == 'true' ||
+        needs.check-releases.outputs.xcresult-processor-image-should-release == 'true' ||
+        needs.check-releases.outputs.runner-image-should-release == 'true' ||
+        needs.check-releases.outputs.linux-runner-image-should-release == 'true'
+      )
     runs-on: tuist-linux
     timeout-minutes: 30
     concurrency:

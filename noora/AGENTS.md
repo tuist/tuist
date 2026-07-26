@@ -26,11 +26,11 @@ Noora is a Phoenix LiveView component library published to hex.pm. It provides r
 
 ## Publishing
 
-Noora is published to [Hex](https://hex.pm/) for Phoenix LiveView consumers and to the [npm package registry](https://www.npmjs.com/) as `@tuist/noora` for JavaScript consumers. The shared version is tracked in `mix.exs` and `package.json`. Releases are automated via the monorepo release workflow using `noora/cliff.toml` for changelog generation.
+Noora is published to [Hex](https://hex.pm/) for Phoenix LiveView consumers and to the [npm package registry](https://www.npmjs.com/) as `@tuist/noora` for JavaScript consumers. The shared version is tracked in `mix.exs` and `package.json`. Releases are automated by `.github/workflows/noora-release.yml` using `noora/cliff.toml` for changelog generation. The workflow validates Noora on `tuist-linux`, then builds and publishes both registry artifacts on a GitHub-hosted runner so the npm package includes provenance.
 
 Web component metadata and documentation are generated from `components/*.json` with `aube run generate:web-components`. Run `aube run check:generated` when changing a component contract.
 
-The first npm package registry release requires a granular access token with permission to publish under the `@tuist` scope, exposed to GitHub Actions as `NPM_TOKEN`. After the package exists, configure its trusted publisher for the `tuist/tuist` repository and `server-production-deployment.yml` workflow, allow `npm publish`, verify a release, and remove the long-lived token.
+Do not bootstrap the npm package from a local machine. The first automated release requires a granular access token with permission to publish under the `@tuist` scope, exposed to GitHub Actions as `NPM_TOKEN`. After the package exists, configure its trusted publisher for the `tuist/tuist` repository and `noora-release.yml` workflow, allow `npm publish`, verify a release, and remove the long-lived token.
 
 ## Conventions
 
