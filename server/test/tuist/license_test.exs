@@ -114,6 +114,13 @@ defmodule Tuist.LicenseTest do
   end
 
   describe "resolve_certificate/2" do
+    test "decodes an environment certificate containing whitespace" do
+      encoded = Base.encode64("certificate")
+      wrapped = String.slice(encoded, 0, 4) <> "\n  " <> String.slice(encoded, 4..-1//1)
+
+      assert License.certificate(wrapped) == "certificate"
+    end
+
     test "returns valid license when certificate is valid with real signed data" do
       {public_key, private_key} = :crypto.generate_key(:eddsa, :ed25519)
       verify_key = Base.encode16(public_key, case: :lower)
