@@ -65,6 +65,7 @@ defmodule Tuist.Tests do
   @active_window_days 14
   @short_cache_ttl to_timeout(second: 10)
   @unscoped_test_suite_runs_lookback_days 7
+  @max_preloaded_test_case_states 50_000
 
   @doc """
   Number of trailing days used across the product to decide whether a test case
@@ -1083,6 +1084,27 @@ defmodule Tuist.Tests do
         is_flaky: fragment("argMaxIf(?, ?, isNotNull(?))", s.is_flaky, s.inserted_at, s.is_flaky)
       }
     )
+  end
+
+  defp resolve_test_case_states(project_id, test_case_ids \\ nil)
+
+  defp resolve_test_case_states(_project_id, []), do: %{}
+
+  defp resolve_test_case_states(project_id, test_case_ids) do
+    query = test_case_states_subquery(project_id)
+
+    query =
+      if is_nil(test_case_ids) do
+        query
+      else
+        where(query, [state], state.test_case_id in ^test_case_ids)
+      end
+
+    query
+    |> ClickHouseRepo.all()
+    |> Map.new(fn state ->
+      {state.test_case_id, normalize_test_case_state(state)}
+    end)
   end
 
   @doc """
@@ -2231,22 +2253,43 @@ defmodule Tuist.Tests do
     quarantine_filter? = quarantine_filter?(filters)
     is_ci = Keyword.get(opts, :is_ci)
 
-    # `state` / `is_flaky` are resolved from the joined `test_case_states`
-    # subquery, not from the columns Flop would reach on `test_cases`, so they
-    # are pulled out of the Flop filter set and applied by hand below.
+    # `state` / `is_flaky` are resolved from `test_case_states`, not from the
+    # legacy columns on `test_cases`, so they are pulled out of the Flop filter
+    # set and applied by hand below.
     {control_plane_filters, flop_filters} = Enum.split_with(filters, &control_plane_filter?/1)
     attrs = Map.put(attrs, :filters, flop_filters)
 
-    base_query =
-      from(test_case in TestCase,
-        hints: ["FINAL"],
-        left_join: test_case_state in subquery(test_case_states_subquery(project_id)),
-        as: :test_case_state,
-        on: test_case.id == test_case_state.test_case_id,
-        where: test_case.project_id == ^project_id
-      )
+    {state_filter_mode, resolved_states} =
+      state_filter_mode(project_id, control_plane_filters)
 
-    base_query = Enum.reduce(control_plane_filters, base_query, &apply_control_plane_filter/2)
+    base_query =
+      case state_filter_mode do
+        :joined ->
+          from(test_case in TestCase,
+            hints: ["FINAL"],
+            left_join: test_case_state in subquery(test_case_states_subquery(project_id)),
+            as: :test_case_state,
+            on: test_case.id == test_case_state.test_case_id,
+            where: test_case.project_id == ^project_id
+          )
+
+        :preloaded ->
+          from(test_case in TestCase,
+            hints: ["FINAL"],
+            where: test_case.project_id == ^project_id
+          )
+      end
+
+    base_query =
+      case state_filter_mode do
+        :joined ->
+          Enum.reduce(control_plane_filters, base_query, &apply_joined_control_plane_filter/2)
+
+        :preloaded ->
+          Enum.reduce(control_plane_filters, base_query, fn filter, query ->
+            apply_preloaded_control_plane_filter(filter, query, resolved_states)
+          end)
+      end
 
     base_query =
       cond do
@@ -2268,9 +2311,39 @@ defmodule Tuist.Tests do
     flop = Tuist.ClickHouseFlop.validate!(attrs, for: TestCase)
     total_count = test_cases_count(base_query, flop)
 
-    base_query
-    |> select_resolved_test_case_state()
-    |> Tuist.ClickHouseFlop.run(flop, for: TestCase, count: total_count)
+    case state_filter_mode do
+      :joined ->
+        base_query
+        |> select_resolved_test_case_state()
+        |> Tuist.ClickHouseFlop.run(flop, for: TestCase, count: total_count)
+
+      :preloaded ->
+        {test_cases, meta} =
+          Tuist.ClickHouseFlop.run(base_query, flop, for: TestCase, count: total_count)
+
+        resolved_page_states =
+          resolve_test_case_states(project_id, Enum.map(test_cases, & &1.id))
+
+        test_cases =
+          Enum.map(test_cases, fn test_case ->
+            resolved = Map.get(resolved_page_states, test_case.id, @default_test_case_state)
+            apply_test_case_state(test_case, resolved)
+          end)
+
+        {test_cases, meta}
+    end
+  end
+
+  defp state_filter_mode(_project_id, []), do: {:preloaded, %{}}
+
+  defp state_filter_mode(project_id, _control_plane_filters) do
+    resolved_states = resolve_test_case_states(project_id)
+
+    if map_size(resolved_states) <= @max_preloaded_test_case_states do
+      {:preloaded, resolved_states}
+    else
+      {:joined, %{}}
+    end
   end
 
   # Two different nulls collapse to the same answer here. A test case with no
@@ -2298,9 +2371,71 @@ defmodule Tuist.Tests do
 
   # Only the operators the callers actually build: `:==` / `:!=` from the
   # dashboard's option filter, `:==` / `:in` from the API's `state` and
-  # `quarantined` params. Anything else raises rather than silently degrading to
-  # equality, which would invert the meaning of a negated filter.
-  defp apply_control_plane_filter(filter, query) do
+  # `quarantined` params. Anything else matches nothing rather than silently
+  # degrading to equality, which would invert the meaning of a negated filter.
+  defp apply_preloaded_control_plane_filter(filter, query, resolved_states) do
+    case control_plane_filter_matcher(filter) do
+      {:ok, matcher} ->
+        default_matches? = matcher.(@default_test_case_state)
+
+        {matching_ids, non_matching_ids} =
+          Enum.reduce(resolved_states, {[], []}, fn {test_case_id, state}, {matching, non_matching} ->
+            if matcher.(state) do
+              {[test_case_id | matching], non_matching}
+            else
+              {matching, [test_case_id | non_matching]}
+            end
+          end)
+
+        apply_resolved_state_ids(query, default_matches?, matching_ids, non_matching_ids)
+
+      :error ->
+        log_unsupported_control_plane_filter(filter)
+        where(query, false)
+    end
+  end
+
+  defp control_plane_filter_matcher(filter) do
+    op = Map.get(filter, :op, :==)
+    value = Map.get(filter, :value)
+
+    case {control_plane_filter_field(filter), op} do
+      {:state, :in} ->
+        values = List.wrap(value)
+        {:ok, &Enum.member?(values, &1.state)}
+
+      {:state, :not_in} ->
+        values = List.wrap(value)
+        {:ok, &(not Enum.member?(values, &1.state))}
+
+      {:state, :==} ->
+        {:ok, &(&1.state == value)}
+
+      {:state, :!=} ->
+        {:ok, &(&1.state != value)}
+
+      {:is_flaky, :==} ->
+        {:ok, &(&1.is_flaky == value)}
+
+      {:is_flaky, :!=} ->
+        {:ok, &(&1.is_flaky != value)}
+
+      {_field, _op} ->
+        :error
+    end
+  end
+
+  defp apply_resolved_state_ids(query, true, _matching_ids, []), do: query
+
+  defp apply_resolved_state_ids(query, true, _matching_ids, non_matching_ids),
+    do: where(query, [test_case], test_case.id not in ^non_matching_ids)
+
+  defp apply_resolved_state_ids(query, false, [], _non_matching_ids), do: where(query, false)
+
+  defp apply_resolved_state_ids(query, false, matching_ids, _non_matching_ids),
+    do: where(query, [test_case], test_case.id in ^matching_ids)
+
+  defp apply_joined_control_plane_filter(filter, query) do
     op = Map.get(filter, :op, :==)
     value = Map.get(filter, :value)
 
@@ -2348,18 +2483,24 @@ defmodule Tuist.Tests do
         where(query, [test_case_state: state], fragment("ifNull(?, false) != ?", state.is_flaky, ^value))
 
       {field, op} ->
-        # Neither the dashboard nor the public API builds anything else: the
-        # trait filter's dropdown only offers `:==` and `:!=`, and the API
-        # hard-codes `:==` and `:in`. A hand-edited query string can still
-        # smuggle one of the other Noora operators through, because the
-        # operator whitelist there isn't narrowed to the filter's type. Match
-        # nothing rather than raising: this runs inside the listing's
-        # `assign_async`, where an exception surfaces as an empty table anyway,
-        # only with a crashed task and the error noise that comes with it.
-        Logger.warning("Ignoring test case #{field} filter with unsupported operator #{inspect(op)}")
-
+        log_unsupported_control_plane_filter(%{field: field, op: op})
         where(query, false)
     end
+  end
+
+  defp log_unsupported_control_plane_filter(filter) do
+    field = control_plane_filter_field(filter)
+    op = Map.get(filter, :op, :==)
+
+    # Neither the dashboard nor the public API builds anything else: the
+    # trait filter's dropdown only offers `:==` and `:!=`, and the API
+    # hard-codes `:==` and `:in`. A hand-edited query string can still
+    # smuggle one of the other Noora operators through, because the
+    # operator whitelist there isn't narrowed to the filter's type. Match
+    # nothing rather than raising: this runs inside the listing's
+    # `assign_async`, where an exception surfaces as an empty table anyway,
+    # only with a crashed task and the error noise that comes with it.
+    Logger.warning("Ignoring test case #{field} filter with unsupported operator #{inspect(op)}")
   end
 
   defp test_cases_count(query, flop) do
