@@ -18,7 +18,8 @@ defmodule Tuist.Registry.S3Test do
     operation = %S3Operation{
       http_method: :get,
       bucket: "registry-bucket",
-      path: "registry/metadata/adjust/ios_sdk/index.json"
+      path: "registry/metadata/adjust/ios_sdk/index.json",
+      headers: %{"X-Tigris-Consistent" => "true"}
     }
 
     expect(Registry, :registry_bucket, fn -> "registry-bucket" end)
