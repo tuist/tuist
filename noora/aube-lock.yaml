@@ -140,10 +140,10 @@ importers:
         specifier: '>=3.0.0'
         version: 3.12.1
       '@types/node':
-        specifier: ^20.19.0 || >=22.12.0
+        specifier: ^20.0.0 || ^22.0.0 || >=24.0.0
         version: 26.1.1
       vite:
-        specifier: ^8.0.10
+        specifier: ^6.0.0 || ^7.0.0 || ^8.0.0
         version: 8.0.10(@types/node@26.1.1)(esbuild@0.27.7)
     devDependencies:
       '@zag-js/avatar':

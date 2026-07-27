@@ -94,9 +94,6 @@
     "lib": "lib",
     "test": "test"
   },
-  "dependencies": {
-    "vite": "^8.0.10"
-  },
   "keywords": [],
   "author": "",
   "bugs": {
