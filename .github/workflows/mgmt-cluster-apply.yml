@@ -286,6 +286,7 @@ jobs:
             exit 1
           fi
 
+          helm repo add grafana https://grafana.github.io/helm-charts --force-update
           helm dependency build infra/helm/k8s-monitoring
           helm upgrade --install k8s-monitoring infra/helm/k8s-monitoring \
             --namespace observability \
