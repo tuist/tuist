@@ -22,7 +22,7 @@ extension XcodeGraph.Settings {
             base: base,
             configurations: configurations,
             defaultSettings: defaultSettings,
-            defaultConfiguration: manifest.defaultConfiguration
+            defaultConfiguration: manifest.defaultConfiguration?.rawValue
         )
     }
 }
