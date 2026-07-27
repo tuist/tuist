@@ -141,6 +141,7 @@ async fn run_with_config(
         config.snapshot_cache_max_bytes,
     ));
     let store = Store::open(&config, io.clone(), memory.clone())?;
+    let local_data_available_at_join = store.has_artifacts()?;
     let tmp_staging_budget = store.tmp_staging_budget();
     match store.sweep_orphaned_segments().await {
         Ok(0) => {}
@@ -189,6 +190,9 @@ async fn run_with_config(
         replication_bandwidth_limiter,
         notify,
         readiness: tokio::sync::Mutex::new(ReadinessState::new(Instant::now())),
+        local_data_available_at_join: std::sync::atomic::AtomicBool::new(
+            local_data_available_at_join,
+        ),
         bootstrap_semaphore,
         tmp_staging_budget,
         bootstrap_staging_budget,

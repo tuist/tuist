@@ -27,9 +27,10 @@ use crate::{
     artifact::{manifest::ArtifactManifest, producer::ArtifactProducer},
     bandwidth::BandwidthLimiter,
     constants::{
-        BOOTSTRAP_DIGEST_DEFAULT_PREFIX_LEN, MAX_GRADLE_BYTES, MAX_INLINE_REPLICATION_BODY_BYTES,
-        MAX_MODULE_PART_BYTES, MAX_MODULE_TOTAL_BYTES, MAX_REPLICATION_BODY_BYTES, MAX_XCODE_BYTES,
-        RESPONSE_STREAM_MIN_CHUNK_BYTES, response_stream_chunk_bytes,
+        BOOTSTRAP_DIGEST_DEFAULT_PREFIX_LEN, MAX_BOOTSTRAP_PAGE_ITEMS, MAX_GRADLE_BYTES,
+        MAX_INLINE_REPLICATION_BODY_BYTES, MAX_MODULE_PART_BYTES, MAX_MODULE_TOTAL_BYTES,
+        MAX_REPLICATION_BODY_BYTES, MAX_XCODE_BYTES, RESPONSE_STREAM_MIN_CHUNK_BYTES,
+        response_stream_chunk_bytes,
     },
     extension::{AccessDecision, ExtensionContext},
     io::is_fd_pool_exhausted_error,
@@ -475,8 +476,10 @@ impl PageQuery {
         if limit == 0 {
             return Err("Invalid limit: must be greater than 0".to_string());
         }
-        if limit > 256 {
-            return Err("Invalid limit: must not exceed 256".to_string());
+        if limit > MAX_BOOTSTRAP_PAGE_ITEMS {
+            return Err(format!(
+                "Invalid limit: must not exceed {MAX_BOOTSTRAP_PAGE_ITEMS}"
+            ));
         }
 
         Ok(Self {
@@ -2812,17 +2815,17 @@ mod tests {
 
     #[test]
     fn bootstrap_page_query_rejects_unbounded_limits() {
-        let maximum = HashMap::from([("limit".to_owned(), "256".to_owned())]);
+        let maximum = HashMap::from([("limit".to_owned(), MAX_BOOTSTRAP_PAGE_ITEMS.to_string())]);
         assert_eq!(
             PageQuery::from_params(&maximum)
                 .expect("maximum bootstrap page should be accepted")
                 .limit,
-            256
+            MAX_BOOTSTRAP_PAGE_ITEMS
         );
         let oversized = HashMap::from([("limit".to_owned(), usize::MAX.to_string())]);
         assert_eq!(
             PageQuery::from_params(&oversized).expect_err("oversized page must be rejected"),
-            "Invalid limit: must not exceed 256"
+            format!("Invalid limit: must not exceed {MAX_BOOTSTRAP_PAGE_ITEMS}")
         );
     }
 

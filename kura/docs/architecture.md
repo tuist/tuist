@@ -108,7 +108,7 @@ Two observability surfaces support capacity and sharding decisions: `kura_public
 
 Newly joined nodes catch up by **bootstrapping from a peer**: paginated manifest and tombstone fetches followed by lazy artifact body fetches. Bootstrap re-uses the same apply paths as live replication, so the same conflict rules apply. A fresh node bootstraps from every known peer concurrently (so it captures artifacts that exist on only one peer), which means the same artifact is offered by several peers at once. Three layers keep that overlap bounded: a per-artifact **fetch gate** single-flights the body download so only the first peer-task to claim a key transfers it while the rest re-check presence and skip the network; a live-memory reservation admits only the transfer windows that fit below the soft watermark; and the per-key **apply lock** is the last-line guarantee that even a body that does get fetched twice is written to a segment only once. Large transfers do not reserve their full object size because a valid object may approach the container limit. Instead, once pressure rises, completed temporary-file and append-only segment ranges are synchronized and released from Linux file cache in bounded intervals before the stream waits for recovery. The cache advice is an optional optimization and never changes storage correctness.
 
-Before walking a peer's manifests, bootstrap runs **range-digest anti-entropy** so the walk costs O(delta) rather than O(peer dataset). The manifests column family is a sorted keyspace over `artifact_id` (a content/storage hash, identical across nodes for identical content); both nodes summarize it as per-prefix-bucket digests (`GET /_internal/bootstrap/digest?prefix_len=3` → 4096 buckets of `(prefix, count, hash)`, where the hash folds the sorted `(artifact_id, version_ms)` pairs so adds, removes, and version bumps all flip a bucket). The joining node diffs the peer's digest against its own and enumerates only the mismatching buckets — scoping the existing paginated walk to each divergent prefix range (`&prefix=`). For a mostly-in-sync pair this collapses a full-keyspace page walk into one digest exchange plus a handful of small range walks. The endpoint is additive and negotiated: a peer that 404s it (one version behind during a rollout) falls back to the full walk, so a mixed-version mesh stays correct. The digest only decides *which ranges to enumerate*; apply semantics are unchanged, so a digest bug can at worst cause an unnecessary walk, never a wrong apply.
+Before walking a peer's manifests, bootstrap runs **range-digest anti-entropy** so the walk costs O(delta) rather than O(peer dataset). The manifests column family is a sorted keyspace over `artifact_id` (a content/storage hash, identical across nodes for identical content); both nodes summarize it as per-prefix-bucket digests (`GET /_internal/bootstrap/digest?prefix_len=3` → 4096 buckets of `(prefix, count, hash)`, where the hash folds the sorted `(artifact_id, version_ms)` pairs so adds, removes, and version bumps all flip a bucket). The joining node diffs the peer's digest against its own and enumerates only the mismatching buckets — scoping the existing paginated walk to each divergent prefix range (`&prefix=`). For a mostly-in-sync pair this collapses a full-keyspace page walk into one digest exchange plus a handful of small range walks. The digest endpoint is additive and negotiated: a peer that returns `404 Not Found` because it is one version behind falls back to the full walk. Manifest pages also negotiate across adjacent versions: a new node prefers 2048 manifests per request and retries once with the legacy 256-manifest limit when an older peer returns `400 Bad Request`. Namespace tombstones stay at the legacy limit. These fallbacks keep mixed-version rollouts and rollbacks correct. The digest only decides *which ranges to enumerate*; apply semantics are unchanged, so a digest bug can at worst cause an unnecessary walk, never a wrong apply.
 
 A per-peer bootstrap runs under a **no-progress watchdog** rather than a fixed total-runtime cap. `KURA_BOOTSTRAP_TIMEOUT_MS` is the maximum time the bootstrap may go *without* forward progress (a fetched page or applied artifact); a bootstrap that keeps advancing runs to completion however long that takes, and only a genuinely stalled one is abandoned and retried. A single wall-clock cap could never let a large cold pull finish — it would be killed and restarted from scratch every window — so a node whose backlog exceeds one window's worth of transfer would stay `NotReady` indefinitely.
 
@@ -124,7 +124,7 @@ A node finds peers in three ways:
 
 A `spawn_membership_task` loop polls each candidate's `GET /_internal/status` every two seconds. Only peers that respond with the same `tenant_id` and a different `node_url` are admitted as members. The local node never lists itself.
 
-Mesh **membership itself** is control-plane state for enrolled nodes: a node that stops sending mesh heartbeats is deactivated (withheld from every peer's view) and its row is purged once its peer certificate can no longer be valid. Heartbeats never create or restore membership — a withheld node is answered `mesh_member: false` and recovers with a **recovery re-enrollment** (backoff-limited), which reactivates or recreates its membership server-side, clears local bootstrap progress, and takes the node out of serving until it has re-pulled the full dataset: the writes it missed while out of the mesh were never enqueued for it (replication targets are computed at write time), so only a full re-bootstrap can reconcile the gap.
+Mesh **membership itself** is control-plane state for enrolled nodes: a node that stops sending mesh heartbeats is deactivated (withheld from every peer's view) and its row is purged once its peer certificate can no longer be valid. Heartbeats never create or restore membership — a withheld node is answered `mesh_member: false` and recovers with a **recovery re-enrollment** (backoff-limited), which reactivates or recreates its membership server-side, clears local bootstrap progress, and briefly takes the node out of serving. A node with usable local data can serve again after discovery settles while reconciliation continues; an empty node stays joining until the bootstrap completes. The writes missed while the node was out of the mesh were never enqueued for it (replication targets are computed at write time), so a full re-bootstrap still runs to reconcile the gap.
 
 Each tick produces a `MembershipUpdate` and feeds it into `ReadinessState` (`src/state.rs`). The state tracks:
 
@@ -138,24 +138,24 @@ Each tick produces a `MembershipUpdate` and feeds it into `ReadinessState` (`src
 
 ## Traffic Lifecycle
 
-A node moves through three explicit traffic states (`src/runtime.rs`):
+A node moves through three explicit traffic states (`src/runtime.rs`). Ordinary membership changes do not demote a serving node; newly discovered or returning peers reconcile in the background:
 
 ```
-        ┌──────────┐  membership generation     ┌──────────┐
-        │          │   advances or restart      │          │
+        ┌──────────┐  restart or recovery       ┌──────────┐
+        │          │      re-enrollment         │          │
         │ joining  │ ◄──────────────────────────│ serving  │
         │          │                            │          │
         └────┬─────┘                            └─────┬────┘
-             │ all known peers bootstrapped,          │
-             │ discovery observed, settle window      │
-             │ elapsed                                │
+             │ discovery settled and either           │
+             │ local data exists or an empty node     │
+             │ completed every peer bootstrap         │
              ▼                                        ▼
         ┌──────────┐         drain request      ┌──────────┐
         │ serving  │ ─────────────────────────► │ draining │
         └──────────┘                            └──────────┘
 ```
 
-- **`joining`** — public reads/writes are accepted but `/ready` returns `503` until bootstrap completes for every known peer. This keeps load balancers from routing traffic to a half-warm pod.
+- **`joining`** — public reads/writes are accepted but `/ready` returns `503`. A node that entered the joining cycle with usable persistent data becomes ready after discovery settles and continues reconciliation in the background. A truly empty node waits until bootstrap completes for every known peer.
 - **`serving`** — `/ready` returns `200`. Public APIs handle traffic normally.
 - **`draining`** — public HTTP rejects new requests and stops reusing HTTP/1.1 connections; established HTTP/2 connections (gRPC included) receive a GOAWAY so channels finish in-flight streams and reconnect elsewhere. Inflight work continues until a shared **drain deadline** (`KURA_DRAIN_COMPLETION_TIMEOUT_MS`) elapses.
 
