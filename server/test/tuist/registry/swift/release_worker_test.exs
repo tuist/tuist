@@ -6,6 +6,7 @@ defmodule Tuist.Registry.Swift.ReleaseWorkerTest do
   alias ExAws.Operation.S3
   alias ExAws.S3.Upload
   alias Tuist.Registry
+  alias Tuist.Registry.S3, as: RegistryS3
   alias Tuist.Registry.Swift.Lock
   alias Tuist.Registry.Swift.Metadata
   alias Tuist.Registry.Swift.ReleaseWorker
@@ -19,6 +20,7 @@ defmodule Tuist.Registry.Swift.ReleaseWorkerTest do
     stub(Registry, :swift_registry_github_token, fn -> "token" end)
     stub(Registry, :registry_bucket, fn -> "test-bucket" end)
     stub(Registry, :registry_s3_config, fn -> [host: "registry.example.com"] end)
+    stub(RegistryS3, :download_file, fn _, _ -> {:error, :not_found} end)
     stub(Lock, :release, fn _ -> :ok end)
 
     :ok
@@ -111,6 +113,57 @@ defmodule Tuist.Registry.Swift.ReleaseWorkerTest do
       assert is_binary(release["checksum"])
       assert [%{"swift_version" => nil, "swift_tools_version" => "5.9"}] = release["manifests"]
       refute Map.has_key?(metadata["skipped_releases"], "1.0.0")
+      :ok
+    end)
+
+    assert :ok =
+             ReleaseWorker.perform(%Oban.Job{
+               args: %{
+                 "scope" => "apple",
+                 "name" => "swift-argument-parser",
+                 "repository_full_handle" => "apple/swift-argument-parser",
+                 "tag" => "v1.0.0"
+               }
+             })
+  end
+
+  test "reuses an existing source archive when repairing missing metadata" do
+    stub(Lock, :try_acquire, fn
+      {:release, "apple", "swift-argument-parser", "1.0.0"}, _ -> {:ok, :acquired}
+      {:package, "apple", "swift-argument-parser"}, _ -> {:ok, :acquired}
+    end)
+
+    expect(Metadata, :get_package, 2, fn "apple", "swift-argument-parser", [fresh: true] ->
+      {:error, :not_found}
+    end)
+
+    expect(TuistCommon.GitHub, :list_repository_contents, fn "apple/swift-argument-parser", "token", "v1.0.0", _ ->
+      {:ok, [%{"path" => "Package.swift", "type" => "file"}]}
+    end)
+
+    expect(TuistCommon.GitHub, :get_file_content, fn
+      "apple/swift-argument-parser", "token", "Package.swift", "v1.0.0", _ ->
+        {:ok, @default_manifest_content}
+    end)
+
+    expect(RegistryS3, :download_file, fn key, archive_path ->
+      assert key == "registry/swift/apple/swift-argument-parser/1.0.0/source_archive.zip"
+      write_basic_zipball(archive_path)
+      :ok
+    end)
+
+    stub(TuistCommon.GitHub, :download_zipball, fn _, _, _, _, _ -> flunk("unexpected zipball download") end)
+    stub(RegistryS3, :upload_file, fn _, _, _ -> flunk("unexpected source archive upload") end)
+
+    expect(RegistryS3, :upload_content, fn key, content, opts ->
+      assert key == "registry/swift/apple/swift-argument-parser/1.0.0/Package.swift"
+      assert content == @default_manifest_content
+      assert opts == [content_type: "text/x-swift"]
+      :ok
+    end)
+
+    expect(Metadata, :put_package, fn "apple", "swift-argument-parser", metadata ->
+      assert is_binary(metadata["releases"]["1.0.0"]["checksum"])
       :ok
     end)
 

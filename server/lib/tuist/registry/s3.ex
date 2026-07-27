@@ -31,6 +31,30 @@ defmodule Tuist.Registry.S3 do
     end
   end
 
+  def download_file(key, local_path) when is_binary(key) and is_binary(local_path) do
+    bucket = Registry.registry_bucket()
+
+    case bucket |> ExAws.S3.head_object(key) |> request() do
+      {:ok, %{status_code: 404}} ->
+        {:error, :not_found}
+
+      {:ok, %{status_code: status}} when status >= 400 ->
+        {:error, {:s3_error, status}}
+
+      {:ok, _response} ->
+        download_existing_file(bucket, key, local_path)
+
+      {:error, {:http_error, 404, _}} ->
+        {:error, :not_found}
+
+      {:error, {:http_error, 429, _}} ->
+        {:error, :rate_limited}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
   def upload_file(key, local_path, opts \\ []) when is_binary(key) and is_binary(local_path) do
     bucket = Registry.registry_bucket()
     content_type_opt = Keyword.get(opts, :content_type)
@@ -125,6 +149,36 @@ defmodule Tuist.Registry.S3 do
         {:error, reason} -> {:halt, {:error, reason}}
       end
     end)
+  end
+
+  defp download_existing_file(bucket, key, local_path) do
+    {duration, result} =
+      :timer.tc(fn ->
+        bucket
+        |> ExAws.S3.download_file(key, local_path,
+          timeout: 120_000,
+          max_concurrency: 8
+        )
+        |> request()
+      end)
+
+    case result do
+      {:ok, :done} ->
+        :telemetry.execute([:tuist_registry, :s3, :download], %{duration: duration}, %{result: :ok})
+        :ok
+
+      {:error, {:http_error, 404, _}} ->
+        :telemetry.execute([:tuist_registry, :s3, :download], %{duration: duration}, %{result: :not_found})
+        {:error, :not_found}
+
+      {:error, {:http_error, 429, _}} ->
+        :telemetry.execute([:tuist_registry, :s3, :download], %{duration: duration}, %{result: :rate_limited})
+        {:error, :rate_limited}
+
+      {:error, reason} ->
+        :telemetry.execute([:tuist_registry, :s3, :download], %{duration: duration}, %{result: :error})
+        {:error, reason}
+    end
   end
 
   def etag_from_headers(headers) when is_map(headers) do
