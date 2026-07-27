@@ -32,7 +32,7 @@ defmodule Tuist.Storage.ExpiredArtifacts do
   alias Tuist.Storage.ArtifactRetentionCursor
   alias Tuist.Storage.RetentionPolicy
   alias Tuist.Tests
-  alias Tuist.Tests.TestCaseRun
+  alias Tuist.Tests.Test
   alias Tuist.Tests.TestCaseRunAttachment
 
   def delete_previews(%Account{} = account, batch_size, opts \\ []) do
@@ -166,21 +166,22 @@ defmodule Tuist.Storage.ExpiredArtifacts do
     else
       rows =
         TestCaseRunAttachment
-        |> join(:inner, [attachment], test_case_run in TestCaseRun, on: attachment.test_case_run_id == test_case_run.id)
+        |> join(:inner, [attachment], test_run in Test, on: attachment.test_run_id == test_run.id)
         |> where(
-          [attachment, test_case_run],
-          test_case_run.project_id in ^project_ids and attachment.inserted_at < ^cutoff
+          [attachment, test_run],
+          not is_nil(attachment.test_run_id) and test_run.project_id in ^project_ids and
+            attachment.inserted_at < ^cutoff
         )
         |> apply_cursor(cursor)
         |> order_by([attachment], asc: attachment.inserted_at, asc: attachment.id)
         |> limit(^batch_size)
-        |> select([attachment, test_case_run], %{
+        |> select([attachment, test_run], %{
           id: attachment.id,
           test_case_run_id: attachment.test_case_run_id,
           test_run_id: attachment.test_run_id,
           file_name: attachment.file_name,
           inserted_at: attachment.inserted_at,
-          project_id: test_case_run.project_id
+          project_id: test_run.project_id
         })
         |> ClickHouseRepo.all()
 

@@ -176,6 +176,11 @@ ClickHouse metadata rows, including build runs, test runs, command events,
 preview records, and shard plans, are kept so analytics and dashboards remain
 intact. The configurable policy does not change database retention rules.
 
+Test attachments created before attachment metadata included a test-run
+identifier are excluded from automated deletion. Their binary and metadata
+remain available and are included in an export. This avoids resolving account
+ownership by scanning the full test-case-run history during retention cleanup.
+
 Retention status is computed when cleanup runs. Cache artifacts use the object
 storage `last_modified` timestamp, while previews, current build archives, test
 attachments, and shard bundles use their database `inserted_at` timestamp. Run
