@@ -134,7 +134,7 @@ struct InspectAcceptanceTests {
 }
 
 struct LintAcceptanceTests {
-    @Test(.disabled(), .withFixture("generated_ios_app_with_headers"), .withMockedDependencies())
+    @Test(.withFixture("generated_ios_app_with_headers"), .withMockedDependencies())
     func ios_app_with_headers() async throws {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         try await TuistTest.run(InspectImplicitImportsCommand.self, ["--path", fixtureDirectory.pathString])
@@ -145,7 +145,7 @@ struct LintAcceptanceTests {
         )
     }
 
-    @Test(.disabled(), .withFixture("generated_ios_app_with_implicit_dependencies"), .withMockedDependencies())
+    @Test(.withFixture("generated_ios_app_with_implicit_dependencies"), .withMockedDependencies())
     func ios_app_with_implicit_dependencies() async throws {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         let appDependencies: Set<String> = [
@@ -166,7 +166,7 @@ struct LintAcceptanceTests {
         }
     }
 
-    @Test(.disabled(), .withFixture("generated_framework_with_macros_and_tests"), .withMockedDependencies())
+    @Test(.withFixture("generated_framework_with_macros_and_tests"), .withMockedDependencies())
     func framework_with_macros_redundant_imports() async throws {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)
         try await TuistTest.run(InstallCommand.self, ["--path", fixtureDirectory.pathString])
