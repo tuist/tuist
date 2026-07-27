@@ -30,7 +30,13 @@ config :tuist, Tuist.ClickHouseRepo,
   default_dynamic_repo: Tuist.IngestRepo,
   # Workaround for ClickHouse lazy materialization bug with projections
   # https://github.com/ClickHouse/ClickHouse/issues/80201
-  settings: [readonly: 1, query_plan_optimize_lazy_materialization: 0, session_timezone: "UTC"]
+  settings: [
+    readonly: 1,
+    max_threads: 4,
+    max_memory_usage: 6 * 1024 * 1024 * 1024,
+    query_plan_optimize_lazy_materialization: 0,
+    session_timezone: "UTC"
+  ]
 
 config :tuist, Tuist.CommandEvents, metadata_queries_bypass_dynamic_repo: true
 
