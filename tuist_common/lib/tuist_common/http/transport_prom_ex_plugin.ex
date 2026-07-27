@@ -20,7 +20,7 @@ defmodule TuistCommon.HTTP.TransportPromExPlugin do
             keep: fn metadata -> Transport.bandit_request_timeout?(metadata) end,
             tag_values: &Transport.bandit_request_metadata/1,
             tags: [:method, :route],
-            description: "Counts request body read timeouts reported by Bandit."
+            description: "Counts request read timeouts reported by Bandit."
           )
         ]
       ),
