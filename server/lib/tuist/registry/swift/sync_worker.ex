@@ -26,6 +26,7 @@ defmodule Tuist.Registry.Swift.SyncWorker do
   @sync_lock_ttl_seconds 3_000
   @package_lock_ttl_seconds 900
   @release_lock_ttl_seconds 1_800
+  @skip_classification_version 2
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: args}) do
@@ -265,7 +266,15 @@ defmodule Tuist.Registry.Swift.SyncWorker do
   defp missing_versions(tags, metadata) do
     releases = Map.get(metadata, "releases", %{})
     skipped_releases = Map.get(metadata, "skipped_releases", %{})
-    known_versions = Map.keys(releases) ++ Map.keys(skipped_releases)
+
+    verified_skipped_versions =
+      skipped_releases
+      |> Enum.filter(fn {_version, release} ->
+        match?(%{"classification_version" => @skip_classification_version}, release)
+      end)
+      |> Enum.map(&elem(&1, 0))
+
+    known_versions = Map.keys(releases) ++ verified_skipped_versions
 
     tags
     |> Enum.filter(&KeyNormalizer.valid_source_tag?/1)

@@ -1,11 +1,12 @@
 defmodule Tuist.Registry.S3 do
   @moduledoc """
-  S3 helpers for sync workers writing into the registry bucket.
+  S3 helpers for reading and writing the registry bucket.
 
   Server uses `Tuist.Storage` for account-scoped artifact buckets; this
-  module is the parallel surface for the registry bucket and is only
-  touched by `Tuist.Registry.Swift.*` workers. The standalone registry
-  pod has its own equivalent (`TuistRegistry.S3`) for reads.
+  module is the parallel surface for the registry bucket. It always passes
+  the registry's dedicated connection and credentials so operations-page
+  reads cannot accidentally use the account-artifact storage configuration.
+  The standalone registry pod has its own equivalent (`TuistRegistry.S3`).
   """
 
   alias ExAws.S3.Upload
@@ -15,8 +16,9 @@ defmodule Tuist.Registry.S3 do
 
   def get_object(key) when is_binary(key) do
     bucket = Registry.registry_bucket()
+    config = Registry.registry_s3_config()
 
-    case bucket |> ExAws.S3.get_object(key) |> ExAws.request() do
+    case bucket |> ExAws.S3.get_object(key) |> ExAws.request(config) do
       {:ok, %{status_code: 200, body: body}} -> {:ok, body}
       {:ok, %{status_code: 404}} -> {:error, :not_found}
       {:ok, %{status_code: status}} -> {:error, {:s3_error, status}}
@@ -27,6 +29,7 @@ defmodule Tuist.Registry.S3 do
 
   def upload_file(key, local_path, opts \\ []) when is_binary(key) and is_binary(local_path) do
     bucket = Registry.registry_bucket()
+    config = Registry.registry_s3_config()
     content_type_opt = Keyword.get(opts, :content_type)
 
     upload_opts =
@@ -39,7 +42,7 @@ defmodule Tuist.Registry.S3 do
         local_path
         |> Upload.stream_file()
         |> ExAws.S3.upload(bucket, key, upload_opts)
-        |> ExAws.request()
+        |> ExAws.request(config)
       end)
 
     case result do
@@ -59,6 +62,7 @@ defmodule Tuist.Registry.S3 do
 
   def upload_content(key, content, opts \\ []) when is_binary(key) do
     bucket = Registry.registry_bucket()
+    config = Registry.registry_s3_config()
     content_type_opt = Keyword.get(opts, :content_type)
     put_opts = if content_type_opt, do: [content_type: content_type_opt], else: []
 
@@ -66,7 +70,7 @@ defmodule Tuist.Registry.S3 do
       :timer.tc(fn ->
         bucket
         |> ExAws.S3.put_object(key, content, put_opts)
-        |> ExAws.request()
+        |> ExAws.request(config)
       end)
 
     case result do
@@ -90,9 +94,10 @@ defmodule Tuist.Registry.S3 do
   """
   def delete_all_with_prefix(prefix) when is_binary(prefix) do
     bucket = Registry.registry_bucket()
+    config = Registry.registry_s3_config()
 
     Logger.info("Deleting all S3 objects with prefix: #{prefix}")
-    {duration, result} = :timer.tc(fn -> list_and_delete_objects(bucket, prefix, 0) end)
+    {duration, result} = :timer.tc(fn -> list_and_delete_objects(bucket, prefix, config, 0) end)
 
     case result do
       {:ok, count} ->
@@ -107,14 +112,14 @@ defmodule Tuist.Registry.S3 do
     end
   end
 
-  defp list_and_delete_objects(bucket, prefix, acc) do
+  defp list_and_delete_objects(bucket, prefix, config, acc) do
     bucket
     |> ExAws.S3.list_objects(prefix: prefix)
-    |> ExAws.stream!()
+    |> ExAws.stream!(config)
     |> Stream.map(& &1.key)
     |> Stream.chunk_every(1000)
     |> Enum.reduce_while({:ok, acc}, fn keys, {:ok, count} ->
-      case bucket |> ExAws.S3.delete_multiple_objects(keys) |> ExAws.request() do
+      case bucket |> ExAws.S3.delete_multiple_objects(keys) |> ExAws.request(config) do
         {:ok, _} -> {:cont, {:ok, count + length(keys)}}
         {:error, reason} -> {:halt, {:error, reason}}
       end

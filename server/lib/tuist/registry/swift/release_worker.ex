@@ -26,6 +26,7 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
   @metadata_lock_max_attempts 5
   @metadata_lock_backoff_ms 200
   @metadata_lock_snooze_seconds 30
+  @skip_classification_version 2
   @skippable_submodule_failure_markers [
     "no url found for submodule path",
     "transport 'file' not allowed",
@@ -74,7 +75,7 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
             skipped_releases = Map.get(metadata, "skipped_releases", %{})
 
             if Map.has_key?(releases, normalized_version) or
-                 Map.has_key?(skipped_releases, normalized_version) do
+                 verified_skipped_release?(skipped_releases, normalized_version) do
               :ok
             else
               sync_release(scope, name, full_handle, tag, normalized_version, token)
@@ -664,31 +665,35 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
   defp fetch_manifests(full_handle, tag, token) do
     with {:ok, contents} <-
            TuistCommon.GitHub.list_repository_contents(full_handle, token, tag, @github_opts) do
-      manifest_payloads =
+      {manifest_payloads, failures} =
         contents
         |> Enum.map(&Map.get(&1, "path"))
         |> Enum.filter(&manifest_path?/1)
-        |> Enum.map(fn path ->
+        |> Enum.reduce({[], []}, fn path, {manifest_payloads, failures} ->
           filename = Path.basename(path)
 
           case TuistCommon.GitHub.get_file_content(full_handle, token, path, tag, @github_opts) do
             {:ok, content} ->
-              %{
+              manifest_payload = %{
                 content: content,
                 filename: filename,
                 path: path,
                 swift_version: AlternateManifest.swift_version_from_filename(filename)
               }
 
+              {[manifest_payload | manifest_payloads], failures}
+
             {:error, reason} ->
               Logger.warning("Failed to fetch manifest #{path} for #{full_handle}@#{tag}: #{inspect(reason)}")
 
-              nil
+              {manifest_payloads, [%{path: path, reason: reason} | failures]}
           end
         end)
-        |> Enum.reject(&is_nil/1)
 
       cond do
+        failures != [] ->
+          {:error, {:manifest_fetch_failed, Enum.reverse(failures)}}
+
         manifest_payloads == [] ->
           {:error, {:missing_manifests, full_handle, tag}}
 
@@ -696,7 +701,7 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
           {:error, {:missing_default_manifest, full_handle, tag}}
 
         true ->
-          {:ok, manifest_payloads}
+          {:ok, Enum.reverse(manifest_payloads)}
       end
     end
   end
@@ -886,9 +891,15 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
         })
       end
     )
+    |> Map.update("skipped_releases", %{}, &Map.delete(&1 || %{}, version))
   end
 
   defp build_updated_metadata_with_skipped_release(metadata, scope, name, full_handle, version, reason) do
+    skipped_release = %{
+      "classification_version" => @skip_classification_version,
+      "reason" => reason
+    }
+
     metadata
     |> Map.put_new("scope", scope)
     |> Map.put_new("name", name)
@@ -899,11 +910,18 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
     )
     |> Map.update(
       "skipped_releases",
-      %{version => %{"reason" => reason}},
+      %{version => skipped_release},
       fn skipped_releases ->
-        Map.put(skipped_releases || %{}, version, %{"reason" => reason})
+        Map.put(skipped_releases || %{}, version, skipped_release)
       end
     )
+  end
+
+  defp verified_skipped_release?(skipped_releases, version) do
+    case Map.get(skipped_releases, version) do
+      %{"classification_version" => @skip_classification_version} -> true
+      _ -> false
+    end
   end
 
   defp upload_manifest(scope, name, version, filename, content) do
