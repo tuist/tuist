@@ -61,7 +61,7 @@ Describe 'memory pressure resilience'
 import sys
 
 chunk = b"kura-memory-pressure-traffic"
-size = 4 * 1024 * 1024
+size = 16 * 1024 * 1024
 repetitions = (size + len(chunk) - 1) // len(chunk)
 sys.stdout.buffer.write((chunk * repetitions)[:size])
 PY
@@ -87,6 +87,8 @@ PY
     capture_into ap_keyvalue wait_for_contains "${keyvalue_url_ap}" '"probe"' || return 1
     The variable eu_keyvalue should include '"load"'
     The variable ap_keyvalue should include '"probe"'
+
+    run_parallel_http_posts "${cas_url_us}" "${artifact_path}" 4 4 || return 1
 
     run_parallel_http_gets "${cas_url_us}" 6 12 &
     cas_us_pid=$!
@@ -135,5 +137,26 @@ PY
     The variable us_oom_killed should eq false
     The variable eu_oom_killed should eq false
     The variable ap_oom_killed should eq false
+
+    us_oom_events="$(container_memory_event kura-us oom)"
+    eu_oom_events="$(container_memory_event kura-eu oom)"
+    ap_oom_events="$(container_memory_event kura-ap oom)"
+    The variable us_oom_events should eq 0
+    The variable eu_oom_events should eq 0
+    The variable ap_oom_events should eq 0
+
+    us_oom_kill_events="$(container_memory_event kura-us oom_kill)"
+    eu_oom_kill_events="$(container_memory_event kura-eu oom_kill)"
+    ap_oom_kill_events="$(container_memory_event kura-ap oom_kill)"
+    The variable us_oom_kill_events should eq 0
+    The variable eu_oom_kill_events should eq 0
+    The variable ap_oom_kill_events should eq 0
+
+    us_max_events="$(container_memory_event kura-us max)"
+    eu_max_events="$(container_memory_event kura-eu max)"
+    ap_max_events="$(container_memory_event kura-ap max)"
+    The variable us_max_events should eq 0
+    The variable eu_max_events should eq 0
+    The variable ap_max_events should eq 0
   End
 End

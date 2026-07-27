@@ -27,23 +27,34 @@ use crate::{
         MAX_INLINE_REPLICATION_BODY_BYTES, MAX_REPLICATION_BODY_BYTES, REPLICATION_RETRY_SECS,
     },
     failpoints::FailpointName,
+    file_cache::FileCachePolicy,
     metrics::Metrics,
     state::SharedState,
     store::{
         ArtifactApplyOutcome, ManifestBucketDigest, ManifestDigest, ManifestPage,
-        NamespaceTombstonePage,
+        NamespaceTombstonePage, StagedArtifactPath,
     },
     telemetry::{inject_current_trace_context, record_trace_context},
-    utils::{replication_target_label, temp_file_path, url_encode},
+    utils::{TempFileCleanup, replication_target_label, temp_file_path, url_encode},
 };
 
 use self::{operation::ReplicationOperation, outbox_message::OutboxMessage};
 
-const BOOTSTRAP_PAGE_LIMIT: usize = 256;
+// Manifests per page of the bootstrap keyspace walk. Sized to hold a whole
+// digest bucket in one request: at BOOTSTRAP_DIGEST_DEFAULT_PREFIX_LEN the
+// keyspace splits into 4096 buckets, so a 3M-artifact account averages ~750
+// manifests per bucket and every divergent bucket used to cost three
+// round-trips instead of one. A page is bounded by count, not bytes — a REAPI
+// manifest serializes to ~420 B, so 2048 is ~850 KiB, well inside the
+// MAX_BOOTSTRAP_PAGE_BYTES ceiling the puller reads under.
+const BOOTSTRAP_PAGE_LIMIT: usize = 2048;
 
 // Artifact bodies fetched from a peer concurrently within a bootstrap page. Caps
 // open peer connections; staged bytes stay bounded by bootstrap_staging_budget.
 const BOOTSTRAP_ARTIFACT_FETCH_CONCURRENCY: usize = 16;
+const BOOTSTRAP_MEMORY_WINDOW_BYTES: u64 = 16 * 1024 * 1024;
+const BOOTSTRAP_CACHE_DROP_INTERVAL_BYTES: u64 = 8 * 1024 * 1024;
+const OUTBOX_DRAIN_PAUSED_ACTION: &str = "outbox_drain_paused";
 
 #[derive(Debug, Deserialize)]
 struct PeerStatusPayload {
@@ -245,20 +256,23 @@ pub async fn replication_targets(state: &SharedState) -> Vec<String> {
 }
 
 async fn maybe_spawn_bootstrap_task(state: SharedState, peer: String) {
+    // Membership retries every two seconds. Avoid allocating one parked task
+    // per known peer: only peers that can acquire both pressure and concurrency
+    // admission become in-flight work.
+    if !state.memory.allow_background_admission() {
+        return;
+    }
+    let Ok(permit) = state.bootstrap_semaphore.clone().try_acquire_owned() else {
+        return;
+    };
     let Some(epoch) = state.note_bootstrap_started(&peer).await else {
         return;
     };
 
-    let semaphore = state.bootstrap_semaphore.clone();
     tokio::spawn(
         async move {
-            let _permit = match semaphore.acquire_owned().await {
-                Ok(permit) => permit,
-                Err(_) => {
-                    state.note_bootstrap_failed(&peer).await;
-                    return;
-                }
-            };
+            let _permit = permit;
+            state.memory.wait_for_background_headroom().await;
             let started_at = std::time::Instant::now();
             let no_progress_timeout = Duration::from_millis(state.config.bootstrap_timeout_ms);
             let result =
@@ -624,7 +638,7 @@ async fn bootstrap_manifest_range_from_peer(
                         let applied = outcome.applied();
                         if applied {
                             // Tick progress as each artifact lands, not once per
-                            // page: draining a single 256-manifest page can take
+                            // page: draining a single full page can take
                             // longer than the no-progress window on a slow/cold
                             // link, and batching the bump to page end would let the
                             // watchdog cancel a bootstrap that is in fact applying.
@@ -718,6 +732,18 @@ async fn bootstrap_artifact_from_peer(
         return Ok(recheck);
     }
 
+    // Limit the number of body streams that can advance concurrently from live
+    // container headroom, not only a static request count. The reservation is a
+    // window rather than the full object size because a valid artifact may be as
+    // large as the container; completed file-backed pages are released below as
+    // pressure rises.
+    let memory_window = manifest.size.clamp(1, BOOTSTRAP_MEMORY_WINDOW_BYTES);
+    let _memory_reservation = state
+        .memory
+        .reserve_background_transient(memory_window)
+        .await
+        .map_err(|()| "bootstrap memory admission closed".to_owned())?;
+
     let url = format!(
         "{peer}/_internal/bootstrap/artifacts/{}",
         url_encode(&manifest.artifact_id)
@@ -790,23 +816,27 @@ async fn bootstrap_artifact_from_peer(
     // reservation exists to prevent. (The node is out of the Service while
     // bootstrapping, so non-bootstrap tmp occupants are negligible.)
     let _staging_reservation = state.bootstrap_staging_budget.reserve(reserved_bytes).await;
+    let disk_reservation = state.tmp_staging_budget.try_reserve(reserved_bytes)?;
     let temp_path = temp_file_path(&state.config.tmp_dir.join("bootstrap"), "bootstrap");
+    let mut cleanup = TempFileCleanup::new(temp_path.clone(), disk_reservation);
     stream_response_to_temp(state, response, &temp_path, reserved_bytes).await?;
     state
         .store
         .hit_failpoint(FailpointName::AfterBootstrapArtifactFetchBeforePersist)
         .await?;
-    state
+    let result = state
         .store
         .apply_replicated_artifact_from_path(
             manifest.producer,
             &manifest.namespace_id,
             &manifest.key,
             &manifest.content_type,
-            &temp_path,
+            StagedArtifactPath::new(&temp_path, FileCachePolicy::Bounded),
             manifest.version_ms,
         )
-        .await
+        .await;
+    cleanup.remove_and_disarm(&state.io).await;
+    result
 }
 
 async fn stream_response_to_temp(
@@ -822,11 +852,11 @@ async fn stream_response_to_temp(
     // The staged file must not exceed the caller's `bootstrap_staging_budget`
     // reservation: an inconsistent peer serving a body larger than its manifest
     // advertised is rejected here instead of overrunning the budget.
-    let mut destination = state.io.create_file(path).await?;
-    let dest = &mut destination;
-    let outcome = async move {
+    let mut destination = Some(state.io.create_file(path).await?);
+    let outcome = async {
         let mut stream = response.bytes_stream();
         let mut total: u64 = 0;
+        let mut advised_through: u64 = 0;
         while let Some(chunk) = stream.next().await {
             let chunk =
                 chunk.map_err(|error| format!("failed to stream bootstrap body: {error:?}"))?;
@@ -839,23 +869,55 @@ async fn stream_response_to_temp(
             if let Some(limiter) = state.replication_bandwidth_limiter.as_ref() {
                 limiter.acquire(chunk.len()).await;
             }
-            dest.write_all(&chunk)
+            destination
+                .as_mut()
+                .expect("bootstrap destination remains open while streaming")
+                .write_all(&chunk)
                 .await
                 .map_err(|error| format!("failed to persist bootstrap body: {error}"))?;
+            if total.saturating_sub(advised_through) >= BOOTSTRAP_CACHE_DROP_INTERVAL_BYTES
+                && !state.memory.allow_background_admission()
+            {
+                let file = destination
+                    .take()
+                    .expect("bootstrap destination remains open while streaming");
+                destination = match state
+                    .io
+                    .sync_drop_cache_and_reopen_append(
+                        file,
+                        path,
+                        advised_through,
+                        total - advised_through,
+                    )
+                    .await
+                {
+                    Ok(file) => Some(file),
+                    Err(error) => {
+                        state
+                            .metrics
+                            .record_memory_action("bootstrap_file_cache_drop_failed");
+                        warn!("failed to release bootstrap file cache: {error}");
+                        return Err(error);
+                    }
+                };
+                advised_through = total;
+                state.memory.wait_for_background_headroom().await;
+            }
         }
-        dest.flush()
+        destination
+            .as_mut()
+            .expect("bootstrap destination remains open while streaming")
+            .flush()
             .await
             .map_err(|error| format!("failed to flush bootstrap body: {error}"))?;
         Ok::<(), String>(())
     }
     .await;
 
-    // Drop the handle, then remove the partially-staged file on any failure. A
-    // peer serving incomplete data or a dropped connection (the bootstrap deadlock
-    // case) would otherwise leave one temp file per attempt; a retrying bootstrap
-    // accumulates them until the data disk fills and RocksDB can no longer open,
-    // wedging the pod out-of-space.
-    drop(destination);
+    // Drop the handle before asynchronous best-effort cleanup. The caller's
+    // owned guard is the cancellation-safe fallback when the watchdog drops
+    // this future at an await point.
+    drop(destination.take());
     if outcome.is_err() {
         state.io.remove_file_if_exists(path).await;
     }
@@ -1135,6 +1197,12 @@ pub async fn process_outbox(state: &SharedState) -> Result<(), String> {
 
     let mut after = None::<Vec<u8>>;
     while let Some((message_key, message)) = state.store.next_outbox_message(after.as_deref())? {
+        if state.memory.pause_outbox() {
+            state
+                .metrics
+                .record_memory_action(OUTBOX_DRAIN_PAUSED_ACTION);
+            return Ok(());
+        }
         after = Some(message_key.clone());
 
         // Messages for a peer that left the mesh can never be delivered and
@@ -1797,6 +1865,42 @@ mod tests {
                 version_ms: 1,
             },
         }
+    }
+
+    #[tokio::test]
+    async fn process_outbox_preserves_backlog_when_memory_becomes_critical() {
+        let local = test_context(|_| {}).await;
+        local
+            .state
+            .store
+            .enqueue(stale_target_message("https://peer.test:7443"))
+            .expect("enqueue should succeed");
+        local
+            .state
+            .memory
+            .observe(local.state.config.memory_hard_limit_bytes);
+
+        process_outbox(&local.state)
+            .await
+            .expect("critical pressure should pause without failing");
+
+        assert_eq!(
+            local
+                .state
+                .store
+                .outbox_messages()
+                .expect("outbox should load")
+                .len(),
+            1,
+            "paused replication must leave its durable message queued"
+        );
+        assert!(
+            local
+                .state
+                .metrics
+                .render()
+                .contains("kura_memory_actions_total_total{action=\"outbox_drain_paused\"} 1")
+        );
     }
 
     async fn complete_initial_discovery(state: &SharedState) {
@@ -2870,9 +2974,11 @@ mod tests {
 
         // Reproduces the production wedge: a large peer dataset that the joining
         // node already holds almost all of. Prod is ~1.4M artifacts / 4096
-        // buckets, ~99% in sync; a thousand here spans many buckets and forces
-        // the legacy full walk into several pages while staying fast.
-        const TOTAL: usize = 1024;
+        // buckets, ~99% in sync; this spans many buckets and forces the legacy
+        // full walk into several pages while staying fast. Keep it a multiple of
+        // BOOTSTRAP_PAGE_LIMIT above 1 so the full walk stays multi-page — the
+        // A/B assertion below is only meaningful while it is.
+        const TOTAL: usize = 4 * BOOTSTRAP_PAGE_LIMIT;
         const MISSING: usize = 2;
 
         let remote = test_context(|_| {}).await;
@@ -3267,9 +3373,10 @@ mod tests {
             response::IntoResponse,
         };
 
-        // Exactly one page (limit=256) of segment-backed artifacts, each body
-        // fetch delayed. At concurrency 16 the single page takes ~16*40ms to
-        // drain — many watchdog windows — with no page boundary in between.
+        // Fewer artifacts than BOOTSTRAP_PAGE_LIMIT, so the walk is a single
+        // page, each body fetch delayed. At concurrency 16 that page takes
+        // ~16*40ms to drain — many watchdog windows — with no page boundary in
+        // between.
         let remote = test_context(|_| {}).await;
         for i in 0..256 {
             let key = format!("artifact-{i:05}");

@@ -200,24 +200,6 @@ defmodule Tuist.Kura.Regions do
       # installed on the pool out-of-band).
       storage_class: "scw-local-nvme",
       storage_size: "50Gi",
-      # A local-path volume is a directory on the node's shared NVMe, so the claim
-      # above bounds nothing and this pool has been running near 137Gi per account
-      # off Kura's statvfs default. This is the whole per-account disk envelope
-      # (ring + index + upload staging) rather than the ring itself — the ring is
-      # what is left after the reserves, ~137GiB here — so it lands the ring back
-      # on roughly what the pool already holds rather than shrinking a healthy
-      # cache to a claim that never applied. Three accounts leave the ~900G node
-      # about half free;
-      # the box tops out near five, so raising this or adding accounts past that
-      # needs a second box, not a bigger number.
-      #
-      # Kept separate from storage_size because raising the claim is not a no-op:
-      # the controller patches existing PVCs up to spec.storageSize on every
-      # reconcile, and scw-local-nvme sets allowVolumeExpansion: false, so the API
-      # would reject each resize and wedge the instances that already exist. Only
-      # meaningful where the claim is a fiction — leave it unset on a class that
-      # enforces the claim, so the ring stays inside the volume.
-      disk_envelope_size: "150Gi",
       runner_platforms: [:macos],
       # The macOS Tart VMs reach this pool over a Scaleway Private
       # Network, not the cluster's pod network, so cluster Service DNS

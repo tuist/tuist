@@ -6,7 +6,7 @@ defmodule TuistWeb.RateLimit.MCPTest do
   alias Tuist.Accounts.User
   alias Tuist.Projects.Project
   alias TuistWeb.Authentication
-  alias TuistWeb.RateLimit.InMemory
+  alias TuistWeb.RateLimit
   alias TuistWeb.RateLimit.MCP
 
   describe "hit/1" do
@@ -19,8 +19,9 @@ defmodule TuistWeb.RateLimit.MCPTest do
       stub(Authentication, :authenticated_subject, fn ^conn -> user end)
       stub(Tuist.Environment, :mcp_rate_limit_bucket_size, fn -> bucket_size end)
 
-      expect(InMemory, :hit, fn "mcp:auth:user:123", ^timeout, ^bucket_size ->
-        {:allow, 1}
+      expect(RateLimit, :hit, fn
+        "mcp:auth:user:123", [limit: ^bucket_size, window: ^timeout] ->
+          {:allow, 1}
       end)
 
       # When / Then
@@ -36,8 +37,9 @@ defmodule TuistWeb.RateLimit.MCPTest do
       stub(Authentication, :authenticated_subject, fn ^conn -> project end)
       stub(Tuist.Environment, :mcp_rate_limit_bucket_size, fn -> bucket_size end)
 
-      expect(InMemory, :hit, fn "mcp:auth:project:456", ^timeout, ^bucket_size ->
-        {:allow, 1}
+      expect(RateLimit, :hit, fn
+        "mcp:auth:project:456", [limit: ^bucket_size, window: ^timeout] ->
+          {:allow, 1}
       end)
 
       # When / Then
@@ -53,8 +55,9 @@ defmodule TuistWeb.RateLimit.MCPTest do
       stub(Authentication, :authenticated_subject, fn ^conn -> authenticated_account end)
       stub(Tuist.Environment, :mcp_rate_limit_bucket_size, fn -> bucket_size end)
 
-      expect(InMemory, :hit, fn "mcp:auth:account:789", ^timeout, ^bucket_size ->
-        {:allow, 1}
+      expect(RateLimit, :hit, fn
+        "mcp:auth:account:789", [limit: ^bucket_size, window: ^timeout] ->
+          {:allow, 1}
       end)
 
       # When / Then
@@ -71,8 +74,9 @@ defmodule TuistWeb.RateLimit.MCPTest do
       stub(TuistWeb.RemoteIp, :get, fn ^conn -> ip end)
       stub(Tuist.Environment, :mcp_rate_limit_bucket_size, fn -> bucket_size end)
 
-      expect(InMemory, :hit, fn "mcp:unauth:127.0.0.1", ^timeout, ^bucket_size ->
-        {:allow, 1}
+      expect(RateLimit, :hit, fn
+        "mcp:unauth:127.0.0.1", [limit: ^bucket_size, window: ^timeout] ->
+          {:allow, 1}
       end)
 
       # When / Then

@@ -180,7 +180,13 @@
 
   display: inline-flex;
   gap: var(--noora-spacing-1);
+  border-radius: var(--noora-radius-1);
   background: transparent;
+
+  &:focus-visible {
+    outline: 2px solid currentColor;
+    outline-offset: 2px;
+  }
 
   &:disabled {
     cursor: not-allowed;

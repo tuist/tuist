@@ -377,6 +377,7 @@ defmodule Tuist.Application do
       if Environment.redis_url(),
         do: [
           {Redix, redis_opts()},
+          {TuistWeb.RateLimit.PersistentFixedWindow, redis_opts()},
           {TuistWeb.RateLimit.PersistentTokenBucket, redis_opts()}
         ],
         else: []
