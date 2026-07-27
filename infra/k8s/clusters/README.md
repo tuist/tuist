@@ -63,6 +63,20 @@ about; no Packer pipeline. Acceptable for the autoscaler's `md-processor`
 2→6 cadence; if scaling latency becomes painful we can introduce a
 pre-baked image without changing the ClusterClass shape.
 
+## Replacing a production runner node
+
+Production runner-node replacement is not automated. The fleet has
+exactly two pre-ordered physical hosts, so the current MachineDeployment
+cannot create a current-revision replacement before releasing an old
+node. Deleting an individual Machine can also let its outdated
+MachineSet recreate the old revision.
+
+Do not delete a claimed `HetznerBareMetalHost` or remove its finalizers.
+The safe prerequisite is a third pre-ordered production runner host and
+a matching replica increase. That gives the MachineDeployment spare
+capacity to create and verify a current-revision node before an old node
+is drained.
+
 ## Adapting from caph upstream
 
 `clusterclass-tuist.yaml` was originally forked from caph's

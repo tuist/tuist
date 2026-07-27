@@ -39,6 +39,12 @@ rules:
   - apiGroups: [""]
     resources: [nodes]
     verbs: [get, list, watch]
+  # RuntimeClass podFixed memory is part of the scheduler's per-Pod
+  # cost. The autoscaler reads it directly so its fleet allocation
+  # cannot drift from the admission-time scheduling calculation.
+  - apiGroups: [node.k8s.io]
+    resources: [runtimeclasses]
+    verbs: [get, list, watch]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
