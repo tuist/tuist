@@ -68,7 +68,76 @@
             try await run(noUpload: false, configuration: "Release")
         }
 
-        private func run(noUpload: Bool, configuration: String? = nil) async throws {
+        @Test(.inTemporaryDirectory) func run_usesAndPreservesCallerOwnedWorkingDirectory() async throws {
+            let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+            let workingDirectory = temporaryDirectory.appending(component: "cache-warm")
+
+            try await run(noUpload: false, workingDirectory: workingDirectory)
+
+            #expect(try await fileSystem.exists(workingDirectory, isDirectory: true))
+            #expect(try await fileSystem.exists(workingDirectory.appending(component: "derived-data"), isDirectory: true))
+            #expect(try await fileSystem.exists(workingDirectory.appending(component: "Metadatas"), isDirectory: true))
+        }
+
+        @Test(.inTemporaryDirectory) func run_rejectsNonEmptyCallerOwnedWorkingDirectory() async throws {
+            let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+            let workingDirectory = temporaryDirectory.appending(component: "cache-warm")
+            let existingFile = workingDirectory.appending(component: "existing")
+            try await fileSystem.makeDirectory(at: workingDirectory)
+            try await fileSystem.touch(existingFile)
+
+            await #expect(throws: CacheWarmCommandServiceError.workingDirectoryIsNotEmpty(workingDirectory)) {
+                try await run(noUpload: false, workingDirectory: workingDirectory)
+            }
+            #expect(try await fileSystem.exists(existingFile))
+        }
+
+        @Test(.inTemporaryDirectory) func run_placesCompilationCacheInCallerOwnedWorkingDirectory() async throws {
+            let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+            let workingDirectory = temporaryDirectory.appending(component: "cache-warm")
+            let compilationCachePath = workingDirectory.appending(component: "CompilationCache.noindex")
+
+            given(xcodeBuildController)
+                .build(
+                    .any,
+                    scheme: .any,
+                    destination: .any,
+                    rosetta: .any,
+                    derivedDataPath: .any,
+                    clean: .any,
+                    arguments: .any,
+                    passthroughXcodeBuildArguments: .any
+                )
+                .willReturn()
+
+            try await run(
+                noUpload: false,
+                workingDirectory: workingDirectory,
+                schemes: [.test(name: "Bundles-Cache-iOS")]
+            )
+
+            verify(xcodeBuildController)
+                .build(
+                    .any,
+                    scheme: .value("Bundles-Cache-iOS"),
+                    destination: .any,
+                    rosetta: .any,
+                    derivedDataPath: .any,
+                    clean: .any,
+                    arguments: .matching {
+                        $0.contains(.xcarg("COMPILATION_CACHE_CAS_PATH", compilationCachePath.pathString))
+                    },
+                    passthroughXcodeBuildArguments: .any
+                )
+                .called(1)
+        }
+
+        private func run(
+            noUpload: Bool,
+            configuration: String? = nil,
+            workingDirectory: AbsolutePath? = nil,
+            schemes: [Scheme] = []
+        ) async throws {
             let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
             let resolvedConfiguration = configuration ?? "Debug"
             let target = Target.test(name: "Fixtures", product: .bundle)
@@ -76,6 +145,7 @@
             let graphTarget = GraphTarget(path: temporaryDirectory, target: target, project: project)
             let graph = Graph.test(
                 path: temporaryDirectory,
+                workspace: .test(path: temporaryDirectory, schemes: schemes),
                 projects: [temporaryDirectory: project]
             )
 
@@ -144,7 +214,8 @@
                 externalOnly: false,
                 generateOnly: false,
                 noUpload: noUpload,
-                cacheProfile: nil
+                cacheProfile: nil,
+                workingDirectory: workingDirectory?.pathString
             )
         }
 

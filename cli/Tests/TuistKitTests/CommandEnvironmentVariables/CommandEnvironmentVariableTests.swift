@@ -927,6 +927,7 @@ struct CommandEnvironmentVariableTests {
         setVariable(.cachePrintHashes, value: "true")
         setVariable(.cacheConfiguration, value: "CacheConfig")
         setVariable(.cachePath, value: "/cache/path")
+        setVariable(.cacheWorkingDirectory, value: "/cache/working-directory")
         setVariable(.cacheTargets, value: "Fmk1,Fmk2")
 
         let commandWithEnvVars = try CacheWarmCommand.parse([])
@@ -937,6 +938,7 @@ struct CommandEnvironmentVariableTests {
         #expect(commandWithEnvVars.printHashes == true)
         #expect(commandWithEnvVars.configuration == "CacheConfig")
         #expect(commandWithEnvVars.path == "/cache/path")
+        #expect(commandWithEnvVars.workingDirectory == "/cache/working-directory")
         #expect(commandWithEnvVars.targets == ["Fmk1", "Fmk2"])
 
         let commandWithArgs = try CacheWarmCommand.parse([
@@ -947,6 +949,7 @@ struct CommandEnvironmentVariableTests {
             "--print-hashes",
             "--configuration", "CacheConfig",
             "--path", "/cache/path",
+            "--working-directory", "/cache/working-directory",
             "--",
             "Fmk1", "Fmk2",
         ])
@@ -957,6 +960,7 @@ struct CommandEnvironmentVariableTests {
         #expect(commandWithArgs.printHashes == true)
         #expect(commandWithArgs.configuration == "CacheConfig")
         #expect(commandWithArgs.path == "/cache/path")
+        #expect(commandWithArgs.workingDirectory == "/cache/working-directory")
         #expect(commandWithArgs.targets == ["Fmk1", "Fmk2"])
     }
 

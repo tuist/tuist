@@ -70,6 +70,18 @@
         )
         var cacheProfile: String?
 
+        @Option(
+            name: .long,
+            help: """
+            The empty directory where cache warming writes build outputs and intermediate files. \
+            If the directory does not exist, Tuist creates it. Tuist does not remove the directory after the run. \
+            When omitted, Tuist uses a temporary directory and removes it after the run.
+            """,
+            completion: .directory,
+            envKey: .cacheWorkingDirectory
+        )
+        var workingDirectory: String?
+
         @Flag(
             name: .long,
             help: "When passed, the hashes of the cacheable frameworks in the given project are printed.",
@@ -101,7 +113,8 @@
                 externalOnly: externalOnly,
                 generateOnly: generateOnly,
                 noUpload: noUpload,
-                cacheProfile: cacheProfile
+                cacheProfile: cacheProfile,
+                workingDirectory: workingDirectory
             )
         }
     }
