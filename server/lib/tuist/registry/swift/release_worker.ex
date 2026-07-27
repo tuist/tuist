@@ -91,8 +91,9 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
     archive_path = Path.join(tmp_dir, "source_archive.zip")
 
     with {:ok, manifest_payloads} <- fetch_manifests(full_handle, tag, token),
-         {:ok, checksum} <-
-           fetch_or_reuse_source_archive(scope, name, version, full_handle, tag, token, tmp_dir, archive_path),
+         :ok <- fetch_source_archive(full_handle, tag, token, tmp_dir, archive_path),
+         {:ok, checksum} <- checksum_for_file(archive_path),
+         :ok <- upload_source_archive(scope, name, version, archive_path),
          {:ok, manifests} <- upload_manifests(scope, name, version, manifest_payloads) do
       update_metadata_with_release(scope, name, full_handle, version, checksum, manifests)
     else
@@ -115,26 +116,6 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
             Logger.warning("Failed to sync release #{scope}/#{name}@#{tag}: #{inspect(reason)}")
             {:error, reason}
         end
-    end
-  end
-
-  defp fetch_or_reuse_source_archive(scope, name, version, full_handle, tag, token, tmp_dir, archive_path) do
-    key = source_archive_key(scope, name, version)
-
-    case S3.download_file(key, archive_path) do
-      :ok ->
-        Logger.info("Reusing existing registry source archive for #{scope}/#{name}@#{version}")
-        checksum_for_file(archive_path)
-
-      {:error, :not_found} ->
-        with :ok <- fetch_source_archive(full_handle, tag, token, tmp_dir, archive_path),
-             {:ok, checksum} <- checksum_for_file(archive_path),
-             :ok <- upload_source_archive(scope, name, version, archive_path) do
-          {:ok, checksum}
-        end
-
-      {:error, reason} ->
-        {:error, {:source_archive_download_failed, reason}}
     end
   end
 

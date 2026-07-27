@@ -113,10 +113,6 @@ The sync side reads the same item (it needs read+write to the same
 bucket, plus a `registry_github_token` field — see
 `infra/helm/tuist/templates/swift-registry-sync-deployment.yaml`).
 
-A published version's source archive is immutable. When metadata needs
-repair, the server-owned writer downloads and reuses the existing archive
-instead of regenerating and overwriting it.
-
 The Tigris access key must allow read on the env's `tuist-registry-<env>`
 (or `tuist-registry` for production) bucket.
 

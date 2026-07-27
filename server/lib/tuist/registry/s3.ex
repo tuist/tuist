@@ -22,36 +22,12 @@ defmodule Tuist.Registry.S3 do
   def get_object(key) when is_binary(key) do
     bucket = Registry.registry_bucket()
 
-    case bucket |> ExAws.S3.get_object(key) |> request() do
+    case bucket |> ExAws.S3.get_object(key) |> with_tigris_consistency() |> request() do
       {:ok, %{status_code: 200, body: body}} -> {:ok, body}
       {:ok, %{status_code: 404}} -> {:error, :not_found}
       {:ok, %{status_code: status}} -> {:error, {:s3_error, status}}
       {:error, {:http_error, 404, _}} -> {:error, :not_found}
       {:error, reason} -> {:error, reason}
-    end
-  end
-
-  def download_file(key, local_path) when is_binary(key) and is_binary(local_path) do
-    bucket = Registry.registry_bucket()
-
-    case bucket |> ExAws.S3.head_object(key) |> request() do
-      {:ok, %{status_code: 404}} ->
-        {:error, :not_found}
-
-      {:ok, %{status_code: status}} when status >= 400 ->
-        {:error, {:s3_error, status}}
-
-      {:ok, _response} ->
-        download_existing_file(bucket, key, local_path)
-
-      {:error, {:http_error, 404, _}} ->
-        {:error, :not_found}
-
-      {:error, {:http_error, 429, _}} ->
-        {:error, :rate_limited}
-
-      {:error, reason} ->
-        {:error, reason}
     end
   end
 
@@ -151,36 +127,6 @@ defmodule Tuist.Registry.S3 do
     end)
   end
 
-  defp download_existing_file(bucket, key, local_path) do
-    {duration, result} =
-      :timer.tc(fn ->
-        bucket
-        |> ExAws.S3.download_file(key, local_path,
-          timeout: 120_000,
-          max_concurrency: 8
-        )
-        |> request()
-      end)
-
-    case result do
-      {:ok, :done} ->
-        :telemetry.execute([:tuist_registry, :s3, :download], %{duration: duration}, %{result: :ok})
-        :ok
-
-      {:error, {:http_error, 404, _}} ->
-        :telemetry.execute([:tuist_registry, :s3, :download], %{duration: duration}, %{result: :not_found})
-        {:error, :not_found}
-
-      {:error, {:http_error, 429, _}} ->
-        :telemetry.execute([:tuist_registry, :s3, :download], %{duration: duration}, %{result: :rate_limited})
-        {:error, :rate_limited}
-
-      {:error, reason} ->
-        :telemetry.execute([:tuist_registry, :s3, :download], %{duration: duration}, %{result: :error})
-        {:error, reason}
-    end
-  end
-
   def etag_from_headers(headers) when is_map(headers) do
     headers
     |> Map.get("etag", Map.get(headers, "ETag"))
@@ -195,5 +141,9 @@ defmodule Tuist.Registry.S3 do
     |> String.trim()
     |> String.trim_leading("\"")
     |> String.trim_trailing("\"")
+  end
+
+  defp with_tigris_consistency(%{headers: headers} = operation) do
+    %{operation | headers: Map.put(headers, "X-Tigris-Consistent", "true")}
   end
 end
