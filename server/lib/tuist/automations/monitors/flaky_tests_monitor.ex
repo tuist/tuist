@@ -62,8 +62,10 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
   # Merging the rolling aggregate states is memory-heavy and memory grows with
   # parallelism. Keep this limit local to these queries so concurrent alert
   # evaluations leave headroom for runner lifecycle writes and other reads.
-  @rolling_query_max_threads 2
-  @rolling_query_max_memory_bytes 1024 * 1024 * 1024
+  @rolling_query_settings [
+    max_threads: 2,
+    max_memory_usage: 1024 * 1024 * 1024
+  ]
 
   def evaluate(alert, test_case_ids \\ nil) do
     trigger_config = alert.trigger_config
@@ -402,15 +404,17 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
       )
     )
     WHERE length(recent_runs) > 0
-    SETTINGS max_threads = #{@rolling_query_max_threads},
-             max_memory_usage = #{@rolling_query_max_memory_bytes}
     """
 
     %{rows: rows} =
-      ClickHouseRepo.query!(sql, %{
-        project_id: project_id,
-        test_case_ids: test_case_ids
-      })
+      ClickHouseRepo.query!(
+        sql,
+        %{
+          project_id: project_id,
+          test_case_ids: test_case_ids
+        },
+        settings: @rolling_query_settings
+      )
 
     Enum.map(rows, fn [binary, matching_run_count, run_count] ->
       {Ecto.UUID.load!(binary), matching_run_count, run_count}
@@ -533,8 +537,6 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
     )
     WHERE length(recent_runs) > 0
       AND #{rolling_having_expr(monitor_type)} #{rolling_comparison_op(comparison)} {threshold:Float64}
-    SETTINGS max_threads = #{@rolling_query_max_threads},
-             max_memory_usage = #{@rolling_query_max_memory_bytes}
     """
 
     params = maybe_put_test_case_ids(%{project_id: project_id, threshold: threshold * 1.0}, test_case_ids)
@@ -545,7 +547,7 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitor do
     # active event. Letting the error propagate matches the
     # `ClickHouseRepo.all` path in the `last_days` branch and gives Oban a
     # chance to retry.
-    %{rows: rows} = ClickHouseRepo.query!(sql, params)
+    %{rows: rows} = ClickHouseRepo.query!(sql, params, settings: @rolling_query_settings)
 
     # ClickHouse returns identifier columns as 16-byte binaries here; the rest
     # of the worker compares against string-encoded identifiers from the Ecto

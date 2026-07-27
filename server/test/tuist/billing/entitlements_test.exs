@@ -111,9 +111,7 @@ defmodule Tuist.Billing.EntitlementsTest do
       stub(Environment, :tuist_hosted?, fn -> true end)
       account = AccountsFixtures.organization_fixture(preload: [:account]).account
 
-      expect(Tuist.Billing, :get_current_active_subscription, 1, fn ^account ->
-        %{plan: :enterprise}
-      end)
+      expect(Tuist.Billing, :effective_plan, 1, fn ^account -> :enterprise end)
 
       assert Entitlements.allowed_features(account, [
                :self_hosted_cache,

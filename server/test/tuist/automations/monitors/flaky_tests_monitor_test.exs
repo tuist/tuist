@@ -2,6 +2,7 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitorTest do
   use TuistTestSupport.Cases.DataCase, async: false
 
   alias Tuist.Automations.Monitors.FlakyTestsMonitor
+  alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
   alias Tuist.Tests
   alias Tuist.Tests.TestCaseRun
@@ -478,6 +479,41 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitorTest do
   end
 
   describe "evaluate_rolling_alerts/2" do
+    test "executes rolling queries through the read repository" do
+      project = ProjectsFixtures.project_fixture()
+      test_case_id = Ecto.UUID.generate()
+      ran_at = NaiveDateTime.utc_now()
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: test_case_id,
+        is_flaky: true,
+        ran_at: ran_at,
+        inserted_at: ran_at
+      )
+
+      alert =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          monitor_type: "flakiness_rate",
+          trigger_config: %{
+            "threshold" => 1,
+            "comparison" => "gte",
+            "window_type" => "rolling",
+            "rolling_window_size" => 5
+          }
+        )
+
+      with_read_repo(fn ->
+        assert FlakyTestsMonitor.evaluate(alert, [test_case_id]).triggered == [test_case_id]
+
+        triggered_by_alert_id =
+          FlakyTestsMonitor.evaluate_rolling_alerts([alert], [test_case_id])
+
+        assert triggered_by_alert_id[alert.id] == [test_case_id]
+      end)
+    end
+
     test "shares measurements between flakiness rate and flaky run count alerts" do
       project = ProjectsFixtures.project_fixture()
       one_flaky_run_id = Ecto.UUID.generate()
@@ -1094,6 +1130,19 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitorTest do
 
   defp insert_test_case_runs(rows) do
     IngestRepo.insert_all(TestCaseRun, rows)
+  end
+
+  defp with_read_repo(fun) do
+    previous_dynamic_repo = ClickHouseRepo.get_dynamic_repo()
+
+    try do
+      # ClickHouse exposes parts inserted by the sandboxed write connection to
+      # the separate read connection before the surrounding transaction ends.
+      ClickHouseRepo.put_dynamic_repo(ClickHouseRepo)
+      fun.()
+    after
+      ClickHouseRepo.put_dynamic_repo(previous_dynamic_repo)
+    end
   end
 
   defp test_case_run_attrs(project_id, test_case_id, attrs) do

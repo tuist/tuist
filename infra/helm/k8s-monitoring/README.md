@@ -44,6 +44,26 @@ are intentionally disabled on that small cluster. The Hetzner load-balancer
 exporter reuses the existing `org-tuist/hetzner` Secret and its `hcloud` key
 that the Cluster API provider already requires.
 
+During credential-access recovery, the workflow can preserve an existing
+`observability/k8s-monitoring-grafana-cloud` Secret when the service account
+cannot read `PROMETHEUS_TOKEN`. This does not make the credential optional for
+new clusters: the workflow fails before applying infrastructure when neither
+the 1Password item nor the exact existing Secret with the expected username is
+available. Once the management vault item is readable, the next run refreshes
+the Secret from 1Password automatically. Before applying anything, the workflow
+probes Grafana's remote-write endpoint and rejects a revoked credential. The
+post-apply check also requires a fresh successful remote write, so an
+incorrectly configured collector fails the workflow even when every collector
+Pod is running.
+
+The management cluster enforces the baseline
+[Pod Security Standard](https://kubernetes.io/docs/concepts/security/pod-security-standards/)
+by default. `infra/k8s/mgmt/observability-namespace.yaml` grants only the
+`observability` namespace the host access required by the node and
+control-plane collectors. Restricted-mode audit events and warnings remain
+enabled there and are pinned to the management cluster's Kubernetes minor
+version. Do not deploy unrelated workloads into this privileged namespace.
+
 Prerequisites:
 
 1. **ClusterSecretStore `onepassword` exists.** Installed once per workload cluster as part of the bootstrap — see [`k8s/onboarding.md`](../../k8s/onboarding.md) §4.

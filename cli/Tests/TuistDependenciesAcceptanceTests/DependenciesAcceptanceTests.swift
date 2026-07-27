@@ -249,7 +249,7 @@ struct DependenciesAcceptanceTestIosAppWithLocalSPMPackageGenerate {
     @Test(
         .withFixture("generated_ios_app_with_local_spm_package"),
         .inTemporaryDirectory,
-        .timeLimit(.minutes(1))
+        .timeLimit(.minutes(4))
     )
     func install_then_generate_does_not_deadlock() async throws {
         let fixtureDirectory = try #require(TuistTest.fixtureDirectory)

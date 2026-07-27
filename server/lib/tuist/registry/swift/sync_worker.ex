@@ -265,7 +265,13 @@ defmodule Tuist.Registry.Swift.SyncWorker do
   defp missing_versions(tags, metadata) do
     releases = Map.get(metadata, "releases", %{})
     skipped_releases = Map.get(metadata, "skipped_releases", %{})
-    known_versions = Map.keys(releases) ++ Map.keys(skipped_releases)
+
+    verified_skipped_versions =
+      skipped_releases
+      |> Enum.filter(fn {_version, release} -> Metadata.verified_skip?(release) end)
+      |> Enum.map(&elem(&1, 0))
+
+    known_versions = Map.keys(releases) ++ verified_skipped_versions
 
     tags
     |> Enum.filter(&KeyNormalizer.valid_source_tag?/1)

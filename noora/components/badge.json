@@ -1,0 +1,134 @@
+{
+  "name": "Badge",
+  "tagName": "noora-badge",
+  "elementClassName": "NooraBadge",
+  "className": "noora-badge",
+  "modulePath": "./priv/static/noora-web-components.js",
+  "description": "Labels an item with compact status or categorization information.",
+  "usage": "<noora-badge color=\"success\">Available</noora-badge>",
+  "attributes": [
+    {
+      "name": "aria-label",
+      "property": "_ariaLabel",
+      "publicProperty": false,
+      "type": "string",
+      "description": "Provides an accessible name when visible text is unavailable."
+    },
+    {
+      "name": "appearance",
+      "property": "appearance",
+      "phoenixName": "style",
+      "type": "string",
+      "values": ["fill", "light-fill"],
+      "default": "fill",
+      "description": "Controls whether the badge uses a solid or light fill."
+    },
+    {
+      "name": "color",
+      "property": "color",
+      "type": "string",
+      "values": [
+        "neutral",
+        "destructive",
+        "warning",
+        "attention",
+        "success",
+        "information",
+        "focus",
+        "primary",
+        "secondary"
+      ],
+      "default": "neutral",
+      "description": "Controls the semantic color. Disabled badges ignore this value."
+    },
+    {
+      "name": "size",
+      "property": "size",
+      "type": "string",
+      "values": ["small", "large"],
+      "default": "small",
+      "description": "Controls the badge dimensions and text size."
+    },
+    {
+      "name": "disabled",
+      "property": "disabled",
+      "type": "boolean",
+      "default": false,
+      "reflect": true,
+      "description": "Uses the disabled presentation regardless of color."
+    },
+    {
+      "name": "dot",
+      "property": "dot",
+      "type": "boolean",
+      "default": false,
+      "reflect": true,
+      "description": "Displays a dot before the label when the icon slot is empty."
+    },
+    {
+      "name": "icon-only",
+      "property": "iconOnly",
+      "type": "boolean",
+      "default": false,
+      "reflect": true,
+      "description": "Hides the label and displays only the icon slot."
+    },
+    {
+      "name": "label",
+      "property": "label",
+      "type": "string",
+      "default": "",
+      "description": "Provides fallback text when the default slot is empty."
+    }
+  ],
+  "readonlyProperties": [],
+  "slots": [
+    {
+      "name": "",
+      "description": "The visible label."
+    },
+    {
+      "name": "icon",
+      "description": "An icon displayed before the label. It takes precedence over dot."
+    }
+  ],
+  "cssParts": [
+    {
+      "name": "badge",
+      "description": "The badge container."
+    },
+    {
+      "name": "icon",
+      "description": "The icon or dot container."
+    },
+    {
+      "name": "label",
+      "description": "The visible label."
+    }
+  ],
+  "stylingExample": "noora-badge::part(badge) {\n  text-transform: uppercase;\n}",
+  "notes": [
+    "The browser component uses appearance for the visual style because style is a native element property. The Phoenix component keeps its existing style attribute, and both map to the same contract value.",
+    "A slotted icon takes precedence over the generated dot."
+  ],
+  "examples": [
+    {
+      "id": "colors",
+      "title": "Colors",
+      "description": "Colors communicate semantic meaning while sharing the same compact shape.",
+      "markup": "<noora-badge color=\"neutral\">Neutral</noora-badge>\n<noora-badge color=\"destructive\">Destructive</noora-badge>\n<noora-badge color=\"warning\">Warning</noora-badge>\n<noora-badge color=\"attention\">Attention</noora-badge>\n<noora-badge color=\"success\">Success</noora-badge>\n<noora-badge color=\"information\">Information</noora-badge>\n<noora-badge color=\"focus\">Focus</noora-badge>\n<noora-badge color=\"primary\">Primary</noora-badge>\n<noora-badge color=\"secondary\">Secondary</noora-badge>"
+    },
+    {
+      "id": "appearances-and-sizes",
+      "title": "Appearances and sizes",
+      "description": "Use a light fill for lower emphasis and choose between small and large sizing.",
+      "markup": "<noora-badge appearance=\"fill\" size=\"small\" color=\"success\">Small fill</noora-badge>\n<noora-badge appearance=\"light-fill\" size=\"small\" color=\"success\">Small light fill</noora-badge>\n<noora-badge appearance=\"fill\" size=\"large\" color=\"information\">Large fill</noora-badge>\n<noora-badge appearance=\"light-fill\" size=\"large\" color=\"information\">Large light fill</noora-badge>"
+    },
+    {
+      "id": "icons-and-states",
+      "title": "Icons and states",
+      "description": "Use a generated dot, provide an icon through its named slot, or apply the disabled presentation.",
+      "markup": "<noora-badge dot color=\"success\">Online</noora-badge>\n\n<noora-badge appearance=\"light-fill\" color=\"warning\">\n  <svg slot=\"icon\" aria-hidden=\"true\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\">\n    <circle cx=\"12\" cy=\"12\" r=\"9\" stroke-width=\"2\"></circle>\n    <path d=\"M12 7v6\" stroke-width=\"2\"></path>\n    <path d=\"M12 17h.01\" stroke-width=\"2\"></path>\n  </svg>\n  Needs attention\n</noora-badge>\n\n<noora-badge disabled>Disabled</noora-badge>"
+    }
+  ]
+}
