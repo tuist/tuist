@@ -36,12 +36,26 @@ export class NooraButton extends LitElement {
   #formDisabled = false;
   #internals;
   #restoreFocus = false;
+  #submitProxy;
 
   constructor() {
     super();
 
     this.#internals = this.attachInternals?.();
     initializeContractDefaults(this, buttonContract);
+  }
+
+  connectedCallback() {
+    super.connectedCallback();
+    this.#syncAccessibilityReferences();
+    this.#syncSubmitProxy();
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    queueMicrotask(() => {
+      if (!this.isConnected) this.#submitProxy?.remove();
+    });
   }
 
   get form() {
@@ -64,6 +78,7 @@ export class NooraButton extends LitElement {
 
   formDisabledCallback(disabled) {
     this.#formDisabled = disabled;
+    if (this.#submitProxy) this.#submitProxy.disabled = this.#isDisabled();
     this.requestUpdate();
   }
 
@@ -73,6 +88,8 @@ export class NooraButton extends LitElement {
 
   updated() {
     if (this.#restoreFocus) this.control?.focus();
+    this.#syncAccessibilityReferences();
+    this.#syncSubmitProxy();
   }
 
   render() {
@@ -149,28 +166,68 @@ export class NooraButton extends LitElement {
         return;
       }
 
-      const submitter = this.ownerDocument.createElement("button");
-      submitter.hidden = true;
-      submitter.type = "submit";
-
-      for (const [attribute, value] of [
-        ["formaction", this.formAction],
-        ["formenctype", this.formEnctype],
-        ["formmethod", this.formMethod],
-        ["formtarget", this.formTarget],
-        ["name", this.name],
-        ["value", this.value],
-      ]) {
-        if (value !== undefined) {
-          submitter.setAttribute(attribute, value);
-        }
-      }
-      submitter.formNoValidate = this.formNoValidate;
-
-      form.append(submitter);
-      submitter.click();
-      submitter.remove();
+      this.#syncSubmitProxy();
+      this.#submitProxy?.form?.requestSubmit(this.#submitProxy);
     });
+  }
+
+  #syncAccessibilityReferences() {
+    const control = this.control;
+    const root = this.getRootNode();
+
+    if (!control || !("getElementById" in root)) return;
+
+    for (const [property, value] of [
+      ["ariaDescribedByElements", this._ariaDescribedBy],
+      ["ariaLabelledByElements", this._ariaLabelledBy],
+    ]) {
+      if (!(property in control)) continue;
+
+      control[property] =
+        value
+          ?.trim()
+          .split(/\s+/)
+          .map((id) => root.getElementById(id))
+          .filter(Boolean) ?? [];
+    }
+  }
+
+  #syncSubmitProxy() {
+    if (this.href || this.#type() !== "submit") {
+      this.#submitProxy?.remove();
+      return;
+    }
+
+    if (!this.#submitProxy) {
+      this.#submitProxy = this.ownerDocument.createElement("button");
+      this.#submitProxy.hidden = true;
+      this.#submitProxy.tabIndex = -1;
+      this.#submitProxy.type = "submit";
+      this.#submitProxy.setAttribute("aria-hidden", "true");
+    }
+
+    for (const [attribute, value] of [
+      ["form", this.formId],
+      ["formaction", this.formAction],
+      ["formenctype", this.formEnctype],
+      ["formmethod", this.formMethod],
+      ["formtarget", this.formTarget],
+      ["name", this.name],
+      ["value", this.value],
+    ]) {
+      if (value === undefined || value === null) {
+        this.#submitProxy.removeAttribute(attribute);
+      } else {
+        this.#submitProxy.setAttribute(attribute, value);
+      }
+    }
+
+    this.#submitProxy.disabled = this.#isDisabled();
+    this.#submitProxy.formNoValidate = this.formNoValidate;
+
+    if (this.parentNode && this.nextSibling !== this.#submitProxy) {
+      this.parentNode.insertBefore(this.#submitProxy, this.nextSibling);
+    }
   }
 
   #formFromAttribute() {

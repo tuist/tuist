@@ -4,6 +4,18 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { registerNooraButton } from "./Button.js";
 
 beforeAll(() => {
+  for (const property of [
+    "ariaDescribedByElements",
+    "ariaLabelledByElements",
+  ]) {
+    if (!(property in HTMLElement.prototype)) {
+      Object.defineProperty(HTMLElement.prototype, property, {
+        configurable: true,
+        writable: true,
+      });
+    }
+  }
+
   registerNooraButton();
 });
 
@@ -106,23 +118,81 @@ describe("NooraButton", () => {
     expect(listener.mock.calls[0][0].composed).toBe(true);
   });
 
+  it("associates external accessible labels and descriptions with the native control", async () => {
+    const label = document.createElement("span");
+    const description = document.createElement("span");
+    const button = document.createElement("noora-button");
+    label.id = "button-label";
+    description.id = "button-description";
+    button.setAttribute("aria-labelledby", label.id);
+    button.setAttribute("aria-describedby", description.id);
+    document.body.append(label, description, button);
+    await button.updateComplete;
+
+    const control = button.shadowRoot.querySelector("button");
+
+    expect(control.ariaLabelledByElements).toEqual([label]);
+    expect(control.ariaDescribedByElements).toEqual([description]);
+  });
+
   it("submits a parent form with its name and value", async () => {
     const form = document.createElement("form");
     const button = document.createElement("noora-button");
     const listener = vi.fn((event) => event.preventDefault());
     button.name = "intent";
     button.value = "create";
+    const requestSubmit = vi.spyOn(form, "requestSubmit");
     form.addEventListener("submit", listener);
     form.append(button);
     document.body.append(form);
     await button.updateComplete;
 
+    expect(button.type).toBe("submit");
+    expect(button.nextElementSibling.form).toBe(form);
+
     button.click();
     await Promise.resolve();
 
+    expect(requestSubmit).toHaveBeenCalledOnce();
     expect(listener).toHaveBeenCalledOnce();
     expect(listener.mock.calls[0][0].submitter.name).toBe("intent");
     expect(listener.mock.calls[0][0].submitter.value).toBe("create");
+  });
+
+  it("provides a native default submitter for implicit form submission", async () => {
+    const form = document.createElement("form");
+    const input = document.createElement("input");
+    const button = document.createElement("noora-button");
+    const listener = vi.fn((event) => event.preventDefault());
+    button.name = "intent";
+    button.value = "create";
+    button.formAction = "/projects";
+    button.formEnctype = "multipart/form-data";
+    button.formMethod = "post";
+    button.formNoValidate = true;
+    button.formTarget = "_blank";
+    form.addEventListener("submit", listener);
+    form.append(input, button);
+    document.body.append(form);
+    await button.updateComplete;
+
+    const submitter = button.nextElementSibling;
+
+    expect(submitter).toBeInstanceOf(HTMLButtonElement);
+    expect(submitter.hidden).toBe(true);
+    expect(submitter.form).toBe(form);
+    expect(submitter.name).toBe("intent");
+    expect(submitter.value).toBe("create");
+    expect(submitter.getAttribute("formaction")).toBe("/projects");
+    expect(submitter.getAttribute("formenctype")).toBe("multipart/form-data");
+    expect(submitter.getAttribute("formmethod")).toBe("post");
+    expect(submitter.formNoValidate).toBe(true);
+    expect(submitter.getAttribute("formtarget")).toBe("_blank");
+
+    submitter.click();
+
+    expect(listener).toHaveBeenCalledOnce();
+    expect(listener.mock.calls[0][0].submitter).toBe(submitter);
   });
 
   it("does not submit when the click is prevented", async () => {
