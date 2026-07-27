@@ -35,13 +35,13 @@ public struct OrganizationUpdateSSOCommand: AsyncParsableCommand {
 
     @Option(
         name: .shortAndLong,
-        help: "Organization ID for your SSO provider. For Google, this is your Google domain (for example, if your email is tuist@tuist.dev, the domain would be tuist.dev). For Okta, it's the organization domain (such as my-org.okta.com)",
+        help: "The identity provider organization identifier used to scope identities. For Google, this is the Google Workspace domain (for example, tuist.dev for tuist@tuist.dev). For Okta, it is the Okta organization domain (such as my-org.okta.com). This is distinct from the verified login email domain used for discovery and enrollment, which is configured in the dashboard.",
         envKey: .organizationUpdateSSOOrganizationId
     )
     var organizationId: String
 
     @Option(
-        help: "How authenticated users join the organization. When omitted, the current policy is preserved if the provider is unchanged. New configurations and provider changes default to automatic for Google and invitation-only for Okta.",
+        help: "How authenticated users join the organization. Automatic enrollment allows users from the provider's trusted domain to join without an invitation; invitation-only requires an invitation. When omitted, the current policy is preserved if the provider is unchanged. New configurations and provider changes default to automatic for Google and invitation-only for Okta.",
         envKey: .organizationUpdateSSOEnrollmentPolicy
     )
     var enrollmentPolicy: SSOEnrollmentPolicy?
