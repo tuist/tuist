@@ -104,7 +104,7 @@ jobs:
       - uses: ./.github/actions/mise-install
         with:
           version: ${{ env.MISE_VERSION }}
-          install: "erlang elixir node aube git-cliff"
+          install: "erlang elixir node aube git-cliff 1password-cli"
           cache: "false"
           working-directory: noora
           github-token: ${{ env.MISE_GITHUB_TOKEN }}
@@ -153,7 +153,8 @@ jobs:
         working-directory: noora
         run: |
           set -euo pipefail
-          if [ -n "${NPM_TOKEN:-}" ]; then
+          if NPM_TOKEN=$(op read "op://tuist/NPM_TOKEN/password" 2>/dev/null); then
+            export NPM_TOKEN
             printf '//registry.npmjs.org/:_authToken=${NPM_TOKEN}\n' > "$NPM_CONFIG_USERCONFIG"
             npm whoami >/dev/null
           fi
@@ -175,7 +176,7 @@ jobs:
         env:
           HEX_API_KEY: ${{ secrets.HEX_API_KEY }}
           NPM_CONFIG_USERCONFIG: ${{ runner.temp }}/noora-npmrc
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
 
       - name: Create Noora GitHub Release
         uses: softprops/action-gh-release@v2
