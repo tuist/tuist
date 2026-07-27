@@ -964,6 +964,7 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitorTest do
       )
     end
   end
+
   defp insert_test_case_runs(rows) do
     IngestRepo.insert_all(TestCaseRun, rows)
   end
