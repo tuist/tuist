@@ -549,6 +549,15 @@ final class TestServiceTests: TuistUnitTestCase {
                     MapperEnvironment()
                 )
             }
+        given(buildGraphInspector)
+            .testableTarget(
+                scheme: .any, testPlan: .any, testTargets: .any, skipTestTargets: .any,
+                graphTraverser: .any,
+                action: .any
+            )
+            .willReturn(
+                .test(target: .test(destinations: [.iPhone, .mac]))
+            )
         given(simulatorController)
             .findAvailableDevice(udid: .any)
             .willReturn(.test(device: .test(name: "Test iPhone")))
@@ -6077,6 +6086,95 @@ final class TestServiceTests: TuistUnitTestCase {
     func test_inferPlatformDestination_returns_nil_for_empty_schemes() {
         let graphTraverser = MockGraphTraversing()
         XCTAssertNil(subject.inferPlatformDestination(schemes: [], graphTraverser: graphTraverser))
+    }
+}
+
+@Suite
+struct TestServicePlatformResolutionTests {
+    @Test
+    func resolves_multi_platform_test_target_from_scheme_targets() throws {
+        let projectPath = try AbsolutePath(validating: "/Project")
+        let app = Target.test(name: "App", destinations: .iOS)
+        let tests = Target.test(
+            name: "BaseTests",
+            destinations: [.iPhone, .mac],
+            product: .unitTests
+        )
+        let appReference = TargetReference(projectPath: projectPath, name: app.name)
+        let testsReference = TargetReference(projectPath: projectPath, name: tests.name)
+        let scheme = Scheme.test(
+            name: "iOS",
+            buildAction: .test(targets: [appReference, testsReference]),
+            testAction: .test(targets: [.test(target: testsReference)]),
+            runAction: nil,
+            archiveAction: nil,
+            profileAction: nil
+        )
+        let graphTraverser = GraphTraverser(
+            graph: .test(
+                path: projectPath,
+                projects: [
+                    projectPath: .test(
+                        path: projectPath,
+                        targets: [app, tests],
+                        schemes: [scheme]
+                    ),
+                ]
+            )
+        )
+        let graphTarget = try #require(
+            graphTraverser.target(path: projectPath, name: tests.name)
+        )
+
+        let platform = TestService.resolvePlatform(
+            for: graphTarget,
+            scheme: scheme,
+            graphTraverser: graphTraverser
+        )
+
+        #expect(platform == .iOS)
+    }
+
+    @Test
+    func leaves_multi_platform_test_target_ambiguous_without_a_scheme_constraint() throws {
+        let projectPath = try AbsolutePath(validating: "/Project")
+        let tests = Target.test(
+            name: "BaseTests",
+            destinations: [.iPhone, .mac],
+            product: .unitTests
+        )
+        let testsReference = TargetReference(projectPath: projectPath, name: tests.name)
+        let scheme = Scheme.test(
+            name: "AllPlatforms",
+            buildAction: .test(targets: [testsReference]),
+            testAction: .test(targets: [.test(target: testsReference)]),
+            runAction: nil,
+            archiveAction: nil,
+            profileAction: nil
+        )
+        let graphTraverser = GraphTraverser(
+            graph: .test(
+                path: projectPath,
+                projects: [
+                    projectPath: .test(
+                        path: projectPath,
+                        targets: [tests],
+                        schemes: [scheme]
+                    ),
+                ]
+            )
+        )
+        let graphTarget = try #require(
+            graphTraverser.target(path: projectPath, name: tests.name)
+        )
+
+        let platform = TestService.resolvePlatform(
+            for: graphTarget,
+            scheme: scheme,
+            graphTraverser: graphTraverser
+        )
+
+        #expect(platform == nil)
     }
 }
 
