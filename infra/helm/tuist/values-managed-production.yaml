@@ -419,7 +419,10 @@ processor:
   affinity: {}
 
 swiftRegistrySync:
-  enabled: true
+  # The legacy regional cache release remains the production writer until its
+  # registry schedule can be disabled. Enabling both generations violates the
+  # single-writer cutover contract.
+  enabled: false
   extraEnv:
     - name: TUIST_DEPLOY_ENV
       value: prod
