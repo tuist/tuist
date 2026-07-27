@@ -7,10 +7,6 @@ on:
         description: Target environment
         required: true
         type: string
-      commit_sha:
-        description: Repository commit containing the desired CoreDNS manifest
-        required: true
-        type: string
 
 permissions:
   contents: read
@@ -30,8 +26,6 @@ jobs:
       KUBECONFIG: ${{ github.workspace }}/.kube/config
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.commit_sha }}
       - uses: jdx/mise-action@v3.2.0
         with:
           install_args: "--locked kubectl"

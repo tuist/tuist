@@ -41,7 +41,6 @@ jobs:
     uses: ./.github/workflows/coredns-environment-deployment.yml
     with:
       environment: canary
-      commit_sha: ${{ github.event.workflow_run.head_sha || github.sha }}
     secrets: inherit
 
   staging:
@@ -49,7 +48,6 @@ jobs:
     uses: ./.github/workflows/coredns-environment-deployment.yml
     with:
       environment: staging
-      commit_sha: ${{ github.event.workflow_run.head_sha || github.sha }}
     secrets: inherit
 
   production:
@@ -57,5 +55,4 @@ jobs:
     uses: ./.github/workflows/coredns-environment-deployment.yml
     with:
       environment: production
-      commit_sha: ${{ github.event.workflow_run.head_sha || github.sha }}
     secrets: inherit
