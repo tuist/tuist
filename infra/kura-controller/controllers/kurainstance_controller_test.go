@@ -353,6 +353,9 @@ func TestKuraInstanceReconcileCreatesWorkloadResources(t *testing.T) {
 	if grace := sts.Spec.Template.Spec.TerminationGracePeriodSeconds; grace == nil || *grace < drainCompletionTimeoutMs/1000+preStopDelaySeconds {
 		t.Fatalf("expected terminationGracePeriodSeconds to cover the drain budget, got %v", grace)
 	}
+	if serviceLinks := sts.Spec.Template.Spec.EnableServiceLinks; serviceLinks == nil || *serviceLinks {
+		t.Fatal("expected service-link environment injection to be disabled")
+	}
 	if len(container.EnvFrom) == 0 || container.EnvFrom[0].SecretRef == nil || container.EnvFrom[0].SecretRef.Name != sharedSecretsName {
 		t.Fatalf("expected envFrom to reference %q Secret", sharedSecretsName)
 	}
