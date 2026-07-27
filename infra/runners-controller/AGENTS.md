@@ -58,8 +58,10 @@ independent workqueues:
     allocator aligned with Kubernetes admission and scheduling when
     Kata's virtual-machine overhead changes. If the RuntimeClass
     cannot be read, the autoscaler leaves replicas unchanged rather
-    than scaling with an incomplete cost. Memory is the only
-    dimension — Kata pins it per microVM and CPU is oversubscribed.
+    than scaling with an incomplete cost. Pool-list and sibling-signal
+    failures still use the independent per-pool target so a transient
+    read failure cannot freeze scale-up for queued work. Memory is the
+    only dimension — Kata pins it per microVM and CPU is oversubscribed.
   - macOS: budget = count of nodes labeled `tuist.dev/fleet=<FleetSelector>`
     + `kubernetes.io/os=darwin`; cost = 1 per Pod (one VM per Mac
     mini under the Virtualization.framework SLA). The allocator
@@ -73,10 +75,19 @@ independent workqueues:
   healthy-node gate described below.
 
   The reconciler reads nodes via the cluster-scoped `nodes` verb in
-  the ClusterRole. Any failure gathering the fleet view falls back to
-  the per-pool target — a node-read blip must never trigger a mass
-  scale-down. A pool with an unrecognised `OS` (or without autoscaling
-  enabled) skips the allocator entirely.
+  the ClusterRole. Fleet-capacity, pool-list, and sibling-signal
+  failures fall back to the per-pool target — a transient read blip
+  must never trigger a mass scale-down or block independent scale-up.
+  A pool with an unrecognised `OS` (or without autoscaling enabled)
+  skips the allocator entirely.
+
+  `tuist.dev/runner-operator-drain=true` is an operator-set, one-way
+  retirement signal. The controller does not apply or clear it. The
+  server returns a drain response before attempting a claim, so an
+  idle runner exits through its normal lifecycle and the reconciler
+  replaces it. Removing the label before the runner's next dispatch
+  poll cancels the retirement; after the runner observes it, the Pod
+  is expected to exit and be replaced.
 
   **Linux Kata provisioning admission.** Capacity and creation velocity
   are separate safety boundaries. A queue spike can fit within the

@@ -65,25 +65,17 @@ pre-baked image without changing the ClusterClass shape.
 
 ## Replacing a production runner node
 
-Use the `Mgmt Cluster Apply` GitHub Actions workflow from `main` and
-provide the exact node name in both production runner node inputs. The
-workflow replaces one node per run and refuses to start unless at least
-two production runner nodes are Ready.
+Production runner-node replacement is not automated. The fleet has
+exactly two pre-ordered physical hosts, so the current MachineDeployment
+cannot create a current-revision replacement before releasing an old
+node. Deleting an individual Machine can also let its outdated
+MachineSet recreate the old revision.
 
-The rotation cordons the target and marks its runner pods for an
-operator drain. Idle runners then refuse new work and exit through
-their normal lifecycle, while claimed runners finish their jobs. The
-workflow waits up to 45 minutes for every runner to leave before
-draining the node. It then replaces both the Cluster API Machine and
-the physical-host object. Replacing both matters: the new Machine must
-use the current bootstrap template, and the new host object must force
-an operating system reinstall rather than reuse the previous
-installation.
-
-The workflow succeeds only after the replacement node is Ready, has no
-`outdated-revision` taint, and reserves at least 20 GiB of memory for
-the host. Rotate the second node in a separate workflow run after the
-first replacement passes these checks.
+Do not delete a claimed `HetznerBareMetalHost` or remove its finalizers.
+The safe prerequisite is a third pre-ordered production runner host and
+a matching replica increase. That gives the MachineDeployment spare
+capacity to create and verify a current-revision node before an old node
+is drained.
 
 ## Adapting from caph upstream
 

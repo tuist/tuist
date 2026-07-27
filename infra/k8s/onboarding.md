@@ -467,13 +467,14 @@ you need it to take effect before natural Node churn, replace the
 Cluster API Machine and force a physical-host reinstall.
 
 For production, use the `Mgmt Cluster Apply` GitHub Actions workflow
-from `main` and provide the exact target in both production runner node
-inputs. The workflow follows the guarded procedure documented in
-[`clusters/README.md`](clusters/README.md#replacing-a-production-runner-node).
-It processes one node per run, waits for active jobs, and proves that
-the replacement has the expected memory reservation before succeeding.
+only for declarative management-cluster state. Production runner-node
+replacement is not automated because the two-node fleet has no spare
+physical host for a current-revision Machine to claim. See
+[`clusters/README.md`](clusters/README.md#replacing-a-production-runner-node)
+for the spare-host prerequisite.
 
 Do not delete a production host directly from a management kubeconfig.
-Runner pods may be processing customer jobs, and replacing only the
-Machine or only the host can either interrupt those jobs or reuse stale
-bootstrap state.
+Runner pods may be processing customer jobs. Deleting a claimed
+`HetznerBareMetalHost` also leaves the infrastructure provider
+reconciling a missing reference, and deleting a Machine from an
+outdated MachineSet can recreate the same outdated revision.

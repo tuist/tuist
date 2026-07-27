@@ -1852,7 +1852,7 @@ buildersFleet:
 # in an environment that asked for microVM isolation).
 kataContainers:
   enabled: false
-  # Fixed host-side cost added to every Kata runner Pod by the
+  # Fixed sandbox memory cost added to every Kata runner Pod by the
   # RuntimeClass. Kata 3.30 starts each sandbox with 2 GiB of base
   # guest memory before adding the container's requested memory.
   # The remaining 512 MiB covers Quick Emulator

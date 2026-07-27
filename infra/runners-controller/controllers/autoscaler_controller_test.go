@@ -367,6 +367,96 @@ func TestAutoscaler_PerPodCostFailsClosedWhenRuntimeClassIsMissing(t *testing.T)
 	}
 }
 
+func TestAutoscaler_RuntimeClassCostFailureLeavesReplicasUnchanged(t *testing.T) {
+	pool := linuxFleetPool("linux", 7, 8192, 1, 30)
+	pool.Spec.RuntimeClass = "kata-qemu"
+	r, server := setupReconciler(t, pool, scaling.Signals{
+		Fleet:                 pool.Name,
+		P95ConcurrentLastHour: 1,
+	})
+	defer server.Close()
+	r.MemReserveFraction = 1
+	if err := r.Create(context.Background(), linuxNode("bm-1", 256)); err != nil {
+		t.Fatalf("create node: %v", err)
+	}
+
+	reconcileOnce(t, r, pool.Name)
+
+	got := &tuistv1.RunnerPool{}
+	if err := r.Get(context.Background(), client.ObjectKeyFromObject(pool), got); err != nil {
+		t.Fatalf("get pool: %v", err)
+	}
+	if got.Spec.Replicas != 7 {
+		t.Errorf("Replicas = %d, want 7 when RuntimeClass cost is unavailable", got.Spec.Replicas)
+	}
+	if got.Status.LastScaleDownAt != nil {
+		t.Errorf("LastScaleDownAt = %v, want nil when replicas are unchanged", got.Status.LastScaleDownAt)
+	}
+}
+
+func TestAutoscaler_SiblingSignalsFailureFallsBackToPerPoolTarget(t *testing.T) {
+	pool := linuxFleetPool("linux", 7, 8192, 1, 30)
+	pool.Spec.RuntimeClass = "kata-qemu"
+	sibling := linuxFleetPool("linux-large", 1, 16_384, 1, 30)
+	sibling.Spec.RuntimeClass = "kata-qemu"
+	runtimeClass := &nodev1.RuntimeClass{
+		ObjectMeta: metav1.ObjectMeta{Name: "kata-qemu"},
+		Overhead: &nodev1.Overhead{
+			PodFixed: corev1.ResourceList{
+				corev1.ResourceMemory: resource.MustParse("2560Mi"),
+			},
+		},
+	}
+	node := linuxNode("bm-1", 256)
+
+	scheme := runtime.NewScheme()
+	_ = clientgoscheme.AddToScheme(scheme)
+	_ = tuistv1.AddToScheme(scheme)
+	fakeClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(pool, sibling, runtimeClass, node).
+		WithStatusSubresource(&tuistv1.RunnerPool{}).
+		Build()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("fleet") == sibling.Name {
+			http.Error(w, "boom", http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(scaling.Signals{
+			Fleet:                 pool.Name,
+			P95ConcurrentLastHour: 1,
+		})
+	}))
+	defer server.Close()
+
+	tokenPath := filepath.Join(t.TempDir(), "token")
+	if err := os.WriteFile(tokenPath, []byte("test-token"), 0o600); err != nil {
+		t.Fatalf("write token: %v", err)
+	}
+	scalingClient := scaling.NewClient(server.URL)
+	scalingClient.TokenPath = tokenPath
+
+	r := &AutoscalerReconciler{
+		Client:             fakeClient,
+		Scheme:             scheme,
+		SignalsClient:      scalingClient,
+		PollInterval:       time.Millisecond,
+		MemReserveFraction: 1,
+	}
+
+	reconcileOnce(t, r, pool.Name)
+
+	got := &tuistv1.RunnerPool{}
+	if err := r.Get(context.Background(), client.ObjectKeyFromObject(pool), got); err != nil {
+		t.Fatalf("get pool: %v", err)
+	}
+	if got.Spec.Replicas != 2 {
+		t.Errorf("Replicas = %d, want per-pool fallback 2 when sibling signals fail", got.Spec.Replicas)
+	}
+}
+
 // TestAutoscaler_FleetReclaimsIdleHeadroomForRealLoad is the
 // cross-pool reclaim case: two Linux shapes share one bare-metal node
 // pool sized so real load + floors fit, but an idle shape's speculative

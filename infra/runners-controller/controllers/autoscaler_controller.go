@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -44,6 +45,8 @@ const (
 // system DaemonSets (Cilium, kube-proxy replacement, node-exporter)
 // and kata per-sandbox overhead that doesn't show up in Pod requests.
 const defaultMemReserveFraction = 0.90
+
+var errPodCostUnavailable = errors.New("per-Pod cost unavailable")
 
 // AutoscalerReconciler reconciles autoscaling-enabled RunnerPools.
 // On a 5-second cadence (RequeueAfter), it:
@@ -215,10 +218,11 @@ func (r *AutoscalerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 //     host (Apple's Virtualization.framework SLA caps at 2 VMs/host
 //     and we run 1 today), so budget = host count.
 //
-// A fleet-capacity read failure falls back to the per-pool target,
-// preserving the existing anti-thrash behavior. A demand-cost failure
-// leaves replicas unchanged because scaling without the RuntimeClass
-// overhead could overcommit the fleet.
+// Fleet-capacity, pool-list, and sibling-signal read failures fall
+// back to the per-pool target, preserving the existing anti-thrash
+// behavior and allowing queued work to scale up. A RuntimeClass cost
+// failure leaves replicas unchanged because scaling without that
+// scheduling overhead could overcommit the fleet.
 func (r *AutoscalerReconciler) desiredForPool(
 	ctx context.Context,
 	pool *tuistv1.RunnerPool,
@@ -244,9 +248,9 @@ func (r *AutoscalerReconciler) desiredForPool(
 }
 
 // allocate runs the shared-capacity fleet allocator for `pool`,
-// returning the (possibly squeezed) replica target. Any failure
-// gathering the fleet view falls back to the per-pool target — a
-// node-read blip must never trigger a mass scale-down.
+// returning the (possibly squeezed) replica target. Fleet-view read
+// failures fall back to the per-pool target, while an unavailable
+// per-Pod scheduling cost leaves replicas unchanged.
 func (r *AutoscalerReconciler) allocate(
 	ctx context.Context,
 	pool *tuistv1.RunnerPool,
@@ -261,9 +265,14 @@ func (r *AutoscalerReconciler) allocate(
 
 	demands, err := r.gatherFleetDemands(ctx, pool, signals, knobs)
 	if err != nil {
-		logger.Error(err, "gather fleet demands; leaving replicas unchanged",
+		if errors.Is(err, errPodCostUnavailable) {
+			logger.Error(err, "per-Pod scheduling cost unknown; leaving replicas unchanged",
+				"fleetSelector", pool.Spec.FleetSelector)
+			return pool.Spec.Replicas
+		}
+		logger.Error(err, "gather fleet demands; falling back to per-pool target",
 			"fleetSelector", pool.Spec.FleetSelector)
-		return pool.Spec.Replicas
+		return perPool
 	}
 
 	// capacity <= 0 is treated like an error on purpose. A zero sum is
@@ -322,7 +331,7 @@ func (r *AutoscalerReconciler) perPodCost(ctx context.Context, pool *tuistv1.Run
 
 	runtimeClass := &nodev1.RuntimeClass{}
 	if err := r.Get(ctx, client.ObjectKey{Name: pool.Spec.RuntimeClass}, runtimeClass); err != nil {
-		return 0, fmt.Errorf("get RuntimeClass %q: %w", pool.Spec.RuntimeClass, err)
+		return 0, fmt.Errorf("%w: get RuntimeClass %q: %w", errPodCostUnavailable, pool.Spec.RuntimeClass, err)
 	}
 	if runtimeClass.Overhead == nil {
 		return cost, nil
