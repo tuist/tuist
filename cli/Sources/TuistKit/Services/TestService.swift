@@ -1912,6 +1912,11 @@ public struct TestService { // swiftlint:disable:this type_body_length
             } else if let resolvedPlatform = Self.resolvePlatform(
                 for: buildableTarget,
                 scheme: scheme,
+                testActionTargets: testActionTargetReferences(
+                    scheme: scheme,
+                    testPlanConfiguration: testPlanConfiguration,
+                    action: action
+                ),
                 graphTraverser: graphTraverser
             ) {
                 buildPlatform = resolvedPlatform
@@ -2226,6 +2231,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
         testPlan: String? = nil,
         graphTraverser: GraphTraversing
     ) -> String? {
+        let testPlanConfiguration = testPlan.map { TestPlanConfiguration(testPlan: $0) }
         for scheme in schemes {
             guard let target = buildGraphInspector.testableTarget(
                 scheme: scheme,
@@ -2239,6 +2245,11 @@ public struct TestService { // swiftlint:disable:this type_body_length
             guard let resolvedPlatform = Self.resolvePlatform(
                 for: target,
                 scheme: scheme,
+                testActionTargets: testActionTargetReferences(
+                    scheme: scheme,
+                    testPlanConfiguration: testPlanConfiguration,
+                    action: .build
+                ),
                 graphTraverser: graphTraverser
             ) else { continue }
 
@@ -2250,6 +2261,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
     static func resolvePlatform(
         for target: GraphTarget,
         scheme: Scheme,
+        testActionTargets: [TargetReference],
         graphTraverser: GraphTraversing
     ) -> XcodeGraph.Platform? {
         let targetPlatforms = target.target.supportedPlatforms
@@ -2259,7 +2271,7 @@ public struct TestService { // swiftlint:disable:this type_body_length
 
         let platformConstrainingTargets =
             (scheme.buildAction?.targets ?? [])
-                + (scheme.testAction?.targets.map(\.target) ?? [])
+                + testActionTargets
         let compatibleSchemePlatformSets = platformConstrainingTargets
             .compactMap {
                 graphTraverser.target(path: $0.projectPath, name: $0.name)?
