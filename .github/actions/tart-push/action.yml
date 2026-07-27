@@ -1,4 +1,4 @@
-name: Reliable Tart push
+name: Tart push
 description: Push a large Tart image with bounded registry concurrency and jittered retries
 
 inputs:

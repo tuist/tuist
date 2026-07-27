@@ -1048,7 +1048,7 @@ jobs:
           TART_REGISTRY_HOSTNAME: ghcr.io
           TART_REGISTRY_USERNAME: tuist-bot
           TART_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
-        uses: ./.github/actions/reliable-tart-push
+        uses: ./.github/actions/tart-push
         with:
           local-name: tuist-xcresult-processor
           remote-names: |
@@ -1188,7 +1188,7 @@ jobs:
           # See runner-image.yml's matching step for the rationale —
           # tart's auto-prune races mid-push (cirruslabs/tart#860).
           TART_NO_AUTO_PRUNE: "1"
-        uses: ./.github/actions/reliable-tart-push
+        uses: ./.github/actions/tart-push
         with:
           local-name: tuist-runner
           remote-names: |

@@ -194,7 +194,7 @@ jobs:
           TART_REGISTRY_HOSTNAME: ghcr.io
           TART_REGISTRY_USERNAME: tuist-bot
           TART_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
-        uses: ./.github/actions/reliable-tart-push
+        uses: ./.github/actions/tart-push
         with:
           local-name: macos-tahoe-xcode
           remote-names: ghcr.io/tuist/macos-tahoe-xcode:${{ steps.build.outputs.tag }}

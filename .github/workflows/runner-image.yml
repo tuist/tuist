@@ -149,7 +149,7 @@ jobs:
           # `reclaim-tart-disk` composite action and won't grow
           # before push completes.
           TART_NO_AUTO_PRUNE: "1"
-        uses: ./.github/actions/reliable-tart-push
+        uses: ./.github/actions/tart-push
         with:
           local-name: tuist-runner
           remote-names: ghcr.io/tuist/tuist-runner:${{ steps.build.outputs.profile }}-${{ steps.image-tag.outputs.value }}

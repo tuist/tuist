@@ -301,7 +301,7 @@ new workflow that pushes to GHCR, follow the same pattern.
 ## Reliable registry uploads
 
 All builder workflows use
-[`reliable-tart-push`](../.github/actions/reliable-tart-push/action.yml)
+[`tart-push`](../.github/actions/tart-push/action.yml)
 for the final registry publication. Keep new Tart image workflows on that
 action rather than adding an inline retry loop.
 

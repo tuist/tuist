@@ -148,7 +148,7 @@ jobs:
           TART_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
         # The production workflow owns semantic-version and latest tags.
         # This on-demand workflow publishes only its commit tag.
-        uses: ./.github/actions/reliable-tart-push
+        uses: ./.github/actions/tart-push
         with:
           local-name: tuist-xcresult-processor
           remote-names: ghcr.io/tuist/tuist-xcresult-processor:${{ steps.image-tag.outputs.value }}

@@ -34,7 +34,7 @@ runners can't do this). Builder fleet operator runbook:
 [`../vm-image-builder.md`](../vm-image-builder.md).
 
 Registry publication uses the shared
-[`reliable-tart-push`](../../.github/actions/reliable-tart-push/action.yml)
+[`tart-push`](../../.github/actions/tart-push/action.yml)
 action. Its bounded concurrency, chunking, retry, and route diagnostics are
 part of the builder-fleet reliability contract; keep the on-demand and
 production release workflows on that shared path.
