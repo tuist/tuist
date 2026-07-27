@@ -31,7 +31,8 @@ struct OrganizationRemoveSSOServiceTests {
             .updateOrganization(
                 organizationName: .value("tuist"),
                 serverURL: .value(serverURL),
-                ssoOrganization: .value(nil)
+                ssoOrganization: .value(nil),
+                ssoAutomaticEnrollment: .value(nil)
             )
             .willReturn(.test())
 
