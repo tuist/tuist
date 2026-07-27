@@ -244,6 +244,129 @@ defmodule Tuist.Kura.RunnerCacheTest do
     assert server_regions(other) == []
   end
 
+  test "bounds unsettled servers per region and refills slots as servers become active" do
+    accounts = Enum.map(1..12, fn _index -> account_with_profiles([:macos]) end)
+    set_runner_availability(Enum.map(accounts, & &1.id))
+
+    assert :ok = RunnerCache.reconcile()
+    assert Repo.aggregate(Server, :count) == 10
+
+    assert :ok = RunnerCache.reconcile()
+    assert Repo.aggregate(Server, :count) == 10
+
+    Server
+    |> order_by([s], asc: s.id)
+    |> limit(3)
+    |> Repo.all()
+    |> Enum.each(fn server ->
+      server
+      |> Server.observation_changeset(%{
+        status: :active,
+        url: "https://#{server.id}.example.com",
+        current_image_tag: "0.5.2"
+      })
+      |> Repo.update!()
+    end)
+
+    assert :ok = RunnerCache.reconcile()
+    assert Repo.aggregate(Server, :count) == 12
+    assert Repo.aggregate(from(s in Server, where: s.status == :active), :count) == 3
+    assert Repo.aggregate(from(s in Server, where: s.status == :provisioning), :count) == 9
+  end
+
+  test "retries failed servers without admitting more accounts while teardown is pending" do
+    accounts = Enum.map(1..11, fn _index -> account_with_profiles([:macos]) end)
+    set_runner_availability(Enum.map(accounts, & &1.id))
+
+    assert :ok = RunnerCache.reconcile()
+
+    servers =
+      Server
+      |> order_by([s], asc: s.id)
+      |> Repo.all()
+
+    servers
+    |> Enum.take(5)
+    |> Enum.each(fn server ->
+      assert {:ok, _server} = Kura.destroy_server(server)
+    end)
+
+    servers
+    |> Enum.drop(5)
+    |> Enum.each(fn server ->
+      deployment = Repo.get_by!(Deployment, kura_server_id: server.id)
+      assert {:ok, deployment} = Kura.mark_running(deployment)
+      assert {:ok, deployment} = Kura.mark_failed(deployment, "temporary failure")
+      deployment |> Ecto.Changeset.change(finished_at: minutes_ago(2)) |> Repo.update!()
+      assert {:ok, _server} = Kura.fail_server(server)
+    end)
+
+    assert :ok = RunnerCache.reconcile()
+    assert Repo.aggregate(Server, :count) == 10
+    assert Repo.aggregate(from(s in Server, where: s.status == :destroying), :count) == 5
+    assert Repo.aggregate(from(s in Server, where: s.status == :provisioning), :count) == 5
+  end
+
+  test "retries at most ten failed servers in deterministic order" do
+    accounts = Enum.map(1..12, fn _index -> account_with_profiles([:macos]) end)
+
+    Enum.each(accounts, fn account ->
+      {:ok, server} = Kura.create_server(%{account_id: account.id, region: "scw-fr-par-runners", image_tag: "0.5.2"})
+      deployment = Repo.get_by!(Deployment, kura_server_id: server.id)
+      assert {:ok, deployment} = Kura.mark_running(deployment)
+      assert {:ok, deployment} = Kura.mark_failed(deployment, "temporary failure")
+      deployment |> Ecto.Changeset.change(finished_at: minutes_ago(2)) |> Repo.update!()
+      assert {:ok, _server} = Kura.fail_server(server)
+    end)
+
+    ordered_server_ids =
+      Repo.all(
+        from(s in Server,
+          order_by: [asc: s.updated_at, asc: s.id],
+          select: s.id
+        )
+      )
+
+    set_runner_availability(Enum.map(accounts, & &1.id))
+
+    assert :ok = RunnerCache.reconcile()
+    assert Repo.aggregate(from(s in Server, where: s.status == :provisioning), :count) == 10
+    assert Repo.aggregate(from(s in Server, where: s.status == :failed), :count) == 2
+
+    retried_server_ids =
+      Repo.all(
+        from(s in Server,
+          where: s.status == :provisioning,
+          select: s.id
+        )
+      )
+
+    assert MapSet.new(retried_server_ids) == MapSet.new(Enum.take(ordered_server_ids, 10))
+  end
+
+  test "does not retry a disabled failed server outside the teardown batch" do
+    servers =
+      Enum.map(1..101, fn _index ->
+        account = account_with_profiles([:macos])
+        {:ok, server} = Kura.create_server(%{account_id: account.id, region: "scw-fr-par-runners", image_tag: "0.5.2"})
+        server
+      end)
+
+    failed_server = List.last(servers)
+    deployment = Repo.get_by!(Deployment, kura_server_id: failed_server.id)
+    assert {:ok, deployment} = Kura.mark_running(deployment)
+    assert {:ok, deployment} = Kura.mark_failed(deployment, "temporary failure")
+    deployment |> Ecto.Changeset.change(finished_at: minutes_ago(2)) |> Repo.update!()
+    assert {:ok, _server} = Kura.fail_server(failed_server)
+
+    set_runner_availability([])
+
+    assert :ok = RunnerCache.reconcile()
+    assert Repo.aggregate(from(s in Server, where: s.status == :destroying), :count) == 100
+    assert Repo.get!(Server, failed_server.id).status == :failed
+    assert open_deployment_count(failed_server) == 0
+  end
+
   test "tears down nodes for accounts disabled by the runner flag in canary" do
     enabled = account_with_profiles([:macos])
     other = account_with_profiles([:macos])
