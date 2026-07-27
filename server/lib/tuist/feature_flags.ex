@@ -5,41 +5,24 @@ defmodule Tuist.FeatureFlags do
 
   @doc """
   Whether the Runners dashboard (and its sub-pages) should be visible
-  for the given account. A configured runner account allowlist takes
-  precedence. Without one, development, test, and staging default to
-  enabled, production requires an explicit `:runners` FunWithFlags
-  toggle for the actor, and canary fails closed.
+  for the given account. Canary and production require an explicit
+  `:runners` FunWithFlags toggle for the actor. Development, test, and
+  staging default to enabled.
 
   This is also the source of truth for co-located private Kura cache
   infrastructure, so enabling runners provides the cache without a second
   operator-managed switch.
   """
   def runners_enabled?(account) do
-    runner_access_enabled?(account, fn ->
-      FunWithFlags.enabled?(:runners, for: account)
-    end)
+    not runner_flag_required?() or FunWithFlags.enabled?(:runners, for: account)
   end
 
   @doc false
   def runners_enabled?(account, %FunWithFlags.Flag{} = flag) do
-    runner_access_enabled?(account, fn ->
-      FunWithFlags.Flag.enabled?(flag, for: account)
-    end)
+    not runner_flag_required?() or FunWithFlags.Flag.enabled?(flag, for: account)
   end
 
-  defp runner_access_enabled?(account, production_enabled?) do
-    case Environment.runner_enabled_account_names() do
-      account_names when is_list(account_names) ->
-        account.name in account_names
-
-      nil ->
-        case Environment.env() do
-          :can -> false
-          :prod -> production_enabled?.()
-          _ -> true
-        end
-    end
-  end
+  defp runner_flag_required?, do: Environment.env() in [:can, :prod]
 
   @doc """
   Whether the Kura surface (the per-account Kura servers, the

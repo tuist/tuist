@@ -106,17 +106,8 @@ if Tuist.Environment.web?() do
 end
 
 env = Tuist.Environment.env()
-
-runner_enabled_account_names =
-  case env do
-    :can -> ["tuist"]
-    _ -> nil
-  end
-
 secrets = Tuist.Environment.decrypt_secrets()
 secret_key_base = Tuist.Environment.secret_key_base(secrets)
-
-config :tuist, :runner_enabled_account_names, runner_enabled_account_names
 
 if env != :test do
   config :tuist, TuistWeb.Endpoint, secret_key_base: secret_key_base

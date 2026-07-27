@@ -90,11 +90,6 @@ defmodule Tuist.Environment do
     env() == :prod
   end
 
-  @doc false
-  def runner_enabled_account_names do
-    Application.get_env(:tuist, :runner_enabled_account_names)
-  end
-
   @doc """
   Worktree suffix from `TUIST_DEV_INSTANCE`, set by the mise
   `dev_instance_env.sh` hook. Used to scope ports, DB names, kind

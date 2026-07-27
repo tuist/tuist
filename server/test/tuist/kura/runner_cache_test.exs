@@ -22,7 +22,6 @@ defmodule Tuist.Kura.RunnerCacheTest do
   # against the sandbox.
   setup do
     stub(Tuist.Environment, :env, fn -> :prod end)
-    stub(Tuist.Environment, :runner_enabled_account_names, fn -> nil end)
     stub(Tuist.Environment, :dev?, fn -> false end)
     stub(Tuist.Environment, :test?, fn -> false end)
 
@@ -233,47 +232,33 @@ defmodule Tuist.Kura.RunnerCacheTest do
     assert server_regions(second) == ["scw-fr-par-runners"]
   end
 
-  test "provisions only the tuist account in canary" do
-    tuist =
-      [:macos]
-      |> account_with_profiles()
-      |> Ecto.Changeset.change(name: "tuist")
-      |> Repo.update!()
-
+  test "provisions only the account enabled by the runner flag in canary" do
+    enabled = account_with_profiles([:macos])
     other = account_with_profiles([:macos])
     stub(Tuist.Environment, :env, fn -> :can end)
-    stub(Tuist.Environment, :runner_enabled_account_names, fn -> ["tuist"] end)
-    reject(FunWithFlags, :get_flag, 1)
-    reject(FeatureFlags, :runners_enabled?, 2)
+    set_runner_availability([enabled.id])
 
     assert :ok = RunnerCache.reconcile()
 
-    assert server_regions(tuist) == ["scw-fr-par-runners"]
+    assert server_regions(enabled) == ["scw-fr-par-runners"]
     assert server_regions(other) == []
   end
 
-  test "tears down non-tuist account nodes in canary" do
-    tuist =
-      [:macos]
-      |> account_with_profiles()
-      |> Ecto.Changeset.change(name: "tuist")
-      |> Repo.update!()
-
+  test "tears down nodes for accounts disabled by the runner flag in canary" do
+    enabled = account_with_profiles([:macos])
     other = account_with_profiles([:macos])
-    set_runner_availability([tuist.id, other.id])
+    set_runner_availability([enabled.id, other.id])
 
     assert :ok = RunnerCache.reconcile()
-    assert server_regions(tuist) == ["scw-fr-par-runners"]
+    assert server_regions(enabled) == ["scw-fr-par-runners"]
     assert server_regions(other) == ["scw-fr-par-runners"]
 
     stub(Tuist.Environment, :env, fn -> :can end)
-    stub(Tuist.Environment, :runner_enabled_account_names, fn -> ["tuist"] end)
-    reject(FunWithFlags, :get_flag, 1)
-    reject(FeatureFlags, :runners_enabled?, 2)
+    set_runner_availability([enabled.id])
 
     assert :ok = RunnerCache.reconcile()
 
-    assert server_regions(tuist) == ["scw-fr-par-runners"]
+    assert server_regions(enabled) == ["scw-fr-par-runners"]
     assert server_regions(other) == []
   end
 
