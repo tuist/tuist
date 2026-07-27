@@ -81,6 +81,19 @@ independent workqueues:
   A pool with an unrecognised `OS` (or without autoscaling enabled)
   skips the allocator entirely.
 
+  RuntimeClass overhead is copied into `Pod.spec.overhead` only when
+  Kubernetes admits a Pod. Helm therefore hashes the Linux RuntimeClass
+  name and fixed processor and memory overhead into
+  `tuist.dev/runtime-class-revision` on each Linux RunnerPool, and
+  `podtemplate.Build` copies that revision to new Pods. A mismatch makes
+  an idle Pending Linux Pod stale. The reconciler replaces those Pods
+  under `spec.rollout.maxConcurrentPercent`; claimed or Running Pods
+  finish naturally. Current-template idle Pods that are not warm consume
+  the same availability budget even when ordinary scale-up created them.
+  This deliberately follows maximum-unavailable semantics: a scale-up
+  can pause a roll rather than letting the controller remove another
+  warm Pod while serving capacity is already unavailable.
+
   `tuist.dev/runner-operator-drain=true` is an operator-set, one-way
   retirement signal. The controller does not apply or clear it. The
   server returns a drain response before attempting a claim, so an
@@ -165,8 +178,8 @@ independent workqueues:
   **Starvation vs saturation.** `..._autoscaler_claimed_jobs{pool}` and
   `..._autoscaler_queued_jobs{pool}` publish the server's two demand
   signals unsummed, and `tuist_runners_pool_idle_replicas{pool}` counts
-  alive current-image Pods with no `tuist.dev/runner-pool-owner` that can
-  actually accept a job right now. "Can accept" is OS-dependent, for the
+  alive current-template Pods with no `tuist.dev/runner-pool-owner` that
+  can actually accept a job right now. "Can accept" is OS-dependent, for the
   same reason the un-booted age above is darwin-only: on a Tart pool only
   `Running` counts, because a Pod still waiting on a Mac mini has no VM
   and is not capacity however long it has been alive; on Linux `Pending`
