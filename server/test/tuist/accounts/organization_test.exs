@@ -150,6 +150,19 @@ defmodule Tuist.OrganizationTest do
       assert changeset.valid?
     end
 
+    test "preserves automatic enrollment for a legacy custom-provider configuration" do
+      changeset =
+        Organization.create_changeset(
+          %Organization{},
+          Map.merge(@oauth2_attrs, %{
+            sso_automatic_enrollment: true,
+            sso_legacy_email_domain_fallback: true
+          })
+        )
+
+      assert changeset.valid?
+    end
+
     test "accepts an oauth2 issuer URL with a path" do
       changeset =
         Organization.create_changeset(

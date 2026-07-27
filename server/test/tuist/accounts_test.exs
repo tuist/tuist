@@ -3910,6 +3910,25 @@ defmodule Tuist.AccountsTest do
       assert Accounts.sso_automatic_enrollment_allowed?(organization, "person@secondary.example")
     end
 
+    test "preserves automatic enrollment for a legacy custom-provider organization" do
+      organization =
+        AccountsFixtures.organization_fixture(
+          sso_provider: :oauth2,
+          sso_organization_id: "https://login.vendor.example",
+          sso_automatic_enrollment: true,
+          sso_legacy_email_domain_fallback: true,
+          oauth2_client_id: "client-id",
+          oauth2_client_secret: "client-secret",
+          oauth2_authorize_url: "https://login.vendor.example/authorize",
+          oauth2_token_url: "https://login.vendor.example/token",
+          oauth2_user_info_url: "https://login.vendor.example/userinfo"
+        )
+
+      assert Accounts.sso_automatic_enrollment_allowed?(organization, "person@unrelated.example")
+      assert Accounts.sso_new_user_enrollment_allowed?(organization, "person@unrelated.example", false)
+      refute Accounts.sso_identity_linking_allowed?(organization, "person@unrelated.example")
+    end
+
     test "allows identity linking through a verified domain when automatic enrollment is disabled" do
       organization =
         AccountsFixtures.organization_fixture(

@@ -18,6 +18,25 @@ defmodule Tuist.Accounts.Organization do
 
   @oauth2_providers [:okta, :oauth2]
 
+  @sso_update_fields [
+    :sso_provider,
+    :sso_organization_id,
+    :sso_enforced,
+    :sso_login_domain,
+    :sso_automatic_enrollment,
+    :oauth2_client_id,
+    :oauth2_encrypted_client_secret,
+    :oauth2_authorize_url,
+    :oauth2_token_url,
+    :oauth2_user_info_url
+  ]
+
+  @sso_verification_fields [
+    :sso_login_domain_verification_token,
+    :sso_login_domain_verified_at,
+    :sso_legacy_email_domain_fallback
+  ]
+
   schema "organizations" do
     field :sso_provider, Ecto.Enum, values: [okta: 1, google: 2, oauth2: 3]
     field :sso_organization_id, :string
@@ -75,19 +94,16 @@ defmodule Tuist.Accounts.Organization do
   end
 
   def update_changeset(organization, attrs) do
+    update_changeset(organization, attrs, @sso_update_fields)
+  end
+
+  def sso_configuration_changeset(organization, attrs) do
+    update_changeset(organization, attrs, @sso_update_fields ++ @sso_verification_fields)
+  end
+
+  defp update_changeset(organization, attrs, fields) do
     organization
-    |> cast(attrs, [
-      :sso_provider,
-      :sso_organization_id,
-      :sso_enforced,
-      :sso_login_domain,
-      :sso_automatic_enrollment,
-      :oauth2_client_id,
-      :oauth2_encrypted_client_secret,
-      :oauth2_authorize_url,
-      :oauth2_token_url,
-      :oauth2_user_info_url
-    ])
+    |> cast(attrs, fields)
     |> normalize_sso_login_domain()
     |> normalize_oauth2_urls()
     |> validate_sso_login_domain()
@@ -129,7 +145,7 @@ defmodule Tuist.Accounts.Organization do
     if provider in @oauth2_providers do
       changeset
       |> maybe_require_verified_domain(
-        automatic_enrollment and not verified_domain?,
+        automatic_enrollment and not verified_domain? and not legacy_fallback,
         :sso_automatic_enrollment
       )
       |> maybe_require_verified_domain(

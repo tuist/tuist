@@ -334,7 +334,7 @@ defmodule Tuist.Accounts do
           )
 
         organization
-        |> sso_configuration_changeset(sso_attrs)
+        |> Organization.sso_configuration_changeset(sso_attrs)
         |> Repo.update()
 
       {:error, :not_found} = error ->
@@ -463,27 +463,6 @@ defmodule Tuist.Accounts do
     end
   end
 
-  defp sso_configuration_changeset(organization, attrs) do
-    changeset = Organization.update_changeset(organization, attrs)
-
-    [
-      :sso_login_domain_verification_token,
-      :sso_login_domain_verified_at,
-      :sso_legacy_email_domain_fallback
-    ]
-    |> Enum.reduce(
-      changeset,
-      fn field, changeset ->
-        if Map.has_key?(attrs, field) do
-          Changeset.put_change(changeset, field, attrs[field])
-        else
-          changeset
-        end
-      end
-    )
-    |> Organization.validate_sso_security_policy()
-  end
-
   defp maybe_rename_secret(attrs, secret_key, encrypted_secret_key) do
     case Map.pop(attrs, secret_key) do
       {nil, attrs} -> attrs
@@ -500,7 +479,7 @@ defmodule Tuist.Accounts do
       |> prepare_sso_login_domain_attrs(organization)
 
     Multi.new()
-    |> Multi.update(:organization, sso_configuration_changeset(organization, attrs))
+    |> Multi.update(:organization, Organization.sso_configuration_changeset(organization, attrs))
     |> Multi.run(:assign_sso_users, fn _repo, %{organization: updated_organization} ->
       if sso_newly_enabled?(
            organization.sso_provider,
@@ -2240,6 +2219,11 @@ defmodule Tuist.Accounts do
 
   def sso_automatic_enrollment_allowed?(%Organization{sso_automatic_enrollment: false}, _email), do: false
 
+  def sso_automatic_enrollment_allowed?(
+        %Organization{sso_automatic_enrollment: true, sso_legacy_email_domain_fallback: true},
+        _email
+      ), do: true
+
   def sso_automatic_enrollment_allowed?(%Organization{sso_provider: :google, sso_automatic_enrollment: true}, _email),
     do: true
 
@@ -2256,6 +2240,16 @@ defmodule Tuist.Accounts do
   end
 
   def sso_automatic_enrollment_allowed?(%Organization{}, _email), do: false
+
+  def sso_new_user_enrollment_allowed?(%Organization{} = organization, email, invitation?) when is_boolean(invitation?) do
+    trusted_email_domain? = sso_identity_linking_allowed?(organization, email)
+
+    (sso_automatic_enrollment_allowed?(organization, email) and
+       (organization.sso_legacy_email_domain_fallback || trusted_email_domain?)) or
+      (invitation? and trusted_email_domain?)
+  end
+
+  def sso_new_user_enrollment_allowed?(_organization, _email, _invitation?), do: false
 
   # Domain Name System control is the account-linking trust boundary here:
   # https://workos.com/docs/authkit/identity-linking#domain-verification

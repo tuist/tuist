@@ -4,6 +4,10 @@ defmodule Tuist.Repo.Migrations.AddSsoLoginDomainAndAutomaticEnrollmentToOrganiz
   import Ecto.Query
 
   def up do
+    # These values are the persisted Ecto.Enum mapping from Accounts.Organization.
+    google_provider = 2
+    legacy_login_domain_providers = [1, 3]
+
     alter table(:organizations) do
       add :sso_login_domain, :string
       add :sso_login_domain_verification_token, :string
@@ -18,13 +22,15 @@ defmodule Tuist.Repo.Migrations.AddSsoLoginDomainAndAutomaticEnrollmentToOrganiz
     flush()
 
     repo().update_all(
-      from(organization in "organizations", where: organization.sso_provider == 2),
+      from(organization in "organizations", where: organization.sso_provider == ^google_provider),
       set: [sso_automatic_enrollment: true]
     )
 
     repo().update_all(
-      from(organization in "organizations", where: organization.sso_provider in [1, 3]),
-      set: [sso_legacy_email_domain_fallback: true]
+      from(organization in "organizations",
+        where: organization.sso_provider in ^legacy_login_domain_providers
+      ),
+      set: [sso_automatic_enrollment: true, sso_legacy_email_domain_fallback: true]
     )
   end
 

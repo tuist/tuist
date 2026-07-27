@@ -188,7 +188,7 @@ defmodule TuistWeb.AuthController do
               |> redirect(to: ~p"/users/choose-username")
               |> halt()
             else
-              raise_sso_unauthorized(:automatic_enrollment_not_allowed)
+              raise_sso_unauthorized(new_sso_user_rejection_reason(sso_organization, auth.info.email))
             end
 
           {:ok, existing_user} ->
@@ -230,7 +230,8 @@ defmodule TuistWeb.AuthController do
           })
 
         cond do
-          invitation ->
+          invitation &&
+              not Accounts.sso_automatic_enrollment_allowed?(sso_organization, existing_user.email) ->
             prior_return_to =
               oauth_return_url || get_session(conn, :user_return_to)
 
@@ -307,12 +308,20 @@ defmodule TuistWeb.AuthController do
   defp new_sso_user_allowed?(provider, _organization, _email, _invitation) when provider not in [:okta, :oauth2], do: true
 
   defp new_sso_user_allowed?(_provider, %Organization{} = organization, email, invitation) do
-    Accounts.sso_identity_linking_allowed?(organization, email) and
-      (not is_nil(invitation) ||
-         Accounts.sso_automatic_enrollment_allowed?(organization, email))
+    Accounts.sso_new_user_enrollment_allowed?(organization, email, not is_nil(invitation))
   end
 
   defp new_sso_user_allowed?(_provider, nil, _email, _invitation), do: false
+
+  defp new_sso_user_rejection_reason(%Organization{} = organization, email) do
+    if Accounts.sso_identity_linking_allowed?(organization, email) do
+      :automatic_enrollment_not_allowed
+    else
+      :login_domain_verification_required
+    end
+  end
+
+  defp new_sso_user_rejection_reason(nil, _email), do: :automatic_enrollment_not_allowed
 
   defp invitation_token_for_signup(nil, _organization, _email), do: nil
 
@@ -669,6 +678,13 @@ defmodule TuistWeb.AuthController do
     dgettext(
       "dashboard",
       "Your organization does not allow automatic enrollment for this email domain. Ask an organization admin to invite you."
+    )
+  end
+
+  defp sso_unauthorized_message(:login_domain_verification_required) do
+    dgettext(
+      "dashboard",
+      "Your organization must verify a login email domain that matches your email before new users can sign in. Ask an organization admin to review the single sign-on domain settings."
     )
   end
 

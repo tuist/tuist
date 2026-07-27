@@ -295,6 +295,7 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
         configured_organization
         |> Ecto.Changeset.change(
           sso_enforced: true,
+          sso_automatic_enrollment: true,
           sso_legacy_email_domain_fallback: true
         )
         |> Tuist.Repo.update()
@@ -324,9 +325,11 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
         |> render_submit()
 
       assert html =~ "Pending verification"
+      assert html =~ "This existing configuration allows any email address reported by the provider"
 
       {:ok, updated_organization} = Accounts.get_organization_by_id(organization.id)
       assert updated_organization.sso_enforced
+      assert updated_organization.sso_automatic_enrollment
       assert updated_organization.sso_legacy_email_domain_fallback
       assert updated_organization.sso_login_domain == "customer.example"
       refute updated_organization.sso_login_domain_verified_at
@@ -362,6 +365,38 @@ defmodule TuistWeb.AuthenticationSettingsLiveTest do
       assert html =~ "The login domain has been verified."
       assert html =~ "Verified"
       refute html =~ "Pending verification"
+    end
+
+    test "does not verify a domain that changed after the form was rendered", %{
+      conn: conn,
+      account: account,
+      organization: organization
+    } do
+      {:ok, configured_organization} =
+        Accounts.update_sso_configuration(organization.id, :oauth2, %{
+          sso_organization_id: "https://login.vendor.example",
+          sso_login_domain: "customer.example",
+          oauth2_client_id: "test_client_id",
+          oauth2_client_secret: "test_client_secret",
+          oauth2_authorize_url: "https://login.vendor.example/authorize",
+          oauth2_token_url: "https://login.vendor.example/token",
+          oauth2_user_info_url: "https://login.vendor.example/userinfo"
+        })
+
+      {:ok, lv, _html} = live(conn, ~p"/#{account.name}/settings/authentication")
+
+      assert {:ok, changed_organization} =
+               Accounts.update_organization(configured_organization, %{
+                 sso_login_domain: "other.example"
+               })
+
+      reject(SSOLoginDomainVerification, :verified?, 2)
+
+      html = render_hook(lv, "verify_sso_login_domain")
+
+      assert html =~ "Save the login domain before verifying it."
+      assert changed_organization.sso_login_domain == "other.example"
+      refute changed_organization.sso_login_domain_verified_at
     end
 
     test "persists the automatic enrollment policy", %{

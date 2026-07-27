@@ -116,13 +116,16 @@ defmodule TuistWeb.AuthenticationSettingsLive do
     legacy_enforcement? =
       legacy_sso_enforcement?(provider, socket.assigns.organization)
 
+    legacy_automatic_enrollment? =
+      legacy_sso_automatic_enrollment?(provider, socket.assigns.organization)
+
     socket
     |> assign(
       selected_provider: provider,
       sso_automatic_enrollment:
         cond do
           provider == "google" and socket.assigns.selected_provider != "google" -> true
-          provider in ["okta", "oauth2"] and not verified_domain? -> false
+          provider in ["okta", "oauth2"] and not verified_domain? and not legacy_automatic_enrollment? -> false
           true -> socket.assigns.sso_automatic_enrollment
         end,
       sso_enforced:
@@ -161,11 +164,17 @@ defmodule TuistWeb.AuthenticationSettingsLive do
         socket.assigns.organization
       )
 
+    legacy_automatic_enrollment? =
+      legacy_sso_automatic_enrollment?(
+        socket.assigns.selected_provider,
+        socket.assigns.organization
+      )
+
     socket
     |> assign(
       current_form_params: form_params,
       sso_automatic_enrollment:
-        if(custom_provider_without_verified_domain?,
+        if(custom_provider_without_verified_domain? and not legacy_automatic_enrollment?,
           do: false,
           else: socket.assigns.sso_automatic_enrollment
         ),
@@ -696,6 +705,12 @@ defmodule TuistWeb.AuthenticationSettingsLive do
 
   defp legacy_sso_enforcement?(selected_provider, organization) do
     organization.sso_legacy_email_domain_fallback and
+      selected_provider == provider_name(organization.sso_provider)
+  end
+
+  defp legacy_sso_automatic_enrollment?(selected_provider, organization) do
+    organization.sso_legacy_email_domain_fallback and
+      organization.sso_automatic_enrollment and
       selected_provider == provider_name(organization.sso_provider)
   end
 

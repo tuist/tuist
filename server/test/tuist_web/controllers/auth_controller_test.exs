@@ -511,7 +511,7 @@ defmodule TuistWeb.AuthControllerTest do
                Tuist.Accounts.get_oauth2_identity(:oauth2, "spoofed-uid", "https://evil.example.com")
     end
 
-    test "links and enrolls an existing user from the verified login domain", %{conn: conn} do
+    test "links and enrolls an existing user without redirecting through a pending invitation", %{conn: conn} do
       admin = AccountsFixtures.user_fixture(email: "customer-admin@customer.example")
       existing_user = AccountsFixtures.user_fixture(email: "member@customer.example")
 
@@ -529,6 +529,12 @@ defmodule TuistWeb.AuthControllerTest do
           oauth2_authorize_url: "https://login.vendor.example/authorize",
           oauth2_token_url: "https://login.vendor.example/token",
           oauth2_user_info_url: "https://login.vendor.example/userinfo"
+        )
+
+      {:ok, invitation} =
+        Tuist.Accounts.invite_user_to_organization(
+          existing_user.email,
+          %{inviter: admin, to: organization, url: fn token -> "/auth/invitations/#{token}" end}
         )
 
       expect(SSOClient, :exchange_token, fn _token_url, "auth-code", _redirect_uri, _client_id, _client_secret ->
@@ -549,6 +555,7 @@ defmodule TuistWeb.AuthControllerTest do
         |> get("/users/auth/oauth2/callback?code=auth-code&state=expected-state")
 
       assert redirected_to(conn) =~ "/#{existing_user.account.name}"
+      refute redirected_to(conn) =~ invitation.token
       assert Tuist.Accounts.belongs_to_organization?(existing_user, organization)
 
       assert {:ok, identity} =
@@ -559,6 +566,45 @@ defmodule TuistWeb.AuthControllerTest do
                )
 
       assert identity.user_id == existing_user.id
+    end
+
+    test "preserves new-user onboarding for a legacy custom-provider organization", %{conn: conn} do
+      admin = AccountsFixtures.user_fixture(email: "legacy-admin@customer.example")
+      new_user_email = "new-user@consultancy.example"
+
+      organization =
+        AccountsFixtures.organization_fixture(
+          creator: admin,
+          sso_provider: :oauth2,
+          sso_organization_id: "https://login.vendor.example",
+          sso_automatic_enrollment: true,
+          sso_legacy_email_domain_fallback: true,
+          oauth2_client_id: UUIDv7.generate(),
+          oauth2_client_secret: UUIDv7.generate(),
+          oauth2_authorize_url: "https://login.vendor.example/authorize",
+          oauth2_token_url: "https://login.vendor.example/token",
+          oauth2_user_info_url: "https://login.vendor.example/userinfo"
+        )
+
+      expect(SSOClient, :exchange_token, fn _token_url, "auth-code", _redirect_uri, _client_id, _client_secret ->
+        {:ok, %{"access_token" => "access-token", "token_type" => "Bearer", "scope" => "openid email profile"}}
+      end)
+
+      expect(SSOClient, :fetch_userinfo, fn _user_info_url, "access-token" ->
+        {:ok, %{"sub" => "legacy-new-user", "email" => new_user_email, "name" => "New User"}}
+      end)
+
+      conn =
+        conn
+        |> init_test_session(%{
+          sso_organization_id: organization.id,
+          sso_state: "expected-state",
+          sso_route_provider: :oauth2
+        })
+        |> get("/users/auth/oauth2/callback?code=auth-code&state=expected-state")
+
+      assert redirected_to(conn) == "/users/choose-username"
+      assert get_session(conn, :pending_oauth_signup)["email"] == new_user_email
     end
 
     test "rejects a new user when automatic enrollment is disabled and no invitation exists", %{conn: conn} do
@@ -681,16 +727,18 @@ defmodule TuistWeb.AuthControllerTest do
         {:ok, %{"sub" => "invited-new-user", "email" => invitee_email, "name" => "Invited User"}}
       end)
 
-      assert_error_sent 401, fn ->
-        conn
-        |> init_test_session(%{
-          sso_organization_id: organization.id,
-          sso_state: "expected-state",
-          sso_route_provider: :oauth2
-        })
-        |> get("/users/auth/oauth2/callback?code=auth-code&state=expected-state")
-      end
+      assert {401, _headers, body} =
+               assert_error_sent(401, fn ->
+                 conn
+                 |> init_test_session(%{
+                   sso_organization_id: organization.id,
+                   sso_state: "expected-state",
+                   sso_route_provider: :oauth2
+                 })
+                 |> get("/users/auth/oauth2/callback?code=auth-code&state=expected-state")
+               end)
 
+      assert body =~ "must verify a login email domain"
       assert {:error, :not_found} = Tuist.Accounts.get_user_by_email(invitee_email)
     end
 
