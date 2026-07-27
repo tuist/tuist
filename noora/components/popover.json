@@ -1,0 +1,98 @@
+{
+  "name": "Popover",
+  "tagName": "noora-popover",
+  "elementClassName": "NooraPopover",
+  "className": "noora-popover",
+  "modulePath": "./priv/static/noora-web-components.js",
+  "description": "Displays contextual content anchored to a trigger.",
+  "usage": "<noora-popover><button slot=\"trigger\">Settings</button><p>Popover content</p></noora-popover>",
+  "attributes": [
+    {
+      "name": "open",
+      "property": "open",
+      "type": "boolean",
+      "default": false,
+      "description": "Controls whether the popover is open."
+    },
+    {
+      "name": "modal",
+      "property": "modal",
+      "type": "boolean",
+      "default": false,
+      "description": "Enables modal interaction behavior."
+    },
+    {
+      "name": "auto-focus",
+      "property": "autoFocus",
+      "type": "boolean",
+      "default": true,
+      "description": "Focuses the first focusable element after opening."
+    },
+    {
+      "name": "close-on-interact-outside",
+      "property": "closeOnInteractOutside",
+      "type": "boolean",
+      "default": true,
+      "description": "Closes after outside interaction."
+    },
+    {
+      "name": "close-on-escape",
+      "property": "closeOnEscape",
+      "type": "boolean",
+      "default": true,
+      "description": "Closes when Escape is pressed."
+    },
+    {
+      "name": "placement",
+      "property": "placement",
+      "type": "string",
+      "values": [
+        "top",
+        "top-start",
+        "top-end",
+        "bottom",
+        "bottom-start",
+        "bottom-end"
+      ],
+      "default": "bottom",
+      "description": "Controls the preferred placement."
+    }
+  ],
+  "readonlyProperties": [],
+  "slots": [
+    {
+      "name": "trigger",
+      "description": "The control that toggles the popover."
+    },
+    {
+      "name": "",
+      "description": "The popover content."
+    }
+  ],
+  "cssParts": [
+    {
+      "name": "trigger",
+      "description": "The trigger wrapper."
+    },
+    {
+      "name": "content",
+      "description": "The popover surface."
+    }
+  ],
+  "events": [
+    {
+      "name": "noora-open-change",
+      "type": "CustomEvent<{ open: boolean }>",
+      "description": "Emitted when the popover opens or closes."
+    }
+  ],
+  "notes": ["Opening and closing emits a `noora-open-change` event."],
+  "examples": [
+    {
+      "id": "settings",
+      "title": "Default",
+      "description": "Show a simple popover with basic content.",
+      "markup": "<noora-popover placement=\"bottom\">\n  <button slot=\"trigger\" type=\"button\" style=\"padding: 8px 16px;\">Click me</button>\n  <div style=\"padding: 16px;\">\n    <h3 style=\"margin: 0 0 8px; color: var(--noora-surface-label-primary);\">Popover Title</h3>\n    <p style=\"margin: 0; color: var(--noora-surface-label-secondary);\">This is the content inside the popover.</p>\n  </div>\n</noora-popover>"
+    }
+  ]
+}

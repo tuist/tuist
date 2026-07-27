@@ -1,0 +1,144 @@
+{
+  "name": "DatePicker",
+  "tagName": "noora-date-picker",
+  "elementClassName": "NooraDatePicker",
+  "className": "noora-date-picker",
+  "modulePath": "./priv/static/noora-web-components.js",
+  "description": "Selects a date range with a two-month calendar, optional presets, and editable range fields.",
+  "usage": "<noora-date-picker label=\"Select date range\"></noora-date-picker>",
+  "attributes": [
+    {
+      "name": "label",
+      "property": "label",
+      "type": "string",
+      "default": "Select date range",
+      "description": "Sets the trigger label when no range is selected."
+    },
+    {
+      "name": "name",
+      "property": "name",
+      "type": "string",
+      "description": "Sets the submitted field-name prefix."
+    },
+    {
+      "name": "start",
+      "property": "start",
+      "type": "string",
+      "description": "Sets the start date in year-month-day format."
+    },
+    {
+      "name": "end",
+      "property": "end",
+      "type": "string",
+      "description": "Sets the end date in year-month-day format."
+    },
+    {
+      "name": "min",
+      "property": "min",
+      "type": "string",
+      "description": "Sets the earliest selectable date."
+    },
+    {
+      "name": "max",
+      "property": "max",
+      "type": "string",
+      "description": "Sets the latest selectable date."
+    },
+    {
+      "name": "selected-preset",
+      "property": "selectedPreset",
+      "type": "string",
+      "description": "Identifies the selected preset."
+    },
+    {
+      "name": "start-of-week",
+      "property": "startOfWeek",
+      "type": "number",
+      "default": 0,
+      "description": "Sets the first weekday, where zero is Sunday and one is Monday."
+    },
+    {
+      "name": "disabled",
+      "property": "disabled",
+      "type": "boolean",
+      "default": false,
+      "description": "Disables interaction."
+    },
+    {
+      "name": "open",
+      "property": "open",
+      "type": "boolean",
+      "default": false,
+      "reflect": true,
+      "description": "Controls whether the picker is open."
+    }
+  ],
+  "properties": [
+    {
+      "name": "presets",
+      "type": "json",
+      "typescriptType": "Array<Record<string, unknown>>",
+      "default": [],
+      "description": "Defines presets programmatically when declarative noora-date-picker-preset children are not used."
+    }
+  ],
+  "readonlyProperties": [],
+  "slots": [
+    {
+      "name": "",
+      "description": "Declarative noora-date-picker-preset children."
+    },
+    {
+      "name": "actions",
+      "description": "Additional footer actions."
+    }
+  ],
+  "cssParts": [
+    {
+      "name": "trigger",
+      "description": "The range trigger."
+    },
+    {
+      "name": "content",
+      "description": "The picker content."
+    },
+    {
+      "name": "calendar",
+      "description": "The calendar and range controls."
+    },
+    {
+      "name": "month",
+      "description": "One calendar month."
+    }
+  ],
+  "events": [
+    {
+      "name": "noora-open-change",
+      "type": "CustomEvent<{ open: boolean }>",
+      "description": "Emitted when the date picker opens or closes."
+    },
+    {
+      "name": "noora-period-change",
+      "type": "CustomEvent<{ start: string; end: string; preset: string | undefined }>",
+      "description": "Emitted when a date range is applied."
+    },
+    {
+      "name": "noora-cancel",
+      "type": "CustomEvent<Record<string, never>>",
+      "description": "Emitted when date selection is cancelled."
+    }
+  ],
+  "notes": [
+    "Range changes emit a `noora-period-change` event after Apply is selected.",
+    "Cancel emits a `noora-cancel` event.",
+    "Slotted action buttons can use data-action=\"cancel\" or data-action=\"apply\"."
+  ],
+  "examples": [
+    {
+      "id": "default",
+      "title": "Default date picker",
+      "description": "Open the picker with common presets and footer actions.",
+      "markup": "<noora-date-picker selected-preset=\"7d\">\n  <noora-date-picker-preset value=\"1h\" start=\"2026-07-27\" end=\"2026-07-27\">Last 1 hour</noora-date-picker-preset>\n  <noora-date-picker-preset value=\"24h\" start=\"2026-07-26\" end=\"2026-07-27\">Last 24 hours</noora-date-picker-preset>\n  <noora-date-picker-preset value=\"7d\" start=\"2026-07-21\" end=\"2026-07-27\">Last 7 days</noora-date-picker-preset>\n  <noora-date-picker-preset value=\"30d\" start=\"2026-06-28\" end=\"2026-07-27\">Last 30 days</noora-date-picker-preset>\n  <noora-date-picker-preset value=\"custom\">Custom</noora-date-picker-preset>\n  <noora-button slot=\"actions\" type=\"button\" variant=\"secondary\" size=\"medium\" data-action=\"cancel\">Cancel</noora-button>\n  <noora-button slot=\"actions\" type=\"button\" variant=\"primary\" size=\"medium\" data-action=\"apply\">Apply</noora-button>\n</noora-date-picker>"
+    }
+  ]
+}

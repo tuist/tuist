@@ -1,0 +1,41 @@
+{
+  "name": "TextDivider",
+  "tagName": "noora-text-divider",
+  "elementClassName": "NooraTextDivider",
+  "className": "noora-text-divider",
+  "modulePath": "./priv/static/noora-web-components.js",
+  "description": "Renders a compact textual section divider.",
+  "usage": "<noora-text-divider text=\"OR\"></noora-text-divider>",
+  "attributes": [
+    {
+      "name": "text",
+      "property": "text",
+      "type": "string",
+      "default": "",
+      "description": "Sets the divider text."
+    }
+  ],
+  "readonlyProperties": [],
+  "slots": [],
+  "cssParts": [
+    {
+      "name": "divider",
+      "description": "The text divider."
+    }
+  ],
+  "notes": [],
+  "examples": [
+    {
+      "id": "basic",
+      "title": "Basic dividers",
+      "description": "Separate alternatives, combined conditions, or sections.",
+      "markup": "<noora-text-divider text=\"OR\"></noora-text-divider>\n<noora-text-divider text=\"AND\"></noora-text-divider>\n<noora-text-divider text=\"Section 2\"></noora-text-divider>"
+    },
+    {
+      "id": "content",
+      "title": "Content types",
+      "description": "Use symbols, numbers, longer labels, or dates.",
+      "markup": "<noora-text-divider text=\"•\"></noora-text-divider>\n<noora-text-divider text=\"1\"></noora-text-divider>\n<noora-text-divider text=\"Alternative Options\"></noora-text-divider>\n<noora-text-divider text=\"January 2024\"></noora-text-divider>"
+    }
+  ]
+}
