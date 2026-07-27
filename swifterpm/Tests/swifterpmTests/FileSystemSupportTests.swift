@@ -111,4 +111,24 @@ struct FileSystemSupportTests {
             )
         }
     }
+
+    @Test
+    func flattenSingleDirectoryPreservesPackageSourcesAtRoot() async throws {
+        try await withTemporaryDirectory { root in
+            let packageManifest = root.appendingPathComponent("Package.swift")
+            let packageSource = root.appendingPathComponent("Sources/Package/Package.swift")
+            try await fileSystem.atomicWrite("// package manifest", to: packageManifest)
+            try await fileSystem.atomicWrite("// package source", to: packageSource)
+
+            try await fileSystem.flattenSingleDirectory(root)
+
+            #expect(try await fileSystem.exists(packageManifest.absolutePath))
+            #expect(try await fileSystem.exists(packageSource.absolutePath))
+            #expect(
+                !(try await fileSystem.exists(
+                    root.appendingPathComponent("Package").absolutePath
+                ))
+            )
+        }
+    }
 }

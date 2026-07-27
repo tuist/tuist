@@ -120,6 +120,11 @@ extension FileSystem {
         let subdirectories = try await contentsOfDirectory(at: url)
             .filter { isDirectoryAndNotSymlink($0) }
         guard subdirectories.count == 1, let nested = subdirectories.first else { return }
+        if try await exists(url.appendingPathComponent("Package.swift").absolutePath),
+           ["Plugins", "Sources", "Tests"].contains(nested.lastPathComponent)
+        {
+            return
+        }
 
         let temp = url.deletingLastPathComponent().appendingPathComponent(
             "\(url.lastPathComponent).flattening")
