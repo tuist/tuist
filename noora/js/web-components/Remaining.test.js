@@ -254,6 +254,33 @@ describe("remaining Noora web components", () => {
     expect(change).toHaveBeenCalledOnce();
   });
 
+  it("propagates disabled fieldset state to every form control", async () => {
+    const controls = [
+      ["noora-checkbox", "input"],
+      ["noora-toggle", "input"],
+      ["noora-text-input", "input"],
+      ["noora-text-area", "textarea"],
+      ["noora-digit-input", '[data-part="input"]'],
+      ["noora-select", '[data-part="trigger"]'],
+      ["noora-date-picker", '[data-part="trigger"]'],
+    ];
+
+    for (const [tagName, selector] of controls) {
+      const element = document.createElement(tagName);
+      document.body.append(element);
+      await element.updateComplete;
+
+      element.formDisabledCallback(true);
+      await element.updateComplete;
+
+      expect(element.shadowRoot.querySelector(selector).disabled, tagName).toBe(
+        true,
+      );
+
+      element.remove();
+    }
+  });
+
   it("updates a text input from its native control", async () => {
     const textInput = document.createElement("noora-text-input");
     const input = vi.fn();
@@ -281,6 +308,21 @@ describe("remaining Noora web components", () => {
     );
     expect(input).toHaveBeenCalledOnce();
     expect(change).toHaveBeenCalledOnce();
+  });
+
+  it("restores a text input's initial value on form reset", async () => {
+    const textInput = document.createElement("noora-text-input");
+    textInput.setAttribute("value", "hello@tuist.dev");
+    document.body.append(textInput);
+    await textInput.updateComplete;
+
+    textInput.value = "changed@tuist.dev";
+    await textInput.updateComplete;
+    textInput.formResetCallback();
+    await textInput.updateComplete;
+
+    expect(textInput.value).toBe("hello@tuist.dev");
+    expect(textInput.control.value).toBe("hello@tuist.dev");
   });
 
   it("associates text area labels with their native controls", async () => {
@@ -797,6 +839,42 @@ describe("remaining Noora web components", () => {
       end: "2026-07-27",
       preset: "30d",
     });
+  });
+
+  it("submits the selected date range with the configured name", async () => {
+    const originalAttachInternals = Object.getOwnPropertyDescriptor(
+      HTMLElement.prototype,
+      "attachInternals",
+    );
+    const setFormValue = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, "attachInternals", {
+      configurable: true,
+      value: () => ({ form: null, setFormValue }),
+    });
+
+    try {
+      const datePicker = document.createElement("noora-date-picker");
+      datePicker.name = "range";
+      datePicker.start = "2026-07-21";
+      datePicker.end = "2026-07-27";
+      document.body.append(datePicker);
+      await datePicker.updateComplete;
+
+      const data = setFormValue.mock.calls.at(-1)[0];
+
+      expect(data.get("range[start]")).toBe("2026-07-21");
+      expect(data.get("range[end]")).toBe("2026-07-27");
+    } finally {
+      if (originalAttachInternals) {
+        Object.defineProperty(
+          HTMLElement.prototype,
+          "attachInternals",
+          originalAttachInternals,
+        );
+      } else {
+        delete HTMLElement.prototype.attachInternals;
+      }
+    }
   });
 
   it("reacts to the parent state for paired icon transitions", async () => {

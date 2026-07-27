@@ -2902,7 +2902,7 @@
             {
               "kind": "field",
               "name": "name",
-              "description": "Sets the submitted field-name prefix.",
+              "description": "Sets the submitted field-name prefix for `[start]` and `[end]` values.",
               "type": {
                 "text": "string | undefined"
               },
@@ -3005,7 +3005,7 @@
             },
             {
               "name": "name",
-              "description": "Sets the submitted field-name prefix.",
+              "description": "Sets the submitted field-name prefix for `[start]` and `[end]` values.",
               "type": {
                 "text": "string"
               },

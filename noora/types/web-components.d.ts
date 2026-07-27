@@ -588,7 +588,7 @@ export function registerNooraDatePickerPreset(): void;
 export class NooraDatePicker extends HTMLElement {
   /** Sets the trigger label when no range is selected. */
   label: string;
-  /** Sets the submitted field-name prefix. */
+  /** Sets the submitted field-name prefix for `[start]` and `[end]` values. */
   name: string | undefined;
   /** Sets the start date in year-month-day format. */
   start: string | undefined;

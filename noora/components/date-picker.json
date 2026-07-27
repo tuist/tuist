@@ -18,7 +18,7 @@
       "name": "name",
       "property": "name",
       "type": "string",
-      "description": "Sets the submitted field-name prefix."
+      "description": "Sets the submitted field-name prefix for `[start]` and `[end]` values."
     },
     {
       "name": "start",
@@ -129,6 +129,7 @@
     }
   ],
   "notes": [
+    "A picker named `range` submits its dates as `range[start]` and `range[end]`.",
     "Range changes emit a `noora-period-change` event after Apply is selected.",
     "Cancel emits a `noora-cancel` event.",
     "Slotted action buttons can use data-action=\"cancel\" or data-action=\"apply\"."

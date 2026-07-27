@@ -13,7 +13,7 @@ Selects a date range with a two-month calendar, optional presets, and editable r
 | Attribute | Type or allowed values | Default | Description |
 | --- | --- | --- | --- |
 | `label` | `string` | `"Select date range"` | Sets the trigger label when no range is selected. |
-| `name` | `string` | None | Sets the submitted field-name prefix. |
+| `name` | `string` | None | Sets the submitted field-name prefix for `[start]` and `[end]` values. |
 | `start` | `string` | None | Sets the start date in year-month-day format. |
 | `end` | `string` | None | Sets the end date in year-month-day format. |
 | `min` | `string` | None | Sets the earliest selectable date. |
@@ -52,6 +52,8 @@ Selects a date range with a two-month calendar, optional presets, and editable r
 | `content` | The picker content. |
 | `calendar` | The calendar and range controls. |
 | `month` | One calendar month. |
+
+A picker named `range` submits its dates as `range[start]` and `range[end]`.
 
 Range changes emit a `noora-period-change` event after Apply is selected.
 

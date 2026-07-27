@@ -705,6 +705,7 @@ class NooraFormElement extends NooraElement {
     delegatesFocus: true,
   };
 
+  #formDisabled = false;
   #internals;
 
   constructor() {
@@ -714,6 +715,15 @@ class NooraFormElement extends NooraElement {
 
   get form() {
     return this.#internals?.form ?? null;
+  }
+
+  get formControlDisabled() {
+    return this.disabled || this.#formDisabled;
+  }
+
+  formDisabledCallback(disabled) {
+    this.#formDisabled = disabled;
+    this.requestUpdate();
   }
 
   setFormValue(value) {
@@ -1434,6 +1444,7 @@ export class NooraCheckbox extends NooraFormElement {
   }
 
   render() {
+    const disabled = this.formControlDisabled;
     const state = this.indeterminate
       ? "indeterminate"
       : this.checked
@@ -1444,9 +1455,9 @@ export class NooraCheckbox extends NooraFormElement {
       <div
         class=${this.constructor.contract.className}
         ?data-indeterminate=${this.indeterminate}
-        ?data-disabled=${this.disabled}
+        ?data-disabled=${disabled}
       >
-        <label data-part="root" part="root" ?data-disabled=${this.disabled}>
+        <label data-part="root" part="root" ?data-disabled=${disabled}>
           <input
             class="visually-hidden"
             data-peer
@@ -1456,7 +1467,7 @@ export class NooraCheckbox extends NooraFormElement {
             value=${this.value}
             .checked=${live(this.checked)}
             ?required=${this.required}
-            ?disabled=${this.disabled}
+            ?disabled=${disabled}
             @input=${this.#handleInput}
             @change=${this.#handleChange}
           />
@@ -1465,7 +1476,7 @@ export class NooraCheckbox extends NooraFormElement {
             data-part="control"
             part="control"
             data-state=${state}
-            ?data-disabled=${this.disabled}
+            ?data-disabled=${disabled}
           >
             <div data-part="check">${nooraIcon("check")}</div>
             <div data-part="minus">${nooraIcon("minus")}</div>
@@ -1509,15 +1520,16 @@ export class NooraToggle extends NooraFormElement {
   }
 
   render() {
+    const disabled = this.formControlDisabled;
     const state = this.checked ? "checked" : "unchecked";
 
     return html`
       <div
         class=${this.constructor.contract.className}
         ?data-checked=${this.checked}
-        ?data-disabled=${this.disabled}
+        ?data-disabled=${disabled}
       >
-        <label data-part="root" part="root" ?data-disabled=${this.disabled}>
+        <label data-part="root" part="root" ?data-disabled=${disabled}>
           <input
             class="visually-hidden"
             data-peer
@@ -1527,7 +1539,7 @@ export class NooraToggle extends NooraFormElement {
             name=${this.name}
             value=${this.value}
             .checked=${live(this.checked)}
-            ?disabled=${this.disabled}
+            ?disabled=${disabled}
             @input=${this.#handleInput}
             @change=${this.#handleChange}
           />
@@ -1536,7 +1548,7 @@ export class NooraToggle extends NooraFormElement {
             data-state=${state}
             data-part="control"
             part="control"
-            ?data-disabled=${this.disabled}
+            ?data-disabled=${disabled}
           >
             <div data-part="track">
               <div data-part="thumb"></div>
@@ -1571,7 +1583,11 @@ function labelTemplate(element, controlId) {
   if (!element.label) return nothing;
 
   return html`
-    <div class="noora-label" data-part="label" ?disabled=${element.disabled}>
+    <div
+      class="noora-label"
+      data-part="label"
+      ?disabled=${element.formControlDisabled ?? element.disabled}
+    >
       <label for=${controlId}>${element.label}</label>
       ${element.required && element.showRequired
         ? html`<span data-part="required-indicator" aria-hidden="true">*</span>`
@@ -1613,15 +1629,25 @@ export class NooraTextInput extends NooraFormElement {
   ];
 
   #passwordVisible = false;
+  #defaultValue = "";
+  #hasDefaultValue = false;
   #controlId = generatedId("text-input");
   #hintId = generatedId("text-input-hint");
+
+  connectedCallback() {
+    super.connectedCallback();
+    if (!this.#hasDefaultValue) {
+      this.#defaultValue = this.value;
+      this.#hasDefaultValue = true;
+    }
+  }
 
   get control() {
     return this.renderRoot?.querySelector("input") ?? null;
   }
 
   formResetCallback() {
-    this.value = "";
+    this.value = this.#defaultValue;
   }
 
   updated() {
@@ -1640,6 +1666,7 @@ export class NooraTextInput extends NooraFormElement {
   }
 
   render() {
+    const disabled = this.formControlDisabled;
     const semanticType = validated(this, "type");
     const nativeType =
       semanticType === "email"
@@ -1703,7 +1730,7 @@ export class NooraTextInput extends NooraFormElement {
             max=${ifDefined(this.max)}
             step=${ifDefined(this.step)}
             ?required=${this.required}
-            ?disabled=${this.disabled}
+            ?disabled=${disabled}
             @input=${this.#handleInput}
             @change=${this.#handleChange}
           />
@@ -1714,6 +1741,7 @@ export class NooraTextInput extends NooraFormElement {
                     ? html`<button
                         type="button"
                         tabindex="-1"
+                        ?disabled=${disabled}
                         aria-label=${this.#passwordVisible
                           ? "Hide password"
                           : "Show password"}
@@ -1792,11 +1820,12 @@ export class NooraTextArea extends NooraFormElement {
   }
 
   render() {
+    const disabled = this.formControlDisabled;
     return html`
       <div
         class=${this.constructor.contract.className}
         ?data-error=${Boolean(this.error)}
-        ?disabled=${this.disabled}
+        ?disabled=${disabled}
       >
         ${labelTemplate(this, this.#controlId)}
         <div data-part="wrapper" @click=${() => this.control?.focus()}>
@@ -1811,10 +1840,10 @@ export class NooraTextArea extends NooraFormElement {
             rows=${this.rows}
             maxlength=${this.maxLength}
             placeholder=${ifDefined(this.placeholder)}
-            style=${`resize: ${this.disabled ? "none" : validated(this, "resize")}`}
+            style=${`resize: ${disabled ? "none" : validated(this, "resize")}`}
             .value=${live(this.value)}
             ?required=${this.required}
-            ?disabled=${this.disabled}
+            ?disabled=${disabled}
             @input=${this.#handleInput}
             @change=${this.#handleChange}
           ></textarea>
@@ -1852,6 +1881,7 @@ export class NooraDigitInput extends NooraFormElement {
   }
 
   render() {
+    const disabled = this.formControlDisabled;
     const length = Math.max(1, Math.min(32, this.characters));
     const values = Array.from(
       { length },
@@ -1863,7 +1893,7 @@ export class NooraDigitInput extends NooraFormElement {
       <div
         class=${this.constructor.contract.className}
         data-type=${type}
-        ?data-disabled=${this.disabled}
+        ?data-disabled=${disabled}
       >
         <div data-part="root" part="root">
           ${values.map(
@@ -1873,7 +1903,7 @@ export class NooraDigitInput extends NooraFormElement {
                 data-part="input"
                 data-index=${index}
                 ?data-error=${this.error}
-                ?data-disabled=${this.disabled}
+                ?data-disabled=${disabled}
                 type="text"
                 inputmode=${type === "numeric" ? "numeric" : "text"}
                 autocomplete=${this.oneTimeCode && index === 0
@@ -1882,7 +1912,7 @@ export class NooraDigitInput extends NooraFormElement {
                 maxlength="1"
                 .value=${live(value)}
                 placeholder=${this.placeholder}
-                ?disabled=${this.disabled}
+                ?disabled=${disabled}
                 @input=${(event) => this.#handleInput(event, index)}
                 @keydown=${(event) => this.#handleKeydown(event, index)}
                 @paste=${this.#handlePaste}
@@ -2023,6 +2053,11 @@ export class NooraSelect extends NooraFormElement {
     this.#setOpen(false);
   }
 
+  formDisabledCallback(disabled) {
+    super.formDisabledCallback(disabled);
+    if (disabled) this.#setOpen(false);
+  }
+
   updated() {
     this.setFormValue(this.value);
     if (this.control) this.control.value = this.value;
@@ -2034,6 +2069,7 @@ export class NooraSelect extends NooraFormElement {
   }
 
   render() {
+    const disabled = this.formControlDisabled;
     const options = this.#options();
     const selected = options.find((option) => option.value === this.value);
 
@@ -2045,7 +2081,7 @@ export class NooraSelect extends NooraFormElement {
           tabindex="-1"
           aria-hidden="true"
           .value=${live(this.value)}
-          ?disabled=${this.disabled}
+          ?disabled=${disabled}
           ?required=${this.required}
         >
           <option value=""></option>
@@ -2065,7 +2101,7 @@ export class NooraSelect extends NooraFormElement {
           data-part="trigger"
           part="select"
           type="button"
-          ?disabled=${this.disabled}
+          ?disabled=${disabled}
           data-state=${this.open ? "open" : "closed"}
           aria-haspopup="listbox"
           aria-expanded=${this.open}
@@ -2144,7 +2180,7 @@ export class NooraSelect extends NooraFormElement {
   }
 
   #setOpen(open) {
-    if ((open && this.disabled) || this.open === open) return;
+    if ((open && this.formControlDisabled) || this.open === open) return;
     this.open = open;
     this.emit("noora-open-change", { open });
     if (open) {
@@ -2190,7 +2226,7 @@ export class NooraSelect extends NooraFormElement {
   }
 }
 
-function datePickerMonthTemplate(index, desktopOnly = false) {
+function datePickerMonthTemplate(index, desktopOnly = false, disabled = false) {
   return html`
     <div
       data-part="month"
@@ -2203,11 +2239,17 @@ function datePickerMonthTemplate(index, desktopOnly = false) {
           type="button"
           data-part="prev-trigger"
           aria-label="Previous month"
+          ?disabled=${disabled}
         >
           ${nooraIcon("chevron_left")}
         </button>
         <span data-part="view-trigger"></span>
-        <button type="button" data-part="next-trigger" aria-label="Next month">
+        <button
+          type="button"
+          data-part="next-trigger"
+          aria-label="Next month"
+          ?disabled=${disabled}
+        >
           ${nooraIcon("chevron_right")}
         </button>
       </div>
@@ -2232,6 +2274,7 @@ function datePickerMonthTemplate(index, desktopOnly = false) {
                       <button
                         type="button"
                         data-part="table-cell-trigger"
+                        ?disabled=${disabled}
                       ></button>
                     </td>
                   `,
@@ -2281,6 +2324,7 @@ function datePickerInputTemplate(type, disabled) {
 let datePickerId = 0;
 
 export class NooraDatePicker extends NooraPopupElement {
+  static formAssociated = true;
   static contract = contract("noora-date-picker");
   static styles = [
     unsafeCSS(datePickerStyles),
@@ -2299,6 +2343,48 @@ export class NooraDatePicker extends NooraPopupElement {
 
   #controller = null;
   #controllerId = `noora-date-picker-${(datePickerId += 1)}`;
+  #defaultEnd;
+  #defaultSelectedPreset;
+  #defaultStart;
+  #formDisabled = false;
+  #hasDefaultRange = false;
+  #internals;
+
+  constructor() {
+    super();
+    this.#internals = this.attachInternals?.();
+  }
+
+  connectedCallback() {
+    super.connectedCallback();
+    if (!this.#hasDefaultRange) {
+      this.#defaultStart = this.start;
+      this.#defaultEnd = this.end;
+      this.#defaultSelectedPreset = this.selectedPreset;
+      this.#hasDefaultRange = true;
+    }
+  }
+
+  get form() {
+    return this.#internals?.form ?? null;
+  }
+
+  get formControlDisabled() {
+    return this.disabled || this.#formDisabled;
+  }
+
+  formDisabledCallback(disabled) {
+    this.#formDisabled = disabled;
+    if (disabled) this.open = false;
+    this.requestUpdate();
+  }
+
+  formResetCallback() {
+    this.start = this.#defaultStart;
+    this.end = this.#defaultEnd;
+    this.selectedPreset = this.#defaultSelectedPreset;
+    this.open = false;
+  }
 
   disconnectedCallback() {
     this.#controller?.destroy();
@@ -2307,6 +2393,8 @@ export class NooraDatePicker extends NooraPopupElement {
   }
 
   updated(changedProperties) {
+    this.#syncFormValue();
+
     if (!this.#controller) {
       this.#initializeController();
       return;
@@ -2323,6 +2411,7 @@ export class NooraDatePicker extends NooraPopupElement {
   }
 
   render() {
+    const disabled = this.formControlDisabled;
     const presets = this.#presets();
     const selectedPreset = presets.find(
       (preset) => preset.id === this.selectedPreset,
@@ -2344,10 +2433,15 @@ export class NooraDatePicker extends NooraPopupElement {
         data-period-end=${ifDefined(this.end)}
         data-on-period-change="noora-period-change"
         data-on-cancel="noora-date-picker-cancel"
-        ?data-disabled=${this.disabled}
+        ?data-disabled=${disabled}
       >
         <div data-part="control">
-          <button data-part="trigger" part="trigger" type="button">
+          <button
+            data-part="trigger"
+            part="trigger"
+            type="button"
+            ?disabled=${disabled}
+          >
             <div data-part="trigger-icon">${nooraIcon("calendar_week")}</div>
             <span data-part="trigger-label">${triggerLabel}</span>
           </button>
@@ -2363,7 +2457,7 @@ export class NooraDatePicker extends NooraPopupElement {
                     data-part="preset-item"
                     data-preset-id=${preset.id}
                     ?data-selected=${this.selectedPreset === preset.id}
-                    ?disabled=${this.disabled}
+                    ?disabled=${disabled}
                   >
                     ${preset.label}
                   </button>
@@ -2379,7 +2473,7 @@ export class NooraDatePicker extends NooraPopupElement {
                     data-part="preset-item"
                     data-preset-id=${preset.id}
                     ?data-selected=${this.selectedPreset === preset.id}
-                    ?disabled=${this.disabled}
+                    ?disabled=${disabled}
                   >
                     ${preset.label}
                   </button>
@@ -2389,19 +2483,19 @@ export class NooraDatePicker extends NooraPopupElement {
 
             <div data-part="calendar" part="calendar">
               <div data-part="months">
-                ${datePickerMonthTemplate(0)}
-                ${datePickerMonthTemplate(1, true)}
+                ${datePickerMonthTemplate(0, false, disabled)}
+                ${datePickerMonthTemplate(1, true, disabled)}
               </div>
 
               <div class="noora-line-divider"></div>
 
               <div data-part="footer">
                 <div data-part="range-display">
-                  ${datePickerInputTemplate("start", this.disabled)}
+                  ${datePickerInputTemplate("start", disabled)}
                   <div data-part="arrow">
                     ${nooraIcon("arrow_narrow_right")}
                   </div>
-                  ${datePickerInputTemplate("end", this.disabled)}
+                  ${datePickerInputTemplate("end", disabled)}
                 </div>
                 <div data-part="actions" @click=${this.#handleAction}>
                   <slot name="actions">
@@ -2411,6 +2505,7 @@ export class NooraDatePicker extends NooraPopupElement {
                       data-size="medium"
                       data-action="cancel"
                       type="button"
+                      ?disabled=${disabled}
                     >
                       Cancel
                     </button>
@@ -2420,6 +2515,7 @@ export class NooraDatePicker extends NooraPopupElement {
                       data-size="medium"
                       data-action="apply"
                       type="button"
+                      ?disabled=${disabled}
                     >
                       Apply
                     </button>
@@ -2451,7 +2547,7 @@ export class NooraDatePicker extends NooraPopupElement {
       id: root.id,
       getRootNode: () => root.getRootNode(),
       startOfWeek: this.startOfWeek,
-      disabled: this.disabled,
+      disabled: this.formControlDisabled,
       presets,
       selectedPreset: this.selectedPreset,
       periodStart: this.start ?? selectedPreset?.start,
@@ -2475,6 +2571,7 @@ export class NooraDatePicker extends NooraPopupElement {
   }
 
   #handleOpenChange(open) {
+    if (open && this.formControlDisabled) return;
     if (this.open === open) return;
     this.open = open;
     this.emit("noora-open-change", { open });
@@ -2485,6 +2582,7 @@ export class NooraDatePicker extends NooraPopupElement {
       this.start = toISODateString(new Date(payload.value.start));
       this.end = toISODateString(new Date(payload.value.end));
       this.selectedPreset = payload.preset;
+      this.#syncFormValue();
       this.emit("noora-period-change", {
         start: this.start,
         end: this.end,
@@ -2496,6 +2594,8 @@ export class NooraDatePicker extends NooraPopupElement {
   }
 
   #handleAction = (event) => {
+    if (this.formControlDisabled) return;
+
     const path = event.composedPath();
     const control =
       path.find(
@@ -2511,6 +2611,24 @@ export class NooraDatePicker extends NooraPopupElement {
       this.#controller?.handleApply();
     }
   };
+
+  #syncFormValue() {
+    if (!this.name) {
+      this.#internals?.setFormValue(null);
+      return;
+    }
+
+    const selectedPreset = this.#presets().find(
+      (preset) => preset.id === this.selectedPreset,
+    );
+    const value = new FormData();
+    value.append(
+      `${this.name}[start]`,
+      this.start ?? selectedPreset?.start ?? "",
+    );
+    value.append(`${this.name}[end]`, this.end ?? selectedPreset?.end ?? "");
+    this.#internals?.setFormValue(value);
+  }
 }
 
 export class NooraFilter extends NooraElement {
