@@ -1847,6 +1847,43 @@ defmodule Tuist.Tests do
     )
   end
 
+  @test_case_states_batch_size 2_000
+
+  @doc """
+  Returns a `%{test_case_id => state}` map with the current `state`
+  (`"enabled"` | `"muted"` | `"skipped"`) of each given test case, resolved
+  from the `test_case_states` projection. A test case with no recorded state
+  change resolves to `"enabled"`. Used by automation evaluation to gate
+  trigger/recovery actions on the test case's current state.
+  """
+  def test_case_states(_project_id, []), do: %{}
+
+  def test_case_states(project_id, test_case_ids) do
+    recorded =
+      test_case_ids
+      |> Enum.chunk_every(@test_case_states_batch_size)
+      |> Enum.reduce(%{}, fn ids_chunk, acc ->
+        Map.merge(acc, fetch_test_case_states_chunk(project_id, ids_chunk))
+      end)
+
+    Map.new(test_case_ids, fn id -> {id, normalize_state(Map.get(recorded, id))} end)
+  end
+
+  # Same per-column resolution as `resolve_test_case_state/2`, batched. The ids
+  # bind as a single `Array(UUID)` parameter (not `in ^ids_chunk`, which
+  # expands to one bound parameter per id and overflows ClickHouse's request
+  # limits on large sets), matching `fetch_validated_test_case_ids_chunk`.
+  defp fetch_test_case_states_chunk(project_id, ids_chunk) do
+    from(s in TestCaseState,
+      where: s.project_id == ^project_id,
+      where: fragment("? IN (?)", s.test_case_id, type(^ids_chunk, {:array, Ecto.UUID})),
+      group_by: s.test_case_id,
+      select: {s.test_case_id, fragment("argMaxIf(?, ?, isNotNull(?))", s.state, s.inserted_at, s.state)}
+    )
+    |> ClickHouseRepo.all(multipart: true)
+    |> Map.new()
+  end
+
   defp create_test_suites(test, module_id, test_suites, test_cases, test_case_run_data, shard_plan, shard_index) do
     test_cases_by_suite =
       Enum.group_by(test_cases, fn case_attrs ->

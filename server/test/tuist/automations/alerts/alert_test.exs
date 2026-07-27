@@ -435,6 +435,163 @@ defmodule Tuist.Automations.Alerts.AlertTest do
     end
   end
 
+  describe "conditions scope" do
+    test "accepts a trigger_config with a valid test_case_state condition" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "trigger_config" => %{
+              "threshold" => 10,
+              "window_type" => "last_days",
+              "window" => "30d",
+              "conditions" => [%{"type" => "test_case_state", "states" => ["enabled"]}]
+            }
+          })
+        )
+
+      assert changeset.valid?
+    end
+
+    test "rejects a test_case_state condition with an unknown state" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "trigger_config" => %{
+              "threshold" => 10,
+              "window_type" => "last_days",
+              "window" => "30d",
+              "conditions" => [%{"type" => "test_case_state", "states" => ["enabled", "bogus"]}]
+            }
+          })
+        )
+
+      refute changeset.valid?
+      assert errors_on(changeset).trigger_config
+    end
+
+    test "rejects a test_case_state condition with an empty states list" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "trigger_config" => %{
+              "threshold" => 10,
+              "window_type" => "last_days",
+              "window" => "30d",
+              "conditions" => [%{"type" => "test_case_state", "states" => []}]
+            }
+          })
+        )
+
+      refute changeset.valid?
+      assert errors_on(changeset).trigger_config
+    end
+
+    test "rejects a condition with an unknown type" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "trigger_config" => %{
+              "threshold" => 10,
+              "window_type" => "last_days",
+              "window" => "30d",
+              "conditions" => [%{"type" => "bogus", "states" => ["enabled"]}]
+            }
+          })
+        )
+
+      refute changeset.valid?
+      assert errors_on(changeset).trigger_config
+    end
+
+    test "rejects conditions that are not a list" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "trigger_config" => %{
+              "threshold" => 10,
+              "window_type" => "last_days",
+              "window" => "30d",
+              "conditions" => %{"type" => "test_case_state", "states" => ["enabled"]}
+            }
+          })
+        )
+
+      refute changeset.valid?
+      assert errors_on(changeset).trigger_config
+    end
+
+    test "accepts a recovery_config with a valid test_case_state condition" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "recovery_enabled" => true,
+            "recovery_config" => %{
+              "window_type" => "rolling",
+              "rolling_window_size" => 50,
+              "conditions" => [%{"type" => "test_case_state", "states" => ["muted"]}]
+            },
+            "recovery_actions" => [%{"type" => "change_state", "state" => "enabled"}]
+          })
+        )
+
+      assert changeset.valid?
+    end
+
+    test "rejects an invalid recovery_config condition" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "recovery_enabled" => true,
+            "recovery_config" => %{
+              "window_type" => "rolling",
+              "rolling_window_size" => 50,
+              "conditions" => [%{"type" => "test_case_state", "states" => ["nope"]}]
+            },
+            "recovery_actions" => [%{"type" => "change_state", "state" => "enabled"}]
+          })
+        )
+
+      refute changeset.valid?
+      assert errors_on(changeset).recovery_config
+    end
+
+    test "ignores recovery_config conditions when recovery is disabled" do
+      project = ProjectsFixtures.project_fixture()
+
+      changeset =
+        Alert.changeset(
+          %Alert{},
+          valid_attrs(project, %{
+            "recovery_enabled" => false,
+            "recovery_config" => %{"conditions" => [%{"type" => "bogus"}]}
+          })
+        )
+
+      assert changeset.valid?
+    end
+  end
+
   describe "cadence validation" do
     test "converts cadence values to seconds" do
       assert Alert.cadence_seconds("30s") == 30
