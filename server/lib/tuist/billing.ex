@@ -407,6 +407,37 @@ defmodule Tuist.Billing do
   end
 
   @doc """
+  Returns the effective plan for an account.
+
+  Accounts without an active or trialing subscription use the Air plan.
+  """
+  def effective_plan(%Account{subscriptions: subscriptions}) when is_list(subscriptions) do
+    subscriptions
+    |> Enum.filter(&(&1.status in ["active", "trialing"]))
+    |> case do
+      [] -> :air
+      active -> active |> latest_subscription() |> Map.fetch!(:plan)
+    end
+  end
+
+  def effective_plan(%Account{} = account) do
+    case get_current_active_subscription(account) do
+      %{plan: plan} when is_atom(plan) -> plan
+      _ -> :air
+    end
+  end
+
+  defp latest_subscription([subscription | subscriptions]) do
+    Enum.reduce(subscriptions, subscription, fn candidate, latest ->
+      case NaiveDateTime.compare(candidate.inserted_at, latest.inserted_at) do
+        :gt -> candidate
+        :lt -> latest
+        :eq -> if candidate.id > latest.id, do: candidate, else: latest
+      end
+    end)
+  end
+
+  @doc """
   Creates a new token usage record for billing purposes.
   """
   def create_token_usage(attrs) do

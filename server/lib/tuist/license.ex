@@ -37,13 +37,17 @@ defmodule Tuist.License do
     )
   end
 
+  def get_cached_license do
+    KeyValueStore.get([__MODULE__, "license"])
+  end
+
   defp fetch_license do
     cond do
-      key = Tuist.Environment.license_key() ->
-        resolve_license(key)
-
       Tuist.Environment.license_certificate_base64() ->
         resolve_certificate()
+
+      key = Tuist.Environment.license_key() ->
+        resolve_license(key)
 
       true ->
         {:error, :license_not_found}
@@ -55,8 +59,8 @@ defmodule Tuist.License do
     "58f8d43c65b5a3e200e8ef6ecefa6b700432124527edf50a5b5b0577242c51fd"
   end
 
-  def certificate do
-    Base.decode64!(Tuist.Environment.license_certificate_base64())
+  def certificate(encoded \\ Tuist.Environment.license_certificate_base64()) do
+    Base.decode64!(encoded, ignore: :whitespace)
   end
 
   @doc """

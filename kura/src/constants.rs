@@ -88,8 +88,24 @@ pub const MAX_BOOTSTRAP_PAGE_BYTES: u64 = 32 * 1024 * 1024;
 // digest payload small. `artifact_id` is a 64-char hex SHA-256, so the prefix
 // length is capped well under its width.
 pub const BOOTSTRAP_DIGEST_DEFAULT_PREFIX_LEN: usize = 3;
-pub const BOOTSTRAP_DIGEST_MAX_PREFIX_LEN: usize = 8;
 pub const MAX_INLINE_REPLICATION_BODY_BYTES: u64 = 4 * 1024 * 1024;
+pub const RESPONSE_STREAM_CHUNK_BYTES: usize = 512 * 1024;
+pub const RESPONSE_STREAM_SEND_BUFFER_BYTES: usize = 512 * 1024;
+pub const RESPONSE_STREAM_MIN_CHUNK_BYTES: usize = 8 * 1024;
+pub const RESPONSE_STREAM_ENCODING_OVERHEAD_BYTES: usize = 16;
+
+pub fn response_stream_chunk_bytes(body_bytes: u64) -> usize {
+    body_bytes
+        .min(RESPONSE_STREAM_CHUNK_BYTES as u64)
+        .max(RESPONSE_STREAM_MIN_CHUNK_BYTES as u64) as usize
+}
+
+pub fn encoded_response_stream_chunk_bytes(body_bytes: u64) -> usize {
+    response_stream_chunk_bytes(body_bytes)
+        .saturating_add(RESPONSE_STREAM_ENCODING_OVERHEAD_BYTES)
+        .div_ceil(RESPONSE_STREAM_MIN_CHUNK_BYTES)
+        .saturating_mul(RESPONSE_STREAM_MIN_CHUNK_BYTES)
+}
 pub const DEFAULT_BOOTSTRAP_MAX_CONCURRENT_PEERS: usize = 8;
 // Stripes for the per-artifact bootstrap fetch gate that single-flights the
 // body download across peers. Sized well above the peak concurrent fetches
@@ -100,6 +116,7 @@ pub const DEFAULT_BOOTSTRAP_MAX_CONCURRENT_PEERS: usize = 8;
 pub const BOOTSTRAP_FETCH_LOCK_STRIPES: usize = 1024;
 
 pub const ROCKSDB_CF_MANIFESTS: &str = "manifests";
+
 pub const ROCKSDB_CF_KEY_VALUE: &str = "key_value";
 pub const ROCKSDB_CF_NAMESPACE_ARTIFACTS: &str = "project_artifacts";
 pub const ROCKSDB_CF_NAMESPACE_TOMBSTONES: &str = "namespace_tombstones";
@@ -115,3 +132,29 @@ pub const ROCKSDB_CF_SEGMENT_STATE: &str = "segment_state";
 /// on production namespaces and every snapshot fetch timed out against it.
 /// Backfilled lazily per namespace on first use.
 pub const ROCKSDB_CF_ACTION_CACHE_INDEX: &str = "action_cache_index";
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn response_stream_chunks_follow_payload_size_with_bounded_allocation_granularity() {
+        assert_eq!(
+            response_stream_chunk_bytes(0),
+            RESPONSE_STREAM_MIN_CHUNK_BYTES
+        );
+        assert_eq!(response_stream_chunk_bytes(32 * 1024), 32 * 1024);
+        assert_eq!(
+            response_stream_chunk_bytes(u64::MAX),
+            RESPONSE_STREAM_CHUNK_BYTES
+        );
+        assert_eq!(
+            encoded_response_stream_chunk_bytes(0),
+            RESPONSE_STREAM_MIN_CHUNK_BYTES * 2
+        );
+        assert_eq!(
+            encoded_response_stream_chunk_bytes(RESPONSE_STREAM_CHUNK_BYTES as u64),
+            RESPONSE_STREAM_CHUNK_BYTES + RESPONSE_STREAM_MIN_CHUNK_BYTES
+        );
+    }
+}
