@@ -20,10 +20,10 @@ defmodule Tuist.Kura.RunnerCache do
   runner rule therefore provisions caches for every eligible account, while an
   account whose runner access is removed has its cache torn down.
 
-  In production, an actor-only runner flag narrows the account query before the
-  final availability check. Broad gates still evaluate every eligible account.
-  Both steps use one flag snapshot so a concurrent flag update cannot produce a
-  mixed cohort within a reconciliation tick.
+  In canary and production, an actor-only runner flag narrows the account query
+  before the final availability check. Broad gates still evaluate every
+  eligible account. Both steps use one flag snapshot so a concurrent flag update
+  cannot produce a mixed cohort within a reconciliation tick.
 
   The platform match keeps the node next to the fleet it serves: a region
   pinned beside the Scaleway Mac mini fleet provisions only for accounts with
@@ -162,19 +162,22 @@ defmodule Tuist.Kura.RunnerCache do
   end
 
   defp runner_availability do
-    if Environment.prod?() do
-      case FunWithFlags.get_flag(:runners) do
-        nil ->
-          %FunWithFlags.Flag{name: :runners, gates: []}
+    case Environment.env() do
+      env when env in [:can, :prod] -> flagged_runner_availability()
+      _ -> :all
+    end
+  end
 
-        {:error, reason} ->
-          raise "could not load runner availability: #{inspect(reason)}"
+  defp flagged_runner_availability do
+    case FunWithFlags.get_flag(:runners) do
+      nil ->
+        %FunWithFlags.Flag{name: :runners, gates: []}
 
-        %FunWithFlags.Flag{} = flag ->
-          flag
-      end
-    else
-      :all
+      {:error, reason} ->
+        raise "could not load runner availability: #{inspect(reason)}"
+
+      %FunWithFlags.Flag{} = flag ->
+        flag
     end
   end
 
