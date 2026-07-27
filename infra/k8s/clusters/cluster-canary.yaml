@@ -26,6 +26,12 @@ spec:
         value: fsn1
       - name: hcloudControlPlaneMachineType
         value: cpx22
+      # Roll out the kubeadm compatibility fallback in canary first. With the
+      # local-mode feature enabled, new control-plane kubelets point at their
+      # own not-yet-running control-plane endpoint and never start the etcd
+      # learner.
+      - name: disableControlPlaneKubeletLocalMode
+        value: true
       - name: hcloudWorkerMachineType
         value: cpx32
       - name: hcloudSSHKeyName

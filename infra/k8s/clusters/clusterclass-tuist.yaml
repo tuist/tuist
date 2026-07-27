@@ -255,6 +255,14 @@ spec:
         openAPIV3Schema:
           type: string
           default: ExternalIP,Hostname,InternalDNS,ExternalDNS
+    # Rollout switch for a kubeadm control-plane join failure observed with
+    # ControlPlaneKubeletLocalMode on the Hetzner nodes. Keep this opt-in so
+    # each environment can validate the compatibility fallback separately.
+    - name: disableControlPlaneKubeletLocalMode
+      required: false
+      schema:
+        openAPIV3Schema:
+          type: boolean
   patches:
     - name: HetznerClusterTemplateGeneral
       definitions:
@@ -436,6 +444,25 @@ spec:
               path: "/spec/template/spec/kubeadmConfigSpec/clusterConfiguration/apiServer/extraArgs"
               valueFrom:
                 template: '[{"name": "kubelet-preferred-address-types", "value": {{ .kubeletPreferredAddressTypes | quote }} }]'
+    # kubeadm's local-mode join points the bootstrap kubelet at the new node's
+    # control-plane endpoint before that endpoint exists. On the affected
+    # Hetzner nodes, the kubelet cannot finish its certificate bootstrap, so
+    # the local etcd learner never starts and kubeadm aborts the join. This
+    # opt-in patch restores the established load-balancer bootstrap path per
+    # environment.
+    - name: DisableControlPlaneKubeletLocalMode
+      enabledIf: "{{ if .disableControlPlaneKubeletLocalMode }}true{{end}}"
+      definitions:
+        - selector:
+            apiVersion: controlplane.cluster.x-k8s.io/v1beta2
+            kind: KubeadmControlPlaneTemplate
+            matchResources:
+              controlPlane: true
+          jsonPatches:
+            - op: add
+              path: "/spec/template/spec/kubeadmConfigSpec/clusterConfiguration/featureGates"
+              valueFrom:
+                template: '{"ControlPlaneKubeletLocalMode": false}'
 ---
 apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
 kind: HetznerClusterTemplate
