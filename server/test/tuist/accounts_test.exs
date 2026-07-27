@@ -478,6 +478,8 @@ defmodule Tuist.AccountsTest do
         AccountsFixtures.organization_fixture(
           sso_provider: :okta,
           sso_organization_id: provider_organization_id,
+          sso_automatic_enrollment: true,
+          sso_legacy_email_domain_fallback: true,
           oauth2_client_id: "client-id",
           oauth2_client_secret: "client-secret"
         )
@@ -497,11 +499,29 @@ defmodule Tuist.AccountsTest do
       organization =
         AccountsFixtures.organization_fixture(
           sso_provider: :google,
-          sso_organization_id: domain
+          sso_organization_id: domain,
+          sso_automatic_enrollment: true
         )
 
       # When
       assert Accounts.organization_user?(user, organization) == true
+    end
+
+    test "organization_user? returns false when only the SSO identity matches and automatic enrollment is disabled" do
+      domain = unique_sso_domain()
+
+      user =
+        Accounts.find_or_create_user_from_oauth2(google_oauth_identity(domain))
+
+      organization =
+        AccountsFixtures.organization_fixture(
+          sso_provider: :google,
+          sso_organization_id: domain,
+          sso_automatic_enrollment: false
+        )
+
+      assert Accounts.belongs_to_sso_organization?(user, organization)
+      refute Accounts.organization_user?(user, organization)
     end
 
     test "organization_user? returns false if the user's sso domain matches the organization's but the providers are different" do
@@ -582,7 +602,8 @@ defmodule Tuist.AccountsTest do
       organization =
         AccountsFixtures.organization_fixture(
           sso_provider: :google,
-          sso_organization_id: domain
+          sso_organization_id: domain,
+          sso_automatic_enrollment: true
         )
 
       # When
@@ -1640,7 +1661,8 @@ defmodule Tuist.AccountsTest do
       organization =
         AccountsFixtures.organization_fixture(
           sso_provider: :google,
-          sso_organization_id: domain
+          sso_organization_id: domain,
+          sso_automatic_enrollment: true
         )
 
       # When
@@ -1652,6 +1674,26 @@ defmodule Tuist.AccountsTest do
       assert Accounts.get_user_role_in_organization(user, organization).name == "user"
     end
 
+    test "does not assign a user role when automatic enrollment is disabled" do
+      domain = unique_sso_domain()
+
+      organization =
+        AccountsFixtures.organization_fixture(
+          sso_provider: :google,
+          sso_organization_id: domain,
+          sso_automatic_enrollment: false
+        )
+
+      user =
+        Accounts.find_or_create_user_from_oauth2(
+          google_oauth_identity(domain, email: unique_email(domain, "invitation-only"))
+        )
+
+      assert Accounts.belongs_to_sso_organization?(user, organization)
+      refute Accounts.organization_user?(user, organization)
+      refute Accounts.get_user_role_in_organization(user, organization)
+    end
+
     test "assigns user role to SSO users for Okta SSO" do
       # Given
       provider_organization_id = unique_sso_domain("okta")
@@ -1660,6 +1702,8 @@ defmodule Tuist.AccountsTest do
         AccountsFixtures.organization_fixture(
           sso_provider: :okta,
           sso_organization_id: provider_organization_id,
+          sso_automatic_enrollment: true,
+          sso_legacy_email_domain_fallback: true,
           oauth2_client_id: "client-id",
           oauth2_client_secret: "client-secret"
         )
@@ -4143,7 +4187,8 @@ defmodule Tuist.AccountsTest do
       organization =
         organization_fixture(
           sso_provider: :google,
-          sso_organization_id: "link-sso-test.io"
+          sso_organization_id: "link-sso-test.io",
+          sso_automatic_enrollment: true
         )
 
       user = user_fixture(email: "link-sso-user@example.com")

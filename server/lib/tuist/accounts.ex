@@ -1075,7 +1075,7 @@ defmodule Tuist.Accounts do
     organization = organization_by_sso_credentials(provider, provider_organization_id)
 
     if organization &&
-         (belongs_to_organization?(user, organization) ||
+         (not is_nil(get_user_role_in_organization(user, organization)) ||
             sso_automatic_enrollment_allowed?(organization, user.email)) do
       add_user_to_organization(user, organization, role: :user)
     end
@@ -1622,7 +1622,9 @@ defmodule Tuist.Accounts do
             r.resource_id == ^organization_id
       )
 
-    Repo.exists?(query) or belongs_to_sso_organization?(user, organization)
+    Repo.exists?(query) or
+      (sso_automatic_enrollment_allowed?(organization, user.email) and
+         belongs_to_sso_organization?(user, organization))
   end
 
   def get_invitation_by_id(id) do
