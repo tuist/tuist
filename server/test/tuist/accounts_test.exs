@@ -3072,7 +3072,8 @@ defmodule Tuist.AccountsTest do
         AccountsFixtures.organization_fixture(
           creator: user_one,
           sso_provider: :google,
-          sso_organization_id: domain
+          sso_organization_id: domain,
+          sso_automatic_enrollment: true
         )
 
       # Create an SSO user
@@ -3106,7 +3107,9 @@ defmodule Tuist.AccountsTest do
           sso_provider: :okta,
           sso_organization_id: provider_organization_id,
           oauth2_client_id: "client-id",
-          oauth2_client_secret: "client-secret"
+          oauth2_client_secret: "client-secret",
+          sso_automatic_enrollment: true,
+          sso_legacy_email_domain_fallback: true
         )
 
       # Create an SSO user
@@ -4363,7 +4366,8 @@ defmodule Tuist.AccountsTest do
       organization =
         AccountsFixtures.organization_fixture(
           sso_provider: :google,
-          sso_organization_id: "sso-test.io"
+          sso_organization_id: "sso-test.io",
+          sso_automatic_enrollment: true
         )
 
       oauth_data = %{

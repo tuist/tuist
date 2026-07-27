@@ -781,7 +781,8 @@ defmodule TuistWeb.API.OrganizationsControllerTest do
         name: "tuist-org",
         creator: user,
         sso_provider: :google,
-        sso_organization_id: domain
+        sso_organization_id: domain,
+        sso_automatic_enrollment: true
       )
 
       member = Accounts.find_or_create_user_from_oauth2(google_oauth_identity(domain, "tuist-member"))
