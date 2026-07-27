@@ -88,10 +88,12 @@ defmodule Tuist.Kura do
   Creates deployments for active Kura servers that are behind the
   latest released Kura runtime image tag.
 
-  Each `(server, image_tag)` pair is scheduled at most once. A failed
-  deployment for the configured image is intentionally not retried here;
-  operators can inspect and re-trigger it manually, while the next Tuist
-  released Kura version will be scheduled normally.
+  Each `(server, image_tag)` pair is scheduled at most once. A newer image
+  supersedes an open deployment for an older image so a rollout that cannot
+  become ready never blocks delivery of its fix. A failed deployment for the
+  configured image is intentionally not retried here; operators can inspect
+  and re-trigger it manually, while the next Tuist released Kura version will
+  be scheduled normally.
   """
   def schedule_runtime_image_deployments do
     case runtime_image_tag() do
@@ -162,9 +164,11 @@ defmodule Tuist.Kura do
         select: 1
       )
 
-    open_deployment_exists_query =
+    open_older_deployment_exists_query =
       from(d in Deployment,
-        where: parent_as(:server).id == d.kura_server_id and d.status in [:pending, :running],
+        where:
+          parent_as(:server).id == d.kura_server_id and d.status in [:pending, :running] and
+            d.image_tag != ^image_tag,
         select: 1
       )
 
@@ -177,9 +181,8 @@ defmodule Tuist.Kura do
       # row picks the runtime bump up normally once the move completes.
       where: s.move_phase == :none,
       where: s.status in @version_rollout_statuses,
-      where: s.current_image_tag != ^image_tag,
+      where: s.current_image_tag != ^image_tag or exists(open_older_deployment_exists_query),
       where: not exists(deployment_for_image_exists_query),
-      where: not exists(open_deployment_exists_query),
       order_by: [asc: s.updated_at, asc: s.id],
       limit: ^@version_rollout_batch_size
     )
@@ -1173,20 +1176,44 @@ defmodule Tuist.Kura do
   end
 
   defp insert_scheduled_deployment(server, region, image_tag) do
-    case insert_deployment(server, region, image_tag) do
-      {:ok, deployment} ->
+    if deployment_for_image_exists?(server.id, image_tag) do
+      nil
+    else
+      with :ok <- supersede_open_deployments(server.id, image_tag),
+           {:ok, deployment} <- insert_deployment(server, region, image_tag) do
         deployment
+      else
+        {:error, %Ecto.Changeset{} = changeset} ->
+          rollback_unless_open_deployment_conflict(changeset)
 
-      {:error, %Ecto.Changeset{} = changeset} ->
-        if open_deployment_conflict?(changeset) do
-          nil
-        else
-          Repo.rollback(changeset)
-        end
-
-      {:error, reason} ->
-        Repo.rollback(reason)
+        {:error, reason} ->
+          Repo.rollback(reason)
+      end
     end
+  end
+
+  defp rollback_unless_open_deployment_conflict(changeset) do
+    if open_deployment_conflict?(changeset), do: nil, else: Repo.rollback(changeset)
+  end
+
+  defp deployment_for_image_exists?(server_id, image_tag) do
+    Repo.exists?(
+      from(d in Deployment,
+        where: d.kura_server_id == ^server_id and d.image_tag == ^image_tag
+      )
+    )
+  end
+
+  defp supersede_open_deployments(server_id, image_tag) do
+    Deployment
+    |> where([d], d.kura_server_id == ^server_id and d.status in [:pending, :running])
+    |> Repo.all()
+    |> Enum.reduce_while(:ok, fn deployment, :ok ->
+      case mark_superseded(deployment, "superseded by Kura image #{image_tag}") do
+        {:ok, _deployment} -> {:cont, :ok}
+        {:error, reason} -> {:halt, {:error, reason}}
+      end
+    end)
   end
 
   defp open_deployment_conflict?(changeset) do
@@ -1277,6 +1304,15 @@ defmodule Tuist.Kura do
   def mark_cancelled(%Deployment{} = deployment, message) when is_binary(message) do
     update_deployment_status(deployment, %{
       status: :cancelled,
+      error_message: message,
+      finished_at: now_truncated()
+    })
+  end
+
+  @doc "Marks an open deployment as superseded by a newer runtime image."
+  def mark_superseded(%Deployment{} = deployment, message) when is_binary(message) do
+    update_deployment_status(deployment, %{
+      status: :superseded,
       error_message: message,
       finished_at: now_truncated()
     })

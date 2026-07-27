@@ -3717,6 +3717,16 @@ impl Store {
         Ok(())
     }
 
+    /// Whether this store has any locally usable cache data.
+    pub fn has_artifacts(&self) -> Result<bool, String> {
+        self.db
+            .iterator_cf(self.cf(ROCKSDB_CF_MANIFESTS), IteratorMode::Start)
+            .next()
+            .transpose()
+            .map(|item| item.is_some())
+            .map_err(|error| format!("failed to inspect manifests: {error}"))
+    }
+
     /// Walk the manifest keyspace, optionally restricted to an `artifact_id`
     /// prefix. When `prefix` is set the walk starts at the prefix's lower bound
     /// (unless a later `after` cursor is supplied) and stops as soon as it
@@ -6738,6 +6748,25 @@ mod tests {
             read_manifest_bytes(&reopened, &rebuilt).await,
             b"module-bytes"
         );
+    }
+
+    #[tokio::test]
+    async fn has_artifacts_tracks_local_manifest_availability() {
+        let (_temp_dir, _config, store) = temp_store();
+        assert!(!store.has_artifacts().expect("empty store should inspect"));
+
+        store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Gradle,
+                "ios",
+                "artifact",
+                "application/octet-stream",
+                b"payload",
+            )
+            .await
+            .expect("artifact should persist");
+
+        assert!(store.has_artifacts().expect("warm store should inspect"));
     }
 
     #[tokio::test]
