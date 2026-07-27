@@ -965,10 +965,6 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitorTest do
     end
   end
 
-  defp insert_test_case_runs(rows) do
-    IngestRepo.insert_all(TestCaseRun, rows)
-  end
-
   defp with_read_repo(fun) do
     previous_dynamic_repo = ClickHouseRepo.get_dynamic_repo()
 
@@ -980,31 +976,6 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitorTest do
     after
       ClickHouseRepo.put_dynamic_repo(previous_dynamic_repo)
     end
-  end
-
-  defp test_case_run_attrs(project_id, test_case_id, attrs) do
-    %{
-      id: UUIDv7.generate(),
-      test_run_id: UUIDv7.generate(),
-      test_module_run_id: UUIDv7.generate(),
-      test_case_id: test_case_id,
-      project_id: project_id,
-      account_id: Keyword.get(attrs, :account_id),
-      is_ci: Keyword.get(attrs, :is_ci, false),
-      scheme: Keyword.get(attrs, :scheme, ""),
-      git_branch: Keyword.get(attrs, :git_branch, "main"),
-      git_commit_sha: Keyword.get(attrs, :git_commit_sha, ""),
-      module_name: Keyword.get(attrs, :module_name, "MyTests"),
-      suite_name: Keyword.get(attrs, :suite_name, "TestSuite"),
-      name: Keyword.get(attrs, :name, "testExample"),
-      status: Keyword.get(attrs, :status, 0),
-      is_flaky: Keyword.get(attrs, :is_flaky, false),
-      is_new: Keyword.get(attrs, :is_new, false),
-      is_quarantined: Keyword.get(attrs, :is_quarantined, false),
-      duration: Keyword.get(attrs, :duration, 100),
-      ran_at: Keyword.fetch!(attrs, :ran_at),
-      inserted_at: Keyword.fetch!(attrs, :inserted_at)
-    }
   end
 
   defp aggregate_run_attrs(project_id, test_case_id, ran_at, overrides \\ []) do
