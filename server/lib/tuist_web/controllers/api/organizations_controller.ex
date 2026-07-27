@@ -65,7 +65,7 @@ defmodule TuistWeb.API.OrganizationsController do
         &%{
           id: &1.organization.id,
           name: &1.account.name,
-          plan: get_plan(&1.account),
+          plan: Billing.effective_plan(&1.account),
           # We don't display in the CLI members and invitations when showing a list of organizations.
           # We keep these fields for backwards compatibility but should remove in the future.
           members: [],
@@ -74,15 +74,6 @@ defmodule TuistWeb.API.OrganizationsController do
       )
 
     json(conn, %{organizations: organizations})
-  end
-
-  defp get_plan(account) do
-    account
-    |> Billing.get_current_active_subscription()
-    |> case do
-      %Billing.Subscription{} = subscription -> subscription.plan
-      nil -> :none
-    end
   end
 
   operation(:create,
@@ -142,7 +133,7 @@ defmodule TuistWeb.API.OrganizationsController do
         |> json(%{
           id: organization.id,
           name: organization_name,
-          plan: get_plan(organization.account),
+          plan: Billing.effective_plan(organization.account),
           members: [],
           invitations: []
         })
@@ -278,7 +269,7 @@ defmodule TuistWeb.API.OrganizationsController do
         json(conn, %{
           id: organization.id,
           name: organization_name,
-          plan: get_plan(organization.account),
+          plan: Billing.effective_plan(organization.account),
           members: admins ++ users,
           sso_provider: organization.sso_provider,
           sso_organization_id: organization.sso_organization_id,
@@ -423,7 +414,7 @@ defmodule TuistWeb.API.OrganizationsController do
         json(conn, %{
           id: organization.id,
           name: organization_name,
-          plan: get_plan(organization.account),
+          plan: Billing.effective_plan(organization.account),
           sso_provider: organization.sso_provider,
           sso_organization_id: organization.sso_organization_id,
           sso_enforced: organization.sso_enforced,
@@ -469,7 +460,7 @@ defmodule TuistWeb.API.OrganizationsController do
         json(conn, %{
           id: organization.id,
           name: organization.account.name,
-          plan: get_plan(organization.account),
+          plan: Billing.effective_plan(organization.account),
           sso_provider: organization.sso_provider,
           sso_organization_id: organization.sso_organization_id,
           sso_enforced: organization.sso_enforced,
