@@ -229,32 +229,14 @@ defmodule TuistWeb.AuthController do
             provider_organization_id: provider_organization_id
           })
 
-        cond do
-          invitation &&
-              not Accounts.sso_automatic_enrollment_allowed?(sso_organization, existing_user.email) ->
-            prior_return_to =
-              oauth_return_url || get_session(conn, :user_return_to)
-
-            conn
-            |> put_session(:user_return_to, ~p"/auth/invitations/#{invitation.token}")
-            |> delete_session(:oauth_return_to)
-            |> Authentication.log_in_user(
-              existing_user,
-              Map.merge(auth_params, %{
-                post_invitation_return_to: prior_return_to,
-                post_invitation_token: invitation.token
-              })
-            )
-
-          oauth_return_url ->
-            conn
-            |> put_session(:user_return_to, oauth_return_url)
-            |> delete_session(:oauth_return_to)
-            |> Authentication.log_in_user(existing_user, auth_params)
-
-          true ->
-            Authentication.log_in_user(conn, existing_user, auth_params)
-        end
+        log_in_linked_sso_user(
+          conn,
+          existing_user,
+          invitation,
+          auth_params,
+          sso_organization,
+          oauth_return_url
+        )
 
       invitation ->
         prior_return_to =
@@ -276,6 +258,35 @@ defmodule TuistWeb.AuthController do
         )
 
         raise_sso_unauthorized(:existing_user_not_member)
+    end
+  end
+
+  defp log_in_linked_sso_user(conn, existing_user, invitation, auth_params, sso_organization, oauth_return_url) do
+    cond do
+      invitation &&
+          not Accounts.sso_automatic_enrollment_allowed?(sso_organization, existing_user.email) ->
+        prior_return_to =
+          oauth_return_url || get_session(conn, :user_return_to)
+
+        conn
+        |> put_session(:user_return_to, ~p"/auth/invitations/#{invitation.token}")
+        |> delete_session(:oauth_return_to)
+        |> Authentication.log_in_user(
+          existing_user,
+          Map.merge(auth_params, %{
+            post_invitation_return_to: prior_return_to,
+            post_invitation_token: invitation.token
+          })
+        )
+
+      oauth_return_url ->
+        conn
+        |> put_session(:user_return_to, oauth_return_url)
+        |> delete_session(:oauth_return_to)
+        |> Authentication.log_in_user(existing_user, auth_params)
+
+      true ->
+        Authentication.log_in_user(conn, existing_user, auth_params)
     end
   end
 

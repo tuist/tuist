@@ -119,20 +119,28 @@ defmodule TuistWeb.AuthenticationSettingsLive do
     legacy_automatic_enrollment? =
       legacy_sso_automatic_enrollment?(provider, socket.assigns.organization)
 
+    sso_automatic_enrollment =
+      automatic_enrollment_for_provider_selection(
+        provider,
+        socket.assigns.selected_provider,
+        verified_domain?,
+        legacy_automatic_enrollment?,
+        socket.assigns.sso_automatic_enrollment
+      )
+
+    sso_enforced =
+      enforcement_for_provider_selection(
+        provider,
+        verified_domain?,
+        legacy_enforcement?,
+        socket.assigns.sso_enforced
+      )
+
     socket
     |> assign(
       selected_provider: provider,
-      sso_automatic_enrollment:
-        cond do
-          provider == "google" and socket.assigns.selected_provider != "google" -> true
-          provider in ["okta", "oauth2"] and not verified_domain? and not legacy_automatic_enrollment? -> false
-          true -> socket.assigns.sso_automatic_enrollment
-        end,
-      sso_enforced:
-        if(provider in ["okta", "oauth2"] and not verified_domain? and not legacy_enforcement?,
-          do: false,
-          else: socket.assigns.sso_enforced
-        ),
+      sso_automatic_enrollment: sso_automatic_enrollment,
+      sso_enforced: sso_enforced,
       flash_message: nil,
       field_errors: %{}
     )
@@ -713,6 +721,31 @@ defmodule TuistWeb.AuthenticationSettingsLive do
       organization.sso_automatic_enrollment and
       selected_provider == provider_name(organization.sso_provider)
   end
+
+  defp automatic_enrollment_for_provider_selection(
+         "google",
+         previous_provider,
+         _verified_domain?,
+         _legacy_automatic_enrollment?,
+         _automatic_enrollment
+       )
+       when previous_provider != "google", do: true
+
+  defp automatic_enrollment_for_provider_selection(provider, _previous_provider, false, false, _automatic_enrollment)
+       when provider in ["okta", "oauth2"], do: false
+
+  defp automatic_enrollment_for_provider_selection(
+         _provider,
+         _previous_provider,
+         _verified_domain?,
+         _legacy_automatic_enrollment?,
+         automatic_enrollment
+       ), do: automatic_enrollment
+
+  defp enforcement_for_provider_selection(provider, false, false, _enforced) when provider in ["okta", "oauth2"],
+    do: false
+
+  defp enforcement_for_provider_selection(_provider, _verified_domain?, _legacy_enforcement?, enforced), do: enforced
 
   defp provider_name(nil), do: nil
   defp provider_name(provider), do: Atom.to_string(provider)
