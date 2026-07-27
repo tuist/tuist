@@ -1,11 +1,12 @@
 defmodule Tuist.Registry.S3 do
   @moduledoc """
-  S3 helpers for sync workers writing into the registry bucket.
+  S3 helpers for reading and writing the registry bucket.
 
   Server uses `Tuist.Storage` for account-scoped artifact buckets; this
-  module is the parallel surface for the registry bucket and is only
-  touched by `Tuist.Registry.Swift.*` workers. The standalone registry
-  pod has its own equivalent (`TuistRegistry.S3`) for reads.
+  module is the parallel surface for the registry bucket. It always passes
+  the registry's dedicated connection and credentials so operations-page
+  reads cannot accidentally use the account-artifact storage configuration.
+  The standalone registry pod has its own equivalent (`TuistRegistry.S3`).
   """
 
   alias ExAws.S3.Upload
@@ -13,10 +14,15 @@ defmodule Tuist.Registry.S3 do
 
   require Logger
 
+  @doc false
+  def request(operation) do
+    ExAws.request(operation, Registry.registry_s3_config())
+  end
+
   def get_object(key) when is_binary(key) do
     bucket = Registry.registry_bucket()
 
-    case bucket |> ExAws.S3.get_object(key) |> ExAws.request() do
+    case bucket |> ExAws.S3.get_object(key) |> request() do
       {:ok, %{status_code: 200, body: body}} -> {:ok, body}
       {:ok, %{status_code: 404}} -> {:error, :not_found}
       {:ok, %{status_code: status}} -> {:error, {:s3_error, status}}
@@ -39,7 +45,7 @@ defmodule Tuist.Registry.S3 do
         local_path
         |> Upload.stream_file()
         |> ExAws.S3.upload(bucket, key, upload_opts)
-        |> ExAws.request()
+        |> request()
       end)
 
     case result do
@@ -66,7 +72,7 @@ defmodule Tuist.Registry.S3 do
       :timer.tc(fn ->
         bucket
         |> ExAws.S3.put_object(key, content, put_opts)
-        |> ExAws.request()
+        |> request()
       end)
 
     case result do
@@ -110,11 +116,11 @@ defmodule Tuist.Registry.S3 do
   defp list_and_delete_objects(bucket, prefix, acc) do
     bucket
     |> ExAws.S3.list_objects(prefix: prefix)
-    |> ExAws.stream!()
+    |> ExAws.stream!(Registry.registry_s3_config())
     |> Stream.map(& &1.key)
     |> Stream.chunk_every(1000)
     |> Enum.reduce_while({:ok, acc}, fn keys, {:ok, count} ->
-      case bucket |> ExAws.S3.delete_multiple_objects(keys) |> ExAws.request() do
+      case bucket |> ExAws.S3.delete_multiple_objects(keys) |> request() do
         {:ok, _} -> {:cont, {:ok, count + length(keys)}}
         {:error, reason} -> {:halt, {:error, reason}}
       end

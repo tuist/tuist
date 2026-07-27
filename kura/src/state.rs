@@ -1,6 +1,9 @@
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
-    sync::Arc,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
 };
 
 use arc_swap::ArcSwap;
@@ -60,6 +63,11 @@ pub struct AppState {
     pub replication_bandwidth_limiter: Option<Arc<BandwidthLimiter>>,
     pub notify: Notify,
     pub readiness: Mutex<ReadinessState>,
+    /// Whether the node entered its current joining cycle with usable local
+    /// cache data. Warm nodes can serve that data while anti-entropy catches
+    /// up; a node that starts its initial joining cycle empty waits for a clean
+    /// bootstrap pass.
+    pub local_data_available_at_join: AtomicBool,
     pub bootstrap_semaphore: Arc<Semaphore>,
     /// Process-wide byte budget shared by every transient disk writer.
     pub tmp_staging_budget: Arc<TmpBudget>,
@@ -369,16 +377,7 @@ impl AppState {
 
         let membership_update = {
             let mut readiness = self.readiness.lock().await;
-            let membership_update = readiness.apply_membership(
-                members,
-                known_peers,
-                discovery_observed,
-                Instant::now(),
-            );
-            if membership_update.generation_changed {
-                self.runtime.clear_serving();
-            }
-            membership_update
+            readiness.apply_membership(members, known_peers, discovery_observed, Instant::now())
         };
         // A lost peer silently drops its bootstrapped mark and re-enters the
         // bootstrap gate when it returns; a flapping peer set is the difference
@@ -413,19 +412,20 @@ impl AppState {
     }
 
     /// Forgets all bootstrap progress so the membership loop re-pulls the full
-    /// dataset from every known peer, and takes the node out of serving until
-    /// the gate re-passes. Called on a *recovery* re-enrollment — the node was
-    /// out of the mesh for an unknown window, and the writes it missed were
-    /// never enqueued for it (replication targets are computed at write time),
-    /// so only a full re-bootstrap can reconcile the gap, including namespace
-    /// delete tombstones. Readiness implies complete data, so the node must
-    /// not keep advertising ready while it knows its data is incomplete —
-    /// every *other* node already re-enters the gate when this node rejoins
-    /// (their membership generation changes); this keeps the one node whose
-    /// data actually is incomplete from being the only one that skips it.
-    /// Bumps the bootstrap epoch so passes already in flight cannot re-mark
-    /// their peer bootstrapped.
+    /// dataset from every known peer, and re-evaluates whether the node can
+    /// keep serving from local data. Called on a *recovery* re-enrollment — the
+    /// node was out of the mesh for an unknown window, and the writes it missed
+    /// were never enqueued for it (replication targets are computed at write
+    /// time), so a full re-bootstrap reconciles the gap, including namespace
+    /// delete tombstones. A node with local artifacts can return to serving
+    /// after the settle window while that reconciliation continues; an empty
+    /// node stays out until it has usable data. Bumps the bootstrap epoch so
+    /// passes already in flight cannot re-mark their peer bootstrapped.
     pub async fn reset_bootstrap_progress(&self) {
+        self.local_data_available_at_join.store(
+            self.store.has_artifacts().unwrap_or(false),
+            Ordering::Release,
+        );
         self.readiness
             .lock()
             .await
@@ -518,6 +518,15 @@ impl AppState {
         }
         let snapshot = self.readiness_snapshot().await;
         if !snapshot.initial_discovery_completed || !snapshot.readiness_settled {
+            return;
+        }
+
+        // Availability takes precedence over a fully reconciled warm replica.
+        // A restarted node with persistent cache data can already answer useful
+        // requests while anti-entropy continues in the background. A node that
+        // entered this joining cycle empty still waits for a clean pass.
+        if self.local_data_available_at_join.load(Ordering::Acquire) {
+            self.runtime.mark_serving();
             return;
         }
 
@@ -666,7 +675,7 @@ impl AppState {
 mod tests {
     use tokio::sync::Barrier;
 
-    use crate::test_support::test_context;
+    use crate::{artifact::producer::ArtifactProducer, test_support::test_context};
 
     use super::*;
 
@@ -871,7 +880,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn app_state_returns_to_joining_when_membership_generation_advances() {
+    async fn app_state_keeps_serving_when_membership_generation_advances() {
         let context = test_context(|_| {}).await;
         let peer_a = "http://peer-a.kura.internal:7443".to_string();
         let peer_b = "http://peer-b.kura.internal:7443".to_string();
@@ -906,15 +915,51 @@ mod tests {
             )
             .await;
 
-        let joining = context.state.readiness_report().await;
-        assert!(!joining.ready);
-        assert_eq!(joining.state, TrafficState::Joining);
-        assert!(
-            joining
-                .reasons
-                .iter()
-                .any(|reason| reason.contains("discovery settling"))
+        let still_serving = context.state.readiness_report().await;
+        assert!(still_serving.ready);
+        assert_eq!(still_serving.state, TrafficState::Serving);
+        assert_eq!(
+            still_serving.bootstrapped_peers,
+            vec![peer_a],
+            "the newly discovered peer still reconciles in the background"
         );
+    }
+
+    #[tokio::test]
+    async fn app_state_serves_warm_data_while_bootstrap_continues() {
+        let context = test_context(|_| {}).await;
+        context
+            .state
+            .store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Xcode,
+                "ios",
+                "artifact",
+                "application/octet-stream",
+                b"payload",
+            )
+            .await
+            .expect("local artifact should persist");
+        context.state.reset_bootstrap_progress().await;
+
+        let peer = "http://peer.kura.internal:7443".to_string();
+        context
+            .state
+            .apply_membership_view(
+                BTreeSet::from(["remote".to_string()]),
+                BTreeMap::from([(peer.clone(), "remote".to_string())]),
+                true,
+            )
+            .await;
+        assert!(context.state.note_bootstrap_started(&peer).await.is_some());
+        context.state.expire_readiness_settle_window().await;
+        context.state.maybe_mark_serving().await;
+
+        let serving = context.state.readiness_report().await;
+        assert!(serving.ready);
+        assert_eq!(serving.state, TrafficState::Serving);
+        assert_eq!(serving.bootstrap_inflight_peers, vec![peer]);
+        assert!(serving.bootstrapped_peers.is_empty());
     }
 
     fn rendered_metric_value(rendered: &str, selector: &str) -> Option<u64> {

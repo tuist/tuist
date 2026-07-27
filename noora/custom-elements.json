@@ -1,0 +1,649 @@
+{
+  "schemaVersion": "1.0.0",
+  "readme": "./README.md",
+  "modules": [
+    {
+      "kind": "javascript-module",
+      "path": "./priv/static/noora-web-components.js",
+      "declarations": [
+        {
+          "kind": "class",
+          "description": "Labels an item with compact status or categorization information.",
+          "name": "NooraBadge",
+          "tagName": "noora-badge",
+          "customElement": true,
+          "superclass": {
+            "name": "LitElement",
+            "package": "lit"
+          },
+          "members": [
+            {
+              "kind": "field",
+              "name": "appearance",
+              "description": "Controls whether the badge uses a solid or light fill.",
+              "type": {
+                "text": "\"fill\" | \"light-fill\""
+              },
+              "attribute": "appearance",
+              "default": "\"fill\""
+            },
+            {
+              "kind": "field",
+              "name": "color",
+              "description": "Controls the semantic color. Disabled badges ignore this value.",
+              "type": {
+                "text": "\"neutral\" | \"destructive\" | \"warning\" | \"attention\" | \"success\" | \"information\" | \"focus\" | \"primary\" | \"secondary\""
+              },
+              "attribute": "color",
+              "default": "\"neutral\""
+            },
+            {
+              "kind": "field",
+              "name": "size",
+              "description": "Controls the badge dimensions and text size.",
+              "type": {
+                "text": "\"small\" | \"large\""
+              },
+              "attribute": "size",
+              "default": "\"small\""
+            },
+            {
+              "kind": "field",
+              "name": "disabled",
+              "description": "Uses the disabled presentation regardless of color.",
+              "type": {
+                "text": "boolean"
+              },
+              "attribute": "disabled",
+              "default": "false"
+            },
+            {
+              "kind": "field",
+              "name": "dot",
+              "description": "Displays a dot before the label when the icon slot is empty.",
+              "type": {
+                "text": "boolean"
+              },
+              "attribute": "dot",
+              "default": "false"
+            },
+            {
+              "kind": "field",
+              "name": "iconOnly",
+              "description": "Hides the label and displays only the icon slot.",
+              "type": {
+                "text": "boolean"
+              },
+              "attribute": "icon-only",
+              "default": "false"
+            },
+            {
+              "kind": "field",
+              "name": "label",
+              "description": "Provides fallback text when the default slot is empty.",
+              "type": {
+                "text": "string"
+              },
+              "attribute": "label",
+              "default": "\"\""
+            }
+          ],
+          "attributes": [
+            {
+              "name": "aria-label",
+              "description": "Provides an accessible name when visible text is unavailable.",
+              "type": {
+                "text": "string"
+              }
+            },
+            {
+              "name": "appearance",
+              "description": "Controls whether the badge uses a solid or light fill.",
+              "type": {
+                "text": "\"fill\" | \"light-fill\""
+              },
+              "fieldName": "appearance",
+              "default": "\"fill\""
+            },
+            {
+              "name": "color",
+              "description": "Controls the semantic color. Disabled badges ignore this value.",
+              "type": {
+                "text": "\"neutral\" | \"destructive\" | \"warning\" | \"attention\" | \"success\" | \"information\" | \"focus\" | \"primary\" | \"secondary\""
+              },
+              "fieldName": "color",
+              "default": "\"neutral\""
+            },
+            {
+              "name": "size",
+              "description": "Controls the badge dimensions and text size.",
+              "type": {
+                "text": "\"small\" | \"large\""
+              },
+              "fieldName": "size",
+              "default": "\"small\""
+            },
+            {
+              "name": "disabled",
+              "description": "Uses the disabled presentation regardless of color.",
+              "type": {
+                "text": "boolean"
+              },
+              "fieldName": "disabled",
+              "default": "false"
+            },
+            {
+              "name": "dot",
+              "description": "Displays a dot before the label when the icon slot is empty.",
+              "type": {
+                "text": "boolean"
+              },
+              "fieldName": "dot",
+              "default": "false"
+            },
+            {
+              "name": "icon-only",
+              "description": "Hides the label and displays only the icon slot.",
+              "type": {
+                "text": "boolean"
+              },
+              "fieldName": "iconOnly",
+              "default": "false"
+            },
+            {
+              "name": "label",
+              "description": "Provides fallback text when the default slot is empty.",
+              "type": {
+                "text": "string"
+              },
+              "fieldName": "label",
+              "default": "\"\""
+            }
+          ],
+          "slots": [
+            {
+              "description": "The visible label."
+            },
+            {
+              "name": "icon",
+              "description": "An icon displayed before the label. It takes precedence over dot."
+            }
+          ],
+          "cssParts": [
+            {
+              "name": "badge",
+              "description": "The badge container."
+            },
+            {
+              "name": "icon",
+              "description": "The icon or dot container."
+            },
+            {
+              "name": "label",
+              "description": "The visible label."
+            }
+          ]
+        },
+        {
+          "kind": "class",
+          "description": "Triggers an action, submits a form, or navigates to another location.",
+          "name": "NooraButton",
+          "tagName": "noora-button",
+          "customElement": true,
+          "superclass": {
+            "name": "LitElement",
+            "package": "lit"
+          },
+          "members": [
+            {
+              "kind": "field",
+              "name": "autofocus",
+              "description": "Focuses the button when the page loads.",
+              "type": {
+                "text": "boolean"
+              },
+              "attribute": "autofocus",
+              "default": "false"
+            },
+            {
+              "kind": "field",
+              "name": "disabled",
+              "description": "Prevents activation and form submission.",
+              "type": {
+                "text": "boolean"
+              },
+              "attribute": "disabled",
+              "default": "false"
+            },
+            {
+              "kind": "field",
+              "name": "download",
+              "description": "Downloads the linked resource, optionally using this value as the filename.",
+              "type": {
+                "text": "string | undefined"
+              },
+              "attribute": "download"
+            },
+            {
+              "kind": "field",
+              "name": "formId",
+              "description": "Associates the button with a form by element identifier.",
+              "type": {
+                "text": "string | undefined"
+              },
+              "attribute": "form"
+            },
+            {
+              "kind": "field",
+              "name": "formAction",
+              "description": "Overrides the associated form action for this submit button.",
+              "type": {
+                "text": "string | undefined"
+              },
+              "attribute": "formaction"
+            },
+            {
+              "kind": "field",
+              "name": "formEnctype",
+              "description": "Overrides the associated form encoding type for this submit button.",
+              "type": {
+                "text": "string | undefined"
+              },
+              "attribute": "formenctype"
+            },
+            {
+              "kind": "field",
+              "name": "formMethod",
+              "description": "Overrides the associated form method for this submit button.",
+              "type": {
+                "text": "string | undefined"
+              },
+              "attribute": "formmethod"
+            },
+            {
+              "kind": "field",
+              "name": "formNoValidate",
+              "description": "Skips validation when this button submits its associated form.",
+              "type": {
+                "text": "boolean"
+              },
+              "attribute": "formnovalidate",
+              "default": "false"
+            },
+            {
+              "kind": "field",
+              "name": "formTarget",
+              "description": "Overrides where the associated form response is displayed.",
+              "type": {
+                "text": "string | undefined"
+              },
+              "attribute": "formtarget"
+            },
+            {
+              "kind": "field",
+              "name": "href",
+              "description": "Renders the control as a link to this location.",
+              "type": {
+                "text": "string"
+              },
+              "attribute": "href",
+              "default": "\"\""
+            },
+            {
+              "kind": "field",
+              "name": "iconOnly",
+              "description": "Uses the default slot as the entire button content. An accessible label is required.",
+              "type": {
+                "text": "boolean"
+              },
+              "attribute": "icon-only",
+              "default": "false"
+            },
+            {
+              "kind": "field",
+              "name": "label",
+              "description": "Provides fallback text when the default slot is empty.",
+              "type": {
+                "text": "string"
+              },
+              "attribute": "label",
+              "default": "\"\""
+            },
+            {
+              "kind": "field",
+              "name": "name",
+              "description": "Sets the form field name submitted with the button value.",
+              "type": {
+                "text": "string"
+              },
+              "attribute": "name",
+              "default": "\"\""
+            },
+            {
+              "kind": "field",
+              "name": "rel",
+              "description": "Sets the relationship between the current page and a linked resource.",
+              "type": {
+                "text": "string | undefined"
+              },
+              "attribute": "rel"
+            },
+            {
+              "kind": "field",
+              "name": "size",
+              "description": "Controls the button dimensions and text size.",
+              "type": {
+                "text": "\"small\" | \"medium\" | \"large\""
+              },
+              "attribute": "size",
+              "default": "\"large\""
+            },
+            {
+              "kind": "field",
+              "name": "target",
+              "description": "Controls where a linked resource is opened.",
+              "type": {
+                "text": "string | undefined"
+              },
+              "attribute": "target"
+            },
+            {
+              "kind": "field",
+              "name": "type",
+              "description": "Controls native button behavior when href is absent.",
+              "type": {
+                "text": "\"button\" | \"reset\" | \"submit\""
+              },
+              "attribute": "type",
+              "default": "\"submit\""
+            },
+            {
+              "kind": "field",
+              "name": "value",
+              "description": "Sets the form value submitted with the button name.",
+              "type": {
+                "text": "string"
+              },
+              "attribute": "value",
+              "default": "\"\""
+            },
+            {
+              "kind": "field",
+              "name": "variant",
+              "description": "Controls the visual emphasis and semantic intent.",
+              "type": {
+                "text": "\"primary\" | \"secondary\" | \"destructive\""
+              },
+              "attribute": "variant",
+              "default": "\"primary\""
+            },
+            {
+              "kind": "field",
+              "name": "control",
+              "description": "The native link or button rendered inside the component.",
+              "type": {
+                "text": "HTMLAnchorElement | HTMLButtonElement | null"
+              },
+              "readonly": true
+            },
+            {
+              "kind": "field",
+              "name": "form",
+              "description": "The form associated with the button, if one exists.",
+              "type": {
+                "text": "HTMLFormElement | null"
+              },
+              "readonly": true
+            }
+          ],
+          "attributes": [
+            {
+              "name": "aria-describedby",
+              "description": "Identifies the element that describes the button.",
+              "type": {
+                "text": "string"
+              }
+            },
+            {
+              "name": "aria-label",
+              "description": "Provides an accessible name when visible text is unavailable.",
+              "type": {
+                "text": "string"
+              }
+            },
+            {
+              "name": "aria-labelledby",
+              "description": "Identifies the element that labels the button.",
+              "type": {
+                "text": "string"
+              }
+            },
+            {
+              "name": "title",
+              "description": "Provides advisory information for the button.",
+              "type": {
+                "text": "string"
+              }
+            },
+            {
+              "name": "autofocus",
+              "description": "Focuses the button when the page loads.",
+              "type": {
+                "text": "boolean"
+              },
+              "fieldName": "autofocus",
+              "default": "false"
+            },
+            {
+              "name": "disabled",
+              "description": "Prevents activation and form submission.",
+              "type": {
+                "text": "boolean"
+              },
+              "fieldName": "disabled",
+              "default": "false"
+            },
+            {
+              "name": "download",
+              "description": "Downloads the linked resource, optionally using this value as the filename.",
+              "type": {
+                "text": "string"
+              },
+              "fieldName": "download"
+            },
+            {
+              "name": "form",
+              "description": "Associates the button with a form by element identifier.",
+              "type": {
+                "text": "string"
+              },
+              "fieldName": "formId"
+            },
+            {
+              "name": "formaction",
+              "description": "Overrides the associated form action for this submit button.",
+              "type": {
+                "text": "string"
+              },
+              "fieldName": "formAction"
+            },
+            {
+              "name": "formenctype",
+              "description": "Overrides the associated form encoding type for this submit button.",
+              "type": {
+                "text": "string"
+              },
+              "fieldName": "formEnctype"
+            },
+            {
+              "name": "formmethod",
+              "description": "Overrides the associated form method for this submit button.",
+              "type": {
+                "text": "string"
+              },
+              "fieldName": "formMethod"
+            },
+            {
+              "name": "formnovalidate",
+              "description": "Skips validation when this button submits its associated form.",
+              "type": {
+                "text": "boolean"
+              },
+              "fieldName": "formNoValidate",
+              "default": "false"
+            },
+            {
+              "name": "formtarget",
+              "description": "Overrides where the associated form response is displayed.",
+              "type": {
+                "text": "string"
+              },
+              "fieldName": "formTarget"
+            },
+            {
+              "name": "href",
+              "description": "Renders the control as a link to this location.",
+              "type": {
+                "text": "string"
+              },
+              "fieldName": "href",
+              "default": "\"\""
+            },
+            {
+              "name": "icon-only",
+              "description": "Uses the default slot as the entire button content. An accessible label is required.",
+              "type": {
+                "text": "boolean"
+              },
+              "fieldName": "iconOnly",
+              "default": "false"
+            },
+            {
+              "name": "label",
+              "description": "Provides fallback text when the default slot is empty.",
+              "type": {
+                "text": "string"
+              },
+              "fieldName": "label",
+              "default": "\"\""
+            },
+            {
+              "name": "name",
+              "description": "Sets the form field name submitted with the button value.",
+              "type": {
+                "text": "string"
+              },
+              "fieldName": "name",
+              "default": "\"\""
+            },
+            {
+              "name": "rel",
+              "description": "Sets the relationship between the current page and a linked resource.",
+              "type": {
+                "text": "string"
+              },
+              "fieldName": "rel"
+            },
+            {
+              "name": "size",
+              "description": "Controls the button dimensions and text size.",
+              "type": {
+                "text": "\"small\" | \"medium\" | \"large\""
+              },
+              "fieldName": "size",
+              "default": "\"large\""
+            },
+            {
+              "name": "target",
+              "description": "Controls where a linked resource is opened.",
+              "type": {
+                "text": "string"
+              },
+              "fieldName": "target"
+            },
+            {
+              "name": "type",
+              "description": "Controls native button behavior when href is absent.",
+              "type": {
+                "text": "\"button\" | \"reset\" | \"submit\""
+              },
+              "fieldName": "type",
+              "default": "\"submit\""
+            },
+            {
+              "name": "value",
+              "description": "Sets the form value submitted with the button name.",
+              "type": {
+                "text": "string"
+              },
+              "fieldName": "value",
+              "default": "\"\""
+            },
+            {
+              "name": "variant",
+              "description": "Controls the visual emphasis and semantic intent.",
+              "type": {
+                "text": "\"primary\" | \"secondary\" | \"destructive\""
+              },
+              "fieldName": "variant",
+              "default": "\"primary\""
+            }
+          ],
+          "slots": [
+            {
+              "description": "The visible label, or the complete content when icon-only is present."
+            },
+            {
+              "name": "icon-left",
+              "description": "An icon displayed before the label."
+            },
+            {
+              "name": "icon-right",
+              "description": "An icon displayed after the label."
+            }
+          ],
+          "cssParts": [
+            {
+              "name": "control",
+              "description": "The native link or button control."
+            }
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "NooraBadge",
+          "declaration": {
+            "name": "NooraBadge",
+            "module": "./priv/static/noora-web-components.js"
+          }
+        },
+        {
+          "kind": "custom-element-definition",
+          "name": "noora-badge",
+          "declaration": {
+            "name": "NooraBadge",
+            "module": "./priv/static/noora-web-components.js"
+          }
+        },
+        {
+          "kind": "js",
+          "name": "NooraButton",
+          "declaration": {
+            "name": "NooraButton",
+            "module": "./priv/static/noora-web-components.js"
+          }
+        },
+        {
+          "kind": "custom-element-definition",
+          "name": "noora-button",
+          "declaration": {
+            "name": "NooraButton",
+            "module": "./priv/static/noora-web-components.js"
+          }
+        }
+      ]
+    }
+  ]
+}

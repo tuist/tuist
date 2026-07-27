@@ -18,6 +18,7 @@ defmodule Tuist.Registry.Swift.ReleaseWorkerTest do
     Sandbox.checkout(Tuist.Repo)
     stub(Registry, :swift_registry_github_token, fn -> "token" end)
     stub(Registry, :registry_bucket, fn -> "test-bucket" end)
+    stub(Registry, :registry_s3_config, fn -> [host: "registry.example.com"] end)
     stub(Lock, :release, fn _ -> :ok end)
 
     :ok
@@ -47,13 +48,18 @@ defmodule Tuist.Registry.Swift.ReleaseWorkerTest do
              })
   end
 
-  test "downloads, uploads, and updates metadata for a new release" do
+  test "repairs a release that was skipped before skip classifications were versioned" do
+    legacy_metadata = %{
+      "releases" => %{},
+      "skipped_releases" => %{"1.0.0" => %{"reason" => "missing_manifests"}}
+    }
+
     expect(Lock, :try_acquire, fn {:release, "apple", "swift-argument-parser", "1.0.0"}, _ ->
       {:ok, :acquired}
     end)
 
     expect(Metadata, :get_package, fn "apple", "swift-argument-parser", [fresh: true] ->
-      {:error, :not_found}
+      {:ok, legacy_metadata}
     end)
 
     expect(TuistCommon.GitHub, :list_repository_contents, fn "apple/swift-argument-parser", "token", "v1.0.0", _ ->
@@ -83,7 +89,8 @@ defmodule Tuist.Registry.Swift.ReleaseWorkerTest do
       %S3{http_method: :put, bucket: "test-bucket", path: key}
     end)
 
-    expect(ExAws, :request, 2, fn _op ->
+    expect(ExAws, :request, 2, fn _op, config ->
+      assert config == [host: "registry.example.com"]
       {:ok, %{status_code: 200, body: ""}}
     end)
 
@@ -92,7 +99,7 @@ defmodule Tuist.Registry.Swift.ReleaseWorkerTest do
     end)
 
     expect(Metadata, :get_package, fn "apple", "swift-argument-parser", [fresh: true] ->
-      {:error, :not_found}
+      {:ok, legacy_metadata}
     end)
 
     expect(Metadata, :put_package, fn "apple", "swift-argument-parser", metadata ->
@@ -103,6 +110,7 @@ defmodule Tuist.Registry.Swift.ReleaseWorkerTest do
       release = metadata["releases"]["1.0.0"]
       assert is_binary(release["checksum"])
       assert [%{"swift_version" => nil, "swift_tools_version" => "5.9"}] = release["manifests"]
+      refute Map.has_key?(metadata["skipped_releases"], "1.0.0")
       :ok
     end)
 
@@ -153,7 +161,7 @@ defmodule Tuist.Registry.Swift.ReleaseWorkerTest do
       %S3{http_method: :put, bucket: "test-bucket", path: key}
     end)
 
-    expect(ExAws, :request, 2, fn _operation ->
+    expect(ExAws, :request, 2, fn _operation, _config ->
       {:ok, %{status_code: 200, body: ""}}
     end)
 
@@ -188,11 +196,54 @@ defmodule Tuist.Registry.Swift.ReleaseWorkerTest do
     stub(TuistCommon.GitHub, :get_file_content, fn _, _, _, _, _ -> flunk("unexpected file request") end)
 
     expect(Metadata, :put_package, fn "apple", "swift-argument-parser", metadata ->
-      assert metadata["skipped_releases"]["1.0.0"] == %{"reason" => "missing_manifests"}
+      assert metadata["skipped_releases"]["1.0.0"] == %{
+               "classification_version" => 2,
+               "reason" => "missing_manifests"
+             }
+
       :ok
     end)
 
     assert :ok =
+             ReleaseWorker.perform(%Oban.Job{
+               args: %{
+                 "scope" => "apple",
+                 "name" => "swift-argument-parser",
+                 "repository_full_handle" => "apple/swift-argument-parser",
+                 "tag" => "v1.0.0"
+               }
+             })
+  end
+
+  test "retries when a listed manifest cannot be fetched" do
+    expect(Lock, :try_acquire, fn {:release, "apple", "swift-argument-parser", "1.0.0"}, _ ->
+      {:ok, :acquired}
+    end)
+
+    expect(Metadata, :get_package, fn "apple", "swift-argument-parser", [fresh: true] ->
+      {:error, :not_found}
+    end)
+
+    expect(TuistCommon.GitHub, :list_repository_contents, fn "apple/swift-argument-parser", "token", "v1.0.0", _ ->
+      {:ok, [%{"path" => "Package.swift", "type" => "file"}]}
+    end)
+
+    expect(TuistCommon.GitHub, :get_file_content, fn
+      "apple/swift-argument-parser", "token", "Package.swift", "v1.0.0", _ ->
+        {:error, {:http_error, 403}}
+    end)
+
+    stub(TuistCommon.GitHub, :download_zipball, fn _, _, _, _, _ -> flunk("unexpected zipball download") end)
+    stub(Metadata, :put_package, fn _, _, _ -> flunk("unexpected skipped-release write") end)
+
+    assert {:error,
+            {:manifest_fetch_failed,
+             [
+               %{
+                 path: "Package.swift",
+                 reason: {:http_error, 403}
+               }
+             ]}} =
              ReleaseWorker.perform(%Oban.Job{
                args: %{
                  "scope" => "apple",
@@ -277,7 +328,7 @@ defmodule Tuist.Registry.Swift.ReleaseWorkerTest do
       %S3{http_method: :put, bucket: "test-bucket", path: key}
     end)
 
-    expect(ExAws, :request, 2, fn _operation ->
+    expect(ExAws, :request, 2, fn _operation, _config ->
       {:ok, %{status_code: 200, body: ""}}
     end)
 
@@ -346,7 +397,7 @@ defmodule Tuist.Registry.Swift.ReleaseWorkerTest do
       %S3{http_method: :put, bucket: "test-bucket", path: key}
     end)
 
-    expect(ExAws, :request, 4, fn _op ->
+    expect(ExAws, :request, 4, fn _op, _config ->
       {:ok, %{status_code: 200, body: ""}}
     end)
 
