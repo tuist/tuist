@@ -6,8 +6,8 @@ defmodule Tuist.ClickHouseRepoTest do
   test "query settings override the connection defaults" do
     with_read_repo(fn ->
       assert resource_settings() == %{
-               "max_memory_usage" => "6442450944",
-               "max_threads" => "4"
+               max_memory_usage: 6 * 1024 * 1024 * 1024,
+               max_threads: 4
              }
 
       assert resource_settings(
@@ -16,25 +16,25 @@ defmodule Tuist.ClickHouseRepoTest do
                  max_memory_usage: 1024 * 1024 * 1024
                ]
              ) == %{
-               "max_memory_usage" => "1073741824",
-               "max_threads" => "2"
+               max_memory_usage: 1024 * 1024 * 1024,
+               max_threads: 2
              }
     end)
   end
 
   defp resource_settings(options \\ []) do
-    %{rows: rows} =
+    %{rows: [[max_threads, max_memory_usage]]} =
       ClickHouseRepo.query!(
         """
-        SELECT name, value
-        FROM system.settings
-        WHERE name IN ('max_threads', 'max_memory_usage')
+        SELECT
+          getSetting('max_threads'),
+          getSetting('max_memory_usage')
         """,
         %{},
         options
       )
 
-    Map.new(rows, fn [name, value] -> {name, value} end)
+    %{max_threads: max_threads, max_memory_usage: max_memory_usage}
   end
 
   defp with_read_repo(fun) do
