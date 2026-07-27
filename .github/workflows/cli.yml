@@ -195,7 +195,7 @@ jobs:
   cli-unit-tests:
     name: Unit Tests
     runs-on: tuist-macos
-    timeout-minutes: 60
+    timeout-minutes: 90
     permissions:
       contents: read
       id-token: write
@@ -234,7 +234,7 @@ jobs:
   cli-acceptance-tests-build:
     name: Build Acceptance Tests
     runs-on: tuist-macos
-    timeout-minutes: 60
+    timeout-minutes: 90
     permissions:
       contents: read
       id-token: write
