@@ -217,6 +217,12 @@ hosted runners. Builder fleet operator runbook:
 managed via the same CAPI provider as the macOS Node fleets;
 scale via `buildersFleet.replicas` / `kubectl scale`.
 
+Both flows publish through the shared
+[`tart-push`](../../.github/actions/tart-push/action.yml)
+action. It bounds registry concurrency, chunks large layers, randomizes
+retry timing across builders, and captures registry-path diagnostics.
+Keep manual and production image publication on that shared action.
+
 ## Layer 1 dependency
 
 This is **Layer 2** on top of
