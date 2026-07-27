@@ -92,10 +92,15 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
                         // https://github.com/swiftlang/swift-build/blob/af813e185ed298ea7bdb633047f27d15253cdac7/Sources/SWBTaskConstruction/TaskProducers/OtherTaskProducers/TAPISymbolExtractorTaskProducer.swift#L76-L108
                         // https://github.com/swiftlang/swift-build/blob/af813e185ed298ea7bdb633047f27d15253cdac7/Sources/SWBTaskConstruction/ProductPlanning/ProductPlan.swift#L1197-L1200
                         let escapedModuleMapPath = Self.shellEscaped(moduleMapPath.pathString)
+                        // The copy must run before Compile Sources: clang records the framework's
+                        // module map as a discovered dependency of the target's own compile steps,
+                        // so producing it in a phase ordered after compilation makes the build
+                        // system detect a dependency cycle on incremental builds ("Cycle inside
+                        // <target>; building could produce unreliable results").
                         target.scripts.append(
                             TargetScript(
                                 name: "Copy Module Map",
-                                order: .post,
+                                order: .pre,
                                 script: .embedded(
                                     // -f: with Xcode compilation caching enabled, the destination can
                                     // pre-exist as a read-only CAS-materialized file that plain cp

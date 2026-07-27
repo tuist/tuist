@@ -423,7 +423,7 @@ struct ModuleMapMapperTests {
             [
                 TargetScript(
                     name: "Copy Module Map",
-                    order: .post,
+                    order: .pre,
                     script: .embedded(
                         """
                         set -eu
