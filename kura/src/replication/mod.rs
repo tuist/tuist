@@ -793,8 +793,12 @@ async fn bootstrap_artifact_from_peer(
             .await
             .map_err(|error| format!("bootstrap artifact request failed: {error:?}"))?;
         if is_retryable_bootstrap_backpressure(&response) {
-            let delay =
-                bootstrap_backpressure_retry_delay(&response, backpressure_attempt, manifest);
+            let delay = bootstrap_backpressure_retry_delay(
+                &response,
+                backpressure_attempt,
+                &state.config.node_url,
+                manifest,
+            );
             state.metrics.record_replication(
                 peer,
                 "bootstrap_fetch",
@@ -901,6 +905,7 @@ fn is_retryable_bootstrap_backpressure(response: &reqwest::Response) -> bool {
 fn bootstrap_backpressure_retry_delay(
     response: &reqwest::Response,
     attempt: u32,
+    node_url: &str,
     manifest: &ArtifactManifest,
 ) -> Duration {
     let exponent = attempt.min(4);
@@ -915,14 +920,19 @@ fn bootstrap_backpressure_retry_delay(
         .map(|seconds| seconds.saturating_mul(1_000))
         .unwrap_or_default()
         .min(BOOTSTRAP_BACKPRESSURE_RETRY_MAX_MS);
-    let jitter_seed = manifest
-        .artifact_id
+    let jitter_ms =
+        bootstrap_backpressure_retry_jitter_ms(attempt, node_url, &manifest.artifact_id);
+    Duration::from_millis(exponential_ms.max(retry_after_ms).saturating_add(jitter_ms))
+}
+
+fn bootstrap_backpressure_retry_jitter_ms(attempt: u32, node_url: &str, artifact_id: &str) -> u64 {
+    let jitter_seed = node_url
         .bytes()
+        .chain(artifact_id.bytes())
         .fold(u64::from(attempt), |hash, byte| {
             hash.wrapping_mul(31).wrapping_add(u64::from(byte))
         });
-    let jitter_ms = jitter_seed % BOOTSTRAP_BACKPRESSURE_RETRY_JITTER_MS;
-    Duration::from_millis(exponential_ms.max(retry_after_ms).saturating_add(jitter_ms))
+    jitter_seed % BOOTSTRAP_BACKPRESSURE_RETRY_JITTER_MS
 }
 
 async fn stream_response_to_temp(
@@ -2743,6 +2753,35 @@ mod tests {
                 .await
                 .expect("artifact fetch should succeed")
                 .is_some()
+        );
+    }
+
+    #[test]
+    fn backpressure_retry_jitter_is_node_specific() {
+        let artifact_id = "shared-artifact";
+        let first = bootstrap_backpressure_retry_jitter_ms(
+            2,
+            "https://kura-tuist-eu-central-1-0.example",
+            artifact_id,
+        );
+        let second = bootstrap_backpressure_retry_jitter_ms(
+            2,
+            "https://kura-tuist-eu-central-1-1.example",
+            artifact_id,
+        );
+
+        assert_ne!(
+            first, second,
+            "joining nodes should not retry the same artifact in lockstep"
+        );
+        assert_eq!(
+            first,
+            bootstrap_backpressure_retry_jitter_ms(
+                2,
+                "https://kura-tuist-eu-central-1-0.example",
+                artifact_id,
+            ),
+            "each node should retain deterministic retry timing"
         );
     }
 
