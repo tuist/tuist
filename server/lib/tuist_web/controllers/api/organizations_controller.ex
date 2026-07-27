@@ -448,38 +448,35 @@ defmodule TuistWeb.API.OrganizationsController do
         })
 
       true ->
+        sso_provider = sso_provider_atom(sso_provider)
+
         update_organization(%{
           organization: organization,
           sso_provider: sso_provider,
           sso_organization_id: body_params.sso_organization_id,
-          sso_enforced:
-            case body_params do
-              %{sso_enforced: value} when is_boolean(value) ->
-                value
-
-              _ ->
-                organization.sso_provider == sso_provider_atom(sso_provider) and
-                  organization.sso_enforced
-            end,
-          sso_automatic_enrollment:
-            case body_params do
-              %{sso_automatic_enrollment: value} when is_boolean(value) ->
-                value
-
-              _ when is_nil(organization.sso_provider) ->
-                sso_provider == "google"
-
-              _ ->
-                if organization.sso_provider == sso_provider_atom(sso_provider) do
-                  organization.sso_automatic_enrollment
-                else
-                  sso_provider == "google"
-                end
-            end,
+          sso_enforced: requested_sso_enforced(body_params, organization, sso_provider),
+          sso_automatic_enrollment: requested_sso_automatic_enrollment(body_params, organization, sso_provider),
           conn: conn
         })
     end
   end
+
+  defp requested_sso_enforced(%{sso_enforced: value}, _organization, _provider) when is_boolean(value), do: value
+
+  defp requested_sso_enforced(_body_params, organization, provider) do
+    organization.sso_provider == provider and organization.sso_enforced
+  end
+
+  defp requested_sso_automatic_enrollment(%{sso_automatic_enrollment: value}, _organization, _provider)
+       when is_boolean(value), do: value
+
+  defp requested_sso_automatic_enrollment(
+         _body_params,
+         %{sso_provider: provider, sso_automatic_enrollment: automatic_enrollment},
+         provider
+       ), do: automatic_enrollment
+
+  defp requested_sso_automatic_enrollment(_body_params, _organization, provider), do: provider == :google
 
   defp update_organization(%{
          organization: organization,
@@ -490,7 +487,7 @@ defmodule TuistWeb.API.OrganizationsController do
          conn: %Plug.Conn{} = conn
        }) do
     case Accounts.update_organization(organization, %{
-           sso_provider: sso_provider_atom(sso_provider),
+           sso_provider: sso_provider,
            sso_organization_id: sso_organization_id,
            sso_enforced: sso_enforced || false,
            sso_automatic_enrollment: sso_automatic_enrollment

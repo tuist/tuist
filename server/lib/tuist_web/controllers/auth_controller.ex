@@ -362,31 +362,7 @@ defmodule TuistWeb.AuthController do
   def complete_signup(conn, %{"token" => token}) do
     case Phoenix.Token.verify(TuistWeb.Endpoint, "signup_completion", token, max_age: 300) do
       {:ok, %{user_id: user_id, oauth_return_url: oauth_return_url}} ->
-        case Accounts.get_user_by_id(user_id) do
-          nil ->
-            redirect(conn, to: ~p"/users/log_in")
-
-          user ->
-            pending = get_session(conn, :pending_oauth_signup)
-            auth_method = if pending, do: String.to_existing_atom(pending["provider"]), else: :password
-
-            invitation_return_to = pending_invitation_return_to(pending)
-            prior_return_to = oauth_return_url || get_session(conn, :user_return_to)
-
-            return_to =
-              invitation_return_to ||
-                prior_return_to ||
-                if user |> Accounts.get_user_organization_accounts() |> Enum.empty?(), do: ~p"/organizations/new"
-
-            conn
-            |> delete_session(:pending_oauth_signup)
-            |> put_session(:user_return_to, return_to)
-            |> Authentication.log_in_user(user, %{
-              auth_method: auth_method,
-              post_invitation_return_to: if(invitation_return_to, do: prior_return_to),
-              post_invitation_token: if(invitation_return_to, do: pending["invitation_token"])
-            })
-        end
+        complete_signup_for_user(conn, user_id, oauth_return_url)
 
       {:error, _reason} ->
         redirect(conn, to: ~p"/users/log_in")
@@ -395,6 +371,35 @@ defmodule TuistWeb.AuthController do
 
   def complete_signup(conn, _params) do
     redirect(conn, to: ~p"/users/log_in")
+  end
+
+  defp complete_signup_for_user(conn, user_id, oauth_return_url) do
+    case Accounts.get_user_by_id(user_id) do
+      nil -> redirect(conn, to: ~p"/users/log_in")
+      user -> log_in_completed_signup(conn, user, oauth_return_url)
+    end
+  end
+
+  defp log_in_completed_signup(conn, user, oauth_return_url) do
+    pending = get_session(conn, :pending_oauth_signup)
+    auth_method = if pending, do: String.to_existing_atom(pending["provider"]), else: :password
+
+    invitation_return_to = pending_invitation_return_to(pending)
+    prior_return_to = oauth_return_url || get_session(conn, :user_return_to)
+
+    return_to =
+      invitation_return_to ||
+        prior_return_to ||
+        if user |> Accounts.get_user_organization_accounts() |> Enum.empty?(), do: ~p"/organizations/new"
+
+    conn
+    |> delete_session(:pending_oauth_signup)
+    |> put_session(:user_return_to, return_to)
+    |> Authentication.log_in_user(user, %{
+      auth_method: auth_method,
+      post_invitation_return_to: if(invitation_return_to, do: prior_return_to),
+      post_invitation_token: if(invitation_return_to, do: pending["invitation_token"])
+    })
   end
 
   defp pending_invitation_return_to(%{"invitation_token" => token}) when is_binary(token) do

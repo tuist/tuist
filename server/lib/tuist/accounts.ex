@@ -347,31 +347,7 @@ defmodule Tuist.Accounts do
       )
       when is_binary(domain) and is_binary(token) do
     if SSOLoginDomainVerification.verified?(domain, token) do
-      Repo.transaction(fn ->
-        organization =
-          Repo.one(
-            from(o in Organization,
-              where:
-                o.id == ^organization.id and o.sso_login_domain == ^domain and
-                  o.sso_login_domain_verification_token == ^token,
-              lock: "FOR UPDATE"
-            )
-          )
-
-        case organization do
-          nil ->
-            Repo.rollback(:verification_record_not_found)
-
-          organization ->
-            organization
-            |> Organization.verify_sso_login_domain_changeset(DateTime.truncate(DateTime.utc_now(), :second))
-            |> Repo.update()
-            |> case do
-              {:ok, organization} -> organization
-              {:error, changeset} -> Repo.rollback(changeset)
-            end
-        end
-      end)
+      persist_verified_sso_login_domain(organization.id, domain, token)
     else
       {:error, :verification_record_not_found}
     end
@@ -390,6 +366,31 @@ defmodule Tuist.Accounts do
   end
 
   def sso_login_domain_record_value(%Organization{}), do: nil
+
+  defp persist_verified_sso_login_domain(organization_id, domain, token) do
+    Repo.transaction(fn ->
+      from(o in Organization,
+        where:
+          o.id == ^organization_id and o.sso_login_domain == ^domain and
+            o.sso_login_domain_verification_token == ^token,
+        lock: "FOR UPDATE"
+      )
+      |> Repo.one()
+      |> update_verified_sso_login_domain()
+    end)
+  end
+
+  defp update_verified_sso_login_domain(nil), do: Repo.rollback(:verification_record_not_found)
+
+  defp update_verified_sso_login_domain(organization) do
+    organization
+    |> Organization.verify_sso_login_domain_changeset(DateTime.truncate(DateTime.utc_now(), :second))
+    |> Repo.update()
+    |> case do
+      {:ok, organization} -> organization
+      {:error, changeset} -> Repo.rollback(changeset)
+    end
+  end
 
   defp prepare_sso_login_domain_attrs(attrs, organization) do
     case Map.fetch(attrs, :sso_login_domain) do
