@@ -21,10 +21,9 @@ defmodule Tuist.Kura.RunnerCacheTest do
   # `destroy_server/1` only flips DB state — so reconcile runs for real
   # against the sandbox.
   setup do
+    stub(Tuist.Environment, :env, fn -> :prod end)
     stub(Tuist.Environment, :dev?, fn -> false end)
     stub(Tuist.Environment, :test?, fn -> false end)
-    stub(Tuist.Environment, :can?, fn -> false end)
-    stub(Tuist.Environment, :prod?, fn -> true end)
 
     stub(Tuist.Environment, :kura_available_region_ids, fn ->
       ["scw-fr-par-runners"]
@@ -221,7 +220,7 @@ defmodule Tuist.Kura.RunnerCacheTest do
   test "provisions every eligible account outside production and canary" do
     first = account_with_profiles([:macos])
     second = account_with_profiles([:macos])
-    stub(Tuist.Environment, :prod?, fn -> false end)
+    stub(Tuist.Environment, :env, fn -> :dev end)
     reject(FunWithFlags, :get_flag, 1)
     reject(FunWithFlags, :enabled?, 2)
     reject(FeatureFlags, :runners_enabled?, 2)
@@ -241,8 +240,7 @@ defmodule Tuist.Kura.RunnerCacheTest do
       |> Repo.update!()
 
     other = account_with_profiles([:macos])
-    stub(Tuist.Environment, :can?, fn -> true end)
-    stub(Tuist.Environment, :prod?, fn -> false end)
+    stub(Tuist.Environment, :env, fn -> :can end)
     reject(FunWithFlags, :get_flag, 1)
     reject(FeatureFlags, :runners_enabled?, 2)
 
@@ -266,8 +264,7 @@ defmodule Tuist.Kura.RunnerCacheTest do
     assert server_regions(tuist) == ["scw-fr-par-runners"]
     assert server_regions(other) == ["scw-fr-par-runners"]
 
-    stub(Tuist.Environment, :can?, fn -> true end)
-    stub(Tuist.Environment, :prod?, fn -> false end)
+    stub(Tuist.Environment, :env, fn -> :can end)
     reject(FunWithFlags, :get_flag, 1)
     reject(FeatureFlags, :runners_enabled?, 2)
 

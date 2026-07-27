@@ -164,24 +164,23 @@ defmodule Tuist.Kura.RunnerCache do
   end
 
   defp runner_availability do
-    cond do
-      Environment.can?() ->
-        :canary
+    case Environment.env() do
+      :can -> :canary
+      :prod -> production_runner_availability()
+      _ -> :all
+    end
+  end
 
-      Environment.prod?() ->
-        case FunWithFlags.get_flag(:runners) do
-          nil ->
-            %FunWithFlags.Flag{name: :runners, gates: []}
+  defp production_runner_availability do
+    case FunWithFlags.get_flag(:runners) do
+      nil ->
+        %FunWithFlags.Flag{name: :runners, gates: []}
 
-          {:error, reason} ->
-            raise "could not load runner availability: #{inspect(reason)}"
+      {:error, reason} ->
+        raise "could not load runner availability: #{inspect(reason)}"
 
-          %FunWithFlags.Flag{} = flag ->
-            flag
-        end
-
-      true ->
-        :all
+      %FunWithFlags.Flag{} = flag ->
+        flag
     end
   end
 
