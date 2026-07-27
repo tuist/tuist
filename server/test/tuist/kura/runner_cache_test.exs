@@ -23,6 +23,7 @@ defmodule Tuist.Kura.RunnerCacheTest do
   setup do
     stub(Tuist.Environment, :dev?, fn -> false end)
     stub(Tuist.Environment, :test?, fn -> false end)
+    stub(Tuist.Environment, :can?, fn -> false end)
     stub(Tuist.Environment, :prod?, fn -> true end)
 
     stub(Tuist.Environment, :kura_available_region_ids, fn ->
@@ -217,7 +218,7 @@ defmodule Tuist.Kura.RunnerCacheTest do
     assert server_regions(account) == []
   end
 
-  test "provisions every eligible account when runners are available outside production" do
+  test "provisions every eligible account outside production and canary" do
     first = account_with_profiles([:macos])
     second = account_with_profiles([:macos])
     stub(Tuist.Environment, :prod?, fn -> false end)
@@ -230,6 +231,50 @@ defmodule Tuist.Kura.RunnerCacheTest do
 
     assert server_regions(first) == ["scw-fr-par-runners"]
     assert server_regions(second) == ["scw-fr-par-runners"]
+  end
+
+  test "provisions only the tuist account in canary" do
+    tuist =
+      [:macos]
+      |> account_with_profiles()
+      |> Ecto.Changeset.change(name: "tuist")
+      |> Repo.update!()
+
+    other = account_with_profiles([:macos])
+    stub(Tuist.Environment, :can?, fn -> true end)
+    stub(Tuist.Environment, :prod?, fn -> false end)
+    reject(FunWithFlags, :get_flag, 1)
+    reject(FeatureFlags, :runners_enabled?, 2)
+
+    assert :ok = RunnerCache.reconcile()
+
+    assert server_regions(tuist) == ["scw-fr-par-runners"]
+    assert server_regions(other) == []
+  end
+
+  test "tears down non-tuist account nodes in canary" do
+    tuist =
+      [:macos]
+      |> account_with_profiles()
+      |> Ecto.Changeset.change(name: "tuist")
+      |> Repo.update!()
+
+    other = account_with_profiles([:macos])
+    set_runner_availability([tuist.id, other.id])
+
+    assert :ok = RunnerCache.reconcile()
+    assert server_regions(tuist) == ["scw-fr-par-runners"]
+    assert server_regions(other) == ["scw-fr-par-runners"]
+
+    stub(Tuist.Environment, :can?, fn -> true end)
+    stub(Tuist.Environment, :prod?, fn -> false end)
+    reject(FunWithFlags, :get_flag, 1)
+    reject(FeatureFlags, :runners_enabled?, 2)
+
+    assert :ok = RunnerCache.reconcile()
+
+    assert server_regions(tuist) == ["scw-fr-par-runners"]
+    assert server_regions(other) == []
   end
 
   test "waits for the retry backoff before retrying the same image" do
