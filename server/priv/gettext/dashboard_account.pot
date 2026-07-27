@@ -1100,7 +1100,7 @@ msgstr ""
 msgid "Single Sign-On"
 msgstr ""
 
-#: lib/tuist_web/live/authentication_settings_live.ex:521
+#: lib/tuist_web/live/authentication_settings_live.ex:529
 #, elixir-autogen, elixir-format
 msgid "You must be authenticated with Google using an email tied to this domain. Please sign in with Google first."
 msgstr ""
@@ -1169,7 +1169,7 @@ msgstr ""
 msgid "When enabled, organization members will not be able to log in with email and password. They must use SSO instead."
 msgstr ""
 
-#: lib/tuist_web/live/authentication_settings_live.ex:503
+#: lib/tuist_web/live/authentication_settings_live.ex:511
 #, elixir-autogen, elixir-format
 msgid "You must authenticate with the SSO provider before enforcing SSO. Please sign in with your SSO provider first."
 msgstr ""
@@ -1375,12 +1375,12 @@ msgid "Token name"
 msgstr ""
 
 #: lib/tuist_web/live/account_tokens_live.ex:156
-#: lib/tuist_web/live/authentication_settings_live.ex:277
+#: lib/tuist_web/live/authentication_settings_live.ex:285
 #, elixir-autogen, elixir-format
 msgid "Token name is required."
 msgstr ""
 
-#: lib/tuist_web/live/authentication_settings_live.ex:324
+#: lib/tuist_web/live/authentication_settings_live.ex:332
 #, elixir-autogen, elixir-format
 msgid "Token not found."
 msgstr ""
@@ -2602,7 +2602,7 @@ msgstr ""
 msgid "Automatic enrollment"
 msgstr ""
 
-#: lib/tuist_web/live/authentication_settings_live.ex:245
+#: lib/tuist_web/live/authentication_settings_live.ex:253
 #, elixir-autogen, elixir-format
 msgid "Configure and save a login domain first."
 msgstr ""
@@ -2627,7 +2627,7 @@ msgstr ""
 msgid "Record value"
 msgstr ""
 
-#: lib/tuist_web/live/authentication_settings_live.ex:262
+#: lib/tuist_web/live/authentication_settings_live.ex:270
 #, elixir-autogen, elixir-format
 msgid "Save the login domain before verifying it."
 msgstr ""
@@ -2637,12 +2637,12 @@ msgstr ""
 msgid "Select the identity provider that authenticates your organization members."
 msgstr ""
 
-#: lib/tuist_web/live/authentication_settings_live.ex:225
+#: lib/tuist_web/live/authentication_settings_live.ex:233
 #, elixir-autogen, elixir-format
 msgid "The login domain has been verified."
 msgstr ""
 
-#: lib/tuist_web/live/authentication_settings_live.ex:234
+#: lib/tuist_web/live/authentication_settings_live.ex:242
 #, elixir-autogen, elixir-format
 msgid "The verification text record was not found. Domain record changes can take time to become available."
 msgstr ""
