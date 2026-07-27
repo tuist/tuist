@@ -92,7 +92,8 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
                 configuration: .any,
                 defaultConfiguration: .any,
                 excludedTargets: .any,
-                destination: .any
+                destination: .any,
+                indexingEnabled: .any
             )
             .willReturn(contentHashes)
 
@@ -203,7 +204,8 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
                 configuration: .any,
                 defaultConfiguration: .any,
                 excludedTargets: .any,
-                destination: .any
+                destination: .any,
+                indexingEnabled: .any
             )
             .willReturn(contentHashes)
         let cachePath = try temporaryPath()
@@ -294,7 +296,8 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
                 configuration: .any,
                 defaultConfiguration: .any,
                 excludedTargets: .any,
-                destination: .any
+                destination: .any,
+                indexingEnabled: .any
             )
             .willReturn([
                 staticLibraryGraphTarget: .test(hash: staticLibraryHash),
@@ -393,7 +396,8 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
                 configuration: .any,
                 defaultConfiguration: .any,
                 excludedTargets: .any,
-                destination: .any
+                destination: .any,
+                indexingEnabled: .any
             )
             .willReturn(contentHashes)
 
@@ -488,7 +492,8 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
                 configuration: .any,
                 defaultConfiguration: .any,
                 excludedTargets: .any,
-                destination: .any
+                destination: .any,
+                indexingEnabled: .any
             )
             .willReturn(contentHashes)
         let cachePath = try temporaryPath()
@@ -602,7 +607,8 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
                 configuration: .value("Debug"),
                 defaultConfiguration: .any,
                 excludedTargets: .any,
-                destination: .any
+                destination: .any,
+                indexingEnabled: .any
             )
             .willReturn([:])
         given(cacheStorage).fetch(.any, cacheCategory: .value(.binaries)).willReturn([:])
@@ -663,7 +669,8 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
                 configuration: .any,
                 defaultConfiguration: .any,
                 excludedTargets: .value(["App"]),
-                destination: .any
+                destination: .any,
+                indexingEnabled: .any
             )
             .willReturn([:])
         given(cacheStorage).fetch(.any, cacheCategory: .value(.binaries)).willReturn([:])
@@ -741,7 +748,8 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
                     configuration: .any,
                     defaultConfiguration: .any,
                     excludedTargets: .any,
-                    destination: .any
+                    destination: .any,
+                    indexingEnabled: .any
                 )
                 .willReturn(contentHashes)
             given(cacheStorage).fetch(.any, cacheCategory: .value(.binaries)).willReturn([:])

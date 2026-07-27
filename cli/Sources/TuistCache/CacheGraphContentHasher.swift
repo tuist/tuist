@@ -16,8 +16,28 @@ public protocol CacheGraphContentHashing {
         configuration: String?,
         defaultConfiguration: String?,
         excludedTargets: Set<String>,
-        destination: SimulatorDeviceAndRuntime?
+        destination: SimulatorDeviceAndRuntime?,
+        indexingEnabled: Bool
     ) async throws -> [GraphTarget: TargetContentHash]
+}
+
+extension CacheGraphContentHashing {
+    public func contentHashes(
+        for graph: Graph,
+        configuration: String?,
+        defaultConfiguration: String?,
+        excludedTargets: Set<String>,
+        destination: SimulatorDeviceAndRuntime?
+    ) async throws -> [GraphTarget: TargetContentHash] {
+        try await contentHashes(
+            for: graph,
+            configuration: configuration,
+            defaultConfiguration: defaultConfiguration,
+            excludedTargets: excludedTargets,
+            destination: destination,
+            indexingEnabled: false
+        )
+    }
 }
 
 public struct CacheGraphContentHasher: CacheGraphContentHashing {
@@ -66,7 +86,8 @@ public struct CacheGraphContentHasher: CacheGraphContentHashing {
         configuration: String?,
         defaultConfiguration: String?,
         excludedTargets: Set<String>,
-        destination: SimulatorDeviceAndRuntime?
+        destination: SimulatorDeviceAndRuntime?,
+        indexingEnabled: Bool
     ) async throws -> [GraphTarget: TargetContentHash] {
         let scopesSettingsToConfiguration = configuration != nil || defaultConfiguration != nil
         let resolvedConfiguration = try defaultConfigurationFetcher.fetch(
@@ -99,7 +120,7 @@ public struct CacheGraphContentHasher: CacheGraphContentHashing {
                 resolvedConfiguration,
                 try await SwiftVersionProvider.current.swiftlangVersion(),
                 version.rawValue,
-            ]
+            ] + (indexingEnabled ? ["index-store"] : [])
         )
 
         return Dictionary(uniqueKeysWithValues: hashes.map { target, hash in
