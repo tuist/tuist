@@ -22,6 +22,7 @@ defmodule Tuist.Kura.RunnerCacheTest do
   # against the sandbox.
   setup do
     stub(Tuist.Environment, :env, fn -> :prod end)
+    stub(Tuist.Environment, :runner_enabled_account_names, fn -> nil end)
     stub(Tuist.Environment, :dev?, fn -> false end)
     stub(Tuist.Environment, :test?, fn -> false end)
 
@@ -241,6 +242,7 @@ defmodule Tuist.Kura.RunnerCacheTest do
 
     other = account_with_profiles([:macos])
     stub(Tuist.Environment, :env, fn -> :can end)
+    stub(Tuist.Environment, :runner_enabled_account_names, fn -> ["tuist"] end)
     reject(FunWithFlags, :get_flag, 1)
     reject(FeatureFlags, :runners_enabled?, 2)
 
@@ -265,6 +267,7 @@ defmodule Tuist.Kura.RunnerCacheTest do
     assert server_regions(other) == ["scw-fr-par-runners"]
 
     stub(Tuist.Environment, :env, fn -> :can end)
+    stub(Tuist.Environment, :runner_enabled_account_names, fn -> ["tuist"] end)
     reject(FunWithFlags, :get_flag, 1)
     reject(FeatureFlags, :runners_enabled?, 2)
 

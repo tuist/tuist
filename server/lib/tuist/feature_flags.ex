@@ -5,22 +5,40 @@ defmodule Tuist.FeatureFlags do
 
   @doc """
   Whether the Runners dashboard (and its sub-pages) should be visible
-  for the given account. Defaults to enabled in any non-prod
-  environment (dev / test / staging / canary) so contributors and
-  internal testers see it without the flag flipped; in production it
-  requires an explicit `:runners` FunWithFlags toggle for the actor.
+  for the given account. A configured runner account allowlist takes
+  precedence. Without one, development, test, and staging default to
+  enabled, production requires an explicit `:runners` FunWithFlags
+  toggle for the actor, and canary fails closed.
 
   This is also the source of truth for co-located private Kura cache
   infrastructure, so enabling runners provides the cache without a second
   operator-managed switch.
   """
   def runners_enabled?(account) do
-    not Environment.prod?() or FunWithFlags.enabled?(:runners, for: account)
+    runner_access_enabled?(account, fn ->
+      FunWithFlags.enabled?(:runners, for: account)
+    end)
   end
 
   @doc false
   def runners_enabled?(account, %FunWithFlags.Flag{} = flag) do
-    not Environment.prod?() or FunWithFlags.Flag.enabled?(flag, for: account)
+    runner_access_enabled?(account, fn ->
+      FunWithFlags.Flag.enabled?(flag, for: account)
+    end)
+  end
+
+  defp runner_access_enabled?(account, production_enabled?) do
+    case Environment.runner_enabled_account_names() do
+      account_names when is_list(account_names) ->
+        account.name in account_names
+
+      nil ->
+        case Environment.env() do
+          :can -> false
+          :prod -> production_enabled?.()
+          _ -> true
+        end
+    end
   end
 
   @doc """

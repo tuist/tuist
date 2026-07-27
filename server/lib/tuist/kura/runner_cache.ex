@@ -20,11 +20,12 @@ defmodule Tuist.Kura.RunnerCache do
   runner rule therefore provisions caches for every eligible account, while an
   account whose runner access is removed has its cache torn down.
 
-  In canary, only the `tuist` account is eligible. In production, an actor-only
-  runner flag narrows the account query before the final availability check.
-  Broad gates still evaluate every eligible account. Both production steps use
-  one flag snapshot so a concurrent flag update cannot produce a mixed cohort
-  within a reconciliation tick.
+  A configured runner account allowlist narrows the account query before
+  reconciliation. Canary configures this to the internal accounts that exercise
+  runners. In production, an actor-only runner flag narrows the account query
+  before the final availability check. Broad gates still evaluate every
+  eligible account. Both production steps use one flag snapshot so a concurrent
+  flag update cannot produce a mixed cohort within a reconciliation tick.
 
   The platform match keeps the node next to the fleet it serves: a region
   pinned beside the Scaleway Mac mini fleet provisions only for accounts with
@@ -58,7 +59,6 @@ defmodule Tuist.Kura.RunnerCache do
 
   require Logger
 
-  @canary_account_name "tuist"
   @retry_backoff_seconds [60, 300, 900, 3600]
 
   @doc """
@@ -164,8 +164,18 @@ defmodule Tuist.Kura.RunnerCache do
   end
 
   defp runner_availability do
+    case Environment.runner_enabled_account_names() do
+      account_names when is_list(account_names) ->
+        {:account_names, account_names}
+
+      nil ->
+        default_runner_availability()
+    end
+  end
+
+  defp default_runner_availability do
     case Environment.env() do
-      :can -> :canary
+      :can -> {:account_names, []}
       :prod -> production_runner_availability()
       _ -> :all
     end
@@ -184,8 +194,8 @@ defmodule Tuist.Kura.RunnerCache do
     end
   end
 
-  defp scope_runner_candidates(query, :canary) do
-    where(query, [account: account], account.name == @canary_account_name)
+  defp scope_runner_candidates(query, {:account_names, account_names}) do
+    where(query, [account: account], account.name in ^account_names)
   end
 
   defp scope_runner_candidates(query, :all), do: query
@@ -199,7 +209,7 @@ defmodule Tuist.Kura.RunnerCache do
     end
   end
 
-  defp runner_enabled?(_account, :canary), do: true
+  defp runner_enabled?(_account, {:account_names, _account_names}), do: true
   defp runner_enabled?(_account, :all), do: true
   defp runner_enabled?(account, flag), do: FeatureFlags.runners_enabled?(account, flag)
 
