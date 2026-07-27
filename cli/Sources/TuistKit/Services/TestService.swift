@@ -1897,6 +1897,9 @@ public struct TestService { // swiftlint:disable:this type_body_length
             )
         }
 
+        let explicitPlatform = try platform.map {
+            try XcodeGraph.Platform.from(commandLineValue: $0)
+        }
         let destination: XcodeBuildDestination?
 
         if passthroughXcodeBuildArguments.contains("-destination") {
@@ -1904,8 +1907,8 @@ public struct TestService { // swiftlint:disable:this type_body_length
         } else {
             let buildPlatform: XcodeGraph.Platform
 
-            if let platform {
-                buildPlatform = try XcodeGraph.Platform.from(commandLineValue: platform)
+            if let explicitPlatform {
+                buildPlatform = explicitPlatform
             } else if let resolvedPlatform = Self.resolvePlatform(
                 for: buildableTarget,
                 scheme: scheme,
@@ -2254,7 +2257,10 @@ public struct TestService { // swiftlint:disable:this type_body_length
             return targetPlatforms.first
         }
 
-        let compatibleSchemePlatformSets = scheme.nonCodeCoverageTargetDependencies()
+        let platformConstrainingTargets =
+            (scheme.buildAction?.targets ?? [])
+                + (scheme.testAction?.targets.map(\.target) ?? [])
+        let compatibleSchemePlatformSets = platformConstrainingTargets
             .compactMap {
                 graphTraverser.target(path: $0.projectPath, name: $0.name)?
                     .target

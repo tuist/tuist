@@ -614,6 +614,49 @@ final class TestServiceTests: TuistUnitTestCase {
             .called(1)
     }
 
+    func test_run_tests_with_passthrough_destination_validates_explicit_platform() async throws {
+        // Given
+        givenGenerator()
+        given(configLoader)
+            .loadConfig(path: .any)
+            .willReturn(.test(project: .testGeneratedProject()))
+        given(generator)
+            .generateWithGraph(path: .any, options: .any)
+            .willProduce { path, _ in
+                (
+                    path, .test(workspace: .test(schemes: [.test(name: "TestScheme")])),
+                    MapperEnvironment()
+                )
+            }
+        given(buildGraphInspector)
+            .testableTarget(
+                scheme: .any, testPlan: .any, testTargets: .any, skipTestTargets: .any,
+                graphTraverser: .any,
+                action: .any
+            )
+            .willReturn(
+                .test(target: .test(destinations: [.iPhone, .mac]))
+            )
+        given(simulatorController)
+            .findAvailableDevice(udid: .any)
+            .willReturn(.test(device: .test(name: "Test iPhone")))
+        let path = try temporaryPath()
+
+        // When
+        do {
+            try await testRun(
+                schemeName: "TestScheme",
+                path: path,
+                platform: "unsupported",
+                passthroughXcodeBuildArguments: ["-destination", "id=device-id"]
+            )
+            XCTFail("Expected an unsupported platform error")
+        } catch {
+            // Then
+            XCTAssertTrue(error is UnsupportedPlatformError)
+        }
+    }
+
     func test_run_tests_for_only_specified_scheme() async throws {
         // Given
         givenGenerator()
@@ -6087,12 +6130,8 @@ final class TestServiceTests: TuistUnitTestCase {
         let graphTraverser = MockGraphTraversing()
         XCTAssertNil(subject.inferPlatformDestination(schemes: [], graphTraverser: graphTraverser))
     }
-}
 
-@Suite
-struct TestServicePlatformResolutionTests {
-    @Test
-    func resolves_multi_platform_test_target_from_scheme_targets() throws {
+    func test_resolvePlatform_ignores_pre_action_targets() throws {
         let projectPath = try AbsolutePath(validating: "/Project")
         let app = Target.test(name: "App", destinations: .iOS)
         let tests = Target.test(
@@ -6100,11 +6139,23 @@ struct TestServicePlatformResolutionTests {
             destinations: [.iPhone, .mac],
             product: .unitTests
         )
+        let codegenTool = Target.test(name: "CodegenTool", destinations: .macOS)
         let appReference = TargetReference(projectPath: projectPath, name: app.name)
         let testsReference = TargetReference(projectPath: projectPath, name: tests.name)
+        let codegenToolReference = TargetReference(projectPath: projectPath, name: codegenTool.name)
         let scheme = Scheme.test(
             name: "iOS",
-            buildAction: .test(targets: [appReference, testsReference]),
+            buildAction: .test(
+                targets: [appReference, testsReference],
+                preActions: [
+                    ExecutionAction(
+                        title: "Generate code",
+                        scriptText: "generate-code",
+                        target: codegenToolReference,
+                        shellPath: "/bin/sh"
+                    ),
+                ]
+            ),
             testAction: .test(targets: [.test(target: testsReference)]),
             runAction: nil,
             archiveAction: nil,
@@ -6116,13 +6167,13 @@ struct TestServicePlatformResolutionTests {
                 projects: [
                     projectPath: .test(
                         path: projectPath,
-                        targets: [app, tests],
+                        targets: [app, tests, codegenTool],
                         schemes: [scheme]
                     ),
                 ]
             )
         )
-        let graphTarget = try #require(
+        let graphTarget = try XCTUnwrap(
             graphTraverser.target(path: projectPath, name: tests.name)
         )
 
@@ -6132,11 +6183,10 @@ struct TestServicePlatformResolutionTests {
             graphTraverser: graphTraverser
         )
 
-        #expect(platform == .iOS)
+        XCTAssertEqual(platform, .iOS)
     }
 
-    @Test
-    func leaves_multi_platform_test_target_ambiguous_without_a_scheme_constraint() throws {
+    func test_resolvePlatform_leaves_multi_platform_test_target_ambiguous_without_a_scheme_constraint() throws {
         let projectPath = try AbsolutePath(validating: "/Project")
         let tests = Target.test(
             name: "BaseTests",
@@ -6164,7 +6214,7 @@ struct TestServicePlatformResolutionTests {
                 ]
             )
         )
-        let graphTarget = try #require(
+        let graphTarget = try XCTUnwrap(
             graphTraverser.target(path: projectPath, name: tests.name)
         )
 
@@ -6174,7 +6224,7 @@ struct TestServicePlatformResolutionTests {
             graphTraverser: graphTraverser
         )
 
-        #expect(platform == nil)
+        XCTAssertNil(platform)
     }
 }
 
