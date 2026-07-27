@@ -26,7 +26,6 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
   @metadata_lock_max_attempts 5
   @metadata_lock_backoff_ms 200
   @metadata_lock_snooze_seconds 30
-  @skip_classification_version 2
   @skippable_submodule_failure_markers [
     "no url found for submodule path",
     "transport 'file' not allowed",
@@ -75,7 +74,7 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
             skipped_releases = Map.get(metadata, "skipped_releases", %{})
 
             if Map.has_key?(releases, normalized_version) or
-                 verified_skipped_release?(skipped_releases, normalized_version) do
+                 Metadata.verified_skip?(Map.get(skipped_releases, normalized_version)) do
               :ok
             else
               sync_release(scope, name, full_handle, tag, normalized_version, token)
@@ -895,10 +894,7 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
   end
 
   defp build_updated_metadata_with_skipped_release(metadata, scope, name, full_handle, version, reason) do
-    skipped_release = %{
-      "classification_version" => @skip_classification_version,
-      "reason" => reason
-    }
+    skipped_release = Metadata.verified_skip(reason)
 
     metadata
     |> Map.put_new("scope", scope)
@@ -915,13 +911,6 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
         Map.put(skipped_releases || %{}, version, skipped_release)
       end
     )
-  end
-
-  defp verified_skipped_release?(skipped_releases, version) do
-    case Map.get(skipped_releases, version) do
-      %{"classification_version" => @skip_classification_version} -> true
-      _ -> false
-    end
   end
 
   defp upload_manifest(scope, name, version, filename, content) do

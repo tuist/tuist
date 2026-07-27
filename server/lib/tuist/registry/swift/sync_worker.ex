@@ -26,7 +26,6 @@ defmodule Tuist.Registry.Swift.SyncWorker do
   @sync_lock_ttl_seconds 3_000
   @package_lock_ttl_seconds 900
   @release_lock_ttl_seconds 1_800
-  @skip_classification_version 2
 
   @impl Oban.Worker
   def perform(%Oban.Job{args: args}) do
@@ -269,9 +268,7 @@ defmodule Tuist.Registry.Swift.SyncWorker do
 
     verified_skipped_versions =
       skipped_releases
-      |> Enum.filter(fn {_version, release} ->
-        match?(%{"classification_version" => @skip_classification_version}, release)
-      end)
+      |> Enum.filter(fn {_version, release} -> Metadata.verified_skip?(release) end)
       |> Enum.map(&elem(&1, 0))
 
     known_versions = Map.keys(releases) ++ verified_skipped_versions
