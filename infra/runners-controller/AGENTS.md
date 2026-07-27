@@ -52,9 +52,14 @@ independent workqueues:
 
   - Linux: budget = sum of allocatable memory across nodes labeled
     `node.cluster.x-k8s.io/pool=<FleetSelector>` (scaled by
-    `MemReserveFraction`, default 0.9); cost = `spec.podMemoryMB`.
-    Memory is the only dimension — kata pins it per microVM and CPU
-    is oversubscribed.
+    `MemReserveFraction`, default 0.9); cost =
+    `spec.podMemoryMB` plus the selected RuntimeClass's live
+    `overhead.podFixed.memory`. Reading the RuntimeClass keeps the
+    allocator aligned with Kubernetes admission and scheduling when
+    Kata's virtual-machine overhead changes. If the RuntimeClass
+    cannot be read, the autoscaler leaves replicas unchanged rather
+    than scaling with an incomplete cost. Memory is the only
+    dimension — Kata pins it per microVM and CPU is oversubscribed.
   - macOS: budget = count of nodes labeled `tuist.dev/fleet=<FleetSelector>`
     + `kubernetes.io/os=darwin`; cost = 1 per Pod (one VM per Mac
     mini under the Virtualization.framework SLA). The allocator

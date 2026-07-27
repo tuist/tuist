@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
+	nodev1 "k8s.io/api/node/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -94,6 +95,7 @@ type AutoscalerReconciler struct {
 // +kubebuilder:rbac:groups=tuist.dev,resources=runnerpools,verbs=get;list;watch;update;patch
 // +kubebuilder:rbac:groups=tuist.dev,resources=runnerpools/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups="",resources=nodes,verbs=get;list;watch
+// +kubebuilder:rbac:groups=node.k8s.io,resources=runtimeclasses,verbs=get;list;watch
 
 func (r *AutoscalerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx).WithValues("autoscaler", req.NamespacedName)
@@ -213,8 +215,10 @@ func (r *AutoscalerReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 //     host (Apple's Virtualization.framework SLA caps at 2 VMs/host
 //     and we run 1 today), so budget = host count.
 //
-// Any failure gathering the fleet view falls back to the per-pool
-// target — a node-read blip must never trigger a mass scale-down.
+// A fleet-capacity read failure falls back to the per-pool target,
+// preserving the existing anti-thrash behavior. A demand-cost failure
+// leaves replicas unchanged because scaling without the RuntimeClass
+// overhead could overcommit the fleet.
 func (r *AutoscalerReconciler) desiredForPool(
 	ctx context.Context,
 	pool *tuistv1.RunnerPool,
@@ -257,9 +261,9 @@ func (r *AutoscalerReconciler) allocate(
 
 	demands, err := r.gatherFleetDemands(ctx, pool, signals, knobs)
 	if err != nil {
-		logger.Error(err, "gather fleet demands; falling back to per-pool target",
+		logger.Error(err, "gather fleet demands; leaving replicas unchanged",
 			"fleetSelector", pool.Spec.FleetSelector)
-		return perPool
+		return pool.Spec.Replicas
 	}
 
 	// capacity <= 0 is treated like an error on purpose. A zero sum is
@@ -302,13 +306,31 @@ func (r *AutoscalerReconciler) fleetCapacity(ctx context.Context, pool *tuistv1.
 }
 
 // perPodCost is one Pod's claim on the shared fleet budget, in the
-// same unit as fleetCapacity returns above.
-func perPodCost(pool *tuistv1.RunnerPool) int64 {
+// same unit as fleetCapacity returns above. Linux RuntimeClass
+// overhead is admission-time scheduling cost, so include the live
+// podFixed memory instead of duplicating that value in RunnerPool.
+func (r *AutoscalerReconciler) perPodCost(ctx context.Context, pool *tuistv1.RunnerPool) (int64, error) {
 	if pool.Spec.OS == "darwin" {
 		// One Mac mini = one slot = one VM.
-		return 1
+		return 1, nil
 	}
-	return int64(pool.Spec.PodMemoryMB) * 1024 * 1024
+
+	cost := int64(pool.Spec.PodMemoryMB) * 1024 * 1024
+	if pool.Spec.RuntimeClass == "" {
+		return cost, nil
+	}
+
+	runtimeClass := &nodev1.RuntimeClass{}
+	if err := r.Get(ctx, client.ObjectKey{Name: pool.Spec.RuntimeClass}, runtimeClass); err != nil {
+		return 0, fmt.Errorf("get RuntimeClass %q: %w", pool.Spec.RuntimeClass, err)
+	}
+	if runtimeClass.Overhead == nil {
+		return cost, nil
+	}
+	if memory := runtimeClass.Overhead.PodFixed.Memory(); memory != nil {
+		cost += memory.Value()
+	}
+	return cost, nil
 }
 
 // gatherFleetDemands builds the allocator input for every
@@ -353,9 +375,14 @@ func (r *AutoscalerReconciler) gatherFleetDemands(
 			}
 		}
 
+		cost, err := r.perPodCost(ctx, p)
+		if err != nil {
+			return nil, fmt.Errorf("calculate per-Pod cost for %q: %w", p.Name, err)
+		}
+
 		demands = append(demands, scaling.PoolDemand{
 			Name:       p.Name,
-			PerPodCost: perPodCost(p),
+			PerPodCost: cost,
 			Floor:      k.MinWarmPoolFloor,
 			Load:       sig.Claimed + sig.Queued,
 			Target:     scaling.DesiredReplicas(sig, k),

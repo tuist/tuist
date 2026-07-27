@@ -45,12 +45,22 @@ on:
       - 'infra/k8s/mgmt/tailscale.yaml'
       - 'infra/k8s/mgmt/hetzner-robot-controller.yaml'
       - 'infra/k8s/mgmt/observability-namespace.yaml'
+      - 'infra/mise/tasks/k8s/rotate-production-runner-node.sh'
       - 'infra/helm/k8s-monitoring/**'
       - '.github/workflows/mgmt-cluster-apply.yml'
-  # Manual re-runs of the apply path, e.g. to force a re-deploy
-  # without a code change. No inputs — incident-recovery actions
-  # run from an operator's laptop (see `infra/k8s/onboarding.md`).
+  # Manual re-runs normally only apply the declarative state. Supplying
+  # both rotation inputs additionally replaces one exact production
+  # runner node after active jobs finish. Rotation is main-only.
   workflow_dispatch:
+    inputs:
+      production_runner_node:
+        description: Exact production runner node to replace; leave blank for apply only
+        required: false
+        type: string
+      confirm_production_runner_node:
+        description: Repeat the exact node name to confirm replacement
+        required: false
+        type: string
 
 # Serialize: don't let two pushes apply concurrently and race.
 concurrency:
@@ -71,11 +81,27 @@ jobs:
       name: mgmt-cluster-apply
     # `kubectl diff` can be slow against the Cluster API CRDs when many
     # Machines are changing, so leave enough room for the visibility step.
-    timeout-minutes: 35
+    timeout-minutes: 180
     env:
       KUBECONFIG: ${{ github.workspace }}/.kube/config
     steps:
       - uses: actions/checkout@v4
+      - name: Validate production runner rotation request
+        if: ${{ github.event_name == 'workflow_dispatch' && (inputs.production_runner_node != '' || inputs.confirm_production_runner_node != '') }}
+        env:
+          PRODUCTION_RUNNER_NODE: ${{ inputs.production_runner_node }}
+          CONFIRM_PRODUCTION_RUNNER_NODE: ${{ inputs.confirm_production_runner_node }}
+        run: |
+          set -euo pipefail
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "::error::Production runner rotation may only run from main"
+            exit 1
+          fi
+          if [ -z "$PRODUCTION_RUNNER_NODE" ] ||
+            [ "$PRODUCTION_RUNNER_NODE" != "$CONFIRM_PRODUCTION_RUNNER_NODE" ]; then
+            echo "::error::Both rotation inputs must contain the same exact production runner node"
+            exit 1
+          fi
       - uses: jdx/mise-action@v3.2.0
         with:
           install_args: "--locked helm kubectl"
@@ -396,3 +422,13 @@ jobs:
           assert_no_drift infra/k8s/mgmt/etcd-snapshot.yaml
           assert_no_drift infra/k8s/mgmt/tailscale.yaml
           assert_no_drift infra/k8s/mgmt/observability-namespace.yaml
+      - name: Rotate one production runner node
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.production_runner_node != '' }}
+        env:
+          PRODUCTION_RUNNER_NODE: ${{ inputs.production_runner_node }}
+          CONFIRM_PRODUCTION_RUNNER_NODE: ${{ inputs.confirm_production_runner_node }}
+        run: |
+          set -euo pipefail
+          infra/mise/tasks/k8s/rotate-production-runner-node.sh \
+            "$PRODUCTION_RUNNER_NODE" \
+            "$CONFIRM_PRODUCTION_RUNNER_NODE"
