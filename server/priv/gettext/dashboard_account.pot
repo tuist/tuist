@@ -22,7 +22,7 @@ msgstr ""
 msgid "$0.50"
 msgstr ""
 
-#: lib/tuist_web/live/accept_invitation_live.ex:140
+#: lib/tuist_web/live/accept_invitation_live.ex:178
 #, elixir-autogen, elixir-format
 msgid "%{inviter} has invited you to join the %{organization} organization"
 msgstr ""
@@ -33,7 +33,7 @@ msgid "%{month}/%{year}"
 msgstr ""
 
 #: lib/tuist/accounts/user_notifier.ex:208
-#: lib/tuist_web/live/accept_invitation_live.ex:152
+#: lib/tuist_web/live/accept_invitation_live.ex:190
 #, elixir-autogen, elixir-format
 msgid "Accept invitation"
 msgstr ""
@@ -103,7 +103,7 @@ msgstr ""
 #: lib/tuist_web/live/account_settings_live.html.heex:319
 #: lib/tuist_web/live/account_token_live.html.heex:49
 #: lib/tuist_web/live/account_tokens_live.html.heex:250
-#: lib/tuist_web/live/authentication_settings_live.html.heex:651
+#: lib/tuist_web/live/authentication_settings_live.html.heex:657
 #: lib/tuist_web/live/cache_live.ex:600
 #: lib/tuist_web/live/cache_live.ex:688
 #: lib/tuist_web/live/cache_live.ex:866
@@ -212,7 +212,7 @@ msgstr ""
 msgid "Custom terms: Tailored agreements to meet your specific needs"
 msgstr ""
 
-#: lib/tuist_web/live/accept_invitation_live.ex:158
+#: lib/tuist_web/live/accept_invitation_live.ex:196
 #, elixir-autogen, elixir-format
 msgid "Decline"
 msgstr ""
@@ -436,7 +436,7 @@ msgstr ""
 msgid "If you didn't make this request, feel free to ignore this email."
 msgstr ""
 
-#: lib/tuist_web/live/accept_invitation_live.ex:196
+#: lib/tuist_web/live/accept_invitation_live.ex:234
 #, elixir-autogen, elixir-format
 msgid "Invitation not found"
 msgstr ""
@@ -505,7 +505,7 @@ msgstr ""
 
 #: lib/tuist_web/live/account_token_live.html.heex:74
 #: lib/tuist_web/live/account_tokens_live.html.heex:277
-#: lib/tuist_web/live/authentication_settings_live.html.heex:671
+#: lib/tuist_web/live/authentication_settings_live.html.heex:677
 #: lib/tuist_web/live/cache_live.ex:844
 #: lib/tuist_web/live/cache_live.ex:885
 #: lib/tuist_web/live/create_organization_live.ex:66
@@ -797,7 +797,7 @@ msgstr ""
 msgid "Try changing your search term"
 msgstr ""
 
-#: lib/tuist_web/live/accept_invitation_live.ex:76
+#: lib/tuist_web/live/accept_invitation_live.ex:114
 #: lib/tuist_web/live/create_organization_live.ex:39
 #, elixir-autogen, elixir-format
 msgid "Tuist Logo"
@@ -932,7 +932,7 @@ msgstr ""
 msgid "You are not authorized to perform this action."
 msgstr ""
 
-#: lib/tuist_web/live/accept_invitation_live.ex:137
+#: lib/tuist_web/live/accept_invitation_live.ex:175
 #, elixir-autogen, elixir-format
 msgid "You have been invited"
 msgstr ""
@@ -1115,7 +1115,7 @@ msgstr ""
 msgid "SSO provider"
 msgstr ""
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:515
+#: lib/tuist_web/live/authentication_settings_live.html.heex:521
 #: lib/tuist_web/live/webhook_live.html.heex:350
 #, elixir-autogen, elixir-format
 msgid "Save changes"
@@ -1159,12 +1159,12 @@ msgstr ""
 msgid "Set the sign-in redirect URI to:"
 msgstr ""
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:491
+#: lib/tuist_web/live/authentication_settings_live.html.heex:497
 #, elixir-autogen, elixir-format
 msgid "Enforce SSO"
 msgstr ""
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:502
+#: lib/tuist_web/live/authentication_settings_live.html.heex:508
 #, elixir-autogen, elixir-format
 msgid "When enabled, organization members will not be able to log in with email and password. They must use SSO instead."
 msgstr ""
@@ -1215,17 +1215,17 @@ msgstr ""
 msgid "OAuth2"
 msgstr ""
 
-#: lib/tuist_web/live/accept_invitation_live.ex:168
+#: lib/tuist_web/live/accept_invitation_live.ex:206
 #, elixir-autogen, elixir-format
 msgid "This invitation is addressed to %{email}. Log out and sign in with that account to accept it."
 msgstr ""
 
-#: lib/tuist_web/live/accept_invitation_live.ex:205
+#: lib/tuist_web/live/accept_invitation_live.ex:243
 #, elixir-autogen, elixir-format
 msgid "We could not find the invitation you are trying to accept. Please ask the inviter to send a new invitation."
 msgstr ""
 
-#: lib/tuist_web/live/accept_invitation_live.ex:165
+#: lib/tuist_web/live/accept_invitation_live.ex:203
 #, elixir-autogen, elixir-format
 msgid "Wrong account"
 msgstr ""
@@ -1245,38 +1245,38 @@ msgstr ""
 msgid "Authentication settings are only available for organizations."
 msgstr ""
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:543
+#: lib/tuist_web/live/authentication_settings_live.html.heex:549
 #, elixir-autogen, elixir-format
 msgid "SCIM endpoint URL"
 msgstr ""
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:591
+#: lib/tuist_web/live/authentication_settings_live.html.heex:597
 #: lib/tuist_web/live/webhook_live.html.heex:375
 #, elixir-autogen, elixir-format
 msgid "Copy it now — it will not be shown again after you close this dialog."
 msgstr ""
 
 #: lib/tuist_web/live/account_tokens_live.html.heex:79
-#: lib/tuist_web/live/authentication_settings_live.html.heex:607
+#: lib/tuist_web/live/authentication_settings_live.html.heex:613
 #, elixir-autogen, elixir-format
 msgid "Copy token"
 msgstr ""
 
 #: lib/tuist_web/live/account_token_live.html.heex:92
 #: lib/tuist_web/live/account_tokens_live.html.heex:286
-#: lib/tuist_web/live/authentication_settings_live.html.heex:674
+#: lib/tuist_web/live/authentication_settings_live.html.heex:680
 #: lib/tuist_web/live/webhook_live.html.heex:89
 #, elixir-autogen, elixir-format
 msgid "Created"
 msgstr ""
 
-#: lib/tuist_web/live/accept_invitation_live.ex:224
+#: lib/tuist_web/live/accept_invitation_live.ex:262
 #, elixir-autogen, elixir-format
 msgid "Dashboard"
 msgstr ""
 
 #: lib/tuist_web/live/account_tokens_live.html.heex:244
-#: lib/tuist_web/live/authentication_settings_live.html.heex:645
+#: lib/tuist_web/live/authentication_settings_live.html.heex:651
 #: lib/tuist_web/live/cache_live.ex:858
 #: lib/tuist_web/live/members_live.ex:433
 #: lib/tuist_web/live/webhook_live.html.heex:404
@@ -1286,90 +1286,90 @@ msgid "Done"
 msgstr ""
 
 #: lib/tuist_web/live/account_tokens_live.html.heex:255
-#: lib/tuist_web/live/authentication_settings_live.html.heex:656
+#: lib/tuist_web/live/authentication_settings_live.html.heex:662
 #: lib/tuist_web/live/cache_live.ex:874
 #, elixir-autogen, elixir-format
 msgid "Generate"
 msgstr ""
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:568
+#: lib/tuist_web/live/authentication_settings_live.html.heex:574
 #, elixir-autogen, elixir-format
 msgid "Generate SCIM token"
 msgstr ""
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:710
+#: lib/tuist_web/live/authentication_settings_live.html.heex:716
 #, elixir-autogen, elixir-format
 msgid "Generate one above to start provisioning from your IdP."
 msgstr ""
 
 #: lib/tuist_web/live/account_tokens_live.html.heex:47
-#: lib/tuist_web/live/authentication_settings_live.html.heex:574
+#: lib/tuist_web/live/authentication_settings_live.html.heex:580
 #, elixir-autogen, elixir-format
 msgid "Generate token"
 msgstr ""
 
-#: lib/tuist_web/live/accept_invitation_live.ex:88
+#: lib/tuist_web/live/accept_invitation_live.ex:126
 #, elixir-autogen, elixir-format
 msgid "Invitation accepted!"
 msgstr ""
 
-#: lib/tuist_web/live/accept_invitation_live.ex:113
+#: lib/tuist_web/live/accept_invitation_live.ex:151
 #, elixir-autogen, elixir-format
 msgid "Invitation rejected"
 msgstr ""
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:559
+#: lib/tuist_web/live/authentication_settings_live.html.heex:565
 #, elixir-autogen, elixir-format
 msgid "Issue one bearer token per IdP. Revoke a token if it leaks or is no longer needed."
 msgstr ""
 
 #: lib/tuist_web/live/account_token_live.html.heex:88
 #: lib/tuist_web/live/account_tokens_live.html.heex:283
-#: lib/tuist_web/live/authentication_settings_live.html.heex:677
+#: lib/tuist_web/live/authentication_settings_live.html.heex:683
 #, elixir-autogen, elixir-format
 msgid "Last used"
 msgstr ""
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:533
+#: lib/tuist_web/live/authentication_settings_live.html.heex:539
 #, elixir-autogen, elixir-format
 msgid "Let your IdP (Okta, Azure AD/Entra, JumpCloud, etc.) provision users into this organization at the SCIM endpoint URL below using a bearer token."
 msgstr ""
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:625
+#: lib/tuist_web/live/authentication_settings_live.html.heex:631
 #, elixir-autogen, elixir-format
 msgid "Name this token so you can identify it later (for example: \"Okta\")."
 msgstr ""
 
 #: lib/tuist_web/live/account_token_helpers.ex:84
 #: lib/tuist_web/live/account_token_helpers.ex:88
-#: lib/tuist_web/live/authentication_settings_live.html.heex:681
+#: lib/tuist_web/live/authentication_settings_live.html.heex:687
 #, elixir-autogen, elixir-format
 msgid "Never"
 msgstr ""
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:708
+#: lib/tuist_web/live/authentication_settings_live.html.heex:714
 #, elixir-autogen, elixir-format
 msgid "No SCIM tokens yet"
 msgstr ""
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:695
+#: lib/tuist_web/live/authentication_settings_live.html.heex:701
 #, elixir-autogen, elixir-format
 msgid "Revoke this token? This action cannot be undone."
 msgstr ""
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:530
+#: lib/tuist_web/live/authentication_settings_live.html.heex:536
 #, elixir-autogen, elixir-format
 msgid "SCIM provisioning"
 msgstr ""
 
 #: lib/tuist_web/live/account_tokens_live.html.heex:60
-#: lib/tuist_web/live/authentication_settings_live.html.heex:588
+#: lib/tuist_web/live/authentication_settings_live.html.heex:594
 #, elixir-autogen, elixir-format
 msgid "Token created"
 msgstr ""
 
 #: lib/tuist_web/live/account_tokens_live.html.heex:95
-#: lib/tuist_web/live/authentication_settings_live.html.heex:623
+#: lib/tuist_web/live/authentication_settings_live.html.heex:629
 #, elixir-autogen, elixir-format
 msgid "Token name"
 msgstr ""
@@ -1387,42 +1387,42 @@ msgstr ""
 
 #: lib/tuist_web/live/account_token_live.ex:33
 #: lib/tuist_web/live/account_tokens_live.ex:47
-#: lib/tuist_web/live/authentication_settings_live.html.heex:556
+#: lib/tuist_web/live/authentication_settings_live.html.heex:562
 #, elixir-autogen, elixir-format
 msgid "Tokens"
 msgstr ""
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:672
+#: lib/tuist_web/live/authentication_settings_live.html.heex:678
 #, elixir-autogen, elixir-format
 msgid "Unnamed"
 msgstr ""
 
-#: lib/tuist_web/live/accept_invitation_live.ex:103
+#: lib/tuist_web/live/accept_invitation_live.ex:141
 #, elixir-autogen, elixir-format
 msgid "You are now a part of %{organization} organization"
 msgstr ""
 
-#: lib/tuist_web/live/accept_invitation_live.ex:91
+#: lib/tuist_web/live/accept_invitation_live.ex:129
 #, elixir-autogen, elixir-format
 msgid "You have accepted the invite to join the organization"
 msgstr ""
 
-#: lib/tuist_web/live/accept_invitation_live.ex:116
+#: lib/tuist_web/live/accept_invitation_live.ex:154
 #, elixir-autogen, elixir-format
 msgid "You have rejected the invite to join the organization"
 msgstr ""
 
-#: lib/tuist_web/live/accept_invitation_live.ex:128
+#: lib/tuist_web/live/accept_invitation_live.ex:166
 #, elixir-autogen, elixir-format
 msgid "You won’t be able to access this organization unless invited again."
 msgstr ""
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:630
+#: lib/tuist_web/live/authentication_settings_live.html.heex:636
 #, elixir-autogen, elixir-format
 msgid "e.g. Okta"
 msgstr ""
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:693
+#: lib/tuist_web/live/authentication_settings_live.html.heex:699
 #, elixir-autogen, elixir-format
 msgid "Revoke token"
 msgstr ""
@@ -2128,7 +2128,7 @@ msgstr ""
 msgid "Expired"
 msgstr ""
 
-#: lib/tuist_web/live/accept_invitation_live.ex:178
+#: lib/tuist_web/live/accept_invitation_live.ex:216
 #, elixir-autogen, elixir-format
 msgid "Invitation expired"
 msgstr ""
@@ -2138,7 +2138,7 @@ msgstr ""
 msgid "Resend invitation"
 msgstr ""
 
-#: lib/tuist_web/live/accept_invitation_live.ex:187
+#: lib/tuist_web/live/accept_invitation_live.ex:225
 #, elixir-autogen, elixir-format
 msgid "This invitation has expired. Please ask the inviter to resend it."
 msgstr ""
@@ -2597,7 +2597,7 @@ msgstr ""
 msgid "Add the following text record to your domain, then verify it."
 msgstr ""
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:444
+#: lib/tuist_web/live/authentication_settings_live.html.heex:447
 #, elixir-autogen, elixir-format
 msgid "Automatic enrollment"
 msgstr ""
@@ -2657,12 +2657,12 @@ msgstr ""
 msgid "Verify domain"
 msgstr ""
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:454
+#: lib/tuist_web/live/authentication_settings_live.html.heex:457
 #, elixir-autogen, elixir-format
 msgid "When enabled, users from the verified login email domain can join this organization automatically. Other users need an invitation."
 msgstr ""
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:449
+#: lib/tuist_web/live/authentication_settings_live.html.heex:452
 #, elixir-autogen, elixir-format
 msgid "When enabled, users whose Google Workspace domain matches can join this organization automatically. Other users need an invitation."
 msgstr ""
@@ -2672,17 +2672,17 @@ msgstr ""
 msgid "Once verified, this domain is used to find the provider and determines which email addresses can be trusted for automatic enrollment and identity linking. It is independent of the provider URL."
 msgstr ""
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:459
+#: lib/tuist_web/live/authentication_settings_live.html.heex:462
 #, elixir-autogen, elixir-format
 msgid "This existing configuration allows any email address reported by the provider to join automatically. Add and verify a login email domain to restrict enrollment."
 msgstr ""
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:497
+#: lib/tuist_web/live/authentication_settings_live.html.heex:503
 #, elixir-autogen, elixir-format
 msgid "Verify a login email domain before enforcing single sign-on for this provider."
 msgstr ""
 
-#: lib/tuist_web/live/authentication_settings_live.html.heex:464
+#: lib/tuist_web/live/authentication_settings_live.html.heex:467
 #, elixir-autogen, elixir-format
 msgid "Add and verify a login email domain before enabling automatic enrollment. Until then, the provider cannot create or link accounts, including for invited users. Existing linked users can continue signing in."
 msgstr ""
