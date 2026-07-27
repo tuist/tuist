@@ -25,6 +25,15 @@ on:
       - .github/workflows/gradle-release.yml
       - .github/workflows/skills-release.yml
       - .github/workflows/hetzner-robot-controller-release.yml
+      # Management-cluster state has its own apply workflow and must not
+      # redeploy the customer-facing server.
+      - infra/k8s/clusters/**
+      - infra/k8s/mgmt/**
+      - .github/workflows/mgmt-cluster-apply.yml
+      # Documentation and release-workflow-only edits do not change a
+      # deployable server artifact.
+      - infra/helm/k8s-monitoring/**/*.md
+      - .github/workflows/server-production-deployment.yml
 
 permissions:
   contents: write
