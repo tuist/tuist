@@ -298,6 +298,26 @@ around this by using `TART_REGISTRY_USERNAME` /
 of writing to keychain; no `tart login` is needed. If you add a
 new workflow that pushes to GHCR, follow the same pattern.
 
+## Reliable registry uploads
+
+All builder workflows use
+[`reliable-tart-push`](../.github/actions/reliable-tart-push/action.yml)
+for the final registry publication. Keep new Tart image workflows on that
+action rather than adding an inline retry loop.
+
+The action limits Tart to one concurrent registry upload and uses
+three-megabyte chunks. This trades some best-case throughput for fewer
+simultaneous long-lived requests on the Scaleway-to-GitHub path. Failed
+attempts use randomized backoff so two builders do not repeatedly retry
+in lockstep. Every failure also records connection timing and the selected
+address for the registry and blob-delivery endpoints, which gives
+operators evidence for distinguishing a GitHub-side incident from a
+provider-route problem.
+
+The upload remains content-addressed. A later attempt checks blobs that
+already landed and resumes with the missing content rather than publishing
+a different artifact.
+
 ## Workflow `runs-on:` selector
 
 Both image-build workflows pin

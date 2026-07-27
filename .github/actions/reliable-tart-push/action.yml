@@ -1,0 +1,136 @@
+name: Reliable Tart push
+description: Push a large Tart image with bounded registry concurrency and jittered retries
+
+inputs:
+  local-name:
+    description: Local Tart virtual machine name
+    required: true
+  remote-names:
+    description: Newline-separated remote image names
+    required: true
+  attempts:
+    description: Maximum number of push attempts
+    required: false
+    default: "5"
+  concurrency:
+    description: Number of concurrent registry uploads within Tart
+    required: false
+    default: "1"
+  chunk-size:
+    description: Upload chunk size in megabytes
+    required: false
+    default: "3"
+
+runs:
+  using: composite
+  steps:
+    - name: Push Tart image
+      shell: bash
+      env:
+        TART_PUSH_LOCAL_NAME: ${{ inputs.local-name }}
+        TART_PUSH_REMOTE_NAMES: ${{ inputs.remote-names }}
+        TART_PUSH_ATTEMPTS: ${{ inputs.attempts }}
+        TART_PUSH_CONCURRENCY: ${{ inputs.concurrency }}
+        TART_PUSH_CHUNK_SIZE: ${{ inputs.chunk-size }}
+        # Tart can prune its local Open Container Initiative cache while
+        # staging a push. The workflow reclaims disk before reaching this
+        # action, so pruning during the upload adds risk without saving space.
+        TART_NO_AUTO_PRUNE: "1"
+      run: |
+        set -euo pipefail
+
+        require_positive_integer() {
+          local name="$1"
+          local value="$2"
+          if [[ ! "$value" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::${name} must be a positive integer, got '${value}'"
+            exit 1
+          fi
+        }
+
+        probe_endpoint() {
+          local label="$1"
+          local url="$2"
+          local result
+
+          if result="$(
+            curl \
+              --silent \
+              --show-error \
+              --output /dev/null \
+              --connect-timeout 10 \
+              --max-time 20 \
+              --write-out "${label}: address=%{remote_ip} status=%{http_code} connect=%{time_connect}s secure=%{time_appconnect}s total=%{time_total}s" \
+              "$url"
+          )"; then
+            echo "$result"
+          else
+            echo "::warning::${label} probe failed: ${result}"
+          fi
+        }
+
+        probe_registry_path() {
+          probe_endpoint "registry" "https://ghcr.io/v2/"
+          probe_endpoint "blob delivery" "https://pkg-containers.githubusercontent.com/"
+        }
+
+        require_positive_integer "attempts" "$TART_PUSH_ATTEMPTS"
+        require_positive_integer "concurrency" "$TART_PUSH_CONCURRENCY"
+        require_positive_integer "chunk-size" "$TART_PUSH_CHUNK_SIZE"
+
+        remote_names=()
+        while IFS= read -r remote_name; do
+          if [ -n "$remote_name" ]; then
+            remote_names+=("$remote_name")
+          fi
+        done <<< "$TART_PUSH_REMOTE_NAMES"
+
+        if [ "${#remote_names[@]}" -eq 0 ]; then
+          echo "::error::At least one remote image name is required"
+          exit 1
+        fi
+
+        echo "Tart version: $(tart --version)"
+        echo "Host macOS version: $(sw_vers -productVersion)"
+        echo "Registry concurrency: ${TART_PUSH_CONCURRENCY}"
+        echo "Upload chunk size: ${TART_PUSH_CHUNK_SIZE} megabytes"
+        probe_registry_path
+
+        for ((attempt = 1; attempt <= TART_PUSH_ATTEMPTS; attempt++)); do
+          attempt_log="${RUNNER_TEMP:-/tmp}/tart-push-${GITHUB_RUN_ID:-local}-${attempt}.log"
+          echo "Tart push attempt ${attempt}/${TART_PUSH_ATTEMPTS} at $(date -u +%H:%M:%SZ)" >&2
+
+          if tart push \
+            --concurrency "$TART_PUSH_CONCURRENCY" \
+            --chunk-size "$TART_PUSH_CHUNK_SIZE" \
+            "$TART_PUSH_LOCAL_NAME" \
+            "${remote_names[@]}" 2>&1 | tee "$attempt_log"; then
+            echo "Pushed ${remote_names[*]} on attempt ${attempt}"
+            exit 0
+          fi
+
+          if grep -Eqi \
+            'unauthorized|authentication required|denied|invalid reference' \
+            "$attempt_log"; then
+            echo "::error::Tart push failed with a non-retryable error"
+            exit 1
+          fi
+
+          probe_registry_path
+
+          if [ "$attempt" -eq "$TART_PUSH_ATTEMPTS" ]; then
+            echo "::error::Tart push failed ${TART_PUSH_ATTEMPTS} times"
+            exit 1
+          fi
+
+          case "$attempt" in
+            1) base_delay=60 ;;
+            2) base_delay=120 ;;
+            3) base_delay=300 ;;
+            *) base_delay=600 ;;
+          esac
+          jitter=$((RANDOM % (base_delay / 2 + 1)))
+          delay=$((base_delay + jitter))
+          echo "::warning::Tart push attempt ${attempt} failed; waiting ${delay} seconds before retry"
+          sleep "$delay"
+        done
