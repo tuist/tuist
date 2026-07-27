@@ -74,7 +74,10 @@ rules:
     verbs: [get, list, watch, create, update, patch, delete]
   - apiGroups: [""]
     resources: [pods]
-    verbs: [get, list, watch]
+    # delete lets a new Kura image replace pods that cannot pass readiness on
+    # the previous image. Ready pods remain under the StatefulSet's ordinary
+    # ordered rollout.
+    verbs: [get, list, watch, delete]
   - apiGroups: ["discovery.k8s.io"]
     resources: [endpointslices]
     verbs: [get, list, watch]

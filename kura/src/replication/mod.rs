@@ -10,7 +10,7 @@ use std::{
 };
 
 use futures_util::stream::{self, StreamExt};
-use reqwest::header::{CONTENT_TYPE, HeaderValue};
+use reqwest::header::{CONTENT_TYPE, HeaderValue, RETRY_AFTER};
 use serde::Deserialize;
 use tokio::{
     io::AsyncWriteExt,
@@ -23,7 +23,7 @@ use crate::{
     artifact::manifest::ArtifactManifest,
     config::Config,
     constants::{
-        BOOTSTRAP_DIGEST_DEFAULT_PREFIX_LEN, MAX_BOOTSTRAP_PAGE_BYTES,
+        BOOTSTRAP_DIGEST_DEFAULT_PREFIX_LEN, MAX_BOOTSTRAP_PAGE_BYTES, MAX_BOOTSTRAP_PAGE_ITEMS,
         MAX_INLINE_REPLICATION_BODY_BYTES, MAX_REPLICATION_BODY_BYTES, REPLICATION_RETRY_SECS,
     },
     failpoints::FailpointName,
@@ -40,20 +40,27 @@ use crate::{
 
 use self::{operation::ReplicationOperation, outbox_message::OutboxMessage};
 
-// Manifests per page of the bootstrap keyspace walk. Sized to hold a whole
+// Preferred manifests per page of the bootstrap keyspace walk. Sized to hold a whole
 // digest bucket in one request: at BOOTSTRAP_DIGEST_DEFAULT_PREFIX_LEN the
 // keyspace splits into 4096 buckets, so a 3M-artifact account averages ~750
 // manifests per bucket and every divergent bucket used to cost three
 // round-trips instead of one. A page is bounded by count, not bytes — a REAPI
 // manifest serializes to ~420 B, so 2048 is ~850 KiB, well inside the
 // MAX_BOOTSTRAP_PAGE_BYTES ceiling the puller reads under.
-const BOOTSTRAP_PAGE_LIMIT: usize = 2048;
+const BOOTSTRAP_MANIFEST_PAGE_LIMIT: usize = MAX_BOOTSTRAP_PAGE_ITEMS;
+// Peers before the larger manifest-page rollout reject limits above 256. Keep
+// tombstones on the legacy size and negotiate manifest pages down once per
+// peer pass so adjacent versions can bootstrap each other during a rollout.
+const BOOTSTRAP_LEGACY_PAGE_LIMIT: usize = 256;
 
 // Artifact bodies fetched from a peer concurrently within a bootstrap page. Caps
 // open peer connections; staged bytes stay bounded by bootstrap_staging_budget.
 const BOOTSTRAP_ARTIFACT_FETCH_CONCURRENCY: usize = 16;
 const BOOTSTRAP_MEMORY_WINDOW_BYTES: u64 = 16 * 1024 * 1024;
 const BOOTSTRAP_CACHE_DROP_INTERVAL_BYTES: u64 = 8 * 1024 * 1024;
+const BOOTSTRAP_BACKPRESSURE_RETRY_BASE_MS: u64 = 250;
+const BOOTSTRAP_BACKPRESSURE_RETRY_MAX_MS: u64 = 5_000;
+const BOOTSTRAP_BACKPRESSURE_RETRY_JITTER_MS: u64 = 250;
 const OUTBOX_DRAIN_PAUSED_ACTION: &str = "outbox_drain_paused";
 
 #[derive(Debug, Deserialize)]
@@ -430,6 +437,7 @@ async fn bootstrap_manifests_from_peer(
     let prefix_len = BOOTSTRAP_DIGEST_DEFAULT_PREFIX_LEN;
     let mut applied = 0_u64;
     let mut failed = 0_u64;
+    let mut page_limit = BOOTSTRAP_MANIFEST_PAGE_LIMIT;
 
     // Range-based anti-entropy: exchange per-bucket digests and walk only the
     // buckets whose contents differ. For a mostly-in-sync pair this collapses a
@@ -460,14 +468,16 @@ async fn bootstrap_manifests_from_peer(
                 .set_bootstrap_pass_buckets_reconciled(peer, "digest", 0);
             let mut reconciled = 0;
             for prefix in divergent {
-                let (range_applied, range_failed) = bootstrap_manifest_range_from_peer(
-                    state,
-                    peer,
-                    Some(&prefix),
-                    "digest",
-                    progress,
-                )
-                .await?;
+                let (range_applied, range_failed) =
+                    bootstrap_manifest_range_from_peer_with_page_limit(
+                        state,
+                        peer,
+                        Some(&prefix),
+                        "digest",
+                        progress,
+                        &mut page_limit,
+                    )
+                    .await?;
                 applied += range_applied;
                 failed += range_failed;
                 reconciled += 1;
@@ -489,9 +499,15 @@ async fn bootstrap_manifests_from_peer(
             state
                 .metrics
                 .set_bootstrap_pass_buckets_reconciled(peer, "full_walk", 0);
-            let (range_applied, range_failed) =
-                bootstrap_manifest_range_from_peer(state, peer, None, "full_walk", progress)
-                    .await?;
+            let (range_applied, range_failed) = bootstrap_manifest_range_from_peer_with_page_limit(
+                state,
+                peer,
+                None,
+                "full_walk",
+                progress,
+                &mut page_limit,
+            )
+            .await?;
             applied += range_applied;
             failed += range_failed;
             state
@@ -503,8 +519,8 @@ async fn bootstrap_manifests_from_peer(
     // Surfaced as a failed bootstrap so the peer is retried, but only after this
     // pass has applied everything it could — that forward progress is what lets
     // a mutually-bootstrapping mesh converge instead of deadlocking. A peer is
-    // marked bootstrapped (and the node allowed to serve) only on a fully clean
-    // pass, so readiness still implies complete data.
+    // marked bootstrapped only on a fully clean pass, so rollout convergence
+    // remains distinct from a warm node serving while reconciliation continues.
     if failed > 0 {
         return Err(format!(
             "bootstrap from {peer} incomplete: {failed} artifact(s) failed this pass, {applied} applied; will retry"
@@ -540,6 +556,7 @@ fn divergent_prefixes(
 /// Walk the peer's manifest keyspace (optionally scoped to a single digest
 /// bucket prefix), pre-checking and fetching each artifact. Returns
 /// `(applied, failed)` for the caller to aggregate across ranges.
+#[cfg(test)]
 async fn bootstrap_manifest_range_from_peer(
     state: &SharedState,
     peer: &str,
@@ -550,6 +567,26 @@ async fn bootstrap_manifest_range_from_peer(
     mode: &'static str,
     progress: &AtomicU64,
 ) -> Result<(u64, u64), String> {
+    let mut page_limit = BOOTSTRAP_MANIFEST_PAGE_LIMIT;
+    bootstrap_manifest_range_from_peer_with_page_limit(
+        state,
+        peer,
+        prefix,
+        mode,
+        progress,
+        &mut page_limit,
+    )
+    .await
+}
+
+async fn bootstrap_manifest_range_from_peer_with_page_limit(
+    state: &SharedState,
+    peer: &str,
+    prefix: Option<&str>,
+    mode: &'static str,
+    progress: &AtomicU64,
+    page_limit: &mut usize,
+) -> Result<(u64, u64), String> {
     let mut after = None;
     let mut applied = 0_u64;
     let mut failed = 0_u64;
@@ -559,7 +596,10 @@ async fn bootstrap_manifest_range_from_peer(
         .set_bootstrap_current_bucket_manifests_walked(peer, mode, 0);
 
     loop {
-        let page = fetch_bootstrap_manifests_page(state, peer, after.as_deref(), prefix).await?;
+        let (page, accepted_page_limit) =
+            fetch_bootstrap_manifests_page(state, peer, after.as_deref(), prefix, *page_limit)
+                .await?;
+        *page_limit = accepted_page_limit;
         // Fetching a page is forward progress even when it applies nothing (a
         // warm re-walk or an already-present range), so the no-progress watchdog
         // never abandons a bootstrap that is still advancing through the walk.
@@ -706,137 +746,193 @@ async fn bootstrap_artifact_from_peer(
     peer: &str,
     manifest: &ArtifactManifest,
 ) -> Result<ArtifactApplyOutcome, String> {
-    // Single-flight the body download across peers. A fresh node bootstraps from
-    // every peer concurrently, and the mesh is near-fully overlapping, so absent
-    // this gate each peer-task would pull the same artifact and the node would
-    // transfer the whole dataset once per peer. Hold a per-artifact gate across
-    // the fetch+apply and re-check presence after acquiring it: the first
-    // peer-task to claim a key downloads it, and the rest observe it already
-    // applied and skip the network entirely. On failure the owner releases the
-    // gate with the key still absent, so the next waiter re-checks, sees the gap,
-    // and fetches it from its own peer — the dedup self-heals instead of
-    // stranding the artifact. The gate is bootstrap-scoped so it never blocks the
-    // live-replication apply path; the store's per-key apply lock remains the
-    // last-line write-dedup.
-    let _fetch_guard = state
-        .bootstrap_fetch_lock(&manifest.artifact_id)
-        .lock()
-        .await;
-    let recheck = state.store.artifact_apply_outcome(
-        manifest.producer,
-        &manifest.namespace_id,
-        &manifest.key,
-        manifest.version_ms,
-    )?;
-    if !recheck.applied() {
-        return Ok(recheck);
-    }
+    let mut backpressure_attempt = 0_u32;
+    loop {
+        // Single-flight the body download across peers. A fresh node bootstraps
+        // from every peer concurrently, and the mesh is near-fully overlapping,
+        // so absent this gate each peer-task would pull the same artifact and
+        // transfer the whole dataset once per peer. The presence check after
+        // acquiring the gate lets waiters skip a body another peer already
+        // applied. A failed owner releases the gate with the key still absent,
+        // so another peer can try instead of stranding the artifact. A
+        // backpressured owner also releases the gate before sleeping.
+        let fetch_guard = state
+            .bootstrap_fetch_lock(&manifest.artifact_id)
+            .lock()
+            .await;
+        let recheck = state.store.artifact_apply_outcome(
+            manifest.producer,
+            &manifest.namespace_id,
+            &manifest.key,
+            manifest.version_ms,
+        )?;
+        if !recheck.applied() {
+            return Ok(recheck);
+        }
 
-    // Limit the number of body streams that can advance concurrently from live
-    // container headroom, not only a static request count. The reservation is a
-    // window rather than the full object size because a valid artifact may be as
-    // large as the container; completed file-backed pages are released below as
-    // pressure rises.
-    let memory_window = manifest.size.clamp(1, BOOTSTRAP_MEMORY_WINDOW_BYTES);
-    let _memory_reservation = state
-        .memory
-        .reserve_background_transient(memory_window)
-        .await
-        .map_err(|()| "bootstrap memory admission closed".to_owned())?;
+        // Limit the number of body streams that can advance concurrently from
+        // live container headroom, not only a static request count. The
+        // reservation is a window rather than the full object size because a
+        // valid artifact may be as large as the container.
+        let memory_window = manifest.size.clamp(1, BOOTSTRAP_MEMORY_WINDOW_BYTES);
+        let memory_reservation = state
+            .memory
+            .reserve_background_transient(memory_window)
+            .await
+            .map_err(|()| "bootstrap memory admission closed".to_owned())?;
 
-    let url = format!(
-        "{peer}/_internal/bootstrap/artifacts/{}",
-        url_encode(&manifest.artifact_id)
-    );
-    let response = state
-        .client()
-        .get(&url)
-        .send()
-        .await
-        .map_err(|error| format!("bootstrap artifact request failed: {error:?}"))?;
-    // The peer advertised this artifact in a manifest page but no longer serves
-    // the body (e.g. it evicted the segment between the two round trips). Not a
-    // version comparison, so it must not be reported as version skew.
-    if response.status() == reqwest::StatusCode::NOT_FOUND {
-        return Ok(ArtifactApplyOutcome::IgnoredMissing);
-    }
-    let response = response
-        .error_for_status()
-        .map_err(|error| format!("bootstrap artifact response failed: {error}"))?;
+        let url = format!(
+            "{peer}/_internal/bootstrap/artifacts/{}",
+            url_encode(&manifest.artifact_id)
+        );
+        let request_started_at = Instant::now();
+        let response = state
+            .client()
+            .get(&url)
+            .send()
+            .await
+            .map_err(|error| format!("bootstrap artifact request failed: {error:?}"))?;
+        if is_retryable_bootstrap_backpressure(&response) {
+            let delay = bootstrap_backpressure_retry_delay(
+                &response,
+                backpressure_attempt,
+                &state.config.node_url,
+                manifest,
+            );
+            state.metrics.record_replication(
+                peer,
+                "bootstrap_fetch",
+                "backpressure",
+                request_started_at.elapsed(),
+            );
+            backpressure_attempt = backpressure_attempt.saturating_add(1);
+            drop(response);
+            drop(memory_reservation);
+            drop(fetch_guard);
+            sleep(delay).await;
+            continue;
+        }
 
-    if manifest.inline {
-        let bytes = read_bounded_body(
-            response,
-            MAX_INLINE_REPLICATION_BODY_BYTES,
-            "bootstrap inline artifact",
-        )
-        .await?;
+        // The peer advertised this artifact in a manifest page but no longer
+        // serves the body, for example because it evicted the segment between
+        // the two round trips. This is not version skew.
+        if response.status() == reqwest::StatusCode::NOT_FOUND {
+            return Ok(ArtifactApplyOutcome::IgnoredMissing);
+        }
+        let response = response
+            .error_for_status()
+            .map_err(|error| format!("bootstrap artifact response failed: {error}"))?;
+
+        if manifest.inline {
+            let bytes = read_bounded_body(
+                response,
+                MAX_INLINE_REPLICATION_BODY_BYTES,
+                "bootstrap inline artifact",
+            )
+            .await?;
+            state
+                .store
+                .hit_failpoint(FailpointName::AfterBootstrapArtifactFetchBeforePersist)
+                .await?;
+            return state
+                .store
+                .apply_replicated_inline_artifact_from_bytes(
+                    manifest.producer,
+                    &manifest.namespace_id,
+                    &manifest.key,
+                    &manifest.content_type,
+                    bytes.as_ref(),
+                    manifest.version_ms,
+                    // The peer's manifest page carries the tag (an old peer's
+                    // page simply omits it), so a bootstrapped entry keeps the
+                    // branch it was published on instead of landing untagged in
+                    // this node's trunk baseline. No trunk is supplied because
+                    // bootstrap copies the peer's view rather than arbitrating
+                    // between publishes.
+                    manifest.branch.as_deref(),
+                    None,
+                )
+                .await;
+        }
+
+        let declared_bytes = response.content_length();
+        if let Some(declared) = declared_bytes
+            && declared > MAX_REPLICATION_BODY_BYTES
+        {
+            return Err(format!(
+                "bootstrap artifact response declared {declared} bytes, exceeds limit of {MAX_REPLICATION_BODY_BYTES}"
+            ));
+        }
+        // Reserve for the larger of the manifest size and the peer's declared
+        // body so an inconsistent peer cannot stage more bytes than accounted.
+        let reserved_bytes = manifest
+            .size
+            .max(declared_bytes.unwrap_or(0))
+            .min(MAX_REPLICATION_BODY_BYTES);
+        // Waiting when the budget is full serializes bounded staging. Rejecting
+        // at the limit would fail the next artifact in every large bootstrap.
+        let _staging_reservation = state.bootstrap_staging_budget.reserve(reserved_bytes).await;
+        let disk_reservation = state.tmp_staging_budget.try_reserve(reserved_bytes)?;
+        let temp_path = temp_file_path(&state.config.tmp_dir.join("bootstrap"), "bootstrap");
+        let mut cleanup = TempFileCleanup::new(temp_path.clone(), disk_reservation);
+        stream_response_to_temp(state, response, &temp_path, reserved_bytes).await?;
         state
             .store
             .hit_failpoint(FailpointName::AfterBootstrapArtifactFetchBeforePersist)
             .await?;
-        return state
+        let result = state
             .store
-            .apply_replicated_inline_artifact_from_bytes(
+            .apply_replicated_artifact_from_path(
                 manifest.producer,
                 &manifest.namespace_id,
                 &manifest.key,
                 &manifest.content_type,
-                bytes.as_ref(),
+                StagedArtifactPath::new(&temp_path, FileCachePolicy::Bounded),
                 manifest.version_ms,
-                // The peer's manifest page carries the tag (an old peer's page
-                // simply omits it), so a bootstrapped entry keeps the branch it
-                // was published on instead of landing untagged in this node's
-                // trunk baseline. No trunk: bootstrap copies the peer's view
-                // rather than arbitrating between publishes.
-                manifest.branch.as_deref(),
-                None,
             )
             .await;
+        cleanup.remove_and_disarm(&state.io).await;
+        return result;
     }
+}
 
-    let declared_bytes = response.content_length();
-    if let Some(declared) = declared_bytes
-        && declared > MAX_REPLICATION_BODY_BYTES
-    {
-        return Err(format!(
-            "bootstrap artifact response declared {declared} bytes, exceeds limit of {MAX_REPLICATION_BODY_BYTES}"
-        ));
-    }
-    // Reserve for the larger of the manifest size and the peer's declared body
-    // so an inconsistent peer can't stage more bytes than we accounted for.
-    let reserved_bytes = manifest
-        .size
-        .max(declared_bytes.unwrap_or(0))
-        .min(MAX_REPLICATION_BODY_BYTES);
-    // reserve() waits when the budget is full, so peak concurrent staging never
-    // exceeds it however large the account is. A whole-dir hard check here is
-    // wrong: when bootstrap legitimately fills the budget it would reject the
-    // next artifact and fail the whole bootstrap, reintroducing the stall this
-    // reservation exists to prevent. (The node is out of the Service while
-    // bootstrapping, so non-bootstrap tmp occupants are negligible.)
-    let _staging_reservation = state.bootstrap_staging_budget.reserve(reserved_bytes).await;
-    let disk_reservation = state.tmp_staging_budget.try_reserve(reserved_bytes)?;
-    let temp_path = temp_file_path(&state.config.tmp_dir.join("bootstrap"), "bootstrap");
-    let mut cleanup = TempFileCleanup::new(temp_path.clone(), disk_reservation);
-    stream_response_to_temp(state, response, &temp_path, reserved_bytes).await?;
-    state
-        .store
-        .hit_failpoint(FailpointName::AfterBootstrapArtifactFetchBeforePersist)
-        .await?;
-    let result = state
-        .store
-        .apply_replicated_artifact_from_path(
-            manifest.producer,
-            &manifest.namespace_id,
-            &manifest.key,
-            &manifest.content_type,
-            StagedArtifactPath::new(&temp_path, FileCachePolicy::Bounded),
-            manifest.version_ms,
-        )
-        .await;
-    cleanup.remove_and_disarm(&state.io).await;
-    result
+fn is_retryable_bootstrap_backpressure(response: &reqwest::Response) -> bool {
+    response.status() == reqwest::StatusCode::TOO_MANY_REQUESTS
+        || (response.status() == reqwest::StatusCode::SERVICE_UNAVAILABLE
+            && response.headers().contains_key(RETRY_AFTER))
+}
+
+fn bootstrap_backpressure_retry_delay(
+    response: &reqwest::Response,
+    attempt: u32,
+    node_url: &str,
+    manifest: &ArtifactManifest,
+) -> Duration {
+    let exponent = attempt.min(4);
+    let exponential_ms = BOOTSTRAP_BACKPRESSURE_RETRY_BASE_MS
+        .saturating_mul(1_u64 << exponent)
+        .min(BOOTSTRAP_BACKPRESSURE_RETRY_MAX_MS);
+    let retry_after_ms = response
+        .headers()
+        .get(RETRY_AFTER)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.parse::<u64>().ok())
+        .map(|seconds| seconds.saturating_mul(1_000))
+        .unwrap_or_default()
+        .min(BOOTSTRAP_BACKPRESSURE_RETRY_MAX_MS);
+    let jitter_ms =
+        bootstrap_backpressure_retry_jitter_ms(attempt, node_url, &manifest.artifact_id);
+    Duration::from_millis(exponential_ms.max(retry_after_ms).saturating_add(jitter_ms))
+}
+
+fn bootstrap_backpressure_retry_jitter_ms(attempt: u32, node_url: &str, artifact_id: &str) -> u64 {
+    let jitter_seed = node_url
+        .bytes()
+        .chain(artifact_id.bytes())
+        .fold(u64::from(attempt), |hash, byte| {
+            hash.wrapping_mul(31).wrapping_add(u64::from(byte))
+        });
+    jitter_seed % BOOTSTRAP_BACKPRESSURE_RETRY_JITTER_MS
 }
 
 async fn stream_response_to_temp(
@@ -929,8 +1025,38 @@ async fn fetch_bootstrap_manifests_page(
     peer: &str,
     after: Option<&str>,
     prefix: Option<&str>,
-) -> Result<ManifestPage, String> {
-    let mut url = format!("{peer}/_internal/bootstrap/manifests?limit={BOOTSTRAP_PAGE_LIMIT}");
+    requested_limit: usize,
+) -> Result<(ManifestPage, usize), String> {
+    let mut accepted_limit = requested_limit;
+    let mut response =
+        request_bootstrap_manifests_page(state, peer, after, prefix, accepted_limit).await?;
+    if response.status() == reqwest::StatusCode::BAD_REQUEST
+        && accepted_limit > BOOTSTRAP_LEGACY_PAGE_LIMIT
+    {
+        accepted_limit = BOOTSTRAP_LEGACY_PAGE_LIMIT;
+        info!(
+            "bootstrap peer {peer} rejected {requested_limit}-manifest pages; falling back to {accepted_limit}"
+        );
+        response =
+            request_bootstrap_manifests_page(state, peer, after, prefix, accepted_limit).await?;
+    }
+    let response = response
+        .error_for_status()
+        .map_err(|error| format!("bootstrap manifest response failed: {error}"))?;
+    let bytes = read_bounded_body(response, MAX_BOOTSTRAP_PAGE_BYTES, "bootstrap manifest").await?;
+    serde_json::from_slice(&bytes)
+        .map(|page| (page, accepted_limit))
+        .map_err(|error| format!("failed to decode bootstrap manifest page: {error}"))
+}
+
+async fn request_bootstrap_manifests_page(
+    state: &SharedState,
+    peer: &str,
+    after: Option<&str>,
+    prefix: Option<&str>,
+    limit: usize,
+) -> Result<reqwest::Response, String> {
+    let mut url = format!("{peer}/_internal/bootstrap/manifests?limit={limit}");
     if let Some(after) = after {
         url.push_str("&after=");
         url.push_str(&url_encode(after));
@@ -940,17 +1066,12 @@ async fn fetch_bootstrap_manifests_page(
         url.push_str(&url_encode(prefix));
     }
 
-    let response = state
+    state
         .client()
         .get(&url)
         .send()
         .await
-        .map_err(|error| format!("bootstrap manifest request failed: {error}"))?
-        .error_for_status()
-        .map_err(|error| format!("bootstrap manifest response failed: {error}"))?;
-    let bytes = read_bounded_body(response, MAX_BOOTSTRAP_PAGE_BYTES, "bootstrap manifest").await?;
-    serde_json::from_slice(&bytes)
-        .map_err(|error| format!("failed to decode bootstrap manifest page: {error}"))
+        .map_err(|error| format!("bootstrap manifest request failed: {error}"))
 }
 
 /// Fetch the peer's per-bucket manifest digest for range-based anti-entropy.
@@ -993,8 +1114,9 @@ async fn fetch_bootstrap_tombstones_page(
     peer: &str,
     after: Option<&str>,
 ) -> Result<NamespaceTombstonePage, String> {
-    let mut url =
-        format!("{peer}/_internal/bootstrap/namespace_tombstones?limit={BOOTSTRAP_PAGE_LIMIT}");
+    let mut url = format!(
+        "{peer}/_internal/bootstrap/namespace_tombstones?limit={BOOTSTRAP_LEGACY_PAGE_LIMIT}"
+    );
     if let Some(after) = after {
         url.push_str("&after=");
         url.push_str(&url_encode(after));
@@ -2561,6 +2683,340 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn bootstrap_retries_peer_backpressure_without_rewalking_the_pass() {
+        use std::sync::{
+            Arc,
+            atomic::{AtomicUsize, Ordering},
+        };
+
+        use axum::{
+            body::Body,
+            extract::Request,
+            middleware::{self, Next},
+            response::Response,
+        };
+
+        let remote = test_context(|_| {}).await;
+        remote
+            .state
+            .store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Gradle,
+                "ios",
+                "artifact",
+                "application/octet-stream",
+                b"payload",
+            )
+            .await
+            .expect("remote artifact should persist");
+
+        let attempts = Arc::new(AtomicUsize::new(0));
+        let observed_attempts = attempts.clone();
+        let app = router(remote.state.clone()).layer(middleware::from_fn(
+            move |request: Request, next: Next| {
+                let attempts = attempts.clone();
+                async move {
+                    if request
+                        .uri()
+                        .path()
+                        .starts_with("/_internal/bootstrap/artifacts/")
+                        && attempts.fetch_add(1, Ordering::SeqCst) < 2
+                    {
+                        return Response::builder()
+                            .status(StatusCode::SERVICE_UNAVAILABLE)
+                            .header(RETRY_AFTER, "0")
+                            .body(Body::from("retry shortly"))
+                            .unwrap();
+                    }
+                    next.run(request).await
+                }
+            },
+        ));
+        let (remote_url, _server) = spawn_server(app).await;
+
+        let local = test_context(|_| {}).await;
+        let applied = tokio::time::timeout(
+            Duration::from_secs(5),
+            bootstrap_manifests_from_peer(&local.state, &remote_url, &AtomicU64::new(0)),
+        )
+        .await
+        .expect("bootstrap should not stall under transient peer backpressure")
+        .expect("bootstrap should retry the same artifact to completion");
+
+        assert_eq!(applied, 1);
+        assert_eq!(observed_attempts.load(Ordering::SeqCst), 3);
+        assert!(
+            local
+                .state
+                .store
+                .fetch_artifact(ArtifactProducer::Gradle, "ios", "artifact")
+                .await
+                .expect("artifact fetch should succeed")
+                .is_some()
+        );
+    }
+
+    #[test]
+    fn backpressure_retry_jitter_is_node_specific() {
+        let artifact_id = "shared-artifact";
+        let first = bootstrap_backpressure_retry_jitter_ms(
+            2,
+            "https://kura-tuist-eu-central-1-0.example",
+            artifact_id,
+        );
+        let second = bootstrap_backpressure_retry_jitter_ms(
+            2,
+            "https://kura-tuist-eu-central-1-1.example",
+            artifact_id,
+        );
+
+        assert_ne!(
+            first, second,
+            "joining nodes should not retry the same artifact in lockstep"
+        );
+        assert_eq!(
+            first,
+            bootstrap_backpressure_retry_jitter_ms(
+                2,
+                "https://kura-tuist-eu-central-1-0.example",
+                artifact_id,
+            ),
+            "each node should retain deterministic retry timing"
+        );
+    }
+
+    #[tokio::test]
+    async fn backpressured_peer_releases_fetch_gate_for_another_peer() {
+        use std::sync::{
+            Arc,
+            atomic::{AtomicUsize, Ordering},
+        };
+
+        let backpressure_attempts = Arc::new(AtomicUsize::new(0));
+        let attempts = backpressure_attempts.clone();
+        let backpressured_app = Router::new().route(
+            "/_internal/bootstrap/artifacts/{artifact_id}",
+            get(move |AxumPath(_artifact_id): AxumPath<String>| {
+                let attempts = attempts.clone();
+                async move {
+                    attempts.fetch_add(1, Ordering::SeqCst);
+                    (
+                        StatusCode::SERVICE_UNAVAILABLE,
+                        [(RETRY_AFTER, "1")],
+                        "retry shortly",
+                    )
+                }
+            }),
+        );
+        let (backpressured_url, _backpressured_server) = spawn_server(backpressured_app).await;
+        let available_app = Router::new().route(
+            "/_internal/bootstrap/artifacts/{artifact_id}",
+            get(|| async { (StatusCode::OK, b"payload".to_vec()) }),
+        );
+        let (available_url, _available_server) = spawn_server(available_app).await;
+
+        let local = test_context(|_| {}).await;
+        let manifest = bootstrap_test_manifest(
+            ArtifactProducer::Gradle,
+            false,
+            "ios",
+            "artifact",
+            "application/octet-stream",
+            b"payload".len() as u64,
+            100,
+        );
+
+        let backpressured_task = {
+            let state = local.state.clone();
+            let manifest = manifest.clone();
+            tokio::spawn(async move {
+                bootstrap_artifact_from_peer(&state, &backpressured_url, &manifest).await
+            })
+        };
+        tokio::time::timeout(Duration::from_secs(1), async {
+            while backpressure_attempts.load(Ordering::SeqCst) == 0 {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("the backpressured peer should receive an attempt");
+
+        let available_outcome = tokio::time::timeout(
+            Duration::from_millis(500),
+            bootstrap_artifact_from_peer(&local.state, &available_url, &manifest),
+        )
+        .await
+        .expect("another peer should not wait behind the backpressure delay")
+        .expect("the available peer should satisfy the artifact");
+        assert_eq!(available_outcome, ArtifactApplyOutcome::Applied);
+
+        let backpressured_outcome =
+            tokio::time::timeout(Duration::from_secs(2), backpressured_task)
+                .await
+                .expect("the backpressured task should re-check after its delay")
+                .expect("the backpressured task should not panic")
+                .expect("the peer should observe that another peer applied the artifact");
+        assert_eq!(backpressured_outcome, ArtifactApplyOutcome::IgnoredEqual);
+        assert_eq!(backpressure_attempts.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn bootstrap_does_not_retry_a_draining_peer() {
+        use std::sync::{
+            Arc,
+            atomic::{AtomicUsize, Ordering},
+        };
+
+        let attempts = Arc::new(AtomicUsize::new(0));
+        let observed_attempts = attempts.clone();
+        let app = Router::new().route(
+            "/_internal/bootstrap/artifacts/{artifact_id}",
+            get(move |AxumPath(_artifact_id): AxumPath<String>| {
+                let attempts = attempts.clone();
+                async move {
+                    attempts.fetch_add(1, Ordering::SeqCst);
+                    (StatusCode::SERVICE_UNAVAILABLE, "server is draining")
+                }
+            }),
+        );
+        let (remote_url, _server) = spawn_server(app).await;
+        let local = test_context(|_| {}).await;
+        let manifest = bootstrap_test_manifest(
+            ArtifactProducer::Gradle,
+            false,
+            "ios",
+            "artifact",
+            "application/octet-stream",
+            b"payload".len() as u64,
+            100,
+        );
+
+        let error = bootstrap_artifact_from_peer(&local.state, &remote_url, &manifest)
+            .await
+            .expect_err("draining is a peer lifecycle signal, not response backpressure");
+
+        assert!(error.contains("503 Service Unavailable"));
+        assert_eq!(observed_attempts.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn persistent_peer_backpressure_is_bounded_by_the_no_progress_watchdog() {
+        use std::sync::{
+            Arc,
+            atomic::{AtomicUsize, Ordering},
+        };
+
+        let manifest = bootstrap_test_manifest(
+            ArtifactProducer::Gradle,
+            false,
+            "ios",
+            "artifact",
+            "application/octet-stream",
+            b"payload".len() as u64,
+            100,
+        );
+        let manifest_page = ManifestPage {
+            manifests: vec![manifest],
+            next_after: None,
+        };
+        let attempts = Arc::new(AtomicUsize::new(0));
+        let observed_attempts = attempts.clone();
+        let app = Router::new()
+            .route(
+                "/_internal/bootstrap/namespace_tombstones",
+                get(|| async {
+                    Json(NamespaceTombstonePage {
+                        tombstones: Vec::new(),
+                        next_after: None,
+                    })
+                }),
+            )
+            .route(
+                "/_internal/bootstrap/manifests",
+                get(move || {
+                    let manifest_page = manifest_page.clone();
+                    async move { Json(manifest_page) }
+                }),
+            )
+            .route(
+                "/_internal/bootstrap/artifacts/{artifact_id}",
+                get(move |AxumPath(_artifact_id): AxumPath<String>| {
+                    let attempts = attempts.clone();
+                    async move {
+                        attempts.fetch_add(1, Ordering::SeqCst);
+                        (
+                            StatusCode::SERVICE_UNAVAILABLE,
+                            [(RETRY_AFTER, "0")],
+                            "retry shortly",
+                        )
+                    }
+                }),
+            );
+        let (remote_url, _server) = spawn_server(app).await;
+        let local = test_context(|_| {}).await;
+
+        let error = tokio::time::timeout(
+            Duration::from_secs(2),
+            bootstrap_from_peer_with_watchdog(
+                &local.state,
+                &remote_url,
+                Duration::from_millis(100),
+            ),
+        )
+        .await
+        .expect("the watchdog should bound a persistently backpressured peer")
+        .expect_err("persistent backpressure should abandon this attempt");
+
+        assert!(error.contains("made no progress"));
+        assert!(observed_attempts.load(Ordering::SeqCst) >= 1);
+    }
+
+    #[tokio::test]
+    async fn bootstrap_reads_continue_from_a_memory_constrained_peer() {
+        let remote = test_context(|_| {}).await;
+        remote
+            .state
+            .store
+            .persist_artifact_from_bytes(
+                ArtifactProducer::Gradle,
+                "ios",
+                "artifact",
+                "application/octet-stream",
+                b"payload",
+            )
+            .await
+            .expect("remote artifact should persist");
+        assert_eq!(
+            remote
+                .state
+                .memory
+                .observe(remote.state.config.memory_soft_limit_bytes),
+            crate::memory::MemoryPressure::Constrained
+        );
+        let (remote_url, _server) = spawn_server(router(remote.state.clone())).await;
+
+        let local = test_context(|_| {}).await;
+        let applied = tokio::time::timeout(
+            Duration::from_secs(5),
+            bootstrap_manifests_from_peer(&local.state, &remote_url, &AtomicU64::new(0)),
+        )
+        .await
+        .expect("constrained peer serving should remain live")
+        .expect("bounded bootstrap reads should be served while constrained");
+
+        assert_eq!(applied, 1);
+        assert!(
+            local
+                .state
+                .store
+                .fetch_artifact(ArtifactProducer::Gradle, "ios", "artifact")
+                .await
+                .expect("artifact fetch should succeed")
+                .is_some()
+        );
+    }
+
+    #[tokio::test]
     async fn bootstrap_skips_oversized_inline_artifacts_instead_of_wedging() {
         let remote = test_context(|_| {}).await;
         remote
@@ -2960,6 +3416,77 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn bootstrap_negotiates_manifest_pages_down_once_for_an_older_peer() {
+        use std::sync::{
+            Arc,
+            atomic::{AtomicUsize, Ordering},
+        };
+
+        use axum::{
+            extract::Request,
+            middleware::{self, Next},
+            response::IntoResponse,
+        };
+
+        let remote = test_context(|_| {}).await;
+        for index in 0..16 {
+            remote
+                .state
+                .store
+                .persist_artifact_from_bytes(
+                    ArtifactProducer::Xcode,
+                    "ios",
+                    &format!("artifact-{index}"),
+                    "application/octet-stream",
+                    b"payload",
+                )
+                .await
+                .expect("remote artifact should persist");
+        }
+
+        let preferred_requests = Arc::new(AtomicUsize::new(0));
+        let legacy_requests = Arc::new(AtomicUsize::new(0));
+        let preferred = preferred_requests.clone();
+        let legacy = legacy_requests.clone();
+        let peer_router = router(remote.state.clone()).layer(middleware::from_fn(
+            move |request: Request, next: Next| {
+                let preferred = preferred.clone();
+                let legacy = legacy.clone();
+                async move {
+                    if request.uri().path() == "/_internal/bootstrap/manifests" {
+                        let query = request.uri().query().unwrap_or_default();
+                        if query.contains(&format!("limit={BOOTSTRAP_MANIFEST_PAGE_LIMIT}")) {
+                            preferred.fetch_add(1, Ordering::SeqCst);
+                            return StatusCode::BAD_REQUEST.into_response();
+                        }
+                        if query.contains(&format!("limit={BOOTSTRAP_LEGACY_PAGE_LIMIT}")) {
+                            legacy.fetch_add(1, Ordering::SeqCst);
+                        }
+                    }
+                    next.run(request).await
+                }
+            },
+        ));
+        let (remote_url, _server) = spawn_server(peer_router).await;
+
+        let local = test_context(|_| {}).await;
+        let applied = bootstrap_manifests_from_peer(&local.state, &remote_url, &AtomicU64::new(0))
+            .await
+            .expect("bootstrap should negotiate the older page limit");
+
+        assert_eq!(applied, 16);
+        assert_eq!(
+            preferred_requests.load(Ordering::SeqCst),
+            1,
+            "the preferred size should only be probed once per peer pass"
+        );
+        assert!(
+            legacy_requests.load(Ordering::SeqCst) > 1,
+            "all remaining divergent ranges should retain the negotiated legacy size"
+        );
+    }
+
+    #[tokio::test]
     async fn range_digest_reconciles_a_mostly_in_sync_pair_by_walking_only_the_delta() {
         use std::sync::{
             Arc,
@@ -2976,9 +3503,9 @@ mod tests {
         // node already holds almost all of. Prod is ~1.4M artifacts / 4096
         // buckets, ~99% in sync; this spans many buckets and forces the legacy
         // full walk into several pages while staying fast. Keep it a multiple of
-        // BOOTSTRAP_PAGE_LIMIT above 1 so the full walk stays multi-page — the
+        // BOOTSTRAP_MANIFEST_PAGE_LIMIT above 1 so the full walk stays multi-page — the
         // A/B assertion below is only meaningful while it is.
-        const TOTAL: usize = 4 * BOOTSTRAP_PAGE_LIMIT;
+        const TOTAL: usize = 4 * BOOTSTRAP_MANIFEST_PAGE_LIMIT;
         const MISSING: usize = 2;
 
         let remote = test_context(|_| {}).await;
@@ -3164,7 +3691,7 @@ mod tests {
         }
 
         let full_page_count = full_pages.load(Ordering::SeqCst);
-        let expected_full_walk = TOTAL.div_ceil(BOOTSTRAP_PAGE_LIMIT);
+        let expected_full_walk = TOTAL.div_ceil(BOOTSTRAP_MANIFEST_PAGE_LIMIT);
         assert_eq!(
             full_page_count, expected_full_walk,
             "legacy walk pages the entire keyspace"
@@ -3373,7 +3900,7 @@ mod tests {
             response::IntoResponse,
         };
 
-        // Fewer artifacts than BOOTSTRAP_PAGE_LIMIT, so the walk is a single
+        // Fewer artifacts than BOOTSTRAP_MANIFEST_PAGE_LIMIT, so the walk is a single
         // page, each body fetch delayed. At concurrency 16 that page takes
         // ~16*40ms to drain — many watchdog windows — with no page boundary in
         // between.

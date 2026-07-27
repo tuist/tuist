@@ -463,50 +463,18 @@ Deleting a Node object is safe — CAPI re-creates it on the next reconcile if t
 
 When a chart bump changes `postInstallScript` (or any
 `KubeadmConfigTemplate` / `HetznerBareMetalMachineTemplate` field) and
-you need it to take effect before natural Node churn, force a
-re-install. Work against the **mgmt** kubeconfig:
+you need it to take effect before natural Node churn, replace the
+Cluster API Machine and force a physical-host reinstall.
 
-```bash
-export KUBECONFIG=~/.kube/tuist-mgmt.yaml
-CLUSTER=staging  # or canary / production
+For production, use the `Mgmt Cluster Apply` GitHub Actions workflow
+only for declarative management-cluster state. Production runner-node
+replacement is not automated because the two-node fleet has no spare
+physical host for a current-revision Machine to claim. See
+[`clusters/README.md`](clusters/README.md#replacing-a-production-runner-node)
+for the spare-host prerequisite.
 
-# Find the HBM bound to the cluster's HBMM, and snapshot its
-# creationTimestamp — that's how we'll know the controller has
-# re-created it (the HBMM name stays the same on re-bind).
-HBMM=$(kubectl get hetznerbaremetalmachine -n org-tuist \
-  -l cluster.x-k8s.io/cluster-name=tuist-$CLUSTER \
-  -o jsonpath='{.items[0].metadata.name}')
-HBM=$(kubectl get hetznerbaremetalhost -n org-tuist \
-  -o jsonpath="{.items[?(@.spec.consumerRef.name=='$HBMM')].metadata.name}")
-OLD_TS=$(kubectl get hetznerbaremetalhost -n org-tuist $HBM \
-  -o jsonpath='{.metadata.creationTimestamp}')
-
-# Delete the HBM (NOT the HBMM): caph fast-rebinds a fresh HBMM to
-# an already-provisioned HBM without re-running installimage, so
-# only deleting the HBM forces caph to discard the OS state.
-kubectl delete hetznerbaremetalhost -n org-tuist $HBM --wait=false --timeout=2m
-# Strip caph's finalizer if the HBMM still references the HBM after
-# 2 min — otherwise the HBM lingers and `hetzner-robot-controller`
-# can't re-create it cleanly.
-kubectl patch hetznerbaremetalhost -n org-tuist $HBM \
-  -p '{"metadata":{"finalizers":[]}}' --type=merge 2>/dev/null || true
-
-# Wait ~8–15 min for the full cycle:
-#   (empty) → preparing → registering → image-installing →
-#   ensure-provisioned → provisioned → kubeadm-joined
-# Watch for a fresh creationTimestamp AND HBMM Ready=true:
-while sleep 30; do
-  NEW=$(kubectl get hetznerbaremetalhost -n org-tuist -o jsonpath='{.items[0].metadata.creationTimestamp}')
-  READY=$(kubectl get hetznerbaremetalmachine -n org-tuist \
-    -l cluster.x-k8s.io/cluster-name=tuist-$CLUSTER \
-    -o jsonpath='{.items[0].status.ready}')
-  echo "$(date +%H:%M:%S) ts=$NEW ready=$READY"
-  [ "$NEW" != "$OLD_TS" ] && [ "$READY" = "true" ] && break
-done
-```
-
-Bare-metal Nodes carry `tuist.dev/runner-tier=bare-metal:NoSchedule`,
-so the only workload on them is idempotent runner Pods — no need to
-cordon/drain. The autoscaler reconverges replica count automatically
-after the new Node joins. Run a smoke afterward
-(`linux-runners-staging-smoke.yml`) to confirm the new bootstrap is healthy.
+Do not delete a production host directly from a management kubeconfig.
+Runner pods may be processing customer jobs. Deleting a claimed
+`HetznerBareMetalHost` also leaves the infrastructure provider
+reconciling a missing reference, and deleting a Machine from an
+outdated MachineSet can recreate the same outdated revision.

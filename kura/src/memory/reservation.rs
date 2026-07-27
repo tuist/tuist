@@ -28,6 +28,7 @@ pub(super) const DEGRADED_RESPONSE_STREAM_SLOT_TIMEOUT: Duration = Duration::fro
 pub(super) enum AdmissionClass {
     Foreground,
     Background,
+    PeerResponse,
 }
 
 pub struct MemoryPermit {

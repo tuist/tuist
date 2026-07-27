@@ -562,11 +562,11 @@ spec:
           # gets cleared. Critical fields below are required for kubelet
           # to talk to containerd (containerRuntimeEndpoint), watch
           # static pods (staticPodPath), and resolve in-cluster DNS
-          # (clusterDNS / clusterDomain). resolvConf is intentionally
-          # unset so kubelet falls back to the host's /etc/resolv.conf,
-          # which DHCP populates with Hetzner's resolvers (185.12.64.1,
-          # 185.12.64.2 + IPv6) — multi-IP, dual-stack, one network hop
-          # away.
+          # (clusterDNS / clusterDomain). resolvConf must point at the
+          # systemd-resolved upstream file. /etc/resolv.conf points at
+          # the host-local 127.0.0.53 stub, which is unreachable from a
+          # pod network namespace and makes CoreDNS detect a forwarding
+          # loop when it is scheduled on that node.
           - content: |
               apiVersion: kubelet.config.k8s.io/v1beta1
               kind: KubeletConfiguration
@@ -757,8 +757,10 @@ spec:
           owner: root:root
           path: /etc/sysctl.d/99-kubelet.conf
           permissions: "0744"
-        # See KCP files block above for why these fields are mandatory
-        # and why resolvConf is intentionally unset.
+        # See the control-plane files block above for why these fields
+        # are mandatory. CoreDNS receives explicit upstream resolvers
+        # from the workload bootstrap so it does not depend on this
+        # worker's host-local systemd-resolved stub.
         - content: |
             apiVersion: kubelet.config.k8s.io/v1beta1
             kind: KubeletConfiguration

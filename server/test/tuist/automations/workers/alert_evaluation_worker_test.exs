@@ -8,6 +8,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
   alias Tuist.Automations.Workers.AlertEvaluationWorker
   alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
+  alias Tuist.Repo
   alias Tuist.Tests
   alias Tuist.Tests.TestCaseRun
   alias TuistTestSupport.Fixtures.AutomationsFixtures
@@ -52,6 +53,37 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     automation = AutomationsFixtures.automation_alert_fixture(enabled: false)
     reject(&FlakyTestsMonitor.evaluate/1)
     assert :ok = run(automation.id)
+  end
+
+  test "skips an unsupported rolling trigger without failing the job" do
+    automation =
+      AutomationsFixtures.automation_alert_fixture(
+        trigger_config: %{
+          "threshold" => 10,
+          "window_type" => "rolling",
+          "rolling_window_size" => 75
+        }
+      )
+
+    automation
+    |> Ecto.Changeset.change(
+      trigger_config: %{
+        "threshold" => 10,
+        "window_type" => "rolling",
+        "rolling_window_size" => 76
+      }
+    )
+    |> Repo.update!()
+
+    reject(&FlakyTestsMonitor.evaluate/1)
+
+    log =
+      ExUnit.CaptureLog.capture_log(fn ->
+        assert :ok = run(automation.id)
+      end)
+
+    assert log =~ "Skipping automation alert #{automation.id}"
+    assert log =~ "rolling trigger windows must be between 1 and 75"
   end
 
   test "executes trigger actions for newly triggered test cases and creates alert" do
@@ -213,6 +245,92 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     assert {:ok, updated_second_alert} = Automations.get_alert(second_alert.id)
     assert updated_first_alert.last_scoped_evaluation_inserted_at == ~U[2026-06-09 10:00:10Z]
     assert updated_second_alert.last_scoped_evaluation_inserted_at == ~U[2026-06-09 10:00:02Z]
+  end
+
+  test "project-scoped job isolates an unsupported alert from valid alerts" do
+    project = ProjectsFixtures.project_fixture()
+
+    valid_alert =
+      AutomationsFixtures.automation_alert_fixture(
+        project: project,
+        monitor_type: "flakiness_rate",
+        trigger_config: %{
+          "threshold" => 5,
+          "comparison" => "gte",
+          "window_type" => "rolling",
+          "rolling_window_size" => 75
+        }
+      )
+
+    second_valid_alert =
+      AutomationsFixtures.automation_alert_fixture(
+        project: project,
+        monitor_type: "flakiness_rate",
+        trigger_config: %{
+          "threshold" => 15,
+          "comparison" => "gte",
+          "window_type" => "rolling",
+          "rolling_window_size" => 75
+        }
+      )
+
+    unsupported_alert =
+      AutomationsFixtures.automation_alert_fixture(
+        project: project,
+        monitor_type: "flakiness_rate",
+        trigger_config: %{
+          "threshold" => 20,
+          "comparison" => "gte",
+          "window_type" => "rolling",
+          "rolling_window_size" => 75
+        }
+      )
+
+    unsupported_alert
+    |> Ecto.Changeset.change(
+      trigger_config: %{
+        "threshold" => 20,
+        "comparison" => "gte",
+        "window_type" => "rolling",
+        "rolling_window_size" => 76
+      }
+    )
+    |> Repo.update!()
+
+    test_case_id = Ecto.UUID.generate()
+
+    expect(ClickHouseRepo, :all, fn _query ->
+      [%{test_case_id: test_case_id, last_inserted_at: ~N[2026-06-09 10:00:02]}]
+    end)
+
+    reject(&FlakyTestsMonitor.evaluate/2)
+
+    expect(FlakyTestsMonitor, :evaluate_rolling_alerts, fn alerts, [^test_case_id] ->
+      assert MapSet.new(alerts, & &1.id) == MapSet.new([valid_alert.id, second_valid_alert.id])
+      %{valid_alert.id => [], second_valid_alert.id => []}
+    end)
+
+    expect(Automations, :list_active_alert_events, 2, fn alert_id, [^test_case_id] ->
+      assert alert_id in [valid_alert.id, second_valid_alert.id]
+      []
+    end)
+
+    reject(&ActionExecutor.execute_actions/3)
+    reject(&Automations.create_alert_event/1)
+
+    log =
+      ExUnit.CaptureLog.capture_log(fn ->
+        assert :ok = run_recent_test_case_runs_for_project(project.id)
+      end)
+
+    assert log =~ "Skipping automation alert #{unsupported_alert.id}"
+
+    assert {:ok, updated_valid_alert} = Automations.get_alert(valid_alert.id)
+    assert {:ok, updated_second_valid_alert} = Automations.get_alert(second_valid_alert.id)
+    assert {:ok, updated_unsupported_alert} = Automations.get_alert(unsupported_alert.id)
+    assert updated_valid_alert.last_scoped_evaluation_inserted_at == ~U[2026-06-09 10:00:02Z]
+    assert updated_second_valid_alert.last_scoped_evaluation_inserted_at == ~U[2026-06-09 10:00:02Z]
+    assert updated_unsupported_alert.last_scoped_evaluation_inserted_at == nil
   end
 
   test "ingestion-driven job chunks large affected sets" do
@@ -496,15 +614,14 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
 
     insert_test_case_runs([
       # ready_id: a pre-trigger run that must be ignored, then 4 post-trigger
-      # runs — clears the rolling window of 3.
+      # runs that clear the rolling window of 3.
       run_attrs(project.id, ready_id, NaiveDateTime.add(base, -5, :second)),
       run_attrs(project.id, ready_id, NaiveDateTime.add(base, 1, :second)),
       run_attrs(project.id, ready_id, NaiveDateTime.add(base, 2, :second)),
       run_attrs(project.id, ready_id, NaiveDateTime.add(base, 3, :second)),
       run_attrs(project.id, ready_id, NaiveDateTime.add(base, 4, :second)),
-      # not_ready_id: 3 runs that fall after the batch's earliest trigger but
-      # before this candidate's own trigger (must be excluded), and only 1 run
-      # after its own trigger — stays below the window of 3.
+      # not_ready_id: 3 runs after the batch's earliest trigger but before this
+      # candidate's own trigger, and only 1 run after its own trigger.
       run_attrs(project.id, not_ready_id, NaiveDateTime.add(base, 5, :second)),
       run_attrs(project.id, not_ready_id, NaiveDateTime.add(base, 6, :second)),
       run_attrs(project.id, not_ready_id, NaiveDateTime.add(base, 7, :second)),
@@ -517,6 +634,62 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
       [
         %{test_case_id: ready_id, triggered_at: ready_triggered_at},
         %{test_case_id: not_ready_id, triggered_at: not_ready_triggered_at}
+      ]
+    end)
+
+    expected_entity = %{type: :test_case, id: ready_id}
+    expect(ActionExecutor, :execute_actions, fn _actions, ^automation, ^expected_entity -> :ok end)
+    expect(Automations, :create_alert_event, fn %{test_case_id: ^ready_id, status: "recovered"} -> :ok end)
+
+    assert :ok = run(automation.id)
+  end
+
+  test "rolling recovery above the trigger cap reads raw runs without clamping (real ClickHouse)" do
+    project = ProjectsFixtures.project_fixture()
+
+    automation =
+      AutomationsFixtures.automation_alert_fixture(
+        project: project,
+        recovery_enabled: true,
+        recovery_config: %{"window_type" => "rolling", "rolling_window_size" => 76},
+        recovery_actions: [%{"type" => "change_state", "state" => "enabled"}]
+      )
+
+    ready_id = UUIDv7.generate()
+    not_ready_id = UUIDv7.generate()
+    base = NaiveDateTime.utc_now()
+    corrected_run_id = UUIDv7.generate()
+
+    ready_distinct_runs =
+      Enum.map(1..76, fn offset ->
+        overrides = if offset == 76, do: [id: corrected_run_id], else: []
+        run_attrs(project.id, ready_id, NaiveDateTime.add(base, offset, :second), overrides)
+      end)
+
+    correction_rows =
+      Enum.map(1..50, fn _correction ->
+        run_attrs(
+          project.id,
+          ready_id,
+          NaiveDateTime.add(base, 76, :second),
+          id: corrected_run_id,
+          is_flaky: true
+        )
+      end)
+
+    not_ready_runs =
+      Enum.map(1..75, fn offset ->
+        run_attrs(project.id, not_ready_id, NaiveDateTime.add(base, offset, :second))
+      end)
+
+    insert_test_case_runs(ready_distinct_runs ++ correction_rows ++ not_ready_runs)
+
+    expect(FlakyTestsMonitor, :evaluate, fn _automation -> %{triggered: []} end)
+
+    expect(Automations, :list_active_alert_events, fn _id ->
+      [
+        %{test_case_id: ready_id, triggered_at: base},
+        %{test_case_id: not_ready_id, triggered_at: base}
       ]
     end)
 
@@ -860,27 +1033,30 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
 
   defp insert_test_case_runs(rows), do: IngestRepo.insert_all(TestCaseRun, rows)
 
-  defp run_attrs(project_id, test_case_id, ran_at) do
-    %{
-      id: UUIDv7.generate(),
-      test_run_id: UUIDv7.generate(),
-      test_module_run_id: UUIDv7.generate(),
-      test_case_id: test_case_id,
-      project_id: project_id,
-      is_ci: false,
-      scheme: "",
-      git_branch: "main",
-      git_commit_sha: "",
-      module_name: "MyTests",
-      suite_name: "TestSuite",
-      name: "testExample",
-      status: 0,
-      is_flaky: false,
-      is_new: false,
-      is_quarantined: false,
-      duration: 100,
-      ran_at: ran_at,
-      inserted_at: ran_at
-    }
+  defp run_attrs(project_id, test_case_id, ran_at, overrides \\ []) do
+    Map.merge(
+      %{
+        id: UUIDv7.generate(),
+        test_run_id: UUIDv7.generate(),
+        test_module_run_id: UUIDv7.generate(),
+        test_case_id: test_case_id,
+        project_id: project_id,
+        is_ci: false,
+        scheme: "",
+        git_branch: "main",
+        git_commit_sha: "",
+        module_name: "MyTests",
+        suite_name: "TestSuite",
+        name: "testExample",
+        status: 0,
+        is_flaky: false,
+        is_new: false,
+        is_quarantined: false,
+        duration: 100,
+        ran_at: ran_at,
+        inserted_at: ran_at
+      },
+      Map.new(overrides)
+    )
   end
 end

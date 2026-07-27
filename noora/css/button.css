@@ -17,6 +17,8 @@
 }
 
 .noora-button {
+  --noora-button-icon-size: var(--noora-icon-size-large);
+
   cursor: pointer;
   outline: unset;
   transition: transform 150ms var(--ease-out-cubic);
@@ -122,6 +124,8 @@
   }
 
   &[data-size="small"] {
+    --noora-button-icon-size: var(--noora-icon-size-small);
+
     font: var(--noora-font-weight-medium) var(--noora-font-body-xsmall);
 
     &:not([data-icon-only]) {
@@ -129,8 +133,8 @@
     }
 
     & svg {
-      width: var(--noora-icon-size-small);
-      height: var(--noora-icon-size-small);
+      width: var(--noora-button-icon-size);
+      height: var(--noora-button-icon-size);
     }
   }
 
@@ -142,20 +146,24 @@
   }
 
   &[data-size="medium"] {
+    --noora-button-icon-size: var(--noora-icon-size-medium);
+
     font: var(--noora-font-weight-medium) var(--noora-font-body-small);
 
     & svg {
-      width: var(--noora-icon-size-medium);
-      height: var(--noora-icon-size-medium);
+      width: var(--noora-button-icon-size);
+      height: var(--noora-button-icon-size);
     }
   }
 
   &[data-size="large"] {
+    --noora-button-icon-size: var(--noora-icon-size-large);
+
     font: var(--noora-font-weight-medium) var(--noora-font-body-medium);
 
     & svg {
-      width: var(--noora-icon-size-large);
-      height: var(--noora-icon-size-large);
+      width: var(--noora-button-icon-size);
+      height: var(--noora-button-icon-size);
     }
   }
 }

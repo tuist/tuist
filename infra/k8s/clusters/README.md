@@ -63,6 +63,20 @@ about; no Packer pipeline. Acceptable for the autoscaler's `md-processor`
 2→6 cadence; if scaling latency becomes painful we can introduce a
 pre-baked image without changing the ClusterClass shape.
 
+## Replacing a production runner node
+
+Production runner-node replacement is not automated. The fleet has
+exactly two pre-ordered physical hosts, so the current MachineDeployment
+cannot create a current-revision replacement before releasing an old
+node. Deleting an individual Machine can also let its outdated
+MachineSet recreate the old revision.
+
+Do not delete a claimed `HetznerBareMetalHost` or remove its finalizers.
+The safe prerequisite is a third pre-ordered production runner host and
+a matching replica increase. That gives the MachineDeployment spare
+capacity to create and verify a current-revision node before an old node
+is drained.
+
 ## Adapting from caph upstream
 
 `clusterclass-tuist.yaml` was originally forked from caph's
@@ -83,4 +97,7 @@ Adaptations to be aware of when porting upstream changes:
 - `KUBERNETES_VERSION` and `CONTAINERD` in `preKubeadmCommands` ported from the flat `cluster-template-hcloud.yaml`. The reference ClusterClass uses an old `cri-containerd-cni-` bundle that's no longer published for containerd 2.x.
 - `containerd.service` systemd unit added to both KCP and worker `files:` blocks. The plain `containerd-` tarball doesn't ship one (only the older `cri-containerd-cni-` bundle did). Without this, `systemctl start containerd` finds no unit and PLEG never goes healthy.
 - `containerRuntimeEndpoint`, `staticPodPath`, `cgroupDriver`, `clusterDNS`, `clusterDomain`, **`authentication.x509.clientCAFile`** added to the kubelet `KubeletConfiguration` shipped via the `files:` block. Critical: kubelet is invoked with two `--config` flags (kubeadm's default + ours via `kubeletExtraArgs`) and the second OVERRIDES the first, so any field omitted here gets cleared. Without `clientCAFile`, kubelet rejects the kube-apiserver's client cert as Unauthorized → `kubectl exec`, `kubectl port-forward`, and KCP's etcd health check all fail; KCP then refuses to scale the control plane to 3 replicas.
-- `resolvConf` deliberately NOT set on the kubelet `KubeletConfiguration`, and the caph reference's `/etc/kubernetes/resolv.conf` (Cloudflare-only) is dropped. Kubelet falls back to the host's `/etc/resolv.conf`, which DHCP populates with Hetzner's resolvers (multi-IP, dual-stack, one network hop away) — avoids tying DNS to a single provider.
+- Control-plane kubelets set `resolvConf` to `/run/systemd/resolve/resolv.conf`. Ubuntu's `/etc/resolv.conf` points at the host-local `127.0.0.53` stub, which is unreachable from pod network namespaces.
+- [`coredns-config.yaml`](../mgmt/bootstrap/coredns-config.yaml) gives CoreDNS independent public Domain Name System resolvers from [Cloudflare](https://developers.cloudflare.com/1.1.1.1/) and [Google](https://developers.google.com/speed/public-dns/). This protects existing workers without causing an incident-time fleet rollout and keeps a CoreDNS reschedule from depending on host stub behavior.
+- Worker kubelets still inherit the current resolver behavior. Adding `resolvConf` to their bootstrap configuration requires a separate, controlled rolling replacement. The explicit CoreDNS upstreams fix cluster name resolution without initiating that fleet change.
+- When bumping `topology.version`, update the CoreDNS fork for the matching kubeadm and CoreDNS defaults, then verify internal and public name resolution through the canary, staging, and production cascade.

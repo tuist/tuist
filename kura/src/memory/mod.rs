@@ -588,7 +588,7 @@ impl MemoryController {
                 .try_acquire_background_response_streaming(permits)?;
             let concurrency = self.inner.pools.try_acquire_response_streaming(permits)?;
             let transient =
-                self.try_reserve_transient(requested_bytes as u64, AdmissionClass::Background)?;
+                self.try_reserve_transient(requested_bytes as u64, AdmissionClass::PeerResponse)?;
             Ok(self.response_stream_memory_permit(
                 concurrency,
                 None,
@@ -699,7 +699,9 @@ impl MemoryController {
 
     fn allow_transient_admission(&self, class: AdmissionClass) -> bool {
         match class {
-            AdmissionClass::Foreground => self.pressure() != MemoryPressure::Critical,
+            AdmissionClass::Foreground | AdmissionClass::PeerResponse => {
+                self.pressure() != MemoryPressure::Critical
+            }
             AdmissionClass::Background => self.allow_background_admission(),
         }
     }
@@ -908,7 +910,10 @@ mod tests {
             128 * 1024 * 1024,
             192 * 1024 * 1024,
         );
-        controller.observe(0);
+        assert_eq!(
+            controller.observe(128 * 1024 * 1024),
+            MemoryPressure::Constrained
+        );
         let foreground_bytes = controller.foreground_response_streaming_pool_bytes();
         let foreground = controller
             .try_acquire_response_stream_memory(foreground_bytes, "http")
@@ -1141,6 +1146,26 @@ mod tests {
         assert_eq!(controller.transient_reserved_bytes(), 10);
         drop(reservation);
         assert_eq!(controller.transient_reserved_bytes(), 0);
+    }
+
+    #[test]
+    fn peer_response_reservations_continue_while_constrained() {
+        let metrics = Metrics::new("eu-west".into(), "tenant".into());
+        let controller = MemoryController::with_runtime_limit(metrics, 1_000, 700, 850);
+
+        assert_eq!(controller.observe(700), MemoryPressure::Constrained);
+        let permit = controller
+            .try_acquire_background_response_stream_memory(10, "bootstrap")
+            .expect("bounded peer responses should remain available while constrained");
+        drop(permit);
+
+        assert_eq!(controller.observe(850), MemoryPressure::Critical);
+        assert!(
+            controller
+                .try_acquire_background_response_stream_memory(10, "bootstrap")
+                .is_err(),
+            "critical pressure must still shed peer responses"
+        );
     }
 
     #[tokio::test]
