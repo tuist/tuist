@@ -127,6 +127,12 @@ spec:
                 secretKeyRef:
                   name: {{ $registryRuntimeSecretName }}
                   key: S3_REGISTRY_BUCKET
+            - name: TUIST_REGISTRY_S3_ENDPOINT
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $registryRuntimeSecretName }}
+                  key: S3_ENDPOINT
+                  optional: true
             - name: TUIST_REGISTRY_S3_HOST
               valueFrom:
                 secretKeyRef:

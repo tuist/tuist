@@ -2,6 +2,7 @@ defmodule Tuist.Registry.Swift.SyncCursor do
   @moduledoc false
 
   alias Tuist.Registry
+  alias Tuist.Registry.S3
 
   require Logger
 
@@ -10,7 +11,7 @@ defmodule Tuist.Registry.Swift.SyncCursor do
   def get do
     bucket = Registry.registry_bucket()
 
-    case bucket |> ExAws.S3.get_object(@key) |> ExAws.request() do
+    case bucket |> ExAws.S3.get_object(@key) |> S3.request() do
       {:ok, %{body: body}} ->
         case JSON.decode(body) do
           {:ok, %{"cursor" => cursor}} when is_integer(cursor) and cursor >= 0 -> cursor
@@ -35,7 +36,7 @@ defmodule Tuist.Registry.Swift.SyncCursor do
 
     case Registry.registry_bucket()
          |> ExAws.S3.put_object(@key, body, content_type: "application/json")
-         |> ExAws.request() do
+         |> S3.request() do
       {:ok, _response} ->
         :ok
 
