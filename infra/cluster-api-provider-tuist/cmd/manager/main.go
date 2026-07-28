@@ -88,6 +88,7 @@ func main() {
 		tartKubeletMaxPods           int
 		runnerCacheVolumeGiB         int
 		cacheVolumeMasterCapGiB      int
+		cacheVolumeCASGiB            int
 		tartKubeletMaxUpdateAttempts int
 		bootstrapRebootAfter         int
 		bootstrapMaxAttempts         int
@@ -211,6 +212,12 @@ func main() {
 		"Per-account cache master image cap (GiB) passed to tart-kubelet's --cache-volume-cap-gib. The "+
 			"image is sparse so this is a ceiling, not an allocation. 0 uses tart-kubelet's default (20 GiB). "+
 			"Only meaningful with --runner-cache-volume-gib > 0. Flows from macosFleet.runnerCacheVolume.masterCapGib.")
+	flag.IntVar(&cacheVolumeCASGiB, "cache-volume-cas-gib", 0,
+		"Xcode compilation cache (CAS) budget (GiB) within each per-account cache image, passed to "+
+			"tart-kubelet's --cache-volume-cas-gib. The CAS is folded into the image as a subdir and gets this "+
+			"share of the master cap; the binary cache gets the rest minus a reserve. 0 (default) leaves the "+
+			"compilation cache VM-local. Only meaningful with --runner-cache-volume-gib > 0. Flows from "+
+			"macosFleet.runnerCacheVolume.casGib.")
 	flag.IntVar(&tartKubeletHostCPU, "tartkubelet-host-cpu", 8, "CPU cores tart-kubelet advertises on its Node")
 	flag.IntVar(&tartKubeletHostMemory, "tartkubelet-host-memory-mb", 16384, "Memory MB tart-kubelet advertises on its Node")
 	flag.IntVar(&tartKubeletMaxPods, "tartkubelet-max-pods", 2,
@@ -384,6 +391,7 @@ func main() {
 		MaxPods:                 tartKubeletMaxPods,
 		RunnerCacheVolumeGiB:    runnerCacheVolumeGiB,
 		CacheVolumeMasterCapGiB: cacheVolumeMasterCapGiB,
+		CacheVolumeCASGiB:       cacheVolumeCASGiB,
 		VNCRelayPort:            vncRelayPort,
 	})
 	setupLog.Info("computed host config hash", "hash", hostConfigHash)
@@ -502,6 +510,7 @@ func main() {
 		TartKubeletMaxPods:           tartKubeletMaxPods,
 		RunnerCacheVolumeGiB:         runnerCacheVolumeGiB,
 		CacheVolumeMasterCapGiB:      cacheVolumeMasterCapGiB,
+		CacheVolumeCASGiB:            cacheVolumeCASGiB,
 		TartKubeletMaxUpdateAttempts: int32(tartKubeletMaxUpdateAttempts),
 		BootstrapRebootAfter:         int32(bootstrapRebootAfter),
 		BootstrapMaxAttempts:         int32(bootstrapMaxAttempts),

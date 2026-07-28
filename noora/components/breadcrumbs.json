@@ -1,0 +1,81 @@
+{
+  "name": "Breadcrumbs",
+  "tagName": "noora-breadcrumbs",
+  "elementClassName": "NooraBreadcrumbs",
+  "className": "noora-breadcrumbs",
+  "modulePath": "./priv/static/noora-web-components.js",
+  "description": "Shows the current location in a navigational hierarchy.",
+  "usage": "<noora-breadcrumbs>\n  <noora-breadcrumb-item href=\"/projects\">Projects</noora-breadcrumb-item>\n  <noora-breadcrumb-item>Tuist</noora-breadcrumb-item>\n</noora-breadcrumbs>",
+  "previewLayout": "stack",
+  "attributes": [
+    {
+      "name": "style-variant",
+      "property": "styleVariant",
+      "type": "string",
+      "values": ["slash", "arrow"],
+      "default": "slash",
+      "description": "Controls the separator style."
+    }
+  ],
+  "properties": [
+    {
+      "name": "items",
+      "type": "json",
+      "typescriptType": "Array<Record<string, unknown>>",
+      "default": [],
+      "description": "Defines breadcrumbs programmatically when declarative noora-breadcrumb-item children are not used."
+    }
+  ],
+  "readonlyProperties": [],
+  "slots": [
+    {
+      "name": "",
+      "description": "Declarative noora-breadcrumb-item children."
+    }
+  ],
+  "cssParts": [
+    {
+      "name": "breadcrumbs",
+      "description": "The breadcrumb container."
+    }
+  ],
+  "events": [
+    {
+      "name": "noora-open-change",
+      "type": "CustomEvent<{ index: number; open: boolean }>",
+      "description": "Emitted when a breadcrumb menu opens or closes."
+    },
+    {
+      "name": "noora-select",
+      "type": "CustomEvent<{ index: number; item: Record<string, unknown>; value: unknown }>",
+      "description": "Emitted when a breadcrumb menu item is selected."
+    }
+  ],
+  "notes": [],
+  "examples": [
+    {
+      "id": "styles",
+      "title": "Styles",
+      "description": "Use slash or arrow separators between breadcrumb items.",
+      "markup": "<noora-breadcrumbs style-variant=\"slash\">\n  <noora-breadcrumb-item icon=\"smart_home\">Home</noora-breadcrumb-item>\n  <noora-breadcrumb-item label=\"Products\">\n    <noora-dropdown-item value=\"electronics\">Electronics</noora-dropdown-item>\n    <noora-dropdown-item value=\"phones\" selected>Phones</noora-dropdown-item>\n  </noora-breadcrumb-item>\n  <noora-breadcrumb-item>iPhone 15</noora-breadcrumb-item>\n</noora-breadcrumbs>\n<noora-breadcrumbs style-variant=\"arrow\">\n  <noora-breadcrumb-item icon=\"smart_home\">Home</noora-breadcrumb-item>\n  <noora-breadcrumb-item label=\"Products\">\n    <noora-dropdown-item value=\"electronics\">Electronics</noora-dropdown-item>\n    <noora-dropdown-item value=\"phones\" selected>Phones</noora-dropdown-item>\n  </noora-breadcrumb-item>\n  <noora-breadcrumb-item>iPhone 15</noora-breadcrumb-item>\n</noora-breadcrumbs>"
+    },
+    {
+      "id": "configurations",
+      "title": "Configurations",
+      "description": "Breadcrumb paths can combine icons, avatars, links, and plain labels.",
+      "markup": "<noora-breadcrumbs style-variant=\"slash\">\n  <noora-breadcrumb-item avatar avatar-color=\"blue\">Tuist</noora-breadcrumb-item>\n  <noora-breadcrumb-item label=\"iOS App\" avatar avatar-color=\"green\">\n    <noora-dropdown-item value=\"feature\" avatar avatar-color=\"orange\">Features</noora-dropdown-item>\n    <noora-dropdown-item value=\"auth\" avatar avatar-color=\"purple\" selected>Authentication</noora-dropdown-item>\n  </noora-breadcrumb-item>\n  <noora-breadcrumb-item avatar avatar-color=\"red\">Login Screen</noora-breadcrumb-item>\n</noora-breadcrumbs>\n<noora-breadcrumbs style-variant=\"slash\">\n  <noora-breadcrumb-item icon=\"smart_home\">Dashboard</noora-breadcrumb-item>\n  <noora-breadcrumb-item>Settings</noora-breadcrumb-item>\n  <noora-breadcrumb-item>Profile</noora-breadcrumb-item>\n</noora-breadcrumbs>\n<noora-breadcrumbs style-variant=\"arrow\">\n  <noora-breadcrumb-item icon=\"smart_home\">Home</noora-breadcrumb-item>\n  <noora-breadcrumb-item>Documentation</noora-breadcrumb-item>\n  <noora-breadcrumb-item>Guides</noora-breadcrumb-item>\n  <noora-breadcrumb-item>Getting Started</noora-breadcrumb-item>\n</noora-breadcrumbs>"
+    },
+    {
+      "id": "badges",
+      "title": "Badges",
+      "description": "Add compact technology or category badges next to labels.",
+      "markup": "<noora-breadcrumbs style-variant=\"slash\">\n  <noora-breadcrumb-item avatar avatar-color=\"blue\">Tuist</noora-breadcrumb-item>\n  <noora-breadcrumb-item label=\"iOS App\" badge-label=\"Xcode\" badge-color=\"focus\">\n    <noora-dropdown-item value=\"ios\" href=\"#\" badge-label=\"Xcode\" badge-color=\"focus\" selected>iOS App</noora-dropdown-item>\n    <noora-dropdown-item value=\"android\" href=\"#\" badge-label=\"Gradle\" badge-color=\"success\">Android App</noora-dropdown-item>\n  </noora-breadcrumb-item>\n  <noora-breadcrumb-item>Cache</noora-breadcrumb-item>\n</noora-breadcrumbs>\n<noora-breadcrumbs style-variant=\"slash\">\n  <noora-breadcrumb-item icon=\"smart_home\">Organization</noora-breadcrumb-item>\n  <noora-breadcrumb-item label=\"Project\">\n    <noora-dropdown-item value=\"alpha\" href=\"#\" badge-label=\"Xcode\" badge-color=\"focus\">Alpha</noora-dropdown-item>\n    <noora-dropdown-item value=\"beta\" href=\"#\" badge-label=\"Gradle\" badge-color=\"success\" selected>Beta</noora-dropdown-item>\n    <noora-dropdown-item value=\"gamma\" href=\"#\" badge-label=\"Xcode\" badge-color=\"focus\">Gamma</noora-dropdown-item>\n  </noora-breadcrumb-item>\n  <noora-breadcrumb-item>Settings</noora-breadcrumb-item>\n</noora-breadcrumbs>"
+    },
+    {
+      "id": "dropdowns",
+      "title": "Dropdowns",
+      "description": "Attach selectable alternatives to any breadcrumb item.",
+      "markup": "<noora-breadcrumbs style-variant=\"slash\">\n  <noora-breadcrumb-item label=\"Organization\" icon=\"smart_home\">\n    <noora-dropdown-item value=\"team1\">Team Alpha</noora-dropdown-item>\n    <noora-dropdown-item value=\"team2\">Team Beta</noora-dropdown-item>\n    <noora-dropdown-item value=\"team3\">Team Gamma</noora-dropdown-item>\n    <noora-dropdown-item value=\"team4\" selected>Team Delta</noora-dropdown-item>\n  </noora-breadcrumb-item>\n  <noora-breadcrumb-item>Project X</noora-breadcrumb-item>\n</noora-breadcrumbs>\n<noora-breadcrumbs style-variant=\"arrow\">\n  <noora-breadcrumb-item avatar avatar-color=\"blue\">Company</noora-breadcrumb-item>\n  <noora-breadcrumb-item label=\"Engineering\">\n    <noora-dropdown-item value=\"backend\" avatar avatar-color=\"red\">Backend Team</noora-dropdown-item>\n    <noora-dropdown-item value=\"frontend\" avatar avatar-color=\"green\" selected>Frontend Team</noora-dropdown-item>\n  </noora-breadcrumb-item>\n  <noora-breadcrumb-item>React Components</noora-breadcrumb-item>\n</noora-breadcrumbs>"
+    }
+  ]
+}

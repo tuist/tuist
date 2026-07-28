@@ -1,0 +1,200 @@
+{
+  "name": "TextInput",
+  "tagName": "noora-text-input",
+  "elementClassName": "NooraTextInput",
+  "className": "noora-text-input",
+  "modulePath": "./priv/static/noora-web-components.js",
+  "description": "Collects single-line text with Noora labels, hints, prefixes, and suffixes.",
+  "usage": "<noora-text-input label=\"Email\" type=\"email\" name=\"email\"></noora-text-input>",
+  "attributes": [
+    {
+      "name": "type",
+      "property": "type",
+      "type": "string",
+      "values": ["basic", "email", "card_number", "search", "password"],
+      "default": "basic",
+      "description": "Controls the semantic field presentation."
+    },
+    {
+      "name": "input-type",
+      "property": "inputType",
+      "type": "string",
+      "default": "text",
+      "description": "Sets the native input type for basic fields."
+    },
+    {
+      "name": "label",
+      "property": "label",
+      "type": "string",
+      "description": "Sets the field label."
+    },
+    {
+      "name": "sublabel",
+      "property": "sublabel",
+      "type": "string",
+      "description": "Sets secondary label text."
+    },
+    {
+      "name": "hint",
+      "property": "hint",
+      "type": "string",
+      "description": "Sets supporting text."
+    },
+    {
+      "name": "hint-variant",
+      "property": "hintVariant",
+      "type": "string",
+      "values": ["default", "destructive", "disabled"],
+      "default": "default",
+      "description": "Controls hint semantics."
+    },
+    {
+      "name": "error",
+      "property": "error",
+      "type": "string",
+      "description": "Sets the validation error."
+    },
+    {
+      "name": "name",
+      "property": "name",
+      "type": "string",
+      "default": "",
+      "description": "Sets the submitted field name."
+    },
+    {
+      "name": "value",
+      "property": "value",
+      "type": "string",
+      "default": "",
+      "description": "Gets or sets the field value."
+    },
+    {
+      "name": "placeholder",
+      "property": "placeholder",
+      "type": "string",
+      "description": "Sets placeholder text."
+    },
+    {
+      "name": "required",
+      "property": "required",
+      "type": "boolean",
+      "default": false,
+      "description": "Marks the field as required."
+    },
+    {
+      "name": "show-required",
+      "property": "showRequired",
+      "type": "boolean",
+      "default": false,
+      "description": "Shows the required indicator."
+    },
+    {
+      "name": "min",
+      "property": "min",
+      "type": "string",
+      "description": "Sets the native minimum value."
+    },
+    {
+      "name": "max",
+      "property": "max",
+      "type": "string",
+      "description": "Sets the native maximum value."
+    },
+    {
+      "name": "step",
+      "property": "step",
+      "type": "string",
+      "description": "Sets the native step value."
+    },
+    {
+      "name": "disabled",
+      "property": "disabled",
+      "type": "boolean",
+      "default": false,
+      "description": "Disables the field."
+    }
+  ],
+  "readonlyProperties": [
+    {
+      "name": "control",
+      "type": "HTMLInputElement | null",
+      "description": "The native input."
+    },
+    {
+      "name": "form",
+      "type": "HTMLFormElement | null",
+      "description": "The associated form."
+    }
+  ],
+  "slots": [
+    {
+      "name": "prefix",
+      "description": "A custom prefix for basic fields."
+    },
+    {
+      "name": "suffix",
+      "description": "A custom suffix."
+    }
+  ],
+  "cssParts": [
+    {
+      "name": "input",
+      "description": "The native input."
+    },
+    {
+      "name": "wrapper",
+      "description": "The input wrapper."
+    }
+  ],
+  "events": [
+    {
+      "name": "input",
+      "type": "InputEvent",
+      "description": "Emitted while the input value changes."
+    },
+    {
+      "name": "change",
+      "type": "Event",
+      "description": "Emitted after the input value is committed."
+    }
+  ],
+  "notes": ["The component emits standard input and change events."],
+  "examples": [
+    {
+      "id": "types",
+      "title": "Input types",
+      "description": "Use basic, email, card-number, search, and password presentations.",
+      "markup": "<noora-text-input name=\"basic\" placeholder=\"Placeholder text...\"><noora-icon slot=\"prefix\" name=\"user\"></noora-icon></noora-text-input>\n<noora-text-input type=\"email\" name=\"email\" placeholder=\"hello@tuist.dev\"></noora-text-input>\n<noora-text-input type=\"card_number\" name=\"card\" placeholder=\"0000 0000 0000 0000\"></noora-text-input>\n<noora-text-input type=\"search\" name=\"search\" placeholder=\"Search...\"></noora-text-input>\n<noora-text-input type=\"password\" name=\"password\"></noora-text-input>"
+    },
+    {
+      "id": "hint",
+      "title": "With hint",
+      "description": "Give supporting guidance below the input.",
+      "markup": "<noora-text-input name=\"username\" placeholder=\"Username\" hint=\"Use letters, numbers, and underscores\"></noora-text-input>"
+    },
+    {
+      "id": "error",
+      "title": "Error",
+      "description": "Communicate validation failures.",
+      "markup": "<noora-text-input name=\"email\" placeholder=\"hello@tuist.dev\" error=\"Enter a valid email address\"></noora-text-input>"
+    },
+    {
+      "id": "custom-suffix",
+      "title": "Custom suffix",
+      "description": "Provide a custom element after the native input.",
+      "markup": "<noora-text-input name=\"assignee\" placeholder=\"Assignee\"><noora-icon slot=\"suffix\" name=\"user\"></noora-icon></noora-text-input>"
+    },
+    {
+      "id": "labels",
+      "title": "Labels",
+      "description": "Show required and secondary label content.",
+      "markup": "<noora-text-input type=\"email\" name=\"email\" label=\"Email\" required show-required></noora-text-input>\n<noora-text-input type=\"password\" name=\"password\" label=\"Password\" sublabel=\"Be safe!\"></noora-text-input>"
+    },
+    {
+      "id": "disabled",
+      "title": "Disabled",
+      "description": "Compare empty and filled disabled fields.",
+      "markup": "<noora-text-input type=\"email\" name=\"empty-email\" label=\"Email\" placeholder=\"hello@tuist.dev\" hint=\"Use a tuist.dev address\" disabled></noora-text-input>\n<noora-text-input type=\"email\" name=\"filled-email\" value=\"hello@tuist.dev\" hint=\"Use a tuist.dev address\" disabled></noora-text-input>"
+    }
+  ]
+}

@@ -299,6 +299,14 @@ type Config struct {
 	// defaults to tart-kubelet's own default (20 GiB). Only meaningful when
 	// RunnerCacheVolumeGiB > 0.
 	CacheVolumeMasterCapGiB int
+
+	// CacheVolumeCASGiB is the Xcode compilation cache's byte budget WITHIN
+	// each per-account cache image (folded in as a subdir), passed to
+	// tart-kubelet's --cache-volume-cas-gib. It is the CAS's share of
+	// CacheVolumeMasterCapGiB; the binary cache gets the rest minus a reserve.
+	// 0 (default) leaves the compilation cache VM-local. Only meaningful when
+	// RunnerCacheVolumeGiB > 0.
+	CacheVolumeCASGiB int
 }
 
 // Run executes the bootstrap. Idempotent: re-running on a partially-
@@ -825,13 +833,17 @@ func renderLaunchdPlist(cfg Config) string {
 	}
 	// Turn on per-account cache volumes when the fleet provisioned
 	// a runner-cache volume. --runner-cache-root points at the auto-mounted
-	// quota volume; --cache-volume-cap-gib carries the per-master cap when
-	// the fleet overrides tart-kubelet's default.
+	// quota volume; --cache-volume-cap-gib carries the per-master cap and
+	// --cache-volume-cas-gib the folded compilation-cache budget when the
+	// fleet overrides tart-kubelet's defaults.
 	runnerCacheArg := ""
 	if cfg.RunnerCacheVolumeGiB > 0 {
 		runnerCacheArg = fmt.Sprintf("\n    <string>--runner-cache-root=%s</string>", runnerCacheMountPoint)
 		if cfg.CacheVolumeMasterCapGiB > 0 {
 			runnerCacheArg += fmt.Sprintf("\n    <string>--cache-volume-cap-gib=%d</string>", cfg.CacheVolumeMasterCapGiB)
+		}
+		if cfg.CacheVolumeCASGiB > 0 {
+			runnerCacheArg += fmt.Sprintf("\n    <string>--cache-volume-cas-gib=%d</string>", cfg.CacheVolumeCASGiB)
 		}
 	}
 	// Run tart-kubelet as the SSH user (m1). Apple's

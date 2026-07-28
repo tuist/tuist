@@ -16,6 +16,10 @@ defmodule Tuist.Telemetry do
     [:tuist, :accounts, :organizations, :count]
   end
 
+  def event_name_license_status do
+    [:tuist, :license, :status]
+  end
+
   def event_name_storage_get_object_as_string_size do
     [:tuist, :storage, :get_object_size]
   end

@@ -5501,7 +5501,7 @@ public enum Components {
             ///
             /// - Remark: Generated from `#/components/schemas/Organization/name`.
             public var name: Swift.String
-            /// The plan associated with the organization
+            /// The effective plan associated with the organization. `none` is deprecated and is no longer emitted.
             ///
             /// - Remark: Generated from `#/components/schemas/Organization/plan`.
             @frozen public enum planPayload: String, Codable, Hashable, Sendable, CaseIterable {
@@ -5510,7 +5510,7 @@ public enum Components {
                 case enterprise = "enterprise"
                 case none = "none"
             }
-            /// The plan associated with the organization
+            /// The effective plan associated with the organization. `none` is deprecated and is no longer emitted.
             ///
             /// - Remark: Generated from `#/components/schemas/Organization/plan`.
             public var plan: Components.Schemas.Organization.planPayload
@@ -5540,7 +5540,7 @@ public enum Components {
             ///   - invitations: A list of organization invitations
             ///   - members: A list of organization members
             ///   - name: The organization's name
-            ///   - plan: The plan associated with the organization
+            ///   - plan: The effective plan associated with the organization. `none` is deprecated and is no longer emitted.
             ///   - sso_enforced: Whether SSO is enforced for the organization
             ///   - sso_organization_id: The organization ID associated with the SSO provider
             ///   - sso_provider: The SSO provider set up for the organization
@@ -22528,6 +22528,10 @@ public enum Operations {
             @frozen public enum Body: Sendable, Hashable {
                 /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/PATCH/requestBody/json`.
                 public struct jsonPayload: Codable, Hashable, Sendable {
+                    /// When true, users authenticated by the configured SSO provider can join automatically. Custom providers also require a verified login email domain.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/PATCH/requestBody/json/sso_automatic_enrollment`.
+                    public var sso_automatic_enrollment: Swift.Bool?
                     /// When true, organization members must use SSO and cannot log in with email and password
                     ///
                     /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/PATCH/requestBody/json/sso_enforced`.
@@ -22551,19 +22555,23 @@ public enum Operations {
                     /// Creates a new `jsonPayload`.
                     ///
                     /// - Parameters:
+                    ///   - sso_automatic_enrollment: When true, users authenticated by the configured SSO provider can join automatically. Custom providers also require a verified login email domain.
                     ///   - sso_enforced: When true, organization members must use SSO and cannot log in with email and password
                     ///   - sso_organization_id: The SSO organization ID to be associated with the SSO provider
                     ///   - sso_provider: The SSO provider to set up for the organization
                     public init(
+                        sso_automatic_enrollment: Swift.Bool? = nil,
                         sso_enforced: Swift.Bool? = nil,
                         sso_organization_id: Swift.String? = nil,
                         sso_provider: Operations.updateOrganization_space__lpar_2_rpar_.Input.Body.jsonPayload.sso_providerPayload? = nil
                     ) {
+                        self.sso_automatic_enrollment = sso_automatic_enrollment
                         self.sso_enforced = sso_enforced
                         self.sso_organization_id = sso_organization_id
                         self.sso_provider = sso_provider
                     }
                     public enum CodingKeys: String, CodingKey {
+                        case sso_automatic_enrollment
                         case sso_enforced
                         case sso_organization_id
                         case sso_provider
@@ -22916,6 +22924,10 @@ public enum Operations {
             @frozen public enum Body: Sendable, Hashable {
                 /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/PUT/requestBody/json`.
                 public struct jsonPayload: Codable, Hashable, Sendable {
+                    /// When true, users authenticated by the configured SSO provider can join automatically. Custom providers also require a verified login email domain.
+                    ///
+                    /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/PUT/requestBody/json/sso_automatic_enrollment`.
+                    public var sso_automatic_enrollment: Swift.Bool?
                     /// When true, organization members must use SSO and cannot log in with email and password
                     ///
                     /// - Remark: Generated from `#/paths/api/organizations/{organization_name}/PUT/requestBody/json/sso_enforced`.
@@ -22939,19 +22951,23 @@ public enum Operations {
                     /// Creates a new `jsonPayload`.
                     ///
                     /// - Parameters:
+                    ///   - sso_automatic_enrollment: When true, users authenticated by the configured SSO provider can join automatically. Custom providers also require a verified login email domain.
                     ///   - sso_enforced: When true, organization members must use SSO and cannot log in with email and password
                     ///   - sso_organization_id: The SSO organization ID to be associated with the SSO provider
                     ///   - sso_provider: The SSO provider to set up for the organization
                     public init(
+                        sso_automatic_enrollment: Swift.Bool? = nil,
                         sso_enforced: Swift.Bool? = nil,
                         sso_organization_id: Swift.String? = nil,
                         sso_provider: Operations.updateOrganization.Input.Body.jsonPayload.sso_providerPayload? = nil
                     ) {
+                        self.sso_automatic_enrollment = sso_automatic_enrollment
                         self.sso_enforced = sso_enforced
                         self.sso_organization_id = sso_organization_id
                         self.sso_provider = sso_provider
                     }
                     public enum CodingKeys: String, CodingKey {
+                        case sso_automatic_enrollment
                         case sso_enforced
                         case sso_organization_id
                         case sso_provider

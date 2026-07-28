@@ -92,8 +92,8 @@ When enabled, a `values-<cluster-name>.yaml` overlay renders:
   configured egress IP via the node carrying the **active** label
   `tuist.dev/stable-egress-gateway=server`.
 - `DaemonSet/kube-system/tuist-server-stable-egress-host-configurer`, which runs
-  on the active node and keeps the Floating IP + source route present on its
-  `eth0`.
+  on every candidate node and keeps the Floating IP + source route prepared on
+  its `eth0`. Hetzner routes the address only to the active cloud server.
 - When `failoverController.enabled`, the
   `Deployment/kube-system/stable-egress-controller` (see
   [`infra/stable-egress-controller/`](../../stable-egress-controller/)).
@@ -117,8 +117,11 @@ automatic failover — no manual steps and no SPOF:
   is no healthy active node does it fail over to a Ready `md-egress` candidate,
   moving the IP + label together (~30–60s: node-NotReady detection + reassign;
   faster on deletion).
-- **Datapath:** Cilium re-selects the gateway (1s reconcile) and the
-  host-configurer reschedules onto the new active node automatically.
+- **Preparation:** the host-configurer runs on every candidate and reports
+  Ready only after the outbound address is attached. The controller excludes
+  unprepared candidates from election.
+- **Datapath:** once the Floating IP is assigned, the controller applies the
+  active label and Cilium re-selects the already-prepared gateway.
 
 Why Cilium alone isn't enough: our Cilium 1.18 OSS egress gateway selects a
 gateway node by lexical order with no health-based failover (cilium/cilium#30157

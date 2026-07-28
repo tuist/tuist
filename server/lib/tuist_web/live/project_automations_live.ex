@@ -31,6 +31,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
         :can_manage_automations,
         Authorization.authorize(:automation_alert_create, current_user, selected_project) == :ok
       )
+      |> assign(:flash_message, nil)
       |> assign(:head_title, "#{dgettext("dashboard_projects", "Automations")} · #{selected_project.name} · Tuist")
       |> assign(
         :automation_channel_selection_url,
@@ -63,7 +64,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
     |> assign(create_automation_form_threshold: "10")
     |> assign(create_automation_form_window_type: "last_days")
     |> assign(create_automation_form_window: "30d")
-    |> assign(create_automation_form_rolling_window_size: "100")
+    |> assign(create_automation_form_rolling_window_size: "75")
     |> assign(create_automation_form_events: ["marked_flaky"])
     |> assign(create_automation_form_trigger_actions: [default_add_label_action()])
     |> assign(create_automation_form_recovery_enabled: false)
@@ -119,7 +120,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
       threshold: to_string(automation.trigger_config["threshold"] || ""),
       window_type: parse_window_type(automation.trigger_config["window_type"]),
       window: automation.trigger_config["window"] || "30d",
-      rolling_window_size: to_string(automation.trigger_config["rolling_window_size"] || 100),
+      rolling_window_size: to_string(automation.trigger_config["rolling_window_size"] || 75),
       events: parse_events(automation.trigger_config["events"]),
       trigger_actions: automation.trigger_actions,
       recovery_enabled: automation.recovery_enabled,
@@ -450,9 +451,22 @@ defmodule TuistWeb.ProjectAutomationsLive do
          {:ok, automation} <- Automations.get_alert(id),
          true <- automation.project_id == project.id,
          {:ok, _} <- Automations.update_alert(automation, %{enabled: not automation.enabled}) do
-      {:noreply, assign_automations(socket, project)}
+      {:noreply, socket |> assign(:flash_message, nil) |> assign_automations(project)}
     else
-      _ -> {:noreply, socket}
+      {:error, %Ecto.Changeset{}} ->
+        {:noreply,
+         assign(
+           socket,
+           :flash_message,
+           {"error",
+            dgettext(
+              "dashboard_projects",
+              "This automation uses an unsupported trigger configuration. Edit it before enabling it."
+            )}
+         )}
+
+      _ ->
+        {:noreply, socket}
     end
   end
 
@@ -536,7 +550,7 @@ defmodule TuistWeb.ProjectAutomationsLive do
       "threshold" => threshold,
       "comparison" => comparison,
       "window_type" => "rolling",
-      "rolling_window_size" => parse_int(rolling_window_size, 100)
+      "rolling_window_size" => parse_int(rolling_window_size, 75)
     }
   end
 
@@ -774,13 +788,18 @@ defmodule TuistWeb.ProjectAutomationsLive do
   """
   def rolling_window_inputs_valid?(assigns) do
     is_nil(
-      rolling_size_error(assigns.create_automation_form_window_type, assigns.create_automation_form_rolling_window_size)
+      rolling_size_error(
+        assigns.create_automation_form_window_type,
+        assigns.create_automation_form_rolling_window_size,
+        Alert.max_rolling_trigger_window_size()
+      )
     ) and
       (not assigns.create_automation_form_recovery_enabled or
          is_nil(
            rolling_size_error(
              assigns.create_automation_form_recovery_window_type,
-             assigns.create_automation_form_recovery_rolling_window_size
+             assigns.create_automation_form_recovery_rolling_window_size,
+             Alert.max_rolling_window_size()
            )
          ))
   end
@@ -791,16 +810,14 @@ defmodule TuistWeb.ProjectAutomationsLive do
   `error` attribute on the noora `text_input` so the same constraint that
   disables Save is visible inline on the field.
   """
-  def rolling_size_error("rolling", raw_size) do
-    max = Alert.max_rolling_window_size()
-
+  def rolling_size_error("rolling", raw_size, max) do
     case Integer.parse(to_string(raw_size)) do
       {n, ""} when n >= 1 and n <= max -> nil
       _ -> dgettext("dashboard_projects", "1–%{max}", max: max)
     end
   end
 
-  def rolling_size_error(_window_type, _raw_size), do: nil
+  def rolling_size_error(_window_type, _raw_size, _max), do: nil
 
   # Decode the signed channel-result token, then encrypt the webhook URL so
   # we never store it as plaintext inside the action JSON.

@@ -22,7 +22,12 @@ managed environments that expose the registry service directly.
 - Serve the Swift Package Registry read surface under
   `/api/registry/swift/*` and `/swift/*`.
 - Read package metadata from S3 (`registry/metadata/<scope>/<name>/index.json`).
-- Emit 303 redirects to presigned S3 URLs for source archives.
+- Request strong consistency for metadata reads and revalidation so a reader
+  cannot cache a previous catalog revision after a writer has repaired it.
+- Emit 303 redirects to presigned S3 URLs for source archives without a
+  separate existence request. The object-storage download is authoritative
+  for whether an archive exists, so a temporary storage lookup failure cannot
+  be converted into a registry 404.
 - Serve manifest bodies in-process. Default `Package.swift` responses
   also include the `Link` header listing alternate manifests.
 - Emit per-ecosystem download/manifest metrics via PromEx, scraped by

@@ -89,6 +89,40 @@ const (
 // thing that crosses virtio-fs. The guest attaches it by this name.
 const branchImageName = "cache.sparseimage"
 
+// casStoreDir is the Xcode compilation-cache (CAS) store, folded INTO the cache
+// image as a top-level directory beside `tuist/` rather than carried as its own
+// image. The guest points COMPILATION_CACHE_CAS_PATH at it and llcas mmaps its
+// store — which works because it lives on the attached block-device APFS image,
+// not the virtio-fs share (mmap over virtio-fs SIGBUSes). Folding it in means it
+// rides the binary cache's whole lifecycle — clone, promote, fast-forward HEAD,
+// convergence — with no separate promote gate of its own. Named with Xcode's own
+// `.noindex` suffix so Spotlight (mds) never indexes a multi-GB, high-file-count
+// store.
+const casStoreDir = "CompilationCache.noindex"
+
+// casLinePrefix namespaces the CAS store's per-file inventory lines. Each regular
+// file under the store contributes one `~cas/<relpath>\t<size>` line, so the
+// digest is a real content identity for the store, not a proxy. Two properties
+// matter, and a total-byte proxy delivered neither:
+//   - Change detection: llcas grows partly by APPENDING to fixed files, so entry
+//     NAMES alone miss growth; the per-file SIZE catches it, so a compile-only
+//     job (binary cache clean, CAS grown) still registers as dirty and promotes.
+//   - Collision resistance: this digest is also the immutable object KEY a
+//     promote uploads under and a converging host verifies against. A total-size
+//     proxy let two branches with different contents but the same total collide
+//     on one key — the rejected writer could overwrite the accepted image and the
+//     size-only host check could not detect it. Per-file (name, size) closes that:
+//     llcas record files are content-addressed (name IS a hash) and the append
+//     files are distinguished by size, so distinct stores yield distinct digests.
+//
+// The `~` prefix (0x7E) sorts these lines AFTER the alphanumeric binary entry
+// names under LC_ALL=C, matching the guest, and each line must be byte-identical
+// to the guest's `find … -exec stat` output — including a REAL tab between the
+// relpath and the size. BSD stat does NOT expand `\t` in its format string, so
+// the guest builds the separator with $(printf '\t'); TestInventoryDigestMatchesGuestPipeline
+// runs the real shell pipeline to guard this byte-for-byte.
+const casLinePrefix = "~cas"
+
 // materializedMarker is a host-written sentinel dropped in the branch once the
 // host has materialized (or decided cold-path) for a VM. It is the ONLY signal
 // that the branch was host-materialized, and it stays host-authoritative: the
@@ -115,7 +149,8 @@ type volumeBackend interface {
 	// volume's free space — so this is a distinct mount-point check.
 	isMounted(root string) (bool, error)
 	// createImage creates an empty sparse APFS disk image of at most sizeGiB
-	// at path. Sparse: the file costs megabytes until written.
+	// at path. Sparse: the file costs megabytes until written. Used for both
+	// the binary cache image and an account's first CAS master on a host.
 	createImage(path string, sizeGiB int) error
 	// imageInventoryDigest attaches the image read-only and returns the
 	// inventory digest of the cache home inside it. Used to verify a downloaded
@@ -177,6 +212,15 @@ type VolumeManager struct {
 	// is a ceiling rather than an allocation; the APFS volume's own quota is
 	// the real aggregate ceiling.
 	CapGiB int
+
+	// CASGiB is the CAS's byte budget WITHIN the shared cache image (the CAS is
+	// folded in as a subdir, not its own image). It sets the CAS's share of the
+	// CapGiB cap — staged to the guest as COMPILATION_CACHE_LIMIT_SIZE in bytes —
+	// and the binary cache gets the rest minus a filesystem reserve, so the two
+	// pruners never over-commit the one image. Zero disables the CAS entirely: the compilation
+	// cache is not persisted across VMs (it stays VM-local, dying with the VM), and
+	// the binary cache gets the full budget.
+	CASGiB int
 
 	// LowWatermarkFraction is the free-space fraction the background evictor
 	// keeps the quota volume above by dropping whole masters LRU.
@@ -241,7 +285,13 @@ func (m *VolumeManager) Enabled() bool { return m != nil && m.Root != "" }
 
 func (m *VolumeManager) capBytes() uint64 { return uint64(m.CapGiB) * 1024 * 1024 * 1024 }
 
-// volumeDir is <root>/<account>/<volume> — the master image and its digest
+// casEnabled reports whether the folded CAS store is served for this feature.
+// The host uses it only to signal the guest (via a status-share marker) to point
+// the compiler at the store; the store itself is just a directory inside the
+// cache image, so there is no separate image to manage.
+func (m *VolumeManager) casEnabled() bool { return m.Enabled() && m.CASGiB > 0 }
+
+// volumeDir is <root>/<account>/<volume> — the master image and its generation
 // sidecar live here, and eviction drops the whole directory.
 func (m *VolumeManager) volumeDir(account, volume string) string {
 	return filepath.Join(m.Root, account, volume)
@@ -385,6 +435,9 @@ func (m *VolumeManager) Materialize(att VolumeAttachment, account string) (warm 
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	// The CAS store is folded into the cache image (casStoreDir), so it is cloned
+	// into the branch as part of the one image below — no separate CAS clone.
+
 	dest := m.BranchImage(att)
 	master := m.masterImage(account, att.VolumeName)
 	if _, statErr := os.Stat(master); statErr != nil {
@@ -506,8 +559,20 @@ func (m *VolumeManager) ImageDigest(image string) (string, error) {
 // means the cache actually changed.
 var cacheInventorySubdirs = []string{"Binaries", "Manifests", "ProjectDescriptionHelpers", "Plugins"}
 
-func inventoryDigest(cacheRoot string) (string, error) {
+// inventoryDigest hashes a cache image's content into the digest both the guest
+// and host compute, so a converging host can verify a downloaded master matches
+// its advertised HEAD. mountRoot is the image's mount point — the parent of the
+// `tuist` cache home AND the folded CAS store.
+//
+// It mirrors dispatch-poll.sh's cache_inventory EXACTLY: the sorted, dotfile-
+// filtered entry names under the binary subtrees, plus one casLinePrefix line per
+// regular file in the folded CAS store (its content identity). Any drift between
+// the two makes every convergence digest-mismatch, so a change here must land in
+// both (guarded byte-for-byte by TestInventoryDigestMatchesGuestPipeline, which
+// runs the real shell pipeline).
+func inventoryDigest(mountRoot string) (string, error) {
 	var lines []string
+	cacheRoot := filepath.Join(mountRoot, cacheHomeSubdir)
 	for _, sub := range cacheInventorySubdirs {
 		entries, err := os.ReadDir(filepath.Join(cacheRoot, sub))
 		if err != nil {
@@ -524,6 +589,14 @@ func inventoryDigest(cacheRoot string) (string, error) {
 			lines = append(lines, sub+"/"+e.Name())
 		}
 	}
+	// One line per regular file in the folded CAS store (see casLinePrefix): a
+	// content identity, not a size proxy, so the digest doubles as a safe
+	// immutable object key.
+	casLines, err := casInventoryLines(filepath.Join(mountRoot, casStoreDir))
+	if err != nil {
+		return "", err
+	}
+	lines = append(lines, casLines...)
 	// Byte order, matching the guest's `LC_ALL=C sort`. Go's sort.Strings is
 	// already byte-wise; the guest is the side that has to pin the locale.
 	sort.Strings(lines)
@@ -533,6 +606,44 @@ func inventoryDigest(cacheRoot string) (string, error) {
 		_, _ = h.Write([]byte("\n"))
 	}
 	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
+// casInventoryLines emits one `~cas/<relpath>\t<size>` line per regular file
+// under root (nil when root is absent), the CAS store's content identity for the
+// inventory digest. It must match the guest's `find <dir> -type f -not -path
+// '*/.*' -exec stat -f "%N<tab>%z"` output exactly: regular files only (no
+// symlinks, no directories), dot-paths excluded, logical st_size, a REAL tab
+// before the size.
+func casInventoryLines(root string) ([]string, error) {
+	var lines []string
+	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		// Skip dotfiles by basename (.DS_Store, the .writable probe, in-flight
+		// .tmp), matching the guest's `find … ! -name '.*'`: they are asymmetric
+		// between the guest teardown and the host's read-only attach and would
+		// abort convergence. llcas's real store files are not dotfiles.
+		if strings.HasPrefix(filepath.Base(path), ".") {
+			if info.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !info.Mode().IsRegular() {
+			return nil
+		}
+		rel, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+		lines = append(lines, fmt.Sprintf("%s/%s\t%d", casLinePrefix, filepath.ToSlash(rel), info.Size()))
+		return nil
+	})
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil
+	}
+	return lines, err
 }
 
 // InstallMaster replaces an account's local master with the whole image at src,
@@ -1038,6 +1149,9 @@ func (m *VolumeManager) allMastersLocked() ([]masterEntry, error) {
 			if !vol.IsDir() {
 				continue
 			}
+			// The CAS is folded into the cache image, so a volume is a master iff
+			// it holds master.sparseimage — the one image carries both caches, and
+			// LRU orders by its mtime.
 			info, err := os.Stat(m.masterImage(acct.Name(), vol.Name()))
 			if err != nil {
 				continue

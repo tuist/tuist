@@ -258,10 +258,11 @@ func peerDemuxPodTemplate(region, name, configHash string, nodeSelector map[stri
 			Annotations: map[string]string{peerDemuxConfigHashAnnotation: configHash},
 		},
 		Spec: corev1.PodSpec{
-			HostNetwork:  true,
-			DNSPolicy:    corev1.DNSClusterFirstWithHostNet,
-			NodeSelector: nodeSelector,
-			Tolerations:  tolerations,
+			EnableServiceLinks: ptr(false),
+			HostNetwork:        true,
+			DNSPolicy:          corev1.DNSClusterFirstWithHostNet,
+			NodeSelector:       nodeSelector,
+			Tolerations:        tolerations,
 			Containers: []corev1.Container{{
 				Name:            "demux",
 				Image:           image,

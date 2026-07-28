@@ -10,6 +10,7 @@ defmodule Tuist.Kura.ReconcilerTest do
   alias Tuist.Kura.Server
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistTestSupport.Fixtures.BillingFixtures
 
   @moduletag capture_log: true
 
@@ -207,6 +208,27 @@ defmodule Tuist.Kura.ReconcilerTest do
     assert :ok = Reconciler.reconcile()
 
     assert %Server{status: :active, url: "http://172.16.0.5:32000"} = Repo.get!(Server, server.id)
+  end
+
+  test "preloads active subscriptions for manifest reconciliation" do
+    {account, server, deployment} = create_server()
+    BillingFixtures.subscription_fixture(account_id: account.id, plan: :enterprise)
+    {:ok, _server} = Kura.activate_server(server, deployment.image_tag)
+    mark_deployment_succeeded(deployment)
+
+    expect(Provisioner, :current_image_tag, fn %Server{id: id} ->
+      assert id == server.id
+      {:ok, deployment.image_tag}
+    end)
+
+    expect(Provisioner, :manifest_revision, fn %Server{account: loaded_account} ->
+      assert [%{plan: :enterprise}] = loaded_account.subscriptions
+      {:ok, nil}
+    end)
+
+    stub(Provisioner, :current_manifest_revision, fn _ -> {:ok, nil} end)
+
+    assert :ok = Reconciler.reconcile()
   end
 
   test "marks destroying servers destroyed after the KuraInstance disappears" do

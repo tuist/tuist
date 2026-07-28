@@ -101,6 +101,7 @@ Concrete rules for agents:
 - **Do not click Approve on any elevation request**, including (especially) one triggered by the human you're operating for. The "second human" attestation is meaningless if an agent is one of the two clicks.
 - **Do not retrieve the 1Password admin kubeconfig.** `op document get "kubeconfig: tuist-<env>"` requires biometric on the local 1P CLI, which is the explicit friction that keeps an agent from silently fetching cluster-admin credentials. Asking the human to fetch it for you defeats that.
 - **If the human has elevated themselves and you're now running inside that window**, mutating operations will succeed — tuist-ops's policy response adds the env's write group to the impersonation headers, widening the *identity's* tier, not just the human's session. Treat the elevation as a scoped, time-bounded license to do exactly what was stated in the `intent` field of the request. Don't expand scope mid-session.
+- The elevated `tuist-fleet-unwedge` role may delete a Kubernetes Node only after confirming that it is orphaned and its Cluster API Machine and infrastructure are already gone. Live fleet replacement must continue through Machine deletion so the owning controller recreates the host.
 
 ### Forensic trail
 
