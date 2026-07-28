@@ -414,41 +414,11 @@ struct GenerateServiceTests {
             )
         }
     }
-}
 
-struct GenerateServiceRemoteCacheFallbackTests {
-    private let subject: GenerateService
-    private let generator = MockGenerating()
-    private let generatorFactory = MockGeneratorFactorying()
-    private let cacheStorageFactory = MockCacheStorageFactorying()
-    private let configLoader = MockConfigLoading()
-    private let generationMetadataStore = MockGenerationMetadataStoring()
-
-    init() {
+    @Test func usesLocalCacheStorageWhenRemoteCacheHasTransientServerFailure() async throws {
         given(configLoader).loadConfig(path: .any).willReturn(
             .test(project: .testGeneratedProject())
         )
-        given(generationMetadataStore).store(generationId: .any, for: .any).willReturn()
-        given(generationMetadataStore).prune().willReturn()
-        given(generatorFactory)
-            .generation(
-                config: .any,
-                includedTargets: .any,
-                configuration: .any,
-                cacheProfile: .any,
-                cacheStorage: .any
-            )
-            .willReturn(generator)
-
-        subject = GenerateService(
-            cacheStorageFactory: cacheStorageFactory,
-            generatorFactory: generatorFactory,
-            configLoader: configLoader,
-            generationMetadataStore: generationMetadataStore
-        )
-    }
-
-    @Test func usesLocalCacheStorageWhenRemoteCacheHasTransientServerFailure() async throws {
         let workspacePath = try AbsolutePath(validating: "/test.xcworkspace")
         let localCacheStorage = MockCacheStoring()
         let alertController = AlertController()
@@ -484,6 +454,9 @@ struct GenerateServiceRemoteCacheFallbackTests {
     }
 
     @Test func propagatesPermanentAuthenticationFailure() async {
+        given(configLoader).loadConfig(path: .any).willReturn(
+            .test(project: .testGeneratedProject())
+        )
         let expectedError = RefreshAuthTokenServiceError.unauthorized("Invalid token")
         given(cacheStorageFactory)
             .cacheStorage(config: .any)
