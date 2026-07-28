@@ -73,7 +73,7 @@ The `--without-building` flag tells Tuist to run the tests using the previously 
 | Flag | Environment variable | Description |
 |------|---------------------|-------------|
 | `--shard-index <N>` | `TUIST_SHARD_INDEX` | Zero-based index of the shard to execute |
-| `--shard-plan-id <IDENTIFIER>` | `TUIST_SHARD_PLAN_ID` | Exact shard plan identifier emitted by the build phase. Generated provider outputs include this value; CircleCI requires the opt-in described below |
+| `--shard-plan-id <IDENTIFIER>` | `TUIST_SHARD_PLAN_ID` | Exact shard plan identifier emitted by the build phase. Generated provider outputs include this value automatically |
 | `--shard-reference <REF>` | `TUIST_SHARD_REFERENCE` | Unique identifier for the shard plan (auto-derived on supported CI providers) |
 | `--shard-archive-path <PATH>` | `TUIST_TEST_SHARD_ARCHIVE_PATH` | Path to a locally managed shard archive; Tuist extracts it instead of downloading test products from remote storage |
 
@@ -178,9 +178,7 @@ test-shards:
 
 ### CircleCI {#circleci}
 
-Tuist generates a `.tuist-shard-continuation.json` with parameters for the [continuation orb](https://circleci.com/developer/orbs/orb/circleci/continuation).
-
-To avoid sending a parameter that existing continued configurations do not declare, Tuist only includes the exact shard plan identifier when `TUIST_CIRCLECI_SHARD_PLAN_ID_ENABLED` is `true`. Set it after declaring the `shard-plan-id` parameter in the continued configuration, as shown below:
+Tuist generates a `.tuist-shard-continuation.json` with parameters for the [continuation orb](https://circleci.com/developer/orbs/orb/circleci/continuation). The `shard-plan-id` parameter must be declared in your continued configuration:
 
 ```yaml
 # .circleci/config.yml
@@ -194,8 +192,6 @@ jobs:
   build-shards:
     macos:
       xcode: "16.0"
-    environment:
-      TUIST_CIRCLECI_SHARD_PLAN_ID_ENABLED: "true"
     steps:
       - checkout
       - run:
@@ -281,7 +277,7 @@ tuist test --without-building
 
 ### Codemagic {#codemagic}
 
-Codemagic does not support dynamic matrix jobs, so define a separate workflow per shard. Tuist writes `TUIST_SHARD_MATRIX` and `TUIST_SHARD_COUNT` to the `CM_ENV` file for use within each workflow:
+Codemagic does not support dynamic matrix jobs, so define a separate workflow per shard. Tuist writes `TUIST_SHARD_MATRIX` and `TUIST_SHARD_COUNT` to the `CM_ENV` file for use within the build workflow. Codemagic's `CM_ENV` is workflow-scoped, so the exact shard plan identifier does not cross workflow boundaries; test workflows fall back to reference-based shard lookup:
 
 ```yaml
 # codemagic.yaml
@@ -345,7 +341,7 @@ workflows:
 
 ### Bitrise {#bitrise}
 
-On Bitrise, Tuist writes `.tuist-shard-matrix.json` to the `BITRISE_DEPLOY_DIR`, making it available as a build artifact for downstream pipeline stages. Use Bitrise Pipelines with pre-defined parallel workflows:
+On Bitrise, Tuist writes `.tuist-shard-matrix.json` (including `shard_plan_id`) to the `BITRISE_DEPLOY_DIR`, making it available as a build artifact for downstream pipeline stages. Each test workflow extracts the plan ID from the downloaded artifact using `envman` so it reaches the test command's environment:
 
 ```yaml
 # bitrise.yml
@@ -376,11 +372,19 @@ workflows:
             - content: |
                 tuist auth login
                 tuist test --build-only --shard-total 5
+      - deploy-to-bitrise-io: {}
 
   test-shard-0: &shard-workflow
     envs:
       - TUIST_SHARD_INDEX: 0
     steps:
+      - pull-intermediate-files: {}
+      - script:
+          title: Set shard plan ID from artifact
+          inputs:
+            - content: |
+                PLAN_ID=$(jq -r '.shard_plan_id' "$BITRISE_DEPLOY_DIR/.tuist-shard-matrix.json")
+                envman add --key TUIST_SHARD_PLAN_ID --value "$PLAN_ID"
       - script:
           title: Run shard
           inputs:
