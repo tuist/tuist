@@ -291,6 +291,80 @@ defmodule TuistWeb.RunnersControllerTest do
       conn = post(conn, "/api/internal/runners/volume-head/upload-url", %{"tree_digest" => "x"})
       assert json_response(conn, 401)
     end
+
+    test "409 before minting when the base generation has been advanced past", %{conn: conn} do
+      digest = String.duplicate("a", 40)
+
+      stub(K8sClient, :create_token_review, fn "valid-token" ->
+        {:ok, %{namespace: "tuist-runners", name: "pod-1"}}
+      end)
+
+      stub(Runners, :account_id_for_sa, fn _ns, _sa -> {:ok, 77} end)
+      stub(Runners, :fast_forward_viable?, fn 77, 4 -> false end)
+      # The whole point: no URL is minted, so the runner never uploads an image
+      # for a promote that is certain to be rejected.
+      stub(Runners, :volume_master_upload_url, fn _account_id, _digest ->
+        flunk("minted an upload URL for a promote that cannot win")
+      end)
+
+      body =
+        conn
+        |> put_req_header("authorization", "Bearer valid-token")
+        |> post("/api/internal/runners/volume-head/upload-url", %{
+          "tree_digest" => digest,
+          "base_generation" => 4
+        })
+        |> json_response(409)
+
+      assert body["error"] == "stale base generation"
+    end
+
+    test "mints when the base generation can still win", %{conn: conn} do
+      digest = String.duplicate("a", 40)
+
+      stub(K8sClient, :create_token_review, fn "valid-token" ->
+        {:ok, %{namespace: "tuist-runners", name: "pod-1"}}
+      end)
+
+      stub(Runners, :account_id_for_sa, fn _ns, _sa -> {:ok, 77} end)
+      stub(Runners, :fast_forward_viable?, fn 77, 4 -> true end)
+      stub(Runners, :volume_master_upload_url, fn 77, ^digest -> {:ok, "https://bucket.example.com/put"} end)
+
+      body =
+        conn
+        |> put_req_header("authorization", "Bearer valid-token")
+        |> post("/api/internal/runners/volume-head/upload-url", %{
+          "tree_digest" => digest,
+          "base_generation" => "4"
+        })
+        |> json_response(200)
+
+      assert body["upload_url"] == "https://bucket.example.com/put"
+    end
+
+    test "skips the pre-check entirely for a runner that sends no base generation", %{conn: conn} do
+      digest = String.duplicate("a", 40)
+
+      stub(K8sClient, :create_token_review, fn "valid-token" ->
+        {:ok, %{namespace: "tuist-runners", name: "pod-1"}}
+      end)
+
+      stub(Runners, :account_id_for_sa, fn _ns, _sa -> {:ok, 77} end)
+
+      # A runner image predating the pre-flight must keep its upload-then-arbitrate
+      # path rather than have a missing base read as the cold base 0 and 409.
+      stub(Runners, :fast_forward_viable?, fn _account_id, _base ->
+        flunk("pre-checked a runner that sent no base generation")
+      end)
+
+      stub(Runners, :volume_master_upload_url, fn 77, ^digest -> {:ok, "https://bucket.example.com/put"} end)
+
+      assert %{"upload_url" => "https://bucket.example.com/put"} =
+               conn
+               |> put_req_header("authorization", "Bearer valid-token")
+               |> post("/api/internal/runners/volume-head/upload-url", %{"tree_digest" => digest})
+               |> json_response(200)
+    end
   end
 
   describe "POST /api/internal/runners/volume-head" do

@@ -1127,6 +1127,47 @@ func TestReadPromoteResult(t *testing.T) {
 	}
 }
 
+// A promote the server pre-empted at mint time reports a conflict WITHOUT ever
+// uploading, so it must be counted as a rejection while contributing no sample to
+// the upload histogram — the whole point of the pre-flight is that a doomed
+// promote stops holding the slot open for a transfer. That distinction is exactly
+// what the deploy is measured by (upload count falling relative to rejected
+// promotes), so pin it: a conflict with no volume-upload-ms marker leaves the
+// histogram untouched, while an uploaded conflict still records one.
+func TestPreEmptedPromoteRecordsNoUpload(t *testing.T) {
+	statusDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(statusDir, promoteResultFile), []byte("conflict"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if got := readPromoteResult(statusDir); got.Result != "conflict" {
+		t.Fatalf("pre-empted promote = %+v; want conflict (cross-host contention, not an error)", got)
+	}
+	if got := readUploadMillis(statusDir); got != -1 {
+		t.Fatalf("upload millis after a pre-empted promote = %d; want -1 (nothing was uploaded)", got)
+	}
+
+	// finalizeVolume's own branches over those two reads: counted as contention,
+	// but gated out of the upload histogram by the negative duration.
+	rejectedBefore := testutil.ToFloat64(cacheVolumePromoteTotal.WithLabelValues("rejected"))
+	RecordVolumePromote("rejected")
+	if readUploadMillis(statusDir) >= 0 {
+		t.Fatal("a pre-empted promote must not reach RecordVolumeUpload")
+	}
+	if got := testutil.ToFloat64(cacheVolumePromoteTotal.WithLabelValues("rejected")); got != rejectedBefore+1 {
+		t.Fatalf("rejected promotes = %v; want %v", got, rejectedBefore+1)
+	}
+
+	// The upload-then-arbitrate path (a promote that lost the race after paying
+	// for the transfer) still reports its duration.
+	if err := os.WriteFile(filepath.Join(statusDir, uploadMillisFile), []byte("4200"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := readUploadMillis(statusDir); got != 4200 {
+		t.Fatalf("upload millis = %d; want 4200", got)
+	}
+}
+
 func TestCacheImageSplit(t *testing.T) {
 	const gib = uint64(1024 * 1024 * 1024)
 

@@ -263,6 +263,11 @@ var cacheVolumeAdmissionDeclinedTotal = prometheus.NewCounter(
 // signal for keeping the volume sized so uploads stay fast (the CAS is folded in,
 // so this now includes CAS bytes). Reported by the guest via the volume-upload-ms
 // status marker and recorded here at finalize.
+//
+// A promote the server pre-empts at mint time (its base was already advanced
+// past) uploads nothing and so contributes NO sample, only a "rejected" promote.
+// The count of this histogram against promote_total{result="rejected"} is
+// therefore how much doomed transfer the pre-flight is still not avoiding.
 var cacheVolumeUploadSeconds = prometheus.NewHistogram(
 	prometheus.HistogramOpts{
 		Name:    "tart_kubelet_cache_volume_upload_seconds",

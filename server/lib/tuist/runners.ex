@@ -243,6 +243,21 @@ defmodule Tuist.Runners do
 
   def volume_master_upload_url(_account_id, _tree_digest), do: :error
 
+  @doc """
+  Whether a promote built on `base_generation` could still win `account_id`'s
+  cache-volume fast-forward — the pre-flight a runner makes before uploading.
+
+  The runner's image upload runs at teardown and blocks the VM halt (and so the
+  host slot's reclaim) for its whole duration, yet under cross-host contention
+  most promotes lose the fast-forward that follows it. Asking this first lets a
+  runner whose base another host has already advanced past skip the transfer
+  entirely instead of paying for it and being rejected.
+
+  Advisory only: see `Tuist.Runners.VolumeHeads.fast_forward_viable?/3` — the
+  compare-and-swap in `report_volume_head/4` remains what decides the HEAD.
+  """
+  defdelegate fast_forward_viable?(account_id, base_generation), to: VolumeHeads
+
   defp valid_inventory_digest?(digest), do: Regex.match?(~r/^[a-f0-9]{40}$/, digest)
 
   @doc """

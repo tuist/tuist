@@ -120,4 +120,30 @@ defmodule Tuist.Runners.VolumeHeads do
   end
 
   def get_head(_account_id, _volume_name), do: nil
+
+  @doc """
+  Whether a promote built on `base_generation` could still win the fast-forward —
+  the pre-flight the runner makes BEFORE uploading its image.
+
+  Mirrors `bump_head/5`'s acceptance rule: base 0 is viable only while the account
+  has no HEAD, base N > 0 only while the HEAD is exactly at N.
+
+  This is an OPTIMIZATION, not a decision. It is racy by construction (another
+  host can advance the HEAD between this read and the bump), so it may only ever
+  let a caller skip work that `bump_head/5` would reject anyway — the
+  compare-and-swap there stays the sole authority on what becomes HEAD. Anything
+  it cannot evaluate reads as viable, so an odd input never suppresses a promote
+  that would have been accepted.
+  """
+  def fast_forward_viable?(account_id, base_generation, volume_name \\ @reserved_tuist_cache)
+
+  def fast_forward_viable?(account_id, base_generation, volume_name)
+      when is_integer(account_id) and is_integer(base_generation) and base_generation >= 0 do
+    case get_head(account_id, volume_name) do
+      nil -> base_generation == 0
+      %{generation: generation} -> generation == base_generation
+    end
+  end
+
+  def fast_forward_viable?(_account_id, _base_generation, _volume_name), do: true
 end

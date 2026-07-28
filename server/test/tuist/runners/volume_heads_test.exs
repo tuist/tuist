@@ -73,4 +73,36 @@ defmodule Tuist.Runners.VolumeHeadsTest do
       assert VolumeHeads.get_head(account.id) == nil
     end
   end
+
+  describe "fast_forward_viable?/3" do
+    test "agrees with bump_head on every base, so it only ever skips doomed work" do
+      account = account_fixture()
+
+      # No HEAD yet: only a cold base can win, exactly as establish_first_head.
+      assert VolumeHeads.fast_forward_viable?(account.id, 0)
+      refute VolumeHeads.fast_forward_viable?(account.id, 1)
+
+      VolumeHeads.bump_head(account.id, "mac-01", "digest-a", 0)
+
+      # HEAD at generation 1: a cold job and a job built on anything else are both
+      # already lost; only the current generation can still fast-forward.
+      refute VolumeHeads.fast_forward_viable?(account.id, 0)
+      assert VolumeHeads.fast_forward_viable?(account.id, 1)
+      refute VolumeHeads.fast_forward_viable?(account.id, 2)
+
+      # And what it calls viable, bump_head accepts.
+      assert {:ok, 2} = VolumeHeads.bump_head(account.id, "mac-02", "digest-b", 1)
+      refute VolumeHeads.fast_forward_viable?(account.id, 1)
+    end
+
+    test "reads as viable for anything it cannot evaluate" do
+      account = account_fixture()
+
+      # Fail-safe: a malformed base must never suppress a promote the
+      # compare-and-swap would have accepted.
+      assert VolumeHeads.fast_forward_viable?(account.id, "1")
+      assert VolumeHeads.fast_forward_viable?(account.id, -1)
+      assert VolumeHeads.fast_forward_viable?(nil, 0)
+    end
+  end
 end
