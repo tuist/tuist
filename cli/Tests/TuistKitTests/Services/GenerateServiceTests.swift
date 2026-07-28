@@ -2,6 +2,7 @@ import Foundation
 import Mockable
 import Path
 import Testing
+import TuistAlert
 import TuistCache
 import TuistConfig
 import TuistCore
@@ -412,6 +413,96 @@ struct GenerateServiceTests {
                 cacheProfile: "missing"
             )
         }
+    }
+}
+
+struct GenerateServiceRemoteCacheFallbackTests {
+    private let subject: GenerateService
+    private let generator = MockGenerating()
+    private let generatorFactory = MockGeneratorFactorying()
+    private let cacheStorageFactory = MockCacheStorageFactorying()
+    private let configLoader = MockConfigLoading()
+    private let generationMetadataStore = MockGenerationMetadataStoring()
+
+    init() {
+        given(configLoader).loadConfig(path: .any).willReturn(
+            .test(project: .testGeneratedProject())
+        )
+        given(generationMetadataStore).store(generationId: .any, for: .any).willReturn()
+        given(generationMetadataStore).prune().willReturn()
+        given(generatorFactory)
+            .generation(
+                config: .any,
+                includedTargets: .any,
+                configuration: .any,
+                cacheProfile: .any,
+                cacheStorage: .any
+            )
+            .willReturn(generator)
+
+        subject = GenerateService(
+            cacheStorageFactory: cacheStorageFactory,
+            generatorFactory: generatorFactory,
+            configLoader: configLoader,
+            generationMetadataStore: generationMetadataStore
+        )
+    }
+
+    @Test func usesLocalCacheStorageWhenRemoteCacheHasTransientServerFailure() async throws {
+        let workspacePath = try AbsolutePath(validating: "/test.xcworkspace")
+        let localCacheStorage = MockCacheStoring()
+        let alertController = AlertController()
+        given(cacheStorageFactory)
+            .cacheStorage(config: .any)
+            .willThrow(RefreshAuthTokenServiceError.unknownError(503))
+        given(cacheStorageFactory)
+            .cacheLocalStorage()
+            .willReturn(localCacheStorage)
+        given(generator)
+            .generateWithGraph(path: .any, options: .any)
+            .willReturn((workspacePath, .test(), MapperEnvironment()))
+
+        try await AlertController.$current.withValue(alertController) {
+            try await subject.run(
+                path: nil,
+                includedTargets: [],
+                noOpen: true,
+                configuration: nil,
+                ignoreBinaryCache: false,
+                cacheProfile: nil
+            )
+        }
+
+        verify(cacheStorageFactory)
+            .cacheLocalStorage()
+            .called(1)
+        #expect(
+            alertController.warnings().map(\.message).map { $0.plain() } == [
+                "The remote cache is temporarily unavailable.",
+            ]
+        )
+    }
+
+    @Test func propagatesPermanentAuthenticationFailure() async {
+        let expectedError = RefreshAuthTokenServiceError.unauthorized("Invalid token")
+        given(cacheStorageFactory)
+            .cacheStorage(config: .any)
+            .willThrow(expectedError)
+
+        await #expect(throws: expectedError) {
+            try await subject.run(
+                path: nil,
+                includedTargets: [],
+                noOpen: true,
+                configuration: nil,
+                ignoreBinaryCache: false,
+                cacheProfile: nil
+            )
+        }
+
+        verify(cacheStorageFactory)
+            .cacheLocalStorage()
+            .called(0)
     }
 }
 
