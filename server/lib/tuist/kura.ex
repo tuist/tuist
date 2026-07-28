@@ -86,7 +86,7 @@ defmodule Tuist.Kura do
   # Interim pacing (spec #79 phase 2): instead of fanning the whole fleet
   # out in one tick, schedule a bounded batch — Tuist-owned accounts first
   # — and only open the next batch once no deployment for the tag is
-  # still open. This is the fallback path while
+  # still open. This is the kill-switch fallback when
   # `Tuist.FeatureFlags.kura_rollout_orchestration_enabled?/0` is off;
   # the full wave machinery lives in `Tuist.Kura.Rollouts`.
   @interim_rollout_batch_size 25

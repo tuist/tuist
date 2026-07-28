@@ -103,8 +103,9 @@ defmodule Tuist.Kura.Reconciler do
 
   # Version scheduling has two paths (spec #79): the rollout
   # orchestration — durable rollout records, account-grouped waves with
-  # the health gate in production, expedited fan-out elsewhere — and the
-  # interim-paced scheduler as the flag-off fallback and rollback path.
+  # the health gate in production, expedited fan-out elsewhere — on by
+  # default, and the interim-paced scheduler behind the kill-switch flag
+  # as the no-deploy rollback path.
   defp schedule_runtime_rollout do
     if Tuist.FeatureFlags.kura_rollout_orchestration_enabled?() do
       Tuist.Kura.Rollouts.sync()

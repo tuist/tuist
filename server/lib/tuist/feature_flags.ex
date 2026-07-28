@@ -33,13 +33,17 @@ defmodule Tuist.FeatureFlags do
   Whether Kura runtime-image rollouts run through the rollout
   orchestration (`Tuist.Kura.Rollouts`): durable rollout records,
   account-grouped waves with the health gate in production, expedited
-  fan-out in the other environments, and the operator verbs. Off falls
-  back to the interim-paced scheduler
+  fan-out in the other environments, and the operator verbs.
+
+  On by default in every environment — the machinery soaked on staging
+  (spec #79's drills) before the default flipped. The flag is a
+  kill-switch, not an opt-in: enabling `kura_rollout_orchestration_kill_switch`
+  (via /ops/flags, no deploy) falls back to the interim-paced scheduler
   (`Tuist.Kura.schedule_runtime_image_deployments/0`), which stays the
-  rollback path while the machinery soaks (spec #79).
+  no-deploy rollback path.
   """
   def kura_rollout_orchestration_enabled? do
-    FunWithFlags.enabled?(:kura_rollout_orchestration)
+    not FunWithFlags.enabled?(:kura_rollout_orchestration_kill_switch)
   end
 
   defimpl FunWithFlags.Actor, for: Tuist.Accounts.User do

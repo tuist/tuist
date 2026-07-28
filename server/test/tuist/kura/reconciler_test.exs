@@ -18,8 +18,18 @@ defmodule Tuist.Kura.ReconcilerTest do
   setup do
     stub(Tuist.Environment, :kura_control_plane?, fn -> true end)
     stub(Tuist.Environment, :kura_runtime_image_tag, fn -> nil end)
+    # Most of this file exercises the interim-paced scheduler, which is
+    # the kill-switch fallback now that orchestration is on by default.
+    stub(Tuist.FeatureFlags, :kura_rollout_orchestration_enabled?, fn -> false end)
     stub(Provisioner, :public_url, fn _account, _server -> "http://localhost:4100" end)
     :ok
+  end
+
+  test "routes version scheduling through the rollout orchestration by default" do
+    expect(Tuist.Kura.Rollouts, :sync, fn -> :ok end)
+    stub(Tuist.FeatureFlags, :kura_rollout_orchestration_enabled?, fn -> true end)
+
+    assert :ok = Reconciler.reconcile()
   end
 
   test "reconciles nothing when this process is not the Kura control plane" do
