@@ -352,7 +352,13 @@ defmodule Tuist.CommandEventsTest do
         CommandEventsFixtures.command_event_fixture(
           project_id: project.id,
           name: "cache",
-          ran_at: ~U[2024-03-04 01:00:00Z]
+          ran_at: ~U[2024-03-04 01:00:00Z],
+          cacheable_targets: ["App", "Framework"],
+          local_cache_target_hits: ["App"],
+          remote_cache_target_hits: ["Framework"],
+          test_targets: ["AppTests"],
+          local_test_target_hits: ["AppTests"],
+          remote_test_target_hits: ["AppTests"]
         )
 
       # A non-matching command interleaved in time must be excluded even though
@@ -384,6 +390,114 @@ defmodule Tuist.CommandEventsTest do
 
       # Then
       assert Enum.map(events, & &1.id) == [cache_event_new.id, cache_event_old.id]
+
+      hydrated_old = List.last(events)
+      assert hydrated_old.cacheable_targets == ["App", "Framework"]
+      assert hydrated_old.local_cache_target_hits == ["App"]
+      assert hydrated_old.remote_cache_target_hits == ["Framework"]
+      assert hydrated_old.test_targets == ["AppTests"]
+      assert hydrated_old.local_test_target_hits == ["AppTests"]
+      assert hydrated_old.remote_test_target_hits == ["AppTests"]
+    end
+
+    test "returns fully hydrated events ordered by duration" do
+      project = ProjectsFixtures.project_fixture()
+
+      slow_event =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          duration: 3000,
+          cacheable_targets: ["SlowApp"]
+        )
+
+      fast_event =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          duration: 1000,
+          cacheable_targets: ["FastApp"]
+        )
+
+      {events, _meta} =
+        CommandEvents.list_command_events(%{
+          filters: [%{field: :project_id, op: :==, value: project.id}],
+          order_by: [:duration],
+          order_directions: [:desc],
+          first: 10
+        })
+
+      assert Enum.map(events, & &1.id) == [slow_event.id, fast_event.id]
+      assert Enum.map(events, & &1.cacheable_targets) == [["SlowApp"], ["FastApp"]]
+    end
+
+    test "returns fully hydrated events ordered by hit rate" do
+      project = ProjectsFixtures.project_fixture()
+
+      half_hit_event =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          cacheable_targets: ["App", "Framework"],
+          local_cache_target_hits: ["App"]
+        )
+
+      full_hit_event =
+        CommandEventsFixtures.command_event_fixture(
+          project_id: project.id,
+          cacheable_targets: ["App", "Framework"],
+          local_cache_target_hits: ["App"],
+          remote_cache_target_hits: ["Framework"]
+        )
+
+      {events, _meta} =
+        CommandEvents.list_command_events(%{
+          filters: [%{field: :project_id, op: :==, value: project.id}],
+          order_by: [:hit_rate],
+          order_directions: [:desc],
+          first: 10
+        })
+
+      assert Enum.map(events, & &1.id) == [full_hit_event.id, half_hit_event.id]
+
+      assert Enum.map(events, &{&1.cacheable_targets, &1.local_cache_target_hits, &1.remote_cache_target_hits}) ==
+               [
+                 {["App", "Framework"], ["App"], ["Framework"]},
+                 {["App", "Framework"], ["App"], []}
+               ]
+    end
+
+    test "hydrates optimized rows within the selected project when identifiers collide" do
+      project = ProjectsFixtures.project_fixture()
+      other_project = ProjectsFixtures.project_fixture()
+      shared_id = UUIDv7.generate()
+
+      selected_event =
+        CommandEventsFixtures.command_event_fixture(
+          id: shared_id,
+          project_id: project.id,
+          name: "cache",
+          cacheable_targets: ["SelectedApp"]
+        )
+
+      CommandEventsFixtures.command_event_fixture(
+        id: shared_id,
+        project_id: other_project.id,
+        name: "cache",
+        cacheable_targets: ["OtherApp"]
+      )
+
+      {events, _meta} =
+        CommandEvents.list_command_events(%{
+          filters: [
+            %{field: :project_id, op: :==, value: project.id},
+            %{field: :name, op: :==, value: "cache"}
+          ],
+          order_by: [:ran_at],
+          order_directions: [:desc],
+          first: 10
+        })
+
+      assert [%{project_id: project_id, cacheable_targets: ["SelectedApp"]}] = events
+      assert project_id == project.id
+      assert hd(events).id == selected_event.id
     end
   end
 
