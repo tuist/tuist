@@ -399,6 +399,7 @@ jobs:
           key: linux-cli-${{ hashFiles('Package.resolved', 'Package.swift') }}
           restore-keys: |
             linux-cli-${{ hashFiles('Package.swift') }}-
+            linux-cli-
       - name: Resolve dependencies
         run: swift package resolve --replace-scm-with-registry
       - name: Build tuist CLI
@@ -428,6 +429,7 @@ jobs:
           key: linux-cli-${{ hashFiles('Package.resolved', 'Package.swift') }}
           restore-keys: |
             linux-cli-${{ hashFiles('Package.swift') }}-
+            linux-cli-
       - name: Resolve dependencies
         run: swift package resolve --replace-scm-with-registry
       - name: Run unit tests
