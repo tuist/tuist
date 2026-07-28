@@ -192,12 +192,7 @@ This can be useful in environments with limited network bandwidth or to reduce s
 
 ### Cache warm scratch directory {#cache-warm-scratch-directory}
 
-By default, `tuist cache` creates a temporary scratch directory for build intermediates and assembled cache artifacts, then removes it when cache warming finishes. To keep those files under a directory you manage, set `TUIST_CACHE_WARM_SCRATCH_DIRECTORY`:
-
-```bash
-export TUIST_CACHE_WARM_SCRATCH_DIRECTORY=/path/to/cache-warm
-tuist cache
-```
+By default, `tuist cache` creates a temporary scratch directory for build intermediates and assembled cache artifacts, then removes it when cache warming finishes. To keep those files under a directory you manage, set `TUIST_CACHE_WARM_SCRATCH_DIRECTORY`.
 
 The path can be absolute or relative to the current working directory. Tuist creates the directory when it does not exist. If it already exists, it must be an empty directory.
 
