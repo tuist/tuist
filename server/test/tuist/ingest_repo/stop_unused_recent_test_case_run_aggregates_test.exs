@@ -54,7 +54,11 @@ defmodule Tuist.IngestRepo.Migrations.StopUnusedRecentTestCaseRunAggregatesTest 
              drop_noop: nil,
              initial_merge_settings: Map.new(@retired_tables, &{&1, :default}),
              merge_responses: List.duplicate([], 4),
-             postcondition_setting: nil
+             missing_active_view_instances: MapSet.new(),
+             missing_retired_table_instances: MapSet.new(),
+             postcondition_setting: nil,
+             replica_merge_settings: %{},
+             replicas: ["replica-a", "replica-b"]
            }
          end},
         id: :migration_state
@@ -107,7 +111,9 @@ defmodule Tuist.IngestRepo.Migrations.StopUnusedRecentTestCaseRunAggregatesTest 
 
     guard_queries = Enum.filter(queries, &String.contains?(&1, "system."))
     assert Enum.any?(guard_queries, &String.contains?(&1, "clusterAllReplicas(default, system.merges)"))
+    assert Enum.any?(guard_queries, &String.contains?(&1, "clusterAllReplicas(default, system.one)"))
     assert Enum.any?(guard_queries, &String.contains?(&1, "clusterAllReplicas(default, system.tables)"))
+    assert Enum.any?(guard_queries, &String.contains?(&1, "hostName() AS replica"))
 
     database_guard_queries =
       Enum.filter(guard_queries, fn query ->
@@ -127,14 +133,56 @@ defmodule Tuist.IngestRepo.Migrations.StopUnusedRecentTestCaseRunAggregatesTest 
            end)
   end
 
-  test "stops before mutations when an active 100-run view is missing", %{
+  test "stops before mutations when an active 100-run view is missing on one replica", %{
     query_log: query_log,
     state: state
   } do
-    update_state(state, active_views: [hd(@active_views)])
+    missing_view = "test_case_runs_recent_100_success_per_case_mv"
+
+    update_state(state,
+      missing_active_view_instances: MapSet.new([{"replica-b", missing_view}])
+    )
 
     assert_raise Ecto.MigrationError,
-                 "required rolling materialized views are missing: test_case_runs_recent_100_success_per_case_mv",
+                 "required rolling materialized views are missing on replicas: #{missing_view} on replica-b",
+                 fn ->
+                   StopUnusedRecentTestCaseRunAggregates.up()
+                 end
+
+    refute mutation_query?(recorded_queries(query_log))
+  end
+
+  test "stops before mutations when a retired aggregate table is missing on one replica", %{
+    query_log: query_log,
+    state: state
+  } do
+    missing_table = "test_case_runs_recent_750_per_case"
+
+    update_state(state,
+      missing_retired_table_instances: MapSet.new([{"replica-b", missing_table}])
+    )
+
+    assert_raise Ecto.MigrationError,
+                 "required rolling aggregate tables are missing on replicas: #{missing_table} on replica-b",
+                 fn ->
+                   StopUnusedRecentTestCaseRunAggregates.up()
+                 end
+
+    refute mutation_query?(recorded_queries(query_log))
+  end
+
+  test "stops before mutations when aggregate settings differ across replicas", %{
+    query_log: query_log,
+    state: state
+  } do
+    table = "test_case_runs_recent_750_per_case"
+
+    update_state(state,
+      replica_merge_settings: %{{"replica-b", table} => {:explicit, 1}}
+    )
+
+    assert_raise Ecto.MigrationError,
+                 "rolling aggregate table has inconsistent merge settings across replicas: #{table}",
                  fn ->
                    StopUnusedRecentTestCaseRunAggregates.up()
                  end
@@ -256,6 +304,9 @@ defmodule Tuist.IngestRepo.Migrations.StopUnusedRecentTestCaseRunAggregatesTest 
       String.contains?(sql, "FROM system.clusters") ->
         if get_state(state, :cluster_available?), do: %{rows: [[1]]}, else: %{rows: []}
 
+      replica_query?(sql) ->
+        replica_query_result(sql, state)
+
       String.contains?(sql, "system.merges") ->
         rows =
           Agent.get_and_update(state, fn %{merge_responses: [rows | remaining]} = current ->
@@ -264,22 +315,59 @@ defmodule Tuist.IngestRepo.Migrations.StopUnusedRecentTestCaseRunAggregatesTest 
 
         %{rows: rows}
 
+      String.contains?(sql, "system.tables") ->
+        system_tables_query_result(sql, state, query_log)
+
+      true ->
+        %{rows: []}
+    end
+  end
+
+  defp replica_query?(sql) do
+    String.contains?(sql, "system.one") or sql == "SELECT hostName()"
+  end
+
+  defp replica_query_result(sql, state) do
+    replicas = get_state(state, :replicas)
+
+    if String.contains?(sql, "system.one") do
+      %{rows: Enum.map(replicas, &[&1])}
+    else
+      %{rows: [[hd(replicas)]]}
+    end
+  end
+
+  defp system_tables_query_result(sql, state, query_log) do
+    cond do
       system_tables_query?(sql, @active_views) ->
-        %{rows: Enum.map(get_state(state, :active_views), &[&1, "CREATE MATERIALIZED VIEW #{&1}"])}
+        %{rows: active_view_metadata(state)}
 
       system_tables_query?(sql, @retired_views) ->
-        rows =
-          query_log
-          |> remaining_retired_views(state)
-          |> Enum.map(&[&1, "CREATE MATERIALIZED VIEW #{&1}"])
-
-        %{rows: rows}
+        %{rows: retired_view_metadata(state, query_log)}
 
       system_tables_query?(sql, @retired_tables) ->
         %{rows: retired_table_metadata(state, query_log)}
 
       true ->
         %{rows: []}
+    end
+  end
+
+  defp active_view_metadata(state) do
+    for replica <- get_state(state, :replicas),
+        view <- get_state(state, :active_views),
+        not MapSet.member?(
+          get_state(state, :missing_active_view_instances),
+          {replica, view}
+        ) do
+      [replica, view, "CREATE MATERIALIZED VIEW #{view}"]
+    end
+  end
+
+  defp retired_view_metadata(state, query_log) do
+    for replica <- get_state(state, :replicas),
+        view <- remaining_retired_views(query_log, state) do
+      [replica, view, "CREATE MATERIALIZED VIEW #{view}"]
     end
   end
 
@@ -305,6 +393,8 @@ defmodule Tuist.IngestRepo.Migrations.StopUnusedRecentTestCaseRunAggregatesTest 
     postcondition_setting = get_state(state, :postcondition_setting)
     initial_settings = get_state(state, :initial_merge_settings)
     create_table_suffix = get_state(state, :create_table_suffix)
+    replica_merge_settings = get_state(state, :replica_merge_settings)
+    missing_table_instances = get_state(state, :missing_retired_table_instances)
 
     automatic_merges_stopped? =
       Enum.count(queries, fn query ->
@@ -312,16 +402,23 @@ defmodule Tuist.IngestRepo.Migrations.StopUnusedRecentTestCaseRunAggregatesTest 
           String.contains?(query, " = 1")
       end) == length(@retired_tables)
 
-    Enum.map(@retired_tables, fn table ->
+    for replica <- get_state(state, :replicas),
+        table <- @retired_tables,
+        not MapSet.member?(missing_table_instances, {replica, table}) do
       setting =
-        if automatic_merges_stopped? and not is_nil(postcondition_setting) do
-          {:explicit, postcondition_setting}
-        else
-          latest_merge_setting(queries, table, Map.fetch!(initial_settings, table))
+        cond do
+          Map.has_key?(replica_merge_settings, {replica, table}) ->
+            Map.fetch!(replica_merge_settings, {replica, table})
+
+          automatic_merges_stopped? and not is_nil(postcondition_setting) ->
+            {:explicit, postcondition_setting}
+
+          true ->
+            latest_merge_setting(queries, table, Map.fetch!(initial_settings, table))
         end
 
-      [table, create_table_query(table, setting) <> create_table_suffix]
-    end)
+      [replica, table, create_table_query(table, setting) <> create_table_suffix]
+    end
   end
 
   defp latest_merge_setting(queries, table, initial_setting) do
