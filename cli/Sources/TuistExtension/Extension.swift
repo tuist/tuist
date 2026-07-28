@@ -16,7 +16,7 @@ public protocol CacheServicing {
         generateOnly: Bool,
         noUpload: Bool,
         cacheProfile: String?,
-        workingDirectory: String?
+        scratchDirectory: String?
     ) async throws
 }
 
@@ -38,7 +38,7 @@ public struct EmptyCacheService: CacheServicing {
         generateOnly _: Bool,
         noUpload _: Bool,
         cacheProfile _: String?,
-        workingDirectory _: String?
+        scratchDirectory _: String?
     ) async throws {
         print(
             "Caching is currently not opensourced. Please, report issues with caching on GitHub and the Tuist team will take a look."

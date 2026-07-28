@@ -68,34 +68,34 @@
             try await run(noUpload: false, configuration: "Release")
         }
 
-        @Test(.inTemporaryDirectory) func run_usesAndPreservesCallerOwnedWorkingDirectory() async throws {
+        @Test(.inTemporaryDirectory) func run_usesAndPreservesCallerOwnedScratchDirectory() async throws {
             let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-            let workingDirectory = temporaryDirectory.appending(component: "cache-warm")
+            let scratchDirectory = temporaryDirectory.appending(component: "cache-warm")
 
-            try await run(noUpload: false, workingDirectory: workingDirectory)
+            try await run(noUpload: false, scratchDirectory: scratchDirectory)
 
-            #expect(try await fileSystem.exists(workingDirectory, isDirectory: true))
-            #expect(try await fileSystem.exists(workingDirectory.appending(component: "derived-data"), isDirectory: true))
-            #expect(try await fileSystem.exists(workingDirectory.appending(component: "Metadatas"), isDirectory: true))
+            #expect(try await fileSystem.exists(scratchDirectory, isDirectory: true))
+            #expect(try await fileSystem.exists(scratchDirectory.appending(component: "derived-data"), isDirectory: true))
+            #expect(try await fileSystem.exists(scratchDirectory.appending(component: "Metadatas"), isDirectory: true))
         }
 
-        @Test(.inTemporaryDirectory) func run_rejectsNonEmptyCallerOwnedWorkingDirectory() async throws {
+        @Test(.inTemporaryDirectory) func run_rejectsNonEmptyCallerOwnedScratchDirectory() async throws {
             let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-            let workingDirectory = temporaryDirectory.appending(component: "cache-warm")
-            let existingFile = workingDirectory.appending(component: "existing")
-            try await fileSystem.makeDirectory(at: workingDirectory)
+            let scratchDirectory = temporaryDirectory.appending(component: "cache-warm")
+            let existingFile = scratchDirectory.appending(component: "existing")
+            try await fileSystem.makeDirectory(at: scratchDirectory)
             try await fileSystem.touch(existingFile)
 
-            await #expect(throws: CacheWarmCommandServiceError.workingDirectoryIsNotEmpty(workingDirectory)) {
-                try await run(noUpload: false, workingDirectory: workingDirectory)
+            await #expect(throws: CacheWarmCommandServiceError.scratchDirectoryIsNotEmpty(scratchDirectory)) {
+                try await run(noUpload: false, scratchDirectory: scratchDirectory)
             }
             #expect(try await fileSystem.exists(existingFile))
         }
 
-        @Test(.inTemporaryDirectory) func run_placesCompilationCacheInCallerOwnedWorkingDirectory() async throws {
+        @Test(.inTemporaryDirectory) func run_placesCompilationCacheInCallerOwnedScratchDirectory() async throws {
             let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
-            let workingDirectory = temporaryDirectory.appending(component: "cache-warm")
-            let compilationCachePath = workingDirectory.appending(component: "CompilationCache.noindex")
+            let scratchDirectory = temporaryDirectory.appending(component: "cache-warm")
+            let compilationCachePath = scratchDirectory.appending(component: "CompilationCache.noindex")
 
             given(xcodeBuildController)
                 .build(
@@ -112,7 +112,7 @@
 
             try await run(
                 noUpload: false,
-                workingDirectory: workingDirectory,
+                scratchDirectory: scratchDirectory,
                 schemes: [.test(name: "Bundles-Cache-iOS")]
             )
 
@@ -135,7 +135,7 @@
         private func run(
             noUpload: Bool,
             configuration: String? = nil,
-            workingDirectory: AbsolutePath? = nil,
+            scratchDirectory: AbsolutePath? = nil,
             schemes: [Scheme] = []
         ) async throws {
             let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
@@ -215,7 +215,7 @@
                 generateOnly: false,
                 noUpload: noUpload,
                 cacheProfile: nil,
-                workingDirectory: workingDirectory?.pathString
+                scratchDirectory: scratchDirectory?.pathString
             )
         }
 

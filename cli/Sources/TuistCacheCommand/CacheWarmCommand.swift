@@ -71,8 +71,8 @@
         )
         var cacheProfile: String?
 
-        var workingDirectory: String? {
-            Environment.current.variables[EnvKey.cacheWorkingDirectory.rawValue]
+        var scratchDirectory: String? {
+            Environment.current.variables[EnvKey.cacheWarmScratchDirectory.rawValue]
         }
 
         @Flag(
@@ -107,7 +107,7 @@
                 generateOnly: generateOnly,
                 noUpload: noUpload,
                 cacheProfile: cacheProfile,
-                workingDirectory: workingDirectory
+                scratchDirectory: scratchDirectory
             )
         }
     }

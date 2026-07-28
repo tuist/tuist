@@ -927,7 +927,7 @@ struct CommandEnvironmentVariableTests {
         setVariable(.cachePrintHashes, value: "true")
         setVariable(.cacheConfiguration, value: "CacheConfig")
         setVariable(.cachePath, value: "/cache/path")
-        setVariable(.cacheWorkingDirectory, value: "/cache/working-directory")
+        setVariable(.cacheWarmScratchDirectory, value: "/cache/warm-scratch-directory")
         setVariable(.cacheTargets, value: "Fmk1,Fmk2")
 
         let commandWithEnvVars = try CacheWarmCommand.parse([])
@@ -938,7 +938,7 @@ struct CommandEnvironmentVariableTests {
         #expect(commandWithEnvVars.printHashes == true)
         #expect(commandWithEnvVars.configuration == "CacheConfig")
         #expect(commandWithEnvVars.path == "/cache/path")
-        #expect(commandWithEnvVars.workingDirectory == "/cache/working-directory")
+        #expect(commandWithEnvVars.scratchDirectory == "/cache/warm-scratch-directory")
         #expect(commandWithEnvVars.targets == ["Fmk1", "Fmk2"])
 
         let commandWithArgs = try CacheWarmCommand.parse([
@@ -959,11 +959,11 @@ struct CommandEnvironmentVariableTests {
         #expect(commandWithArgs.printHashes == true)
         #expect(commandWithArgs.configuration == "CacheConfig")
         #expect(commandWithArgs.path == "/cache/path")
-        #expect(commandWithArgs.workingDirectory == "/cache/working-directory")
+        #expect(commandWithArgs.scratchDirectory == "/cache/warm-scratch-directory")
         #expect(commandWithArgs.targets == ["Fmk1", "Fmk2"])
 
         #expect(throws: (any Error).self) {
-            try CacheWarmCommand.parse(["--working-directory", "/cache/working-directory"])
+            try CacheWarmCommand.parse(["--scratch-directory", "/cache/warm-scratch-directory"])
         }
     }
 
