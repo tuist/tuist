@@ -40,7 +40,7 @@ public struct TargetContentHash: Equatable {
 
 /// `TargetContentHasher`
 /// is responsible for computing a unique hash that identifies a target
-public struct TargetContentHasher: TargetContentHashing {
+public struct TargetContentHasher: TargetContentHashing { // swiftlint:disable:this type_body_length
     private let contentHasher: ContentHashing
     private let coreDataModelsContentHasher: CoreDataModelsContentHashing
     private let sourceFilesContentHasher: SourceFilesContentHashing
