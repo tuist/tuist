@@ -1064,17 +1064,10 @@ struct GenerateAcceptanceTestiOSAppWithCoreData {
 }
 
 struct GenerateAcceptanceTestiOSAppWithAppClip {
-    @Test(.disabled(), .withFixture("generated_ios_app_with_appclip"), .inTemporaryDirectory)
+    @Test(.withFixture("generated_ios_app_with_appclip"), .inTemporaryDirectory)
     func ios_app_with_appclip() async throws {
         try await run(GenerateCommand.self)
-        try await run(BuildCommand.self)
-        try await XCTAssertProductWithDestinationContainsAppClipWithArchitecture(
-            "App.app",
-            destination: "Debug-iphonesimulator",
-            appClip: "AppClip1",
-            architecture: "arm64"
-        )
-        try await XCTAssertFrameworkEmbedded("Framework", by: "AppClip1")
+        try await run(BuildCommand.self, "App")
         try await XCTAssertProductWithDestinationContainsAppClipWithArchitecture(
             "App.app",
             destination: "Debug-iphonesimulator",
