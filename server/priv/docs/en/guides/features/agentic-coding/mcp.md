@@ -283,7 +283,7 @@ Every operation has fixed limits for concurrency, duration, traversal, bytes rea
 |------|-------------|---------------------|
 | `list_cache_runs` | List cache runs for a project. | `account_handle`, `project_handle` |
 | `get_cache_run` | Get detailed information about a specific cache run. | `cache_run_id` |
-| `list_xcode_module_cache_targets` | List module cache targets for a generation or cache run, showing per-target cache hit/miss status. | `run_id` |
+| `list_xcode_module_cache_targets` | List module cache targets for a generation or cache run, showing per-target cache hit/miss status and diagnostic component hashes, including additional hashing inputs. | `run_id` |
 
 ### Prompts
 

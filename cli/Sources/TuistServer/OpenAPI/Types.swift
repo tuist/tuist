@@ -19086,6 +19086,10 @@ public enum Operations {
             public var path: Operations.listBundles.Input.Path
             /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query`.
             public struct Query: Sendable, Hashable {
+                /// Filter bundles by git branch.
+                ///
+                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/git_branch`.
+                public var git_branch: Swift.String?
                 /// Page number for pagination.
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page`.
@@ -19094,24 +19098,20 @@ public enum Operations {
                 ///
                 /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/page_size`.
                 public var page_size: Swift.Int?
-                /// Filter bundles by git branch.
-                ///
-                /// - Remark: Generated from `#/paths/api/projects/{account_handle}/{project_handle}/bundles/GET/query/git_branch`.
-                public var git_branch: Swift.String?
                 /// Creates a new `Query`.
                 ///
                 /// - Parameters:
+                ///   - git_branch: Filter bundles by git branch.
                 ///   - page: Page number for pagination.
                 ///   - page_size: Number of items per page.
-                ///   - git_branch: Filter bundles by git branch.
                 public init(
+                    git_branch: Swift.String? = nil,
                     page: Swift.Int? = nil,
-                    page_size: Swift.Int? = nil,
-                    git_branch: Swift.String? = nil
+                    page_size: Swift.Int? = nil
                 ) {
+                    self.git_branch = git_branch
                     self.page = page
                     self.page_size = page_size
-                    self.git_branch = git_branch
                 }
             }
             public var query: Operations.listBundles.Input.Query
@@ -21373,6 +21373,10 @@ public enum Operations {
                                     ///
                                     /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/binary_cache_metadata/subhashes`.
                                     public struct subhashesPayload: Codable, Hashable, Sendable {
+                                        /// Additional hashing inputs hash
+                                        ///
+                                        /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/binary_cache_metadata/subhashes/additional_hashing_inputs`.
+                                        public var additional_hashing_inputs: Swift.String?
                                         /// Additional strings used in the hash
                                         ///
                                         /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/binary_cache_metadata/subhashes/additional_strings`.
@@ -21440,6 +21444,7 @@ public enum Operations {
                                         /// Creates a new `subhashesPayload`.
                                         ///
                                         /// - Parameters:
+                                        ///   - additional_hashing_inputs: Additional hashing inputs hash
                                         ///   - additional_strings: Additional strings used in the hash
                                         ///   - buildable_folders: Buildable folders hash
                                         ///   - copy_files: Copy files hash
@@ -21457,6 +21462,7 @@ public enum Operations {
                                         ///   - target_scripts: Target scripts hash
                                         ///   - target_settings: Target settings hash
                                         public init(
+                                            additional_hashing_inputs: Swift.String? = nil,
                                             additional_strings: [Swift.String]? = nil,
                                             buildable_folders: Swift.String? = nil,
                                             copy_files: Swift.String? = nil,
@@ -21474,6 +21480,7 @@ public enum Operations {
                                             target_scripts: Swift.String? = nil,
                                             target_settings: Swift.String? = nil
                                         ) {
+                                            self.additional_hashing_inputs = additional_hashing_inputs
                                             self.additional_strings = additional_strings
                                             self.buildable_folders = buildable_folders
                                             self.copy_files = copy_files
@@ -21492,6 +21499,7 @@ public enum Operations {
                                             self.target_settings = target_settings
                                         }
                                         public enum CodingKeys: String, CodingKey {
+                                            case additional_hashing_inputs
                                             case additional_strings
                                             case buildable_folders
                                             case copy_files
@@ -21628,6 +21636,10 @@ public enum Operations {
                                     ///
                                     /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/selective_testing_metadata/subhashes`.
                                     public struct subhashesPayload: Codable, Hashable, Sendable {
+                                        /// Additional hashing inputs hash
+                                        ///
+                                        /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/selective_testing_metadata/subhashes/additional_hashing_inputs`.
+                                        public var additional_hashing_inputs: Swift.String?
                                         /// Additional strings used in the hash
                                         ///
                                         /// - Remark: Generated from `#/paths/api/analytics/POST/requestBody/json/xcode_graph/projectsPayload/targetsPayload/selective_testing_metadata/subhashes/additional_strings`.
@@ -21695,6 +21707,7 @@ public enum Operations {
                                         /// Creates a new `subhashesPayload`.
                                         ///
                                         /// - Parameters:
+                                        ///   - additional_hashing_inputs: Additional hashing inputs hash
                                         ///   - additional_strings: Additional strings used in the hash
                                         ///   - buildable_folders: Buildable folders hash
                                         ///   - copy_files: Copy files hash
@@ -21712,6 +21725,7 @@ public enum Operations {
                                         ///   - target_scripts: Target scripts hash
                                         ///   - target_settings: Target settings hash
                                         public init(
+                                            additional_hashing_inputs: Swift.String? = nil,
                                             additional_strings: [Swift.String]? = nil,
                                             buildable_folders: Swift.String? = nil,
                                             copy_files: Swift.String? = nil,
@@ -21729,6 +21743,7 @@ public enum Operations {
                                             target_scripts: Swift.String? = nil,
                                             target_settings: Swift.String? = nil
                                         ) {
+                                            self.additional_hashing_inputs = additional_hashing_inputs
                                             self.additional_strings = additional_strings
                                             self.buildable_folders = buildable_folders
                                             self.copy_files = copy_files
@@ -21747,6 +21762,7 @@ public enum Operations {
                                             self.target_settings = target_settings
                                         }
                                         public enum CodingKeys: String, CodingKey {
+                                            case additional_hashing_inputs
                                             case additional_strings
                                             case buildable_folders
                                             case copy_files

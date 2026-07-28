@@ -436,6 +436,7 @@ public struct TargetContentHasher: TargetContentHashing {
             projectSettings: projectSettingsHash,
             targetSettings: settingsHash,
             buildableFolders: buildableFoldersHash,
+            additionalHashingInputs: additionalHashingInputsResult.hash,
             additionalStrings: additionalStrings,
             embeddedProductReferences: embeddedProductReferencesHash
         )

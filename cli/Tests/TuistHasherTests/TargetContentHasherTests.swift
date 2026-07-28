@@ -223,6 +223,7 @@ struct TargetContentHasherTests {
         // Then
         #expect(got.hash.contains("additional_hashing_inputs_hash"))
         #expect(got.hashedPaths[inputPath] == "template_hash")
+        #expect(got.subhashes.additionalHashingInputs == "additional_hashing_inputs_hash")
         verify(additionalHashingInputsHasher)
             .hash(
                 inputs: .value(hashingInputs),

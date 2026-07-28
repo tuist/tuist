@@ -40,7 +40,7 @@ Sensitive authentication data (passwords, tokens) are excluded from exports.
 - Command events (CLI usage, build data, performance metrics)
 - Cache events and cache action items
 - Test cases and test execution results
-- Build system data (Xcode graphs, projects, targets)
+- Build system data (Xcode graphs, projects, and targets, including target component hashes such as additional hashing inputs)
 - Cacheable tasks (Xcode cache analytics: type, status, keys)
 
 ### App Previews & Builds
