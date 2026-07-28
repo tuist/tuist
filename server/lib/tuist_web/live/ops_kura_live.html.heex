@@ -39,7 +39,7 @@
       <:actions>
         <.button
           variant="secondary"
-          label={"View all #{@events_total} events"}
+          label="View all"
           size="medium"
           navigate={~p"/ops/kura/rollouts/#{@rollout.id}"}
           disabled={@events_total == 0}
@@ -64,7 +64,7 @@
     <:actions>
       <.button
         variant="secondary"
-        label={"View all #{@rollouts_total} rollouts"}
+        label="View all"
         size="medium"
         navigate={~p"/ops/kura/rollouts"}
         disabled={@rollouts_total == 0}

@@ -91,7 +91,7 @@ defmodule TuistWeb.OpsKuraLiveTest do
 
     {:ok, _lv, html} = live(conn, ~p"/ops/kura")
 
-    assert html =~ "View all 12 events"
+    assert html =~ "View all"
     assert html =~ ~p"/ops/kura/rollouts/#{rollout.id}"
   end
 
@@ -113,7 +113,7 @@ defmodule TuistWeb.OpsKuraLiveTest do
 
     {:ok, _lv, html} = live(conn, ~p"/ops/kura")
 
-    assert html =~ "View all 11 rollouts"
+    assert html =~ "View all"
     assert html =~ ~p"/ops/kura/rollouts"
   end
 end
