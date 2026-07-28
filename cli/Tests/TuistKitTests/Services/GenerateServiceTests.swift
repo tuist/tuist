@@ -421,7 +421,14 @@ struct GenerateServiceTests {
         )
         let workspacePath = try AbsolutePath(validating: "/test.xcworkspace")
         let localCacheStorage = MockCacheStoring()
+        let cacheStorageFactory = MockCacheStorageFactorying()
         let alertController = AlertController()
+        let subject = GenerateService(
+            cacheStorageFactory: cacheStorageFactory,
+            generatorFactory: generatorFactory,
+            configLoader: configLoader,
+            generationMetadataStore: generationMetadataStore
+        )
         given(cacheStorageFactory)
             .cacheStorage(config: .any)
             .willThrow(RefreshAuthTokenServiceError.unknownError(503))
@@ -457,7 +464,14 @@ struct GenerateServiceTests {
         given(configLoader).loadConfig(path: .any).willReturn(
             .test(project: .testGeneratedProject())
         )
+        let cacheStorageFactory = MockCacheStorageFactorying()
         let expectedError = RefreshAuthTokenServiceError.unauthorized("Invalid token")
+        let subject = GenerateService(
+            cacheStorageFactory: cacheStorageFactory,
+            generatorFactory: generatorFactory,
+            configLoader: configLoader,
+            generationMetadataStore: generationMetadataStore
+        )
         given(cacheStorageFactory)
             .cacheStorage(config: .any)
             .willThrow(expectedError)
