@@ -16,7 +16,7 @@ defmodule Tuist.CommandEvents do
   alias Tuist.Storage
   alias Tuist.Time
 
-  @optimized_list_index_fields [:id, :ran_at, :duration, :hit_rate]
+  @optimized_list_index_fields [:id, :project_id, :ran_at, :duration, :hit_rate]
 
   def list_command_events(attrs, _opts \\ []) do
     optimized_table = sort_optimized_table(attrs)
@@ -750,7 +750,7 @@ defmodule Tuist.CommandEvents do
 
     hit_rates =
       ClickHouseRepo.all(
-        from(e in {"command_events_by_ran_at", Event},
+        from(e in Event,
           where:
             e.project_id == ^project_id and
               e.cacheable_targets_count > 0,
@@ -1134,17 +1134,18 @@ defmodule Tuist.CommandEvents do
   defp hydrate_optimized_list_results([], _optimized_table), do: []
 
   defp hydrate_optimized_list_results(results, _optimized_table) do
+    project_ids = results |> Enum.map(& &1.project_id) |> Enum.uniq()
     ids = Enum.map(results, & &1.id)
 
-    events_by_id =
+    events_by_key =
       Event
-      |> where([event], event.id in ^ids)
-      |> order_by([event], asc: event.id, desc: event.updated_at)
+      |> where([event], event.project_id in ^project_ids and event.id in ^ids)
+      |> order_by([event], asc: event.project_id, asc: event.id, desc: event.updated_at)
       |> ClickHouseRepo.all()
-      |> Enum.uniq_by(& &1.id)
-      |> Map.new(&{&1.id, &1})
+      |> Enum.uniq_by(&{&1.project_id, &1.id})
+      |> Map.new(&{{&1.project_id, &1.id}, &1})
 
-    Enum.map(ids, &Map.fetch!(events_by_id, &1))
+    Enum.map(results, &Map.fetch!(events_by_key, {&1.project_id, &1.id}))
   end
 
   defp sort_optimized_table(%{order_by: [field | _]}) when field in [:duration, "duration"],

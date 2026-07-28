@@ -463,6 +463,42 @@ defmodule Tuist.CommandEventsTest do
                  {["App", "Framework"], ["App"], []}
                ]
     end
+
+    test "hydrates optimized rows within the selected project when identifiers collide" do
+      project = ProjectsFixtures.project_fixture()
+      other_project = ProjectsFixtures.project_fixture()
+      shared_id = UUIDv7.generate()
+
+      selected_event =
+        CommandEventsFixtures.command_event_fixture(
+          id: shared_id,
+          project_id: project.id,
+          name: "cache",
+          cacheable_targets: ["SelectedApp"]
+        )
+
+      CommandEventsFixtures.command_event_fixture(
+        id: shared_id,
+        project_id: other_project.id,
+        name: "cache",
+        cacheable_targets: ["OtherApp"]
+      )
+
+      {events, _meta} =
+        CommandEvents.list_command_events(%{
+          filters: [
+            %{field: :project_id, op: :==, value: project.id},
+            %{field: :name, op: :==, value: "cache"}
+          ],
+          order_by: [:ran_at],
+          order_directions: [:desc],
+          first: 10
+        })
+
+      assert [%{project_id: project_id, cacheable_targets: ["SelectedApp"]}] = events
+      assert project_id == project.id
+      assert hd(events).id == selected_event.id
+    end
   end
 
   describe "list_test_runs/1" do
