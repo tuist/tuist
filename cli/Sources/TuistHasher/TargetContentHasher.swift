@@ -53,6 +53,7 @@ public struct TargetContentHasher: TargetContentHashing {
     private let settingsContentHasher: SettingsContentHashing
     private let dependenciesContentHasher: DependenciesContentHashing
     private let foreignBuildHasher: ForeignBuildHashing
+    private let additionalHashingInputsHasher: AdditionalHashingInputsHashing
 
     // MARK: - Init
 
@@ -83,7 +84,8 @@ public struct TargetContentHasher: TargetContentHashing {
                 contentHasher: contentHasher, xcconfigHasher: xcconfigHasher
             ),
             dependenciesContentHasher: DependenciesContentHasher(contentHasher: contentHasher),
-            foreignBuildHasher: ForeignBuildHasher(contentHasher: contentHasher)
+            foreignBuildHasher: ForeignBuildHasher(contentHasher: contentHasher),
+            additionalHashingInputsHasher: AdditionalHashingInputsHasher(contentHasher: contentHasher)
         )
     }
 
@@ -99,7 +101,8 @@ public struct TargetContentHasher: TargetContentHashing {
         plistContentHasher: PlistContentHashing,
         settingsContentHasher: SettingsContentHashing,
         dependenciesContentHasher: DependenciesContentHashing,
-        foreignBuildHasher: ForeignBuildHashing
+        foreignBuildHasher: ForeignBuildHashing,
+        additionalHashingInputsHasher: AdditionalHashingInputsHashing
     ) {
         self.contentHasher = contentHasher
         self.sourceFilesContentHasher = sourceFilesContentHasher
@@ -113,6 +116,7 @@ public struct TargetContentHasher: TargetContentHashing {
         self.settingsContentHasher = settingsContentHasher
         self.dependenciesContentHasher = dependenciesContentHasher
         self.foreignBuildHasher = foreignBuildHasher
+        self.additionalHashingInputsHasher = additionalHashingInputsHasher
     }
 
     // MARK: - TargetContentHashing
@@ -194,7 +198,7 @@ public struct TargetContentHasher: TargetContentHashing {
                 subhashes: subhashes
             )
         }
-        var hashedPaths = hashedPaths
+        var hashedPaths = dependenciesHash.hashedPaths
         let sourcesHash = try await sourceFilesContentHasher.hash(
             identifier: "sources", sources: graphTarget.target.sources
         ).hash
@@ -212,7 +216,13 @@ public struct TargetContentHasher: TargetContentHashing {
             sourceRootPath: graphTarget.project.sourceRootPath
         )
 
-        hashedPaths = dependenciesHash.hashedPaths
+        let additionalHashingInputsResult = try await additionalHashingInputsHasher.hash(
+            inputs: graphTarget.target.additionalHashingInputs,
+            hashedPaths: hashedPaths,
+            sourceRootPath: graphTarget.project.sourceRootPath
+        )
+        hashedPaths = additionalHashingInputsResult.hashedPaths
+
         let environmentHash = try contentHasher.hash(
             graphTarget.target.environmentVariables.mapValues(\.value)
         )
@@ -322,6 +332,10 @@ public struct TargetContentHasher: TargetContentHashing {
             stringsToHash.append(buildableFoldersHash)
         }
 
+        if let additionalHashingInputsHash = additionalHashingInputsResult.hash {
+            stringsToHash.append(additionalHashingInputsHash)
+        }
+
         stringsToHash.append(contentsOf: graphTarget.target.destinations.map(\.rawValue).sorted())
 
         let headersHash: String?
@@ -399,6 +413,7 @@ public struct TargetContentHasher: TargetContentHashing {
             destinationHashes: \(destinationHashes.joined(separator: ", "))
             additionalStrings: \(additionalStrings.joined(separator: ", "))
             buildableFolders: \(buildableFoldersHash ?? "nil")
+            additionalHashingInputs: \(additionalHashingInputsResult.hash ?? "nil")
             headers: \(headersHash ?? "nil")
             deploymentTarget: \(deploymentTargetHash)
             infoPlist: \(infoPlistHash ?? "nil")

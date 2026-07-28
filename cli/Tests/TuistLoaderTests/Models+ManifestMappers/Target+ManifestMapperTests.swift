@@ -208,6 +208,56 @@ final class TargetManifestMapperTests: TuistUnitTestCase {
             .called(1)
     }
 
+    func test_from_mapsAdditionalHashingInputs() async throws {
+        // Given
+        let rootDirectory = try temporaryPath()
+        let hashingDirectory = rootDirectory.appending(component: "Hashing")
+        let nestedDirectory = hashingDirectory.appending(component: "Nested")
+        let firstFile = hashingDirectory.appending(component: "first.txt")
+        let secondFile = hashingDirectory.appending(component: "second.txt")
+        try await fileSystem.makeDirectory(at: nestedDirectory)
+        try await fileSystem.touch(firstFile)
+        try await fileSystem.touch(secondFile)
+        let generatorPaths = GeneratorPaths(
+            manifestDirectory: try temporaryPath(),
+            rootDirectory: rootDirectory
+        )
+        let mockContentHasher = MockContentHashing()
+
+        // When
+        let target = try await XcodeGraph.Target.from(
+            manifest: .test(
+                sources: .sourceFilesList(globs: [ProjectDescription.SourceFileGlob]()),
+                resources: .resources([]),
+                additionalHashingInputs: [
+                    .glob(.relativeToRoot("Hashing/first.txt")),
+                    .glob(.relativeToRoot("Hashing/Nested")),
+                    .glob(.relativeToRoot("Hashing/*.txt")),
+                    .string("production"),
+                    .environmentVariable("CONFIGURATION"),
+                    .script("codegen --version"),
+                ]
+            ),
+            generatorPaths: generatorPaths,
+            externalDependencies: [:],
+            fileSystem: fileSystem,
+            contentHasher: mockContentHasher,
+            type: .local
+        )
+
+        // Then
+        let expectedInputs: [TargetHashingInput] = [
+            .path(firstFile),
+            .path(nestedDirectory),
+            .path(firstFile),
+            .path(secondFile),
+            .string("production"),
+            .environmentVariable("CONFIGURATION"),
+            .script("codegen --version"),
+        ]
+        XCTAssertEqual(target.additionalHashingInputs, expectedInputs)
+    }
+
     func test_from_deduplicatesIdenticalXCFrameworkDependenciesExpandedFromExternalDependencies() async throws {
         // Given
         let rootDirectory = try temporaryPath()

@@ -2,6 +2,7 @@ import FileSystem
 import Foundation
 import Path
 import ProjectDescription
+import TuistAlert
 import TuistCore
 import TuistLogging
 import TuistSupport
@@ -139,6 +140,12 @@ extension XcodeGraph.Target {
             )
         }
 
+        let additionalHashingInputs = try await additionalHashingInputs(
+            from: manifest.additionalHashingInputs,
+            generatorPaths: generatorPaths,
+            fileSystem: fileSystem
+        )
+
         let environmentVariables = manifest.environmentVariables.mapValues(EnvironmentVariable.from)
         let launchArguments = manifest.launchArguments.map(LaunchArgument.from)
 
@@ -193,6 +200,7 @@ extension XcodeGraph.Target {
             headers: headers,
             coreDataModels: coreDataModels,
             scripts: scripts,
+            additionalHashingInputs: additionalHashingInputs,
             environmentVariables: environmentVariables,
             launchArguments: launchArguments,
             filesGroup: .group(name: "Project"),
@@ -211,6 +219,46 @@ extension XcodeGraph.Target {
     }
 
     // MARK: - Fileprivate
+
+    private static func additionalHashingInputs(
+        from manifestInputs: [ProjectDescription.Target.HashingInput],
+        generatorPaths: GeneratorPaths,
+        fileSystem: FileSysteming
+    ) async throws -> [TargetHashingInput] {
+        var inputs: [TargetHashingInput] = []
+
+        for manifestInput in manifestInputs {
+            switch manifestInput {
+            case let .glob(path):
+                let resolvedPath = try generatorPaths.resolve(path: path)
+                guard fileSystem.isGlobPattern(path) else {
+                    inputs.append(.path(resolvedPath))
+                    continue
+                }
+
+                let pattern = String(resolvedPath.pathString.dropFirst())
+                let matchedPaths = try await fileSystem
+                    .glob(directory: AbsolutePath.root, include: [pattern])
+                    .collect()
+                    .sorted()
+
+                if matchedPaths.isEmpty {
+                    AlertController.current.warning(.alert(
+                        "Additional hashing input '\(resolvedPath.pathString)' matched no files. Verify that the path is correct."
+                    ))
+                }
+                inputs.append(contentsOf: matchedPaths.map(TargetHashingInput.path))
+            case let .string(value):
+                inputs.append(.string(value))
+            case let .environmentVariable(name):
+                inputs.append(.environmentVariable(name))
+            case let .script(script):
+                inputs.append(.script(script))
+            }
+        }
+
+        return inputs
+    }
 
     private static func foreignBuildInfo(
         from manifest: ProjectDescription.Target.ForeignBuild?,
