@@ -198,6 +198,8 @@ The path can be absolute or relative to the current working directory. Tuist cre
 
 When this environment variable is set, Tuist leaves the directory and its contents in place after the command finishes. The caller is responsible for cleaning it before the next cache warm. When the variable is unset, Tuist continues to use and remove a temporary directory.
 
+Tuist rejects a caller-owned scratch directory when a foreign build target needs to be warmed. Foreign build scripts control their own output locations, so Tuist cannot guarantee that those outputs stay inside the scratch directory.
+
 ## Troubleshooting {#troubleshooting}
 
 ### It doesn't use binaries for my targets {#it-doesnt-use-binaries-for-my-targets}

@@ -23,34 +23,11 @@ import XcodeGraph
 
 #if canImport(TuistCacheEE)
 
-    enum CacheWarmCommandServiceError: FatalError, Equatable {
-        case scratchDirectoryIsNotDirectory(AbsolutePath)
-        case scratchDirectoryIsNotEmpty(AbsolutePath)
-
-        var description: String {
-            switch self {
-            case let .scratchDirectoryIsNotDirectory(path):
-                return "The cache warm scratch directory at \(path.pathString) is not a directory."
-            case let .scratchDirectoryIsNotEmpty(path):
-                return "The cache warm scratch directory at \(path.pathString) must be empty."
-            }
-        }
-
-        var type: ErrorType {
-            .abort
-        }
-    }
-
     // swiftlint:disable:next type_body_length
     public struct CacheWarmCommandService: CacheServicing {
         enum Destination {
             case simulator
             case device
-        }
-
-        private enum ScratchDirectory {
-            case temporary
-            case callerOwned(AbsolutePath)
         }
 
         /// Upper bound on concurrent `xcodebuild -create-xcframework` invocations. Each one is an
@@ -72,6 +49,8 @@ import XcodeGraph
         private let contentHasher: ContentHashing
         private let cacheGraphContentHasher: CacheGraphContentHashing
         private let cacheStorageFactory: CacheStorageFactorying
+        private let scratchDirectoryPreparer: CacheWarmScratchDirectoryPreparing
+        private let foreignBuildOutputValidator: CacheWarmForeignBuildOutputValidating
 
         public init() {
             let contentHasher = ContentHasher()
@@ -86,7 +65,9 @@ import XcodeGraph
                 contentHasher: contentHasher,
                 cacheGraphContentHasher: CacheGraphContentHasher(contentHasher: contentHasher),
                 cacheStorageFactory: Extension.cacheStorageFactory,
-                configLoader: ConfigLoader()
+                configLoader: ConfigLoader(),
+                scratchDirectoryPreparer: CacheWarmScratchDirectoryPreparer(),
+                foreignBuildOutputValidator: CacheWarmForeignBuildOutputValidator()
             )
         }
 
@@ -101,7 +82,9 @@ import XcodeGraph
             contentHasher: ContentHashing,
             cacheGraphContentHasher: CacheGraphContentHashing,
             cacheStorageFactory: CacheStorageFactorying = Extension.cacheStorageFactory,
-            configLoader: ConfigLoading = ConfigLoader()
+            configLoader: ConfigLoading = ConfigLoader(),
+            scratchDirectoryPreparer: CacheWarmScratchDirectoryPreparing = CacheWarmScratchDirectoryPreparer(),
+            foreignBuildOutputValidator: CacheWarmForeignBuildOutputValidating = CacheWarmForeignBuildOutputValidator()
         ) {
             self.configLoader = configLoader
             manifestLoader = ManifestLoader.current
@@ -116,6 +99,8 @@ import XcodeGraph
             self.contentHasher = contentHasher
             self.cacheGraphContentHasher = cacheGraphContentHasher
             self.cacheStorageFactory = cacheStorageFactory
+            self.scratchDirectoryPreparer = scratchDirectoryPreparer
+            self.foreignBuildOutputValidator = foreignBuildOutputValidator
         }
 
         // swiftlint:disable:next function_body_length
@@ -130,14 +115,13 @@ import XcodeGraph
             scratchDirectory: String?
         ) async throws {
             let path = try await Environment.current.pathRelativeToWorkingDirectory(directory)
-            let scratchDirectoryMode: ScratchDirectory
-            if let scratchDirectoryPath = scratchDirectory {
-                scratchDirectoryMode = .callerOwned(
-                    try await Environment.current.pathRelativeToWorkingDirectory(scratchDirectoryPath)
-                )
+            let scratchDirectoryPath: AbsolutePath?
+            if let scratchDirectory {
+                scratchDirectoryPath = try await Environment.current.pathRelativeToWorkingDirectory(scratchDirectory)
             } else {
-                scratchDirectoryMode = .temporary
+                scratchDirectoryPath = nil
             }
+            let scratchDirectoryMode = try await scratchDirectoryPreparer.prepare(path: scratchDirectoryPath)
             let config = try await configLoader.loadConfig(path: path)
             let cacheStorage = try await cacheStorageFactory.cacheStorage(config: config)
             let requestedTargetsToBinaryCache = Set(targetsToBinaryCache.map { TargetQuery(stringLiteral: $0) })
@@ -193,6 +177,11 @@ import XcodeGraph
                 requestedTargetsToBinaryCache: requestedTargetsToBinaryCache,
                 cacheProfile: profile,
                 cacheStorage: cacheStorage
+            )
+
+            try foreignBuildOutputValidator.validate(
+                targets: cacheableTargets.map(\.0),
+                scratchDirectory: scratchDirectoryMode
             )
 
             let cacheableTargetNames = Set(cacheableTargets.map(\.0.target.name))
@@ -271,7 +260,7 @@ import XcodeGraph
             cacheStorage: CacheStoring,
             noUpload _: Bool,
             isReleaseConfiguration: Bool,
-            scratchDirectory: ScratchDirectory
+            scratchDirectory: CacheWarmScratchDirectory
         ) async throws {
             switch scratchDirectory {
             case .temporary:
@@ -289,7 +278,6 @@ import XcodeGraph
                     )
                 }
             case let .callerOwned(path):
-                try await prepareCallerOwnedScratchDirectory(path)
                 try await archive(
                     graph,
                     projectPath: projectPath,
@@ -300,19 +288,6 @@ import XcodeGraph
                     in: path,
                     compilationCacheCASArgument: try await compilationCacheCASArgument(scratchDirectory: path)
                 )
-            }
-        }
-
-        private func prepareCallerOwnedScratchDirectory(_ path: AbsolutePath) async throws {
-            guard try await fileSystem.exists(path) else {
-                try await fileSystem.makeDirectory(at: path)
-                return
-            }
-            guard try await fileSystem.exists(path, isDirectory: true) else {
-                throw CacheWarmCommandServiceError.scratchDirectoryIsNotDirectory(path)
-            }
-            guard try await fileSystem.contentsOfDirectory(path).isEmpty else {
-                throw CacheWarmCommandServiceError.scratchDirectoryIsNotEmpty(path)
             }
         }
 
