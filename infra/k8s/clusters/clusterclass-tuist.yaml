@@ -14,6 +14,11 @@ spec:
         apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
         kind: HCloudMachineTemplate
         name: tuist-hcloud-hcloud-machinetemplate
+    deletion:
+      # The default ten-second timeout can expire during a brief control-plane
+      # interruption and leave a Node behind after its Machine is deleted.
+      # Zero keeps retrying until the workload control plane accepts deletion.
+      nodeDeletionTimeoutSeconds: 0
     healthCheck:
       checks:
         # New members currently reach the infrastructure-ready state but do

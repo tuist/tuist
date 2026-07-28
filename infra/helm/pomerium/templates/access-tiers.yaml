@@ -181,8 +181,9 @@ rules:
 #   * scalewayapplesiliconmachines (+/status) update/patch — clear the terminal
 #     failure so the drift loop retries. No delete: the CAPI Machine delete
 #     cascades to the infra machine on its own.
-#   * nodes update/patch + pods/eviction create — cordon and drain the host
-#     before deleting it, matching the recreate runbook.
+#   * nodes update/patch/delete + pods/eviction create — cordon and drain a
+#     live host before recreating it, or remove a confirmed orphaned Node after
+#     its Machine and infrastructure are already gone.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -198,7 +199,7 @@ rules:
     verbs: ["get", "list", "watch", "update", "patch"]
   - apiGroups: [""]
     resources: ["nodes"]
-    verbs: ["get", "list", "watch", "update", "patch"]
+    verbs: ["get", "list", "watch", "update", "patch", "delete"]
   - apiGroups: [""]
     resources: ["pods/eviction"]
     verbs: ["create"]
