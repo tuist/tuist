@@ -2,6 +2,7 @@ defmodule Tuist.CommandEventsTest do
   use TuistTestSupport.Cases.DataCase, async: true
   use Mimic
 
+  alias Tuist.ClickHouseRepo
   alias Tuist.CommandEvents
   alias Tuist.Repo
   alias Tuist.Storage
@@ -498,6 +499,34 @@ defmodule Tuist.CommandEventsTest do
       assert [%{project_id: project_id, cacheable_targets: ["SelectedApp"]}] = events
       assert project_id == project.id
       assert hd(events).id == selected_event.id
+    end
+
+    test "uses a sequentially consistent read when hydrating optimized rows" do
+      project = ProjectsFixtures.project_fixture()
+
+      CommandEventsFixtures.command_event_fixture(
+        project_id: project.id,
+        name: "generate"
+      )
+
+      parent = self()
+
+      stub(ClickHouseRepo, :all, fn query, opts ->
+        send(parent, {:clickhouse_read_options, opts})
+        Mimic.call_original(ClickHouseRepo, :all, [query, opts])
+      end)
+
+      CommandEvents.list_command_events(%{
+        filters: [
+          %{field: :project_id, op: :==, value: project.id},
+          %{field: :name, op: :==, value: "generate"}
+        ],
+        order_by: [:ran_at],
+        order_directions: [:desc],
+        first: 10
+      })
+
+      assert_received {:clickhouse_read_options, [settings: [select_sequential_consistency: 1]]}
     end
   end
 

@@ -1141,7 +1141,9 @@ defmodule Tuist.CommandEvents do
       Event
       |> where([event], event.project_id in ^project_ids and event.id in ^ids)
       |> order_by([event], asc: event.project_id, asc: event.id, desc: event.updated_at)
-      |> ClickHouseRepo.all()
+      # The optimized view can be ahead of the replica serving this canonical table read,
+      # so hydrate with sequential consistency.
+      |> ClickHouseRepo.all(settings: [select_sequential_consistency: 1])
       |> Enum.uniq_by(&{&1.project_id, &1.id})
       |> Map.new(&{{&1.project_id, &1.id}, &1})
 
