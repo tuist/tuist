@@ -24,10 +24,12 @@ managed environments that expose the registry service directly.
 - Read package metadata from S3 (`registry/metadata/<scope>/<name>/index.json`).
 - Request strong consistency for metadata reads and revalidation so a reader
   cannot cache a previous catalog revision after a writer has repaired it.
-- Emit 303 redirects to presigned S3 URLs for source archives without a
-  separate existence request. The object-storage download is authoritative
-  for whether an archive exists, so a temporary storage lookup failure cannot
-  be converted into a registry 404.
+- Emit 303 redirects to strongly consistent presigned S3 URLs for source
+  archives without a separate existence request. The consistency query keeps
+  a repaired archive from being shadowed by an older regional object copy.
+  The object-storage download is authoritative for whether an archive exists,
+  so a temporary storage lookup failure cannot be converted into a registry
+  404.
 - Serve manifest bodies in-process. Default `Package.swift` responses
   also include the `Link` header listing alternate manifests.
 - Emit per-ecosystem download/manifest metrics via PromEx, scraped by
@@ -43,9 +45,10 @@ managed environments that expose the registry service directly.
 
 ## Serving model
 - **Source archives** are served as `303` redirects to presigned Tigris
-  URLs. The signed request overrides the object response content type with
-  `application/zip`, including for existing objects with generic metadata.
-  SE-0292 §4.4 explicitly permits this shape for signed archive URLs.
+  URLs. The signed request requests strong consistency and overrides the
+  object response content type with `application/zip`, including for existing
+  objects with generic metadata. SE-0292 §4.4 explicitly permits this shape
+  for signed archive URLs.
 - **Default `Package.swift`** is loaded from Tigris into memory and
   served in-process with an alternate-manifest `Link` header attached.
 - **Version-specific manifests** are also loaded from Tigris and served
