@@ -1,13 +1,13 @@
+import Foundation
 import Mockable
 import Path
-import TuistLogging
 import TuistSupport
 import XcodeGraph
 
-public enum CacheWarmForeignBuildOutputValidatorError: FatalError, Equatable {
+public enum CacheWarmForeignBuildOutputValidatorError: LocalizedError, Equatable {
     case unsupported(scratchDirectory: AbsolutePath, targetNames: [String])
 
-    public var description: String {
+    public var errorDescription: String? {
         switch self {
         case let .unsupported(scratchDirectory, targetNames):
             return """
@@ -16,10 +16,6 @@ public enum CacheWarmForeignBuildOutputValidatorError: FatalError, Equatable {
             Foreign build scripts control their output locations, so Tuist cannot guarantee that every build output stays inside the scratch directory.
             """
         }
-    }
-
-    public var type: ErrorType {
-        .abort
     }
 }
 
