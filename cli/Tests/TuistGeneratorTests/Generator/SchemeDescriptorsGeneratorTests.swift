@@ -2555,7 +2555,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         return GeneratedProject(pbxproj: .init(), path: path, targets: pbxTargets, name: path.basename)
     }
 
-    func test_schemeTestAction_swiftTestingOnly_omits_parallelizable_attribute() throws {
+    func test_schemeTestAction_passes_through_swiftTestingOnly_parallelization() throws {
         // Given
         let target = Target.test(name: "App", product: .app)
         let testTarget = Target.test(name: "AppTests", product: .unitTests)
@@ -2588,9 +2588,10 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             generatedProjects: createGeneratedProjects(projects: [project])
         )
 
-        // Then: the descriptor carries .swiftTestingOnly, which XcodeProj serialises to
-        // an .xcscheme TestableReference that omits the `parallelizable` attribute entirely.
-        // The absence of that attribute is Xcode's encoding for "Swift Testing only" parallelization.
+        // Then: the generated TestableReference preserves .swiftTestingOnly.
+        // XcodeProj's serialiser turns that into an .xcscheme TestableReference without a
+        // `parallelizable` attribute; that XML behaviour is covered separately by
+        // XCSchemeMapperTests and TestPlanDescriptorTests.
         let result = try XCTUnwrap(got)
         let testableReference = try XCTUnwrap(result.testables.first)
         XCTAssertEqual(testableReference.parallelization, .swiftTestingOnly)
