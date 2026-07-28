@@ -144,6 +144,8 @@ jobs:
         run: tuist setup
       - name: Install Tuist dependencies
         run: tuist install --force-resolved-versions
+      - name: Resolve registry replacements
+        run: swift package resolve --replace-scm-with-registry
       - name: Build
         run: swift build --configuration debug --replace-scm-with-registry --force-resolved-versions
 
