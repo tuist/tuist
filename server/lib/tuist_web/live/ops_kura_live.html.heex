@@ -36,16 +36,17 @@
     </.card>
 
     <.card title="Recent events" icon="history">
+      <:actions>
+        <.button
+          variant="secondary"
+          label={"View all #{@events_total} events"}
+          size="medium"
+          navigate={~p"/ops/kura/rollouts/#{@rollout.id}"}
+          disabled={@events_total == 0}
+        />
+      </:actions>
       <.card_section>
         <.events_table id="kura-rollout-events-table" events={@events} />
-        <div :if={@events_total > @recent_limit} data-part="view-all">
-          <.link_button
-            navigate={~p"/ops/kura/rollouts/#{@rollout.id}"}
-            label={"View all #{@events_total} events"}
-            variant="secondary"
-            size="medium"
-          />
-        </div>
       </.card_section>
     </.card>
   <% else %>
@@ -60,16 +61,17 @@
   <% end %>
 
   <.card title="Recent rollouts" icon="stack_2">
+    <:actions>
+      <.button
+        variant="secondary"
+        label={"View all #{@rollouts_total} rollouts"}
+        size="medium"
+        navigate={~p"/ops/kura/rollouts"}
+        disabled={@rollouts_total == 0}
+      />
+    </:actions>
     <.card_section>
       <.rollouts_table id="kura-rollouts-history-table" rollouts={@rollouts} />
-      <div :if={@rollouts_total > @recent_limit} data-part="view-all">
-        <.link_button
-          navigate={~p"/ops/kura/rollouts"}
-          label={"View all #{@rollouts_total} rollouts"}
-          variant="secondary"
-          size="medium"
-        />
-      </div>
     </.card_section>
   </.card>
 </div>

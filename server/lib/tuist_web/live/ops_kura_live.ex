@@ -60,6 +60,5 @@ defmodule TuistWeb.OpsKuraLive do
     |> assign(:events_total, (rollout && Rollouts.count_events(rollout)) || 0)
     |> assign(:rollouts, Rollouts.list_rollouts(@recent_limit))
     |> assign(:rollouts_total, Rollouts.count_rollouts())
-    |> assign(:recent_limit, @recent_limit)
   end
 end

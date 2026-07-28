@@ -1,12 +1,7 @@
 <div id="ops-kura-rollouts" data-part="ops-kura-page">
   <div data-part="header">
     <h1 data-part="title">{dgettext("dashboard", "Kura Rollout History")}</h1>
-    <.link_button
-      navigate={~p"/ops/kura"}
-      label="Back to overview"
-      variant="secondary"
-      size="medium"
-    />
+    <.button variant="secondary" label="Back to overview" size="medium" navigate={~p"/ops/kura"} />
   </div>
 
   <.card title="Rollouts" icon="stack_2">

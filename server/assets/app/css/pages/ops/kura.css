@@ -68,12 +68,6 @@
     text-decoration: underline;
   }
 
-  & [data-part="view-all"] {
-    display: flex;
-    justify-content: flex-end;
-    margin-top: var(--noora-spacing-5);
-  }
-
   & [data-part="disabled-note"],
   & [data-part="empty-note"] {
     color: var(--noora-surface-label-secondary);
