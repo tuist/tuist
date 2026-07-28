@@ -51,6 +51,7 @@ defmodule Tuist.Runners.Dispatch do
   alias Tuist.Runners.RunnerSessions
   alias Tuist.Runners.Telemetry
   alias Tuist.Runners.Workers.FetchLogsWorker
+  alias Tuist.Runners.WorkflowJobs
   alias Tuist.VCS
 
   require Logger
@@ -249,6 +250,7 @@ defmodule Tuist.Runners.Dispatch do
   defp record_execution(runner_name, executed_workflow_job_id, account_id) do
     claim_outcome = Claims.record_execution(runner_name, executed_workflow_job_id, account_id)
     session_outcome = RunnerSessions.record_execution(runner_name, executed_workflow_job_id, account_id)
+    :ok = WorkflowJobs.record_execution(runner_name, executed_workflow_job_id, account_id)
     outcome = combine_attribution(claim_outcome, session_outcome)
 
     case outcome do

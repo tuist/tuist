@@ -9,6 +9,8 @@ defmodule Tuist.Runners.ClaimsTest do
   alias Tuist.Runners.Claims
   alias Tuist.Runners.ConcurrencyLimit
   alias Tuist.Runners.JobCompletion
+  alias Tuist.Runners.WorkflowJob
+  alias Tuist.Runners.WorkflowJobs
 
   @linux_resources %{platform: :linux, vcpus: 1, memory_gb: 1}
 
@@ -660,6 +662,121 @@ defmodule Tuist.Runners.ClaimsTest do
 
       assert :ok = Claims.release_pod_missing(7402, handle)
       refute Repo.exists?(from(c in Claim, where: c.workflow_job_id == 7402))
+    end
+  end
+
+  describe "workflow_job lifecycle transitions" do
+    defp lifecycle_attrs(account, workflow_job_id) do
+      %{
+        workflow_job_id: workflow_job_id,
+        account_id: account.id,
+        fleet_name: "fleet-a",
+        platform: "linux",
+        vcpus: 1,
+        memory_gb: 1,
+        repository: "acme/cli"
+      }
+    end
+
+    defp lifecycle_row!(workflow_job_id), do: Repo.get!(WorkflowJob, workflow_job_id)
+
+    test "attempt/5 transitions the lifecycle row queued → claimed in the claim transaction" do
+      account = account_fixture()
+      :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 7500))
+
+      assert {:ok, claim} = Claims.attempt(7500, account.id, "fleet-a", "pod-1", @linux_resources)
+
+      row = lifecycle_row!(7500)
+      assert row.status == "claimed"
+      assert row.pod_name == "pod-1"
+      assert DateTime.compare(row.claimed_at, claim.claimed_at) == :eq
+    end
+
+    test "attempt/5 still claims when no lifecycle row exists" do
+      account = account_fixture()
+
+      assert {:ok, _} = Claims.attempt(7501, account.id, "fleet-a", "pod-1", @linux_resources)
+      assert Repo.get(WorkflowJob, 7501) == nil
+    end
+
+    test "a rejected attempt rolls the lifecycle transition back" do
+      account = account_fixture()
+      :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 7502))
+
+      assert {:error, {:concurrency_limit_reached, _}} =
+               Claims.attempt(7502, account.id, "fleet-a", "pod-1", %{
+                 platform: :linux,
+                 vcpus: 1_000_000,
+                 memory_gb: 1
+               })
+
+      assert lifecycle_row!(7502).status == "queued"
+    end
+
+    test "attempt/5 leaves a terminal lifecycle row alone" do
+      account = account_fixture()
+      :ok = WorkflowJobs.record_completed(lifecycle_attrs(account, 7503), "success", DateTime.utc_now())
+
+      assert {:ok, _} = Claims.attempt(7503, account.id, "fleet-a", "pod-1", @linux_resources)
+      assert lifecycle_row!(7503).status == "completed"
+    end
+
+    test "mark_running/2 transitions the lifecycle row claimed → running" do
+      account = account_fixture()
+      :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 7510))
+      assert {:ok, _} = Claims.attempt(7510, account.id, "fleet-a", "pod-1", @linux_resources)
+
+      assert :ok = Claims.mark_running(7510, "runner-x")
+
+      row = lifecycle_row!(7510)
+      assert row.status == "running"
+      assert row.runner_name == "runner-x"
+    end
+
+    test "release/2 re-queues the lifecycle row with the claim delete" do
+      account = account_fixture()
+      :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 7520))
+      assert {:ok, claim} = Claims.attempt(7520, account.id, "fleet-a", "pod-1", @linux_resources)
+
+      assert :ok = Claims.release(7520, claim.claimed_at)
+
+      row = lifecycle_row!(7520)
+      assert row.status == "queued"
+      assert row.pod_name == nil
+    end
+
+    test "a stale release/2 leaves the lifecycle row alone" do
+      account = account_fixture()
+      :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 7521))
+      assert {:ok, _} = Claims.attempt(7521, account.id, "fleet-a", "pod-1", @linux_resources)
+
+      assert {:error, :stale_claim} = Claims.release(7521, DateTime.add(DateTime.utc_now(), -3_600, :second))
+      assert lifecycle_row!(7521).status == "claimed"
+    end
+
+    test "release/2 racing a completion leaves the terminal lifecycle state" do
+      account = account_fixture()
+      :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 7522))
+      assert {:ok, claim} = Claims.attempt(7522, account.id, "fleet-a", "pod-1", @linux_resources)
+      :ok = WorkflowJobs.record_completed(lifecycle_attrs(account, 7522), "success", DateTime.utc_now())
+
+      assert :ok = Claims.release(7522, claim.claimed_at)
+      assert lifecycle_row!(7522).status == "completed"
+    end
+
+    test "release_pod_missing/2 re-queues the lifecycle row with the claim delete" do
+      account = account_fixture()
+      handle = DateTime.add(DateTime.utc_now(), -600, :second)
+      :ok = WorkflowJobs.upsert_queued(lifecycle_attrs(account, 7530))
+      assert {:ok, _} = Claims.attempt(7530, account.id, "fleet-a", "pod-1", @linux_resources)
+
+      Repo.update_all(
+        from(c in Claim, where: c.workflow_job_id == 7530),
+        set: [pod_missing_since: handle]
+      )
+
+      assert :ok = Claims.release_pod_missing(7530, handle)
+      assert lifecycle_row!(7530).status == "queued"
     end
   end
 end

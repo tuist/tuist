@@ -62,6 +62,7 @@ defmodule Tuist.Runners.Jobs do
   alias Tuist.Runners.Job
   alias Tuist.Runners.JobCompletion
   alias Tuist.Runners.Telemetry
+  alias Tuist.Runners.WorkflowJobs
   alias Tuist.Tests.Test, as: TestRun
 
   require Logger
@@ -212,6 +213,7 @@ defmodule Tuist.Runners.Jobs do
       |> Map.put_new(:enqueued_at, now)
       |> Map.put(:updated_at, now)
 
+    :ok = WorkflowJobs.upsert_queued(row)
     insert_row!(row)
 
     :telemetry.execute(
@@ -273,9 +275,10 @@ defmodule Tuist.Runners.Jobs do
   next candidate. The actual claim race then collapses on
   Postgres uniqueness in `Claims.attempt/5`.
 
-  The scan is floored at `@queued_lookback_seconds` on `enqueued_at`
-  so ClickHouse prunes to recent partitions rather than aggregating
-  the fleet's full history — see the attribute's rationale.
+  Served from the Postgres lifecycle table. The scan stays floored at
+  `@queued_lookback_seconds` on `enqueued_at` so a row nothing can
+  move anymore (past `StaleQueuedJobsWorker`'s 24h backstop) can
+  never resurface as claimable — see the attribute's rationale.
   """
   def pick_queued(fleet_name, ineligible_account_ids \\ [], excluded_workflow_job_ids \\ [])
       when is_binary(fleet_name) and is_list(ineligible_account_ids) and is_list(excluded_workflow_job_ids) do
@@ -307,58 +310,14 @@ defmodule Tuist.Runners.Jobs do
   def pick_queued_top_k(fleet_name, ineligible_account_ids, excluded_repositories, excluded_workflow_job_ids, k)
       when is_binary(fleet_name) and is_list(ineligible_account_ids) and is_list(excluded_repositories) and
              is_list(excluded_workflow_job_ids) and is_integer(k) and k > 0 do
-    lookback_floor = queued_lookback_floor()
-
-    from(j in Job,
-      where: j.fleet_name == ^fleet_name and j.enqueued_at > ^lookback_floor,
-      group_by: j.workflow_job_id,
-      having: fragment("argMax(?, ?) = ?", j.status, j.updated_at, "queued"),
-      select: %{
-        workflow_job_id: j.workflow_job_id,
-        account_id: fragment("argMax(?, ?)", j.account_id, j.updated_at),
-        fleet_name: fragment("argMax(?, ?)", j.fleet_name, j.updated_at),
-        platform: fragment("argMax(?, ?)", j.platform, j.updated_at),
-        vcpus: fragment("argMax(?, ?)", j.vcpus, j.updated_at),
-        memory_gb: fragment("argMax(?, ?)", j.memory_gb, j.updated_at),
-        repository: fragment("argMax(?, ?)", j.repository, j.updated_at),
-        workflow_run_id: fragment("argMax(?, ?)", j.workflow_run_id, j.updated_at),
-        workflow_name: fragment("argMax(?, ?)", j.workflow_name, j.updated_at),
-        run_attempt: fragment("argMax(?, ?)", j.run_attempt, j.updated_at),
-        job_name: fragment("argMax(?, ?)", j.job_name, j.updated_at),
-        head_branch: fragment("argMax(?, ?)", j.head_branch, j.updated_at),
-        head_sha: fragment("argMax(?, ?)", j.head_sha, j.updated_at),
-        enqueued_at: fragment("argMax(?, ?)", j.enqueued_at, j.updated_at),
-        requested_dispatch_label: fragment("argMax(?, ?)", j.requested_dispatch_label, j.updated_at)
-      }
+    WorkflowJobs.pick_queued_top_k(
+      fleet_name,
+      ineligible_account_ids,
+      excluded_repositories,
+      excluded_workflow_job_ids,
+      k,
+      queued_lookback_floor()
     )
-    |> exclude_accounts(ineligible_account_ids)
-    |> exclude_repositories(excluded_repositories)
-    |> exclude_workflow_jobs(excluded_workflow_job_ids)
-    |> order_by([j], asc: fragment("argMax(?, ?)", j.enqueued_at, j.updated_at), asc: j.workflow_job_id)
-    |> limit(^k)
-    |> ClickHouseRepo.all()
-    |> case do
-      [] -> {:error, :empty}
-      candidates -> {:ok, candidates}
-    end
-  end
-
-  defp exclude_accounts(query, []), do: query
-
-  defp exclude_accounts(query, account_ids) when is_list(account_ids) do
-    having(query, [j], fragment("argMax(?, ?)", j.account_id, j.updated_at) not in ^account_ids)
-  end
-
-  defp exclude_repositories(query, []), do: query
-
-  defp exclude_repositories(query, repositories) when is_list(repositories) do
-    having(query, [j], fragment("argMax(?, ?)", j.repository, j.updated_at) not in ^repositories)
-  end
-
-  defp exclude_workflow_jobs(query, []), do: query
-
-  defp exclude_workflow_jobs(query, workflow_job_ids) when is_list(workflow_job_ids) do
-    where(query, [j], j.workflow_job_id not in ^workflow_job_ids)
   end
 
   @doc """
@@ -925,23 +884,10 @@ defmodule Tuist.Runners.Jobs do
   Counts `queued` rows for `fleet_name`. Used by the autoscaler
   to size the warm pool — every queued workflow_job needs a Pod
   to claim it, so the desired replica count grows with this
-  value. `argMax(status, updated_at)` picks the latest state per
-  `workflow_job_id` so jobs that have since transitioned out of
-  `queued` don't get double-counted.
+  value. Served from the Postgres lifecycle table.
   """
   def queued_count_by_fleet(fleet_name) when is_binary(fleet_name) do
-    lookback_floor = queued_lookback_floor()
-
-    inner =
-      from j in Job,
-        where: j.fleet_name == ^fleet_name and j.enqueued_at > ^lookback_floor,
-        group_by: j.workflow_job_id,
-        having: fragment("argMax(?, ?) = ?", j.status, j.updated_at, "queued"),
-        select: j.workflow_job_id
-
-    from(s in subquery(inner), select: count())
-    |> ClickHouseRepo.one()
-    |> Kernel.||(0)
+    WorkflowJobs.queued_count_by_fleet(fleet_name, queued_lookback_floor())
   end
 
   @doc """
@@ -952,24 +898,7 @@ defmodule Tuist.Runners.Jobs do
   allowed to run concurrently. Returns `%{account_id => count}`.
   """
   def queued_count_by_fleet_and_account(fleet_name) when is_binary(fleet_name) do
-    lookback_floor = queued_lookback_floor()
-
-    inner =
-      from j in Job,
-        where: j.fleet_name == ^fleet_name and j.enqueued_at > ^lookback_floor,
-        group_by: j.workflow_job_id,
-        having: fragment("argMax(?, ?) = ?", j.status, j.updated_at, "queued"),
-        select: %{
-          workflow_job_id: j.workflow_job_id,
-          account_id: fragment("argMax(?, ?)", j.account_id, j.updated_at)
-        }
-
-    from(s in subquery(inner),
-      group_by: s.account_id,
-      select: {s.account_id, count()}
-    )
-    |> ClickHouseRepo.all()
-    |> Map.new()
+    WorkflowJobs.queued_count_by_fleet_and_account(fleet_name, queued_lookback_floor())
   end
 
   @doc """
@@ -1341,7 +1270,7 @@ defmodule Tuist.Runners.Jobs do
   end
 
   @doc """
-  Lists `runner_jobs` rows in `status = 'running'` whose
+  Lists lifecycle rows in `status = 'running'` whose
   `started_at` is older than `threshold` — candidates for the
   "Pod minted a JIT but the GitHub runner never registered"
   recovery path. `OrphanedRunnersWorker` cross-checks each
@@ -1352,24 +1281,17 @@ defmodule Tuist.Runners.Jobs do
   Returns a list of maps carrying everything the worker needs
   (`repository` for the GH API call, `claimed_at` for the PG release
   handle), so the worker doesn't need a second round trip.
+
+  Serves from the Postgres lifecycle table (`Tuist.Runners.WorkflowJobs`),
+  like every control-plane state read — dispatch picks, autoscaler
+  counts, and the recovery scans.
   """
   def list_orphaned_running(%DateTime{} = threshold) do
-    Job
-    |> from(hints: ["FINAL"])
-    |> where([j], j.status == "running" and j.started_at < ^threshold)
-    |> select([j], %{
-      workflow_job_id: j.workflow_job_id,
-      account_id: j.account_id,
-      repository: j.repository,
-      claimed_at: j.claimed_at,
-      started_at: j.started_at,
-      pod_name: j.pod_name
-    })
-    |> ClickHouseRepo.all()
+    WorkflowJobs.list_orphaned_running(threshold)
   end
 
   @doc """
-  Lists `runner_jobs` rows whose latest state is `queued` and whose
+  Lists lifecycle rows in `status = 'queued'` whose
   `enqueued_at` falls in `[enqueued_after, enqueued_before)` —
   candidates for the "queued but never reconciled" recovery path that
   `StaleQueuedJobsWorker` drives.
@@ -1380,34 +1302,66 @@ defmodule Tuist.Runners.Jobs do
   runner ever registers to accept the job AND no completion webhook
   arrives (GitHub kept it `queued` on its side, or the delivery was
   lost past the redelivery window), nothing terminates the row:
-  `StaleClaimsWorker` only sees PG `claimed` rows and
-  `OrphanedRunnersWorker` only sees CH `running` rows, so neither
+  `StaleClaimsWorker` only sees `claimed` claims and
+  `OrphanedRunnersWorker` only sees `running` rows, so neither
   covers `queued`.
 
-  Both bounds are on `enqueued_at`, which `runner_jobs` is partitioned
-  by and which is stable across a workflow_job's state transitions.
-  `enqueued_before` drops jobs queued too recently to be stale; the
-  `enqueued_after` floor bounds the scan to a finite window so the
-  `argMax` dedup never has to aggregate the table's full history
-  (partition pruning skips everything older). The caller sets the floor
-  comfortably beyond the backstop age, so a stuck job is always reaped
-  while still inside the window.
+  Both bounds are on `enqueued_at`, which is stable across a
+  workflow_job's state transitions. `enqueued_before` drops jobs
+  queued too recently to be stale; the `enqueued_after` floor bounds
+  the scan to a finite window. The caller sets the floor comfortably
+  beyond the backstop age, so a stuck job is always reaped while
+  still inside the window.
 
   Returns the fields the worker needs to address GitHub's Actions
   jobs API (`repository`) and to apply the hard backstop
   (`enqueued_at`).
+
+  Serves from the Postgres lifecycle table — see
+  `list_orphaned_running/1`.
   """
   def list_stale_queued(%DateTime{} = enqueued_after, %DateTime{} = enqueued_before) do
+    WorkflowJobs.list_stale_queued(enqueued_after, enqueued_before)
+  end
+
+  @doc """
+  ClickHouse-side source for `Tuist.Runners.Workers.BackfillWorkflowJobsWorker`:
+  the latest state of every non-terminal `runner_jobs` row enqueued
+  after `enqueued_after`, carrying the full column set so a missing
+  Postgres lifecycle row can be adopted in its current status.
+
+  Transitional — jobs enqueued by code that predates the Postgres
+  lifecycle table exist only in ClickHouse, and Postgres-served
+  dispatch would never see them. Deleted together with the direct
+  ClickHouse writes once no such rows can exist.
+  """
+  def list_non_terminal(%DateTime{} = enqueued_after) do
     ClickHouseRepo.all(
       from(j in Job,
-        where: j.enqueued_at > ^enqueued_after and j.enqueued_at < ^enqueued_before,
+        where: j.enqueued_at > ^enqueued_after,
         group_by: j.workflow_job_id,
-        having: fragment("argMax(?, ?) = ?", j.status, j.updated_at, "queued"),
+        having: fragment("argMax(?, ?) != ?", j.status, j.updated_at, "completed"),
         select: %{
           workflow_job_id: j.workflow_job_id,
           account_id: fragment("argMax(?, ?)", j.account_id, j.updated_at),
+          fleet_name: fragment("argMax(?, ?)", j.fleet_name, j.updated_at),
+          platform: fragment("argMax(?, ?)", j.platform, j.updated_at),
+          vcpus: fragment("argMax(?, ?)", j.vcpus, j.updated_at),
+          memory_gb: fragment("argMax(?, ?)", j.memory_gb, j.updated_at),
           repository: fragment("argMax(?, ?)", j.repository, j.updated_at),
-          enqueued_at: fragment("argMax(?, ?)", j.enqueued_at, j.updated_at)
+          workflow_run_id: fragment("argMax(?, ?)", j.workflow_run_id, j.updated_at),
+          workflow_name: fragment("argMax(?, ?)", j.workflow_name, j.updated_at),
+          run_attempt: fragment("argMax(?, ?)", j.run_attempt, j.updated_at),
+          job_name: fragment("argMax(?, ?)", j.job_name, j.updated_at),
+          head_branch: fragment("argMax(?, ?)", j.head_branch, j.updated_at),
+          head_sha: fragment("argMax(?, ?)", j.head_sha, j.updated_at),
+          requested_dispatch_label: fragment("argMax(?, ?)", j.requested_dispatch_label, j.updated_at),
+          status: fragment("argMax(?, ?)", j.status, j.updated_at),
+          enqueued_at: fragment("argMax(?, ?)", j.enqueued_at, j.updated_at),
+          claimed_at: fragment("argMax(?, ?)", j.claimed_at, j.updated_at),
+          started_at: fragment("argMax(?, ?)", j.started_at, j.updated_at),
+          pod_name: fragment("argMax(?, ?)", j.pod_name, j.updated_at),
+          runner_name: fragment("argMax(?, ?)", j.runner_name, j.updated_at)
         }
       )
     )
@@ -1456,6 +1410,7 @@ defmodule Tuist.Runners.Jobs do
       |> Map.merge(completion)
 
     persist_completion!(job.workflow_job_id, job.account_id, conclusion, now)
+    :ok = WorkflowJobs.record_completed(job_to_row(job), conclusion, now)
     insert_row!(row)
 
     :telemetry.execute(
@@ -1489,6 +1444,7 @@ defmodule Tuist.Runners.Jobs do
       |> Map.put(:updated_at, now)
 
     persist_completion!(Map.fetch!(row, :workflow_job_id), Map.fetch!(row, :account_id), conclusion, now)
+    :ok = WorkflowJobs.record_completed(row, conclusion, now)
     insert_row!(row)
 
     :telemetry.execute(
