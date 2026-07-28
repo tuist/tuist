@@ -57,6 +57,7 @@ struct TargetManifestMapperAdditionalHashingInputsTests {
                 resources: .resources([]),
                 additionalHashingInputs: [
                     .glob(.relativeToRoot("Hashing/first.txt")),
+                    .glob(.path(firstFile.pathString)),
                     .glob(.relativeToRoot("Hashing/Nested")),
                     .glob(.relativeToRoot("Hashing/*.txt")),
                     .string("production"),
@@ -73,10 +74,11 @@ struct TargetManifestMapperAdditionalHashingInputsTests {
 
         // Then
         let expectedInputs: [TargetHashingInput] = [
-            .path(firstFile),
-            .path(nestedDirectory),
-            .path(firstFile),
-            .path(secondFile),
+            .path(firstFile, isDeclaredAbsolute: false),
+            .path(firstFile, isDeclaredAbsolute: true),
+            .path(nestedDirectory, isDeclaredAbsolute: false),
+            .path(firstFile, isDeclaredAbsolute: false),
+            .path(secondFile, isDeclaredAbsolute: false),
             .string("production"),
             .environmentVariable("CONFIGURATION"),
             .script("codegen --version"),

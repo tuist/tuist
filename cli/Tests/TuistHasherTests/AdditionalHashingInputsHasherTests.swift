@@ -1,3 +1,5 @@
+import FileSystem
+import FileSystemTesting
 import Foundation
 import Mockable
 import Path
@@ -54,7 +56,10 @@ struct AdditionalHashingInputsHasherTests {
             .willReturn("folder-content")
 
         let result = try await subject.hash(
-            inputs: [.path(filePath), .path(folderPath)],
+            inputs: [
+                .path(filePath, isDeclaredAbsolute: false),
+                .path(folderPath, isDeclaredAbsolute: false),
+            ],
             hashedPaths: [:],
             sourceRootPath: sourceRootPath
         )
@@ -79,12 +84,12 @@ struct AdditionalHashingInputsHasherTests {
             .willReturn("same-content")
 
         let firstResult = try await subject.hash(
-            inputs: [.path(firstPath)],
+            inputs: [.path(firstPath, isDeclaredAbsolute: false)],
             hashedPaths: [:],
             sourceRootPath: sourceRootPath
         )
         let secondResult = try await subject.hash(
-            inputs: [.path(secondPath)],
+            inputs: [.path(secondPath, isDeclaredAbsolute: false)],
             hashedPaths: [:],
             sourceRootPath: sourceRootPath
         )
@@ -105,7 +110,7 @@ struct AdditionalHashingInputsHasherTests {
         let filePath = sourceRootPath.appending(component: "template.stencil")
 
         let result = try await subject.hash(
-            inputs: [.path(filePath)],
+            inputs: [.path(filePath, isDeclaredAbsolute: false)],
             hashedPaths: [filePath: "cached-content"],
             sourceRootPath: sourceRootPath
         )
@@ -181,5 +186,94 @@ struct AdditionalHashingInputsHasherTests {
         )
 
         #expect(ordered.hash == reordered.hash)
+    }
+
+    @Test
+    func hash_usesStableIdentifiersForDeclaredAbsoluteAndRelativeExternalPaths() async throws {
+        let absolutePath = try AbsolutePath(validating: "/opt/codegen/schema.json")
+        let firstRelativePath = try AbsolutePath(validating: "/checkout/shared/schema.json")
+        let secondRelativePath = try AbsolutePath(validating: "/deep/checkout/shared/schema.json")
+        given(contentHasher)
+            .hash(path: .any)
+            .willReturn("same-content")
+
+        let firstAbsolute = try await subject.hash(
+            inputs: [.path(absolutePath, isDeclaredAbsolute: true)],
+            hashedPaths: [:],
+            sourceRootPath: try AbsolutePath(validating: "/checkout/project")
+        )
+        let secondAbsolute = try await subject.hash(
+            inputs: [.path(absolutePath, isDeclaredAbsolute: true)],
+            hashedPaths: [:],
+            sourceRootPath: try AbsolutePath(validating: "/deep/checkout/project")
+        )
+        let firstRelative = try await subject.hash(
+            inputs: [.path(firstRelativePath, isDeclaredAbsolute: false)],
+            hashedPaths: [:],
+            sourceRootPath: try AbsolutePath(validating: "/checkout/project")
+        )
+        let secondRelative = try await subject.hash(
+            inputs: [.path(secondRelativePath, isDeclaredAbsolute: false)],
+            hashedPaths: [:],
+            sourceRootPath: try AbsolutePath(validating: "/deep/checkout/project")
+        )
+
+        #expect(firstAbsolute.hash == secondAbsolute.hash)
+        #expect(firstRelative.hash == secondRelative.hash)
+    }
+
+    @Test(.inTemporaryDirectory)
+    func hash_changesWhenAFileInADirectoryIsRenamed() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let directory = temporaryDirectory.appending(component: "Codegen")
+        let originalPath = directory.appending(component: "Model.stencil")
+        let renamedPath = directory.appending(component: "Entity.stencil")
+        let fileSystem = FileSystem()
+        try await fileSystem.makeDirectory(at: directory)
+        try await fileSystem.writeText("template", at: originalPath)
+        let subject = AdditionalHashingInputsHasher(contentHasher: ContentHasher())
+
+        let before = try await subject.hash(
+            inputs: [.path(directory, isDeclaredAbsolute: false)],
+            hashedPaths: [:],
+            sourceRootPath: temporaryDirectory
+        )
+        try await fileSystem.remove(originalPath)
+        try await fileSystem.writeText("template", at: renamedPath)
+        let after = try await subject.hash(
+            inputs: [.path(directory, isDeclaredAbsolute: false)],
+            hashedPaths: [:],
+            sourceRootPath: temporaryDirectory
+        )
+
+        #expect(before.hash != after.hash)
+    }
+
+    @Test(.inTemporaryDirectory)
+    func hash_changesWhenFileContentsAreSwappedWithinADirectory() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let directory = temporaryDirectory.appending(component: "Codegen")
+        let firstPath = directory.appending(component: "Model.stencil")
+        let secondPath = directory.appending(component: "View.stencil")
+        let fileSystem = FileSystem()
+        try await fileSystem.makeDirectory(at: directory)
+        try await fileSystem.writeText("model", at: firstPath)
+        try await fileSystem.writeText("view", at: secondPath)
+        let subject = AdditionalHashingInputsHasher(contentHasher: ContentHasher())
+
+        let before = try await subject.hash(
+            inputs: [.path(directory, isDeclaredAbsolute: false)],
+            hashedPaths: [:],
+            sourceRootPath: temporaryDirectory
+        )
+        try await fileSystem.writeText("view", at: firstPath)
+        try await fileSystem.writeText("model", at: secondPath)
+        let after = try await subject.hash(
+            inputs: [.path(directory, isDeclaredAbsolute: false)],
+            hashedPaths: [:],
+            sourceRootPath: temporaryDirectory
+        )
+
+        #expect(before.hash != after.hash)
     }
 }

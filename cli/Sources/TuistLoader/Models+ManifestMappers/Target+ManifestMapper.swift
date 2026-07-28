@@ -231,8 +231,9 @@ extension XcodeGraph.Target {
             switch manifestInput {
             case let .glob(path):
                 let resolvedPath = try generatorPaths.resolve(path: path)
+                let isDeclaredAbsolute = (try? AbsolutePath(validating: path.pathString)) != nil
                 guard fileSystem.isGlobPattern(path) else {
-                    inputs.append(.path(resolvedPath))
+                    inputs.append(.path(resolvedPath, isDeclaredAbsolute: isDeclaredAbsolute))
                     continue
                 }
 
@@ -247,7 +248,9 @@ extension XcodeGraph.Target {
                         "Additional hashing input '\(resolvedPath.pathString)' matched no files. Verify that the path is correct."
                     ))
                 }
-                inputs.append(contentsOf: matchedPaths.map(TargetHashingInput.path))
+                inputs.append(contentsOf: matchedPaths.map {
+                    .path($0, isDeclaredAbsolute: isDeclaredAbsolute)
+                })
             case let .string(value):
                 inputs.append(.string(value))
             case let .environmentVariable(name):

@@ -47,11 +47,16 @@ public struct AdditionalHashingInputsHasher: AdditionalHashingInputsHashing {
 
         for input in inputs {
             switch input {
-            case let .path(path):
+            case let .path(path, isDeclaredAbsolute):
                 let pathHash = try await hash(path: path, cachedHash: hashedPaths[path])
                 hashedPaths[path] = pathHash
-                let relativePath = path.relative(to: sourceRootPath).pathString
-                componentHashes.append(try contentHasher.hash("path-\(relativePath)-content-\(pathHash)"))
+                let pathIdentifier =
+                    if isDeclaredAbsolute {
+                        path.pathString
+                    } else {
+                        path.relative(to: sourceRootPath).pathString
+                    }
+                componentHashes.append(try contentHasher.hash("path-\(pathIdentifier)-content-\(pathHash)"))
             case let .string(value):
                 componentHashes.append(try contentHasher.hash("string-\(value)"))
             case let .environmentVariable(name):
