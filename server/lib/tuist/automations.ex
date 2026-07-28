@@ -192,7 +192,7 @@ defmodule Tuist.Automations do
         unique: [
           keys: [:project_id, :cadence_seconds, :evaluate_recent_test_case_runs],
           period: :infinity,
-          states: [:available, :scheduled]
+          states: [:available, :scheduled, :executing, :retryable]
         ]
       )
       |> Oban.insert()

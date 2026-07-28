@@ -386,7 +386,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     test_case_id = Ecto.UUID.generate()
 
     expect(ClickHouseRepo, :all, fn _query ->
-      [%{test_case_id: test_case_id, last_inserted_at: ~N[2026-06-09 10:00:02]}]
+      [test_case_id]
     end)
 
     reject(&FlakyTestsMonitor.evaluate/2)
@@ -414,8 +414,11 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
     assert {:ok, updated_valid_alert} = Automations.get_alert(valid_alert.id)
     assert {:ok, updated_second_valid_alert} = Automations.get_alert(second_valid_alert.id)
     assert {:ok, updated_unsupported_alert} = Automations.get_alert(unsupported_alert.id)
-    assert updated_valid_alert.last_scoped_evaluation_inserted_at == ~U[2026-06-09 10:00:02Z]
-    assert updated_second_valid_alert.last_scoped_evaluation_inserted_at == ~U[2026-06-09 10:00:02Z]
+    assert updated_valid_alert.last_scoped_evaluation_inserted_at
+
+    assert updated_second_valid_alert.last_scoped_evaluation_inserted_at ==
+             updated_valid_alert.last_scoped_evaluation_inserted_at
+
     assert updated_unsupported_alert.last_scoped_evaluation_inserted_at == nil
   end
 

@@ -2,10 +2,13 @@ defmodule Tuist.AutomationsTest do
   use TuistTestSupport.Cases.DataCase, async: false
   use Mimic
 
+  import Ecto.Query
+
   alias Tuist.Automations
   alias Tuist.Automations.ActionExecutor
   alias Tuist.Automations.Alerts.Alert
   alias Tuist.Automations.Workers.AlertEvaluationWorker
+  alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AutomationsFixtures
   alias TuistTestSupport.Fixtures.ProjectsFixtures
   alias TuistTestSupport.Fixtures.RunsFixtures
@@ -302,6 +305,39 @@ defmodule Tuist.AutomationsTest do
 
       assert [%{scheduled_at: scheduled_at}] = all_enqueued(worker: AlertEvaluationWorker)
       assert DateTime.diff(scheduled_at, enqueued_at, :second) in 30..31
+    end
+
+    test "does not enqueue a second scoped evaluation while the existing job is active" do
+      project = ProjectsFixtures.project_fixture()
+
+      alert =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          monitor_type: "flakiness_rate",
+          cadence: "5m",
+          trigger_config: %{
+            "threshold" => 10,
+            "window_type" => "rolling",
+            "rolling_window_size" => 75
+          }
+        )
+
+      assert :ok = Automations.enqueue_scoped_alert_evaluation(alert)
+
+      job_query =
+        from(job in Oban.Job,
+          where: job.worker == ^inspect(AlertEvaluationWorker)
+        )
+
+      job = Repo.one!(job_query)
+
+      for state <- ["executing", "retryable"] do
+        Repo.update!(Ecto.Changeset.change(job, state: state))
+
+        assert :ok = Automations.enqueue_scoped_alert_evaluation(alert)
+        assert [%{id: job_id, state: ^state}] = Repo.all(job_query)
+        assert job_id == job.id
+      end
     end
   end
 
