@@ -7,7 +7,6 @@ import Testing
 import TuistCI
 import TuistEnvironment
 import TuistEnvironmentTesting
-import TuistEnvKey
 import TuistServer
 @testable import TuistKit
 
@@ -93,25 +92,6 @@ struct ShardMatrixOutputServiceTests {
         #expect(content == """
         {
           "shard-count" : 2,
-          "shard-indices" : "0,1"
-        }
-        """)
-    }
-
-    @Test(.withMockedEnvironment())
-    func output_circleci_writesPlanIdWhenEnabled() async throws {
-        let fixture = makeSubject()
-        let cwd = try await Environment.current.currentWorkingDirectory()
-
-        given(fixture.ciController).ciInfo().willReturn(.test(provider: .circleci))
-        Environment.mocked?.variables[EnvKey.testShardCircleCIPlanIdEnabled.rawValue] = "true"
-
-        try await fixture.subject.output(.test(shardCount: 2))
-
-        let content = try await fixture.fileSystem.readTextFile(at: cwd.appending(component: ".tuist-shard-continuation.json"))
-        #expect(content == """
-        {
-          "shard-count" : 2,
           "shard-indices" : "0,1",
           "shard-plan-id" : "test-id"
         }
@@ -159,7 +139,7 @@ struct ShardMatrixOutputServiceTests {
         let content = try await fixture.fileSystem.readTextFile(at: cmEnvPath)
         #expect(
             content ==
-                "TUIST_SHARD_MATRIX={\"shard\":[0, 1]}\nTUIST_SHARD_COUNT=2\nTUIST_SHARD_PLAN_ID=test-id\n"
+                "TUIST_SHARD_MATRIX={\"shard\":[0, 1]}\nTUIST_SHARD_COUNT=2\n"
         )
     }
 

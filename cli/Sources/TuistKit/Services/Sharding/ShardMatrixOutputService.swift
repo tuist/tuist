@@ -4,7 +4,6 @@ import Mockable
 import Path
 import TuistCI
 import TuistEnvironment
-import TuistEnvKey
 import TuistLogging
 import TuistServer
 
@@ -43,15 +42,14 @@ public struct ShardMatrixOutputService: ShardMatrixOutputServicing {
         case .gitlab:
             try await writeGitLabCIOutput(indices: indices, shardPlanId: shardPlan.id)
         case .circleci:
-            let includeShardPlanId: Bool = EnvKey.testShardCircleCIPlanIdEnabled.envValue() ?? false
             try await writeCircleCIOutput(
                 indices: indices,
-                shardPlanId: includeShardPlanId ? shardPlan.id : nil
+                shardPlanId: shardPlan.id
             )
         case .buildkite:
             try await writeBuildkiteOutput(indices: indices, shardPlanId: shardPlan.id)
         case .codemagic:
-            try await writeCodemagicOutput(indices: indices, shardPlanId: shardPlan.id, cmEnvPath: env["CM_ENV"]!)
+            try await writeCodemagicOutput(indices: indices, cmEnvPath: env["CM_ENV"]!)
         case .bitrise:
             try await writeBitriseOutput(indices: indices, shardPlanId: shardPlan.id, deployDir: env["BITRISE_DEPLOY_DIR"]!)
         case nil:
@@ -101,7 +99,7 @@ public struct ShardMatrixOutputService: ShardMatrixOutputServicing {
         Logger.current.debug("GitLab CI child pipeline written to \(outputPath.pathString)")
     }
 
-    private func writeCircleCIOutput(indices: [Int], shardPlanId: String?) async throws {
+    private func writeCircleCIOutput(indices: [Int], shardPlanId: String) async throws {
         let currentDirectory = try await Environment.current.currentWorkingDirectory()
         let outputPath = currentDirectory.appending(component: ".tuist-shard-continuation.json")
         if try await fileSystem.exists(outputPath) {
@@ -111,10 +109,8 @@ public struct ShardMatrixOutputService: ShardMatrixOutputServicing {
         var parameters: [String: Any] = [
             "shard-indices": indicesString,
             "shard-count": indices.count,
+            "shard-plan-id": shardPlanId,
         ]
-        if let shardPlanId {
-            parameters["shard-plan-id"] = shardPlanId
-        }
         let data = try JSONSerialization.data(
             withJSONObject: parameters,
             options: [.prettyPrinted, .sortedKeys]
@@ -141,13 +137,13 @@ public struct ShardMatrixOutputService: ShardMatrixOutputServicing {
         Logger.current.debug("Buildkite pipeline written to \(outputPath.pathString)")
     }
 
-    private func writeCodemagicOutput(indices: [Int], shardPlanId: String, cmEnvPath: String) async throws {
+    private func writeCodemagicOutput(indices: [Int], cmEnvPath: String) async throws {
         let outputPath = try AbsolutePath(validating: cmEnvPath)
         let existing = (try? await fileSystem.readTextFile(at: outputPath)) ?? ""
         let matrixJSON = "{\"shard\":\(indices)}"
         try await fileSystem.writeText(
             existing +
-                "TUIST_SHARD_MATRIX=\(matrixJSON)\nTUIST_SHARD_COUNT=\(indices.count)\nTUIST_SHARD_PLAN_ID=\(shardPlanId)\n",
+                "TUIST_SHARD_MATRIX=\(matrixJSON)\nTUIST_SHARD_COUNT=\(indices.count)\n",
             at: outputPath,
             encoding: .utf8,
             options: [.overwrite]
