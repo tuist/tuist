@@ -3,6 +3,7 @@
     import Foundation
     import TuistAlert
     import TuistConfig
+    import TuistEnvironment
     import TuistEnvKey
     import TuistExtension
     import TuistSupport
@@ -70,17 +71,9 @@
         )
         var cacheProfile: String?
 
-        @Option(
-            name: .long,
-            help: """
-            The empty directory where cache warming writes build outputs and intermediate files. \
-            If the directory does not exist, Tuist creates it. Tuist does not remove the directory after the run. \
-            When omitted, Tuist uses a temporary directory and removes it after the run.
-            """,
-            completion: .directory,
-            envKey: .cacheWorkingDirectory
-        )
-        var workingDirectory: String?
+        var workingDirectory: String? {
+            Environment.current.variables[EnvKey.cacheWorkingDirectory.rawValue]
+        }
 
         @Flag(
             name: .long,

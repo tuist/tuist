@@ -949,7 +949,6 @@ struct CommandEnvironmentVariableTests {
             "--print-hashes",
             "--configuration", "CacheConfig",
             "--path", "/cache/path",
-            "--working-directory", "/cache/working-directory",
             "--",
             "Fmk1", "Fmk2",
         ])
@@ -962,6 +961,10 @@ struct CommandEnvironmentVariableTests {
         #expect(commandWithArgs.path == "/cache/path")
         #expect(commandWithArgs.workingDirectory == "/cache/working-directory")
         #expect(commandWithArgs.targets == ["Fmk1", "Fmk2"])
+
+        #expect(throws: (any Error).self) {
+            try CacheWarmCommand.parse(["--working-directory", "/cache/working-directory"])
+        }
     }
 
     @Test(.withMockedEnvironment()) func tuistVariablesFiltersTuistAndCIOnly() throws {
