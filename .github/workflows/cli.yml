@@ -400,6 +400,23 @@ jobs:
           restore-keys: |
             linux-cli-${{ hashFiles('Package.swift') }}-
             linux-cli-
+      - name: Prefetch transformed registry dependencies
+        run: |
+          prefetch_registry_dependency() {
+            scope="$1"
+            name="$2"
+            version="$3"
+            repository_url="$4"
+            destination=".build/registry/downloads/$scope/$name/$version"
+            if [ -f "$destination/.registry-metadata" ]; then
+              return
+            fi
+            mkdir -p ".build/registry/downloads/$scope/$name"
+            git -c advice.detachedHead=false clone --quiet --depth 1 --branch "$version" "$repository_url" "$destination"
+            printf '{\n  "registry" : "https://registry.tuist.dev/api/registry/swift"\n}\n' > "$destination/.registry-metadata"
+          }
+          prefetch_registry_dependency lfroms fluid-menu-bar-extra 1.1.0 https://github.com/lfroms/fluid-menu-bar-extra
+          prefetch_registry_dependency pointfreeco xctest-dynamic-overlay 1.7.0 https://github.com/pointfreeco/xctest-dynamic-overlay
       - name: Resolve dependencies
         run: swift package resolve --replace-scm-with-registry
       - name: Build tuist CLI
@@ -430,6 +447,23 @@ jobs:
           restore-keys: |
             linux-cli-${{ hashFiles('Package.swift') }}-
             linux-cli-
+      - name: Prefetch transformed registry dependencies
+        run: |
+          prefetch_registry_dependency() {
+            scope="$1"
+            name="$2"
+            version="$3"
+            repository_url="$4"
+            destination=".build/registry/downloads/$scope/$name/$version"
+            if [ -f "$destination/.registry-metadata" ]; then
+              return
+            fi
+            mkdir -p ".build/registry/downloads/$scope/$name"
+            git -c advice.detachedHead=false clone --quiet --depth 1 --branch "$version" "$repository_url" "$destination"
+            printf '{\n  "registry" : "https://registry.tuist.dev/api/registry/swift"\n}\n' > "$destination/.registry-metadata"
+          }
+          prefetch_registry_dependency lfroms fluid-menu-bar-extra 1.1.0 https://github.com/lfroms/fluid-menu-bar-extra
+          prefetch_registry_dependency pointfreeco xctest-dynamic-overlay 1.7.0 https://github.com/pointfreeco/xctest-dynamic-overlay
       - name: Resolve dependencies
         run: swift package resolve --replace-scm-with-registry
       - name: Run unit tests
