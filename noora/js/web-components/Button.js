@@ -25,6 +25,15 @@ export class NooraButton extends LitElement {
   static styles = [
     unsafeCSS(buttonStyles),
     css`
+      :host {
+        --noora-icon-size: var(--noora-icon-size-large);
+      }
+      :host([size="small"]) {
+        --noora-icon-size: var(--noora-icon-size-small);
+      }
+      :host([size="medium"]) {
+        --noora-icon-size: var(--noora-icon-size-medium);
+      }
       slot::slotted(svg) {
         width: var(--noora-button-icon-size);
         height: var(--noora-button-icon-size);

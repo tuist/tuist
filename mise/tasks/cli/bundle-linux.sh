@@ -64,6 +64,9 @@ BIN_PATH=$(swift build --product tuist --configuration release --build-path "$BU
 echo "==> Copying binary from $BIN_PATH"
 cp "$BIN_PATH/tuist" $BUILD_DIRECTORY/tuist
 
+echo "==> Stripping release binary"
+strip --strip-unneeded "$BUILD_DIRECTORY/tuist"
+
 echo "==> Bundling for $ARCH"
 
 (

@@ -1,0 +1,94 @@
+{
+  "name": "ButtonGroupItem",
+  "tagName": "noora-button-group-item",
+  "elementClassName": "NooraButtonGroupItem",
+  "className": "noora-button-group-item",
+  "modulePath": "./priv/static/noora-web-components.js",
+  "description": "Describes one declarative control inside a button group.",
+  "usage": "<noora-button-group-item value=\"day\">Day</noora-button-group-item>",
+  "standalone": false,
+  "attributes": [
+    {
+      "name": "label",
+      "property": "label",
+      "type": "string",
+      "default": "",
+      "description": "Sets the item label instead of using text content."
+    },
+    {
+      "name": "value",
+      "property": "value",
+      "type": "string",
+      "description": "Sets the value emitted when the item is selected."
+    },
+    {
+      "name": "href",
+      "property": "href",
+      "type": "string",
+      "description": "Renders the item as a link."
+    },
+    {
+      "name": "icon",
+      "property": "icon",
+      "type": "string",
+      "description": "Sets the icon for an icon-only item."
+    },
+    {
+      "name": "icon-left",
+      "property": "iconLeft",
+      "type": "string",
+      "description": "Shows an icon before the label."
+    },
+    {
+      "name": "icon-right",
+      "property": "iconRight",
+      "type": "string",
+      "description": "Shows an icon after the label."
+    },
+    {
+      "name": "icon-only",
+      "property": "iconOnly",
+      "type": "boolean",
+      "default": false,
+      "description": "Uses the icon as the complete item content."
+    },
+    {
+      "name": "aria-label",
+      "property": "ariaLabel",
+      "type": "string",
+      "description": "Provides an accessible label for an icon-only item."
+    },
+    {
+      "name": "disabled",
+      "property": "disabled",
+      "type": "boolean",
+      "default": false,
+      "description": "Disables the item."
+    },
+    {
+      "name": "selected",
+      "property": "selected",
+      "type": "boolean",
+      "default": false,
+      "description": "Shows the item in its selected state."
+    }
+  ],
+  "properties": [],
+  "readonlyProperties": [],
+  "slots": [
+    {
+      "name": "",
+      "description": "The item label."
+    }
+  ],
+  "cssParts": [],
+  "notes": ["Use this element inside noora-button-group."],
+  "examples": [
+    {
+      "id": "item",
+      "title": "Item",
+      "description": "Describe one button-group control.",
+      "markup": "<noora-button-group-item value=\"day\">Day</noora-button-group-item>"
+    }
+  ]
+}

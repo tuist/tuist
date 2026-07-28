@@ -652,13 +652,14 @@ defmodule Tuist.Registry.Swift.ReleaseWorker do
   end
 
   defp upload_source_archive(scope, name, version, archive_path) do
-    key =
-      KeyNormalizer.package_object_key(%{scope: scope, name: name},
-        version: version,
-        path: "source_archive.zip"
-      )
+    S3.upload_file(source_archive_key(scope, name, version), archive_path, content_type: "application/zip")
+  end
 
-    S3.upload_file(key, archive_path, content_type: "application/zip")
+  defp source_archive_key(scope, name, version) do
+    KeyNormalizer.package_object_key(%{scope: scope, name: name},
+      version: version,
+      path: "source_archive.zip"
+    )
   end
 
   defp fetch_manifests(full_handle, tag, token) do

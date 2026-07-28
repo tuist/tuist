@@ -98,7 +98,7 @@ To see a list of available components, check the [documentation](https://hexdocs
 
 ## Web components
 
-The `@tuist/noora` package on the [npm package registry](https://www.npmjs.com/) provides framework-independent [custom elements](https://developer.mozilla.org/en-US/docs/Web/API/Web_components/Using_custom_elements) built with [Lit](https://lit.dev/). Button and Badge are currently available.
+The `@tuist/noora` package on the [Node Package Manager package registry](https://www.npmjs.com/) provides framework-independent [custom elements](https://developer.mozilla.org/en-US/docs/Web/API/Web_components/Using_custom_elements) built with [Lit](https://lit.dev/). The browser distribution includes Noora's actions, data display, feedback, forms, navigation, overlays, and layout components.
 
 Install the package:
 
@@ -113,7 +113,7 @@ import "@tuist/noora/tokens.css";
 import "@tuist/noora/web-components";
 ```
 
-Then use `<noora-button>` in plain Hypertext Markup Language or in your preferred framework:
+Then use the components in plain Hypertext Markup Language or in your preferred framework:
 
 ```html
 <noora-button label="Create project"></noora-button>
@@ -128,18 +128,41 @@ Then use `<noora-button>` in plain Hypertext Markup Language or in your preferre
 </noora-button>
 
 <noora-badge appearance="light-fill" color="success"> Available </noora-badge>
+
+<noora-text-input type="email" label="Email" name="email"></noora-text-input>
+
+<noora-dropdown label="Options">
+  <noora-dropdown-item value="edit" icon="edit">Edit</noora-dropdown-item>
+  <noora-dropdown-item value="delete" icon="trash">Delete</noora-dropdown-item>
+</noora-dropdown>
 ```
 
-The component supports the same `primary`, `secondary`, and `destructive` variants and `small`, `medium`, and `large` sizes as the Phoenix component. It also supports `disabled`, `href`, `type`, `name`, `value`, and the native form override attributes. When `href` is present, it renders a native link. Otherwise, it renders a native button and participates in form submission and reset.
+The browser components reuse the same source styles, icons, defaults, allowed values, and terminology as their Phoenix counterparts. Native form controls participate in validation and submission, menus and overlays expose controlled `open` properties, and collection-based components use declarative child elements. Structured properties remain available for programmatic rendering, while chart configuration remains property-driven.
 
-Use the `icon-left` and `icon-right` slots for icons around a label. An icon-only button uses the default slot and should always have an `aria-label`.
+Respond to standard browser events and Noora custom events with `addEventListener`. Form controls emit familiar events such as `input` and `change`. Composite controls use `noora-*` custom events whose structured payload is available through `event.detail`:
+
+```javascript
+const select = document.querySelector("noora-select");
+
+select.addEventListener("change", () => {
+  console.log(select.value);
+});
+
+select.addEventListener("noora-select", (event) => {
+  console.log(event.detail.value);
+});
+```
+
+Noora custom events bubble and cross shadow-root boundaries, so listeners can be attached directly to a component or to an ancestor. Every public event and its payload type is listed in the generated component reference, TypeScript declarations, Storybook, and Custom Elements Manifest.
+
+Use named slots where a component accepts custom content. For example, Button provides `icon-left` and `icon-right`, Modal provides `trigger`, `header-icon`, `header-button`, and `footer`, and Dropdown provides `icon` and `search`.
 
 If an application already imports `@tuist/noora/noora.css` for the Phoenix components, it does not need to import `tokens.css` separately.
 
 The Phoenix and Lit renderers share component contracts and source stylesheets. LiveView-specific behavior remains in the Phoenix adapters, while the custom elements only use browser standards.
 
-The package includes a generated [web component guide](docs/web-components.md), complete [Button](docs/components/button.md) and [Badge](docs/components/badge.md) references, TypeScript declarations, and a [Custom Elements Manifest](https://custom-elements-manifest.open-wc.org/) at `custom-elements.json`. These artifacts are generated from the same component contracts used by both renderers, so attributes, defaults, allowed values, examples, and documentation stay aligned.
+The package includes a generated [web component guide](docs/web-components.md), a reference for every component, TypeScript declarations, and a [Custom Elements Manifest](https://custom-elements-manifest.open-wc.org/) at `custom-elements.json`. These artifacts are generated from the component contracts, so attributes, properties, defaults, allowed values, examples, and documentation stay aligned.
 
 The contract is compile-time input. The package build generates the documentation and metadata, and the browser bundle inlines the values it needs. Consumer applications do not fetch component contract files at runtime.
 
-For local development and visual verification, run the Noora Storybook and open the Badge or Button story under **Web components**.
+For local development and visual verification, run the Noora Storybook and open any story under **Web components**.

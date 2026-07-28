@@ -38,7 +38,8 @@ struct OrganizationRemoveSSOService: OrganizationRemoveSSOServicing {
         _ = try await updateOrganizationService.updateOrganization(
             organizationName: organizationName,
             serverURL: serverURL,
-            ssoOrganization: nil
+            ssoOrganization: nil,
+            ssoAutomaticEnrollment: nil
         )
 
         Logger.current.info("SSO for \(organizationName) was removed.")

@@ -25,7 +25,7 @@ spec:
       - name: region
         value: fsn1
       - name: hcloudControlPlaneMachineType
-        value: cpx22
+        value: cpx32
       # Roll out the kubeadm compatibility fallback in canary first. With the
       # local-mode feature enabled, new control-plane kubelets point at their
       # own not-yet-running control-plane endpoint and never start the etcd
