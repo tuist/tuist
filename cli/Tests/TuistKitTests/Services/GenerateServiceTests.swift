@@ -4,6 +4,7 @@ import Path
 import Testing
 import TuistAlert
 import TuistCache
+import TuistCAS
 import TuistConfig
 import TuistCore
 import TuistGenerator
@@ -458,6 +459,43 @@ struct GenerateServiceTests {
                 "The remote cache is temporarily unavailable.",
             ]
         )
+    }
+
+    @Test func usesLocalCacheStorageWhenNoRemoteCacheEndpointIsReachable() async throws {
+        given(configLoader).loadConfig(path: .any).willReturn(
+            .test(project: .testGeneratedProject())
+        )
+        let workspacePath = try AbsolutePath(validating: "/test.xcworkspace")
+        let localCacheStorage = MockCacheStoring()
+        let cacheStorageFactory = MockCacheStorageFactorying()
+        let subject = GenerateService(
+            cacheStorageFactory: cacheStorageFactory,
+            generatorFactory: generatorFactory,
+            configLoader: configLoader,
+            generationMetadataStore: generationMetadataStore
+        )
+        given(cacheStorageFactory)
+            .cacheStorage(config: .any)
+            .willThrow(CacheURLStoreError.noReachableEndpoints)
+        given(cacheStorageFactory)
+            .cacheLocalStorage()
+            .willReturn(localCacheStorage)
+        given(generator)
+            .generateWithGraph(path: .any, options: .any)
+            .willReturn((workspacePath, .test(), MapperEnvironment()))
+
+        try await subject.run(
+            path: nil,
+            includedTargets: [],
+            noOpen: true,
+            configuration: nil,
+            ignoreBinaryCache: false,
+            cacheProfile: nil
+        )
+
+        verify(cacheStorageFactory)
+            .cacheLocalStorage()
+            .called(1)
     }
 
     @Test func propagatesPermanentAuthenticationFailure() async {
