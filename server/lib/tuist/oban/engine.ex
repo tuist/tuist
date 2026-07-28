@@ -1,9 +1,10 @@
 defmodule Tuist.Oban.Engine do
   @moduledoc """
-  Extends Oban's standard engine with bounded retries for transaction rollbacks.
+  Extends Oban's standard engine with recovery for transaction rollbacks.
 
-  An explicit rollback guarantees that the transaction did not insert a job, so
-  retrying cannot duplicate it. Other errors retain the standard engine behavior.
+  Insertion rollbacks are retried because they guarantee that no job was
+  committed. Fetch rollbacks keep the queue alive and schedule another dispatch.
+  Other errors retain the standard engine behavior.
   """
 
   @behaviour Oban.Engine
@@ -14,6 +15,7 @@ defmodule Tuist.Oban.Engine do
 
   @max_retries 3
   @retry_delay 100
+  @fetch_retry_delay 1_000
 
   @impl Oban.Engine
   defdelegate init(conf, opts), to: Basic
@@ -29,8 +31,6 @@ defmodule Tuist.Oban.Engine do
   defdelegate insert_all_jobs(conf, changesets, opts), to: Basic
   @impl Oban.Engine
   defdelegate stage_jobs(conf, queryable, opts), to: Basic
-  @impl Oban.Engine
-  defdelegate fetch_jobs(conf, meta, running), to: Basic
   @impl Oban.Engine
   defdelegate prune_jobs(conf, queryable, opts), to: Basic
   @impl Oban.Engine
@@ -63,6 +63,19 @@ defmodule Tuist.Oban.Engine do
   @impl Oban.Engine
   def insert_job(conf, changeset, opts) do
     insert_job(conf, changeset, opts, @max_retries)
+  end
+
+  @impl Oban.Engine
+  def fetch_jobs(conf, meta, running) do
+    case Basic.fetch_jobs(conf, meta, running) do
+      {:error, :rollback} ->
+        Logger.warning("Oban job fetch transaction rolled back; retrying in one second")
+        Process.send_after(self(), :dispatch, @fetch_retry_delay)
+        {:ok, {meta, []}}
+
+      result ->
+        result
+    end
   end
 
   defp insert_job(conf, changeset, opts, retries_left) do
