@@ -137,6 +137,10 @@ pub fn internal_router(state: SharedState) -> Router {
     internal_routes()
         .layer(middleware::from_fn_with_state(
             state.clone(),
+            reject_overloaded_internal_writes,
+        ))
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
             track_http_metrics,
         ))
         .layer(middleware::map_response(guard_response_stream_transport))
@@ -724,6 +728,28 @@ async fn reject_overloaded_public_writes(
             state.metrics.record_memory_action("write_rejected_outbox");
             return overloaded_response("server is shedding writes while replication catches up");
         }
+    }
+
+    next.run(req).await
+}
+
+/// Fast-fails peer replication writes (PUT /_internal/replicate/artifact,
+/// DELETE /_internal/replicate/namespace) when the pod is under Critical
+/// memory pressure. Without this guard the pod accepts the TCP connection
+/// but stalls while processing the body, and the source peer's read_timeout
+/// (30 s) fires — surfacing as a TimedOut that wedges the outbox for half
+/// a minute per attempt. Returning 503 lets the source retry immediately
+/// with its normal 2-second backoff. Reads (bootstrap, status) are unaffected.
+async fn reject_overloaded_internal_writes(
+    State(state): State<SharedState>,
+    req: Request,
+    next: Next,
+) -> Response {
+    if is_write_method(req.method()) && state.memory.pressure() == MemoryPressure::Critical {
+        state
+            .metrics
+            .record_memory_action("internal_write_rejected_critical");
+        return overloaded_response("server is shedding replication writes due to memory pressure");
     }
 
     next.run(req).await
@@ -3072,6 +3098,57 @@ mod tests {
         .await
         .expect("request failed");
         assert_eq!(over_limit.status(), StatusCode::PAYLOAD_TOO_LARGE);
+    }
+
+    #[tokio::test]
+    async fn internal_replicate_artifact_fast_fails_under_critical_memory_pressure() {
+        let context = test_context(|_| {}).await;
+        context
+            .state
+            .memory
+            .observe(context.state.memory.hard_limit_bytes() + 1);
+
+        let response = internal_router(context.state.clone())
+            .oneshot(
+                Request::builder()
+                    .method("PUT")
+                    .uri(
+                        "/_internal/replicate/artifact?producer=reapi&inline=true\
+                         &namespace_id=tuist&key=action_cache%2Fdeadbeef%2F65\
+                         &content_type=application%2Fx-protobuf&version_ms=1000",
+                    )
+                    .body(Body::from(vec![0u8; 1024]))
+                    .expect("failed to build request"),
+            )
+            .await
+            .expect("request failed");
+
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        assert_eq!(
+            response.headers().get(axum::http::header::RETRY_AFTER),
+            Some(&HeaderValue::from_static("1")),
+        );
+    }
+
+    #[tokio::test]
+    async fn internal_reads_are_not_rejected_under_critical_memory_pressure() {
+        let context = test_context(|_| {}).await;
+        context
+            .state
+            .memory
+            .observe(context.state.memory.hard_limit_bytes() + 1);
+
+        let response = internal_router(context.state.clone())
+            .oneshot(
+                Request::builder()
+                    .uri("/_internal/status")
+                    .body(Body::empty())
+                    .expect("failed to build request"),
+            )
+            .await
+            .expect("request failed");
+
+        assert_ne!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
     }
 
     #[tokio::test]
