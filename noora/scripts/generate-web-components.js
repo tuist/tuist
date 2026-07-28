@@ -43,6 +43,16 @@ function validateContract(contract, filename) {
   }
 
   if (
+    contract.properties !== undefined &&
+    !Array.isArray(contract.properties)
+  ) {
+    fail(`${filename} properties must be an array`);
+  }
+  if (contract.events !== undefined && !Array.isArray(contract.events)) {
+    fail(`${filename} events must be an array`);
+  }
+
+  if (
     contract.notes !== undefined &&
     (!Array.isArray(contract.notes) ||
       contract.notes.some((note) => typeof note !== "string"))
@@ -56,9 +66,16 @@ function validateContract(contract, filename) {
   ) {
     fail(`${filename} stylingExample must be a string`);
   }
+  if (
+    contract.standalone !== undefined &&
+    typeof contract.standalone !== "boolean"
+  ) {
+    fail(`${filename} standalone must be a boolean`);
+  }
 
   const attributeNames = new Set();
   const propertyNames = new Set();
+  const eventNames = new Set();
 
   for (const attribute of contract.attributes) {
     if (!attribute.name || !attribute.property || !attribute.description) {
@@ -66,7 +83,7 @@ function validateContract(contract, filename) {
         `${filename} attributes must define name, property, and description`,
       );
     }
-    if (!["boolean", "string"].includes(attribute.type)) {
+    if (!["boolean", "json", "number", "string"].includes(attribute.type)) {
       fail(
         `${filename} attribute ${attribute.name} has unsupported type ${attribute.type}`,
       );
@@ -105,6 +122,40 @@ function validateContract(contract, filename) {
     propertyNames.add(attribute.property);
   }
 
+  for (const property of contract.properties ?? []) {
+    if (!property.name || !property.description) {
+      fail(`${filename} properties must define name and description`);
+    }
+    if (!["boolean", "json", "number", "string"].includes(property.type)) {
+      fail(
+        `${filename} property ${property.name} has unsupported type ${property.type}`,
+      );
+    }
+    if (propertyNames.has(property.name)) {
+      fail(`${filename} defines property ${property.name} more than once`);
+    }
+    if (
+      property.exampleAttribute !== undefined &&
+      typeof property.exampleAttribute !== "string"
+    ) {
+      fail(
+        `${filename} property ${property.name} has invalid exampleAttribute`,
+      );
+    }
+
+    propertyNames.add(property.name);
+  }
+
+  for (const event of contract.events ?? []) {
+    if (!event.name || !event.type || !event.description) {
+      fail(`${filename} events must define name, type, and description`);
+    }
+    if (eventNames.has(event.name)) {
+      fail(`${filename} defines event ${event.name} more than once`);
+    }
+    eventNames.add(event.name);
+  }
+
   const exampleIds = new Set();
   for (const example of contract.examples) {
     if (
@@ -120,13 +171,137 @@ function validateContract(contract, filename) {
     if (exampleIds.has(example.id)) {
       fail(`${filename} defines example ${example.id} more than once`);
     }
+    if (
+      example.previewMarkup !== undefined &&
+      typeof example.previewMarkup !== "string"
+    ) {
+      fail(`${filename} example ${example.id} has invalid previewMarkup`);
+    }
+    if (
+      example.propertyAssignments !== undefined &&
+      (typeof example.propertyAssignments !== "object" ||
+        example.propertyAssignments === null ||
+        Array.isArray(example.propertyAssignments))
+    ) {
+      fail(`${filename} example ${example.id} has invalid propertyAssignments`);
+    }
     exampleIds.add(example.id);
   }
 }
 
+function escapeRegularExpression(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function normalizedPropertyMarkup(markup, contract, idPrefix) {
+  const exampleProperties = (contract.properties ?? []).filter(
+    (property) => property.exampleAttribute,
+  );
+  if (exampleProperties.length === 0) return { markup };
+
+  const assignments = {};
+  let elementIndex = 0;
+  const elementPattern = new RegExp(`<${contract.tagName}\\b([^>]*)>`, "g");
+  const previewMarkup = markup.replace(
+    elementPattern,
+    (openingTag, originalAttributes) => {
+      let attributes = originalAttributes;
+      const properties = {};
+
+      for (const property of exampleProperties) {
+        const attributePattern = new RegExp(
+          `\\s${escapeRegularExpression(property.exampleAttribute)}=(['"])([\\s\\S]*?)\\1`,
+        );
+        const match = attributes.match(attributePattern);
+        if (!match) continue;
+
+        try {
+          properties[property.name] = JSON.parse(match[2]);
+        } catch {
+          fail(
+            `${contract.tagName} example has invalid ${property.exampleAttribute} data`,
+          );
+        }
+        attributes = attributes.replace(match[0], "");
+      }
+
+      if (Object.keys(properties).length === 0) return openingTag;
+
+      elementIndex += 1;
+      const existingId = attributes.match(/\sid=(["'])(.*?)\1/)?.[2];
+      const id = existingId ?? `${idPrefix}-${elementIndex}`;
+      if (!existingId) attributes = ` id="${id}"${attributes}`;
+      assignments[`#${id}`] = properties;
+
+      return `<${contract.tagName}${attributes}>`;
+    },
+  );
+
+  const entries = Object.entries(assignments);
+  if (entries.length === 0) return { markup };
+
+  const script = entries
+    .flatMap(([selector, properties], index) => {
+      const variable = entries.length === 1 ? "element" : `element${index + 1}`;
+      return [
+        `  const ${variable} = document.querySelector(${JSON.stringify(selector)});`,
+        ...Object.entries(properties).map(([name, value]) => {
+          const serialized = JSON.stringify(value, null, 2).replaceAll(
+            "\n",
+            "\n  ",
+          );
+          return `  ${variable}.${name} = ${serialized};`;
+        }),
+      ];
+    })
+    .join("\n");
+
+  return {
+    markup: `${previewMarkup}\n<script type="module">\n${script}\n</script>`,
+    previewMarkup,
+    propertyAssignments: assignments,
+  };
+}
+
+function normalizeContract(contract) {
+  const usage = normalizedPropertyMarkup(
+    contract.usage,
+    contract,
+    `${contract.tagName}-usage`,
+  );
+  const examples = contract.examples.map((example) => {
+    if (example.previewMarkup || example.propertyAssignments) return example;
+    return {
+      ...example,
+      ...normalizedPropertyMarkup(
+        example.markup,
+        contract,
+        `${contract.tagName}-${example.id}`,
+      ),
+    };
+  });
+  const properties = (contract.properties ?? []).map(
+    ({ exampleAttribute: _exampleAttribute, ...property }) => property,
+  );
+
+  return {
+    ...contract,
+    usage: usage.markup,
+    properties,
+    events: contract.events ?? [],
+    examples,
+  };
+}
+
 function typescriptType(attribute) {
+  if (attribute.typescriptType) {
+    return attribute.typescriptType;
+  }
   if (attribute.values) {
     return attribute.values.map((value) => JSON.stringify(value)).join(" | ");
+  }
+  if (attribute.type === "json") {
+    return "unknown";
   }
   return attribute.type;
 }
@@ -152,8 +327,7 @@ function defaultText(attribute) {
 }
 
 function allowedValuesText(attribute) {
-  if (attribute.type === "boolean") return markdownCode("boolean");
-  if (!attribute.values) return markdownCode("string");
+  if (!attribute.values) return markdownCode(typescriptType(attribute));
   return attribute.values.map(markdownCode).join(", ");
 }
 
@@ -168,6 +342,9 @@ function renderTypes(contracts) {
     const partDocs = contract.cssParts
       .map((part) => ` * @csspart ${part.name} - ${part.description}`)
       .join("\n");
+    const eventDocs = contract.events
+      .map((event) => ` * @fires ${event.name} - ${event.description}`)
+      .join("\n");
     const publicAttributes = contract.attributes.filter(
       (attribute) => attribute.publicProperty !== false,
     );
@@ -176,11 +353,28 @@ function renderTypes(contracts) {
         (attribute) =>
           `  /** ${attribute.description} */\n  ${attribute.property}: ${typescriptPropertyType(attribute)};`,
       ),
+      ...(contract.properties ?? []).map(
+        (property) =>
+          `  /** ${property.description} */\n  ${property.name}: ${typescriptPropertyType(property)};`,
+      ),
       ...contract.readonlyProperties.map(
         (property) =>
           `  /** ${property.description} */\n  readonly ${property.name}: ${property.type};`,
       ),
     ].join("\n");
+    const eventOverloads = contract.events
+      .map(
+        (event) =>
+          `  addEventListener(type: ${JSON.stringify(event.name)}, listener: (this: ${contract.elementClassName}, event: ${event.type}) => void, options?: boolean | AddEventListenerOptions): void;`,
+      )
+      .join("\n");
+    const eventMethods =
+      eventOverloads.length === 0
+        ? ""
+        : `${eventOverloads}
+  addEventListener<K extends keyof HTMLElementEventMap>(type: K, listener: (this: ${contract.elementClassName}, event: HTMLElementEventMap[K]) => void, options?: boolean | AddEventListenerOptions): void;
+  addEventListener(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | AddEventListenerOptions): void;
+`;
 
     return `/**
  * ${contract.description}
@@ -188,9 +382,11 @@ function renderTypes(contracts) {
  * @element ${contract.tagName}
 ${slotDocs}
 ${partDocs}
+${eventDocs}
  */
 export class ${contract.elementClassName} extends HTMLElement {
 ${fields}
+${eventMethods}
 }
 
 export function register${contract.elementClassName}(): void;`;
@@ -230,7 +426,7 @@ function manifestAttribute(attribute) {
   return result;
 }
 
-function manifestMember(attribute) {
+function manifestAttributeMember(attribute) {
   const result = {
     kind: "field",
     name: attribute.property,
@@ -240,6 +436,19 @@ function manifestMember(attribute) {
   };
   if (Object.hasOwn(attribute, "default")) {
     result.default = JSON.stringify(attribute.default);
+  }
+  return result;
+}
+
+function manifestPropertyMember(property) {
+  const result = {
+    kind: "field",
+    name: property.name,
+    description: property.description,
+    type: { text: typescriptPropertyType(property) },
+  };
+  if (Object.hasOwn(property, "default")) {
+    result.default = JSON.stringify(property.default);
   }
   return result;
 }
@@ -270,7 +479,8 @@ function renderManifest(contracts) {
           customElement: true,
           superclass: { name: "LitElement", package: "lit" },
           members: [
-            ...publicAttributes.map(manifestMember),
+            ...publicAttributes.map(manifestAttributeMember),
+            ...(contract.properties ?? []).map(manifestPropertyMember),
             ...contract.readonlyProperties.map((property) => ({
               kind: "field",
               name: property.name,
@@ -287,6 +497,11 @@ function renderManifest(contracts) {
           cssParts: contract.cssParts.map((part) => ({
             name: part.name,
             description: part.description,
+          })),
+          events: contract.events.map((event) => ({
+            name: event.name,
+            description: event.description,
+            type: { text: event.type },
           })),
         };
       }),
@@ -329,6 +544,12 @@ function renderComponentDocumentation(contract) {
         `| ${markdownCode(attribute.name)} | ${allowedValuesText(attribute)} | ${defaultText(attribute)} | ${markdownCell(attribute.description)} |`,
     )
     .join("\n");
+  const publicProperties = (contract.properties ?? [])
+    .map(
+      (property) =>
+        `| ${markdownCode(property.name)} | ${allowedValuesText(property)} | ${defaultText(property)} | ${markdownCell(property.description)} |`,
+    )
+    .join("\n");
   const properties = contract.readonlyProperties
     .map(
       (property) =>
@@ -347,6 +568,12 @@ function renderComponentDocumentation(contract) {
         `| ${markdownCode(part.name)} | ${markdownCell(part.description)} |`,
     )
     .join("\n");
+  const events = contract.events
+    .map(
+      (event) =>
+        `| ${markdownCode(event.name)} | ${markdownCode(event.type)} | ${markdownCell(event.description)} |`,
+    )
+    .join("\n");
   const examples = contract.examples
     .map(
       (example) => `## ${example.title}
@@ -358,6 +585,16 @@ ${example.markup}
 \`\`\``,
     )
     .join("\n\n");
+  const publicPropertiesSection =
+    (contract.properties ?? []).length === 0
+      ? ""
+      : `
+## Properties
+
+| Property | Type or allowed values | Default | Description |
+| --- | --- | --- | --- |
+${publicProperties}
+`;
   const propertiesSection =
     contract.readonlyProperties.length === 0
       ? ""
@@ -388,6 +625,16 @@ ${slots}
 | --- | --- |
 ${parts}
 `;
+  const eventsSection =
+    contract.events.length === 0
+      ? ""
+      : `
+## Events
+
+| Event | Type | Description |
+| --- | --- | --- |
+${events}
+`;
   const stylingExample = contract.stylingExample
     ? `
 Use the standard \`::part()\` selector when an application needs a targeted override:
@@ -414,7 +661,7 @@ ${contract.usage}
 | Attribute | Type or allowed values | Default | Description |
 | --- | --- | --- | --- |
 ${attributes}
-${propertiesSection}${slotsSection}${partsSection}${stylingExample}
+${publicPropertiesSection}${propertiesSection}${eventsSection}${slotsSection}${partsSection}${stylingExample}
 ${notes}
 
 ${examples}
@@ -423,6 +670,14 @@ ${examples}
 
 function renderIndexDocumentation(contracts) {
   const components = contracts
+    .filter((contract) => contract.standalone !== false)
+    .map(
+      (contract) =>
+        `- [${contract.name}](./components/${contract.name.toLowerCase()}.md): ${contract.description}`,
+    )
+    .join("\n");
+  const supportingElements = contracts
+    .filter((contract) => contract.standalone === false)
     .map(
       (contract) =>
         `- [${contract.name}](./components/${contract.name.toLowerCase()}.md): ${contract.description}`,
@@ -446,6 +701,31 @@ import "@tuist/noora/tokens.css";
 import "@tuist/noora/web-components";
 \`\`\`
 
+Use attributes for primitive values and declarative child elements for structured content:
+
+\`\`\`html
+<noora-dropdown label="Options">
+  <noora-dropdown-item value="edit" icon="edit">Edit</noora-dropdown-item>
+  <noora-dropdown-item value="delete" icon="trash">Delete</noora-dropdown-item>
+</noora-dropdown>
+\`\`\`
+
+Collection properties remain available when items are created programmatically. Declarative children take precedence when both forms are present.
+
+Respond to standard browser events and Noora custom events with \`addEventListener\`. Custom events bubble, cross shadow-root boundaries, and expose structured values through \`event.detail\`:
+
+\`\`\`javascript
+const select = document.querySelector("noora-select");
+
+select.addEventListener("change", () => {
+  console.log(select.value);
+});
+
+select.addEventListener("noora-select", (event) => {
+  console.log(event.detail.value);
+});
+\`\`\`
+
 The registration bundle defines every published Noora custom element. The package also includes \`custom-elements.json\` for tools that support the Custom Elements Manifest format and TypeScript declarations for the public element properties.
 
 Component contracts are consumed during the build. Applications do not fetch the contract files at runtime.
@@ -453,7 +733,60 @@ Component contracts are consumed during the build. Applications do not fetch the
 ## Components
 
 ${components}
+
+## Supporting elements
+
+${supportingElements}
 `;
+}
+
+function renderStory(contract) {
+  return `# Generated by scripts/generate-web-components.js. Do not edit directly.
+defmodule TuistWeb.Storybook.WebComponents.${contract.elementClassName.replace(/^Noora/, "")} do
+  @moduledoc false
+  use Phoenix.Component
+  use PhoenixStorybook.Story, :page
+
+  import NooraStorybookWeb.WebComponentStory
+
+  @contracts_path Path.expand("../../../js/web-components/contracts.json", __DIR__)
+  @external_resource @contracts_path
+  @contract @contracts_path
+            |> File.read!()
+            |> Jason.decode!()
+            |> Enum.find(&(&1["tagName"] == "${contract.tagName}"))
+
+  def doc, do: @contract["description"]
+
+  def render(assigns) do
+    web_component_story(assign(assigns, :contract, @contract))
+  end
+end
+`;
+}
+
+async function loadIcons() {
+  const iconsDirectory = path.join(root, "lib/noora/icons");
+  const filenames = (await readdir(iconsDirectory))
+    .filter((filename) => filename.endsWith(".svg"))
+    .sort();
+
+  return Object.fromEntries(
+    await Promise.all(
+      filenames.map(async (filename) => [
+        path.basename(filename, ".svg").replaceAll("-", "_"),
+        await readFile(path.join(iconsDirectory, filename), "utf8"),
+      ]),
+    ),
+  );
+}
+
+function renderIcons(icons) {
+  return `${JSON.stringify(icons, null, 2)}\n`;
+}
+
+function renderContracts(contracts) {
+  return `${JSON.stringify(contracts, null, 2)}\n`;
 }
 
 async function loadContracts() {
@@ -468,7 +801,7 @@ async function loadContracts() {
         await readFile(path.join(componentsDirectory, filename), "utf8"),
       );
       validateContract(contract, filename);
-      return contract;
+      return normalizeContract(contract);
     }),
   );
 }
@@ -496,14 +829,23 @@ async function emit(relativePath, content) {
 }
 
 const contracts = await loadContracts();
+const icons = await loadIcons();
 
 await emit("types/web-components.d.ts", renderTypes(contracts));
 await emit("custom-elements.json", renderManifest(contracts));
 await emit("docs/web-components.md", renderIndexDocumentation(contracts));
+await emit("js/web-components/contracts.json", renderContracts(contracts));
+await emit("js/web-components/icons.json", renderIcons(icons));
 
 for (const contract of contracts) {
   await emit(
     `docs/components/${contract.name.toLowerCase()}.md`,
     renderComponentDocumentation(contract),
   );
+  if (contract.standalone !== false) {
+    await emit(
+      `storybook/storybook/web_components/${contract.tagName.replace(/^noora-/, "").replaceAll("-", "_")}.story.exs`,
+      renderStory(contract),
+    );
+  }
 }

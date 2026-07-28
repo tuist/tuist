@@ -468,6 +468,41 @@ sum by (cluster) (
 - Pending period: 5 minutes
 - Summary: `Kubernetes is rate limiting requests in {{ $labels.cluster }}`
 
+### Ingress server-error response ratio
+
+```promql
+(
+  sum by (cluster, namespace, ingress) (
+    rate(nginx_ingress_controller_requests{status=~"5.."}[5m])
+  )
+  /
+  clamp_min(
+    sum by (cluster, namespace, ingress) (
+      rate(nginx_ingress_controller_requests[5m])
+    ),
+    1
+  )
+) > 0.01
+and
+sum by (cluster, namespace, ingress) (
+  rate(nginx_ingress_controller_requests{status=~"5.."}[5m])
+) > 0.1
+```
+
+- Pending period: 2 minutes
+- Summary: `More than 1% of ingress requests are server errors for {{ $labels.ingress }} in {{ $labels.cluster }}`
+
+### Tuist server request read timeouts
+
+```promql
+sum by (cluster, namespace, method, route) (
+  increase(tuist_http_request_timeout_count[5m])
+) > 5
+```
+
+- Pending period: 2 minutes
+- Summary: `Bandit reported repeated request read timeouts for {{ $labels.route }} in {{ $labels.cluster }}`
+
 ### Tuist license expires within 30 days
 
 ```promql

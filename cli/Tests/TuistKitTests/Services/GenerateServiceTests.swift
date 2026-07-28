@@ -2,7 +2,9 @@ import Foundation
 import Mockable
 import Path
 import Testing
+import TuistAlert
 import TuistCache
+import TuistCAS
 import TuistConfig
 import TuistCore
 import TuistGenerator
@@ -412,6 +414,120 @@ struct GenerateServiceTests {
                 cacheProfile: "missing"
             )
         }
+    }
+
+    @Test func usesLocalCacheStorageWhenRemoteCacheHasTransientServerFailure() async throws {
+        given(configLoader).loadConfig(path: .any).willReturn(
+            .test(project: .testGeneratedProject())
+        )
+        let workspacePath = try AbsolutePath(validating: "/test.xcworkspace")
+        let localCacheStorage = MockCacheStoring()
+        let cacheStorageFactory = MockCacheStorageFactorying()
+        let alertController = AlertController()
+        let subject = GenerateService(
+            cacheStorageFactory: cacheStorageFactory,
+            generatorFactory: generatorFactory,
+            configLoader: configLoader,
+            generationMetadataStore: generationMetadataStore
+        )
+        given(cacheStorageFactory)
+            .cacheStorage(config: .any)
+            .willThrow(RefreshAuthTokenServiceError.unknownError(503))
+        given(cacheStorageFactory)
+            .cacheLocalStorage()
+            .willReturn(localCacheStorage)
+        given(generator)
+            .generateWithGraph(path: .any, options: .any)
+            .willReturn((workspacePath, .test(), MapperEnvironment()))
+
+        try await AlertController.$current.withValue(alertController) {
+            try await subject.run(
+                path: nil,
+                includedTargets: [],
+                noOpen: true,
+                configuration: nil,
+                ignoreBinaryCache: false,
+                cacheProfile: nil
+            )
+        }
+
+        verify(cacheStorageFactory)
+            .cacheLocalStorage()
+            .called(1)
+        #expect(
+            alertController.warnings().map(\.message).map { $0.plain() } == [
+                "The remote cache is temporarily unavailable.",
+            ]
+        )
+    }
+
+    @Test func usesLocalCacheStorageWhenNoRemoteCacheEndpointIsReachable() async throws {
+        given(configLoader).loadConfig(path: .any).willReturn(
+            .test(project: .testGeneratedProject())
+        )
+        let workspacePath = try AbsolutePath(validating: "/test.xcworkspace")
+        let localCacheStorage = MockCacheStoring()
+        let cacheStorageFactory = MockCacheStorageFactorying()
+        let subject = GenerateService(
+            cacheStorageFactory: cacheStorageFactory,
+            generatorFactory: generatorFactory,
+            configLoader: configLoader,
+            generationMetadataStore: generationMetadataStore
+        )
+        given(cacheStorageFactory)
+            .cacheStorage(config: .any)
+            .willThrow(CacheURLStoreError.noReachableEndpoints)
+        given(cacheStorageFactory)
+            .cacheLocalStorage()
+            .willReturn(localCacheStorage)
+        given(generator)
+            .generateWithGraph(path: .any, options: .any)
+            .willReturn((workspacePath, .test(), MapperEnvironment()))
+
+        try await subject.run(
+            path: nil,
+            includedTargets: [],
+            noOpen: true,
+            configuration: nil,
+            ignoreBinaryCache: false,
+            cacheProfile: nil
+        )
+
+        verify(cacheStorageFactory)
+            .cacheLocalStorage()
+            .called(1)
+    }
+
+    @Test func propagatesPermanentAuthenticationFailure() async {
+        given(configLoader).loadConfig(path: .any).willReturn(
+            .test(project: .testGeneratedProject())
+        )
+        let cacheStorageFactory = MockCacheStorageFactorying()
+        let expectedError = RefreshAuthTokenServiceError.unauthorized("Invalid token")
+        let subject = GenerateService(
+            cacheStorageFactory: cacheStorageFactory,
+            generatorFactory: generatorFactory,
+            configLoader: configLoader,
+            generationMetadataStore: generationMetadataStore
+        )
+        given(cacheStorageFactory)
+            .cacheStorage(config: .any)
+            .willThrow(expectedError)
+
+        await #expect(throws: expectedError) {
+            try await subject.run(
+                path: nil,
+                includedTargets: [],
+                noOpen: true,
+                configuration: nil,
+                ignoreBinaryCache: false,
+                cacheProfile: nil
+            )
+        }
+
+        verify(cacheStorageFactory)
+            .cacheLocalStorage()
+            .called(0)
     }
 }
 

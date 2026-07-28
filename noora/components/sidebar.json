@@ -1,0 +1,53 @@
+{
+  "name": "Sidebar",
+  "tagName": "noora-sidebar",
+  "elementClassName": "NooraSidebar",
+  "className": "noora-sidebar",
+  "modulePath": "./priv/static/noora-web-components.js",
+  "description": "Provides responsive side navigation.",
+  "usage": "<noora-sidebar>\n  <noora-sidebar-item href=\"/\" icon=\"dashboard\">Dashboard</noora-sidebar-item>\n</noora-sidebar>",
+  "attributes": [
+    {
+      "name": "label",
+      "property": "label",
+      "type": "string",
+      "default": "Primary navigation",
+      "description": "Sets the accessible navigation label."
+    }
+  ],
+  "properties": [
+    {
+      "name": "items",
+      "type": "json",
+      "typescriptType": "Array<Record<string, unknown>>",
+      "default": [],
+      "description": "Defines navigation programmatically when declarative sidebar children are not used."
+    }
+  ],
+  "readonlyProperties": [],
+  "slots": [
+    {
+      "name": "",
+      "description": "Declarative noora-sidebar-item and noora-sidebar-group children."
+    }
+  ],
+  "cssParts": [
+    {
+      "name": "sidebar",
+      "description": "The sidebar container."
+    },
+    {
+      "name": "viewport",
+      "description": "The scrollable navigation viewport."
+    }
+  ],
+  "notes": [],
+  "examples": [
+    {
+      "id": "navigation",
+      "title": "Navigation",
+      "description": "Provide structured navigation items.",
+      "markup": "<noora-sidebar>\n  <noora-sidebar-item href=\"/\" icon=\"dashboard\" selected>Dashboard</noora-sidebar-item>\n  <noora-sidebar-group label=\"Projects\" default-open>\n    <noora-sidebar-item href=\"/projects/tuist\">Tuist</noora-sidebar-item>\n    <noora-sidebar-item href=\"/projects/noora\">Noora</noora-sidebar-item>\n  </noora-sidebar-group>\n</noora-sidebar>"
+    }
+  ]
+}

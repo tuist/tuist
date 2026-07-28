@@ -213,14 +213,20 @@
     {
       "id": "sizes",
       "title": "Sizes",
-      "description": "The default size is large.",
-      "markup": "<noora-button type=\"button\" size=\"small\">Small</noora-button>\n<noora-button type=\"button\" size=\"medium\">Medium</noora-button>\n<noora-button type=\"button\" size=\"large\">Large</noora-button>"
+      "description": "Compare the large, medium, and small button sizes.",
+      "markup": "<noora-button type=\"button\" size=\"large\">Large</noora-button>\n<noora-button type=\"button\" size=\"medium\">Medium</noora-button>\n<noora-button type=\"button\" size=\"small\">Small</noora-button>"
     },
     {
-      "id": "icons-and-states",
-      "title": "Icons and states",
-      "description": "Named slots place icons around the label. Icon-only buttons require an accessible label.",
-      "markup": "<noora-button type=\"button\">\n  <svg\n    slot=\"icon-left\"\n    aria-hidden=\"true\"\n    viewBox=\"0 0 24 24\"\n    fill=\"none\"\n    stroke=\"currentColor\"\n  >\n    <path d=\"m15 18-6-6 6-6\" stroke-width=\"2\"></path>\n  </svg>\n  Previous\n</noora-button>\n\n<noora-button type=\"button\" variant=\"secondary\">\n  Continue\n  <svg\n    slot=\"icon-right\"\n    aria-hidden=\"true\"\n    viewBox=\"0 0 24 24\"\n    fill=\"none\"\n    stroke=\"currentColor\"\n  >\n    <path d=\"m9 18 6-6-6-6\" stroke-width=\"2\"></path>\n  </svg>\n</noora-button>\n\n<noora-button type=\"button\" icon-only aria-label=\"Go back\">\n  <svg aria-hidden=\"true\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\">\n    <path d=\"m15 18-6-6 6-6\" stroke-width=\"2\"></path>\n  </svg>\n</noora-button>\n\n<noora-button type=\"button\" variant=\"secondary\" disabled>\n  Disabled\n</noora-button>"
+      "id": "disabled",
+      "title": "Disabled",
+      "description": "Compare the disabled state across every button variant.",
+      "markup": "<noora-button type=\"button\" variant=\"primary\" disabled>Disabled</noora-button>\n<noora-button type=\"button\" variant=\"secondary\" disabled>Disabled</noora-button>\n<noora-button type=\"button\" variant=\"destructive\" disabled>Disabled</noora-button>"
+    },
+    {
+      "id": "icons",
+      "title": "Icons",
+      "description": "Place a chevron on the left, right, or both sides of the label, or render an icon-only button.",
+      "markup": "<noora-button type=\"button\">\n  <noora-icon slot=\"icon-left\" name=\"chevron_left\"></noora-icon>\n  Icon\n</noora-button>\n\n<noora-button type=\"button\">\n  Icon\n  <noora-icon slot=\"icon-right\" name=\"chevron_right\"></noora-icon>\n</noora-button>\n\n<noora-button type=\"button\">\n  <noora-icon slot=\"icon-left\" name=\"chevron_left\"></noora-icon>\n  Icon\n  <noora-icon slot=\"icon-right\" name=\"chevron_right\"></noora-icon>\n</noora-button>\n\n<noora-button type=\"button\" icon-only aria-label=\"Previous\">\n  <noora-icon name=\"chevron_left\"></noora-icon>\n</noora-button>"
     }
   ]
 }

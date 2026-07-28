@@ -188,6 +188,10 @@
     visibility: hidden;
   }
 
+  & [data-part="item"][data-selected] {
+    background: var(--noora-dropdown-hover-background);
+  }
+
   /* Keyboard roving focus (see Dropdown.js handleBreadcrumbKeydown) moves real
      DOM focus between the native <a> items (which are tabindex="-1", so only
      reachable inside the open menu), so mirror the hover affordance on the

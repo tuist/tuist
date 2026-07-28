@@ -36,12 +36,24 @@ defmodule NooraStorybookWeb.WebComponentStory do
 
       <.component_example
         :for={example <- @contract["examples"]}
+        example_id={example["id"]}
         title={example["title"]}
         description={example["description"]}
         code={example["markup"]}
+        preview_code={Map.get(example, "previewMarkup", example["markup"])}
+        property_assignments={Map.get(example, "propertyAssignments", %{})}
+        layout={Map.get(@contract, "previewLayout", "wrap")}
       />
 
       <.attributes_table attributes={@contract["attributes"]} />
+      <.properties_table
+        :if={Map.get(@contract, "properties", []) != []}
+        properties={@contract["properties"]}
+      />
+      <.events_table
+        :if={Map.get(@contract, "events", []) != []}
+        events={@contract["events"]}
+      />
       <.named_items_table
         :if={@contract["slots"] != []}
         title="Slots"
@@ -97,6 +109,10 @@ defmodule NooraStorybookWeb.WebComponentStory do
 
   attr(:code, :string, required: true)
   attr(:description, :string, default: nil)
+  attr(:example_id, :string, required: true)
+  attr(:layout, :string, default: "wrap")
+  attr(:preview_code, :string, required: true)
+  attr(:property_assignments, :map, default: %{})
   attr(:title, :string, required: true)
 
   defp component_example(assigns) do
@@ -113,12 +129,91 @@ defmodule NooraStorybookWeb.WebComponentStory do
           {@description}
         </p>
       </div>
-      <div style="display: flex; flex-wrap: wrap; align-items: center; gap: var(--noora-spacing-4); border: 1px solid var(--noora-surface-border-primary); border-radius: var(--noora-radius-medium); padding: var(--noora-spacing-6); background: var(--noora-surface-background-primary);">
-        {HTML.raw(@code)}
+      <div
+        id={"web-component-example-#{@example_id}"}
+        phx-hook="NooraWebComponentExample"
+        data-property-assignments={Jason.encode!(@property_assignments)}
+        style={preview_style(@layout)}
+      >
+        {HTML.raw(@preview_code)}
       </div>
       <.copyable_code code={@code} />
     </section>
     """
+  end
+
+  attr(:events, :list, required: true)
+
+  defp events_table(assigns) do
+    ~H"""
+    <section style="display: flex; flex-direction: column; gap: var(--noora-spacing-4);">
+      <h2 style="margin: 0; font: var(--noora-font-weight-medium) var(--noora-font-heading-small);">
+        Events
+      </h2>
+      <div style="overflow-x: auto; border: 1px solid var(--noora-surface-border-primary); border-radius: var(--noora-radius-medium);">
+        <table style="width: 100%; border-collapse: collapse; text-align: left;">
+          <thead>
+            <tr style="background: var(--noora-surface-background-secondary);">
+              <.table_header>Event</.table_header>
+              <.table_header>Type</.table_header>
+              <.table_header>Description</.table_header>
+            </tr>
+          </thead>
+          <tbody>
+            <tr :for={event <- @events}>
+              <.table_cell><code>{event["name"]}</code></.table_cell>
+              <.table_cell><code>{event["type"]}</code></.table_cell>
+              <.table_cell>{event["description"]}</.table_cell>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+    """
+  end
+
+  attr(:properties, :list, required: true)
+
+  defp properties_table(assigns) do
+    ~H"""
+    <section style="display: flex; flex-direction: column; gap: var(--noora-spacing-4);">
+      <h2 style="margin: 0; font: var(--noora-font-weight-medium) var(--noora-font-heading-small);">
+        Properties
+      </h2>
+      <div style="overflow-x: auto; border: 1px solid var(--noora-surface-border-primary); border-radius: var(--noora-radius-medium);">
+        <table style="width: 100%; border-collapse: collapse; text-align: left;">
+          <thead>
+            <tr style="background: var(--noora-surface-background-secondary);">
+              <.table_header>Property</.table_header>
+              <.table_header>Type or allowed values</.table_header>
+              <.table_header>Default</.table_header>
+              <.table_header>Description</.table_header>
+            </tr>
+          </thead>
+          <tbody>
+            <tr :for={property <- @properties}>
+              <.table_cell><code>{property["name"]}</code></.table_cell>
+              <.table_cell>{attribute_type(property)}</.table_cell>
+              <.table_cell><code>{attribute_default(property)}</code></.table_cell>
+              <.table_cell>{property["description"]}</.table_cell>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+    """
+  end
+
+  defp preview_style("stack") do
+    "display: flex; flex-direction: column; align-items: flex-start; gap: var(--noora-spacing-6); border: 1px solid var(--noora-surface-border-primary); border-radius: var(--noora-radius-medium); padding: var(--noora-spacing-6); background: var(--noora-surface-background-primary);"
+  end
+
+  defp preview_style("stack-center") do
+    "display: flex; flex-direction: column; align-items: center; gap: var(--noora-spacing-4); border: 1px solid var(--noora-surface-border-primary); border-radius: var(--noora-radius-medium); padding: var(--noora-spacing-6); background: var(--noora-surface-background-primary);"
+  end
+
+  defp preview_style(_layout) do
+    "display: flex; flex-wrap: wrap; align-items: center; gap: var(--noora-spacing-4); border: 1px solid var(--noora-surface-border-primary); border-radius: var(--noora-radius-medium); padding: var(--noora-spacing-6); background: var(--noora-surface-background-primary);"
   end
 
   attr(:attributes, :list, required: true)

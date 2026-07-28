@@ -19,7 +19,7 @@ defmodule Noora.Avatar do
   )
 
   attr(:color, :string,
-    values: ~w(gray red orange yellow azure blue purple pink),
+    values: ~w(gray red orange yellow green azure blue purple pink),
     default: "pink",
     doc: "The color of the avatar."
   )
@@ -49,7 +49,7 @@ defmodule Noora.Avatar do
   )
 
   attr(:size, :string,
-    values: ~w(2xsmall small medium large 2xlarge),
+    values: ~w(2xsmall small medium large xlarge 2xlarge),
     default: "medium",
     doc: "The size of the avatar. Defaults to medium."
   )

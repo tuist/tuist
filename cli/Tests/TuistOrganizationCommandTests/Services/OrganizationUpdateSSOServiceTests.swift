@@ -31,7 +31,8 @@ struct OrganizationUpdateSSOServiceTests {
             .updateOrganization(
                 organizationName: .value("tuist"),
                 serverURL: .value(serverURL),
-                ssoOrganization: .value(.google("tuist.io"))
+                ssoOrganization: .value(.google("tuist.io")),
+                ssoAutomaticEnrollment: .value(nil)
             )
             .willReturn(.test())
 
@@ -40,6 +41,7 @@ struct OrganizationUpdateSSOServiceTests {
             organizationName: "tuist",
             provider: .google,
             organizationId: "tuist.io",
+            enrollmentPolicy: nil,
             directory: nil
         )
 
@@ -47,7 +49,7 @@ struct OrganizationUpdateSSOServiceTests {
         #expect(
             logOutput().contains(
                 """
-                tuist now uses Google SSO with tuist.io. Users authenticated with the tuist.io SSO organization will automatically have access to the tuist projects.
+                tuist now uses Google SSO with tuist.io. No enrollment policy was specified.
                 """
             )
         )
@@ -59,7 +61,8 @@ struct OrganizationUpdateSSOServiceTests {
             .updateOrganization(
                 organizationName: .value("tuist"),
                 serverURL: .value(serverURL),
-                ssoOrganization: .value(.okta("tuist.okta.com"))
+                ssoOrganization: .value(.okta("tuist.okta.com")),
+                ssoAutomaticEnrollment: .value(nil)
             )
             .willReturn(.test())
 
@@ -68,6 +71,7 @@ struct OrganizationUpdateSSOServiceTests {
             organizationName: "tuist",
             provider: .okta,
             organizationId: "tuist.okta.com",
+            enrollmentPolicy: nil,
             directory: nil
         )
 
@@ -75,7 +79,61 @@ struct OrganizationUpdateSSOServiceTests {
         #expect(
             logOutput().contains(
                 """
-                tuist now uses Okta SSO with tuist.okta.com. Users authenticated with the tuist.okta.com SSO organization will automatically have access to the tuist projects.
+                tuist now uses Okta SSO with tuist.okta.com. No enrollment policy was specified.
+                """
+            )
+        )
+    }
+
+    @Test(.withMockedNoora) func organization_update_sso_with_explicit_automatic_enrollment() async throws {
+        given(updateOrganizationService)
+            .updateOrganization(
+                organizationName: .value("tuist"),
+                serverURL: .value(serverURL),
+                ssoOrganization: .value(.okta("tuist.okta.com")),
+                ssoAutomaticEnrollment: .value(true)
+            )
+            .willReturn(.test())
+
+        try await subject.run(
+            organizationName: "tuist",
+            provider: .okta,
+            organizationId: "tuist.okta.com",
+            enrollmentPolicy: .automatic,
+            directory: nil
+        )
+
+        #expect(
+            logOutput().contains(
+                """
+                tuist now uses Okta SSO with tuist.okta.com. Authenticated users will automatically have access to the tuist projects.
+                """
+            )
+        )
+    }
+
+    @Test(.withMockedNoora) func organization_update_sso_with_explicit_invitation_only_enrollment() async throws {
+        given(updateOrganizationService)
+            .updateOrganization(
+                organizationName: .value("tuist"),
+                serverURL: .value(serverURL),
+                ssoOrganization: .value(.google("tuist.io")),
+                ssoAutomaticEnrollment: .value(false)
+            )
+            .willReturn(.test())
+
+        try await subject.run(
+            organizationName: "tuist",
+            provider: .google,
+            organizationId: "tuist.io",
+            enrollmentPolicy: .invitationOnly,
+            directory: nil
+        )
+
+        #expect(
+            logOutput().contains(
+                """
+                tuist now uses Google SSO with tuist.io. Users need an invitation to access the tuist projects.
                 """
             )
         )

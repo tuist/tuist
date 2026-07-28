@@ -368,6 +368,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
                           deployment_target: "mno345deployment",
                           project_settings: "pqr678projectsettings",
                           target_settings: "stu901targetsettings",
+                          additional_hashing_inputs: "vwx234additionalinputs",
                           additional_strings: ["CUSTOM_FLAG_1", "CUSTOM_FLAG_2"]
                         }
                       }
@@ -428,6 +429,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
       assert target_a.deployment_target_hash == "mno345deployment"
       assert target_a.project_settings_hash == "pqr678projectsettings"
       assert target_a.target_settings_hash == "stu901targetsettings"
+      assert target_a.additional_hashing_inputs_hash == "vwx234additionalinputs"
       assert target_a.additional_strings == ["CUSTOM_FLAG_1", "CUSTOM_FLAG_2"]
       assert target_a.external_hash == ""
 
@@ -487,7 +489,8 @@ defmodule TuistWeb.AnalyticsControllerTest do
                           sources: "tests-sources-hash",
                           dependencies: "tests-deps-hash",
                           environment: "tests-env-hash",
-                          project_settings: "tests-project-settings"
+                          project_settings: "tests-project-settings",
+                          additional_hashing_inputs: "tests-additional-inputs-hash"
                         }
                       }
                     }
@@ -518,6 +521,7 @@ defmodule TuistWeb.AnalyticsControllerTest do
       assert target.dependencies_hash == "tests-deps-hash"
       assert target.environment_hash == "tests-env-hash"
       assert target.project_settings_hash == "tests-project-settings"
+      assert target.additional_hashing_inputs_hash == "tests-additional-inputs-hash"
     end
 
     test "returns command event URL with runs route when build_run_id is not provided", %{

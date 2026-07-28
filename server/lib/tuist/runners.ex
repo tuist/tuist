@@ -134,6 +134,7 @@ defmodule Tuist.Runners do
   # the server draining every stale Pod the moment its image diverges —
   # the open-loop time stagger this replaced drained on a fixed 30s
   # cadence that was far shorter than a multi-minute image pull.
+  @operator_drain_label "tuist.dev/runner-operator-drain"
   @drain_eligible_label "tuist.dev/drain-eligible"
   @max_claim_attempts_per_dispatch 16
 
@@ -1347,23 +1348,33 @@ defmodule Tuist.Runners do
 
     case K8sClient.get_pod(namespace, pod_name) do
       {:ok, pod} ->
-        if committed?(pod) do
-          # The account label is stamped only after a claim fully commits, and a
-          # committed Pod that received its JIT runs the job in place and never
-          # polls again. So a committed Pod polling HERE means its dispatch
-          # response was lost and the runner never started — it must not be
-          # handed a second, possibly different, account on the cache already
-          # materialized for the first (the host's SourceAccount guard blocks
-          # promotion, but not the guest reading it). 410 so the guest halts and
-          # the runner-pool reconciler replaces it with a fresh Pod.
-          Logger.info("runners: reaping committed-but-polling pod",
-            pod: pod_name,
-            fleet: fleet_name
-          )
+        cond do
+          operator_drain?(pod) ->
+            Logger.info("runners: honoring operator drain",
+              pod: pod_name,
+              fleet: fleet_name
+            )
 
-          {:error, :pod_committed}
-        else
-          check_image_staleness(namespace, fleet_name, pod)
+            {:error, :drain}
+
+          committed?(pod) ->
+            # The account label is stamped only after a claim fully commits, and a
+            # committed Pod that received its JIT runs the job in place and never
+            # polls again. So a committed Pod polling HERE means its dispatch
+            # response was lost and the runner never started — it must not be
+            # handed a second, possibly different, account on the cache already
+            # materialized for the first (the host's SourceAccount guard blocks
+            # promotion, but not the guest reading it). 410 so the guest halts and
+            # the runner-pool reconciler replaces it with a fresh Pod.
+            Logger.info("runners: reaping committed-but-polling pod",
+              pod: pod_name,
+              fleet: fleet_name
+            )
+
+            {:error, :pod_committed}
+
+          true ->
+            check_image_staleness(namespace, fleet_name, pod)
         end
 
       _ ->
@@ -1376,6 +1387,8 @@ defmodule Tuist.Runners do
 
   # A Pod carries the account label once its dispatch has committed.
   defp committed?(pod), do: is_binary(get_in(pod, ["metadata", "labels", @account_label]))
+
+  defp operator_drain?(pod), do: get_in(pod, ["metadata", "labels", @operator_drain_label]) == "true"
 
   defp check_image_staleness(namespace, fleet_name, pod) do
     with {:ok, pool} <- K8sClient.get_runner_pool(namespace, fleet_name),

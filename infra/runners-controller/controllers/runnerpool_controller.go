@@ -181,9 +181,9 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			continue
 		}
 		phaseReplicas.add(p)
-		// Mirrors the classification below: stale-image Pods are retired
+		// Mirrors the classification below: stale Pods are retired
 		// by the roll throttle rather than counted as available.
-		if !isStaleImage(p, pool) && isIdle(p) && isWarmCapacity(p, pool) {
+		if !isStaleRunner(p, pool) && isIdle(p) && isWarmCapacity(p, pool) {
 			idleCount++
 		}
 	}
@@ -207,15 +207,16 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	reaped := 0
 	staleAlive := 0
 	markedStale := 0
-	newNotReady := 0
+	unavailableRolloutCapacity := 0
 	var idleAlive []*corev1.Pod
-	// Stale idle Pods are retired under the roll cap (below), not all at
-	// once: Running ones (macOS) get the drain-eligible label so the
-	// server 410s them; Pending ones (Linux warm pollers, or macOS that
-	// rolled mid-boot) are reaped directly. Both share one budget so a
-	// digest roll can't make the whole fleet pull the new image at once.
+	// Stale idle Pods are retired under the roll cap (below), not all
+	// at once. Running stale-image Pods get the drain-eligible label so
+	// the server can stop them through the normal dispatch lifecycle.
+	// Idle Pending Pods are safe to reap directly, including Linux warm
+	// runners on a stale RuntimeClass revision. Both paths share one
+	// availability budget.
 	var drainCandidates []*corev1.Pod
-	var stalePendingCandidates []*corev1.Pod
+	var reapCandidates []*corev1.Pod
 	for i := range pods.Items {
 		p := &pods.Items[i]
 		if startTimedOut(p, pool, r.now()) {
@@ -246,33 +247,34 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		switch {
 		case isAlive(p):
 			alive++
+			staleImage := isStaleImage(p, pool)
+			staleRuntimeClassRevision := isStaleRuntimeClassRevision(p, pool)
 			switch {
-			case isStaleImage(p, pool):
+			case staleImage || staleRuntimeClassRevision:
 				staleAlive++
-				if p.Labels[drainEligibleLabel] == "true" {
+				if staleImage && p.Labels[drainEligibleLabel] == "true" {
 					markedStale++
 				} else if isIdle(p) {
-					// Pending stale idle Pods (Linux warm pollers, macOS
-					// rolled mid-boot) are reaped directly; Running ones
-					// (macOS warm) get the drain-eligible label for the
-					// server to 410. Both retire under the shared roll cap.
 					if p.Status.Phase == corev1.PodPending {
-						stalePendingCandidates = append(stalePendingCandidates, p)
-					} else {
+						reapCandidates = append(reapCandidates, p)
+					} else if staleImage {
 						drainCandidates = append(drainCandidates, p)
 					}
 				}
 			default:
-				// Current-image Pod. Idle ones are scale-down candidates;
-				// not-yet-Ready ones are booting (a roll's replacement when
-				// one is active) and consume roll-concurrency budget. Stale
-				// Pods are excluded from idleAlive on purpose — they're
-				// retired by the roll throttle, not scale-down.
+				// Current-template Pod. Idle ones are scale-down
+				// candidates. A replacement that is not warm yet consumes
+				// roll-concurrency budget. Stale Pods are excluded from
+				// idleAlive on purpose: the roll throttle retires them.
 				if isIdle(p) {
 					idleAlive = append(idleAlive, p)
-				}
-				if !isReady(p) {
-					newNotReady++
+					if !isWarmCapacity(p, pool) {
+						// This deliberately follows Deployment-style
+						// maxUnavailable semantics: ordinary scale-up
+						// Pods consume the same availability budget as
+						// roll replacements until they become warm.
+						unavailableRolloutCapacity++
+					}
 				}
 			}
 		case p.DeletionTimestamp.IsZero():
@@ -311,15 +313,14 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		}
 	}
 
-	// Image-roll throttle (runs before the gap-fill so a reaped Pending
-	// Pod's current-image replacement is created this same reconcile).
-	// Retire stale Pods up to a concurrency cap so a digest roll doesn't
-	// make the whole fleet `tart pull` the new ~tens-of-GB image at once
-	// and collapse the warm pool. In-flight = stale Pods already committed
-	// to drain, plus — while a roll is active — current-image Pods not yet
-	// Ready (booting replacements); we retire more only as those reach
-	// Ready. Both paths share the budget: reap idle Pending Pods directly,
-	// mark idle Running Pods drain-eligible for the server to 410.
+	// Roll throttle (runs before the gap-fill so a reaped Pod's
+	// current-template replacement is created this same reconcile).
+	// Retire stale Pods up to a concurrency cap so an image or
+	// RuntimeClass-revision change cannot collapse the warm pool.
+	// In-flight is stale Pods already committed to drain plus, while
+	// a roll is active, current-template Pods that are not warm. This
+	// includes ordinary scale-up Pods by design: the cap represents
+	// unavailable serving capacity, regardless of why it is unavailable.
 	// Best-effort: a failed reap/patch just retries next tick.
 	rollPct := int32(defaultRollMaxConcurrentPercent)
 	if pool.Spec.Rollout != nil && pool.Spec.Rollout.MaxConcurrentPercent > 0 {
@@ -328,14 +329,14 @@ func (r *RunnerPoolReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	capN := rollConcurrencyCap(pool.Spec.Replicas, rollPct)
 	rolling := markedStale
 	if staleAlive > 0 {
-		rolling += newNotReady
+		rolling += unavailableRolloutCapacity
 	}
-	for _, p := range stalePendingCandidates {
+	for _, p := range reapCandidates {
 		if rolling >= capN {
 			break
 		}
-		if err := r.reapRunner(ctx, p); err != nil {
-			logger.Error(err, "reap stale pending pod; will retry next tick", "pod", p.Name)
+		if err := r.reapAlivePod(ctx, p); err != nil {
+			logger.Error(err, "reap stale idle pod; will retry next tick", "pod", p.Name)
 			continue
 		}
 		alive--
@@ -561,8 +562,8 @@ func (r *RunnerPoolReconciler) createRunner(ctx context.Context, pool *tuistv1.R
 // "nothing left," not "I'm the one that deleted it."
 //
 // Called for both terminal Pods (Succeeded/Failed → natural
-// turnover) and stale Pending Pods (image roll → recycle on
-// current image). The cleanup contract is the same.
+// turnover) and stale Pending Pods (Pod-template rollout →
+// recycle on the current template). The cleanup contract is the same.
 func (r *RunnerPoolReconciler) reapRunner(ctx context.Context, pod *corev1.Pod) error {
 	if err := r.Delete(ctx, pod); err != nil && !apierrors.IsNotFound(err) {
 		return fmt.Errorf("delete pod %s: %w", pod.Name, err)
@@ -768,6 +769,13 @@ func runnerTerminated(pod *corev1.Pod) *corev1.ContainerStateTerminated {
 	return nil
 }
 
+// isStaleRunner reports whether an alive Pod needs controlled
+// replacement because its image or RuntimeClass revision no longer
+// matches the pool's current template.
+func isStaleRunner(pod *corev1.Pod, pool *tuistv1.RunnerPool) bool {
+	return isStaleImage(pod, pool) || isStaleRuntimeClassRevision(pod, pool)
+}
+
 // isStaleImage returns true when the Pod's runner container image
 // no longer matches the RunnerPool's spec.image — i.e., the chart
 // has rolled the image pin since this Pod was created. Used to
@@ -780,17 +788,20 @@ func isStaleImage(pod *corev1.Pod, pool *tuistv1.RunnerPool) bool {
 	return pod.Spec.Containers[0].Image != pool.Spec.Image
 }
 
-// isReady reports whether the Pod's Ready condition is True. macOS Pods
-// have no per-container readiness (tart-kubelet runs the VM as one
-// opaque unit), but tart-kubelet sets the PodReady condition once the
-// guest has an IP — so this works for both runtimes.
-func isReady(pod *corev1.Pod) bool {
-	for _, c := range pod.Status.Conditions {
-		if c.Type == corev1.PodReady {
-			return c.Status == corev1.ConditionTrue
-		}
+// isStaleRuntimeClassRevision compares the revision Helm stamped on
+// the Linux RunnerPool with the revision copied into the Pod at
+// creation. RuntimeClass admission does not rewrite existing Pods when
+// overhead changes, so a revision mismatch triggers bounded turnover
+// without comparing admission-mutated fields to live cluster state.
+func isStaleRuntimeClassRevision(pod *corev1.Pod, pool *tuistv1.RunnerPool) bool {
+	if pool.Spec.OS != "linux" || pool.Spec.RuntimeClass == "" {
+		return false
 	}
-	return false
+	revision := pool.Annotations[podtemplate.RuntimeClassRevisionAnnotation]
+	if revision == "" {
+		return false
+	}
+	return pod.Annotations[podtemplate.RuntimeClassRevisionAnnotation] != revision
 }
 
 // rollConcurrencyCap is max(1, floor(pct/100 * replicas)): at least one

@@ -5,8 +5,6 @@ defmodule TuistRegistry.Application do
 
   alias TuistCommon.HTTP.TransportLogger
 
-  require Logger
-
   @impl true
   def start(_type, _args) do
     TransportLogger.attach(:tuist_registry)
@@ -16,7 +14,6 @@ defmodule TuistRegistry.Application do
 
     base_children = [
       {Phoenix.PubSub, name: TuistRegistry.PubSub},
-      TuistRegistry.S3,
       TuistRegistry.Swift.Metadata,
       TuistRegistry.Swift.AlternateManifests,
       TuistRegistryWeb.Endpoint,

@@ -105,7 +105,8 @@ defmodule Tuist.ProjectsTest do
     organization =
       AccountsFixtures.organization_fixture(
         sso_provider: :google,
-        sso_organization_id: domain
+        sso_organization_id: domain,
+        sso_automatic_enrollment: true
       )
 
     account = Accounts.get_account_from_organization(organization)

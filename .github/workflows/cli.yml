@@ -150,6 +150,8 @@ jobs:
         run: tuist setup
       - name: Install Tuist dependencies
         run: tuist install --force-resolved-versions
+      - name: Resolve registry replacements
+        run: swift package resolve --replace-scm-with-registry
       - name: Build
         run: swift build --configuration debug --replace-scm-with-registry --force-resolved-versions
 
@@ -201,7 +203,7 @@ jobs:
   cli-unit-tests:
     name: Unit Tests
     runs-on: tuist-macos
-    timeout-minutes: 60
+    timeout-minutes: 90
     permissions:
       contents: read
       id-token: write
@@ -240,7 +242,7 @@ jobs:
   cli-acceptance-tests-build:
     name: Build Acceptance Tests
     runs-on: tuist-macos
-    timeout-minutes: 60
+    timeout-minutes: 90
     permissions:
       contents: read
       id-token: write

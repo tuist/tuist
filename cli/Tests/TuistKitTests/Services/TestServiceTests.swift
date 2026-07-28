@@ -549,6 +549,15 @@ final class TestServiceTests: TuistUnitTestCase {
                     MapperEnvironment()
                 )
             }
+        given(buildGraphInspector)
+            .testableTarget(
+                scheme: .any, testPlan: .any, testTargets: .any, skipTestTargets: .any,
+                graphTraverser: .any,
+                action: .any
+            )
+            .willReturn(
+                .test(target: .test(destinations: [.iPhone, .mac]))
+            )
         given(simulatorController)
             .findAvailableDevice(udid: .any)
             .willReturn(.test(device: .test(name: "Test iPhone")))
@@ -6083,6 +6092,184 @@ final class TestServiceTests: TuistUnitTestCase {
 @Suite
 struct TestServiceSchemePlanningTests {
     @Test(.inTemporaryDirectory, .withMockedDependencies())
+    func run_with_passthrough_destination_validates_explicit_platform() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let fixture = TestServiceSchemePlanningFixture(
+            scenario: SchemePlanningScenario(rootDirectory: temporaryDirectory)
+        )
+
+        await #expect(throws: UnsupportedPlatformError.self) {
+            try await fixture.run(
+                path: temporaryDirectory,
+                platform: "unsupported",
+                passthroughXcodeBuildArguments: ["-destination", "id=device-id"]
+            )
+        }
+    }
+
+    @Test
+    func resolvePlatform_ignores_pre_action_targets() throws {
+        let projectPath = try AbsolutePath(validating: "/Project")
+        let app = Target.test(name: "App", destinations: .iOS)
+        let tests = Target.test(
+            name: "BaseTests",
+            destinations: [.iPhone, .mac],
+            product: .unitTests
+        )
+        let codegenTool = Target.test(name: "CodegenTool", destinations: .macOS)
+        let appReference = TargetReference(projectPath: projectPath, name: app.name)
+        let testsReference = TargetReference(projectPath: projectPath, name: tests.name)
+        let codegenToolReference = TargetReference(projectPath: projectPath, name: codegenTool.name)
+        let scheme = Scheme.test(
+            name: "iOS",
+            buildAction: .test(
+                targets: [appReference, testsReference],
+                preActions: [
+                    ExecutionAction(
+                        title: "Generate code",
+                        scriptText: "generate-code",
+                        target: codegenToolReference,
+                        shellPath: "/bin/sh"
+                    ),
+                ]
+            ),
+            testAction: .test(targets: [.test(target: testsReference)]),
+            runAction: nil,
+            archiveAction: nil,
+            profileAction: nil
+        )
+        let graphTraverser = GraphTraverser(
+            graph: .test(
+                path: projectPath,
+                projects: [
+                    projectPath: .test(
+                        path: projectPath,
+                        targets: [app, tests, codegenTool],
+                        schemes: [scheme]
+                    ),
+                ]
+            )
+        )
+        let graphTarget = try #require(
+            graphTraverser.target(path: projectPath, name: tests.name)
+        )
+
+        let platform = TestService.resolvePlatform(
+            for: graphTarget,
+            scheme: scheme,
+            testActionTargets: [testsReference],
+            graphTraverser: graphTraverser
+        )
+
+        #expect(platform == .iOS)
+    }
+
+    @Test
+    func resolvePlatform_uses_selected_test_plan_targets() throws {
+        let projectPath = try AbsolutePath(validating: "/Project")
+        let tests = Target.test(
+            name: "BaseTests",
+            destinations: [.iPhone, .mac],
+            product: .unitTests
+        )
+        let iosTests = Target.test(
+            name: "iOSTests",
+            destinations: .iOS,
+            product: .unitTests
+        )
+        let testsReference = TargetReference(projectPath: projectPath, name: tests.name)
+        let iosTestsReference = TargetReference(projectPath: projectPath, name: iosTests.name)
+        let scheme = Scheme.test(
+            name: "SelectedPlan",
+            buildAction: .test(targets: [testsReference]),
+            testAction: .test(
+                targets: [],
+                testPlans: [
+                    TestPlan(
+                        path: projectPath.appending(component: "SelectedPlan.xctestplan"),
+                        testTargets: [
+                            .test(target: testsReference),
+                            .test(target: iosTestsReference),
+                        ],
+                        isDefault: false
+                    ),
+                ]
+            ),
+            runAction: nil,
+            archiveAction: nil,
+            profileAction: nil
+        )
+        let graphTraverser = GraphTraverser(
+            graph: .test(
+                path: projectPath,
+                projects: [
+                    projectPath: .test(
+                        path: projectPath,
+                        targets: [tests, iosTests],
+                        schemes: [scheme]
+                    ),
+                ]
+            )
+        )
+        let graphTarget = try #require(
+            graphTraverser.target(path: projectPath, name: tests.name)
+        )
+        let selectedPlan = try #require(scheme.testAction?.testPlans?.first)
+
+        let platform = TestService.resolvePlatform(
+            for: graphTarget,
+            scheme: scheme,
+            testActionTargets: selectedPlan.testTargets.map(\.target),
+            graphTraverser: graphTraverser
+        )
+
+        #expect(platform == .iOS)
+    }
+
+    @Test
+    func resolvePlatform_leaves_multi_platform_test_target_ambiguous_without_a_scheme_constraint() throws {
+        let projectPath = try AbsolutePath(validating: "/Project")
+        let tests = Target.test(
+            name: "BaseTests",
+            destinations: [.iPhone, .mac],
+            product: .unitTests
+        )
+        let testsReference = TargetReference(projectPath: projectPath, name: tests.name)
+        let scheme = Scheme.test(
+            name: "AllPlatforms",
+            buildAction: .test(targets: [testsReference]),
+            testAction: .test(targets: [.test(target: testsReference)]),
+            runAction: nil,
+            archiveAction: nil,
+            profileAction: nil
+        )
+        let graphTraverser = GraphTraverser(
+            graph: .test(
+                path: projectPath,
+                projects: [
+                    projectPath: .test(
+                        path: projectPath,
+                        targets: [tests],
+                        schemes: [scheme]
+                    ),
+                ]
+            )
+        )
+        let graphTarget = try #require(
+            graphTraverser.target(path: projectPath, name: tests.name)
+        )
+
+        let platform = TestService.resolvePlatform(
+            for: graphTarget,
+            scheme: scheme,
+            testActionTargets: [testsReference],
+            graphTraverser: graphTraverser
+        )
+
+        #expect(platform == nil)
+    }
+
+    @Test(.inTemporaryDirectory, .withMockedDependencies())
     func run_uses_non_overlapping_single_target_schemes_for_mixed_tests() async throws {
         let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
         let scenario = SchemePlanningScenario(rootDirectory: temporaryDirectory)
@@ -6543,6 +6730,7 @@ private struct TestServiceSchemePlanningFixture {
     func run(
         path: AbsolutePath,
         action: XcodeBuildTestAction = .test,
+        platform: String? = nil,
         resultBundlePath: AbsolutePath? = nil,
         derivedDataPath: AbsolutePath? = nil,
         testTargets: [TestIdentifier] = [],
@@ -6557,7 +6745,7 @@ private struct TestServiceSchemePlanningFixture {
                 configuration: nil,
                 path: path,
                 deviceName: nil,
-                platform: nil,
+                platform: platform,
                 osVersion: nil,
                 action: action,
                 rosetta: false,
