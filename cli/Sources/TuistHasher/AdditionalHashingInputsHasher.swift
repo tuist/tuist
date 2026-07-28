@@ -50,7 +50,8 @@ public struct AdditionalHashingInputsHasher: AdditionalHashingInputsHashing {
             case let .path(path):
                 let pathHash = try await hash(path: path, cachedHash: hashedPaths[path])
                 hashedPaths[path] = pathHash
-                componentHashes.append(try contentHasher.hash("path-\(pathHash)"))
+                let relativePath = path.relative(to: sourceRootPath).pathString
+                componentHashes.append(try contentHasher.hash("path-\(relativePath)-content-\(pathHash)"))
             case let .string(value):
                 componentHashes.append(try contentHasher.hash("string-\(value)"))
             case let .environmentVariable(name):

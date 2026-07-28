@@ -61,12 +61,42 @@ struct AdditionalHashingInputsHasherTests {
 
         #expect(
             result.hash ==
-                "path-file-content-hash|path-folder-content-hash-combined-hash"
+                "path-Codegen-content-folder-content-hash|path-template.stencil-content-file-content-hash-combined-hash"
         )
         #expect(result.hashedPaths == [
             filePath: "file-content",
             folderPath: "folder-content",
         ])
+    }
+
+    @Test
+    func hash_distinguishesPathsWithIdenticalContent() async throws {
+        let sourceRootPath = try AbsolutePath(validating: "/project")
+        let firstPath = sourceRootPath.appending(component: "first.txt")
+        let secondPath = sourceRootPath.appending(component: "second.txt")
+        given(contentHasher)
+            .hash(path: .any)
+            .willReturn("same-content")
+
+        let firstResult = try await subject.hash(
+            inputs: [.path(firstPath)],
+            hashedPaths: [:],
+            sourceRootPath: sourceRootPath
+        )
+        let secondResult = try await subject.hash(
+            inputs: [.path(secondPath)],
+            hashedPaths: [:],
+            sourceRootPath: sourceRootPath
+        )
+
+        #expect(
+            firstResult.hash ==
+                "path-first.txt-content-same-content-hash-combined-hash"
+        )
+        #expect(
+            secondResult.hash ==
+                "path-second.txt-content-same-content-hash-combined-hash"
+        )
     }
 
     @Test
@@ -80,7 +110,7 @@ struct AdditionalHashingInputsHasherTests {
             sourceRootPath: sourceRootPath
         )
 
-        #expect(result.hash == "path-cached-content-hash-combined-hash")
+        #expect(result.hash == "path-template.stencil-content-cached-content-hash-combined-hash")
         verify(contentHasher)
             .hash(path: .any)
             .called(0)
