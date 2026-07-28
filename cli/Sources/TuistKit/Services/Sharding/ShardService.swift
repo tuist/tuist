@@ -86,6 +86,7 @@ public struct ShardService: ShardServicing {
         testProductsPath: AbsolutePath? = nil,
         testProductsArchivePath: AbsolutePath? = nil
     ) async throws -> Shard {
+        let shardPlanId = shardPlanId.flatMap { $0.isEmpty ? nil : $0 }
         guard let reference = reference ?? ciController.ciInfo()?.shardReference ?? shardPlanId else {
             throw ShardServiceError.cannotDeriveReference
         }

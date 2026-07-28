@@ -71,6 +71,55 @@ struct ShardServiceTests {
             .collected[.notice, ==] == "Shard 0: AppTests/LoginTests, AppTests/SignupTests, CoreTests/NetworkTests")
     }
 
+    // MARK: - shard plan ID normalization
+
+    @Test(.inTemporaryDirectory, .withMockedDependencies())
+    func shard_emptyPlanId_isTreatedAsAbsent() async throws {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let fileSystem = FileSystem()
+        let testProductsPath = temporaryDirectory.appending(component: "MyApp.xctestproducts")
+        try await fileSystem.makeDirectory(at: testProductsPath)
+
+        let ciController = MockCIControlling()
+        given(ciController).ciInfo().willReturn(.test(provider: .circleci, runId: "ci-derived-ref"))
+
+        let getShardService = MockGetShardServicing()
+        given(getShardService).getShard(
+            fullHandle: .any,
+            serverURL: .any,
+            reference: .value("ci-derived-ref"),
+            shardPlanId: .value(nil),
+            shardIndex: .value(0)
+        ).willReturn(
+            Components.Schemas.Shard(
+                download_url: "https://example.com/unused",
+                download_urls: [],
+                modules: ["AppTests"],
+                shard_plan_id: "plan-123",
+                skip: [],
+                suites: .init()
+            )
+        )
+
+        let subject = ShardService(
+            getShardService: getShardService,
+            ciController: ciController,
+            fileSystem: fileSystem
+        )
+
+        let shard = try await subject.shard(
+            shardIndex: 0,
+            fullHandle: "org/project",
+            serverURL: URL(string: "https://tuist.dev")!,
+            reference: nil,
+            shardPlanId: "",
+            testProductsPath: testProductsPath,
+            testProductsArchivePath: nil
+        )
+
+        #expect(shard.reference == "ci-derived-ref")
+    }
+
     // MARK: - shard() with local test products path
 
     @Test(.inTemporaryDirectory, .withMockedDependencies())
