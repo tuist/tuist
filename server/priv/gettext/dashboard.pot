@@ -1015,7 +1015,7 @@ msgstr ""
 
 #: lib/tuist/utilities/date_formatter.ex:5
 #: lib/tuist/utilities/date_formatter.ex:76
-#: lib/tuist_web/live/ops_account_kura_deployment_live.ex:85
+#: lib/tuist_web/live/ops_account_kura_deployment_live.ex:87
 #: lib/tuist_web/live/ops_account_live.html.heex:23
 #: lib/tuist_web/live/ops_account_live.html.heex:27
 #: lib/tuist_web/live/ops_account_live.html.heex:33
@@ -1883,4 +1883,9 @@ msgstr ""
 #: lib/tuist_web/live/ops_account_live.html.heex:83
 #, elixir-autogen, elixir-format
 msgid "vCPU limit"
+msgstr ""
+
+#: lib/tuist_web/live/ops_account_kura_deployment_live.ex:78
+#, elixir-autogen, elixir-format
+msgid "Superseded"
 msgstr ""

@@ -88,6 +88,7 @@ const (
 	legacyPeerRetireAfterAnnotation             = "kura.tuist.dev/legacy-peer-retire-after"
 	legacyPeerFallbackRepublishAnnotation       = "kura.tuist.dev/legacy-peer-fallback-republish-requested-at"
 	legacyPeerFallbackObservedAnnotation        = "kura.tuist.dev/legacy-peer-fallback-observed-at"
+	unreadyPodsReplacedForImageAnnotation       = "kura.tuist.dev/unready-pods-replaced-for-image"
 	legacyPeerPhaseRepairing                    = "repairing-fallback"
 	legacyPeerPhaseCutoverRequested             = "cutover-requested"
 	legacyPeerPhaseDraining                     = "draining"
@@ -242,7 +243,7 @@ func terminationGracePeriodSeconds() int64 {
 // +kubebuilder:rbac:groups=apps,resources=statefulsets,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=services;configmaps,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch
+// +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch;delete
 // +kubebuilder:rbac:groups=discovery.k8s.io,resources=endpointslices,verbs=get;list;watch
 // +kubebuilder:rbac:groups="",resources=nodes,verbs=get;list;watch
 // +kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=get;list;watch;update;patch;delete
@@ -365,6 +366,9 @@ func (r *KuraInstanceReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, err
 	}
 	if err := r.reconcileStatefulSet(ctx, instance); err != nil {
+		return ctrl.Result{}, err
+	}
+	if err := r.replaceUnreadyPodsForImageChange(ctx, instance); err != nil {
 		return ctrl.Result{}, err
 	}
 
@@ -2263,6 +2267,63 @@ func (r *KuraInstanceReconciler) reconcileStatefulSet(ctx context.Context, insta
 		return err
 	}
 	return r.reconcileDataPersistentVolumeClaims(ctx, instance)
+}
+
+// replaceUnreadyPodsForImageChange lets a new Kura image escape a rollout that
+// the ordinary StatefulSet readiness gate cannot advance. Ready pods keep
+// serving and roll through the normal ordered path. Pods that are not ready and
+// still run the previous image are deleted in parallel so the StatefulSet
+// recreates them directly on the desired image.
+//
+// The handled image is recorded on the KuraInstance only after every deletion
+// succeeds. If the controller stops midway, the next pass retries only the
+// remaining old-image pods and ignores pods already recreated on the desired
+// image. This makes the operation safe across retries without repeatedly
+// restarting a new pod that is still bootstrapping.
+func (r *KuraInstanceReconciler) replaceUnreadyPodsForImageChange(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {
+	if instance.Annotations[unreadyPodsReplacedForImageAnnotation] == instance.Spec.Image {
+		return nil
+	}
+
+	pods := &corev1.PodList{}
+	if err := r.List(ctx, pods, client.InNamespace(instance.Namespace), client.MatchingLabels(selectorLabels(instance))); err != nil {
+		return err
+	}
+
+	for i := range pods.Items {
+		pod := &pods.Items[i]
+		if pod.DeletionTimestamp != nil || podReady(pod) || podKuraImage(pod) == instance.Spec.Image {
+			continue
+		}
+		if err := r.Delete(ctx, pod); err != nil && !apierrors.IsNotFound(err) {
+			return err
+		}
+		log.FromContext(ctx).Info(
+			"replacing unready Kura pod on image change",
+			"pod",
+			pod.Name,
+			"previousImage",
+			podKuraImage(pod),
+			"desiredImage",
+			instance.Spec.Image,
+		)
+	}
+
+	before := instance.DeepCopy()
+	if instance.Annotations == nil {
+		instance.Annotations = map[string]string{}
+	}
+	instance.Annotations[unreadyPodsReplacedForImageAnnotation] = instance.Spec.Image
+	return r.Patch(ctx, instance, client.MergeFrom(before))
+}
+
+func podKuraImage(pod *corev1.Pod) string {
+	for _, container := range pod.Spec.Containers {
+		if container.Name == "kura" {
+			return container.Image
+		}
+	}
+	return ""
 }
 
 func (r *KuraInstanceReconciler) reconcileDataPersistentVolumeClaims(ctx context.Context, instance *kurav1alpha1.KuraInstance) error {

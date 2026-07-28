@@ -132,6 +132,9 @@ where
     ));
     let store =
         Store::open(&config, io.clone(), memory.clone()).expect("failed to open test store");
+    let local_data_available_at_join = store
+        .has_artifacts()
+        .expect("failed to inspect local test artifacts");
     let tmp_staging_budget = store.tmp_staging_budget();
     let analytics =
         Analytics::from_config(config.analytics.as_ref(), &config.node_url, metrics.clone())
@@ -175,6 +178,9 @@ where
         replication_bandwidth_limiter,
         notify: Notify::new(),
         readiness: tokio::sync::Mutex::new(ReadinessState::new(Instant::now())),
+        local_data_available_at_join: std::sync::atomic::AtomicBool::new(
+            local_data_available_at_join,
+        ),
         bootstrap_semaphore,
         tmp_staging_budget,
         bootstrap_staging_budget,

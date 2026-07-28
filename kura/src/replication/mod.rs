@@ -23,7 +23,7 @@ use crate::{
     artifact::manifest::ArtifactManifest,
     config::Config,
     constants::{
-        BOOTSTRAP_DIGEST_DEFAULT_PREFIX_LEN, MAX_BOOTSTRAP_PAGE_BYTES,
+        BOOTSTRAP_DIGEST_DEFAULT_PREFIX_LEN, MAX_BOOTSTRAP_PAGE_BYTES, MAX_BOOTSTRAP_PAGE_ITEMS,
         MAX_INLINE_REPLICATION_BODY_BYTES, MAX_REPLICATION_BODY_BYTES, REPLICATION_RETRY_SECS,
     },
     failpoints::FailpointName,
@@ -40,14 +40,18 @@ use crate::{
 
 use self::{operation::ReplicationOperation, outbox_message::OutboxMessage};
 
-// Manifests per page of the bootstrap keyspace walk. Sized to hold a whole
+// Preferred manifests per page of the bootstrap keyspace walk. Sized to hold a whole
 // digest bucket in one request: at BOOTSTRAP_DIGEST_DEFAULT_PREFIX_LEN the
 // keyspace splits into 4096 buckets, so a 3M-artifact account averages ~750
 // manifests per bucket and every divergent bucket used to cost three
 // round-trips instead of one. A page is bounded by count, not bytes — a REAPI
 // manifest serializes to ~420 B, so 2048 is ~850 KiB, well inside the
 // MAX_BOOTSTRAP_PAGE_BYTES ceiling the puller reads under.
-const BOOTSTRAP_PAGE_LIMIT: usize = 2048;
+const BOOTSTRAP_MANIFEST_PAGE_LIMIT: usize = MAX_BOOTSTRAP_PAGE_ITEMS;
+// Peers before the larger manifest-page rollout reject limits above 256. Keep
+// tombstones on the legacy size and negotiate manifest pages down once per
+// peer pass so adjacent versions can bootstrap each other during a rollout.
+const BOOTSTRAP_LEGACY_PAGE_LIMIT: usize = 256;
 
 // Artifact bodies fetched from a peer concurrently within a bootstrap page. Caps
 // open peer connections; staged bytes stay bounded by bootstrap_staging_budget.
@@ -430,6 +434,7 @@ async fn bootstrap_manifests_from_peer(
     let prefix_len = BOOTSTRAP_DIGEST_DEFAULT_PREFIX_LEN;
     let mut applied = 0_u64;
     let mut failed = 0_u64;
+    let mut page_limit = BOOTSTRAP_MANIFEST_PAGE_LIMIT;
 
     // Range-based anti-entropy: exchange per-bucket digests and walk only the
     // buckets whose contents differ. For a mostly-in-sync pair this collapses a
@@ -460,14 +465,16 @@ async fn bootstrap_manifests_from_peer(
                 .set_bootstrap_pass_buckets_reconciled(peer, "digest", 0);
             let mut reconciled = 0;
             for prefix in divergent {
-                let (range_applied, range_failed) = bootstrap_manifest_range_from_peer(
-                    state,
-                    peer,
-                    Some(&prefix),
-                    "digest",
-                    progress,
-                )
-                .await?;
+                let (range_applied, range_failed) =
+                    bootstrap_manifest_range_from_peer_with_page_limit(
+                        state,
+                        peer,
+                        Some(&prefix),
+                        "digest",
+                        progress,
+                        &mut page_limit,
+                    )
+                    .await?;
                 applied += range_applied;
                 failed += range_failed;
                 reconciled += 1;
@@ -489,9 +496,15 @@ async fn bootstrap_manifests_from_peer(
             state
                 .metrics
                 .set_bootstrap_pass_buckets_reconciled(peer, "full_walk", 0);
-            let (range_applied, range_failed) =
-                bootstrap_manifest_range_from_peer(state, peer, None, "full_walk", progress)
-                    .await?;
+            let (range_applied, range_failed) = bootstrap_manifest_range_from_peer_with_page_limit(
+                state,
+                peer,
+                None,
+                "full_walk",
+                progress,
+                &mut page_limit,
+            )
+            .await?;
             applied += range_applied;
             failed += range_failed;
             state
@@ -540,6 +553,7 @@ fn divergent_prefixes(
 /// Walk the peer's manifest keyspace (optionally scoped to a single digest
 /// bucket prefix), pre-checking and fetching each artifact. Returns
 /// `(applied, failed)` for the caller to aggregate across ranges.
+#[cfg(test)]
 async fn bootstrap_manifest_range_from_peer(
     state: &SharedState,
     peer: &str,
@@ -550,6 +564,26 @@ async fn bootstrap_manifest_range_from_peer(
     mode: &'static str,
     progress: &AtomicU64,
 ) -> Result<(u64, u64), String> {
+    let mut page_limit = BOOTSTRAP_MANIFEST_PAGE_LIMIT;
+    bootstrap_manifest_range_from_peer_with_page_limit(
+        state,
+        peer,
+        prefix,
+        mode,
+        progress,
+        &mut page_limit,
+    )
+    .await
+}
+
+async fn bootstrap_manifest_range_from_peer_with_page_limit(
+    state: &SharedState,
+    peer: &str,
+    prefix: Option<&str>,
+    mode: &'static str,
+    progress: &AtomicU64,
+    page_limit: &mut usize,
+) -> Result<(u64, u64), String> {
     let mut after = None;
     let mut applied = 0_u64;
     let mut failed = 0_u64;
@@ -559,7 +593,10 @@ async fn bootstrap_manifest_range_from_peer(
         .set_bootstrap_current_bucket_manifests_walked(peer, mode, 0);
 
     loop {
-        let page = fetch_bootstrap_manifests_page(state, peer, after.as_deref(), prefix).await?;
+        let (page, accepted_page_limit) =
+            fetch_bootstrap_manifests_page(state, peer, after.as_deref(), prefix, *page_limit)
+                .await?;
+        *page_limit = accepted_page_limit;
         // Fetching a page is forward progress even when it applies nothing (a
         // warm re-walk or an already-present range), so the no-progress watchdog
         // never abandons a bootstrap that is still advancing through the walk.
@@ -929,8 +966,38 @@ async fn fetch_bootstrap_manifests_page(
     peer: &str,
     after: Option<&str>,
     prefix: Option<&str>,
-) -> Result<ManifestPage, String> {
-    let mut url = format!("{peer}/_internal/bootstrap/manifests?limit={BOOTSTRAP_PAGE_LIMIT}");
+    requested_limit: usize,
+) -> Result<(ManifestPage, usize), String> {
+    let mut accepted_limit = requested_limit;
+    let mut response =
+        request_bootstrap_manifests_page(state, peer, after, prefix, accepted_limit).await?;
+    if response.status() == reqwest::StatusCode::BAD_REQUEST
+        && accepted_limit > BOOTSTRAP_LEGACY_PAGE_LIMIT
+    {
+        accepted_limit = BOOTSTRAP_LEGACY_PAGE_LIMIT;
+        info!(
+            "bootstrap peer {peer} rejected {requested_limit}-manifest pages; falling back to {accepted_limit}"
+        );
+        response =
+            request_bootstrap_manifests_page(state, peer, after, prefix, accepted_limit).await?;
+    }
+    let response = response
+        .error_for_status()
+        .map_err(|error| format!("bootstrap manifest response failed: {error}"))?;
+    let bytes = read_bounded_body(response, MAX_BOOTSTRAP_PAGE_BYTES, "bootstrap manifest").await?;
+    serde_json::from_slice(&bytes)
+        .map(|page| (page, accepted_limit))
+        .map_err(|error| format!("failed to decode bootstrap manifest page: {error}"))
+}
+
+async fn request_bootstrap_manifests_page(
+    state: &SharedState,
+    peer: &str,
+    after: Option<&str>,
+    prefix: Option<&str>,
+    limit: usize,
+) -> Result<reqwest::Response, String> {
+    let mut url = format!("{peer}/_internal/bootstrap/manifests?limit={limit}");
     if let Some(after) = after {
         url.push_str("&after=");
         url.push_str(&url_encode(after));
@@ -940,17 +1007,12 @@ async fn fetch_bootstrap_manifests_page(
         url.push_str(&url_encode(prefix));
     }
 
-    let response = state
+    state
         .client()
         .get(&url)
         .send()
         .await
-        .map_err(|error| format!("bootstrap manifest request failed: {error}"))?
-        .error_for_status()
-        .map_err(|error| format!("bootstrap manifest response failed: {error}"))?;
-    let bytes = read_bounded_body(response, MAX_BOOTSTRAP_PAGE_BYTES, "bootstrap manifest").await?;
-    serde_json::from_slice(&bytes)
-        .map_err(|error| format!("failed to decode bootstrap manifest page: {error}"))
+        .map_err(|error| format!("bootstrap manifest request failed: {error}"))
 }
 
 /// Fetch the peer's per-bucket manifest digest for range-based anti-entropy.
@@ -993,8 +1055,9 @@ async fn fetch_bootstrap_tombstones_page(
     peer: &str,
     after: Option<&str>,
 ) -> Result<NamespaceTombstonePage, String> {
-    let mut url =
-        format!("{peer}/_internal/bootstrap/namespace_tombstones?limit={BOOTSTRAP_PAGE_LIMIT}");
+    let mut url = format!(
+        "{peer}/_internal/bootstrap/namespace_tombstones?limit={BOOTSTRAP_LEGACY_PAGE_LIMIT}"
+    );
     if let Some(after) = after {
         url.push_str("&after=");
         url.push_str(&url_encode(after));
@@ -2960,6 +3023,77 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn bootstrap_negotiates_manifest_pages_down_once_for_an_older_peer() {
+        use std::sync::{
+            Arc,
+            atomic::{AtomicUsize, Ordering},
+        };
+
+        use axum::{
+            extract::Request,
+            middleware::{self, Next},
+            response::IntoResponse,
+        };
+
+        let remote = test_context(|_| {}).await;
+        for index in 0..16 {
+            remote
+                .state
+                .store
+                .persist_artifact_from_bytes(
+                    ArtifactProducer::Xcode,
+                    "ios",
+                    &format!("artifact-{index}"),
+                    "application/octet-stream",
+                    b"payload",
+                )
+                .await
+                .expect("remote artifact should persist");
+        }
+
+        let preferred_requests = Arc::new(AtomicUsize::new(0));
+        let legacy_requests = Arc::new(AtomicUsize::new(0));
+        let preferred = preferred_requests.clone();
+        let legacy = legacy_requests.clone();
+        let peer_router = router(remote.state.clone()).layer(middleware::from_fn(
+            move |request: Request, next: Next| {
+                let preferred = preferred.clone();
+                let legacy = legacy.clone();
+                async move {
+                    if request.uri().path() == "/_internal/bootstrap/manifests" {
+                        let query = request.uri().query().unwrap_or_default();
+                        if query.contains(&format!("limit={BOOTSTRAP_MANIFEST_PAGE_LIMIT}")) {
+                            preferred.fetch_add(1, Ordering::SeqCst);
+                            return StatusCode::BAD_REQUEST.into_response();
+                        }
+                        if query.contains(&format!("limit={BOOTSTRAP_LEGACY_PAGE_LIMIT}")) {
+                            legacy.fetch_add(1, Ordering::SeqCst);
+                        }
+                    }
+                    next.run(request).await
+                }
+            },
+        ));
+        let (remote_url, _server) = spawn_server(peer_router).await;
+
+        let local = test_context(|_| {}).await;
+        let applied = bootstrap_manifests_from_peer(&local.state, &remote_url, &AtomicU64::new(0))
+            .await
+            .expect("bootstrap should negotiate the older page limit");
+
+        assert_eq!(applied, 16);
+        assert_eq!(
+            preferred_requests.load(Ordering::SeqCst),
+            1,
+            "the preferred size should only be probed once per peer pass"
+        );
+        assert!(
+            legacy_requests.load(Ordering::SeqCst) > 1,
+            "all remaining divergent ranges should retain the negotiated legacy size"
+        );
+    }
+
+    #[tokio::test]
     async fn range_digest_reconciles_a_mostly_in_sync_pair_by_walking_only_the_delta() {
         use std::sync::{
             Arc,
@@ -2976,9 +3110,9 @@ mod tests {
         // node already holds almost all of. Prod is ~1.4M artifacts / 4096
         // buckets, ~99% in sync; this spans many buckets and forces the legacy
         // full walk into several pages while staying fast. Keep it a multiple of
-        // BOOTSTRAP_PAGE_LIMIT above 1 so the full walk stays multi-page — the
+        // BOOTSTRAP_MANIFEST_PAGE_LIMIT above 1 so the full walk stays multi-page — the
         // A/B assertion below is only meaningful while it is.
-        const TOTAL: usize = 4 * BOOTSTRAP_PAGE_LIMIT;
+        const TOTAL: usize = 4 * BOOTSTRAP_MANIFEST_PAGE_LIMIT;
         const MISSING: usize = 2;
 
         let remote = test_context(|_| {}).await;
@@ -3164,7 +3298,7 @@ mod tests {
         }
 
         let full_page_count = full_pages.load(Ordering::SeqCst);
-        let expected_full_walk = TOTAL.div_ceil(BOOTSTRAP_PAGE_LIMIT);
+        let expected_full_walk = TOTAL.div_ceil(BOOTSTRAP_MANIFEST_PAGE_LIMIT);
         assert_eq!(
             full_page_count, expected_full_walk,
             "legacy walk pages the entire keyspace"
@@ -3373,7 +3507,7 @@ mod tests {
             response::IntoResponse,
         };
 
-        // Fewer artifacts than BOOTSTRAP_PAGE_LIMIT, so the walk is a single
+        // Fewer artifacts than BOOTSTRAP_MANIFEST_PAGE_LIMIT, so the walk is a single
         // page, each body fetch delayed. At concurrency 16 that page takes
         // ~16*40ms to drain — many watchdog windows — with no page boundary in
         // between.

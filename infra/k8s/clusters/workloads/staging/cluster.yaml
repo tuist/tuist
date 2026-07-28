@@ -36,6 +36,11 @@ spec:
         value: fsn1
       - name: hcloudControlPlaneMachineType
         value: cpx22
+      # Extend the canary-validated fallback to staging. New control-plane
+      # kubelets bootstrap through the load-balanced endpoint until their
+      # local control-plane endpoint is available.
+      - name: disableControlPlaneKubeletLocalMode
+        value: true
       # Default for pools without an override (md-0).
       - name: hcloudWorkerMachineType
         value: cpx32
