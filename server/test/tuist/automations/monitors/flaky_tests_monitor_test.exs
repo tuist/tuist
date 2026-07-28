@@ -2,6 +2,7 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitorTest do
   use TuistTestSupport.Cases.DataCase, async: false
 
   alias Tuist.Automations.Monitors.FlakyTestsMonitor
+  alias Tuist.ClickHouseRepo
   alias Tuist.IngestRepo
   alias Tuist.Tests
   alias Tuist.Tests.TestCaseRun
@@ -477,6 +478,98 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitorTest do
     end
   end
 
+  describe "evaluate_rolling_alerts/2" do
+    test "executes rolling queries through the read repository" do
+      project = ProjectsFixtures.project_fixture()
+      test_case_id = Ecto.UUID.generate()
+      ran_at = NaiveDateTime.utc_now()
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: test_case_id,
+        is_flaky: true,
+        ran_at: ran_at,
+        inserted_at: ran_at
+      )
+
+      alert =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          monitor_type: "flakiness_rate",
+          trigger_config: %{
+            "threshold" => 1,
+            "comparison" => "gte",
+            "window_type" => "rolling",
+            "rolling_window_size" => 5
+          }
+        )
+
+      with_read_repo(fn ->
+        assert FlakyTestsMonitor.evaluate(alert, [test_case_id]).triggered == [test_case_id]
+
+        triggered_by_alert_id =
+          FlakyTestsMonitor.evaluate_rolling_alerts([alert], [test_case_id])
+
+        assert triggered_by_alert_id[alert.id] == [test_case_id]
+      end)
+    end
+
+    test "shares measurements between flakiness rate and flaky run count alerts" do
+      project = ProjectsFixtures.project_fixture()
+      one_flaky_run_id = Ecto.UUID.generate()
+      two_flaky_runs_id = Ecto.UUID.generate()
+      base = NaiveDateTime.utc_now()
+
+      for {test_case_id, flaky_run_count} <- [{one_flaky_run_id, 1}, {two_flaky_runs_id, 2}],
+          run_number <- 1..5 do
+        ran_at = NaiveDateTime.add(base, -run_number, :minute)
+
+        RunsFixtures.test_case_run_fixture(
+          project_id: project.id,
+          test_case_id: test_case_id,
+          is_flaky: run_number <= flaky_run_count,
+          ran_at: ran_at,
+          inserted_at: ran_at
+        )
+      end
+
+      rate_alert =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          monitor_type: "flakiness_rate",
+          trigger_config: %{
+            "threshold" => 20,
+            "comparison" => "gte",
+            "window_type" => "rolling",
+            "rolling_window_size" => 5
+          }
+        )
+
+      count_alert =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          monitor_type: "flaky_run_count",
+          trigger_config: %{
+            "threshold" => 2,
+            "comparison" => "gte",
+            "window_type" => "rolling",
+            "rolling_window_size" => 5
+          }
+        )
+
+      triggered_by_alert_id =
+        FlakyTestsMonitor.evaluate_rolling_alerts(
+          [rate_alert, count_alert],
+          [one_flaky_run_id, two_flaky_runs_id]
+        )
+
+      assert MapSet.new(triggered_by_alert_id[rate_alert.id]) ==
+               MapSet.new([one_flaky_run_id, two_flaky_runs_id])
+
+      assert triggered_by_alert_id[count_alert.id] == [two_flaky_runs_id]
+    end
+  end
+
   describe "evaluate_by_run_count/1 with rolling window" do
     test "fires when flaky run count in last N runs meets the threshold" do
       project = ProjectsFixtures.project_fixture()
@@ -558,39 +651,8 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitorTest do
       refute excluded_id in triggered
     end
 
-    test "uses the 250-run aggregate for a 247-run window" do
+    test "rejects rolling windows that require a retired aggregate" do
       project = ProjectsFixtures.project_fixture()
-
-      {:ok, _run} =
-        RunsFixtures.test_fixture(
-          project_id: project.id,
-          test_modules: [
-            %{
-              name: "M",
-              status: "success",
-              duration: 1000,
-              test_cases: [%{name: "tc", status: "success", duration: 100}]
-            }
-          ]
-        )
-
-      {[test_case], _meta} = Tests.list_test_cases(project.id, %{})
-      base = NaiveDateTime.utc_now()
-
-      insert_test_case_runs([
-        test_case_run_attrs(project.id, test_case.id,
-          is_flaky: true,
-          ran_at: NaiveDateTime.add(base, -1, :hour),
-          inserted_at: NaiveDateTime.add(base, -1, :hour)
-        )
-        | for i <- 1..245 do
-            test_case_run_attrs(project.id, test_case.id,
-              is_flaky: false,
-              ran_at: NaiveDateTime.add(base, i, :second),
-              inserted_at: NaiveDateTime.add(base, i, :second)
-            )
-          end
-      ])
 
       alert =
         AutomationsFixtures.automation_alert_fixture(
@@ -599,61 +661,18 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitorTest do
           trigger_config: %{
             "threshold" => 1,
             "window_type" => "rolling",
-            "rolling_window_size" => 247,
+            "rolling_window_size" => 75,
             "comparison" => "gte"
           }
         )
 
-      assert test_case.id in FlakyTestsMonitor.evaluate_by_run_count(alert).triggered
-    end
+      legacy_alert = put_in(alert.trigger_config["rolling_window_size"], 76)
 
-    test "uses the 1000-run aggregate above the recent-runs bucket cap" do
-      project = ProjectsFixtures.project_fixture()
-
-      {:ok, _run} =
-        RunsFixtures.test_fixture(
-          project_id: project.id,
-          test_modules: [
-            %{
-              name: "M",
-              status: "success",
-              duration: 1000,
-              test_cases: [%{name: "tc", status: "success", duration: 100}]
-            }
-          ]
-        )
-
-      {[test_case], _meta} = Tests.list_test_cases(project.id, %{})
-      base = NaiveDateTime.utc_now()
-
-      insert_test_case_runs([
-        test_case_run_attrs(project.id, test_case.id,
-          is_flaky: true,
-          ran_at: NaiveDateTime.add(base, -1, :hour),
-          inserted_at: NaiveDateTime.add(base, -1, :hour)
-        )
-        | for i <- 1..749 do
-            test_case_run_attrs(project.id, test_case.id,
-              is_flaky: false,
-              ran_at: NaiveDateTime.add(base, i, :second),
-              inserted_at: NaiveDateTime.add(base, i, :second)
-            )
-          end
-      ])
-
-      alert =
-        AutomationsFixtures.automation_alert_fixture(
-          project: project,
-          monitor_type: "flaky_run_count",
-          trigger_config: %{
-            "threshold" => 1,
-            "window_type" => "rolling",
-            "rolling_window_size" => 751,
-            "comparison" => "gte"
-          }
-        )
-
-      assert test_case.id in FlakyTestsMonitor.evaluate_by_run_count(alert).triggered
+      assert_raise ArgumentError,
+                   "rolling trigger windows must be at most 75 while aggregate storage is being replaced",
+                   fn ->
+                     FlakyTestsMonitor.evaluate_by_run_count(legacy_alert)
+                   end
     end
 
     test "ignores runs outside the rolling window" do
@@ -764,32 +783,225 @@ defmodule Tuist.Automations.Monitors.FlakyTestsMonitorTest do
     end
   end
 
-  defp insert_test_case_runs(rows) do
-    IngestRepo.insert_all(TestCaseRun, rows)
+  describe "rolling window de-duplicates re-inserted runs" do
+    # `test_case_runs` is a ReplacingMergeTree and flaky detection re-inserts a
+    # run when it sets `is_flaky` after ingestion. The recent-runs MVs record
+    # every physical insert, so one logical run can appear several times in the
+    # rolling aggregate. Because the duplicates land only on flaky/failed runs
+    # (successes are never re-marked), they inflate flakiness and deflate
+    # reliability for the exact runs the thresholds care about. The monitor must
+    # count each run once.
+    test "flakiness_rate does not double-count a re-inserted flaky run" do
+      project = ProjectsFixtures.project_fixture()
+      test_case_id = UUIDv7.generate()
+      RunsFixtures.test_case_fixture(project_id: project.id, id: test_case_id, name: "occasionally_flaky")
+
+      insert_run_with_reinserted_flaky_tail(project.id, test_case_id)
+
+      alert =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          monitor_type: "flakiness_rate",
+          trigger_config: %{
+            "threshold" => 25,
+            "window_type" => "rolling",
+            "rolling_window_size" => 5,
+            "comparison" => "gte"
+          }
+        )
+
+      # Last 5 distinct runs hold 1 flaky run → 20%, below the 25% threshold.
+      # Counting the re-inserted run three times reports 3/5 = 60% and wrongly
+      # mutes a healthy test.
+      refute test_case_id in FlakyTestsMonitor.evaluate(alert).triggered
+    end
+
+    test "flakiness_rate still counts a re-inserted flaky run once (keeps the flaky mark)" do
+      project = ProjectsFixtures.project_fixture()
+      test_case_id = UUIDv7.generate()
+      RunsFixtures.test_case_fixture(project_id: project.id, id: test_case_id, name: "occasionally_flaky")
+
+      insert_run_with_reinserted_flaky_tail(project.id, test_case_id)
+
+      alert =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          monitor_type: "flakiness_rate",
+          trigger_config: %{
+            "threshold" => 15,
+            "window_type" => "rolling",
+            "rolling_window_size" => 5,
+            "comparison" => "gte"
+          }
+        )
+
+      # De-duplicating must not drop the flaky mark: the run is still flaky
+      # (the re-marks set is_flaky=true), so 1/5 = 20% clears the 15% threshold.
+      assert test_case_id in FlakyTestsMonitor.evaluate(alert).triggered
+    end
+
+    test "reliability_rate does not double-count a re-inserted failing run" do
+      project = ProjectsFixtures.project_fixture()
+      test_case_id = UUIDv7.generate()
+      RunsFixtures.test_case_fixture(project_id: project.id, id: test_case_id, name: "mostly_reliable")
+
+      base = NaiveDateTime.utc_now()
+
+      for i <- 1..9 do
+        ran_at = NaiveDateTime.add(base, -i, :minute)
+
+        RunsFixtures.test_case_run_fixture(
+          project_id: project.id,
+          test_case_id: test_case_id,
+          status: "success",
+          ran_at: ran_at,
+          inserted_at: ran_at
+        )
+      end
+
+      failing_run_id = UUIDv7.generate()
+
+      for _ <- 1..3 do
+        RunsFixtures.test_case_run_fixture(
+          id: failing_run_id,
+          project_id: project.id,
+          test_case_id: test_case_id,
+          status: "failure",
+          ran_at: base,
+          inserted_at: base
+        )
+      end
+
+      alert =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          monitor_type: "reliability_rate",
+          trigger_config: %{
+            "threshold" => 85,
+            "window_type" => "rolling",
+            "rolling_window_size" => 10,
+            "comparison" => "lt"
+          }
+        )
+
+      # Last 10 distinct runs hold 1 failure → 90% reliable, above the 85%
+      # threshold. Counting the re-inserted failure three times reports
+      # 7/10 = 70% and wrongly skips a healthy test.
+      refute test_case_id in FlakyTestsMonitor.evaluate_by_reliability_rate(alert).triggered
+    end
+
+    test "a 75-run window remains exact with all 25 correction positions in use" do
+      project = ProjectsFixtures.project_fixture()
+      test_case_id = UUIDv7.generate()
+      RunsFixtures.test_case_fixture(project_id: project.id, id: test_case_id, name: "correction_headroom")
+
+      base = NaiveDateTime.utc_now()
+
+      stable_runs =
+        Enum.map(1..74, fn offset ->
+          aggregate_run_attrs(project.id, test_case_id, NaiveDateTime.add(base, -offset, :second))
+        end)
+
+      corrected_run_id = UUIDv7.generate()
+
+      corrected_run_rows =
+        Enum.map(0..25, fn correction ->
+          aggregate_run_attrs(project.id, test_case_id, base,
+            id: corrected_run_id,
+            is_flaky: correction > 0
+          )
+        end)
+
+      IngestRepo.insert_all(TestCaseRun, stable_runs ++ corrected_run_rows)
+
+      alert =
+        AutomationsFixtures.automation_alert_fixture(
+          project: project,
+          monitor_type: "flakiness_rate",
+          trigger_config: %{
+            "threshold" => 2,
+            "window_type" => "rolling",
+            "rolling_window_size" => 75,
+            "comparison" => "gte"
+          }
+        )
+
+      # The active 100-position aggregate still contains all 75 distinct runs.
+      # The corrected run counts once, so the rate is 1/75 rather than 26/75.
+      refute test_case_id in FlakyTestsMonitor.evaluate(alert).triggered
+    end
   end
 
-  defp test_case_run_attrs(project_id, test_case_id, attrs) do
-    %{
-      id: UUIDv7.generate(),
-      test_run_id: UUIDv7.generate(),
-      test_module_run_id: UUIDv7.generate(),
-      test_case_id: test_case_id,
-      project_id: project_id,
-      account_id: Keyword.get(attrs, :account_id),
-      is_ci: Keyword.get(attrs, :is_ci, false),
-      scheme: Keyword.get(attrs, :scheme, ""),
-      git_branch: Keyword.get(attrs, :git_branch, "main"),
-      git_commit_sha: Keyword.get(attrs, :git_commit_sha, ""),
-      module_name: Keyword.get(attrs, :module_name, "MyTests"),
-      suite_name: Keyword.get(attrs, :suite_name, "TestSuite"),
-      name: Keyword.get(attrs, :name, "testExample"),
-      status: Keyword.get(attrs, :status, 0),
-      is_flaky: Keyword.get(attrs, :is_flaky, false),
-      is_new: Keyword.get(attrs, :is_new, false),
-      is_quarantined: Keyword.get(attrs, :is_quarantined, false),
-      duration: Keyword.get(attrs, :duration, 100),
-      ran_at: Keyword.fetch!(attrs, :ran_at),
-      inserted_at: Keyword.fetch!(attrs, :inserted_at)
-    }
+  # One flaky run (most recent), re-inserted the way flaky detection does: the
+  # original ingestion writes is_flaky=false, then later re-marks re-insert the
+  # SAME run (same id + ran_at) with is_flaky=true. Preceded by four older
+  # stable runs.
+  defp insert_run_with_reinserted_flaky_tail(project_id, test_case_id) do
+    base = NaiveDateTime.utc_now()
+
+    for i <- 1..4 do
+      ran_at = NaiveDateTime.add(base, -i, :minute)
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: project_id,
+        test_case_id: test_case_id,
+        is_flaky: false,
+        ran_at: ran_at,
+        inserted_at: ran_at
+      )
+    end
+
+    flaky_run_id = UUIDv7.generate()
+
+    for is_flaky <- [false, true, true] do
+      RunsFixtures.test_case_run_fixture(
+        id: flaky_run_id,
+        project_id: project_id,
+        test_case_id: test_case_id,
+        is_flaky: is_flaky,
+        ran_at: base,
+        inserted_at: base
+      )
+    end
+  end
+
+  defp with_read_repo(fun) do
+    previous_dynamic_repo = ClickHouseRepo.get_dynamic_repo()
+
+    try do
+      # ClickHouse exposes parts inserted by the sandboxed write connection to
+      # the separate read connection before the surrounding transaction ends.
+      ClickHouseRepo.put_dynamic_repo(ClickHouseRepo)
+      fun.()
+    after
+      ClickHouseRepo.put_dynamic_repo(previous_dynamic_repo)
+    end
+  end
+
+  defp aggregate_run_attrs(project_id, test_case_id, ran_at, overrides \\ []) do
+    Map.merge(
+      %{
+        id: UUIDv7.generate(),
+        test_run_id: UUIDv7.generate(),
+        test_module_run_id: UUIDv7.generate(),
+        test_case_id: test_case_id,
+        project_id: project_id,
+        is_ci: false,
+        scheme: "",
+        git_branch: "main",
+        git_commit_sha: "",
+        module_name: "MyTests",
+        suite_name: "TestSuite",
+        name: "testExample",
+        status: 0,
+        is_flaky: false,
+        is_new: false,
+        is_quarantined: false,
+        duration: 100,
+        ran_at: ran_at,
+        inserted_at: ran_at
+      },
+      Map.new(overrides)
+    )
   end
 end

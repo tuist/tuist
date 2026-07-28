@@ -80,10 +80,23 @@ public protocol Environmenting: Sendable {
     /// A cache socket path string for a given full handle with $HOME prefix to be environment-independent
     func cacheSocketPathString(for fullHandle: String) -> String
 
-    /// Returns the LaunchAgent label for the Xcode cache daemon of the given full handle.
-    /// This label is shared between `tuist setup cache` (which registers the LaunchAgent)
-    /// and `tuist teardown cache` (which boots it out).
+    /// The machine-wide CAS proxy's unix socket. Unlike `cacheSocketPath(for:)` this
+    /// is not per-project: one proxy serves every project on the machine.
+    func casProxySocketPath() -> AbsolutePath
+
+    /// The CAS proxy's socket with a $HOME prefix, to be environment-independent when
+    /// baked into a build setting.
+    func casProxySocketPathString() -> String
+
+    /// Returns the LaunchAgent label for the per-project Xcode cache daemon (the
+    /// non-kura path) of the given full handle. Shared between `tuist setup cache`
+    /// (which registers the LaunchAgent) and `tuist teardown cache` (which boots it out).
     func cacheLaunchAgentLabel(for fullHandle: String) -> String
+
+    /// Returns the machine-wide LaunchAgent label for the Xcode compilation-cache
+    /// proxy. Unlike `cacheLaunchAgentLabel(for:)`, this is not per-project: one
+    /// proxy serves every project on the machine, multiplexing by instance.
+    func casProxyLaunchAgentLabel() -> String
 
     /// Returns the current architecture of the machine
     func architecture() async throws -> MacArchitecture
@@ -97,6 +110,7 @@ public protocol Environmenting: Sendable {
 }
 
 private let truthyValues = ["1", "true", "TRUE", "yes", "YES"]
+private let falsyValues = ["0", "false", "FALSE", "no", "NO"]
 
 extension Environmenting {
     public var tuistVariables: [String: String] {
@@ -106,6 +120,11 @@ extension Environmenting {
     public func isVariableTruthy(_ name: String) -> Bool {
         guard let value = variables[name] else { return false }
         return truthyValues.contains(value)
+    }
+
+    public func isVariableFalsy(_ name: String) -> Bool {
+        guard let value = variables[name] else { return false }
+        return falsyValues.contains(value)
     }
 
     public var isCI: Bool {
@@ -400,6 +419,37 @@ public struct Environment: Environmenting {
 
     public func cacheLaunchAgentLabel(for fullHandle: String) -> String {
         "tuist.cache.\(fullHandle.replacingOccurrences(of: "/", with: "_"))"
+    }
+
+    /// Anchored to `HOME` rather than `stateDirectory` on purpose, even though the
+    /// two agree by default. `stateDirectory` honors `XDG_STATE_HOME`, and the
+    /// plugin resolves this same path from `HOME` alone inside compiler frontends,
+    /// which carry no CLI environment (`default_proxy_socket` in cas-plugin says so
+    /// on its side). Honoring XDG here would point Xcode at a socket the proxy is
+    /// not listening on, and Xcode answers an unreachable service by retrying every
+    /// cache request rather than failing fast.
+    public func casProxySocketPath() -> AbsolutePath {
+        homeDirectory.appending(components: [".local", "state", "tuist", "cas-proxy.sock"])
+    }
+
+    public func casProxySocketPathString() -> String {
+        homeRelative(casProxySocketPath())
+    }
+
+    /// A path with its `$HOME` prefix restored, so a value baked into a build
+    /// setting does not hard-code one machine's home directory.
+    private func homeRelative(_ path: AbsolutePath) -> String {
+        let pathString = path.pathString
+        let homeDirectoryPathString = homeDirectory.pathString
+        if pathString.hasPrefix(homeDirectoryPathString) {
+            return "$HOME" + pathString.dropFirst(homeDirectoryPathString.count)
+        } else {
+            return pathString
+        }
+    }
+
+    public func casProxyLaunchAgentLabel() -> String {
+        "tuist.cas-proxy"
     }
 
     #if os(macOS)

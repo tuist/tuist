@@ -12,6 +12,11 @@
 # Everything else mirrors the kura gateway (h2c listener, grpc_pass, unlimited
 # body, long grpc timeouts, no buffering) and is identical between the two, so
 # the measured difference is attributable to the window directives alone.
+#
+# The upstream server is a marker (__KURA_UPSTREAM__) the confgen step
+# substitutes with kura's single co-hosted HTTP + h2c gRPC listener (kura:4000),
+# so the patched path validates REAPI uploads through it behind the production
+# gateway window.
 
 worker_processes auto;
 events { worker_connections 4096; }
@@ -23,7 +28,7 @@ http {
     # __WINDOW_DIRECTIVES__
 
     upstream kura_grpc {
-        server kura:50051;
+        server __KURA_UPSTREAM__;
         keepalive 16;
         keepalive_requests 10000;
         keepalive_timeout 10s;

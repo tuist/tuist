@@ -151,6 +151,11 @@ public enum EnvKey: String, CaseIterable {
     case runRosetta = "TUIST_RUN_ROSETTA"
     case runScheme = "TUIST_RUN_SCHEME"
 
+    // RUNNER
+
+    case runnerSSHJobRef = "TUIST_RUNNER_SSH_JOB_REF"
+    case runnerSSHPath = "TUIST_RUNNER_SSH_PATH"
+
     // SCAFFOLD
 
     case scaffoldTemplate = "TUIST_SCAFFOLD_TEMPLATE"
@@ -314,6 +319,7 @@ public enum EnvKey: String, CaseIterable {
     case organizationUpdateSSOOrganizationName = "TUIST_ORGANIZATION_UPDATE_SSO_ORGANIZATION_NAME"
     case organizationUpdateSSOProvider = "TUIST_ORGANIZATION_UPDATE_SSO_PROVIDER"
     case organizationUpdateSSOOrganizationId = "TUIST_ORGANIZATION_UPDATE_SSO_ORGANIZATION_ID"
+    case organizationUpdateSSOEnrollmentPolicy = "TUIST_ORGANIZATION_UPDATE_SSO_ENROLLMENT_POLICY"
     case organizationUpdateSSOPath = "TUIST_ORGANIZATION_UPDATE_SSO_PATH"
 
     // PROJECT DELETE
@@ -465,6 +471,7 @@ public enum EnvKey: String, CaseIterable {
     case cacheExternalOnly = "TUIST_CACHE_EXTERNAL_ONLY"
     case cacheProfile = "TUIST_CACHE_PROFILE"
     case cacheGenerateOnly = "TUIST_CACHE_GENERATE_ONLY"
+    case cacheNoUpload = "TUIST_CACHE_NO_UPLOAD"
     case cachePrintHashes = "TUIST_CACHE_PRINT_HASHES"
     case cacheConfiguration = "TUIST_CACHE_CONFIGURATION"
     case cachePath = "TUIST_CACHE_PATH"
@@ -494,6 +501,12 @@ public enum EnvKey: String, CaseIterable {
 
     case bazelSetupPath = "TUIST_BAZEL_SETUP_PATH"
     case bazelCredentialHelperPath = "TUIST_BAZEL_CREDENTIAL_HELPER_PATH"
+
+    // RUN REPORT
+    // Shared by every command that can write a run report, so it's not prefixed with a
+    // command name like the options above. Unrelated to the `tuist run` options.
+
+    case runReportPath = "TUIST_RUN_REPORT_PATH"
 
     public var envValueString: String? {
         Environment.current.tuistVariables[rawValue]

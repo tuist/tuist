@@ -9,7 +9,10 @@ extension XcodeGraph.Package {
     /// - Parameters:
     ///   - manifest: Manifest representation of Package.
     ///   - generatorPaths: Generator paths.
-    static func from(manifest: ProjectDescription.Package, generatorPaths: GeneratorPaths) throws -> XcodeGraph.Package {
+    static func from(
+        manifest: ProjectDescription.Package,
+        generatorPaths: GeneratorPaths
+    ) throws -> XcodeGraph.Package {
         switch manifest {
         case let .local(path: local):
             return .local(path: try generatorPaths.resolve(path: local))

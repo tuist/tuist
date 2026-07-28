@@ -73,8 +73,6 @@ defmodule TuistWeb.Components.ScatterChart do
     end)
   end
 
-  defp series(_, _), do: []
-
   defp maybe_add_url(series_item, nil), do: series_item
 
   defp maybe_add_url(series_item, url_fn) do

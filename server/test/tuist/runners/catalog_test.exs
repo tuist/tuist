@@ -62,6 +62,49 @@ defmodule Tuist.Runners.CatalogTest do
     end
   end
 
+  describe "resources_for_fleet/1" do
+    test "resolves Linux pool names through the configured shape catalog" do
+      Enum.each(Catalog.shapes(:linux), fn shape ->
+        fleet_name = Catalog.pool_name(Map.put(shape, :platform, :linux))
+
+        assert Catalog.resources_for_fleet(fleet_name) ==
+                 {:ok, %{platform: :linux, vcpus: shape.vcpus, memory_gb: shape.memory_gb}}
+      end)
+    end
+
+    test "uses platform defaults for legacy Linux and macOS rows" do
+      linux = Catalog.default_shape(:linux)
+      macos = Catalog.default_shape(:macos)
+
+      assert Catalog.resources_for_fleet("linux-amd64") ==
+               {:ok, %{platform: :linux, vcpus: linux.vcpus, memory_gb: linux.memory_gb}}
+
+      assert Catalog.resources_for_fleet("macos-26-5") ==
+               {:ok, %{platform: :macos, vcpus: macos.vcpus, memory_gb: macos.memory_gb}}
+    end
+
+    test "does not infer resources from an unconfigured Linux pool suffix" do
+      fleet_name = "#{Tuist.Environment.runners_linux_pool_name_prefix()}-999vcpu-999gb"
+
+      assert Catalog.resources_for_fleet(fleet_name) == {:error, :invalid_resources}
+    end
+
+    test "resolves an operator-defined Linux pool from its configured resources" do
+      fleet_name = "#{Tuist.Environment.runners_linux_pool_name_prefix()}-ubuntu-22-04"
+
+      stub(Catalog, :linux_fleet_resources, fn ->
+        [%{fleet_name: fleet_name, platform: :linux, vcpus: 6, memory_gb: 18}]
+      end)
+
+      assert Catalog.resources_for_fleet(fleet_name) ==
+               {:ok, %{platform: :linux, vcpus: 6, memory_gb: 18}}
+    end
+
+    test "rejects an unknown fleet" do
+      assert Catalog.resources_for_fleet("windows-large") == {:error, :invalid_resources}
+    end
+  end
+
   describe "parse_shapes_json/1" do
     test "parses the Helm-injected JSON into the config shape" do
       # The exact value the chart renders into TUIST_RUNNER_LINUX_SHAPES.
@@ -86,6 +129,21 @@ defmodule Tuist.Runners.CatalogTest do
       assert :error = Catalog.parse_shapes_json("not json")
       assert :error = Catalog.parse_shapes_json("{}")
       assert :error = Catalog.parse_shapes_json(nil)
+    end
+  end
+
+  describe "parse_linux_pools_json/1" do
+    test "parses operator-defined pool resources" do
+      json = ~s([{"name":"ubuntu-22-04","cpuMilli":5500,"memoryMB":17408}])
+
+      assert Catalog.parse_linux_pools_json(json) == [
+               %{name: "ubuntu-22-04", cpu_milli: 5500, memory_mb: 17_408}
+             ]
+    end
+
+    test "rejects pools without positive resource values" do
+      assert Catalog.parse_linux_pools_json(~s([{"name":"ubuntu","cpuMilli":0,"memoryMB":1024}])) == :error
+      assert Catalog.parse_linux_pools_json("not json") == :error
     end
   end
 

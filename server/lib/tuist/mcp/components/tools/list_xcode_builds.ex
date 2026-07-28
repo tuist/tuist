@@ -44,6 +44,51 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeBuilds do
         }
       },
       "required" => ["account_handle", "project_handle"]
+    },
+    output_schema: %{
+      "type" => "object",
+      "properties" => %{
+        "builds" => %{
+          "type" => "array",
+          "items" => %{
+            "type" => "object",
+            "properties" => %{
+              "id" => %{"type" => "string"},
+              "duration" => %{"type" => "integer"},
+              "status" => %{"type" => "string"},
+              "category" => %{"type" => ["string", "null"]},
+              "scheme" => %{"type" => "string"},
+              "configuration" => %{"type" => "string"},
+              "is_ci" => %{"type" => "boolean"},
+              "git_branch" => %{"type" => "string"},
+              "git_commit_sha" => %{"type" => "string"},
+              "cacheable_tasks_count" => %{"type" => "integer"},
+              "cacheable_task_local_hits_count" => %{"type" => "integer"},
+              "cacheable_task_remote_hits_count" => %{"type" => "integer"},
+              "inserted_at" => %{"type" => "string"}
+            },
+            "required" => [
+              "id",
+              "duration",
+              "status",
+              "category",
+              "scheme",
+              "configuration",
+              "is_ci",
+              "git_branch",
+              "git_commit_sha",
+              "cacheable_tasks_count",
+              "cacheable_task_local_hits_count",
+              "cacheable_task_remote_hits_count",
+              "inserted_at"
+            ],
+            "additionalProperties" => false
+          }
+        },
+        "pagination_metadata" => Tuist.MCP.Tool.pagination_metadata_schema()
+      },
+      "required" => ["builds", "pagination_metadata"],
+      "additionalProperties" => false
     }
 
   alias Tuist.Builds

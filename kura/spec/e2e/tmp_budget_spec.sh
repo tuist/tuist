@@ -8,7 +8,7 @@ Describe 'temporary staging budget'
     setup_suite_tmpdir
 
     suite_env COMPOSE_PROJECT_NAME kura-tmp-budget
-    ephemeral_ports KURA_US_PORT KURA_US_GRPC_PORT
+    ephemeral_ports KURA_US_PORT
     suite_env KURA_E2E_TMP_DIR_MAX_BYTES 1048576
 
     dc down -v --remove-orphans >/dev/null 2>&1 || true

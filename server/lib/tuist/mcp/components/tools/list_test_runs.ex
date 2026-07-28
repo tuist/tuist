@@ -45,6 +45,49 @@ defmodule Tuist.MCP.Components.Tools.ListTestRuns do
         }
       },
       "required" => ["account_handle", "project_handle"]
+    },
+    output_schema: %{
+      "type" => "object",
+      "properties" => %{
+        "test_runs" => %{
+          "type" => "array",
+          "items" => %{
+            "type" => "object",
+            "properties" => %{
+              "id" => %{"type" => "string"},
+              "duration" => %{"type" => "integer"},
+              "status" => %{"type" => "string"},
+              "is_ci" => %{"type" => "boolean"},
+              "is_flaky" => %{"type" => "boolean"},
+              "scheme" => %{"type" => "string"},
+              "git_branch" => %{"type" => "string"},
+              "git_commit_sha" => %{"type" => "string"},
+              "ran_at" => %{"type" => "string"},
+              "total_test_count" => %{"type" => "integer"},
+              "ran_tests" => %{"type" => "integer"},
+              "skipped_tests" => %{"type" => "integer"}
+            },
+            "required" => [
+              "id",
+              "duration",
+              "status",
+              "is_ci",
+              "is_flaky",
+              "scheme",
+              "git_branch",
+              "git_commit_sha",
+              "ran_at",
+              "total_test_count",
+              "ran_tests",
+              "skipped_tests"
+            ],
+            "additionalProperties" => false
+          }
+        },
+        "pagination_metadata" => Tuist.MCP.Tool.pagination_metadata_schema()
+      },
+      "required" => ["test_runs", "pagination_metadata"],
+      "additionalProperties" => false
     }
 
   alias Tuist.MCP.Formatter

@@ -31,6 +31,7 @@ COPY src src
 RUN --mount=type=cache,id=kura-target-${TARGETARCH},target=/app/target,sharing=locked \
     --mount=type=cache,id=kura-cargo-registry,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,id=kura-cargo-git,target=/usr/local/cargo/git,sharing=locked \
+    touch src/lib.rs src/main.rs && \
     cargo build --release --locked && \
     cp /app/target/release/kura /usr/local/bin/kura
 

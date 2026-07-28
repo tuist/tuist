@@ -2,9 +2,13 @@ defmodule TuistWeb.AuthControllerTest do
   use TuistTestSupport.Cases.ConnCase, async: true
   use Mimic
 
+  import Ecto.Query
+
+  alias Tuist.Accounts.Invitation
   alias Tuist.Accounts.Oauth2Identity
   alias Tuist.OAuth2.SSOClient
   alias TuistTestSupport.Fixtures.AccountsFixtures
+  alias TuistWeb.Errors.NotFoundError
   alias Ueberauth.Auth.Info
 
   describe "GET /auth/cli/:device_code" do
@@ -507,13 +511,289 @@ defmodule TuistWeb.AuthControllerTest do
                Tuist.Accounts.get_oauth2_identity(:oauth2, "spoofed-uid", "https://evil.example.com")
     end
 
+    test "links and enrolls an existing user without redirecting through a pending invitation", %{conn: conn} do
+      admin = AccountsFixtures.user_fixture(email: "customer-admin@customer.example")
+      existing_user = AccountsFixtures.user_fixture(email: "member@customer.example")
+
+      organization =
+        AccountsFixtures.organization_fixture(
+          creator: admin,
+          sso_provider: :oauth2,
+          sso_organization_id: "https://login.vendor.example",
+          sso_login_domain: "customer.example",
+          sso_login_domain_verification_token: "verification-token",
+          sso_login_domain_verified_at: ~U[2026-07-24 12:00:00Z],
+          sso_automatic_enrollment: true,
+          oauth2_client_id: UUIDv7.generate(),
+          oauth2_client_secret: UUIDv7.generate(),
+          oauth2_authorize_url: "https://login.vendor.example/authorize",
+          oauth2_token_url: "https://login.vendor.example/token",
+          oauth2_user_info_url: "https://login.vendor.example/userinfo"
+        )
+
+      {:ok, invitation} =
+        Tuist.Accounts.invite_user_to_organization(
+          existing_user.email,
+          %{inviter: admin, to: organization, url: fn token -> "/auth/invitations/#{token}" end}
+        )
+
+      expect(SSOClient, :exchange_token, fn _token_url, "auth-code", _redirect_uri, _client_id, _client_secret ->
+        {:ok, %{"access_token" => "access-token", "token_type" => "Bearer", "scope" => "openid email profile"}}
+      end)
+
+      expect(SSOClient, :fetch_userinfo, fn _user_info_url, "access-token" ->
+        {:ok, %{"sub" => "verified-domain-member", "email" => existing_user.email, "name" => "Member"}}
+      end)
+
+      conn =
+        conn
+        |> init_test_session(%{
+          sso_organization_id: organization.id,
+          sso_state: "expected-state",
+          sso_route_provider: :oauth2
+        })
+        |> get("/users/auth/oauth2/callback?code=auth-code&state=expected-state")
+
+      assert redirected_to(conn) =~ "/#{existing_user.account.name}"
+      refute redirected_to(conn) =~ invitation.token
+      assert Tuist.Accounts.belongs_to_organization?(existing_user, organization)
+
+      assert {:ok, identity} =
+               Tuist.Accounts.get_oauth2_identity(
+                 :oauth2,
+                 "verified-domain-member",
+                 "https://login.vendor.example"
+               )
+
+      assert identity.user_id == existing_user.id
+    end
+
+    test "preserves new-user onboarding for a legacy custom-provider organization", %{conn: conn} do
+      admin = AccountsFixtures.user_fixture(email: "legacy-admin@customer.example")
+      new_user_email = "new-user@consultancy.example"
+
+      organization =
+        AccountsFixtures.organization_fixture(
+          creator: admin,
+          sso_provider: :oauth2,
+          sso_organization_id: "https://login.vendor.example",
+          sso_automatic_enrollment: true,
+          sso_legacy_email_domain_fallback: true,
+          oauth2_client_id: UUIDv7.generate(),
+          oauth2_client_secret: UUIDv7.generate(),
+          oauth2_authorize_url: "https://login.vendor.example/authorize",
+          oauth2_token_url: "https://login.vendor.example/token",
+          oauth2_user_info_url: "https://login.vendor.example/userinfo"
+        )
+
+      expect(SSOClient, :exchange_token, fn _token_url, "auth-code", _redirect_uri, _client_id, _client_secret ->
+        {:ok, %{"access_token" => "access-token", "token_type" => "Bearer", "scope" => "openid email profile"}}
+      end)
+
+      expect(SSOClient, :fetch_userinfo, fn _user_info_url, "access-token" ->
+        {:ok, %{"sub" => "legacy-new-user", "email" => new_user_email, "name" => "New User"}}
+      end)
+
+      conn =
+        conn
+        |> init_test_session(%{
+          sso_organization_id: organization.id,
+          sso_state: "expected-state",
+          sso_route_provider: :oauth2
+        })
+        |> get("/users/auth/oauth2/callback?code=auth-code&state=expected-state")
+
+      assert redirected_to(conn) == "/users/choose-username"
+      assert get_session(conn, :pending_oauth_signup)["email"] == new_user_email
+    end
+
+    test "rejects a new user when automatic enrollment is disabled and no invitation exists", %{conn: conn} do
+      admin = AccountsFixtures.user_fixture(email: "customer-admin@customer.example")
+
+      organization =
+        AccountsFixtures.organization_fixture(
+          creator: admin,
+          sso_provider: :oauth2,
+          sso_organization_id: "https://login.vendor.example",
+          sso_login_domain: "customer.example",
+          sso_login_domain_verification_token: "verification-token",
+          sso_login_domain_verified_at: ~U[2026-07-24 12:00:00Z],
+          sso_automatic_enrollment: false,
+          oauth2_client_id: UUIDv7.generate(),
+          oauth2_client_secret: UUIDv7.generate(),
+          oauth2_authorize_url: "https://login.vendor.example/authorize",
+          oauth2_token_url: "https://login.vendor.example/token",
+          oauth2_user_info_url: "https://login.vendor.example/userinfo"
+        )
+
+      expect(SSOClient, :exchange_token, fn _token_url, "auth-code", _redirect_uri, _client_id, _client_secret ->
+        {:ok, %{"access_token" => "access-token", "token_type" => "Bearer", "scope" => "openid email profile"}}
+      end)
+
+      expect(SSOClient, :fetch_userinfo, fn _user_info_url, "access-token" ->
+        {:ok, %{"sub" => "new-user", "email" => "new@customer.example", "name" => "New User"}}
+      end)
+
+      assert_error_sent 401, fn ->
+        conn
+        |> init_test_session(%{
+          sso_organization_id: organization.id,
+          sso_state: "expected-state",
+          sso_route_provider: :oauth2
+        })
+        |> get("/users/auth/oauth2/callback?code=auth-code&state=expected-state")
+      end
+    end
+
+    test "links an existing user from a verified domain without automatically enrolling them", %{conn: conn} do
+      admin = AccountsFixtures.user_fixture(email: "identity-admin@customer.example")
+      existing_user = AccountsFixtures.user_fixture(email: "identity-only@customer.example")
+
+      organization =
+        AccountsFixtures.organization_fixture(
+          creator: admin,
+          sso_provider: :oauth2,
+          sso_organization_id: "https://login.vendor.example",
+          sso_login_domain: "customer.example",
+          sso_login_domain_verification_token: "verification-token",
+          sso_login_domain_verified_at: ~U[2026-07-24 12:00:00Z],
+          sso_automatic_enrollment: false,
+          oauth2_client_id: UUIDv7.generate(),
+          oauth2_client_secret: UUIDv7.generate(),
+          oauth2_authorize_url: "https://login.vendor.example/authorize",
+          oauth2_token_url: "https://login.vendor.example/token",
+          oauth2_user_info_url: "https://login.vendor.example/userinfo"
+        )
+
+      expect(SSOClient, :exchange_token, fn _token_url, "auth-code", _redirect_uri, _client_id, _client_secret ->
+        {:ok, %{"access_token" => "access-token", "token_type" => "Bearer", "scope" => "openid email profile"}}
+      end)
+
+      expect(SSOClient, :fetch_userinfo, fn _user_info_url, "access-token" ->
+        {:ok, %{"sub" => "identity-only", "email" => existing_user.email, "name" => "Existing User"}}
+      end)
+
+      conn =
+        conn
+        |> init_test_session(%{
+          sso_organization_id: organization.id,
+          sso_state: "expected-state",
+          sso_route_provider: :oauth2
+        })
+        |> get("/users/auth/oauth2/callback?code=auth-code&state=expected-state")
+
+      assert get_session(conn, :user_token)
+      refute Tuist.Accounts.belongs_to_organization?(existing_user, organization)
+
+      assert {:ok, identity} =
+               Tuist.Accounts.get_oauth2_identity(
+                 :oauth2,
+                 "identity-only",
+                 "https://login.vendor.example"
+               )
+
+      assert identity.user_id == existing_user.id
+    end
+
+    test "rejects an invited new user when the custom provider has no verified login domain",
+         %{conn: conn} do
+      admin = AccountsFixtures.user_fixture(email: "invitation-admin@customer.example")
+      invitee_email = "new-invitee@consultancy.example"
+
+      organization =
+        AccountsFixtures.organization_fixture(
+          creator: admin,
+          sso_provider: :oauth2,
+          sso_organization_id: "https://login.vendor.example",
+          sso_automatic_enrollment: false,
+          oauth2_client_id: UUIDv7.generate(),
+          oauth2_client_secret: UUIDv7.generate(),
+          oauth2_authorize_url: "https://login.vendor.example/authorize",
+          oauth2_token_url: "https://login.vendor.example/token",
+          oauth2_user_info_url: "https://login.vendor.example/userinfo"
+        )
+
+      {:ok, _invitation} =
+        Tuist.Accounts.invite_user_to_organization(
+          invitee_email,
+          %{inviter: admin, to: organization, url: fn token -> "/auth/invitations/#{token}" end}
+        )
+
+      expect(SSOClient, :exchange_token, fn _token_url, "auth-code", _redirect_uri, _client_id, _client_secret ->
+        {:ok, %{"access_token" => "access-token", "token_type" => "Bearer", "scope" => "openid email profile"}}
+      end)
+
+      expect(SSOClient, :fetch_userinfo, fn _user_info_url, "access-token" ->
+        {:ok, %{"sub" => "invited-new-user", "email" => invitee_email, "name" => "Invited User"}}
+      end)
+
+      assert {401, _headers, body} =
+               assert_error_sent(401, fn ->
+                 conn
+                 |> init_test_session(%{
+                   sso_organization_id: organization.id,
+                   sso_state: "expected-state",
+                   sso_route_provider: :oauth2
+                 })
+                 |> get("/users/auth/oauth2/callback?code=auth-code&state=expected-state")
+               end)
+
+      assert body =~ "must verify a login email domain"
+      assert {:error, :not_found} = Tuist.Accounts.get_user_by_email(invitee_email)
+    end
+
+    test "allows an invited new user from a verified domain without treating the invitation as identity proof",
+         %{conn: conn} do
+      admin = AccountsFixtures.user_fixture(email: "verified-invitation-admin@customer.example")
+      invitee_email = "new-invitee@customer.example"
+
+      organization =
+        AccountsFixtures.organization_fixture(
+          creator: admin,
+          sso_provider: :oauth2,
+          sso_organization_id: "https://login.vendor.example",
+          sso_login_domain: "customer.example",
+          sso_login_domain_verification_token: "verification-token",
+          sso_login_domain_verified_at: ~U[2026-07-24 12:00:00Z],
+          sso_automatic_enrollment: false,
+          oauth2_client_id: UUIDv7.generate(),
+          oauth2_client_secret: UUIDv7.generate(),
+          oauth2_authorize_url: "https://login.vendor.example/authorize",
+          oauth2_token_url: "https://login.vendor.example/token",
+          oauth2_user_info_url: "https://login.vendor.example/userinfo"
+        )
+
+      {:ok, invitation} =
+        Tuist.Accounts.invite_user_to_organization(
+          invitee_email,
+          %{inviter: admin, to: organization, url: fn token -> "/auth/invitations/#{token}" end}
+        )
+
+      expect(SSOClient, :exchange_token, fn _token_url, "auth-code", _redirect_uri, _client_id, _client_secret ->
+        {:ok, %{"access_token" => "access-token", "token_type" => "Bearer", "scope" => "openid email profile"}}
+      end)
+
+      expect(SSOClient, :fetch_userinfo, fn _user_info_url, "access-token" ->
+        {:ok, %{"sub" => "verified-invited-new-user", "email" => invitee_email, "name" => "Invited User"}}
+      end)
+
+      conn =
+        conn
+        |> init_test_session(%{
+          sso_organization_id: organization.id,
+          sso_state: "expected-state",
+          sso_route_provider: :oauth2
+        })
+        |> get("/users/auth/oauth2/callback?code=auth-code&state=expected-state")
+
+      assert redirected_to(conn) == "/users/choose-username"
+
+      assert %{"invitation_token" => token} = get_session(conn, :pending_oauth_signup)
+      assert token == invitation.token
+    end
+
     test "redirects to the invitation accept page when SSO finds a pending invitation",
          %{conn: conn} do
-      # An admin invites a Tuist user whose account predates the org's SSO
-      # configuration (e.g. originally signed up via Google). On their next
-      # SSO login we don't auto-accept — we redirect them to the invitation
-      # page so they can review and accept explicitly. Membership only
-      # changes after the user clicks Accept.
       admin = AccountsFixtures.user_fixture(email: "inviter-via-sso@example.com")
       invitee = AccountsFixtures.user_fixture(email: "redirected-to-invite@example.com")
 
@@ -522,6 +802,7 @@ defmodule TuistWeb.AuthControllerTest do
           creator: admin,
           sso_provider: :oauth2,
           sso_organization_id: "https://idp.example.com",
+          sso_automatic_enrollment: false,
           oauth2_client_id: UUIDv7.generate(),
           oauth2_client_secret: UUIDv7.generate(),
           oauth2_authorize_url: "https://idp.example.com/oauth2/authorize",
@@ -554,26 +835,70 @@ defmodule TuistWeb.AuthControllerTest do
 
       assert redirected_to(conn) == "/auth/invitations/#{invitation.token}"
 
-      # nothing has changed yet — no session, no membership, no oauth link,
-      # invitation still pending. The user must explicitly click Accept.
       refute get_session(conn, :user_token)
       refute Tuist.Accounts.organization_user?(invitee, organization)
 
       assert {:error, :not_found} =
                Tuist.Accounts.get_oauth2_identity(:oauth2, "invitee-sub", "https://idp.example.com")
 
-      assert %Tuist.Accounts.Invitation{} =
+      assert %Invitation{} =
                Tuist.Accounts.get_invitation_by_invitee_email_and_organization(invitee.email, organization)
     end
 
-    test "preserves the original return-to (e.g. device-code URL) under post_invitation_return_to",
+    test "does not redirect to the invitation accept page when the pending invitation expired",
          %{conn: conn} do
-      # The device-code flow stores the original /auth/device_codes/... URL
-      # under :user_return_to before the user is bounced to login. After SSO
-      # finds a pending invitation, we redirect to the invitation page —
-      # which itself bounces through :require_authenticated_user and
-      # overwrites :user_return_to. We must stash the prior target so the
-      # invitation accept handler can resume the device-code flow.
+      admin = AccountsFixtures.user_fixture(email: "expired-sso-inviter@example.com")
+      invitee = AccountsFixtures.user_fixture(email: "expired-sso-invitee@example.com")
+
+      organization =
+        AccountsFixtures.organization_fixture(
+          creator: admin,
+          sso_provider: :oauth2,
+          sso_organization_id: "https://idp.example.com",
+          oauth2_client_id: UUIDv7.generate(),
+          oauth2_client_secret: UUIDv7.generate(),
+          oauth2_authorize_url: "https://idp.example.com/oauth2/authorize",
+          oauth2_token_url: "https://idp.example.com/oauth2/token",
+          oauth2_user_info_url: "https://idp.example.com/oauth2/userinfo"
+        )
+
+      {:ok, invitation} =
+        Tuist.Accounts.invite_user_to_organization(
+          invitee.email,
+          %{inviter: admin, to: organization, url: fn token -> "/auth/invitations/#{token}" end}
+        )
+
+      expired_at =
+        NaiveDateTime.utc_now()
+        |> NaiveDateTime.add(-(Invitation.validity_days() + 1) * 24 * 60 * 60, :second)
+        |> NaiveDateTime.truncate(:second)
+
+      Tuist.Repo.update_all(
+        from(i in Invitation, where: i.id == ^invitation.id),
+        set: [updated_at: expired_at]
+      )
+
+      expect(SSOClient, :exchange_token, fn _token_url, "auth-code", _redirect_uri, _client_id, _client_secret ->
+        {:ok, %{"access_token" => "access-token", "token_type" => "Bearer", "scope" => "openid email profile"}}
+      end)
+
+      expect(SSOClient, :fetch_userinfo, fn _user_info_url, "access-token" ->
+        {:ok, %{"sub" => "invitee-sub", "email" => invitee.email, "name" => "Invitee"}}
+      end)
+
+      assert_error_sent 401, fn ->
+        conn
+        |> init_test_session(%{
+          sso_organization_id: organization.id,
+          sso_state: "expected-state",
+          sso_route_provider: :oauth2
+        })
+        |> get("/users/auth/oauth2/callback?code=auth-code&state=expected-state")
+      end
+    end
+
+    test "preserves the original return URL while redirecting an unlinked invitee",
+         %{conn: conn} do
       admin = AccountsFixtures.user_fixture(email: "preserve-return-inviter@example.com")
       invitee = AccountsFixtures.user_fixture(email: "preserve-return-invitee@example.com")
 
@@ -589,7 +914,7 @@ defmodule TuistWeb.AuthControllerTest do
           oauth2_user_info_url: "https://idp.example.com/oauth2/userinfo"
         )
 
-      {:ok, _invitation} =
+      {:ok, invitation} =
         Tuist.Accounts.invite_user_to_organization(
           invitee.email,
           %{inviter: admin, to: organization, url: fn token -> "/auth/invitations/#{token}" end}
@@ -615,7 +940,40 @@ defmodule TuistWeb.AuthControllerTest do
         })
         |> get("/users/auth/oauth2/callback?code=auth-code&state=expected-state")
 
+      assert redirected_to(conn) == "/auth/invitations/#{invitation.token}"
       assert get_session(conn, :post_invitation_return_to) == device_code_url
+      assert get_session(conn, :post_invitation_user_id) == invitee.id
+      assert get_session(conn, :post_invitation_token) == invitation.token
+      refute get_session(conn, :user_token)
+
+      conn =
+        conn
+        |> recycle()
+        |> get("/auth/invitations/#{invitation.token}")
+
+      assert redirected_to(conn) == "/users/log_in"
+
+      conn =
+        conn
+        |> recycle()
+        |> post("/users/log_in", %{
+          "user" => %{
+            "email" => invitee.email,
+            "password" => AccountsFixtures.valid_user_password()
+          }
+        })
+
+      assert redirected_to(conn) == "/auth/invitations/#{invitation.token}"
+      assert get_session(conn, :post_invitation_return_to) == device_code_url
+      assert get_session(conn, :post_invitation_user_id) == invitee.id
+      assert get_session(conn, :post_invitation_token) == invitation.token
+
+      assert {:error, :not_found} =
+               Tuist.Accounts.get_oauth2_identity(
+                 :oauth2,
+                 "invitee-sub-2",
+                 "https://idp.example.com"
+               )
     end
 
     test "refuses cross-tenant account takeover when two custom OAuth2 IdPs return the same sub",
@@ -803,7 +1161,41 @@ defmodule TuistWeb.AuthControllerTest do
 
       conn = conn |> init_test_session(%{}) |> assign(:ueberauth_auth, auth)
 
-      assert_raise TuistWeb.Errors.NotFoundError, fn ->
+      assert_raise NotFoundError, fn ->
+        TuistWeb.AuthController.callback(conn, %{})
+      end
+    end
+
+    test "rejects the Google callback when Google auth is disabled", %{conn: conn} do
+      stub(Tuist.Environment, :google_auth_enabled?, fn -> false end)
+
+      auth = %Ueberauth.Auth{
+        provider: :google,
+        uid: "google-uid-123",
+        info: %Info{email: "google-user@example.com"},
+        extra: %{raw_info: %{user: %{"hd" => nil}}}
+      }
+
+      conn = conn |> init_test_session(%{}) |> assign(:ueberauth_auth, auth)
+
+      assert_raise NotFoundError, fn ->
+        TuistWeb.AuthController.callback(conn, %{})
+      end
+    end
+
+    test "rejects the Apple callback when Apple auth is disabled", %{conn: conn} do
+      stub(Tuist.Environment, :apple_auth_enabled?, fn -> false end)
+
+      auth = %Ueberauth.Auth{
+        provider: :apple,
+        uid: "apple-uid-123",
+        info: %Info{email: "apple-user@example.com"},
+        extra: %{raw_info: %{user: %{}}}
+      }
+
+      conn = conn |> init_test_session(%{}) |> assign(:ueberauth_auth, auth)
+
+      assert_raise NotFoundError, fn ->
         TuistWeb.AuthController.callback(conn, %{})
       end
     end
@@ -868,6 +1260,58 @@ defmodule TuistWeb.AuthControllerTest do
 
       # Then
       assert redirected_to(conn) == return_url
+    end
+
+    test "logs in an invited SSO user and redirects to the invitation", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+      invitation_token = "invitation-token"
+
+      token =
+        Phoenix.Token.sign(TuistWeb.Endpoint, "signup_completion", %{
+          user_id: user.id,
+          oauth_return_url: "/auth/invitations/#{invitation_token}"
+        })
+
+      conn =
+        conn
+        |> init_test_session(%{
+          pending_oauth_signup: %{
+            "provider" => "oauth2",
+            "invitation_token" => invitation_token
+          }
+        })
+        |> get("/auth/complete-signup?token=#{token}")
+
+      assert redirected_to(conn) == "/auth/invitations/#{invitation_token}"
+      assert get_session(conn, :user_token)
+    end
+
+    test "preserves the device-code return URL after an invited SSO user completes signup", %{conn: conn} do
+      user = AccountsFixtures.user_fixture()
+      invitation_token = "invitation-token"
+      device_code_url = "/auth/device_codes/AOKJ-1234?type=cli"
+
+      token =
+        Phoenix.Token.sign(TuistWeb.Endpoint, "signup_completion", %{
+          user_id: user.id,
+          oauth_return_url: device_code_url
+        })
+
+      conn =
+        conn
+        |> init_test_session(%{
+          pending_oauth_signup: %{
+            "provider" => "oauth2",
+            "invitation_token" => invitation_token
+          }
+        })
+        |> get("/auth/complete-signup?token=#{token}")
+
+      assert redirected_to(conn) == "/auth/invitations/#{invitation_token}"
+      assert get_session(conn, :post_invitation_return_to) == device_code_url
+      assert get_session(conn, :post_invitation_user_id) == user.id
+      assert get_session(conn, :post_invitation_token) == invitation_token
+      assert get_session(conn, :user_token)
     end
 
     test "redirects to login with error when token is invalid", %{conn: conn} do

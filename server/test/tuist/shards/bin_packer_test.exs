@@ -3,6 +3,16 @@ defmodule Tuist.Shards.BinPackerTest do
 
   alias Tuist.Shards.BinPacker
 
+  defp module_of(name), do: name |> String.split("/", parts: 2) |> hd()
+
+  defp shard_of(result, name) do
+    result
+    |> Enum.find(fn {_i, units, _t} -> Enum.any?(units, fn {n, _} -> n == name end) end)
+    |> elem(0)
+  end
+
+  defp makespan(result), do: result |> Enum.map(&elem(&1, 2)) |> Enum.max()
+
   describe "pack/2" do
     test "distributes units across shards using LPT" do
       units = [{"A", 100}, {"B", 80}, {"C", 60}, {"D", 40}, {"E", 20}]
@@ -75,6 +85,59 @@ defmodule Tuist.Shards.BinPackerTest do
       all_names = result |> Enum.flat_map(fn {_, u, _} -> Enum.map(u, &elem(&1, 0)) end) |> MapSet.new()
       expected = for i <- 1..20, into: MapSet.new(), do: "test_#{i}"
       assert all_names == expected
+    end
+  end
+
+  describe "pack/3 (module-affinity)" do
+    test "keeps a module's suites on one shard when balance allows" do
+      # A=400, B=200, C=200; target (2 shards) = 400, so none is oversized.
+      units =
+        [{"A/1", 100}, {"A/2", 100}, {"A/3", 100}, {"A/4", 100}] ++
+          [{"B/1", 100}, {"B/2", 100}, {"C/1", 100}, {"C/2", 100}]
+
+      result = BinPacker.pack(units, 2, &module_of/1)
+
+      # balance is unchanged vs the duration-optimal packing
+      assert makespan(result) == makespan(BinPacker.pack(units, 2))
+
+      # each non-split module lands entirely on a single shard
+      for mod <- ["A", "B", "C"] do
+        shards =
+          units
+          |> Enum.filter(fn {n, _} -> module_of(n) == mod end)
+          |> Enum.map(fn {n, _} -> shard_of(result, n) end)
+          |> Enum.uniq()
+
+        assert length(shards) == 1, "#{mod} was split across shards #{inspect(shards)}"
+      end
+    end
+
+    test "splits an oversized module across shards to keep balance" do
+      # Big=600 > target 400, so it must be split; X=200 stays whole.
+      units = for(i <- 1..6, do: {"Big/#{i}", 100}) ++ [{"X/1", 100}, {"X/2", 100}]
+
+      result = BinPacker.pack(units, 2, &module_of/1)
+
+      big_shards =
+        units
+        |> Enum.filter(fn {n, _} -> module_of(n) == "Big" end)
+        |> Enum.map(fn {n, _} -> shard_of(result, n) end)
+        |> Enum.uniq()
+
+      assert length(big_shards) == 2
+      assert makespan(result) == 400
+    end
+
+    test "falls back to the balanced packing when affinity would hurt balance" do
+      # 3 equal modules of 200 into 2 shards: whole-module packing forces a
+      # 400/200 split, so it must fall back to the 300/300 suite-level packing.
+      units =
+        [{"A/1", 100}, {"A/2", 100}, {"B/1", 100}, {"B/2", 100}, {"C/1", 100}, {"C/2", 100}]
+
+      result = BinPacker.pack(units, 2, &module_of/1)
+
+      assert makespan(result) == makespan(BinPacker.pack(units, 2))
+      assert makespan(result) == 300
     end
   end
 

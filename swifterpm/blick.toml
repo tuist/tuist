@@ -6,13 +6,9 @@ model = "fireworks-ai/accounts/fireworks/models/kimi-k2p7-code"
 base = "origin/main"
 max_concurrency = 2
 
-[[skills]]
-name = "swifterpm-swift-review"
-source = "./.blick/skills/swifterpm-swift-review"
-
 [[reviews]]
 name = "swift"
-skills = ["swifterpm-swift-review"]
+skills = ["tuist-swift-review"]
 include = [
   "*.swift",
   "Sources/**/*.swift",

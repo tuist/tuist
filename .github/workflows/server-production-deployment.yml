@@ -23,8 +23,18 @@ on:
       - infra/hetzner-robot-controller/**
       - .github/workflows/cache-release.yml
       - .github/workflows/gradle-release.yml
+      - .github/workflows/noora-release.yml
       - .github/workflows/skills-release.yml
       - .github/workflows/hetzner-robot-controller-release.yml
+      # Management-cluster state has its own apply workflow and must not
+      # redeploy the customer-facing server.
+      - infra/k8s/clusters/**
+      - infra/k8s/mgmt/**
+      - .github/workflows/mgmt-cluster-apply.yml
+      # Documentation and release-workflow-only edits do not change a
+      # deployable server artifact.
+      - infra/helm/k8s-monitoring/**/*.md
+      - .github/workflows/server-production-deployment.yml
 
 permissions:
   contents: write
@@ -55,6 +65,8 @@ env:
   # Used by the production deploy cascade's build job.
   REGISTRY: ghcr.io
   IMAGE_NAME: tuist/tuist
+  REGISTRY_IMAGE_NAME: tuist/registry
+  CODEBASE_SEARCH_IMAGE_NAME: tuist/codebase-search
   KURA_CONTROLLER_IMAGE_NAME: tuist/kura-controller
 
 jobs:
@@ -82,9 +94,6 @@ jobs:
       kura-should-release: ${{ steps.check.outputs.kura-should-release }}
       kura-next-version: ${{ steps.check.outputs.kura-next-version }}
       kura-next-version-number: ${{ steps.check.outputs.kura-next-version-number }}
-      noora-should-release: ${{ steps.check.outputs.noora-should-release }}
-      noora-next-version: ${{ steps.check.outputs.noora-next-version }}
-      noora-next-version-number: ${{ steps.check.outputs.noora-next-version-number }}
       helm-should-release: ${{ steps.check.outputs.helm-should-release }}
       helm-next-version: ${{ steps.check.outputs.helm-next-version }}
       helm-next-version-number: ${{ steps.check.outputs.helm-next-version-number }}
@@ -107,7 +116,6 @@ jobs:
       stable-egress-controller-should-release: ${{ steps.check.outputs.stable-egress-controller-should-release }}
       stable-egress-controller-next-version: ${{ steps.check.outputs.stable-egress-controller-next-version }}
       stable-egress-controller-next-version-number: ${{ steps.check.outputs.stable-egress-controller-next-version-number }}
-      should-release-any: ${{ steps.check.outputs.should-release-any }}
       deployable-changed: ${{ steps.deployable.outputs.deployable-changed }}
       # Single source of truth for hotfix routing. "(hotfix)" in the commit
       # subject ships straight to production via the production-hotfix leg and
@@ -155,7 +163,7 @@ jobs:
             exit 0
           fi
           if git diff --name-only "$base" "${{ github.sha }}" \
-            | grep -qE '^(server/|tuist_common/|noora/|infra/kura-controller/|infra/helm/tuist/|infra/helm/platform/|infra/helm/k8s-monitoring/|\.github/workflows/(server-deployment|server-production-deployment)\.yml)'; then
+            | grep -qE '^(server/|codebase-search/|registry/|tuist_common/|noora/|infra/kura-controller/|infra/helm/tuist/|infra/helm/platform/|infra/helm/k8s-monitoring/|\.github/workflows/(server-deployment|server-production-deployment)\.yml)'; then
             echo "deployable-changed=true" >> "$GITHUB_OUTPUT"
           else
             echo "deployable-changed=false" >> "$GITHUB_OUTPUT"
@@ -170,7 +178,7 @@ jobs:
     # runner mid-build ("lost communication"). Mirrors server.yml's
     # docker_build job.
     runs-on: tuist-linux-large
-    timeout-minutes: 30
+    timeout-minutes: 75
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     outputs:
@@ -226,6 +234,8 @@ jobs:
           target: runner
           platforms: linux/amd64
           outputs: type=image,name=ghcr.io/tuist/tuist,push-by-digest=true,name-canonical=true,push=true
+          secrets: |
+            github_token=${{ secrets.GITHUB_TOKEN }}
           build-args: |
             TUIST_HOSTED=0
             TUIST_VERSION=${{ needs.check-releases.outputs.server-next-version-number }}
@@ -246,7 +256,7 @@ jobs:
     needs: check-releases
     if: needs.check-releases.outputs.server-should-release == 'true'
     runs-on: ubuntu-24.04-arm
-    timeout-minutes: 60
+    timeout-minutes: 75
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     outputs:
@@ -273,6 +283,8 @@ jobs:
           target: runner
           platforms: linux/arm64
           outputs: type=image,name=ghcr.io/tuist/tuist,push-by-digest=true,name-canonical=true,push=true
+          secrets: |
+            github_token=${{ secrets.GITHUB_TOKEN }}
           build-args: |
             TUIST_HOSTED=0
             TUIST_VERSION=${{ needs.check-releases.outputs.server-next-version-number }}
@@ -513,82 +525,19 @@ jobs:
             ghcr.io/tuist/kura:${{ needs.check-releases.outputs.kura-next-version-number }}
             ghcr.io/tuist/kura:latest
 
-  release-noora:
-    name: Release Noora
-    needs: check-releases
-    if: needs.check-releases.outputs.noora-should-release == 'true'
-    runs-on: tuist-linux
-    timeout-minutes: 30
-    env:
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    outputs:
-      artifacts-uploaded: ${{ steps.upload.outputs.uploaded }}
-      release-notes: ${{ steps.release-notes.outputs.RELEASE_NOTES }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: ./.github/actions/mise-install
-        with:
-          version: ${{ env.MISE_VERSION }}
-          install: "erlang elixir node aube git-cliff"
-          cache: "false"
-          working-directory: noora
-          github-token: ${{ env.MISE_GITHUB_TOKEN }}
-
-      - name: Get release notes
-        id: release-notes
-        run: |
-          # Get the latest noora version tag
-          LATEST_VERSION=$(git tag -l | grep -E "^noora@[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n1)
-
-          echo "RELEASE_NOTES<<EOF" >> "$GITHUB_OUTPUT"
-          if [ -n "$LATEST_VERSION" ]; then
-            git cliff --include-path "noora/**/*" --config noora/cliff.toml --repository "." 2>/dev/null -- ${LATEST_VERSION}..HEAD | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
-          else
-            git cliff --include-path "noora/**/*" --config noora/cliff.toml --repository "." 2>/dev/null | sed -n '/<!-- RELEASE NOTES START -->/,$p' | tail -n +2 >> "$GITHUB_OUTPUT"
-          fi
-          echo "EOF" >> "$GITHUB_OUTPUT"
-
-      - name: Update version in mix.exs
-        working-directory: noora
-        run: |
-          sed -i 's/version: ".*"/version: "${{ needs.check-releases.outputs.noora-next-version-number }}"/' mix.exs
-
-      - name: Update CHANGELOG.md
-        working-directory: noora
-        run: git cliff --include-path "noora/**/*" --config cliff.toml --repository "../" --tag "${{ needs.check-releases.outputs.noora-next-version }}" -o CHANGELOG.md 2>/dev/null
-
-      - name: Install dependencies
-        working-directory: noora
-        run: |
-          mix deps.get
-          aube install
-
-      - name: Build JS assets
-        working-directory: noora
-        run: aube run build
-
-      - name: Publish to hex.pm
-        working-directory: noora
-        run: mix hex.publish --yes --replace
-        env:
-          HEX_API_KEY: ${{ secrets.HEX_API_KEY }}
-
-      - name: Upload Noora artifacts
-        id: upload
-        uses: actions/upload-artifact@v4
-        with:
-          name: noora-artifacts
-          path: |
-            noora/CHANGELOG.md
-            noora/mix.exs
-          retention-days: 1
-
   release-helm:
     name: Release Helm Chart
-    needs: check-releases
-    if: needs.check-releases.outputs.helm-should-release == 'true'
+    # release-kura-docker is in needs because the kura chart's appVersion is
+    # stamped with the kura runtime version below: when this run also cuts a
+    # kura release, the chart must not be pushed before (or without) the
+    # docker tag it pins. The always() + result guard keeps helm-only runs
+    # working (release-kura-docker skipped) while a FAILED kura image build
+    # still blocks the chart from pinning a tag that never got published.
+    needs: [check-releases, release-kura-docker]
+    if: >-
+      always() &&
+      needs.check-releases.outputs.helm-should-release == 'true' &&
+      (needs.release-kura-docker.result == 'success' || needs.release-kura-docker.result == 'skipped')
     runs-on: tuist-linux
     timeout-minutes: 30
     env:
@@ -626,7 +575,14 @@ jobs:
           sed -i 's/^version: .*/version: ${{ needs.check-releases.outputs.helm-next-version-number }}/' infra/helm/tuist/Chart.yaml
           sed -i 's/^appVersion: .*/appVersion: "${{ needs.check-releases.outputs.helm-next-version-number }}"/' infra/helm/tuist/Chart.yaml
           sed -i 's/^version: .*/version: ${{ needs.check-releases.outputs.helm-next-version-number }}/' kura/ops/helm/kura/Chart.yaml
-          sed -i 's/^appVersion: .*/appVersion: "${{ needs.check-releases.outputs.helm-next-version-number }}"/' kura/ops/helm/kura/Chart.yaml
+          # The kura chart's appVersion is the runtime image tag the chart
+          # defaults to (statefulset falls back to .Chart.AppVersion), so it
+          # is stamped with the KURA version, not the chart version: the
+          # release cut in this run, or the newest existing one otherwise
+          # (kura-next-version-number is the latest version when kura is not
+          # releasing). The repo tree keeps appVersion "latest" so in-tree
+          # installs track the newest release.
+          sed -i 's/^appVersion: .*/appVersion: "${{ needs.check-releases.outputs.kura-next-version-number }}"/' kura/ops/helm/kura/Chart.yaml
 
       - name: Update CHANGELOG.md
         working-directory: infra/helm
@@ -907,7 +863,7 @@ jobs:
     needs: check-releases
     if: needs.check-releases.outputs.xcresult-processor-image-should-release == 'true'
     runs-on: [self-hosted, macos, bare-metal, vm-image-builder]
-    timeout-minutes: 60
+    timeout-minutes: 150
     env:
       PATH: /opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
       MISE_GITHUB_TOKEN: ${{ github.token }}
@@ -1009,7 +965,7 @@ jobs:
         # when you bump the first entry in
         # infra/runner-image/profiles.json, bump this too.
         env:
-          XCODE_VERSION: "26.5"
+          XCODE_VERSION: "26.6"
         run: |
           set -euo pipefail
           BASE_IMAGE="ghcr.io/tuist/macos-tahoe-xcode:${XCODE_VERSION//./-}"
@@ -1021,38 +977,17 @@ jobs:
             xcresult-processor.pkr.hcl
 
       - name: Push image to GHCR
+        timeout-minutes: 90
         env:
           TART_REGISTRY_HOSTNAME: ghcr.io
           TART_REGISTRY_USERNAME: tuist-bot
           TART_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
-        # Direct tart push with a 3x retry — identical shape to
-        # macos-xcode-image.yml, which publishes the same-size image via
-        # the same path and is the only large tart push that pushes
-        # reliably. Earlier attempts here layered on TART_NO_AUTO_PRUNE
-        # and a clone-the-base "restore nvram.bin" step; both failed to
-        # fix the intermittent `Error: The file "nvram.bin" doesn't exist`
-        # and the disk-heavy restore made it worse (the whole VM bundle
-        # vanished mid-push). Blob uploads are content-addressed, so a
-        # re-push only re-uploads layers that didn't land last time.
-        run: |
-          set -euo pipefail
-          VERSION="${{ needs.check-releases.outputs.xcresult-processor-image-next-version-number }}"
-          for dest_tag in "${VERSION}" "latest"; do
-            DST="ghcr.io/tuist/tuist-xcresult-processor:${dest_tag}"
-            for attempt in 1 2 3; do
-              echo "tart push -> ${dest_tag} attempt ${attempt} at $(date -u +%H:%M:%SZ)" >&2
-              if tart push tuist-xcresult-processor "$DST"; then
-                echo "Pushed ${DST} on attempt ${attempt}"
-                break
-              fi
-              if [ "$attempt" = 3 ]; then
-                echo "tart push failed three times for ${dest_tag}" >&2
-                exit 1
-              fi
-              echo "tart push attempt ${attempt} failed; sleeping 60s before retry" >&2
-              sleep 60
-            done
-          done
+        uses: ./.github/actions/tart-push
+        with:
+          local-name: tuist-xcresult-processor
+          remote-names: |
+            ghcr.io/tuist/tuist-xcresult-processor:${{ needs.check-releases.outputs.xcresult-processor-image-next-version-number }}
+            ghcr.io/tuist/tuist-xcresult-processor:latest
 
       - name: Upload xcresult-processor-image artifacts
         uses: actions/upload-artifact@v4
@@ -1095,7 +1030,7 @@ jobs:
     needs: check-releases
     if: needs.check-releases.outputs.runner-image-should-release == 'true'
     runs-on: [self-hosted, macos, bare-metal, vm-image-builder]
-    timeout-minutes: 60
+    timeout-minutes: 150
     strategy:
       # If any profile build fails, abort sibling builds so the chart
       # pin doesn't move to a partially-published set.
@@ -1109,6 +1044,10 @@ jobs:
       TART_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: infra/runner-image/go.mod
 
       # Log in BEFORE Packer build so Tart's clone of the
       # macos-tahoe-xcode base (a private ghcr.io/tuist/* image)
@@ -1127,6 +1066,13 @@ jobs:
         run: packer init -upgrade runner.pkr.hcl
 
       - uses: ./.github/actions/reclaim-tart-disk
+
+      - name: Build runner shell agent
+        working-directory: infra/runner-image
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          go build -trimpath -ldflags="-s -w" -o build/runner-shell-agent ./cmd/runner-shell-agent
 
       - name: Build profile
         id: build
@@ -1168,6 +1114,7 @@ jobs:
           fi
 
       - name: Push profile to GHCR
+        timeout-minutes: 90
         env:
           TART_REGISTRY_HOSTNAME: ghcr.io
           TART_REGISTRY_USERNAME: tuist-bot
@@ -1175,34 +1122,12 @@ jobs:
           # See runner-image.yml's matching step for the rationale —
           # tart's auto-prune races mid-push (cirruslabs/tart#860).
           TART_NO_AUTO_PRUNE: "1"
-        # Direct tart push; same shape as `macos-xcode-image.yml`.
-        # Push both the immutable per-version tag and the rolling
-        # `:<profile>` tag so the chart's tag template stays valid
-        # without overrides while operators can still pin to a
-        # specific version when they need to roll back. 3× retry per
-        # tag — blob uploads are content-addressed so a re-push only
-        # re-uploads layers that didn't make it on the previous
-        # attempt.
-        run: |
-          set -euo pipefail
-          VERSION="${{ needs.check-releases.outputs.runner-image-next-version-number }}"
-          PROFILE="${{ steps.build.outputs.profile }}"
-          for dest_tag in "${PROFILE}-${VERSION}" "${PROFILE}"; do
-            DST="ghcr.io/tuist/tuist-runner:${dest_tag}"
-            for attempt in 1 2 3; do
-              echo "tart push -> ${dest_tag} attempt ${attempt} at $(date -u +%H:%M:%SZ)" >&2
-              if tart push tuist-runner "$DST"; then
-                echo "Pushed ${DST} on attempt ${attempt}"
-                break
-              fi
-              if [ "$attempt" = 3 ]; then
-                echo "tart push failed three times for ${dest_tag}" >&2
-                exit 1
-              fi
-              echo "tart push attempt ${attempt} failed; sleeping 60s before retry" >&2
-              sleep 60
-            done
-          done
+        uses: ./.github/actions/tart-push
+        with:
+          local-name: tuist-runner
+          remote-names: |
+            ghcr.io/tuist/tuist-runner:${{ steps.build.outputs.profile }}-${{ needs.check-releases.outputs.runner-image-next-version-number }}
+            ghcr.io/tuist/tuist-runner:${{ steps.build.outputs.profile }}
 
       - name: Cleanup
         if: always()
@@ -1376,12 +1301,12 @@ jobs:
 
   publish-releases:
     # Publishes the GitHub Releases (which create the component tags via the
-    # API) for the components released here — server, cache, kura, noora,
-    # helm, skills, the infra images. CLI and app have their own workflows
-    # (cli-release.yml, app-release.yml). Version files are stamped into the
-    # build artifacts by each release job, image versions are resolved at
-    # deploy time from tags, and in-source consumer pins land via Renovate
-    # PRs, so this job writes nothing back to a branch.
+    # API) for the components released here: server, Kura, Helm, and the
+    # infrastructure images. Other components have dedicated workflows.
+    # Version files are stamped into the build artifacts by each release job,
+    # image versions are resolved at deploy time from tags, and in-source
+    # consumer pins land via Renovate PRs, so this job writes nothing back to
+    # a branch.
     name: Publish releases
     needs:
       [
@@ -1391,7 +1316,6 @@ jobs:
         release-kura-prepare,
         release-kura-binaries,
         release-kura-docker,
-        release-noora,
         release-helm,
         release-capi-scaleway,
         release-runners-controller,
@@ -1402,7 +1326,17 @@ jobs:
       ]
     if: |
       always() &&
-      needs.check-releases.outputs.should-release-any == 'true'
+      (
+        needs.check-releases.outputs.server-should-release == 'true' ||
+        needs.check-releases.outputs.kura-should-release == 'true' ||
+        needs.check-releases.outputs.helm-should-release == 'true' ||
+        needs.check-releases.outputs.capi-scaleway-should-release == 'true' ||
+        needs.check-releases.outputs.runners-controller-should-release == 'true' ||
+        needs.check-releases.outputs.stable-egress-controller-should-release == 'true' ||
+        needs.check-releases.outputs.xcresult-processor-image-should-release == 'true' ||
+        needs.check-releases.outputs.runner-image-should-release == 'true' ||
+        needs.check-releases.outputs.linux-runner-image-should-release == 'true'
+      )
     runs-on: tuist-linux
     timeout-minutes: 30
     concurrency:
@@ -1486,13 +1420,6 @@ jobs:
             cat "build-kura/$target/sha512.txt" >> build-kura/sha512.txt
             mv "build-kura/$target"/kura-*.tar.gz build-kura/
           done
-
-      - name: Download Noora artifacts
-        if: needs.check-releases.outputs.noora-should-release == 'true' && needs.release-noora.result == 'success'
-        uses: actions/download-artifact@v4
-        with:
-          name: noora-artifacts
-          path: noora
 
       - name: Download Helm artifacts
         if: needs.check-releases.outputs.helm-should-release == 'true' && needs.release-helm.result == 'success'
@@ -1578,20 +1505,6 @@ jobs:
             Docker image: `ghcr.io/tuist/tuist:${{ needs.check-releases.outputs.server-next-version-number }}`
 
             ${{ needs.release-server.outputs.release-notes }}
-
-      - name: Create Noora GitHub Release
-        if: needs.check-releases.outputs.noora-should-release == 'true' && needs.release-noora.result == 'success'
-        uses: softprops/action-gh-release@v2
-        with:
-          draft: false
-          repository: tuist/tuist
-          target_commitish: ${{ github.sha }}
-          name: Noora ${{ needs.check-releases.outputs.noora-next-version-number }}
-          tag_name: ${{ needs.check-releases.outputs.noora-next-version }}
-          body: |
-            hex.pm: https://hex.pm/packages/noora/${{ needs.check-releases.outputs.noora-next-version-number }}
-
-            ${{ needs.release-noora.outputs.release-notes }}
 
       - name: Create Helm GitHub Release
         if: needs.check-releases.outputs.helm-should-release == 'true' && needs.release-helm.result == 'success'
@@ -1819,7 +1732,7 @@ jobs:
   # its own.
   # --------------------------------------------------------------------------
   build:
-    name: Build server image
+    name: Build deployment images
     needs: [check-releases, tag-infra-releases]
     if: >-
       always() &&
@@ -1840,9 +1753,11 @@ jobs:
     # runner mid-build ("lost communication"). Mirrors server.yml's
     # docker_build job.
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 75
     outputs:
       image_tag: ${{ steps.tag.outputs.image_tag }}
+      codebase_search_image_tag: ${{ steps.tag.outputs.image_tag }}
+      registry_image_tag: ${{ steps.tag.outputs.image_tag }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -1895,6 +1810,8 @@ jobs:
           push: true
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
+          secrets: |
+            github_token=${{ secrets.GITHUB_TOKEN }}
           # Shared registry layer cache. This workflow runs on every push to
           # main, so it keeps `buildcache:server` warm merge to merge;
           # server-deployment.yml reads and writes the same ref. `mode=max`
@@ -1906,6 +1823,18 @@ jobs:
             MIX_ENV=prod
             APT_CACHE_BUST=${{ github.sha }}
       - uses: docker/build-push-action@v6
+        name: Build and push codebase search image
+        with:
+          context: ./codebase-search
+          file: ./codebase-search/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.CODEBASE_SEARCH_IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
+          build-args: |
+            TUIST_REVISION=${{ github.sha }}
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.CODEBASE_SEARCH_IMAGE_NAME }}-buildcache:main
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.CODEBASE_SEARCH_IMAGE_NAME }}-buildcache:main,mode=max
+      - uses: docker/build-push-action@v6
         name: Build and push Kura controller image
         with:
           context: .
@@ -1913,6 +1842,16 @@ jobs:
           push: true
           tags: |
             ${{ env.REGISTRY }}/${{ env.KURA_CONTROLLER_IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
+      - uses: docker/build-push-action@v6
+        name: Build and push Swift registry image
+        with:
+          context: .
+          file: ./registry/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.REGISTRY_IMAGE_NAME }}:${{ steps.tag.outputs.image_tag }}
+          build-args: |
+            MIX_ENV=prod
   # --------------------------------------------------------------------------
   # Canary leg - deploys the pre-built image. Skipped on a hotfix: the
   # fast-path ships straight to production without waiting on the canary
@@ -1936,6 +1875,9 @@ jobs:
       environment: canary
       commit_sha: ${{ github.sha }}
       image_tag: ${{ needs.build.outputs.image_tag }}
+      kura_controller_image_tag: ${{ needs.build.outputs.image_tag }}
+      codebase_search_image_tag: ${{ needs.build.outputs.codebase_search_image_tag }}
+      registry_image_tag: ${{ needs.build.outputs.registry_image_tag }}
     secrets: inherit
 
   acceptance-tests:
@@ -1943,7 +1885,7 @@ jobs:
     needs: canary
     if: ${{ always() && needs.canary.result == 'success' }}
     runs-on: tuist-macos
-    timeout-minutes: 15
+    timeout-minutes: 25
     environment: server-k8s-canary
     permissions:
       contents: read
@@ -1967,6 +1909,27 @@ jobs:
         env:
           TUIST_GITHUB_TOKEN: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN }}
         run: mise run cli:ee
+      # The Xcode compilation-cache acceptance test loads the cas-plugin dylib
+      # inside xcodebuild's compilers and routes it to the proxy over a unix
+      # socket. Build both from source and hand their paths to the test via the
+      # TUIST_CAS_PLUGIN_PATH / TUIST_CAS_PROXY_PATH overrides ResourceLocator
+      # honours.
+      - uses: jdx/mise-action@v4.0.1
+        with:
+          github_token: ${{ secrets.TUIST_DEPLOY_GITHUB_TOKEN || github.token }}
+          install_args: rust
+          working_directory: cas-plugin
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: cas-plugin-rust-${{ runner.os }}
+          workspaces: |
+            cas-plugin -> target
+      - name: Build the cas-plugin
+        working-directory: cas-plugin
+        run: |
+          mise run build
+          echo "TUIST_CAS_PLUGIN_PATH=$(pwd)/target/release/libtuist_cas_plugin.dylib" >> "$GITHUB_ENV"
+          echo "TUIST_CAS_PROXY_PATH=$(pwd)/target/release/tuist-cas-proxy" >> "$GITHUB_ENV"
       - name: Test
         env:
           TUIST_EE: 1
@@ -2085,6 +2048,9 @@ jobs:
       environment: production
       commit_sha: ${{ github.sha }}
       image_tag: ${{ needs.build.outputs.image_tag }}
+      kura_controller_image_tag: ${{ needs.build.outputs.image_tag }}
+      codebase_search_image_tag: ${{ needs.build.outputs.codebase_search_image_tag }}
+      registry_image_tag: ${{ needs.build.outputs.registry_image_tag }}
     secrets: inherit
 
   # Hotfix fast-path: "(hotfix)" in the commit subject ships production without
@@ -2106,4 +2072,7 @@ jobs:
       environment: production
       commit_sha: ${{ github.sha }}
       image_tag: ${{ needs.build.outputs.image_tag }}
+      kura_controller_image_tag: ${{ needs.build.outputs.image_tag }}
+      codebase_search_image_tag: ${{ needs.build.outputs.codebase_search_image_tag }}
+      registry_image_tag: ${{ needs.build.outputs.registry_image_tag }}
     secrets: inherit

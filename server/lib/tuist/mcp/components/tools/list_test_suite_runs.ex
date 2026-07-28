@@ -31,6 +31,37 @@ defmodule Tuist.MCP.Components.Tools.ListTestSuiteRuns do
         }
       },
       "required" => ["test_run_id"]
+    },
+    output_schema: %{
+      "type" => "object",
+      "properties" => %{
+        "suites" => %{
+          "type" => "array",
+          "items" => %{
+            "type" => "object",
+            "properties" => %{
+              "name" => %{"type" => "string"},
+              "status" => %{"type" => "string"},
+              "is_flaky" => %{"type" => "boolean"},
+              "duration" => %{"type" => "integer"},
+              "test_case_count" => %{"type" => "integer"},
+              "avg_test_case_duration" => %{"type" => "integer"}
+            },
+            "required" => [
+              "name",
+              "status",
+              "is_flaky",
+              "duration",
+              "test_case_count",
+              "avg_test_case_duration"
+            ],
+            "additionalProperties" => false
+          }
+        },
+        "pagination_metadata" => Tuist.MCP.Tool.pagination_metadata_schema()
+      },
+      "required" => ["suites", "pagination_metadata"],
+      "additionalProperties" => false
     }
 
   alias Tuist.MCP.Tool, as: MCPTool

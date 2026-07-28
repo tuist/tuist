@@ -203,27 +203,21 @@ func sourceCIDRFilter(allowed []*net.IPNet, next http.Handler) http.Handler {
 		return next
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		host, _, err := net.SplitHostPort(req.RemoteAddr)
-		if err != nil {
-			host = req.RemoteAddr
-		}
-		ip := net.ParseIP(host)
-		if ip == nil {
+		if req.RemoteAddr == "" {
 			http.Error(w, "forbidden: unparseable client address", http.StatusForbidden)
 			return
 		}
-		for _, c := range allowed {
-			if c.Contains(ip) {
-				next.ServeHTTP(w, req)
-				return
-			}
+		addr, err := net.ResolveTCPAddr("tcp", req.RemoteAddr)
+		if err != nil || !sourceIPAllowed(addr, allowed) {
+			http.Error(w, "forbidden: source address not in allowlist", http.StatusForbidden)
+			return
 		}
-		http.Error(w, "forbidden: source address not in allowlist", http.StatusForbidden)
+		next.ServeHTTP(w, req)
 	})
 }
 
 // DefaultScrapeAllowedCIDRs is the safe baseline allowlist for the
-// metrics proxy: RFC1918 IPv4 ranges, the Tailscale CGNAT range
+// host-side forwarders: RFC1918 IPv4 ranges, the Tailscale CGNAT range
 // (100.64/10 — what tailnet clients dial in on when the cluster
 // reaches the Mac mini via Tailscale's subnet router), IPv4 link-
 // local, IPv4 loopback, IPv6 unique-local, IPv6 link-local, and

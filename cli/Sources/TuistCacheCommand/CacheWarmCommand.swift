@@ -56,6 +56,13 @@
         )
         var generateOnly: Bool = false
 
+        @Flag(
+            name: .long,
+            help: "When passed, the generated artifacts are stored only in the local cache and not uploaded to the remote cache.",
+            envKey: .cacheNoUpload
+        )
+        var noUpload: Bool = false
+
         @Option(
             name: .long,
             help: "Cache profile to use for warming. Accepts built-in profiles (\(BaseCacheProfile.allCases.map(\.rawValue).joined(separator: ", "))) or a custom profile name defined in your Tuist configuration. Applies the same profile-based target filtering as `tuist generate`, including base behavior, targetQueries, and exceptTargetQueries.",
@@ -93,6 +100,7 @@
                 targetsToBinaryCache: Set(targets),
                 externalOnly: externalOnly,
                 generateOnly: generateOnly,
+                noUpload: noUpload,
                 cacheProfile: cacheProfile
             )
         }

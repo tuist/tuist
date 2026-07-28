@@ -33,6 +33,42 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeBuildCacheTasks do
         }
       },
       "required" => ["build_run_id"]
+    },
+    output_schema: %{
+      "type" => "object",
+      "properties" => %{
+        "tasks" => %{
+          "type" => "array",
+          "items" => %{
+            "type" => "object",
+            "properties" => %{
+              "type" => %{"type" => "string", "enum" => ["clang", "swift"]},
+              "status" => %{"type" => "string", "enum" => ["hit_local", "hit_remote", "miss"]},
+              "key" => %{"type" => "string"},
+              "read_duration" => %{"type" => ["number", "null"]},
+              "write_duration" => %{"type" => ["number", "null"]},
+              "description" => %{"type" => ["string", "null"]},
+              "cas_output_node_ids" => %{
+                "type" => "array",
+                "items" => %{"type" => "string"}
+              }
+            },
+            "required" => [
+              "type",
+              "status",
+              "key",
+              "read_duration",
+              "write_duration",
+              "description",
+              "cas_output_node_ids"
+            ],
+            "additionalProperties" => false
+          }
+        },
+        "pagination_metadata" => Tuist.MCP.Tool.pagination_metadata_schema()
+      },
+      "required" => ["tasks", "pagination_metadata"],
+      "additionalProperties" => false
     }
 
   alias Tuist.Builds

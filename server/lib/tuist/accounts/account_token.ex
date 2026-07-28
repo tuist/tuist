@@ -24,11 +24,34 @@ defmodule Tuist.Accounts.AccountToken do
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.AccountTokenProject
 
+  @ci_scope "ci"
+  @mcp_scope "mcp"
   @scim_scope "account:scim:write"
 
-  @valid_scopes [
-    "ci",
-    "mcp",
+  @preset_scopes [@ci_scope, @mcp_scope]
+
+  @scope_groups %{
+    @ci_scope => [
+      "account:cache:write",
+      "project:cache:write",
+      "project:previews:write",
+      "project:bundles:write",
+      "project:tests:write",
+      "project:builds:write",
+      "project:runs:write"
+    ],
+    @mcp_scope => [
+      "project:admin:read",
+      "project:cache:read",
+      "project:previews:read",
+      "project:bundles:read",
+      "project:tests:read",
+      "project:builds:read",
+      "project:runs:read"
+    ]
+  }
+
+  @fine_grained_scopes [
     @scim_scope,
     "account:cache:read",
     "account:cache:write",
@@ -51,6 +74,9 @@ defmodule Tuist.Accounts.AccountToken do
     "project:runs:read",
     "project:runs:write"
   ]
+
+  @valid_scopes @preset_scopes ++ @fine_grained_scopes
+  @user_creatable_scopes @valid_scopes -- [@mcp_scope, @scim_scope]
 
   @derive {
     Flop.Schema,
@@ -80,7 +106,19 @@ defmodule Tuist.Accounts.AccountToken do
   """
   def valid_scopes, do: @valid_scopes
 
+  def user_creatable_scopes, do: @user_creatable_scopes
+
+  def preset_scope?(scope), do: scope in @preset_scopes
+
+  def ci_scope, do: @ci_scope
+
   def scim_scope, do: @scim_scope
+
+  def expand_scopes(scopes) do
+    Enum.flat_map(scopes, fn scope ->
+      Map.get(@scope_groups, scope, [scope])
+    end)
+  end
 
   def create_changeset(attrs) do
     %__MODULE__{}

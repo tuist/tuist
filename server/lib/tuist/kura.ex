@@ -42,6 +42,7 @@ defmodule Tuist.Kura do
   @public_endpoint_timeout 5_000
   @provisioner_node_ref_format ~r/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/
   @provisioner_node_ref_max_length 53
+  @warm_handoffs_enabled Application.compile_env(:tuist, :kura_warm_handoffs_enabled, false)
 
   # A version change is a deliberate fix delivery, so it must reach
   # degraded servers, not only healthy ones. A `:failed` or `:replicating`
@@ -50,6 +51,7 @@ defmodule Tuist.Kura do
   # to rescue and forces manual intervention. Only terminal servers
   # (`:destroying`/`:destroyed`) are skipped.
   @version_rollout_statuses [:provisioning, :replicating, :active, :failed]
+  @version_rollout_batch_size 100
 
   @doc "Reconciles desired Kura server rows with the observed Kubernetes state."
   def reconcile_orphaned_deployments, do: Reconciler.reconcile()
@@ -86,14 +88,16 @@ defmodule Tuist.Kura do
   Creates deployments for active Kura servers that are behind the
   latest released Kura runtime image tag.
 
-  Each `(server, image_tag)` pair is scheduled at most once. A failed
-  deployment for the configured image is intentionally not retried here;
-  operators can inspect and re-trigger it manually, while the next Tuist
-  released Kura version will be scheduled normally.
+  Each `(server, image_tag)` pair is scheduled at most once. A newer image
+  supersedes an open deployment for an older image so a rollout that cannot
+  become ready never blocks delivery of its fix. A failed deployment for the
+  configured image is intentionally not retried here; operators can inspect
+  and re-trigger it manually, while the next Tuist released Kura version will
+  be scheduled normally.
   """
   def schedule_runtime_image_deployments do
     case runtime_image_tag() do
-      nil -> {:ok, []}
+      nil -> {:ok, %{scheduled: [], failures: []}}
       image_tag -> schedule_runtime_image_deployments(image_tag)
     end
   end
@@ -126,30 +130,61 @@ defmodule Tuist.Kura do
   end
 
   def schedule_version_deployments(image_tag) when is_binary(image_tag) do
-    deployments =
+    {scheduled, failures} =
       image_tag
       |> servers_needing_version_query()
       |> Repo.all()
-      |> Enum.map(&create_deployment(&1, image_tag))
+      |> Enum.reduce({[], []}, fn server, {scheduled, failures} ->
+        case schedule_version_deployment(server, image_tag) do
+          {:ok, nil} ->
+            {scheduled, failures}
 
-    case Enum.find(deployments, &match?({:error, _}, &1)) do
-      nil -> {:ok, Enum.map(deployments, fn {:ok, deployment} -> deployment end)}
-      {:error, reason} -> {:error, reason}
-    end
+          {:ok, deployment} ->
+            {[deployment | scheduled], failures}
+
+          {:error, reason} ->
+            failure = %{
+              account_id: server.account_id,
+              reason: reason,
+              region: server.region,
+              server_id: server.id
+            }
+
+            {scheduled, [failure | failures]}
+        end
+      end)
+
+    {:ok, %{scheduled: Enum.reverse(scheduled), failures: Enum.reverse(failures)}}
   end
 
   defp servers_needing_version_query(image_tag) do
-    deployment_exists_query =
+    deployment_for_image_exists_query =
       from(d in Deployment,
         where: parent_as(:server).id == d.kura_server_id and d.image_tag == ^image_tag,
         select: 1
       )
 
+    open_older_deployment_exists_query =
+      from(d in Deployment,
+        where:
+          parent_as(:server).id == d.kura_server_id and d.status in [:pending, :running] and
+            d.image_tag != ^image_tag,
+        select: 1
+      )
+
     from(s in Server,
       as: :server,
+      # Skip rows mid warm-handoff: a `:moving_in` target must warm on the
+      # source's image (matching it for mesh replication), not a newer runtime
+      # tag, and a second deployment would leave the original move deployment
+      # open to roll the promoted target back out of order. The promoted `:none`
+      # row picks the runtime bump up normally once the move completes.
+      where: s.move_phase == :none,
       where: s.status in @version_rollout_statuses,
-      where: s.current_image_tag != ^image_tag,
-      where: not exists(deployment_exists_query)
+      where: s.current_image_tag != ^image_tag or exists(open_older_deployment_exists_query),
+      where: not exists(deployment_for_image_exists_query),
+      order_by: [asc: s.updated_at, asc: s.id],
+      limit: ^@version_rollout_batch_size
     )
   end
 
@@ -283,17 +318,37 @@ defmodule Tuist.Kura do
   defp deployment_cluster_id(%Regions{id: id}), do: id
 
   @doc """
-  Returns the non-destroyed servers for an account, each with its
-  deployment history preloaded newest-first so the /ops UI can link
+  Returns the non-destroyed steady-state servers for an account, one per region,
+  each with its deployment history preloaded newest-first so the UI can link
   straight to the latest deployment attempt.
+
+  Only `move_phase == :none` rows are returned: a warm handoff's transient
+  `:moving_in`/`:moving_out` instances are internal rebalancing, not something
+  the account owns or acts on, so they never surface in the dashboard. Through a
+  move the account keeps seeing exactly the one steady-state server for the
+  region (the source until the target is promoted).
   """
   def list_servers_for_account(account_id) do
     deployments_query = from(d in Deployment, order_by: [desc: d.inserted_at, desc: d.id])
 
     Server
-    |> where([s], s.account_id == ^account_id and s.status != :destroyed)
+    |> where([s], s.account_id == ^account_id and s.status != :destroyed and s.move_phase == :none)
     |> order_by([s], asc: s.region)
     |> preload(deployments: ^deployments_query)
+    |> Repo.all()
+  end
+
+  @doc """
+  The regions of the account's non-destroyed steady-state servers (the same
+  rows as `list_servers_for_account/1`). The slim variant for hot paths —
+  mesh heartbeats run this every minute per enrolled node and only need the
+  region strings, not the ever-growing deployment-history preload.
+  """
+  def server_regions_for_account(account_id) do
+    Server
+    |> where([s], s.account_id == ^account_id and s.status != :destroyed and s.move_phase == :none)
+    |> order_by([s], asc: s.region)
+    |> select([s], s.region)
     |> Repo.all()
   end
 
@@ -477,25 +532,27 @@ defmodule Tuist.Kura do
 
   @doc """
   In-cluster Kura URL a runner-as-a-service build on a fleet of the
-  given platform should use, or `nil` when the account has no active
-  private (runner-cache) Kura node in a region that serves that
-  platform.
+  given platform should use, or `nil` when nothing serves it.
 
-  Builds executing on a runner pool resolve their cache through this so
-  traffic stays inside the cluster, next to the runners, instead of
-  crossing the public ingress dataplane. Auth is unchanged: the same
-  Guardian JWT is verified by the same `tuist.lua` hook on the private
-  node, which carries the same `tenantID`. This reads the active
-  private `Server` row directly — `account_cache_endpoints` is
-  CLI-facing and a developer machine can't reach the in-cluster
-  endpoint.
+  Two tiers, best first: the account's active private (runner-cache)
+  node in a region serving the platform, else the in-cluster Service
+  DNS form of the managed instance the CLI itself would resolve. The
+  fallback exists because runner pods cannot reach the public ingress
+  at all: its host resolves to a cluster node IP, which Cilium
+  classifies as `remote-node` and the runner egress policy's `ipBlock`
+  rules never match. Auth is identical in both tiers (same Guardian
+  JWT, same `tuist.lua` hook, same `tenantID`).
 
-  The platform filter is the locality half of the handoff (which
-  region's node may serve which fleet — `Regions.runner_platforms`);
-  whether the fleet can reach in-cluster URLs at all is the caller's
+  Whether the fleet can reach in-cluster URLs at all is the caller's
   gate (`Catalog.fleet_on_cluster_network?/1`).
   """
-  def runner_cache_endpoint_url(%Account{id: account_id}, platform) when platform in [:linux, :macos] do
+  def runner_cache_endpoint_url(%Account{} = account, platform) when platform in [:linux, :macos] do
+    private_runner_cache_url(account, platform) || public_in_cluster_runner_cache_url(account, platform)
+  end
+
+  def runner_cache_endpoint_url(%Account{}, _platform), do: nil
+
+  defp private_runner_cache_url(%Account{id: account_id}, platform) do
     # `available/0`, not `all/0`: if a private region is dropped from
     # `TUIST_KURA_AVAILABLE_REGIONS` the controller stops reconciling
     # it, and gating here too means dispatch stops handing out the now
@@ -536,7 +593,57 @@ defmodule Tuist.Kura do
     end
   end
 
-  def runner_cache_endpoint_url(%Account{}, _platform), do: nil
+  # Tier 2, interim until the Linux fleets get a node-local private
+  # region (tier 1). eu-central is hardcoded: every runner fleet is
+  # colocated with it today, so it's the instance the CLI's latency
+  # race would pick from a runner — and both URL forms route through
+  # the same pinned per-instance Service, so same pod. Without an
+  # eu-central instance the race is moot (every public form is
+  # unreachable from a runner), so the first candidate wins: a
+  # cross-region cache beats none. No readiness heartbeat needed — the
+  # in-cluster Service already drops not-ready pods. Linux-only because
+  # only cluster-CNI pods resolve Service DNS; macOS Tart VMs can't,
+  # and their public resolution works anyway.
+  defp public_in_cluster_runner_cache_url(%Account{} = account, :linux) do
+    servers = managed_cli_endpoint_servers(account)
+
+    server = Enum.find(servers, &(&1.region == "eu-central")) || List.first(servers)
+
+    in_cluster_url(server, account)
+  end
+
+  defp public_in_cluster_runner_cache_url(%Account{}, _platform), do: nil
+
+  # Candidates come from the CLI's own endpoint list so selection can't
+  # drift from what the CLI resolves. The URL match is exact by
+  # construction — the mirror writes `Server.url` verbatim
+  # (`activate_server_transaction/4`). URLs with no matching active
+  # server are registered self-hosted nodes and drop out deliberately:
+  # their hosts are external IPs the runner egress already reaches, so
+  # staging one would override the CLI's own working selection.
+  defp managed_cli_endpoint_servers(%Account{id: account_id} = account) do
+    case Accounts.kura_cache_endpoint_urls(account) do
+      [] ->
+        []
+
+      urls ->
+        Server
+        |> where([s], s.account_id == ^account_id and s.status == :active and s.url in ^urls)
+        |> order_by(asc: :region)
+        |> Repo.all()
+    end
+  end
+
+  defp in_cluster_url(nil, _account), do: nil
+
+  # The `Server.url` column holds the public URL for these rows, so the
+  # in-cluster form is rendered fresh from the region's template.
+  defp in_cluster_url(%Server{} = server, account) do
+    case Provisioner.internal_url(account, server) do
+      url when is_binary(url) and url != "" -> url
+      _ -> nil
+    end
+  end
 
   defp node_port_region_ids(private_region_ids) do
     Enum.filter(private_region_ids, fn id ->
@@ -756,28 +863,208 @@ defmodule Tuist.Kura do
   history is visible in /ops alongside the retry.
   """
   def retry_server(%Server{status: :failed, current_image_tag: nil} = server, image_tag) when is_binary(image_tag) do
-    with {:ok, region} <- Regions.fetch(server.region) do
-      case Repo.transaction(fn ->
-             with {:ok, server} <-
-                    server |> Server.status_changeset(%{status: :provisioning}) |> Repo.update(),
-                  {:ok, _deployment} <- insert_initial_deployment(server, region, image_tag) do
-               server
-             else
-               {:error, reason} -> Repo.rollback(reason)
-             end
-           end) do
-        {:ok, server} ->
-          server = Repo.preload(server, :deployments, force: true)
-          broadcast_server(server, :updated)
-          {:ok, server}
-
-        {:error, reason} ->
-          {:error, reason}
-      end
+    with {:ok, region} <- Regions.fetch(server.region),
+         {:ok, server} <- retry_server_transaction(server, region, image_tag) do
+      server = Repo.preload(server, :deployments, force: true)
+      broadcast_server(server, :updated)
+      {:ok, server}
     end
   end
 
   def retry_server(%Server{}, _image_tag), do: {:error, :not_retryable}
+
+  defp retry_server_transaction(server, region, image_tag) do
+    Repo.transaction(fn ->
+      locked_server = lock_retryable_server_or_rollback(server)
+
+      with :ok <- ensure_no_open_deployment(locked_server.id),
+           {:ok, locked_server} <-
+             locked_server |> Server.status_changeset(%{status: :provisioning}) |> Repo.update(),
+           {:ok, _deployment} <- insert_initial_deployment(locked_server, region, image_tag) do
+        locked_server
+      else
+        {:error, reason} -> Repo.rollback(reason)
+      end
+    end)
+  end
+
+  defp lock_retryable_server_or_rollback(server) do
+    case lock_server(server.id, server.account_id) do
+      %Server{status: :failed, current_image_tag: nil} = locked_server -> locked_server
+      %Server{} -> Repo.rollback(:not_retryable)
+      nil -> Repo.rollback(:not_found)
+    end
+  end
+
+  @doc """
+  Starts a warm-handoff move of a steady-state server onto `target_node`, a box
+  in the server's region.
+
+  Provisions a second `:moving_in` instance pinned to the target box; it warms
+  from the source over the account peer plane (same-account mesh discovery)
+  while the source keeps serving. The reconciler promotes the target once it has
+  caught up (`Tuist.Kura.Reconciler`): source `:none -> :moving_out`, target
+  `:moving_in -> :none`, so the account's customer host flips to the target box
+  with no cold-cache dip. The source then drains and is destroyed.
+
+  Production builds keep this transition disabled until a stable account-region
+  endpoint binding can switch customer traffic atomically. Test builds enable
+  the transition machinery so its invariants remain covered. Once enabled,
+  only steady-state (`:none`, `:active`) servers in a host-network (multi-box
+  bare-metal) region can move; there is no move in a single-endpoint cloud
+  region. Returns `{:ok, moving_in_server}` or `{:error, reason}`.
+  """
+  def move_server(%Server{status: :active, move_phase: :none, region: region_id} = source, target_node)
+      when is_binary(target_node) and target_node != "" do
+    if @warm_handoffs_enabled do
+      do_move_server(source, region_id, target_node)
+    else
+      {:error, :stable_endpoint_binding_required}
+    end
+  end
+
+  def move_server(%Server{}, _target_node), do: {:error, :not_movable}
+
+  defp do_move_server(source, region_id, target_node) do
+    with {:ok, region} <- Regions.fetch(region_id),
+         :ok <- ensure_movable_region(region),
+         {:ok, account} <- Accounts.get_account_by_id(source.account_id),
+         :ok <- ensure_no_move_in_progress(source),
+         {:ok, ref} <- move_target_ref(account, region, source),
+         :ok <- validate_provisioner_node_ref(account, ref) do
+      insert_move_target(source, region, ref, target_node)
+    end
+  end
+
+  # Moves only apply to multi-box bare-metal (host-network) regions; a cloud LB
+  # region is a single logical endpoint with nothing to move between.
+  defp ensure_movable_region(%Regions{provisioner_config: %{gateway: :host_network}}), do: :ok
+  defp ensure_movable_region(%Regions{}), do: {:error, :region_not_movable}
+
+  defp ensure_no_move_in_progress(%Server{account_id: account_id, region: region}) do
+    in_progress? =
+      Server
+      |> where([s], s.account_id == ^account_id and s.region == ^region)
+      |> where([s], s.move_phase != :none and s.status != :destroyed)
+      |> Repo.exists?()
+
+    if in_progress?, do: {:error, :move_in_progress}, else: :ok
+  end
+
+  # The target instance name ping-pongs between the region's deterministic base
+  # name and a `-m` suffix, so the customer host's backing instance alternates
+  # across successive moves without the name growing unbounded.
+  defp move_target_ref(account, region, %Server{provisioner_node_ref: current}) do
+    case region.provisioner.provision(account, region, %Server{}) do
+      {:ok, base} -> {:ok, if(current == base, do: base <> "-m", else: base)}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp insert_move_target(%Server{} = source, region, ref, target_node) do
+    attrs = %{
+      account_id: source.account_id,
+      region: source.region,
+      provisioner_node_ref: ref,
+      move_phase: :moving_in,
+      target_node: target_node
+    }
+
+    case Repo.transaction(fn ->
+           with {:ok, target} <- attrs |> Server.create_changeset() |> Repo.insert(),
+                {:ok, _deployment} <- insert_initial_deployment(target, region, source.current_image_tag) do
+             Repo.preload(target, :deployments)
+           else
+             {:error, reason} -> Repo.rollback(reason)
+           end
+         end) do
+      {:ok, target} ->
+        broadcast_server(target, :created)
+        {:ok, target}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @doc """
+  Promotes a caught-up `:moving_in` target so the account's customer host moves
+  to it: the source drops the host (`:none -> :moving_out`) and the target gains
+  it (`:moving_in -> :none`).
+
+  Both ownership manifests are submitted first, rendered at the phases they will
+  hold, and the Postgres phase swap is committed only after both submissions are
+  accepted. Submission is not cluster convergence: the controllers can observe
+  the two resources in either order. The target is submitted first so the source
+  is never asked to relinquish publication before target intent exists. The peer
+  demultiplexer tolerates the possible overlap while the controllers converge.
+
+  A failed submission leaves the database phases untouched, so the reconciler
+  retries on the next tick. A crash between submission and the phase swap is
+  likewise retried from the durable `:moving_in` row. This is idempotent
+  containment, not an atomic public-endpoint cutover; strict ownership will move
+  to a stable account-region endpoint resource.
+  Production builds return `{:error, :stable_endpoint_binding_required}` before
+  changing either manifest. Reconciler-only.
+  """
+  def promote_move(%Server{move_phase: :moving_in, region: region_id} = target) do
+    if @warm_handoffs_enabled do
+      do_promote_move(target, region_id)
+    else
+      {:error, :stable_endpoint_binding_required}
+    end
+  end
+
+  def promote_move(%Server{}), do: {:error, :not_moving_in}
+
+  defp do_promote_move(target, region_id) do
+    with {:ok, region} <- Regions.fetch(region_id),
+         {:ok, account} <- Accounts.get_account_by_id(target.account_id),
+         %Server{} = source <- move_source_for(target),
+         :ok <- apply_manifest(%{target | move_phase: :none, account: account}, region),
+         :ok <- apply_manifest(%{source | move_phase: :moving_out, account: account}, region),
+         {:ok, {promoted, demoted}} <- swap_move_phases(source, target) do
+      broadcast_server(promoted, :updated)
+      broadcast_server(demoted, :updated)
+      {:ok, promoted}
+    else
+      nil -> {:error, :move_source_not_found}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp swap_move_phases(source, target) do
+    Repo.transaction(fn ->
+      with {:ok, demoted} <- source |> Server.move_changeset(%{move_phase: :moving_out}) |> Repo.update(),
+           {:ok, promoted} <- target |> Server.move_changeset(%{move_phase: :none}) |> Repo.update() do
+        {promoted, demoted}
+      else
+        {:error, reason} -> Repo.rollback(reason)
+      end
+    end)
+  end
+
+  defp move_source_for(%Server{account_id: account_id, region: region}) do
+    Server
+    |> where([s], s.account_id == ^account_id and s.region == ^region)
+    |> where([s], s.move_phase == :none and s.status != :destroyed)
+    |> Repo.one()
+  end
+
+  defp apply_manifest(%Server{current_image_tag: image_tag} = server, region) do
+    image_tag = image_tag || latest_deployment_image(server)
+
+    Provisioner.rollout(server, %{image_tag: image_tag, account: server.account, server: server, region: region})
+  end
+
+  defp latest_deployment_image(%Server{id: server_id}) do
+    Deployment
+    |> where([d], d.kura_server_id == ^server_id)
+    |> order_by([d], desc: d.inserted_at, desc: d.id)
+    |> limit(1)
+    |> select([d], d.image_tag)
+    |> Repo.one()
+  end
 
   @doc "Marks a server as `:destroyed` after the reconciler observes teardown."
   def mark_destroyed(%Server{} = server) do
@@ -821,14 +1108,27 @@ defmodule Tuist.Kura do
 
   defp remove_cache_endpoint(%Server{url: nil}), do: :ok
 
-  defp remove_cache_endpoint(%Server{account_id: account_id, url: url}) do
-    Repo.delete_all(
-      from(e in AccountCacheEndpoint,
-        where: e.account_id == ^account_id and e.technology == :kura and e.url == ^url
-      )
-    )
+  defp remove_cache_endpoint(%Server{id: id, account_id: account_id, url: url}) do
+    # During a warm handoff the draining source and the promoted target share the
+    # same deterministic customer URL. Only drop the derived endpoint when no
+    # other live server still serves it, so tearing down the source never
+    # unpublishes the URL the target now owns.
+    shared? =
+      Server
+      |> where([s], s.account_id == ^account_id and s.url == ^url and s.id != ^id and s.status != :destroyed)
+      |> Repo.exists?()
 
-    :ok
+    if shared? do
+      :ok
+    else
+      Repo.delete_all(
+        from(e in AccountCacheEndpoint,
+          where: e.account_id == ^account_id and e.technology == :kura and e.url == ^url
+        )
+      )
+
+      :ok
+    end
   end
 
   defp lock_server(id, account_id) do
@@ -844,19 +1144,109 @@ defmodule Tuist.Kura do
   Inserts a `Deployment` record for the reconciler to apply.
   """
   def create_deployment(%Server{} = server, image_tag) when is_binary(image_tag) do
-    insert_deployment(server, image_tag)
+    with {:ok, region} <- Regions.fetch(server.region) do
+      Repo.transaction(fn ->
+        locked_server = lock_server_or_rollback(server)
+
+        with :ok <- ensure_no_open_deployment(locked_server.id),
+             {:ok, deployment} <- insert_deployment(locked_server, region, image_tag) do
+          deployment
+        else
+          {:error, reason} -> Repo.rollback(reason)
+        end
+      end)
+    end
   end
 
-  defp insert_deployment(%Server{} = server, image_tag) do
+  defp schedule_version_deployment(%Server{} = server, image_tag) do
     with {:ok, region} <- Regions.fetch(server.region) do
-      %{
-        cluster_id: deployment_cluster_id(region),
-        image_tag: image_tag,
-        kura_server_id: server.id
-      }
-      |> Deployment.create_changeset()
-      |> Repo.insert()
+      Repo.transaction(fn ->
+        server
+        |> lock_server_or_rollback()
+        |> insert_scheduled_deployment(region, image_tag)
+      end)
     end
+  end
+
+  defp lock_server_or_rollback(server) do
+    case lock_server(server.id, server.account_id) do
+      %Server{} = locked_server -> locked_server
+      nil -> Repo.rollback(:not_found)
+    end
+  end
+
+  defp insert_scheduled_deployment(server, region, image_tag) do
+    if deployment_for_image_exists?(server.id, image_tag) do
+      nil
+    else
+      with :ok <- supersede_open_deployments(server.id, image_tag),
+           {:ok, deployment} <- insert_deployment(server, region, image_tag) do
+        deployment
+      else
+        {:error, %Ecto.Changeset{} = changeset} ->
+          rollback_unless_open_deployment_conflict(changeset)
+
+        {:error, reason} ->
+          Repo.rollback(reason)
+      end
+    end
+  end
+
+  defp rollback_unless_open_deployment_conflict(changeset) do
+    if open_deployment_conflict?(changeset), do: nil, else: Repo.rollback(changeset)
+  end
+
+  defp deployment_for_image_exists?(server_id, image_tag) do
+    Repo.exists?(
+      from(d in Deployment,
+        where: d.kura_server_id == ^server_id and d.image_tag == ^image_tag
+      )
+    )
+  end
+
+  defp supersede_open_deployments(server_id, image_tag) do
+    Deployment
+    |> where([d], d.kura_server_id == ^server_id and d.status in [:pending, :running])
+    |> Repo.all()
+    |> Enum.reduce_while(:ok, fn deployment, :ok ->
+      case mark_superseded(deployment, "superseded by Kura image #{image_tag}") do
+        {:ok, _deployment} -> {:cont, :ok}
+        {:error, reason} -> {:halt, {:error, reason}}
+      end
+    end)
+  end
+
+  defp open_deployment_conflict?(changeset) do
+    Enum.any?(changeset.errors, fn
+      {:kura_server_id, {_message, metadata}} ->
+        metadata[:constraint] == :unique and
+          metadata[:constraint_name] == "kura_deployments_one_open_per_server_index"
+
+      _error ->
+        false
+    end)
+  end
+
+  defp insert_deployment(%Server{} = server, region, image_tag) do
+    %{
+      cluster_id: deployment_cluster_id(region),
+      image_tag: image_tag,
+      kura_server_id: server.id
+    }
+    |> Deployment.create_changeset()
+    |> Repo.insert()
+  end
+
+  defp open_deployment_exists?(server_id) do
+    Repo.exists?(
+      from(d in Deployment,
+        where: d.kura_server_id == ^server_id and d.status in [:pending, :running]
+      )
+    )
+  end
+
+  defp ensure_no_open_deployment(server_id) do
+    if open_deployment_exists?(server_id), do: {:error, :deployment_in_progress}, else: :ok
   end
 
   @doc "Returns deployment records for the account, newest first."
@@ -914,6 +1304,15 @@ defmodule Tuist.Kura do
   def mark_cancelled(%Deployment{} = deployment, message) when is_binary(message) do
     update_deployment_status(deployment, %{
       status: :cancelled,
+      error_message: message,
+      finished_at: now_truncated()
+    })
+  end
+
+  @doc "Marks an open deployment as superseded by a newer runtime image."
+  def mark_superseded(%Deployment{} = deployment, message) when is_binary(message) do
+    update_deployment_status(deployment, %{
+      status: :superseded,
       error_message: message,
       finished_at: now_truncated()
     })

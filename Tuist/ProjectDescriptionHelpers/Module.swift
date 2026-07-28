@@ -75,6 +75,7 @@ public enum Module: String, CaseIterable {
     case testCommand = "TuistTestCommand"
     case initCommand = "TuistInitCommand"
     case runCommand = "TuistRunCommand"
+    case runnerCommand = "TuistRunnerCommand"
     case shareCommand = "TuistShareCommand"
     case inspectCommand = "TuistInspectCommand"
     case android = "TuistAndroid"
@@ -161,6 +162,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.http.targetName),
                     .target(name: Module.cas.targetName),
                     .target(name: Module.xcodeGraph.targetName),
+                    .target(name: Module.appleArchiver.targetName),
                     .external(name: "Path"),
                     .external(name: "FileSystem"),
                     .external(name: "SwiftECC"),
@@ -215,6 +217,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.config.targetName),
                     .target(name: "TuistCacheEE"),
                     .target(name: Module.xcodeGraph.targetName),
+                    .target(name: Module.appleArchiver.targetName),
                     .external(name: "Path"),
                     .external(name: "FileSystem"),
                     .external(name: "FileSystemTesting"),
@@ -520,7 +523,7 @@ public enum Module: String, CaseIterable {
         case .cacheCommand, .bazelCommand, .authCommand, .envKey, .versionCommand,
              .accountCommand, .organizationCommand, .projectCommand, .bundleCommand,
              .registryCommand, .buildCommand, .generateCommand, .testCommand,
-             .initCommand, .runCommand, .shareCommand, .inspectCommand, .android:
+             .initCommand, .runCommand, .runnerCommand, .shareCommand, .inspectCommand, .android:
             moduleTags.append("domain:cli")
         case .nooraExtension, .alert, .threadSafe, .macOSSDK, .encodable, .uniqueIDGenerator, .opener:
             moduleTags.append("domain:foundation")
@@ -652,6 +655,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.projectCommand.targetName),
                     .target(name: Module.registryCommand.targetName),
                     .target(name: Module.runCommand.targetName),
+                    .target(name: Module.runnerCommand.targetName),
                     .target(name: Module.shareCommand.targetName),
                     .target(name: Module.inspectCommand.targetName),
                     .target(name: Module.tuistExtension.targetName),
@@ -686,6 +690,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.testCommand.targetName),
                     .target(name: Module.initCommand.targetName),
                     .target(name: Module.runCommand.targetName),
+                    .target(name: Module.runnerCommand.targetName),
                     .target(name: Module.shareCommand.targetName),
                     .target(name: Module.inspectCommand.targetName),
                     .target(name: Module.constants.targetName),
@@ -1520,6 +1525,19 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.xcodeGraph.targetName),
                     .external(name: "Mockable"),
                 ]
+            case .runnerCommand:
+                [
+                    .target(name: Module.server.targetName),
+                    .target(name: Module.environment.targetName),
+                    .target(name: Module.envKey.targetName),
+                    .target(name: Module.configLoader.targetName),
+                    .target(name: Module.nooraExtension.targetName),
+                    .target(name: Module.http.targetName),
+                    .external(name: "Noora"),
+                    .external(name: "ArgumentParser"),
+                    .external(name: "FileSystem"),
+                    .external(name: "Path"),
+                ]
             case .inspectCommand:
                 [
                     .target(name: Module.server.targetName),
@@ -1571,7 +1589,7 @@ public enum Module: String, CaseIterable {
                  .uniqueIDGenerator, .opener, .config,
                  .accountCommand, .organizationCommand, .projectCommand, .bundleCommand,
                  .registryCommand, .buildCommand, .generateCommand,
-                 .runCommand, .shareCommand, .inspectCommand, .android, .reapi:
+                 .runCommand, .runnerCommand, .shareCommand, .inspectCommand, .android, .reapi:
                 []
             case .xcodeGraph:
                 []
@@ -1773,6 +1791,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.organizationCommand.targetName),
                     .target(name: Module.projectCommand.targetName),
                     .target(name: Module.runCommand.targetName),
+                    .target(name: Module.runnerCommand.targetName),
                     .target(name: Module.shareCommand.targetName),
                     .target(name: Module.inspectCommand.targetName),
                     .target(name: Module.android.targetName),
@@ -2070,6 +2089,7 @@ public enum Module: String, CaseIterable {
                     .target(name: Module.environmentTesting.targetName),
                     .external(name: "OpenAPIRuntime"),
                     .external(name: "HTTPTypes"),
+                    .external(name: "FileSystem"),
                 ]
             }
         dependencies =

@@ -91,7 +91,7 @@ defmodule TuistWeb.CacheLiveTest do
     {:ok, _lv, html} = live(conn, ~p"/#{account.name}/cache")
 
     refute html =~ "not enabled for this account"
-    assert html =~ "Self-hosted cache servers"
+    assert html =~ "Self-hosted servers"
     assert html =~ "create_self_hosted_client"
   end
 
@@ -111,7 +111,7 @@ defmodule TuistWeb.CacheLiveTest do
     {:ok, _lv, html} = live(conn, ~p"/#{account.name}/cache")
 
     refute html =~ "cache-servers-table"
-    assert html =~ "Self-hosted cache servers"
+    assert html =~ "Self-hosted servers"
   end
 
   test "renders on the hosted server when the kura flag is on", %{conn: conn, account: account} do
@@ -123,10 +123,10 @@ defmodule TuistWeb.CacheLiveTest do
     stub_cache_flag(account, true)
     stub(Kura, :latest_versions, fn 1 -> [] end)
 
-    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/cache")
+    {:ok, lv, html} = live(conn, ~p"/#{account.name}/cache")
 
     refute html =~ "not enabled for this account"
-    assert html =~ "Cache servers"
+    assert has_element?(lv, "#cache-servers-table")
   end
 
   test "renders cache servers for cache-enabled accounts", %{conn: conn, account: account} do
@@ -135,17 +135,59 @@ defmodule TuistWeb.CacheLiveTest do
 
     {:ok, lv, html} = live(conn, ~p"/#{account.name}/cache")
 
-    assert html =~ "Cache servers"
+    assert has_element?(lv, "#cache-servers-table")
     assert html =~ "Local Controller (kind)"
     assert has_element?(lv, "button", "Deploy server")
     assert html =~ "create_cache_server"
     assert html =~ ~s(phx-value-region="local-controller")
     assert has_element?(lv, "#cache-servers-table")
-    assert html =~ "Not deployed"
+    # Undeployed regions are no longer listed as rows; the table shows an
+    # empty state until a server is deployed.
+    assert html =~ "No cache servers yet"
+    refute html =~ "Not deployed"
     refute html =~ "Kura"
   end
 
-  test "shows cache server state, domain, and version", %{conn: conn, account: account} do
+  test "updates the cache upload access", %{conn: conn, account: account} do
+    enable_cache(account)
+    stub(Kura, :latest_versions, fn 1 -> [] end)
+
+    {:ok, lv, html} = live(conn, ~p"/#{account.name}/cache")
+
+    assert html =~ "Upload access"
+    assert html =~ "Learn how to authenticate CI"
+    assert html =~ ~s(href="/en/docs/guides/server/authentication#continuous-integration")
+    assert html =~ "Members, CI and account tokens"
+    assert html =~ "CI and account tokens only"
+    assert html =~ ~s(id="cache-upload-policy-members-and-tokens")
+    assert html =~ ~s(id="cache-upload-policy-tokens-only")
+    assert html =~ ~s(phx-value-policy="members_and_tokens")
+    document = Floki.parse_fragment!(html)
+    assert Floki.attribute(document, "#cache-upload-policy-members-and-tokens", "data-selected") == ["true"]
+    assert Floki.attribute(document, "#cache-upload-policy-tokens-only", "data-selected") == ["false"]
+
+    html = render_click(lv, "select_cache_upload_policy", %{"policy" => "tokens_only"})
+
+    assert html =~ ~s(id="cache-upload-policy-tokens-only")
+    assert html =~ ~s(phx-value-policy="tokens_only")
+    document = Floki.parse_fragment!(html)
+    assert Floki.attribute(document, "#cache-upload-policy-members-and-tokens", "data-selected") == ["false"]
+    assert Floki.attribute(document, "#cache-upload-policy-tokens-only", "data-selected") == ["true"]
+
+    assert {:ok, updated_account} = Accounts.get_account_by_id(account.id)
+    assert updated_account.cache_write_policy == :tokens_only
+
+    html = render_click(lv, "select_cache_upload_policy", %{"policy" => "members_and_tokens"})
+
+    assert html =~ ~s(id="cache-upload-policy-members-and-tokens")
+    document = Floki.parse_fragment!(html)
+    assert Floki.attribute(document, "#cache-upload-policy-members-and-tokens", "data-selected") == ["true"]
+    assert Floki.attribute(document, "#cache-upload-policy-tokens-only", "data-selected") == ["false"]
+    assert {:ok, updated_account} = Accounts.get_account_by_id(account.id)
+    assert updated_account.cache_write_policy == :members_and_tokens
+  end
+
+  test "shows cache server state and domain", %{conn: conn, account: account} do
     enable_cache(account)
     stub(Kura, :latest_versions, fn 1 -> [%{version: "0.5.3", released_at: DateTime.utc_now(:second)}] end)
 
@@ -160,7 +202,6 @@ defmodule TuistWeb.CacheLiveTest do
 
     assert html =~ "Active"
     assert html =~ server.url
-    assert html =~ "0.5.2"
   end
 
   test "renders a replicating server without crashing", %{conn: conn, account: account} do
@@ -192,25 +233,25 @@ defmodule TuistWeb.CacheLiveTest do
   test "hides the self-hosted section without the enterprise entitlement", %{conn: conn, account: account} do
     enable_cache(account)
     stub(Environment, :tuist_hosted?, fn -> true end)
-    stub(Tuist.Billing, :get_current_active_subscription, fn _ -> %{plan: :pro} end)
+    stub(Tuist.Billing, :effective_plan, fn _ -> :pro end)
     stub(Kura, :latest_versions, fn 1 -> [] end)
 
-    {:ok, _lv, html} = live(conn, ~p"/#{account.name}/cache")
+    {:ok, lv, html} = live(conn, ~p"/#{account.name}/cache")
 
-    assert html =~ "Cache servers"
-    refute html =~ "Self-hosted cache servers"
+    assert has_element?(lv, "#cache-servers-table")
+    refute html =~ "Self-hosted servers"
     refute html =~ "create_self_hosted_client"
   end
 
   test "shows the self-hosted section with the enterprise entitlement", %{conn: conn, account: account} do
     enable_cache(account)
     stub(Environment, :tuist_hosted?, fn -> true end)
-    stub(Tuist.Billing, :get_current_active_subscription, fn _ -> %{plan: :enterprise} end)
+    stub(Tuist.Billing, :effective_plan, fn _ -> :enterprise end)
     stub(Kura, :latest_versions, fn 1 -> [] end)
 
     {:ok, _lv, html} = live(conn, ~p"/#{account.name}/cache")
 
-    assert html =~ "Self-hosted cache servers"
+    assert html =~ "Self-hosted servers"
   end
 
   test "generates a tenant-scoped credential and reveals the secret once", %{conn: conn, account: account} do
@@ -268,10 +309,12 @@ defmodule TuistWeb.CacheLiveTest do
 
     {:ok, lv, html} = live(conn, ~p"/#{account.name}/cache")
 
+    # The deployed server is the only table row; the remaining regions are
+    # offered through the deploy modal's region picker.
+    assert html =~ "EU Central"
     assert html =~ "US East"
     assert html =~ "US West"
-    assert html =~ "Not deployed"
-    assert html =~ ~s(phx-value-region="us-east")
+    refute html =~ "Not deployed"
     assert has_element?(lv, "button", "Deploy server")
   end
 

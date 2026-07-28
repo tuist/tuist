@@ -63,17 +63,25 @@ ingress-nginx:
     # managed Tuist cluster runs. Other providers should disable these in
     # their own overlay when their LB doesn't pass through PROXY headers.
     #
-    # upstream-keepalive-timeout must stay below Bandit's
-    # thousand_island_options.read_timeout (15s in server/config/runtime.exs).
-    # Otherwise nginx reuses a connection the backend has already FIN'd,
-    # producing 502s with Bandit `reason=protocol_error`.
+    # Keep upstream connection reuse disabled for the main web ingress. Under
+    # production load, reused nginx-to-Bandit connections intermittently
+    # stalled until Bandit's read timeout or were closed before nginx received
+    # a response. Fresh connections directly to the same pods remained healthy.
+    # Keep the timeout below Bandit's 15-second read timeout as a guard if
+    # connection reuse is enabled again after the underlying behavior is fixed.
     config:
       use-forwarded-headers: "true"
       use-proxy-protocol: "true"
       compute-full-forwarded-for: "true"
+      upstream-keepalive-connections: "0"
       upstream-keepalive-timeout: "10"
     metrics:
       enabled: true
+      service:
+        annotations:
+          prometheus.io/scrape: "true"
+          prometheus.io/port: "10254"
+          prometheus.io/path: /metrics
 
 kura-eu-central-ingress-nginx:
   enabled: false
@@ -90,6 +98,14 @@ kura-eu-central-ingress-nginx:
       type: LoadBalancer
       externalTrafficPolicy: Local
       annotations: {}
+    # ingress-nginx admission webhooks are cluster-wide, not scoped to one
+    # IngressClass. A regional Kura controller can legitimately have zero pods
+    # while its bare-metal fleet is absent or being replaced; if its webhook is
+    # registered, every Ingress update in the cluster blocks on that empty
+    # Service. Keep admission on the main ingress-nginx controller only; it runs
+    # the same validator for the Kura Ingress annotations.
+    admissionWebhooks: &kuraGatewayAdmissionWebhooks
+      enabled: false
     # Anchored so all three regional Kura gateways share ONE nginx config
     # source. The e2e throughput test (kura/test/e2e/grpc-upload-throughput)
     # derives its patched nginx config from the window keys here, and the
@@ -131,6 +147,7 @@ kura-ca-east-ingress-nginx:
       type: LoadBalancer
       externalTrafficPolicy: Local
       annotations: {}
+    admissionWebhooks: *kuraGatewayAdmissionWebhooks
     # Shares the one anchored regional Kura nginx config (defined in the
     # eu-central block above); see TestGatewayNginxConfigMatchesChart on why
     # these cannot drift from the dedicated-gateway ConfigMap.
@@ -153,6 +170,7 @@ kura-us-east-ingress-nginx:
       type: LoadBalancer
       externalTrafficPolicy: Local
       annotations: {}
+    admissionWebhooks: *kuraGatewayAdmissionWebhooks
     config: *kuraGatewayNginxConfig
     metrics:
       enabled: true
@@ -172,6 +190,7 @@ kura-us-west-ingress-nginx:
       type: LoadBalancer
       externalTrafficPolicy: Local
       annotations: {}
+    admissionWebhooks: *kuraGatewayAdmissionWebhooks
     config: *kuraGatewayNginxConfig
     metrics:
       enabled: true
@@ -288,6 +307,9 @@ ciliumEgressGateway:
     egressIP: ""
     hostConfigurator:
       enabled: false
+      # Required when enabled. Select the full candidate pool so every standby
+      # is prepared before the failover controller can activate it.
+      nodeSelector: {}
       image: quay.io/cilium/cilium:v1.18.7
       imagePullPolicy: IfNotPresent
       interface: eth0
@@ -321,6 +343,18 @@ ciliumEgressGateway:
       # an un-allowlisted egress IP. Keep this in lockstep with the customer
       # network guide (server/priv/docs/en/guides/server/network.md).
       egressIpAllowlist: []
+      # Port 9962 requires Cilium's Prometheus listener, which the managed
+      # workload bootstrap enables on every Linux node.
+      # Probe Cilium directly on the node instead of treating Kubernetes
+      # NodeReady as the active-gateway failover signal. The wall-clock grace
+      # period cannot be consumed early by bursts of Kubernetes events.
+      nodeHealthPort: 9962
+      nodeHealthTimeout: 2s
+      nodeUnhealthyGracePeriod: 90s
+      # Host preparation is a promotion requirement. A longer demotion grace
+      # avoids moving the address during a host-configurer rolling update while
+      # still recovering when the address or source-routing state stays absent.
+      nodeUnpreparedGracePeriod: 5m
       resources:
         requests:
           cpu: 25m

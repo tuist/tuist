@@ -64,22 +64,6 @@ defmodule TuistWeb.Authorization do
     end
   end
 
-  defp guard_can_user_read_entity(entity, %Plug.Conn{} = conn) do
-    user = Authentication.current_user(conn)
-
-    cond do
-      is_nil(user) ->
-        raise UnauthorizedError, dgettext("dashboard", "You need to be authenticated to access this page.")
-
-      Authorization.authorize(:command_event_read, user, entity) == :ok ->
-        conn
-
-      true ->
-        raise NotFoundError,
-              dgettext("dashboard", "The page you are looking for doesn't exist or has been moved.")
-    end
-  end
-
   @doc """
   Used for project routes to ensure a user can read the project.
   """

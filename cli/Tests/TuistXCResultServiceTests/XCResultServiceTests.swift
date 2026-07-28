@@ -1,3 +1,4 @@
+import FileSystem
 import FileSystemTesting
 import Foundation
 import Path
@@ -6,13 +7,11 @@ import XCResultParser
 @testable import TuistXCResultService
 
 struct XCResultServiceTests {
-    private let subject = XCResultService()
-
-    @Test
+    @Test(.inTemporaryDirectory)
     func parseTestXCResult() async throws {
         // Given
-        let xcresult = try AbsolutePath(validating: #file).parentDirectory
-            .appending(try RelativePath(validating: "../Fixtures/test.xcresult"))
+        let xcresult = try await fixtureXCResult("test.xcresult")
+        let subject = XCResultService()
         let cet = TimeZone(identifier: "Europe/Berlin")!
 
         // When
@@ -40,11 +39,11 @@ struct XCResultServiceTests {
         )
     }
 
-    @Test
+    @Test(.inTemporaryDirectory)
     func parseTestWithCustomLabelXCResult() async throws {
         // Given
-        let xcresult = try AbsolutePath(validating: #file).parentDirectory
-            .appending(try RelativePath(validating: "../Fixtures/test-with-custom-label.xcresult"))
+        let xcresult = try await fixtureXCResult("test-with-custom-label.xcresult")
+        let subject = XCResultService()
         let cet = TimeZone(identifier: "Europe/Berlin")!
 
         // When
@@ -58,11 +57,11 @@ struct XCResultServiceTests {
         #expect(got.testCases.compactMap(\.duration).sorted() == [103])
     }
 
-    @Test
+    @Test(.inTemporaryDirectory)
     func parseTestWithRepetitionsXCResult() async throws {
         // Given
-        let xcresult = try AbsolutePath(validating: #file).parentDirectory
-            .appending(try RelativePath(validating: "../Fixtures/test-with-repetitions.xcresult"))
+        let xcresult = try await fixtureXCResult("test-with-repetitions.xcresult")
+        let subject = XCResultService()
 
         // When
         let got = try #require(try await subject.parse(path: xcresult, rootDirectory: nil))
@@ -95,11 +94,11 @@ struct XCResultServiceTests {
         #expect(nonFlakyTest.failures.isEmpty)
     }
 
-    @Test
+    @Test(.inTemporaryDirectory)
     func parseTestWithArgumentsXCResult() async throws {
         // Given
-        let xcresult = try AbsolutePath(validating: #file).parentDirectory
-            .appending(try RelativePath(validating: "../Fixtures/test-with-arguments.xcresult"))
+        let xcresult = try await fixtureXCResult("test-with-arguments.xcresult")
+        let subject = XCResultService()
 
         // When
         let got = try #require(try await subject.parse(path: xcresult, rootDirectory: nil))
@@ -137,10 +136,10 @@ struct XCResultServiceTests {
 
     // MARK: - parseTestStatuses
 
-    @Test
+    @Test(.inTemporaryDirectory)
     func parseTestStatuses_returnsCorrectStatuses() async throws {
-        let xcresult = try AbsolutePath(validating: #file).parentDirectory
-            .appending(try RelativePath(validating: "../Fixtures/test.xcresult"))
+        let xcresult = try await fixtureXCResult("test.xcresult")
+        let subject = XCResultService()
 
         let got = try await subject.parseTestStatuses(path: xcresult)
 
@@ -152,10 +151,10 @@ struct XCResultServiceTests {
         #expect(got.testCases.allSatisfy { $0.module == "AppTests" })
     }
 
-    @Test
+    @Test(.inTemporaryDirectory)
     func parseTestStatuses_returnsPassingModuleNames() async throws {
-        let xcresult = try AbsolutePath(validating: #file).parentDirectory
-            .appending(try RelativePath(validating: "../Fixtures/test-with-custom-label.xcresult"))
+        let xcresult = try await fixtureXCResult("test-with-custom-label.xcresult")
+        let subject = XCResultService()
 
         let got = try await subject.parseTestStatuses(path: xcresult)
 
@@ -163,15 +162,25 @@ struct XCResultServiceTests {
         #expect(got.passingModuleNames().contains("AppTests"))
     }
 
-    @Test
+    @Test(.inTemporaryDirectory)
     func parseTestStatuses_extractsModuleAndSuiteNames() async throws {
-        let xcresult = try AbsolutePath(validating: #file).parentDirectory
-            .appending(try RelativePath(validating: "../Fixtures/test.xcresult"))
+        let xcresult = try await fixtureXCResult("test.xcresult")
+        let subject = XCResultService()
 
         let got = try await subject.parseTestStatuses(path: xcresult)
 
         let modules = Set(got.testCases.compactMap(\.module))
         #expect(modules == ["AppTests"])
         #expect(got.testCases.contains { $0.testSuite != nil })
+    }
+
+    private func fixtureXCResult(_ name: String) async throws -> AbsolutePath {
+        let temporaryDirectory = try #require(FileSystem.temporaryTestDirectory)
+        let source = try AbsolutePath(validating: #file).parentDirectory
+            .appending(try RelativePath(validating: "../Fixtures/\(name)"))
+        let destination = temporaryDirectory.appending(component: name)
+
+        try await FileSystem().copy(source, to: destination)
+        return destination
     }
 }

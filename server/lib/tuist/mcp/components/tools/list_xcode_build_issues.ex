@@ -1,6 +1,6 @@
 defmodule Tuist.MCP.Components.Tools.ListXcodeBuildIssues do
   @moduledoc """
-  List build issues (warnings and errors) for a specific build run. The build_run_id can also be a Tuist dashboard URL, e.g. https://tuist.dev/{account}/{project}/builds/build-runs/{id}.
+  List build issues (warnings and errors) for a specific Xcode build run. The build_run_id can also be a Tuist dashboard URL, e.g. https://tuist.dev/{account}/{project}/builds/build-runs/{id}.
   """
 
   use Tuist.MCP.Tool,
@@ -27,6 +27,70 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeBuildIssues do
         }
       },
       "required" => ["build_run_id"]
+    },
+    output_schema: %{
+      "type" => "object",
+      "properties" => %{
+        "issues" => %{
+          "type" => "array",
+          "items" => %{
+            "type" => "object",
+            "properties" => %{
+              "type" => %{"type" => "string", "enum" => ["warning", "error"]},
+              "target" => %{"type" => "string"},
+              "project" => %{"type" => "string"},
+              "title" => %{"type" => "string"},
+              "message" => %{"type" => ["string", "null"]},
+              "signature" => %{"type" => ["string", "null"]},
+              "step_type" => %{
+                "type" => "string",
+                "enum" => [
+                  "c_compilation",
+                  "swift_compilation",
+                  "script_execution",
+                  "create_static_library",
+                  "linker",
+                  "copy_swift_libs",
+                  "compile_assets_catalog",
+                  "compile_storyboard",
+                  "write_auxiliary_file",
+                  "link_storyboards",
+                  "copy_resource_file",
+                  "merge_swift_module",
+                  "xib_compilation",
+                  "swift_aggregated_compilation",
+                  "precompile_bridging_header",
+                  "other",
+                  "validate_embedded_binary",
+                  "validate"
+                ]
+              },
+              "path" => %{"type" => ["string", "null"]},
+              "starting_line" => %{"type" => "integer"},
+              "ending_line" => %{"type" => "integer"},
+              "starting_column" => %{"type" => "integer"},
+              "ending_column" => %{"type" => "integer"}
+            },
+            "required" => [
+              "type",
+              "target",
+              "project",
+              "title",
+              "message",
+              "signature",
+              "step_type",
+              "path",
+              "starting_line",
+              "ending_line",
+              "starting_column",
+              "ending_column"
+            ],
+            "additionalProperties" => false
+          }
+        }
+      },
+      "required" => ["issues"],
+      "additionalProperties" => false
     }
 
   alias Tuist.Builds
@@ -35,7 +99,7 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeBuildIssues do
   @impl EMCP.Tool
   def description,
     do:
-      "List build issues (warnings and errors) for a specific build run. The build_run_id can also be a Tuist dashboard URL, e.g. #{Tuist.Environment.app_url()}/{account}/{project}/builds/build-runs/{id}."
+      "List build issues (warnings and errors) for a specific Xcode build run. The build_run_id can also be a Tuist dashboard URL, e.g. #{Tuist.Environment.app_url()}/{account}/{project}/builds/build-runs/{id}."
 
   def execute(conn, args) do
     build_run_id = Map.get(args, "build_run_id")
@@ -57,22 +121,25 @@ defmodule Tuist.MCP.Components.Tools.ListXcodeBuildIssues do
         |> maybe_filter(:step_type, Map.get(args, "step_type"))
 
       {:ok,
-       Enum.map(issues, fn issue ->
-         %{
-           type: to_string(issue.type),
-           target: issue.target,
-           project: issue.project,
-           title: issue.title,
-           message: issue.message,
-           signature: issue.signature,
-           step_type: to_string(issue.step_type),
-           path: issue.path,
-           starting_line: issue.starting_line,
-           ending_line: issue.ending_line,
-           starting_column: issue.starting_column,
-           ending_column: issue.ending_column
-         }
-       end)}
+       %{
+         issues:
+           Enum.map(issues, fn issue ->
+             %{
+               type: to_string(issue.type),
+               target: issue.target,
+               project: issue.project,
+               title: issue.title,
+               message: issue.message,
+               signature: issue.signature,
+               step_type: to_string(issue.step_type),
+               path: issue.path,
+               starting_line: issue.starting_line,
+               ending_line: issue.ending_line,
+               starting_column: issue.starting_column,
+               ending_column: issue.ending_column
+             }
+           end)
+       }}
     end
   end
 

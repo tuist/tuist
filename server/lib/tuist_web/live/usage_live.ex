@@ -131,7 +131,6 @@ defmodule TuistWeb.UsageLive do
   def project_label(handle) when is_binary(handle), do: handle
 
   defp project_id_for_handle(_projects, "any"), do: nil
-  defp project_id_for_handle(_projects, nil), do: nil
   defp project_id_for_handle(_projects, ""), do: nil
 
   defp project_id_for_handle(projects, handle) when is_binary(handle) do

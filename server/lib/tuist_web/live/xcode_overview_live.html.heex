@@ -440,8 +440,18 @@
         get_started_href="https://tuist.dev/en/docs/"
       >
         <:image>
-          <img src="/images/empty_line_chart_light.png" data-theme="light" />
-          <img src="/images/empty_line_chart_dark.png" data-theme="dark" />
+          <img
+            src={~p"/images/empty_line_chart_light.png"}
+            data-theme="light"
+            loading="lazy"
+            decoding="async"
+          />
+          <img
+            src={~p"/images/empty_line_chart_dark.png"}
+            data-theme="dark"
+            loading="lazy"
+            decoding="async"
+          />
         </:image>
       </.empty_card_section>
     </div>
@@ -536,8 +546,18 @@
       get_started_href="https://tuist.dev/en/docs/guides/features/selective-testing"
     >
       <:image>
-        <img src="/images/empty_bar_chart_light.png" data-theme="light" />
-        <img src="/images/empty_bar_chart_dark.png" data-theme="dark" />
+        <img
+          src={~p"/images/empty_bar_chart_light.png"}
+          data-theme="light"
+          loading="lazy"
+          decoding="async"
+        />
+        <img
+          src={~p"/images/empty_bar_chart_dark.png"}
+          data-theme="dark"
+          loading="lazy"
+          decoding="async"
+        />
       </:image>
     </.empty_card_section>
   </.card>
@@ -582,8 +602,18 @@
       get_started_href="https://tuist.dev/en/docs/guides/features/previews"
     >
       <:image>
-        <img src="/images/empty_previews_light.png" data-theme="light" />
-        <img src="/images/empty_previews_dark.png" data-theme="dark" />
+        <img
+          src={~p"/images/empty_previews_light.png"}
+          data-theme="light"
+          loading="lazy"
+          decoding="async"
+        />
+        <img
+          src={~p"/images/empty_previews_dark.png"}
+          data-theme="dark"
+          loading="lazy"
+          decoding="async"
+        />
       </:image>
     </.empty_card_section>
   </.card>
@@ -734,8 +764,18 @@
       title={dgettext("dashboard_projects", "No bundles yet")}
     >
       <:image>
-        <img src="/images/empty_line_chart_light.png" data-theme="light" />
-        <img src="/images/empty_line_chart_dark.png" data-theme="dark" />
+        <img
+          src={~p"/images/empty_line_chart_light.png"}
+          data-theme="light"
+          loading="lazy"
+          decoding="async"
+        />
+        <img
+          src={~p"/images/empty_line_chart_dark.png"}
+          data-theme="dark"
+          loading="lazy"
+          decoding="async"
+        />
       </:image>
     </.empty_card_section>
   </.card>
@@ -826,8 +866,7 @@
     <div data-part="builds-card-sections">
       <.card_section :if={
         !@recent_build_runs.ok? ||
-          (@recent_build_runs.ok? &&
-             not Enum.empty?(@recent_build_runs.result) &&
+          (not Enum.empty?(@recent_build_runs.result) &&
              (!@passed_build_runs_count.ok? || !@failed_build_runs_count.ok?))
       }>
         <div data-part="build-runs-chart">
@@ -913,8 +952,18 @@
         get_started_href="https://tuist.dev/en/docs/guides/features/build-insights#builds"
       >
         <:image>
-          <img src="/images/empty_bar_chart_light.png" data-theme="light" />
-          <img src="/images/empty_bar_chart_dark.png" data-theme="dark" />
+          <img
+            src={~p"/images/empty_bar_chart_light.png"}
+            data-theme="light"
+            loading="lazy"
+            decoding="async"
+          />
+          <img
+            src={~p"/images/empty_bar_chart_dark.png"}
+            data-theme="dark"
+            loading="lazy"
+            decoding="async"
+          />
         </:image>
       </.empty_card_section>
       <.card_section
@@ -1033,8 +1082,18 @@
         get_started_href="https://tuist.dev/en/docs/guides/features/build-insights#builds"
       >
         <:image>
-          <img src="/images/empty_line_chart_light.png" data-theme="light" />
-          <img src="/images/empty_line_chart_dark.png" data-theme="dark" />
+          <img
+            src={~p"/images/empty_line_chart_light.png"}
+            data-theme="light"
+            loading="lazy"
+            decoding="async"
+          />
+          <img
+            src={~p"/images/empty_line_chart_dark.png"}
+            data-theme="dark"
+            loading="lazy"
+            decoding="async"
+          />
         </:image>
       </.empty_card_section>
     </div>

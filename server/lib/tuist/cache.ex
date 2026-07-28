@@ -7,7 +7,7 @@ defmodule Tuist.Cache do
   alias Tuist.Accounts.Account
   alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Accounts.User
-  alias Tuist.Authorization.Checks
+  alias Tuist.Authorization
   alias Tuist.Cache.CASEvent
   alias Tuist.ClickHouseRepo
   alias Tuist.Environment
@@ -71,13 +71,15 @@ defmodule Tuist.Cache do
     accessible_account_handles(account)
   end
 
+  def accessible_account_handles(%AuthenticatedAccount{}), do: []
+
   def accessible_account_handles(%Project{}), do: []
   def accessible_account_handles(_), do: []
 
   def accessible_project_handles(resource, opts \\ []) do
     resource
-    |> Projects.list_accessible_projects(Keyword.put_new(opts, :preload, [:account]))
-    |> Enum.map(&"#{&1.account.name}/#{&1.name}")
+    |> accessible_projects(opts)
+    |> Enum.map(&project_handle/1)
     |> Enum.uniq()
     |> Enum.sort()
   end
@@ -144,6 +146,22 @@ defmodule Tuist.Cache do
     Enum.reject([personal_account | organization_accounts], &is_nil/1)
   end
 
+  defp accessible_accounts(%AuthenticatedAccount{issued_by: %User{} = user, all_projects: true}),
+    do: accessible_accounts(user)
+
+  defp accessible_accounts(%AuthenticatedAccount{account: %Account{} = account, all_projects: true}), do: [account]
+  defp accessible_accounts(%AuthenticatedAccount{account: %Account{} = account}), do: [account]
+  defp accessible_accounts(%AuthenticatedAccount{}), do: []
+  defp accessible_accounts(%Project{}), do: []
+  defp accessible_accounts(_), do: []
+
+  defp account_handles(accounts) do
+    accounts
+    |> Enum.map(& &1.name)
+    |> Enum.uniq()
+    |> Enum.sort()
+  end
+
   defp project_only_embedded_cache_claims(resource, opts) do
     %{
       "projects" => accessible_project_handles(resource, opts),
@@ -157,51 +175,39 @@ defmodule Tuist.Cache do
     }
   end
 
-  defp account_cache_handles(%User{} = user, _action), do: accessible_account_handles(user)
-  defp account_cache_handles(%Account{} = account, _action), do: accessible_account_handles(account)
-  defp account_cache_handles(%Project{}, _action), do: []
-
-  defp account_cache_handles(%AuthenticatedAccount{issued_by: %User{}} = subject, action) do
-    if scope_grants_action?(subject.scopes, :account, action) do
-      accessible_account_handles(subject)
-    else
-      []
-    end
+  defp accessible_projects(resource, opts) do
+    Projects.list_accessible_projects(resource, Keyword.put_new(opts, :preload, [:account]))
   end
 
-  defp account_cache_handles(%AuthenticatedAccount{account: %Account{name: name}} = subject, action) do
-    if scope_grants_action?(subject.scopes, :account, action) do
-      [name]
-    else
-      []
-    end
+  defp account_cache_handles(resource, action) do
+    resource
+    |> accessible_accounts()
+    |> Enum.filter(&authorized?(:account, cache_action(action), resource, &1))
+    |> account_handles()
   end
 
-  defp account_cache_handles(_, _action), do: []
-
-  defp project_cache_handles(%User{} = user, _action, opts), do: accessible_project_handles(user, opts)
-  defp project_cache_handles(%Account{} = account, _action, opts), do: accessible_project_handles(account, opts)
-  defp project_cache_handles(%Project{} = project, _action, opts), do: accessible_project_handles(project, opts)
-
-  defp project_cache_handles(%AuthenticatedAccount{} = subject, action, opts) do
-    if scope_grants_action?(subject.scopes, :project, action) do
-      accessible_project_handles(subject, opts)
-    else
-      []
-    end
+  defp project_cache_handles(resource, action, opts) do
+    resource
+    |> accessible_projects(opts)
+    |> Enum.filter(&authorized?(:project, cache_action(action), resource, &1))
+    |> Enum.map(&project_handle/1)
+    |> Enum.uniq()
+    |> Enum.sort()
   end
 
-  defp project_cache_handles(_, _action, _opts), do: []
-
-  defp scope_grants_action?(scopes, level, :read) do
-    expanded_scopes = Checks.expand_scopes(scopes)
-
-    Enum.member?(expanded_scopes, "#{level}:cache:read") or
-      Enum.member?(expanded_scopes, "#{level}:cache:write")
+  defp project_handle(%Project{account: %Account{name: account_name}, name: project_name}) do
+    "#{account_name}/#{project_name}"
   end
 
-  defp scope_grants_action?(scopes, level, :write) do
-    expanded_scopes = Checks.expand_scopes(scopes)
-    Enum.member?(expanded_scopes, "#{level}:cache:write")
+  defp authorized?(category, action, subject, resource) do
+    category
+    |> authorization_action(action)
+    |> Authorization.authorize(subject, resource)
+    |> Kernel.==(:ok)
   end
+
+  defp authorization_action(category, action), do: :"#{category}_#{action}"
+
+  defp cache_action(:read), do: :cache_read
+  defp cache_action(:write), do: :cache_create
 end

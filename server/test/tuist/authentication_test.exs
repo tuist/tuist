@@ -7,6 +7,7 @@ defmodule Tuist.AuthenticationTest do
   alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Accounts.User
   alias Tuist.Authentication
+  alias Tuist.Authorization.Checks
   alias Tuist.Projects
   alias Tuist.Repo
   alias TuistTestSupport.Fixtures.AccountsFixtures
@@ -73,6 +74,33 @@ defmodule Tuist.AuthenticationTest do
     assert result.account == account
     assert result.all_projects == false
     assert result.project_ids == []
+  end
+
+  test "authenticated_subject does not use stored account token creator as issued_by" do
+    # Given
+    account = AccountsFixtures.organization_fixture(preload: [:account]).account
+    creator = AccountsFixtures.user_fixture(preload: [:account])
+    target_organization = AccountsFixtures.organization_fixture(preload: [:account])
+    Accounts.add_user_to_organization(creator, target_organization, role: :admin)
+    target_project = ProjectsFixtures.project_fixture(account_id: target_organization.account.id)
+
+    {:ok, {_, token_value}} =
+      Accounts.create_account_token(%{
+        account: account,
+        created_by_account: creator.account,
+        scopes: ["project:cache:read"],
+        name: "test-token",
+        all_projects: true
+      })
+
+    # When
+    result = Authentication.authenticated_subject(token_value)
+
+    # Then
+    assert result.created_by_account_id == creator.account.id
+    assert result.issued_by == nil
+
+    assert Checks.scopes_permit(result, target_project, "project:cache:read") == false
   end
 
   test "authenticated_subject returns nil for account tokens owned by inactive personal users" do
@@ -288,6 +316,66 @@ defmodule Tuist.AuthenticationTest do
       assert claims["cache_grants"]["account"]["write"] == []
 
       assert "#{organization.account.name}/#{project.name}" in claims["cache_grants"]["project"]["read"]
+    end
+
+    test "omits cache write grants for user-accessible accounts restricted to tokens" do
+      # Given
+      user = AccountsFixtures.user_fixture()
+      personal_project = ProjectsFixtures.project_fixture(account: user.account)
+      organization = AccountsFixtures.organization_fixture()
+      Accounts.add_user_to_organization(user, organization, role: :admin)
+
+      {:ok, organization_account} =
+        Accounts.update_account(organization.account, %{cache_write_policy: :tokens_only})
+
+      organization_project = ProjectsFixtures.project_fixture(account: organization_account)
+
+      # When
+      {:ok, _token, claims} =
+        Authentication.encode_and_sign(
+          user,
+          %{email: user.email},
+          token_type: :access,
+          ttl: {1, :hour}
+        )
+
+      # Then
+      personal_project_handle = "#{user.account.name}/#{personal_project.name}"
+      organization_project_handle = "#{organization_account.name}/#{organization_project.name}"
+
+      assert organization_project_handle in claims["projects"]
+      assert organization_project_handle in claims["cache_grants"]["project"]["read"]
+      refute organization_project_handle in claims["cache_grants"]["project"]["write"]
+      assert personal_project_handle in claims["cache_grants"]["project"]["write"]
+    end
+
+    test "uses account JWT scopes when embedding account cache claims" do
+      # Given
+      account = AccountsFixtures.organization_fixture(preload: [:account]).account
+      project = ProjectsFixtures.project_fixture(account: account)
+
+      # When
+      {:ok, _token, claims} =
+        Authentication.encode_and_sign(
+          account,
+          %{
+            "type" => "account",
+            "scopes" => ["account:cache:write", "project:cache:write"],
+            "all_projects" => true
+          },
+          token_type: :access,
+          ttl: {1, :hour}
+        )
+
+      # Then
+      project_handle = "#{account.name}/#{project.name}"
+
+      assert claims["accounts"] == [account.name]
+      assert claims["projects"] == [project_handle]
+      assert claims["cache_grants"]["account"]["read"] == [account.name]
+      assert claims["cache_grants"]["account"]["write"] == [account.name]
+      assert claims["cache_grants"]["project"]["read"] == [project_handle]
+      assert claims["cache_grants"]["project"]["write"] == [project_handle]
     end
 
     test "keeps user token size independent from accessible account count" do

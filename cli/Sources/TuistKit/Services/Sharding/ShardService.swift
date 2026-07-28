@@ -58,19 +58,22 @@ public struct ShardService: ShardServicing {
     private let fileClient: FileClienting
     private let fileSystem: FileSysteming
     private let appleArchiver: AppleArchiving
+    private let retryProvider: RetryProviding
 
     public init(
         getShardService: GetShardServicing = GetShardService(),
         ciController: CIControlling = CIController(),
         fileClient: FileClienting = FileClient(),
         fileSystem: FileSysteming = FileSystem(),
-        appleArchiver: AppleArchiving = AppleArchiver()
+        appleArchiver: AppleArchiving = AppleArchiver(),
+        retryProvider: RetryProviding = RetryProvider()
     ) {
         self.getShardService = getShardService
         self.ciController = ciController
         self.fileClient = fileClient
         self.fileSystem = fileSystem
         self.appleArchiver = appleArchiver
+        self.retryProvider = retryProvider
     }
 
     public func shard(
@@ -112,15 +115,24 @@ public struct ShardService: ShardServicing {
             resolvedTestProductsPath = try await normalizeExtractedTestProductsPath(extractedTestProductsPath)
             Logger.current.debug("Extracted local shard archive to \(resolvedTestProductsPath.pathString)")
         } else {
-            guard let downloadURL = URL(string: shard.download_url) else {
-                throw ShardServiceError.invalidDownloadURL(shard.download_url)
-            }
-            let shardArchivePath = try await fileClient.download(url: downloadURL)
-            Logger.current.debug("Downloaded test products bundle.")
-
             let extractedTestProductsPath = try await fileSystem.makeTemporaryDirectory(prefix: "tuist-shard-unzip")
-            try await appleArchiver.decompress(archive: shardArchivePath, to: extractedTestProductsPath)
-            try? await fileSystem.remove(shardArchivePath)
+            try await fileSystem.runInTemporaryDirectory(prefix: "tuist-shard-downloads") { downloadedArtifactsPath in
+                // The shard's products are split across artifacts (a shared bundle plus one per module
+                // assigned to the shard); download each and extract them into a single merged directory.
+                for (downloadIndex, downloadURLString) in shard.download_urls.enumerated() {
+                    guard let downloadURL = URL(string: downloadURLString) else {
+                        throw ShardServiceError.invalidDownloadURL(downloadURLString)
+                    }
+                    let shardArchiveDestinationPath = downloadedArtifactsPath
+                        .appending(component: "artifact-\(downloadIndex).aar")
+                    try await retryProvider.runWithRetries {
+                        try await fileClient.download(url: downloadURL, to: shardArchiveDestinationPath)
+                    }
+                    try await appleArchiver.decompress(archive: shardArchiveDestinationPath, to: extractedTestProductsPath)
+                    try? await fileSystem.remove(shardArchiveDestinationPath)
+                }
+            }
+            Logger.current.debug("Downloaded \(shard.download_urls.count) test products artifact(s).")
             resolvedTestProductsPath = try await normalizeExtractedTestProductsPath(extractedTestProductsPath)
             Logger.current.debug("Extracted test products to \(resolvedTestProductsPath.pathString)")
         }

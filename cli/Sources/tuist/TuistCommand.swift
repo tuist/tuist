@@ -21,6 +21,7 @@ import TuistOrganizationCommand
 import TuistProjectCommand
 import TuistRegistryCommand
 import TuistRunCommand
+import TuistRunnerCommand
 import TuistShareCommand
 import TuistSupport
 import TuistTestCommand
@@ -62,6 +63,7 @@ public struct TuistCommand: AsyncParsableCommand {
                         BazelCommand.self,
                         BuildCommand.self,
                         CacheCommand.self,
+                        CacheProxyCommand.self,
                         CacheStartCommand.self,
                         SampleHostMetricsCommand.self,
                         CleanCommand.self,
@@ -74,6 +76,7 @@ public struct TuistCommand: AsyncParsableCommand {
                         PluginCommand.self,
                         RegistryCommand.self,
                         RunCommand.self,
+                        RunnerCommand.self,
                         ScaffoldCommand.self,
                         SetupCommand.self,
                         TeardownCommand.self,
@@ -107,6 +110,7 @@ public struct TuistCommand: AsyncParsableCommand {
                     CacheCommand.self,
                     GenerateCommand.self,
                     RunCommand.self,
+                    RunnerCommand.self,
                     TestCommand.self,
                     InspectCommand.self,
                 ]
@@ -279,6 +283,11 @@ public struct TuistCommand: AsyncParsableCommand {
         if error.localizedDescription.contains("ArgumentParser") {
             await finishHARRecordingBeforeExit()
             exit(withError: error)
+        }
+
+        if let remoteExit = error as? RunnerShellRemoteExitError {
+            await finishHARRecordingBeforeExit()
+            _exit(remoteExit.status)
         }
 
         var errorHandled = false

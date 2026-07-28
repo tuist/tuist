@@ -43,10 +43,13 @@ struct ServerAuthenticationControllerTests {
         ]
         let authenticationToken: AuthenticationToken? = nil
         let cachedValueStore = try #require(CachedValueStore.mocked)
-        given(cachedValueStore).getValue(key: .value("token_\(serverURL.absoluteString)"), computeIfNeeded: .matching { closure in
-            Task { try await closure() }
-            return true
-        }).willReturn(authenticationToken)
+        given(cachedValueStore).getValue(
+            key: .value("authentication-token-\(serverURL.absoluteString)"),
+            computeIfNeeded: .matching { closure in
+                Task { try await closure() }
+                return true
+            }
+        ).willReturn(authenticationToken)
 
         // When
         let got = try await subject.authenticationToken(serverURL: serverURL)
@@ -104,7 +107,7 @@ struct ServerAuthenticationControllerTests {
 
             given(serverCredentialsStore).read(serverURL: .value(serverURL)).willReturn(storeCredentials)
             given(cachedValueStore).getValue(
-                key: .value("token_\(serverURL.absoluteString)"),
+                key: .value("authentication-token-\(serverURL.absoluteString)"),
                 computeIfNeeded: .matching { closure in
                     Task { try await closure() }
                     return true
@@ -140,7 +143,7 @@ struct ServerAuthenticationControllerTests {
 
             given(serverCredentialsStore).read(serverURL: .value(serverURL)).willReturn(storeCredentials)
             given(cachedValueStore).getValue(
-                key: .value("token_\(serverURL.absoluteString)"),
+                key: .value("authentication-token-\(serverURL.absoluteString)"),
                 computeIfNeeded: .matching { closure in
                     Task { try await closure() }
                     return true
@@ -209,7 +212,7 @@ struct ServerAuthenticationControllerTests {
 
             given(serverCredentialsStore).read(serverURL: .value(serverURL)).willReturn(storeCredentials)
             given(cachedValueStore).getValue(
-                key: .value("token_\(serverURL.absoluteString)"),
+                key: .value("authentication-token-\(serverURL.absoluteString)"),
                 computeIfNeeded: .matching { closure in
                     Task { try await closure() }
                     return true
@@ -221,6 +224,38 @@ struct ServerAuthenticationControllerTests {
 
             // Then
             #expect(got == authenticationToken)
+        }
+    }
+
+    @Test(.withMockedEnvironment(), .withMockedDependencies()) mutating func memoizes_a_valid_token_across_calls() async throws {
+        // A burst of resolutions of the same valid token reads the credential store
+        // (the keychain on macOS) once, not per call — this is what kept the CAS
+        // daemon from paying a per-op keychain read on every artifact request.
+        let date = Date()
+        subject = ServerAuthenticationController(
+            refreshAuthTokenService: refreshAuthTokenService,
+            cachedValueStore: CachedValueStore()
+        )
+        try await Date.$now.withValue({ date }) {
+            let serverURL: URL = .test()
+            let serverCredentialsStore = try #require(ServerCredentialsStore.mocked)
+            let accessToken = try JWT.make(expiryDate: date.addingTimeInterval(+600), typ: "access")
+            let refreshToken = try JWT.make(expiryDate: date.addingTimeInterval(+3600), typ: "refresh")
+            let storeCredentials: ServerCredentials = .test(
+                accessToken: accessToken.token,
+                refreshToken: refreshToken.token
+            )
+            given(serverCredentialsStore).read(serverURL: .value(serverURL)).willReturn(storeCredentials)
+
+            let expected: AuthenticationToken = .user(
+                accessToken: try JWT.parse(accessToken.token),
+                refreshToken: try JWT.parse(refreshToken.token)
+            )
+            for _ in 0 ..< 10 {
+                #expect(try await subject.authenticationToken(serverURL: serverURL) == expected)
+            }
+
+            verify(serverCredentialsStore).read(serverURL: .value(serverURL)).called(1)
         }
     }
 

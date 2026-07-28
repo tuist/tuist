@@ -43,6 +43,17 @@ defmodule Tuist.Storage.RetentionPolicyTest do
   end
 
   describe "retention_days/2" do
+    test "uses an explicit retention window without the hosted maximum" do
+      assert RetentionPolicy.retention_days(:cache_artifact, :air, 120) == 120
+      assert RetentionPolicy.retention_days(:shard_bundle, :air, 365) == 365
+    end
+
+    test "rejects invalid explicit retention windows" do
+      assert_raise ArgumentError, fn -> RetentionPolicy.retention_days(:cache_artifact, :air, 0) end
+      assert_raise ArgumentError, fn -> RetentionPolicy.retention_days(:cache_artifact, :air, -1) end
+      assert_raise ArgumentError, fn -> RetentionPolicy.retention_days(:cache_artifact, :air, "30") end
+    end
+
     test "returns cache artifact retention capped at 30 days" do
       assert RetentionPolicy.retention_days(:cache_artifact, :air) == 14
       assert RetentionPolicy.retention_days(:cache_artifact, :open_source) == 14
@@ -105,6 +116,17 @@ defmodule Tuist.Storage.RetentionPolicyTest do
       cutoff = RetentionPolicy.cutoff(:cache_artifact, :enterprise)
 
       after_cutoff = DateTime.add(DateTime.utc_now(), -30, :day)
+
+      assert DateTime.compare(cutoff, before_cutoff) in [:gt, :eq]
+      assert DateTime.compare(cutoff, after_cutoff) in [:lt, :eq]
+    end
+
+    test "subtracts an explicit retention window from now" do
+      before_cutoff = DateTime.add(DateTime.utc_now(), -120, :day)
+
+      cutoff = RetentionPolicy.cutoff(:cache_artifact, :air, 120)
+
+      after_cutoff = DateTime.add(DateTime.utc_now(), -120, :day)
 
       assert DateTime.compare(cutoff, before_cutoff) in [:gt, :eq]
       assert DateTime.compare(cutoff, after_cutoff) in [:lt, :eq]

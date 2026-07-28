@@ -71,10 +71,13 @@ Every engineer's Google Workspace identity already carries `view`-tier read acce
 
 - Tailscale on the `tuist.dev` tailnet, with `talosctl` reachable on the mgmt VM at `100.92.208.109:50000` (see [`mgmt/tailscale.yaml`](mgmt/tailscale.yaml) for tailnet onboarding).
 - Mgmt cluster kubeconfig in 1Password as `kubeconfig: tuist-mgmt` in the `tuist-k8s-mgmt` vault.
+- Grafana Cloud `PROMETHEUS_TOKEN` password item in the `tuist-k8s-mgmt`
+  vault. `mgmt-cluster-apply.yml` uses it to install the metrics-only
+  management monitoring overlay.
 - Hetzner Cloud project `tuist-workloads` (separate from `tuist-mgmt`) with API access. Token in 1Password as `tuist-workloads`.
 - A Cloudflare account with an API token stored as `cloudflare-tuist-dns`. Local bootstrap reads it from the `Founders` vault.
 - The `cloudflare-tuist-dns` token must be able to edit DNS for `tuist.dev`, read `tuist.dev` zone metadata, manage zone Load Balancers, and manage account-level Load Balancing pools/monitors.
-- Per-env 1Password vault (`tuist-k8s-staging` / `tuist-k8s-canary` / `tuist-k8s-production` / `tuist-k8s-preview`) holding the runtime secrets (`MASTER_KEY`, `TUIST_LICENSE_KEY` for preview, Grafana Cloud tokens) and a Service Account token scoped to the vault.
+- Per-env 1Password vault (`tuist-k8s-staging` / `tuist-k8s-canary` / `tuist-k8s-production` / `tuist-k8s-preview`) holding the runtime secrets (`MASTER_KEY`, `TUIST_LICENSE_KEY` for preview, `TUIST_LICENSE_CERTIFICATE_BASE64` for production, Grafana Cloud tokens) and a Service Account token scoped to the vault.
 - CLI tools installed via mise:
   ```bash
   mise use -g kubectl helm clusterctl talosctl
@@ -227,21 +230,127 @@ gh workflow run server-deployment.yml -f environment=<env>
 
 The [`infra/helm/k8s-monitoring/`](../helm/k8s-monitoring/) chart forwards Kubernetes telemetry to Grafana Cloud. The bootstrap task in §4 installs it; the `observability-install` job in `server-deployment.yml` keeps it in sync on every deploy. After it lights up, look for the cluster name in **Observability → Kubernetes** in Grafana Cloud. Verification steps live in [`infra/helm/k8s-monitoring/README.md`](../helm/k8s-monitoring/README.md).
 
+`mgmt-cluster-apply.yml` installs the same chart with
+`values-management.yaml` into the management cluster. That metrics-only
+instance exports Cluster API control-plane replica state and Hetzner
+load-balancer telemetry under `cluster="tuist-management"`, so it remains
+available when a workload cluster is unreachable. Alert queries and setup
+instructions live in
+[`infra/helm/k8s-monitoring/alerts.md`](../helm/k8s-monitoring/alerts.md).
+
 ## 8. Preview environments (ephemeral pull request / commit deploys)
 
 Preview environments live on the `tuist-preview` workload cluster, which runs Postgres / ClickHouse / MinIO embedded alongside the server. Each preview is its own Helm release in its own namespace, with auto-deletion driven by a time-to-live label and the in-cluster `preview-janitor` CronJob from the platform chart.
 
-Slack-requested, manual, and pull request previews use `.github/workflows/preview-deploy.yml` with `action=deploy` or `action=delete`. The workflow uses the same cluster and embedded dependency shape for every preview, and layers `infra/helm/tuist/values-preview-kura.yaml` after `values-preview.yaml` when Kura is enabled. App pods and the preview's Kura runtime pods both land on the tainted preview worker pool, so Kura previews colocate on `role=preview` with a matching toleration instead of a dedicated Kura node pool. The Kura controller is installed cluster-wide in the `kura` namespace once per cluster by `mise -C infra run k8s:install-kura-platform`, and each preview's `KuraInstance` is created in that `kura` namespace. Requests enter through `/preview` in Slack or through manual workflow dispatch, are audited in `tuist-ops`, and are reconciled by `.github/workflows/preview-deploy.yml`; cleanup is handled inside the cluster by `preview-janitor`, with `.github/workflows/preview-sweep.yml` kept as the external Helm-aware backstop.
+Slack-requested, manual, and pull request previews use `.github/workflows/preview-deploy.yml` with `action=deploy` or `action=delete`. The workflow uses the same cluster and embedded dependency shape for every preview, and layers `infra/helm/tuist/values-preview-kura.yaml` after `values-preview.yaml` when Kura is enabled. App pods and the preview's Kura runtime pods both land on the tainted preview worker pool, so Kura previews colocate on `role=preview` with a matching toleration instead of a dedicated Kura node pool. Cluster-wide state is reconciled separately from previews. [`preview-platform-reconcile.yml`](../../.github/workflows/preview-platform-reconcile.yml) owns the platform chart and the single Kura controller in the `kura` namespace, and runs on push to `main` when those paths change, after the controller image publishes, or on manual dispatch. Preview deploys never touch cluster-wide releases: a server-only pull request no longer upgrades cert-manager, and two previews deploying at once cannot race on the shared `platform` release. A preview deploy fails fast when the controller is absent, so **dispatch that workflow once against a freshly bootstrapped cluster before deploying the first preview**.
+
+Because the controller is cluster-wide, previews run the controller from `main` rather than a per-pull-request build. Only the Kura *runtime* is built per pull request, and each preview pins its own runtime image. Controller changes are covered by `kura-controller-image.yml` and by staging.
+
+The controller install task requires `KURA_CONTROLLER_IMAGE_TAG` and refuses to run without it, so that no environment silently tracks a mutable tag. The reconcile workflow resolves it from `main` and `mise run helm:preview-up` passes the tag it built locally. To run the task by hand, pass the `sha-<short>` tag of a controller image published to `ghcr.io/tuist/kura-controller`.
+
+Each preview's `KuraInstance` is rendered by the Helm chart into that same `kura` namespace ([`templates/kura-instance.yaml`](../helm/tuist/templates/kura-instance.yaml)), so Helm owns it: `helm upgrade` patches it in place and `helm uninstall` reaps it. Managed environments leave `kuraRuntime.instance.enabled` off, because there the server's reconciler authors the CR from the `kura_servers` intent rows.
+
+Cleanup is self-healing. Deleting the `KuraInstance` makes the controller garbage-collect the StatefulSet, PVC, Service, Ingress, and Certificate it created in the `kura` namespace (all owned by the CR, and the StatefulSet's volume-claim retention is `WhenDeleted: Delete`, so no PVC leaks). Because that CR lives outside the preview namespace, it is additionally owned by the preview namespace itself: deleting the namespace garbage-collects the CR even if a teardown path never runs its explicit delete. So a preview leaves nothing behind whether it is torn down by `helm uninstall`, by the janitor's namespace delete, or by a half-finished run of either. Requests enter through `/preview` in Slack or through manual workflow dispatch, are audited in `tuist-ops`, and are reconciled by `.github/workflows/preview-deploy.yml`; cleanup is handled inside the cluster by `preview-janitor`, with `.github/workflows/preview-sweep.yml` kept as the external Helm-aware backstop.
 
 Previews use the same routing as production: the Lua hook enforces tenant matching strictly and the server looks each account's Kura endpoint up through a `kura_servers` row. The deploy workflow runs the regular development seed with preview-sized counts, uses the seeded `tuist` organization, refreshes the `tuistrocks@tuist.dev` test user's password, and wires that organization to the preview `KuraInstance`, so the preview is Kura-ready out of the box. The login page shows the test-user sign-in button in preview environments. Seeding is idempotent and is also what `mise run helm:preview-up` does locally.
 
-### 8.1 Wildcard DNS + cert
+### 8.1 Wildcard domain record and certificate
 
-In Cloudflare's `tuist.dev` zone, create a single A record pointing `*.preview.tuist.dev` at the preview cluster's ingress LB IP (the bootstrap task prints it at the end of step 12). The platform chart issues the wildcard cert via cert-manager DNS-01 against Cloudflare; ingress-nginx picks it up via the `--default-ssl-certificate` flag set in the chart values.
+The preview platform chart annotates the ingress controller's LoadBalancer Service so [ExternalDNS](https://kubernetes-sigs.github.io/external-dns/) owns `*.preview.tuist.dev` and keeps it pointed at the current ingress address. The chart also replaces the wildcard in ExternalDNS's ownership text-record name with `_wildcard`, which Cloudflare accepts.
+
+Migrating from the previously hand-created wildcard is a one-time manual step, and it is required rather than optional. ExternalDNS only manages records that carry its ownership text record, so it will neither update nor delete a wildcard that an operator created by hand. Left in place, the stale record keeps resolving every per-pull-request subdomain to the old ingress address. After applying the platform chart to a cluster that still has one, delete the unowned `*.preview.tuist.dev` record in Cloudflare and let ExternalDNS recreate both the address record and its ownership record. Confirm the handover by checking that a `_wildcard.preview.tuist.dev` text record exists and names this cluster's owner id before relying on preview URLs.
+
+The platform chart issues the wildcard certificate through cert-manager's Cloudflare domain-validation flow; ingress-nginx picks it up through the `--default-ssl-certificate` flag set in the chart values.
 
 ### 8.2 Preview-specific 1Password items
 
 In the `tuist-k8s-preview` vault: `TUIST_LICENSE_KEY` (Login or Password category, `password` field). The `Service Account Auth Token: tuist-preview-k8s` 1P item authorizes ESO to read it.
+
+### Production air-gapped license
+
+Production uses the signed air-gapped license so server startup does not depend
+on Keygen availability or outbound connectivity. Store the Base64-encoded
+license value in the `password` field of the
+`TUIST_LICENSE_CERTIFICATE_BASE64` Password item in the
+`tuist-k8s-production` vault. Do not also configure `TUIST_LICENSE_KEY`.
+
+Before updating 1Password, validate the encoded certificate locally without
+printing it:
+
+```bash
+chmod 600 /path/to/license.key
+cd server
+mix run --no-start -e '
+encoded = IO.binread(:stdio, :eof) |> String.trim()
+
+with {:ok, certificate} <- Base.decode64(encoded, ignore: :whitespace),
+     {:ok, %Tuist.License{valid: true, expiration_date: expiration_date}} <-
+       Tuist.License.resolve_certificate(Tuist.License.ed25519_verify_key(), certificate) do
+  IO.puts("valid through #{expiration_date}")
+else
+  :error -> raise "air-gapped license is not valid Base64"
+  {:ok, %Tuist.License{valid: false}} -> raise "air-gapped license is expired or invalid"
+  {:error, reason} -> raise "air-gapped license validation failed: #{reason}"
+end
+' < /path/to/license.key
+```
+
+Then create the 1Password item from a JavaScript Object Notation template passed through standard
+input, so the certificate is not placed in shell history or process arguments:
+
+```bash
+op item template get Password --format json \
+  | jq --rawfile certificate /path/to/license.key '
+      .title = "TUIST_LICENSE_CERTIFICATE_BASE64"
+      | (.fields[] | select(.id == "password") | .value) =
+          ($certificate | gsub("[[:space:]]"; ""))
+    ' \
+  | op item create --account tuist.1password.com \
+      --vault tuist-k8s-production -
+```
+
+If the item already exists, update its concealed `password` field through the
+1Password application rather than creating a duplicate. The External Secrets
+Operator refreshes it into the cluster as
+`TUIST_LICENSE_CERTIFICATE_BASE64`.
+
+Validate the stored value through the same parser without printing or writing
+it back to disk:
+
+```bash
+op item get TUIST_LICENSE_CERTIFICATE_BASE64 \
+  --account tuist.1password.com \
+  --vault tuist-k8s-production \
+  --fields label=password \
+  --reveal \
+  | mix run --no-start -e '
+encoded = IO.binread(:stdio, :eof)
+
+with {:ok, certificate} <- Base.decode64(encoded, ignore: :whitespace),
+     {:ok, %Tuist.License{valid: true, expiration_date: expiration_date}} <-
+       Tuist.License.resolve_certificate(Tuist.License.ed25519_verify_key(), certificate) do
+  IO.puts("stored license valid through #{expiration_date}")
+else
+  :error -> raise "stored air-gapped license is not valid Base64"
+  {:ok, %Tuist.License{valid: false}} -> raise "stored air-gapped license is expired or invalid"
+  {:error, reason} -> raise "stored air-gapped license validation failed: #{reason}"
+end
+'
+```
+
+After the stored value validates, remove the local source file and confirm it
+is gone:
+
+```bash
+rm /path/to/license.key
+test ! -e /path/to/license.key
+```
+
+The server publishes `tuist_license_valid` and
+`tuist_license_expiration_timestamp_seconds`. Configure the seven-day critical
+and 30-day warning rules from
+[`infra/helm/k8s-monitoring/alerts.md`](../helm/k8s-monitoring/alerts.md) before
+the first production deployment.
 
 ### 8.3 First preview
 
@@ -354,50 +463,18 @@ Deleting a Node object is safe — CAPI re-creates it on the next reconcile if t
 
 When a chart bump changes `postInstallScript` (or any
 `KubeadmConfigTemplate` / `HetznerBareMetalMachineTemplate` field) and
-you need it to take effect before natural Node churn, force a
-re-install. Work against the **mgmt** kubeconfig:
+you need it to take effect before natural Node churn, replace the
+Cluster API Machine and force a physical-host reinstall.
 
-```bash
-export KUBECONFIG=~/.kube/tuist-mgmt.yaml
-CLUSTER=staging  # or canary / production
+For production, use the `Mgmt Cluster Apply` GitHub Actions workflow
+only for declarative management-cluster state. Production runner-node
+replacement is not automated because the two-node fleet has no spare
+physical host for a current-revision Machine to claim. See
+[`clusters/README.md`](clusters/README.md#replacing-a-production-runner-node)
+for the spare-host prerequisite.
 
-# Find the HBM bound to the cluster's HBMM, and snapshot its
-# creationTimestamp — that's how we'll know the controller has
-# re-created it (the HBMM name stays the same on re-bind).
-HBMM=$(kubectl get hetznerbaremetalmachine -n org-tuist \
-  -l cluster.x-k8s.io/cluster-name=tuist-$CLUSTER \
-  -o jsonpath='{.items[0].metadata.name}')
-HBM=$(kubectl get hetznerbaremetalhost -n org-tuist \
-  -o jsonpath="{.items[?(@.spec.consumerRef.name=='$HBMM')].metadata.name}")
-OLD_TS=$(kubectl get hetznerbaremetalhost -n org-tuist $HBM \
-  -o jsonpath='{.metadata.creationTimestamp}')
-
-# Delete the HBM (NOT the HBMM): caph fast-rebinds a fresh HBMM to
-# an already-provisioned HBM without re-running installimage, so
-# only deleting the HBM forces caph to discard the OS state.
-kubectl delete hetznerbaremetalhost -n org-tuist $HBM --wait=false --timeout=2m
-# Strip caph's finalizer if the HBMM still references the HBM after
-# 2 min — otherwise the HBM lingers and `hetzner-robot-controller`
-# can't re-create it cleanly.
-kubectl patch hetznerbaremetalhost -n org-tuist $HBM \
-  -p '{"metadata":{"finalizers":[]}}' --type=merge 2>/dev/null || true
-
-# Wait ~8–15 min for the full cycle:
-#   (empty) → preparing → registering → image-installing →
-#   ensure-provisioned → provisioned → kubeadm-joined
-# Watch for a fresh creationTimestamp AND HBMM Ready=true:
-while sleep 30; do
-  NEW=$(kubectl get hetznerbaremetalhost -n org-tuist -o jsonpath='{.items[0].metadata.creationTimestamp}')
-  READY=$(kubectl get hetznerbaremetalmachine -n org-tuist \
-    -l cluster.x-k8s.io/cluster-name=tuist-$CLUSTER \
-    -o jsonpath='{.items[0].status.ready}')
-  echo "$(date +%H:%M:%S) ts=$NEW ready=$READY"
-  [ "$NEW" != "$OLD_TS" ] && [ "$READY" = "true" ] && break
-done
-```
-
-Bare-metal Nodes carry `tuist.dev/runner-tier=bare-metal:NoSchedule`,
-so the only workload on them is idempotent runner Pods — no need to
-cordon/drain. The autoscaler reconverges replica count automatically
-after the new Node joins. Run a smoke afterward
-(`linux-runners-staging-smoke.yml`) to confirm the new bootstrap is healthy.
+Do not delete a production host directly from a management kubeconfig.
+Runner pods may be processing customer jobs. Deleting a claimed
+`HetznerBareMetalHost` also leaves the infrastructure provider
+reconciling a missing reference, and deleting a Machine from an
+outdated MachineSet can recreate the same outdated revision.

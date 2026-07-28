@@ -13,33 +13,33 @@ defmodule Tuist.Docs.NimblePublisher.Cache do
   end
 
   def pages do
-    current().pages
+    ContentCache.get(__MODULE__, :pages, fn ->
+      {pages, _source_paths} = Loader.load_pages!()
+      pages
+    end)
   end
 
   def slugs do
-    current().slugs
+    page_sources()
+    |> Map.keys()
+    |> Enum.sort()
   end
 
   def get_page(slug) do
-    current().pages_by_slug[slug]
+    case Map.fetch(page_sources(), slug) do
+      {:ok, page_source} ->
+        ContentCache.get(__MODULE__, {:page, slug}, fn -> Loader.load_page_source!(page_source) end)
+
+      :error ->
+        nil
+    end
   end
 
   def reload do
     ContentCache.reload(__MODULE__)
   end
 
-  defp current do
-    ContentCache.get(__MODULE__, :docs, &load/0)
-  end
-
-  defp load do
-    {pages, _source_paths} = Loader.load_pages!()
-    pages_by_slug = Map.new(pages, &{&1.slug, &1})
-
-    %{
-      pages: pages,
-      pages_by_slug: pages_by_slug,
-      slugs: pages_by_slug |> Map.keys() |> Enum.sort()
-    }
+  defp page_sources do
+    ContentCache.get(__MODULE__, :page_sources, &Loader.load_page_sources!/0)
   end
 end

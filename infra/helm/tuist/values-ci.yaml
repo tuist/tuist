@@ -12,6 +12,14 @@ kuraRuntime:
   image:
     tag: validation
 
+codebaseSearch:
+  image:
+    tag: validation
+
+registry:
+  image:
+    tag: validation
+
 runnersFleet:
   runnerImageSemver: validation
 

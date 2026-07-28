@@ -3,6 +3,21 @@ defmodule Tuist.Docs.HTMLTest do
 
   alias Tuist.Docs.HTML
 
+  describe "wrap_code_blocks/1" do
+    test "adds copy source markup from rendered code contents" do
+      html =
+        ~s(<pre><code class="language-sh"><span>tuist</span> <span>registry</span> <span>setup</span> &lt;App&gt;</code></pre>)
+
+      wrapped = HTML.wrap_code_blocks(html)
+
+      assert wrapped =~ ~s(<template data-part="copy-source">tuist registry setup &lt;App&gt;</template>)
+      assert wrapped =~ ~s(<div data-part="language">sh</div>)
+
+      assert wrapped =~
+               ~s(<div data-part="code"><code><span>tuist</span> <span>registry</span> <span>setup</span> &lt;App&gt;</code>)
+    end
+  end
+
   describe "wrap_tables/1" do
     test "wraps table nodes without mutating Phoenix component tags around them" do
       html = """

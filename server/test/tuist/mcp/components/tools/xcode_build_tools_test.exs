@@ -232,8 +232,8 @@ defmodule Tuist.MCP.Components.Tools.XcodeBuildToolsTest do
 
       assert %{"content" => [%{"type" => "text", "text" => text}]} = result
       result = JSON.decode!(text)
-      assert length(result) == 1
-      assert hd(result)["title"] == "Type mismatch"
+      assert length(result["issues"]) == 1
+      assert hd(result["issues"])["title"] == "Type mismatch"
     end
   end
 

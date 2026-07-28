@@ -47,6 +47,19 @@ defmodule TuistWeb.UserSessionControllerTest do
       assert redirected_to(conn) == ~p"/#{user.account.name}/projects"
     end
 
+    test "does not log the user in when email auth is disabled", %{conn: conn, user: user} do
+      stub(Tuist.Environment, :email_auth_enabled?, fn -> false end)
+
+      conn =
+        post(conn, ~p"/users/log_in", %{
+          "user" => %{"email" => user.email, "password" => valid_user_password()}
+        })
+
+      refute get_session(conn, :user_token)
+      assert redirected_to(conn) == ~p"/users/log_in"
+      assert Phoenix.Flash.get(conn.assigns.flash, :error) =~ "disabled"
+    end
+
     test "logs the user in with remember me", %{conn: conn, user: user} do
       conn =
         post(conn, ~p"/users/log_in", %{
@@ -74,6 +87,25 @@ defmodule TuistWeb.UserSessionControllerTest do
 
       assert redirected_to(conn) == "/foo/bar"
       assert Phoenix.Flash.get(conn.assigns.flash, :info) =~ "Welcome back!"
+    end
+
+    test "does not carry another user's invitation return target across login", %{conn: conn, user: user} do
+      other_user = user_fixture()
+
+      conn =
+        conn
+        |> init_test_session(%{
+          post_invitation_return_to: "/auth/device_codes/AOKJ-1234?type=cli",
+          post_invitation_user_id: other_user.id,
+          post_invitation_token: "invitation-token"
+        })
+        |> post(~p"/users/log_in", %{
+          "user" => %{"email" => user.email, "password" => valid_user_password()}
+        })
+
+      refute get_session(conn, :post_invitation_return_to)
+      refute get_session(conn, :post_invitation_user_id)
+      refute get_session(conn, :post_invitation_token)
     end
 
     test "login following registration", %{conn: conn, user: user} do

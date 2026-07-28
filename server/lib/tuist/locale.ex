@@ -13,7 +13,7 @@ defmodule Tuist.Locale do
     %{code: "zh_Hant", label: "Chinese (Traditional)", native: "繁體中文"}
   ]
 
-  @languages (if Tuist.Environment.dev_single_locale?() do
+  @languages (if Tuist.Environment.single_locale?() do
                 Enum.filter(@all_languages, &(&1.code == "en"))
               else
                 @all_languages

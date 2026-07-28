@@ -33,6 +33,8 @@ public protocol LaunchAgentServicing {
         label: String,
         plistFileName: String
     ) async throws
+
+    func restartLaunchAgent(label: String) async throws
 }
 
 public struct LaunchAgentService: LaunchAgentServicing {
@@ -64,16 +66,13 @@ public struct LaunchAgentService: LaunchAgentServicing {
             try await fileSystem.makeDirectory(at: launchAgentsDir)
         }
 
-        if try await fileSystem.exists(plistPath) {
+        if try await launchctlController.isLoaded(label: label) {
             Logger.current.debug("Existing LaunchAgent found. Booting out...")
+            try await launchctlController.bootout(label: label)
+        }
+
+        if try await fileSystem.exists(plistPath) {
             try await fileSystem.remove(plistPath)
-            do {
-                try await launchctlController.bootout(label: label)
-            } catch {
-                Logger.current.debug(
-                    "Failed to boot out existing LaunchAgent: \(error.localizedDescription)"
-                )
-            }
         }
 
         let fullArguments = [tuistBinaryPath.pathString] + programArguments
@@ -102,19 +101,13 @@ public struct LaunchAgentService: LaunchAgentServicing {
             try await launchctlController.bootstrap(plistPath: plistPath)
             Logger.current.debug("Bootstrapped LaunchAgent")
         } catch let commandError as CommandError {
-            switch commandError {
-            case .terminated(5, _, _):
-                Logger.current
-                    .debug("LaunchAgent already bootstrapped by launchd, skipping explicit bootstrap")
-            default:
-                var message = String(describing: commandError)
-                if let stderrContent = try? await fileSystem.readTextFile(at: stderrLogPath),
-                   !stderrContent.isEmpty
-                {
-                    message += "\nDaemon stderr log:\n\(stderrContent)"
-                }
-                throw LaunchAgentServiceError.failedToLoadLaunchAgent(message)
+            var message = String(describing: commandError)
+            if let stderrContent = try? await fileSystem.readTextFile(at: stderrLogPath),
+               !stderrContent.isEmpty
+            {
+                message += "\nDaemon stderr log:\n\(stderrContent)"
             }
+            throw LaunchAgentServiceError.failedToLoadLaunchAgent(message)
         } catch {
             var message = String(describing: error)
             if let stderrContent = try? await fileSystem.readTextFile(at: stderrLogPath),
@@ -126,6 +119,11 @@ public struct LaunchAgentService: LaunchAgentServicing {
         }
 
         Logger.current.debug("LaunchAgent configured and loaded successfully")
+    }
+
+    public func restartLaunchAgent(label: String) async throws {
+        try await launchctlController.kickstart(label: label)
+        Logger.current.debug("Restarted LaunchAgent \(label)")
     }
 
     public func teardownLaunchAgent(
@@ -150,24 +148,6 @@ public struct LaunchAgentService: LaunchAgentServicing {
     private func determineTuistBinaryPath() async throws -> AbsolutePath {
         guard let currentPath = Environment.current.currentExecutablePath() else {
             throw LaunchAgentServiceError.missingExecutablePath
-        }
-
-        if currentPath.pathString.contains("/.local/share/mise/installs/tuist/") {
-            let homeDir = Environment.current.homeDirectory
-
-            let misePath = homeDir.appending(
-                components: ".local", "share", "mise", "installs", "tuist", "latest", "tuist"
-            )
-            if try await fileSystem.exists(misePath) {
-                return misePath
-            }
-
-            let oldMisePath = homeDir.appending(
-                components: ".local", "share", "mise", "installs", "tuist", "latest", "bin", "tuist"
-            )
-            if try await fileSystem.exists(oldMisePath) {
-                return oldMisePath
-            }
         }
 
         return currentPath

@@ -49,6 +49,13 @@ impl TrafficState {
 pub struct RuntimeState {
     draining: AtomicBool,
     serving: AtomicBool,
+    // Boot guardrail for nodes whose peer view arrives from the control plane
+    // (managed peers sync): serving is withheld until the first successful
+    // fetch, because a node booting blind would accept writes without
+    // enqueuing replication for peers it cannot see — silent, unrecoverable
+    // under-replication.
+    peer_view_required: AtomicBool,
+    peer_view_ready: AtomicBool,
     writer_lock_owned: AtomicBool,
     http_inflight: AtomicUsize,
     public_http_inflight: AtomicUsize,
@@ -64,6 +71,8 @@ impl RuntimeState {
         Arc::new(Self {
             draining: AtomicBool::new(false),
             serving: AtomicBool::new(false),
+            peer_view_required: AtomicBool::new(false),
+            peer_view_ready: AtomicBool::new(false),
             writer_lock_owned: AtomicBool::new(true),
             http_inflight: AtomicUsize::new(0),
             public_http_inflight: AtomicUsize::new(0),
@@ -79,10 +88,6 @@ impl RuntimeState {
         self.outbox_depth.store(depth, Ordering::Relaxed);
     }
 
-    pub fn outbox_depth(&self) -> usize {
-        self.outbox_depth.load(Ordering::Relaxed)
-    }
-
     pub fn request_drain(&self) -> bool {
         !self.draining.swap(true, Ordering::SeqCst)
     }
@@ -93,6 +98,19 @@ impl RuntimeState {
 
     pub fn mark_serving(&self) -> bool {
         !self.serving.swap(true, Ordering::SeqCst)
+    }
+
+    pub fn require_peer_view(&self) {
+        self.peer_view_required.store(true, Ordering::SeqCst);
+    }
+
+    pub fn mark_peer_view_ready(&self) {
+        self.peer_view_ready.store(true, Ordering::SeqCst);
+    }
+
+    pub fn peer_view_pending(&self) -> bool {
+        self.peer_view_required.load(Ordering::SeqCst)
+            && !self.peer_view_ready.load(Ordering::SeqCst)
     }
 
     pub fn clear_serving(&self) -> bool {

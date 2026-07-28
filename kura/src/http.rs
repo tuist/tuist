@@ -18,6 +18,7 @@ use axum::{
 };
 use bytes::Bytes;
 use futures_util::{Stream, StreamExt};
+use http_body::{Body as HttpBody, Frame, SizeHint};
 use serde::Deserialize;
 use tokio_util::io::ReaderStream;
 use tracing::{Instrument, field};
@@ -26,24 +27,37 @@ use crate::{
     artifact::{manifest::ArtifactManifest, producer::ArtifactProducer},
     bandwidth::BandwidthLimiter,
     constants::{
-        MAX_GRADLE_BYTES, MAX_MODULE_PART_BYTES, MAX_MODULE_TOTAL_BYTES,
-        MAX_REPLICATION_BODY_BYTES, MAX_XCODE_BYTES,
+        BOOTSTRAP_DIGEST_DEFAULT_PREFIX_LEN, MAX_BOOTSTRAP_PAGE_ITEMS, MAX_GRADLE_BYTES,
+        MAX_INLINE_REPLICATION_BODY_BYTES, MAX_MODULE_PART_BYTES, MAX_MODULE_TOTAL_BYTES,
+        MAX_REPLICATION_BODY_BYTES, MAX_XCODE_BYTES, RESPONSE_STREAM_MIN_CHUNK_BYTES,
+        response_stream_chunk_bytes,
     },
     extension::{AccessDecision, ExtensionContext},
     io::is_fd_pool_exhausted_error,
-    memory::MemoryPressure,
+    memory::{
+        MemoryPressure, ResponseStreamAdmissionPatience, ResponseStreamMemoryPermit,
+        ResponseTransportGuard,
+    },
     metrics::Metrics,
     multipart::error::MultipartError,
     replication::replication_targets,
     runtime::{HttpTrafficClass, InflightGuard},
     state::SharedState,
-    store::is_disk_full_error,
+    store::{
+        ManifestDigest, StagedArtifactPath, is_disk_full_error, is_multipart_capacity_error,
+        is_outbox_full_error,
+    },
     telemetry::{attach_parent_context, record_trace_context},
-    utils::{BodyReadError, action_cache_key, blob_key, module_key, read_request_to_temp},
+    utils::{
+        BodyReadError, RequestBodyStaging, action_cache_key, blob_key, module_key,
+        read_request_to_temp,
+    },
 };
 
 const MMAP_RESPONSE_CHUNK_BYTES: usize = 1024 * 1024;
-const READER_RESPONSE_CHUNK_BYTES: usize = 512 * 1024;
+#[cfg(test)]
+const HTTP_RESPONSE_STREAM_RESERVATION_BYTES: usize =
+    crate::constants::RESPONSE_STREAM_CHUNK_BYTES * 4;
 const ROUTE_UP: &str = "/up";
 const ROUTE_READY: &str = "/ready";
 const ROUTE_ROLLOUT_STATUS: &str = "/status/rollout";
@@ -61,6 +75,7 @@ const ROUTE_API_CACHE_CLEAN: &str = "/api/cache/clean";
 const ROUTE_API_CACHE_GRADLE: &str = "/api/cache/gradle/{cache_key}";
 const ROUTE_INTERNAL_STATUS: &str = "/_internal/status";
 const ROUTE_INTERNAL_BOOTSTRAP_MANIFESTS: &str = "/_internal/bootstrap/manifests";
+const ROUTE_INTERNAL_BOOTSTRAP_MANIFESTS_DIGEST: &str = "/_internal/bootstrap/digest";
 const ROUTE_INTERNAL_BOOTSTRAP_NAMESPACE_TOMBSTONES: &str =
     "/_internal/bootstrap/namespace_tombstones";
 const ROUTE_INTERNAL_BOOTSTRAP_ARTIFACT: &str = "/_internal/bootstrap/artifacts/{artifact_id}";
@@ -68,7 +83,7 @@ const ROUTE_INTERNAL_REPLICATE_ARTIFACT: &str = "/_internal/replicate/artifact";
 const ROUTE_INTERNAL_REPLICATE_NAMESPACE: &str = "/_internal/replicate/namespace";
 const UNMATCHED_ROUTE: &str = "/_unmatched";
 
-const EXACT_ROUTE_TEMPLATES: [&str; 14] = [
+const EXACT_ROUTE_TEMPLATES: [&str; 15] = [
     ROUTE_UP,
     ROUTE_READY,
     ROUTE_ROLLOUT_STATUS,
@@ -80,6 +95,7 @@ const EXACT_ROUTE_TEMPLATES: [&str; 14] = [
     ROUTE_API_CACHE_CLEAN,
     ROUTE_INTERNAL_STATUS,
     ROUTE_INTERNAL_BOOTSTRAP_MANIFESTS,
+    ROUTE_INTERNAL_BOOTSTRAP_MANIFESTS_DIGEST,
     ROUTE_INTERNAL_BOOTSTRAP_NAMESPACE_TOMBSTONES,
     ROUTE_INTERNAL_REPLICATE_ARTIFACT,
     ROUTE_INTERNAL_REPLICATE_NAMESPACE,
@@ -113,6 +129,7 @@ pub fn public_router(state: SharedState) -> Router {
             state.clone(),
             track_http_metrics,
         ))
+        .layer(middleware::map_response(guard_response_stream_transport))
         .with_state(state)
 }
 
@@ -122,6 +139,7 @@ pub fn internal_router(state: SharedState) -> Router {
             state.clone(),
             track_http_metrics,
         ))
+        .layer(middleware::map_response(guard_response_stream_transport))
         .with_state(state)
 }
 
@@ -137,7 +155,81 @@ pub fn combined_router(state: SharedState) -> Router {
             state.clone(),
             track_http_metrics,
         ))
+        .layer(middleware::map_response(guard_response_stream_transport))
         .with_state(state)
+}
+
+pub(crate) async fn guard_response_stream_transport(mut response: Response) -> Response {
+    let Some(guard) = response.extensions_mut().remove::<ResponseTransportGuard>() else {
+        return response;
+    };
+    let body = std::mem::take(response.body_mut());
+    *response.body_mut() = Body::new(ResponseStreamTransportBody { body, guard });
+    response
+}
+
+struct ResponseStreamTransportBody {
+    body: Body,
+    guard: ResponseTransportGuard,
+}
+
+impl HttpBody for ResponseStreamTransportBody {
+    type Data = Bytes;
+    type Error = axum::Error;
+
+    fn poll_frame(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<Option<Result<Frame<Self::Data>, Self::Error>>> {
+        match Pin::new(&mut self.body).poll_frame(cx) {
+            Poll::Ready(Some(Ok(frame))) => {
+                let guard = self.guard.clone();
+                Poll::Ready(Some(Ok(frame.map_data(|bytes| {
+                    Bytes::from_owner(ResponseStreamTransportBytes {
+                        bytes,
+                        _guard: guard,
+                    })
+                }))))
+            }
+            other => other,
+        }
+    }
+
+    fn is_end_stream(&self) -> bool {
+        self.body.is_end_stream()
+    }
+
+    fn size_hint(&self) -> SizeHint {
+        self.body.size_hint()
+    }
+}
+
+struct ResponseStreamTransportBytes {
+    bytes: Bytes,
+    _guard: ResponseTransportGuard,
+}
+
+impl AsRef<[u8]> for ResponseStreamTransportBytes {
+    fn as_ref(&self) -> &[u8] {
+        self.bytes.as_ref()
+    }
+}
+
+fn attach_response_stream_permit(response: &mut Response, permit: ResponseStreamMemoryPermit) {
+    response
+        .extensions_mut()
+        .insert(permit.into_transport_guard());
+}
+
+fn attach_materialized_response_permit(
+    response: &mut Response,
+    permit: crate::memory::MemoryPermit,
+) {
+    response
+        .extensions_mut()
+        .insert(ResponseTransportGuard::from_materialization_permits(vec![
+            permit,
+        ]));
 }
 
 #[cfg(test)]
@@ -173,6 +265,10 @@ fn internal_routes() -> Router<SharedState> {
         .route(
             ROUTE_INTERNAL_BOOTSTRAP_MANIFESTS,
             get(internal_bootstrap_manifests),
+        )
+        .route(
+            ROUTE_INTERNAL_BOOTSTRAP_MANIFESTS_DIGEST,
+            get(internal_bootstrap_manifests_digest),
         )
         .route(
             ROUTE_INTERNAL_BOOTSTRAP_NAMESPACE_TOMBSTONES,
@@ -327,11 +423,18 @@ struct ReplicateArtifactQuery {
     key: String,
     content_type: String,
     version_ms: u64,
+    /// The origin's branch tag and the publishing build's trunk. Both optional:
+    /// a peer that predates them (or any untagged publish) omits them and the
+    /// entry applies untagged, which is what this node did for every replicated
+    /// entry before.
+    branch: Option<String>,
+    trunk: Option<String>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
 struct PageQuery {
     after: Option<String>,
+    prefix: Option<String>,
     limit: usize,
 }
 
@@ -373,10 +476,19 @@ impl PageQuery {
         if limit == 0 {
             return Err("Invalid limit: must be greater than 0".to_string());
         }
+        if limit > MAX_BOOTSTRAP_PAGE_ITEMS {
+            return Err(format!(
+                "Invalid limit: must not exceed {MAX_BOOTSTRAP_PAGE_ITEMS}"
+            ));
+        }
 
         Ok(Self {
             after: params
                 .get("after")
+                .cloned()
+                .filter(|value| !value.is_empty()),
+            prefix: params
+                .get("prefix")
                 .cloned()
                 .filter(|value| !value.is_empty()),
             limit,
@@ -401,6 +513,8 @@ impl ReplicateArtifactQuery {
             key: required_param(params, "key")?,
             content_type: required_param(params, "content_type")?,
             version_ms: optional_u64_param(params, "version_ms")?.unwrap_or_default(),
+            branch: param_value(params, "branch").cloned(),
+            trunk: param_value(params, "trunk").cloned(),
         })
     }
 }
@@ -606,7 +720,7 @@ async fn reject_overloaded_public_writes(
                 .record_memory_action("write_rejected_critical");
             return overloaded_response("server is shedding writes due to memory pressure");
         }
-        if state.runtime.outbox_depth() >= state.config.outbox_max_depth {
+        if state.store.outbox_depth() >= state.config.outbox_max_depth {
             state.metrics.record_memory_action("write_rejected_outbox");
             return overloaded_response("server is shedding writes while replication catches up");
         }
@@ -1095,6 +1209,18 @@ async fn get_keyvalue(
         &key,
     ) {
         Ok(Some(bytes)) => {
+            let permit = match state
+                .memory
+                .try_acquire_response_materialization(bytes.len())
+            {
+                Ok(permit) => permit,
+                Err(()) => {
+                    state
+                        .metrics
+                        .record_memory_action("keyvalue_response_materialization_rejected");
+                    return response_stream_unavailable();
+                }
+            };
             state
                 .metrics
                 .record_artifact_read(ArtifactProducer::Xcode, "ok", bytes.len() as u64);
@@ -1105,14 +1231,18 @@ async fn get_keyvalue(
                 Some(&usage),
                 bytes.len() as u64,
             );
-            (
+            let mut response = (
                 [(
                     axum::http::header::CONTENT_TYPE,
                     HeaderValue::from_static("application/json"),
                 )],
                 bytes,
             )
-                .into_response()
+                .into_response();
+            if let Some(permit) = permit {
+                attach_materialized_response_permit(&mut response, permit);
+            }
+            response
         }
         Ok(None) => {
             state
@@ -1284,6 +1414,8 @@ async fn put_keyvalue(
             "application/json",
             &payload_bytes,
             &targets,
+            None,
+            None,
         )
         .await
     {
@@ -1505,6 +1637,9 @@ async fn start_module_upload(
             &query.name,
         ) {
             Ok(upload_id) => Json(serde_json::json!({ "upload_id": upload_id })).into_response(),
+            Err(error) if is_multipart_capacity_error(&error) => {
+                overloaded_response("server is limiting active multipart uploads")
+            }
             Err(error) => error_response(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 format!("Failed to start upload: {error}"),
@@ -1527,14 +1662,16 @@ async fn upload_module_part(
         Err(message) => return error_response(StatusCode::BAD_REQUEST, message),
     };
 
-    let temp = match read_request_to_temp(
+    let mut temp = match read_request_to_temp(
         request,
         &state.config.tmp_dir.join("parts"),
         MAX_MODULE_PART_BYTES,
-        &state.config.tmp_dir,
-        state.config.tmp_dir_max_bytes,
-        &state.io,
-        None,
+        RequestBodyStaging {
+            tmp_budget: &state.tmp_staging_budget,
+            io: &state.io,
+            memory: &state.memory,
+            bandwidth_limiter: None,
+        },
     )
     .await
     {
@@ -1548,6 +1685,9 @@ async fn upload_module_part(
                 format!("Temporary storage budget exhausted: {error}"),
             );
         }
+        Err(BodyReadError::MemoryPressure) => {
+            return overloaded_response("server is applying upload memory backpressure");
+        }
         Err(BodyReadError::Io(error)) => {
             return io_error_response(
                 format!("Failed to persist multipart upload part: {error}"),
@@ -1556,7 +1696,7 @@ async fn upload_module_part(
         }
     };
 
-    match state
+    let response = match state
         .store
         .add_multipart_part(&query.upload_id, query.part_number, &temp.path, temp.size)
         .await
@@ -1566,20 +1706,21 @@ async fn upload_module_part(
             StatusCode::NO_CONTENT.into_response()
         }
         Err(MultipartError::NotFound) => {
-            state.io.remove_file_if_exists(&temp.path).await;
             state.metrics.record_multipart_part("not_found");
             error_response(StatusCode::NOT_FOUND, "Upload not found")
         }
         Err(MultipartError::TotalSizeExceeded) => {
-            state.io.remove_file_if_exists(&temp.path).await;
             state.metrics.record_multipart_part("too_large");
             error_response(
                 StatusCode::UNPROCESSABLE_ENTITY,
                 "Total upload size exceeds 2GB limit",
             )
         }
+        Err(MultipartError::CapacityExceeded) => {
+            state.metrics.record_multipart_part("capacity_exceeded");
+            overloaded_response("server is limiting incomplete multipart storage")
+        }
         Err(MultipartError::Other(error)) => {
-            state.io.remove_file_if_exists(&temp.path).await;
             state.metrics.record_multipart_part("error");
             error_response(
                 StatusCode::INTERNAL_SERVER_ERROR,
@@ -1587,11 +1728,15 @@ async fn upload_module_part(
             )
         }
         Err(MultipartError::PartsMismatch) => {
-            state.io.remove_file_if_exists(&temp.path).await;
             state.metrics.record_multipart_part("parts_mismatch");
             error_response(StatusCode::BAD_REQUEST, "Parts mismatch")
         }
-    }
+        Err(MultipartError::MemoryPressure) => {
+            overloaded_response("server is applying upload memory backpressure")
+        }
+    };
+    temp.remove_and_disarm(&state.io).await;
+    response
 }
 
 async fn complete_module_upload(
@@ -1641,6 +1786,15 @@ async fn complete_module_upload(
             StatusCode::UNPROCESSABLE_ENTITY,
             "Total upload size exceeds 2GB limit",
         ),
+        Err(MultipartError::CapacityExceeded) => {
+            overloaded_response("server is limiting incomplete multipart storage")
+        }
+        Err(MultipartError::MemoryPressure) => {
+            overloaded_response("server is applying upload memory backpressure")
+        }
+        Err(MultipartError::Other(error)) if is_outbox_full_error(&error) => {
+            overloaded_response("server is shedding writes while replication catches up")
+        }
         Err(MultipartError::Other(error)) => io_error_response(
             format!("Failed to complete multipart upload: {error}"),
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -1666,6 +1820,9 @@ async fn clean_namespace(
         Ok(_version_ms) => {
             state.notify.notify_one();
             StatusCode::NO_CONTENT.into_response()
+        }
+        Err(error) if is_outbox_full_error(&error) => {
+            overloaded_response("server is shedding writes while replication catches up")
         }
         Err(error) => error_response(
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -1734,14 +1891,45 @@ async fn internal_bootstrap_manifests(
         Err(message) => return error_response(StatusCode::BAD_REQUEST, message),
     };
 
-    match state
-        .store
-        .manifests_page(query.after.as_deref(), query.limit)
-    {
+    match state.store.manifests_page_scoped(
+        query.after.as_deref(),
+        query.prefix.as_deref(),
+        query.limit,
+    ) {
         Ok(page) => Json(page).into_response(),
         Err(error) => error_response(
             StatusCode::INTERNAL_SERVER_ERROR,
             format!("Failed to list bootstrap manifests: {error}"),
+        ),
+    }
+}
+
+async fn internal_bootstrap_manifests_digest(
+    Query(params): Query<HashMap<String, String>>,
+    State(state): State<SharedState>,
+) -> Response {
+    let prefix_len = match params.get("prefix_len") {
+        Some(value) => match value.parse::<usize>() {
+            Ok(prefix_len) if prefix_len == BOOTSTRAP_DIGEST_DEFAULT_PREFIX_LEN => prefix_len,
+            _ => {
+                return error_response(
+                    StatusCode::BAD_REQUEST,
+                    format!("Invalid prefix_len: must equal {BOOTSTRAP_DIGEST_DEFAULT_PREFIX_LEN}"),
+                );
+            }
+        },
+        None => BOOTSTRAP_DIGEST_DEFAULT_PREFIX_LEN,
+    };
+
+    match state.store.manifests_digest(prefix_len) {
+        Ok(buckets) => Json(ManifestDigest {
+            prefix_len,
+            buckets,
+        })
+        .into_response(),
+        Err(error) => error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Failed to compute bootstrap manifest digest: {error}"),
         ),
     }
 }
@@ -1782,7 +1970,7 @@ async fn internal_bootstrap_artifact(
                 StatusCode::OK,
                 &manifest,
                 state.replication_bandwidth_limiter.clone(),
-                false,
+                ResponseStreamClass::Bootstrap,
             )
             .await
         }
@@ -1834,7 +2022,18 @@ async fn internal_replicate_artifact(
     }
 
     if query.inline {
-        let bytes = match to_bytes(request.into_body(), state.config.max_keyvalue_bytes).await {
+        // Bound the inline body by the same ceiling the sender and the
+        // bootstrap-pull path use (MAX_INLINE_REPLICATION_BODY_BYTES), not by
+        // the client-facing key-value limit. The latter defaults to 1 MiB
+        // while inline artifacts (notably large REAPI action results) may be
+        // up to 4 MiB, so keying off it here rejected every 1–4 MiB entry with
+        // a 413 and left it replicating forever from a poison outbox message.
+        let bytes = match to_bytes(
+            request.into_body(),
+            MAX_INLINE_REPLICATION_BODY_BYTES as usize,
+        )
+        .await
+        {
             Ok(bytes) => bytes,
             Err(error) => {
                 state
@@ -1859,6 +2058,8 @@ async fn internal_replicate_artifact(
                 &query.content_type,
                 &bytes,
                 query.version_ms,
+                query.branch.as_deref(),
+                query.trunk.as_deref(),
             )
             .await
         {
@@ -1880,14 +2081,16 @@ async fn internal_replicate_artifact(
         };
     }
 
-    let temp = match read_request_to_temp(
+    let mut temp = match read_request_to_temp(
         request,
         &state.config.tmp_dir.join("uploads"),
         MAX_REPLICATION_BODY_BYTES,
-        &state.config.tmp_dir,
-        state.config.tmp_dir_max_bytes,
-        &state.io,
-        state.replication_bandwidth_limiter.clone(),
+        RequestBodyStaging {
+            tmp_budget: &state.tmp_staging_budget,
+            io: &state.io,
+            memory: &state.memory,
+            bandwidth_limiter: state.replication_bandwidth_limiter.as_deref(),
+        },
     )
     .await
     {
@@ -1910,6 +2113,12 @@ async fn internal_replicate_artifact(
                 format!("Temporary storage budget exhausted: {error}"),
             );
         }
+        Err(BodyReadError::MemoryPressure) => {
+            state
+                .metrics
+                .record_replication_apply("replication", "artifact", "error");
+            return overloaded_response("server is applying upload memory backpressure");
+        }
         Err(BodyReadError::Io(error)) => {
             state
                 .metrics
@@ -1928,11 +2137,11 @@ async fn internal_replicate_artifact(
             &query.namespace_id,
             &query.key,
             &query.content_type,
-            &temp.path,
+            StagedArtifactPath::new(&temp.path, temp.file_cache_policy),
             query.version_ms,
         )
         .await;
-    state.io.remove_file_if_exists(&temp.path).await;
+    temp.remove_and_disarm(&state.io).await;
     match result {
         Ok(outcome) => {
             state
@@ -2062,14 +2271,16 @@ async fn put_blob_artifact(
         }
     }
 
-    let temp = match read_request_to_temp(
+    let mut temp = match read_request_to_temp(
         request,
         &state.config.tmp_dir.join("uploads"),
         spec.max_bytes,
-        &state.config.tmp_dir,
-        state.config.tmp_dir_max_bytes,
-        &state.io,
-        None,
+        RequestBodyStaging {
+            tmp_budget: &state.tmp_staging_budget,
+            io: &state.io,
+            memory: &state.memory,
+            bandwidth_limiter: None,
+        },
     )
     .await
     {
@@ -2085,6 +2296,9 @@ async fn put_blob_artifact(
                 StatusCode::SERVICE_UNAVAILABLE,
                 format!("Temporary storage budget exhausted: {error}"),
             );
+        }
+        Err(BodyReadError::MemoryPressure) => {
+            return overloaded_response("server is applying upload memory backpressure");
         }
         Err(BodyReadError::Io(error)) => {
             return io_error_response(
@@ -2102,31 +2316,38 @@ async fn put_blob_artifact(
             spec.namespace_id,
             spec.key,
             "application/octet-stream",
-            &temp.path,
+            StagedArtifactPath::new(&temp.path, temp.file_cache_policy),
             &targets,
         )
         .await;
-    state.io.remove_file_if_exists(&temp.path).await;
+    temp.remove_and_disarm(&state.io).await;
     match result {
-        Ok(manifest) => {
+        Ok(persisted) => {
             state.notify.notify_one();
             state
                 .metrics
-                .record_artifact_write(producer, "ok", manifest.size);
-            record_usage_event(
-                &state,
-                producer,
-                "upload",
-                spec.usage.as_ref(),
-                manifest.size,
-            );
+                .record_artifact_write(producer, "ok", persisted.manifest.size);
+            // The `artifact_exists` early return above keeps the common
+            // re-upload from reading the body at all; billing still relies on
+            // the store's under-lock presence so concurrent uploads of the
+            // same missing artifact (which all pass that pre-check) resolve
+            // to exactly one billed writer.
+            if !persisted.already_present {
+                record_usage_event(
+                    &state,
+                    producer,
+                    "upload",
+                    spec.usage.as_ref(),
+                    persisted.manifest.size,
+                );
+            }
             record_project_scoped_cache_event(
                 &state,
                 producer,
                 "upload",
                 spec.analytics,
                 spec.analytics_key.unwrap_or(spec.key),
-                manifest.size,
+                persisted.manifest.size,
             );
             spec.success_status.into_response()
         }
@@ -2222,22 +2443,53 @@ async fn serve_file(
 ) -> Response {
     match state.store.try_mmap_artifact_bytes(manifest).await {
         Ok(Some(bytes)) => {
+            state.metrics.record_artifact_serving_path("mmap");
+            let requested_bytes = response_stream_chunk_bytes(manifest.size).saturating_mul(4);
+            let permit = match state
+                .memory
+                .try_acquire_mmap_response_stream_memory(requested_bytes, "http")
+            {
+                Some(permit) => permit,
+                // mmap serving is an optimization; hand a budget-constrained
+                // read straight to the streaming path, which can use the
+                // smaller degraded pool. Waiting here first would only delay
+                // that fallback by a full admission timeout.
+                None => {
+                    return serve_file_reader(
+                        state,
+                        status,
+                        manifest,
+                        None,
+                        ResponseStreamClass::Public,
+                    )
+                    .await;
+                }
+            };
             let stream = instrument_artifact_stream(state, manifest, bytes_chunks(bytes), true);
             let mut response = Response::new(Body::from_stream(stream));
             *response.status_mut() = status;
             apply_artifact_response_headers(&mut response, manifest);
+            attach_response_stream_permit(&mut response, permit);
             response
         }
-        Ok(None) => serve_file_reader(state, status, manifest, None, true).await,
+        Ok(None) => {
+            serve_file_reader(state, status, manifest, None, ResponseStreamClass::Public).await
+        }
         Err(error) => {
             tracing::warn!(
                 artifact_id = %manifest.artifact_id,
                 %error,
                 "mmap artifact serving failed; falling back to streaming reader"
             );
-            serve_file_reader(state, status, manifest, None, true).await
+            serve_file_reader(state, status, manifest, None, ResponseStreamClass::Public).await
         }
     }
+}
+
+#[derive(Clone, Copy)]
+enum ResponseStreamClass {
+    Public,
+    Bootstrap,
 }
 
 async fn serve_file_reader(
@@ -2245,23 +2497,104 @@ async fn serve_file_reader(
     status: StatusCode,
     manifest: &ArtifactManifest,
     bandwidth_limiter: Option<Arc<BandwidthLimiter>>,
-    hold_public_inflight: bool,
+    class: ResponseStreamClass,
 ) -> Response {
-    match state.store.open_artifact_reader(manifest).await {
-        Ok(reader) => {
-            let stream = ReaderStream::with_capacity(reader, READER_RESPONSE_CHUNK_BYTES);
+    state.metrics.record_artifact_serving_path("streaming");
+    let inline_bytes = if manifest.inline { manifest.size } else { 0 };
+    let stream_chunk_bytes = response_stream_chunk_bytes(manifest.size);
+    let requested_bytes = usize::try_from(
+        u64::try_from(stream_chunk_bytes.saturating_mul(4))
+            .unwrap_or(u64::MAX)
+            .saturating_add(inline_bytes),
+    )
+    .unwrap_or(usize::MAX);
+    let (permit, stream_chunk_bytes) = match class {
+        // A public read first degrades to the minimum chunk. If even that
+        // bounded path has no slot or live headroom, shed it with a retryable
+        // response rather than opening an unaccounted stream.
+        ResponseStreamClass::Public => match state
+            .memory
+            .acquire_response_stream_memory(
+                requested_bytes,
+                "http",
+                ResponseStreamAdmissionPatience::Degradable,
+            )
+            .await
+        {
+            Ok(permit) => (permit, stream_chunk_bytes),
+            Err(_) => {
+                let degraded_bytes = usize::try_from(
+                    u64::try_from(RESPONSE_STREAM_MIN_CHUNK_BYTES.saturating_mul(4))
+                        .unwrap_or(u64::MAX)
+                        .saturating_add(inline_bytes),
+                )
+                .unwrap_or(usize::MAX);
+                match state
+                    .memory
+                    .acquire_degraded_response_stream_memory(degraded_bytes, "http")
+                    .await
+                {
+                    Ok(permit) => (permit, RESPONSE_STREAM_MIN_CHUNK_BYTES),
+                    Err(_) => return response_stream_unavailable(),
+                }
+            }
+        },
+        // Bootstrap is internal peer traffic that retries on its own schedule,
+        // so shedding it keeps the background bound intact.
+        ResponseStreamClass::Bootstrap => match state
+            .memory
+            .try_acquire_background_response_stream_memory(requested_bytes, "bootstrap")
+        {
+            Ok(permit) => (permit, stream_chunk_bytes),
+            Err(_) => return response_stream_unavailable(),
+        },
+    };
+    // Tolerates a concurrent background promotion relocating the artifact
+    // between the caller's manifest fetch and this open (see
+    // `Store::open_artifact_reader_range_tolerating_promotion`); response
+    // metadata comes from the manifest that was actually opened so headers
+    // always describe the bytes being streamed.
+    match state
+        .store
+        .open_artifact_reader_range_tolerating_promotion(manifest, 0, None)
+        .await
+    {
+        Ok(Some((manifest, reader))) => {
+            let stream = ReaderStream::with_capacity(reader, stream_chunk_bytes);
             let stream = throttle_body_stream(stream, bandwidth_limiter);
-            let stream = instrument_artifact_stream(state, manifest, stream, hold_public_inflight);
+            let stream = instrument_artifact_stream(
+                state,
+                &manifest,
+                stream,
+                matches!(class, ResponseStreamClass::Public),
+            );
             let mut response = Response::new(Body::from_stream(stream));
             *response.status_mut() = status;
-            apply_artifact_response_headers(&mut response, manifest);
+            apply_artifact_response_headers(&mut response, &manifest);
+            attach_response_stream_permit(&mut response, permit);
             response
         }
+        Ok(None) => error_response(
+            StatusCode::NOT_FOUND,
+            "Artifact bytes are missing from local storage".to_string(),
+        ),
         Err(error) => error_response(
             StatusCode::NOT_FOUND,
             format!("Artifact bytes are missing from local storage: {error}"),
         ),
     }
+}
+
+fn response_stream_unavailable() -> Response {
+    let mut response = error_response(
+        StatusCode::SERVICE_UNAVAILABLE,
+        "The server is limiting concurrent artifact response streams; retry shortly".to_string(),
+    );
+    response.headers_mut().insert(
+        axum::http::header::RETRY_AFTER,
+        HeaderValue::from_static("1"),
+    );
+    response
 }
 
 fn instrument_artifact_stream<S>(
@@ -2447,7 +2780,10 @@ fn io_error_response(error: String, fallback_status: StatusCode) -> Response {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::{Arc, Mutex};
+    use std::{
+        convert::Infallible,
+        sync::{Arc, Mutex},
+    };
 
     use axum::{Router, body::Body, extract::Request, response::IntoResponse, routing::post};
     use http_body_util::BodyExt;
@@ -2475,6 +2811,22 @@ mod tests {
             max_buckets: 100,
             outbox_max_depth: 100,
         }
+    }
+
+    #[test]
+    fn bootstrap_page_query_rejects_unbounded_limits() {
+        let maximum = HashMap::from([("limit".to_owned(), MAX_BOOTSTRAP_PAGE_ITEMS.to_string())]);
+        assert_eq!(
+            PageQuery::from_params(&maximum)
+                .expect("maximum bootstrap page should be accepted")
+                .limit,
+            MAX_BOOTSTRAP_PAGE_ITEMS
+        );
+        let oversized = HashMap::from([("limit".to_owned(), usize::MAX.to_string())]);
+        assert_eq!(
+            PageQuery::from_params(&oversized).expect_err("oversized page must be rejected"),
+            format!("Invalid limit: must not exceed {MAX_BOOTSTRAP_PAGE_ITEMS}")
+        );
     }
 
     async fn assert_json_error_response(response: Response, status: StatusCode, message: &str) {
@@ -2641,6 +2993,87 @@ mod tests {
         assert!(!metrics.contains("route=\"/api/cache/cas/artifact-"));
     }
 
+    // Regression test: inline artifact replication used to bound the body by
+    // the client-facing key-value limit (1 MiB), which 413'd every 1–4 MiB
+    // action result the sender pushed inline. The receive limit must track the
+    // inline replication ceiling instead, so a body in that range applies.
+    #[tokio::test]
+    async fn inline_artifact_replication_accepts_bodies_above_the_keyvalue_limit() {
+        let context = test_context(|_| {}).await;
+        let body_len = MAX_INLINE_REPLICATION_BODY_BYTES as usize / 2;
+        assert!(
+            body_len > context.state.config.max_keyvalue_bytes,
+            "fixture must exceed the key-value limit to exercise the regression"
+        );
+
+        let response = internal_router(context.state.clone())
+            .oneshot(
+                Request::builder()
+                    .method("PUT")
+                    .uri(
+                        "/_internal/replicate/artifact?producer=reapi&inline=true\
+                         &namespace_id=tuist&key=action_cache%2Fdeadbeef%2F65\
+                         &content_type=application%2Fx-protobuf&version_ms=1000",
+                    )
+                    .body(Body::from(vec![0u8; body_len]))
+                    .expect("failed to build request"),
+            )
+            .await
+            .expect("request failed");
+
+        assert_eq!(response.status(), StatusCode::NO_CONTENT);
+
+        let stored = context
+            .state
+            .store
+            .fetch_inline_artifact_bytes(
+                ArtifactProducer::Reapi,
+                "tuist",
+                "action_cache/deadbeef/65",
+            )
+            .expect("inline fetch should succeed")
+            .expect("replicated artifact should be persisted");
+        assert_eq!(stored.len(), body_len);
+    }
+
+    // Pins the exact inline replication ceiling so a future limit or comparison
+    // tweak can't silently reintroduce an off-by-one strand: a body of exactly
+    // MAX_INLINE_REPLICATION_BODY_BYTES applies, one byte more is rejected.
+    #[tokio::test]
+    async fn inline_artifact_replication_enforces_the_inline_ceiling_boundary() {
+        let context = test_context(|_| {}).await;
+
+        let put = |key: &'static str, len: usize| {
+            internal_router(context.state.clone()).oneshot(
+                Request::builder()
+                    .method("PUT")
+                    .uri(format!(
+                        "/_internal/replicate/artifact?producer=reapi&inline=true\
+                         &namespace_id=tuist&key={key}\
+                         &content_type=application%2Fx-protobuf&version_ms=1000"
+                    ))
+                    .body(Body::from(vec![0u8; len]))
+                    .expect("failed to build request"),
+            )
+        };
+
+        let at_limit = put(
+            "action_cache%2Faaaa%2F1",
+            MAX_INLINE_REPLICATION_BODY_BYTES as usize,
+        )
+        .await
+        .expect("request failed");
+        assert_eq!(at_limit.status(), StatusCode::NO_CONTENT);
+
+        let over_limit = put(
+            "action_cache%2Fbbbb%2F1",
+            MAX_INLINE_REPLICATION_BODY_BYTES as usize + 1,
+        )
+        .await
+        .expect("request failed");
+        assert_eq!(over_limit.status(), StatusCode::PAYLOAD_TOO_LARGE);
+    }
+
     #[tokio::test]
     async fn unknown_paths_use_a_stable_unmatched_route_metric_label() {
         let context = test_context(|_| {}).await;
@@ -2674,7 +3107,7 @@ mod tests {
                 true,
             )
             .await;
-        assert!(context.state.note_bootstrap_started(&peer).await);
+        assert!(context.state.note_bootstrap_started(&peer).await.is_some());
 
         let response = public_router(context.state.clone())
             .oneshot(
@@ -2696,7 +3129,10 @@ mod tests {
                 .contains("bootstrap in progress")
         );
 
-        context.state.note_bootstrap_succeeded(&peer).await;
+        context
+            .state
+            .note_bootstrap_succeeded(&peer, context.state.current_bootstrap_epoch().await)
+            .await;
         context.state.maybe_mark_serving().await;
 
         let response = public_router(context.state.clone())
@@ -2746,7 +3182,10 @@ mod tests {
                 true,
             )
             .await;
-        context.state.note_bootstrap_succeeded(&peer).await;
+        context
+            .state
+            .note_bootstrap_succeeded(&peer, context.state.current_bootstrap_epoch().await)
+            .await;
         context.state.expire_readiness_settle_window().await;
         context.state.maybe_mark_serving().await;
 
@@ -2821,7 +3260,10 @@ mod tests {
                 true,
             )
             .await;
-        context.state.note_bootstrap_succeeded(&peer).await;
+        context
+            .state
+            .note_bootstrap_succeeded(&peer, context.state.current_bootstrap_epoch().await)
+            .await;
         context.state.expire_readiness_settle_window().await;
         context.state.maybe_mark_serving().await;
         context.state.metrics.update_outbox_messages(7);
@@ -3027,6 +3469,43 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn keyvalue_response_holds_materialization_memory_until_transport_drops() {
+        let context = test_context(|_| {}).await;
+        let app = router(context.state.clone());
+
+        let put_response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("PUT")
+                    .uri("/api/cache/keyvalue?tenant_id=acme&namespace_id=ios")
+                    .header("content-type", "application/json")
+                    .body(Body::from(
+                        r#"{"cas_id":"cas-1","entries":[{"value":"hello"}]}"#,
+                    ))
+                    .expect("failed to build put request"),
+            )
+            .await
+            .expect("put request failed");
+        assert_eq!(put_response.status(), StatusCode::NO_CONTENT);
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/cache/keyvalue/cas-1?tenant_id=acme&namespace_id=ios")
+                    .body(Body::empty())
+                    .expect("failed to build get request"),
+            )
+            .await
+            .expect("get request failed");
+        assert_eq!(response.status(), StatusCode::OK);
+        assert!(context.state.memory.transient_reserved_bytes() > 0);
+
+        drop(response);
+        assert_eq!(context.state.memory.transient_reserved_bytes(), 0);
+    }
+
+    #[tokio::test]
     async fn keyvalue_misses_return_json_not_found_errors() {
         let context = test_context(|_| {}).await;
 
@@ -3141,6 +3620,74 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn response_stream_reservation_follows_bytes_into_the_transport() {
+        let context = test_context(|_| {}).await;
+        let requested_bytes = HTTP_RESPONSE_STREAM_RESERVATION_BYTES;
+        let permit = context
+            .state
+            .memory
+            .acquire_response_stream_memory(
+                requested_bytes,
+                "http",
+                ResponseStreamAdmissionPatience::Degradable,
+            )
+            .await
+            .expect("response stream should be admitted");
+        let mut response = Response::new(Body::from("payload"));
+        attach_response_stream_permit(&mut response, permit);
+        let mut response = guard_response_stream_transport(response).await;
+
+        let frame = response
+            .body_mut()
+            .frame()
+            .await
+            .expect("body should yield a frame")
+            .expect("frame should be valid");
+        let bytes = frame.into_data().expect("frame should contain data");
+        drop(response);
+
+        assert_eq!(
+            context.state.memory.transient_reserved_bytes(),
+            requested_bytes as u64,
+            "transport-owned bytes must keep the complete bounded reservation"
+        );
+        drop(bytes);
+        assert_eq!(context.state.memory.transient_reserved_bytes(), 0);
+    }
+
+    #[tokio::test]
+    async fn materialized_response_reservation_follows_encoded_transport_bytes() {
+        let context = test_context(|_| {}).await;
+        let content_bytes = 64 * 1024;
+        let permit = context
+            .state
+            .memory
+            .try_acquire_response_materialization(content_bytes)
+            .expect("materialized response should be admitted")
+            .expect("non-empty response should return a permit");
+        let mut response = Response::new(Body::from(vec![0_u8; content_bytes]));
+        response.extensions_mut().insert(
+            crate::memory::ResponseTransportGuard::from_materialization_permits(vec![permit]),
+        );
+        let mut response = guard_response_stream_transport(response).await;
+
+        let frame = response
+            .body_mut()
+            .frame()
+            .await
+            .expect("body should yield a frame")
+            .expect("frame should be valid");
+        let bytes = frame.into_data().expect("frame should contain data");
+        drop(response);
+        assert_eq!(
+            context.state.memory.transient_reserved_bytes(),
+            (content_bytes * 2) as u64
+        );
+        drop(bytes);
+        assert_eq!(context.state.memory.transient_reserved_bytes(), 0);
+    }
+
+    #[tokio::test]
     async fn bytes_chunks_reassembles_multi_chunk_payloads() {
         use futures_util::StreamExt;
 
@@ -3207,9 +3754,16 @@ mod tests {
             .to_bytes();
         assert_eq!(mmap_body.as_ref(), payload.as_slice());
 
-        // Force memory pressure so mmap serving is skipped and the streaming
-        // reader path serves the same artifact; the bytes must be identical.
-        context.state.memory.observe(u64::MAX);
+        // Force constrained memory pressure so mmap serving is skipped while
+        // leaving exactly one bounded streaming reservation available; the
+        // reader fallback must serve identical bytes.
+        context.state.memory.observe(
+            context
+                .state
+                .memory
+                .hard_limit_bytes()
+                .saturating_sub(HTTP_RESPONSE_STREAM_RESERVATION_BYTES as u64),
+        );
 
         let reader_response = app
             .oneshot(get_request())
@@ -3229,6 +3783,166 @@ mod tests {
         assert!(metrics.contains("producer=\"xcode\""));
         assert!(metrics.contains("result=\"ok\""));
         assert!(metrics.contains(&format!("{}", payload.len() * 2)));
+    }
+
+    #[tokio::test]
+    async fn a_public_read_sheds_when_no_bounded_stream_reservation_remains() {
+        let context = test_context(|_| {}).await;
+        let app = router(context.state.clone());
+        let payload: Vec<u8> = (0..(512 * 1024 + 13))
+            .map(|index| (index % 251) as u8)
+            .collect();
+
+        let put_response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/cache/cas/degraded-read?tenant_id=acme&namespace_id=ios")
+                    .header("content-type", "application/octet-stream")
+                    .body(Body::from(payload.clone()))
+                    .expect("failed to build put request"),
+            )
+            .await
+            .expect("put request failed");
+        assert_eq!(put_response.status(), StatusCode::NO_CONTENT);
+
+        // Leave no transient headroom at all, so both the weighted pool and the
+        // ledger refuse the full four-buffer reservation.
+        context
+            .state
+            .memory
+            .observe(context.state.memory.hard_limit_bytes());
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/cache/cas/degraded-read?tenant_id=acme&namespace_id=ios")
+                    .body(Body::empty())
+                    .expect("failed to build get request"),
+            )
+            .await
+            .expect("get request failed");
+
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        assert_eq!(
+            response.headers().get(axum::http::header::RETRY_AFTER),
+            Some(&HeaderValue::from_static("1"))
+        );
+        assert!(
+            context
+                .state
+                .metrics
+                .render()
+                .contains("outcome=\"degraded_memory_unavailable\"")
+        );
+    }
+
+    #[tokio::test]
+    async fn a_public_read_uses_the_bounded_degraded_pool_when_full_size_admission_is_exhausted() {
+        let context = test_context(|_| {}).await;
+        let app = router(context.state.clone());
+        let payload: Vec<u8> = (0..(512 * 1024 + 13))
+            .map(|index| (index % 251) as u8)
+            .collect();
+
+        let put_response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/cache/cas/degraded-read?tenant_id=acme&namespace_id=ios")
+                    .header("content-type", "application/octet-stream")
+                    .body(Body::from(payload.clone()))
+                    .expect("failed to build put request"),
+            )
+            .await
+            .expect("put request failed");
+        assert_eq!(put_response.status(), StatusCode::NO_CONTENT);
+
+        let _held = context
+            .state
+            .memory
+            .acquire_response_stream_memory(
+                context
+                    .state
+                    .memory
+                    .foreground_response_streaming_pool_bytes(),
+                "test",
+                ResponseStreamAdmissionPatience::Blocking,
+            )
+            .await
+            .expect("the full-size response pool should start available");
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/cache/cas/degraded-read?tenant_id=acme&namespace_id=ios")
+                    .body(Body::empty())
+                    .expect("failed to build get request"),
+            )
+            .await
+            .expect("get request failed");
+
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = response
+            .into_body()
+            .collect()
+            .await
+            .expect("failed to collect degraded body")
+            .to_bytes();
+        assert_eq!(body.as_ref(), payload.as_slice());
+        assert!(
+            context
+                .state
+                .metrics
+                .render()
+                .contains("outcome=\"degraded\"")
+        );
+    }
+
+    #[tokio::test]
+    async fn bounded_staging_preserves_every_streamed_request_byte() {
+        let context = test_context(|_| {}).await;
+        let app = router(context.state.clone());
+        let payload = Bytes::from(vec![0xA5; 17 * 1024 * 1024]);
+        let chunks = payload
+            .chunks(256 * 1024)
+            .map(|chunk| Ok::<_, Infallible>(Bytes::copy_from_slice(chunk)))
+            .collect::<Vec<_>>();
+
+        let put_response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/cache/cas/bounded-stream?tenant_id=acme&namespace_id=ios")
+                    .header("content-type", "application/octet-stream")
+                    .header(axum::http::header::CONTENT_LENGTH, payload.len())
+                    .body(Body::from_stream(tokio_stream::iter(chunks)))
+                    .expect("failed to build put request"),
+            )
+            .await
+            .expect("put request failed");
+        assert_eq!(put_response.status(), StatusCode::NO_CONTENT);
+
+        let get_response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/cache/cas/bounded-stream?tenant_id=acme&namespace_id=ios")
+                    .body(Body::empty())
+                    .expect("failed to build get request"),
+            )
+            .await
+            .expect("get request failed");
+        assert_eq!(get_response.status(), StatusCode::OK);
+        let stored = get_response
+            .into_body()
+            .collect()
+            .await
+            .expect("failed to collect stored artifact")
+            .to_bytes();
+        assert_eq!(stored, payload);
     }
 
     #[tokio::test]
@@ -4017,6 +4731,17 @@ mod tests {
         assert_eq!(context.state.runtime.public_http_inflight(), 1);
         drop(instrumented);
         assert_eq!(context.state.runtime.public_http_inflight(), 0);
+    }
+
+    #[test]
+    fn response_stream_admission_failure_is_retryable() {
+        let response = response_stream_unavailable();
+
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        assert_eq!(
+            response.headers().get(axum::http::header::RETRY_AFTER),
+            Some(&HeaderValue::from_static("1"))
+        );
     }
 
     #[derive(Clone, Debug)]

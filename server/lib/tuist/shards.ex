@@ -30,8 +30,8 @@ defmodule Tuist.Shards do
     granularity = Map.get(params, :granularity, "module")
     reference = Map.fetch!(params, :reference)
 
-    timing_data = fetch_timing_data(project, granularity)
-    units = resolve_units(project, params, granularity, timing_data)
+    units = resolve_units(project, params, granularity)
+    timing_data = fetch_timing_data(project, granularity, units)
     units_with_durations = assign_durations(units, timing_data, granularity)
 
     shard_count =
@@ -43,7 +43,12 @@ defmodule Tuist.Shards do
         max_duration: Map.get(params, :shard_max_duration)
       )
 
-    assignment_shards = BinPacker.pack(units_with_durations, shard_count)
+    assignment_shards =
+      if granularity == "suite" do
+        BinPacker.pack(units_with_durations, shard_count, &suite_module/1)
+      else
+        BinPacker.pack(units_with_durations, shard_count)
+      end
 
     now = NaiveDateTime.utc_now()
 
@@ -69,7 +74,14 @@ defmodule Tuist.Shards do
 
     {:ok, plan} = %ShardPlan{} |> ShardPlan.create_changeset(attrs) |> IngestRepo.insert()
 
-    insert_shard_targets(plan, project.id, assignment_shards, granularity, now)
+    insert_shard_targets(
+      plan,
+      project.id,
+      assignment_shards,
+      granularity,
+      now,
+      module_inventory(params, units, granularity)
+    )
 
     %{
       plan: plan,
@@ -85,22 +97,22 @@ defmodule Tuist.Shards do
     end
   end
 
-  def start_upload(%Project{} = project, %Account{} = account, reference) do
+  def start_upload(%Project{} = project, %Account{} = account, reference, artifact \\ nil) do
     case get_plan(project.id, reference) do
       nil ->
         {:error, :not_found}
 
       plan ->
-        start_upload_for_plan(project, account, plan)
+        start_upload_for_plan(project, account, plan, artifact)
     end
   end
 
-  def start_upload_for_plan(%Project{} = project, %Account{} = account, %ShardPlan{} = plan) do
-    start_upload_for_plan_id(project, account, plan.id)
+  def start_upload_for_plan(%Project{} = project, %Account{} = account, %ShardPlan{} = plan, artifact \\ nil) do
+    start_upload_for_plan_id(project, account, plan.id, artifact)
   end
 
-  def start_upload_for_plan_id(%Project{} = project, %Account{} = account, plan_id) do
-    upload_id = Storage.multipart_start(bundle_object_key(account, project, plan_id), account)
+  def start_upload_for_plan_id(%Project{} = project, %Account{} = account, plan_id, artifact \\ nil) do
+    upload_id = Storage.multipart_start(artifact_object_key(account, project, plan_id, artifact), account)
     {:ok, upload_id}
   end
 
@@ -114,9 +126,12 @@ defmodule Tuist.Shards do
           nil ->
             {:error, :invalid_shard_index}
 
-          %{modules: modules, suites: suites, skip: skip} ->
-            download_url =
-              Storage.generate_download_url(bundle_object_key(account, project, plan.id), account)
+          %{modules: modules, suites: suites, skip: skip} = shard_data ->
+            # The catch-all shard selects nothing via `-only-testing` (`modules` is empty) but must
+            # still run every un-skipped target, so it downloads the plan's whole module inventory
+            # rather than only its selection modules.
+            download_modules = Map.get(shard_data, :download_modules, modules)
+            {download_url, download_urls} = shard_download_urls(account, project, plan.id, download_modules)
 
             {:ok,
              %{
@@ -124,41 +139,55 @@ defmodule Tuist.Shards do
                modules: modules,
                suites: suites,
                skip: skip,
-               download_url: download_url
+               download_url: download_url,
+               download_urls: download_urls
              }}
         end
     end
   end
 
-  def complete_upload(%Project{} = project, %Account{} = account, reference, upload_id, parts) do
+  def complete_upload(%Project{} = project, %Account{} = account, reference, upload_id, parts, artifact \\ nil) do
     case get_plan(project.id, reference) do
       nil ->
         {:error, :not_found}
 
       plan ->
-        complete_upload_for_plan(project, account, plan.id, upload_id, parts)
+        complete_upload_for_plan(project, account, plan.id, upload_id, parts, artifact)
     end
   end
 
-  def complete_upload_for_plan(%Project{} = project, %Account{} = account, plan_id, upload_id, parts) do
-    Storage.multipart_complete_upload(bundle_object_key(account, project, plan_id), upload_id, parts, account)
+  def complete_upload_for_plan(%Project{} = project, %Account{} = account, plan_id, upload_id, parts, artifact \\ nil) do
+    Storage.multipart_complete_upload(
+      artifact_object_key(account, project, plan_id, artifact),
+      upload_id,
+      parts,
+      account
+    )
+
     :ok
   end
 
-  def generate_upload_url(%Project{} = project, %Account{} = account, reference, upload_id, part_number) do
+  def generate_upload_url(%Project{} = project, %Account{} = account, reference, upload_id, part_number, artifact \\ nil) do
     case get_plan(project.id, reference) do
       nil ->
         {:error, :not_found}
 
       plan ->
-        generate_upload_url_for_plan(project, account, plan.id, upload_id, part_number)
+        generate_upload_url_for_plan(project, account, plan.id, upload_id, part_number, artifact)
     end
   end
 
-  def generate_upload_url_for_plan(%Project{} = project, %Account{} = account, plan_id, upload_id, part_number) do
+  def generate_upload_url_for_plan(
+        %Project{} = project,
+        %Account{} = account,
+        plan_id,
+        upload_id,
+        part_number,
+        artifact \\ nil
+      ) do
     url =
       Storage.multipart_generate_url(
-        bundle_object_key(account, project, plan_id),
+        artifact_object_key(account, project, plan_id, artifact),
         upload_id,
         part_number,
         account
@@ -167,11 +196,43 @@ defmodule Tuist.Shards do
     {:ok, url}
   end
 
+  # Each shard downloads only the products it needs: a single `shared` artifact (frameworks,
+  # dylibs, the xctestrun, etc.) plus one per-module artifact for each module assigned to the
+  # shard. Falls back to the legacy single per-plan bundle when split artifacts weren't uploaded.
+  defp shard_download_urls(account, project, plan_id, modules) do
+    shared_key = artifact_object_key(account, project, plan_id, "shared")
+
+    if Storage.object_exists?(shared_key, account) do
+      shared_url = Storage.generate_download_url(shared_key, account)
+
+      module_urls =
+        Enum.map(modules, fn module ->
+          Storage.generate_download_url(artifact_object_key(account, project, plan_id, "module:" <> module), account)
+        end)
+
+      {nil, [shared_url | module_urls]}
+    else
+      bundle_url = Storage.generate_download_url(bundle_object_key(account, project, plan_id), account)
+      {bundle_url, [bundle_url]}
+    end
+  end
+
   def bundle_object_key(account, project, plan_id) do
     "#{account.id}/#{project.id}/shards/#{plan_id}/bundle.zip"
   end
 
-  defp insert_shard_targets(plan, project_id, shards, "module", now) do
+  def artifact_object_key(account, project, plan_id, artifact) do
+    base = "#{account.id}/#{project.id}/shards/#{plan_id}"
+
+    case artifact do
+      nil -> "#{base}/bundle.zip"
+      "shared" -> "#{base}/shared.aar"
+      "module:" <> module_name -> "#{base}/modules/#{module_name}.aar"
+      _ -> "#{base}/bundle.zip"
+    end
+  end
+
+  defp insert_shard_targets(plan, project_id, shards, "module", now, _module_inventory) do
     rows =
       Enum.flat_map(shards, fn {index, shard_units, _total} ->
         Enum.map(shard_units, fn {name, duration} ->
@@ -189,8 +250,8 @@ defmodule Tuist.Shards do
     if rows != [], do: IngestRepo.insert_all(ShardPlanModule, rows)
   end
 
-  defp insert_shard_targets(plan, project_id, shards, "suite", now) do
-    rows =
+  defp insert_shard_targets(plan, project_id, shards, "suite", now, module_inventory) do
+    suite_rows =
       Enum.flat_map(shards, fn {index, shard_units, _total} ->
         Enum.map(shard_units, fn {name, duration} ->
           {module_name, test_suite_name} =
@@ -211,7 +272,39 @@ defmodule Tuist.Shards do
         end)
       end)
 
-    if rows != [], do: IngestRepo.insert_all(ShardPlanTestSuite, rows)
+    if suite_rows != [], do: IngestRepo.insert_all(ShardPlanTestSuite, suite_rows)
+
+    # Record the products each shard must download. Regular shards need only their assigned suites'
+    # modules; the catch-all shard runs everything not skipped, so it downloads the full built-module
+    # inventory (which includes targets that have no suite history and therefore no planned suites).
+    insert_suite_download_modules(plan, project_id, shards, module_inventory, now)
+  end
+
+  defp insert_suite_download_modules(plan, project_id, shards, module_inventory, now) do
+    catch_all_index = plan.shard_count - 1
+
+    rows =
+      Enum.flat_map(shards, fn {index, shard_units, _total} ->
+        modules =
+          if index == catch_all_index do
+            module_inventory
+          else
+            shard_units |> Enum.map(fn {name, _duration} -> suite_module(name) end) |> Enum.uniq()
+          end
+
+        Enum.map(modules, fn module_name ->
+          %{
+            shard_plan_id: plan.id,
+            project_id: project_id,
+            shard_index: index,
+            module_name: module_name,
+            estimated_duration_ms: 0,
+            inserted_at: now
+          }
+        end)
+      end)
+
+    if rows != [], do: IngestRepo.insert_all(ShardPlanModule, rows)
   end
 
   defp fetch_shard_data(%ShardPlan{granularity: "module"} = plan, shard_index, _opts) do
@@ -226,13 +319,22 @@ defmodule Tuist.Shards do
   end
 
   defp fetch_shard_data(%ShardPlan{granularity: "suite"} = plan, shard_index, opts) do
-    plan = ClickHouseRepo.preload(plan, :test_suites)
+    plan = ClickHouseRepo.preload(plan, [:test_suites, :modules])
     suite_catch_all? = Keyword.get(opts, :suite_catch_all?, false)
 
     results =
       plan.test_suites
       |> Enum.filter(&(&1.shard_index == shard_index))
       |> Enum.map(&{&1.module_name, &1.test_suite_name})
+
+    # Each suite shard records the modules it must download (regular shards get their assigned
+    # suites' modules; the catch-all gets the full built-module inventory, since it runs every
+    # un-skipped target and the shared `.xctestrun` references them all).
+    download_modules =
+      plan.modules
+      |> Enum.filter(&(&1.shard_index == shard_index))
+      |> Enum.map(& &1.module_name)
+      |> Enum.uniq()
 
     cond do
       shard_index < 0 or shard_index >= plan.shard_count ->
@@ -244,19 +346,36 @@ defmodule Tuist.Shards do
           |> Enum.filter(&(&1.shard_index < shard_index))
           |> Enum.map(&"#{&1.module_name}/#{&1.test_suite_name}")
 
-        %{modules: [], suites: %{}, skip: skip}
+        %{
+          modules: [],
+          suites: %{},
+          skip: skip,
+          download_modules: download_modules_or(download_modules, all_suite_modules(plan))
+        }
 
       results == [] ->
         if shard_index == plan.shard_count - 1 do
-          %{modules: [], suites: %{}, skip: []}
+          %{
+            modules: [],
+            suites: %{},
+            skip: [],
+            download_modules: download_modules_or(download_modules, all_suite_modules(plan))
+          }
         end
 
       true ->
         suites = Enum.group_by(results, fn {mod, _} -> mod end, fn {_, suite} -> suite end)
         modules = Map.keys(suites)
-        %{modules: modules, suites: suites, skip: []}
+        %{modules: modules, suites: suites, skip: [], download_modules: download_modules_or(download_modules, modules)}
     end
   end
+
+  # Plans created before per-shard download modules were recorded have no `shard_plan_modules` rows
+  # for suite shards; fall back so a plan read across a deploy still downloads what it needs.
+  defp download_modules_or([], fallback), do: fallback
+  defp download_modules_or(download_modules, _fallback), do: download_modules
+
+  defp all_suite_modules(plan), do: plan.test_suites |> Enum.map(& &1.module_name) |> Enum.uniq()
 
   defp get_plan(project_id, reference) do
     ClickHouseRepo.one(
@@ -269,17 +388,33 @@ defmodule Tuist.Shards do
     )
   end
 
-  defp resolve_units(_project, params, "module", _timing_data), do: Map.get(params, :modules, [])
+  defp resolve_units(_project, params, "module"), do: params_modules(params)
 
-  defp resolve_units(project, params, "suite", _timing_data) do
-    case Map.get(params, :test_suites, []) do
-      suites when suites != [] ->
+  defp resolve_units(project, params, "suite") do
+    case Map.get(params, :test_suites) do
+      [_ | _] = suites ->
         suites
 
       _ ->
-        latest_branch_suite_units(project, params, Map.get(params, :modules, []))
+        latest_branch_suite_units(project, params, params_modules(params))
     end
   end
+
+  defp params_modules(params), do: Map.get(params, :modules) || []
+
+  # The full set of test-target modules the plan covers, used to give the catch-all shard every
+  # per-module product it needs to download. The client sends the deterministic `.xctestrun` module
+  # universe; when it doesn't (e.g. a client-enumerated suite plan), derive it from the units so the
+  # inventory still covers every module that has planned work.
+  defp module_inventory(params, units, granularity) do
+    case params_modules(params) do
+      [_ | _] = modules -> Enum.uniq(modules)
+      _ -> units |> Enum.map(&unit_module(&1, granularity)) |> Enum.uniq()
+    end
+  end
+
+  defp unit_module(unit, "suite"), do: suite_module(unit)
+  defp unit_module(unit, _granularity), do: unit
 
   defp latest_branch_suite_units(_project, _params, []), do: []
 
@@ -288,13 +423,27 @@ defmodule Tuist.Shards do
     branches = suite_inventory_branches(project, params)
     suites_by_branch_module = latest_branch_module_suite_units(project, branches, modules)
 
-    modules
-    |> Enum.flat_map(fn module ->
-      branches
-      |> Enum.find_value(fn branch -> Map.get(suites_by_branch_module, {branch, module}) end)
-      |> List.wrap()
-    end)
-    |> Enum.uniq()
+    units_by_module =
+      Map.new(modules, fn module ->
+        {module, Enum.find_value(branches, fn branch -> Map.get(suites_by_branch_module, {branch, module}) end)}
+      end)
+
+    # A module with no suite history on the preferred branches falls back to its most recent CI run
+    # on any branch. The preferred branches can come up empty for reasons that have nothing to do
+    # with the module: a project that only runs tests on pull-request branches has no history on its
+    # default branch, and the build run the branch is read from is written through an async
+    # ingestion buffer, so it is usually still unflushed when the plan is created. Without the
+    # fallback every module resolves no suites, and a plan with nothing to pack collapses to a
+    # single catch-all shard that runs the whole suite serially.
+    fallback_units =
+      units_by_module
+      |> Enum.filter(fn {_module, units} -> is_nil(units) end)
+      |> Enum.map(fn {module, _units} -> module end)
+      |> then(&latest_module_suite_units(project, &1))
+
+    branch_units = units_by_module |> Map.values() |> Enum.reject(&is_nil/1) |> List.flatten()
+
+    Enum.uniq(branch_units ++ fallback_units)
   end
 
   defp suite_inventory_branches(project, params) do
@@ -361,42 +510,110 @@ defmodule Tuist.Shards do
     |> Enum.group_by(fn row -> {row.branch, row.module} end, & &1.name)
   end
 
+  # Suite inventory for modules that have no history on any of the preferred branches, taken from
+  # each module's most recent CI run regardless of branch. Suites that exist only on the branch
+  # being built still run: they are absent from the plan, and the catch-all shard picks them up.
+  defp latest_module_suite_units(_project, []), do: []
+
+  defp latest_module_suite_units(project, modules) do
+    cutoff = DateTime.add(DateTime.utc_now(), -@timing_lookback_days, :day)
+
+    latest_module_runs_query =
+      from(mr in TestModuleRun,
+        where: mr.project_id == ^project.id,
+        where: mr.is_ci == true,
+        where: mr.ran_at >= ^cutoff,
+        where: mr.name in ^modules,
+        where: mr.test_suite_count > 0,
+        group_by: mr.name,
+        select: %{
+          module_name: mr.name,
+          test_run_id: fragment("argMax(?, ?)", mr.test_run_id, mr.ran_at)
+        }
+      )
+
+    ClickHouseRepo.all(
+      from(sr in TestSuiteRun,
+        join: mr in TestModuleRun,
+        on: sr.test_module_run_id == mr.id,
+        join: latest in subquery(latest_module_runs_query),
+        on: latest.test_run_id == sr.test_run_id and latest.module_name == mr.name,
+        where: sr.project_id == ^project.id,
+        where: sr.is_ci == true,
+        where: sr.ran_at >= ^cutoff,
+        where: mr.name in ^modules,
+        group_by: [latest.module_name, sr.name],
+        select: fragment("concat(?, '/', ?)", latest.module_name, sr.name)
+      )
+    )
+  end
+
   defp blank?(nil), do: true
   defp blank?(""), do: true
   defp blank?(_), do: false
 
-  defp fetch_timing_data(project, "module") do
+  # Suite units are named "Module/Suite"; the module prefix is what determines
+  # which per-module test bundle a shard needs to download.
+  defp suite_module(name) do
+    case String.split(name, "/", parts: 2) do
+      [module | _] -> module
+      _ -> name
+    end
+  end
+
+  defp fetch_timing_data(_project, _granularity, []), do: %{}
+
+  defp fetch_timing_data(project, "module", modules) do
     cutoff = DateTime.add(DateTime.utc_now(), -@timing_lookback_days, :day)
 
     from(mr in TestModuleRun,
       where: mr.project_id == ^project.id,
       where: mr.is_ci == true,
       where: mr.ran_at >= ^cutoff,
+      where: mr.name in ^modules,
       group_by: mr.name,
       select: %{name: mr.name, duration: fragment("quantile(?)(?)", ^@timing_quantile, mr.duration)}
     )
     |> ClickHouseRepo.all()
-    |> Map.new(fn %{name: name, duration: duration} -> {name, round(duration)} end)
+    |> Map.new(fn %{name: name, duration: duration} -> {name, round_timing_duration(duration)} end)
   end
 
-  defp fetch_timing_data(project, "suite") do
+  defp fetch_timing_data(project, "suite", units) do
     cutoff = DateTime.add(DateTime.utc_now(), -@timing_lookback_days, :day)
+    modules = units |> Enum.map(&suite_module/1) |> Enum.uniq()
 
-    from(sr in TestSuiteRun,
-      join: mr in TestModuleRun,
-      on: sr.test_module_run_id == mr.id,
-      where: sr.project_id == ^project.id,
-      where: sr.is_ci == true,
-      where: sr.ran_at >= ^cutoff,
-      group_by: fragment("concat(?, '/', ?)", mr.name, sr.name),
-      select: %{
-        name: fragment("concat(?, '/', ?)", mr.name, sr.name),
-        duration: fragment("quantile(?)(?)", ^@timing_quantile, sr.duration)
-      }
-    )
-    |> ClickHouseRepo.all()
-    |> Map.new(fn %{name: name, duration: duration} -> {name, round(duration)} end)
+    query = """
+    SELECT
+      concat(mr.name, '/', sr.name) AS name,
+      quantile({timing_quantile:Float64})(sr.duration) AS duration
+    FROM test_suite_runs AS sr
+    INNER JOIN test_module_runs AS mr ON sr.test_module_run_id = mr.id
+    WHERE sr.project_id = {project_id:Int64}
+      AND sr.is_ci = true
+      AND sr.ran_at >= {cutoff:DateTime64(6)}
+      AND mr.project_id = {project_id:Int64}
+      AND mr.is_ci = true
+      AND mr.ran_at >= {cutoff:DateTime64(6)}
+      AND mr.name IN {modules:Array(String)}
+      AND concat(mr.name, '/', sr.name) IN {units:Array(String)}
+    GROUP BY name
+    """
+
+    params = %{
+      project_id: project.id,
+      timing_quantile: @timing_quantile,
+      cutoff: cutoff,
+      modules: modules,
+      units: units
+    }
+
+    {:ok, %{rows: rows}} = ClickHouseRepo.query(query, params)
+
+    Map.new(rows, fn [name, duration] -> {name, round_timing_duration(duration)} end)
   end
+
+  defp round_timing_duration(%Decimal{} = duration), do: duration |> Decimal.to_float() |> round()
+  defp round_timing_duration(duration), do: round(duration)
 
   defp assign_durations(unit_names, timing_data, granularity) do
     known_durations = Map.values(timing_data)

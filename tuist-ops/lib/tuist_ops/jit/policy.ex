@@ -5,14 +5,16 @@ defmodule TuistOps.JIT.Policy do
   fetched via `TuistOps.JIT.TailscaleClient.user_role/1`):
 
     * `self_approval_allowed?/2` — can the requester approve their
-      own elevation? Owner/Admin roles can self-approve any env;
-      Member can self-approve `staging` and `canary` only.
+      own elevation? Owner/Admin and Member roles can all
+      self-approve any env, production included: a member may
+      self-service a production elevation without a second human.
 
     * `approver_allowed?/2` — can a second human (whoever clicked
-      Approve) authorize this elevation? Owner/Admin can approve
-      any env; Member can approve `staging` and `canary`. Production
-      always requires an Owner/Admin to click Approve, regardless of
-      whether the requester is the same person or someone else.
+      Approve) authorize this elevation? Owner/Admin and Member can
+      all approve any env, production included. (Once members can
+      self-approve production, gating the second-human path tighter
+      buys nothing — a member could always self-approve instead of
+      asking another member to click Approve.)
 
   Source of truth = the Tailscale tailnet role (`Owner`, `Admin`,
   `Member` etc. as shown in the admin console Users page). Nothing
@@ -37,10 +39,6 @@ defmodule TuistOps.JIT.Policy do
     "group:tuist-production-write" => "production"
   }
 
-  # Roles that map to the "engineer / member" tier — staging and
-  # canary self-approve / approve, but not production.
-  @member_envs ~w(staging canary)
-
   @doc """
   Returns true if `actor_email` is allowed to approve their own
   elevation request for `target_group`. Unknown target groups
@@ -48,9 +46,9 @@ defmodule TuistOps.JIT.Policy do
   """
   def self_approval_allowed?(actor_email, target_group)
       when is_binary(actor_email) and is_binary(target_group) do
-    with env when not is_nil(env) <- Map.get(@group_to_env, target_group),
+    with true <- Map.has_key?(@group_to_env, target_group),
          {:ok, role} <- TailscaleClient.user_role(actor_email) do
-      allow_for_env?(role, env)
+      engineering_role?(role)
     else
       _ -> false
     end
@@ -60,16 +58,15 @@ defmodule TuistOps.JIT.Policy do
 
   @doc """
   Returns true if `approver_email` is allowed to be the second
-  human on the request — i.e. their tailnet role is high enough
-  for the env they're approving. Used in the "second-human" path
-  (`actor != requester`) to keep an engineer from approving
-  another engineer's production write.
+  human on the request — i.e. they hold an engineering tailnet
+  role (Owner/Admin/Member), which clears any env. Used in the
+  "second-human" path (`actor != requester`).
   """
   def approver_allowed?(approver_email, target_group)
       when is_binary(approver_email) and is_binary(target_group) do
-    with env when not is_nil(env) <- Map.get(@group_to_env, target_group),
+    with true <- Map.has_key?(@group_to_env, target_group),
          {:ok, role} <- TailscaleClient.user_role(approver_email) do
-      allow_for_env?(role, env)
+      engineering_role?(role)
     else
       _ -> false
     end
@@ -91,13 +88,14 @@ defmodule TuistOps.JIT.Policy do
   deciding whether to inject the elevated impersonation header.
   """
   def env_access(role, env) when is_atom(role) and is_binary(env) do
-    if allow_for_env?(role, env), do: {:ok, env}, else: :deny
+    if engineering_role?(role), do: {:ok, env}, else: :deny
   end
 
-  # Owner/Admin → any env. Member → staging + canary. Everything
-  # else (Auditor, Billing admin, etc., and unrecognized roles)
-  # falls through to deny.
-  defp allow_for_env?(role, _env) when role in [:owner, :admin], do: true
-  defp allow_for_env?(:member, env) when env in @member_envs, do: true
-  defp allow_for_env?(_role, _env), do: false
+  # Every engineering identity (Owner, Admin, Member) is cleared for
+  # every env, production included — members may self-service a prod
+  # elevation without a second human. Role still shapes the base
+  # impersonation group elsewhere (tuist-eng vs tuist-admins; see
+  # TuistOpsWeb.PolicyController). Non-engineering roles (Auditor,
+  # Billing admin, unrecognized) are not cleared.
+  defp engineering_role?(role), do: role in [:owner, :admin, :member]
 end

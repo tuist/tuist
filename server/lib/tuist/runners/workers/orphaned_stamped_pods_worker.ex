@@ -8,7 +8,7 @@ defmodule Tuist.Runners.Workers.OrphanedStampedPodsWorker do
   ## Why this exists
 
   The dispatch path stamps the owner label on a polling Pod the
-  instant it wins a claim (`Tuist.Runners.stamp_owner_labels/3`),
+  instant it wins a claim (`Tuist.Runners.stamp_owner_label/3`),
   *before* minting the JIT. That label is what the runner-pool
   reconciler reads to decide a Pod is busy: it only scales down
   *idle* (un-stamped) Pods, never owner-stamped ones, so a stamped
@@ -34,8 +34,8 @@ defmodule Tuist.Runners.Workers.OrphanedStampedPodsWorker do
   handful starve a node and wedge the whole fleet. A single deploy
   can batch-leak the entire warm pool.
 
-  Because `Claims.attempt/4` INSERTs the claim *before*
-  `stamp_owner_labels/3` runs, an owner-stamped Pod should *always*
+  Because `Claims.attempt/5` INSERTs the claim *before*
+  `stamp_owner_label/3` runs, an owner-stamped Pod should *always*
   have a matching claim. A stamped Pod with no claim is therefore
   unambiguously a leak — there is no legitimate transient state.
   This worker reconciles Kubernetes against the claim table (which

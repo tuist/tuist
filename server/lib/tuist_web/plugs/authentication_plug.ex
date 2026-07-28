@@ -6,6 +6,7 @@ defmodule TuistWeb.AuthenticationPlug do
 
   import Plug.Conn
 
+  alias Tuist.Accounts
   alias Tuist.Accounts.AuthenticatedAccount
   alias Tuist.Accounts.User
   alias Tuist.Projects
@@ -43,15 +44,20 @@ defmodule TuistWeb.AuthenticationPlug do
           |> halt()
 
         :mcp ->
+          origin = RequestOrigin.from_conn(conn)
+
           conn
           |> put_resp_header(
             "www-authenticate",
-            ~s(Bearer realm="tuist-mcp", resource_metadata="#{RequestOrigin.from_conn(conn)}#{@mcp_resource_metadata_path}")
+            ~s(Bearer realm="tuist-mcp", resource_metadata="#{origin}#{@mcp_resource_metadata_path}")
           )
           |> put_status(:unauthorized)
           |> json(%{
             error: "invalid_token",
-            error_description: "Missing or invalid access token."
+            error_description: "Missing or invalid access token.",
+            auth_md: "#{origin}/auth.md",
+            authentication_instructions:
+              "Fetch auth_md and follow Tuist's discovery, registration, identity-assertion exchange, and claim-polling flow before falling back to browser Open Authorization."
           })
           |> halt()
       end
@@ -101,10 +107,38 @@ defmodule TuistWeb.AuthenticationPlug do
         TuistWeb.Authentication.put_current_user(conn, user)
 
       %AuthenticatedAccount{} = subject ->
-        assign(conn, :current_subject, subject)
+        conn
+        |> assign(:current_subject, subject)
+        |> put_claimed_agent_user(subject)
 
       nil ->
         conn
     end
   end
+
+  defp put_claimed_agent_user(conn, %AuthenticatedAccount{scopes: scopes, agent_registration_id: registration_id})
+       when not is_nil(registration_id) do
+    if conn.request_path == "/mcp" and "mcp" in scopes do
+      case Accounts.claimed_protocol_agent_user(registration_id) do
+        %User{} = user -> TuistWeb.Authentication.put_current_user(conn, user)
+        nil -> conn
+      end
+    else
+      conn
+    end
+  end
+
+  defp put_claimed_agent_user(conn, %AuthenticatedAccount{scopes: scopes, token_id: token_id})
+       when not is_nil(token_id) do
+    if conn.request_path == "/mcp" and "mcp" in scopes do
+      case Accounts.claimed_agent_registration_user(token_id) do
+        %User{} = user -> TuistWeb.Authentication.put_current_user(conn, user)
+        nil -> conn
+      end
+    else
+      conn
+    end
+  end
+
+  defp put_claimed_agent_user(conn, _subject), do: conn
 end

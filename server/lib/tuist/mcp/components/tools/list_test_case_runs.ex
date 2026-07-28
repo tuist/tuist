@@ -40,6 +40,51 @@ defmodule Tuist.MCP.Components.Tools.ListTestCaseRuns do
         }
       },
       "required" => ["account_handle", "project_handle"]
+    },
+    output_schema: %{
+      "type" => "object",
+      "properties" => %{
+        "test_case_runs" => %{
+          "type" => "array",
+          "items" => %{
+            "type" => "object",
+            "properties" => %{
+              "id" => %{"type" => "string"},
+              "test_case_id" => %{"type" => ["string", "null"]},
+              "test_run_id" => %{"type" => "string"},
+              "name" => %{"type" => "string"},
+              "module_name" => %{"type" => "string"},
+              "suite_name" => %{"type" => "string"},
+              "status" => %{"type" => "string"},
+              "duration" => %{"type" => "integer"},
+              "is_ci" => %{"type" => "boolean"},
+              "is_flaky" => %{"type" => "boolean"},
+              "git_branch" => %{"type" => "string"},
+              "git_commit_sha" => %{"type" => "string"},
+              "ran_at" => %{"type" => "string"}
+            },
+            "required" => [
+              "id",
+              "test_case_id",
+              "test_run_id",
+              "name",
+              "module_name",
+              "suite_name",
+              "status",
+              "duration",
+              "is_ci",
+              "is_flaky",
+              "git_branch",
+              "git_commit_sha",
+              "ran_at"
+            ],
+            "additionalProperties" => false
+          }
+        },
+        "pagination_metadata" => Tuist.MCP.Tool.pagination_metadata_schema()
+      },
+      "required" => ["test_case_runs", "pagination_metadata"],
+      "additionalProperties" => false
     }
 
   alias Tuist.MCP.Formatter

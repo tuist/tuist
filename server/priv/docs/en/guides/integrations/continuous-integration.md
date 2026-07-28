@@ -321,3 +321,59 @@ workflows:
 >
 > Create an <.localized_link href="/guides/server/authentication#account-tokens">account token</.localized_link> and add it as a secret environment variable named `TUIST_TOKEN`.
 
+## Run report {#run-report}
+
+When Tuist uploads a run, the dashboard URLs for it are printed to the logs. To get them without scraping the logs — for example to post the test report link to Slack when a job fails, or to feed a run into your own tooling — pass `--run-report-path` (or set `TUIST_RUN_REPORT_PATH`) to `tuist test`, `tuist xcodebuild test`, or `tuist xcodebuild build`. Tuist writes a JSON report to that path once the run has been uploaded:
+
+```json
+{
+  "runId": "0193f8c1-...",
+  "status": "success",
+  "runURL": "https://tuist.dev/acme/app/runs/0193f8c1-...",
+  "testRunURL": "https://tuist.dev/acme/app/tests/test-runs/...",
+  "buildRunURL": "https://tuist.dev/acme/app/builds/build-runs/...",
+  "testRuns": [
+    {
+      "scheme": "App",
+      "succeeded": true,
+      "totalTests": 42,
+      "skippedTests": 0,
+      "ranTests": 42,
+      "failedTestNames": []
+    }
+  ],
+  "buildRuns": [
+    { "scheme": "App", "succeeded": true, "durationInSeconds": 12.3 }
+  ]
+}
+```
+
+| Field | Type | Description |
+| - | - | - |
+| `runId` | string | The run's unique identifier. |
+| `status` | string | `"success"` or `"failure"`. |
+| `runURL` | string | The dashboard URL for the run. Always present. |
+| `testRunURL` | string? | The dashboard URL for the test run, present when the command ran tests. |
+| `buildRunURL` | string? | The dashboard URL for the build run, present when the command built. |
+| `testRuns` | array | Per-scheme test results: `scheme`, `succeeded`, `totalTests`, `skippedTests`, `ranTests`, `failedTestNames`. |
+| `buildRuns` | array | Per-scheme build results: `scheme`, `succeeded`, `durationInSeconds`. |
+
+`testRunURL` and `buildRunURL` are independent: a command that both builds and tests writes both, which the logs can't do — they only print one URL per run.
+
+> [!NOTE]
+> **When the report is written**
+>
+> The report is written only for runs that are uploaded to the server, which requires authentication and happens automatically on CI. The path is cleared at the start of every run, so a run that produces no report leaves nothing behind rather than a stale one from a previous run.
+
+On GitLab CI, a common use is to expose a URL to later jobs through a [`dotenv` report](https://docs.gitlab.com/ci/yaml/artifacts_reports/#artifactsreportsdotenv):
+
+```yaml
+test:
+  script:
+    - tuist test --run-report-path tuist-run.json
+    - echo "TUIST_TEST_RUN_URL=$(jq -r '.testRunURL // empty' tuist-run.json)" >> run.env
+  artifacts:
+    reports:
+      dotenv: run.env
+```
+

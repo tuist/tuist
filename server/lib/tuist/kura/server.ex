@@ -79,6 +79,20 @@ defmodule Tuist.Kura.Server do
     field :current_image_tag, :string
     field :provisioner_node_ref, :string
 
+    # Warm-handoff move phase (see `Tuist.Kura.move_server/2`). `:none` is the
+    # steady-state server and owns the customer host; `:moving_in` is a target
+    # being warmed on a new box (no customer host yet); `:moving_out` is the
+    # former source draining after the target took over. Promotion is a single
+    # relabel — source `:none -> :moving_out`, target `:moving_in -> :none` — so
+    # the uniqueness index stays satisfied throughout and host ownership is
+    # simply `move_phase == :none`.
+    field :move_phase, Ecto.Enum, values: [none: 0, moving_in: 1, moving_out: 2], default: :none
+
+    # Pins a `:moving_in` target to the destination box (rendered as a
+    # `kubernetes.io/hostname` nodeSelector on the KuraInstance). Null on
+    # steady-state rows, which the scheduler bin-packs across the region's boxes.
+    field :target_node, :string
+
     # Observed-state projection. Written only by the reconciler from the
     # backing KuraInstance, never by user actions: the image the cluster
     # reports running and when it was last successfully observed.
@@ -110,7 +124,9 @@ defmodule Tuist.Kura.Server do
     |> cast(attrs, [
       :account_id,
       :region,
-      :provisioner_node_ref
+      :provisioner_node_ref,
+      :move_phase,
+      :target_node
     ])
     |> validate_required([:account_id, :region, :provisioner_node_ref])
     |> validate_format(:provisioner_node_ref, @provisioner_node_ref_format, message: @provisioner_node_ref_message)
@@ -121,8 +137,8 @@ defmodule Tuist.Kura.Server do
         else: [region: "is not a registered region"]
     end)
     |> foreign_key_constraint(:account_id)
-    |> unique_constraint([:account_id, :region],
-      name: :kura_servers_account_region_active_index,
+    |> unique_constraint([:account_id, :region, :move_phase],
+      name: :kura_servers_account_region_move_phase_active_index,
       message: "an active Kura server already exists for this account and region"
     )
   end
@@ -136,6 +152,41 @@ defmodule Tuist.Kura.Server do
       :provisioner_node_ref
     ])
     |> validate_status_and_image()
+  end
+
+  @move_phase_transitions %{
+    none: [:none, :moving_out],
+    moving_in: [:moving_in, :none],
+    moving_out: [:moving_out]
+  }
+
+  @doc """
+  Relabels a server's `move_phase` during a warm handoff (see
+  `Tuist.Kura.move_server/2`). The only forward transitions are the promotion
+  swap — source `:none -> :moving_out`, target `:moving_in -> :none` — so host
+  ownership (`move_phase == :none`) moves atomically from source to target and
+  the partial uniqueness index stays satisfied.
+  """
+  def move_changeset(server, attrs) do
+    server
+    |> cast(attrs, [:move_phase, :target_node])
+    |> validate_required([:move_phase])
+    |> validate_move_phase_transition()
+    |> unique_constraint([:account_id, :region, :move_phase],
+      name: :kura_servers_account_region_move_phase_active_index,
+      message: "an active Kura server already exists for this account and region"
+    )
+  end
+
+  defp validate_move_phase_transition(%Ecto.Changeset{} = changeset) do
+    from = changeset.data.move_phase || :none
+    to = get_field(changeset, :move_phase)
+
+    if to in Map.get(@move_phase_transitions, from, []) do
+      changeset
+    else
+      add_error(changeset, :move_phase, "cannot transition from #{from} to #{to}")
+    end
   end
 
   @doc """

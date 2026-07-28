@@ -48,16 +48,14 @@ This renders `TUIST_CACHE_ENDPOINTS` in the server pod. On a self-hosted server 
 
 Kura can also run as a regular container on VMs or bare-metal hosts. In this mode, you are responsible for process supervision, persistent storage, routing, and peer discovery.
 
-At minimum, each node needs a persistent data directory, a temporary directory, a public HTTP port, an internal peer URL, and either a static peer list or a discovery mechanism:
+At minimum, each node needs a persistent data directory, a temporary directory, a public cache port (one listener serves both the HTTP cache API and REAPI gRPC), an internal peer URL, and either a static peer list or a discovery mechanism:
 
 ```bash
 docker run -d --name kura \
   -p 4000:4000 \
-  -p 50051:50051 \
   -p 7443:7443 \
   -v /var/lib/kura:/var/cache/kura \
   -e KURA_PORT=4000 \
-  -e KURA_GRPC_PORT=50051 \
   -e KURA_INTERNAL_PORT=7443 \
   -e KURA_TENANT_ID=default \
   -e KURA_REGION=local \
@@ -122,8 +120,7 @@ The Helm chart renders the common runtime settings from `values.yaml`. If you ru
 
 | Environment variable | Description | Required | Default | Helm value |
 | --- | --- | --- | --- | --- |
-| `KURA_PORT` | Public HTTP port for cache traffic and health endpoints. | Yes | No default | `service.httpPort` |
-| `KURA_GRPC_PORT` | gRPC port for Bazel and Buck2 REAPI traffic. | Yes | No default | `service.grpcPort` |
+| `KURA_PORT` | Public cache port. One listener serves the HTTP cache API, health endpoints, and Bazel/Buck2 REAPI gRPC (h2c). | Yes | No default | `service.httpPort` |
 | `KURA_INTERNAL_PORT` | Internal HTTP or mTLS port used by Kura peers. | Yes | No default | `peerTls.internalPort` |
 | `KURA_TENANT_ID` | Default tenant identifier for the node. | Yes | No default | `config.tenantId` |
 | `KURA_REGION` | Region label used in metrics and replication state. | Yes | No default | `config.region` |
@@ -136,8 +133,9 @@ The Helm chart renders the common runtime settings from `values.yaml`. If you ru
 | `KURA_INTERNAL_TLS_CA_CERT_PATH` | CA certificate used to verify peer mTLS. | No | Disabled | `peerTls.enabled` and `peerTls.caCertFileName` |
 | `KURA_INTERNAL_TLS_CERT_PATH` | Certificate used by the internal peer mTLS listener. | No | Disabled | `peerTls.enabled` and `peerTls.certFileName` |
 | `KURA_INTERNAL_TLS_KEY_PATH` | Private key used by the internal peer mTLS listener. | No | Disabled | `peerTls.enabled` and `peerTls.keyFileName` |
-| `KURA_GRPC_TLS_CERT_PATH` | Certificate used to terminate TLS on the public gRPC listener. | No | Disabled | `extraEnv` |
-| `KURA_GRPC_TLS_KEY_PATH` | Private key paired with `KURA_GRPC_TLS_CERT_PATH`. | No | Disabled | `extraEnv` |
+| `KURA_PUBLIC_TLS_CERT_PATH` | Certificate used to terminate TLS on the co-hosted HTTPS listener (`KURA_HTTPS_PORT`). | No | Disabled | `extraEnv` |
+| `KURA_PUBLIC_TLS_KEY_PATH` | Private key paired with `KURA_PUBLIC_TLS_CERT_PATH`. | No | Disabled | `extraEnv` |
+| `KURA_HTTPS_PORT` | TLS port serving the same co-hosted HTTP + gRPC surface (ALPN-negotiated). Only bound when the public TLS paths are set. | No | `4443` | `extraEnv` |
 | `KURA_FILE_DESCRIPTOR_POOL_SIZE` | File-descriptor budget for request and background I/O. | No | Auto-derived | `config.fileDescriptors.poolSize` |
 | `KURA_FILE_DESCRIPTOR_ACQUIRE_TIMEOUT_MS` | How long a request waits before FD backpressure fails the checkout. | No | `5000` | `config.fileDescriptors.acquireTimeoutMs` |
 | `KURA_SEGMENT_HANDLE_CACHE_SIZE` | Maximum number of pinned segment read handles. | No | Auto-derived | `config.fileDescriptors.segmentHandleCacheSize` |

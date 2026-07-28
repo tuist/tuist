@@ -47,6 +47,7 @@ import XcodeGraph
         private let fileSystem: FileSysteming
         private let contentHasher: ContentHashing
         private let cacheGraphContentHasher: CacheGraphContentHashing
+        private let cacheStorageFactory: CacheStorageFactorying
 
         public init() {
             let contentHasher = ContentHasher()
@@ -59,7 +60,9 @@ import XcodeGraph
                 xcodeProjectBuildDirectoryLocator: XcodeProjectBuildDirectoryLocator(),
                 fileSystem: FileSystem(),
                 contentHasher: contentHasher,
-                cacheGraphContentHasher: CacheGraphContentHasher(contentHasher: contentHasher)
+                cacheGraphContentHasher: CacheGraphContentHasher(contentHasher: contentHasher),
+                cacheStorageFactory: Extension.cacheStorageFactory,
+                configLoader: ConfigLoader()
             )
         }
 
@@ -72,9 +75,11 @@ import XcodeGraph
             xcodeProjectBuildDirectoryLocator: XcodeProjectBuildDirectoryLocating,
             fileSystem: FileSysteming,
             contentHasher: ContentHashing,
-            cacheGraphContentHasher: CacheGraphContentHashing
+            cacheGraphContentHasher: CacheGraphContentHashing,
+            cacheStorageFactory: CacheStorageFactorying = Extension.cacheStorageFactory,
+            configLoader: ConfigLoading = ConfigLoader()
         ) {
-            configLoader = ConfigLoader()
+            self.configLoader = configLoader
             manifestLoader = ManifestLoader.current
             pluginService = PluginService()
             self.generatorFactory = generatorFactory
@@ -86,6 +91,7 @@ import XcodeGraph
             self.fileSystem = fileSystem
             self.contentHasher = contentHasher
             self.cacheGraphContentHasher = cacheGraphContentHasher
+            self.cacheStorageFactory = cacheStorageFactory
         }
 
         // swiftlint:disable:next function_body_length
@@ -95,11 +101,12 @@ import XcodeGraph
             targetsToBinaryCache: Set<String>,
             externalOnly: Bool,
             generateOnly: Bool,
+            noUpload: Bool,
             cacheProfile: String?
         ) async throws {
             let path = try await Environment.current.pathRelativeToWorkingDirectory(directory)
             let config = try await configLoader.loadConfig(path: path)
-            let cacheStorage = try await CacheStorageFactory().cacheStorage(config: config)
+            let cacheStorage = try await cacheStorageFactory.cacheStorage(config: config)
             let requestedTargetsToBinaryCache = Set(targetsToBinaryCache.map { TargetQuery(stringLiteral: $0) })
             let generator = generatorFactory.binaryCacheWarmingPreload(
                 config: config,
@@ -110,6 +117,7 @@ import XcodeGraph
             // Because we only need to pull the binaries, we don't generate a project in this step.
             let graph = try await generator.load(path: path, options: config.project.generatedProject?.generationOptions)
 
+            let requestedConfiguration = configuration
             let configuration = try defaultConfigurationFetcher.fetch(
                 configuration: configuration,
                 defaultConfiguration: config.project.generatedProject?.generationOptions.defaultConfiguration,
@@ -147,7 +155,7 @@ import XcodeGraph
 
             let cacheableTargets = try await cacheableTargets(
                 for: graph,
-                configuration: configuration,
+                configuration: requestedConfiguration,
                 config: config,
                 requestedTargetsToBinaryCache: requestedTargetsToBinaryCache,
                 cacheProfile: profile,
@@ -157,6 +165,7 @@ import XcodeGraph
             let cacheableTargetNames = Set(cacheableTargets.map(\.0.target.name))
             guard !cacheableTargets.isEmpty else {
                 Logger.current.info("All cacheable targets are already cached")
+                await logCacheWarmSummary()
                 return
             }
 
@@ -190,13 +199,33 @@ import XcodeGraph
                 projectPath: projectPath,
                 configuration: configuration,
                 hashesByTargetToBeCached: cacheableTargets,
-                cacheStorage: cacheStorage,
+                cacheStorage: noUpload ? try await cacheStorageFactory.cacheLocalStorage() : cacheStorage,
+                noUpload: noUpload,
                 isReleaseConfiguration: isReleaseConfiguration
             )
 
             Logger.current.info(
                 "All cacheable targets have been cached successfully as xcframeworks",
                 metadata: .success
+            )
+
+            await logCacheWarmSummary()
+        }
+
+        /// Prints how cacheable targets were resolved during this run: how many were served from the
+        /// remote cache, how many from the local cache, and how many were misses (i.e. built and stored).
+        /// The counts are derived from the same cache metadata that gets posted to the server (e.g.
+        /// `remote_cache_target_hits`), so they stay consistent with `tuist cache-run show` without
+        /// requiring a server round-trip.
+        private func logCacheWarmSummary() async {
+            let cacheItems = await RunMetadataStorage.current.binaryCacheItems
+                .values
+                .flatMap(\.values)
+            let remoteHits = cacheItems.filter { $0.source == .remote }.count
+            let localHits = cacheItems.filter { $0.source == .local }.count
+            let misses = cacheItems.filter { $0.source == .miss }.count
+            Logger.current.info(
+                "Cache warm summary: \(remoteHits) remote hits, \(localHits) local hits, \(misses) misses"
             )
         }
 
@@ -207,6 +236,7 @@ import XcodeGraph
             configuration: String,
             hashesByTargetToBeCached: [(GraphTarget, String)],
             cacheStorage: CacheStoring,
+            noUpload _: Bool,
             isReleaseConfiguration: Bool
         ) async throws {
             let binariesSchemes = graph.workspace.schemes
@@ -314,6 +344,17 @@ import XcodeGraph
             }
         }
 
+        /// Pins Xcode's compilation cache (CAS) to the machine's shared DerivedData instead of letting it
+        /// follow `-derivedDataPath` into this command's throwaway build directory. The plugin's spool
+        /// there is drained asynchronously by the machine-wide CAS proxy and must outlive the build, so
+        /// keeping it at the default location avoids racing the directory's teardown and warms the same
+        /// store regular Xcode builds read.
+        private func compilationCacheCASArgument() async throws -> XcodeBuildArgument {
+            let casPath = try await Environment.current.derivedDataDirectory()
+                .appending(component: "CompilationCache.noindex")
+            return .xcarg("COMPILATION_CACHE_CAS_PATH", casPath.pathString)
+        }
+
         private func productsDirectory(
             platform: Platform,
             configuration: String,
@@ -352,6 +393,7 @@ import XcodeGraph
                 .xcarg("CODE_SIGNING_ALLOWED", "NO"),
                 .xcarg("CODE_SIGNING_REQUIRED", "NO"),
                 .xcarg("SYMROOT", derivedDataPath.appending(components: ["Build", "Products"]).pathString),
+                try await compilationCacheCASArgument(),
             ]
             try await xcodeBuildController.build(
                 xcodebuildTarget,
@@ -414,6 +456,7 @@ import XcodeGraph
                 .xcarg("CODE_SIGNING_REQUIRED", "NO"),
                 .configuration(configuration),
                 .xcarg("SYMROOT", derivedDataPath.appending(components: ["Build", "Products"]).pathString),
+                try await compilationCacheCASArgument(),
             ]
             // We currently skip building for maccatalyst as we prefer to generate a bundle for iOS instead.
             // iOS bundles should be compatible with maccatalyst ones
@@ -453,9 +496,15 @@ import XcodeGraph
                         validating: "Build/Products/\(productsDirectory(platform: platform, configuration: configuration))"
                     )
                 )
+            let bundlePlatformNormalizer = CachedBundlePlatformNormalizer(fileSystem: fileSystem)
             for bundle in cacheableTargets.filter({ $0.0.target.product == .bundle }) {
                 let bundlePath = bundleProductsDirectory.appending(component: bundle.0.target.productNameWithExtension)
                 guard try await fileSystem.exists(bundlePath) else { continue }
+                // Bundles are built for the simulator SDK, so their Info.plist carries
+                // CFBundleSupportedPlatforms = [iPhoneSimulator]. Left in place, a device archive that
+                // embeds the cached bundle is rejected by App Store Connect with error 90542. Removing
+                // the key normalizes the bundle for both device and simulator consumers.
+                try await bundlePlatformNormalizer.normalize(bundleAt: bundlePath)
                 bundlesToStore.append(CacheGraphTargetBuiltArtifact(
                     type: .bundle,
                     graphTarget: bundle.0,
@@ -664,6 +713,7 @@ import XcodeGraph
                         .xcarg("COMPILER_INDEX_STORE_ENABLE", "NO"),
                         .configuration(configuration),
                         .xcarg("SYMROOT", derivedDataPath.appending(components: ["Build", "Products"]).pathString),
+                        try await compilationCacheCASArgument(),
                         // To prevent the rejection when publishing on the App Store
                         // https://developer.apple.com/library/archive/qa/qa1964/_index.html
                     ] + (isReleaseConfiguration ? [
@@ -710,6 +760,7 @@ import XcodeGraph
                 .xcarg("COMPILER_INDEX_STORE_ENABLE", "NO"),
                 .configuration(configuration),
                 .xcarg("SYMROOT", derivedDataPath.appending(components: ["Build", "Products"]).pathString),
+                try await compilationCacheCASArgument(),
                 // To prevent the rejection when publishing on the App Store
                 // https://developer.apple.com/library/archive/qa/qa1964/_index.html
             ] + (isReleaseConfiguration ? [
@@ -792,6 +843,7 @@ import XcodeGraph
                     .xcarg("COMPILER_INDEX_STORE_ENABLE", "NO"),
                     .configuration(configuration),
                     .xcarg("SYMROOT", derivedDataPath.appending(components: ["Build", "Products"]).pathString),
+                    try await compilationCacheCASArgument(),
                 ] + (isReleaseConfiguration ? [
                     .xcarg("GCC_INSTRUMENT_PROGRAM_FLOW_ARCS", "NO"),
                     .xcarg("CLANG_ENABLE_CODE_COVERAGE", "NO"),
@@ -864,7 +916,7 @@ import XcodeGraph
 
         private func cacheableTargets(
             for graph: Graph,
-            configuration: String,
+            configuration: String?,
             config: Tuist,
             requestedTargetsToBinaryCache: Set<TargetQuery>,
             cacheProfile: CacheProfile,

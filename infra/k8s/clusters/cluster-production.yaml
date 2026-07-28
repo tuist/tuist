@@ -52,6 +52,11 @@ spec:
       # re-renders the apiserver patch and rolls this cluster's control plane.
       - name: kubeletPreferredAddressTypes
         value: ExternalIP,InternalIP,Hostname,InternalDNS,ExternalDNS
+      # Codify the fallback used to restore production after validation in
+      # canary and staging. New control-plane kubelets bootstrap through the
+      # load-balanced endpoint until their local endpoint is available.
+      - name: disableControlPlaneKubeletLocalMode
+        value: true
     workers:
       machineDeployments:
         # General-purpose pool: Phoenix server, redis, system DaemonSets,

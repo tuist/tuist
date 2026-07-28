@@ -27,7 +27,7 @@ public class GraphTraverser: GraphTraversing {
     private let graph: Graph
     private let conditionCache = ConditionCache()
     private let conditionalTargets: Set<GraphDependency>
-    private let swiftPluginExecutablesCache = GraphCache<GraphDependency, Set<String>>()
+    private let precompiledSwiftMacroExecutablesCache = GraphCache<GraphDependency, Set<String>>()
     private let systemFrameworkMetadataProvider: SystemFrameworkMetadataProviding =
         SystemFrameworkMetadataProvider()
     private let targetDirectTargetDependenciesCache: ThreadSafe<[GraphTarget: [GraphTarget]]> =
@@ -535,6 +535,13 @@ public class GraphTraverser: GraphTraversing {
         try linkableDependencies(path: path, name: name, shouldExcludeHostAppDependencies: true)
     }
 
+    public func packageProductsLinkedThroughStaticTargets(
+        path: Path.AbsolutePath,
+        name: String
+    ) -> Set<GraphDependencyReference> {
+        packageProductsLinkedThroughStaticTargets(from: .target(name: name, path: path))
+    }
+
     // swiftlint:disable:next function_body_length
     public func linkableDependencies(
         path: Path.AbsolutePath,
@@ -633,13 +640,16 @@ public class GraphTraverser: GraphTraversing {
 
             // Exclude any static products linked in a host application
             // however, for search paths it's fine to keep them included
+            let hostApplication: GraphTarget? = if target.target.product == .unitTests, shouldExcludeHostAppDependencies {
+                unitTestHost(path: path, name: name)
+            } else {
+                nil
+            }
             let hostApplicationStaticTargets: Set<GraphDependency>
-            if target.target.product == .unitTests, shouldExcludeHostAppDependencies,
-               let hostApp = unitTestHost(path: path, name: name)
-            {
+            if let hostApplication {
                 hostApplicationStaticTargets =
                     transitiveStaticDependencies(
-                        from: .target(name: hostApp.target.name, path: hostApp.project.path)
+                        from: .target(name: hostApplication.target.name, path: hostApplication.project.path)
                     )
             } else {
                 hostApplicationStaticTargets = Set()
@@ -675,6 +685,19 @@ public class GraphTraverser: GraphTraversing {
                 hostApplicationStaticTargets
                     .compactMap { dependencyReference(to: $0, from: targetGraphDependency) }
             )
+
+            var packageProducts = packageProductsLinkedThroughStaticTargets(from: targetGraphDependency)
+            if let hostApplication {
+                packageProducts = packageProductsExcludingProductsLinkedByHost(
+                    packageProducts,
+                    hostPackageProducts: packageProductsLinkedThroughStaticTargets(
+                        from: .target(name: hostApplication.target.name, path: hostApplication.project.path)
+                    ),
+                    targetPlatformFilters: target.target.dependencyPlatformFilters,
+                    hostPlatformFilters: hostApplication.target.dependencyPlatformFilters
+                )
+            }
+            references.formUnion(packageProducts)
         }
 
         // Link dynamic libraries and frameworks
@@ -687,6 +710,131 @@ public class GraphTraverser: GraphTraversing {
         references.formUnion(dynamicLibrariesAndFrameworks)
 
         return references
+    }
+
+    private func packageProductsLinkedThroughStaticTargets(
+        from rootDependency: GraphDependency
+    ) -> Set<GraphDependencyReference> {
+        var dependenciesToVisit = [rootDependency]
+        var dependencyConditions: [GraphDependency: PlatformCondition.CombinationResult] = [
+            rootDependency: .condition(nil),
+        ]
+        var packageProductConditions: [GraphDependency: PlatformCondition.CombinationResult] = [:]
+
+        while let dependency = dependenciesToVisit.popLast() {
+            guard let accumulatedCondition = dependencyConditions[dependency] else { continue }
+
+            for childDependency in graph.dependencies[dependency, default: []] {
+                let condition = intersection(
+                    accumulatedCondition,
+                    with: graph.dependencyConditions[(dependency, childDependency)]
+                )
+                guard condition != .incompatible else { continue }
+
+                switch childDependency {
+                case .packageProduct(_, _, .runtime), .packageProduct(_, _, .runtimeEmbedded):
+                    packageProductConditions[childDependency] = packageProductConditions[
+                        childDependency,
+                        default: .incompatible
+                    ].combineWith(condition)
+                case .target:
+                    guard !isPackageProductLinkingBoundary(childDependency) else {
+                        continue
+                    }
+                    let combinedCondition = dependencyConditions[
+                        childDependency,
+                        default: .incompatible
+                    ].combineWith(condition)
+                    guard dependencyConditions[childDependency] != combinedCondition else {
+                        continue
+                    }
+                    dependencyConditions[childDependency] = combinedCondition
+                    dependenciesToVisit.append(childDependency)
+                case .bundle, .framework, .foreignBuildOutput, .library, .macro, .packageProduct, .sdk, .xcframework:
+                    continue
+                }
+            }
+        }
+
+        return Set(packageProductConditions.compactMap { dependency, condition in
+            guard case let .packageProduct(_, product, _) = dependency,
+                  case let .condition(platformCondition) = condition
+            else {
+                return nil
+            }
+            return GraphDependencyReference.packageProduct(
+                product: product,
+                condition: platformCondition
+            )
+        })
+    }
+
+    private func isPackageProductLinkingBoundary(_ dependency: GraphDependency) -> Bool {
+        canDependencyLinkStaticProducts(dependency: dependency)
+            || testTarget(dependency: dependency) { $0.product.isDynamic }
+    }
+
+    private func packageProductsExcludingProductsLinkedByHost(
+        _ packageProducts: Set<GraphDependencyReference>,
+        hostPackageProducts: Set<GraphDependencyReference>,
+        targetPlatformFilters: PlatformFilters,
+        hostPlatformFilters: PlatformFilters
+    ) -> Set<GraphDependencyReference> {
+        var hostProductConditions: [String: PlatformCondition.CombinationResult] = [:]
+        for case let .packageProduct(product, condition) in hostPackageProducts {
+            hostProductConditions[product] = hostProductConditions[
+                product,
+                default: .incompatible
+            ].combineWith(.condition(condition))
+        }
+
+        return Set(packageProducts.compactMap { packageProduct in
+            guard case let .packageProduct(product, condition) = packageProduct,
+                  case let .condition(hostCondition) = hostProductConditions[product]
+            else {
+                return packageProduct
+            }
+
+            let requiredPlatformFilters = resolvedPlatformFilters(
+                condition,
+                default: targetPlatformFilters
+            )
+            let providedPlatformFilters = resolvedPlatformFilters(
+                hostCondition,
+                default: hostPlatformFilters
+            )
+            let remainingPlatformFilters = requiredPlatformFilters.subtracting(providedPlatformFilters)
+            guard !remainingPlatformFilters.isEmpty else { return nil }
+
+            return .packageProduct(
+                product: product,
+                condition: remainingPlatformFilters == requiredPlatformFilters
+                    ? condition
+                    : .when(remainingPlatformFilters)
+            )
+        })
+    }
+
+    private func resolvedPlatformFilters(
+        _ condition: PlatformCondition?,
+        default platformFilters: PlatformFilters
+    ) -> PlatformFilters {
+        condition?.platformFilters
+            ?? (platformFilters.isEmpty ? Set(PlatformFilter.allCases) : platformFilters)
+    }
+
+    private func intersection(
+        _ accumulatedCondition: PlatformCondition.CombinationResult,
+        with edgeCondition: PlatformCondition?
+    ) -> PlatformCondition.CombinationResult {
+        switch accumulatedCondition {
+        case .incompatible:
+            return .incompatible
+        case let .condition(.some(condition)):
+            return condition.intersection(edgeCondition)
+        case .condition(nil):
+            return .condition(edgeCondition)
+        }
     }
 
     private func precompiledDynamicLibrariesAndFrameworks(
@@ -1166,9 +1314,8 @@ public class GraphTraverser: GraphTraversing {
         return allExternalTargets.subtracting(allTargetExternalDependendedUponTargets)
     }
 
-    // swiftlint:disable:next function_body_length
-    public func allSwiftPluginExecutables(path: Path.AbsolutePath, name: String) -> Set<String> {
-        if let cached = swiftPluginExecutablesCache[.target(name: name, path: path)] {
+    public func allPrecompiledSwiftMacroExecutables(path: Path.AbsolutePath, name: String) -> Set<String> {
+        if let cached = precompiledSwiftMacroExecutablesCache[.target(name: name, path: path)] {
             return cached
         } else {
             func precompiledMacroDependencies(_ graphDependency: GraphDependency) -> Set<
@@ -1220,21 +1367,8 @@ public class GraphTraverser: GraphTraversing {
             }
             .map { "\($0.pathString)#\($0.basename.replacingOccurrences(of: ".macro", with: ""))" }
 
-            let sourceMacroPluginExecutables = allSwiftMacroTargets(path: path, name: name)
-                .flatMap { target in
-                    directSwiftMacroExecutables(path: target.project.path, name: target.target.name).map
-                        { (target, $0) }
-                }
-                .compactMap { _, dependencyReference in
-                    switch dependencyReference {
-                    case let .product(_, productName, _, _):
-                        return "$BUILD_DIR/Debug$EFFECTIVE_PLATFORM_NAME/\(productName)#\(productName)"
-                    default:
-                        return nil
-                    }
-                }
-            let result = Set(precompiledMacroPluginExecutables + sourceMacroPluginExecutables)
-            swiftPluginExecutablesCache[.target(name: name, path: path)] = result
+            let result = Set(precompiledMacroPluginExecutables)
+            precompiledSwiftMacroExecutablesCache[.target(name: name, path: path)] = result
             return result
         }
     }

@@ -257,6 +257,26 @@ defmodule Tuist.Authorization.ChecksTest do
              ) == false
     end
 
+    test "returns true for an OAuth token issued by an organization member", %{
+      organization: organization,
+      user: user
+    } do
+      Accounts.add_user_to_organization(user, organization, role: :user)
+
+      subject = %AuthenticatedAccount{account: user.account, scopes: [], issued_by: user}
+
+      assert Checks.accounts_match(subject, organization.account) == true
+    end
+
+    test "returns false for an OAuth token issued by a user outside the organization", %{
+      organization: organization,
+      user: user
+    } do
+      subject = %AuthenticatedAccount{account: user.account, scopes: [], issued_by: user}
+
+      assert Checks.accounts_match(subject, organization.account) == false
+    end
+
     test "returns true when the project accounts match", %{
       organization: organization
     } do
@@ -399,6 +419,19 @@ defmodule Tuist.Authorization.ChecksTest do
                },
                project,
                "project:cache:write"
+             ) == true
+    end
+
+    test "expands 'ci' scope to grant account:cache:write permission", %{organization: organization} do
+      # When/Then
+      assert Checks.scopes_permit(
+               %AuthenticatedAccount{
+                 account: organization.account,
+                 scopes: ["ci"],
+                 all_projects: true
+               },
+               organization.account,
+               "account:cache:write"
              ) == true
     end
 

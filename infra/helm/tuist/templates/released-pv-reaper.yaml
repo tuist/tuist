@@ -1,0 +1,200 @@
+{{- if .Values.pvReaper.enabled }}
+{{- /*
+Grace-period garbage collector for orphaned Hetzner block volumes.
+
+The hcloud-volumes StorageClass provisions PVs with reclaimPolicy Retain (see
+infra/k8s/mgmt/bootstrap/hcloud-csi-values.yaml) — a deliberately conservative
+default so a botched operator action can't destroy data. The cost is that any
+operator that deletes a PVC (CNPG on a cluster rebuild/restore/failover, a
+StatefulSet teardown, a namespace removal) strands the underlying Hetzner volume
+forever: the PV goes Released and nothing reaps the block storage. That is how
+this project accumulated ~36 TB / ~€2k-per-month of dead volumes.
+
+The kura-controller now reaps its own volumes at teardown, but we don't own
+CNPG's code, so Postgres (and any future operator) needs an out-of-band sweep.
+This CronJob is that backstop: once per run it reaps every PV that has been
+Released for longer than graceHours by flipping its reclaim policy to Delete and
+deleting it, which lets the CSI driver delete the Hetzner volume.
+
+Why this is safe:
+  * A PV only becomes Released when its PVC was actually deleted. A scaled-down
+    but still-wanted volume keeps its PVC Bound (StatefulSet whenScaled: Retain),
+    so it is never Released and never touched here.
+  * The grace window is the recovery window: within graceHours a Released Retain
+    PV can still be re-bound by hand, so an accidental PVC deletion is
+    recoverable. Only volumes abandoned for longer are reaped.
+  * Scoped to storageClass hcloud-volumes and reclaimPolicy Retain, so it never
+    touches node-local (scw-local-nvme, already Delete) or non-CSI volumes.
+  * dryRun (default) only logs what it would reap. Review a run's logs in Loki /
+    Grafana Cloud, then set pvReaper.dryRun=false per env to arm it.
+
+There is intentionally no PrometheusRule here: managed clusters have no
+Prometheus Operator (they scrape via Alloy into Grafana Cloud). Alert on the
+reaper's log lines or on kube_persistentvolume_status_phase{phase="Released"} in
+Grafana Cloud instead.
+*/ -}}
+{{- $name := include "tuist.componentName" (dict "root" . "component" "released-pv-reaper") }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: released-pv-reaper
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: released-pv-reaper
+rules:
+  # List Released PVs, flip a stale one's reclaim policy to Delete, and delete
+  # it so the CSI driver reaps the backing Hetzner volume. PVs are cluster-scoped.
+  - apiGroups: [""]
+    resources: [persistentvolumes]
+    verbs: [get, list, watch, update, patch, delete]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: released-pv-reaper
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ $name }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ $name }}
+    namespace: {{ .Release.Namespace }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: released-pv-reaper
+data:
+  reap.sh: |-
+    #!/usr/bin/env bash
+    # pipefail so a failed `kubectl get pv` in a pipeline aborts the run instead
+    # of feeding jq empty input and logging a healthy-looking "0 PV(s)" — the
+    # logs are this job's only observability channel.
+    set -euo pipefail
+    grace_seconds=$(( GRACE_HOURS * 3600 ))
+    echo "released-pv-reaper: storageClass=${STORAGE_CLASS} graceHours=${GRACE_HOURS} dryRun=${DRY_RUN}"
+    # A PV is reapable only if it is Released (its PVC was deleted), still Retain
+    # (not already being reaped), on the target StorageClass, and has carried a
+    # phase-transition timestamp older than the grace window. A PV missing that
+    # timestamp is skipped, never assumed old. The same predicate is applied
+    # twice: once to pick candidates, once to re-validate each PV immediately
+    # before acting.
+    predicate='
+      select(.status.phase == "Released")
+      | select(.spec.persistentVolumeReclaimPolicy == "Retain")
+      | select(.spec.storageClassName == $sc)
+      | select(.status.lastPhaseTransitionTime != null)
+      | select((.status.lastPhaseTransitionTime | fromdateiso8601) < (now - $grace))'
+    # Candidates as "<name> <uid>" pairs; the UID lets us detect a PV that was
+    # deleted and recreated under the same name between scan and action.
+    candidates=$(kubectl get pv -o json | jq -r \
+      --arg sc "$STORAGE_CLASS" --argjson grace "$grace_seconds" \
+      ".items[] | ${predicate} | \"\(.metadata.name) \(.metadata.uid)\"")
+    count=$(printf '%s\n' "$candidates" | grep -c . || true)
+    echo "released-pv-reaper: ${count} PV(s) Released longer than ${GRACE_HOURS}h"
+    if [ "$count" -eq 0 ]; then
+      exit 0
+    fi
+    printf '%s\n' "$candidates" | while IFS=' ' read -r pv uid; do
+      [ -z "$pv" ] && continue
+      # Re-fetch and re-validate right before acting. kubectl delete performs no
+      # resource-version check, so a PV recovered (re-bound) or replaced since the
+      # scan could otherwise be wrongly deleted. Skip unless it is the same object
+      # (UID) and still matches every reap condition.
+      current=$(kubectl get pv "$pv" -o json 2>/dev/null || true)
+      if [ -z "$current" ]; then
+        echo "released-pv-reaper: skip ${pv} (gone since scan)"
+        continue
+      fi
+      still=$(printf '%s' "$current" | jq -r \
+        --arg sc "$STORAGE_CLASS" --argjson grace "$grace_seconds" --arg uid "$uid" \
+        "select(.metadata.uid == \$uid) | ${predicate} | .metadata.name" 2>/dev/null || true)
+      if [ "$still" != "$pv" ]; then
+        echo "released-pv-reaper: skip ${pv} (changed since scan)"
+        continue
+      fi
+      claim=$(printf '%s' "$current" | jq -r '((.spec.claimRef.namespace // "?") + "/" + (.spec.claimRef.name // "?"))' 2>/dev/null || echo '?/?')
+      if [ "$DRY_RUN" = "true" ]; then
+        echo "released-pv-reaper: [dry-run] would reap ${pv} (was ${claim})"
+      else
+        echo "released-pv-reaper: reaping ${pv} (was ${claim})"
+        # Order matters: set Delete BEFORE deleting the PV, otherwise a Retain PV
+        # deletion would strand the volume with no PV referencing it. Once the PV
+        # is Released + Delete the reclaim controller may remove it on its own, so
+        # the explicit delete is best-effort and idempotent (--ignore-not-found).
+        kubectl patch pv "$pv" --type merge -p '{"spec":{"persistentVolumeReclaimPolicy":"Delete"}}'
+        kubectl delete pv "$pv" --ignore-not-found --wait=false
+      fi
+    done
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "tuist.labels" . | nindent 4 }}
+    app.kubernetes.io/component: released-pv-reaper
+spec:
+  schedule: {{ .Values.pvReaper.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 300
+      template:
+        metadata:
+          labels:
+            {{- include "tuist.labels" . | nindent 12 }}
+            app.kubernetes.io/component: released-pv-reaper
+        spec:
+          serviceAccountName: {{ $name }}
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: reaper
+              image: {{ .Values.pvReaper.image | quote }}
+              imagePullPolicy: IfNotPresent
+              command: ["/bin/bash", "/scripts/reap.sh"]
+              env:
+                - name: GRACE_HOURS
+                  value: {{ .Values.pvReaper.graceHours | quote }}
+                - name: DRY_RUN
+                  value: {{ .Values.pvReaper.dryRun | quote }}
+                - name: STORAGE_CLASS
+                  value: {{ .Values.pvReaper.storageClass | quote }}
+              volumeMounts:
+                - name: script
+                  mountPath: /scripts
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: [ALL]
+              resources:
+                {{- toYaml .Values.pvReaper.resources | nindent 16 }}
+          volumes:
+            - name: script
+              configMap:
+                name: {{ $name }}
+{{- end }}

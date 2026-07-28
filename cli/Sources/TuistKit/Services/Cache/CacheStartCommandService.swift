@@ -56,7 +56,7 @@ struct CacheStartCommandService {
             }
 
             let analyticsDatabase = try CASAnalyticsDatabase()
-            try analyticsDatabase.migrate()
+            try await analyticsDatabase.migrate()
             AnalyticsStateController(database: analyticsDatabase)
                 .scheduleMaintenance(stateDirectory: Environment.current.stateDirectory)
 

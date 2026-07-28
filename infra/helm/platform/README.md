@@ -42,9 +42,6 @@ ingress-nginx config. The production `values-tuist.yaml` overlay also enables
 three Kura-specific ingress-nginx aliases (`kura-eu-central`, `kura-us-east`,
 `kura-us-west`) so cache artifact traffic has dedicated regional gateways
 instead of sharing the main Tuist web ingress dataplane.
-Customer-dedicated Kura gateways are intentionally not chart aliases here:
-the Tuist server emits opaque `KuraGateway` resources and the Kura controller
-reconciles the dedicated ingress-nginx + LoadBalancer lifecycle.
 
 `k8s:install-platform` also loads `values-<cluster-name>.yaml` when present.
 Use that cluster overlay for static environment configuration such as stable
@@ -95,8 +92,8 @@ When enabled, a `values-<cluster-name>.yaml` overlay renders:
   configured egress IP via the node carrying the **active** label
   `tuist.dev/stable-egress-gateway=server`.
 - `DaemonSet/kube-system/tuist-server-stable-egress-host-configurer`, which runs
-  on the active node and keeps the Floating IP + source route present on its
-  `eth0`.
+  on every candidate node and keeps the Floating IP + source route prepared on
+  its `eth0`. Hetzner routes the address only to the active cloud server.
 - When `failoverController.enabled`, the
   `Deployment/kube-system/stable-egress-controller` (see
   [`infra/stable-egress-controller/`](../../stable-egress-controller/)).
@@ -120,8 +117,11 @@ automatic failover — no manual steps and no SPOF:
   is no healthy active node does it fail over to a Ready `md-egress` candidate,
   moving the IP + label together (~30–60s: node-NotReady detection + reassign;
   faster on deletion).
-- **Datapath:** Cilium re-selects the gateway (1s reconcile) and the
-  host-configurer reschedules onto the new active node automatically.
+- **Preparation:** the host-configurer runs on every candidate and reports
+  Ready only after the outbound address is attached. The controller excludes
+  unprepared candidates from election.
+- **Datapath:** once the Floating IP is assigned, the controller applies the
+  active label and Cilium re-selects the already-prepared gateway.
 
 Why Cilium alone isn't enough: our Cilium 1.18 OSS egress gateway selects a
 gateway node by lexical order with no health-based failover (cilium/cilium#30157
@@ -190,6 +190,6 @@ kubectl -n tuist exec deploy/tuist-tuist-server -- curl -fsS https://api.ipify.o
 ## Notes
 
 - The main ingress-nginx LoadBalancer is annotated for Hetzner Cloud (Nuremberg region) by default. Managed Tuist cluster overlays pin it explicitly to `fsn1`, matching the general worker pools; regional Kura LoadBalancers are pinned separately.
-- Production Kura ingress controllers are shared per region by default. Their LoadBalancers are placed in `fsn1`, `ash`, and `hil` and their pods are pinned to the matching Kura node pools. Customer-dedicated gateways are server-driven `KuraGateway` resources with opaque names, not customer-specific Helm values.
+- Production Kura ingress controllers are shared per region. Their LoadBalancers are placed in `fsn1`, `ash`, and `hil` and their pods are pinned to the matching Kura node pools.
 - external-dns is scoped by `txtOwnerId: tuist-platform` — one cluster, one TXT prefix. Run it with `policy: sync` only if you're happy with it deleting DNS records that aren't tracked by any Ingress.
 - cert-manager CRDs are installed by the subchart (`installCRDs: true`). If another tool manages them, turn that off.

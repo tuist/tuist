@@ -615,6 +615,54 @@ defmodule Tuist.Tests.Analytics do
     }
   end
 
+  def test_run_average_duration_analytics(project_id, opts \\ []) do
+    start_datetime = Keyword.get(opts, :start_datetime, DateTime.add(DateTime.utc_now(), -30, :day))
+    end_datetime = Keyword.get(opts, :end_datetime, DateTime.utc_now())
+    days_delta = Date.diff(DateTime.to_date(end_datetime), DateTime.to_date(start_datetime))
+    previous_start_datetime = DateTime.add(start_datetime, -days_delta, :day)
+
+    result =
+      from(t in Test,
+        where: t.project_id == ^project_id,
+        where: t.ran_at >= ^previous_start_datetime,
+        where: t.ran_at <= ^end_datetime,
+        select: %{
+          previous_average_duration:
+            fragment(
+              "avgOrNullIf(?, ? >= ? AND ? < ?)",
+              t.duration,
+              t.ran_at,
+              ^previous_start_datetime,
+              t.ran_at,
+              ^start_datetime
+            ),
+          current_average_duration:
+            fragment(
+              "avgOrNullIf(?, ? >= ? AND ? <= ?)",
+              t.duration,
+              t.ran_at,
+              ^start_datetime,
+              t.ran_at,
+              ^end_datetime
+            )
+        }
+      )
+      |> apply_test_run_filters(opts)
+      |> ClickHouseRepo.one()
+
+    previous_average_duration = normalize_average_duration(result && result.previous_average_duration)
+    current_average_duration = normalize_average_duration(result && result.current_average_duration)
+
+    %{
+      trend:
+        trend(
+          previous_value: previous_average_duration,
+          current_value: current_average_duration
+        ),
+      total_average_duration: current_average_duration
+    }
+  end
+
   defp test_run_aggregated_duration(project_id, start_datetime, end_datetime, opts) do
     is_ci = Keyword.get(opts, :is_ci)
     scheme = Keyword.get(opts, :scheme)
@@ -638,12 +686,13 @@ defmodule Tuist.Tests.Analytics do
 
     result = ClickHouseRepo.one(query)
 
-    case result do
-      nil -> 0.0
-      avg when is_float(avg) -> avg
-      avg -> avg * 1.0
-    end
+    normalize_average_duration(result)
   end
+
+  defp normalize_average_duration(nil), do: 0.0
+  defp normalize_average_duration(%Decimal{} = duration), do: Decimal.to_float(duration)
+  defp normalize_average_duration(duration) when is_float(duration), do: duration
+  defp normalize_average_duration(duration), do: duration * 1.0
 
   defp test_run_average_durations(project_id, start_datetime, end_datetime, _date_period, time_bucket, opts) do
     date_format = get_clickhouse_date_format(time_bucket)
@@ -1218,19 +1267,20 @@ defmodule Tuist.Tests.Analytics do
   end
 
   @doc """
-  Calculates the test reliability (success rate) for a specific test case by its UUID.
+  Calculates the test reliability (success rate) for a specific test case by its identifier.
   First attempts to calculate based on the project's default branch. If no runs exist on the
   default branch, falls back to calculating reliability across all branches.
   Returns the percentage of successful runs (0-100) or nil if no runs exist at all.
   """
-  def test_case_reliability_by_id(test_case_id, default_branch) do
+  def test_case_reliability_by_id(project_id, test_case_id, default_branch) do
     default_branch_query =
       from(tcr in TestCaseRun,
+        where: tcr.project_id == ^project_id,
         where: tcr.test_case_id == ^test_case_id,
         where: tcr.git_branch == ^default_branch,
         select: %{
           success_count: fragment("countIf(? = 'success')", tcr.status),
-          total_count: count(tcr.id)
+          total_count: count()
         }
       )
 
@@ -1243,10 +1293,11 @@ defmodule Tuist.Tests.Analytics do
       _ ->
         all_branches_query =
           from(tcr in TestCaseRun,
+            where: tcr.project_id == ^project_id,
             where: tcr.test_case_id == ^test_case_id,
             select: %{
               success_count: fragment("countIf(? = 'success')", tcr.status),
-              total_count: count(tcr.id)
+              total_count: count()
             }
           )
 
@@ -1263,14 +1314,15 @@ defmodule Tuist.Tests.Analytics do
   end
 
   @doc """
-  Gets analytics for a specific test case by its UUID including total runs, failed runs, and average duration.
+  Gets analytics for a specific test case by its identifier including total runs, failed runs, and average duration.
   """
-  def test_case_analytics_by_id(test_case_id, _opts \\ []) do
+  def test_case_analytics_by_id(project_id, test_case_id) do
     query =
       from(tcr in TestCaseRun,
+        where: tcr.project_id == ^project_id,
         where: tcr.test_case_id == ^test_case_id,
         select: %{
-          total_count: count(tcr.id),
+          total_count: count(),
           failed_count: fragment("countIf(? = 'failure')", tcr.status),
           avg_duration: avg(tcr.duration)
         }
@@ -1324,7 +1376,7 @@ defmodule Tuist.Tests.Analytics do
   defp normalize_duration(nil), do: 0
   defp normalize_duration(value) when is_float(value), do: round(value)
   defp normalize_duration(value) when is_integer(value), do: value
-  defp normalize_duration(value), do: round(value * 1.0)
+  defp normalize_duration(%Decimal{} = value), do: value |> Decimal.round() |> Decimal.to_integer()
 
   @doc """
   Gets a single test duration metric for the last N tests.

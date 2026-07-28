@@ -9,6 +9,7 @@ public struct TestAction: Equatable, Codable, Sendable {
     public var arguments: Arguments?
     public var configurationName: String
     public var attachDebugger: Bool
+    public var customLLDBInitFile: AbsolutePath?
     public var coverage: Bool
     public var codeCoverageTargets: [TargetReference]
     public var expandVariableFromTarget: TargetReference?
@@ -37,13 +38,15 @@ public struct TestAction: Equatable, Codable, Sendable {
         region: String? = nil,
         preferredScreenCaptureFormat: ScreenCaptureFormat? = nil,
         testPlans: [TestPlan]? = nil,
-        skippedTests: [String]? = nil
+        skippedTests: [String]? = nil,
+        customLLDBInitFile: AbsolutePath? = nil
     ) {
         self.testPlans = testPlans
         self.targets = targets
         self.arguments = arguments
         self.configurationName = configurationName
         self.attachDebugger = attachDebugger
+        self.customLLDBInitFile = customLLDBInitFile
         self.coverage = coverage
         self.preActions = preActions
         self.postActions = postActions
@@ -76,7 +79,8 @@ public struct TestAction: Equatable, Codable, Sendable {
             region: String? = nil,
             preferredScreenCaptureFormat: ScreenCaptureFormat? = nil,
             testPlans: [TestPlan]? = nil,
-            skippedTests: [String]? = nil
+            skippedTests: [String]? = nil,
+            customLLDBInitFile: AbsolutePath? = nil
         ) -> TestAction {
             TestAction(
                 targets: targets,
@@ -93,7 +97,8 @@ public struct TestAction: Equatable, Codable, Sendable {
                 region: region,
                 preferredScreenCaptureFormat: preferredScreenCaptureFormat,
                 testPlans: testPlans,
-                skippedTests: skippedTests
+                skippedTests: skippedTests,
+                customLLDBInitFile: customLLDBInitFile
             )
         }
     #endif

@@ -1074,7 +1074,40 @@ defmodule Tuist.Tests.AnalyticsTest do
     end
   end
 
-  describe "test_case_reliability_by_id/2" do
+  describe "test_run_average_duration_analytics/2" do
+    test "returns the current average and trend without percentile data" do
+      stub(DateTime, :utc_now, fn -> ~U[2024-04-30 10:20:30Z] end)
+      project = ProjectsFixtures.project_fixture()
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        duration: 1000,
+        ran_at: ~N[2024-04-28 12:00:00]
+      )
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        duration: 1000,
+        ran_at: ~N[2024-04-29 12:00:00]
+      )
+
+      RunsFixtures.test_fixture(
+        project_id: project.id,
+        duration: 3000,
+        ran_at: ~N[2024-04-30 09:00:00]
+      )
+
+      got =
+        Analytics.test_run_average_duration_analytics(
+          project.id,
+          start_datetime: ~U[2024-04-29 10:20:30Z]
+        )
+
+      assert got == %{total_average_duration: 2000.0, trend: 100.0}
+    end
+  end
+
+  describe "test_case_reliability_by_id/3" do
     test "returns reliability percentage for test case runs on default branch" do
       # Given
       project = ProjectsFixtures.project_fixture(default_branch: "main")
@@ -1131,10 +1164,37 @@ defmodule Tuist.Tests.AnalyticsTest do
       ])
 
       # When
-      got = Analytics.test_case_reliability_by_id(test_case_id, "main")
+      got = Analytics.test_case_reliability_by_id(project.id, test_case_id, "main")
 
       # Then - 2 successes out of 3 runs = 66.7%
       assert got == 66.7
+    end
+
+    test "ignores runs belonging to another project" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      other_project = ProjectsFixtures.project_fixture()
+      test_case_id = UUIDv7.generate()
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: test_case_id,
+        git_branch: "main",
+        status: 0
+      )
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: other_project.id,
+        test_case_id: test_case_id,
+        git_branch: "main",
+        status: 1
+      )
+
+      # When
+      got = Analytics.test_case_reliability_by_id(project.id, test_case_id, "main")
+
+      # Then
+      assert got == 100.0
     end
 
     test "returns 100% when all runs on default branch are successful" do
@@ -1178,7 +1238,7 @@ defmodule Tuist.Tests.AnalyticsTest do
       ])
 
       # When
-      got = Analytics.test_case_reliability_by_id(test_case_id, "main")
+      got = Analytics.test_case_reliability_by_id(project.id, test_case_id, "main")
 
       # Then
       assert got == 100.0
@@ -1225,7 +1285,7 @@ defmodule Tuist.Tests.AnalyticsTest do
       ])
 
       # When - no runs on "main" branch, should fall back to all branches
-      got = Analytics.test_case_reliability_by_id(test_case_id, "main")
+      got = Analytics.test_case_reliability_by_id(project.id, test_case_id, "main")
 
       # Then - 2 successes out of 2 runs = 100%
       assert got == 100.0
@@ -1272,7 +1332,7 @@ defmodule Tuist.Tests.AnalyticsTest do
       ])
 
       # When - no runs on "main" branch, should fall back to all branches
-      got = Analytics.test_case_reliability_by_id(test_case_id, "main")
+      got = Analytics.test_case_reliability_by_id(project.id, test_case_id, "main")
 
       # Then - 1 success out of 2 runs = 50%
       assert got == 50.0
@@ -1280,10 +1340,11 @@ defmodule Tuist.Tests.AnalyticsTest do
 
     test "returns nil when no runs exist at all" do
       # Given
+      project = ProjectsFixtures.project_fixture()
       test_case_id = UUIDv7.generate()
 
       # When
-      got = Analytics.test_case_reliability_by_id(test_case_id, "main")
+      got = Analytics.test_case_reliability_by_id(project.id, test_case_id, "main")
 
       # Then
       assert got == nil
@@ -1345,10 +1406,46 @@ defmodule Tuist.Tests.AnalyticsTest do
       ])
 
       # When - should use only "main" branch runs
-      got = Analytics.test_case_reliability_by_id(test_case_id, "main")
+      got = Analytics.test_case_reliability_by_id(project.id, test_case_id, "main")
 
       # Then - 0 successes out of 1 run on main = 0%
       assert got == 0.0
+    end
+  end
+
+  describe "test_case_analytics_by_id/2" do
+    test "aggregates only runs belonging to the project" do
+      # Given
+      project = ProjectsFixtures.project_fixture()
+      other_project = ProjectsFixtures.project_fixture()
+      test_case_id = UUIDv7.generate()
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: test_case_id,
+        status: 0,
+        duration: 100
+      )
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: project.id,
+        test_case_id: test_case_id,
+        status: 1,
+        duration: 300
+      )
+
+      RunsFixtures.test_case_run_fixture(
+        project_id: other_project.id,
+        test_case_id: test_case_id,
+        status: 1,
+        duration: 1000
+      )
+
+      # When
+      got = Analytics.test_case_analytics_by_id(project.id, test_case_id)
+
+      # Then
+      assert got == %{total_count: 2, failed_count: 1, avg_duration: 200}
     end
   end
 

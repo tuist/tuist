@@ -5,6 +5,7 @@ defmodule TuistWeb.API.CacheController do
   alias OpenApiSpex.Schema
   alias Tuist.Accounts
   alias Tuist.API.Pipeline
+  alias Tuist.Authorization
   alias Tuist.Cache
   alias Tuist.CacheActionItems
   alias Tuist.Storage
@@ -66,17 +67,30 @@ defmodule TuistWeb.API.CacheController do
                items: %Schema{type: :string}
              }
            }
-         }}
+         }},
+      forbidden: {"Not authorized to perform this action", "application/json", Error}
     }
   )
 
   def endpoints(conn, params) do
     endpoints =
       params[:account_handle]
+      |> authorized_account_handle(conn)
       |> Accounts.get_cache_endpoints_for_handle(technology(conn))
       |> Enum.reject(&is_nil/1)
 
     json(conn, %{endpoints: endpoints})
+  end
+
+  defp authorized_account_handle(nil, _conn), do: nil
+
+  defp authorized_account_handle(account_handle, conn) do
+    account = Accounts.get_account_by_handle(account_handle)
+    subject = Authentication.authenticated_subject(conn)
+
+    if not is_nil(account) and Authorization.authorize(:account_cache_endpoint_read, subject, account) == :ok do
+      account_handle
+    end
   end
 
   defp technology(conn) do

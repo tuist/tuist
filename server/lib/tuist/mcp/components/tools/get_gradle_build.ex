@@ -15,6 +15,56 @@ defmodule Tuist.MCP.Components.Tools.GetGradleBuild do
         }
       },
       "required" => ["build_run_id"]
+    },
+    output_schema: %{
+      "type" => "object",
+      "properties" => %{
+        "id" => %{"type" => "string"},
+        "duration_ms" => %{"type" => "integer"},
+        "status" => %{"type" => "string"},
+        "gradle_version" => %{"type" => "string"},
+        "java_version" => %{"type" => "string"},
+        "is_ci" => %{"type" => "boolean"},
+        "git_branch" => %{"type" => "string"},
+        "git_commit_sha" => %{"type" => "string"},
+        "git_ref" => %{"type" => "string"},
+        "root_project_name" => %{"type" => "string"},
+        "requested_tasks" => %{"type" => "array", "items" => %{"type" => "string"}},
+        "tasks_local_hit_count" => %{"type" => "integer"},
+        "tasks_remote_hit_count" => %{"type" => "integer"},
+        "tasks_up_to_date_count" => %{"type" => "integer"},
+        "tasks_executed_count" => %{"type" => "integer"},
+        "tasks_failed_count" => %{"type" => "integer"},
+        "tasks_skipped_count" => %{"type" => "integer"},
+        "tasks_no_source_count" => %{"type" => "integer"},
+        "cacheable_tasks_count" => %{"type" => "integer"},
+        "cache_hit_rate" => %{"type" => ["number", "null"]},
+        "inserted_at" => %{"type" => "string"}
+      },
+      "required" => [
+        "id",
+        "duration_ms",
+        "status",
+        "gradle_version",
+        "java_version",
+        "is_ci",
+        "git_branch",
+        "git_commit_sha",
+        "git_ref",
+        "root_project_name",
+        "requested_tasks",
+        "tasks_local_hit_count",
+        "tasks_remote_hit_count",
+        "tasks_up_to_date_count",
+        "tasks_executed_count",
+        "tasks_failed_count",
+        "tasks_skipped_count",
+        "tasks_no_source_count",
+        "cacheable_tasks_count",
+        "cache_hit_rate",
+        "inserted_at"
+      ],
+      "additionalProperties" => false
     }
 
   alias Tuist.Gradle

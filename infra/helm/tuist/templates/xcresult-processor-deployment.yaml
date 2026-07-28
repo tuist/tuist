@@ -143,9 +143,11 @@ spec:
                   key: {{ .Values.xcresultProcessor.databaseUrlSecretKey | default "processor-database-url" }}
             - name: TUIST_DATABASE_SCHEMA
               value: {{ .Values.postgresql.schema | quote }}
-            # Object storage: the xcresult archive is downloaded from S3 to be
-            # parsed. Same wiring as the build processor — creds from the
-            # object-storage ESO Secret (managed) or app-secrets (self-hosted).
+            # Object storage: the xcresult archive is downloaded to be parsed.
+            # Same wiring as the build processor — S3 creds come from the
+            # object-storage ESO Secret (managed) or app-secrets (self-hosted);
+            # Azure Blob creds come from the server Azure Blob settings.
+            {{- include "tuist.serverObjectStorageEnv" . | nindent 12 }}
             - name: TUIST_S3_BUCKET_NAME
               value: {{ include "tuist.objectStorageBucketDefault" . | quote }}
             - name: TUIST_S3_ENDPOINT
@@ -207,6 +209,7 @@ spec:
                 fieldRef:
                   fieldPath: metadata.name
             {{- end }}
+            {{- include "tuist.clickhousePoolEnv" . | nindent 12 }}
             {{- with .Values.xcresultProcessor.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}

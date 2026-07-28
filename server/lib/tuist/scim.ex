@@ -291,7 +291,9 @@ defmodule Tuist.SCIM do
     |> Oban.insert!()
   end
 
-  defp provisionable_user(email) do
+  defp provisionable_user(email, opts \\ []) do
+    retry_after_email_taken = Keyword.get(opts, :retry_after_email_taken, true)
+
     case Accounts.get_user_by_email(email) do
       {:ok, %User{} = user} ->
         {:ok, user, :existing}
@@ -301,8 +303,17 @@ defmodule Tuist.SCIM do
           {:ok, user} ->
             {:ok, user, :created}
 
-          {:error, changeset} ->
+          {:error, :email_taken} when retry_after_email_taken ->
+            provisionable_user(email, retry_after_email_taken: false)
+
+          {:error, :email_taken} ->
+            {:error, :email_taken}
+
+          {:error, %Ecto.Changeset{} = changeset} ->
             if email_taken?(changeset), do: {:error, :email_taken}, else: {:error, changeset}
+
+          {:error, reason} ->
+            {:error, reason}
         end
     end
   end

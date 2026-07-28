@@ -23,7 +23,15 @@
         target={if Content.external_link?(@highlighted_post), do: "_blank"}
         rel={if Content.external_link?(@highlighted_post), do: "noopener noreferrer"}
       >
-        <img data-part="image" src={Content.get_entry_image_url(@highlighted_post)} />
+        <img
+          data-part="image"
+          src={
+            TuistWeb.Marketing.MarketingHTML.static_asset_path(
+              Content.get_entry_image_url(@highlighted_post)
+            )
+          }
+          decoding="async"
+        />
         <div data-part="content">
           <h2 data-part="title">
             {Content.get_entry_title(@highlighted_post)}
@@ -93,7 +101,14 @@
         target={if Content.external_link?(post), do: "_blank"}
         rel={if Content.external_link?(post), do: "noopener noreferrer"}
       >
-        <img data-part="image" src={Content.get_entry_image_url(post)} />
+        <img
+          data-part="image"
+          src={
+            TuistWeb.Marketing.MarketingHTML.static_asset_path(Content.get_entry_image_url(post))
+          }
+          loading="lazy"
+          decoding="async"
+        />
         <div data-part="content">
           <header data-part="header">
             <div data-part="metadata">

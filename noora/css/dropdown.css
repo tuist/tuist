@@ -122,6 +122,12 @@
     width: 100%;
   }
 
+  &[data-positioning-strategy="fixed"]
+    > [data-state="open"]
+    + [data-part="positioner"] {
+    width: max-content;
+  }
+
   & [data-part="indicator"] {
     display: inline-flex;
     color: var(--noora-surface-label-secondary);
@@ -335,12 +341,18 @@
     var(--noora-neutral-dark-1000)
   );
   display: flex;
+  box-sizing: border-box;
   align-items: center;
   align-self: stretch;
   cursor: pointer;
+  appearance: none;
+  border: 0;
   border-radius: var(--noora-radius-3);
+  background: transparent;
+  width: 100%;
   color: var(--noora-surface-label-primary);
   font: var(--noora-font-body-medium);
+  text-align: left;
   text-decoration: none;
 
   & [data-part="content"] {

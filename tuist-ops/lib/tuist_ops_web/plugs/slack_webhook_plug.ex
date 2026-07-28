@@ -16,8 +16,6 @@ defmodule TuistOpsWeb.Plugs.SlackWebhookPlug do
 
   alias TuistOps.Environment
 
-  require Logger
-
   @signature_header "x-slack-signature"
   @timestamp_header "x-slack-request-timestamp"
   @timestamp_tolerance_seconds 300

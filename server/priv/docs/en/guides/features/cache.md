@@ -37,3 +37,15 @@ Learn the cache workflow that matches your project or deployment model:
         linkText="Deploy self-hosted cache"
         link="/guides/features/cache/self-hosting"/>
 </HomeCards>
+
+> [!TIP]
+> **Fastest on Tuist Runners**
+>
+> On <.localized_link href="/guides/features/runners">Tuist Runners</.localized_link>, the cache is colocated on the runner's private network and shared with the same cache your developer machines use, so CI jobs get warm hits out of the box, with no separate CI cache to warm up.
+
+
+## Restrict uploads to CI {#restrict-uploads-to-ci}
+
+Account administrators can make developers read-only while allowing CI to upload cache artifacts. Open the account's **Cache** settings in Tuist and set **Cache upload access** to **CI and account tokens only**. After that, members authenticated with login sessions can still download from the cache, but uploads require CI OIDC authentication or an account token with cache write scopes such as `project:cache:write` or `ci`.
+
+Use this when CI is the trusted cache producer and local machines should only consume the cache. The setting affects cache upload authorization only.

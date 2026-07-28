@@ -132,12 +132,11 @@ defmodule TuistOps.JIT.Approvals do
                 not Policy.self_approval_allowed?(actor_email, req.target_group) ->
               Repo.rollback(:cannot_self_approve)
 
-            # Second-human path. Even though the approver is a
-            # different person from the requester, we still gate on
-            # role: an engineer must not approve another engineer's
-            # production write. `approver_allowed?` returns true for
-            # Owner/Admin on any env and for Member on staging/
-            # canary, matching the self-approve policy's trust tiers.
+            # Second-human path (approver != requester). Gate on
+            # role: `approver_allowed?` returns true for any
+            # engineering role (Owner/Admin/Member) on any env,
+            # matching the self-approve policy. Non-engineering and
+            # off-tailnet approvers are rejected.
             req.requester_slack_id != actor_slack_id and
                 not Policy.approver_allowed?(actor_email, req.target_group) ->
               Repo.rollback(:approver_not_authorized)

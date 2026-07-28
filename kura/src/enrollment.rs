@@ -35,7 +35,15 @@ const KURA_PEERS: &str = "KURA_PEERS";
 pub struct EnrollmentOutcome {
     pub tenant_id: String,
     pub peers: Vec<String>,
+    pub managed_peers: Vec<String>,
     pub renew_after_seconds: u64,
+    // The control-plane relationship the enrollment used, carried so the mesh
+    // heartbeat task reuses the same parsed configuration instead of
+    // re-reading the environment.
+    pub control_plane_url: String,
+    pub client_id: String,
+    pub client_secret: String,
+    pub node_url: String,
 }
 
 fn default_renew_after_seconds() -> u64 {
@@ -49,6 +57,12 @@ struct EnrollmentResponse {
     ca_certificate: String,
     #[serde(default)]
     peers: Vec<String>,
+    /// Platform-stable endpoints only (the managed regions' public peer
+    /// gateways). Seeded into the static `KURA_PEERS`; volatile (self-hosted)
+    /// membership flows exclusively through the mesh heartbeat, so removals
+    /// propagate without a restart.
+    #[serde(default)]
+    managed_peers: Vec<String>,
     #[serde(default = "default_renew_after_seconds")]
     renew_after_seconds: u64,
 }
@@ -141,8 +155,27 @@ async fn enroll(inputs: &EnrollmentInputs) -> Result<EnrollmentOutcome, String> 
     Ok(EnrollmentOutcome {
         tenant_id: body.tenant_id,
         peers: body.peers,
+        managed_peers: body.managed_peers,
         renew_after_seconds: body.renew_after_seconds,
+        control_plane_url: inputs.control_plane_url.clone(),
+        client_id: inputs.client_id.clone(),
+        client_secret: inputs.client_secret.clone(),
+        node_url: inputs.node_url.clone(),
     })
+}
+
+/// Static peers seeded into `KURA_PEERS` at boot: the platform-stable managed
+/// endpoints when the control plane distinguishes them, the full list only as
+/// a fallback for older control planes that don't. Static config is immutable
+/// for the process lifetime, so volatile (self-hosted) peers must stay out of
+/// it — they live in the dynamic layer, where the mesh heartbeat can remove
+/// them without a restart.
+fn static_peer_seed<'a>(managed_peers: &'a [String], peers: &'a [String]) -> &'a [String] {
+    if managed_peers.is_empty() {
+        peers
+    } else {
+        managed_peers
+    }
 }
 
 /// Re-enrolls using the same environment configuration as boot, writing fresh
@@ -177,9 +210,10 @@ fn apply_env_defaults(outcome: &EnrollmentOutcome) {
         unsafe { std::env::set_var(KURA_TENANT_ID, &outcome.tenant_id) };
     }
 
-    if env_value(KURA_PEERS).is_none() && !outcome.peers.is_empty() {
+    let static_seed = static_peer_seed(&outcome.managed_peers, &outcome.peers);
+    if env_value(KURA_PEERS).is_none() && !static_seed.is_empty() {
         // SAFETY: runs at startup before any worker threads read the environment.
-        unsafe { std::env::set_var(KURA_PEERS, outcome.peers.join(",")) };
+        unsafe { std::env::set_var(KURA_PEERS, static_seed.join(",")) };
     }
 }
 
@@ -220,6 +254,18 @@ fn required(key: &str) -> Result<String, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn static_seed_prefers_managed_peers_and_falls_back_to_the_full_list() {
+        let managed = vec!["https://managed.test:7443".to_string()];
+        let full = vec![
+            "https://managed.test:7443".to_string(),
+            "https://selfhosted.test:7443".to_string(),
+        ];
+
+        assert_eq!(static_peer_seed(&managed, &full), managed.as_slice());
+        assert_eq!(static_peer_seed(&[], &full), full.as_slice());
+    }
 
     #[test]
     fn generates_a_parseable_csr_and_key() {
