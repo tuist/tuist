@@ -555,37 +555,41 @@ struct BuildAcceptanceTestMultiplatformAppWithSDK {
         try await TuistTest.run(InstallCommand.self, ["--path", fixturePath.pathString])
         try await TuistTest.run(GenerateCommand.self, ["--no-open", "--path", fixturePath.pathString])
 
-        try await CommandRunner().runAndWait(arguments: [
-            "/usr/bin/xcodebuild",
-            "docbuild",
-            "-workspace",
-            fixturePath.appending(component: "App.xcworkspace").pathString,
-            "-scheme",
-            "App",
-            "-destination",
-            "generic/platform=iOS",
-            "-derivedDataPath",
-            derivedDataPath.pathString,
+        let workspace = fixturePath.appending(component: "App.xcworkspace").pathString
+        let codeSigningArgs: [String] = [
             "CODE_SIGNING_ALLOWED=NO",
             "CODE_SIGNING_REQUIRED=NO",
             "CODE_SIGN_IDENTITY=",
-        ])
+        ]
+
+        // iOS — docbuild exercises ExtractAPI, which is the path that needs MODULEMAP_PATH.
+        try await CommandRunner().runAndWait(arguments: [
+            "/usr/bin/xcodebuild",
+            "docbuild",
+            "-workspace", workspace,
+            "-scheme", "App",
+            "-destination", "generic/platform=iOS",
+            "-derivedDataPath", derivedDataPath.pathString,
+        ] + codeSigningArgs)
 
         try await CommandRunner().runAndWait(arguments: [
             "/usr/bin/xcodebuild",
             "build",
-            "-workspace",
-            fixturePath.appending(component: "App.xcworkspace").pathString,
-            "-scheme",
-            "App",
-            "-destination",
-            "generic/platform=iOS",
-            "-derivedDataPath",
-            derivedDataPath.pathString,
-            "CODE_SIGNING_ALLOWED=NO",
-            "CODE_SIGNING_REQUIRED=NO",
-            "CODE_SIGN_IDENTITY=",
-        ])
+            "-workspace", workspace,
+            "-scheme", "App",
+            "-destination", "generic/platform=iOS",
+            "-derivedDataPath", derivedDataPath.pathString,
+        ] + codeSigningArgs)
+
+        // macOS — ensures the multiplatform scheme still builds on macOS.
+        try await CommandRunner().runAndWait(arguments: [
+            "/usr/bin/xcodebuild",
+            "build",
+            "-workspace", workspace,
+            "-scheme", "App",
+            "-destination", "generic/platform=macOS",
+            "-derivedDataPath", derivedDataPath.pathString,
+        ] + codeSigningArgs)
     }
 }
 

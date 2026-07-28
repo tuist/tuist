@@ -424,11 +424,10 @@ struct ModuleMapMapperTests {
     }
 
     @Test(.inTemporaryDirectory)
-    func resolves_framework_modulemap_path_relative_to_source_root() throws {
+    func preserves_srcroot_relative_modulemap_path_for_environment_independence() throws {
         // Given
         let workspace = Workspace.test()
         let projectPath = try temporaryPath().appending(component: "A")
-        let moduleMapPath = projectPath.appending(components: "Derived", "ModuleMaps", "A.modulemap")
         let target = Target.test(
             name: "A",
             product: .framework,
@@ -448,10 +447,11 @@ struct ModuleMapMapperTests {
             environment: MapperEnvironment()
         )
 
-        // Then
+        // Then — the $(SRCROOT)-relative form is preserved so cache hashes are
+        // stable across machines with different checkout paths.
         let gotTarget = try #require(gotGraph.projects[projectPath]?.targets["A"])
         #expect(gotTarget.settings?.base["MODULEMAP_FILE"] == nil)
-        #expect(gotTarget.settings?.base["MODULEMAP_PATH"] == .string(moduleMapPath.pathString))
+        #expect(gotTarget.settings?.base["MODULEMAP_PATH"] == .string("$(SRCROOT)/Derived/ModuleMaps/A.modulemap"))
     }
 
     @Test(.inTemporaryDirectory)

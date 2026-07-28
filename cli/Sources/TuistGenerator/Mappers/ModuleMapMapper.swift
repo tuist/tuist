@@ -82,14 +82,13 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
                 else { return (targetName, target) }
 
                 if hasModuleMap {
-                    if target.product.isFramework, let moduleMapPath = Self.moduleMapPath(
-                        from: mappedSettingsDictionary[Self.modulemapFileSetting],
-                        projectPath: project.path
-                    ) {
+                    if target.product.isFramework, case let .string(moduleMapFile) = mappedSettingsDictionary[Self.modulemapFileSetting] {
                         // ExtractAPI consumes MODULEMAP_PATH as an explicit -fmodule-map-file input. Keeping the
                         // source map out of the framework product avoids duplicate module-map discovery and the
                         // static-framework copy fixed in #11588: https://github.com/tuist/tuist/pull/11588
-                        mappedSettingsDictionary[Self.modulemapPathSetting] = .string(moduleMapPath.pathString)
+                        // The original $(SRCROOT)-relative value is preserved so cache hashes stay
+                        // environment-independent.
+                        mappedSettingsDictionary[Self.modulemapPathSetting] = .string(moduleMapFile)
                     }
                     mappedSettingsDictionary[Self.modulemapFileSetting] = nil
                 }
@@ -172,26 +171,6 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
         sideEffects.append(contentsOf: generatedFileSideEffects)
         return (graph, sideEffects, environment)
     } // swiftlint:enable function_body_length
-
-    /// Resolves a `MODULEMAP_FILE` value to the absolute source path used for a framework's `MODULEMAP_PATH`.
-    /// swift-build uses `MODULEMAP_PATH` as the module's built map path, which ExtractAPI registers with
-    /// `-fmodule-map-file` for dependent targets:
-    /// https://github.com/swiftlang/swift-build/blob/5a49bfa5d4d7c4fbf1bea6e140481ba0818d676a/Sources/SWBTaskConstruction/ProductPlanning/ProductPlan.swift#L1443-L1474
-    /// https://github.com/swiftlang/swift-build/blob/5a49bfa5d4d7c4fbf1bea6e140481ba0818d676a/Sources/SWBTaskConstruction/TaskProducers/OtherTaskProducers/TAPISymbolExtractorTaskProducer.swift#L76-L108
-    /// Tuist settings may express this path relative to `PROJECT_DIR`, `SRCROOT`, or `SOURCE_ROOT`.
-    private static func moduleMapPath(
-        from value: SettingsDictionary.Value?,
-        projectPath: AbsolutePath
-    ) -> AbsolutePath? {
-        guard case let .string(moduleMap) = value else { return nil }
-
-        return try? AbsolutePath(
-            validating: moduleMap
-                .replacingOccurrences(of: "$(PROJECT_DIR)", with: projectPath.pathString)
-                .replacingOccurrences(of: "$(SRCROOT)", with: projectPath.pathString)
-                .replacingOccurrences(of: "$(SOURCE_ROOT)", with: projectPath.pathString)
-        )
-    }
 
     private func dependenciesModuleMapDirectory(for project: Project) -> AbsolutePath {
         if case .external = project.type,
