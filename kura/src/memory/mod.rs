@@ -52,6 +52,7 @@ struct MemoryControllerInner {
     soft_limit_bytes: u64,
     hard_limit_bytes: u64,
     container_accounting_selected: AtomicBool,
+    reclaim_file_cache: AtomicBool,
     observation_sequence: AtomicU64,
     foreground_waiters: AtomicU64,
     response_stream_waiters: AtomicU64,
@@ -96,6 +97,7 @@ impl MemoryController {
                 soft_limit_bytes,
                 hard_limit_bytes,
                 container_accounting_selected: AtomicBool::new(false),
+                reclaim_file_cache: AtomicBool::new(false),
                 observation_sequence: AtomicU64::new(0),
                 foreground_waiters: AtomicU64::new(0),
                 response_stream_waiters: AtomicU64::new(0),
@@ -136,7 +138,12 @@ impl MemoryController {
         self.inner
             .container_accounting_selected
             .store(true, Ordering::Release);
-        self.observe(sample.working_set_bytes)
+        self.inner.reclaim_file_cache.store(
+            sample.working_set_bytes >= self.inner.soft_limit_bytes
+                || sample.current_bytes >= self.inner.hard_limit_bytes,
+            Ordering::Relaxed,
+        );
+        self.observe(sample.pressure_bytes)
     }
 
     pub fn pressure(&self) -> MemoryPressure {
@@ -185,6 +192,11 @@ impl MemoryController {
         self.inner
             .container_accounting_selected
             .load(Ordering::Acquire)
+    }
+
+    pub fn should_reclaim_file_cache(&self) -> bool {
+        self.inner.reclaim_file_cache.load(Ordering::Relaxed)
+            || self.pressure() != MemoryPressure::Normal
     }
 
     pub fn observation_sequence(&self) -> u64 {
@@ -443,7 +455,7 @@ impl MemoryController {
     }
 
     pub fn try_acquire_mmap_serving(&self, requested_bytes: usize) -> Option<MmapMemoryPermit> {
-        if requested_bytes == 0 || self.pressure() != MemoryPressure::Normal {
+        if requested_bytes == 0 || self.should_reclaim_file_cache() {
             return None;
         }
         let permits = u32::try_from(requested_bytes).ok()?;
@@ -736,6 +748,38 @@ mod tests {
     }
 
     #[test]
+    fn clean_file_cache_triggers_reclaim_without_constraining_admission() {
+        let metrics = Metrics::new("eu-west".into(), "tenant".into());
+        let controller = MemoryController::with_runtime_limit(metrics, 240, 100, 200);
+
+        assert_eq!(
+            controller.observe_container(ContainerMemoryPressureSample {
+                current_bytes: 220,
+                pressure_bytes: 60,
+                working_set_bytes: 180,
+                reclaimable_inactive_file_bytes: 40,
+                limit_bytes: Some(240),
+            }),
+            MemoryPressure::Normal
+        );
+        assert!(controller.should_reclaim_file_cache());
+        assert!(controller.try_acquire_mmap_serving(1).is_none());
+
+        assert_eq!(
+            controller.observe_container(ContainerMemoryPressureSample {
+                current_bytes: 80,
+                pressure_bytes: 60,
+                working_set_bytes: 60,
+                reclaimable_inactive_file_bytes: 20,
+                limit_bytes: Some(240),
+            }),
+            MemoryPressure::Normal
+        );
+        assert!(!controller.should_reclaim_file_cache());
+        assert!(controller.try_acquire_mmap_serving(1).is_some());
+    }
+
+    #[test]
     fn reapi_response_budget_shrinks_with_memory_pressure() {
         let metrics = Metrics::new("eu-west".into(), "tenant".into());
         let controller = MemoryController::new(metrics, 128 * 1024 * 1024, 256 * 1024 * 1024);
@@ -814,7 +858,7 @@ mod tests {
     }
 
     #[test]
-    fn response_streaming_pool_preserves_memory_headroom() {
+    fn response_streaming_pool_scales_with_memory_headroom() {
         let metrics = Metrics::new("eu-west".into(), "tenant".into());
         let small = MemoryController::with_runtime_limit(
             metrics.clone(),
@@ -834,10 +878,10 @@ mod tests {
             small.foreground_response_streaming_pool_bytes(),
             13 * 1024 * 1024
         );
-        assert_eq!(large.response_streaming_pool_bytes(), 64 * 1024 * 1024);
+        assert_eq!(large.response_streaming_pool_bytes(), 512 * 1024 * 1024);
         assert_eq!(
             large.foreground_response_streaming_pool_bytes(),
-            58 * 1024 * 1024
+            506 * 1024 * 1024
         );
     }
 
