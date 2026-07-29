@@ -11,7 +11,10 @@ struct CacheWarmForeignBuildOutputValidatorTests {
 
     @Test func validateAcceptsForeignBuildTargetsWithTemporaryScratchDirectory() throws {
         try subject.validate(
-            targets: [try foreignBuildGraphTarget(name: "Foreign")],
+            targets: [
+                try foreignBuildGraphTarget(name: "Foreign"),
+                targetScriptGraphTarget(name: "Script"),
+            ],
             scratchDirectory: .temporary
         )
     }
@@ -38,6 +41,40 @@ struct CacheWarmForeignBuildOutputValidatorTests {
                 scratchDirectory: .callerOwned(scratchDirectory)
             )
         }
+    }
+
+    @Test func validateRejectsTargetScriptsWithCallerOwnedScratchDirectory() throws {
+        let scratchDirectory = try AbsolutePath(validating: "/scratch")
+
+        #expect(throws: CacheWarmForeignBuildOutputValidatorError.unsupportedTargetScripts(
+            scratchDirectory: scratchDirectory,
+            targetNames: ["ScriptA", "ScriptB"]
+        )) {
+            try subject.validate(
+                targets: [
+                    targetScriptGraphTarget(name: "ScriptB"),
+                    targetScriptGraphTarget(name: "ScriptA"),
+                ],
+                scratchDirectory: .callerOwned(scratchDirectory)
+            )
+        }
+    }
+
+    private func targetScriptGraphTarget(name: String) -> GraphTarget {
+        GraphTarget.test(
+            target: .test(
+                name: name,
+                scripts: [
+                    .init(
+                        name: "Write output",
+                        order: .post,
+                        script: .embedded("touch /outside/artifact"),
+                        inputPaths: ["/input"],
+                        outputPaths: ["/outside/artifact"]
+                    ),
+                ]
+            )
+        )
     }
 
     private func foreignBuildGraphTarget(name: String) throws -> GraphTarget {
