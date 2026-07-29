@@ -6,6 +6,7 @@ This directory contains the core business logic and domain modules for the serve
 
 - Ecto schemas, contexts, and domain services.
 - Business rules for accounts, projects, bundles, previews, and analytics.
+- Content-addressed Open Graph image rendering and shared object-storage caching.
 
 ## Boundaries
 

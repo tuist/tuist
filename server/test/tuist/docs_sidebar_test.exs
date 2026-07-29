@@ -63,6 +63,12 @@ defmodule Tuist.Docs.SidebarTest do
     refute Sidebar.item_or_children_active?(item, "/en/other")
   end
 
+  test "returns the top-level category for localized slugs" do
+    assert Sidebar.category_for_slug("/en/guides/install-tuist") == "Guides"
+    assert Sidebar.category_for_slug("/ko/guides/install-tuist") == "Guides"
+    assert Sidebar.category_for_slug("/en/not-in-the-sidebar") == "Docs"
+  end
+
   defp collect_slugs(groups) do
     Enum.flat_map(groups, fn group ->
       Enum.flat_map(group.items, &collect_item_slugs/1)
