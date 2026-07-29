@@ -43,6 +43,7 @@ defmodule Tuist.Xcode.XcodeTarget do
     field :project_settings_hash, Ch, type: "String", default: ""
     field :target_settings_hash, Ch, type: "String", default: ""
     field :buildable_folders_hash, Ch, type: "String", default: ""
+    field :additional_hashing_inputs_hash, Ch, type: "String", default: ""
     field :destinations, Ch, type: "Array(LowCardinality(String))", default: []
     field :additional_strings, Ch, type: "Array(String)", default: []
     field :external_hash, Ch, type: "String", default: ""
@@ -97,6 +98,7 @@ defmodule Tuist.Xcode.XcodeTarget do
       project_settings_hash: subhashes["project_settings"],
       target_settings_hash: subhashes["target_settings"],
       buildable_folders_hash: subhashes["buildable_folders"],
+      additional_hashing_inputs_hash: subhashes["additional_hashing_inputs"],
       destinations: xcode_target["destinations"],
       additional_strings: subhashes["additional_strings"],
       external_hash: subhashes["external"],

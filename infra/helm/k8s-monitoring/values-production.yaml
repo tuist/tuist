@@ -26,6 +26,10 @@ k8s-monitoring:
             - action: insert
               key: deployment.environment
               value: production
+        tailSampling:
+          collector:
+            controller:
+              replicas: 2
 
   # Put the OTLP receiver on the tailnet.
   #

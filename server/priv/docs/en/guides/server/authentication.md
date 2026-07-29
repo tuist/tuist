@@ -21,6 +21,9 @@ The command will take you through a web-based authentication flow. Once you auth
 
 The CLI will automatically look up the credentials when making requests to the server. If the access token is expired, the CLI will use the refresh token to get a new access token.
 
+> [!NOTE]
+> If your organization uses single sign-on, choose the enterprise login option in the browser and enter your work email address. Tuist can find the provider from your existing organization membership or a <.localized_link href="/guides/integrations/authentication/sso#verify-a-login-email-domain">verified login email domain</.localized_link>.
+
 ## OIDC tokens {#oidc-tokens}
 
 For CI environments that support OpenID Connect (OIDC), Tuist can authenticate automatically without requiring you to manage long-lived secrets. When running in a supported CI environment, the CLI will automatically detect the OIDC token provider and exchange the CI-provided token for a Tuist access token.

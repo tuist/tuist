@@ -13,6 +13,7 @@ defmodule Tuist.RunnersTest do
   alias Tuist.Runners.Concurrency
   alias Tuist.Runners.Dispatch
   alias Tuist.Runners.Jobs
+  alias Tuist.Runners.RunnerSessions
   alias Tuist.Runners.VolumeAffinities
   alias Tuist.Runners.VolumeHeads
   alias Tuist.Runners.VolumeMasterOrphans
@@ -36,12 +37,17 @@ defmodule Tuist.RunnersTest do
   end
 
   defp pod_with_image(pod_name, image, opts \\ []) do
+    labels = %{}
+
     labels =
-      if Keyword.get(opts, :drain_eligible, false) do
-        %{"tuist.dev/drain-eligible" => "true"}
-      else
-        %{}
-      end
+      if Keyword.get(opts, :drain_eligible, false),
+        do: Map.put(labels, "tuist.dev/drain-eligible", "true"),
+        else: labels
+
+    labels =
+      if Keyword.get(opts, :operator_drain, false),
+        do: Map.put(labels, "tuist.dev/runner-operator-drain", "true"),
+        else: labels
 
     spec =
       then(%{"containers" => [%{"name" => "runner", "image" => image}]}, fn spec ->
@@ -65,6 +71,23 @@ defmodule Tuist.RunnersTest do
   end
 
   describe "dispatch_for_sa/2 stale-image drain" do
+    test "returns :drain for an operator-marked Pod before attempting a claim" do
+      image = "ghcr.io/tuist/tuist-runner@sha256:current"
+
+      expect(K8sClient, :get_service_account, fn "tuist-runners", "pod-1" ->
+        {:ok, sa_with_pool_label("pod-1", "fleet-a")}
+      end)
+
+      expect(K8sClient, :get_pod, fn "tuist-runners", "pod-1" ->
+        {:ok, pod_with_image("pod-1", image, operator_drain: true)}
+      end)
+
+      reject(&K8sClient.get_runner_pool/2)
+      reject(&Claims.attempt/5)
+
+      assert {:error, :drain} = Runners.dispatch_for_sa("tuist-runners", "pod-1")
+    end
+
     test "returns :drain when Pod is stale and the controller marked it drain-eligible" do
       old_image = "ghcr.io/tuist/tuist-runner@sha256:old"
       new_image = "ghcr.io/tuist/tuist-runner@sha256:new"
@@ -1149,6 +1172,22 @@ defmodule Tuist.RunnersTest do
       queue_job(account, 91_001, fleet, resources)
 
       assert %{queued: 1} = Runners.scaling_signals_for_fleet(fleet)
+    end
+
+    test "keeps post-job session occupancy in real load after the claim is gone" do
+      account = account_fixture()
+      fleet = "macos-signal-session-tail"
+
+      assert {:ok, _session} =
+               RunnerSessions.open(%{
+                 workflow_job_id: 91_050,
+                 account_id: account.id,
+                 fleet_name: fleet,
+                 pod_name: "pod-session-tail",
+                 started_at: DateTime.utc_now()
+               })
+
+      assert %{claimed: 0, occupied: 1} = Runners.scaling_signals_for_fleet(fleet)
     end
 
     # The regression this exists for. An account that queues past its

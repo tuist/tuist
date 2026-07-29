@@ -65,6 +65,9 @@ Routes `tuist.dev/api/registry/*` to the health-checked standalone registry fron
 ### `cnpg/` — CloudNativePG bootstrap SQL
 SQL files for per-table GRANTs that don't fit CNPG's `managed.roles[]` declarative surface (`tuist_processor` writes on Oban tables; `tuist_ops_ro` extras on top of `pg_read_all_data`). The actual `Cluster` / `ScheduledBackup` / ESO Secret manifests are rendered by the main Helm chart whenever `postgresql.cnpg.enabled` is true or `postgresql.mode == "cnpg"`; this directory holds only the operator-run SQL that can't fit in the chart.
 
+### `clickhouse/` — ClickHouse access recovery
+Recovery fallback for the restricted ClickHouse identity reconciled automatically by the server migration release task and Helm chart. See [`clickhouse/README.md`](clickhouse/README.md).
+
 ### `vm-image-builder.md` — bare-metal builder fleet operator runbook
 End-to-end runbook for the bare-metal Mac mini fleet that bakes our Tart VM images (runner-image, xcresult-processor-image). Cluster-managed via the same CAPI provider that runs the other macOS fleets; hosts are regular Nodes with tart-kubelet idle plus a GitHub Actions self-hosted runner installed on top via the `ScalewayAppleSiliconMachineSpec.GHActionsRunner` sub-spec. Scale by editing `buildersFleet.replicas` or `kubectl scale machinedeployment`.
 
@@ -101,6 +104,7 @@ Concrete rules for agents:
 - **Do not click Approve on any elevation request**, including (especially) one triggered by the human you're operating for. The "second human" attestation is meaningless if an agent is one of the two clicks.
 - **Do not retrieve the 1Password admin kubeconfig.** `op document get "kubeconfig: tuist-<env>"` requires biometric on the local 1P CLI, which is the explicit friction that keeps an agent from silently fetching cluster-admin credentials. Asking the human to fetch it for you defeats that.
 - **If the human has elevated themselves and you're now running inside that window**, mutating operations will succeed — tuist-ops's policy response adds the env's write group to the impersonation headers, widening the *identity's* tier, not just the human's session. Treat the elevation as a scoped, time-bounded license to do exactly what was stated in the `intent` field of the request. Don't expand scope mid-session.
+- The elevated `tuist-fleet-unwedge` role may delete a Kubernetes Node only after confirming that it is orphaned and its Cluster API Machine and infrastructure are already gone. Live fleet replacement must continue through Machine deletion so the owning controller recreates the host.
 
 ### Forensic trail
 

@@ -11,7 +11,7 @@
 # What this does:
 #   1. Extract the workload kubeconfig + API endpoint from the mgmt
 #      cluster's ClusterCR + minted Secret.
-#   2. Install Cilium (must be first — nothing networks without it).
+#   2. Install Cilium, then configure CoreDNS upstream resolvers.
 #   3. Create the legacy `hetzner` Secret on the workload cluster and
 #      wait for caph's `hcloud` Secret. HCCM + CSI read `hcloud`.
 #   4. Install hcloud-cloud-controller-manager (sets providerID,
@@ -152,6 +152,20 @@ KUBECONFIG="$WL_KUBECONFIG" helm upgrade --install cilium cilium/cilium \
 # until HCCM is installed below. The cilium-agent DaemonSet installs
 # on each node as the node registers, no wait needed; later steps
 # only depend on the agent, not hubble-relay.
+
+# CoreDNS uses dnsPolicy=Default, so forwarding to /etc/resolv.conf
+# follows the node's host-local 127.0.0.53 systemd-resolved stub when
+# scheduled on an older worker. That address loops back to CoreDNS
+# inside the pod network namespace and both replicas crash. Use the
+# provider-neutral public upstream resolvers directly. This protects
+# existing workers and future CoreDNS reschedules without coupling a
+# fresh-cluster bootstrap to a later worker replacement.
+KUBECONFIG="$WL_KUBECONFIG" kubectl apply \
+  -f "$BOOTSTRAP_DIR/coredns-config.yaml"
+KUBECONFIG="$WL_KUBECONFIG" kubectl -n kube-system rollout restart \
+  deployment/coredns
+KUBECONFIG="$WL_KUBECONFIG" kubectl -n kube-system rollout status \
+  deployment/coredns --timeout=5m
 
 # ---------------------------------------------------------------------------
 log "Step 3/13: create workload Hetzner Secrets"

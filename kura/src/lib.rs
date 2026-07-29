@@ -8,6 +8,7 @@ mod constants;
 mod enrollment;
 mod extension;
 mod failpoints;
+mod file_cache;
 mod geoip;
 mod http;
 mod io;

@@ -20,23 +20,30 @@ defmodule Tuist.Kura.RunnerCache do
   runner rule therefore provisions caches for every eligible account, while an
   account whose runner access is removed has its cache torn down.
 
-  In production, an actor-only runner flag narrows the account query before the
-  final availability check. Broad gates still evaluate every eligible account.
-  Both steps use one flag snapshot so a concurrent flag update cannot produce a
-  mixed cohort within a reconciliation tick.
+  Each private region admits new accounts only while fewer than ten servers are
+  unsettled. Failed and destroying servers keep admission closed until they
+  recover or disappear, while active servers free slots for the next accounts.
+  Retries reuse existing server rows and at most ten may converge at once.
+  Teardown is also batched. These limits bound the backing Kubernetes work if
+  runner availability expands or contracts unexpectedly.
+
+  In canary and production, an actor-only runner flag narrows the account query
+  before the final availability check. Broad gates still evaluate every
+  eligible account. Both steps use one flag snapshot so a concurrent flag update
+  cannot produce a mixed cohort within a reconciliation tick.
 
   The platform match keeps the node next to the fleet it serves: a region
   pinned beside the Scaleway Mac mini fleet provisions only for accounts with
   macOS profiles, and an account that drops its last macOS profile frees that
   node even while its Linux profiles keep a node in a Linux-serving region.
 
-  This runs inside `Tuist.Kura.Reconciler`'s tick rather than on its own
-  cron, so it shares the same cadence and self-heals after a BEAM
-  restart: enabling runners for an account provisions the node on the next
-  tick; disabling them tears it down. It is a no-op unless a private region is
-  available in this runtime (via `TUIST_KURA_AVAILABLE_REGIONS`) and a Kura
-  runtime image tag is configured, so non-managed and not-yet-wired
-  environments stay inert.
+  This runs inside `Tuist.Kura.Reconciler`'s unique Oban job rather than on its
+  own cron, so production reconciliation is serialized, shares the same cadence,
+  and self-heals after a BEAM restart: enabling runners for an account provisions
+  the node on the next tick; disabling them tears it down. It is a no-op unless a
+  private region is available in this runtime (via
+  `TUIST_KURA_AVAILABLE_REGIONS`) and a Kura runtime image tag is configured, so
+  non-managed and not-yet-wired environments stay inert.
 
   Provisioning the node does not, by itself, route any traffic to it —
   `Tuist.Kura.runner_cache_endpoint_url/2` only returns a URL once the
@@ -57,6 +64,8 @@ defmodule Tuist.Kura.RunnerCache do
 
   require Logger
 
+  @max_teardowns_per_reconcile 100
+  @max_unsettled_servers_per_region 10
   @retry_backoff_seconds [60, 300, 900, 3600]
 
   @doc """
@@ -79,20 +88,25 @@ defmodule Tuist.Kura.RunnerCache do
   defp reconcile_region(%Regions{id: region_id} = region, account_ids) do
     # Tear down first so an account that flips runners off frees its node
     # even when no image tag is configured to provision new ones.
-    Enum.each(nodes_to_tear_down(region, account_ids), &tear_down/1)
+    region
+    |> nodes_to_tear_down(account_ids)
+    |> Enum.each(&tear_down/1)
 
     case image_tag() do
       nil ->
         :ok
 
       image_tag ->
-        Enum.each(accounts_needing_node(region, account_ids), &provision(&1, region_id, image_tag))
         # A node that failed before its first successful deployment
         # (transient apiserver error, missing CRD field, ...) would
         # otherwise strand its account forever: the server row exists,
         # so provisioning never re-runs, and nothing else retries
         # failed servers. Self-heal them on the same cadence.
-        Enum.each(nodes_to_retry(region_id, image_tag), &retry(&1, image_tag))
+        retry_failed_servers(region_id, account_ids, image_tag)
+
+        region
+        |> accounts_needing_node(account_ids, provisioning_slots(region_id))
+        |> Enum.each(&provision(&1, region_id, image_tag))
     end
 
     :ok
@@ -162,19 +176,22 @@ defmodule Tuist.Kura.RunnerCache do
   end
 
   defp runner_availability do
-    if Environment.prod?() do
-      case FunWithFlags.get_flag(:runners) do
-        nil ->
-          %FunWithFlags.Flag{name: :runners, gates: []}
+    case Environment.env() do
+      env when env in [:can, :prod] -> flagged_runner_availability()
+      _ -> :all
+    end
+  end
 
-        {:error, reason} ->
-          raise "could not load runner availability: #{inspect(reason)}"
+  defp flagged_runner_availability do
+    case FunWithFlags.get_flag(:runners) do
+      nil ->
+        %FunWithFlags.Flag{name: :runners, gates: []}
 
-        %FunWithFlags.Flag{} = flag ->
-          flag
-      end
-    else
-      :all
+      {:error, reason} ->
+        raise "could not load runner availability: #{inspect(reason)}"
+
+      %FunWithFlags.Flag{} = flag ->
+        flag
     end
   end
 
@@ -211,7 +228,7 @@ defmodule Tuist.Kura.RunnerCache do
     end)
   end
 
-  defp accounts_needing_node(%Regions{id: region_id} = region, account_ids) do
+  defp accounts_needing_node(%Regions{id: region_id} = region, account_ids, limit) do
     platforms = region_platforms(region)
 
     server_exists =
@@ -236,9 +253,36 @@ defmodule Tuist.Kura.RunnerCache do
         where: exists(profile_exists),
         where: not exists(server_exists),
         order_by: [asc: a.id],
+        limit: ^limit,
         select: a.id
       )
     )
+  end
+
+  defp provisioning_slots(region_id) do
+    unsettled_servers =
+      Repo.aggregate(
+        from(s in Server,
+          where: s.region == ^region_id,
+          where: s.status not in [:active, :destroyed]
+        ),
+        :count
+      )
+
+    max(@max_unsettled_servers_per_region - unsettled_servers, 0)
+  end
+
+  defp retry_convergence_slots(region_id) do
+    converging_servers =
+      Repo.aggregate(
+        from(s in Server,
+          where: s.region == ^region_id,
+          where: s.status in [:provisioning, :replicating]
+        ),
+        :count
+      )
+
+    max(@max_unsettled_servers_per_region - converging_servers, 0)
   end
 
   defp nodes_to_tear_down(%Regions{id: region_id} = region, account_ids) do
@@ -251,32 +295,19 @@ defmodule Tuist.Kura.RunnerCache do
         select: 1
       )
 
-    no_profiles =
-      Repo.all(
-        from(s in Server,
-          as: :server,
-          where: s.region == ^region_id,
-          where: s.status not in [:destroying, :destroyed],
-          where: not exists(profile_exists),
-          select: s
-        )
-      )
-
     cohort_ids = MapSet.to_list(account_ids)
 
-    outside_cohort =
-      Repo.all(
-        from(s in Server,
-          as: :server,
-          where: s.region == ^region_id,
-          where: s.status not in [:destroying, :destroyed],
-          where: exists(profile_exists),
-          where: s.account_id not in ^cohort_ids,
-          select: s
-        )
+    Repo.all(
+      from(s in Server,
+        as: :server,
+        where: s.region == ^region_id,
+        where: s.status not in [:destroying, :destroyed],
+        where: not exists(profile_exists) or s.account_id not in ^cohort_ids,
+        order_by: [asc: s.updated_at, asc: s.id],
+        limit: ^@max_teardowns_per_reconcile,
+        select: s
       )
-
-    Enum.uniq_by(no_profiles ++ outside_cohort, & &1.id)
+    )
   end
 
   defp provision(account_id, region_id, image_tag) do
@@ -298,19 +329,30 @@ defmodule Tuist.Kura.RunnerCache do
   # (`current_image_tag` nil) — the only state `Kura.retry_server/2`
   # accepts. Failures after a successful deploy keep their node and are
   # an operator concern, not ours.
-  defp nodes_to_retry(region_id, image_tag) do
-    servers = failed_first_deploy_servers(region_id)
+  defp retry_failed_servers(region_id, account_ids, image_tag) do
+    region_id
+    |> nodes_to_retry(account_ids, image_tag)
+    |> Enum.take(retry_convergence_slots(region_id))
+    |> Enum.each(&retry(&1, image_tag))
+  end
+
+  defp nodes_to_retry(region_id, account_ids, image_tag) do
+    servers = failed_first_deploy_servers(region_id, account_ids)
     failure_histories = retry_failure_histories(servers, image_tag)
 
     Enum.filter(servers, &retry_due?(&1, Map.get(failure_histories, &1.id, [])))
   end
 
-  defp failed_first_deploy_servers(region_id) do
+  defp failed_first_deploy_servers(region_id, account_ids) do
+    cohort_ids = MapSet.to_list(account_ids)
+
     Repo.all(
       from(s in Server,
         where: s.region == ^region_id,
+        where: s.account_id in ^cohort_ids,
         where: s.status == :failed,
         where: is_nil(s.current_image_tag),
+        order_by: [asc: s.updated_at, asc: s.id],
         select: s
       )
     )

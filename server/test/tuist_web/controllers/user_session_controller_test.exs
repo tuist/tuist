@@ -89,6 +89,25 @@ defmodule TuistWeb.UserSessionControllerTest do
       assert Phoenix.Flash.get(conn.assigns.flash, :info) =~ "Welcome back!"
     end
 
+    test "does not carry another user's invitation return target across login", %{conn: conn, user: user} do
+      other_user = user_fixture()
+
+      conn =
+        conn
+        |> init_test_session(%{
+          post_invitation_return_to: "/auth/device_codes/AOKJ-1234?type=cli",
+          post_invitation_user_id: other_user.id,
+          post_invitation_token: "invitation-token"
+        })
+        |> post(~p"/users/log_in", %{
+          "user" => %{"email" => user.email, "password" => valid_user_password()}
+        })
+
+      refute get_session(conn, :post_invitation_return_to)
+      refute get_session(conn, :post_invitation_user_id)
+      refute get_session(conn, :post_invitation_token)
+    end
+
     test "login following registration", %{conn: conn, user: user} do
       conn =
         post(conn, ~p"/users/log_in", %{

@@ -481,12 +481,19 @@ macosFleet:
   # Staging is the proving ground for the cache volume: it carries the
   # fail-safe guest (a share it cannot write is abandoned for a local cold
   # cache instead of failing the job) plus cache_diag, so a bad share costs
-  # warmth and names itself in the runner log. Canary/production stay at 0
-  # until a real CI job is verified green here — host-side checks (volume
-  # provisioned, config converged) are NOT evidence; trusting them is what
-  # broke every macOS job in production on 2026-07-16.
+  # warmth and names itself in the runner log — the guard that was missing
+  # when host-side checks alone (volume provisioned, config converged) let a
+  # broken share reach prod and break every macOS job on 2026-07-16.
   runnerCacheVolume:
     gib: 40
+    # Fold the Xcode compilation cache (CAS) into the per-account image.
+    # masterCapGib 28 is the sparse per-master ceiling; of it the CAS gets
+    # 16 GiB, the binary cache ~10, and a ~2 GiB reserve stays free (the
+    # split cacheImageSplit(28, 16) pins). The guest is fail-safe (an
+    # unusable store falls back to a VM-local cold compilation cache, never
+    # fails the job), so a bad budget costs warmth, not the build.
+    masterCapGib: 28
+    casGib: 16
   # Share the pre-ordered pool with runnersFleet (same prefix
   # below). Both MachineDeployments draw from one Scaleway-side
   # pool of `tuist-pool-*` hosts; the controller claims the first

@@ -26,6 +26,7 @@ defmodule Tuist.Registry do
   alias Tuist.Registry.Swift.SyncWorker
 
   def registry_bucket, do: Application.get_env(:tuist, :registry)[:bucket]
+  def registry_s3_config, do: Application.get_env(:tuist, :registry)[:s3_config] || []
 
   @doc """
   The full public base URL, including the API path prefix, that clients use

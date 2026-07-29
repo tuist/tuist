@@ -153,11 +153,9 @@
 }
 
 .noora-digit-input {
-  padding: var(--noora-spacing-6);
-
   & [data-part="root"] {
     display: flex;
-    gap: var(--noora-spacing-5);
+    gap: var(--noora-spacing-4);
   }
 
   & input {
@@ -175,10 +173,11 @@
     border-radius: var(--noora-radius-4);
 
     background: var(--noora-surface-background-primary);
-    padding: var(--noora-spacing-5) 0;
-    width: 56px;
+    padding: 0;
+    width: 48px;
+    height: 48px;
     color: var(--noora-surface-label-primary);
-    font: var(--noora-font-heading-large);
+    font: var(--noora-font-heading-small);
     text-align: center;
 
     &:hover {

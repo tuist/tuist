@@ -108,16 +108,21 @@ server:
   managedSecrets: true
   config:
     managedSecrets: true
+    opsClickHouse:
+      enabled: true
   externalSecrets:
     refreshInterval: "1h"
     storeRef:
       kind: ClusterSecretStore
       name: onepassword
     # Source the Tuist license from 1Password instead of the blob, so the blob
-    # can be removed. Per-env vault holds the TUIST_LICENSE_KEY item.
+    # can be removed. Environments can override this with certificateItem to
+    # use a locally verified air-gapped license.
     license:
       item: TUIST_LICENSE_KEY
       field: password
+      certificateItem: ""
+      certificateField: password
 
   # ESO-synced GitHub App + bot PATs. The PEM file attachment name
   # differs per env (production.pem / staging.pem / canary.pem) and is

@@ -149,6 +149,7 @@ defmodule Tuist.MCP.Components.Prompts.PromptsTest do
       assert text =~ "Compare Generations"
       assert text =~ "gen-head-id"
       assert text =~ "list_xcode_module_cache_targets"
+      assert text =~ "additional_hashing_inputs"
       assert text =~ "git_branch=develop"
     end
   end
@@ -173,6 +174,7 @@ defmodule Tuist.MCP.Components.Prompts.PromptsTest do
       assert text =~ "Compare Cache Runs"
       assert text =~ "cr-base-id"
       assert text =~ "cr-head-id"
+      assert text =~ "additional_hashing_inputs"
     end
   end
 

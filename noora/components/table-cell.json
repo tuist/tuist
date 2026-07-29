@@ -1,0 +1,43 @@
+{
+  "name": "TableCell",
+  "tagName": "noora-table-cell",
+  "elementClassName": "NooraTableCell",
+  "className": "noora-table-cell",
+  "modulePath": "./priv/static/noora-web-components.js",
+  "description": "Describes one declarative table cell.",
+  "usage": "<noora-table-cell column=\"project\">Tuist</noora-table-cell>",
+  "standalone": false,
+  "attributes": [
+    {
+      "name": "column",
+      "property": "column",
+      "type": "string",
+      "default": "",
+      "description": "Associates the cell with a table column."
+    },
+    {
+      "name": "value",
+      "property": "value",
+      "type": "string",
+      "description": "Sets the cell value instead of using text content."
+    }
+  ],
+  "properties": [],
+  "readonlyProperties": [],
+  "slots": [
+    {
+      "name": "",
+      "description": "The cell value."
+    }
+  ],
+  "cssParts": [],
+  "notes": [],
+  "examples": [
+    {
+      "id": "cell",
+      "title": "Cell",
+      "description": "Describe one table value.",
+      "markup": "<noora-table-cell column=\"project\">Tuist</noora-table-cell>"
+    }
+  ]
+}

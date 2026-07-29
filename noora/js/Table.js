@@ -352,7 +352,16 @@ export default {
     }
 
     if (this.thead) {
-      const floatingHeader = rect.top < viewTop && contentBottom > viewTop;
+      // A pinned header only earns its keep when the table is taller than the scroll viewport.
+      // If the whole table fits on screen at once, there's never a moment where body rows are
+      // visible without their real header, so pinning the clone as the table scrolls past would
+      // just leave the labels hovering over rows that have already gone (the single-row case).
+      const viewportHeight = viewBottom - viewTop;
+      const tableTallerThanViewport = contentBottom - rect.top > viewportHeight;
+      const floatingHeader =
+        tableTallerThanViewport &&
+        rect.top < viewTop &&
+        contentBottom > viewTop;
       if (floatingHeader) {
         if (!this.header.hasAttribute("data-visible")) this.refreshHeader();
         const headerHeight = this.thead.offsetHeight;

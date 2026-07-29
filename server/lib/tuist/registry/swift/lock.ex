@@ -34,7 +34,7 @@ defmodule Tuist.Registry.Swift.Lock do
     lock_key = lock_key(key)
     bucket = bucket()
 
-    case bucket |> ExAws.S3.delete_object(lock_key) |> ExAws.request() do
+    case bucket |> ExAws.S3.delete_object(lock_key) |> S3.request() do
       {:ok, _} ->
         :ok
 
@@ -81,7 +81,7 @@ defmodule Tuist.Registry.Swift.Lock do
     case bucket
          |> ExAws.S3.get_object(lock_key)
          |> with_tigris_consistency()
-         |> ExAws.request() do
+         |> S3.request() do
       {:ok, %{body: body, headers: headers}} ->
         with {:ok, lock} <- JSON.decode(body) do
           {:ok, lock, S3.etag_from_headers(headers)}
@@ -101,7 +101,7 @@ defmodule Tuist.Registry.Swift.Lock do
     bucket
     |> ExAws.S3.put_object(lock_key, body, Keyword.merge([content_type: "application/json"], opts))
     |> with_tigris_consistency()
-    |> ExAws.request()
+    |> S3.request()
   end
 
   defp with_tigris_consistency(%{headers: headers} = op) do

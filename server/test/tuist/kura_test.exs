@@ -166,6 +166,81 @@ defmodule Tuist.KuraTest do
       assert {:ok, %{scheduled: [], failures: []}} = Kura.schedule_runtime_image_deployments()
     end
 
+    test "supersedes an open deployment when a newer runtime image is configured" do
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      {:ok, server} =
+        Kura.create_server(%{
+          account_id: account.id,
+          region: "local-controller",
+          image_tag: "0.5.2"
+        })
+
+      [open_deployment] = server.deployments
+      {:ok, _open_deployment} = Kura.mark_running(open_deployment)
+
+      stub(Tuist.Environment, :kura_runtime_image_tag, fn -> "0.5.3" end)
+
+      assert {:ok, %{scheduled: [%Deployment{image_tag: "0.5.3"} = deployment], failures: []}} =
+               Kura.schedule_runtime_image_deployments()
+
+      superseded = Repo.get!(Deployment, open_deployment.id)
+      assert superseded.status == :superseded
+      assert superseded.error_message == "superseded by Kura image 0.5.3"
+      assert superseded.finished_at
+      assert deployment.kura_server_id == server.id
+
+      assert Repo.aggregate(
+               from(d in Deployment,
+                 where: d.kura_server_id == ^server.id and d.status in [:pending, :running]
+               ),
+               :count
+             ) == 1
+    end
+
+    test "supersedes an older open deployment even when the server already observes the new image" do
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      {:ok, server} =
+        Kura.create_server(%{
+          account_id: account.id,
+          region: "local-controller",
+          image_tag: "0.5.2"
+        })
+
+      [open_deployment] = server.deployments
+      {:ok, _server} = Kura.activate_server(server, "0.5.3")
+
+      stub(Tuist.Environment, :kura_runtime_image_tag, fn -> "0.5.3" end)
+
+      assert {:ok, %{scheduled: [%Deployment{image_tag: "0.5.3"}], failures: []}} =
+               Kura.schedule_runtime_image_deployments()
+
+      assert Repo.get!(Deployment, open_deployment.id).status == :superseded
+    end
+
+    test "keeps the open deployment when the replacement image tag is invalid" do
+      user = AccountsFixtures.user_fixture()
+      account = Accounts.get_account_from_user(user)
+
+      {:ok, server} =
+        Kura.create_server(%{
+          account_id: account.id,
+          region: "local-controller",
+          image_tag: "0.5.2"
+        })
+
+      [open_deployment] = server.deployments
+      {:ok, _open_deployment} = Kura.mark_running(open_deployment)
+
+      assert {:ok, %{scheduled: [], failures: [%{reason: %Ecto.Changeset{}}]}} =
+               Kura.schedule_version_deployments("bad tag")
+
+      assert Repo.get!(Deployment, open_deployment.id).status == :running
+    end
+
     test "does not create deployments when no runtime image tag is configured" do
       stub(Tuist.Environment, :kura_runtime_image_tag, fn -> nil end)
 

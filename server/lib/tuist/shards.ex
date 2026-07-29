@@ -122,27 +122,17 @@ defmodule Tuist.Shards do
         {:error, :not_found}
 
       plan ->
-        case fetch_shard_data(plan, shard_index, opts) do
-          nil ->
-            {:error, :invalid_shard_index}
+        get_shard_for_plan(project, account, plan, shard_index, opts)
+    end
+  end
 
-          %{modules: modules, suites: suites, skip: skip} = shard_data ->
-            # The catch-all shard selects nothing via `-only-testing` (`modules` is empty) but must
-            # still run every un-skipped target, so it downloads the plan's whole module inventory
-            # rather than only its selection modules.
-            download_modules = Map.get(shard_data, :download_modules, modules)
-            {download_url, download_urls} = shard_download_urls(account, project, plan.id, download_modules)
+  def get_shard_for_plan_id(%Project{} = project, %Account{} = account, plan_id, shard_index, opts \\ []) do
+    case get_plan_by_id(project.id, plan_id) do
+      nil ->
+        {:error, :not_found}
 
-            {:ok,
-             %{
-               shard_plan_id: plan.id,
-               modules: modules,
-               suites: suites,
-               skip: skip,
-               download_url: download_url,
-               download_urls: download_urls
-             }}
-        end
+      plan ->
+        get_shard_for_plan(project, account, plan, shard_index, opts)
     end
   end
 
@@ -386,6 +376,40 @@ defmodule Tuist.Shards do
         limit: 1
       )
     )
+  end
+
+  defp get_plan_by_id(project_id, plan_id) do
+    ClickHouseRepo.one(
+      from(s in ShardPlan,
+        where: s.project_id == ^project_id,
+        where: s.id == ^plan_id,
+        limit: 1
+      )
+    )
+  end
+
+  defp get_shard_for_plan(project, account, plan, shard_index, opts) do
+    case fetch_shard_data(plan, shard_index, opts) do
+      nil ->
+        {:error, :invalid_shard_index}
+
+      %{modules: modules, suites: suites, skip: skip} = shard_data ->
+        # The catch-all shard selects nothing via `-only-testing` (`modules` is empty) but must
+        # still run every un-skipped target, so it downloads the plan's whole module inventory
+        # rather than only its selection modules.
+        download_modules = Map.get(shard_data, :download_modules, modules)
+        {download_url, download_urls} = shard_download_urls(account, project, plan.id, download_modules)
+
+        {:ok,
+         %{
+           shard_plan_id: plan.id,
+           modules: modules,
+           suites: suites,
+           skip: skip,
+           download_url: download_url,
+           download_urls: download_urls
+         }}
+    end
   end
 
   defp resolve_units(_project, params, "module"), do: params_modules(params)

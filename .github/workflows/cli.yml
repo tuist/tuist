@@ -13,6 +13,9 @@ on:
       # cas-plugin (the Xcode CAS dylib + tuist-cas-proxy) is built and shipped
       # inside the CLI, so its changes must run CLI build/test/acceptance.
       - "cas-plugin/**"
+      # SwifterPMCore is compiled into the command-line binary through
+      # TuistSupport, so its changes must run the command-line test suite.
+      - "swifterpm/**"
       - "*.swift"
       - ".github/workflows/cli.yml"
       - "mise/tasks/cli/lint.sh"
@@ -36,6 +39,9 @@ on:
       # cas-plugin (the Xcode CAS dylib + tuist-cas-proxy) is built and shipped
       # inside the CLI, so its changes must run CLI build/test/acceptance.
       - "cas-plugin/**"
+      # SwifterPMCore is compiled into the command-line binary through
+      # TuistSupport, so its changes must run the command-line test suite.
+      - "swifterpm/**"
       - "*.swift"
       - ".github/workflows/cli.yml"
       - "mise/tasks/cli/lint.sh"
@@ -144,6 +150,8 @@ jobs:
         run: tuist setup
       - name: Install Tuist dependencies
         run: tuist install --force-resolved-versions
+      - name: Resolve registry replacements
+        run: swift package resolve --replace-scm-with-registry
       - name: Build
         run: swift build --configuration debug --replace-scm-with-registry --force-resolved-versions
 
@@ -195,7 +203,7 @@ jobs:
   cli-unit-tests:
     name: Unit Tests
     runs-on: tuist-macos
-    timeout-minutes: 60
+    timeout-minutes: 90
     permissions:
       contents: read
       id-token: write
@@ -234,7 +242,7 @@ jobs:
   cli-acceptance-tests-build:
     name: Build Acceptance Tests
     runs-on: tuist-macos
-    timeout-minutes: 60
+    timeout-minutes: 90
     permissions:
       contents: read
       id-token: write
@@ -273,8 +281,6 @@ jobs:
         run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
       - name: Skip Xcode Package Validation
         run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidation -bool YES
-      - name: Download Metal Toolchain
-        run: xcodebuild -downloadComponent MetalToolchain
       - name: Build tests
         id: shard
         run: tuist test --build-only --shard-total 2 --shard-granularity suite --shard-reference "$TUIST_ACCEPTANCE_SHARD_REFERENCE" TuistAcceptanceTests
@@ -366,8 +372,6 @@ jobs:
         run: defaults write com.apple.dt.Xcode IDESkipMacroFingerprintValidation -bool YES
       - name: Skip Xcode Package Validation
         run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidation -bool YES
-      - name: Download Metal Toolchain
-        run: xcodebuild -downloadComponent MetalToolchain
       - name: Set up new keychain
         run: |
           TMP_DIRECTORY=$(mktemp -d)
@@ -384,7 +388,7 @@ jobs:
     name: Linux Build
     runs-on: ubuntu-latest
     container:
-      image: swift:6.2
+      image: swiftlang/swift:nightly-6.4.x-jammy@sha256:763b14501faf5ecd4400316aeea94cc3f5419850230742236e8b3eb6261aa0b0
     timeout-minutes: 30
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
@@ -413,7 +417,7 @@ jobs:
     name: Linux Unit Tests
     runs-on: ubuntu-latest
     container:
-      image: swift:6.2
+      image: swiftlang/swift:nightly-6.4.x-jammy@sha256:763b14501faf5ecd4400316aeea94cc3f5419850230742236e8b3eb6261aa0b0
     timeout-minutes: 30
     if: github.event.pull_request.draft == false || github.event_name != 'pull_request'
     steps:
