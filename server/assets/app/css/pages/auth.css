@@ -5,6 +5,7 @@
 #signup,
 #signup-success,
 #confirmation,
+#confirmation-instructions,
 #agent-auth,
 #forgot-password,
 #reset-password,
@@ -299,6 +300,7 @@
 
 #login,
 #signup,
+#confirmation-instructions,
 #forgot-password,
 #okta-login,
 #sso-login {
