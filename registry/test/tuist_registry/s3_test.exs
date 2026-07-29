@@ -36,13 +36,34 @@ defmodule TuistRegistry.S3Test do
       expect(ExAws.S3, :presigned_url, fn :config, :get, "test-registry-bucket", ^key, opts ->
         assert opts == [
                  expires_in: 600,
-                 query_params: [{"response-content-type", "application/zip"}]
+                 query_params: [
+                   {"response-content-type", "application/zip"},
+                   {"x-tigris-consistent", "true"}
+                 ]
                ]
 
         {:ok, "https://s3.example.com/source_archive.zip?signed=true"}
       end)
 
       assert S3.presign_download_url(key, type: :registry, content_type: "application/zip") ==
+               {:ok, "https://s3.example.com/source_archive.zip?signed=true"}
+    end
+
+    test "requests consistent object-storage reads without a content type override" do
+      key = "registry/swift/apple/swift-argument-parser/1.0.0/source_archive.zip"
+
+      expect(ExAws.Config, :new, fn :s3 -> :config end)
+
+      expect(ExAws.S3, :presigned_url, fn :config, :get, "test-registry-bucket", ^key, opts ->
+        assert opts == [
+                 expires_in: 600,
+                 query_params: [{"x-tigris-consistent", "true"}]
+               ]
+
+        {:ok, "https://s3.example.com/source_archive.zip?signed=true"}
+      end)
+
+      assert S3.presign_download_url(key, type: :registry) ==
                {:ok, "https://s3.example.com/source_archive.zip?signed=true"}
     end
   end
