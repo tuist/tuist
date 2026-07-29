@@ -58,19 +58,23 @@ defmodule Tuist.Ingestion.Buffer do
 
   @impl true
   def handle_call({:insert, row_binary}, _from, %{sync_writes?: true} = state) do
-    state = %{
+    candidate_state = %{
       state
       | buffer: [state.buffer | row_binary],
         buffer_size: state.buffer_size + IO.iodata_length(row_binary)
     }
 
-    case do_flush(state) do
-      :ok ->
-        {:reply, :ok, cleared_buffer(state)}
+    if candidate_state.buffer_size > state.retained_buffer_size do
+      handle_capacity_pressure(row_binary, state)
+    else
+      case do_flush(candidate_state) do
+        :ok ->
+          {:reply, :ok, cleared_buffer(candidate_state)}
 
-      {:error, error} ->
-        log_deferred_flush(state, error)
-        {:reply, {:error, error}, %{state | flush_deferred?: true}}
+        {:error, error} ->
+          log_deferred_flush(candidate_state, error)
+          {:reply, {:error, error}, %{candidate_state | flush_deferred?: true}}
+      end
     end
   end
 

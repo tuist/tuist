@@ -343,6 +343,42 @@ defmodule Tuist.Ingestion.BufferTest do
       GenServer.stop(pid)
     end
 
+    test "bounds retained rows when synchronous writes are enabled" do
+      error = %Ch.Error{code: 241, message: "Memory limit (for user) exceeded"}
+
+      stub(IngestRepo, :query, fn _sql, _params, _opts -> {:error, error} end)
+
+      opts = [
+        name: :test_buffer_bounded_sync_memory_pressure,
+        insert_sql: "INSERT INTO test_table FORMAT RowBinaryWithNamesAndTypes",
+        insert_opts: [command: :insert],
+        header: "test_header",
+        max_buffer_size: 3,
+        retained_buffer_size: 6,
+        flush_interval_ms: 60_000,
+        user_memory_retries: 0,
+        sync_writes: true
+      ]
+
+      assert {:ok, pid} = Buffer.start_link(opts)
+      Mimic.allow(IngestRepo, self(), pid)
+
+      for row <- ["one", "two", "three"] do
+        assert_raise Ch.Error, fn ->
+          Buffer.insert!(pid, row)
+        end
+      end
+
+      state = :sys.get_state(pid)
+      assert state.buffer_size == 6
+      assert state.flush_deferred?
+
+      stub(IngestRepo, :query, fn _sql, _params, _opts -> {:ok, :result} end)
+      assert :ok = Buffer.flush(pid)
+
+      GenServer.stop(pid)
+    end
+
     test "does not retain a row after a non-transient flush error" do
       stub(IngestRepo, :query, fn _sql, _params, _opts -> {:error, :unexpected} end)
 
