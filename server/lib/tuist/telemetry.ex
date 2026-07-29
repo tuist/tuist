@@ -75,4 +75,12 @@ defmodule Tuist.Telemetry do
   def event_name_repo_pool_metrics do
     [:tuist, :repo, :pool, :metrics]
   end
+
+  def event_name_test_case_run_flaky_correction do
+    [:tuist, :tests, :test_case_run, :flaky_correction]
+  end
+
+  def event_name_ingestion_buffer_dropped do
+    [:tuist, :ingestion, :buffer, :dropped]
+  end
 end

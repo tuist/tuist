@@ -910,27 +910,16 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
 
       [tc1, tc2] = [Ecto.UUID.generate(), Ecto.UUID.generate()]
 
-      expect(FlakyTestsMonitor, :evaluate, fn _automation ->
+      expect(FlakyTestsMonitor, :evaluate, fn _automation, [^tc1, ^tc2] ->
         %{triggered: [tc1, tc2], all: [tc1, tc2]}
       end)
 
       # No trigger actions on the baseline path.
       reject(&ActionExecutor.execute_actions/3)
 
-      # Both matching test cases get a `triggered` event so subsequent
-      # evaluations skip them.
-      expect(Automations, :create_alert_event, 2, fn %{
-                                                       alert_id: id,
-                                                       test_case_id: tc,
-                                                       status: "triggered"
-                                                     } ->
-        assert id == automation.id
-        assert tc in [tc1, tc2]
+      expect(Automations, :establish_alert_baseline, fn ^automation, evaluate_batch ->
+        assert evaluate_batch.([tc1, tc2]) == [tc1, tc2]
         :ok
-      end)
-
-      expect(Automations, :establish_alert_baseline, fn ^automation ->
-        {:ok, automation}
       end)
 
       assert :ok = run(automation.id)
@@ -1024,7 +1013,7 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
       validated_id = Ecto.UUID.generate()
       new_test_id = Ecto.UUID.generate()
 
-      expect(FlakyTestsMonitor, :evaluate, fn _automation ->
+      expect(FlakyTestsMonitor, :evaluate, fn _automation, [^validated_id, ^new_test_id] ->
         %{triggered: [validated_id, new_test_id], all: [validated_id, new_test_id]}
       end)
 
@@ -1032,10 +1021,9 @@ defmodule Tuist.Automations.Workers.AlertEvaluationWorkerTest do
         [validated_id]
       end)
 
-      expect(Automations, :create_alert_event, fn %{test_case_id: ^validated_id, status: "triggered"} -> :ok end)
-
-      expect(Automations, :establish_alert_baseline, fn ^automation ->
-        {:ok, automation}
+      expect(Automations, :establish_alert_baseline, fn ^automation, evaluate_batch ->
+        assert evaluate_batch.([validated_id, new_test_id]) == [validated_id]
+        :ok
       end)
 
       reject(&ActionExecutor.execute_actions/3)

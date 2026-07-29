@@ -207,6 +207,9 @@ objectStorage:
 clickhouse:
   poolSize: "15"
   bufferPoolSize: "15"
+  # Keep the shared application-user memory guard active outside production so
+  # query and ingestion retry behavior is covered during rollout.
+  maxMemoryUsageForUserBytes: "4294967296"
 
 cache:
   extraEnv:

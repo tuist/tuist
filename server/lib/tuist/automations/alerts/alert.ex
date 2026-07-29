@@ -105,6 +105,7 @@ defmodule Tuist.Automations.Alerts.Alert do
     field :recovery_config, :map, default: %{}
     field :recovery_actions, {:array, :map}, default: []
     field :baseline_established_at, :utc_datetime
+    field :baseline_generation, :integer, default: 0
     field :last_scoped_evaluation_inserted_at, :utc_datetime
 
     belongs_to :project, Project, type: :integer

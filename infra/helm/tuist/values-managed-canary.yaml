@@ -145,6 +145,9 @@ objectStorage:
 clickhouse:
   poolSize: "30"
   bufferPoolSize: "30"
+  # Exercise the shared application-user memory guard before production with a
+  # smaller pre-production budget.
+  maxMemoryUsageForUserBytes: "4294967296"
 
 cache:
   extraEnv:
