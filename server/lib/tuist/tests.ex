@@ -93,7 +93,7 @@ defmodule Tuist.Tests do
     max_memory_usage: 128 * 1024 * 1024
   ]
   @flaky_correction_batch_size 2000
-  @flaky_correction_sweep_limit 10_000
+  @flaky_correction_sweep_limit 500
 
   @doc """
   Number of trailing days used across the product to decide whether a test case
@@ -3249,11 +3249,13 @@ defmodule Tuist.Tests do
             on_conflict: :nothing,
             conflict_target: [:test_case_run_id],
             returning: [
-              :test_case_run_id
+              :test_case_run_id,
+              :project_id,
+              :git_commit_sha
             ]
           )
 
-        enqueue_flaky_correction_jobs(Enum.map(inserted_corrections, & &1.test_case_run_id))
+        enqueue_flaky_correction_jobs(inserted_corrections)
       end)
 
     :ok
@@ -3269,15 +3271,37 @@ defmodule Tuist.Tests do
 
   @doc false
   def apply_test_case_run_flaky_corrections(test_case_run_ids) do
-    {:ok, :ok} =
-      Repo.transaction(
-        fn ->
-          do_apply_test_case_run_flaky_corrections(test_case_run_ids)
-        end,
-        timeout: 120_000
-      )
+    test_case_run_ids
+    |> pending_flaky_correction_ids_by_project_and_commit()
+    |> Enum.each(fn grouped_test_case_run_ids ->
+      {:ok, :ok} =
+        Repo.transaction(
+          fn ->
+            do_apply_test_case_run_flaky_corrections(grouped_test_case_run_ids)
+          end,
+          timeout: 120_000
+        )
+    end)
 
     :ok
+  end
+
+  defp pending_flaky_correction_ids_by_project_and_commit(test_case_run_ids) do
+    from(correction in TestCaseRunFlakyCorrection,
+      where: correction.test_case_run_id in ^test_case_run_ids,
+      where: correction.state == "pending",
+      order_by: correction.test_case_run_id,
+      select: %{
+        test_case_run_id: correction.test_case_run_id,
+        project_id: correction.project_id,
+        git_commit_sha: correction.git_commit_sha
+      }
+    )
+    |> Repo.all()
+    |> Enum.group_by(&{&1.project_id, &1.git_commit_sha})
+    |> Enum.map(fn {_project_and_commit, corrections} ->
+      Enum.map(corrections, & &1.test_case_run_id)
+    end)
   end
 
   defp do_apply_test_case_run_flaky_corrections(test_case_run_ids) do
@@ -3347,31 +3371,44 @@ defmodule Tuist.Tests do
 
     limit = Keyword.get(opts, :limit, @flaky_correction_sweep_limit)
 
-    test_case_run_ids =
+    corrections =
       Repo.all(
         from(correction in TestCaseRunFlakyCorrection,
           where: correction.state == "pending",
           where: correction.inserted_at <= ^older_than,
           order_by: [asc: correction.inserted_at, asc: correction.test_case_run_id],
           limit: ^limit,
-          select: correction.test_case_run_id
+          select: %{
+            test_case_run_id: correction.test_case_run_id,
+            project_id: correction.project_id,
+            git_commit_sha: correction.git_commit_sha
+          }
         )
       )
 
-    jobs = enqueue_flaky_correction_jobs(test_case_run_ids)
+    jobs = enqueue_flaky_correction_jobs(corrections)
     {:ok, length(jobs)}
   end
 
-  defp enqueue_flaky_correction_jobs(test_case_run_ids) do
-    test_case_run_ids
-    |> Enum.chunk_every(@flaky_correction_batch_size)
-    |> Enum.map(fn batch_test_case_run_ids ->
-      CorrectTestCaseRunFlakyStateWorker.new(%{
-        batch_id: flaky_correction_batch_id(batch_test_case_run_ids),
-        test_case_run_ids: batch_test_case_run_ids
-      })
+  defp enqueue_flaky_correction_jobs(corrections) do
+    corrections
+    |> Enum.group_by(&{&1.project_id, &1.git_commit_sha})
+    |> Enum.flat_map(fn {_project_and_commit, grouped_corrections} ->
+      grouped_corrections
+      |> Enum.map(& &1.test_case_run_id)
+      |> Enum.chunk_every(@flaky_correction_batch_size)
+      |> Enum.map(fn batch_test_case_run_ids ->
+        CorrectTestCaseRunFlakyStateWorker.new(%{
+          batch_id: flaky_correction_batch_id(batch_test_case_run_ids),
+          test_case_run_ids: batch_test_case_run_ids
+        })
+      end)
     end)
-    |> Oban.insert_all()
+    |> Enum.reduce([], fn changeset, jobs ->
+      {:ok, job} = Oban.insert(changeset)
+
+      if job.conflict?, do: jobs, else: [job | jobs]
+    end)
   end
 
   defp latest_test_case_run_flaky_states(project_id, git_commit_sha, corrections) do

@@ -19,5 +19,13 @@ defmodule Tuist.Repo.Migrations.CreateTestCaseRunFlakyCorrections do
              :test_case_run_flaky_corrections_state,
              check: "state IN ('pending', 'applied')"
            )
+
+    # The table is created empty immediately above, so this cannot block application writes.
+    # excellent_migrations:safety-assured-for-next-line index_not_concurrently
+    create index(
+             :test_case_run_flaky_corrections,
+             [:state, :inserted_at, :test_case_run_id],
+             name: :test_case_run_flaky_corrections_pending_sweep_index
+           )
   end
 end

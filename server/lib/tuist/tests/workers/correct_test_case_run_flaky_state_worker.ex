@@ -10,7 +10,12 @@ defmodule Tuist.Tests.Workers.CorrectTestCaseRunFlakyStateWorker do
   """
   use Oban.Worker,
     queue: :default,
-    max_attempts: 10
+    max_attempts: 10,
+    unique: [
+      keys: [:batch_id],
+      period: :infinity,
+      states: [:available, :scheduled, :executing, :retryable]
+    ]
 
   alias Tuist.Tests
 

@@ -113,6 +113,48 @@ defmodule Tuist.Tests.Workers.CorrectTestCaseRunFlakyStateWorkerTest do
     end)
   end
 
+  test "corrects runs from multiple project and commit groups" do
+    first_project = ProjectsFixtures.project_fixture()
+    second_project = ProjectsFixtures.project_fixture()
+
+    runs = [
+      RunsFixtures.test_case_run_fixture(
+        project_id: first_project.id,
+        test_case_id: UUIDv7.generate(),
+        git_commit_sha: "first-commit",
+        status: "failure",
+        is_flaky: false
+      ),
+      RunsFixtures.test_case_run_fixture(
+        project_id: first_project.id,
+        test_case_id: UUIDv7.generate(),
+        git_commit_sha: "second-commit",
+        status: "failure",
+        is_flaky: false
+      ),
+      RunsFixtures.test_case_run_fixture(
+        project_id: second_project.id,
+        test_case_id: UUIDv7.generate(),
+        git_commit_sha: "first-commit",
+        status: "failure",
+        is_flaky: false
+      )
+    ]
+
+    Enum.each(runs, &insert_correction/1)
+
+    assert :ok =
+             perform_job(CorrectTestCaseRunFlakyStateWorker, %{
+               batch_id: "mixed-groups",
+               test_case_run_ids: Enum.map(runs, & &1.id)
+             })
+
+    Enum.each(runs, fn run ->
+      assert latest_flaky_state(run.project_id, run.test_case_id, run.id)
+      assert Repo.get!(TestCaseRunFlakyCorrection, run.id).state == "applied"
+    end)
+  end
+
   test "the sweeper re-enqueues corrections left pending by an exhausted job" do
     project = ProjectsFixtures.project_fixture()
     test_case_run_id = UUIDv7.generate()
