@@ -45,7 +45,7 @@ defmodule Tuist.MCP.ServerTest do
       assert "list_xcode_module_cache_targets" in tool_names
       assert "list_test_case_run_attachments" in tool_names
       assert "list_projects" in tool_names
-      assert server.version == "1.14.0"
+      assert server.version == "1.14.1"
       assert server.instructions =~ "agent_auth.skill"
       assert server.instructions =~ "identity-assertion exchange"
       assert server.instructions =~ "enter the code on the Tuist page"

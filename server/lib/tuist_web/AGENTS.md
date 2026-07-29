@@ -5,6 +5,8 @@ This directory contains the web interface: Phoenix controllers, LiveView, and AP
 ## Responsibilities
 - HTTP routing, controllers, and API surface.
 - LiveView components for the UI and marketing site.
+- Controllers and LiveViews choose their Open Graph image template and variables. The shared image route only verifies
+  the signed variables, renders on a cache miss, and serves the content-addressed object.
 
 ## Route Metadata
 - `server/lib/tuist_web/router.ex` route metadata feeds the runtime `robots.txt` Content-Usage and Disallow entries.
