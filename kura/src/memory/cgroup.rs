@@ -18,14 +18,40 @@ pub struct ContainerMemorySnapshot {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ContainerMemoryPressureSample {
     pub current_bytes: u64,
+    pub pressure_bytes: u64,
     pub working_set_bytes: u64,
     pub reclaimable_inactive_file_bytes: u64,
     pub limit_bytes: Option<u64>,
 }
 
+#[derive(Clone, Copy)]
+struct MemoryPressureComponents {
+    current_bytes: u64,
+    anon_bytes: Option<u64>,
+    file_bytes: Option<u64>,
+    kernel_bytes: Option<u64>,
+    shmem_bytes: Option<u64>,
+    file_dirty_bytes: Option<u64>,
+    file_writeback_bytes: Option<u64>,
+    inactive_file_bytes: Option<u64>,
+}
+
 impl ContainerMemorySnapshot {
     pub fn working_set_bytes(&self) -> u64 {
         working_set_bytes(self.current_bytes, self.inactive_file_bytes)
+    }
+
+    pub fn pressure_bytes(&self) -> u64 {
+        pressure_bytes(MemoryPressureComponents {
+            current_bytes: self.current_bytes,
+            anon_bytes: self.anon_bytes,
+            file_bytes: self.file_bytes,
+            kernel_bytes: self.kernel_bytes,
+            shmem_bytes: self.shmem_bytes,
+            file_dirty_bytes: self.file_dirty_bytes,
+            file_writeback_bytes: self.file_writeback_bytes,
+            inactive_file_bytes: self.inactive_file_bytes,
+        })
     }
 
     pub fn reclaimable_inactive_file_bytes(&self) -> u64 {
@@ -43,8 +69,19 @@ pub fn container_memory_pressure_sample() -> Option<ContainerMemoryPressureSampl
                 read_required_memory_limit_file("/sys/fs/cgroup/memory.max", None)
         {
             let reclaimable_inactive_file_bytes = named_value(&stat, "inactive_file").unwrap_or(0);
+            let current_bytes = current_before.max(current_after);
             return Some(ContainerMemoryPressureSample {
-                current_bytes: current_before.max(current_after),
+                current_bytes,
+                pressure_bytes: pressure_bytes(MemoryPressureComponents {
+                    current_bytes,
+                    anon_bytes: named_value(&stat, "anon"),
+                    file_bytes: named_value(&stat, "file"),
+                    kernel_bytes: named_value(&stat, "kernel"),
+                    shmem_bytes: named_value(&stat, "shmem"),
+                    file_dirty_bytes: named_value(&stat, "file_dirty"),
+                    file_writeback_bytes: named_value(&stat, "file_writeback"),
+                    inactive_file_bytes: Some(reclaimable_inactive_file_bytes),
+                }),
                 working_set_bytes: bracketed_working_set_bytes(
                     current_before,
                     current_after,
@@ -64,8 +101,19 @@ pub fn container_memory_pressure_sample() -> Option<ContainerMemoryPressureSampl
         )?;
         let reclaimable_inactive_file_bytes =
             named_value(&stat, "total_inactive_file").unwrap_or(0);
+        let current_bytes = current_before.max(current_after);
         Some(ContainerMemoryPressureSample {
-            current_bytes: current_before.max(current_after),
+            current_bytes,
+            pressure_bytes: pressure_bytes(MemoryPressureComponents {
+                current_bytes,
+                anon_bytes: named_value(&stat, "total_rss"),
+                file_bytes: named_value(&stat, "cache"),
+                kernel_bytes: None,
+                shmem_bytes: named_value(&stat, "total_shmem"),
+                file_dirty_bytes: named_value(&stat, "total_dirty"),
+                file_writeback_bytes: named_value(&stat, "total_writeback"),
+                inactive_file_bytes: Some(reclaimable_inactive_file_bytes),
+            }),
             working_set_bytes: bracketed_working_set_bytes(
                 current_before,
                 current_after,
@@ -83,6 +131,36 @@ pub fn container_memory_pressure_sample() -> Option<ContainerMemoryPressureSampl
 
 fn working_set_bytes(current_bytes: u64, inactive_file_bytes: Option<u64>) -> u64 {
     current_bytes.saturating_sub(inactive_file_bytes.unwrap_or(0))
+}
+
+fn pressure_bytes(components: MemoryPressureComponents) -> u64 {
+    let MemoryPressureComponents {
+        current_bytes,
+        anon_bytes,
+        file_bytes,
+        kernel_bytes,
+        shmem_bytes,
+        file_dirty_bytes,
+        file_writeback_bytes,
+        inactive_file_bytes,
+    } = components;
+    if let (Some(anon_bytes), Some(kernel_bytes)) = (anon_bytes, kernel_bytes) {
+        return anon_bytes
+            .saturating_add(kernel_bytes)
+            .saturating_add(shmem_bytes.unwrap_or(0))
+            .saturating_add(file_dirty_bytes.unwrap_or(0))
+            .saturating_add(file_writeback_bytes.unwrap_or(0))
+            .min(current_bytes);
+    }
+    let Some(file_bytes) = file_bytes else {
+        return working_set_bytes(current_bytes, inactive_file_bytes);
+    };
+    current_bytes
+        .saturating_sub(file_bytes)
+        .saturating_add(shmem_bytes.unwrap_or(0))
+        .saturating_add(file_dirty_bytes.unwrap_or(0))
+        .saturating_add(file_writeback_bytes.unwrap_or(0))
+        .min(current_bytes)
 }
 
 pub fn container_memory_snapshot() -> Option<ContainerMemorySnapshot> {
@@ -243,7 +321,102 @@ mod tests {
         };
 
         assert_eq!(snapshot.working_set_bytes(), 750);
+        assert_eq!(snapshot.pressure_bytes(), 600 + 100 + 25 + 10 + 5);
         assert_eq!(snapshot.reclaimable_inactive_file_bytes(), 250);
+    }
+
+    #[test]
+    fn pressure_excludes_clean_file_cache_regardless_of_recency() {
+        assert_eq!(
+            pressure_bytes(MemoryPressureComponents {
+                current_bytes: 1_000,
+                anon_bytes: Some(300),
+                file_bytes: Some(700),
+                kernel_bytes: Some(40),
+                shmem_bytes: Some(25),
+                file_dirty_bytes: Some(10),
+                file_writeback_bytes: Some(5),
+                inactive_file_bytes: Some(50),
+            }),
+            380
+        );
+        assert_eq!(
+            pressure_bytes(MemoryPressureComponents {
+                current_bytes: 1_000,
+                anon_bytes: Some(300),
+                file_bytes: Some(700),
+                kernel_bytes: Some(40),
+                shmem_bytes: Some(25),
+                file_dirty_bytes: Some(10),
+                file_writeback_bytes: Some(5),
+                inactive_file_bytes: Some(650),
+            }),
+            380
+        );
+    }
+
+    #[test]
+    fn pressure_prefers_point_in_time_accounting_during_charge_changes() {
+        assert_eq!(
+            pressure_bytes(MemoryPressureComponents {
+                current_bytes: 1_900,
+                anon_bytes: Some(300),
+                file_bytes: Some(1_500),
+                kernel_bytes: Some(40),
+                shmem_bytes: None,
+                file_dirty_bytes: None,
+                file_writeback_bytes: None,
+                inactive_file_bytes: Some(50),
+            }),
+            340
+        );
+        assert_eq!(
+            pressure_bytes(MemoryPressureComponents {
+                current_bytes: 500,
+                anon_bytes: Some(300),
+                file_bytes: Some(100),
+                kernel_bytes: Some(40),
+                shmem_bytes: None,
+                file_dirty_bytes: None,
+                file_writeback_bytes: None,
+                inactive_file_bytes: Some(300),
+            }),
+            340
+        );
+    }
+
+    #[test]
+    fn pressure_falls_back_to_the_working_set_without_file_accounting() {
+        assert_eq!(
+            pressure_bytes(MemoryPressureComponents {
+                current_bytes: 1_000,
+                anon_bytes: None,
+                file_bytes: None,
+                kernel_bytes: None,
+                shmem_bytes: None,
+                file_dirty_bytes: None,
+                file_writeback_bytes: None,
+                inactive_file_bytes: Some(250),
+            }),
+            750
+        );
+    }
+
+    #[test]
+    fn pressure_never_exceeds_current_without_kernel_accounting() {
+        assert_eq!(
+            pressure_bytes(MemoryPressureComponents {
+                current_bytes: 300,
+                anon_bytes: Some(100),
+                file_bytes: Some(200),
+                kernel_bytes: None,
+                shmem_bytes: Some(150),
+                file_dirty_bytes: Some(100),
+                file_writeback_bytes: Some(50),
+                inactive_file_bytes: Some(100),
+            }),
+            300
+        );
     }
 
     #[test]

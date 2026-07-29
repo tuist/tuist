@@ -34,6 +34,7 @@ defmodule Tuist.Accounts do
   require Logger
 
   @reset_password_delivery_cooldown_in_minutes 5
+  @confirmation_delivery_cooldown_in_minutes 5
   @sso_configuration_attr_keys [
     :sso_provider,
     :sso_organization_id,
@@ -1050,7 +1051,15 @@ defmodule Tuist.Accounts do
       provider_organization_id: provider_organization_id
     }
 
-    case create_user(email, password: generate_random_string(16), oauth2_identity: oauth2_attrs) do
+    # The provider has already verified the email, so an OAuth sign-in is itself
+    # proof of ownership. Confirming keeps these accounts out of the email
+    # confirmation gate they cannot otherwise satisfy (they have no password and
+    # no way to request a confirmation email).
+    case create_user(email,
+           password: generate_random_string(16),
+           confirmed_at: NaiveDateTime.utc_now(),
+           oauth2_identity: oauth2_attrs
+         ) do
       {:ok, user} ->
         user
 
@@ -1059,6 +1068,7 @@ defmodule Tuist.Accounts do
         {:ok, user} =
           create_user(email,
             password: generate_random_string(16),
+            confirmed_at: NaiveDateTime.utc_now(),
             suffix: "-#{:rand.uniform(9999)}",
             oauth2_identity: oauth2_attrs
           )
@@ -1562,9 +1572,8 @@ defmodule Tuist.Accounts do
   # the same way org SSO does: Google's hosted-domain (`hd`) claim, captured at
   # sign-in as the identity's `provider_organization_id`. Matching it against
   # the operator domain proves the account belongs to our Workspace rather than
-  # inferring it from the email string. The email/password confirmation flow
-  # (which sets `confirmed_at`, something Google sign-in never does) and other
-  # OAuth providers do not qualify a hosted operator.
+  # inferring it from the email string. A password account or a non-Google OAuth
+  # provider does not qualify a hosted operator.
   defp google_workspace_member?(%User{id: id}, domain) do
     Repo.exists?(
       from(o in Oauth2Identity,
@@ -1804,17 +1813,35 @@ defmodule Tuist.Accounts do
   """
   def deliver_user_confirmation_instructions(%{user: user, confirmation_url: confirmation_url})
       when is_function(confirmation_url, 1) do
-    if user.confirmed_at do
-      {:error, :already_confirmed}
-    else
-      {encoded_token, user_token} = UserToken.build_email_token(user, "confirm")
-      Repo.insert!(user_token)
+    cond do
+      user.confirmed_at ->
+        {:error, :already_confirmed}
 
-      UserNotifier.deliver_confirmation_instructions(%{
-        user: user,
-        confirmation_url: confirmation_url.(encoded_token)
-      })
+      recently_sent_confirmation_instructions?(user) ->
+        :ok
+
+      true ->
+        Repo.delete_all(UserToken.by_user_and_contexts_query(user, ["confirm"]))
+
+        {encoded_token, user_token} = UserToken.build_email_token(user, "confirm")
+        Repo.insert!(user_token)
+
+        UserNotifier.deliver_confirmation_instructions(%{
+          user: user,
+          confirmation_url: confirmation_url.(encoded_token)
+        })
     end
+  end
+
+  defp recently_sent_confirmation_instructions?(%User{id: user_id}) do
+    Repo.exists?(
+      from(t in UserToken,
+        where:
+          t.user_id == ^user_id and
+            t.context == "confirm" and
+            t.inserted_at > ago(@confirmation_delivery_cooldown_in_minutes, "minute")
+      )
+    )
   end
 
   @doc """

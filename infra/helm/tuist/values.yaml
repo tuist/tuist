@@ -375,6 +375,16 @@ server:
   # flipping this on (the migration-job hook waits on the ExternalSecret).
   config:
     managedSecrets: false
+    # Reconcile a dedicated, bounded ClickHouse query identity before each
+    # server deployment. The chart preserves a generated password in a Secret
+    # unless an existing Secret is supplied. The migration ClickHouse identity
+    # must be allowed to create and alter users, roles, and grants.
+    opsClickHouse:
+      enabled: false
+      username: tuist_ops
+      role: tuist_ops_readonly
+      existingSecret: ""
+      passwordKey: password
     # PostHog analytics is per-env. The ESO secret's `data` is all-or-nothing,
     # so an env without a POSTHOG 1P item must opt out here (otherwise its whole
     # config sync fails). Off → TUIST_POSTHOG_* unset → analytics_enabled? false.

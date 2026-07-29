@@ -7,7 +7,9 @@ defmodule TuistWeb.DocsLive do
 
   alias Tuist.Docs
   alias Tuist.Docs.Paths
+  alias Tuist.Docs.Sidebar
   alias TuistWeb.Errors.NotFoundError
+  alias TuistWeb.Helpers.OpenGraph
 
   @overview_headings [
     %{id: "what-do-you-want-to-do", text: "What do you want to do?", level: 2},
@@ -71,8 +73,17 @@ defmodule TuistWeb.DocsLive do
             template -> String.replace(template, ":title", page.title)
           end
 
-        og_image_filename = Tuist.Docs.OgImage.slug_to_filename(path)
-        og_image_path = "/docs/images/og/generated/#{og_image_filename}"
+        head_image =
+          if Tuist.Environment.tuist_hosted?() do
+            og_image_path =
+              OpenGraph.image_path(:docs,
+                title: page.title,
+                description: page.description,
+                category: Sidebar.category_for_slug(page.slug)
+              )
+
+            Tuist.Environment.app_url(path: og_image_path)
+          end
 
         {:noreply,
          socket
@@ -83,7 +94,7 @@ defmodule TuistWeb.DocsLive do
          |> assign(:page_title, head_title)
          |> assign(:head_title, head_title)
          |> assign(:head_description, page.description)
-         |> assign(:head_image, Tuist.Environment.app_url(path: og_image_path))
+         |> assign(:head_image, head_image)
          |> assign(:head_twitter_card, "summary_large_image")}
     end
   end

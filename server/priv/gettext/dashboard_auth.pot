@@ -36,6 +36,7 @@ msgstr ""
 msgid "Already set up your Tuist project? Skip setup and go to the dashboard."
 msgstr ""
 
+#: lib/tuist_web/live/user_confirmation_instructions_live.ex:97
 #: lib/tuist_web/live/user_forgot_password_live.ex:76
 #, elixir-autogen, elixir-format
 msgid "Back to log in"
@@ -51,6 +52,7 @@ msgstr ""
 msgid "Change your password"
 msgstr ""
 
+#: lib/tuist_web/live/user_confirmation_instructions_live.ex:39
 #: lib/tuist_web/live/user_forgot_password_live.ex:44
 #, elixir-autogen, elixir-format
 msgid "Check your email"
@@ -127,6 +129,7 @@ msgid "Don't have an account?"
 msgstr ""
 
 #: lib/tuist_web/live/sso_login_live.ex:89
+#: lib/tuist_web/live/user_confirmation_instructions_live.ex:77
 #: lib/tuist_web/live/user_forgot_password_live.ex:56
 #: lib/tuist_web/live/user_login_live.ex:144
 #: lib/tuist_web/live/user_registration_live.ex:149
@@ -285,6 +288,7 @@ msgstr ""
 #: lib/tuist_web/live/choose_username_live.ex:42
 #: lib/tuist_web/live/device_codes_success_live.ex:28
 #: lib/tuist_web/live/sso_login_live.ex:63
+#: lib/tuist_web/live/user_confirmation_instructions_live.ex:18
 #: lib/tuist_web/live/user_confirmation_live.ex:18
 #: lib/tuist_web/live/user_forgot_password_live.ex:24
 #: lib/tuist_web/live/user_login_live.ex:43
@@ -447,4 +451,35 @@ msgstr ""
 #: lib/tuist_web/controllers/auth_controller.ex:436
 #, elixir-autogen, elixir-format
 msgid "An account with this email already exists. Please log in instead."
+msgstr ""
+
+#: lib/tuist_web/live/user_confirmation_instructions_live.ex:27
+#, elixir-autogen, elixir-format
+msgid "Confirm your email"
+msgstr ""
+
+#: lib/tuist_web/live/user_confirmation_instructions_live.ex:29
+#, elixir-autogen, elixir-format
+msgid "Confirm your email address to finish signing in"
+msgstr ""
+
+#: lib/tuist_web/live/user_confirmation_instructions_live.ex:41
+#, elixir-autogen, elixir-format
+msgid "If your email is registered and not yet confirmed, you'll receive a confirmation link shortly."
+msgstr ""
+
+#: lib/tuist_web/live/user_confirmation_instructions_live.ex:65
+#: lib/tuist_web/live/user_confirmation_instructions_live.ex:86
+#, elixir-autogen, elixir-format
+msgid "Resend confirmation email"
+msgstr ""
+
+#: lib/tuist_web/live/user_confirmation_instructions_live.ex:55
+#, elixir-autogen, elixir-format
+msgid "We'll send a new confirmation link to %{email}."
+msgstr ""
+
+#: lib/tuist_web/live/user_confirmation_instructions_live.ex:53
+#, elixir-autogen, elixir-format
+msgid "Your email isn't confirmed yet"
 msgstr ""

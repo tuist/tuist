@@ -159,6 +159,13 @@ config :tuist, Tuist.IngestRepo,
 
 config :tuist, Tuist.Mailer, adapter: Bamboo.LocalAdapter
 
+config :tuist, Tuist.OpsClickHouseRepo,
+  hostname: "localhost",
+  port: 8123,
+  database: "tuist_development",
+  pool_size: 2,
+  settings: [readonly: 1]
+
 # Configure your database
 config :tuist, Tuist.Repo,
   hostname: "localhost",

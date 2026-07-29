@@ -26,9 +26,7 @@
         <img
           data-part="image"
           src={
-            TuistWeb.Marketing.MarketingHTML.static_asset_path(
-              Content.get_entry_image_url(@highlighted_post)
-            )
+            TuistWeb.Marketing.MarketingHTML.static_asset_path(entry_image_url(@highlighted_post))
           }
           decoding="async"
         />
@@ -103,9 +101,7 @@
       >
         <img
           data-part="image"
-          src={
-            TuistWeb.Marketing.MarketingHTML.static_asset_path(Content.get_entry_image_url(post))
-          }
+          src={TuistWeb.Marketing.MarketingHTML.static_asset_path(entry_image_url(post))}
           loading="lazy"
           decoding="async"
         />

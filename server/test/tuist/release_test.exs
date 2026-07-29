@@ -3,6 +3,64 @@ defmodule Tuist.ReleaseTest do
 
   alias Tuist.Release
 
+  describe "ops_clickhouse_reconciliation_queries/4" do
+    test "resets privileges and converges the restricted role and user" do
+      queries =
+        Release.ops_clickhouse_reconciliation_queries(
+          "tuist",
+          "tuist_ops",
+          "tuist_ops_readonly",
+          String.duplicate("a", 64)
+        )
+
+      statements = Enum.map(queries, &elem(&1, 0))
+
+      assert statements == [
+               "CREATE ROLE IF NOT EXISTS `tuist_ops_readonly`",
+               "REVOKE ALL ON *.* FROM `tuist_ops_readonly`",
+               """
+               ALTER ROLE `tuist_ops_readonly` SETTINGS
+                 readonly = 2,
+                 max_execution_time = 10 MIN 1 MAX 10,
+                 max_memory_usage = 1073741824 MIN 1 MAX 1073741824,
+                 max_rows_to_read = 100000000 MIN 1 MAX 100000000,
+                 max_bytes_to_read = 5000000000 MIN 1 MAX 5000000000,
+                 max_result_rows = 201 MIN 1 MAX 201,
+                 max_result_bytes = 5242880 MIN 1 MAX 5242880,
+                 max_block_size = 201 MIN 1 MAX 201,
+                 max_threads = 2 MIN 1 MAX 2
+               """,
+               "GRANT SELECT ON `tuist`.* TO `tuist_ops_readonly`",
+               "GRANT SELECT ON system.tables TO `tuist_ops_readonly`",
+               "GRANT SELECT ON system.columns TO `tuist_ops_readonly`",
+               """
+               CREATE USER IF NOT EXISTS `tuist_ops`
+               IDENTIFIED WITH sha256_hash BY '#{String.duplicate("a", 64)}'
+               """,
+               """
+               ALTER USER `tuist_ops`
+               IDENTIFIED WITH sha256_hash BY '#{String.duplicate("a", 64)}'
+               """,
+               "REVOKE ALL ON *.* FROM `tuist_ops`",
+               "GRANT `tuist_ops_readonly` TO `tuist_ops`",
+               "ALTER USER `tuist_ops` DEFAULT ROLE `tuist_ops_readonly`"
+             ]
+
+      assert Enum.all?(queries, fn {_statement, params} -> params == [] end)
+    end
+
+    test "rejects identifiers that could change the access statements" do
+      assert_raise RuntimeError, ~r/TUIST_OPS_CLICKHOUSE_USERNAME must be a valid ClickHouse identifier/, fn ->
+        Release.ops_clickhouse_reconciliation_queries(
+          "tuist",
+          "tuist_ops; DROP USER default",
+          "tuist_ops_readonly",
+          String.duplicate("a", 64)
+        )
+      end
+    end
+  end
+
   describe "grafana_role_grant_statements/3" do
     # Columns are granted individually rather than by table, so parse them back
     # out and compare sets: the assertion is about which columns are reachable,
