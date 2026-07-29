@@ -11,6 +11,7 @@ let project = Project(
             deploymentTargets: .iOS("16.0"),
             sources: "Sources/**",
             dependencies: [
+                .external(name: "LocalModuleMap"),
                 .external(name: "Gzip"),
                 .external(name: "GEOSwift"),
                 .external(name: "FirebaseMLModelDownloader"),

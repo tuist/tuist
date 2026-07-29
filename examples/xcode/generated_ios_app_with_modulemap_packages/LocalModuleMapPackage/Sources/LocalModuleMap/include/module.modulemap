@@ -1,0 +1,4 @@
+module LocalModuleMap {
+    header "LocalModuleMap.h"
+    export *
+}

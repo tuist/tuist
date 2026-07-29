@@ -82,15 +82,11 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
                 else { return (targetName, target) }
 
                 if hasModuleMap {
-                    if target.product.isFramework,
-                       case let .string(moduleMapFile) = mappedSettingsDictionary[Self.modulemapFileSetting]
-                    {
-                        // ExtractAPI consumes MODULEMAP_PATH as an explicit -fmodule-map-file input. Keeping the
-                        // source map out of the framework product avoids duplicate module-map discovery and the
-                        // static-framework copy fixed in #11588: https://github.com/tuist/tuist/pull/11588
-                        // The original $(SRCROOT)-relative value is preserved so cache hashes stay
-                        // environment-independent.
-                        mappedSettingsDictionary[Self.modulemapPathSetting] = .string(moduleMapFile)
+                    if target.product.isFramework, let moduleMapPathSetting = Self.moduleMapPathSetting(
+                        from: mappedSettingsDictionary[Self.modulemapFileSetting],
+                        project: project
+                    ) {
+                        mappedSettingsDictionary[Self.modulemapPathSetting] = .string(moduleMapPathSetting)
                     }
                     mappedSettingsDictionary[Self.modulemapFileSetting] = nil
                 }
@@ -173,6 +169,32 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
         sideEffects.append(contentsOf: generatedFileSideEffects)
         return (graph, sideEffects, environment)
     } // swiftlint:enable function_body_length
+
+    /// Resolves a module-map setting to the generated project's `MODULEMAP_PATH` reference required by ExtractAPI.
+    /// swift-build passes this setting directly as `-fmodule-map-file` for dependencies without module info:
+    /// https://github.com/swiftlang/swift-build/blob/5a49bfa5d4d7c4fbf1bea6e140481ba0818d676a/Sources/SWBTaskConstruction/TaskProducers/OtherTaskProducers/TAPISymbolExtractorTaskProducer.swift#L76-L108
+    /// The original setting is relative to the source project, so reanchor it to the generated Xcode project's
+    /// directory without emitting a machine-specific absolute path. Keeping the source map out of framework products
+    /// prevents Clang from discovering both copies and avoids a Copy Module Map phase becoming a cycle with Compile
+    /// Sources; it also preserves the static-framework behavior fixed in #11588:
+    /// https://github.com/tuist/tuist/pull/11588
+    private static func moduleMapPathSetting(
+        from value: SettingsDictionary.Value?,
+        project: Project
+    ) -> String? {
+        guard case let .string(moduleMap) = value else { return nil }
+        let projectPath = project.path.pathString
+
+        guard let moduleMapPath = try? AbsolutePath(
+            validating: moduleMap
+                .replacingOccurrences(of: "$(PROJECT_DIR)", with: projectPath)
+                .replacingOccurrences(of: "$(SRCROOT)", with: projectPath)
+                .replacingOccurrences(of: "$(SOURCE_ROOT)", with: projectPath)
+        )
+        else { return nil }
+
+        return "$(PROJECT_DIR)/\(moduleMapPath.relative(to: project.xcodeProjPath.parentDirectory).pathString)"
+    }
 
     private func dependenciesModuleMapDirectory(for project: Project) -> AbsolutePath {
         if case .external = project.type,

@@ -391,16 +391,16 @@ struct ModuleMapMapperTests {
         // Given
         let workspace = Workspace.test()
         let projectPath = try temporaryPath().appending(component: "A")
-        let moduleMapPath = projectPath.appending(components: "A", "A.modulemap")
         let target = Target.test(
             name: "A",
             product: .framework,
             settings: .test(base: [
-                "MODULEMAP_FILE": .string(moduleMapPath.pathString),
+                "MODULEMAP_FILE": .string(projectPath.appending(components: "A", "A.modulemap").pathString),
             ])
         )
         let project = Project.test(
             path: projectPath,
+            xcodeProjPath: projectPath.appending(component: "A.xcodeproj"),
             name: "A",
             targets: [target]
         )
@@ -419,15 +419,37 @@ struct ModuleMapMapperTests {
         // Then
         let gotTarget = try #require(gotGraph.projects[projectPath]?.targets["A"])
         #expect(gotTarget.settings?.base["MODULEMAP_FILE"] == nil)
-        #expect(gotTarget.settings?.base["MODULEMAP_PATH"] == .string(moduleMapPath.pathString))
+        #expect(gotTarget.settings?.base["MODULEMAP_PATH"] == .string("$(PROJECT_DIR)/A/A.modulemap"))
         #expect(gotTarget.scripts.isEmpty)
     }
 
-    @Test(.inTemporaryDirectory)
-    func preserves_srcroot_relative_modulemap_path_for_environment_independence() throws {
+    @Test(.inTemporaryDirectory, arguments: [
+        (
+            projectPathComponents: ["checkouts", "A"],
+            xcodeProjPathComponents: ["tuist-derived", "Projects", "A", "A.xcodeproj"],
+            expectedModuleMapPath: "$(PROJECT_DIR)/../../../checkouts/A/Derived/ModuleMaps/A.modulemap"
+        ),
+        (
+            projectPathComponents: ["registry", "downloads", "A", "1.0.0"],
+            xcodeProjPathComponents: ["registry", "downloads", "A", "1.0.0", "A.xcodeproj"],
+            expectedModuleMapPath: "$(PROJECT_DIR)/Derived/ModuleMaps/A.modulemap"
+        ),
+        (
+            projectPathComponents: ["Packages", "A"],
+            xcodeProjPathComponents: ["Packages", "A", "A.xcodeproj"],
+            expectedModuleMapPath: "$(PROJECT_DIR)/Derived/ModuleMaps/A.modulemap"
+        ),
+    ])
+    func resolves_framework_modulemap_path_for_swift_package_layout(
+        projectPathComponents: [String],
+        xcodeProjPathComponents: [String],
+        expectedModuleMapPath: String
+    ) throws {
         // Given
         let workspace = Workspace.test()
-        let projectPath = try temporaryPath().appending(component: "A")
+        let scratchDirectory = try temporaryPath().appending(component: ".build")
+        let projectPath = scratchDirectory.appending(components: projectPathComponents)
+        let xcodeProjPath = scratchDirectory.appending(components: xcodeProjPathComponents)
         let target = Target.test(
             name: "A",
             product: .framework,
@@ -437,8 +459,10 @@ struct ModuleMapMapperTests {
         )
         let project = Project.test(
             path: projectPath,
+            xcodeProjPath: xcodeProjPath,
             name: "A",
-            targets: [target]
+            targets: [target],
+            type: .external()
         )
 
         // When
@@ -447,11 +471,94 @@ struct ModuleMapMapperTests {
             environment: MapperEnvironment()
         )
 
-        // Then — the $(SRCROOT)-relative form is preserved so cache hashes are
-        // stable across machines with different checkout paths.
+        // Then
         let gotTarget = try #require(gotGraph.projects[projectPath]?.targets["A"])
         #expect(gotTarget.settings?.base["MODULEMAP_FILE"] == nil)
-        #expect(gotTarget.settings?.base["MODULEMAP_PATH"] == .string("$(SRCROOT)/Derived/ModuleMaps/A.modulemap"))
+        #expect(
+            gotTarget.settings?.base["MODULEMAP_PATH"] == .string(expectedModuleMapPath)
+        )
+    }
+
+    @Test(.inTemporaryDirectory)
+    func produces_identical_modulemap_path_for_external_projects_in_different_absolute_roots() throws {
+        // Given
+        let workspace = Workspace.test()
+
+        func mappedModuleMapPath(in scratchDirectory: AbsolutePath) throws -> SettingsDictionary.Value? {
+            let projectPath = scratchDirectory.appending(components: "checkouts", "A")
+            let xcodeProjPath = scratchDirectory.appending(
+                components: "tuist-derived", "Projects", "A", "A.xcodeproj"
+            )
+            let target = Target.test(
+                name: "A",
+                product: .framework,
+                settings: .test(base: [
+                    "MODULEMAP_FILE": .string("$(SRCROOT)/Derived/ModuleMaps/A.modulemap"),
+                ])
+            )
+            let project = Project.test(
+                path: projectPath,
+                xcodeProjPath: xcodeProjPath,
+                name: "A",
+                targets: [target],
+                type: .external()
+            )
+
+            let (graph, _, _) = try subject.map(
+                graph: .test(workspace: workspace, projects: [projectPath: project]),
+                environment: MapperEnvironment()
+            )
+            return graph.projects[projectPath]?.targets["A"]?.settings?.base["MODULEMAP_PATH"]
+        }
+
+        // When
+        let firstModuleMapPath = try mappedModuleMapPath(
+            in: try temporaryPath().appending(components: "first", ".build")
+        )
+        let secondModuleMapPath = try mappedModuleMapPath(
+            in: try temporaryPath().appending(components: "second", ".build")
+        )
+
+        // Then
+        #expect(firstModuleMapPath == secondModuleMapPath)
+    }
+
+    @Test(.inTemporaryDirectory, arguments: ["$(SRCROOT)", "$(SOURCE_ROOT)", "$(PROJECT_DIR)"])
+    func resolves_framework_modulemap_path_from_source_root_macro(sourceRootMacro: String) throws {
+        // Given
+        let workspace = Workspace.test()
+        let scratchDirectory = try temporaryPath().appending(component: ".build")
+        let projectPath = scratchDirectory.appending(components: "checkouts", "A")
+        let xcodeProjPath = scratchDirectory.appending(components: "tuist-derived", "Projects", "A", "A.xcodeproj")
+        let target = Target.test(
+            name: "A",
+            product: .framework,
+            settings: .test(base: [
+                "MODULEMAP_FILE": .string("\(sourceRootMacro)/Derived/ModuleMaps/A.modulemap"),
+            ])
+        )
+        let project = Project.test(
+            path: projectPath,
+            xcodeProjPath: xcodeProjPath,
+            name: "A",
+            targets: [target],
+            type: .external()
+        )
+
+        // When
+        let (gotGraph, _, _) = try subject.map(
+            graph: .test(workspace: workspace, projects: [projectPath: project]),
+            environment: MapperEnvironment()
+        )
+
+        // Then
+        let gotTarget = try #require(gotGraph.projects[projectPath]?.targets["A"])
+        #expect(gotTarget.settings?.base["MODULEMAP_FILE"] == nil)
+        #expect(
+            gotTarget.settings?.base["MODULEMAP_PATH"] == .string(
+                "$(PROJECT_DIR)/../../../checkouts/A/Derived/ModuleMaps/A.modulemap"
+            )
+        )
     }
 
     @Test(.inTemporaryDirectory)
@@ -459,16 +566,16 @@ struct ModuleMapMapperTests {
         // Given
         let workspace = Workspace.test()
         let projectPath = try temporaryPath().appending(component: "A")
-        let moduleMapPath = projectPath.appending(components: "A", "A.modulemap")
         let target = Target.test(
             name: "A",
             product: .staticFramework,
             settings: .test(base: [
-                "MODULEMAP_FILE": .string(moduleMapPath.pathString),
+                "MODULEMAP_FILE": .string(projectPath.appending(components: "A", "A.modulemap").pathString),
             ])
         )
         let project = Project.test(
             path: projectPath,
+            xcodeProjPath: projectPath.appending(component: "A.xcodeproj"),
             name: "A",
             targets: [target]
         )
@@ -487,7 +594,7 @@ struct ModuleMapMapperTests {
         // Then
         let gotTarget = try #require(gotGraph.projects[projectPath]?.targets["A"])
         #expect(gotTarget.settings?.base["MODULEMAP_FILE"] == nil)
-        #expect(gotTarget.settings?.base["MODULEMAP_PATH"] == .string(moduleMapPath.pathString))
+        #expect(gotTarget.settings?.base["MODULEMAP_PATH"] == .string("$(PROJECT_DIR)/A/A.modulemap"))
         #expect(gotTarget.scripts.isEmpty)
     }
 
