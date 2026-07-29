@@ -182,16 +182,14 @@
     }
 
     loki.process "cache_docker" {
-      // Each request produces one completion entry with its method, path,
-      // status, and duration. Sample routine responses while preserving every
+      // The application also sends structured logs through loki.source.api.
+      // Drop routine completion duplicates from Docker while preserving every
       // warning, error, and unusual response.
       stage.match {
         selector = "{app=\"cache-docker\"} |~ \"status=(2[0-9]{2}|404).*\\[info\\] Request completed\""
+        action   = "drop"
 
-        stage.sampling {
-          rate                = 0.1
-          drop_counter_reason = "cache_request_completion_sampling"
-        }
+        drop_counter_reason = "cache_request_completion_duplicate"
       }
 
       forward_to = [loki.write.grafana_cloud.receiver]
@@ -358,8 +356,34 @@
         listen_address = "0.0.0.0"
         listen_port    = 3100
       }
-      forward_to             = [loki.write.grafana_cloud.receiver]
+      forward_to             = [loki.process.cache_api.receiver]
       use_incoming_timestamp = true
+    }
+
+    loki.process "cache_api" {
+      // Promote the structured response status to a temporary label so routine
+      // completions can be sampled without suppressing unusual responses.
+      stage.labels {
+        values = {
+          tmp_response_status = "status",
+        }
+        source_type = "structured_metadata"
+      }
+
+      stage.match {
+        selector = "{app=\"tuist-cache\", tmp_response_status=~\"2[0-9]{2}|404\"} |= \"Request completed\""
+
+        stage.sampling {
+          rate                = 0.1
+          drop_counter_reason = "cache_request_completion_sampling"
+        }
+      }
+
+      stage.label_drop {
+        values = ["tmp_response_status"]
+      }
+
+      forward_to = [loki.write.grafana_cloud.receiver]
     }
 
     otelcol.receiver.otlp "default" {
