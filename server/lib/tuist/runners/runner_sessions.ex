@@ -281,7 +281,7 @@ defmodule Tuist.Runners.RunnerSessions do
       unexpected ->
         Logger.warning("runners: unexpected session concurrency forecast result",
           fleet: fleet_name,
-          result: inspect(unexpected)
+          reason: inspect(unexpected)
         )
 
         0
