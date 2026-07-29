@@ -16,6 +16,22 @@ defmodule Tuist.DocsTest do
       assert page.body =~ "Install Tuist"
     end
 
+    test "loads starting journeys that link to canonical setup guides and verification" do
+      journeys = [
+        {"/en/guides/get-started/existing-xcode-project", "/guides/features/cache/xcode-cache"},
+        {"/en/guides/get-started/generated-xcode-project", "/tutorials/xcode/create-a-generated-project"},
+        {"/en/guides/get-started/gradle-project", "/guides/install-gradle-plugin"},
+        {"/en/guides/get-started/tuist-runners", "/guides/features/runners/getting-started"}
+      ]
+
+      for {slug, canonical_guide} <- journeys do
+        page = Docs.get_page(slug)
+
+        assert page.markdown =~ ~s(href="#{canonical_guide}")
+        assert page.markdown =~ "## Verify your setup"
+      end
+    end
+
     test "supports index aliases" do
       root_page = Docs.get_page("/en/index")
       selective_testing_page = Docs.get_page("/en/guides/features/selective-testing/index")

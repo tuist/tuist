@@ -240,6 +240,35 @@
     "guides": {
       "text": "Guides",
       "items": {
+        "get-started": {
+          "text": "Get started",
+          "items": {
+            "choose-your-path": {
+              "text": "Get started"
+            },
+            "optimization": {
+              "text": "Optimize"
+            },
+            "observability": {
+              "text": "Observe"
+            },
+            "ask": {
+              "text": "Ask"
+            },
+            "existing-xcode-project": {
+              "text": "Existing Xcode project"
+            },
+            "generated-xcode-project": {
+              "text": "Generated Xcode project"
+            },
+            "gradle-project": {
+              "text": "Gradle project"
+            },
+            "tuist-runners": {
+              "text": "Run"
+            }
+          }
+        },
         "install-tuist": {
           "text": "Install Tuist"
         },
