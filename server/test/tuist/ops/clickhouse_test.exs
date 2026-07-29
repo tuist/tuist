@@ -20,7 +20,7 @@ defmodule Tuist.Ops.ClickHouseTest do
       assert options[:timeout] == 15_000
 
       settings = options[:settings]
-      assert settings[:readonly] == 1
+      refute Keyword.has_key?(settings, :readonly)
       assert settings[:max_execution_time] == 10
       assert settings[:max_threads] == 2
       assert settings[:max_result_rows] == 3

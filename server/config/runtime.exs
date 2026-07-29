@@ -312,7 +312,6 @@ if Enum.member?([:prod, :stag, :can, :preview], env) do
       queue_target: Tuist.Environment.clickhouse_queue_target(secrets),
       queue_interval: Tuist.Environment.clickhouse_queue_interval(secrets),
       settings: [
-        readonly: 1,
         max_threads: 2,
         max_memory_usage: 1024 * 1024 * 1024
       ],

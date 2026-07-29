@@ -1025,8 +1025,44 @@ defmodule Tuist.Environment do
   end
 
   def ops_clickhouse_url(secrets \\ secrets()) do
-    get([:ops, :clickhouse_url], secrets)
+    get([:ops, :clickhouse_url], secrets) ||
+      build_ops_clickhouse_url(
+        clickhouse_url(secrets),
+        ops_clickhouse_username(secrets),
+        ops_clickhouse_password(secrets)
+      )
   end
+
+  def ops_clickhouse_username(secrets \\ secrets()) do
+    get([:ops, :clickhouse_username], secrets)
+  end
+
+  def ops_clickhouse_password(secrets \\ secrets()) do
+    get([:ops, :clickhouse_password], secrets)
+  end
+
+  def ops_clickhouse_role(secrets \\ secrets()) do
+    get([:ops, :clickhouse_role], secrets)
+  end
+
+  def build_ops_clickhouse_url(application_url, username, password)
+      when is_binary(application_url) and application_url != "" and is_binary(username) and username != "" and
+             is_binary(password) and password != "" do
+    uri = URI.parse(application_url)
+
+    if is_binary(uri.host) do
+      encoded_username = URI.encode(username, &URI.char_unreserved?/1)
+      encoded_password = URI.encode(password, &URI.char_unreserved?/1)
+
+      uri
+      |> Map.put(:userinfo, "#{encoded_username}:#{encoded_password}")
+      |> URI.to_string()
+    else
+      raise "TUIST_CLICKHOUSE_URL must be an absolute URL"
+    end
+  end
+
+  def build_ops_clickhouse_url(_application_url, _username, _password), do: nil
 
   def validate_ops_clickhouse_url!(ops_url, application_url) do
     ops_username = clickhouse_url_username(ops_url)

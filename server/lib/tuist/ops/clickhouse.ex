@@ -208,7 +208,6 @@ defmodule Tuist.Ops.ClickHouse do
 
   defp run_query(statement, params, result_limit) do
     settings = [
-      readonly: 1,
       max_execution_time: @max_execution_time_seconds,
       max_memory_usage: @max_memory_usage_bytes,
       max_rows_to_read: @max_rows_to_read,

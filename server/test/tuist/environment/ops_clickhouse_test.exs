@@ -3,6 +3,17 @@ defmodule Tuist.Environment.OpsClickHouseTest do
 
   alias Tuist.Environment
 
+  test "builds an operator URL from the application endpoint and dedicated credentials" do
+    application_url = "https://default:admin@clickhouse.example.com:8443/tuist?secure=true"
+
+    assert Environment.build_ops_clickhouse_url(application_url, "tuist_ops", "s:e@cret") ==
+             "https://tuist_ops:s%3Ae%40cret@clickhouse.example.com:8443/tuist?secure=true"
+  end
+
+  test "does not build an operator URL without every input" do
+    assert Environment.build_ops_clickhouse_url("https://clickhouse.example.com/tuist", nil, nil) == nil
+  end
+
   test "accepts a distinct operator user" do
     ops_url = "https://tuist_ops:secret@clickhouse.example.com:8443/tuist"
     application_url = "https://tuist_app:secret@clickhouse.example.com:8443/tuist"

@@ -12,6 +12,7 @@ This context owns ops reporting workers.
 - Configuration belongs in `server/config`.
 - Schema changes and migrations live in `server/priv`.
 - Internal ClickHouse inspection uses its own repository and dedicated read-only credentials.
+- `Tuist.Release.migrate` reconciles the dedicated ClickHouse user, role, grants, password, and limits before managed rollouts.
 
 ## Guardrails
 - If changes add or modify stored customer data, update `server/data-export.md`.
