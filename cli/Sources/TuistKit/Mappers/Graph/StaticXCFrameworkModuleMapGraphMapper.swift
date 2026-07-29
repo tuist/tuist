@@ -654,46 +654,7 @@ extension SettingsDictionary {
             .removeDuplicates(forConditionedKey: "FRAMEWORK_SEARCH_PATHS")
             .removeDuplicates(forConditionedKey: "HEADER_SEARCH_PATHS")
             .removeDuplicates(forConditionedKey: "OTHER_C_FLAGS")
-            .removeOtherLdFlagsDuplicates()
             .removeOtherSwiftFlagsDuplicates()
-    }
-
-    func removeOtherLdFlagsDuplicates() -> SettingsDictionary {
-        var settings = self
-        let keys = settings.keys.filter { $0 == "OTHER_LDFLAGS" || $0.hasPrefix("OTHER_LDFLAGS[") }
-        for key in keys {
-            guard let value = settings[key] else { continue }
-            switch value {
-            case let .string(value):
-                settings[key] = .string(value)
-            case let .array(value):
-                var seen = Set<String>()
-                let value = value.enumerated().filter {
-                    if $0.element.isLdFlagWithArgument {
-                        if value.endIndex > $0.offset + 1 {
-                            return !seen.contains($0.element + value[$0.offset + 1])
-                        } else {
-                            return true
-                        }
-                    } else {
-                        if $0.offset == 0 {
-                            return seen.insert($0.element).inserted
-                        } else {
-                            let previousElement = value[$0.offset - 1]
-                            if previousElement.isLdFlagWithArgument {
-                                return seen.insert(previousElement + $0.element).inserted
-                            } else {
-                                return seen.insert($0.element).inserted
-                            }
-                        }
-                    }
-                }
-                settings[key] = .array(
-                    value.map(\.element)
-                )
-            }
-        }
-        return settings
     }
 
     func removeOtherSwiftFlagsDuplicates() -> SettingsDictionary {
@@ -828,20 +789,6 @@ extension GraphDependency.XCFramework {
 }
 
 extension String {
-    fileprivate var isLdFlagWithArgument: Bool {
-        [
-            "-Xlinker",
-            "-framework",
-            "-weak_framework",
-            "-reexport_framework",
-            "-lazy_framework",
-            "-force_load",
-            "-weak_library",
-            "-reexport_library",
-            "-lazy_library",
-        ].contains(self)
-    }
-
     fileprivate var isFlagWithArgument: Bool {
         starts(with: "-X") ||
             self == "-I" ||

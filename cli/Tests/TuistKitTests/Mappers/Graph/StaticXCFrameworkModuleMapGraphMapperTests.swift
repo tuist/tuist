@@ -88,7 +88,17 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
                     targets: [
                         .test(
                             name: "Wrapper",
-                            product: .framework
+                            product: .framework,
+                            settings: .test(
+                                base: [
+                                    "OTHER_LDFLAGS": [
+                                        "$(inherited)",
+                                        "-Xlinker", "-rpath",
+                                        "-Xlinker", "@executable_path/Frameworks",
+                                        "-Xlinker", "-rpath",
+                                    ],
+                                ]
+                            )
                         ),
                     ]
                 ),
@@ -124,6 +134,12 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
                         product: .framework,
                         settings: .test(
                             base: [
+                                "OTHER_LDFLAGS": [
+                                    "$(inherited)",
+                                    "-Xlinker", "-rpath",
+                                    "-Xlinker", "@executable_path/Frameworks",
+                                    "-Xlinker", "-rpath",
+                                ],
                                 "OTHER_LDFLAGS[sdk=iphoneos*]": [
                                     "$(inherited)",
                                     "-Wl,-force_load,$(TARGET_BUILD_DIR)/GoogleMobileAds.framework/GoogleMobileAds",
@@ -2251,40 +2267,6 @@ final class StaticXCFrameworkModuleMapGraphMapperTests: TuistUnitTestCase {
                         "-Xcc", "value-one",
                         "-enable-upcoming-feature", "DeprecateApplicationMain",
                         "value-two",
-                    ]
-                ),
-            ]
-        )
-    }
-
-    func test_removeOtherLdFlagsDuplicates_preserves_distinct_argument_pairs() {
-        // Given
-        let settings: SettingsDictionary = [
-            "OTHER_LDFLAGS": .array(
-                [
-                    "$(inherited)",
-                    "-Xlinker", "-rpath",
-                    "-Xlinker", "@executable_path/Frameworks",
-                    "-Xlinker", "-rpath",
-                    "-framework", "JavaScriptCore",
-                    "-framework", "JavaScriptCore",
-                ]
-            ),
-        ]
-
-        // When
-        let got = settings.removeOtherLdFlagsDuplicates()
-
-        // Then
-        XCTAssertEqual(
-            got,
-            [
-                "OTHER_LDFLAGS": .array(
-                    [
-                        "$(inherited)",
-                        "-Xlinker", "-rpath",
-                        "-Xlinker", "@executable_path/Frameworks",
-                        "-framework", "JavaScriptCore",
                     ]
                 ),
             ]
