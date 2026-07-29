@@ -238,7 +238,7 @@ defmodule Tuist.Ingestion.BufferTest do
       {:ok, pid} = Buffer.start_link(opts)
       Mimic.allow(IngestRepo, self(), pid)
 
-      assert :ok = Buffer.insert(pid, "row")
+      assert :ok = Buffer.insert!(pid, "row")
       assert :sys.get_state(pid).buffer_size == 3
 
       GenServer.stop(pid)
@@ -321,9 +321,16 @@ defmodule Tuist.Ingestion.BufferTest do
       assert {:ok, pid} = Buffer.start_link(opts)
       Mimic.allow(IngestRepo, self(), pid)
 
-      assert :ok = Buffer.insert(pid, "one")
-      assert :ok = Buffer.insert(pid, "two")
-      assert {:error, ^error} = Buffer.insert(pid, "three")
+      assert :ok = Buffer.insert!(pid, "one")
+      assert :ok = Buffer.insert!(pid, "two")
+
+      raised_error =
+        assert_raise Ch.Error, fn ->
+          Buffer.insert!(pid, "three")
+        end
+
+      assert raised_error.code == error.code
+      assert raised_error.message == error.message
 
       state = :sys.get_state(pid)
       assert state.buffer_size == 6
@@ -353,7 +360,12 @@ defmodule Tuist.Ingestion.BufferTest do
       assert {:ok, pid} = Buffer.start_link(opts)
       Mimic.allow(IngestRepo, self(), pid)
 
-      assert {:error, :unexpected} = Buffer.insert(pid, "row")
+      assert_raise RuntimeError,
+                   "ClickHouse ingestion buffer rejected an insert: :unexpected",
+                   fn ->
+                     Buffer.insert!(pid, "row")
+                   end
+
       assert :sys.get_state(pid).buffer_size == 0
       assert Process.alive?(pid)
 
@@ -376,7 +388,7 @@ defmodule Tuist.Ingestion.BufferTest do
       assert {:ok, pid} = Buffer.start_link(opts)
       Mimic.allow(IngestRepo, self(), pid)
 
-      assert :ok = Buffer.insert(pid, "oversized")
+      assert :ok = Buffer.insert!(pid, "oversized")
       assert :sys.get_state(pid).buffer_size == 0
 
       GenServer.stop(pid)

@@ -11,8 +11,17 @@ defmodule Tuist.Ingestion.Buffer do
     GenServer.start_link(__MODULE__, opts, name: Keyword.fetch!(opts, :name))
   end
 
-  def insert(server, row_binary) do
-    GenServer.call(server, {:insert, row_binary}, :infinity)
+  def insert!(server, row_binary) do
+    case GenServer.call(server, {:insert, row_binary}, :infinity) do
+      :ok ->
+        :ok
+
+      {:error, %{__exception__: true} = error} ->
+        raise error
+
+      {:error, error} ->
+        raise "ClickHouse ingestion buffer rejected an insert: #{inspect(error)}"
+    end
   end
 
   def flush(server) do
