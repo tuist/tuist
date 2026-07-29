@@ -53,6 +53,7 @@ struct MemoryControllerInner {
     hard_limit_bytes: u64,
     container_accounting_selected: AtomicBool,
     reclaim_file_cache: AtomicBool,
+    working_set_state: AtomicU8,
     observation_sequence: AtomicU64,
     foreground_waiters: AtomicU64,
     response_stream_waiters: AtomicU64,
@@ -98,6 +99,7 @@ impl MemoryController {
                 hard_limit_bytes,
                 container_accounting_selected: AtomicBool::new(false),
                 reclaim_file_cache: AtomicBool::new(false),
+                working_set_state: AtomicU8::new(MemoryPressure::Normal.as_u8()),
                 observation_sequence: AtomicU64::new(0),
                 foreground_waiters: AtomicU64::new(0),
                 response_stream_waiters: AtomicU64::new(0),
@@ -138,12 +140,45 @@ impl MemoryController {
         self.inner
             .container_accounting_selected
             .store(true, Ordering::Release);
+        // File-cache reclaim has two independent arms.
+        //
+        // The working-set arm asks demand to trade clean file-cache warmth for request
+        // capacity once the conventional working set crosses the soft watermark. Because that
+        // working set is exactly the quantity that can swing more than a gibibyte between two
+        // 200 ms samples as the kernel reclassifies clean artifact pages, a raw threshold would
+        // flip mmap serving and drop-behind on and off every sample near the soft watermark. It
+        // runs through the same hysteretic pressure state machine as admission so it only clears
+        // after recovering roughly 10% below the soft watermark.
+        //
+        // The raw `memory.current >= hard_limit` arm is deliberately un-hysteresed. On a warm
+        // serving node the kernel keeps clean page cache charged until forced to reclaim, so once
+        // the cumulative footprint crosses the hard watermark this stays effectively steady state.
+        // That is the intended trade for cache nodes: hold drop-behind and mmap-serving denial on
+        // so request serving keeps borrowing from clean file cache instead of the container
+        // sitting close to its limit.
+        let working_set_reclaim =
+            self.observe_working_set(sample.working_set_bytes) != MemoryPressure::Normal;
         self.inner.reclaim_file_cache.store(
-            sample.working_set_bytes >= self.inner.soft_limit_bytes
-                || sample.current_bytes >= self.inner.hard_limit_bytes,
+            working_set_reclaim || sample.current_bytes >= self.inner.hard_limit_bytes,
             Ordering::Relaxed,
         );
         self.observe(sample.pressure_bytes)
+    }
+
+    fn observe_working_set(&self, working_set_bytes: u64) -> MemoryPressure {
+        let current = MemoryPressure::from_u8(self.inner.working_set_state.load(Ordering::Relaxed));
+        let next = transition(
+            current,
+            working_set_bytes,
+            self.inner.soft_limit_bytes,
+            self.inner.hard_limit_bytes,
+        );
+        if next != current {
+            self.inner
+                .working_set_state
+                .store(next.as_u8(), Ordering::Relaxed);
+        }
+        next
     }
 
     pub fn pressure(&self) -> MemoryPressure {
@@ -777,6 +812,73 @@ mod tests {
         );
         assert!(!controller.should_reclaim_file_cache());
         assert!(controller.try_acquire_mmap_serving(1).is_some());
+    }
+
+    #[test]
+    fn working_set_reclaim_arm_recovers_with_hysteresis() {
+        let metrics = Metrics::new("eu-west".into(), "tenant".into());
+        // soft = 100, hard = 200, recovery clears at 90 (10% below the soft watermark).
+        let controller = MemoryController::with_runtime_limit(metrics, 240, 100, 200);
+
+        assert_eq!(
+            controller.observe_container(ContainerMemoryPressureSample {
+                current_bytes: 150,
+                pressure_bytes: 40,
+                working_set_bytes: 180,
+                reclaimable_inactive_file_bytes: 40,
+                limit_bytes: Some(240),
+            }),
+            MemoryPressure::Normal
+        );
+        assert!(controller.should_reclaim_file_cache());
+
+        // Working set dips below the soft watermark but stays above the recovery
+        // threshold. A raw threshold would clear reclaim here; hysteresis keeps it on.
+        assert_eq!(
+            controller.observe_container(ContainerMemoryPressureSample {
+                current_bytes: 120,
+                pressure_bytes: 40,
+                working_set_bytes: 95,
+                reclaimable_inactive_file_bytes: 25,
+                limit_bytes: Some(240),
+            }),
+            MemoryPressure::Normal
+        );
+        assert!(controller.should_reclaim_file_cache());
+
+        // Only once the working set recovers below the hysteresis threshold does the
+        // reclaim signal clear.
+        assert_eq!(
+            controller.observe_container(ContainerMemoryPressureSample {
+                current_bytes: 110,
+                pressure_bytes: 40,
+                working_set_bytes: 85,
+                reclaimable_inactive_file_bytes: 25,
+                limit_bytes: Some(240),
+            }),
+            MemoryPressure::Normal
+        );
+        assert!(!controller.should_reclaim_file_cache());
+    }
+
+    #[test]
+    fn raw_hard_limit_arm_keeps_reclaim_on_without_hysteresis() {
+        let metrics = Metrics::new("eu-west".into(), "tenant".into());
+        let controller = MemoryController::with_runtime_limit(metrics, 240, 100, 200);
+
+        // Container charge at the hard watermark with a low working set: the raw arm
+        // holds reclaim on so a warm cache node keeps borrowing from clean file cache.
+        assert_eq!(
+            controller.observe_container(ContainerMemoryPressureSample {
+                current_bytes: 200,
+                pressure_bytes: 40,
+                working_set_bytes: 40,
+                reclaimable_inactive_file_bytes: 160,
+                limit_bytes: Some(240),
+            }),
+            MemoryPressure::Normal
+        );
+        assert!(controller.should_reclaim_file_cache());
     }
 
     #[test]
