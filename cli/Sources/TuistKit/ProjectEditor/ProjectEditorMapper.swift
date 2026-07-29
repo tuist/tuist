@@ -60,7 +60,9 @@ struct ProjectEditorMapper: ProjectEditorMapping {
         projectDescriptionSearchPath: AbsolutePath
     ) async throws -> Graph {
         Logger.current.notice("Building the editable project graph")
-        let swiftVersion = try await SwiftVersionProvider.current.swiftVersion()
+        // The Swift compiler version and its default language mode can differ. Match edit targets to the language mode
+        // used by the unversioned `swift` and `swiftc` invocations that evaluate manifests and compile helpers.
+        let swiftVersion = try await SwiftVersionProvider.current.swiftDefaultLanguageModeVersion()
 
         let pluginsProject = try await mapPluginsProject(
             pluginManifests: editablePluginManifests,
@@ -179,7 +181,8 @@ struct ProjectEditorMapper: ProjectEditorMapping {
                 name: "Config",
                 filesGroup: manifestsFilesGroup,
                 targetSettings: baseTargetSettings,
-                sourcePaths: [configPath]
+                sourcePaths: [configPath],
+                excludeFromBuildPaths: [configPath]
             )
         }()
 
@@ -213,6 +216,7 @@ struct ProjectEditorMapper: ProjectEditorMapping {
                 filesGroup: manifestsFilesGroup,
                 targetSettings: baseTargetSettings,
                 sourcePaths: templateSources,
+                excludeFromBuildPaths: templateSources,
                 additionalFilePaths: templateResources,
                 dependencies: helpersTarget.flatMap { [TargetDependency.target(name: $0.name)] } ?? []
             )
@@ -289,6 +293,7 @@ struct ProjectEditorMapper: ProjectEditorMapping {
                     defaultSettings: .recommended
                 ),
                 sourcePaths: [packageManifestPath],
+                excludeFromBuildPaths: [packageManifestPath],
                 dependencies: dependencies
             )
         }()
@@ -299,6 +304,7 @@ struct ProjectEditorMapper: ProjectEditorMapping {
                 filesGroup: manifestsFilesGroup,
                 targetSettings: targetWithLinkedPluginsSettings,
                 sourcePaths: [projectManifestSourcePath],
+                excludeFromBuildPaths: [projectManifestSourcePath],
                 dependencies: helperAndPluginDependencies
             )
         }
@@ -407,6 +413,7 @@ struct ProjectEditorMapper: ProjectEditorMapping {
                 filesGroup: pluginsFilesGroup,
                 targetSettings: targetSettings,
                 sourcePaths: sourcePaths,
+                excludeFromBuildPaths: [pluginManifest] + pluginTemplates,
                 dependencies: []
             )
         }
@@ -502,6 +509,10 @@ struct ProjectEditorMapper: ProjectEditorMapping {
     ///   - filesGroup: File group for target.
     ///   - targetSettings: Target's settings.
     ///   - sourcePaths: Target's sources.
+    ///   - excludeFromBuildPaths: Subset of `sourcePaths` that Xcode should keep as file references but exclude
+    ///     from compilation. Used for script-style manifest and template files that produce false-positive
+    ///     diagnostics when compiled as library sources.
+    ///   - additionalFilePaths: Additional files shown in the target.
     ///   - dependencies: Target's dependencies.
     /// - Returns: Target for edit project.
     private func editorHelperTarget(
@@ -509,16 +520,29 @@ struct ProjectEditorMapper: ProjectEditorMapping {
         filesGroup: ProjectGroup,
         targetSettings: Settings,
         sourcePaths: [AbsolutePath],
+        excludeFromBuildPaths: [AbsolutePath] = [],
         additionalFilePaths: [AbsolutePath] = [],
         dependencies: [TargetDependency] = []
     ) -> Target {
-        Target(
+        let settings: Settings
+        if excludeFromBuildPaths.isEmpty {
+            settings = targetSettings
+        } else {
+            settings = targetSettings.with(base: targetSettings.base.merging(
+                [
+                    "DEFINES_MODULE": "NO",
+                    "EXCLUDED_SOURCE_FILE_NAMES": .array(excludeFromBuildPaths.map(\.basename)),
+                ],
+                uniquingKeysWith: { _, new in new }
+            ))
+        }
+        return Target(
             name: name,
             destinations: .macOS,
             product: .staticFramework,
             productName: name,
             bundleId: "dev.tuist.${PRODUCT_NAME:rfc1034identifier}",
-            settings: targetSettings,
+            settings: settings,
             sources: sourcePaths.map { SourceFile(path: $0, compilerFlags: nil) },
             filesGroup: filesGroup,
             dependencies: dependencies,
