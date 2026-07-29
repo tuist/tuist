@@ -49,11 +49,12 @@
                       "spec": {
                         "app": "grafana-assistant-app",
                         "editorMode": "code",
+                        "exemplar": false,
                         "expr": "sum(kura_ready_state{env=~\"$env\", pod=~\"$pod\"})",
-                        "instant": false,
+                        "instant": true,
                         "legendFormat": "__auto",
                         "queryType": "range",
-                        "range": true
+                        "range": false
                       },
                       "version": "v0"
                     },
@@ -138,7 +139,7 @@
                 "wideLayout": true
               }
             },
-            "version": "13.2.0-29854286369"
+            "version": "13.2.0-29903742394"
           }
         }
       },
@@ -258,7 +259,7 @@
                 }
               }
             },
-            "version": "13.2.0-29854286369"
+            "version": "13.2.0-29903742394"
           }
         }
       },
@@ -379,7 +380,7 @@
                 }
               }
             },
-            "version": "13.2.0-29854286369"
+            "version": "13.2.0-29903742394"
           }
         }
       },
@@ -402,9 +403,11 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "builder",
+                        "exemplar": false,
                         "expr": "kura_bootstrap_runs_total_total{env=\"$env\", pod=\"$pod\"}",
+                        "instant": true,
                         "legendFormat": "{{result}}",
-                        "range": true
+                        "range": false
                       },
                       "version": "v0"
                     },
@@ -465,7 +468,7 @@
                 "wideLayout": true
               }
             },
-            "version": "13.2.0-29854286369"
+            "version": "13.2.0-29903742394"
           }
         }
       },
@@ -586,7 +589,7 @@
                 }
               }
             },
-            "version": "13.2.0-29854286369"
+            "version": "13.2.0-29903742394"
           }
         }
       },
@@ -651,7 +654,7 @@
                 "wrapLogMessage": false
               }
             },
-            "version": "13.2.0-29854286369"
+            "version": "13.2.0-29903742394"
           }
         }
       },
@@ -794,7 +797,7 @@
                 }
               }
             },
-            "version": "13.2.0-29854286369"
+            "version": "13.2.0-29903742394"
           }
         }
       },
@@ -818,11 +821,12 @@
                       "spec": {
                         "app": "grafana-assistant-app",
                         "editorMode": "builder",
+                        "exemplar": false,
                         "expr": "sum(kura_memory_pressure_state{env=~\"$env\", pod=~\"$pod\"})",
-                        "instant": false,
+                        "instant": true,
                         "legendFormat": "__auto",
                         "queryType": "range",
-                        "range": true
+                        "range": false
                       },
                       "version": "v0"
                     },
@@ -909,7 +913,7 @@
                 "wideLayout": true
               }
             },
-            "version": "13.2.0-29854286369"
+            "version": "13.2.0-29903742394"
           }
         }
       },
@@ -1059,7 +1063,7 @@
                 }
               }
             },
-            "version": "13.2.0-29854286369"
+            "version": "13.2.0-29903742394"
           }
         }
       },
@@ -1083,11 +1087,12 @@
                       "spec": {
                         "app": "grafana-assistant-app",
                         "editorMode": "code",
+                        "exemplar": false,
                         "expr": "sum(kura_memory_pressure_state{env=~\"$env\", pod=~\"$pod\"})",
-                        "instant": false,
+                        "instant": true,
                         "legendFormat": "__auto",
                         "queryType": "range",
-                        "range": true
+                        "range": false
                       },
                       "version": "v0"
                     },
@@ -1174,7 +1179,7 @@
                 "wideLayout": true
               }
             },
-            "version": "13.2.0-29854286369"
+            "version": "13.2.0-29903742394"
           }
         }
       },
@@ -1340,7 +1345,7 @@
                 }
               }
             },
-            "version": "13.2.0-29854286369"
+            "version": "13.2.0-29903742394"
           }
         }
       },
@@ -1461,7 +1466,7 @@
                 }
               }
             },
-            "version": "13.2.0-29854286369"
+            "version": "13.2.0-29903742394"
           }
         }
       },
@@ -1582,7 +1587,7 @@
                 }
               }
             },
-            "version": "13.2.0-29854286369"
+            "version": "13.2.0-29903742394"
           }
         }
       },
@@ -1728,7 +1733,7 @@
                 }
               }
             },
-            "version": "13.2.0-29854286369"
+            "version": "13.2.0-29903742394"
           }
         }
       },
@@ -1849,7 +1854,7 @@
                 }
               }
             },
-            "version": "13.2.0-29854286369"
+            "version": "13.2.0-29903742394"
           }
         }
       },
@@ -1970,7 +1975,7 @@
                 }
               }
             },
-            "version": "13.2.0-29854286369"
+            "version": "13.2.0-29903742394"
           }
         }
       },
@@ -1994,11 +1999,12 @@
                       "spec": {
                         "app": "grafana-assistant-app",
                         "editorMode": "builder",
+                        "exemplar": false,
                         "expr": "sum(kura_background_work_paused{env=~\"$env\", pod=~\"$pod\", worker=\"outbox\"})",
-                        "instant": false,
+                        "instant": true,
                         "legendFormat": "__auto",
                         "queryType": "range",
-                        "range": true
+                        "range": false
                       },
                       "version": "v0"
                     },
@@ -2073,7 +2079,7 @@
                 "wideLayout": true
               }
             },
-            "version": "13.2.0-29854286369"
+            "version": "13.2.0-29903742394"
           }
         }
       },
@@ -2194,7 +2200,7 @@
                 }
               }
             },
-            "version": "13.2.0-29854286369"
+            "version": "13.2.0-29903742394"
           }
         }
       },
@@ -2311,7 +2317,7 @@
                 }
               }
             },
-            "version": "13.2.0-29854286369"
+            "version": "13.2.0-29903742394"
           }
         }
       },
@@ -2334,9 +2340,11 @@
                       "kind": "DataQuery",
                       "spec": {
                         "editorMode": "builder",
+                        "exemplar": false,
                         "expr": "kura_bootstrap_pass_buckets_divergent{env=\"$env\", pod=\"$pod\"}",
+                        "instant": true,
                         "legendFormat": "__auto",
-                        "range": true
+                        "range": false
                       },
                       "version": "v0"
                     },
@@ -2402,7 +2410,7 @@
                 "wideLayout": true
               }
             },
-            "version": "13.2.0-29854286369"
+            "version": "13.2.0-29903742394"
           }
         }
       },
@@ -2522,7 +2530,7 @@
                 }
               }
             },
-            "version": "13.2.0-29854286369"
+            "version": "13.2.0-29903742394"
           }
         }
       },
@@ -2648,7 +2656,7 @@
                 }
               }
             },
-            "version": "13.2.0-29854286369"
+            "version": "13.2.0-29903742394"
           }
         }
       },
@@ -2794,7 +2802,7 @@
                 }
               }
             },
-            "version": "13.2.0-29854286369"
+            "version": "13.2.0-29903742394"
           }
         }
       },
@@ -2818,11 +2826,12 @@
                       "spec": {
                         "app": "grafana-assistant-app",
                         "editorMode": "code",
+                        "exemplar": false,
                         "expr": "sum by(peer) (kura_bootstrap_pass_buckets_divergent{env=\"$env\", pod=\"$pod\"})",
-                        "instant": false,
+                        "instant": true,
                         "legendFormat": "{{peer}}",
                         "queryType": "range",
-                        "range": true
+                        "range": false
                       },
                       "version": "v0"
                     },
@@ -2842,11 +2851,12 @@
                       "spec": {
                         "app": "grafana-assistant-app",
                         "editorMode": "code",
+                        "exemplar": false,
                         "expr": "sum by(peer) (kura_bootstrap_pass_buckets_reconciled{env=\"$env\", pod=\"$pod\"})",
-                        "instant": false,
+                        "instant": true,
                         "legendFormat": "{{peer}}",
                         "queryType": "range",
-                        "range": true
+                        "range": false
                       },
                       "version": "v0"
                     },
@@ -2939,7 +2949,7 @@
                 "textMode": "auto"
               }
             },
-            "version": "13.2.0-29854286369"
+            "version": "13.2.0-29903742394"
           }
         }
       },
@@ -3060,7 +3070,7 @@
                 }
               }
             },
-            "version": "13.2.0-29854286369"
+            "version": "13.2.0-29903742394"
           }
         }
       },
@@ -3181,7 +3191,7 @@
                 }
               }
             },
-            "version": "13.2.0-29854286369"
+            "version": "13.2.0-29903742394"
           }
         }
       },
@@ -3302,7 +3312,7 @@
                 }
               }
             },
-            "version": "13.2.0-29854286369"
+            "version": "13.2.0-29903742394"
           }
         }
       },
@@ -3423,7 +3433,7 @@
                 }
               }
             },
-            "version": "13.2.0-29854286369"
+            "version": "13.2.0-29903742394"
           }
         }
       },
@@ -3447,11 +3457,12 @@
                       "spec": {
                         "app": "grafana-assistant-app",
                         "editorMode": "code",
+                        "exemplar": false,
                         "expr": "max(kura_membership_generation{env=\"$env\", pod=\"$pod\"}) or vector(0)",
-                        "instant": false,
+                        "instant": true,
                         "legendFormat": "__auto",
                         "queryType": "range",
-                        "range": true
+                        "range": false
                       },
                       "version": "v0"
                     },
@@ -3512,7 +3523,7 @@
                 "wideLayout": true
               }
             },
-            "version": "13.2.0-29854286369"
+            "version": "13.2.0-29903742394"
           }
         }
       },
@@ -3536,11 +3547,12 @@
                       "spec": {
                         "app": "grafana-assistant-app",
                         "editorMode": "builder",
+                        "exemplar": false,
                         "expr": "sum(kura_traffic_state{env=~\"$env\", pod=~\"$pod\"})",
-                        "instant": false,
+                        "instant": true,
                         "legendFormat": "__auto",
                         "queryType": "range",
-                        "range": true
+                        "range": false
                       },
                       "version": "v0"
                     },
@@ -3627,7 +3639,7 @@
                 "wideLayout": true
               }
             },
-            "version": "13.2.0-29854286369"
+            "version": "13.2.0-29903742394"
           }
         }
       }
