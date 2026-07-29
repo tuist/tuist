@@ -35,7 +35,8 @@ defmodule Tuist do
       Marketing.BlogContentProcessor,
       Marketing.Customers,
       Marketing.Stats,
-      # Read-only database inspection backing the /ops/db LiveView.
+      # Read-only database inspection backing internal and operator routes.
+      Ops.ClickHouse,
       Ops.Database,
       # App
       # -----
