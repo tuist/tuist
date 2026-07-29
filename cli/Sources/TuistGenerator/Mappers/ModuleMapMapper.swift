@@ -19,6 +19,7 @@ import XcodeGraph
 /// https://github.com/swiftlang/swift-package-manager/blob/ff05594c1267137ed5ee2c0076dfaf78f0289877/Sources/SwiftBuildSupport/PackagePIFProjectBuilder%2BModules.swift#L440-L459
 public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_body_length
     private static let modulemapFileSetting = "MODULEMAP_FILE"
+    private static let modulemapPathSetting = "MODULEMAP_PATH"
     private static let otherCFlagsSetting = "OTHER_CFLAGS"
     private static let otherSwiftFlagsSetting = "OTHER_SWIFT_FLAGS"
     private static let headerSearchPaths = "HEADER_SEARCH_PATHS"
@@ -81,34 +82,15 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
                 else { return (targetName, target) }
 
                 if hasModuleMap {
-                    if let moduleMapPath = Self.moduleMapPath(
-                        from: mappedSettingsDictionary[Self.modulemapFileSetting],
-                        projectPath: project.path
-                    ),
-                        target.product == .framework
+                    if target.product.isFramework,
+                       case let .string(moduleMapFile) = mappedSettingsDictionary[Self.modulemapFileSetting]
                     {
-                        // swift-build gives ExtractAPI dependency module maps explicitly and models framework module maps
-                        // at `Modules/module.modulemap`. Generated Xcode projects need the same canonical framework path.
-                        // https://github.com/swiftlang/swift-build/blob/af813e185ed298ea7bdb633047f27d15253cdac7/Sources/SWBTaskConstruction/TaskProducers/OtherTaskProducers/TAPISymbolExtractorTaskProducer.swift#L76-L108
-                        // https://github.com/swiftlang/swift-build/blob/af813e185ed298ea7bdb633047f27d15253cdac7/Sources/SWBTaskConstruction/ProductPlanning/ProductPlan.swift#L1197-L1200
-                        let escapedModuleMapPath = Self.shellEscaped(moduleMapPath.pathString)
-                        target.scripts.append(
-                            TargetScript(
-                                name: "Copy Module Map",
-                                order: .post,
-                                script: .embedded(
-                                    """
-                                    set -eu
-                                    mkdir -p "$TARGET_BUILD_DIR/$WRAPPER_NAME/Modules"
-                                    cp '\(escapedModuleMapPath)' "$TARGET_BUILD_DIR/$WRAPPER_NAME/Modules/module.modulemap"
-                                    """
-                                ),
-                                inputPaths: [moduleMapPath.pathString],
-                                outputPaths: ["$(TARGET_BUILD_DIR)/$(WRAPPER_NAME)/Modules/module.modulemap"],
-                                showEnvVarsInLog: false,
-                                basedOnDependencyAnalysis: true
-                            )
-                        )
+                        // ExtractAPI consumes MODULEMAP_PATH as an explicit -fmodule-map-file input. Keeping the
+                        // source map out of the framework product avoids duplicate module-map discovery and the
+                        // static-framework copy fixed in #11588: https://github.com/tuist/tuist/pull/11588
+                        // The original $(SRCROOT)-relative value is preserved so cache hashes stay
+                        // environment-independent.
+                        mappedSettingsDictionary[Self.modulemapPathSetting] = .string(moduleMapFile)
                     }
                     mappedSettingsDictionary[Self.modulemapFileSetting] = nil
                 }
@@ -191,24 +173,6 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
         sideEffects.append(contentsOf: generatedFileSideEffects)
         return (graph, sideEffects, environment)
     } // swiftlint:enable function_body_length
-
-    private static func moduleMapPath(
-        from value: SettingsDictionary.Value?,
-        projectPath: AbsolutePath
-    ) -> AbsolutePath? {
-        guard case let .string(moduleMap) = value else { return nil }
-
-        return try? AbsolutePath(
-            validating: moduleMap
-                .replacingOccurrences(of: "$(PROJECT_DIR)", with: projectPath.pathString)
-                .replacingOccurrences(of: "$(SRCROOT)", with: projectPath.pathString)
-                .replacingOccurrences(of: "$(SOURCE_ROOT)", with: projectPath.pathString)
-        )
-    }
-
-    private static func shellEscaped(_ value: String) -> String {
-        value.replacingOccurrences(of: "'", with: "'\\''")
-    }
 
     private func dependenciesModuleMapDirectory(for project: Project) -> AbsolutePath {
         if case .external = project.type,
@@ -404,43 +368,66 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
     ) -> SettingsDictionary {
         var settings = settings
 
-        if !onlyExistingKeys || settings[Self.otherSwiftFlagsSetting] != nil,
-           let updated = Self.updatedOtherSwiftFlags(
-               targetID: targetID,
-               oldOtherSwiftFlags: settings[Self.otherSwiftFlagsSetting],
-               dependenciesDerivedDirectory: dependenciesDerivedDirectory,
-               xcodeProjParent: xcodeProjParent,
-               combinedModuleMapPath: combinedModuleMapPath
-           )
-        {
+        if Self.shouldApplyModuleMapFlags(
+            to: settings[Self.otherSwiftFlagsSetting],
+            onlyExistingKeys: onlyExistingKeys
+        ), let updated = Self.updatedOtherSwiftFlags(
+            targetID: targetID,
+            oldOtherSwiftFlags: settings[Self.otherSwiftFlagsSetting],
+            dependenciesDerivedDirectory: dependenciesDerivedDirectory,
+            xcodeProjParent: xcodeProjParent,
+            combinedModuleMapPath: combinedModuleMapPath
+        ) {
             settings[Self.otherSwiftFlagsSetting] = updated
         }
 
-        if !onlyExistingKeys || settings[Self.otherCFlagsSetting] != nil,
-           let updated = Self.updatedOtherCFlags(
-               targetID: targetID,
-               oldOtherCFlags: settings[Self.otherCFlagsSetting],
-               dependenciesDerivedDirectory: dependenciesDerivedDirectory,
-               xcodeProjParent: xcodeProjParent,
-               combinedModuleMapPath: combinedModuleMapPath
-           )
-        {
+        if Self.shouldApplyModuleMapFlags(
+            to: settings[Self.otherCFlagsSetting],
+            onlyExistingKeys: onlyExistingKeys
+        ), let updated = Self.updatedOtherCFlags(
+            targetID: targetID,
+            oldOtherCFlags: settings[Self.otherCFlagsSetting],
+            dependenciesDerivedDirectory: dependenciesDerivedDirectory,
+            xcodeProjParent: xcodeProjParent,
+            combinedModuleMapPath: combinedModuleMapPath
+        ) {
             settings[Self.otherCFlagsSetting] = updated
         }
 
-        if !onlyExistingKeys || settings[Self.headerSearchPaths] != nil,
-           let updated = Self.updatedHeaderSearchPaths(
-               targetID: targetID,
-               oldHeaderSearchPaths: settings[Self.headerSearchPaths],
-               targetToDependenciesMetadata: targetToDependenciesMetadata,
-               dependenciesDerivedDirectory: dependenciesDerivedDirectory,
-               xcodeProjParent: xcodeProjParent
-           )
-        {
+        if Self.shouldApplyModuleMapFlags(
+            to: settings[Self.headerSearchPaths],
+            onlyExistingKeys: onlyExistingKeys
+        ), let updated = Self.updatedHeaderSearchPaths(
+            targetID: targetID,
+            oldHeaderSearchPaths: settings[Self.headerSearchPaths],
+            targetToDependenciesMetadata: targetToDependenciesMetadata,
+            dependenciesDerivedDirectory: dependenciesDerivedDirectory,
+            xcodeProjParent: xcodeProjParent
+        ) {
             settings[Self.headerSearchPaths] = updated
         }
 
         return settings
+    }
+
+    /// A configuration value containing $(inherited) already receives the base flags, so adding the
+    /// flag there again would duplicate it in the generated Xcode project.
+    private static func shouldApplyModuleMapFlags(
+        to setting: SettingsDictionary.Value?,
+        onlyExistingKeys: Bool
+    ) -> Bool {
+        !onlyExistingKeys || (setting != nil && !inheritsBaseSetting(setting))
+    }
+
+    private static func inheritsBaseSetting(_ setting: SettingsDictionary.Value?) -> Bool {
+        switch setting {
+        case let .string(value):
+            value.contains("$(inherited)")
+        case let .array(values):
+            values.contains("$(inherited)")
+        case nil:
+            false
+        }
     }
 
     private static func updatedHeaderSearchPaths(
