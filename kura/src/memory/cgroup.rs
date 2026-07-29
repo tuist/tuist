@@ -147,6 +147,7 @@ fn pressure_bytes(
         .saturating_add(shmem_bytes.unwrap_or(0))
         .saturating_add(file_dirty_bytes.unwrap_or(0))
         .saturating_add(file_writeback_bytes.unwrap_or(0))
+        .min(current_bytes)
 }
 
 pub fn container_memory_snapshot() -> Option<ContainerMemorySnapshot> {
@@ -376,6 +377,23 @@ mod tests {
         assert_eq!(
             pressure_bytes(1_000, None, None, None, None, None, None, Some(250)),
             750
+        );
+    }
+
+    #[test]
+    fn pressure_never_exceeds_current_without_kernel_accounting() {
+        assert_eq!(
+            pressure_bytes(
+                300,
+                Some(100),
+                Some(200),
+                None,
+                Some(150),
+                Some(100),
+                Some(50),
+                Some(100)
+            ),
+            300
         );
     }
 
