@@ -1791,7 +1791,7 @@ impl Store {
                 if copied.saturating_sub(advised_through)
                     >= FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES
                     && file_cache_policy.should_drop(
-                        self.memory.pressure(),
+                        self.memory.should_reclaim_file_cache(),
                         self.memory.transient_reserved_bytes(),
                     )
                 {
@@ -1857,7 +1857,7 @@ impl Store {
             })?;
             let drop_final_range = copied > advised_through
                 && file_cache_policy.should_drop(
-                    self.memory.pressure(),
+                    self.memory.should_reclaim_file_cache(),
                     self.memory.transient_reserved_bytes(),
                 );
             if drop_final_range {
@@ -3095,7 +3095,7 @@ impl Store {
                 copied = copied.saturating_add(read as u64);
                 assembled_bytes = assembled_bytes.saturating_add(read as u64);
                 if file_cache_policy.should_drop(
-                    self.memory.pressure(),
+                    self.memory.should_reclaim_file_cache(),
                     self.memory.transient_reserved_bytes(),
                 ) && assembled_bytes.saturating_sub(advised_through)
                     >= FOREGROUND_FILE_CACHE_DROP_INTERVAL_BYTES

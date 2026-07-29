@@ -65,6 +65,28 @@ struct RetryMiddlewareTests {
         #expect(callCount == 1)
     }
 
+    @Test func does_not_retry_a_request_method_outside_the_allowlist() async throws {
+        let subject = RetryMiddleware(
+            maxRetries: 3,
+            retryableRequestMethods: ["GET"]
+        )
+        var callCount = 0
+
+        let (response, _) = try await subject.intercept(
+            HTTPRequest(method: .post, scheme: nil, authority: nil, path: "/test"),
+            body: HTTPBody(Data("body".utf8)),
+            baseURL: URL(string: "https://test.tuist.dev")!,
+            operationID: "test-op"
+        ) { _, body, _ in
+            callCount += 1
+            #expect(body != nil)
+            return (HTTPResponse(status: 503), nil)
+        }
+
+        #expect(response.status.code == 503)
+        #expect(callCount == 1)
+    }
+
     @Test func retries_on_thrown_error() async throws {
         struct TestError: Error {}
         let subject = RetryMiddleware(maxRetries: 2)
@@ -104,6 +126,26 @@ struct RetryMiddlewareTests {
         #expect(response.status.code == 502)
         // 2 retries in loop + 1 final attempt
         #expect(callCount == 3)
+    }
+
+    @Test func uses_numeric_retry_after_when_it_exceeds_the_policy_delay() {
+        var response = HTTPResponse(status: 503)
+        response.headerFields[HTTPField.Name("Retry-After")!] = "1"
+
+        #expect(
+            RetryMiddleware.retryDelay(for: response, policyDelay: 100_000_000)
+                == 1_000_000_000
+        )
+    }
+
+    @Test func bounds_numeric_retry_after_to_the_maximum_policy_delay() {
+        var response = HTTPResponse(status: 503)
+        response.headerFields[HTTPField.Name("Retry-After")!] = "120"
+
+        #expect(
+            RetryMiddleware.retryDelay(for: response, policyDelay: 100_000_000)
+                == HTTPRetryPolicy.maximumDelayMilliseconds * 1_000_000
+        )
     }
 
     @Test func throws_error_after_max_retries_exhausted() async throws {

@@ -30,7 +30,7 @@ use crate::{
     config::{AcceleratedFileServingConfig, AcceleratedFileServingMode},
     constants::response_stream_chunk_bytes,
     extension::{AccessDecision, ExtensionContext},
-    memory::{MemoryController, MemoryPressure, ResponseStreamAdmissionPatience},
+    memory::{MemoryController, ResponseStreamAdmissionPatience},
     runtime::HttpTrafficClass,
     state::SharedState,
     store::AcceleratedArtifactFile,
@@ -736,7 +736,7 @@ impl AcceleratedReadCacheDrop {
         finish: bool,
     ) {
         self.sent_through = self.sent_through.max(sent_through.min(file.size));
-        if memory.pressure() == MemoryPressure::Normal {
+        if !memory.should_reclaim_file_cache() {
             self.pressure_active = false;
             self.advised_through = align_up(
                 file.offset.saturating_add(self.sent_through),

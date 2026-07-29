@@ -611,6 +611,7 @@ fn spawn_memory_pressure_tasks(state: Arc<AppState>) {
                             from = previous.as_str(),
                             to = pressure.as_str(),
                             raw_bytes = sample.current_bytes,
+                            pressure_bytes = sample.pressure_bytes,
                             working_set_bytes = sample.working_set_bytes,
                             runtime_limit_bytes = sensor_state.memory.runtime_limit_bytes(),
                             transient_reserved_bytes =
@@ -1263,6 +1264,7 @@ mod tests {
             &memory,
             crate::memory::ContainerMemoryPressureSample {
                 current_bytes: 100,
+                pressure_bytes: 100,
                 working_set_bytes: 100,
                 reclaimable_inactive_file_bytes: 0,
                 limit_bytes: Some(200),
@@ -1286,6 +1288,7 @@ mod tests {
                 &memory,
                 crate::memory::ContainerMemoryPressureSample {
                     current_bytes: 100,
+                    pressure_bytes: 100,
                     working_set_bytes: 100,
                     reclaimable_inactive_file_bytes: 0,
                     limit_bytes,

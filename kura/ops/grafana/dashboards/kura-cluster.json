@@ -119,6 +119,12 @@
         },
         {
           "editorMode": "code",
+          "expr": "kura_container_memory_pressure_bytes",
+          "legendFormat": "{{region}} pressure signal",
+          "refId": "P"
+        },
+        {
+          "editorMode": "code",
           "expr": "kura_container_memory_reclaimable_inactive_file_bytes",
           "legendFormat": "{{region}} reclaimable inactive file",
           "refId": "O"

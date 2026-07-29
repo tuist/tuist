@@ -116,6 +116,7 @@ pub struct Metrics {
     process_resident_file_bytes: Gauge,
     process_virtual_memory_bytes: Gauge,
     container_memory_current_bytes: Gauge,
+    container_memory_pressure_bytes: Gauge,
     container_memory_working_set_bytes: Gauge,
     container_memory_limit_bytes: Gauge,
     container_memory_anon_bytes: Gauge,
@@ -311,6 +312,7 @@ impl Metrics {
         let process_resident_file_bytes = Gauge::default();
         let process_virtual_memory_bytes = Gauge::default();
         let container_memory_current_bytes = Gauge::default();
+        let container_memory_pressure_bytes = Gauge::default();
         let container_memory_working_set_bytes = Gauge::default();
         let container_memory_limit_bytes = Gauge::default();
         let container_memory_anon_bytes = Gauge::default();
@@ -804,6 +806,11 @@ impl Metrics {
             container_memory_current_bytes.clone(),
         );
         registry.register(
+            "kura_container_memory_pressure_bytes",
+            "Container memory charge excluding clean file-backed cache, used to drive Kura pressure state",
+            container_memory_pressure_bytes.clone(),
+        );
+        registry.register(
             "kura_container_memory_working_set_bytes",
             "Estimated container control group memory charge excluding reclaimable inactive file-backed pages",
             container_memory_working_set_bytes.clone(),
@@ -1188,6 +1195,7 @@ impl Metrics {
             process_resident_file_bytes,
             process_virtual_memory_bytes,
             container_memory_current_bytes,
+            container_memory_pressure_bytes,
             container_memory_working_set_bytes,
             container_memory_limit_bytes,
             container_memory_anon_bytes,
@@ -1865,6 +1873,8 @@ impl Metrics {
     ) {
         self.container_memory_current_bytes
             .set(snapshot.current_bytes as i64);
+        self.container_memory_pressure_bytes
+            .set(snapshot.pressure_bytes() as i64);
         self.container_memory_working_set_bytes
             .set(snapshot.working_set_bytes() as i64);
         self.container_memory_reclaimable_inactive_file_bytes
@@ -2634,6 +2644,7 @@ mod tests {
         assert!(rendered.contains("kura_process_resident_anon_bytes"));
         assert!(rendered.contains("kura_process_resident_file_bytes"));
         assert!(rendered.contains("kura_container_memory_current_bytes"));
+        assert!(rendered.contains("kura_container_memory_pressure_bytes"));
         assert!(rendered.contains("kura_container_memory_working_set_bytes"));
         assert!(rendered.contains("kura_container_memory_reclaimable_inactive_file_bytes"));
         assert!(rendered.contains("kura_container_memory_file_bytes"));
