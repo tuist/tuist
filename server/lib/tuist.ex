@@ -36,6 +36,8 @@ defmodule Tuist do
       Marketing.Stats,
       OpenGraphImageTemplates,
       OpenGraphImages,
+      # Read-only database inspection backing internal and operator routes.
+      Ops.ClickHouse,
       # Read-only database inspection backing the /ops/db LiveView.
       Ops.Database,
       # App
@@ -163,6 +165,7 @@ defmodule Tuist do
       KeyValueStore,
       ClickHouseRepo,
       ClickHouseFlop,
+      OpsClickHouseRepo,
       Markdown,
       Cldr,
       # We should not be exposing this one
