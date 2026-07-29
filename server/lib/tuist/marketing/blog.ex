@@ -13,8 +13,6 @@ defmodule Tuist.Marketing.Blog do
     highlighters: [],
     html_converter: Tuist.Marketing.MDExConverter
 
-  alias Tuist.Marketing.OpenGraphImage
-
   def get_posts do
     Enum.reverse(content_entries())
   end
@@ -26,24 +24,6 @@ defmodule Tuist.Marketing.Blog do
   def get_post_author(post), do: get_authors()[post.author]
 
   def get_post_author_name(post), do: post |> get_post_author() |> author_name_or_fallback(post.author)
-
-  @doc """
-  Returns the image URL for a blog post, using the configured image path if
-  available, otherwise falling back to the generated Open Graph image.
-  """
-  def get_post_image_url(post) do
-    if post.og_image_path do
-      Tuist.Environment.app_url(
-        path: post.og_image_path,
-        marketing: true
-      )
-    else
-      Tuist.Environment.app_url(
-        path: OpenGraphImage.versioned_path("/marketing/images/og/generated#{post.slug}.jpg"),
-        marketing: true
-      )
-    end
-  end
 
   def get_authors do
     %{

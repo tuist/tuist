@@ -30,11 +30,11 @@ defmodule Tuist do
       Marketing.Changelog.OgImage,
       Marketing.OgImages,
       Marketing.OpenGraph,
-      Marketing.OpenGraphImage,
       Marketing.Newsletter,
       Marketing.BlogContentProcessor,
       Marketing.Customers,
       Marketing.Stats,
+      OpenGraphImageTemplates,
       OpenGraphImages,
       # Read-only database inspection backing the /ops/db LiveView.
       Ops.Database,

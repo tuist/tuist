@@ -13,15 +13,16 @@ defmodule Tuist.OpenGraphImagesTest do
     end
   end
 
-  describe "versioned paths" do
-    test "adds and parses the content key" do
-      key = String.duplicate("a", 64)
-      source_path = "/marketing/images/og/generated/about.jpg"
-      versioned_path = "/marketing/images/og/generated/about-#{key}.jpg"
+  describe "spec/3" do
+    test "keeps the signed template variables with the render function" do
+      params = %{"template" => "marketing", "title" => "About Tuist"}
+      render = fn -> {:ok, "image"} end
 
-      assert OpenGraphImages.versioned_path(source_path, key) == versioned_path
-      assert OpenGraphImages.parse_path(versioned_path) == {:versioned, source_path, key}
-      assert OpenGraphImages.parse_path(source_path) == {:unversioned, source_path}
+      spec = OpenGraphImages.spec(["marketing", "About Tuist"], params, render)
+
+      assert spec.params == params
+      assert spec.render == render
+      assert spec.key == OpenGraphImages.key(["marketing", "About Tuist"])
     end
   end
 end

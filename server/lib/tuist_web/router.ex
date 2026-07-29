@@ -28,7 +28,7 @@ defmodule TuistWeb.Router do
 
   pipeline :open_graph_image do
     plug :put_request_kind, "open_graph_image"
-    # Open Graph images belong to the marketing/docs site, which is not served
+    # Open Graph images belong to the marketing and docs sites, which are not served
     # on-premise. Forward these requests away there instead of spinning up a
     # headless browser render the deployment does not need.
     plug TuistWeb.OnPremisePlug, :forward_marketing_to_dashboard
@@ -247,10 +247,7 @@ defmodule TuistWeb.Router do
   scope "/", TuistWeb do
     pipe_through [:open_api, :open_graph_image]
 
-    get "/marketing/images/og/generated/*path", OpenGraphImageController, :marketing,
-      metadata: %{type: :marketing, robots_txt: false}
-
-    get "/docs/images/og/generated/*path", OpenGraphImageController, :docs, metadata: %{type: :docs, robots_txt: false}
+    get "/open-graph-images/:key", OpenGraphImageController, :show, metadata: %{type: :marketing, robots_txt: false}
   end
 
   # Marketing

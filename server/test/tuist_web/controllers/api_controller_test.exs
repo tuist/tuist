@@ -39,7 +39,13 @@ defmodule TuistWeb.APIControllerTest do
 
       {:ok, document} = conn |> html_response(200) |> Floki.parse_document()
       [image] = Floki.attribute(document, "meta[property='og:image']", "content")
-      assert image =~ ~r"/marketing/images/og/generated/api-docs-[0-9a-f]{64}\.jpg$"
+      uri = URI.parse(image)
+      params = URI.decode_query(uri.query)
+
+      assert uri.path =~ ~r|\A/open-graph-images/[0-9a-f]{64}\.jpg\z|
+      assert params["template"] == "marketing_api_docs"
+      assert params["title"] == "API Docs"
+      assert is_binary(params["signature"])
     end
 
     test "omits the Open Graph image on-premise, where the image route is not served", %{

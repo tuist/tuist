@@ -20,6 +20,8 @@ defmodule TuistWeb.Marketing.MarketingChangelogEntryLive do
       raise NotFoundError
     end
 
+    date = Timex.format!(entry.date, "{Mfull} {D}, {YYYY}")
+
     {:noreply,
      socket
      |> assign(:entry, entry)
@@ -29,9 +31,11 @@ defmodule TuistWeb.Marketing.MarketingChangelogEntryLive do
        :head_image,
        Tuist.Environment.app_url(
          path:
-           OpenGraph.marketing_og_image_path(
-             "/marketing/images/og/generated/changelog/#{entry.id}.jpg",
-             localize: false
+           OpenGraph.image_path(:changelog_entry,
+             title: entry.title,
+             description: entry.description,
+             date: date,
+             pull_request: entry.pull_request
            )
        )
      )

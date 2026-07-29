@@ -3,7 +3,9 @@ defmodule TuistWeb.Helpers.OpenGraph do
   Helper functions for generating Open Graph meta tag assigns for LiveView pages.
   """
 
-  alias Tuist.Marketing.OpenGraphImage
+  alias Tuist.OpenGraphImageTemplates
+
+  @image_token_salt "open_graph_image"
 
   @doc """
   Returns OpenGraph assigns for dashboard pages.
@@ -30,33 +32,57 @@ defmodule TuistWeb.Helpers.OpenGraph do
   end
 
   @doc """
-  Builds a locale-specific, content-addressed Open Graph image path for
-  marketing pages. For other supported locales, it inserts the locale before
-  the filename. It falls back to English for unknown locales.
+  Builds a deterministic, signed, content-addressed Open Graph image path.
 
   ## Examples
 
-      marketing_og_image_path("/marketing/images/og/generated/about.jpg")
-      # English:  "/marketing/images/og/generated/about-<content-key>.jpg"
-      # Korean:   "/marketing/images/og/generated/ko/about-<content-key>.jpg"
-      # Spanish:  "/marketing/images/og/generated/es/about-<content-key>.jpg"
+      image_path(:marketing, title: "About Tuist", icon: "about")
+      image_path(:docs, title: "Install Tuist", category: "Guides")
 
   """
-  @og_image_locales TuistWeb.Marketing.Localization.all_locales()
+  def image_path(template, variables) do
+    params =
+      Enum.reduce(variables, %{"template" => to_string(template)}, fn
+        {_key, nil}, params ->
+          params
 
-  def marketing_og_image_path(path, opts \\ []) do
-    locale = Gettext.get_locale(TuistWeb.Gettext)
-    localize? = Keyword.get(opts, :localize, true)
+        {key, value}, params ->
+          Map.put(params, to_string(key), to_string(value))
+      end)
 
-    localized_path =
-      if not localize? or locale == "en" or locale not in @og_image_locales do
-        path
-      else
-        dirname = Path.dirname(path)
-        basename = Path.basename(path)
-        Path.join([dirname, locale, basename])
-      end
+    case OpenGraphImageTemplates.spec(params) do
+      {:ok, spec} ->
+        signed_params = Enum.sort(spec.params)
 
-    OpenGraphImage.versioned_path(localized_path)
+        signature =
+          Phoenix.Token.sign(
+            TuistWeb.Endpoint,
+            @image_token_salt,
+            signed_params,
+            signed_at: 0
+          )
+
+        query = URI.encode_query(signed_params ++ [{"signature", signature}])
+        "/open-graph-images/#{spec.key}.jpg?#{query}"
+
+      :error ->
+        raise ArgumentError, "invalid Open Graph image template variables"
+    end
   end
+
+  def verify_image_params(params, signature) when is_binary(signature) do
+    signed_params = Enum.sort(params)
+
+    case Phoenix.Token.verify(
+           TuistWeb.Endpoint,
+           @image_token_salt,
+           signature,
+           max_age: :infinity
+         ) do
+      {:ok, ^signed_params} -> :ok
+      _ -> :error
+    end
+  end
+
+  def verify_image_params(_params, _signature), do: :error
 end

@@ -10,10 +10,9 @@ defmodule Tuist.OpenGraphImages do
 
   @actor :open_graph_images
   @storage_prefix "open-graph-images"
-  @version_pattern ~r/-(?<key>[0-9a-f]{64})\.jpg$/
 
-  def spec(key_parts, render) when is_list(key_parts) and is_function(render, 0) do
-    %{key: key(key_parts), render: render}
+  def spec(key_parts, params, render) when is_list(key_parts) and is_map(params) and is_function(render, 0) do
+    %{key: key(key_parts), params: params, render: render}
   end
 
   def key(parts) when is_list(parts) do
@@ -44,17 +43,6 @@ defmodule Tuist.OpenGraphImages do
         key ->
           key
       end
-    end
-  end
-
-  def versioned_path(path, key) do
-    String.replace_suffix(path, ".jpg", "-#{key}.jpg")
-  end
-
-  def parse_path(path) do
-    case Regex.named_captures(@version_pattern, path) do
-      %{"key" => key} -> {:versioned, Regex.replace(@version_pattern, path, ".jpg"), key}
-      nil -> {:unversioned, path}
     end
   end
 

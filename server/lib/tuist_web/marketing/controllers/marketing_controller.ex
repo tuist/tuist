@@ -30,7 +30,7 @@ defmodule TuistWeb.Marketing.MarketingController do
     |> assign(:head_title, "Tuist · A virtual platform team for mobile devs who ship")
     |> assign(
       :head_image,
-      Tuist.Environment.app_url(path: OpenGraph.marketing_og_image_path("/marketing/images/og/generated/home.jpg"))
+      Tuist.Environment.app_url(path: home_open_graph_image_path())
     )
     |> assign(:head_twitter_card, "summary_large_image")
     |> assign(:read_more_posts, read_more_posts)
@@ -51,7 +51,7 @@ defmodule TuistWeb.Marketing.MarketingController do
     )
     |> assign(
       :head_image,
-      Tuist.Environment.app_url(path: OpenGraph.marketing_og_image_path("/marketing/images/og/generated/home.jpg"))
+      Tuist.Environment.app_url(path: home_open_graph_image_path())
     )
     |> assign(:head_twitter_card, "summary_large_image")
     |> assign(:featured_testimonials, get_featured_testimonials(locale))
@@ -250,7 +250,13 @@ defmodule TuistWeb.Marketing.MarketingController do
     )
     |> assign(
       :head_image,
-      Tuist.Environment.app_url(path: OpenGraph.marketing_og_image_path("/marketing/images/og/generated/about.jpg"))
+      Tuist.Environment.app_url(
+        path:
+          OpenGraph.image_path(:marketing,
+            title: dgettext("marketing", "About Tuist"),
+            icon: "static/marketing/images/about/logo.webp"
+          )
+      )
     )
     |> assign(:head_twitter_card, "summary_large_image")
     |> assign(
@@ -272,7 +278,7 @@ defmodule TuistWeb.Marketing.MarketingController do
     )
     |> assign(
       :head_image,
-      Tuist.Environment.app_url(path: OpenGraph.marketing_og_image_path("/marketing/images/og/generated/support.jpg"))
+      Tuist.Environment.app_url(path: OpenGraph.image_path(:marketing, title: dgettext("marketing", "Support")))
     )
     |> assign(:head_twitter_card, "summary_large_image")
     |> assign(
@@ -295,7 +301,10 @@ defmodule TuistWeb.Marketing.MarketingController do
     |> assign(
       :head_image,
       Tuist.Environment.app_url(
-        path: OpenGraph.marketing_og_image_path("/marketing/images/og/generated/tuist-digest.jpg")
+        path:
+          OpenGraph.image_path(:marketing_newsletter,
+            title: dgettext("marketing", "Newsletter")
+          )
       )
     )
     |> assign(:head_twitter_card, "summary_large_image")
@@ -432,7 +441,17 @@ defmodule TuistWeb.Marketing.MarketingController do
         put_resp_header(conn, "Content-Type", "text/html")
       end
 
-    render(conn, String.to_atom("newsletter_issue"), issue: issue, email_version?: email_version?)
+    open_graph_image_url =
+      Tuist.Environment.app_url(
+        path: OpenGraph.image_path(:marketing_text, title: issue.full_title),
+        marketing: true
+      )
+
+    render(conn, String.to_atom("newsletter_issue"),
+      issue: issue,
+      email_version?: email_version?,
+      open_graph_image_url: open_graph_image_url
+    )
   end
 
   def blog_rss(conn, _params) do
@@ -533,6 +552,7 @@ defmodule TuistWeb.Marketing.MarketingController do
     else
       related_posts = Enum.take_random(Blog.get_posts(), 3)
       author = Blog.get_authors()[post.author]
+      post_image_url = blog_post_image_url(post)
 
       conn
       |> assign(:head_title, post.title)
@@ -541,21 +561,7 @@ defmodule TuistWeb.Marketing.MarketingController do
       |> assign(:head_fediverse_creator, author["fediverse_username"])
       |> assign(
         :head_image,
-        if post.og_image_path do
-          Tuist.Environment.app_url(
-            path: post.og_image_path,
-            marketing: true
-          )
-        else
-          Tuist.Environment.app_url(
-            path:
-              OpenGraph.marketing_og_image_path(
-                "/marketing/images/og/generated#{post.slug}.jpg",
-                localize: false
-              ),
-            marketing: true
-          )
-        end
+        post_image_url
       )
       |> assign(:head_twitter_card, "summary_large_image")
       |> assign_structured_data(get_blog_post_structured_markup_data(post))
@@ -567,6 +573,7 @@ defmodule TuistWeb.Marketing.MarketingController do
         ])
       )
       |> assign(:post, post)
+      |> assign(:post_image_url, post_image_url)
       |> assign(:author, author)
       |> assign(:related_posts, related_posts)
       |> render(:blog_post, layout: false)
@@ -653,7 +660,13 @@ defmodule TuistWeb.Marketing.MarketingController do
     |> assign(:plans, plans)
     |> assign(
       :head_image,
-      Tuist.Environment.app_url(path: OpenGraph.marketing_og_image_path("/marketing/images/og/generated/pricing.jpg"))
+      Tuist.Environment.app_url(
+        path:
+          OpenGraph.image_path(:marketing,
+            title: dgettext("marketing", "Pricing"),
+            icon: "static/marketing/images/pricing/logo-og.svg"
+          )
+      )
     )
     |> assign(:head_twitter_card, "summary_large_image")
     |> assign_structured_data(get_faq_structured_data(faqs))
@@ -691,12 +704,7 @@ defmodule TuistWeb.Marketing.MarketingController do
     |> assign(:head_description, head_description)
     |> assign(
       :head_image,
-      Tuist.Environment.app_url(
-        path:
-          OpenGraph.marketing_og_image_path(
-            "/marketing/images/og/generated/#{page.slug |> String.split("/") |> List.last()}.jpg"
-          )
-      )
+      Tuist.Environment.app_url(path: OpenGraph.image_path(:marketing, title: page.title))
     )
     |> assign(:head_twitter_card, "summary_large_image")
     |> assign_structured_data(
@@ -735,7 +743,10 @@ defmodule TuistWeb.Marketing.MarketingController do
     |> assign(
       :head_image,
       Tuist.Environment.app_url(
-        path: OpenGraph.marketing_og_image_path("/marketing/images/og/generated/tuist-digest.jpg")
+        path:
+          OpenGraph.image_path(:marketing_newsletter,
+            title: dgettext("marketing", "Newsletter")
+          )
       )
     )
     |> assign(:head_twitter_card, "summary_large_image")
@@ -750,6 +761,22 @@ defmodule TuistWeb.Marketing.MarketingController do
     |> assign(:subscription_confirmed, false)
     |> assign(:error_message, error_message)
     |> render(:newsletter_verify, layout: false)
+  end
+
+  defp home_open_graph_image_path do
+    title =
+      dgettext("marketing", "Your mobile platform team,") <>
+        " " <> dgettext("marketing", "as a service")
+
+    OpenGraph.image_path(:marketing_home, title: title)
+  end
+
+  defp blog_post_image_url(post) do
+    path =
+      post.og_image_path ||
+        OpenGraph.image_path(:marketing_text, title: post.title)
+
+    Tuist.Environment.app_url(path: path, marketing: true)
   end
 
   defp put_agent_discovery_links(conn, _opts) do
