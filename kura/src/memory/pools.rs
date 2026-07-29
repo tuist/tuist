@@ -31,6 +31,7 @@ pub(super) struct MemoryPools {
     reapi_materialization_limit_bytes: usize,
     response_streaming: Arc<Semaphore>,
     foreground_response_streaming: Arc<Semaphore>,
+    elastic_foreground_response_streaming: Arc<Semaphore>,
     background_response_streaming: Arc<Semaphore>,
     response_stream_waiters: Arc<Semaphore>,
     response_stream_admission: Arc<Mutex<()>>,
@@ -62,6 +63,11 @@ impl MemoryPools {
             };
         let foreground_response_streaming_bytes =
             response_streaming_bytes.saturating_sub(bootstrap_reserved_bytes);
+        let elastic_foreground_response_streaming_bytes =
+            elastic_foreground_response_streaming_bytes(
+                transient_capacity_bytes,
+                foreground_response_streaming_bytes,
+            );
         let response_stream_waiters = response_streaming_bytes
             .div_ceil(MAX_RESPONSE_STREAM_RESERVATION_BYTES)
             .max(1);
@@ -87,6 +93,9 @@ impl MemoryPools {
             response_streaming: Arc::new(Semaphore::new(response_streaming_bytes)),
             foreground_response_streaming: Arc::new(Semaphore::new(
                 foreground_response_streaming_bytes,
+            )),
+            elastic_foreground_response_streaming: Arc::new(Semaphore::new(
+                elastic_foreground_response_streaming_bytes,
             )),
             background_response_streaming: Arc::new(Semaphore::new(
                 background_response_streaming_bytes,
@@ -176,11 +185,27 @@ impl MemoryPools {
         self.foreground_response_streaming_bytes
     }
 
+    #[cfg(test)]
+    pub(super) fn elastic_foreground_response_streaming_bytes(&self) -> usize {
+        self.elastic_foreground_response_streaming
+            .available_permits()
+    }
+
     pub(super) fn try_acquire_foreground_response_streaming(
         &self,
         permits: u32,
     ) -> Result<OwnedSemaphorePermit, ()> {
         self.foreground_response_streaming
+            .clone()
+            .try_acquire_many_owned(permits)
+            .map_err(|_| ())
+    }
+
+    pub(super) fn try_acquire_elastic_foreground_response_streaming(
+        &self,
+        permits: u32,
+    ) -> Result<OwnedSemaphorePermit, ()> {
+        self.elastic_foreground_response_streaming
             .clone()
             .try_acquire_many_owned(permits)
             .map_err(|_| ())
@@ -253,4 +278,18 @@ fn response_streaming_pool_bytes(
             .max(MIN_RESPONSE_STREAM_POOL_BYTES as u64)
             .min(headroom_bytes),
     )
+}
+
+fn elastic_foreground_response_streaming_bytes(
+    transient_capacity_bytes: usize,
+    foreground_response_streaming_bytes: usize,
+) -> usize {
+    // Keep one quarter of transient capacity available for foreground uploads,
+    // materialization, and allocator growth. Public reads can borrow only the
+    // remainder and only while memory pressure is normal.
+    let foreground_reserve = transient_capacity_bytes / 4;
+    transient_capacity_bytes
+        .saturating_sub(foreground_response_streaming_bytes)
+        .saturating_sub(foreground_reserve)
+        .min(foreground_response_streaming_bytes)
 }

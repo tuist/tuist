@@ -342,12 +342,12 @@ impl MemoryController {
         requested_bytes: usize,
         protocol: &'static str,
     ) -> Option<ResponseStreamMemoryPermit> {
-        let permit = self
+        let (permit, elastic) = self
             .try_acquire_response_stream_memory(requested_bytes, protocol)
             .ok()?;
         self.inner.metrics.record_response_stream_admission(
             protocol,
-            "immediate",
+            if elastic { "elastic" } else { "immediate" },
             std::time::Duration::ZERO,
         );
         Some(permit)
@@ -423,6 +423,7 @@ impl MemoryController {
             concurrency: Some(slot),
             foreground_concurrency: None,
             background_concurrency: None,
+            elastic_concurrency: None,
             transient: Some(transient),
             metrics: self.inner.metrics.clone(),
             protocol,
@@ -515,6 +516,13 @@ impl MemoryController {
         self.inner.pools.foreground_response_streaming_bytes()
     }
 
+    #[cfg(test)]
+    pub fn elastic_foreground_response_streaming_pool_bytes(&self) -> usize {
+        self.inner
+            .pools
+            .elastic_foreground_response_streaming_bytes()
+    }
+
     pub async fn acquire_response_stream_memory(
         &self,
         requested_bytes: usize,
@@ -523,11 +531,12 @@ impl MemoryController {
     ) -> Result<ResponseStreamMemoryPermit, ResponseStreamAdmissionError> {
         let started_at = Instant::now();
         if self.inner.response_stream_waiters.load(Ordering::Acquire) == 0
-            && let Ok(permit) = self.try_acquire_response_stream_memory(requested_bytes, protocol)
+            && let Ok((permit, elastic)) =
+                self.try_acquire_response_stream_memory(requested_bytes, protocol)
         {
             self.inner.metrics.record_response_stream_admission(
                 protocol,
-                "immediate",
+                if elastic { "elastic" } else { "immediate" },
                 started_at.elapsed(),
             );
             return Ok(permit);
@@ -565,10 +574,10 @@ impl MemoryController {
                 let changed = self.inner.pressure_changed.notified();
                 tokio::pin!(changed);
                 changed.as_mut().enable();
-                if let Ok(permit) =
+                if let Ok((permit, elastic)) =
                     self.try_acquire_response_stream_memory(requested_bytes, protocol)
                 {
-                    return permit;
+                    return (permit, elastic);
                 }
                 changed.await;
             }
@@ -576,10 +585,10 @@ impl MemoryController {
         .await;
 
         match result {
-            Ok(permit) => {
+            Ok((permit, elastic)) => {
                 self.inner.metrics.record_response_stream_admission(
                     protocol,
-                    "waited",
+                    if elastic { "elastic" } else { "waited" },
                     started_at.elapsed(),
                 );
                 Ok(permit)
@@ -599,22 +608,48 @@ impl MemoryController {
         &self,
         requested_bytes: usize,
         protocol: &'static str,
-    ) -> Result<ResponseStreamMemoryPermit, ()> {
+    ) -> Result<(ResponseStreamMemoryPermit, bool), ()> {
         let permits = u32::try_from(requested_bytes).map_err(|_| ())?;
-        let foreground_concurrency = self
+        let fixed: Result<ResponseStreamMemoryPermit, ()> = (|| {
+            let foreground_concurrency = self
+                .inner
+                .pools
+                .try_acquire_foreground_response_streaming(permits)?;
+            let concurrency = self.inner.pools.try_acquire_response_streaming(permits)?;
+            let transient =
+                self.try_reserve_transient(requested_bytes as u64, AdmissionClass::Foreground)?;
+            Ok(self.response_stream_memory_permit(
+                (Some(concurrency), Some(foreground_concurrency), None, None),
+                transient,
+                protocol,
+                requested_bytes as u64,
+            ))
+        })();
+        if let Ok(permit) = fixed {
+            return Ok((permit, false));
+        }
+
+        // A normal-memory node may lend unused transient capacity to public
+        // response streams. The dedicated elastic semaphore and the retained
+        // foreground reserve keep this from starving uploads or turning a
+        // burst of slow clients into unbounded memory use.
+        if self.pressure() != MemoryPressure::Normal {
+            return Err(());
+        }
+        let elastic_concurrency = self
             .inner
             .pools
-            .try_acquire_foreground_response_streaming(permits)?;
-        let concurrency = self.inner.pools.try_acquire_response_streaming(permits)?;
+            .try_acquire_elastic_foreground_response_streaming(permits)?;
         let transient =
             self.try_reserve_transient(requested_bytes as u64, AdmissionClass::Foreground)?;
-        Ok(self.response_stream_memory_permit(
-            concurrency,
-            Some(foreground_concurrency),
-            None,
-            transient,
-            protocol,
-            requested_bytes as u64,
+        Ok((
+            self.response_stream_memory_permit(
+                (None, None, None, Some(elastic_concurrency)),
+                transient,
+                protocol,
+                requested_bytes as u64,
+            ),
+            true,
         ))
     }
 
@@ -637,9 +672,7 @@ impl MemoryController {
             let transient =
                 self.try_reserve_transient(requested_bytes as u64, AdmissionClass::PeerResponse)?;
             Ok(self.response_stream_memory_permit(
-                concurrency,
-                None,
-                Some(background_concurrency),
+                (Some(concurrency), None, Some(background_concurrency), None),
                 transient,
                 protocol,
                 requested_bytes as u64,
@@ -667,9 +700,12 @@ impl MemoryController {
 
     fn response_stream_memory_permit(
         &self,
-        concurrency: tokio::sync::OwnedSemaphorePermit,
-        foreground_concurrency: Option<tokio::sync::OwnedSemaphorePermit>,
-        background_concurrency: Option<tokio::sync::OwnedSemaphorePermit>,
+        (concurrency, foreground_concurrency, background_concurrency, elastic_concurrency): (
+            Option<tokio::sync::OwnedSemaphorePermit>,
+            Option<tokio::sync::OwnedSemaphorePermit>,
+            Option<tokio::sync::OwnedSemaphorePermit>,
+            Option<tokio::sync::OwnedSemaphorePermit>,
+        ),
         transient: TransientMemoryReservation,
         protocol: &'static str,
         bytes: u64,
@@ -678,9 +714,10 @@ impl MemoryController {
             .metrics
             .add_response_stream_reservation(protocol, bytes);
         ResponseStreamMemoryPermit {
-            concurrency: Some(concurrency),
+            concurrency,
             foreground_concurrency,
             background_concurrency,
+            elastic_concurrency,
             transient: Some(transient),
             metrics: self.inner.metrics.clone(),
             protocol,
@@ -985,6 +1022,10 @@ mod tests {
             large.foreground_response_streaming_pool_bytes(),
             506 * 1024 * 1024
         );
+        assert_eq!(
+            large.elastic_foreground_response_streaming_pool_bytes(),
+            262 * 1024 * 1024
+        );
     }
 
     #[tokio::test]
@@ -1102,6 +1143,57 @@ mod tests {
         drop(permit);
     }
 
+    #[test]
+    fn public_response_streams_borrow_a_bounded_elastic_tier_only_while_normal() {
+        let metrics = Metrics::new("eu-west".into(), "tenant".into());
+        let controller = MemoryController::with_runtime_limit(
+            metrics,
+            512 * 1024 * 1024,
+            256 * 1024 * 1024,
+            384 * 1024 * 1024,
+        );
+        let foreground_bytes = controller.foreground_response_streaming_pool_bytes();
+        let elastic_bytes = controller.elastic_foreground_response_streaming_pool_bytes();
+        let (_fixed, fixed_elastic) = controller
+            .try_acquire_response_stream_memory(foreground_bytes, "http")
+            .expect("fixed response-stream capacity should be available");
+        assert!(!fixed_elastic);
+        let (_elastic, elastic) = controller
+            .try_acquire_response_stream_memory(elastic_bytes, "http")
+            .expect("normal-memory nodes should lend bounded transient capacity");
+        assert!(elastic);
+        assert!(
+            controller
+                .try_acquire_response_stream_memory(1, "http")
+                .is_err(),
+            "the elastic tier must remain a bounded pool"
+        );
+        assert!(
+            controller
+                .try_reserve_foreground_memory(32 * 1024 * 1024)
+                .is_ok(),
+            "elastic serving must retain foreground capacity for uploads"
+        );
+
+        let constrained = MemoryController::with_runtime_limit(
+            Metrics::new("eu-west".into(), "tenant".into()),
+            512 * 1024 * 1024,
+            256 * 1024 * 1024,
+            384 * 1024 * 1024,
+        );
+        let foreground_bytes = constrained.foreground_response_streaming_pool_bytes();
+        let _fixed = constrained
+            .try_acquire_response_stream_memory(foreground_bytes, "http")
+            .expect("fixed capacity should be available");
+        constrained.observe(256 * 1024 * 1024);
+        assert!(
+            constrained
+                .try_acquire_response_stream_memory(1, "http")
+                .is_err(),
+            "elastic response serving must stop under memory pressure"
+        );
+    }
+
     #[tokio::test]
     async fn a_degradable_caller_gives_up_far_sooner_than_one_that_would_error() {
         let metrics = Metrics::new("eu-west".into(), "tenant".into());
@@ -1113,12 +1205,18 @@ mod tests {
         );
         controller.observe(0);
         // Occupy the whole pool so neither caller can be admitted.
-        let _held = controller
+        let _fixed = controller
             .try_acquire_response_stream_memory(
                 controller.foreground_response_streaming_pool_bytes(),
                 "http",
             )
             .expect("the pool should start empty");
+        let _elastic = controller
+            .try_acquire_response_stream_memory(
+                controller.elastic_foreground_response_streaming_pool_bytes(),
+                "http",
+            )
+            .expect("the elastic pool should start empty");
 
         let started_at = Instant::now();
         assert!(

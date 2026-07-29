@@ -54,6 +54,7 @@ pub struct ResponseStreamMemoryPermit {
     pub(super) concurrency: Option<OwnedSemaphorePermit>,
     pub(super) foreground_concurrency: Option<OwnedSemaphorePermit>,
     pub(super) background_concurrency: Option<OwnedSemaphorePermit>,
+    pub(super) elastic_concurrency: Option<OwnedSemaphorePermit>,
     pub(super) transient: Option<TransientMemoryReservation>,
     pub(super) metrics: Metrics,
     pub(super) protocol: &'static str,
@@ -87,6 +88,7 @@ impl Drop for ResponseStreamMemoryPermit {
         drop(self.concurrency.take());
         drop(self.foreground_concurrency.take());
         drop(self.background_concurrency.take());
+        drop(self.elastic_concurrency.take());
         drop(self.transient.take());
         if let Some(controller) = controller {
             controller.inner.pressure_changed.notify_waiters();
