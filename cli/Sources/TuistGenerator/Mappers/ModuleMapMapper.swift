@@ -82,7 +82,9 @@ public struct ModuleMapMapper: GraphMapping { // swiftlint:disable:this type_bod
                 else { return (targetName, target) }
 
                 if hasModuleMap {
-                    if target.product.isFramework, case let .string(moduleMapFile) = mappedSettingsDictionary[Self.modulemapFileSetting] {
+                    if target.product.isFramework,
+                       case let .string(moduleMapFile) = mappedSettingsDictionary[Self.modulemapFileSetting]
+                    {
                         // ExtractAPI consumes MODULEMAP_PATH as an explicit -fmodule-map-file input. Keeping the
                         // source map out of the framework product avoids duplicate module-map discovery and the
                         // static-framework copy fixed in #11588: https://github.com/tuist/tuist/pull/11588
