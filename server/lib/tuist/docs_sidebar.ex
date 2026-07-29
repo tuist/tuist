@@ -3,6 +3,8 @@ defmodule Tuist.Docs.Sidebar do
   Defines the navigation sidebar tree for the documentation pages.
   """
 
+  alias Tuist.Environment
+
   defmodule Item do
     @moduledoc false
     defstruct [:label, :slug, :url, items: []]
@@ -76,11 +78,45 @@ defmodule Tuist.Docs.Sidebar do
     end
   end
 
+  def category_for_slug(slug) do
+    english_slug = String.replace(slug, ~r{^/[^/]+/}, "/en/")
+    Map.get(category_map(), english_slug, "Docs")
+  end
+
   def tree_for_tab(tab, locale \\ "en")
   def tree_for_tab(:guides, locale), do: localize_tree(guides_tree(), locale)
   def tree_for_tab(:references, locale), do: localize_tree(references_tree(), locale)
   def tree_for_tab(:resources, locale), do: localize_tree(resources_tree(), locale)
   def tree_for_tab(:cli, locale), do: localize_tree(cli_tree(), locale)
+
+  defp category_map do
+    if Environment.dev?() do
+      build_category_map()
+    else
+      case :persistent_term.get({__MODULE__, :category_map}, nil) do
+        nil ->
+          map = build_category_map()
+          :persistent_term.put({__MODULE__, :category_map}, map)
+          map
+
+        map ->
+          map
+      end
+    end
+  end
+
+  defp build_category_map do
+    tree()
+    |> Enum.flat_map(fn group -> collect_slugs_with_category(group.label || "Docs", group.items) end)
+    |> Map.new()
+  end
+
+  defp collect_slugs_with_category(category, items) do
+    Enum.flat_map(items, fn item ->
+      own = if item.slug, do: [{item.slug, category}], else: []
+      own ++ collect_slugs_with_category(category, item.items)
+    end)
+  end
 
   defp localize_tree(tree, "en"), do: tree
 

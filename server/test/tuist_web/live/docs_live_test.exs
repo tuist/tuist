@@ -105,4 +105,20 @@ defmodule TuistWeb.DocsLiveTest do
       refute mobile_actions =~ ~s(id="docs-mobile-account-dropdown")
     end
   end
+
+  describe "docs pages" do
+    test "puts the page-owned template variables in a signed image URL", %{conn: conn} do
+      {:ok, _live_view, html} = live(conn, ~p"/en/docs/guides/install-tuist")
+      {:ok, document} = Floki.parse_document(html)
+      [image] = Floki.attribute(document, "meta[property='og:image']", "content")
+      uri = URI.parse(image)
+      params = URI.decode_query(uri.query)
+
+      assert uri.path =~ ~r|\A/open-graph-images/[0-9a-f]{64}\.jpg\z|
+      assert params["template"] == "docs"
+      assert params["title"] == "Install Tuist"
+      assert params["category"] == "Guides"
+      assert is_binary(params["signature"])
+    end
+  end
 end
