@@ -30,7 +30,10 @@ defmodule TuistWeb.Marketing.MarketingCacheLive do
      |> assign(
        :head_image,
        Tuist.Environment.app_url(
-         path: TuistWeb.Helpers.OpenGraph.marketing_og_image_path("/marketing/images/og/generated/cache.jpg")
+         path:
+           TuistWeb.Helpers.OpenGraph.image_path(:marketing,
+             title: dgettext("marketing", "Cache")
+           )
        )
      )
      |> assign(

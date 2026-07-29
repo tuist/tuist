@@ -40,11 +40,17 @@ defmodule Tuist.Runners.RunnerSessions do
   safety clamp, the worst-case is "lost stopped event, session
   bills at most max_lifetime" — never "duplicate stopped event,
   session bills longer than it ran."
+
+  Runner sessions also back the autoscaler's capacity signals. Unlike
+  the GitHub workflow-job lifecycle, a session stays open through
+  post-job cache work and Pod teardown, so it represents how long the
+  runner actually occupies a host.
   """
   import Ecto.Query
 
   alias Tuist.Repo
   alias Tuist.Runners.RunnerSession
+  alias Tuist.Runners.Telemetry
 
   require Logger
 
@@ -152,6 +158,133 @@ defmodule Tuist.Runners.RunnerSessions do
 
             {:error, changeset}
         end
+    end
+  end
+
+  @doc """
+  Counts runner Pods currently occupying capacity, grouped by fleet.
+
+  A claim covers the dispatch window before the durable session is
+  opened. An open session covers the running job plus cache inventory,
+  upload, and Pod teardown after the claim has been released. The
+  `UNION` deduplicates the normal overlap where both rows describe the
+  same Pod.
+
+  Session-only occupancy is capped at six hours, matching the billing
+  safety bound. A live claim still keeps a genuinely long-running Pod
+  counted after that point; only an orphaned open session is ignored.
+  """
+  def occupied_counts_per_fleet do
+    query = """
+    WITH occupied_pods AS (
+      SELECT fleet_name, pod_name
+      FROM runner_claims
+      WHERE pod_name <> ''
+
+      UNION
+
+      SELECT fleet_name, pod_name
+      FROM runner_sessions
+      WHERE ended_at IS NULL
+        AND pod_name <> ''
+        AND started_at >= CURRENT_TIMESTAMP - INTERVAL '6 hours'
+    )
+    SELECT fleet_name, COUNT(*)::integer AS occupied
+    FROM occupied_pods
+    GROUP BY fleet_name
+    """
+
+    query
+    |> Repo.query!()
+    |> Map.fetch!(:rows)
+    |> Map.new(fn [fleet_name, occupied] -> {fleet_name, occupied} end)
+  end
+
+  @doc """
+  Computes the discrete 95th percentile of occupied runner capacity
+  over active one-minute buckets in the last hour.
+
+  The interval is the complete runner session, from committed dispatch
+  through cache work and Pod teardown. Buckets with no demand are
+  excluded deliberately: this is conditional peak forecasting for the
+  next burst, not average wall-clock utilization. Including 60 zero
+  buckets makes sparse but real demand collapse to zero.
+
+  Open or abnormally long sessions are capped at six hours so a missed
+  Pod-stopped event cannot keep speculative capacity warm forever.
+  Returns zero on an empty fleet or a query failure; current occupied
+  and queued demand still drive safe scale-up in that case.
+  """
+  def p95_concurrent_last_hour(fleet_name) when is_binary(fleet_name) do
+    query = """
+    WITH minute_buckets AS (
+      SELECT generate_series(
+        date_trunc('minute', CURRENT_TIMESTAMP) - INTERVAL '59 minutes',
+        date_trunc('minute', CURRENT_TIMESTAMP),
+        INTERVAL '1 minute'
+      ) AS bucket_start
+    ),
+    recent_sessions AS (
+      SELECT
+        started_at,
+        LEAST(
+          COALESCE(ended_at, CURRENT_TIMESTAMP),
+          started_at + INTERVAL '6 hours'
+        ) AS effective_end
+      FROM runner_sessions
+      WHERE fleet_name = $1
+        AND started_at >= CURRENT_TIMESTAMP - INTERVAL '7 hours'
+    ),
+    active_buckets AS (
+      SELECT
+        minute_buckets.bucket_start,
+        COUNT(*)::integer AS concurrent_count
+      FROM minute_buckets
+      INNER JOIN recent_sessions
+        ON recent_sessions.started_at < minute_buckets.bucket_start + INTERVAL '1 minute'
+        AND recent_sessions.effective_end > minute_buckets.bucket_start
+      GROUP BY minute_buckets.bucket_start
+    )
+    SELECT
+      COALESCE(
+        percentile_disc(0.95) WITHIN GROUP (ORDER BY concurrent_count),
+        0
+      )::integer AS p95,
+      (
+        SELECT COUNT(*)::integer
+        FROM runner_sessions
+        WHERE fleet_name = $1
+          AND ended_at IS NULL
+          AND started_at < CURRENT_TIMESTAMP - INTERVAL '6 hours'
+      ) AS clamped_open_sessions
+    FROM active_buckets
+    """
+
+    case Repo.query(query, [fleet_name]) do
+      {:ok, %{rows: [[p95, clamped_open_sessions]]}} when is_integer(p95) ->
+        :telemetry.execute(
+          Telemetry.event_name_session_clamp(),
+          %{count: clamped_open_sessions},
+          %{fleet: fleet_name}
+        )
+
+        p95
+
+      {:error, reason} ->
+        Logger.warning("runners: failed to compute session concurrency forecast",
+          fleet: fleet_name,
+          reason: inspect(reason)
+        )
+
+        0
+
+      unexpected ->
+        Logger.warning("runners: unexpected session concurrency forecast result",
+          fleet: fleet_name,
+          reason: inspect(unexpected)
+        )
+
+        0
     end
   end
 

@@ -339,6 +339,7 @@ defmodule Tuist.Application do
         TuistWeb.Telemetry
       ] ++
         ops_clickhouse_children() ++
+        open_graph_image_children() ++
         RuntimeChildren.guardian_db_sweeper(Environment.mode()) ++
         dev_content_children() ++ [TuistWeb.Endpoint]
 
@@ -402,6 +403,21 @@ defmodule Tuist.Application do
     if Environment.web?() and (config[:url] || config[:hostname]) do
       [
         {Tuist.OpsClickHouseRepo, connection_listeners: {[TelemetryListener], :ops_clickhouse_read}}
+      ]
+    else
+      []
+    end
+  end
+
+  # Runtime Open Graph image rendering (headless-browser pool + its task
+  # supervisor) backs the marketing/docs site, which only the hosted service
+  # serves. On-premise instances do not need it, so it is started only when
+  # hosted or in local dev (where the marketing site is developed).
+  defp open_graph_image_children do
+    if Environment.tuist_hosted?() or Environment.dev?() do
+      [
+        {Task.Supervisor, name: Tuist.OpenGraphImageRenderer.TaskSupervisor},
+        Tuist.OpenGraphImageRenderer
       ]
     else
       []

@@ -28,15 +28,17 @@ defmodule Tuist do
       Docs.Sidebar,
       Marketing.Changelog,
       Marketing.Changelog.OgImage,
-      Marketing.OgImageCache,
       Marketing.OgImages,
       Marketing.OpenGraph,
       Marketing.Newsletter,
       Marketing.BlogContentProcessor,
       Marketing.Customers,
       Marketing.Stats,
+      OpenGraphImageTemplates,
+      OpenGraphImages,
       # Read-only database inspection backing internal and operator routes.
       Ops.ClickHouse,
+      # Read-only database inspection backing the /ops/db LiveView.
       Ops.Database,
       # App
       # -----
