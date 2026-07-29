@@ -130,6 +130,19 @@ defmodule TuistWeb.UserSessionControllerTest do
       assert Phoenix.Flash.get(conn.assigns.flash, :info) =~ "Password updated successfully"
     end
 
+    test "redirects unconfirmed users to the confirmation resend page", %{conn: conn} do
+      user = user_fixture(confirmed_at: nil)
+
+      conn =
+        post(conn, ~p"/users/log_in", %{
+          "user" => %{"email" => user.email, "password" => valid_user_password()}
+        })
+
+      refute get_session(conn, :user_token)
+      assert redirected_to(conn) == ~p"/users/confirm"
+      assert get_session(conn, :unconfirmed_email) == user.email
+    end
+
     test "redirects to login page with invalid credentials", %{conn: conn} do
       conn =
         post(conn, ~p"/users/log_in", %{

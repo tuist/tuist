@@ -907,6 +907,7 @@ defmodule TuistWeb.Router do
       live "/users/log_in/sso", SSOLoginLive, :new
       live "/users/reset_password", UserForgotPasswordLive, :new
       live "/users/reset_password/:token", UserResetPasswordLive, :edit
+      live "/users/confirm", UserConfirmationInstructionsLive, :new
       live "/users/choose-username", ChooseUsernameLive, :new
     end
 
