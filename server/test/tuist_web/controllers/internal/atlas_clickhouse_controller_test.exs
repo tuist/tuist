@@ -85,6 +85,30 @@ defmodule TuistWeb.Internal.AtlasClickHouseControllerTest do
       assert %{"error" => "clickhouse_unavailable"} = json_response(conn, 503)
     end
 
+    test "does not expose ClickHouse query errors", %{conn: conn} do
+      ok_workload_identity_stub()
+      expect(ClickHouse, :execute, fn _statement, _options -> {:error, :query_failed} end)
+
+      conn =
+        conn
+        |> authed()
+        |> post("/api/internal/atlas/clickhouse/query", %{"query" => "SELECT 1"})
+
+      assert %{"error" => "query_failed"} = json_response(conn, 422)
+    end
+
+    test "reports oversized results without returning their contents", %{conn: conn} do
+      ok_workload_identity_stub()
+      expect(ClickHouse, :execute, fn _statement, _options -> {:error, :result_too_large} end)
+
+      conn =
+        conn
+        |> authed()
+        |> post("/api/internal/atlas/clickhouse/query", %{"query" => "SELECT 1"})
+
+      assert %{"error" => "result_too_large"} = json_response(conn, 422)
+    end
+
     test "returns 401 without a bearer token", %{conn: conn} do
       conn = post(conn, "/api/internal/atlas/clickhouse/query", %{"query" => "SELECT 1"})
 

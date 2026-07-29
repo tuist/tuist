@@ -163,6 +163,7 @@ defmodule Tuist do
       KeyValueStore,
       ClickHouseRepo,
       ClickHouseFlop,
+      OpsClickHouseRepo,
       Markdown,
       Cldr,
       # We should not be exposing this one

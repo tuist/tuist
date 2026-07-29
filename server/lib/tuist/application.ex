@@ -94,6 +94,7 @@ defmodule Tuist.Application do
       OpentelemetryEcto.setup([event_prefix: [:tuist, :repo]] ++ ecto_skip_metrics)
       OpentelemetryEcto.setup([event_prefix: [:tuist, :ingest_repo]] ++ ecto_skip_metrics)
       OpentelemetryEcto.setup([event_prefix: [:tuist, :click_house_repo]] ++ ecto_skip_metrics)
+      OpentelemetryEcto.setup([event_prefix: [:tuist, :ops_click_house_repo]] ++ ecto_skip_metrics)
 
       kick_opentelemetry_exporter_after_boot()
     end
@@ -336,7 +337,10 @@ defmodule Tuist.Application do
         {TuistWeb.RateLimit.InMemory, [clean_period: to_timeout(hour: 1)]},
         {Tuist.API.Pipeline, []},
         TuistWeb.Telemetry
-      ] ++ RuntimeChildren.guardian_db_sweeper(Environment.mode()) ++ dev_content_children() ++ [TuistWeb.Endpoint]
+      ] ++
+        ops_clickhouse_children() ++
+        RuntimeChildren.guardian_db_sweeper(Environment.mode()) ++
+        dev_content_children() ++ [TuistWeb.Endpoint]
 
     children
     |> Kernel.++(
@@ -390,6 +394,18 @@ defmodule Tuist.Application do
         do: [],
         else: [Tuist.Marketing.Stats]
     )
+  end
+
+  defp ops_clickhouse_children do
+    config = Application.get_env(:tuist, Tuist.OpsClickHouseRepo, [])
+
+    if Environment.web?() and (config[:url] || config[:hostname]) do
+      [
+        {Tuist.OpsClickHouseRepo, connection_listeners: {[TelemetryListener], :ops_clickhouse_read}}
+      ]
+    else
+      []
+    end
   end
 
   defp dev_content_children do

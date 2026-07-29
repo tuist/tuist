@@ -375,6 +375,11 @@ server:
   # flipping this on (the migration-job hook waits on the ExternalSecret).
   config:
     managedSecrets: false
+    # Enable only after CLICKHOUSE/ops_url exists in the environment's secret
+    # store and uses the restricted user provisioned from
+    # infra/clickhouse/tuist-ops-readonly.sql.
+    opsClickHouse:
+      enabled: false
     # PostHog analytics is per-env. The ESO secret's `data` is all-or-nothing,
     # so an env without a POSTHOG 1P item must opt out here (otherwise its whole
     # config sync fails). Off → TUIST_POSTHOG_* unset → analytics_enabled? false.

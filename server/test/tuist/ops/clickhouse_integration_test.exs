@@ -1,13 +1,7 @@
 defmodule Tuist.Ops.ClickHouseIntegrationTest do
   use ExUnit.Case, async: false
 
-  alias Tuist.ClickHouseRepo
   alias Tuist.Ops.ClickHouse
-
-  setup do
-    ClickHouseRepo.put_dynamic_repo(ClickHouseRepo)
-    :ok
-  end
 
   test "executes a typed, bounded query against ClickHouse" do
     assert {:ok,

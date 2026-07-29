@@ -8,7 +8,9 @@ defmodule Tuist.Ops.ClickHouse do
   reads.
   """
 
-  alias Tuist.ClickHouseRepo
+  alias Tuist.OpsClickHouseRepo
+
+  require Logger
 
   @max_rows 200
   @max_execution_time_seconds 10
@@ -16,7 +18,52 @@ defmodule Tuist.Ops.ClickHouse do
   @max_memory_usage_bytes 1024 * 1024 * 1024
   @max_rows_to_read 100_000_000
   @max_bytes_to_read 5_000_000_000
+  @max_result_bytes 5 * 1024 * 1024
   @max_threads 2
+  @prohibited_table_functions ~w(
+    azureblobstorage
+    azureblobstoragecluster
+    azurequeue
+    cluster
+    clusterallreplicas
+    deltalake
+    deltalakecluster
+    dictionary
+    executable
+    executablepool
+    file
+    filecluster
+    gcs
+    gcscluster
+    hdfs
+    hdfscluster
+    hudi
+    iceberg
+    icebergcluster
+    jdbc
+    kafka
+    merge
+    mongodb
+    mysql
+    null
+    odbc
+    postgresql
+    redis
+    remote
+    remotesecure
+    s3
+    s3cluster
+    sqlite
+    url
+    urlcluster
+    view
+  )
+  @prohibited_table_function_patterns Enum.map(
+                                        @prohibited_table_functions,
+                                        &Regex.compile!("\\b#{&1}\\s*\\(")
+                                      )
+  @restricted_database_pattern ~r/\b(?:information_schema|system)\s*\./
+  @unsupported_output_clause_pattern ~r/\b(?:format\s+[a-z0-9_]+|into\s+outfile\b[^;]*)\s*$/i
 
   @doc """
   Runs a bounded read-only query.
@@ -27,12 +74,13 @@ defmodule Tuist.Ops.ClickHouse do
   def execute(statement, opts \\ []) do
     limit = opts |> Keyword.get(:limit, @max_rows) |> clamp_limit()
     params = Keyword.get(opts, :params, %{})
+    allow_system_tables? = Keyword.get(opts, :allow_system_tables, false)
 
     with :ok <- validate_params(params),
-         {:ok, command, normalized_statement} <- validate_statement(statement),
+         {:ok, normalized_statement} <- validate_statement(statement, allow_system_tables?),
          result_limit = limit + 1,
          {:ok, payload} <-
-           run_query(bound_statement(command, normalized_statement, result_limit), params, result_limit) do
+           run_query(bound_statement(normalized_statement, result_limit), params, result_limit) do
       {:ok, build_result(payload, limit)}
     end
   end
@@ -53,7 +101,7 @@ defmodule Tuist.Ops.ClickHouse do
     ORDER BY size_bytes DESC, name
     """
 
-    with {:ok, result} <- execute(statement) do
+    with {:ok, result} <- execute(statement, allow_system_tables: true) do
       {:ok, result.rows}
     end
   end
@@ -81,7 +129,8 @@ defmodule Tuist.Ops.ClickHouse do
              params: %{
                "database" => database,
                "table" => name
-             }
+             },
+             allow_system_tables: true
            ) do
       {:ok, result.rows}
     end
@@ -104,6 +153,7 @@ defmodule Tuist.Ops.ClickHouse do
                "database" => database,
                "table" => name
              },
+             allow_system_tables: true,
              limit: 1
            ) do
       {:ok, matching_tables > 0}
@@ -113,38 +163,39 @@ defmodule Tuist.Ops.ClickHouse do
   defp validate_params(params) when is_map(params), do: :ok
   defp validate_params(_params), do: {:error, "Query parameters must be an object"}
 
-  defp validate_statement(statement) when is_binary(statement) do
+  defp validate_statement(statement, allow_system_tables?) when is_binary(statement) do
     normalized_statement = statement |> String.trim() |> String.trim_trailing(";") |> String.trim()
+    validation_statement = statement_for_validation(normalized_statement)
 
     cond do
       normalized_statement == "" ->
         {:error, "Empty query"}
 
+      prohibited_table_function?(validation_statement) ->
+        {:error, "External and cluster table functions are not allowed"}
+
+      not allow_system_tables? and Regex.match?(@restricted_database_pattern, validation_statement) ->
+        {:error, "System metadata tables are not available through the query endpoint"}
+
+      Regex.match?(@unsupported_output_clause_pattern, normalized_statement) ->
+        {:error, "FORMAT and INTO OUTFILE clauses are not supported"}
+
       Regex.match?(~r/^select\b/i, normalized_statement) ->
-        {:ok, :select, normalized_statement}
+        {:ok, normalized_statement}
 
       Regex.match?(~r/^with\b/i, normalized_statement) ->
-        {:ok, :select, normalized_statement}
-
-      Regex.match?(~r/^explain\b/i, normalized_statement) ->
-        {:ok, :metadata, normalized_statement}
-
-      Regex.match?(~r/^show\b/i, normalized_statement) ->
-        {:ok, :metadata, normalized_statement}
-
-      Regex.match?(~r/^describe\b/i, normalized_statement) ->
-        {:ok, :metadata, normalized_statement}
+        {:ok, normalized_statement}
 
       true ->
-        {:error, "Only SELECT, WITH, EXPLAIN, SHOW, and DESCRIBE statements are allowed"}
+        {:error, "Only SELECT and WITH statements are allowed"}
     end
   end
 
-  defp validate_statement(_statement), do: {:error, "Query must be a string"}
+  defp validate_statement(_statement, _allow_system_tables?), do: {:error, "Query must be a string"}
 
   # An outer limit bounds the response without trying to parse or rewrite the
   # caller's own LIMIT, UNION, SETTINGS, or nested query clauses.
-  defp bound_statement(:select, statement, result_limit) do
+  defp bound_statement(statement, result_limit) do
     """
     SELECT *
     FROM (
@@ -153,8 +204,6 @@ defmodule Tuist.Ops.ClickHouse do
     LIMIT #{result_limit}
     """
   end
-
-  defp bound_statement(:metadata, statement, _result_limit), do: statement
 
   defp run_query(statement, params, result_limit) do
     settings = [
@@ -165,12 +214,21 @@ defmodule Tuist.Ops.ClickHouse do
       max_bytes_to_read: @max_bytes_to_read,
       max_threads: @max_threads,
       max_result_rows: result_limit,
+      max_result_bytes: @max_result_bytes,
       max_block_size: result_limit,
-      result_overflow_mode: "break",
+      result_overflow_mode: "throw",
       output_format_json_quote_64bit_integers: 0
     ]
 
-    case ClickHouseRepo.query(statement, params,
+    if Process.whereis(OpsClickHouseRepo) do
+      do_run_query(statement, params, settings)
+    else
+      {:error, :unavailable}
+    end
+  end
+
+  defp do_run_query(statement, params, settings) do
+    case OpsClickHouseRepo.query(statement, params,
            settings: settings,
            timeout: @request_timeout_milliseconds,
            format: "JSONCompact",
@@ -186,25 +244,60 @@ defmodule Tuist.Ops.ClickHouse do
         {:error, :unavailable}
 
       {:error, error} ->
-        {:error, Exception.message(error)}
+        log_query_failure(error)
+        {:error, :query_failed}
     end
   rescue
     _error in [DBConnection.ConnectionError, Mint.TransportError] ->
       {:error, :unavailable}
+
+    error ->
+      log_query_failure(error)
+      {:error, :query_failed}
+  catch
+    :exit, reason ->
+      Logger.warning("Internal ClickHouse query process exited: #{inspect(reason)}")
+      {:error, :unavailable}
   end
 
   defp decode_result(data) do
+    if IO.iodata_length(data) > @max_result_bytes do
+      {:error, :result_too_large}
+    else
+      decode_bounded_result(data)
+    end
+  end
+
+  defp decode_bounded_result(data) do
     case data |> IO.iodata_to_binary() |> JSON.decode() do
       {:ok, %{"meta" => metadata, "data" => rows}} when is_list(metadata) and is_list(rows) ->
         columns = Enum.map(metadata, &Map.fetch!(&1, "name"))
         {:ok, %{columns: columns, rows: rows}}
 
       {:ok, _payload} ->
-        {:error, "ClickHouse returned an unexpected response"}
+        Logger.warning("Internal ClickHouse query returned an unexpected response")
+        {:error, :query_failed}
 
-      {:error, _reason} ->
-        {:error, "ClickHouse returned a response that could not be decoded"}
+      {:error, reason} ->
+        Logger.warning("Internal ClickHouse response decoding failed: #{inspect(reason)}")
+        {:error, :query_failed}
     end
+  end
+
+  defp log_query_failure(error) do
+    Logger.warning("Internal ClickHouse query failed: #{inspect(error)}")
+  end
+
+  defp statement_for_validation(statement) do
+    statement
+    |> String.replace(~r/--[^\n]*(?:\n|$)/, "")
+    |> String.replace(~r/\/\*.*?\*\//s, "")
+    |> String.replace(["`", "\""], "")
+    |> String.downcase()
+  end
+
+  defp prohibited_table_function?(statement) do
+    Enum.any?(@prohibited_table_function_patterns, &Regex.match?(&1, statement))
   end
 
   defp build_result(%{columns: columns, rows: rows}, limit) do

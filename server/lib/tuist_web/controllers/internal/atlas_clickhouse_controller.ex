@@ -25,6 +25,12 @@ defmodule TuistWeb.Internal.AtlasClickHouseController do
       {:error, :unavailable} ->
         conn |> put_status(:service_unavailable) |> json(%{error: "clickhouse_unavailable"})
 
+      {:error, :query_failed} ->
+        conn |> put_status(:unprocessable_entity) |> json(%{error: "query_failed"})
+
+      {:error, :result_too_large} ->
+        conn |> put_status(:unprocessable_entity) |> json(%{error: "result_too_large"})
+
       {:error, reason} ->
         conn |> put_status(:unprocessable_entity) |> json(%{error: to_string(reason)})
     end
@@ -42,6 +48,12 @@ defmodule TuistWeb.Internal.AtlasClickHouseController do
       {:error, :unavailable} ->
         conn |> put_status(:service_unavailable) |> json(%{error: "clickhouse_unavailable"})
 
+      {:error, :query_failed} ->
+        conn |> put_status(:unprocessable_entity) |> json(%{error: "query_failed"})
+
+      {:error, :result_too_large} ->
+        conn |> put_status(:unprocessable_entity) |> json(%{error: "result_too_large"})
+
       {:error, reason} ->
         conn |> put_status(:unprocessable_entity) |> json(%{error: to_string(reason)})
     end
@@ -57,6 +69,12 @@ defmodule TuistWeb.Internal.AtlasClickHouseController do
 
       {:error, :unavailable} ->
         conn |> put_status(:service_unavailable) |> json(%{error: "clickhouse_unavailable"})
+
+      {:error, :query_failed} ->
+        conn |> put_status(:unprocessable_entity) |> json(%{error: "query_failed"})
+
+      {:error, :result_too_large} ->
+        conn |> put_status(:unprocessable_entity) |> json(%{error: "result_too_large"})
 
       {:error, reason} ->
         conn |> put_status(:unprocessable_entity) |> json(%{error: to_string(reason)})
