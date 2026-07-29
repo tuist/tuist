@@ -87,7 +87,7 @@ struct ShardServiceTests {
         given(getShardService).getShard(
             fullHandle: .any,
             serverURL: .any,
-            reference: .value("ci-derived-ref"),
+            reference: .value("circleci-ci-derived-ref"),
             shardPlanId: .value(nil),
             shardIndex: .value(0)
         ).willReturn(
@@ -117,7 +117,7 @@ struct ShardServiceTests {
             testProductsArchivePath: nil
         )
 
-        #expect(shard.reference == "ci-derived-ref")
+        #expect(shard.reference == "circleci-ci-derived-ref")
     }
 
     // MARK: - shard() with local test products path
