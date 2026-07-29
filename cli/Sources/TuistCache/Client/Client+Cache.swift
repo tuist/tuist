@@ -13,17 +13,26 @@ extension Client {
     ///   - session: Optional URLSession override. The CAS path passes a
     ///     short-timeout session so a hung backend fails fast; other callers use
     ///     the shared session.
+    ///   - retriesTransportErrors: Whether the retry middleware retries thrown transport
+    ///     errors, including timeouts. Defaults to `true` so ordinary cache GETs retry
+    ///     transient failures. The CAS download path passes `false` so a hung backend
+    ///     reaches the circuit breaker through the short `.tuistCAS` timeout instead of
+    ///     being replayed. Retryable HTTP responses such as 503 keep retrying either way.
     public static func authenticated(
         cacheURL: URL,
         authenticationURL: URL,
         serverAuthenticationController: ServerAuthenticationControlling,
-        session: URLSession? = nil
+        session: URLSession? = nil,
+        retriesTransportErrors: Bool = true
     ) -> Client {
         .init(
             serverURL: cacheURL,
             transport: TuistURLSessionTransport(session: session),
             middlewares: HARRecordingMiddlewareFactory.middlewares() + [
-                RetryMiddleware(retryableRequestMethods: ["GET"]),
+                RetryMiddleware(
+                    retryableRequestMethods: ["GET"],
+                    retriesTransportErrors: retriesTransportErrors
+                ),
                 RequestIdMiddleware(),
                 CacheClientAuthenticationMiddleware(
                     authenticationURL: authenticationURL,
