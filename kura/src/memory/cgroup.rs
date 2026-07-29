@@ -7,6 +7,7 @@ pub struct ContainerMemorySnapshot {
     pub kernel_bytes: Option<u64>,
     pub inactive_file_bytes: Option<u64>,
     pub shmem_bytes: Option<u64>,
+    pub sock_bytes: Option<u64>,
     pub file_dirty_bytes: Option<u64>,
     pub file_writeback_bytes: Option<u64>,
     pub max_events: Option<u64>,
@@ -31,6 +32,7 @@ struct MemoryPressureComponents {
     file_bytes: Option<u64>,
     kernel_bytes: Option<u64>,
     shmem_bytes: Option<u64>,
+    sock_bytes: Option<u64>,
     file_dirty_bytes: Option<u64>,
     file_writeback_bytes: Option<u64>,
     inactive_file_bytes: Option<u64>,
@@ -48,6 +50,7 @@ impl ContainerMemorySnapshot {
             file_bytes: self.file_bytes,
             kernel_bytes: self.kernel_bytes,
             shmem_bytes: self.shmem_bytes,
+            sock_bytes: self.sock_bytes,
             file_dirty_bytes: self.file_dirty_bytes,
             file_writeback_bytes: self.file_writeback_bytes,
             inactive_file_bytes: self.inactive_file_bytes,
@@ -78,6 +81,7 @@ pub fn container_memory_pressure_sample() -> Option<ContainerMemoryPressureSampl
                     file_bytes: named_value(&stat, "file"),
                     kernel_bytes: named_value(&stat, "kernel"),
                     shmem_bytes: named_value(&stat, "shmem"),
+                    sock_bytes: named_value(&stat, "sock"),
                     file_dirty_bytes: named_value(&stat, "file_dirty"),
                     file_writeback_bytes: named_value(&stat, "file_writeback"),
                     inactive_file_bytes: Some(reclaimable_inactive_file_bytes),
@@ -110,6 +114,7 @@ pub fn container_memory_pressure_sample() -> Option<ContainerMemoryPressureSampl
                 file_bytes: named_value(&stat, "cache"),
                 kernel_bytes: None,
                 shmem_bytes: named_value(&stat, "total_shmem"),
+                sock_bytes: None,
                 file_dirty_bytes: named_value(&stat, "total_dirty"),
                 file_writeback_bytes: named_value(&stat, "total_writeback"),
                 inactive_file_bytes: Some(reclaimable_inactive_file_bytes),
@@ -140,14 +145,21 @@ fn pressure_bytes(components: MemoryPressureComponents) -> u64 {
         file_bytes,
         kernel_bytes,
         shmem_bytes,
+        sock_bytes,
         file_dirty_bytes,
         file_writeback_bytes,
         inactive_file_bytes,
     } = components;
     if let (Some(anon_bytes), Some(kernel_bytes)) = (anon_bytes, kernel_bytes) {
+        // `sock` (network transmission buffers) is charged separately from `anon`,
+        // `kernel`, and the file rows in cgroup v2 `memory.stat`, so it has to be added
+        // back explicitly. The old `current - inactive_file` signal counted it, and a node
+        // streaming to many slow clients can hold a meaningful amount of it. The v1 and
+        // working-set fallbacks below keep it implicitly through `current`.
         return anon_bytes
             .saturating_add(kernel_bytes)
             .saturating_add(shmem_bytes.unwrap_or(0))
+            .saturating_add(sock_bytes.unwrap_or(0))
             .saturating_add(file_dirty_bytes.unwrap_or(0))
             .saturating_add(file_writeback_bytes.unwrap_or(0))
             .min(current_bytes);
@@ -179,6 +191,7 @@ pub fn container_memory_snapshot() -> Option<ContainerMemorySnapshot> {
                 kernel_bytes: named_value(&stat, "kernel"),
                 inactive_file_bytes: named_value(&stat, "inactive_file"),
                 shmem_bytes: named_value(&stat, "shmem"),
+                sock_bytes: named_value(&stat, "sock"),
                 file_dirty_bytes: named_value(&stat, "file_dirty"),
                 file_writeback_bytes: named_value(&stat, "file_writeback"),
                 max_events: events
@@ -206,6 +219,7 @@ pub fn container_memory_snapshot() -> Option<ContainerMemorySnapshot> {
             kernel_bytes: None,
             inactive_file_bytes: named_value(&stat, "total_inactive_file"),
             shmem_bytes: named_value(&stat, "total_shmem"),
+            sock_bytes: None,
             file_dirty_bytes: named_value(&stat, "total_dirty"),
             file_writeback_bytes: named_value(&stat, "total_writeback"),
             max_events: events
@@ -312,6 +326,7 @@ mod tests {
             kernel_bytes: Some(100),
             inactive_file_bytes: Some(250),
             shmem_bytes: Some(25),
+            sock_bytes: Some(15),
             file_dirty_bytes: Some(10),
             file_writeback_bytes: Some(5),
             max_events: Some(2),
@@ -321,7 +336,7 @@ mod tests {
         };
 
         assert_eq!(snapshot.working_set_bytes(), 750);
-        assert_eq!(snapshot.pressure_bytes(), 600 + 100 + 25 + 10 + 5);
+        assert_eq!(snapshot.pressure_bytes(), 600 + 100 + 25 + 15 + 10 + 5);
         assert_eq!(snapshot.reclaimable_inactive_file_bytes(), 250);
     }
 
@@ -334,6 +349,7 @@ mod tests {
                 file_bytes: Some(700),
                 kernel_bytes: Some(40),
                 shmem_bytes: Some(25),
+                sock_bytes: None,
                 file_dirty_bytes: Some(10),
                 file_writeback_bytes: Some(5),
                 inactive_file_bytes: Some(50),
@@ -347,11 +363,44 @@ mod tests {
                 file_bytes: Some(700),
                 kernel_bytes: Some(40),
                 shmem_bytes: Some(25),
+                sock_bytes: None,
                 file_dirty_bytes: Some(10),
                 file_writeback_bytes: Some(5),
                 inactive_file_bytes: Some(650),
             }),
             380
+        );
+    }
+
+    #[test]
+    fn pressure_includes_socket_buffers_without_exceeding_current() {
+        assert_eq!(
+            pressure_bytes(MemoryPressureComponents {
+                current_bytes: 1_000,
+                anon_bytes: Some(300),
+                file_bytes: Some(700),
+                kernel_bytes: Some(40),
+                shmem_bytes: Some(25),
+                sock_bytes: Some(60),
+                file_dirty_bytes: Some(10),
+                file_writeback_bytes: Some(5),
+                inactive_file_bytes: Some(50),
+            }),
+            440
+        );
+        assert_eq!(
+            pressure_bytes(MemoryPressureComponents {
+                current_bytes: 300,
+                anon_bytes: Some(100),
+                file_bytes: Some(50),
+                kernel_bytes: Some(40),
+                shmem_bytes: Some(60),
+                sock_bytes: Some(200),
+                file_dirty_bytes: Some(10),
+                file_writeback_bytes: Some(5),
+                inactive_file_bytes: Some(50),
+            }),
+            300
         );
     }
 
@@ -364,6 +413,7 @@ mod tests {
                 file_bytes: Some(1_500),
                 kernel_bytes: Some(40),
                 shmem_bytes: None,
+                sock_bytes: None,
                 file_dirty_bytes: None,
                 file_writeback_bytes: None,
                 inactive_file_bytes: Some(50),
@@ -377,6 +427,7 @@ mod tests {
                 file_bytes: Some(100),
                 kernel_bytes: Some(40),
                 shmem_bytes: None,
+                sock_bytes: None,
                 file_dirty_bytes: None,
                 file_writeback_bytes: None,
                 inactive_file_bytes: Some(300),
@@ -394,6 +445,7 @@ mod tests {
                 file_bytes: None,
                 kernel_bytes: None,
                 shmem_bytes: None,
+                sock_bytes: None,
                 file_dirty_bytes: None,
                 file_writeback_bytes: None,
                 inactive_file_bytes: Some(250),
@@ -411,6 +463,7 @@ mod tests {
                 file_bytes: Some(200),
                 kernel_bytes: None,
                 shmem_bytes: Some(150),
+                sock_bytes: None,
                 file_dirty_bytes: Some(100),
                 file_writeback_bytes: Some(50),
                 inactive_file_bytes: Some(100),

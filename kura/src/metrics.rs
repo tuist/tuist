@@ -807,7 +807,7 @@ impl Metrics {
         );
         registry.register(
             "kura_container_memory_pressure_bytes",
-            "Container memory charge excluding clean file-backed cache, used to drive Kura pressure state",
+            "Container memory charge excluding clean file-backed cache",
             container_memory_pressure_bytes.clone(),
         );
         registry.register(
@@ -2512,6 +2512,7 @@ mod tests {
                 kernel_bytes: Some(200),
                 inactive_file_bytes: Some(100),
                 shmem_bytes: Some(50),
+                sock_bytes: Some(30),
                 file_dirty_bytes: Some(20),
                 file_writeback_bytes: Some(10),
                 max_events: Some(4),
