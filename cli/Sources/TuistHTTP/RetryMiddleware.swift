@@ -77,7 +77,7 @@ public struct RetryMiddleware: ClientMiddleware {
         else {
             return policyDelay
         }
-        let milliseconds = seconds.multipliedReportingOverflow(by: 1_000)
+        let milliseconds = seconds.multipliedReportingOverflow(by: 1000)
         let boundedMilliseconds = milliseconds.overflow
             ? HTTPRetryPolicy.maximumDelayMilliseconds
             : min(milliseconds.partialValue, HTTPRetryPolicy.maximumDelayMilliseconds)
