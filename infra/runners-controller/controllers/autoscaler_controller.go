@@ -236,13 +236,12 @@ func (r *AutoscalerReconciler) desiredForPool(
 	// Publish the allocation outcome so the warm-pool squeeze (target
 	// reaped down to `allocated` under fleet contention) is observable
 	// on its own series, not inferred from alive-vs-desired.
-	metrics.RecordAllocation(pool.Name, signals.Claimed+signals.Queued, knobs.MinWarmPoolFloor, perPool, allocated)
+	metrics.RecordAllocation(pool.Name, signals.Load(), knobs.MinWarmPoolFloor, perPool, allocated)
 
 	// Publish the demand signals unsummed as well. The allocator only
-	// needs claimed+queued, but that sum is flat while work drains
-	// normally (queued -> claimed), so it cannot distinguish a pool
-	// serving its backlog from one wedged with the same backlog.
-	metrics.RecordDemand(pool.Name, signals.Claimed, signals.Queued)
+	// needs occupied+queued, but the split shows both dispatch progress
+	// (queued -> claimed) and the post-job tail (claimed -> occupied).
+	metrics.RecordDemand(pool.Name, signals.Claimed, signals.CurrentOccupancy(), signals.Queued)
 
 	return allocated
 }
@@ -393,7 +392,7 @@ func (r *AutoscalerReconciler) gatherFleetDemands(
 			Name:       p.Name,
 			PerPodCost: cost,
 			Floor:      k.MinWarmPoolFloor,
-			Load:       sig.Claimed + sig.Queued,
+			Load:       sig.Load(),
 			Target:     scaling.DesiredReplicas(sig, k),
 		})
 	}

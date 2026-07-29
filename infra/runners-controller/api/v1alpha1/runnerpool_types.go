@@ -183,14 +183,15 @@ type RunnerPoolAutoscaling struct {
 	Enabled bool `json:"enabled,omitempty"`
 
 	// MinWarmPoolFloor is the preferred lower bound (target) for the
-	// desired warm pool size; the server's rolling p95 of concurrent
-	// claims can lift the effective target higher. It is a target, not
-	// a hard floor: in a shared Linux fleet (multiple shape pools
-	// bin-packing on one bare-metal node pool), the fleet allocator can
+	// desired warm pool size; the server's rolling 95th percentile of
+	// occupied runner sessions can lift the effective target higher. It
+	// is a target, not a hard floor: in a shared Linux fleet (multiple
+	// shape pools bin-packing on one bare-metal node pool), the fleet
+	// allocator can
 	// squeeze an idle pool's desired below this value under memory
 	// contention to admit another shape's real queued work. macOS pools
 	// and uncontended Linux pools honor it as a floor; real load
-	// (claimed + queued) is always funded above it.
+	// (occupied runners + queued jobs) is always funded above it.
 	//
 	// Pointer so a deliberate 0 ("this pool holds no warm capacity")
 	// survives serialization; nil means unset and defaults to 1. Read
